@@ -43,6 +43,66 @@ except ImportError:
 
 # Database URLs
 POSTGRES_PASSWORD = os.getenv('POSTGRES_PASSWORD', 'password')
+
+
+def extract_state_from_org_id(org_id: str) -> Optional[str]:
+    """
+    Extract state code from org_id pattern.
+    
+    Many org_ids end with _XX where XX is a 2-letter state code.
+    Examples:
+        org_clayton_county_commission_al → AL
+        org_auburn_city_council_al → AL
+        org_sacramento_county_ca → CA
+    """
+    if not org_id:
+        return None
+    
+    import re
+    # Match _XX pattern at end where XX is 2 letters
+    match = re.search(r'_([a-z]{2})$', org_id.lower())
+    if match:
+        return match.group(1).upper()
+    return None
+
+
+def normalize_org_name(name: str) -> str:
+    """
+    Normalize organization name for MDM matching.
+    
+    - Convert to lowercase
+    - Remove common suffixes (Commission, Council, Board, etc.)
+    - Remove punctuation
+    - Collapse whitespace
+    
+    Examples:
+        "Clayton County Commission" → "clayton county"
+        "Auburn City Council" → "auburn city"
+    """
+    if not name:
+        return ""
+    
+    import re
+    
+    normalized = name.lower().strip()
+    
+    # Remove common government suffixes
+    suffixes = [
+        'commission', 'county commission', 'city commission',
+        'council', 'city council', 'county council', 'town council',
+        'board', 'school board', 'board of education',
+        'department', 'authority', 'agency'
+    ]
+    
+    for suffix in suffixes:
+        if normalized.endswith(' ' + suffix):
+            normalized = normalized[:-len(suffix)-1]
+    
+    # Remove punctuation and collapse whitespace
+    normalized = re.sub(r'[^\w\s]', ' ', normalized)
+    normalized = re.sub(r'\s+', ' ', normalized).strip()
+    
+    return normalized
 NEON_DATABASE_URL = os.getenv('NEON_DATABASE_URL_DEV', f'postgresql://postgres:{POSTGRES_PASSWORD}@localhost:5433/open_navigator')
 LOCAL_DATABASE_URL = os.getenv('LOCAL_BRONZE_DATABASE_URL', f'postgresql://postgres:{POSTGRES_PASSWORD}@localhost:5433/open_navigator_bronze')
 
@@ -116,13 +176,16 @@ class BronzeExtractor:
             UNIQUE(source_event_id, person_id)
         );
         
-        -- Bronze Organizations
-        CREATE TABLE IF NOT EXISTS bronze_organizations (
+        -- Bronze Organizations from Meetings
+        -- Deduplicated by (org_name, state_code) for proper MDM
+        CREATE TABLE IF NOT EXISTS bronze_organizations_meetings (
             id SERIAL PRIMARY KEY,
             source_event_id INTEGER,
             source_ai_model VARCHAR(100),
-            org_id VARCHAR(255),
-            org_name VARCHAR(255),
+            org_id VARCHAR(255),  -- AI-generated ID (may vary)
+            org_name VARCHAR(255) NOT NULL,
+            org_name_normalized VARCHAR(255),  -- Lowercase, stripped for matching
+            state_code VARCHAR(2),  -- Extracted from event jurisdiction
             org_type VARCHAR(100),
             org_subtype VARCHAR(100),
             is_lobbyist_entity BOOLEAN DEFAULT FALSE,
@@ -136,8 +199,13 @@ class BronzeExtractor:
             role_in_meeting TEXT,
             financial_interest TEXT,
             extracted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(source_event_id, org_id)
+            last_seen_event_id INTEGER,
+            first_seen_event_id INTEGER
         );
+        
+        -- Create unique index that handles NULL state_code
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_bronze_orgs_unique_name_state 
+            ON bronze_organizations_meetings(org_name_normalized, COALESCE(state_code, ''));
         
         -- Bronze Bills/Legislation
         CREATE TABLE IF NOT EXISTS bronze_bills (
@@ -219,18 +287,22 @@ class BronzeExtractor:
             primary_org_ids JSONB,
             topic VARCHAR(255),
             headline TEXT,
-            extracted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            extracted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(source_event_id, decision_id)
         );
         
         -- Bronze Causes (underlying causes from decisions)
+        -- Deduplicated by cause_headline to keep most recent occurrence
         CREATE TABLE IF NOT EXISTS bronze_causes (
             id SERIAL PRIMARY KEY,
             source_event_id INTEGER,
             source_ai_model VARCHAR(100),
             decision_id VARCHAR(255),
-            cause_headline VARCHAR(255),
+            cause_headline VARCHAR(255) UNIQUE,  -- One record per cause
             cause_detail TEXT,
-            extracted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            extracted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            last_seen_event_id INTEGER,  -- Track most recent occurrence
+            first_seen_event_id INTEGER  -- Track first occurrence
         );
         
         -- Bronze Financial Items
@@ -261,8 +333,10 @@ class BronzeExtractor:
         -- Create indexes
         CREATE INDEX IF NOT EXISTS idx_bronze_contacts_event ON bronze_contacts(source_event_id);
         CREATE INDEX IF NOT EXISTS idx_bronze_contacts_person ON bronze_contacts(person_id);
-        CREATE INDEX IF NOT EXISTS idx_bronze_orgs_event ON bronze_organizations(source_event_id);
-        CREATE INDEX IF NOT EXISTS idx_bronze_orgs_org ON bronze_organizations(org_id);
+        CREATE INDEX IF NOT EXISTS idx_bronze_orgs_event ON bronze_organizations_meetings(source_event_id);
+        CREATE INDEX IF NOT EXISTS idx_bronze_orgs_state ON bronze_organizations_meetings(state_code);
+        CREATE INDEX IF NOT EXISTS idx_bronze_orgs_name ON bronze_organizations_meetings(org_name_normalized);
+        CREATE INDEX IF NOT EXISTS idx_bronze_orgs_last_event ON bronze_organizations_meetings(last_seen_event_id);
         CREATE INDEX IF NOT EXISTS idx_bronze_bills_event ON bronze_bills(source_event_id);
         CREATE INDEX IF NOT EXISTS idx_bronze_decisions_event ON bronze_decisions(source_event_id);
         CREATE INDEX IF NOT EXISTS idx_bronze_decisions_decision ON bronze_decisions(decision_id);
@@ -350,11 +424,17 @@ class BronzeExtractor:
             
             # Extract organizations
             for org in data.get('organizations', []):
+                org_id = org.get('org_id', '')
+                org_name = org.get('org_name', '')
+                state_code = extract_state_from_org_id(org_id)  # Extract from org_id pattern
+                
                 orgs_data.append((
                     event_id,
                     ai_model,
-                    org.get('org_id'),
-                    org.get('org_name'),
+                    org_id,
+                    org_name,
+                    normalize_org_name(org_name),  # Normalized for matching
+                    state_code,  # Extracted from org_id
                     org.get('org_type'),
                     org.get('org_subtype'),
                     org.get('is_lobbyist_entity', False),
@@ -366,7 +446,9 @@ class BronzeExtractor:
                     org.get('ntee_category_label'),
                     org.get('ntee_code'),
                     org.get('role_in_meeting'),
-                    org.get('financial_interest')
+                    org.get('financial_interest'),
+                    event_id,  # last_seen_event_id
+                    event_id   # first_seen_event_id
                 ))
             
             # Extract legislation
@@ -454,7 +536,9 @@ class BronzeExtractor:
                         ai_model,
                         decision.get('decision_id'),
                         cause.get('headline'),
-                        cause.get('detail')
+                        cause.get('detail'),
+                        event_id,  # last_seen_event_id
+                        event_id   # first_seen_event_id
                     ))
             
             # Extract financial items
@@ -493,7 +577,7 @@ class BronzeExtractor:
                             org_id, party_affiliation, is_lobbyist, lobbyist_registration_number,
                             lobbyist_clients, wikidata_qid, appeared_as
                         ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (source_event_id, person_id, source_ai_model) 
+                        ON CONFLICT (source_event_id, person_id) 
                         DO UPDATE SET
                             full_name = EXCLUDED.full_name,
                             role = EXCLUDED.role,
@@ -508,33 +592,42 @@ class BronzeExtractor:
                     """, contacts_data)
                     logger.info(f"✅ Inserted/updated {len(contacts_data)} contacts")
                 
-                # Insert organizations
+                # Insert organizations with smart merge logic
+                # Deduplicates by (org_name_normalized, state_code) for proper MDM
                 if orgs_data:
                     execute_batch(cur, """
-                        INSERT INTO bronze_organizations (
-                            source_event_id, source_ai_model, org_id, org_name, org_type,
-                            org_subtype, is_lobbyist_entity, lobbying_clients, party_affiliation,
-                            ein, wikidata_qid, ntee_major_group, ntee_category_label,
-                            ntee_code, role_in_meeting, financial_interest
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (source_event_id, org_id, source_ai_model) 
+                        INSERT INTO bronze_organizations_meetings (
+                            source_event_id, source_ai_model, org_id, org_name, org_name_normalized,
+                            state_code, org_type, org_subtype, is_lobbyist_entity, lobbying_clients,
+                            party_affiliation, ein, wikidata_qid, ntee_major_group,
+                            ntee_category_label, ntee_code, role_in_meeting, financial_interest,
+                            last_seen_event_id, first_seen_event_id
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (org_name_normalized, COALESCE(state_code, '')) 
                         DO UPDATE SET
-                            org_name = EXCLUDED.org_name,
-                            org_type = EXCLUDED.org_type,
-                            org_subtype = EXCLUDED.org_subtype,
-                            is_lobbyist_entity = EXCLUDED.is_lobbyist_entity,
-                            lobbying_clients = EXCLUDED.lobbying_clients,
-                            party_affiliation = EXCLUDED.party_affiliation,
-                            ein = EXCLUDED.ein,
-                            wikidata_qid = EXCLUDED.wikidata_qid,
-                            ntee_major_group = EXCLUDED.ntee_major_group,
-                            ntee_category_label = EXCLUDED.ntee_category_label,
-                            ntee_code = EXCLUDED.ntee_code,
+                            -- Keep most recent non-null values (COALESCE prioritizes new values)
+                            org_id = COALESCE(EXCLUDED.org_id, bronze_organizations_meetings.org_id),
+                            org_name = COALESCE(EXCLUDED.org_name, bronze_organizations_meetings.org_name),
+                            org_type = COALESCE(EXCLUDED.org_type, bronze_organizations_meetings.org_type),
+                            org_subtype = COALESCE(EXCLUDED.org_subtype, bronze_organizations_meetings.org_subtype),
+                            is_lobbyist_entity = COALESCE(EXCLUDED.is_lobbyist_entity, bronze_organizations_meetings.is_lobbyist_entity),
+                            lobbying_clients = COALESCE(EXCLUDED.lobbying_clients, bronze_organizations_meetings.lobbying_clients),
+                            party_affiliation = COALESCE(EXCLUDED.party_affiliation, bronze_organizations_meetings.party_affiliation),
+                            ein = COALESCE(EXCLUDED.ein, bronze_organizations_meetings.ein),
+                            wikidata_qid = COALESCE(EXCLUDED.wikidata_qid, bronze_organizations_meetings.wikidata_qid),
+                            ntee_major_group = COALESCE(EXCLUDED.ntee_major_group, bronze_organizations_meetings.ntee_major_group),
+                            ntee_category_label = COALESCE(EXCLUDED.ntee_category_label, bronze_organizations_meetings.ntee_category_label),
+                            ntee_code = COALESCE(EXCLUDED.ntee_code, bronze_organizations_meetings.ntee_code),
+                            -- Role and financial interest are meeting-specific, keep latest
                             role_in_meeting = EXCLUDED.role_in_meeting,
                             financial_interest = EXCLUDED.financial_interest,
+                            -- Update tracking fields
+                            last_seen_event_id = EXCLUDED.source_event_id,
+                            source_event_id = EXCLUDED.source_event_id,
+                            source_ai_model = EXCLUDED.source_ai_model,
                             extracted_at = CURRENT_TIMESTAMP
                     """, orgs_data)
-                    logger.info(f"✅ Inserted/updated {len(orgs_data)} organizations")
+                    logger.info(f"✅ Inserted/updated {len(orgs_data)} organizations (deduplicated by org_name + state)")
                 
                 # Insert bills
                 if bills_data:
@@ -543,7 +636,7 @@ class BronzeExtractor:
                             source_event_id, source_ai_model, leg_id, leg_type, official_number,
                             title, jurisdiction, year, status, relevance, url
                         ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (source_event_id, leg_id, source_ai_model) 
+                        ON CONFLICT (source_event_id, leg_id) 
                         DO UPDATE SET
                             leg_type = EXCLUDED.leg_type,
                             official_number = EXCLUDED.official_number,
@@ -571,7 +664,7 @@ class BronzeExtractor:
                             tradeoffs, underlying_causes, power_map, frame_analysis,
                             legislation_refs, financial_item_refs
                         ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (source_event_id, decision_id, source_ai_model) 
+                        ON CONFLICT (source_event_id, decision_id) 
                         DO UPDATE SET
                             subject_id = EXCLUDED.subject_id,
                             agenda_item = EXCLUDED.agenda_item,
@@ -620,7 +713,7 @@ class BronzeExtractor:
                             secondary_ntee_code, secondary_ntee_major_group, secondary_ntee_category_label,
                             primary_org_ids, topic, headline
                         ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (source_event_id, decision_id, source_ai_model)
+                        ON CONFLICT (source_event_id, decision_id) 
                         DO UPDATE SET
                             primary_theme = EXCLUDED.primary_theme,
                             primary_theme_cofog = EXCLUDED.primary_theme_cofog,
@@ -639,19 +732,24 @@ class BronzeExtractor:
                     """, topics_data)
                     logger.info(f"✅ Inserted/updated {len(topics_data)} topics")
                 
-                # Insert causes
+                # Insert causes with smart merge (keep most recent per cause_headline)
                 if causes_data:
                     execute_batch(cur, """
                         INSERT INTO bronze_causes (
                             source_event_id, source_ai_model, decision_id,
-                            cause_headline, cause_detail
-                        ) VALUES (%s, %s, %s, %s, %s)
-                        ON CONFLICT (source_event_id, decision_id, cause_headline, source_ai_model)
+                            cause_headline, cause_detail, last_seen_event_id, first_seen_event_id
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (cause_headline)
                         DO UPDATE SET
-                            cause_detail = EXCLUDED.cause_detail,
+                            -- Keep most recent non-null values
+                            cause_detail = COALESCE(EXCLUDED.cause_detail, bronze_causes.cause_detail),
+                            decision_id = EXCLUDED.decision_id,
+                            source_event_id = EXCLUDED.source_event_id,
+                            source_ai_model = EXCLUDED.source_ai_model,
+                            last_seen_event_id = EXCLUDED.source_event_id,
                             extracted_at = CURRENT_TIMESTAMP
                     """, causes_data)
-                    logger.info(f"✅ Inserted/updated {len(causes_data)} underlying causes")
+                    logger.info(f"✅ Inserted/updated {len(causes_data)} causes (deduplicated by cause_headline)")
                 
                 # Insert financial items
                 if financial_data:
@@ -662,7 +760,7 @@ class BronzeExtractor:
                             amount_qualifier, currency, item_date, item_date_type, org_id,
                             org_role, authorized_by_person_id, funding_source, notes
                         ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (source_event_id, financial_item_id, source_ai_model) 
+                        ON CONFLICT (source_event_id, financial_item_id) 
                         DO UPDATE SET
                             decision_id = EXCLUDED.decision_id,
                             subject_id = EXCLUDED.subject_id,
@@ -694,7 +792,7 @@ class BronzeExtractor:
         SELECT 
             'bronze_contacts' as table_name, COUNT(*) as count FROM bronze_contacts
         UNION ALL
-        SELECT 'bronze_organizations', COUNT(*) FROM bronze_organizations
+        SELECT 'bronze_organizations_meetings', COUNT(*) FROM bronze_organizations_meetings
         UNION ALL
         SELECT 'bronze_bills', COUNT(*) FROM bronze_bills
         UNION ALL

@@ -7,7 +7,7 @@ into production search tables with deduplication and entity resolution.
 
 Bronze Tables (Source):
 - bronze_contacts
-- bronze_organizations  
+- bronze_organizations_meetings  
 - bronze_bills
 - bronze_decisions
 - bronze_financial_items
@@ -365,7 +365,7 @@ class BronzeToProductionMerger:
             conn.commit()
     
     def merge_organizations(self):
-        """Merge bronze_organizations → organizations_nonprofit_search"""
+        """Merge bronze_organizations_meetings → organizations_nonprofit_search"""
         logger.info("=" * 70)
         logger.info("MERGING ORGANIZATIONS")
         logger.info("=" * 70)
@@ -374,7 +374,7 @@ class BronzeToProductionMerger:
         with psycopg2.connect(self.bronze_db_url) as bronze_conn:
             with bronze_conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute("""
-                    SELECT * FROM bronze_organizations
+                    SELECT * FROM bronze_organizations_meetings
                     WHERE extracted_at > NOW() - INTERVAL '7 days'
                     ORDER BY extracted_at DESC
                 """)

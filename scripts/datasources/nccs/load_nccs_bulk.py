@@ -580,8 +580,77 @@ class NCCSBulkDownloader:
         return successful, skipped, failed, not_available
 
 
-def create_bronze_table(cursor):
-    """Create bronze_organizations_nonprofits_nccs table with NCCS schema"""
+def create_bronze_tables(cursor):
+    """Create bronze_organizations_nonprofits_nccs tables (current + history)"""
+    
+    # Create history table (ALL records with composite key)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS bronze_organizations_nonprofits_nccs_history (
+            id SERIAL PRIMARY KEY,
+            ein2 VARCHAR(20),  -- Alternative EIN format
+            ein VARCHAR(20) NOT NULL,
+            ntee_irs VARCHAR(20),  -- IRS NTEE code
+            ntee_nccs VARCHAR(20),  -- NCCS NTEE code  
+            nteev2 VARCHAR(20),  -- NTEE version 2
+            nccs_level_1 VARCHAR(100),  -- Top-level category
+            nccs_level_2 VARCHAR(100),  -- Mid-level category
+            nccs_level_3 VARCHAR(100),  -- Detailed category
+            f990_org_addr_city VARCHAR(100),
+            f990_org_addr_state VARCHAR(2),
+            f990_org_addr_zip VARCHAR(20),
+            f990_org_addr_street VARCHAR(255),
+            census_cbsa_fips VARCHAR(20),  -- Core-Based Statistical Area FIPS
+            census_cbsa_name VARCHAR(200),  -- CBSA name (metro/micro area)
+            census_block_fips VARCHAR(20),  -- Census block FIPS
+            census_urban_area VARCHAR(200),  -- Urban area name
+            census_state_abbr VARCHAR(2),  -- Census state abbreviation
+            census_county_name VARCHAR(100),  -- County name
+            org_addr_full TEXT,  -- Full address string
+            org_addr_match VARCHAR(200),  -- Address match quality (can be full address)
+            latitude DOUBLE PRECISION,  -- Geocoded latitude
+            longitude DOUBLE PRECISION,  -- Geocoded longitude
+            geocoder_score DOUBLE PRECISION,  -- Geocoding confidence score
+            geocoder_match VARCHAR(100),  -- Geocoding match quality
+            bmf_subsection_code VARCHAR(20),
+            bmf_status_code VARCHAR(20),
+            bmf_pf_filing_req_code VARCHAR(20),
+            bmf_organization_code VARCHAR(20),
+            bmf_income_code VARCHAR(20),
+            bmf_group_exempt_num VARCHAR(20),
+            bmf_foundation_code VARCHAR(20),
+            bmf_filing_req_code VARCHAR(20),
+            bmf_deductibility_code VARCHAR(20),
+            bmf_classification_code VARCHAR(20),
+            bmf_asset_code VARCHAR(20),
+            bmf_affiliation_code VARCHAR(20),
+            org_ruling_date VARCHAR(20),  -- YYYYMMDD
+            org_fiscal_year INTEGER,
+            org_ruling_year INTEGER,
+            org_year_first INTEGER,  -- First year in BMF
+            org_year_last INTEGER,  -- Last year in BMF (used for versioning)
+            org_year_count INTEGER,  -- Number of years in BMF
+            org_pers_ico TEXT,  -- In care of person
+            org_name_sec TEXT,  -- Secondary name
+            org_name_current TEXT,  -- Current organization name
+            org_fiscal_period VARCHAR(20),  -- YYYYMM
+            f990_total_revenue_recent BIGINT,
+            f990_total_income_recent BIGINT,
+            f990_total_assets_recent BIGINT,
+            f990_total_expenses_recent BIGINT,
+            loaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            
+            -- Composite unique key: EIN + year (allows multiple versions per org)
+            UNIQUE(ein, org_year_last)
+        );
+        
+        -- Indexes for history table
+        CREATE INDEX IF NOT EXISTS idx_bronze_nccs_hist_ein ON bronze_organizations_nonprofits_nccs_history(ein);
+        CREATE INDEX IF NOT EXISTS idx_bronze_nccs_hist_year ON bronze_organizations_nonprofits_nccs_history(org_year_last);
+        CREATE INDEX IF NOT EXISTS idx_bronze_nccs_hist_state ON bronze_organizations_nonprofits_nccs_history(f990_org_addr_state);
+    """)
+    logger.success("✅ Created bronze_organizations_nonprofits_nccs_history table")
+    
+    # Create current table (most recent records only)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS bronze_organizations_nonprofits_nccs (
             id SERIAL PRIMARY KEY,
@@ -640,7 +709,7 @@ def create_bronze_table(cursor):
             UNIQUE(ein)
         );
         
-        -- Indexes for common queries
+        -- Indexes for current table (more comprehensive since it's the main query table)
         CREATE INDEX IF NOT EXISTS idx_bronze_nccs_state ON bronze_organizations_nonprofits_nccs(f990_org_addr_state);
         CREATE INDEX IF NOT EXISTS idx_bronze_nccs_city ON bronze_organizations_nonprofits_nccs(f990_org_addr_city, f990_org_addr_state);
         CREATE INDEX IF NOT EXISTS idx_bronze_nccs_ntee ON bronze_organizations_nonprofits_nccs(ntee_nccs);
@@ -651,12 +720,12 @@ def create_bronze_table(cursor):
         CREATE INDEX IF NOT EXISTS idx_bronze_nccs_lat ON bronze_organizations_nonprofits_nccs(latitude) WHERE latitude IS NOT NULL;
         CREATE INDEX IF NOT EXISTS idx_bronze_nccs_lon ON bronze_organizations_nonprofits_nccs(longitude) WHERE longitude IS NOT NULL;
     """)
-    logger.success("✅ Created bronze_organizations_nonprofits_nccs table")
+    logger.success("✅ Created bronze_organizations_nonprofits_nccs table (current only)")
 
 
 def load_to_bronze(file_path: Path, db_url: str = "postgresql://postgres:password@localhost:5433/open_navigator_bronze"):
     """
-    Load NCCS Unified BMF data into bronze table
+    Load NCCS Unified BMF data into bronze tables (history + current)
     
     Args:
         file_path: Path to NCCS CSV file
@@ -672,15 +741,20 @@ def load_to_bronze(file_path: Path, db_url: str = "postgresql://postgres:passwor
     cursor = conn.cursor()
     
     try:
-        # Create table
-        create_bronze_table(cursor)
+        # Create tables
+        create_bronze_tables(cursor)
         conn.commit()
         
         # Process file in chunks
         chunks_processed = 0
         total_rows = 0
+        total_history_rows = 0
+        total_current_rows = 0
         
-        for chunk in pd.read_csv(file_path, chunksize=chunk_size, dtype=str, low_memory=False):
+        # Use on_bad_lines='skip' to handle malformed CSV rows
+        # Note: The NCCS CSV file may have an incomplete last line
+        try:
+            for chunk in pd.read_csv(file_path, chunksize=chunk_size, dtype=str, low_memory=False, on_bad_lines='skip'):
             chunks_processed += 1
             chunk_rows = len(chunk)
             total_rows += chunk_rows
@@ -706,8 +780,78 @@ def load_to_bronze(file_path: Path, db_url: str = "postgresql://postgres:passwor
             # Fill NaN with None for proper NULL handling
             chunk_clean = chunk.where(pd.notna(chunk), None)
             
-            # Batch insert
-            insert_query = """
+            # === 1. Insert ALL records into HISTORY table (dedupe on composite key: ein + org_year_last) ===
+            chunk_history = chunk_clean.copy()
+            if 'ein' in chunk_history.columns and 'org_year_last' in chunk_history.columns:
+                chunk_hist_orig = len(chunk_history)
+                # Deduplicate on composite key (ein, org_year_last)
+                chunk_history = chunk_history.drop_duplicates(subset=['ein', 'org_year_last'], keep='first')
+                dups_removed = chunk_hist_orig - len(chunk_history)
+                if dups_removed > 0:
+                    logger.info(f"  📚 Removed {dups_removed:,} duplicate (ein, year) pairs in history")
+            
+            insert_history_query = """
+                INSERT INTO bronze_organizations_nonprofits_nccs_history (
+                    ein2, ein, ntee_irs, ntee_nccs, nteev2, nccs_level_1, nccs_level_2, nccs_level_3,
+                    f990_org_addr_city, f990_org_addr_state, f990_org_addr_zip, f990_org_addr_street,
+                    census_cbsa_fips, census_cbsa_name, census_block_fips, census_urban_area,
+                    census_state_abbr, census_county_name, org_addr_full, org_addr_match,
+                    latitude, longitude, geocoder_score, geocoder_match,
+                    bmf_subsection_code, bmf_status_code, bmf_pf_filing_req_code, bmf_organization_code,
+                    bmf_income_code, bmf_group_exempt_num, bmf_foundation_code, bmf_filing_req_code,
+                    bmf_deductibility_code, bmf_classification_code, bmf_asset_code, bmf_affiliation_code,
+                    org_ruling_date, org_fiscal_year, org_ruling_year, org_year_first, org_year_last,
+                    org_year_count, org_pers_ico, org_name_sec, org_name_current, org_fiscal_period,
+                    f990_total_revenue_recent, f990_total_income_recent, f990_total_assets_recent, f990_total_expenses_recent
+                ) VALUES %s
+                ON CONFLICT (ein, org_year_last) DO UPDATE SET
+                    org_name_current = EXCLUDED.org_name_current,
+                    f990_total_revenue_recent = EXCLUDED.f990_total_revenue_recent,
+                    f990_total_assets_recent = EXCLUDED.f990_total_assets_recent,
+                    loaded_at = CURRENT_TIMESTAMP
+            """
+            
+            # Convert ALL records (after deduplication) to insert into history
+            history_records = []
+            for row in chunk_history.to_dict('records'):
+                def safe_get(key):
+                    val = row.get(key)
+                    if pd.isna(val):
+                        return None
+                    return val
+                
+                history_records.append((
+                    safe_get('ein2'), safe_get('ein'), safe_get('ntee_irs'), safe_get('ntee_nccs'), safe_get('nteev2'),
+                    safe_get('nccs_level_1'), safe_get('nccs_level_2'), safe_get('nccs_level_3'),
+                    safe_get('f990_org_addr_city'), safe_get('f990_org_addr_state'), safe_get('f990_org_addr_zip'), safe_get('f990_org_addr_street'),
+                    safe_get('census_cbsa_fips'), safe_get('census_cbsa_name'), safe_get('census_block_fips'), safe_get('census_urban_area'),
+                    safe_get('census_state_abbr'), safe_get('census_county_name'), safe_get('org_addr_full'), safe_get('org_addr_match'),
+                    safe_get('latitude'), safe_get('longitude'), safe_get('geocoder_score'), safe_get('geocoder_match'),
+                    safe_get('bmf_subsection_code'), safe_get('bmf_status_code'), safe_get('bmf_pf_filing_req_code'), safe_get('bmf_organization_code'),
+                    safe_get('bmf_income_code'), safe_get('bmf_group_exempt_num'), safe_get('bmf_foundation_code'), safe_get('bmf_filing_req_code'),
+                    safe_get('bmf_deductibility_code'), safe_get('bmf_classification_code'), safe_get('bmf_asset_code'), safe_get('bmf_affiliation_code'),
+                    safe_get('org_ruling_date'), safe_get('org_fiscal_year'), safe_get('org_ruling_year'), safe_get('org_year_first'), safe_get('org_year_last'),
+                    safe_get('org_year_count'), safe_get('org_pers_ico'), safe_get('org_name_sec'), safe_get('org_name_current'), safe_get('org_fiscal_period'),
+                    safe_get('f990_total_revenue_recent'), safe_get('f990_total_income_recent'), safe_get('f990_total_assets_recent'), safe_get('f990_total_expenses_recent'),
+                ))
+            
+            # Insert into history table
+            execute_values(cursor, insert_history_query, history_records, page_size=1000)
+            conn.commit()
+            total_history_rows += len(history_records)
+            logger.info(f"  📚 Inserted {len(history_records):,} records to history table")
+            
+            # === 2. Deduplicate and insert into CURRENT table (most recent only) ===
+            chunk_current = chunk_clean.copy()
+            if 'ein' in chunk_current.columns:
+                chunk_orig_size = len(chunk_current)
+                chunk_current = chunk_current.sort_values('org_year_last', ascending=False, na_position='last')
+                chunk_current = chunk_current.drop_duplicates(subset=['ein'], keep='first')
+                duplicates_removed = chunk_orig_size - len(chunk_current)
+                if duplicates_removed > 0:
+                    logger.info(f"  🔄 Keeping {len(chunk_current):,} most recent records (removed {duplicates_removed:,} older versions)")
+            
+            insert_current_query = """
                 INSERT INTO bronze_organizations_nonprofits_nccs (
                     ein2, ein, ntee_irs, ntee_nccs, nteev2, nccs_level_1, nccs_level_2, nccs_level_3,
                     f990_org_addr_city, f990_org_addr_state, f990_org_addr_zip, f990_org_addr_street,
@@ -734,16 +878,16 @@ def load_to_bronze(file_path: Path, db_url: str = "postgresql://postgres:passwor
                     loaded_at = CURRENT_TIMESTAMP
             """
             
-            # Convert to records
-            records = []
-            for row in chunk_clean.to_dict('records'):
+            # Convert deduplicated records
+            current_records = []
+            for row in chunk_current.to_dict('records'):
                 def safe_get(key):
                     val = row.get(key)
                     if pd.isna(val):
                         return None
                     return val
                 
-                records.append((
+                current_records.append((
                     safe_get('ein2'), safe_get('ein'), safe_get('ntee_irs'), safe_get('ntee_nccs'), safe_get('nteev2'),
                     safe_get('nccs_level_1'), safe_get('nccs_level_2'), safe_get('nccs_level_3'),
                     safe_get('f990_org_addr_city'), safe_get('f990_org_addr_state'), safe_get('f990_org_addr_zip'), safe_get('f990_org_addr_street'),
@@ -758,13 +902,23 @@ def load_to_bronze(file_path: Path, db_url: str = "postgresql://postgres:passwor
                     safe_get('f990_total_revenue_recent'), safe_get('f990_total_income_recent'), safe_get('f990_total_assets_recent'), safe_get('f990_total_expenses_recent'),
                 ))
             
-            # Execute batch insert
-            execute_values(cursor, insert_query, records, page_size=1000)
+            # Insert into current table
+            execute_values(cursor, insert_current_query, current_records, page_size=1000)
             conn.commit()
+            total_current_rows += len(current_records)
             
-            logger.success(f"  ✅ Inserted chunk {chunks_processed}: {chunk_rows:,} rows")
+            logger.success(f"  ✅ Chunk {chunks_processed} complete: {len(current_records):,} current, {len(history_records):,} history")
         
-        logger.success(f"🎉 Loaded {total_rows:,} total organizations to bronze_organizations_nonprofits_nccs")
+        except pd.errors.ParserError as e:
+            # Handle malformed CSV (e.g., incomplete last line)
+            logger.warning(f"⚠️  CSV parsing ended due to malformed data: {e}")
+            logger.info(f"  This is likely an incomplete last line in the CSV file")
+            logger.info(f"  Continuing with successfully loaded data...")
+        
+        logger.success(f"🎉 Load complete!")
+        logger.info(f"  📊 Total rows processed: {total_rows:,}")
+        logger.info(f"  📚 History table: {total_history_rows:,} records (all versions)")
+        logger.info(f"  🎯 Current table: {total_current_rows:,} records (most recent only)")
         
     except Exception as e:
         logger.error(f"❌ Error loading to bronze: {e}")

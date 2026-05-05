@@ -100,7 +100,7 @@ def backfill_from_arguments():
                     bo.ntee_category_label
                 FROM bronze_topics bt
                 JOIN decision_orgs dorg ON dorg.decision_id = bt.decision_id
-                JOIN bronze_organizations bo ON bo.org_id = TRIM(BOTH '"' FROM dorg.first_org_id)
+                JOIN bronze_organizations_meetings bo ON bo.org_id = TRIM(BOTH '"' FROM dorg.first_org_id)
                 WHERE bt.ntee_code IS NULL
                 AND bo.ntee_code IS NOT NULL
             )

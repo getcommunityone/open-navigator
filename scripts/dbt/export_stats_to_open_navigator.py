@@ -52,7 +52,7 @@ def sync_stats():
                 total_assets,
                 trending_causes,
                 last_updated
-            FROM public_public.stats_aggregates
+            FROM stats_aggregates
             ORDER BY level, state_code, county, city
         """)
         

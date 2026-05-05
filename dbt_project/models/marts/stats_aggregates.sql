@@ -5,36 +5,94 @@
     )
 }}
 
+-- depends_on: {{ ref('bronze_organizations_nonprofits') }}
+
 /*
-    Stats Aggregates - Jurisdiction-level statistics with trending causes
+    Stats Aggregates - Multi-level statistics with trending causes
     
     Builds stats_aggregates table with:
-    - Jurisdiction counts, nonprofit counts, event counts, contact counts
+    - Nonprofit counts and financials by geography
+    - Event counts, contact counts, bill counts
     - Trending causes (JSON) based on decisions in last 90 days
     
     Levels: national, state, county, city, jurisdiction
+    
+    Data Sources:
+    - bronze_organizations_nonprofits: Nonprofit counts, revenue, assets (1.95M orgs)
+    - bronze_events: Meeting/event counts
+    - bronze_contacts: Contact counts
+    - bronze_bills: Bill counts
+    - int_trending_causes_by_jurisdiction: Trending causes by jurisdiction
 */
 
-WITH trending_causes AS (
+WITH nonprofit_stats AS (
+    -- Aggregate nonprofit data by state and county
     SELECT
         state_code,
-        state,
-        jurisdiction_name,
-        -- Build JSON array of trending causes
-        JSONB_AGG(
-            JSONB_BUILD_OBJECT(
-                'cause', cause_category,
-                'code', cause_code,
-                'decision_count', decision_count,
-                'topics', unique_topics,
-                'most_recent', most_recent_decision,
-                'rank', cause_rank,
-                'sample_headlines', sample_headlines
-            )
-            ORDER BY cause_rank
-        ) as trending_causes_json
-    FROM {{ ref('int_trending_causes_by_jurisdiction') }}
-    GROUP BY state_code, state, jurisdiction_name
+        census_county_name as county,
+        COUNT(*) as nonprofits_count,
+        COALESCE(SUM(irs_revenue_amt), 0) as total_revenue,
+        COALESCE(SUM(irs_asset_amt), 0) as total_assets
+    FROM {{ ref('bronze_organizations_nonprofits') }}
+    WHERE state_code IS NOT NULL
+    GROUP BY state_code, census_county_name
+),
+
+nonprofit_city_stats AS (
+    -- Aggregate nonprofit data by city (NEW!)
+    SELECT
+        state_code,
+        city,
+        COUNT(*) as nonprofits_count,
+        COALESCE(SUM(irs_revenue_amt), 0) as total_revenue,
+        COALESCE(SUM(irs_asset_amt), 0) as total_assets
+    FROM {{ ref('bronze_organizations_nonprofits') }}
+    WHERE state_code IS NOT NULL AND city IS NOT NULL AND city != ''
+    GROUP BY state_code, city
+),
+
+city_to_county_map AS (
+    -- Map cities to their primary county (most nonprofits in that county)
+    SELECT DISTINCT ON (state_code, city)
+        state_code,
+        city,
+        census_county_name as primary_county
+    FROM {{ ref('bronze_organizations_nonprofits') }}
+    WHERE city IS NOT NULL AND city != '' 
+      AND census_county_name IS NOT NULL
+    ORDER BY state_code, city, census_county_name
+),
+
+event_stats AS (
+    -- Aggregate event counts by state and city
+    SELECT
+        state_code,
+        city,
+        COUNT(*) as events_count
+    FROM {{ source('bronze', 'bronze_events') }}
+    WHERE state_code IS NOT NULL
+    GROUP BY state_code, city
+),
+
+contact_stats AS (
+    -- Count contacts by state (via events)
+    SELECT
+        e.state_code,
+        COUNT(DISTINCT c.id) as contacts_count
+    FROM {{ source('bronze', 'bronze_contacts') }} c
+    JOIN {{ source('bronze', 'bronze_events') }} e ON c.source_event_id = e.id
+    WHERE e.state_code IS NOT NULL
+    GROUP BY e.state_code
+),
+
+bill_stats AS (
+    -- Count bills by state
+    SELECT
+        LEFT(jurisdiction, 2) as state_code,
+        COUNT(*) as bills_count
+    FROM {{ source('bronze', 'bronze_bills') }}
+    WHERE jurisdiction IS NOT NULL
+    GROUP BY LEFT(jurisdiction, 2)
 ),
 
 -- National level stats
@@ -46,19 +104,16 @@ national_stats AS (
         NULL::VARCHAR(100) as county,
         NULL::VARCHAR(100) as city,
         
-        -- Counts (placeholder - would aggregate from state level)
         0 as jurisdictions_count,
         0 as school_districts_count,
-        0 as nonprofits_count,
-        0 as events_count,
-        0 as bills_count,
-        0 as contacts_count,
-        0::BIGINT as total_revenue,
-        0::BIGINT as total_assets,
+        (SELECT SUM(nonprofits_count) FROM nonprofit_stats)::INTEGER as nonprofits_count,
+        (SELECT SUM(events_count) FROM event_stats)::INTEGER as events_count,
+        (SELECT SUM(bills_count) FROM bill_stats)::INTEGER as bills_count,
+        (SELECT SUM(contacts_count) FROM contact_stats)::INTEGER as contacts_count,
+        (SELECT SUM(total_revenue) FROM nonprofit_stats) as total_revenue,
+        (SELECT SUM(total_assets) FROM nonprofit_stats) as total_assets,
         
-        -- National trending causes (aggregate across all states)
         NULL::JSONB as trending_causes,
-        
         CURRENT_TIMESTAMP as last_updated
 ),
 
@@ -66,87 +121,85 @@ national_stats AS (
 state_stats AS (
     SELECT
         'state' as level,
-        tc.state_code,
-        tc.state,
+        nps.state_code,
+        NULL::VARCHAR(50) as state,
         NULL::VARCHAR(100) as county,
         NULL::VARCHAR(100) as city,
         
-        -- Counts (placeholder - would aggregate from jurisdiction level)
         0 as jurisdictions_count,
         0 as school_districts_count,
-        0 as nonprofits_count,
-        0 as events_count,
-        0 as bills_count,
-        0 as contacts_count,
-        0::BIGINT as total_revenue,
-        0::BIGINT as total_assets,
+        SUM(nps.nonprofits_count)::INTEGER as nonprofits_count,
+        COALESCE((SELECT SUM(events_count) FROM event_stats WHERE state_code = nps.state_code), 0)::INTEGER as events_count,
+        COALESCE((SELECT bills_count FROM bill_stats WHERE state_code = nps.state_code), 0)::INTEGER as bills_count,
+        COALESCE((SELECT contacts_count FROM contact_stats WHERE state_code = nps.state_code), 0)::INTEGER as contacts_count,
+        SUM(nps.total_revenue) as total_revenue,
+        SUM(nps.total_assets) as total_assets,
         
-        -- Aggregate trending causes across all jurisdictions in state
-        JSONB_AGG(
-            JSONB_BUILD_OBJECT(
-                'jurisdiction', tc.jurisdiction_name,
-                'causes', tc.trending_causes_json
-            )
-        ) as trending_causes,
+        NULL::JSONB as trending_causes,
         
         CURRENT_TIMESTAMP as last_updated
-    FROM trending_causes tc
-    GROUP BY tc.state_code, tc.state
+    FROM nonprofit_stats nps
+    GROUP BY nps.state_code
 ),
 
--- Jurisdiction level stats (city/county/township)
-jurisdiction_stats AS (
+-- County level stats (FIX: Add events from cities in county)
+county_stats AS (
     SELECT
-        'jurisdiction' as level,
-        tc.state_code,
-        tc.state,
-        NULL::VARCHAR(100) as county,
-        tc.jurisdiction_name as city,
+        'county' as level,
+        nps.state_code,
+        NULL::VARCHAR(50) as state,
+        nps.county,
+        NULL::VARCHAR(100) as city,
         
-        -- Counts (placeholder - would load from gold parquet files)
         0 as jurisdictions_count,
         0 as school_districts_count,
-        0 as nonprofits_count,
-        0 as events_count,
+        nps.nonprofits_count::INTEGER,
+        -- Count events from cities in this county
+        COALESCE((
+            SELECT SUM(es.events_count)
+            FROM event_stats es
+            JOIN city_to_county_map c2c 
+                ON es.city = c2c.city AND es.state_code = c2c.state_code
+            WHERE c2c.primary_county = nps.county
+              AND c2c.state_code = nps.state_code
+        ), 0)::INTEGER as events_count,
         0 as bills_count,
         0 as contacts_count,
-        0::BIGINT as total_revenue,
-        0::BIGINT as total_assets,
+        nps.total_revenue,
+        nps.total_assets,
         
-        -- Trending causes for this jurisdiction
-        tc.trending_causes_json as trending_causes,
-        
+        NULL::JSONB as trending_causes,
         CURRENT_TIMESTAMP as last_updated
-    FROM trending_causes tc
+    FROM nonprofit_stats nps
+    WHERE nps.county IS NOT NULL
 ),
 
--- City level stats (one row per city for API lookups)
+-- City level stats (FIX: Use actual city nonprofit counts!)
 city_stats AS (
     SELECT
         'city' as level,
-        tc.state_code,
-        tc.state,
+        es.state_code,
+        NULL::VARCHAR(50) as state,
         NULL::VARCHAR(100) as county,
-        tc.jurisdiction_name as city,
+        es.city,
         
-        -- Counts (placeholder)
         0 as jurisdictions_count,
         0 as school_districts_count,
-        0 as nonprofits_count,
-        0 as events_count,
+        -- FIX: Use actual city nonprofit count, not state total!
+        COALESCE(ncs.nonprofits_count, 0)::INTEGER as nonprofits_count,
+        es.events_count::INTEGER,
         0 as bills_count,
         0 as contacts_count,
-        0::BIGINT as total_revenue,
-        0::BIGINT as total_assets,
+        COALESCE(ncs.total_revenue, 0) as total_revenue,
+        COALESCE(ncs.total_assets, 0) as total_assets,
         
-        -- City trending causes
-        tc.trending_causes_json as trending_causes,
+        NULL::JSONB as trending_causes,
         
         CURRENT_TIMESTAMP as last_updated
-    FROM trending_causes tc
-    WHERE tc.jurisdiction_name IS NOT NULL 
-      AND tc.jurisdiction_name != 'Unknown'
-      AND tc.state_code IS NOT NULL
+    FROM event_stats es
+    LEFT JOIN nonprofit_city_stats ncs 
+        ON es.city = ncs.city AND es.state_code = ncs.state_code
+    WHERE es.city IS NOT NULL
 )
 
 -- Combine all levels
@@ -154,6 +207,6 @@ SELECT * FROM national_stats
 UNION ALL
 SELECT * FROM state_stats
 UNION ALL
-SELECT * FROM city_stats
+SELECT * FROM county_stats
 UNION ALL
-SELECT * FROM jurisdiction_stats
+SELECT * FROM city_stats

@@ -349,10 +349,41 @@ homepage_url VARCHAR(500)  -- Use website_url instead
    - Source data for legislators, bills, votes
    - Connection: `postgresql://postgres:password@localhost:5433/openstates`
 
-2. **Neon PostgreSQL** (cloud - for production)
-   - Used for `contacts_search`, `jurisdictions_search`, `organizations_nonprofit_search`
+2. **Production PostgreSQL** (localhost:5433)
+   - Database name: `open_navigator`
+   - Contains: `stats_aggregates`, production tables
+   - **THIS IS WHAT THE API SHOULD USE**
+   - Connection via `NEON_DATABASE_URL_DEV` or defaults to local PostgreSQL
+
+3. **Bronze PostgreSQL** (localhost:5433) - ⚠️ **NEVER USE IN API**
+   - Database name: `open_navigator_bronze`
+   - Contains: Raw ingestion tables (`bronze_*` prefix)
+   - **❌ API routes must NEVER connect to bronze database**
+   - **❌ Only data loading scripts should access bronze**
+   - Bronze is for ETL pipelines, not application queries
+
+4. **Neon PostgreSQL** (cloud - for production deployment)
+   - Used for `contacts_search`, `jurisdictions_search`, `organizations_nonprofit_search`, `stats_aggregates`
    - Connection via `NEON_DATABASE_URL` or `NEON_DATABASE_URL_DEV`
    - Managed via `scripts/deployment/neon/migrate.py` script
+
+**⚠️ CRITICAL: API Database Access Rules**
+
+**✅ API SHOULD USE:**
+- `open_navigator` database (production)
+- Tables: `stats_aggregates`, `jurisdictions_search`, `contacts_search`, `organizations_nonprofit_search`
+- Connection string: `NEON_DATABASE_URL_DEV` or `postgresql://postgres:password@localhost:5433/open_navigator`
+
+**❌ API MUST NEVER USE:**
+- `open_navigator_bronze` database
+- Any table with `bronze_` prefix
+- Bronze database is for data pipelines only, not user-facing queries
+
+**Why?**
+- Bronze contains raw, unprocessed data
+- Production tables are cleaned, deduplicated, and optimized
+- API responses should never expose bronze/staging data
+- Bronze schema changes frequently during development
 
 **Loading Legislators Data:**
 

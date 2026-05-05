@@ -40,7 +40,7 @@ print("\n📊 Bronze Table Counts:")
 cur.execute("""
     SELECT 'bronze_contacts' as table_name, COUNT(*) as count FROM bronze_contacts
     UNION ALL
-    SELECT 'bronze_organizations', COUNT(*) FROM bronze_organizations
+    SELECT 'bronze_organizations_meetings', COUNT(*) FROM bronze_organizations_meetings
     UNION ALL
     SELECT 'bronze_bills', COUNT(*) FROM bronze_bills
     UNION ALL

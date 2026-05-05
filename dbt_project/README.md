@@ -21,7 +21,7 @@ dbt_project/
 │   ├── staging/              # Clean bronze data
 │   │   ├── _staging.yml
 │   │   ├── stg_bronze_contacts.sql
-│   │   ├── stg_bronze_organizations.sql
+│   │   ├── stg_bronze_organizations_meetings.sql
 │   │   └── stg_bronze_bills.sql
 │   ├── intermediate/         # Deduplicate
 │   │   ├── _intermediate.yml
@@ -104,7 +104,7 @@ dbt docs serve  # Opens in browser
 **Purpose:** Clean and normalize bronze data
 
 - `stg_bronze_contacts.sql` - Clean contact names, filter invalid records
-- `stg_bronze_organizations.sql` - Normalize org names, clean EINs
+- `stg_bronze_organizations_meetings.sql` - Normalize org names, clean EINs
 - `stg_bronze_bills.sql` - Standardize bill numbers
 
 **Materialization:** `view` (no storage, computed on-the-fly)

@@ -42,7 +42,7 @@ models:
     # Marts - production-ready tables
     marts:
       +materialized: incremental
-      +schema: public  # Write directly to public schema
+      # Use default public schema (don't specify +schema to avoid public_public)
       +on_schema_change: sync_all_columns
       +unique_key: id
 

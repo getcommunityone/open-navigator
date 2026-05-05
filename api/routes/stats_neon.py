@@ -183,42 +183,44 @@ async def fetch_stats_from_neon(
             elif level == 'state':
                 query = """
                     SELECT * FROM stats_aggregates 
-                    WHERE level = 'state' AND UPPER(state) = UPPER($1)
+                    WHERE level = 'state' AND state_code = $1
                     LIMIT 1
                 """
-                result = await conn.fetchrow(query, state)
+                result = await conn.fetchrow(query, state.upper() if state and len(state) == 2 else state)
                 
             elif level == 'county':
                 # Try county-level stats first
+                # Normalize county name (remove 'County' suffix)
+                county_name = county.replace(' County', '').strip() if county else county
                 query = """
                     SELECT * FROM stats_aggregates 
                     WHERE level = 'county' 
-                      AND UPPER(state) = UPPER($1) 
+                      AND state_code = $1 
                       AND county ILIKE $2
                     LIMIT 1
                 """
-                result = await conn.fetchrow(query, state, f"%{county}%")
+                result = await conn.fetchrow(query, state.upper() if state and len(state) == 2 else state, f"%{county_name}%")
                 
                 # Fall back to state-level if county not found
                 if not result and state:
                     logger.info(f"County '{county}' not found in stats, falling back to state '{state}'")
                     query = """
                         SELECT * FROM stats_aggregates 
-                        WHERE level = 'state' AND UPPER(state) = UPPER($1)
+                        WHERE level = 'state' AND state_code = $1
                         LIMIT 1
                     """
-                    result = await conn.fetchrow(query, state)
+                    result = await conn.fetchrow(query, state.upper() if state and len(state) == 2 else state)
                 
             elif level == 'city':
                 # Try city-level stats first from stats_aggregates
                 query = """
                     SELECT * FROM stats_aggregates 
                     WHERE level = 'city' 
-                      AND UPPER(state) = UPPER($1) 
+                      AND state_code = $1 
                       AND city ILIKE $2
                     LIMIT 1
                 """
-                result = await conn.fetchrow(query, state, f"%{city}%")
+                result = await conn.fetchrow(query, state.upper() if state and len(state) == 2 else state, f"%{city}%")
                 
                 # If not in stats_aggregates, query jurisdictions_search directly
                 if not result:

@@ -1,6 +1,91 @@
 version: 2
 
 models:
+  - name: bronze_organizations_nonprofits
+    description: |
+      Combined nonprofit organization data from IRS BMF + NCCS enrichment.
+      
+      This model:
+      - Base: All 1.95M organizations from IRS Business Master File
+      - Enrichment: Geographic coordinates, CBSA, detailed financials from NCCS (794k overlap)
+      - Join strategy: LEFT JOIN on EIN (all IRS + NCCS where available)
+      
+      Use cases:
+      - Geographic analysis: Use latitude/longitude for mapping
+      - Financial analysis: Compare IRS amounts vs F990 recent values
+      - Classification: Multiple NTEE versions (IRS, NCCS, NTEEv2)
+      - Data quality: has_nccs_data and has_geocoding flags
+      
+      Data quality flags:
+      - has_nccs_data: TRUE if organization found in NCCS dataset
+      - has_geocoding: TRUE if latitude/longitude available
+      
+    config:
+      tags: ['daily', 'nonprofits', 'enrichment']
+      unique_key: 'ein'
+      
+    columns:
+      - name: ein
+        description: "Employer Identification Number (primary key)"
+        tests:
+          - unique
+          - not_null
+          
+      - name: org_name
+        description: "Organization name from IRS BMF"
+        tests:
+          - not_null
+          
+      - name: city
+        description: "City from IRS BMF"
+        
+      - name: state_code
+        description: "Two-letter state code from IRS BMF"
+        tests:
+          - not_null
+        
+      - name: ntee_cd
+        description: "IRS NTEE classification code (primary)"
+        
+      - name: irs_asset_amt
+        description: "Asset amount from IRS BMF"
+        
+      - name: irs_income_amt
+        description: "Income amount from IRS BMF"
+        
+      - name: irs_revenue_amt
+        description: "Revenue amount from IRS BMF"
+        
+      - name: latitude
+        description: "Geographic latitude from NCCS (NULL if no NCCS data)"
+        
+      - name: longitude
+        description: "Geographic longitude from NCCS (NULL if no NCCS data)"
+        
+      - name: census_cbsa_name
+        description: "Census Core Based Statistical Area name from NCCS"
+        
+      - name: f990_total_revenue_recent
+        description: "Most recent Form 990 total revenue from NCCS"
+        
+      - name: f990_total_assets_recent
+        description: "Most recent Form 990 total assets from NCCS"
+        
+      - name: has_nccs_data
+        description: "TRUE if organization has NCCS enrichment data"
+        tests:
+          - not_null
+          
+      - name: has_geocoding
+        description: "TRUE if latitude/longitude coordinates available"
+        tests:
+          - not_null
+          
+      - name: last_updated
+        description: "Most recent load timestamp from either IRS or NCCS"
+        tests:
+          - not_null
+  
   - name: stats_aggregates
     description: |
       Jurisdiction-level statistics with trending causes.

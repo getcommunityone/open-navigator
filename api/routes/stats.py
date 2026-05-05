@@ -77,91 +77,54 @@ def calculate_stats_from_db(state: Optional[str] = None,
             level = 'national'
             location_display = 'United States'
         
-        # Build SQL filters
-        where_clauses = []
-        params = []
+        # Get all stats from stats_aggregates table
+        stats_where = ["level = %s"]
+        stats_params = [level]
         
-        if state:
-            # Support both state names and codes
-            where_clauses.append("(state_code = %s OR state ILIKE %s)")
-            params.append(state.upper() if len(state) == 2 else state)
-            params.append(f"%{state}%")
-        
-        if county:
+        if city and state:
+            stats_where.append("city ILIKE %s")
+            stats_where.append("state_code = %s")
+            stats_params.append(f"%{city}%")
+            stats_params.append(state.upper() if len(state) == 2 else state)
+        elif county and state:
             # Normalize county name (remove 'County' suffix if present)
             county_name = county.replace(' County', '').strip()
-            where_clauses.append("county ILIKE %s")
-            params.append(f"%{county_name}%")
+            stats_where.append("county ILIKE %s")
+            stats_where.append("state_code = %s")
+            stats_params.append(f"%{county_name}%")
+            stats_params.append(state.upper() if len(state) == 2 else state)
+        elif state:
+            stats_where.append("state_code = %s")
+            stats_params.append(state.upper() if len(state) == 2 else state)
         
-        if city:
-            where_clauses.append("name ILIKE %s")
-            params.append(f"%{city}%")
-        
-        where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
-        
-        # Count jurisdictions
-        jurisdiction_query = f"""
-            SELECT COUNT(DISTINCT id) as count
-            FROM jurisdictions_search
-            WHERE {where_sql}
+        stats_query = f"""
+            SELECT 
+                nonprofits_count,
+                events_count,
+                trending_causes,
+                jurisdictions_count,
+                contacts_count
+            FROM stats_aggregates
+            WHERE {' AND '.join(stats_where)}
+            LIMIT 1
         """
-        cursor.execute(jurisdiction_query, params)
-        jurisdictions = cursor.fetchone()[0] if cursor.rowcount > 0 else 0
         
-        # Count school districts (separate query)
-        school_query = f"""
-            SELECT COUNT(*) as count
-            FROM jurisdictions_search
-            WHERE type = 'school_district' AND {where_sql}
-        """
-        cursor.execute(school_query, params)
-        school_districts = cursor.fetchone()[0] if cursor.rowcount > 0 else 0
+        cursor.execute(stats_query, stats_params)
+        result = cursor.fetchone()
         
-        # Count contacts (officials, legislators)
-        contact_params = []
-        contact_where = []
-        if state:
-            contact_where.append("(state_code = %s OR state ILIKE %s)")
-            contact_params.append(state.upper() if len(state) == 2 else state)
-            contact_params.append(f"%{state}%")
-        
-        contact_where_sql = " AND ".join(contact_where) if contact_where else "1=1"
-        
-        contact_query = f"""
-            SELECT COUNT(*) as count
-            FROM contacts_search
-            WHERE {contact_where_sql}
-        """
-        cursor.execute(contact_query, contact_params)
-        contacts = cursor.fetchone()[0] if cursor.rowcount > 0 else 0
-        
-        # Count nonprofits
-        nonprofit_query = f"""
-            SELECT COUNT(*) as count
-            FROM organizations_nonprofit_search
-            WHERE {contact_where_sql}
-        """
-        try:
-            cursor.execute(nonprofit_query, contact_params)
-            nonprofits = cursor.fetchone()[0] if cursor.rowcount > 0 else 0
-        except Exception:
-            nonprofits = 0  # Table might not exist
-        
-        # Get trending causes from stats_aggregates
-        trending_causes = None
-        try:
-            trending_query = """
-                SELECT trending_causes
-                FROM stats_aggregates
-                WHERE level = %s AND trending_causes IS NOT NULL
-                LIMIT 1
-            """
-            cursor.execute(trending_query, [level])
-            result = cursor.fetchone()
-            if result and result[0]:
-                trending_causes = result[0]
-        except Exception as e:
-            logger.debug(f"Could not fetch trending causes: {e}")
+        if result:
+            nonprofits = result[0] or 0
+            events = result[1] or 0
+            trending_causes = result[2]
+            jurisdictions = result[3] or 0
+            contacts = result[4] or 0
+        else:
+            # No data found for this location
+            nonprofits = 0
+            events = 0
+            trending_causes = None
+            jurisdictions = 0
+            contacts = 0
         
         cursor.close()
         conn.close()
@@ -174,9 +137,9 @@ def calculate_stats_from_db(state: Optional[str] = None,
             'county': county,
             'city': city,
             'jurisdictions': jurisdictions,
-            'school_districts': school_districts,
+            'school_districts': 0,  # TODO: Add to stats_aggregates
             'nonprofits': nonprofits,
-            'events': 0,  # TODO: Add events_search table
+            'events': events,
             'bills': 0,  # TODO: Add bills_search table
             'contacts': contacts,
             'total_revenue': 0,

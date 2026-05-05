@@ -4,7 +4,7 @@ Backfill NTEE data into bronze_topics from bronze_organizations.
 
 This script:
 1. Joins bronze_topics with bronze_decisions to get primary_org_ids
-2. Finds the primary organization from bronze_organizations
+2. Finds the primary organization from bronze_organizations_meetings
 3. Copies NTEE fields from the organization to the topic
 """
 
@@ -75,7 +75,7 @@ def backfill_ntee():
                     bo.ntee_major_group,
                     bo.ntee_category_label
                 FROM topic_orgs torg
-                JOIN bronze_organizations bo ON bo.org_id = TRIM(BOTH '"' FROM torg.first_org_id)
+                JOIN bronze_organizations_meetings bo ON bo.org_id = TRIM(BOTH '"' FROM torg.first_org_id)
                 WHERE bo.ntee_code IS NOT NULL
             )
             UPDATE bronze_topics bt

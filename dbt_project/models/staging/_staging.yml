@@ -28,8 +28,8 @@ sources:
           - name: extracted_at
             description: "Timestamp of extraction"
             
-      - name: bronze_organizations
-        description: "Organizations mentioned in meetings"
+      - name: bronze_organizations_meetings
+        description: "Organizations mentioned in meetings (deduplicated by org_id)"
         columns:
           - name: id
           - name: source_event_id
@@ -38,6 +38,10 @@ sources:
           - name: ein
           - name: ntee_code
           - name: extracted_at
+          - name: last_seen_event_id
+            description: "Most recent meeting where this org appeared"
+          - name: first_seen_event_id
+            description: "First meeting where this org appeared"
           
       - name: bronze_bills
         description: "Legislation discussed in meetings"
@@ -86,6 +90,38 @@ sources:
           - name: amount
           - name: item_description
           - name: extracted_at
+          
+      - name: bronze_organizations_nonprofits_irs
+        description: "IRS Business Master File (BMF) nonprofit data - 1.95M organizations"
+        columns:
+          - name: id
+          - name: ein
+            description: "Employer Identification Number (primary key)"
+          - name: name
+          - name: city
+          - name: state_code
+          - name: ntee_cd
+            description: "NTEE classification code"
+          - name: asset_amt
+          - name: income_amt
+          - name: revenue_amt
+          
+      - name: bronze_organizations_nonprofits_nccs
+        description: "NCCS Core nonprofit data - 1.8M organizations with geographic enrichment"
+        columns:
+          - name: id
+          - name: ein
+            description: "Employer Identification Number (joins to IRS)"
+          - name: ntee_nccs
+            description: "NCCS NTEE classification"
+          - name: nteev2
+            description: "NTEE version 2"
+          - name: latitude
+          - name: longitude
+          - name: census_cbsa_name
+            description: "Census Core Based Statistical Area"
+          - name: f990_total_revenue_recent
+          - name: f990_total_assets_recent
 
 models:
   - name: stg_bronze_contacts
@@ -142,8 +178,8 @@ models:
         tests:
           - not_null
           
-  - name: stg_bronze_organizations
-    description: "Staged bronze organizations"
+  - name: stg_bronze_organizations_meetings
+    description: "Staged bronze organizations from meetings (deduplicated)"
     
   - name: stg_bronze_bills
     description: "Staged bronze bills"

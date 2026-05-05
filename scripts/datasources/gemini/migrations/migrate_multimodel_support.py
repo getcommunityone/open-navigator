@@ -71,12 +71,12 @@ def get_migration_steps() -> List[Tuple[str, str]]:
             """
         ),
         (
-            "Drop old UNIQUE constraint on bronze_organizations",
+            "Drop old UNIQUE constraint on bronze_organizations_meetings",
             """
             DO $$ 
             BEGIN
                 EXECUTE (
-                    SELECT 'ALTER TABLE bronze_organizations DROP CONSTRAINT ' || conname || ';'
+                    SELECT 'ALTER TABLE bronze_organizations_meetings DROP CONSTRAINT ' || conname || ';'
                     FROM pg_constraint
                     WHERE conrelid = 'bronze_organizations'::regclass
                       AND contype = 'u'

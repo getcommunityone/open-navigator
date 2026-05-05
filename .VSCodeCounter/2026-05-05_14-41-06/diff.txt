@@ -1,0 +1,75 @@
+Date : 2026-05-05 14:41:06
+Directory : /home/developer/projects/open-navigator
+Total : 23 files,  1068 codes, 298 comments, 190 blanks, all 1556 lines
+
+Languages
++----------------+------------+------------+------------+------------+------------+
+| language       | files      | code       | comment    | blank      | total      |
++----------------+------------+------------+------------+------------+------------+
+| Markdown       |          3 |        561 |          0 |        190 |        751 |
+| Python         |          5 |        484 |        367 |         48 |        899 |
+| TypeScript JSX |          2 |        181 |          5 |          6 |        192 |
+| TypeScript     |          1 |         20 |          0 |          0 |         20 |
+| YAML           |          1 |          4 |          0 |          0 |          4 |
+| PostCSS        |          2 |          0 |          0 |          0 |          0 |
+| JavaScript     |          2 |          0 |          0 |          0 |          0 |
+| MS SQL         |          7 |       -182 |        -74 |        -54 |       -310 |
++----------------+------------+------------+------------+------------+------------+
+
+Directories
++-----------------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| path                                                                                                            | files      | code       | comment    | blank      | total      |
++-----------------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| .                                                                                                               |         23 |      1,068 |        298 |        190 |      1,556 |
+| api                                                                                                             |          6 |        -68 |        315 |        -37 |        210 |
+| api/routes                                                                                                      |          2 |        -68 |        315 |        -37 |        210 |
+| api/static                                                                                                      |          4 |          0 |          0 |          0 |          0 |
+| api/static/assets                                                                                               |          4 |          0 |          0 |          0 |          0 |
+| dbt_project                                                                                                     |          8 |       -178 |        -74 |        -54 |       -306 |
+| dbt_project/models                                                                                              |          8 |       -178 |        -74 |        -54 |       -306 |
+| dbt_project/models/intermediate                                                                                 |          2 |        -25 |        -12 |         -3 |        -40 |
+| dbt_project/models/marts                                                                                        |          2 |        -41 |        -20 |        -10 |        -71 |
+| dbt_project/models/staging                                                                                      |          4 |       -112 |        -42 |        -41 |       -195 |
+| frontend                                                                                                        |          2 |        181 |          5 |          6 |        192 |
+| frontend/src                                                                                                    |          2 |        181 |          5 |          6 |        192 |
+| frontend/src/pages                                                                                              |          2 |        181 |          5 |          6 |        192 |
+| scripts                                                                                                         |          4 |        717 |         52 |        143 |        912 |
+| scripts/datasources                                                                                             |          2 |        444 |         31 |         56 |        531 |
+| scripts/datasources/irs                                                                                         |          1 |        171 |         23 |         27 |        221 |
+| scripts/datasources/nccs                                                                                        |          1 |        273 |          8 |         29 |        310 |
+| scripts/dbt                                                                                                     |          2 |        273 |         21 |         87 |        381 |
+| website                                                                                                         |          3 |        416 |          0 |        132 |        548 |
+| website (Files)                                                                                                 |          1 |         20 |          0 |          0 |         20 |
+| website/docs                                                                                                    |          2 |        396 |          0 |        132 |        528 |
+| website/docs/dbt                                                                                                |          2 |        396 |          0 |        132 |        528 |
++-----------------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+
+Files
++-----------------------------------------------------------------------------------------------------------------+----------------+------------+------------+------------+------------+
+| filename                                                                                                        | language       | code       | comment    | blank      | total      |
++-----------------------------------------------------------------------------------------------------------------+----------------+------------+------------+------------+------------+
+| /home/developer/projects/open-navigator/api/routes/stats.py                                                     | Python         |       -112 |        311 |        -42 |        157 |
+| /home/developer/projects/open-navigator/api/routes/stats_neon.py                                                | Python         |         44 |          4 |          5 |         53 |
+| /home/developer/projects/open-navigator/api/static/assets/index-DDBrFhnz.js                                     | JavaScript     |        203 |          0 |          3 |        206 |
+| /home/developer/projects/open-navigator/api/static/assets/index-DSYSwRuY.css                                    | PostCSS        |          1 |          0 |          1 |          2 |
+| /home/developer/projects/open-navigator/api/static/assets/index-DdtqZ0x3.js                                     | JavaScript     |       -203 |          0 |         -3 |       -206 |
+| /home/developer/projects/open-navigator/api/static/assets/index-hGo3ont6.css                                    | PostCSS        |         -1 |          0 |         -1 |         -2 |
+| /home/developer/projects/open-navigator/dbt_project/models/intermediate/int_contacts_deduped.sql                | MS SQL         |        -37 |        -10 |         -4 |        -51 |
+| /home/developer/projects/open-navigator/dbt_project/models/intermediate/int_trending_causes_by_jurisdiction.sql | MS SQL         |         12 |         -2 |          1 |         11 |
+| /home/developer/projects/open-navigator/dbt_project/models/marts/contacts_search_ai.sql                         | MS SQL         |        -65 |        -23 |        -14 |       -102 |
+| /home/developer/projects/open-navigator/dbt_project/models/marts/stats_aggregates.sql                           | MS SQL         |         24 |          3 |          4 |         31 |
+| /home/developer/projects/open-navigator/dbt_project/models/staging/_staging.yml                                 | YAML           |          4 |          0 |          0 |          4 |
+| /home/developer/projects/open-navigator/dbt_project/models/staging/stg_bronze_bills.sql                         | MS SQL         |        -38 |        -12 |        -12 |        -62 |
+| /home/developer/projects/open-navigator/dbt_project/models/staging/stg_bronze_contacts.sql                      | MS SQL         |        -41 |        -15 |        -14 |        -70 |
+| /home/developer/projects/open-navigator/dbt_project/models/staging/stg_bronze_organizations.sql                 | MS SQL         |        -37 |        -15 |        -15 |        -67 |
+| /home/developer/projects/open-navigator/frontend/src/pages/Home.tsx                                             | TypeScript JSX |        135 |          2 |          3 |        140 |
+| /home/developer/projects/open-navigator/frontend/src/pages/UnifiedSearch.tsx                                    | TypeScript JSX |         46 |          3 |          3 |         52 |
+| /home/developer/projects/open-navigator/scripts/datasources/irs/load_irs_bmf.py                                 | Python         |        171 |         23 |         27 |        221 |
+| /home/developer/projects/open-navigator/scripts/datasources/nccs/load_nccs_bulk.py                              | Python         |        273 |          8 |         29 |        310 |
+| /home/developer/projects/open-navigator/scripts/dbt/README.md                                                   | Markdown       |        165 |          0 |         58 |        223 |
+| /home/developer/projects/open-navigator/scripts/dbt/export_stats_to_open_navigator.py                           | Python         |        108 |         21 |         29 |        158 |
+| /home/developer/projects/open-navigator/website/docs/dbt/quick-reference.md                                     | Markdown       |        233 |          0 |         78 |        311 |
+| /home/developer/projects/open-navigator/website/docs/dbt/trending-causes.md                                     | Markdown       |        163 |          0 |         54 |        217 |
+| /home/developer/projects/open-navigator/website/sidebars.ts                                                     | TypeScript     |         20 |          0 |          0 |         20 |
+| Total                                                                                                           |                |      1,068 |        298 |        190 |      1,556 |
++-----------------------------------------------------------------------------------------------------------------+----------------+------------+------------+------------+------------+
