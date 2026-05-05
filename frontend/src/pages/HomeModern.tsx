@@ -907,8 +907,9 @@ export default function HomeModern() {
                               >
                                 <option value="city" className="text-gray-900 bg-white">My City ({location.city})</option>
                                 <option value="county" className="text-gray-900 bg-white">My County ({location.county || 'County'})</option>
-                                <option value="state" className="text-gray-900 bg-white">My State ({location.state})</option>
                                 <option value="community" className="text-gray-900 bg-white">School Board ({location.city})</option>
+                                <option value="state" className="text-gray-900 bg-white">My State ({location.state})</option>
+                                <option value="national" className="text-gray-900 bg-white">National</option>
                               </select>
                               <button
                                 type="button"

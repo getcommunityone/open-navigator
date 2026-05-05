@@ -17,8 +17,14 @@ NEON_DATABASE_URL = os.getenv('NEON_DATABASE_URL')
 # Use dev database for local development, production database for deployed environments
 DATABASE_URL = NEON_DATABASE_URL_DEV or NEON_DATABASE_URL
 
-# Connection pool (created on first request)
-_db_pool = None
+# Bronze database for AI-extracted meeting data (topics, decisions, etc.)
+POSTGRES_PASSWORD = os.getenv('POSTGRES_PASSWORD', 'password')
+BRONZE_DATABASE_URL = os.getenv('LOCAL_BRONZE_DATABASE_URL', 
+                                 f'postgresql://postgres:{POSTGRES_PASSWORD}@localhost:5433/open_navigator_bronze')
+
+# Connection pools (created on first request)
+_db_pool = None  # Production database pool (Neon)
+_bronze_db_pool = None  # Bronze database pool (local PostgreSQL)
 
 # State name to code mapping for input normalization
 STATE_NAME_TO_CODE = {
@@ -736,5 +742,267 @@ async def search_bills_pg(
             
     except Exception as e:
         logger.error(f"PostgreSQL bills search error: {e}")
+        return []
+
+
+async def search_topics_pg(
+    query: Optional[str] = None,
+    state: Optional[str] = None,
+    ntee_code: Optional[str] = None,
+    limit: int = 10
+) -> List[SearchResult]:
+    """
+    Search meeting topics from bronze_topics table.
+    Topics are AI-extracted decision topics from meeting transcripts.
+    
+    Args:
+        query: Search query (searches topic, headline, themes)
+        state: State code filter (not applicable for bronze, but kept for compatibility)
+        ntee_code: NTEE code filter (e.g., 'E' for Health)
+        limit: Max results to return
+    
+    Returns:
+        List of SearchResult objects
+    """
+    global _bronze_db_pool
+    
+    try:
+        # Create connection pool for bronze database if needed
+        if _bronze_db_pool is None:
+            _bronze_db_pool = await asyncpg.create_pool(
+                BRONZE_DATABASE_URL,
+                min_size=1,
+                max_size=10,
+                command_timeout=30
+            )
+        
+        pool = _bronze_db_pool
+        
+        # Build WHERE clause
+        where_conditions = []
+        params = []
+        param_idx = 1
+        
+        if query:
+            # Full-text search across topic, headline, and themes
+            where_conditions.append(f"""
+                (topic ILIKE ${param_idx} 
+                 OR headline ILIKE ${param_idx}
+                 OR primary_theme ILIKE ${param_idx}
+                 OR secondary_theme ILIKE ${param_idx})
+            """)
+            params.append(f"%{query}%")
+            param_idx += 1
+        
+        if ntee_code:
+            where_conditions.append(f"(ntee_major_group = ${param_idx} OR secondary_ntee_major_group = ${param_idx})")
+            params.append(ntee_code)
+            param_idx += 1
+        
+        where_sql = " AND ".join(where_conditions) if where_conditions else "TRUE"
+        
+        sql = f"""
+            SELECT 
+                id,
+                source_event_id,
+                decision_id,
+                topic,
+                headline,
+                primary_theme,
+                primary_theme_cofog,
+                secondary_theme,
+                ntee_code,
+                ntee_major_group,
+                ntee_category_label,
+                secondary_ntee_code,
+                secondary_ntee_major_group,
+                extracted_at
+            FROM bronze_topics
+            WHERE {where_sql}
+            ORDER BY extracted_at DESC
+            LIMIT ${param_idx}
+        """
+        params.append(limit)
+        
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(sql, *params)
+            
+            results = []
+            for row in rows:
+                # Format title
+                title = row['topic'] or 'Untitled Topic'
+                if len(title) > 100:
+                    title = title[:100] + "..."
+                
+                # Format subtitle with theme
+                subtitle_parts = []
+                if row['primary_theme']:
+                    subtitle_parts.append(row['primary_theme'])
+                if row['ntee_category_label']:
+                    subtitle_parts.append(f"Cause: {row['ntee_category_label']}")
+                subtitle = " • ".join(subtitle_parts)
+                
+                # Description is the headline
+                description = row['headline'] or ''
+                if description and len(description) > 200:
+                    description = description[:200] + "..."
+                
+                results.append(SearchResult(
+                    result_type='topic',
+                    title=title,
+                    subtitle=subtitle,
+                    description=description,
+                    url=f"/topics/{row['id']}",
+                    score=1.0,
+                    metadata={
+                        'id': row['id'],
+                        'decision_id': row['decision_id'],
+                        'source_event_id': row['source_event_id'],
+                        'primary_theme': row['primary_theme'],
+                        'ntee_code': row['ntee_code'],
+                        'ntee_major_group': row['ntee_major_group'],
+                        'cofog_code': row['primary_theme_cofog'],
+                        'extracted_at': row['extracted_at'].isoformat() if row['extracted_at'] else None
+                    }
+                ))
+            
+            logger.info(f"📋 PostgreSQL topics search: {len(results)} results")
+            return results
+            
+    except Exception as e:
+        logger.error(f"PostgreSQL topics search error: {e}")
+        return []
+
+
+async def search_decisions_pg(
+    query: Optional[str] = None,
+    state: Optional[str] = None,
+    outcome: Optional[str] = None,
+    limit: int = 10
+) -> List[SearchResult]:
+    """
+    Search governance decisions from bronze_decisions table.
+    Decisions are AI-extracted policy decisions from meeting transcripts.
+    
+    Args:
+        query: Search query (searches topic, headline, decision_statement)
+        state: State code filter (not applicable for bronze, but kept for compatibility)
+        outcome: Filter by outcome (APPROVED, DENIED, DEFERRED, etc.)
+        limit: Max results to return
+    
+    Returns:
+        List of SearchResult objects
+    """
+    global _bronze_db_pool
+    
+    try:
+        # Create connection pool for bronze database if needed
+        if _bronze_db_pool is None:
+            _bronze_db_pool = await asyncpg.create_pool(
+                BRONZE_DATABASE_URL,
+                min_size=1,
+                max_size=10,
+                command_timeout=30
+            )
+        
+        pool = _bronze_db_pool
+        
+        # Build WHERE clause
+        where_conditions = []
+        params = []
+        param_idx = 1
+        
+        if query:
+            # Full-text search across topic, headline, and decision_statement
+            where_conditions.append(f"""
+                (topic ILIKE ${param_idx} 
+                 OR headline ILIKE ${param_idx}
+                 OR decision_statement ILIKE ${param_idx})
+            """)
+            params.append(f"%{query}%")
+            param_idx += 1
+        
+        if outcome:
+            where_conditions.append(f"outcome = ${param_idx}")
+            params.append(outcome.upper())
+            param_idx += 1
+        
+        where_sql = " AND ".join(where_conditions) if where_conditions else "TRUE"
+        
+        sql = f"""
+            SELECT 
+                id,
+                source_event_id,
+                decision_id,
+                subject_id,
+                topic,
+                headline,
+                decision_statement,
+                decision_method,
+                outcome,
+                decision_date,
+                primary_theme,
+                primary_theme_cofog,
+                vote_tally,
+                extracted_at
+            FROM bronze_decisions
+            WHERE {where_sql}
+            ORDER BY decision_date DESC NULLS LAST, extracted_at DESC
+            LIMIT ${param_idx}
+        """
+        params.append(limit)
+        
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(sql, *params)
+            
+            results = []
+            for row in rows:
+                # Title is the headline (the actual decision)
+                title = row['headline'] or row['decision_statement'] or 'Untitled Decision'
+                if len(title) > 150:
+                    title = title[:150] + "..."
+                
+                # Subtitle includes topic and metadata
+                subtitle_parts = []
+                if row['topic']:
+                    subtitle_parts.append(row['topic'])
+                if row['outcome']:
+                    subtitle_parts.append(row['outcome'])
+                if row['decision_date']:
+                    subtitle_parts.append(row['decision_date'].strftime('%Y-%m-%d'))
+                subtitle = " • ".join(subtitle_parts)
+                
+                # Description is the decision_statement for additional context
+                description = row['decision_statement'] or row['headline'] or ''
+                if description and len(description) > 200:
+                    description = description[:200] + "..."
+                
+                results.append(SearchResult(
+                    result_type='decision',
+                    title=title,
+                    subtitle=subtitle,
+                    description=description,
+                    url=f"/decisions/{row['id']}",
+                    score=1.0,
+                    metadata={
+                        'id': row['id'],
+                        'decision_id': row['decision_id'],
+                        'subject_id': row['subject_id'],
+                        'source_event_id': row['source_event_id'],
+                        'outcome': row['outcome'],
+                        'decision_method': row['decision_method'],
+                        'decision_date': row['decision_date'].isoformat() if row['decision_date'] else None,
+                        'primary_theme': row['primary_theme'],
+                        'cofog_code': row['primary_theme_cofog'],
+                        'vote_tally': row['vote_tally'],
+                        'extracted_at': row['extracted_at'].isoformat() if row['extracted_at'] else None
+                    }
+                ))
+            
+            logger.info(f"⚖️ PostgreSQL decisions search: {len(results)} results")
+            return results
+            
+    except Exception as e:
+        logger.error(f"PostgreSQL decisions search error: {e}")
         return []
 

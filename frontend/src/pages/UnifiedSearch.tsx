@@ -15,12 +15,15 @@ import {
   ChevronDownIcon,
   ChevronUpIcon,
   GlobeAltIcon,
-  VideoCameraIcon
+  VideoCameraIcon,
+  DocumentTextIcon,
+  ChatBubbleBottomCenterTextIcon,
+  ScaleIcon
 } from '@heroicons/react/24/outline'
 import { formatCurrency } from '../utils/formatters'
 
 interface SearchResult {
-  type: 'contact' | 'meeting' | 'organization' | 'cause'
+  type: 'contact' | 'meeting' | 'organization' | 'cause' | 'bill' | 'topic' | 'decision'
   title: string
   subtitle: string
   description: string
@@ -37,6 +40,9 @@ interface SearchResponse {
     meetings: number
     organizations: number
     causes: number
+    bills: number
+    topics: number
+    decisions: number
     jurisdictions: number
   }
   results: {
@@ -44,6 +50,9 @@ interface SearchResponse {
     meetings: SearchResult[]
     organizations: SearchResult[]
     causes: SearchResult[]
+    bills: SearchResult[]
+    topics: SearchResult[]
+    decisions: SearchResult[]
     jurisdictions?: SearchResult[]
   }
   pagination: {
@@ -73,11 +82,11 @@ export default function UnifiedSearch() {
     const typesParam = searchParams.get('types')
     if (typesParam) {
       const types = typesParam.split(',').filter(t => 
-        ['contacts', 'organizations', 'causes', 'meetings'].includes(t.trim())
+        ['contacts', 'organizations', 'causes', 'meetings', 'bills', 'topics', 'decisions'].includes(t.trim())
       )
-      return types.length > 0 ? types : ['contacts', 'organizations', 'causes']
+      return types.length > 0 ? types : ['contacts', 'organizations', 'causes', 'bills', 'topics']
     }
-    return ['contacts', 'organizations', 'causes']
+    return ['contacts', 'organizations', 'causes', 'bills', 'topics']
   })
   const [selectedState, setSelectedState] = useState(() => searchParams.get('state') || '')
   const [currentPage, setCurrentPage] = useState(() => parseInt(searchParams.get('page') || '1'))
@@ -209,7 +218,7 @@ export default function UnifiedSearch() {
     }
     if (typesParam) {
       const types = typesParam.split(',').filter(t => 
-        ['contacts', 'meetings', 'organizations', 'causes'].includes(t.trim())
+        ['contacts', 'meetings', 'organizations', 'causes', 'bills', 'topics', 'decisions'].includes(t.trim())
       )
       if (types.length > 0) {
         setSelectedTypes(types)
@@ -225,7 +234,7 @@ export default function UnifiedSearch() {
       
       const params: any = {
         q: debouncedQuery,
-        types: 'causes,contacts,organizations',
+        types: 'causes,contacts,organizations,bills,topics,decisions',
         limit: 3
       }
       
@@ -663,7 +672,7 @@ export default function UnifiedSearch() {
                   setShowSuggestions(true)
                 }}
                 onFocus={() => setShowSuggestions(true)}
-                placeholder="Search for people, meetings, organizations, causes..."
+                placeholder="Search contacts, meetings, organizations, bills, topics, decisions, causes..."
                 className="w-full px-12 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-lg text-gray-900"
               />
               <MagnifyingGlassIcon className="absolute left-4 top-3.5 h-6 w-6 text-gray-400" />
@@ -810,6 +819,105 @@ export default function UnifiedSearch() {
                           {result.title.charAt(0)}
                         </div>
                         
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-gray-900 truncate">{result.title}</div>
+                          <div className="text-sm text-gray-600 truncate">{result.subtitle}</div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Bills Section */}
+                {previewResults.results.bills && previewResults.results.bills.length > 0 && (
+                  <div className="border-b border-gray-200">
+                    <div className="px-4 py-2 bg-gray-50 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <DocumentTextIcon className="h-4 w-4 text-gray-500" />
+                        <span className="text-xs font-semibold text-gray-700 uppercase">Bills</span>
+                      </div>
+                      {previewResults.results.bills.length > 0 && (
+                        <button
+                          onClick={() => handleViewAllCategory('bills')}
+                          className="text-xs text-primary-600 hover:text-primary-700 font-medium"
+                        >
+                          View All
+                        </button>
+                      )}
+                    </div>
+                    {previewResults.results.bills.slice(0, 3).map((result, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => navigate(result.url)}
+                        className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
+                      >
+                        <DocumentTextIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-gray-900 truncate">{result.title}</div>
+                          <div className="text-sm text-gray-600 truncate">{result.subtitle}</div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Topics Section */}
+                {previewResults.results.topics && previewResults.results.topics.length > 0 && (
+                  <div className="border-b border-gray-200">
+                    <div className="px-4 py-2 bg-gray-50 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <ChatBubbleBottomCenterTextIcon className="h-4 w-4 text-gray-500" />
+                        <span className="text-xs font-semibold text-gray-700 uppercase">Topics</span>
+                      </div>
+                      {previewResults.results.topics.length > 0 && (
+                        <button
+                          onClick={() => handleViewAllCategory('topics')}
+                          className="text-xs text-primary-600 hover:text-primary-700 font-medium"
+                        >
+                          View All
+                        </button>
+                      )}
+                    </div>
+                    {previewResults.results.topics.slice(0, 3).map((result, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => navigate(result.url)}
+                        className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
+                      >
+                        <ChatBubbleBottomCenterTextIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-gray-900 truncate">{result.title}</div>
+                          <div className="text-sm text-gray-600 truncate">{result.subtitle}</div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Decisions Section */}
+                {previewResults.results.decisions && previewResults.results.decisions.length > 0 && (
+                  <div className="border-b border-gray-200">
+                    <div className="px-4 py-2 bg-gray-50 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <ScaleIcon className="h-4 w-4 text-gray-500" />
+                        <span className="text-xs font-semibold text-gray-700 uppercase">Decisions</span>
+                      </div>
+                      {previewResults.results.decisions.length > 0 && (
+                        <button
+                          onClick={() => handleViewAllCategory('decisions')}
+                          className="text-xs text-primary-600 hover:text-primary-700 font-medium"
+                        >
+                          View All
+                        </button>
+                      )}
+                    </div>
+                    {previewResults.results.decisions.slice(0, 3).map((result, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => navigate(result.url)}
+                        className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
+                      >
+                        <ScaleIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
                         <div className="flex-1 min-w-0">
                           <div className="font-medium text-gray-900 truncate">{result.title}</div>
                           <div className="text-sm text-gray-600 truncate">{result.subtitle}</div>

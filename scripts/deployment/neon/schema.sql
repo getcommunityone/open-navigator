@@ -40,6 +40,9 @@ CREATE TABLE stats_aggregates (
     total_revenue BIGINT DEFAULT 0,
     total_assets BIGINT DEFAULT 0,
     
+    -- Trending causes (JSON array from decisions in last 90 days)
+    trending_causes JSONB,
+    
     -- Metadata
     last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     

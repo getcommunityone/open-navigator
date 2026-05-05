@@ -18,6 +18,7 @@ import {
   BriefcaseIcon,
   ScaleIcon,
   UserGroupIcon,
+  ChatBubbleBottomCenterTextIcon,
   CodeBracketIcon,
   BuildingOfficeIcon,
   UserIcon,
@@ -122,7 +123,7 @@ export default function Home() {
   const [searchParams] = useSearchParams()
   const [keyword, setKeyword] = useState('')
   const [debouncedKeyword, setDebouncedKeyword] = useState('')
-  const [searchScope, setSearchScope] = useState('city') // city, county, state, community (school)
+  const [searchScope, setSearchScope] = useState('city') // city, county, state, national, community (school)
   const [selectedTab, setSelectedTab] = useState(0)
   const [selectedStoryTab, setSelectedStoryTab] = useState(0)
   const [showSuggestions, setShowSuggestions] = useState(false)
@@ -220,6 +221,11 @@ export default function Home() {
   const statsText = React.useMemo(() => {
     console.log('📊 [Home] Recomputing stats text, locationStats:', locationStats, 'location:', location);
     
+    // If national scope selected, always show national stats
+    if (searchScope === 'national') {
+      return '90,000+ jurisdictions • 1.8M nonprofits • 75K+ leaders • 650+ causes • 100% free';
+    }
+    
     // If no location data or stats are loading, show national stats
     if (!locationStats) {
       return '90,000+ jurisdictions • 1.8M nonprofits • 75K+ leaders • 650+ causes • 100% free';
@@ -265,13 +271,33 @@ export default function Home() {
     parts.push('100% free');
     
     return parts.join(' • ');
-  }, [locationStats, location]);
+  }, [locationStats, location, searchScope]);
 
-  // Generate dynamic subtitle based on location
+  // Generate dynamic subtitle based on location and search scope
   const getSubtitle = () => {
+    // If national scope, show national message regardless of location
+    if (searchScope === 'national') {
+      return 'Track Decisions Nationwide';
+    }
+    
     if (!location) {
       return 'Track Local Decisions. Take Action.';
     }
+    
+    if (searchScope === 'city' && location.city && location.state) {
+      return `Track Decisions in ${location.city}, ${location.state}`;
+    }
+    if (searchScope === 'county' && location.county && location.state) {
+      return `Track Decisions in ${location.county}, ${location.state}`;
+    }
+    if (searchScope === 'state' && location.state) {
+      return `Track Decisions in ${location.state}`;
+    }
+    if (searchScope === 'community' && location.city && location.state) {
+      return `Track School Board Decisions in ${location.city}, ${location.state}`;
+    }
+    
+    // Fallback based on location only
     if (location.city && location.state) {
       return `Track Decisions in ${location.city}, ${location.state}`;
     }
@@ -281,9 +307,69 @@ export default function Home() {
     return 'Track Local Decisions. Take Action.';
   };
 
+  // Highlight matching text in dropdown results
+  const highlightMatch = (text: string, keyword: string) => {
+    if (!keyword || !text) return text;
+    
+    const parts = text.split(new RegExp(`(${keyword})`, 'gi'));
+    return (
+      <>
+        {parts.map((part, i) => 
+          part.toLowerCase() === keyword.toLowerCase() ? (
+            <span key={i} className="bg-yellow-200 font-semibold">{part}</span>
+          ) : (
+            part
+          )
+        )}
+      </>
+    );
+  };
+
+  // Filter results to only include items containing the keyword
+  const filterResults = (results: any[], keyword: string, resultType?: string) => {
+    if (!keyword || keyword.length < 2) return results;
+    const lowerKeyword = keyword.toLowerCase();
+    return results.filter((result: any) => {
+      // For topics, only check the title (topic field) - be strict
+      if (resultType === 'topics') {
+        return result.title?.toLowerCase().includes(lowerKeyword);
+      }
+      // For other types, check all searchable fields
+      const searchableText = [
+        result.title,
+        result.subtitle,
+        result.description,
+        result.name,
+        result.jurisdiction_name
+      ].filter(Boolean).join(' ').toLowerCase();
+      return searchableText.includes(lowerKeyword);
+    });
+  };
+
+  // Generate dynamic description based on search scope
+  const getDescription = () => {
+    if (searchScope === 'national') {
+      return 'Search leaders, charities, and causes across the United States';
+    }
+    if (searchScope === 'state' && location?.state) {
+      return `Follow leaders, charities, and causes in ${location.state}.`;
+    }
+    if (searchScope === 'county' && location?.county) {
+      return `Follow leaders, charities, and causes in ${location.county}.`;
+    }
+    if (searchScope === 'community' && location?.city) {
+      return `Follow school boards, educators, and education causes in ${location.city}.`;
+    }
+    // Default for city or when location exists
+    if (location?.city) {
+      return `Follow leaders, charities, and causes in ${location.city}.`;
+    }
+    return 'Follow leaders, charities, and causes in your community.';
+  };
+
   // Live search preview (type-ahead with actual results from API)
   const { data: previewResults, isLoading: previewLoading, error: previewError } = useQuery({
-    queryKey: ['search-preview-home', debouncedKeyword, location?.state],
+    queryKey: ['search-preview-home', debouncedKeyword, location?.state, searchScope],
     queryFn: async () => {
       console.log('🔍 [Home] Fetching preview for:', debouncedKeyword, 'in state:', location?.state);
       if (!debouncedKeyword || debouncedKeyword.length < 2) {
@@ -295,14 +381,16 @@ export default function Home() {
         const url = '/search/';
         const params: any = {
           q: debouncedKeyword,
-          types: 'causes,contacts,organizations,bills',
-          limit: 3
+          types: 'causes,contacts,organizations,bills,topics,decisions',
+          limit: 12  // Higher limit to show results from multiple types
         };
         
-        // Add state filter if location is set
-        if (location && location.state) {
+        // Add state filter based on search scope (don't filter if scope is 'national')
+        if (location && location.state && searchScope !== 'national') {
           params.state = location.state;
           console.log('📍 [Home] Filtering by state:', location.state);
+        } else if (searchScope === 'national') {
+          console.log('🌎 [Home] National search - no state filter');
         }
         
         console.log('📤 [Home] API Request:', url, params);
@@ -776,7 +864,7 @@ export default function Home() {
                 {/* Story Content - Conditional rendering based on type */}
                 {FEATURED_STORIES[selectedStoryTab].type === 'hero' ? (
                   /* Hero Search Interface */
-                  <div className="relative overflow-hidden rounded-2xl shadow-2xl h-[500px] flex items-center justify-center p-8 md:p-12 bg-gradient-to-br from-gray-50 to-white">
+                  <div className="relative rounded-2xl shadow-2xl h-[500px] flex items-center justify-center p-8 md:p-12 bg-gradient-to-br from-gray-50 to-white" style={{ overflow: 'visible' }}>
                     <div className="text-center max-w-4xl w-full">
                       <p className="text-xl md:text-2xl text-gray-600 mb-4">
                         {FEATURED_STORIES[selectedStoryTab].title}
@@ -790,7 +878,7 @@ export default function Home() {
                         {getSubtitle()}
                       </h1>
                       <p className="text-lg md:text-xl text-gray-600 mb-6">
-                        {FEATURED_STORIES[selectedStoryTab].description}
+                        {getDescription()}
                       </p>
                       <p className="text-sm md:text-base text-gray-500 mb-8 font-medium">
                         {statsText}
@@ -805,7 +893,7 @@ export default function Home() {
                               <div className="flex-1 relative">
                                 <input
                                   type="text"
-                                  placeholder="Search for topics, people, organizations, or causes..."
+                                  placeholder="Search contacts, organizations, bills, topics, decisions, causes..."
                                   value={keyword}
                                   onChange={handleKeywordChange}
                                   onFocus={() => {
@@ -818,7 +906,7 @@ export default function Home() {
                                 
                                 {/* Error Display - Below Input */}
                                 {keyword.length >= 2 && previewError && (
-                                  <div className="absolute top-full left-0 right-0 mt-2 z-20 bg-red-50 border border-red-200 rounded-lg shadow-lg p-3">
+                                  <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-red-50 border border-red-200 rounded-lg shadow-lg p-3">
                                     <div className="flex items-start gap-2">
                                       <svg className="h-5 w-5 text-red-400 flex-shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
                                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
@@ -837,7 +925,7 @@ export default function Home() {
                                 
                                 {/* Loading Display - Below Input */}
                                 {keyword.length >= 2 && previewLoading && (
-                                  <div className="absolute top-full left-0 right-0 mt-2 z-20 bg-white border border-gray-200 rounded-lg shadow-lg p-3">
+                                  <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-white border border-gray-200 rounded-lg shadow-lg p-3">
                                     <div className="flex items-center gap-2">
                                       <svg className="animate-spin h-4 w-4 text-[#354F52]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -850,7 +938,7 @@ export default function Home() {
                                 
                                 {/* Preview Results Dropdown */}
                                 {keyword.length >= 2 && showSuggestions && !previewLoading && !previewError && previewResults && (
-                                  <div className="absolute top-full left-0 right-0 mt-2 z-20 bg-white border border-gray-200 rounded-lg shadow-xl max-h-96 overflow-y-auto">
+                                  <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-white border border-gray-200 rounded-lg shadow-xl max-h-96 overflow-y-auto">
                                     {/* No Results Message */}
                                     {previewResults.total_results === 0 && (
                                       <div className="px-4 py-8 text-center">
@@ -868,136 +956,220 @@ export default function Home() {
                                     )}
                                     
                                     {/* Causes Section */}
-                                    {previewResults.total_results > 0 && previewResults.results?.causes?.length > 0 && (
-                                      <div className="border-b border-gray-200">
-                                        <div className="px-4 py-2 bg-gray-50 flex items-center justify-between">
-                                          <div className="flex items-center gap-2">
-                                            <HeartIcon className="h-4 w-4 text-gray-500" />
-                                            <span className="text-xs font-semibold text-gray-700 uppercase">Causes</span>
-                                          </div>
-                                          <button
-                                            type="button"
-                                            onClick={() => handleViewAllCategory('causes')}
-                                            className="text-xs text-[#354F52] hover:text-[#2e4346] font-medium"
-                                          >
-                                            View All
-                                          </button>
-                                        </div>
-                                        {previewResults.results.causes.slice(0, 3).map((result: any, idx: number) => (
-                                          <button
-                                            key={idx}
-                                            type="button"
-                                            onClick={() => handleSelectSuggestion(result.title)}
-                                            className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
-                                          >
-                                            <HeartIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
-                                            <div className="flex-1 min-w-0">
-                                              <div className="font-medium text-gray-900 truncate">{result.title}</div>
-                                              <div className="text-sm text-gray-600 truncate">{result.subtitle || result.description}</div>
+                                    {previewResults.total_results > 0 && previewResults.results?.causes?.length > 0 && (() => {
+                                      const filteredCauses = filterResults(previewResults.results.causes, keyword);
+                                      return filteredCauses.length > 0 && (
+                                        <div className="border-b border-gray-200">
+                                          <div className="px-4 py-2 bg-gray-50 flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                              <HeartIcon className="h-4 w-4 text-gray-500" />
+                                              <span className="text-xs font-semibold text-gray-700 uppercase">Causes</span>
                                             </div>
-                                          </button>
-                                        ))}
-                                      </div>
-                                    )}
+                                            <button
+                                              type="button"
+                                              onClick={() => handleViewAllCategory('causes')}
+                                              className="text-xs text-[#354F52] hover:text-[#2e4346] font-medium"
+                                            >
+                                              View All
+                                            </button>
+                                          </div>
+                                          {filteredCauses.slice(0, 3).map((result: any, idx: number) => (
+                                            <button
+                                              key={idx}
+                                              type="button"
+                                              onClick={() => handleSelectSuggestion(result.title)}
+                                              className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
+                                            >
+                                              <HeartIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
+                                              <div className="flex-1 min-w-0">
+                                                <div className="font-medium text-gray-900 truncate">{highlightMatch(result.title, keyword)}</div>
+                                                <div className="text-sm text-gray-600 truncate">{highlightMatch(result.subtitle || result.description, keyword)}</div>
+                                              </div>
+                                            </button>
+                                          ))}
+                                        </div>
+                                      );
+                                    })()}
 
                                     {/* Organizations Section */}
-                                    {previewResults.total_results > 0 && previewResults.results?.organizations?.length > 0 && (
-                                      <div className="border-b border-gray-200">
-                                        <div className="px-4 py-2 bg-gray-50 flex items-center justify-between">
-                                          <div className="flex items-center gap-2">
-                                            <BuildingLibraryIcon className="h-4 w-4 text-gray-500" />
-                                            <span className="text-xs font-semibold text-gray-700 uppercase">Organizations</span>
-                                          </div>
-                                          <button
-                                            type="button"
-                                            onClick={() => handleViewAllCategory('organizations')}
-                                            className="text-xs text-[#354F52] hover:text-[#2e4346] font-medium"
-                                          >
-                                            View All
-                                          </button>
-                                        </div>
-                                        {previewResults.results.organizations.slice(0, 3).map((result: any, idx: number) => (
-                                          <button
-                                            key={idx}
-                                            type="button"
-                                            onClick={() => handleSelectSuggestion(result.title)}
-                                            className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
-                                          >
-                                            <BuildingLibraryIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
-                                            <div className="flex-1 min-w-0">
-                                              <div className="font-medium text-gray-900 truncate">{result.title}</div>
-                                              <div className="text-sm text-gray-600 truncate">{result.subtitle || result.description}</div>
+                                    {previewResults.total_results > 0 && previewResults.results?.organizations?.length > 0 && (() => {
+                                      const filteredOrgs = filterResults(previewResults.results.organizations, keyword);
+                                      return filteredOrgs.length > 0 && (
+                                        <div className="border-b border-gray-200">
+                                          <div className="px-4 py-2 bg-gray-50 flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                              <BuildingLibraryIcon className="h-4 w-4 text-gray-500" />
+                                              <span className="text-xs font-semibold text-gray-700 uppercase">Organizations</span>
                                             </div>
-                                          </button>
-                                        ))}
-                                      </div>
-                                    )}
+                                            <button
+                                              type="button"
+                                              onClick={() => handleViewAllCategory('organizations')}
+                                              className="text-xs text-[#354F52] hover:text-[#2e4346] font-medium"
+                                            >
+                                              View All
+                                            </button>
+                                          </div>
+                                          {filteredOrgs.slice(0, 3).map((result: any, idx: number) => (
+                                            <button
+                                              key={idx}
+                                              type="button"
+                                              onClick={() => handleSelectSuggestion(result.title)}
+                                              className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
+                                            >
+                                              <BuildingLibraryIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
+                                              <div className="flex-1 min-w-0">
+                                                <div className="font-medium text-gray-900 truncate">{highlightMatch(result.title, keyword)}</div>
+                                                <div className="text-sm text-gray-600 truncate">{highlightMatch(result.subtitle || result.description, keyword)}</div>
+                                              </div>
+                                            </button>
+                                          ))}
+                                        </div>
+                                      );
+                                    })()}
 
                                     {/* Contacts Section */}
-                                    {previewResults.total_results > 0 && previewResults.results?.contacts?.length > 0 && (
-                                      <div className="border-b border-gray-200">
-                                        <div className="px-4 py-2 bg-gray-50 flex items-center justify-between">
-                                          <div className="flex items-center gap-2">
-                                            <UserGroupIcon className="h-4 w-4 text-gray-500" />
-                                            <span className="text-xs font-semibold text-gray-700 uppercase">People</span>
-                                          </div>
-                                          <button
-                                            type="button"
-                                            onClick={() => handleViewAllCategory('contacts')}
-                                            className="text-xs text-[#354F52] hover:text-[#2e4346] font-medium"
-                                          >
-                                            View All
-                                          </button>
-                                        </div>
-                                        {previewResults.results.contacts.slice(0, 3).map((result: any, idx: number) => (
-                                          <button
-                                            key={idx}
-                                            type="button"
-                                            onClick={() => handleSelectSuggestion(result.title)}
-                                            className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
-                                          >
-                                            <UserGroupIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
-                                            <div className="flex-1 min-w-0">
-                                              <div className="font-medium text-gray-900 truncate">{result.title}</div>
-                                              <div className="text-sm text-gray-600 truncate">{result.subtitle || result.description}</div>
+                                    {previewResults.total_results > 0 && previewResults.results?.contacts?.length > 0 && (() => {
+                                      const filteredContacts = filterResults(previewResults.results.contacts, keyword);
+                                      return filteredContacts.length > 0 && (
+                                        <div className="border-b border-gray-200">
+                                          <div className="px-4 py-2 bg-gray-50 flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                              <UserGroupIcon className="h-4 w-4 text-gray-500" />
+                                              <span className="text-xs font-semibold text-gray-700 uppercase">People</span>
                                             </div>
-                                          </button>
-                                        ))}
-                                      </div>
-                                    )}
+                                            <button
+                                              type="button"
+                                              onClick={() => handleViewAllCategory('contacts')}
+                                              className="text-xs text-[#354F52] hover:text-[#2e4346] font-medium"
+                                            >
+                                              View All
+                                            </button>
+                                          </div>
+                                          {filteredContacts.slice(0, 3).map((result: any, idx: number) => (
+                                            <button
+                                              key={idx}
+                                              type="button"
+                                              onClick={() => handleSelectSuggestion(result.title)}
+                                              className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
+                                            >
+                                              <UserGroupIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
+                                              <div className="flex-1 min-w-0">
+                                                <div className="font-medium text-gray-900 truncate">{highlightMatch(result.title, keyword)}</div>
+                                                <div className="text-sm text-gray-600 truncate">{highlightMatch(result.subtitle || result.description, keyword)}</div>
+                                              </div>
+                                            </button>
+                                          ))}
+                                        </div>
+                                      );
+                                    })()}
 
                                     {/* Bills Section */}
-                                    {previewResults.total_results > 0 && previewResults.results?.bills?.length > 0 && (
-                                      <div className="border-b border-gray-200">
-                                        <div className="px-4 py-2 bg-gray-50 flex items-center justify-between">
-                                          <div className="flex items-center gap-2">
-                                            <DocumentTextIcon className="h-4 w-4 text-gray-500" />
-                                            <span className="text-xs font-semibold text-gray-700 uppercase">Bills</span>
-                                          </div>
-                                          <button
-                                            type="button"
-                                            onClick={() => handleViewAllCategory('bills')}
-                                            className="text-xs text-[#354F52] hover:text-[#2e4346] font-medium"
-                                          >
-                                            View All
-                                          </button>
-                                        </div>
-                                        {previewResults.results.bills.slice(0, 3).map((result: any, idx: number) => (
-                                          <button
-                                            key={idx}
-                                            type="button"
-                                            onClick={() => handleSelectSuggestion(result.title)}
-                                            className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
-                                          >
-                                            <DocumentTextIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
-                                            <div className="flex-1 min-w-0">
-                                              <div className="font-medium text-gray-900 truncate">{result.title}</div>
-                                              <div className="text-sm text-gray-600 truncate">{result.subtitle || result.description}</div>
+                                    {previewResults.total_results > 0 && previewResults.results?.bills?.length > 0 && (() => {
+                                      const filteredBills = filterResults(previewResults.results.bills, keyword);
+                                      return filteredBills.length > 0 && (
+                                        <div className="border-b border-gray-200">
+                                          <div className="px-4 py-2 bg-gray-50 flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                              <DocumentTextIcon className="h-4 w-4 text-gray-500" />
+                                              <span className="text-xs font-semibold text-gray-700 uppercase">Bills</span>
                                             </div>
-                                          </button>
-                                        ))}
-                                      </div>
-                                    )}
+                                            <button
+                                              type="button"
+                                              onClick={() => handleViewAllCategory('bills')}
+                                              className="text-xs text-[#354F52] hover:text-[#2e4346] font-medium"
+                                            >
+                                              View All
+                                            </button>
+                                          </div>
+                                          {filteredBills.slice(0, 3).map((result: any, idx: number) => (
+                                            <button
+                                              key={idx}
+                                              type="button"
+                                              onClick={() => handleSelectSuggestion(result.title)}
+                                              className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
+                                            >
+                                              <DocumentTextIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
+                                              <div className="flex-1 min-w-0">
+                                                <div className="font-medium text-gray-900 truncate">{highlightMatch(result.title, keyword)}</div>
+                                                <div className="text-sm text-gray-600 truncate">{highlightMatch(result.subtitle || result.description, keyword)}</div>
+                                              </div>
+                                            </button>
+                                          ))}
+                                        </div>
+                                      );
+                                    })()}
+
+                                    {/* Topics Section */}
+                                    {previewResults.total_results > 0 && previewResults.results?.topics?.length > 0 && (() => {
+                                      const filteredTopics = filterResults(previewResults.results.topics, keyword, 'topics');
+                                      return filteredTopics.length > 0 && (
+                                        <div className="border-b border-gray-200">
+                                          <div className="px-4 py-2 bg-gray-50 flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                              <ChatBubbleBottomCenterTextIcon className="h-4 w-4 text-gray-500" />
+                                              <span className="text-xs font-semibold text-gray-700 uppercase">Topics</span>
+                                            </div>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleViewAllCategory('topics')}
+                                              className="text-xs text-[#354F52] hover:text-[#2e4346] font-medium"
+                                            >
+                                              View All
+                                            </button>
+                                          </div>
+                                          {filteredTopics.slice(0, 3).map((result: any, idx: number) => (
+                                            <button
+                                              key={idx}
+                                              type="button"
+                                              onClick={() => handleSelectSuggestion(result.title)}
+                                              className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
+                                            >
+                                              <ChatBubbleBottomCenterTextIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
+                                              <div className="flex-1 min-w-0">
+                                                <div className="font-medium text-gray-900 truncate">{highlightMatch(result.title, keyword)}</div>
+                                                <div className="text-sm text-gray-600 truncate">{highlightMatch(result.subtitle || result.description, keyword)}</div>
+                                              </div>
+                                            </button>
+                                          ))}
+                                        </div>
+                                      );
+                                    })()}
+
+                                    {/* Decisions Section */}
+                                    {previewResults.total_results > 0 && previewResults.results?.decisions?.length > 0 && (() => {
+                                      const filteredDecisions = filterResults(previewResults.results.decisions, keyword);
+                                      return filteredDecisions.length > 0 && (
+                                        <div className="border-b border-gray-200">
+                                          <div className="px-4 py-2 bg-gray-50 flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                              <ScaleIcon className="h-4 w-4 text-gray-500" />
+                                              <span className="text-xs font-semibold text-gray-700 uppercase">Decisions</span>
+                                            </div>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleViewAllCategory('decisions')}
+                                              className="text-xs text-[#354F52] hover:text-[#2e4346] font-medium"
+                                            >
+                                              View All
+                                            </button>
+                                          </div>
+                                          {filteredDecisions.slice(0, 3).map((result: any, idx: number) => (
+                                            <button
+                                              key={idx}
+                                              type="button"
+                                              onClick={() => handleSelectSuggestion(result.title)}
+                                              className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
+                                            >
+                                              <ScaleIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
+                                              <div className="flex-1 min-w-0">
+                                                <div className="font-medium text-gray-900 truncate">{highlightMatch(result.title, keyword)}</div>
+                                                <div className="text-sm text-gray-600 truncate">{highlightMatch(result.subtitle || result.description, keyword)}</div>
+                                              </div>
+                                            </button>
+                                          ))}
+                                        </div>
+                                      );
+                                    })()}
 
                                     {/* Footer with total results */}
                                     {previewResults.total_results > 0 && (
@@ -1023,8 +1195,9 @@ export default function Home() {
                                 >
                                   <option value="city">City: {location.city}</option>
                                   <option value="county">County: {location.county || 'County'}</option>
-                                  <option value="state">State: {location.state}</option>
                                   <option value="community">School: {location.city}</option>
+                                  <option value="state">State: {location.state}</option>
+                                  <option value="national">National</option>
                                 </select>
                               ) : null}
                             </div>
@@ -1035,7 +1208,7 @@ export default function Home() {
                                 type="button"
                                 className="px-3 py-2 text-sm font-medium text-[#354F52] hover:text-[#52796F] transition-colors whitespace-nowrap"
                               >
-                                📍 Find My Community
+                                📍 {location ? 'Change My Location' : 'Find My Community'}
                               </button>
                               
                               <button
@@ -1536,7 +1709,7 @@ export default function Home() {
               <Tab.Panels>
                 {/* Search Tab */}
                 <Tab.Panel>
-                  <div className="bg-white rounded-xl shadow-lg p-8">
+                  <div className="bg-white rounded-xl shadow-lg p-8" style={{ overflow: 'visible' }}>
                     <form onSubmit={handleSearch}>
                       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-end">
                         <div className="lg:col-span-7">
@@ -1559,7 +1732,7 @@ export default function Home() {
                             
                             {/* Error Display */}
                             {showSuggestions && previewError && (
-                              <div className="absolute z-10 w-full mt-2 bg-red-50 border border-red-200 rounded-lg shadow-xl p-4">
+                              <div className="absolute z-50 w-full mt-2 bg-red-50 border border-red-200 rounded-lg shadow-xl p-4">
                                 <div className="flex items-start gap-3">
                                   <div className="flex-shrink-0">
                                     <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
@@ -1583,7 +1756,7 @@ export default function Home() {
                             
                             {/* Loading Display */}
                             {showSuggestions && previewLoading && (
-                              <div className="absolute z-10 w-full mt-2 bg-white border border-gray-200 rounded-lg shadow-xl p-4">
+                              <div className="absolute z-50 w-full mt-2 bg-white border border-gray-200 rounded-lg shadow-xl p-4">
                                 <div className="flex items-center justify-center gap-3">
                                   <svg className="animate-spin h-5 w-5 text-primary-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -1596,7 +1769,7 @@ export default function Home() {
                             
                             {/* Rich Preview Dropdown with Grouped Results */}
                             {showSuggestions && !previewLoading && !previewError && previewResults && previewResults.total_results > 0 && (
-                              <div className="absolute z-10 w-full mt-2 bg-white border border-gray-200 rounded-lg shadow-xl max-h-96 overflow-y-auto">
+                              <div className="absolute z-50 w-full mt-2 bg-white border border-gray-200 rounded-lg shadow-xl max-h-96 overflow-y-auto">
                                 
                                 {/* Causes Section */}
                                 {previewResults.results.causes.length > 0 && (
@@ -1742,6 +1915,72 @@ export default function Home() {
                                   </div>
                                 )}
 
+                                {/* Topics Section */}
+                                {previewResults.results.topics && previewResults.results.topics.length > 0 && (
+                                  <div className="border-b border-gray-200">
+                                    <div className="px-4 py-2 bg-gray-50 flex items-center justify-between">
+                                      <div className="flex items-center gap-2">
+                                        <ChatBubbleBottomCenterTextIcon className="h-4 w-4 text-gray-500" />
+                                        <span className="text-xs font-semibold text-gray-700 uppercase">Topics</span>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleViewAllCategory('topics')}
+                                        className="text-xs text-primary-600 hover:text-primary-700 font-medium"
+                                      >
+                                        View All
+                                      </button>
+                                    </div>
+                                    {previewResults.results.topics.slice(0, 3).map((result: any, idx: number) => (
+                                      <button
+                                        key={idx}
+                                        type="button"
+                                        onClick={() => handleSelectSuggestion(result.title)}
+                                        className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
+                                      >
+                                        <ChatBubbleBottomCenterTextIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
+                                        <div className="flex-1 min-w-0">
+                                          <div className="font-medium text-gray-900 truncate">{result.title}</div>
+                                          <div className="text-sm text-gray-600 truncate">{result.subtitle || result.description}</div>
+                                        </div>
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {/* Decisions Section */}
+                                {previewResults.results.decisions && previewResults.results.decisions.length > 0 && (
+                                  <div className="border-b border-gray-200">
+                                    <div className="px-4 py-2 bg-gray-50 flex items-center justify-between">
+                                      <div className="flex items-center gap-2">
+                                        <ScaleIcon className="h-4 w-4 text-gray-500" />
+                                        <span className="text-xs font-semibold text-gray-700 uppercase">Decisions</span>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleViewAllCategory('decisions')}
+                                        className="text-xs text-primary-600 hover:text-primary-700 font-medium"
+                                      >
+                                        View All
+                                      </button>
+                                    </div>
+                                    {previewResults.results.decisions.slice(0, 3).map((result: any, idx: number) => (
+                                      <button
+                                        key={idx}
+                                        type="button"
+                                        onClick={() => handleSelectSuggestion(result.title)}
+                                        className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
+                                      >
+                                        <ScaleIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
+                                        <div className="flex-1 min-w-0">
+                                          <div className="font-medium text-gray-900 truncate">{result.title}</div>
+                                          <div className="text-sm text-gray-600 truncate">{result.subtitle || result.description}</div>
+                                        </div>
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+
                                 {/* Footer with total results */}
                                 <div className="px-4 py-2 bg-gray-50 text-center border-t border-gray-200">
                                   <button
@@ -1769,8 +2008,9 @@ export default function Home() {
                               >
                                 <option value="city">My City ({location.city})</option>
                                 <option value="county">My County ({location.county || 'County'})</option>
-                                <option value="state">My State ({location.state})</option>
                                 <option value="community">School Board ({location.city})</option>
+                                <option value="state">My State ({location.state})</option>
+                                <option value="national">National</option>
                               </select>
                               <button
                                 type="button"

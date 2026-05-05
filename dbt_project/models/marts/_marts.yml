@@ -1,6 +1,68 @@
 version: 2
 
 models:
+  - name: stats_aggregates
+    description: |
+      Jurisdiction-level statistics with trending causes.
+      
+      This model:
+      - Aggregates counts of jurisdictions, nonprofits, events, contacts, bills
+      - Includes trending causes (JSON) based on decisions in last 90 days
+      - Provides stats at multiple levels: national, state, county, city, jurisdiction
+      
+      Trending causes are calculated from bronze_decisions and ranked by:
+      - Decision count (number of decisions related to cause)
+      - Recency (most recent decisions weighted higher)
+      
+    config:
+      tags: ['daily', 'stats', 'aggregates']
+      unique_key: ['level', 'state_code', 'county', 'city']
+      
+    columns:
+      - name: level
+        description: "Aggregation level (national, state, county, city, jurisdiction)"
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['national', 'state', 'county', 'city', 'jurisdiction']
+              
+      - name: state_code
+        description: "Two-letter state code (NULL for national)"
+      
+      - name: state
+        description: "Full state name (NULL for national)"
+        
+      - name: county
+        description: "County name (NULL for non-county levels)"
+        
+      - name: city
+        description: "City/jurisdiction name (NULL for higher levels)"
+        
+      - name: jurisdictions_count
+        description: "Number of tracked jurisdictions"
+        
+      - name: nonprofits_count
+        description: "Number of nonprofit organizations"
+        
+      - name: events_count
+        description: "Number of meetings/events"
+        
+      - name: contacts_count
+        description: "Number of contacts/officials"
+        
+      - name: bills_count
+        description: "Number of bills/legislation tracked"
+        
+      - name: trending_causes
+        description: |
+          JSON array of trending causes based on decisions in last 90 days.
+          Each cause includes: category, code, decision_count, topics, most_recent, rank, sample_headlines
+        
+      - name: last_updated
+        description: "Timestamp of last stats update"
+        tests:
+          - not_null
+  
   - name: contacts_search_ai
     description: |
       AI-extracted contacts from meeting transcripts.

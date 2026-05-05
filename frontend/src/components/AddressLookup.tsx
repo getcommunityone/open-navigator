@@ -318,7 +318,7 @@ export default function AddressLookup({ onLocationFound, initialAddress = '', co
       },
       {
         enableHighAccuracy: false,  // Use fast network-based location instead of GPS
-        timeout: 5000,              // Reduced timeout since network location is faster
+        timeout: 15000,             // 15 second timeout to allow time for user to grant permission
         maximumAge: 30000           // Allow 30s cached location for faster response
       }
     )
@@ -455,7 +455,7 @@ export default function AddressLookup({ onLocationFound, initialAddress = '', co
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
-              <span>Use My Current Location</span>
+              <span>{foundLocation ? 'Change My Location' : 'Use My Current Location'}</span>
             </button>
           </div>
 

@@ -355,9 +355,9 @@ class BronzeToProductionMerger:
                     str(self.merge_run_id),
                     entity_type,
                     f'bronze_{entity_type}s',
-                    bronze_id,
+                    str(bronze_id) if bronze_id else None,
                     f'{entity_type}s_search',
-                    prod_id,
+                    str(prod_id) if prod_id else None,
                     match_type,
                     confidence,
                     action
@@ -646,6 +646,15 @@ class BronzeToProductionMerger:
         if not bill_number or bill_number.strip() == '':
             bill_number = f"LOCAL-ORD-{bronze_bill['id']}"
         
+        bill_id = f"local-{bronze_bill['id']}"
+        
+        # Check if this bill already exists
+        with prod_conn.cursor() as cur:
+            cur.execute("SELECT id FROM bills_search WHERE bill_id = %s", (bill_id,))
+            existing = cur.fetchone()
+        
+        action = 'updated' if existing else 'inserted'
+        
         with prod_conn.cursor() as cur:
             cur.execute("""
                 INSERT INTO bills_search (
@@ -657,9 +666,13 @@ class BronzeToProductionMerger:
                 ) VALUES (
                     %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
                 )
+                ON CONFLICT (bill_id) DO UPDATE SET
+                    title = COALESCE(EXCLUDED.title, bills_search.title),
+                    latest_action_description = EXCLUDED.latest_action_description,
+                    last_synced = EXCLUDED.last_synced
                 RETURNING id
             """, (
-                f"local-{bronze_bill['id']}",  # Generate local ID
+                bill_id,
                 bill_number,
                 bronze_bill.get('title'),
                 bronze_bill.get('leg_type', 'ordinance'),
@@ -681,8 +694,8 @@ class BronzeToProductionMerger:
             # Add meeting context
             self._add_bill_meeting_context(prod_conn, new_bill_id, bronze_bill)
         
-        logger.info(f"📝 Inserted local ordinance: {bronze_bill['title'][:50]}...")
-        return 'inserted'
+        logger.info(f"📝 {action.capitalize()} local ordinance: {bronze_bill['title'][:50]}...")
+        return action
     
     def generate_duplicate_report(self):
         """Generate report of potential duplicates for manual review"""

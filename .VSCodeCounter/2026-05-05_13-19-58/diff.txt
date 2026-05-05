@@ -1,0 +1,73 @@
+Date : 2026-05-05 13:19:58
+Directory : /home/developer/projects/open-navigator
+Total : 25 files,  2334 codes, 340 comments, 531 blanks, all 3205 lines
+
+Languages
++----------------+------------+------------+------------+------------+------------+
+| language       | files      | code       | comment    | blank      | total      |
++----------------+------------+------------+------------+------------+------------+
+| Markdown       |          7 |      1,098 |          0 |        351 |      1,449 |
+| Python         |          3 |        323 |        245 |         51 |        619 |
+| TypeScript JSX |          3 |        318 |         16 |         15 |        349 |
+| MS SQL         |          5 |        241 |         64 |         48 |        353 |
+| Shell Script   |          2 |        215 |         15 |         45 |        275 |
+| YAML           |          5 |        139 |          0 |         21 |        160 |
++----------------+------------+------------+------------+------------+------------+
+
+Directories
++-----------------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| path                                                                                                            | files      | code       | comment    | blank      | total      |
++-----------------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| .                                                                                                               |         25 |      2,334 |        340 |        531 |      3,205 |
+| . (Files)                                                                                                       |          2 |        238 |          0 |         72 |        310 |
+| api                                                                                                             |          2 |         67 |        214 |          5 |        286 |
+| api/routes                                                                                                      |          2 |         67 |        214 |          5 |        286 |
+| dbt_project                                                                                                     |         13 |      1,029 |         73 |        289 |      1,391 |
+| dbt_project (Files)                                                                                             |          6 |        666 |         10 |        223 |        899 |
+| dbt_project/models                                                                                              |          6 |        327 |         53 |         61 |        441 |
+| dbt_project/models/intermediate                                                                                 |          2 |        110 |         19 |         14 |        143 |
+| dbt_project/models/marts                                                                                        |          2 |        139 |         20 |         32 |        191 |
+| dbt_project/models/staging                                                                                      |          2 |         78 |         14 |         15 |        107 |
+| dbt_project/tests                                                                                               |          1 |         36 |         10 |          5 |         51 |
+| frontend                                                                                                        |          3 |        318 |         16 |         15 |        349 |
+| frontend/src                                                                                                    |          3 |        318 |         16 |         15 |        349 |
+| frontend/src/pages                                                                                              |          3 |        318 |         16 |         15 |        349 |
+| prompts                                                                                                         |          1 |         59 |          0 |          3 |         62 |
+| scripts                                                                                                         |          4 |        623 |         37 |        147 |        807 |
+| scripts/datasources                                                                                             |          3 |        622 |         36 |        146 |        804 |
+| scripts/datasources/gemini                                                                                      |          3 |        622 |         36 |        146 |        804 |
+| scripts/deployment                                                                                              |          1 |          1 |          1 |          1 |          3 |
+| scripts/deployment/neon                                                                                         |          1 |          1 |          1 |          1 |          3 |
++-----------------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+
+Files
++-----------------------------------------------------------------------------------------------------------------+----------------+------------+------------+------------+------------+
+| filename                                                                                                        | language       | code       | comment    | blank      | total      |
++-----------------------------------------------------------------------------------------------------------------+----------------+------------+------------+------------+------------+
+| /home/developer/projects/open-navigator/README.md                                                               | Markdown       |         25 |          0 |          8 |         33 |
+| /home/developer/projects/open-navigator/SEARCH_UPDATE_SUMMARY.md                                                | Markdown       |        213 |          0 |         64 |        277 |
+| /home/developer/projects/open-navigator/api/routes/search.py                                                    | Python         |          0 |         18 |          0 |         18 |
+| /home/developer/projects/open-navigator/api/routes/search_postgres.py                                           | Python         |         67 |        196 |          5 |        268 |
+| /home/developer/projects/open-navigator/dbt_project/QUICK_REFERENCE.md                                          | Markdown       |        230 |          0 |         77 |        307 |
+| /home/developer/projects/open-navigator/dbt_project/README.md                                                   | Markdown       |        198 |          0 |         78 |        276 |
+| /home/developer/projects/open-navigator/dbt_project/README_TRENDING_CAUSES.md                                   | Markdown       |        160 |          0 |         53 |        213 |
+| /home/developer/projects/open-navigator/dbt_project/models/intermediate/_intermediate.yml                       | YAML           |         39 |          0 |          1 |         40 |
+| /home/developer/projects/open-navigator/dbt_project/models/intermediate/int_trending_causes_by_jurisdiction.sql | MS SQL         |         71 |         19 |         13 |        103 |
+| /home/developer/projects/open-navigator/dbt_project/models/marts/_marts.yml                                     | YAML           |         46 |          0 |         16 |         62 |
+| /home/developer/projects/open-navigator/dbt_project/models/marts/stats_aggregates.sql                           | MS SQL         |         93 |         20 |         16 |        129 |
+| /home/developer/projects/open-navigator/dbt_project/models/staging/_staging.yml                                 | YAML           |         38 |          0 |          2 |         40 |
+| /home/developer/projects/open-navigator/dbt_project/models/staging/stg_bronze_decisions.sql                     | MS SQL         |         40 |         14 |         13 |         67 |
+| /home/developer/projects/open-navigator/dbt_project/package-lock.yml                                            | YAML           |         11 |          0 |          1 |         12 |
+| /home/developer/projects/open-navigator/dbt_project/packages.yml                                                | YAML           |          5 |          0 |          1 |          6 |
+| /home/developer/projects/open-navigator/dbt_project/setup.sh                                                    | Shell Script   |         62 |         10 |         13 |         85 |
+| /home/developer/projects/open-navigator/dbt_project/tests/assert_no_ai_overrides_authoritative.sql              | MS SQL         |         36 |         10 |          5 |         51 |
+| /home/developer/projects/open-navigator/frontend/src/pages/Home.tsx                                             | TypeScript JSX |        215 |         13 |         12 |        240 |
+| /home/developer/projects/open-navigator/frontend/src/pages/HomeModern.tsx                                       | TypeScript JSX |          1 |          0 |          0 |          1 |
+| /home/developer/projects/open-navigator/frontend/src/pages/UnifiedSearch.tsx                                    | TypeScript JSX |        102 |          3 |          3 |        108 |
+| /home/developer/projects/open-navigator/prompts/policy_analysis.md                                              | Markdown       |         59 |          0 |          3 |         62 |
+| /home/developer/projects/open-navigator/scripts/datasources/gemini/MERGE_STATUS.md                              | Markdown       |        213 |          0 |         68 |        281 |
+| /home/developer/projects/open-navigator/scripts/datasources/gemini/merge_bronze_to_production.py                | Python         |        256 |         31 |         46 |        333 |
+| /home/developer/projects/open-navigator/scripts/datasources/gemini/run_bronze_merge.sh                          | Shell Script   |        153 |          5 |         32 |        190 |
+| /home/developer/projects/open-navigator/scripts/deployment/neon/schema.sql                                      | MS SQL         |          1 |          1 |          1 |          3 |
+| Total                                                                                                           |                |      2,334 |        340 |        531 |      3,205 |
++-----------------------------------------------------------------------------------------------------------------+----------------+------------+------------+------------+------------+

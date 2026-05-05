@@ -1447,7 +1447,7 @@ def search_jurisdictions(query: str, state: Optional[str] = None, city: Optional
 @router.get("/search/", include_in_schema=False)
 async def unified_search(
     q: Optional[str] = Query(None, description="Search query (optional - browse by filters if omitted)"),
-    types: Optional[str] = Query(None, description="Comma-separated result types: contacts,meetings,organizations,causes,jurisdictions,bills"),
+    types: Optional[str] = Query(None, description="Comma-separated result types: contacts,meetings,organizations,causes,jurisdictions,bills,topics,decisions"),
     state: Optional[str] = Query(None, description="Filter by state (2-letter code)"),
     city: Optional[str] = Query(None, description="Filter by city name"),
     jurisdiction_levels: Optional[str] = Query(None, description="Comma-separated jurisdiction levels: city,county,town,village,school_district,special_district,state"),
@@ -1492,7 +1492,7 @@ async def unified_search(
         if types:
             requested_types = [t.strip() for t in types.split(',')]
         else:
-            requested_types = ['contacts', 'meetings', 'organizations', 'causes', 'jurisdictions', 'bills']
+            requested_types = ['contacts', 'meetings', 'organizations', 'causes', 'jurisdictions', 'bills', 'topics', 'decisions']
         
         # Parse jurisdiction levels if provided
         jurisdiction_levels_list = None
@@ -1544,6 +1544,20 @@ async def unified_search(
             logger.info(f"📜 Bills search returned {len(bill_results)} results")
             all_results.extend(bill_results)
         
+        if 'topics' in requested_types:
+            # Use PostgreSQL for fast indexed search of AI-extracted meeting topics
+            topic_results_pg = await search_postgres.search_topics_pg(q, state, ntee_code, limit=search_limit)
+            topic_results = [convert_pg_result(r) for r in topic_results_pg]
+            logger.info(f"📋 Topics search returned {len(topic_results)} results")
+            all_results.extend(topic_results)
+        
+        if 'decisions' in requested_types:
+            # Use PostgreSQL for fast indexed search of governance decisions
+            decision_results_pg = await search_postgres.search_decisions_pg(q, state, limit=search_limit)
+            decision_results = [convert_pg_result(r) for r in decision_results_pg]
+            logger.info(f"⚖️ Decisions search returned {len(decision_results)} results")
+            all_results.extend(decision_results)
+        
         if 'causes' in requested_types:
             cause_results = search_causes(q or "", limit=search_limit)
             logger.info(f"🎯 Causes search returned {len(cause_results)} results")
@@ -1577,11 +1591,13 @@ async def unified_search(
             'meetings': [r.to_dict() for r in paginated_results if r.result_type == 'meeting'],
             'organizations': [r.to_dict() for r in paginated_results if r.result_type == 'organization'],
             'bills': [r.to_dict() for r in paginated_results if r.result_type == 'bill'],
+            'topics': [r.to_dict() for r in paginated_results if r.result_type == 'topic'],
+            'decisions': [r.to_dict() for r in paginated_results if r.result_type == 'decision'],
             'causes': [r.to_dict() for r in paginated_results if r.result_type == 'cause'],
             'jurisdictions': [r.to_dict() for r in paginated_results if r.result_type == 'jurisdiction'],
         }
         
-        logger.info(f"📦 Grouped results - contacts:{len(grouped_results['contacts'])}, meetings:{len(grouped_results['meetings'])}, organizations:{len(grouped_results['organizations'])}, bills:{len(grouped_results['bills'])}, causes:{len(grouped_results['causes'])}, jurisdictions:{len(grouped_results['jurisdictions'])}")
+        logger.info(f"📦 Grouped results - contacts:{len(grouped_results['contacts'])}, meetings:{len(grouped_results['meetings'])}, organizations:{len(grouped_results['organizations'])}, bills:{len(grouped_results['bills'])}, topics:{len(grouped_results['topics'])}, decisions:{len(grouped_results['decisions'])}, causes:{len(grouped_results['causes'])}, jurisdictions:{len(grouped_results['jurisdictions'])}")
         
         # Calculate total results per type (from all_results before pagination)
         type_totals = {
@@ -1589,6 +1605,8 @@ async def unified_search(
             'meetings': len([r for r in all_results if r.result_type == 'meeting']),
             'organizations': len([r for r in all_results if r.result_type == 'organization']),
             'bills': len([r for r in all_results if r.result_type == 'bill']),
+            'topics': len([r for r in all_results if r.result_type == 'topic']),
+            'decisions': len([r for r in all_results if r.result_type == 'decision']),
             'causes': len([r for r in all_results if r.result_type == 'cause']),
             'jurisdictions': len([r for r in all_results if r.result_type == 'jurisdiction']),
         }

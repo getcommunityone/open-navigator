@@ -1,6 +1,46 @@
 version: 2
 
 models:
+  - name: int_trending_causes_by_jurisdiction
+    description: |
+      Aggregates trending causes by jurisdiction based on decisions in the last 90 days.
+      Ranks causes by decision count and recency. Used to populate trending_causes JSON.
+    columns:
+      - name: state_code
+        description: "Two-letter state code"
+        tests:
+          - not_null
+      - name: state
+        description: "Full state name"
+      - name: jurisdiction_name
+        description: "Name of jurisdiction (city/county/township)"
+        tests:
+          - not_null
+      - name: jurisdiction_type
+        description: "Type of jurisdiction (city, county, township)"
+      - name: cause_category
+        description: "Cause category (NTEE major group or primary theme)"
+        tests:
+          - not_null
+      - name: cause_code
+        description: "Cause code (NTEE code or COFOG code)"
+      - name: decision_count
+        description: "Number of decisions related to this cause in last 90 days"
+        tests:
+          - not_null
+      - name: unique_topics
+        description: "Number of unique topics under this cause"
+      - name: most_recent_decision
+        description: "Date of most recent decision for this cause"
+      - name: avg_days_old
+        description: "Average age (in days) of decisions for this cause"
+      - name: sample_headlines
+        description: "Array of up to 3 recent decision headlines"
+      - name: cause_rank
+        description: "Rank of this cause within the jurisdiction (1-10)"
+        tests:
+          - not_null
+  
   - name: int_contacts_deduped
     description: "Deduplicated bronze contacts (one record per person per org)"
     columns:
