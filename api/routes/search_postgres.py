@@ -146,7 +146,8 @@ async def search_jurisdictions_pg(
         # Text search filter first (if present) - must be $1 for score calculation
         score_param_idx = None
         if has_query:
-            where_clauses.append(f"to_tsvector('english', name) @@ plainto_tsquery('english', ${param_idx})")
+            # Use search_text field which includes name + state + type for better matching
+            where_clauses.append(f"to_tsvector('english', COALESCE(search_text, display_name)) @@ plainto_tsquery('english', ${param_idx})")
             params.append(query)
             score_param_idx = param_idx
             param_idx += 1
@@ -159,7 +160,7 @@ async def search_jurisdictions_pg(
         
         # City filter
         if city:
-            where_clauses.append(f"LOWER(name) LIKE LOWER(${param_idx})")
+            where_clauses.append(f"LOWER(display_name) LIKE LOWER(${param_idx})")
             params.append(f"%{city}%")
             param_idx += 1
         
@@ -177,24 +178,27 @@ async def search_jurisdictions_pg(
         
         # Select clause and order by
         if has_query:
-            select_score = f"ts_rank(to_tsvector('english', name), plainto_tsquery('english', ${score_param_idx})) as score"
-            order_by = f"score DESC, name ASC"
+            select_score = f"ts_rank(to_tsvector('english', COALESCE(search_text, display_name)), plainto_tsquery('english', ${score_param_idx})) as score"
+            order_by = f"score DESC, display_name ASC"
         else:
             select_score = "1.0 as score"
-            order_by = "name ASC"
+            order_by = "display_name ASC"
         
         # Build complete query
         sql = f"""
             SELECT 
-                name,
-                type,
+                display_name as name,
+                jurisdiction_type as type,
                 state_code,
-                state,
-                county,
+                state_name as state,
+                county_name as county,
                 geoid,
                 population,
+                latitude,
+                longitude,
+                website_url,
                 {select_score}
-            FROM jurisdictions_search
+            FROM jurisdictions
             WHERE {where_sql}
             ORDER BY {order_by}
             LIMIT ${param_idx}
@@ -357,6 +361,7 @@ async def search_contacts_pg(
 async def search_organizations_pg(
     query: Optional[str] = None,
     state: Optional[str] = None,
+    city: Optional[str] = None,
     ntee_code: Optional[str] = None,
     ein: Optional[str] = None,
     limit: int = 10,
@@ -369,6 +374,7 @@ async def search_organizations_pg(
     Args:
         query: Search text (organization name)
         state: Filter by state code (e.g., 'MA') or full name (e.g., 'Massachusetts')
+        city: Filter by city name (case-insensitive)
         ntee_code: Filter by NTEE code prefix
         ein: Exact EIN match
         limit: Max results
@@ -399,6 +405,12 @@ async def search_organizations_pg(
         if state:
             where_clauses.append(f"state_code = ${param_idx}")
             params.append(state.upper())
+            param_idx += 1
+        
+        # City filter (case-insensitive)
+        if city:
+            where_clauses.append(f"LOWER(city) = LOWER(${param_idx})")
+            params.append(city.strip())
             param_idx += 1
         
         # NTEE code filter

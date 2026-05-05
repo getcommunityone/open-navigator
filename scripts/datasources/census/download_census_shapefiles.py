@@ -13,9 +13,9 @@ Cartographic Boundary Files (cb_) are simplified versions optimized for mapping.
 Use these for visualization - they're smaller and faster to render than the full TIGER files.
 
 Usage:
-    python scripts/datasources/census/download_shapefiles.py --year 2023
-    python scripts/datasources/census/download_shapefiles.py --year 2023 --types states counties
-    python scripts/datasources/census/download_shapefiles.py --year 2023 --extract
+    python scripts/datasources/census/load_census_shapefiles.py --year 2023
+    python scripts/datasources/census/load_census_shapefiles.py --year 2023 --types states counties
+    python scripts/datasources/census/load_census_shapefiles.py --year 2023 --extract
 """
 import sys
 from pathlib import Path

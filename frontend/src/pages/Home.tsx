@@ -508,7 +508,17 @@ export default function Home() {
       longitude: locationData.longitude,
     })
     console.log('📍 [Home] Location updated, should trigger stats refetch');
+    console.log('📍 [Home] New subtitle will be:', `Track Decisions in ${locationData.city}, ${locationData.state}`);
+    
+    // Close the modal and return to search tab
+    setSelectedTab(0);
   }
+
+  // Debug: Log when location changes
+  useEffect(() => {
+    console.log('📍 [Home] Location state changed:', location);
+    console.log('📍 [Home] Current subtitle:', getSubtitle());
+  }, [location]);
 
   const categories = [
     { name: 'People', icon: UserGroupIcon, query: '', route: '/people' },

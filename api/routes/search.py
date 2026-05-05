@@ -1532,7 +1532,7 @@ async def unified_search(
         
         if 'organizations' in requested_types:
             # Use PostgreSQL for fast indexed search
-            org_results_pg = await search_postgres.search_organizations_pg(q, state, ntee_code, ein, limit=search_limit, offset=search_offset, sort=sort)
+            org_results_pg = await search_postgres.search_organizations_pg(q, state, city, ntee_code, ein, limit=search_limit, offset=search_offset, sort=sort)
             org_results = [convert_pg_result(r) for r in org_results_pg]
             logger.info(f"🏢 Organizations search returned {len(org_results)} results")
             all_results.extend(org_results)

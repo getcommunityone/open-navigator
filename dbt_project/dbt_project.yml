@@ -34,10 +34,20 @@ models:
       +materialized: view
       +schema: staging
       
+    # Silver models - cleaned and standardized (in bronze DB)
+    silver:
+      +materialized: table
+      +schema: public
+      
     # Intermediate models - deduplication and matching  
     intermediate:
       +materialized: table
       +schema: intermediate
+      
+    # Gold models - API-ready tables (in production DB)
+    gold:
+      +materialized: table
+      +schema: public
       
     # Marts - production-ready tables
     marts:

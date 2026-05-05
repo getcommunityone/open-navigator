@@ -25,54 +25,61 @@ export const LocationProvider: React.FC<{ children: ReactNode }> = ({ children }
   const { user, isAuthenticated } = useAuth()
   const [location, setLocationState] = useState<LocationData | null>(null)
 
-  // Load location from user profile or localStorage
+  // Load location from user profile or localStorage (only on initial mount)
   useEffect(() => {
-    if (isAuthenticated && user) {
-      // Use location from user profile if available
-      if (user.state && user.city) {
-        // Migrate full state names to state codes
-        const stateCode = stateNameToCode(user.state)
+    console.log('🏠 [LocationContext] Initial load, checking saved location...');
+    
+    // Check localStorage first (most recent manual selection)
+    const savedLocation = localStorage.getItem('user_location')
+    if (savedLocation) {
+      try {
+        const parsed = JSON.parse(savedLocation)
         
-        setLocationState({
-          state: stateCode,
-          county: user.county || '',
-          city: user.city,
-          school_board: user.school_board,
-        })
-      }
-    } else {
-      // Load from localStorage for anonymous users
-      const savedLocation = localStorage.getItem('user_location')
-      if (savedLocation) {
-        try {
-          const parsed = JSON.parse(savedLocation)
-          
-          // Migrate full state names to state codes
-          if (parsed.state) {
-            parsed.state = stateNameToCode(parsed.state)
-          }
-          
-          setLocationState(parsed)
-          
-          // Save back the migrated version
-          localStorage.setItem('user_location', JSON.stringify(parsed))
-        } catch (e) {
-          console.error('Failed to parse saved location:', e)
+        // Migrate full state names to state codes
+        if (parsed.state) {
+          parsed.state = stateNameToCode(parsed.state)
         }
+        
+        console.log('📍 [LocationContext] Loaded from localStorage:', parsed);
+        setLocationState(parsed)
+        
+        // Save back the migrated version
+        localStorage.setItem('user_location', JSON.stringify(parsed))
+        return; // Use localStorage value, don't check user profile
+      } catch (e) {
+        console.error('Failed to parse saved location:', e)
       }
     }
-  }, [user, isAuthenticated])
+    
+    // If no localStorage, check user profile
+    if (isAuthenticated && user && user.state && user.city) {
+      const stateCode = stateNameToCode(user.state)
+      
+      const profileLocation = {
+        state: stateCode,
+        county: user.county || '',
+        city: user.city,
+        school_board: user.school_board,
+      }
+      
+      console.log('👤 [LocationContext] Loaded from user profile:', profileLocation);
+      setLocationState(profileLocation)
+    } else {
+      console.log('❌ [LocationContext] No saved location found');
+    }
+  }, []) // Empty dependency array - only run on mount
 
   const setLocation = (newLocation: LocationData) => {
+    console.log('🔧 [LocationContext] Setting location:', newLocation);
     setLocationState(newLocation)
     
-    // Save to localStorage for anonymous users
-    if (!isAuthenticated) {
-      localStorage.setItem('user_location', JSON.stringify(newLocation))
-    }
+    // Always save to localStorage (even for authenticated users as a backup)
+    localStorage.setItem('user_location', JSON.stringify(newLocation))
+    console.log('💾 [LocationContext] Saved to localStorage');
   }
 
   const clearLocation = () => {
+    console.log('🗑️ [LocationContext] Clearing location');
     setLocationState(null)
     localStorage.removeItem('user_location')
   }

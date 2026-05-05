@@ -1,6 +1,20 @@
 """
 Link Cities and Counties to jurisdictions_search
 
+⚠️ DEPRECATION NOTICE:
+This enrichment script should be migrated to dbt as a transformation model.
+Data enrichment belongs in the transformation layer (bronze → silver/gold), not in loading scripts.
+
+TODO: Create dbt model: dbt_project/models/silver/silver_jurisdictions.sql
+      - Match cities/counties by name + state_code
+      - Update jurisdiction_id for proper linking
+      - Join bronze_jurisdictions with jurisdictions_details
+
+CURRENT FUNCTIONALITY (to be migrated):
+- Matches cities/counties by name + state_code
+- Updates jurisdiction_id in jurisdictions_details_search 
+- Enables proper linkage between tables
+
 PROBLEM: jurisdictions_details_search uses Census place codes (2500135) 
          but jurisdictions_search uses integer IDs (11714)
          Result: 0% mapping between tables
@@ -8,21 +22,25 @@ PROBLEM: jurisdictions_details_search uses Census place codes (2500135)
 SOLUTION: Update jurisdictions_details_search.jurisdiction_id to use 
           jurisdictions_search.id::text (same approach as school districts)
 
-This script:
-1. Matches cities/counties by name + state_code
-2. Updates jurisdiction_id in jurisdictions_details_search 
-3. Enables proper linkage between tables
-
 Usage:
     python link_cities_counties_to_search.py --dry-run
     python link_cities_counties_to_search.py --states MA,CA,TX
     python link_cities_counties_to_search.py
 """
 import argparse
+import warnings
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from loguru import logger
+
+# Deprecation warning
+warnings.warn(
+    "link_cities_counties_to_search.py is deprecated and should be migrated to dbt. "
+    "Data enrichment should happen in transformation layer (dbt), not in loading scripts.",
+    DeprecationWarning,
+    stacklevel=2
+)
 
 
 def normalize_name(name: str) -> str:

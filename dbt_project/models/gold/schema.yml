@@ -1,0 +1,107 @@
+version: 2
+
+models:
+  - name: jurisdictions
+    description: >
+      Final API-ready jurisdictions table. Single source of truth for all jurisdiction data.
+      Quality-filtered, enriched, and optimized for API consumption.
+      
+      Used by: api/routes/search_postgres.py, frontend search, data exports
+    
+    columns:
+      - name: jurisdiction_id
+        description: Primary identifier for jurisdiction
+        tests:
+          - unique
+          - not_null
+      
+      - name: geoid
+        description: Cleaned Census GEOID (standard geographic identifier)
+        tests:
+          - not_null
+      
+      - name: fips_code
+        description: Cleaned FIPS code
+      
+      - name: ansicode
+        description: ANSI standard code (8-digit for places)
+      
+      - name: display_name
+        description: Cleaned name for display in UI
+        tests:
+          - not_null
+      
+      - name: jurisdiction_type
+        description: Type of jurisdiction (city, county, state, etc.)
+        tests:
+          - not_null
+      
+      - name: state_code
+        description: 2-letter state abbreviation
+        tests:
+          - not_null
+      
+      - name: search_text
+        description: Full-text search field (name + state + type)
+      
+      - name: data_source
+        description: Origin of jurisdiction data (e.g., census_gazetteer_2024)
+      
+      - name: published_at
+        description: Timestamp when record was published to gold layer
+
+  - name: organizations_nonprofit_search
+    description: >
+      Final API-ready nonprofit search table. Contains 1.9M+ nonprofit organizations
+      from IRS BMF and NCCS sources, deduplicated and enriched.
+      
+      Used by: api/routes/search_postgres.py for nonprofit search
+      
+      Data Quality:
+      - Only includes orgs with valid EIN, name, city, and state
+      - NTEE codes enriched with human-readable descriptions
+      - Financial data from most recent filings
+      
+      Coverage: All 50 states + DC + territories
+    
+    columns:
+      - name: ein
+        description: Employer Identification Number (unique identifier)
+        tests:
+          - unique
+          - not_null
+      
+      - name: name
+        description: Organization legal name
+        tests:
+          - not_null
+      
+      - name: city
+        description: Organization city
+        tests:
+          - not_null
+      
+      - name: state_code
+        description: 2-letter state abbreviation
+        tests:
+          - not_null
+      
+      - name: state
+        description: Full state name
+      
+      - name: ntee_code
+        description: NTEE classification code (e.g., E21 for Community Health)
+      
+      - name: ntee_description
+        description: Human-readable NTEE major category description
+      
+      - name: revenue
+        description: Total revenue from most recent filing
+      
+      - name: assets
+        description: Total assets from most recent filing
+      
+      - name: datasource
+        description: "Data source: 'irs_bmf', 'nccs', or 'irs_bmf,nccs'"
+        tests:
+          - not_null

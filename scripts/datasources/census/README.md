@@ -1,6 +1,66 @@
 # US Census Bureau Data Scripts
 
+**✅ MIGRATION COMPLETE** - Gold table ready in production database!
+
+**See [STATUS.md](./STATUS.md)** for complete details and API integration guide.
+
+## Quick Reference
+
+**The `jurisdictions` table is ready to use in `open_navigator` database:**
+
+```sql
+-- Your API can query this right now!
+SELECT 
+    jurisdiction_id, 
+    display_name, 
+    jurisdiction_type, 
+    state_code, 
+    geoid
+FROM jurisdictions 
+WHERE display_name ILIKE '%Boston%' 
+  AND state_code = 'MA';
+```
+
+**Next Step**: Update `api/routes/search_postgres.py` to use this table. See [STATUS.md](./STATUS.md#-next-steps-for-api-integration) for examples.
+
+---
+
+## Quick Status
+
+- ✅ **Bronze Layer**: 19,741 jurisdictions loaded
+- ✅ **Silver Layer**: Data cleaned and linked (dbt models)
+- ✅ **Gold Layer**: API-ready table materialized
+- ✅ **Tests**: All 15 data quality tests passing
+- ✅ **DONE**: API routes use `jurisdictions` table
+
+**See**: [COMPLETION_SUMMARY.md](./COMPLETION_SUMMARY.md) for full details
+
 Scripts for working with [US Census Bureau](https://www.census.gov/) geographic and demographic data.
+
+## Quick Links
+
+- **Status Dashboard**: [STATUS.md](./STATUS.md) - What's done, what's in progress
+- **Migration Guide**: [MIGRATION_GUIDE.md](./MIGRATION_GUIDE.md) - Bronze migration strategy
+- **dbt Models**: `../../dbt_project/models/` - Transformation layer
+  - Silver: `silver/silver_jurisdictions_clean.sql`, `silver_jurisdictions_linked.sql`
+  - Gold: `gold/jurisdictions.sql` ✅ **API-READY**
+
+## Migration Status
+
+### ✅ Completed (Use These)
+- `load_census_states.py` - Loads 52 states to `bronze_jurisdictions` ✅
+- `load_census_municipalities.py` - Loads **19,463 cities/towns** to `bronze_jurisdictions` ✅
+- dbt silver models - Clean + link jurisdictions ✅ **TESTED**
+- dbt gold model - Final API-ready table ✅ **TESTED**
+- **Total: 19,741 jurisdictions in gold table** 🎉
+
+### ⚠️ Deprecated (Migrate to dbt)
+- `link_cities_counties_to_search.py` - **DEPRECATED**: Use dbt silver model instead
+- `fix_geoid_format.py` - **DEPRECATED**: Replaced by `silver_jurisdictions_clean.sql`
+
+### 📝 TODO (Need Bronze Update)
+- `load_census.py` - Complex PySpark script, needs refactor for bronze DB
+- `load_county_mappings.py` - Needs PostgreSQL loading logic added
 
 ## Data Source
 

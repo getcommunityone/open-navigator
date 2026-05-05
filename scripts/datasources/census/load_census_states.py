@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """
-Load US States into jurisdictions_search table.
+Load US States into bronze_jurisdictions table.
 
-This script populates jurisdictions_search with state-level records,
+This script populates bronze_jurisdictions with state-level records,
 enabling state matching in the master data management system.
+
+**Database**: open_navigator_bronze (bronze layer)
+**Table**: bronze_jurisdictions
 
 Data source: Census Bureau FIPS codes + jurisdictions_wikidata
 """
@@ -69,22 +72,22 @@ US_STATES = [
 
 
 def get_connection():
-    """Create database connection."""
+    """Create database connection to bronze layer."""
     return psycopg2.connect(
         host="localhost",
         port=5433,
-        database="open_navigator",
+        database="open_navigator_bronze",
         user="postgres",
         password="password"
     )
 
 
-def load_states_to_jurisdictions_search():
-    """Load all US states into jurisdictions_search table."""
+def load_states_to_bronze_jurisdictions():
+    """Load all US states into bronze_jurisdictions table."""
     conn = get_connection()
     cur = conn.cursor()
     
-    print(f"Loading {len(US_STATES)} states into jurisdictions_search...")
+    print(f"Loading {len(US_STATES)} states into bronze_jurisdictions...")
     
     # Prepare records for bulk insert
     records = []
@@ -100,6 +103,8 @@ def load_states_to_jurisdictions_search():
             None,                 # county (NULL for states)
             geoid,                # geoid (2-digit FIPS)
             fips_code,            # fips_code
+            None,                 # ncsid (NULL for states - only for cities)
+            None,                 # ansicode (NULL for states - only for cities)
             None,                 # population (can enrich later)
             None,                 # area_sq_miles (can enrich later)
             'census_fips'         # source
@@ -107,7 +112,7 @@ def load_states_to_jurisdictions_search():
     
     # Insert with ON CONFLICT to handle duplicates
     insert_query = """
-        INSERT INTO jurisdictions_search (
+        INSERT INTO bronze_jurisdictions (
             name,
             type,
             state_code,
@@ -115,6 +120,8 @@ def load_states_to_jurisdictions_search():
             county,
             geoid,
             fips_code,
+            ncsid,
+            ansicode,
             population,
             area_sq_miles,
             source
@@ -122,6 +129,8 @@ def load_states_to_jurisdictions_search():
         ON CONFLICT (name, type, state_code, county) DO UPDATE
         SET geoid = EXCLUDED.geoid,
             fips_code = EXCLUDED.fips_code,
+            ncsid = EXCLUDED.ncsid,
+            ansicode = EXCLUDED.ansicode,
             source = EXCLUDED.source
         RETURNING id
     """
@@ -136,13 +145,13 @@ def load_states_to_jurisdictions_search():
     # Verify insertion
     cur.execute("""
         SELECT state_code, name, geoid, fips_code
-        FROM jurisdictions_search
+        FROM bronze_jurisdictions
         WHERE type = 'state'
         ORDER BY state_code
     """)
     
     states = cur.fetchall()
-    print(f"\nVerification: {len(states)} states in jurisdictions_search:")
+    print(f"\nVerification: {len(states)} states in bronze_jurisdictions:")
     for state_code, name, geoid, fips in states[:5]:
         print(f"  {state_code}: {name} (GEOID: {geoid}, FIPS: {fips})")
     if len(states) > 5:
@@ -153,4 +162,4 @@ def load_states_to_jurisdictions_search():
 
 
 if __name__ == "__main__":
-    load_states_to_jurisdictions_search()
+    load_states_to_bronze_jurisdictions()

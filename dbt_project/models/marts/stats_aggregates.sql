@@ -25,7 +25,12 @@
     - int_trending_causes_by_jurisdiction: Trending causes by jurisdiction
 */
 
-WITH nonprofit_stats AS (
+-- CTE for base nonprofits data (extract ref() to top level)
+WITH base_nonprofits AS (
+    SELECT * FROM {{ ref('bronze_organizations_nonprofits') }}
+),
+
+nonprofit_stats AS (
     -- Aggregate nonprofit data by state and county
     SELECT
         state_code,
@@ -33,7 +38,7 @@ WITH nonprofit_stats AS (
         COUNT(*) as nonprofits_count,
         COALESCE(SUM(irs_revenue_amt), 0) as total_revenue,
         COALESCE(SUM(irs_asset_amt), 0) as total_assets
-    FROM {{ ref('bronze_organizations_nonprofits') }}
+    FROM base_nonprofits
     WHERE state_code IS NOT NULL
     GROUP BY state_code, census_county_name
 ),
@@ -46,21 +51,31 @@ nonprofit_city_stats AS (
         COUNT(*) as nonprofits_count,
         COALESCE(SUM(irs_revenue_amt), 0) as total_revenue,
         COALESCE(SUM(irs_asset_amt), 0) as total_assets
-    FROM {{ ref('bronze_organizations_nonprofits') }}
+    FROM base_nonprofits
     WHERE state_code IS NOT NULL AND city IS NOT NULL AND city != ''
     GROUP BY state_code, city
 ),
 
 city_to_county_map AS (
     -- Map cities to their primary county (most nonprofits in that county)
+    -- FIX: Order by COUNT DESC to pick the county with most orgs, not alphabetically!
+    WITH city_county_counts AS (
+        SELECT 
+            state_code,
+            city,
+            census_county_name,
+            COUNT(*) as org_count
+        FROM base_nonprofits
+        WHERE city IS NOT NULL AND city != '' 
+          AND census_county_name IS NOT NULL
+        GROUP BY state_code, city, census_county_name
+    )
     SELECT DISTINCT ON (state_code, city)
         state_code,
         city,
         census_county_name as primary_county
-    FROM {{ ref('bronze_organizations_nonprofits') }}
-    WHERE city IS NOT NULL AND city != '' 
-      AND census_county_name IS NOT NULL
-    ORDER BY state_code, city, census_county_name
+    FROM city_county_counts
+    ORDER BY state_code, city, org_count DESC  -- Largest county first!
 ),
 
 event_stats AS (
@@ -72,6 +87,18 @@ event_stats AS (
     FROM {{ source('bronze', 'bronze_events') }}
     WHERE state_code IS NOT NULL
     GROUP BY state_code, city
+),
+
+county_event_stats AS (
+    -- Pre-aggregate event counts by county (OPTIMIZATION + CASE-INSENSITIVE!)
+    SELECT
+        c2c.state_code,
+        c2c.primary_county as county,
+        SUM(es.events_count) as events_count
+    FROM event_stats es
+    JOIN city_to_county_map c2c 
+        ON UPPER(es.city) = UPPER(c2c.city) AND es.state_code = c2c.state_code
+    GROUP BY c2c.state_code, c2c.primary_county
 ),
 
 contact_stats AS (
@@ -142,7 +169,7 @@ state_stats AS (
     GROUP BY nps.state_code
 ),
 
--- County level stats (FIX: Add events from cities in county)
+-- County level stats (FIX: Use pre-aggregated events!)
 county_stats AS (
     SELECT
         'county' as level,
@@ -154,15 +181,7 @@ county_stats AS (
         0 as jurisdictions_count,
         0 as school_districts_count,
         nps.nonprofits_count::INTEGER,
-        -- Count events from cities in this county
-        COALESCE((
-            SELECT SUM(es.events_count)
-            FROM event_stats es
-            JOIN city_to_county_map c2c 
-                ON es.city = c2c.city AND es.state_code = c2c.state_code
-            WHERE c2c.primary_county = nps.county
-              AND c2c.state_code = nps.state_code
-        ), 0)::INTEGER as events_count,
+        COALESCE(ces.events_count, 0)::INTEGER as events_count,
         0 as bills_count,
         0 as contacts_count,
         nps.total_revenue,
@@ -171,6 +190,8 @@ county_stats AS (
         NULL::JSONB as trending_causes,
         CURRENT_TIMESTAMP as last_updated
     FROM nonprofit_stats nps
+    LEFT JOIN county_event_stats ces 
+        ON nps.county = ces.county AND nps.state_code = ces.state_code
     WHERE nps.county IS NOT NULL
 ),
 
@@ -198,7 +219,7 @@ city_stats AS (
         CURRENT_TIMESTAMP as last_updated
     FROM event_stats es
     LEFT JOIN nonprofit_city_stats ncs 
-        ON es.city = ncs.city AND es.state_code = ncs.state_code
+        ON UPPER(es.city) = UPPER(ncs.city) AND es.state_code = ncs.state_code
     WHERE es.city IS NOT NULL
 )
 
