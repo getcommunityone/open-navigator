@@ -9,13 +9,13 @@ This script:
 
 Usage:
     # Create tables and load all data
-    python scripts/datasources/gemini/extract_to_bronze.py
+    python scripts/datasources/gemini/load_meeting_transcripts_bronze.py
     
     # Just create tables (no data load)
-    python scripts/datasources/gemini/extract_to_bronze.py --create-tables-only
+    python scripts/datasources/gemini/load_meeting_transcripts_bronze.py --create-tables-only
     
     # Load data without recreating tables
-    python scripts/datasources/gemini/extract_to_bronze.py --skip-create-tables
+    python scripts/datasources/gemini/load_meeting_transcripts_bronze.py --skip-create-tables
 """
 
 import os

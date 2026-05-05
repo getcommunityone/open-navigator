@@ -152,6 +152,46 @@ scripts/
 3. **Use existing**: Prefer modifying existing scripts over creating new ones
 4. **Organize**: If creating new, place in appropriate subdirectory
 
+### ⚠️ MANDATORY: Data Source Script Naming Convention
+
+**CRITICAL RULE:** ALL data loading scripts in `scripts/datasources/` MUST start with `load_`
+
+**✅ DO THIS:**
+- `load_youtube_events_to_postgres.py` - Loading YouTube data
+- `load_census.py` - Loading census data
+- `load_irs_bmf.py` - Loading IRS data
+- `load_openstates_bulk.py` - Bulk loading OpenStates data
+- `load_fec_bulk.py` - Bulk loading FEC data
+- `load_localview.py` - Loading LocalView data
+- `load_acs_data.py` - Loading ACS data
+
+**❌ NEVER DO THIS:**
+- ❌ `download_youtube_videos.py` (use `load_youtube_videos.py`)
+- ❌ `bulk_download_fec.py` (use `load_fec_bulk.py`)
+- ❌ `import_census.py` (use `load_census.py`)
+- ❌ `ingest_irs_data.py` (use `load_irs_data.py`)
+- ❌ `fetch_openstates.py` (use `load_openstates.py`)
+
+**Rationale:**
+- Consistent `load_` prefix makes data loading scripts instantly recognizable
+- Easy to search: `ls scripts/datasources/*/load_*.py` shows all load scripts
+- Clear distinction from analysis, export, or utility scripts
+- Follows Python convention of verb-first naming for action scripts
+
+**Non-loading scripts can use other prefixes:**
+- `analyze_` - Analysis scripts (e.g., `analyze_meeting_transcripts.py`)
+- `export_` - Export scripts (e.g., `export_legislators_to_gold.py`)
+- `scrape_` - Web scraping scripts (e.g., `scrape_gov_websites.py`)
+- `create_` - Creation/generation scripts (e.g., `create_jurisdiction_master.py`)
+- `fix_` - Data cleanup scripts (e.g., `fix_fips_codes.py`)
+- `enrich_` - Data enrichment scripts (e.g., `enrich_from_localview.py`)
+- `validate_` - Validation scripts (e.g., `validate_channels_wikidata.py`)
+
+**Migration scripts:**
+- Place one-time migration/backfill scripts in `migrations/` subfolder
+- These can use `migrate_` or `backfill_` prefixes
+- Example: `scripts/datasources/gemini/migrations/migrate_multimodel_support.py`
+
 ## Code Style Preferences
 
 ### Python

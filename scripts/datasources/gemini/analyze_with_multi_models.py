@@ -37,7 +37,7 @@ from loguru import logger
 from dotenv import load_dotenv
 
 # Import the analyzer
-from scripts.datasources.gemini.analyze_meeting_transcripts import (
+from scripts.datasources.gemini.load_meeting_transcripts import (
     MeetingTranscriptAnalyzer,
     DATABASE_URL,
     GEMINI_API_KEY,

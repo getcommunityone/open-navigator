@@ -14,23 +14,23 @@ By default: Analyzes the 5 most recent meetings per channel across all states.
 
 Usage:
     # Analyze most recent 5 meetings per channel (all states, known channels)
-    python scripts/datasources/gemini/analyze_meeting_transcripts.py
+    python scripts/datasources/gemini/load_meeting_transcripts.py
     
     # Analyze only priority states (AL, GA, IN, MA, WA, WI)
-    python scripts/datasources/gemini/analyze_meeting_transcripts.py --priority-states
+    python scripts/datasources/gemini/load_meeting_transcripts.py --priority-states
     
     # Analyze specific state(s)
-    python scripts/datasources/gemini/analyze_meeting_transcripts.py --states MA
-    python scripts/datasources/gemini/analyze_meeting_transcripts.py --states MA,WI,AL
+    python scripts/datasources/gemini/load_meeting_transcripts.py --states MA
+    python scripts/datasources/gemini/load_meeting_transcripts.py --states MA,WI,AL
     
     # Analyze more meetings per channel
-    python scripts/datasources/gemini/analyze_meeting_transcripts.py --meetings-per-channel 10
+    python scripts/datasources/gemini/load_meeting_transcripts.py --meetings-per-channel 10
     
     # Force re-analysis (skip incremental check)
-    python scripts/datasources/gemini/analyze_meeting_transcripts.py --force
+    python scripts/datasources/gemini/load_meeting_transcripts.py --force
     
     # Dry run (show what would be analyzed)
-    python scripts/datasources/gemini/analyze_meeting_transcripts.py --dry-run
+    python scripts/datasources/gemini/load_meeting_transcripts.py --dry-run
 """
 
 import os
@@ -275,7 +275,7 @@ class MeetingTranscriptAnalyzer:
         Returns structured analysis with JSON, summary, and timeline.
         """
         logger.info(f"🤖 Analyzing: {meeting['title'][:70]}...")
-        logger.info(f"   📍 {meeting['jurisdiction_name']}, {meeting['state_code']}")
+        logger.info(f"   📍 {meeting['jurisdiction_name']}, {meeting['state_code'] or 'UNKNOWN'}")
         logger.info(f"   📅 {meeting['event_date']}")
         logger.info(f"   📺 {meeting['video_url']}")
         
@@ -343,7 +343,7 @@ class MeetingTranscriptAnalyzer:
 
 **Meeting Details:**
 - **Body:** {meeting['jurisdiction_name']} {meeting.get('jurisdiction_type', '')}
-- **Location:** {meeting.get('city', '')}, {meeting['state']} ({meeting['state_code']})
+- **Location:** {meeting.get('city', '')}, {meeting.get('state') or 'Unknown'} ({meeting['state_code'] or 'N/A'})
 - **Date:** {meeting['event_date']}
 - **Time:** {meeting.get('event_time', 'N/A')}
 - **Meeting Type:** {meeting.get('meeting_type', 'Unknown')}
@@ -534,15 +534,15 @@ class MeetingTranscriptAnalyzer:
             state = m['state_code']
             by_state.setdefault(state, []).append(m)
         
-        for state, state_meetings in sorted(by_state.items()):
-            logger.info(f"   {state}: {len(state_meetings)} meetings")
+        for state, state_meetings in sorted(by_state.items(), key=lambda x: (x[0] is None, x[0] or '')):
+            logger.info(f"   {state if state else 'UNKNOWN'}: {len(state_meetings)} meetings")
         
         logger.info("")
         
         if dry_run:
             logger.info("🏃 DRY RUN - Showing what would be analyzed:")
             for i, meeting in enumerate(meetings, 1):
-                logger.info(f"   [{i}] {meeting['state_code']} - {meeting['jurisdiction_name']}")
+                logger.info(f"   [{i}] {meeting['state_code'] or 'UNKNOWN'} - {meeting['jurisdiction_name']}")
                 logger.info(f"       {meeting['title'][:70]}")
                 logger.info(f"       {meeting['event_date']} - {meeting['video_url']}")
             return

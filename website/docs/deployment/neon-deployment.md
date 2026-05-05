@@ -196,7 +196,7 @@ After successful deployment:
 - First query after inactivity may be slow (cold start)
 - Neon free tier pauses after 5 minutes of inactivity
 - First request wakes it up (~1-2 seconds)
-- Subsequent requests are fast (<50ms)
+- Subsequent requests are fast (under 50ms)
 
 ## 🆘 Need Help?
 

@@ -135,27 +135,27 @@ python scripts/datasources/gemini/moa_synthesize.py --event-id 192614 --decision
 
 ### Supporting Scripts
 
-#### `migrate_multimodel_support.py`
+### One-Time & Migration Scripts
 
-Database migration to enable storing multiple AI model extractions of the same decision.
+Migration scripts and one-time utilities are located in the `migrations/` subfolder. These include:
 
-```bash
-# Dry run (preview changes)
-python scripts/datasources/gemini/migrate_multimodel_support.py --dry-run
+- Database schema migrations (multi-model support, NTEE fields)
+- Data backfill scripts (NTEE codes, organization IDs)
+- Cleanup utilities
 
-# Apply migration
-python scripts/datasources/gemini/migrate_multimodel_support.py
+**See [migrations/README.md](migrations/README.md) for details.**
 
-# Verify migration
-python scripts/datasources/gemini/migrate_multimodel_support.py --verify-only
-```
-
-#### `repopulate_ntee_codes.py`
-
-Backfill NTEE codes and organization IDs in bronze tables from arguments.
+These scripts are **not part of the regular workflow** and should only be run when:
+- Setting up a fresh database
+- Applying schema changes
+- Backfilling historical data
 
 ```bash
-python scripts/datasources/gemini/repopulate_ntee_codes.py
+# Example: Apply multi-model support migration
+python scripts/datasources/gemini/migrations/migrate_multimodel_support.py
+
+# Example: Backfill NTEE codes
+python scripts/datasources/gemini/migrations/repopulate_ntee_codes.py
 ```
 
 ## Database Schema
