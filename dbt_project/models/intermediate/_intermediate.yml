@@ -128,3 +128,41 @@ models:
         description: "True if ZIP code matched to a ZCTA (expect ~95%)"
         tests:
           - not_null
+
+  - name: int_nonprofits_with_county_fips
+    description: |
+      Enriches bronze_organizations_nonprofits with county FIPS codes by joining
+      with bronze_jurisdictions. Matches on census_county_name and state_code.
+      
+      Match logic:
+      - Exact match on county name and state
+      - Handles "County" suffix variations (e.g., "Macoupin County" vs "Macoupin")
+      
+      Used to:
+      - Add county_fips column to bronze_organizations_nonprofits
+      - Enable county-level nonprofit analysis
+      - Link nonprofits to county-level demographic data
+      
+      Expected match rate: ~90%+ for geocoded nonprofits with census_county_name
+    columns:
+      - name: ein
+        description: "Employer Identification Number (primary key)"
+        tests:
+          - unique
+          - not_null
+      - name: org_name
+        description: "Organization name"
+      - name: city
+        description: "City from nonprofit address"
+      - name: state_code
+        description: "2-letter state code"
+      - name: census_county_name
+        description: "County name from NCCS geocoding (e.g., 'Macoupin County')"
+      - name: county_fips
+        description: "5-digit county FIPS code from bronze_jurisdictions"
+      - name: matched_county_name
+        description: "County name from bronze_jurisdictions that matched"
+      - name: has_county_fips
+        description: "True if county FIPS was successfully matched"
+        tests:
+          - not_null

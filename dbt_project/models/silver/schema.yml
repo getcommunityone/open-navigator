@@ -127,6 +127,7 @@ models:
 sources:
   - name: bronze
     description: Bronze layer tables from open_navigator_bronze database
+    database: open_navigator_bronze
     schema: public
     tables:
       - name: bronze_jurisdictions
@@ -144,3 +145,17 @@ sources:
             description: Jurisdiction type
           - name: state_code
             description: 2-letter state code
+      
+      - name: bronze_organizations_nonprofits
+        description: Combined IRS + NCCS nonprofit data (1.95M organizations)
+        columns:
+          - name: ein
+            description: Employer Identification Number (primary key)
+          - name: org_name
+            description: Organization name
+          - name: city
+            description: City from nonprofit address
+          - name: state_code
+            description: 2-letter state code
+          - name: census_county_name
+            description: County name from NCCS geocoding

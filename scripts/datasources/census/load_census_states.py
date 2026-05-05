@@ -100,7 +100,7 @@ def load_states_to_bronze_jurisdictions():
             'state',              # type
             state_code,           # state_code
             state_name,           # state (same as name for states)
-            None,                 # county (NULL for states)
+            'All',                # county ('All' for states - prevents duplicates)
             geoid,                # geoid (2-digit FIPS)
             fips_code,            # fips_code
             None,                 # ncsid (NULL for states - only for cities)
