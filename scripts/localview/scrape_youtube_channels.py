@@ -59,8 +59,10 @@ class MunicipalYouTubeScraper:
     Uses YouTube Data API by default, falls back to yt-dlp if quota exceeded.
     """
     
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: Optional[str] = None, cookies_file: Optional[str] = None, proxy_url: Optional[str] = None):
         self.api_key = api_key or os.getenv('YOUTUBE_API_KEY')
+        self.cookies_file = cookies_file  # Path to cookies.txt for authenticated requests
+        self.proxy_url = proxy_url  # Proxy URL to bypass IP blocks
         self.use_ytdlp_fallback = False  # Track if we should use fallback
         self.quota_exceeded_at = None  # Track when quota was exceeded
         self.quota_cooldown_minutes = 15  # Wait 15 minutes before retrying API
@@ -330,6 +332,14 @@ class MunicipalYouTubeScraper:
             'ignoreerrors': True,  # Continue on download errors
             'nocheckcertificate': True,  # Avoid SSL issues
         }
+        
+        # Add cookies if provided (helps bypass IP blocks)
+        if self.cookies_file:
+            ydl_opts['cookiefile'] = self.cookies_file
+        
+        # Add proxy if provided (helps bypass IP blocks)
+        if self.proxy_url:
+            ydl_opts['proxy'] = self.proxy_url
         
         info = None
         successful_url = None

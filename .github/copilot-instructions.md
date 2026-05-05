@@ -254,6 +254,47 @@ state_name VARCHAR(50)     -- Use state instead
 3. Update all dependent queries and code
 4. Document migration in `website/docs/development/`
 
+**⚠️ MANDATORY: Website URL Field Naming**
+
+**ALL database tables, parquet files, and code MUST follow this standard:**
+
+✅ **DO THIS:**
+- Use `website_url` when there is only ONE web address column in the table
+- This is the standard column name for primary website URLs
+
+❌ **NEVER DO THIS:**
+- ❌ Use `website` (ambiguous - is it a URL or a name?)
+- ❌ Use `url` (too generic - URL to what?)
+- ❌ Use `web_url` or `site_url` (non-standard variants)
+- ❌ Use `homepage` or `homepage_url` (use `website_url` instead)
+
+**Examples:**
+
+```python
+# ✅ CORRECT - Parquet columns
+df = pd.DataFrame({
+    'jurisdiction_name': ['Mobile', 'Boston'],
+    'website_url': ['https://www.cityofmobile.org', 'https://www.boston.gov']
+})
+
+# ✅ CORRECT - SQL schema
+CREATE TABLE jurisdictions (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(200),
+    website_url VARCHAR(500)  -- Primary website
+);
+
+# ❌ WRONG - Don't use these
+url VARCHAR(500)           -- Too generic
+website VARCHAR(500)       -- Ambiguous
+homepage_url VARCHAR(500)  -- Use website_url instead
+```
+
+**When there are MULTIPLE URL columns:**
+- Use descriptive names: `facebook_url`, `twitter_url`, `youtube_url`, `linkedin_url`
+- Use specific purpose names: `meeting_stream_url`, `agenda_url`, `minutes_url`
+- Still use `website_url` for the primary/official website
+
 **✅ ALWAYS DO THIS:**
 - ✅ OpenStates database is at `postgresql://postgres:password@localhost:5433/openstates`
 - ✅ Check if database exists: `psql -h localhost -p 5433 -U postgres -d openstates -c "\dt"`

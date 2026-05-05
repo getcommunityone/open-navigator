@@ -25,6 +25,9 @@ Usage:
     
     # Skip transcript fetching (faster)
     python scripts/datasources/youtube/load_youtube_events_to_postgres.py --skip-transcripts
+    
+    # Fetch text transcripts only (no VTT downloads, faster and cleaner)
+    python scripts/datasources/youtube/load_youtube_events_to_postgres.py --text-transcripts-only
 """
 
 import os
@@ -76,7 +79,9 @@ class YouTubeEventsLoader:
         fetch_transcripts: bool = True,
         force_full_fetch: bool = False,
         transcript_delay: float = 2.0,
-        use_ytdlp_fallback: bool = True
+        use_ytdlp_fallback: bool = True,
+        cookies_file: Optional[str] = None,
+        proxy_url: Optional[str] = None
     ):
         self.database_url = database_url
         self.youtube_api_key = youtube_api_key
@@ -86,9 +91,15 @@ class YouTubeEventsLoader:
         self.force_full_fetch = force_full_fetch
         self.transcript_delay = transcript_delay  # Delay between transcript fetches (seconds)
         self.use_ytdlp_fallback = use_ytdlp_fallback  # Whether to fall back to yt-dlp when youtube_transcript_api fails
+        self.cookies_file = cookies_file  # Path to cookies.txt file for authenticated requests
+        self.proxy_url = proxy_url  # Proxy URL to bypass IP blocks
         
-        # Initialize YouTube scraper
-        self.scraper = MunicipalYouTubeScraper(api_key=youtube_api_key)
+        # Initialize YouTube scraper with cookies/proxy support
+        self.scraper = MunicipalYouTubeScraper(
+            api_key=youtube_api_key,
+            cookies_file=cookies_file,
+            proxy_url=proxy_url
+        )
         
         # Connect to database
         self.conn = psycopg2.connect(database_url)
@@ -689,6 +700,14 @@ class YouTubeEventsLoader:
                 'quiet': True,
                 'no_warnings': True
             }
+            
+            # Add cookies if provided (helps bypass IP blocks)
+            if self.cookies_file:
+                ydl_opts['cookiefile'] = self.cookies_file
+            
+            # Add proxy if provided (helps bypass IP blocks)
+            if self.proxy_url:
+                ydl_opts['proxy'] = self.proxy_url
             
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
@@ -1329,6 +1348,12 @@ def main():
     )
     
     parser.add_argument(
+        '--text-transcripts-only',
+        action='store_true',
+        help='Fetch text transcripts only, skip VTT file downloads (uses youtube_transcript_api only, faster and cleaner)'
+    )
+    
+    parser.add_argument(
         '--no-ytdlp-fallback',
         action='store_true',
         help='Disable yt-dlp VTT fallback for transcripts (reduces API calls to YouTube, use if getting IP blocked)'
@@ -1345,6 +1370,18 @@ def main():
         '--force',
         action='store_true',
         help='Force full fetch (ignore incremental mode, refetch all videos)'
+    )
+    
+    parser.add_argument(
+        '--cookies',
+        type=str,
+        help='Path to cookies.txt file (Netscape format) for authenticated requests. Helps bypass IP blocks. Export from browser with extension like "Get cookies.txt LOCALLY"'
+    )
+    
+    parser.add_argument(
+        '--proxy',
+        type=str,
+        help='Proxy URL to use for requests (e.g., http://user:pass@proxy.com:8080). Helps bypass IP blocks.'
     )
     
     
@@ -1364,7 +1401,9 @@ def main():
         fetch_transcripts=not args.skip_transcripts,
         force_full_fetch=args.force,
         transcript_delay=args.transcript_delay,
-        use_ytdlp_fallback=not args.no_ytdlp_fallback
+        use_ytdlp_fallback=not (args.no_ytdlp_fallback or args.text_transcripts_only),
+        cookies_file=args.cookies,
+        proxy_url=args.proxy
     )
     
     try:

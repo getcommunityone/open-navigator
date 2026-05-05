@@ -5,13 +5,19 @@ Load and Validate YouTube Channels
 This script loads channels from jurisdictions_details_search into events_channels_search,
 validates them against multiple sources, and flags junk channels.
 
+Features:
+1. Enriches jurisdictions_details_search with Wikidata population and metadata
+2. Matches LocalView events to YouTube channels
+3. Validates channels against WikiData
+4. Auto-flags junk channels (news, entertainment, etc.)
+
 Validation sources:
 1. LocalView dataset - channels with historical meeting data
 2. WikiData - official government YouTube channels
 3. Pattern matching - flag news, entertainment, political figures
 
 Usage:
-    # Load all channels
+    # Load all channels (enriches with Wikidata automatically)
     python scripts/datasources/youtube/load_channels.py --states AL,GA,IN,MA,WA,WI
     
     # Load and validate
@@ -244,6 +250,223 @@ class ChannelLoader:
         
         return exists
     
+    def enrich_from_wikidata(self, states_filter: Optional[List[str]] = None):
+        """Enrich jurisdictions_details_search with population and metadata from jurisdictions_wikidata.
+        
+        Handles naming variations:
+        - Exact match first
+        - Then tries removing " County", " city", " town" suffixes
+        
+        Updates:
+        - population
+        - per_capita_income
+        - time_zone
+        - ballotpedia_id
+        - tripadvisor_id
+        - subreddit
+        - postal_codes
+        - official_image_url
+        - head_of_government
+        """
+        cursor = self.conn.cursor()
+        
+        try:
+            logger.info("  Enriching jurisdictions_details_search from Wikidata...")
+            
+            # Build state filter
+            state_filter_sql = ""
+            params = []
+            if states_filter:
+                state_filter_sql = "AND d.state_code = ANY(%s)"
+                params.append(states_filter)
+            
+            # Strategy 1: Exact match
+            query1 = f"""
+                UPDATE jurisdictions_details_search d
+                SET 
+                    population = w.population,
+                    per_capita_income = w.per_capita_income,
+                    time_zone = w.time_zone,
+                    ballotpedia_id = w.ballotpedia_id,
+                    tripadvisor_id = w.tripadvisor_id,
+                    subreddit = w.subreddit,
+                    postal_codes = w.postal_codes,
+                    official_image_url = w.official_image_url,
+                    head_of_government = w.head_of_government,
+                    last_updated = CURRENT_TIMESTAMP
+                FROM jurisdictions_wikidata w
+                WHERE d.jurisdiction_name = w.jurisdiction_name
+                  AND d.state_code = w.state_code
+                  {state_filter_sql}
+                  AND w.population IS NOT NULL;
+            """
+            
+            cursor.execute(query1, params)
+            exact_matches = cursor.rowcount
+            self.conn.commit()
+            logger.info(f"    Exact name matches: {exact_matches}")
+            
+            # Strategy 2: Match with county suffix (wikidata has "King County", details has "King")
+            query2 = f"""
+                UPDATE jurisdictions_details_search d
+                SET 
+                    population = COALESCE(d.population, w.population),
+                    per_capita_income = COALESCE(d.per_capita_income, w.per_capita_income),
+                    time_zone = COALESCE(d.time_zone, w.time_zone),
+                    ballotpedia_id = COALESCE(d.ballotpedia_id, w.ballotpedia_id),
+                    tripadvisor_id = COALESCE(d.tripadvisor_id, w.tripadvisor_id),
+                    subreddit = COALESCE(d.subreddit, w.subreddit),
+                    postal_codes = COALESCE(d.postal_codes, w.postal_codes),
+                    official_image_url = COALESCE(d.official_image_url, w.official_image_url),
+                    head_of_government = COALESCE(d.head_of_government, w.head_of_government),
+                    last_updated = CURRENT_TIMESTAMP
+                FROM jurisdictions_wikidata w
+                WHERE d.jurisdiction_name || ' County' = w.jurisdiction_name
+                  AND d.state_code = w.state_code
+                  AND d.jurisdiction_type = 'county'
+                  {state_filter_sql}
+                  AND w.population IS NOT NULL;
+            """
+            
+            cursor.execute(query2, params)
+            county_matches = cursor.rowcount
+            self.conn.commit()
+            logger.info(f"    County suffix matches: {county_matches}")
+            
+            # Strategy 3: Match cities with variations (less common but handle "City of X" vs "X")
+            query3 = f"""
+                UPDATE jurisdictions_details_search d
+                SET 
+                    population = COALESCE(d.population, w.population),
+                    per_capita_income = COALESCE(d.per_capita_income, w.per_capita_income),
+                    time_zone = COALESCE(d.time_zone, w.time_zone),
+                    ballotpedia_id = COALESCE(d.ballotpedia_id, w.ballotpedia_id),
+                    tripadvisor_id = COALESCE(d.tripadvisor_id, w.tripadvisor_id),
+                    subreddit = COALESCE(d.subreddit, w.subreddit),
+                    postal_codes = COALESCE(d.postal_codes, w.postal_codes),
+                    official_image_url = COALESCE(d.official_image_url, w.official_image_url),
+                    head_of_government = COALESCE(d.head_of_government, w.head_of_government),
+                    last_updated = CURRENT_TIMESTAMP
+                FROM jurisdictions_wikidata w
+                WHERE (
+                    ('City of ' || d.jurisdiction_name = w.jurisdiction_name) OR
+                    (d.jurisdiction_name = REPLACE(w.jurisdiction_name, 'City of ', ''))
+                  )
+                  AND d.state_code = w.state_code
+                  AND d.jurisdiction_type = 'city'
+                  {state_filter_sql}
+                  AND w.population IS NOT NULL;
+            """
+            
+            cursor.execute(query3, params)
+            city_matches = cursor.rowcount
+            self.conn.commit()
+            logger.info(f"    City variation matches: {city_matches}")
+            
+            total_enriched = exact_matches + county_matches + city_matches
+            logger.success(f"✓ Enriched {total_enriched} jurisdictions with Wikidata population and metadata")
+            
+            # Show enrichment stats
+            cursor.execute("""
+                SELECT 
+                    COUNT(*) as total,
+                    COUNT(*) FILTER (WHERE population IS NOT NULL AND population > 0) as has_population,
+                    COUNT(*) FILTER (WHERE per_capita_income IS NOT NULL) as has_income,
+                    COUNT(*) FILTER (WHERE ballotpedia_id IS NOT NULL) as has_ballotpedia
+                FROM jurisdictions_details_search
+                WHERE state_code = ANY(%s);
+            """, (states_filter,) if states_filter else (None,))
+            
+            stats = cursor.fetchone()
+            if stats and states_filter:
+                logger.info(f"  Jurisdictions with population: {stats[1]}/{stats[0]} ({stats[1]*100//stats[0] if stats[0] > 0 else 0}%)")
+                logger.info(f"  Jurisdictions with income data: {stats[2]}/{stats[0]}")
+                logger.info(f"  Jurisdictions with Ballotpedia: {stats[3]}/{stats[0]}")
+            
+        except Exception as e:
+            self.conn.rollback()
+            logger.error(f"Error enriching from Wikidata: {e}")
+            raise
+        finally:
+            cursor.close()
+    
+    def update_localview_from_events(self):
+        """Update in_localview flag for all channels based on events_search.
+        
+        Any channel that has at least one event with source='localview' will be
+        marked as in_localview=TRUE.
+        
+        Steps:
+        1. Match localview events to YouTube events by video_url
+        2. Update channel_id in localview events
+        3. Mark channels as in_localview
+        """
+        cursor = self.conn.cursor()
+        
+        try:
+            # Step 1: Update channel_id for localview events by matching video URLs
+            logger.info("  Step 1: Matching localview events to YouTube channels...")
+            
+            cursor.execute("""
+                UPDATE events_search e1
+                SET channel_id = e2.channel_id,
+                    last_updated = CURRENT_TIMESTAMP
+                FROM events_search e2
+                WHERE e1.source = 'localview'
+                  AND e1.channel_id IS NULL
+                  AND e1.video_url IS NOT NULL
+                  AND e2.source = 'youtube'
+                  AND e2.channel_id IS NOT NULL
+                  AND e1.video_url = e2.video_url;
+            """)
+            
+            matched_count = cursor.rowcount
+            self.conn.commit()
+            logger.info(f"    Matched {matched_count} localview events to channels via video URL")
+            
+            # Step 2: Update in_localview for channels that have localview events
+            logger.info("  Step 2: Marking channels with localview events...")
+            
+            cursor.execute("""
+                UPDATE events_channels_search
+                SET in_localview = TRUE,
+                    last_updated = CURRENT_TIMESTAMP
+                WHERE channel_id IN (
+                    SELECT DISTINCT channel_id
+                    FROM events_search
+                    WHERE source = 'localview'
+                      AND channel_id IS NOT NULL
+                )
+                AND (in_localview = FALSE OR in_localview IS NULL);
+            """)
+            
+            updated_count = cursor.rowcount
+            self.conn.commit()
+            
+            logger.success(f"✓ Updated {updated_count} channels to in_localview=TRUE based on events")
+            
+            # Show summary
+            cursor.execute("""
+                SELECT 
+                    COUNT(DISTINCT c.channel_id) as total_localview_channels,
+                    COUNT(DISTINCT e.id) as localview_events_linked
+                FROM events_channels_search c
+                INNER JOIN events_search e ON c.channel_id = e.channel_id
+                WHERE c.in_localview = TRUE
+                  AND e.source = 'localview';
+            """)
+            stats = cursor.fetchone()
+            
+            logger.info(f"  Total channels marked in_localview: {stats[0] if stats else 0}")
+            logger.info(f"  Total localview events linked: {stats[1] if stats else 0}")
+            
+        except Exception as e:
+            self.conn.rollback()
+            logger.error(f"Error updating localview flags: {e}")
+            raise
+        finally:
+            cursor.close()
+    
     async def check_in_wikidata(self, jurisdiction_name: str, state_code: str, channel_id: str) -> bool:
         """Check if channel exists in WikiData for this jurisdiction."""
         try:
@@ -326,6 +549,16 @@ class ChannelLoader:
         logger.info(f"States: {', '.join(states_filter) if states_filter else 'ALL'}")
         logger.info(f"Validate: {validate}")
         logger.info(f"Auto-flag junk: {auto_flag}")
+        logger.info("")
+        
+        # First, enrich jurisdictions_details_search with Wikidata
+        logger.info("Enriching jurisdictions_details_search from Wikidata...")
+        self.enrich_from_wikidata(states_filter)
+        logger.info("")
+        
+        # Update in_localview based on existing events
+        logger.info("Updating in_localview flags from events_search...")
+        self.update_localview_from_events()
         logger.info("")
         
         # Get jurisdictions
