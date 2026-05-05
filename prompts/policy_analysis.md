@@ -25,6 +25,21 @@ For every person, organization, legislation, financial item, and decision subjec
 - **Legislation slug rule:** normalize to `leg_type_number_year_jurisdiction` e.g. `leg_ordinance_1042_2022_college_place_wa` — if no official number exists use a short descriptive label e.g. `leg_proposed_budget_fy2012_goshen_fire_ny`
 - **Subject slug rule:** a subject is the specific real-world asset, policy, position, parcel, contract, or matter being acted on — distinct from the decision itself. Normalize to `subject_descriptive_name_jurisdiction` all lowercase underscores no punctuation e.g. `subject_fy2012_fire_department_budget_goshen_ny`. The subject slug must represent the underlying matter not the meeting action — the same subject must produce the same slug whether it surfaces in part one or part three of a multi-session meeting or across separate meetings entirely. If a legislation reference anchors the subject bind it via `canonical_leg_id`.
 
+## Location and Postal Code Extraction
+For each decision, extract the 5-digit ZIP code (postal_code), county FIPS code (county_fips), and county name (county) of the city or location associated with that decision. Determine these based on:
+- The meeting location if the decision applies to that specific area
+- The subject location if the decision pertains to a specific address, facility, parcel, or geographic area
+- The jurisdiction's primary location if the decision is jurisdiction-wide
+- Set to null if the location cannot be determined or if the decision applies to multiple locations
+
+Priority order: specific subject location > meeting location > jurisdiction primary location. If a decision involves multiple distinct locations, use the primary location where the decision has the greatest impact.
+
+**County extraction:** Based on the city name associated with the decision, determine:
+- `county_fips`: The 5-digit FIPS code for the county (state FIPS + county FIPS, e.g., "01097" for Mobile County, Alabama)
+- `county`: The full county name (e.g., "Mobile County", "Suffolk County", "Cook County")
+- Use standard U.S. county naming conventions with "County" suffix (exceptions: Louisiana parishes use "Parish", Alaska boroughs use "Borough")
+- Set to null only if the county cannot be determined from the city name or jurisdiction
+
 ## Theme Classification
 Classify each agenda item under a primary theme and at most one secondary theme from this fixed list:
 
@@ -198,6 +213,7 @@ After the first break token output a human-readable document that transforms the
 **Key Decisions** (one section per decision)
 For each decision provide:
 - **Topic headline** (from decision.headline field)
+- **Location:** [city name, county name if present, postal_code if present, or "jurisdiction-wide"]
 - **Outcome:** [APPROVED/DENIED/etc] via [decision method]
 - **Vote:** [if formal vote, summarize tally and note dissenting members]
 - **What happened:** [synthesis of decision_statement and timeline.this_meeting]
@@ -344,6 +360,9 @@ This is the final output — no additional document breaks or timeline sections 
       "timestamp_start": "HH:MM or null",
       "timestamp_end": "HH:MM or null",
       "decision_date": "YYYY-MM-DD",
+      "postal_code": "string or null — 5-digit ZIP code of the city/location associated with this decision, derived from meeting location or subject location",
+      "county_fips": "string or null — 5-digit FIPS code for the county associated with the city/location of this decision",
+      "county": "string or null — Full county name associated with the city/location of this decision (e.g., 'Mobile County', 'Suffolk County')",
       "topic": "string — 6 words or fewer",
       "headline": "string — Smart Brevity lead",
       "decision_statement": "string",

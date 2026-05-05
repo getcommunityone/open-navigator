@@ -122,6 +122,54 @@ sources:
             description: "Census Core Based Statistical Area"
           - name: f990_total_revenue_recent
           - name: f990_total_assets_recent
+      
+      - name: bronze_jurisdictions_postal_codes
+        description: "Census ZIP Code Tabulation Areas (ZCTAs) - 33,791 geographic areas"
+        columns:
+          - name: zcta
+            description: "5-digit ZIP Code Tabulation Area code"
+          - name: geoid
+            description: "Geographic identifier (same as ZCTA)"
+          - name: intptlat
+            description: "Latitude of internal point"
+          - name: intptlong
+            description: "Longitude of internal point"
+          - name: aland_sqmi
+            description: "Land area in square miles"
+          - name: awater_sqmi
+            description: "Water area in square miles"
+      
+      - name: bronze_jurisdictions_zip_place
+        description: "ZCTA to Place (city/town) relationships - Census 2020"
+        columns:
+          - name: zcta
+            description: "5-digit ZIP Code Tabulation Area code"
+          - name: place_geoid
+            description: "7-digit Census Place GEOID"
+          - name: place_name
+            description: "Place name (city/town)"
+          - name: state_fips
+            description: "2-digit state FIPS code"
+          - name: arealand_part
+            description: "Land area of ZCTA part in this place (sq meters)"
+          - name: areawater_part
+            description: "Water area of ZCTA part in this place (sq meters)"
+      
+      - name: bronze_jurisdictions_zip_county
+        description: "ZCTA to County relationships - Census 2020"
+        columns:
+          - name: zcta
+            description: "5-digit ZIP Code Tabulation Area code"
+          - name: county_geoid
+            description: "5-digit County GEOID (FIPS code)"
+          - name: county_name
+            description: "County name"
+          - name: state_fips
+            description: "2-digit state FIPS code"
+          - name: arealand_part
+            description: "Land area of ZCTA part in this county (sq meters)"
+          - name: areawater_part
+            description: "Water area of ZCTA part in this county (sq meters)"
 
 models:
   - name: stg_bronze_contacts

@@ -58,3 +58,73 @@ models:
           combination_of_columns:
             - full_name_normalized
             - org_id
+  
+  - name: int_nonprofits_irs_with_zcta
+    description: |
+      IRS nonprofits enriched with 5-digit ZCTA (ZIP Code Tabulation Area).
+      ZCTAs are Census geographic approximations of ZIP codes that provide
+      statistical boundaries for geographic analysis. Includes ZCTA centroid
+      coordinates and land/water area.
+    columns:
+      - name: ein
+        description: "Employer Identification Number (primary key)"
+        tests:
+          - unique
+          - not_null
+      - name: zip_code
+        description: "Original ZIP code (may include ZIP+4)"
+      - name: zip_code_5
+        description: "Normalized 5-digit ZIP code"
+      - name: zcta_5
+        description: "Census 5-digit ZIP Code Tabulation Area"
+      - name: zcta_latitude
+        description: "Latitude of ZCTA centroid"
+      - name: zcta_longitude
+        description: "Longitude of ZCTA centroid"
+      - name: zcta_land_area_sqmi
+        description: "ZCTA land area in square miles"
+      - name: zcta_water_area_sqmi
+        description: "ZCTA water area in square miles"
+      - name: has_zcta_match
+        description: "True if ZIP code matched to a ZCTA (expect ~95%)"
+        tests:
+          - not_null
+  
+  - name: int_nonprofits_nccs_with_zcta
+    description: |
+      NCCS nonprofits enriched with 5-digit ZCTA (ZIP Code Tabulation Area).
+      ZCTAs are Census geographic approximations of ZIP codes that provide
+      statistical boundaries for geographic analysis. Includes ZCTA centroid
+      coordinates as fallback for organizations without geocoding.
+    columns:
+      - name: ein
+        description: "Employer Identification Number (primary key)"
+        tests:
+          - unique
+          - not_null
+      - name: f990_org_addr_zip
+        description: "Original ZIP code from 990 filing (may include ZIP+4)"
+      - name: zip_code_5
+        description: "Normalized 5-digit ZIP code"
+      - name: zcta_5
+        description: "Census 5-digit ZIP Code Tabulation Area"
+      - name: latitude
+        description: "NCCS geocoded latitude (from address geocoding)"
+      - name: longitude
+        description: "NCCS geocoded longitude (from address geocoding)"
+      - name: zcta_latitude
+        description: "Latitude of ZCTA centroid (fallback)"
+      - name: zcta_longitude
+        description: "Longitude of ZCTA centroid (fallback)"
+      - name: best_latitude
+        description: "Best available latitude (NCCS geocoded or ZCTA centroid)"
+      - name: best_longitude
+        description: "Best available longitude (NCCS geocoded or ZCTA centroid)"
+      - name: zcta_land_area_sqmi
+        description: "ZCTA land area in square miles"
+      - name: zcta_water_area_sqmi
+        description: "ZCTA water area in square miles"
+      - name: has_zcta_match
+        description: "True if ZIP code matched to a ZCTA (expect ~95%)"
+        tests:
+          - not_null
