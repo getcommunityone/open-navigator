@@ -21,9 +21,9 @@ try:
 except ImportError:
     pass  # dotenv not available, use environment variables directly
 
-# Database URL
+# Database URL - Bronze layer database
 POSTGRES_PASSWORD = os.getenv('POSTGRES_PASSWORD', 'password')
-DATABASE_URL = os.getenv('NEON_DATABASE_URL_DEV', f'postgresql://postgres:{POSTGRES_PASSWORD}@localhost:5433/open_navigator')
+DATABASE_URL = os.getenv('LOCAL_BRONZE_DATABASE_URL', f'postgresql://postgres:{POSTGRES_PASSWORD}@localhost:5433/open_navigator_bronze')
 
 # Configure logging
 logging.basicConfig(
@@ -60,32 +60,32 @@ def backfill_ntee():
                 SELECT 
                     bt.id as topic_id,
                     bt.decision_id,
-                    do.primary_org_ids,
-                    (do.primary_org_ids->0)::text as first_org_id
+                    dorg.primary_org_ids,
+                    (dorg.primary_org_ids->0)::text as first_org_id
                 FROM bronze_topics bt
-                JOIN decision_orgs do ON do.decision_id = bt.decision_id
+                JOIN decision_orgs dorg ON dorg.decision_id = bt.decision_id
                 WHERE bt.ntee_code IS NULL  -- Only update records without NTEE
             ),
             org_ntee AS (
                 -- Get NTEE data from the first/primary organization
                 SELECT 
-                    to1.topic_id,
-                    to1.primary_org_ids,
+                    torg.topic_id,
+                    torg.primary_org_ids,
                     bo.ntee_code,
                     bo.ntee_major_group,
                     bo.ntee_category_label
-                FROM topic_orgs to1
-                JOIN bronze_organizations bo ON bo.org_id = TRIM(BOTH '"' FROM to1.first_org_id)
+                FROM topic_orgs torg
+                JOIN bronze_organizations bo ON bo.org_id = TRIM(BOTH '"' FROM torg.first_org_id)
                 WHERE bo.ntee_code IS NOT NULL
             )
             UPDATE bronze_topics bt
             SET 
-                ntee_code = on1.ntee_code,
-                ntee_major_group = on1.ntee_major_group,
-                ntee_category_label = on1.ntee_category_label,
-                primary_org_ids = on1.primary_org_ids
-            FROM org_ntee on1
-            WHERE bt.id = on1.topic_id;
+                ntee_code = ont.ntee_code,
+                ntee_major_group = ont.ntee_major_group,
+                ntee_category_label = ont.ntee_category_label,
+                primary_org_ids = ont.primary_org_ids
+            FROM org_ntee ont
+            WHERE bt.id = ont.topic_id;
             """
             
             cur.execute(update_query)

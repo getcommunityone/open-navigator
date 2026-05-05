@@ -21,9 +21,9 @@ try:
 except ImportError:
     pass  # dotenv not available, use environment variables directly
 
-# Database URL
+# Database URL - Bronze layer database
 POSTGRES_PASSWORD = os.getenv('POSTGRES_PASSWORD', 'password')
-DATABASE_URL = os.getenv('NEON_DATABASE_URL_DEV', f'postgresql://postgres:{POSTGRES_PASSWORD}@localhost:5433/open_navigator')
+DATABASE_URL = os.getenv('LOCAL_BRONZE_DATABASE_URL', f'postgresql://postgres:{POSTGRES_PASSWORD}@localhost:5433/open_navigator_bronze')
 
 # Configure logging
 logging.basicConfig(

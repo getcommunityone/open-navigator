@@ -463,7 +463,8 @@ Assign `lineage_type` as:
 - If only the major group is determinable, set `ntee_category_label` equal to `ntee_major_group`
 - **Extract NTEE to decisions:** For each decision, populate `primary_org_ids` with the main organizations affected or involved, then copy the NTEE fields (`ntee_code`, `ntee_major_group`, `ntee_category_label`) from the primary organization to the decision object
 - If a decision involves multiple organizations with different NTEE codes, use the organization most central to the decision's outcome
-- Set decision-level NTEE fields to null only when no organizations are involved or when organizations are Government Body, Public Agency, or other non-cause-specific types
+- **When no organizations are involved:** If a decision has no organization references but the topic clearly relates to a specific cause area (health, education, environment, etc.), infer the most appropriate NTEE code from the topic and theme. For general governance/administrative topics with no specific cause area, use W (Public Policy)
+- Set decision-level NTEE fields to null only when the cause area is genuinely indeterminate from context
 
 ### Underlying Causes Rules
 - Make `underlying_causes` headlines specific and contextual — avoid generic abstractions like "Aging infrastructure" or "Statutory requirement"
