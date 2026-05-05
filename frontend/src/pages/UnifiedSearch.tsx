@@ -138,6 +138,11 @@ export default function UnifiedSearch() {
   const [expandedJurisdictions, setExpandedJurisdictions] = useState<Set<number>>(new Set())
   const [expandedOrganizations, setExpandedOrganizations] = useState<Set<string>>(new Set())
   
+  // Extract city from jurisdiction details
+  const selectedCity = jurisdictionDetails.find(j => 
+    j.type === 'City' || j.type === 'city' || j.type === 'Place' || j.type === 'place'
+  )?.name || ''
+  
   // Debounced query for autocomplete
   const [debouncedQuery, setDebouncedQuery] = useState(query)
   
@@ -200,6 +205,7 @@ export default function UnifiedSearch() {
         for (const j of details) {
           if (j.state) {
             setEffectiveState(j.state)
+            setSelectedState(j.state)
             break
           }
           if (j.type === 'State' || j.type === 'state') {
@@ -210,6 +216,7 @@ export default function UnifiedSearch() {
             }
             const stateCode = stateMap[j.name] || j.name
             setEffectiveState(stateCode)
+            setSelectedState(stateCode)
             break
           }
         }
@@ -224,6 +231,9 @@ export default function UnifiedSearch() {
       if (types.length > 0) {
         setSelectedTypes(types)
       }
+    } else if (jurisdictionDetailsParam) {
+      // Default to showing organizations when landing on a jurisdiction page
+      setSelectedTypes(['organizations'])
     }
   }, [searchParams, effectiveState])
 
@@ -258,7 +268,7 @@ export default function UnifiedSearch() {
 
   // Main search results
   const { data: searchResults, isLoading: isSearching, error } = useQuery<SearchResponse>({
-    queryKey: ['unified-search', activeQuery, selectedTypes, selectedState, currentPage, sortBy, nteeCategory, selectedEin, includeFullText],
+    queryKey: ['unified-search', activeQuery, selectedTypes, selectedState, selectedCity, currentPage, sortBy, nteeCategory, selectedEin, includeFullText],
     queryFn: async () => {
       // Allow searching with query OR with filters (browse mode) OR with EIN
       if (!activeQuery && !selectedState && !selectedTypes.length && !selectedEin) {
@@ -283,6 +293,11 @@ export default function UnifiedSearch() {
       
       if (selectedState) {
         params.state = selectedState
+      }
+      
+      // Add city filter from jurisdiction details
+      if (selectedCity) {
+        params.city = selectedCity
       }
       
       // Add sort and filter parameters

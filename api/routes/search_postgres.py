@@ -427,6 +427,9 @@ async def search_organizations_pg(
         
         where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
         
+        # Debug logging
+        logger.info(f"🔍 Organizations search - WHERE: {where_sql} | PARAMS: {params} | city={city}")
+        
         # Determine sort order
         if sort == 'name-asc':
             order_by = "name ASC"

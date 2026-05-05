@@ -131,19 +131,31 @@ models:
 
   - name: int_nonprofits_with_county_fips
     description: |
-      Enriches bronze_organizations_nonprofits with county FIPS codes by joining
-      with bronze_jurisdictions. Matches on census_county_name and state_code.
+      Enriches bronze_organizations_nonprofits with county FIPS codes using two methods:
       
-      Match logic:
-      - Exact match on county name and state
+      **Method 1: census_county_name matching** (~790K matches, 40% of total)
+      - Direct match on county name and state from NCCS geocoding
       - Handles "County" suffix variations (e.g., "Macoupin County" vs "Macoupin")
+      - 98.6% success rate for records with census_county_name
+      
+      **Method 2: ZCTA-to-county mapping** (~814K additional matches, 42% of total)
+      - Uses ZIP code to match via single-county ZCTAs
+      - Only matches ZCTAs that map to exactly one county (avoids ambiguity)
+      - 23,605 single-county ZCTAs out of 33,791 total (70%)
+      - Applied to nonprofits without census_county_name
+      
+      **Overall results:**
+      - Total matched: 1.6M nonprofits (82% of all nonprofits)
+      - Unmatched: 348K (18%) - typically missing both county name and valid ZIP
+      
+      **Actual enrichment:**
+      This is a documentation model. Actual enrichment is done via SQL script:
+      `scripts/datasources/census/enrich_nonprofits_with_county_fips.sql`
       
       Used to:
       - Add county_fips column to bronze_organizations_nonprofits
-      - Enable county-level nonprofit analysis
-      - Link nonprofits to county-level demographic data
-      
-      Expected match rate: ~90%+ for geocoded nonprofits with census_county_name
+      - Enable county-level nonprofit analysis and aggregation
+      - Link nonprofits to county-level demographic data from ACS
     columns:
       - name: ein
         description: "Employer Identification Number (primary key)"
@@ -157,11 +169,15 @@ models:
       - name: state_code
         description: "2-letter state code"
       - name: census_county_name
-        description: "County name from NCCS geocoding (e.g., 'Macoupin County')"
+        description: "County name from NCCS geocoding (NULL for ZCTA-only matches)"
+      - name: zip_code
+        description: "ZIP code (used for ZCTA matching when census_county_name is NULL)"
       - name: county_fips
         description: "5-digit county FIPS code from bronze_jurisdictions"
       - name: matched_county_name
-        description: "County name from bronze_jurisdictions that matched"
+        description: "County name that matched (from census or ZCTA lookup)"
+      - name: match_method
+        description: "How the match was made: 'census_county_name' or 'zcta_single_county'"
       - name: has_county_fips
         description: "True if county FIPS was successfully matched"
         tests:
