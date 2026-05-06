@@ -32,6 +32,7 @@ Usage:
 
 import os
 import sys
+import re
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Optional, Any
@@ -83,7 +84,8 @@ class YouTubeEventsLoader:
         cookies_file: Optional[str] = None,
         proxy_url: Optional[str] = None
     ):
-        self.database_url = database_url
+        # Sanitize database URL to fix common connection issues (Neon channel_binding)
+        self.database_url = self._sanitize_database_url(database_url)
         self.youtube_api_key = youtube_api_key
         self.max_videos = max_videos_per_channel
         self.days_lookback = days_lookback
@@ -102,12 +104,40 @@ class YouTubeEventsLoader:
         )
         
         # Connect to database
-        self.conn = psycopg2.connect(database_url)
+        self.conn = psycopg2.connect(self.database_url)
         
         # Ensure tables and columns exist
         self._add_jurisdiction_id_column()
         self._create_bronze_events_text_ai_table()
         self._create_events_channels_search_table()
+    
+    def _sanitize_database_url(self, url: str) -> str:
+        """Sanitize database URL to fix common connection issues.
+        
+        Fixes:
+        - Neon's channel_binding=require parameter (causes psycopg2 errors)
+        - Quoted parameter values
+        - Whitespace and newlines in URL
+        """
+        # Strip leading/trailing whitespace from entire URL
+        url = url.strip()
+        
+        # Remove newlines and extra whitespace within the URL
+        url = re.sub(r'\s+', ' ', url).replace('\n', '').replace('\r', '')
+        
+        # Fix channel_binding parameter (common issue with Neon/cloud PostgreSQL)
+        # psycopg2 doesn't support channel_binding=require, change to prefer or remove
+        if 'channel_binding=' in url:
+            # First, remove any quotes and whitespace around the value
+            url = re.sub(r'channel_binding=\s*["\']?\s*(require|prefer)\s*["\']?\s*', r'channel_binding=prefer', url)
+            # Catch any remaining quoted values (with potential whitespace inside)
+            url = re.sub(r'channel_binding=\s*["\']([^"\'\'\&\s]+)\s*["\']', r'channel_binding=\1', url)
+        
+        # Also fix sslmode if it has quotes or whitespace
+        if 'sslmode=' in url:
+            url = re.sub(r'sslmode=\s*["\']([^"\'\'\&\s]+)\s*["\']', r'sslmode=\1', url)
+        
+        return url
     
     def _add_jurisdiction_id_column(self):
         """Add jurisdiction_id and channel_id columns to events_search if they don't exist."""
