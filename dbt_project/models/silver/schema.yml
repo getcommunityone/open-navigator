@@ -126,9 +126,8 @@ models:
 
 sources:
   - name: bronze
-    description: Bronze layer tables from open_navigator_bronze database
-    database: open_navigator_bronze
-    schema: public
+    description: Bronze layer tables from open_navigator_bronze database (via Foreign Data Wrapper)
+    schema: bronze  # Foreign tables imported via postgres_fdw
     tables:
       - name: bronze_jurisdictions
         description: Raw jurisdiction data from Census Bureau

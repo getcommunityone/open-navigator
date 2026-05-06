@@ -398,6 +398,69 @@ Use these scripts:
 - `scripts/datasources/openstates/export_openstates_to_gold.py` - Export to gold parquet files
 - `scripts/deployment/neon/migrate.py` - Load gold files into Neon `contacts_search` table
 
+### ⚠️ CRITICAL: dbt Cross-Database Queries
+
+**PostgreSQL does NOT support cross-database queries in dbt models.**
+
+**❌ NEVER DO THIS in dbt models:**
+```sql
+-- ❌ WRONG - Cross-database reference
+sources:
+  - name: bronze
+    database: open_navigator_bronze  -- This causes "cross-database references are not implemented" error
+    schema: public
+```
+
+**✅ ALWAYS DO THIS instead:**
+
+Use **Foreign Data Wrapper (FDW)** to access bronze tables from the production database:
+
+```sql
+-- ✅ CORRECT - Use FDW-imported foreign tables
+sources:
+  - name: bronze
+    schema: bronze  -- Foreign tables in the bronze schema
+    # No database property - uses current database with foreign tables
+```
+
+**How it works:**
+1. Foreign tables are imported from `open_navigator_bronze` into `open_navigator.bronze` schema
+2. dbt models query `bronze.bronze_decisions`, `bronze.bronze_events`, etc.
+3. PostgreSQL handles the cross-database query transparently via FDW
+
+**Setup (already configured):**
+```sql
+-- Foreign server and user mapping already created
+CREATE SERVER bronze_server FOREIGN DATA WRAPPER postgres_fdw 
+  OPTIONS (host 'localhost', port '5433', dbname 'open_navigator_bronze');
+
+CREATE USER MAPPING FOR postgres SERVER bronze_server 
+  OPTIONS (user 'postgres', password 'password');
+
+-- Foreign tables imported into bronze schema
+CREATE SCHEMA bronze;
+IMPORT FOREIGN SCHEMA public 
+  LIMIT TO (bronze_decisions, bronze_events, bronze_contacts, bronze_bills, bronze_organizations_nonprofits)
+  FROM SERVER bronze_server INTO bronze;
+```
+
+**In dbt models:**
+```sql
+-- ✅ CORRECT
+SELECT * FROM {{ source('bronze', 'bronze_decisions') }}
+-- Resolves to: open_navigator.bronze.bronze_decisions (foreign table)
+
+-- ❌ WRONG
+SELECT * FROM "open_navigator_bronze"."public"."bronze_decisions"
+-- Error: cross-database references are not implemented
+```
+
+**Key Points:**
+- dbt `database` property in sources.yml causes cross-database errors in PostgreSQL
+- Use only `schema` property - let FDW handle the cross-database connection
+- All bronze tables must be imported as foreign tables before running dbt
+- This is already configured - just don't add `database:` to source definitions
+
 ### Data Management Rules
 
 **CRITICAL - DO NOT DELETE APPLICATION CACHE:**

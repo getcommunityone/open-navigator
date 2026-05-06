@@ -436,7 +436,10 @@ export default function UnifiedSearch() {
   }, [selectedEin, searchResults])
 
   const getTypeIcon = (type: string) => {
-    switch (type) {
+    // Handle both singular and plural forms
+    const normalizedType = type.replace(/s$/, '')
+    
+    switch (normalizedType) {
       case 'contact':
         return <UserIcon className="h-5 w-5" />
       case 'meeting':
@@ -445,13 +448,24 @@ export default function UnifiedSearch() {
         return <BuildingOfficeIcon className="h-5 w-5" />
       case 'cause':
         return <HeartIcon className="h-5 w-5" />
+      case 'bill':
+        return <DocumentTextIcon className="h-5 w-5" />
+      case 'topic':
+        return <ChatBubbleBottomCenterTextIcon className="h-5 w-5" />
+      case 'decision':
+        return <ScaleIcon className="h-5 w-5" />
+      case 'jurisdiction':
+        return <MapPinIcon className="h-5 w-5" />
       default:
         return null
     }
   }
 
   const getTypeColor = (type: string) => {
-    switch (type) {
+    // Handle both singular and plural forms
+    const normalizedType = type.replace(/s$/, '')
+    
+    switch (normalizedType) {
       case 'contact':
         return 'bg-blue-100 text-blue-700 border-blue-200'
       case 'meeting':
@@ -460,6 +474,14 @@ export default function UnifiedSearch() {
         return 'bg-purple-100 text-purple-700 border-purple-200'
       case 'cause':
         return 'bg-pink-100 text-pink-700 border-pink-200'
+      case 'bill':
+        return 'bg-indigo-100 text-indigo-700 border-indigo-200'
+      case 'topic':
+        return 'bg-teal-100 text-teal-700 border-teal-200'
+      case 'decision':
+        return 'bg-amber-100 text-amber-700 border-amber-200'
+      case 'jurisdiction':
+        return 'bg-orange-100 text-orange-700 border-orange-200'
       default:
         return 'bg-gray-100 text-gray-700 border-gray-200'
     }
@@ -999,11 +1021,11 @@ export default function UnifiedSearch() {
             </button>
 
             {/* Quick Type Filters - Responsive sizing */}
-            {(['contacts', 'organizations', 'causes', 'meetings'] as const).map((type) => (
+            {(['contacts', 'organizations', 'causes', 'meetings', 'bills', 'topics', 'decisions'] as const).map((type) => (
               <button
                 key={type}
                 onClick={() => toggleType(type)}
-                className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-full border-2 transition-all text-sm ${
+                className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-full border-2 transition-all text-xs sm:text-sm ${
                   selectedTypes.includes(type)
                     ? `${getTypeColor(type)} border-current font-medium shadow-sm`
                     : 'border-gray-300 bg-white text-gray-600 hover:border-gray-400 hover:bg-gray-50'
@@ -1013,7 +1035,7 @@ export default function UnifiedSearch() {
                   <CheckIcon className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
                 )}
                 {getTypeIcon(type)}
-                <span className="hidden xs:inline">{type.charAt(0).toUpperCase() + type.slice(1)}</span>
+                <span className="truncate">{type.charAt(0).toUpperCase() + type.slice(1)}</span>
               </button>
             ))}
           </div>
@@ -1106,10 +1128,31 @@ export default function UnifiedSearch() {
             </div>
           )}
 
-          {/* Advanced Filters Panel */}
+          {/* Advanced Filters Flyout */}
           {showFilters && (
-            <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <>
+              {/* Backdrop */}
+              <div 
+                className="fixed inset-0 bg-black bg-opacity-50 z-40"
+                onClick={() => setShowFilters(false)}
+              />
+              
+              {/* Flyout Sidebar */}
+              <div className="fixed right-0 top-0 h-full w-full md:w-96 bg-white shadow-2xl z-50 overflow-y-auto">
+                <div className="p-6">
+                  {/* Header */}
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-xl font-bold text-gray-900">Advanced Filters</h3>
+                    <button
+                      onClick={() => setShowFilters(false)}
+                      className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-md transition-colors"
+                    >
+                      <XMarkIcon className="h-6 w-6" />
+                    </button>
+                  </div>
+
+                  {/* Filters */}
+                  <div className="space-y-6">
                 {/* State Filter */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1202,44 +1245,54 @@ export default function UnifiedSearch() {
                 </div>
               </div>
 
-              {/* Full Text Search Checkbox - Full width on mobile, compact on desktop */}
-              <div className="mt-4 pt-4 border-t border-gray-300">
-                <label className="flex items-center gap-2 cursor-pointer group">
-                  <input
-                    type="checkbox"
-                    checked={includeFullText}
-                    onChange={(e) => {
-                      setIncludeFullText(e.target.checked)
-                      setCurrentPage(1)
+                  {/* Full Text Search Checkbox */}
+                  <div className="pt-4 border-t border-gray-200">
+                    <label className="flex items-center gap-2 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        checked={includeFullText}
+                        onChange={(e) => {
+                          setIncludeFullText(e.target.checked)
+                          setCurrentPage(1)
+                          setTimeout(() => handleSearch(), 0)
+                        }}
+                        className="h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-2 focus:ring-primary-500 cursor-pointer"
+                      />
+                      <div className="flex-1">
+                        <span className="text-sm font-medium text-gray-700 group-hover:text-gray-900 block">
+                          Include full text
+                        </span>
+                        <span className="text-xs text-gray-500 block">
+                          (bills, meeting transcripts & summaries)
+                        </span>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Footer Actions */}
+                <div className="mt-8 pt-6 border-t border-gray-200 space-y-3">
+                  <button
+                    onClick={() => {
+                      setSelectedState('')
+                      setSortBy('relevance')
+                      setNteeCategory('')
+                      setIncludeFullText(false)
                       setTimeout(() => handleSearch(), 0)
                     }}
-                    className="h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-2 focus:ring-primary-500 cursor-pointer"
-                  />
-                  <span className="text-sm font-medium text-gray-700 group-hover:text-gray-900">
-                    Include full text
-                  </span>
-                  <span className="text-xs text-gray-500 hidden sm:inline">
-                    (bills, meeting transcripts & summaries)
-                  </span>
-                </label>
+                    className="w-full px-4 py-2.5 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors font-medium"
+                  >
+                    Clear All Filters
+                  </button>
+                  <button
+                    onClick={() => setShowFilters(false)}
+                    className="w-full px-4 py-2.5 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors font-medium"
+                  >
+                    Apply Filters
+                  </button>
+                </div>
               </div>
-
-              {/* Clear All Button */}
-              <div className="mt-4">
-                <button
-                  onClick={() => {
-                    setSelectedState('')
-                    setSortBy('relevance')
-                    setNteeCategory('')
-                    setIncludeFullText(false)
-                    setTimeout(() => handleSearch(), 0)
-                  }}
-                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm sm:text-base"
-                >
-                  Clear All Filters
-                </button>
-              </div>
-            </div>
+            </>
           )}
         </div>
 
@@ -1481,6 +1534,48 @@ export default function UnifiedSearch() {
                     </h3>
                     <div className="grid grid-cols-1 gap-4">
                       {searchResults.results.causes.map((result, idx) => (
+                        <ResultCard key={idx} result={result} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {selectedTypes.includes('bills') && searchResults.results?.bills && searchResults.results.bills.length > 0 && (
+                  <div className="mb-8">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                      <DocumentTextIcon className="h-6 w-6 text-indigo-600" />
+                      Bills ({searchResults.type_totals?.bills?.toLocaleString() || searchResults.results.bills.length})
+                    </h3>
+                    <div className="grid grid-cols-1 gap-4">
+                      {searchResults.results.bills.map((result, idx) => (
+                        <ResultCard key={idx} result={result} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {selectedTypes.includes('topics') && searchResults.results?.topics && searchResults.results.topics.length > 0 && (
+                  <div className="mb-8">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                      <ChatBubbleBottomCenterTextIcon className="h-6 w-6 text-teal-600" />
+                      Topics ({searchResults.type_totals?.topics?.toLocaleString() || searchResults.results.topics.length})
+                    </h3>
+                    <div className="grid grid-cols-1 gap-4">
+                      {searchResults.results.topics.map((result, idx) => (
+                        <ResultCard key={idx} result={result} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {selectedTypes.includes('decisions') && searchResults.results?.decisions && searchResults.results.decisions.length > 0 && (
+                  <div className="mb-8">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                      <ScaleIcon className="h-6 w-6 text-amber-600" />
+                      Decisions ({searchResults.type_totals?.decisions?.toLocaleString() || searchResults.results.decisions.length})
+                    </h3>
+                    <div className="grid grid-cols-1 gap-4">
+                      {searchResults.results.decisions.map((result, idx) => (
                         <ResultCard key={idx} result={result} />
                       ))}
                     </div>

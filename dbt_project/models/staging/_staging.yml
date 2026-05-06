@@ -2,9 +2,8 @@ version: 2
 
 sources:
   - name: bronze
-    description: "Bronze tables from AI extraction and raw data ingestion"
-    database: open_navigator_bronze
-    schema: public
+    description: "Bronze tables from AI extraction and raw data ingestion (via Foreign Data Wrapper)"
+    schema: bronze  # Foreign tables imported from open_navigator_bronze
     tables:
       - name: bronze_contacts
         description: "People extracted from meeting transcripts via AI"

@@ -109,6 +109,7 @@ async def get_stats(
                 'events': 0,
                 'bills': 0,
                 'contacts': 0,
+                'decisions': 0,
                 'total_revenue': 0,
                 'total_assets': 0,
                 'last_updated': None,
@@ -129,6 +130,7 @@ async def get_stats(
                 'events': stats.get('events_count', 0),
                 'bills': stats.get('bills_count', 0),
                 'contacts': stats.get('contacts_count', 0),
+                'decisions': stats.get('decisions_count', 0),
                 'total_revenue': stats.get('total_revenue', 0),
                 'total_assets': stats.get('total_assets', 0),
                 'trending_causes': stats.get('trending_causes'),  # Include trending causes from dbt
@@ -289,7 +291,12 @@ async def fetch_stats_from_neon(
                 return None
             
             if result:
-                return dict(result)
+                # Parse JSONB fields if they exist
+                result_dict = dict(result)
+                if result_dict.get('trending_causes') and isinstance(result_dict['trending_causes'], str):
+                    import json
+                    result_dict['trending_causes'] = json.loads(result_dict['trending_causes'])
+                return result_dict
             return None
             
     except Exception as e:

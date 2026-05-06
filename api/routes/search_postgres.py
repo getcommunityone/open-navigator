@@ -8,6 +8,7 @@ import asyncpg
 import os
 from datetime import datetime
 from dataclasses import dataclass
+from api.utils.formatters import format_organization_id, format_role_type, format_title
 
 # Database configuration
 # Priority: NEON_DATABASE_URL_DEV (local) > NEON_DATABASE_URL (production)
@@ -324,14 +325,14 @@ async def search_contacts_pg(
             
             results = []
             for row in rows:
-                org_display = row['organization_name'] or 'Unknown Organization'
+                org_display = format_organization_id(row['organization_name']) if row['organization_name'] else 'Unknown Organization'
                 location = f"{row['city']}, {row['state']}" if row['city'] and row['state'] else (row['state'] or '')
                 
                 results.append(SearchResult(
                     result_type='contact',
                     title=row['name'],
-                    subtitle=f"{row['title'] or 'Officer'} - {org_display}",
-                    description=f"{row['role_type'] or 'Contact'} in {location}",
+                    subtitle=f"{format_title(row['title']) if row['title'] else 'Officer'} - {org_display}",
+                    description=f"{format_role_type(row['role_type']) if row['role_type'] else 'Contact'} in {location}",
                     url=f"/people/{row['name'].replace(' ', '-')}",
                     score=1.0,
                     metadata={

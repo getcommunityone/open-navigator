@@ -5,8 +5,6 @@
     )
 }}
 
--- depends_on: {{ ref('bronze_organizations_nonprofits') }}
-
 /*
     Stats Aggregates - Multi-level statistics with trending causes
     
@@ -25,9 +23,9 @@
     - int_trending_causes_by_jurisdiction: Trending causes by jurisdiction
 */
 
--- CTE for base nonprofits data (extract ref() to top level)
+-- CTE for base nonprofits data (use source, not ref)
 WITH base_nonprofits AS (
-    SELECT * FROM {{ ref('bronze_organizations_nonprofits') }}
+    SELECT * FROM {{ source('bronze', 'bronze_organizations_nonprofits') }}
 ),
 
 nonprofit_stats AS (
@@ -122,6 +120,101 @@ bill_stats AS (
     GROUP BY LEFT(jurisdiction, 2)
 ),
 
+decision_stats AS (
+    -- Count decisions by state and city
+    SELECT
+        e.state_code,
+        e.city,
+        COUNT(DISTINCT d.id) as decisions_count
+    FROM {{ source('bronze', 'bronze_decisions') }} d
+    JOIN {{ source('bronze', 'bronze_events') }} e ON d.source_event_id = e.event_id
+    WHERE e.state_code IS NOT NULL
+    GROUP BY e.state_code, e.city
+),
+
+-- Trending causes aggregated by jurisdiction (from dbt intermediate model)
+trending_causes_data AS (
+    SELECT
+        state_code,
+        state,
+        jurisdiction_name,
+        jurisdiction_type,
+        -- Build JSON array of trending causes for each jurisdiction
+        jsonb_agg(
+            jsonb_build_object(
+                'cause', cause_category,
+                'code', cause_code,
+                'decision_count', decision_count,
+                'topics', unique_topics,
+                'most_recent', most_recent_decision::TEXT,
+                'rank', cause_rank,
+                'sample_headlines', sample_headlines
+            ) ORDER BY cause_rank
+        ) as trending_causes
+    FROM {{ ref('int_trending_causes_by_jurisdiction') }}
+    GROUP BY state_code, state, jurisdiction_name, jurisdiction_type
+),
+
+-- Aggregate trending causes by state (all cities in a state)
+state_trending_causes AS (
+    SELECT
+        state_code,
+        -- Aggregate all causes from all jurisdictions in the state
+        jsonb_agg(
+            jsonb_build_object(
+                'cause', cause_category,
+                'code', cause_code,
+                'decision_count', decision_count,
+                'jurisdiction', jurisdiction_name
+            ) ORDER BY decision_count DESC
+        ) as all_causes,
+        -- Get top 10 most common causes across state
+        (
+            SELECT jsonb_agg(
+                jsonb_build_object(
+                    'cause', cause,
+                    'decision_count', total_count,
+                    'jurisdictions', jurisdictions
+                ) ORDER BY total_count DESC
+            )
+            FROM (
+                SELECT 
+                    cause_category as cause,
+                    SUM(decision_count) as total_count,
+                    COUNT(DISTINCT jurisdiction_name) as jurisdictions
+                FROM {{ ref('int_trending_causes_by_jurisdiction') }}
+                WHERE state_code = tc.state_code
+                GROUP BY cause_category
+                ORDER BY total_count DESC
+                LIMIT 10
+            ) top_causes
+        ) as trending_causes
+    FROM {{ ref('int_trending_causes_by_jurisdiction') }} tc
+    GROUP BY state_code
+),
+
+-- National trending causes (aggregate across all states)
+national_trending_causes AS (
+    SELECT
+        jsonb_agg(
+            jsonb_build_object(
+                'cause', cause,
+                'decision_count', total_count,
+                'states', states
+            ) ORDER BY total_count DESC
+        ) as trending_causes
+    FROM (
+        SELECT 
+            cause_category as cause,
+            SUM(decision_count) as total_count,
+            COUNT(DISTINCT state_code) as states
+        FROM {{ ref('int_trending_causes_by_jurisdiction') }}
+        GROUP BY cause_category
+        ORDER BY total_count DESC
+        LIMIT 10
+    ) top_national_causes
+),
+
 -- National level stats
 national_stats AS (
     SELECT
@@ -137,10 +230,12 @@ national_stats AS (
         (SELECT SUM(events_count) FROM event_stats)::INTEGER as events_count,
         (SELECT SUM(bills_count) FROM bill_stats)::INTEGER as bills_count,
         (SELECT SUM(contacts_count) FROM contact_stats)::INTEGER as contacts_count,
+        (SELECT SUM(decisions_count) FROM decision_stats)::INTEGER as decisions_count,
         (SELECT SUM(total_revenue) FROM nonprofit_stats) as total_revenue,
         (SELECT SUM(total_assets) FROM nonprofit_stats) as total_assets,
         
-        NULL::JSONB as trending_causes,
+        -- National trending causes
+        (SELECT trending_causes FROM national_trending_causes LIMIT 1) as trending_causes,
         CURRENT_TIMESTAMP as last_updated
 ),
 
@@ -159,14 +254,17 @@ state_stats AS (
         COALESCE((SELECT SUM(events_count) FROM event_stats WHERE state_code = nps.state_code), 0)::INTEGER as events_count,
         COALESCE((SELECT bills_count FROM bill_stats WHERE state_code = nps.state_code), 0)::INTEGER as bills_count,
         COALESCE((SELECT contacts_count FROM contact_stats WHERE state_code = nps.state_code), 0)::INTEGER as contacts_count,
+        COALESCE((SELECT SUM(decisions_count) FROM decision_stats WHERE state_code = nps.state_code), 0)::INTEGER as decisions_count,
         SUM(nps.total_revenue) as total_revenue,
         SUM(nps.total_assets) as total_assets,
         
-        NULL::JSONB as trending_causes,
+        -- State-level trending causes (aggregated from all jurisdictions in state)
+        stc.trending_causes,
         
         CURRENT_TIMESTAMP as last_updated
     FROM nonprofit_stats nps
-    GROUP BY nps.state_code
+    LEFT JOIN state_trending_causes stc ON nps.state_code = stc.state_code
+    GROUP BY nps.state_code, stc.trending_causes
 ),
 
 -- County level stats (FIX: Use pre-aggregated events!)
@@ -184,9 +282,12 @@ county_stats AS (
         COALESCE(ces.events_count, 0)::INTEGER as events_count,
         0 as bills_count,
         0 as contacts_count,
+        0 as decisions_count,
         nps.total_revenue,
         nps.total_assets,
         
+        -- County trending causes (aggregate from jurisdictions in this county)
+        -- Note: We don't have county-level decisions, so this will be NULL for now
         NULL::JSONB as trending_causes,
         CURRENT_TIMESTAMP as last_updated
     FROM nonprofit_stats nps
@@ -211,15 +312,21 @@ city_stats AS (
         es.events_count::INTEGER,
         0 as bills_count,
         0 as contacts_count,
+        COALESCE(ds.decisions_count, 0)::INTEGER as decisions_count,
         COALESCE(ncs.total_revenue, 0) as total_revenue,
         COALESCE(ncs.total_assets, 0) as total_assets,
         
-        NULL::JSONB as trending_causes,
+        -- City-level trending causes (from jurisdiction-specific decisions)
+        tcd.trending_causes,
         
         CURRENT_TIMESTAMP as last_updated
     FROM event_stats es
     LEFT JOIN nonprofit_city_stats ncs 
         ON UPPER(es.city) = UPPER(ncs.city) AND es.state_code = ncs.state_code
+    LEFT JOIN trending_causes_data tcd
+        ON UPPER(es.city) = UPPER(tcd.jurisdiction_name) AND es.state_code = tcd.state_code
+    LEFT JOIN decision_stats ds
+        ON UPPER(es.city) = UPPER(ds.city) AND es.state_code = ds.state_code
     WHERE es.city IS NOT NULL
 )
 
