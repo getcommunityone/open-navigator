@@ -797,15 +797,21 @@ class YouTubeAudioDownloader:
         logger.success(f"📁 Output: {self.output_dir}")
         logger.info("")
         
-        # List directories created
-        dirs = sorted([d for d in self.output_dir.iterdir() if d.is_dir()])
-        if dirs:
-            logger.info(f"📂 Created {len(dirs)} channel directories:")
-            for d in dirs[:10]:  # Show first 10
+        # List channel directories (STATE/Channel/ structure)
+        channel_dirs = sorted([
+            d for d in self.output_dir.rglob('*')
+            if d.is_dir() and d.parent != self.output_dir and d.parent.parent == self.output_dir
+        ])
+        # Fall back to top-level dirs if no nested structure found
+        if not channel_dirs:
+            channel_dirs = sorted([d for d in self.output_dir.iterdir() if d.is_dir()])
+        if channel_dirs:
+            logger.info(f"📂 Channel directories ({len(channel_dirs)} total):")
+            for d in channel_dirs:
                 file_count = len(list(d.glob('*.opus')))
-                logger.info(f"   • {d.name} ({file_count} files)")
-            if len(dirs) > 10:
-                logger.info(f"   ... and {len(dirs) - 10} more")
+                state = d.parent.name if d.parent != self.output_dir else ''
+                label = f"{state}/{d.name}" if state else d.name
+                logger.info(f"   • {label} ({file_count} files)")
 
 
 def main():
@@ -879,7 +885,19 @@ def main():
     )
     
     args = parser.parse_args()
-    
+
+    # File logger: one rotating log per output directory, kept for 7 days
+    log_dir = Path(args.output_dir) / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    logger.add(
+        log_dir / "download_{time:YYYY-MM-DD}.log",
+        rotation="00:00",       # new file each day
+        retention="7 days",
+        level="DEBUG",
+        format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level:<8} | {name}:{function}:{line} - {message}",
+        encoding="utf-8",
+    )
+
     # Show startup configuration for debugging
     logger.info("=" * 80)
     logger.info("🚀 YouTube Audio Downloader - Startup Configuration")
