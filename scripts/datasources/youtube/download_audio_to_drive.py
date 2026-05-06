@@ -63,6 +63,8 @@ import os
 import sys
 import argparse
 import re
+import time
+import random
 from pathlib import Path
 from typing import List, Dict, Optional
 from datetime import datetime
@@ -93,7 +95,8 @@ class YouTubeAudioDownloader:
         days_recent: Optional[int] = None,
         skip_existing: bool = True,
         reorganize: bool = False,
-        cookies_file: Optional[str] = None
+        cookies_file: Optional[str] = None,
+        sleep_between_downloads: float = 2.0
     ):
         # Sanitize database URL (fix common issues with Neon/cloud connections)
         self.database_url = self._sanitize_database_url(database_url)
@@ -105,6 +108,7 @@ class YouTubeAudioDownloader:
         self.skip_existing = skip_existing
         self.reorganize = reorganize
         self.cookies_file = cookies_file
+        self.sleep_between_downloads = sleep_between_downloads
         
         # Validate cookies file if provided
         if self.cookies_file:
@@ -728,6 +732,13 @@ class YouTubeAudioDownloader:
                     # Update database with download info
                     relative_path = str(output_path.relative_to(self.output_dir))
                     self.update_database_download_info(video['video_id'], relative_path, file_size)
+                    
+                    # Throttle to avoid rate limiting (add random jitter to look more human)
+                    if self.sleep_between_downloads > 0 and i < len(channel_videos):
+                        jitter = random.uniform(0.5, 1.5)  # ±50% random variance
+                        sleep_time = self.sleep_between_downloads * jitter
+                        logger.debug(f"   😴 Sleeping {sleep_time:.1f}s to avoid rate limiting...")
+                        time.sleep(sleep_time)
                 else:
                     logger.error(f"   ✗ Failed: {video['title'][:60]}")
                     self.failed += 1
@@ -818,6 +829,13 @@ def main():
         help='Path to Netscape cookies file (to avoid YouTube bot detection). Export from browser using extension.'
     )
     
+    parser.add_argument(
+        '--sleep',
+        type=float,
+        default=2.0,
+        help='Seconds to sleep between downloads (default: 2.0, with random jitter). Set to 0 to disable throttling.'
+    )
+    
     args = parser.parse_args()
     
     # Show startup configuration for debugging
@@ -844,7 +862,8 @@ def main():
     else:
         logger.info(f"🍪 Cookies: ❌ NOT PROVIDED (may trigger bot detection)")
     
-    logger.info(f"🗄️  Database: {args.database_url[:50]}..." if len(args.database_url) > 50 else args.database_url)
+    logger.info(f"� Throttling: {args.sleep}s between downloads (with random jitter)" if args.sleep > 0 else "⚡ Throttling: DISABLED (may trigger rate limiting)")
+    logger.info(f"�🗄️  Database: {args.database_url[:50]}..." if len(args.database_url) > 50 else args.database_url)
     logger.info("=" * 80)
     
     # Parse filters
@@ -861,7 +880,8 @@ def main():
         days_recent=args.days,
         skip_existing=not args.no_skip_existing,
         reorganize=args.reorganize,
-        cookies_file=args.cookies
+        cookies_file=args.cookies,
+        sleep_between_downloads=args.sleep
     )
     
     # Run reorganization if requested
