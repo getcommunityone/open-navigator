@@ -110,10 +110,30 @@ class YouTubeAudioDownloader:
         if self.cookies_file:
             cookie_path = Path(self.cookies_file)
             if cookie_path.exists():
-                logger.info(f"🍪 Cookies enabled: Using authentication file ({cookie_path.stat().st_size} bytes)")
+                file_size = cookie_path.stat().st_size
+                file_mtime = cookie_path.stat().st_mtime
+                from datetime import datetime
+                mod_time = datetime.fromtimestamp(file_mtime).strftime('%Y-%m-%d %H:%M:%S')
+                logger.info(f"🍪 Cookies enabled: Using authentication file")
+                logger.info(f"   📁 Path: {cookie_path.resolve()}")
+                logger.info(f"   📊 Size: {file_size} bytes")
+                logger.info(f"   🕒 Modified: {mod_time}")
+                
+                # Verify file has content (read first line)
+                try:
+                    with open(cookie_path, 'r') as f:
+                        first_line = f.readline().strip()
+                        if first_line:
+                            logger.info(f"   ✅ File is readable (first line: {first_line[:50]}...)")
+                        else:
+                            logger.warning(f"   ⚠️  File is EMPTY - this will cause bot detection errors!")
+                except Exception as e:
+                    logger.error(f"   ❌ Cannot read file: {e}")
             else:
                 logger.warning(f"⚠️  Cookies file not found - downloads may fail due to bot detection")
-                logger.warning(f"   Provided: [REDACTED] (file does not exist)")
+                logger.warning(f"   Provided path: {self.cookies_file}")
+                logger.warning(f"   Absolute path: {Path(self.cookies_file).resolve()}")
+                logger.warning(f"   File does NOT exist at this location")
         else:
             logger.info("🔓 Cookies disabled: Downloads may be rate-limited or blocked")
         
@@ -301,8 +321,7 @@ class YouTubeAudioDownloader:
             # Add cookies if provided (to avoid YouTube bot detection)
             if self.cookies_file:
                 ydl_opts['cookiefile'] = self.cookies_file
-                logger.debug(f"  🍪 Using cookies for authentication (bot detection bypass)")
-            
+                logger.debug(f"  🍪 Using cookies for authentication (bot detection bypass)")                logger.debug(f"   Cookie file passed to yt-dlp: {self.cookies_file}")            
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([video['video_url']])
             
@@ -798,6 +817,33 @@ def main():
     )
     
     args = parser.parse_args()
+    
+    # Show startup configuration for debugging
+    logger.info("=" * 80)
+    logger.info("🚀 YouTube Audio Downloader - Startup Configuration")
+    logger.info("=" * 80)
+    logger.info(f"📁 Output directory: {args.output_dir}")
+    logger.info(f"🎯 Limit: {args.limit if args.limit else 'No limit'}")
+    logger.info(f"📺 Channels filter: {args.channels if args.channels else 'All channels'}")
+    logger.info(f"🗺️  States filter: {args.states if args.states else 'All states'}")
+    logger.info(f"📅 Days recent: {args.days if args.days else 'All time'}")
+    logger.info(f"⏭️  Skip existing: {not args.no_skip_existing}")
+    logger.info(f"📂 Reorganize mode: {args.reorganize}")
+    logger.info(f"🔄 Sync metadata mode: {args.sync_metadata}")
+    
+    # Check cookies file with size info
+    if args.cookies:
+        cookie_path = Path(args.cookies)
+        if cookie_path.exists():
+            file_size = cookie_path.stat().st_size
+            logger.info(f"🍪 Cookies: ✅ PROVIDED: {args.cookies} ({file_size} bytes)")
+        else:
+            logger.info(f"🍪 Cookies: ⚠️  PROVIDED BUT FILE NOT FOUND: {args.cookies}")
+    else:
+        logger.info(f"🍪 Cookies: ❌ NOT PROVIDED (may trigger bot detection)")
+    
+    logger.info(f"🗄️  Database: {args.database_url[:50]}..." if len(args.database_url) > 50 else args.database_url)
+    logger.info("=" * 80)
     
     # Parse filters
     channels_filter = args.channels.split(',') if args.channels else None
