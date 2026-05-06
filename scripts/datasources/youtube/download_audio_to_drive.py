@@ -116,17 +116,23 @@ class YouTubeAudioDownloader:
     
     def _sanitize_database_url(self, url: str) -> str:
         """Sanitize database URL to fix common connection issues."""
-        # Fix channel_binding parameter (common issue with Neon/cloud PostgreSQL)
-        # Replace channel_binding=require with channel_binding=prefer
-        # or remove channel_binding if it has quotes
-        if 'channel_binding=' in url:
-            # Remove any quotes around parameter values
-            url = re.sub(r'channel_binding=["\']?require["\']?', 'channel_binding=prefer', url)
-            url = re.sub(r'channel_binding=["\']([^"\'\&]+)["\']', r'channel_binding=\1', url)
+        # Strip leading/trailing whitespace from entire URL
+        url = url.strip()
         
-        # Also fix sslmode if it has quotes
+        # Remove newlines and extra whitespace within the URL
+        url = re.sub(r'\s+', ' ', url).replace('\n', '').replace('\r', '')
+        
+        # Fix channel_binding parameter (common issue with Neon/cloud PostgreSQL)
+        # Remove quotes and any whitespace around values
+        if 'channel_binding=' in url:
+            # First, remove any quotes and whitespace around the value
+            url = re.sub(r'channel_binding=\s*["\']?\s*(require|prefer)\s*["\']?\s*', r'channel_binding=prefer', url)
+            # Catch any remaining quoted values (with potential whitespace inside)
+            url = re.sub(r'channel_binding=\s*["\']([^"\'\&\s]+)\s*["\']', r'channel_binding=\1', url)
+        
+        # Also fix sslmode if it has quotes or whitespace
         if 'sslmode=' in url:
-            url = re.sub(r'sslmode=["\']([^"\'\&]+)["\']', r'sslmode=\1', url)
+            url = re.sub(r'sslmode=\s*["\']([^"\'\&\s]+)\s*["\']', r'sslmode=\1', url)
         
         return url
     
