@@ -91,7 +91,8 @@ class YouTubeAudioDownloader:
         channels_filter: Optional[List[str]] = None,
         states_filter: Optional[List[str]] = None,
         days_recent: Optional[int] = None,
-        skip_existing: bool = True
+        skip_existing: bool = True,
+        reorganize: bool = False
     ):
         self.database_url = database_url
         self.output_dir = Path(output_dir)
@@ -100,6 +101,7 @@ class YouTubeAudioDownloader:
         self.states_filter = states_filter
         self.days_recent = days_recent
         self.skip_existing = skip_existing
+        self.reorganize = reorganize
         
         # Create output directory
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -108,6 +110,7 @@ class YouTubeAudioDownloader:
         self.downloaded = 0
         self.skipped = 0
         self.failed = 0
+        self.reorganized = 0
     
     def sanitize_filename(self, text: str, max_length: int = 100) -> str:
         """Sanitize text for use in filename."""
@@ -264,6 +267,158 @@ class YouTubeAudioDownloader:
             logger.warning(f"  ⚠️  Could not update database: {e}")
             # Don't fail the download if DB update fails
     
+    def reorganize_existing_files(self):
+        """Reorganize existing files from old channel-only structure to state-based structure."""
+        logger.info("="*80)
+        logger.info("🔄 REORGANIZING EXISTING FILES")
+        logger.info("="*80)
+        logger.info(f"Output directory: {self.output_dir}")
+        logger.info("")
+        
+        # Find all existing .opus files not already in state folders
+        old_structure_files = []
+        
+        for file_path in self.output_dir.rglob('*.opus'):
+            # Check if file is in old structure (direct child of channel dir, not state dir)
+            # Old: output_dir/ChannelName_ChannelID/file.opus
+            # New: output_dir/STATE/ChannelName_ChannelID/file.opus
+            
+            relative_parts = file_path.relative_to(self.output_dir).parts
+            
+            # If only 2 parts (channel_dir/file.opus), it's old structure
+            # If 3 parts (state/channel_dir/file.opus), it's already organized
+            if len(relative_parts) == 2:
+                old_structure_files.append(file_path)
+        
+        if not old_structure_files:
+            logger.success("✅ No files to reorganize - all files are already in state-based structure")
+            return
+        
+        logger.info(f"📁 Found {len(old_structure_files)} files in old structure")
+        logger.info("")
+        
+        # Get channel to state mapping from database
+        conn = psycopg2.connect(self.database_url)
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        
+        cursor.execute("""
+            SELECT DISTINCT channel_id, state_code, jurisdiction_name
+            FROM bronze.bronze_events_youtube
+            WHERE state_code IS NOT NULL
+        """)
+        
+        channel_state_map = {}
+        for row in cursor.fetchall():
+            channel_state_map[row['channel_id']] = {
+                'state_code': row['state_code'],
+                'jurisdiction_name': row['jurisdiction_name']
+            }
+        
+        cursor.close()
+        conn.close()
+        
+        logger.info(f"📊 Loaded state info for {len(channel_state_map)} channels")
+        logger.info("")
+        
+        # Reorganize each file
+        for old_path in old_structure_files:
+            try:
+                # Extract channel_id from directory name
+                # Format: ChannelName_ChannelID
+                channel_dir_name = old_path.parent.name
+                
+                # Get channel_id (last 8 chars after underscore)
+                if '_' not in channel_dir_name:
+                    logger.warning(f"⏭️  Skipped (invalid dir format): {channel_dir_name}")
+                    continue
+                
+                channel_id_short = channel_dir_name.split('_')[-1]
+                
+                # Find matching channel_id in map
+                matching_channel = None
+                for full_channel_id, info in channel_state_map.items():
+                    if full_channel_id.startswith(channel_id_short):
+                        matching_channel = full_channel_id
+                        state_code = info['state_code']
+                        jurisdiction_name = info['jurisdiction_name']
+                        break
+                
+                if not matching_channel:
+                    logger.warning(f"⏭️  Skipped (channel not found in DB): {channel_dir_name}")
+                    continue
+                
+                # Create new path with state organization
+                new_channel_dir = self.get_channel_dir(
+                    jurisdiction_name,
+                    matching_channel,
+                    state_code
+                )
+                new_path = new_channel_dir / old_path.name
+                
+                # Skip if destination already exists
+                if new_path.exists():
+                    logger.info(f"⏭️  Skipped (already exists): {new_path.relative_to(self.output_dir)}")
+                    continue
+                
+                # Move file
+                old_path.rename(new_path)
+                
+                # Update database with new path
+                relative_new_path = str(new_path.relative_to(self.output_dir))
+                file_size_mb = new_path.stat().st_size / (1024 * 1024)
+                
+                # Extract video_id from filename (need to query DB)
+                conn = psycopg2.connect(self.database_url)
+                cursor = conn.cursor(cursor_factory=RealDictCursor)
+                
+                cursor.execute("""
+                    SELECT video_id
+                    FROM bronze.bronze_events_youtube
+                    WHERE audio_file_path = %s
+                    LIMIT 1
+                """, (str(old_path.relative_to(self.output_dir)),))
+                
+                result = cursor.fetchone()
+                if result:
+                    video_id = result['video_id']
+                    
+                    # Update with new path
+                    cursor.execute("""
+                        UPDATE bronze.bronze_events_youtube
+                        SET audio_file_path = %s
+                        WHERE video_id = %s
+                    """, (relative_new_path, video_id))
+                    
+                    conn.commit()
+                
+                cursor.close()
+                conn.close()
+                
+                logger.success(f"✓ Moved: {old_path.name}")
+                logger.info(f"  From: {old_path.relative_to(self.output_dir)}")
+                logger.info(f"  To:   {new_path.relative_to(self.output_dir)}")
+                self.reorganized += 1
+                
+            except Exception as e:
+                logger.error(f"✗ Failed to reorganize {old_path.name}: {e}")
+        
+        # Clean up empty old directories
+        for dir_path in self.output_dir.iterdir():
+            if dir_path.is_dir() and len(dir_path.name) == 2:  # Skip state dirs (2-letter codes)
+                continue
+            
+            if dir_path.is_dir() and not any(dir_path.iterdir()):
+                dir_path.rmdir()
+                logger.info(f"🗑️  Removed empty directory: {dir_path.name}")
+        
+        logger.info("")
+        logger.success("="*80)
+        logger.success("REORGANIZATION COMPLETE")
+        logger.success("="*80)
+        logger.success(f"✓ Reorganized: {self.reorganized:,} files")
+        logger.success(f"📁 Output: {self.output_dir}")
+        logger.info("")
+    
     def run(self):
         """Run the download process."""
         logger.info("=" * 80)
@@ -410,6 +565,12 @@ def main():
     )
     
     parser.add_argument(
+        '--reorganize',
+        action='store_true',
+        help='Reorganize existing files from old channel-only structure to new state-based structure'
+    )
+    
+    parser.add_argument(
         '--database-url',
         default=os.getenv('NEON_DATABASE_URL_DEV', 'postgresql://postgres:password@localhost:5433/open_navigator'),
         help='Database connection URL'
@@ -429,11 +590,16 @@ def main():
         channels_filter=channels_filter,
         states_filter=states_filter,
         days_recent=args.days,
-        skip_existing=not args.no_skip_existing
+        skip_existing=not args.no_skip_existing,
+        reorganize=args.reorganize
     )
     
-    # Run
-    downloader.run()
+    # Run reorganization if requested
+    if args.reorganize:
+        downloader.reorganize_existing_files()
+    else:
+        # Run normal download
+        downloader.run()
 
 
 if __name__ == '__main__':
