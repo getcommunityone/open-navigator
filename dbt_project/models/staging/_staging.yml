@@ -2,8 +2,9 @@ version: 2
 
 sources:
   - name: bronze
-    description: "Bronze tables from AI extraction and raw data ingestion (via Foreign Data Wrapper)"
-    schema: bronze  # Foreign tables imported from open_navigator_bronze
+    description: "Bronze tables from AI extraction and raw data ingestion - ALL IN BRONZE SCHEMA"
+    database: open_navigator  # Single database with schemas
+    schema: bronze  # Bronze schema for raw data
     tables:
       - name: bronze_contacts
         description: "People extracted from meeting transcripts via AI"
@@ -219,7 +220,7 @@ sources:
             description: "Water area of ZCTA part in this county (sq meters)"
       
       - name: bronze_events_search
-        description: "Meeting events from LocalView, YouTube, Legistar - raw data before deduplication"
+        description: "Meeting events from LocalView, YouTube, Legistar - raw data before deduplication. CDP-compatible schema: https://councildataproject.org/"
         columns:
           - name: id
             description: "Primary key"
@@ -231,6 +232,12 @@ sources:
             description: "Date of event"
           - name: event_time
             description: "Time of event"
+          - name: event_datetime
+            description: "CDP field: combined date+time timestamp"
+          - name: body_name
+            description: "CDP field: meeting body name (e.g., 'City Council', 'Planning Commission')"
+          - name: body_description
+            description: "CDP field: meeting body description"
           - name: jurisdiction_id
             description: "Jurisdiction identifier"
           - name: jurisdiction_name
@@ -245,16 +252,28 @@ sources:
             description: "City name"
           - name: location
             description: "Meeting location"
+          - name: location_description
+            description: "Location description from YouTube (if available)"
           - name: meeting_type
             description: "Type of meeting"
+          - name: status
+            description: "Meeting status"
+          - name: agenda_url
+            description: "CDP: agenda_uri - Link to meeting agenda"
+          - name: minutes_url
+            description: "CDP: minutes_uri - Link to meeting minutes"
           - name: video_url
-            description: "Video URL (unique in production)"
+            description: "CDP: session.video_uri - Video URL (unique in production)"
+          - name: session_content_hash
+            description: "CDP field: hash for session deduplication"
           - name: channel_id
             description: "YouTube channel ID"
           - name: source
             description: "Data source: localview, youtube, legistar, etc."
           - name: datasource_id
             description: "Original ID from source system"
+          - name: external_source_id
+            description: "CDP field: external_source_id for cross-system tracking"
           - name: loaded_at
             description: "When record was loaded"
       

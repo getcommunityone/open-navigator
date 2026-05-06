@@ -10,7 +10,7 @@
 -- Create bronze_events_text_ai table
 -- ============================================================================
 
-CREATE TABLE IF NOT EXISTS bronze_events_text_ai (
+CREATE TABLE IF NOT EXISTS bronze.bronze_events_text_ai (
     id SERIAL PRIMARY KEY,
     
     -- Link to event (will join to bronze_events_search.datasource_id or production events_search.id)
@@ -44,31 +44,31 @@ CREATE TABLE IF NOT EXISTS bronze_events_text_ai (
 -- Indexes for performance
 -- ============================================================================
 
-CREATE INDEX IF NOT EXISTS idx_bronze_events_text_event_id ON bronze_events_text_ai(event_id);
-CREATE INDEX IF NOT EXISTS idx_bronze_events_text_video_id ON bronze_events_text_ai(video_id);
-CREATE INDEX IF NOT EXISTS idx_bronze_events_text_source ON bronze_events_text_ai(transcript_source);
-CREATE INDEX IF NOT EXISTS idx_bronze_events_text_quality ON bronze_events_text_ai(has_transcript, transcript_quality);
+CREATE INDEX IF NOT EXISTS idx_bronze_events_text_ai_event_id ON bronze.bronze_events_text_ai(event_id);
+CREATE INDEX IF NOT EXISTS idx_bronze_events_text_video_id ON bronze.bronze_events_text_ai(video_id);
+CREATE INDEX IF NOT EXISTS idx_bronze_events_text_source ON bronze.bronze_events_text_ai(transcript_source);
+CREATE INDEX IF NOT EXISTS idx_bronze_events_text_quality ON bronze.bronze_events_text_ai(has_transcript, transcript_quality);
 
 -- Full-text search index on transcript
 CREATE INDEX IF NOT EXISTS idx_bronze_events_text_search_gin 
-    ON bronze_events_text_ai USING GIN (to_tsvector('english', COALESCE(raw_text, '')));
+    ON bronze.bronze_events_text_ai USING GIN (to_tsvector('english', COALESCE(raw_text, '')));
 
 -- ============================================================================
 -- Constraints
 -- ============================================================================
 
 -- Unique constraint on video_id to prevent duplicate transcripts
-CREATE UNIQUE INDEX IF NOT EXISTS idx_bronze_events_text_video_id_unique ON bronze_events_text_ai(video_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_bronze_events_text_video_id_unique ON bronze.bronze_events_text_ai(video_id);
 
 -- ============================================================================
 -- Comments
 -- ============================================================================
 
-COMMENT ON TABLE bronze_events_text_ai IS 'Bronze table for video transcripts and AI-extracted meeting text from YouTube and other sources.';
-COMMENT ON COLUMN bronze_events_text_ai.video_id IS 'YouTube video ID (unique identifier)';
-COMMENT ON COLUMN bronze_events_text_ai.segments IS 'Structured transcript with timestamps: [{"text": "...", "start": 0.0, "duration": 2.5}, ...]';
-COMMENT ON COLUMN bronze_events_text_ai.transcript_source IS 'Source: youtube_api, youtube_manual, whisper_ai, gemini_ai, etc.';
-COMMENT ON COLUMN bronze_events_text_ai.ai_model IS 'AI model used: gemini-1.5-flash, gpt-4, claude-3, etc.';
+COMMENT ON TABLE bronze.bronze_events_text_ai IS 'Bronze table for video transcripts and AI-extracted meeting text from YouTube and other sources.';
+COMMENT ON COLUMN bronze.bronze_events_text_ai.video_id IS 'YouTube video ID (unique identifier)';
+COMMENT ON COLUMN bronze.bronze_events_text_ai.segments IS 'Structured transcript with timestamps: [{"text": "...", "start": 0.0, "duration": 2.5}, ...]';
+COMMENT ON COLUMN bronze.bronze_events_text_ai.transcript_source IS 'Source: youtube_api, youtube_manual, whisper_ai, gemini_ai, etc.';
+COMMENT ON COLUMN bronze.bronze_events_text_ai.ai_model IS 'AI model used: gemini-1.5-flash, gpt-4, claude-3, etc.';
 
 -- ============================================================================
 -- Import as Foreign Table in Production Database

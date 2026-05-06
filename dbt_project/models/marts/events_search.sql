@@ -1,12 +1,14 @@
 {{
   config(
     materialized='table',
-    tags=['marts', 'events', 'production'],
+    tags=['marts', 'events', 'production', 'cdp-compatible'],
     unique_key='id',
     indexes=[
       {'columns': ['event_date'], 'type': 'btree'},
+      {'columns': ['event_datetime'], 'type': 'btree'},
       {'columns': ['state_code', 'state'], 'type': 'btree'},
       {'columns': ['jurisdiction_name', 'state_code'], 'type': 'btree'},
+      {'columns': ['body_name'], 'type': 'btree'},
       {'columns': ['channel_id'], 'type': 'btree'},
       {'columns': ['video_url'], 'unique': True},
       {'columns': ['source'], 'type': 'btree'}
@@ -17,10 +19,14 @@
 /*
 Production events_search table - API-ready meeting events
 
+CDP-Compatible: Follows Council Data Project (CDP) backend schema
+See: https://councildataproject.org/cdp-backend/database_models.html
+
 This model:
 - Deduplicates events by video_url (keeps most recent)
 - Applies quality filters
 - Provides clean, consistent data for API consumption
+- Maps to CDP Event and Session models
 
 Used by: api/routes/search_postgres.py, frontend event search
 
@@ -50,6 +56,14 @@ quality_filtered AS (
         description,
         event_date,
         event_time,
+        event_datetime,          -- CDP: event_datetime
+        body_name,               -- CDP: body.name
+        body_description,        -- CDP: body.description
+        event_date,
+        event_time,
+        event_datetime,          -- CDP: event_datetime
+        body_name,               -- CDP: body.name
+        body_description,        -- CDP: body.description
         jurisdiction_id,
         jurisdiction_name,
         jurisdiction_type,
@@ -60,9 +74,10 @@ quality_filtered AS (
         location_description,
         meeting_type,
         status,
-        agenda_url,
-        minutes_url,
-        video_url,
+        agenda_url,              -- CDP: agenda_uri
+        minutes_url,             -- CDP: minutes_uri
+        video_url,               -- CDP: session.video_uri
+        session_content_hash,    -- CDP: session.session_content_hash
         channel_id,
         channel_url,
         channel_type,
@@ -72,6 +87,7 @@ quality_filtered AS (
         language,
         source,
         datasource_id,
+        external_source_id,      -- CDP: external_source_id
         loaded_at,
         last_updated
     FROM deduplicated_events
@@ -88,11 +104,16 @@ SELECT
     -- In production, this will be id SERIAL
     ROW_NUMBER() OVER (ORDER BY event_date DESC, bronze_event_id) AS id,
     
-    -- Event basics
+    -- Event basics (CDP-compatible)
     title,
     description,
     event_date,
     event_time,
+    event_datetime,              -- CDP: event_datetime
+    
+    -- Meeting Body (CDP concept)
+    body_name,                   -- CDP: body.name
+    body_description,            -- CDP: body.description
     
     -- Organization/Jurisdiction
     jurisdiction_id,
@@ -105,13 +126,15 @@ SELECT
     
     -- Meeting details
     location,
+    location_description,
     meeting_type,
     status,
     
-    -- Documents/links
-    agenda_url,
-    minutes_url,
-    video_url,
+    -- Documents/links (CDP-compatible)
+    agenda_url,                  -- CDP: agenda_uri
+    minutes_url,                 -- CDP: minutes_uri
+    video_url,                   -- CDP: session.video_uri
+    session_content_hash,        -- CDP: session.session_content_hash
     
     -- YouTube video metrics
     view_count,
@@ -120,10 +143,11 @@ SELECT
     language,
     channel_type,
     channel_url,
-    location_description,
     
-    -- Metadata
+    -- Data source tracking (CDP-compatible)
     source,
+    datasource_id,
+    external_source_id,          -- CDP: external_source_id
     CURRENT_TIMESTAMP AS last_updated
 
 FROM quality_filtered

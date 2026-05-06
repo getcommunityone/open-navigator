@@ -351,18 +351,15 @@ homepage_url VARCHAR(500)  -- Use website_url instead
 
 2. **Production PostgreSQL** (localhost:5433)
    - Database name: `open_navigator`
-   - Contains: `stats_aggregates`, production tables
-   - **THIS IS WHAT THE API SHOULD USE**
-   - Connection via `NEON_DATABASE_URL_DEV` or defaults to local PostgreSQL
+   - **THIS IS THE ONLY DATABASE - Contains all schemas:**
+     - `public` schema: Production marts and API tables
+     - `bronze` schema: Raw ingestion data (`bronze_*` tables)
+     - `staging` schema: Cleaned/validated data (for dbt intermediate processing)
+     - `intermediate` schema: Enriched data (for dbt intermediate processing)
+   - **THIS IS WHAT THE API SHOULD USE** (public schema only)
+   - Connection: `postgresql://postgres:password@localhost:5433/open_navigator`
 
-3. **Bronze PostgreSQL** (localhost:5433) - ⚠️ **NEVER USE IN API**
-   - Database name: `open_navigator_bronze`
-   - Contains: Raw ingestion tables (`bronze_*` prefix)
-   - **❌ API routes must NEVER connect to bronze database**
-   - **❌ Only data loading scripts should access bronze**
-   - Bronze is for ETL pipelines, not application queries
-
-4. **Neon PostgreSQL** (cloud - for production deployment)
+3. **Neon PostgreSQL** (cloud - for production deployment)
    - Used for `contacts_search`, `jurisdictions_search`, `organizations_nonprofit_search`, `stats_aggregates`
    - Connection via `NEON_DATABASE_URL` or `NEON_DATABASE_URL_DEV`
    - Managed via `scripts/deployment/neon/migrate.py` script
@@ -370,20 +367,26 @@ homepage_url VARCHAR(500)  -- Use website_url instead
 **⚠️ CRITICAL: API Database Access Rules**
 
 **✅ API SHOULD USE:**
-- `open_navigator` database (production)
+- `open_navigator` database, `public` schema (or marts from dbt)
 - Tables: `stats_aggregates`, `jurisdictions_search`, `contacts_search`, `organizations_nonprofit_search`
 - Connection string: `NEON_DATABASE_URL_DEV` or `postgresql://postgres:password@localhost:5433/open_navigator`
 
-**❌ API MUST NEVER USE:**
-- `open_navigator_bronze` database
-- Any table with `bronze_` prefix
-- Bronze database is for data pipelines only, not user-facing queries
+**❌ API SHOULD AVOID (use marts instead):**
+- Direct queries to `bronze.*` schema (use dbt marts in public schema)
+- Direct queries to `staging.*` or `intermediate.*` schemas
+- Bronze/staging are for data pipelines; APIs should use production marts
 
 **Why?**
 - Bronze contains raw, unprocessed data
-- Production tables are cleaned, deduplicated, and optimized
-- API responses should never expose bronze/staging data
-- Bronze schema changes frequently during development
+- Production marts (in public schema) are cleaned, deduplicated, and optimized
+- API responses should use production-ready data from marts
+- Bronze/staging schemas change frequently during development
+
+**Architecture Migration (Completed):**
+- ✅ Migrated from separate `open_navigator_bronze` database to schemas
+- ✅ All bronze tables now in `open_navigator.bronze` schema
+- ✅ Foreign Data Wrapper (FDW) removed - no longer needed
+- ✅ Single database simplifies queries and reduces complexity
 
 **Loading Legislators Data:**
 
@@ -398,68 +401,44 @@ Use these scripts:
 - `scripts/datasources/openstates/export_openstates_to_gold.py` - Export to gold parquet files
 - `scripts/deployment/neon/migrate.py` - Load gold files into Neon `contacts_search` table
 
-### ⚠️ CRITICAL: dbt Cross-Database Queries
+### ⚠️ CRITICAL: dbt Schema References
 
-**PostgreSQL does NOT support cross-database queries in dbt models.**
+**PostgreSQL schemas in single database - No special configuration needed.**
 
-**❌ NEVER DO THIS in dbt models:**
+**✅ ALWAYS DO THIS in dbt models:**
+
+All data is now in one database (`open_navigator`) with multiple schemas:
+- `bronze` - Raw data (bronze_* tables)
+- `staging` - dbt staging models  
+- `intermediate` - dbt intermediate models
+- `public` - Production marts
+
 ```sql
--- ❌ WRONG - Cross-database reference
+-- ✅ CORRECT - Direct schema references
 sources:
   - name: bronze
-    database: open_navigator_bronze  -- This causes "cross-database references are not implemented" error
-    schema: public
-```
-
-**✅ ALWAYS DO THIS instead:**
-
-Use **Foreign Data Wrapper (FDW)** to access bronze tables from the production database:
-
-```sql
--- ✅ CORRECT - Use FDW-imported foreign tables
-sources:
-  - name: bronze
-    schema: bronze  -- Foreign tables in the bronze schema
-    # No database property - uses current database with foreign tables
-```
-
-**How it works:**
-1. Foreign tables are imported from `open_navigator_bronze` into `open_navigator.bronze` schema
-2. dbt models query `bronze.bronze_decisions`, `bronze.bronze_events`, etc.
-3. PostgreSQL handles the cross-database query transparently via FDW
-
-**Setup (already configured):**
-```sql
--- Foreign server and user mapping already created
-CREATE SERVER bronze_server FOREIGN DATA WRAPPER postgres_fdw 
-  OPTIONS (host 'localhost', port '5433', dbname 'open_navigator_bronze');
-
-CREATE USER MAPPING FOR postgres SERVER bronze_server 
-  OPTIONS (user 'postgres', password 'password');
-
--- Foreign tables imported into bronze schema
-CREATE SCHEMA bronze;
-IMPORT FOREIGN SCHEMA public 
-  LIMIT TO (bronze_decisions, bronze_events, bronze_contacts, bronze_bills, bronze_organizations_nonprofits)
-  FROM SERVER bronze_server INTO bronze;
+    schema: bronze  -- Direct schema reference in same database
+    tables:
+      - name: bronze_events_search
+      - name: bronze_decisions
 ```
 
 **In dbt models:**
 ```sql
--- ✅ CORRECT
+-- ✅ CORRECT - Source references work across schemas in same database
 SELECT * FROM {{ source('bronze', 'bronze_decisions') }}
--- Resolves to: open_navigator.bronze.bronze_decisions (foreign table)
+-- Resolves to: open_navigator.bronze.bronze_decisions
 
--- ❌ WRONG
-SELECT * FROM "open_navigator_bronze"."public"."bronze_decisions"
--- Error: cross-database references are not implemented
+-- ✅ CORRECT - Model references
+SELECT * FROM {{ ref('stg_bronze_events_search') }}
+-- Resolves to: open_navigator.staging.stg_bronze_events_search (or public, depending on target_schema)
 ```
 
 **Key Points:**
-- dbt `database` property in sources.yml causes cross-database errors in PostgreSQL
-- Use only `schema` property - let FDW handle the cross-database connection
-- All bronze tables must be imported as foreign tables before running dbt
-- This is already configured - just don't add `database:` to source definitions
+- Single database architecture - no cross-database queries needed
+- All schemas in `open_navigator` database
+- dbt `database` property not needed in sources.yml  
+- Schema changes are simple - no Foreign Data Wrapper complexity
 
 ### Data Management Rules
 

@@ -182,10 +182,12 @@ This page documents all data sources, standards, and research contributions used
 ### Council Data Project (CDP)
 
 **Organization:** Open-source civic tech collaboration  
-**What we use:** 20+ cities with complete data pipelines - meeting transcripts, videos, voting records, and legislation tracking.
+**What we use:** 20+ cities with complete data pipelines - meeting transcripts, videos, voting records, and legislation tracking. **Open Navigator's data model is compatible with CDP backend schema for interoperability.**
 
 - **Website:** https://councildataproject.org/
+- **Documentation:** https://councildataproject.org/cdp-backend/
 - **GitHub:** https://github.com/CouncilDataProject
+- **Backend Models:** https://councildataproject.org/cdp-backend/database_models.html
 - **Coverage:** 20+ major U.S. cities with full infrastructure
 - **Data Included:**
   - Meeting transcripts (searchable, indexed)
@@ -196,17 +198,27 @@ This page documents all data sources, standards, and research contributions used
 - **Infrastructure:** Complete ETL pipelines for each city
 - **License:** Open source (MIT)
 - **API:** Per-city deployments (e.g., https://councildataproject.org/seattle)
+- **Data Model:** Event, Session, Transcript, Matter, Vote, Person, Body models
+- **Compatibility:** See [CDP Compatibility Guide](./council-data-project-compatibility) for field mappings
 
 **BibTeX:**
 ```bibtex
 @software{council_data_project,
-  title = {Council Data Project},
-  author = {{Council Data Project Contributors}},
-  year = {2024},
+  title = {Council Data Project: Indexing City Council Meetings},
+  author = {{Council Data Project Team}},
+  year = {2020},
   url = {https://councildataproject.org/},
+  note = {Open-source infrastructure for making local government more accessible},
   license = {MIT}
 }
 ```
+
+**Research Context:**
+CDP provides a standardized data model for civic meeting data that Open Navigator extends to support:
+- Multi-source ingestion (YouTube, LocalView, Legistar, Granicus)
+- AI-powered transcription (Gemini, Whisper)
+- Nationwide coverage (90,000+ jurisdictions)
+- Policy analysis and opportunity detection
 
 ---
 

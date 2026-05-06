@@ -18,10 +18,11 @@ NEON_DATABASE_URL = os.getenv('NEON_DATABASE_URL')
 # Use dev database for local development, production database for deployed environments
 DATABASE_URL = NEON_DATABASE_URL_DEV or NEON_DATABASE_URL
 
-# Bronze database for AI-extracted meeting data (topics, decisions, etc.)
+# Bronze schema for AI-extracted meeting data (topics, decisions, etc.)
+# NOTE: Bronze data is now in bronze schema of main database
 POSTGRES_PASSWORD = os.getenv('POSTGRES_PASSWORD', 'password')
 BRONZE_DATABASE_URL = os.getenv('LOCAL_BRONZE_DATABASE_URL', 
-                                 f'postgresql://postgres:{POSTGRES_PASSWORD}@localhost:5433/open_navigator_bronze')
+                                 f'postgresql://postgres:{POSTGRES_PASSWORD}@localhost:5433/open_navigator')
 
 # Connection pools (created on first request)
 _db_pool = None  # Production database pool (Neon)
@@ -833,7 +834,7 @@ async def search_topics_pg(
                 secondary_ntee_code,
                 secondary_ntee_major_group,
                 extracted_at
-            FROM bronze_topics
+            FROM bronze.bronze_topics
             WHERE {where_sql}
             ORDER BY extracted_at DESC
             LIMIT ${param_idx}
@@ -961,7 +962,7 @@ async def search_decisions_pg(
                 primary_theme_cofog,
                 vote_tally,
                 extracted_at
-            FROM bronze_decisions
+            FROM bronze.bronze_decisions
             WHERE {where_sql}
             ORDER BY decision_date DESC NULLS LAST, extracted_at DESC
             LIMIT ${param_idx}

@@ -11,6 +11,8 @@ Welcome to **Open Navigator** - an AI-powered platform that analyzes municipal m
 Every dataset, standard, and research source used in this platform is properly cited with complete attribution, licenses, and BibTeX references.
 
 **[View Complete Citations & Data Sources](/docs/data-sources/citations)** - Academic research (MeetingBank, LocalView, Council Data Project, City Scrapers), Government data (U.S. Census, NCES, IRS), Civic tech standards (OCD-ID, Popolo, Schema.org, CEDS, OMOP CDM), Nonprofit data (ProPublica, Every.org, Findhelp), Church & congregation data (ARDA, HIFLD, National Congregations Study), Enterprise tech partnerships (Microsoft, Google, AWS, Databricks, Snowflake, Salesforce), and more.
+
+**Data Model Alignment:** Our event and meeting data model is compatible with [Council Data Project (CDP)](https://councildataproject.org/) backend schema, enabling interoperability with CDP instances nationwide.
 :::
 
 ## 👋 Choose Your Path
