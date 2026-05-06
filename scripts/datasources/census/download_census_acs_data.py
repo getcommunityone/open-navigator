@@ -27,9 +27,9 @@ import sys
 # __file__ = .../examples/download_acs_to_d_drive.py
 # parent = .../examples
 # parent.parent = .../open-navigator (project root)
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from scripts.datasources.census.acs_ingestion import ACSDataIngestion
+from scripts.datasources.census.load_acs import ACSDataIngestion
 from loguru import logger
 
 
