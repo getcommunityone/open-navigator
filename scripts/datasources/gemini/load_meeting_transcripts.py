@@ -7,7 +7,7 @@ This script:
 2. Filters for channels with known channel_type OR in localview
 3. Passes YouTube video URLs directly to Gemini (no transcript needed)
 4. Analyzes using Gemini AI with policy_analysis.md prompt
-5. Stores structured results in events_text_ai table
+5. Stores structured results in bronze_events_analysis_ai table
 6. Supports incremental processing (skip already analyzed)
 
 By default: Analyzes the 5 most recent meetings per channel across all states.
@@ -111,9 +111,9 @@ class MeetingTranscriptAnalyzer:
             return f.read()
     
     def create_table(self):
-        """Create events_text_ai table if it doesn't exist."""
+        """Create bronze_events_analysis_ai table if it doesn't exist."""
         create_table_sql = """
-        CREATE TABLE IF NOT EXISTS events_text_ai (
+        CREATE TABLE IF NOT EXISTS bronze.bronze_events_analysis_ai (
             id SERIAL PRIMARY KEY,
             event_id INTEGER NOT NULL REFERENCES events_search(id) ON DELETE CASCADE,
             video_id VARCHAR(20) NOT NULL,
@@ -143,10 +143,10 @@ class MeetingTranscriptAnalyzer:
             UNIQUE(event_id, analysis_type, ai_model)
         );
         
-        CREATE INDEX IF NOT EXISTS idx_events_ai_event_id ON events_text_ai(event_id);
-        CREATE INDEX IF NOT EXISTS idx_events_ai_video_id ON events_text_ai(video_id);
-        CREATE INDEX IF NOT EXISTS idx_events_ai_created ON events_text_ai(created_at DESC);
-        CREATE INDEX IF NOT EXISTS idx_events_ai_analysis_type ON events_text_ai(analysis_type);
+        CREATE INDEX IF NOT EXISTS idx_events_ai_event_id ON bronze.bronze_events_analysis_ai(event_id);
+        CREATE INDEX IF NOT EXISTS idx_events_ai_video_id ON bronze.bronze_events_analysis_ai(video_id);
+        CREATE INDEX IF NOT EXISTS idx_events_ai_created ON bronze.bronze_events_analysis_ai(created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_events_ai_analysis_type ON bronze.bronze_events_analysis_ai(analysis_type);
         """
         
         with psycopg2.connect(self.database_url) as conn:
@@ -154,12 +154,12 @@ class MeetingTranscriptAnalyzer:
                 cur.execute(create_table_sql)
             conn.commit()
         
-        logger.info("✅ events_text_ai table created/verified")
+        logger.info("✅ bronze_events_analysis_ai table created/verified")
     
     def cleanup_null_records(self):
         """Delete existing records where raw_response is NULL (failed API calls)."""
         delete_sql = """
-        DELETE FROM events_text_ai
+        DELETE FROM bronze.bronze_events_analysis_ai
         WHERE raw_response IS NULL
         """
         
@@ -243,7 +243,7 @@ class MeetingTranscriptAnalyzer:
             # Add filter to skip already analyzed
             query += """
               AND NOT EXISTS (
-                SELECT 1 FROM events_text_ai ai
+                SELECT 1 FROM bronze.bronze_events_analysis_ai ai
                 WHERE ai.event_id = ranked_meetings.event_id
                   AND ai.analysis_type = 'policy_frame_analysis'
                   AND ai.error_message IS NULL
@@ -438,7 +438,7 @@ class MeetingTranscriptAnalyzer:
         }
     
     def save_analysis(self, meeting: Dict[str, Any], analysis: Dict[str, Any]) -> bool:
-        """Save analysis results to events_text_ai table.
+        """Save analysis results to bronze_events_analysis_ai table.
         
         Returns:
             True if saved, False if skipped (due to null raw_response)
@@ -453,7 +453,7 @@ class MeetingTranscriptAnalyzer:
         video_id = meeting['video_url'].split('v=')[-1].split('&')[0] if 'v=' in meeting['video_url'] else 'unknown'
         
         insert_sql = """
-        INSERT INTO events_text_ai (
+        INSERT INTO bronze.bronze_events_analysis_ai (
             event_id, video_id, analysis_type, ai_model, prompt_version,
             raw_response, structured_analysis, summary_text, timeline_mermaid,
             processing_time_seconds, tokens_used, error_message
@@ -614,7 +614,7 @@ class MeetingTranscriptAnalyzer:
         
         logger.info("")
         logger.info("💡 Query results:")
-        logger.info("   SELECT * FROM events_text_ai ORDER BY created_at DESC LIMIT 10;")
+        logger.info("   SELECT * FROM bronze.bronze_events_analysis_ai ORDER BY created_at DESC LIMIT 10;")
 
 
 def main():

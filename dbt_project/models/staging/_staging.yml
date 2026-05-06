@@ -355,6 +355,28 @@ sources:
             description: "Quality rating: high, medium, low"
           - name: created_at
             description: "When transcript was created"
+      
+      - name: bronze_events_analysis_ai
+        description: "Gemini AI analysis results from meeting videos - structured entity extraction"
+        columns:
+          - name: id
+            description: "Primary key"
+          - name: event_id
+            description: "Foreign key to events_search"
+          - name: video_id
+            description: "YouTube video ID"
+          - name: analysis_type
+            description: "Type of analysis (e.g., 'policy_frame_analysis')"
+          - name: ai_model
+            description: "AI model used (e.g., 'gemini-1.5-flash')"
+          - name: structured_analysis
+            description: "JSONB with extracted entities: people, organizations, decisions, bills, topics, causes"
+          - name: summary_text
+            description: "AI-generated summary of the meeting"
+          - name: raw_response
+            description: "Raw AI response text"
+          - name: created_at
+            description: "When analysis was performed"
 
 models:
   - name: stg_bronze_contacts

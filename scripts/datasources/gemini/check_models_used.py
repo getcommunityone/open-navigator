@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Check which models have been used in events_text_ai table.
+Check which models have been used in bronze_events_analysis_ai table.
 
 Usage:
     python scripts/datasources/gemini/check_models_used.py
@@ -32,7 +32,7 @@ def check_models_used():
         COUNT(CASE WHEN error_message IS NOT NULL THEN 1 END) as errors,
         MIN(created_at) as first_used,
         MAX(created_at) as last_used
-    FROM events_text_ai
+    FROM bronze.bronze_events_analysis_ai
     GROUP BY ai_model
     ORDER BY total_analyses DESC
     """
@@ -47,7 +47,7 @@ def check_models_used():
         return
     
     logger.info("=" * 120)
-    logger.info("MODELS USED IN events_text_ai")
+    logger.info("MODELS USED IN bronze_events_analysis_ai")
     logger.info("=" * 120)
     logger.info("")
     logger.info(f"{'Model':<40} {'Total':<10} {'Success':<10} {'Errors':<10} {'First Used':<20} {'Last Used'}")
@@ -66,7 +66,7 @@ def check_models_used():
     SELECT 
         ai_model,
         COUNT(*) as count
-    FROM events_text_ai
+    FROM bronze.bronze_events_analysis_ai
     WHERE created_at::date = CURRENT_DATE
     GROUP BY ai_model
     ORDER BY count DESC

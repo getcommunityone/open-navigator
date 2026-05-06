@@ -142,7 +142,7 @@ def run_with_model_fallback(
     logger.info("=" * 70)
     logger.info("")
     logger.info("💡 Check results:")
-    logger.info("   SELECT ai_model, COUNT(*) FROM events_text_ai")
+    logger.info("   SELECT ai_model, COUNT(*) FROM bronze.bronze_events_analysis_ai")
     logger.info("   WHERE created_at::date = CURRENT_DATE")
     logger.info("   GROUP BY ai_model;")
 

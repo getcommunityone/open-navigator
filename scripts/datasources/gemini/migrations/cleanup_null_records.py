@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Clean up null raw_response records from events_text_ai table.
+Clean up null raw_response records from bronze_events_analysis_ai table.
 
 These records are from failed API calls that don't have any useful data.
 Running this script will delete all records where raw_response IS NULL.
@@ -35,11 +35,11 @@ def cleanup_null_records(dry_run: bool = False):
     
     # First, count how many will be deleted
     count_sql = """
-    SELECT COUNT(*) FROM events_text_ai WHERE raw_response IS NULL
+    SELECT COUNT(*) FROM bronze_events_analysis_ai WHERE raw_response IS NULL
     """
     
     delete_sql = """
-    DELETE FROM events_text_ai WHERE raw_response IS NULL
+    DELETE FROM bronze_events_analysis_ai WHERE raw_response IS NULL
     """
     
     with psycopg2.connect(DATABASE_URL) as conn:
@@ -80,7 +80,7 @@ def show_null_records():
         ai_model,
         error_message,
         created_at
-    FROM events_text_ai 
+    FROM bronze_events_analysis_ai 
     WHERE raw_response IS NULL
     ORDER BY created_at DESC
     LIMIT 20
@@ -107,7 +107,7 @@ def show_null_records():
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Clean up null raw_response records from events_text_ai table'
+        description='Clean up null raw_response records from bronze_events_analysis_ai table'
     )
     
     parser.add_argument(
@@ -125,7 +125,7 @@ def main():
     args = parser.parse_args()
     
     logger.info("=" * 70)
-    logger.info("CLEANUP NULL RECORDS FROM events_text_ai")
+    logger.info("CLEANUP NULL RECORDS FROM bronze_events_analysis_ai")
     logger.info("=" * 70)
     logger.info("")
     
