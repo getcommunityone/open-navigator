@@ -111,6 +111,7 @@ class YouTubeAudioDownloader:
         self.skipped = 0
         self.failed = 0
         self.reorganized = 0
+        self.synced = 0
     
     def sanitize_filename(self, text: str, max_length: int = 100) -> str:
         """Sanitize text for use in filename."""
@@ -419,6 +420,143 @@ class YouTubeAudioDownloader:
         logger.success(f"📁 Output: {self.output_dir}")
         logger.info("")
     
+    def sync_metadata(self):
+        """Sync metadata for existing files that don't have database records."""
+        logger.info("="*80)
+        logger.info("🔄 SYNCING METADATA FOR EXISTING FILES")
+        logger.info("="*80)
+        logger.info(f"Output directory: {self.output_dir}")
+        logger.info("")
+        
+        # Find all existing .opus files
+        all_files = list(self.output_dir.rglob('*.opus'))
+        
+        if not all_files:
+            logger.warning("⚠️  No audio files found in output directory")
+            return
+        
+        logger.info(f"📁 Found {len(all_files)} audio files")
+        logger.info("")
+        
+        # Connect to database
+        conn = psycopg2.connect(self.database_url)
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # Get all videos from database
+        cursor.execute("""
+            SELECT video_id, channel_id, state_code, jurisdiction_name, title, event_date
+            FROM bronze.bronze_events_youtube
+        """)
+        
+        videos = cursor.fetchall()
+        videos_by_id = {v['video_id']: v for v in videos}
+        
+        logger.info(f"📊 Loaded {len(videos)} videos from database")
+        logger.info("")
+        
+        # Process each file
+        for file_path in all_files:
+            try:
+                relative_path = str(file_path.relative_to(self.output_dir))
+                file_size_mb = file_path.stat().st_size / (1024 * 1024)
+                
+                # Check if this file already has metadata
+                cursor.execute("""
+                    SELECT video_id, audio_downloaded_at, audio_file_path
+                    FROM bronze.bronze_events_youtube
+                    WHERE audio_file_path = %s
+                """, (relative_path,))
+                
+                existing = cursor.fetchone()
+                
+                if existing and existing['audio_downloaded_at'] is not None:
+                    # Already has metadata
+                    continue
+                
+                # Try to match file to video by filename pattern
+                # Expected format: YYYY-MM-DD_title.opus
+                filename = file_path.stem  # Without .opus extension
+                
+                # Extract date from filename (YYYY-MM-DD)
+                date_match = re.match(r'(\d{4}-\d{2}-\d{2})', filename)
+                if not date_match:
+                    logger.warning(f"⏭️  Skipped (no date in filename): {file_path.name}")
+                    continue
+                
+                file_date = date_match.group(1)
+                
+                # Get state and channel from file path
+                # Expected: STATE/Channel_ID/YYYY-MM-DD_title.opus
+                parts = file_path.relative_to(self.output_dir).parts
+                
+                if len(parts) == 3:  # state/channel/file
+                    state_code = parts[0]
+                    channel_dir = parts[1]
+                    channel_id_short = channel_dir.split('_')[-1] if '_' in channel_dir else None
+                elif len(parts) == 2:  # channel/file (old structure)
+                    channel_dir = parts[0]
+                    channel_id_short = channel_dir.split('_')[-1] if '_' in channel_dir else None
+                    state_code = None
+                else:
+                    logger.warning(f"⏭️  Skipped (unexpected path structure): {relative_path}")
+                    continue
+                
+                # Find matching video in database
+                matching_video = None
+                for video_id, video in videos_by_id.items():
+                    # Match by date and channel
+                    video_date = str(video['event_date'])
+                    video_channel = video['channel_id']
+                    
+                    if video_date == file_date:
+                        # Check if channel matches
+                        if channel_id_short and video_channel.startswith(channel_id_short):
+                            matching_video = video
+                            break
+                        # Or match by state if available
+                        elif state_code and video.get('state_code') == state_code:
+                            # Check if title similarity is high enough
+                            video_title_clean = self.sanitize_filename(video['title'])
+                            if video_title_clean[:30] in filename or filename[:30] in video_title_clean:
+                                matching_video = video
+                                break
+                
+                if not matching_video:
+                    logger.warning(f"⏭️  Skipped (no matching video in DB): {file_path.name}")
+                    continue
+                
+                # Update database with metadata
+                cursor.execute("""
+                    UPDATE bronze.bronze_events_youtube
+                    SET 
+                        audio_downloaded_at = CURRENT_TIMESTAMP,
+                        audio_file_path = %s,
+                        audio_file_size_mb = %s
+                    WHERE video_id = %s
+                """, (relative_path, file_size_mb, matching_video['video_id']))
+                
+                conn.commit()
+                
+                logger.success(f"✓ Synced: {file_path.name}")
+                logger.info(f"  Path: {relative_path}")
+                logger.info(f"  Video ID: {matching_video['video_id']}")
+                logger.info(f"  Size: {file_size_mb:.1f} MB")
+                self.synced += 1
+                
+            except Exception as e:
+                logger.error(f"✗ Failed to sync {file_path.name}: {e}")
+        
+        cursor.close()
+        conn.close()
+        
+        logger.info("")
+        logger.success("="*80)
+        logger.success("METADATA SYNC COMPLETE")
+        logger.success("="*80)
+        logger.success(f"✓ Synced: {self.synced:,} files")
+        logger.success(f"📁 Output: {self.output_dir}")
+        logger.info("")
+    
     def run(self):
         """Run the download process."""
         logger.info("=" * 80)
@@ -571,6 +709,12 @@ def main():
     )
     
     parser.add_argument(
+        '--sync-metadata',
+        action='store_true',
+        help='Sync metadata for existing files that are missing database records'
+    )
+    
+    parser.add_argument(
         '--database-url',
         default=os.getenv('NEON_DATABASE_URL_DEV', 'postgresql://postgres:password@localhost:5433/open_navigator'),
         help='Database connection URL'
@@ -597,6 +741,8 @@ def main():
     # Run reorganization if requested
     if args.reorganize:
         downloader.reorganize_existing_files()
+    elif args.sync_metadata:
+        downloader.sync_metadata()
     else:
         # Run normal download
         downloader.run()
