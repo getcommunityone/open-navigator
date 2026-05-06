@@ -99,6 +99,42 @@ sources:
             description: "YouTube channel ID (if event is from YouTube)"
           - name: loaded_at
       
+      - name: bronze_events_youtube
+        description: "Raw YouTube video data from government channels"
+        columns:
+          - name: id
+          - name: event_id
+            description: "Generated from video_id hash"
+          - name: video_id
+            description: "YouTube video ID (e.g., 'dQw4w9WgXcQ')"
+          - name: event_date
+          - name: event_time
+          - name: title
+          - name: description
+          - name: jurisdiction_id
+          - name: jurisdiction_name
+          - name: jurisdiction_type
+          - name: city
+          - name: state_code
+          - name: state
+          - name: meeting_type
+          - name: location
+          - name: location_description
+          - name: channel_id
+          - name: channel_url
+          - name: channel_type
+          - name: video_url
+          - name: view_count
+          - name: duration_minutes
+          - name: like_count
+          - name: language
+          - name: datasource
+          - name: datasource_id
+          - name: published_at
+            description: "When YouTube published the video"
+          - name: loaded_at
+          - name: last_updated
+      
       - name: bronze_events_channels
         description: "YouTube channels from government jurisdictions - validated and enriched"
         columns:
