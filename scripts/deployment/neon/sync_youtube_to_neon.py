@@ -32,11 +32,13 @@ LOCAL_DB_URL = os.getenv(
     'LOCAL_DATABASE_URL',
     'postgresql://postgres:password@localhost:5433/open_navigator'
 )
-NEON_DB_URL = os.getenv('NEON_DATABASE_URL_DEV') or os.getenv('NEON_DATABASE_URL')
+# Use NEON_DATABASE_URL (cloud), NOT NEON_DATABASE_URL_DEV (which is local)
+NEON_DB_URL = os.getenv('NEON_DATABASE_URL')
 
 if not NEON_DB_URL:
-    logger.error("❌ NEON_DATABASE_URL_DEV or NEON_DATABASE_URL not found in environment")
-    logger.error("   Set it in .env file or export it")
+    logger.error("❌ NEON_DATABASE_URL not found in environment")
+    logger.error("   Set it in .env file to your Neon cloud database URL")
+    logger.error("   (NEON_DATABASE_URL_DEV is for local development, not cloud)")
     sys.exit(1)
 
 
