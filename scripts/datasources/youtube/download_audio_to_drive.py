@@ -125,14 +125,23 @@ class YouTubeAudioDownloader:
         
         return text
     
-    def get_channel_dir(self, channel_title: str, channel_id: str) -> Path:
-        """Get or create directory for channel."""
+    def get_channel_dir(self, channel_title: str, channel_id: str, state_code: str = None) -> Path:
+        """Get or create directory for channel, organized by state."""
         # Sanitize channel title
         safe_title = self.sanitize_filename(channel_title, max_length=50)
         
-        # Create directory: ChannelName_ChannelID
-        dir_name = f"{safe_title}_{channel_id[:8]}"
-        channel_dir = self.output_dir / dir_name
+        # Organize by state if available
+        if state_code:
+            # Create directory: STATE/ChannelName_ChannelID
+            state_dir = self.output_dir / state_code.upper()
+            state_dir.mkdir(parents=True, exist_ok=True)
+            dir_name = f"{safe_title}_{channel_id[:8]}"
+            channel_dir = state_dir / dir_name
+        else:
+            # Fallback: ChannelName_ChannelID (no state)
+            dir_name = f"{safe_title}_{channel_id[:8]}"
+            channel_dir = self.output_dir / dir_name
+        
         channel_dir.mkdir(parents=True, exist_ok=True)
         
         return channel_dir
@@ -231,6 +240,30 @@ class YouTubeAudioDownloader:
             logger.error(f"  ✗ Download failed: {e}")
             return False
     
+    def update_database_download_info(self, video_id: str, file_path: str, file_size_mb: float):
+        """Update database with download timestamp and file location."""
+        try:
+            conn = psycopg2.connect(self.database_url)
+            cursor = conn.cursor()
+            
+            # Update the bronze table with download info
+            cursor.execute("""
+                UPDATE bronze.bronze_events_youtube
+                SET 
+                    audio_downloaded_at = CURRENT_TIMESTAMP,
+                    audio_file_path = %s,
+                    audio_file_size_mb = %s
+                WHERE video_id = %s
+            """, (file_path, file_size_mb, video_id))
+            
+            conn.commit()
+            cursor.close()
+            conn.close()
+            
+        except Exception as e:
+            logger.warning(f"  ⚠️  Could not update database: {e}")
+            # Don't fail the download if DB update fails
+    
     def run(self):
         """Run the download process."""
         logger.info("=" * 80)
@@ -277,10 +310,13 @@ class YouTubeAudioDownloader:
             channel_title = channel_data['channel_title']
             channel_videos = channel_data['videos']
             
+            # Get state from first video (all in same channel should have same state)
+            state_code = channel_videos[0].get('state_code') if channel_videos else None
+            
             logger.info(f"📺 Channel: {channel_title} ({len(channel_videos)} videos)")
             
-            # Create channel directory
-            channel_dir = self.get_channel_dir(channel_title, channel_id)
+            # Create channel directory (organized by state)
+            channel_dir = self.get_channel_dir(channel_title, channel_id, state_code)
             logger.info(f"   Directory: {channel_dir}")
             
             # Download each video
@@ -302,6 +338,10 @@ class YouTubeAudioDownloader:
                     file_size = output_path.stat().st_size / (1024 * 1024)  # MB
                     logger.success(f"   ✓ Downloaded: {output_path.name} ({file_size:.1f} MB)")
                     self.downloaded += 1
+                    
+                    # Update database with download info
+                    relative_path = str(output_path.relative_to(self.output_dir))
+                    self.update_database_download_info(video['video_id'], relative_path, file_size)
                 else:
                     logger.error(f"   ✗ Failed: {video['title'][:60]}")
                     self.failed += 1
