@@ -47,6 +47,46 @@ Docker-specific cleanup (removes unused images, containers, volumes).
 
 ## Project Maintenance
 
+### clear_notebook_outputs.py
+**🔒 Security:** Clears cell outputs from Jupyter notebooks to prevent sensitive data leaks.
+
+**Usage:**
+```bash
+# Clear specific notebooks
+python scripts/maintenance/clear_notebook_outputs.py path/to/notebook.ipynb
+
+# Clear all notebooks in scripts/datasources/
+python scripts/maintenance/clear_notebook_outputs.py
+```
+
+**Why this matters:**
+- ✅ Prevents database credentials from being committed
+- ✅ Removes API keys from cell outputs
+- ✅ Cleans file paths that might contain usernames
+- ✅ Removes execution counts (cleaner diffs)
+
+**When to use:**
+- Before committing Colab notebooks
+- After running notebooks with sensitive data
+- When notebook outputs contain database URLs
+
+**Automatic protection:**
+- Pre-push hook checks for outputs in staged notebooks
+- Blocks commits if outputs detected
+- Reminds you to clear outputs before pushing
+
+**Example:**
+```bash
+# Edit notebook in Colab, run cells with secrets
+# Before committing:
+python scripts/maintenance/clear_notebook_outputs.py \
+  scripts/datasources/youtube/load_youtube_events_colab.ipynb
+
+git add scripts/datasources/youtube/load_youtube_events_colab.ipynb
+git commit -m "Update YouTube loading notebook"
+git push  # Pre-push hook automatically checks for outputs
+```
+
 ### migrate-docs.sh
 Migrates documentation from project root to website/docs/ (Docusaurus format).
 

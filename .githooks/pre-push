@@ -43,6 +43,35 @@ fi
 cd ..
 echo ""
 
+# Check 4: Jupyter notebooks - ensure no outputs committed
+echo "📓 Checking Jupyter notebooks for outputs..."
+NOTEBOOKS_WITH_OUTPUTS=$(git diff --cached --name-only --diff-filter=ACM | grep '\.ipynb$' || true)
+
+if [ -n "$NOTEBOOKS_WITH_OUTPUTS" ]; then
+    # Check if any staged notebooks have outputs
+    for nb in $NOTEBOOKS_WITH_OUTPUTS; do
+        if [ -f "$nb" ]; then
+            # Check if notebook has execution_count or outputs
+            if grep -q '"execution_count": [0-9]' "$nb" || grep -q '"outputs": \[' "$nb"; then
+                if grep -q '"outputs": \[\]' "$nb" > /dev/null 2>&1 && ! grep -q '"outputs": \[{' "$nb" > /dev/null 2>&1; then
+                    # Notebook has empty outputs - OK
+                    continue
+                fi
+                echo "⚠️  WARNING: $nb contains cell outputs"
+                echo "   Run: python scripts/maintenance/clear_notebook_outputs.py $nb"
+                FAILED=true
+            fi
+        fi
+    done
+    
+    if [ "$FAILED" != true ]; then
+        echo "✅ Notebooks are clean (no outputs)"
+    fi
+else
+    echo "✓  No notebooks in this push"
+fi
+echo ""
+
 if [ "$FAILED" = true ]; then
     echo ""
     echo "═══════════════════════════════════════════════════════════"

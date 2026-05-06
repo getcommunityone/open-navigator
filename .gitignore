@@ -67,6 +67,10 @@ logs/
 .ipynb_checkpoints
 *.ipynb
 
+# Exception: Allow Colab tutorial notebooks (must have outputs cleared before commit)
+!scripts/datasources/youtube/load_youtube_events_colab.ipynb
+!scripts/datasources/youtube/download_audio_colab.ipynb
+
 # Data files
 data/
 .migration_backup/
