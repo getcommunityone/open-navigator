@@ -22,7 +22,7 @@ Target: Silver layer for gold model consumption
 
 WITH base_jurisdictions AS (
     SELECT *
-    FROM {{ ref('silver_jurisdictions_clean') }}
+    FROM {{ ref('int_jurisdictions_clean') }}
 ),
 
 -- Normalize names for matching (remove common suffixes)

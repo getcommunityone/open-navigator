@@ -22,7 +22,7 @@ Target: API routes (api/routes/search_postgres.py)
 
 WITH silver_nonprofits AS (
     SELECT *
-    FROM {{ ref('silver_nonprofits_combined') }}
+    FROM {{ ref('int_nonprofits_combined') }}
 ),
 
 -- Map NTEE codes to descriptions

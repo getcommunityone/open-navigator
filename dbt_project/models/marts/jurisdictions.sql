@@ -22,7 +22,7 @@ Target: API routes (api/routes/search_postgres.py)
 
 WITH silver_jurisdictions AS (
     SELECT *
-    FROM {{ ref('silver_jurisdictions_linked') }}
+    FROM {{ ref('int_jurisdictions_linked') }}
 ),
 
 -- Filter out low-quality records
