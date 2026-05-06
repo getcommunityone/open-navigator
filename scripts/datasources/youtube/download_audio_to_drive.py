@@ -92,7 +92,8 @@ class YouTubeAudioDownloader:
         states_filter: Optional[List[str]] = None,
         days_recent: Optional[int] = None,
         skip_existing: bool = True,
-        reorganize: bool = False
+        reorganize: bool = False,
+        cookies_file: Optional[str] = None
     ):
         # Sanitize database URL (fix common issues with Neon/cloud connections)
         self.database_url = self._sanitize_database_url(database_url)
@@ -103,6 +104,7 @@ class YouTubeAudioDownloader:
         self.days_recent = days_recent
         self.skip_existing = skip_existing
         self.reorganize = reorganize
+        self.cookies_file = cookies_file
         
         # Create output directory
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -284,6 +286,10 @@ class YouTubeAudioDownloader:
                 'no_warnings': True,
                 'extract_flat': False,
             }
+            
+            # Add cookies if provided (to avoid YouTube bot detection)
+            if self.cookies_file:
+                ydl_opts['cookiefile'] = self.cookies_file
             
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([video['video_url']])
@@ -770,6 +776,11 @@ def main():
         help='Database connection URL'
     )
     
+    parser.add_argument(
+        '--cookies',
+        help='Path to Netscape cookies file (to avoid YouTube bot detection). Export from browser using extension.'
+    )
+    
     args = parser.parse_args()
     
     # Parse filters
@@ -785,7 +796,8 @@ def main():
         states_filter=states_filter,
         days_recent=args.days,
         skip_existing=not args.no_skip_existing,
-        reorganize=args.reorganize
+        reorganize=args.reorganize,
+        cookies_file=args.cookies
     )
     
     # Run reorganization if requested
