@@ -338,33 +338,34 @@ def demo_download_all():
 
 
 def create_bronze_table(cursor):
-    """Create bronze_organizations_nonprofits_irs table"""
+    """Create bronze.bronze_organizations_nonprofits_irs table"""
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS bronze_organizations_nonprofits_irs (
+        CREATE SCHEMA IF NOT EXISTS bronze;
+        CREATE TABLE IF NOT EXISTS bronze.bronze_organizations_nonprofits_irs (
             id SERIAL PRIMARY KEY,
             ein VARCHAR(20) NOT NULL,
             name TEXT,
-            ico VARCHAR(100),  -- In care of name (increased from 10 to 100)
+            ico VARCHAR(100),
             street VARCHAR(255),
             city VARCHAR(100),
             state_code VARCHAR(2),
             zip_code VARCHAR(20),
             group_exemption VARCHAR(20),
-            subsection VARCHAR(20),  -- Tax code subsection (03, 04, etc.)
+            subsection VARCHAR(20),
             affiliation VARCHAR(20),
             classification VARCHAR(20),
-            ruling VARCHAR(20),  -- Ruling date (YYYYMM)
+            ruling VARCHAR(20),
             deductibility VARCHAR(50),
             foundation VARCHAR(20),
             activity VARCHAR(200),
             organization VARCHAR(20),
             status VARCHAR(20),
-            tax_period VARCHAR(20),  -- YYYYMM
-            asset_cd VARCHAR(20),  -- Asset code
-            income_cd VARCHAR(20),  -- Income code
+            tax_period VARCHAR(20),
+            asset_cd VARCHAR(20),
+            income_cd VARCHAR(20),
             filing_req_cd VARCHAR(20),
             pf_filing_req_cd VARCHAR(20),
-            acct_pd VARCHAR(20),  -- Accounting period
+            acct_pd VARCHAR(20),
             asset_amt BIGINT,
             income_amt BIGINT,
             revenue_amt BIGINT,
@@ -372,19 +373,19 @@ def create_bronze_table(cursor):
             sort_name VARCHAR(255),
             country VARCHAR(20),
             loaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            
+
             UNIQUE(ein)
         );
-        
-        CREATE INDEX IF NOT EXISTS idx_bronze_irs_state ON bronze_organizations_nonprofits_irs(state_code);
-        CREATE INDEX IF NOT EXISTS idx_bronze_irs_city ON bronze_organizations_nonprofits_irs(city, state_code);
-        CREATE INDEX IF NOT EXISTS idx_bronze_irs_ntee ON bronze_organizations_nonprofits_irs(ntee_cd);
-        CREATE INDEX IF NOT EXISTS idx_bronze_irs_name ON bronze_organizations_nonprofits_irs USING gin(to_tsvector('english', name));
+
+        CREATE INDEX IF NOT EXISTS idx_bronze_irs_state ON bronze.bronze_organizations_nonprofits_irs(state_code);
+        CREATE INDEX IF NOT EXISTS idx_bronze_irs_city  ON bronze.bronze_organizations_nonprofits_irs(city, state_code);
+        CREATE INDEX IF NOT EXISTS idx_bronze_irs_ntee  ON bronze.bronze_organizations_nonprofits_irs(ntee_cd);
+        CREATE INDEX IF NOT EXISTS idx_bronze_irs_name  ON bronze.bronze_organizations_nonprofits_irs USING gin(to_tsvector('english', name));
     """)
-    logger.success("✅ Created bronze_organizations_nonprofits_irs table")
+    logger.success("✅ Created bronze.bronze_organizations_nonprofits_irs table")
 
 
-def load_to_bronze(df: pd.DataFrame, db_url: str = "postgresql://postgres:password@localhost:5433/open_navigator_bronze"):
+def load_to_bronze(df: pd.DataFrame, db_url: str = None):
     """
     Load IRS BMF data into bronze table
     
@@ -392,8 +393,13 @@ def load_to_bronze(df: pd.DataFrame, db_url: str = "postgresql://postgres:passwo
         df: DataFrame with IRS BMF data
         db_url: PostgreSQL connection string
     """
-    logger.info(f"💾 Loading {len(df):,} organizations to bronze table...")
-    
+    import os
+    if db_url is None:
+        password = os.getenv("POSTGRES_PASSWORD", "password")
+        db_url = f"postgresql://postgres:{password}@localhost:5433/open_navigator"
+
+    logger.info(f"💾 Loading {len(df):,} organizations to bronze.bronze_organizations_nonprofits_irs...")
+
     conn = psycopg2.connect(db_url)
     cursor = conn.cursor()
     
@@ -418,7 +424,7 @@ def load_to_bronze(df: pd.DataFrame, db_url: str = "postgresql://postgres:passwo
         
         # Batch insert query
         insert_query = """
-            INSERT INTO bronze_organizations_nonprofits_irs (
+            INSERT INTO bronze.bronze_organizations_nonprofits_irs (
                 ein, name, ico, street, city, state_code, zip_code,
                 group_exemption, subsection, affiliation, classification,
                 ruling, deductibility, foundation, activity, organization,
@@ -518,14 +524,14 @@ def load_to_bronze(df: pd.DataFrame, db_url: str = "postgresql://postgres:passwo
         logger.success(f"✅ All batches completed!")
         
         # Verify
-        cursor.execute("SELECT COUNT(*) FROM bronze_organizations_nonprofits_irs")
+        cursor.execute("SELECT COUNT(*) FROM bronze.bronze_organizations_nonprofits_irs")
         total = cursor.fetchone()[0]
         logger.success(f"✅ Loaded successfully! Total in bronze: {total:,}")
         
         # Show sample stats
         cursor.execute("""
             SELECT state_code, COUNT(*) as count
-            FROM bronze_organizations_nonprofits_irs
+            FROM bronze.bronze_organizations_nonprofits_irs
             GROUP BY state_code
             ORDER BY count DESC
             LIMIT 10

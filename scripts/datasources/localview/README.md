@@ -10,7 +10,10 @@ Scripts for working with [LocalView](https://localview.net/) municipal meeting t
 
 ## Scripts
 
-- `localview_ingestion.py` - Ingest LocalView meeting data
+- Download zip file from website
+- Unzip 
+- Put parquet files in cache
+
 
 ## Data Includes
 

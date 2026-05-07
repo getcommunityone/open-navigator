@@ -16,7 +16,7 @@ from loguru import logger
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from scripts.datasources.localview.dataverse_client import DataverseClient
+from scripts.datasources.localview.archive.dataverse_client import DataverseClient
 from config import settings
 
 

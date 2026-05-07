@@ -25,6 +25,30 @@ DATABASE_URL = os.getenv('NEON_DATABASE_URL_DEV', 'postgresql://postgres:passwor
 # LocalView data directory
 LOCALVIEW_DIR = Path('data/cache/localview')
 
+CREATE_TABLE_SQL = """
+    CREATE SCHEMA IF NOT EXISTS bronze;
+    CREATE TABLE IF NOT EXISTS bronze.bronze_events_localview (
+        event_id          BIGINT PRIMARY KEY,
+        event_date        DATE,
+        jurisdiction_name VARCHAR(500),
+        jurisdiction_type VARCHAR(100),
+        jurisdiction_id   INTEGER,
+        city              VARCHAR(255),
+        state_code        VARCHAR(2),
+        state             VARCHAR(100),
+        meeting_type      VARCHAR(255),
+        title             VARCHAR(500),
+        video_url         TEXT,
+        channel_id        VARCHAR(255),
+        datasource        VARCHAR(100),
+        datasource_id     VARCHAR(255),
+        loaded_at         TIMESTAMP DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_belv_event_date  ON bronze.bronze_events_localview(event_date);
+    CREATE INDEX IF NOT EXISTS idx_belv_state_code  ON bronze.bronze_events_localview(state_code);
+    CREATE INDEX IF NOT EXISTS idx_belv_datasource  ON bronze.bronze_events_localview(datasource);
+"""
+
 # State abbreviation mapping
 STATE_ABBREV = {
     'Alabama': 'AL', 'Alaska': 'AK', 'Arizona': 'AZ', 'Arkansas': 'AR', 'California': 'CA',
@@ -187,11 +211,16 @@ def main():
         logger.error("No parquet files found!")
         return 1
     
-    # Connect to database
+    # Connect to database and ensure table exists
     logger.info("Connecting to database...")
     try:
         conn = psycopg2.connect(DATABASE_URL)
         logger.success("✓ Connected")
+        cur = conn.cursor()
+        cur.execute(CREATE_TABLE_SQL)
+        conn.commit()
+        cur.close()
+        logger.info("✓ bronze.bronze_events_localview ready")
     except Exception as e:
         logger.error(f"✗ Database connection failed: {e}")
         return 1

@@ -32,7 +32,8 @@ POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "password")
 DATABASE_URL = f"postgresql://postgres:{POSTGRES_PASSWORD}@localhost:5433/open_navigator"
 
 CREATE_TABLE_SQL = """
-    CREATE TABLE IF NOT EXISTS bronze_gov_domains (
+    CREATE SCHEMA IF NOT EXISTS bronze;
+    CREATE TABLE IF NOT EXISTS bronze.bronze_gov_domains (
         domain_name         VARCHAR(255) PRIMARY KEY,
         domain_type         VARCHAR(50),
         agency              VARCHAR(255),
@@ -42,12 +43,12 @@ CREATE_TABLE_SQL = """
         security_contact    VARCHAR(255),
         ingestion_date      TIMESTAMP DEFAULT NOW()
     );
-    CREATE INDEX IF NOT EXISTS idx_bgd_domain_type ON bronze_gov_domains(domain_type);
-    CREATE INDEX IF NOT EXISTS idx_bgd_state       ON bronze_gov_domains(state);
+    CREATE INDEX IF NOT EXISTS idx_bgd_domain_type ON bronze.bronze_gov_domains(domain_type);
+    CREATE INDEX IF NOT EXISTS idx_bgd_state       ON bronze.bronze_gov_domains(state);
 """
 
 INSERT_SQL = """
-    INSERT INTO bronze_gov_domains
+    INSERT INTO bronze.bronze_gov_domains
         (domain_name, domain_type, agency, organization, city, state, security_contact)
     VALUES (%s, %s, %s, %s, %s, %s, %s)
     ON CONFLICT (domain_name) DO UPDATE SET
@@ -126,13 +127,13 @@ def load_domains(csv_path: Path, limit: int = None) -> int:
     execute_batch(cur, INSERT_SQL, records, page_size=5000)
     conn.commit()
 
-    cur.execute("SELECT COUNT(*) FROM bronze_gov_domains")
+    cur.execute("SELECT COUNT(*) FROM bronze.bronze_gov_domains")
     total = cur.fetchone()[0]
-    logger.success(f"Loaded {len(records):,} domains → bronze_gov_domains (total in table: {total:,})")
+    logger.success(f"Loaded {len(records):,} domains → bronze.bronze_gov_domains (total in table: {total:,})")
 
     cur.execute("""
         SELECT domain_type, COUNT(*) as cnt
-        FROM bronze_gov_domains
+        FROM bronze.bronze_gov_domains
         GROUP BY domain_type
         ORDER BY cnt DESC
         LIMIT 10
@@ -148,7 +149,7 @@ def load_domains(csv_path: Path, limit: int = None) -> int:
 
 async def main(limit: int = None):
     logger.info("=" * 70)
-    logger.info("GSA .gov Domains → bronze_gov_domains")
+    logger.info("GSA .gov Domains → bronze.bronze_gov_domains")
     logger.info("=" * 70)
 
     csv_path = await download_domain_list()
