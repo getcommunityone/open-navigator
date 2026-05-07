@@ -11,6 +11,8 @@ Loaders (run in order):
   2. gsa        — Gov Websites      → scripts/datasources/gsa/load_gsa_domains_to_postgres.py
   3. localview  — Meetings (Old)    → scripts/datasources/localview/load_localview_to_postgres.py
   4. irs        — Non-Profits       → scripts/datasources/irs/load_irs_bmf.py
+  5. enrich_ai       — AI Meeting Analysis (Gemini) → scripts/datasources/gemini/load_enriched_events_ai.py --only analyze
+  6. hud_zip_county  — ZIP-County Crosswalk (HUD)  → scripts/datasources/hud/load_zip_county.py
 
 Usage:
     python scripts/load_bronze.py                        # run all loaders + dbt bronze
@@ -84,6 +86,36 @@ LOADERS = [
         "supports_truncate": False,
         "supports_dry_run": False,
         "tables": ["bronze.bronze_organizations_nonprofits_irs"],
+    },
+    {
+        "key": "enrich_ai",
+        "label": "AI Meeting Analysis (Gemini)",
+        "script": "scripts/datasources/gemini/load_enriched_events_ai.py",
+        "extra_args": ["--only", "analyze"],
+        "supports_truncate": False,
+        "supports_dry_run": True,
+        "tables": ["bronze.bronze_events_analysis_ai"],
+    },
+    {
+        "key": "hud_zip_county",
+        "label": "ZIP-County Crosswalk (HUD)",
+        "script": "scripts/datasources/hud/load_zip_county.py",
+        "supports_truncate": True,
+        "supports_dry_run": True,
+        "tables": ["bronze.bronze_jurisdictions_zip_county"],
+    },
+    {
+        "key": "shapefiles",
+        "label": "Geometry Shapefiles (Census TIGER)",
+        "script": "scripts/datasources/census/load_census_shapefiles.py",
+        "supports_truncate": True,
+        "supports_dry_run": True,
+        "tables": [
+            "bronze.bronze_geo_states",
+            "bronze.bronze_geo_counties",
+            "bronze.bronze_geo_places",
+            "bronze.bronze_geo_zcta",
+        ],
     },
 ]
 
@@ -199,7 +231,7 @@ def run_loader(loader: dict, truncate: bool, dry_run: bool, log_dir: Path) -> di
     tables = loader.get("tables", [])
     before = count_rows(tables)
 
-    cmd = [sys.executable, loader["script"]]
+    cmd = [sys.executable, loader["script"]] + list(loader.get("extra_args", []))
     if truncate and loader["supports_truncate"]:
         cmd.append("--truncate")
     if dry_run and loader["supports_dry_run"]:
@@ -263,6 +295,11 @@ def run_dbt_bronze(select: str, log_dir: Path) -> dict:
 
     dbt_bin = PROJECT_ROOT / ".venv" / "bin" / "dbt"
     dbt_cmd = str(dbt_bin) if dbt_bin.exists() else "dbt"
+
+    deps_cmd = [dbt_cmd, "deps", "--profiles-dir", str(DBT_PROJECT_DIR)]
+    logger.info(f"$ {' '.join(deps_cmd)}")
+    run_subprocess(deps_cmd, log_path, cwd=DBT_PROJECT_DIR)
+
     cmd = [dbt_cmd, "run", "--select", select, "--profiles-dir", str(DBT_PROJECT_DIR)]
     logger.info(f"$ {' '.join(cmd)}")
     logger.info(f"  log → {log_path.relative_to(PROJECT_ROOT)}")
@@ -483,6 +520,10 @@ def main() -> int:
 
     results: list[dict] = []
 
+    def checkpoint() -> None:
+        save_results(results, log_dir, started_at)
+        sync_logs(log_dir, run_type="load_bronze", project_root=PROJECT_ROOT)
+
     for loader in loaders:
         logger.info("")
         logger.info(f"  {'─' * 76}")
@@ -492,6 +533,7 @@ def main() -> int:
         results.append(result)
         if not result["ok"]:
             logger.error(f"  Loader exited with code {result['exit_code']} — continuing to next step")
+        checkpoint()
 
     if run_dbt:
         logger.info("")
@@ -499,10 +541,9 @@ def main() -> int:
         logger.info(f"  ▶  dbt run --select {args.dbt_select}")
         logger.info(f"  {'─' * 76}")
         results.append(run_dbt_bronze(select=args.dbt_select, log_dir=log_dir))
+        checkpoint()
 
     print_summary(results, started_at, log_dir)
-    save_results(results, log_dir, started_at)
-    sync_logs(log_dir, run_type="load_bronze", project_root=PROJECT_ROOT)
 
     failed = [r for r in results if not r["ok"] and not r.get("skipped")]
     return 1 if failed else 0

@@ -1,6 +1,108 @@
 version: 2
 
 models:
+  - name: int_jurisdictions
+    description: >
+      Unified silver jurisdictions table — union of Census Gazetteer counties,
+      municipalities, school districts, and townships. Each row is one jurisdiction
+      with standardized identifiers (GEOID, FIPS), state code, full state name,
+      and county FIPS codes.
+
+      County FIPS derivation strategy:
+        - counties:         county_fips_code = geoid (county IS the FIPS code)
+        - townships:        county_fips_code = LEFT(geoid, 5) (embedded in 10-digit GEOID)
+        - municipalities:   county_fips_code = primary county by ZCTA-area overlap;
+                            county_fips_codes = all counties (multi-county places)
+        - school_districts: county_fips_code = NULL (no county embedded; enrich separately)
+
+    columns:
+      - name: geoid
+        description: "Padded Census GEOID — 5 chars (county), 7 chars (municipality/school_district), 10 chars (township)"
+        tests:
+          - unique
+          - not_null
+      - name: fips_code
+        description: "FIPS code (same as geoid for all types)"
+      - name: state_fips_code
+        description: "2-digit state FIPS code (LEFT(geoid, 2))"
+        tests:
+          - not_null
+      - name: county_fips_code
+        description: "Primary 5-digit county FIPS code. NULL for school_districts."
+      - name: county_fips_codes
+        description: "All county FIPS codes as TEXT array. Populated for municipalities spanning multiple counties."
+      - name: state_code
+        description: "2-letter state abbreviation (USPS)"
+        tests:
+          - not_null
+      - name: state
+        description: "Full state name (e.g. 'California')"
+      - name: name
+        description: "Jurisdiction name from Census Gazetteer"
+        tests:
+          - not_null
+      - name: jurisdiction_type
+        description: "One of: county, municipality, school_district, township"
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['county', 'municipality', 'school_district', 'township']
+      - name: ansicode
+        description: "8-digit ANSI code (not available for school_districts)"
+      - name: lsad
+        description: "Legal/Statistical Area Description code (municipalities only)"
+      - name: funcstat
+        description: "Functional status code (municipalities and townships only)"
+      - name: lograde
+        description: "Lowest grade served (school_districts only)"
+      - name: higrade
+        description: "Highest grade served (school_districts only)"
+      - name: area_sq_miles
+        description: "Land area in square miles"
+      - name: latitude
+        description: "Internal point latitude"
+      - name: longitude
+        description: "Internal point longitude"
+      - name: ingestion_date
+        description: "When the bronze record was loaded"
+      - name: transformed_at
+        description: "When this silver record was created"
+
+  - name: int_jurisdiction_websites
+    description: >
+      Cleaned and standardized .gov domain registry from GSA (cisagov/dotgov-data).
+      Excludes federal agency domains; focuses on local/state government websites.
+      Adds full state name and normalizes domain_type to jurisdiction_category.
+    columns:
+      - name: domain_name
+        description: "Lowercase .gov domain (primary key)"
+        tests:
+          - unique
+          - not_null
+      - name: website_url
+        description: "Full https:// URL constructed from domain_name"
+        tests:
+          - not_null
+      - name: domain_type
+        description: "Raw domain type from GSA (City, County, State, School District, etc.)"
+      - name: jurisdiction_category
+        description: "Standardized jurisdiction category (municipality, county, state, school_district, township, special_district, other)"
+      - name: organization_name
+        description: "Registering organization name"
+      - name: agency
+        description: "Parent agency (often NULL for local gov)"
+      - name: city
+        description: "City of the registrant"
+      - name: state_code
+        description: "2-letter state abbreviation"
+      - name: state
+        description: "Full state name"
+      - name: ingestion_date
+        description: "When the bronze record was loaded"
+      - name: transformed_at
+        description: "When this silver record was created"
+
   - name: int_trending_causes_by_jurisdiction
     description: |
       Aggregates trending causes by jurisdiction based on decisions in the last 90 days.

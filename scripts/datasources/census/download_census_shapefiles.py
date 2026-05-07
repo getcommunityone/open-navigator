@@ -6,16 +6,20 @@ This script downloads U.S. Census Bureau TIGER/Line shapefiles for:
 - States (cb_<year>_us_state_500k.zip)
 - Counties (cb_<year>_us_county_500k.zip)
 - ZIP Code Tabulation Areas / ZCTAs (cb_<year>_us_zcta520_500k.zip)
+- Places / Municipalities (cb_<year>_us_place_500k.zip)
 
 Source: https://www.census.gov/geographies/mapping-files/time-series/geo/tiger-line-file.html
 
 Cartographic Boundary Files (cb_) are simplified versions optimized for mapping.
 Use these for visualization - they're smaller and faster to render than the full TIGER files.
 
+Note: School district shapefiles are not available as cartographic boundary files.
+Use download_census_school_districts.py for elementary, secondary, and unified school districts.
+
 Usage:
-    python scripts/datasources/census/load_census_shapefiles.py --year 2023
-    python scripts/datasources/census/load_census_shapefiles.py --year 2023 --types states counties
-    python scripts/datasources/census/load_census_shapefiles.py --year 2023 --extract
+    python scripts/datasources/census/download_census_shapefiles.py --year 2023
+    python scripts/datasources/census/download_census_shapefiles.py --year 2023 --types states counties
+    python scripts/datasources/census/download_census_shapefiles.py --year 2023 --extract
 """
 import sys
 from pathlib import Path
@@ -31,12 +35,15 @@ sys.path.insert(0, str(project_root))
 from config import settings
 
 
-# Census Bureau Cartographic Boundary Shapefile URLs
-# Using 1:500k scale (simplified for mapping performance)
+# Census Bureau Cartographic Boundary Shapefile URLs — 1:500k scale (simplified for mapping)
+# States, counties, places: published annually under GENZ{year}
+# ZCTA: CB files are only published in decennial census years (last: 2020).
+#        Use the annual TIGER/Line file instead, which is updated every year.
 SHAPEFILE_URLS = {
     "states": "https://www2.census.gov/geo/tiger/GENZ{year}/shp/cb_{year}_us_state_500k.zip",
     "counties": "https://www2.census.gov/geo/tiger/GENZ{year}/shp/cb_{year}_us_county_500k.zip",
-    "zcta": "https://www2.census.gov/geo/tiger/GENZ{year}/shp/cb_{year}_us_zcta520_500k.zip",  # ZIP Code Tabulation Areas
+    "zcta": "https://www2.census.gov/geo/tiger/TIGER{year}/ZCTA520/tl_{year}_us_zcta520.zip",  # Annual TIGER/Line (CB only exists for 2020)
+    "places": "https://www2.census.gov/geo/tiger/GENZ{year}/shp/cb_{year}_us_place_500k.zip",  # Incorporated places, cities, towns, CDPs
 }
 
 
@@ -220,18 +227,22 @@ Examples:
   Download ZCTA (ZIP codes) only:
     python scripts/datasources/census/download_shapefiles.py --year 2023 --types zcta
 
+  Download places (municipalities/cities/towns) only:
+    python scripts/datasources/census/download_shapefiles.py --year 2023 --types places
+
 Available types:
   states   - U.S. States and territories
   counties - U.S. Counties and county equivalents
-  zcta     - ZIP Code Tabulation Areas (postal codes)
+  zcta     - ZIP Code Tabulation Areas (postal codes, 2020 Census vintage)
+  places   - Incorporated places: cities, towns, villages, CDPs
         """
     )
     
     parser.add_argument(
         "--year",
         type=int,
-        default=2023,
-        help="Census vintage year (2020-2023 recommended, default: 2023)"
+        default=2025,
+        help="Census vintage year (default: 2025)"
     )
     
     parser.add_argument(

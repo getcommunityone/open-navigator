@@ -263,6 +263,195 @@ scripts/
 - These can use `migrate_` or `backfill_` prefixes
 - Example: `scripts/datasources/gemini/migrations/migrate_multimodel_support.py`
 
+## 📝 Git Commit Standards (MANDATORY)
+
+### ⚠️ ALWAYS Use Conventional Commits — NO EXCEPTIONS
+
+**MANDATORY RULE:** ALL git commit messages MUST follow the [Conventional Commits](https://www.conventionalcommits.org/) specification.
+
+**Format:** `<type>(<optional scope>): <short description>`
+
+**Types:**
+| Type | When to use |
+|------|-------------|
+| `feat` | A new feature or capability |
+| `fix` | A bug fix |
+| `chore` | Maintenance, dependency updates, config |
+| `docs` | Documentation-only changes |
+| `refactor` | Code restructuring with no behavior change |
+| `test` | Adding or updating tests |
+| `perf` | Performance improvements |
+| `ci` | CI/CD pipeline changes |
+| `build` | Build system or tooling changes |
+| `revert` | Reverting a previous commit |
+
+**✅ DO THIS:**
+```
+feat(api): add jurisdiction search endpoint with state_code filter
+fix(bronze): handle missing state_code in census gazetteer loader
+chore(deps): upgrade loguru to 0.7.3
+docs(website): add FastAPI OpenTelemetry instrumentation guide
+refactor(dbt): consolidate bronze staging models into single source
+test(api): add integration tests for contacts_search endpoint
+perf(frontend): lazy-load jurisdiction map tiles
+ci(github-actions): add dbt test step to bronze pipeline workflow
+```
+
+**❌ NEVER DO THIS:**
+```
+Updated files
+Fixed bug
+WIP
+misc changes
+Added stuff
+```
+
+**Breaking changes:** Add `!` after the type or a `BREAKING CHANGE:` footer:
+```
+feat(api)!: rename state field to state_code across all endpoints
+```
+
+---
+
+## 🪵 Logging Standards (MANDATORY)
+
+### ⚠️ Use the Correct Logger for Each Context
+
+---
+
+### Simple Python Scripts & Packages → Loguru
+
+**MANDATORY RULE:** ALL standalone scripts and simple Python packages MUST use `loguru`.
+
+**✅ DO THIS:**
+```python
+from loguru import logger
+
+logger.info("Loading data from {source}", source=source_name)
+logger.success("Loaded {:,} rows into {}", count, table)
+logger.warning("Missing field '{}' — skipping row", field)
+logger.error("DB connection failed: {}", err)
+logger.debug("Raw response: {}", response)
+```
+
+**❌ NEVER DO THIS in scripts:**
+```python
+import logging                        # Use loguru instead
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger(__name__)
+log.info("Loading data")
+```
+
+**Rules:**
+- Import only `from loguru import logger` — no handler setup required for scripts
+- Use `logger.success()` to signal a completed pipeline step
+- For scripts writing log files, follow `scripts/load_bronze.py`:
+  - Sink to `logs/<run_type>/<run_id>/<step>.log`
+  - Call `scripts/utils/log_sync.py:sync_logs()` to upload to Google Drive after the run
+
+---
+
+### FastAPI Services → OpenTelemetry
+
+**MANDATORY RULE:** ALL FastAPI services MUST use OpenTelemetry for observability.
+
+**✅ DO THIS — App startup (`main.py` or `app.py`):**
+```python
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
+
+# Initialize provider
+provider = TracerProvider()
+provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+trace.set_tracer_provider(provider)
+
+# Auto-instrument FastAPI routes and SQLAlchemy queries
+FastAPIInstrumentor.instrument_app(app)
+SQLAlchemyInstrumentor().instrument()
+```
+
+**✅ DO THIS — Manual spans for key operations:**
+```python
+tracer = trace.get_tracer(__name__)
+
+async def search_jurisdictions(query: str, state_code: str):
+    with tracer.start_as_current_span("search-jurisdictions") as span:
+        span.set_attribute("query", query)
+        span.set_attribute("state_code", state_code)
+        results = await db.execute(...)
+        span.set_attribute("result_count", len(results))
+        return results
+```
+
+**Rules:**
+- `FastAPIInstrumentor` auto-instruments all routes — don't add manual spans to every endpoint
+- Add manual spans only for non-trivial operations: DB queries, external API calls, AI enrichment
+- Use `OTLP_ENDPOINT` env var for the collector URL; default to console exporter in development
+- Log structured events with `span.add_event("cache-miss", {"key": cache_key})`
+
+---
+
+### React Frontend → OpenTelemetry
+
+**MANDATORY RULE:** The React app MUST use OpenTelemetry Web SDK for frontend observability.
+
+**✅ DO THIS — One-time setup in `src/instrumentation.ts`:**
+```typescript
+import { WebTracerProvider } from '@opentelemetry/sdk-trace-web';
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base';
+import { ZoneContextManager } from '@opentelemetry/context-zone';
+import { registerInstrumentations } from '@opentelemetry/instrumentation';
+import { FetchInstrumentation } from '@opentelemetry/instrumentation-fetch';
+import { DocumentLoadInstrumentation } from '@opentelemetry/instrumentation-document-load';
+
+const provider = new WebTracerProvider();
+provider.addSpanProcessor(
+  new BatchSpanProcessor(new OTLPTraceExporter({ url: import.meta.env.VITE_OTLP_ENDPOINT }))
+);
+provider.register({ contextManager: new ZoneContextManager() });
+
+registerInstrumentations({
+  instrumentations: [new FetchInstrumentation(), new DocumentLoadInstrumentation()],
+});
+```
+
+**Import in `src/main.tsx` (first line):**
+```typescript
+import './instrumentation';
+```
+
+**✅ DO THIS — Manual spans for key user interactions:**
+```typescript
+import { trace } from '@opentelemetry/api';
+
+const tracer = trace.getTracer('open-navigator-frontend');
+
+async function fetchJurisdictions(stateCode: string) {
+  const span = tracer.startSpan('fetch-jurisdictions');
+  span.setAttribute('state_code', stateCode);
+  try {
+    const data = await api.get(`/jurisdictions?state_code=${stateCode}`);
+    span.setAttribute('result_count', data.length);
+    return data;
+  } finally {
+    span.end();
+  }
+}
+```
+
+**Rules:**
+- Initialize once in `src/instrumentation.ts`, imported at the top of `src/main.tsx`
+- `FetchInstrumentation` auto-instruments all `fetch` calls — no manual spans needed per API call
+- Add manual spans for: search submissions, filter changes, map interactions, data exports
+- Use `VITE_OTLP_ENDPOINT` env var; omit the exporter in development to use the console exporter
+
+---
+
 ## Code Style Preferences
 
 ### Python

@@ -257,6 +257,122 @@ sources:
           - name: state_code
           - name: county_fips
           - name: website_url
+
+      - name: bronze_jurisdictions_counties
+        description: "Census Gazetteer county-level jurisdictions (3,233 US counties)"
+        columns:
+          - name: geoid
+            description: "5-digit county GEOID (state_fips + county_fips) — primary key"
+          - name: usps
+            description: "2-letter state abbreviation"
+          - name: ansicode
+            description: "8-digit ANSI code"
+          - name: name
+            description: "County name"
+          - name: aland_sqmi
+            description: "Land area in square miles"
+          - name: awater_sqmi
+            description: "Water area in square miles"
+          - name: intptlat
+            description: "Internal point latitude"
+          - name: intptlong
+            description: "Internal point longitude"
+          - name: ingestion_date
+            description: "When record was loaded"
+
+      - name: bronze_jurisdictions_municipalities
+        description: "Census Gazetteer place-level jurisdictions (cities, towns, villages, boroughs, CDPs)"
+        columns:
+          - name: geoid
+            description: "7-digit place GEOID (state_fips + place_fips) — primary key"
+          - name: usps
+            description: "2-letter state abbreviation"
+          - name: ansicode
+            description: "8-digit ANSI code"
+          - name: name
+            description: "Place name"
+          - name: lsad
+            description: "Legal/Statistical Area Description code (25=city, 43=town, 57=village, 05=borough, 37=CDP, etc.)"
+          - name: funcstat
+            description: "Functional status (A=active, B=active/legal, C=consolidated, etc.)"
+          - name: aland_sqmi
+            description: "Land area in square miles"
+          - name: awater_sqmi
+            description: "Water area in square miles"
+          - name: intptlat
+            description: "Internal point latitude"
+          - name: intptlong
+            description: "Internal point longitude"
+          - name: ingestion_date
+            description: "When record was loaded"
+
+      - name: bronze_jurisdictions_school_districts
+        description: "Census Gazetteer unified school districts"
+        columns:
+          - name: geoid
+            description: "7-digit school district GEOID (state_fips + district_code) — primary key"
+          - name: usps
+            description: "2-letter state abbreviation"
+          - name: name
+            description: "School district name"
+          - name: lograde
+            description: "Lowest grade served"
+          - name: higrade
+            description: "Highest grade served"
+          - name: aland_sqmi
+            description: "Land area in square miles"
+          - name: awater_sqmi
+            description: "Water area in square miles"
+          - name: intptlat
+            description: "Internal point latitude"
+          - name: intptlong
+            description: "Internal point longitude"
+          - name: ingestion_date
+            description: "When record was loaded"
+
+      - name: bronze_jurisdictions_townships
+        description: "Census Gazetteer county subdivision (township/minor civil division) jurisdictions"
+        columns:
+          - name: geoid
+            description: "10-digit township GEOID (state_fips + county_fips + cousub_fips) — primary key"
+          - name: usps
+            description: "2-letter state abbreviation"
+          - name: ansicode
+            description: "8-digit ANSI code"
+          - name: name
+            description: "Township/MCD name"
+          - name: funcstat
+            description: "Functional status"
+          - name: aland_sqmi
+            description: "Land area in square miles"
+          - name: awater_sqmi
+            description: "Water area in square miles"
+          - name: intptlat
+            description: "Internal point latitude"
+          - name: intptlong
+            description: "Internal point longitude"
+          - name: ingestion_date
+            description: "When record was loaded"
+
+      - name: bronze_gov_domains
+        description: "GSA .gov domain registry — all registered .gov domains with agency/org metadata"
+        columns:
+          - name: domain_name
+            description: "Registered .gov domain (primary key)"
+          - name: domain_type
+            description: "Domain type (Federal Agency, City, County, State, etc.)"
+          - name: agency
+            description: "Federal agency or parent organization"
+          - name: organization
+            description: "Registering organization name"
+          - name: city
+            description: "City of registrant"
+          - name: state
+            description: "2-letter state abbreviation of registrant"
+          - name: security_contact
+            description: "Security contact email"
+          - name: ingestion_date
+            description: "When record was loaded"
       
       - name: bronze_jurisdictions_postal_codes
         description: "Census ZIP Code Tabulation Areas (ZCTAs) - 33,791 geographic areas"

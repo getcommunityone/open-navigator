@@ -115,6 +115,62 @@ System maintenance and cleanup utilities.
 - File management
 - Development utilities
 
+## 🟫 Bronze Ingestion (`load_bronze.py`)
+
+Runs all bronze-layer data loaders in sequence, then triggers dbt bronze models. Logs are written to `logs/load_bronze/<run_id>/`.
+
+**Loaders (run in order):**
+| Key | Source | Target Table(s) |
+|---|---|---|
+| `census` | Census Gazetteer | `bronze.bronze_jurisdictions_*` |
+| `gsa` | GSA .gov Domains | `bronze.bronze_gov_domains` |
+| `localview` | LocalView Meetings | `bronze.bronze_events_localview` |
+| `irs` | IRS BMF Nonprofits | `bronze.bronze_organizations_nonprofits_irs` |
+
+### Common usage
+
+```bash
+# Run all loaders + dbt bronze
+python scripts/load_bronze.py
+
+# Skip the dbt run at the end
+python scripts/load_bronze.py --no-dbt
+
+# Run only specific loaders
+python scripts/load_bronze.py --only gsa census
+
+# Skip specific loaders
+python scripts/load_bronze.py --skip localview irs
+
+# Clear supported tables before loading
+python scripts/load_bronze.py --truncate
+
+# Dry run — parse only, no DB writes (loaders that support it)
+python scripts/load_bronze.py --dry-run
+```
+
+### Retrying failed steps
+
+Each run saves a `results.json` in its log directory. Use `--retry-failed` to re-run only the steps that failed in the most recent run, or `--retry-run` to target a specific run by ID.
+
+```bash
+# Retry only failed steps from the most recent run
+python scripts/load_bronze.py --retry-failed
+
+# Retry only failed steps from a specific run
+python scripts/load_bronze.py --retry-run 20260507_082303
+```
+
+To find recent run IDs:
+
+```bash
+ls logs/load_bronze/
+```
+
+The run ID is printed at the start of every run and in the summary. If the most recent run had no failures, `--retry-failed` exits immediately with a success message.
+
+---
+
 ## 🔍 Finding Scripts
 
 Use these commands to find scripts:
