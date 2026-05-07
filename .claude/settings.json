@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(PGPASSWORD=* psql *)",
+      "Bash(dbt run *)",
+      "Bash(dbt test *)",
+      "Bash(dbt compile *)",
+      "Bash(dbt ls *)",
+      "Bash(pg_isready *)"
+    ]
+  }
+}

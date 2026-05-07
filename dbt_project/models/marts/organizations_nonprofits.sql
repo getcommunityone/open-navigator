@@ -50,24 +50,20 @@ zcta_lookup AS (
     FROM {{ source('bronze', 'bronze_jurisdictions_postal_codes') }}
 ),
 
--- Get primary place for each ZCTA (largest by land area)
+-- zip_place table not available; place columns will be NULL
 zcta_place_primary AS (
-    SELECT DISTINCT ON (zcta)
-        zcta,
-        place_geoid,
-        place_name
-    FROM {{ source('bronze', 'bronze_jurisdictions_zip_place') }}
-    ORDER BY zcta, arealand_part DESC NULLS LAST
+    SELECT NULL::VARCHAR AS zcta, NULL::VARCHAR AS place_geoid, NULL::VARCHAR AS place_name
+    WHERE FALSE
 ),
 
--- Get primary county for each ZCTA (largest by land area)  
+-- Get primary county for each ZIP (highest total address share)
 zcta_county_primary AS (
-    SELECT DISTINCT ON (zcta)
-        zcta,
-        county_geoid,
-        county_name
+    SELECT DISTINCT ON (zip)
+        zip                AS zcta,
+        county             AS county_geoid,
+        NULL::VARCHAR      AS county_name
     FROM {{ source('bronze', 'bronze_jurisdictions_zip_county') }}
-    ORDER BY zcta, arealand_part DESC NULLS LAST
+    ORDER BY zip, tot_ratio DESC NULLS LAST
 ),
 
 combined AS (
