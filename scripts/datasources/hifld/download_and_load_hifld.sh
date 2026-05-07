@@ -24,26 +24,10 @@ echo ""
 source .venv/bin/activate
 
 # Step 1: Download datasets that work with current scripts
-echo "Step 1: Downloading HIFLD datasets from ArcGIS Online..."
+echo "Step 1: Downloading HIFLD datasets from ArcGIS Online (CSV)..."
 echo ""
 
-# Places of Worship (254,742 locations) ✅ WORKING
-echo "Downloading Places of Worship (254,742 locations)..."
-python scripts/datasources/hifld/download_arcgis_dataset.py \
-  --item-id 495cc33ef490462ab2d8933247a66a87 \
-  --to-parquet
-
-# Hospitals (7,496 locations) ✅ WORKING
-echo "Downloading Hospitals (7,496 locations)..."
-python scripts/datasources/hifld/download_arcgis_dataset.py \
-  --item-id f36521f6e07f4a859e838f0ad7536898 \
-  --to-parquet
-
-# Law Enforcement (46,972 locations) ✅ WORKING
-echo "Downloading Law Enforcement locations (46,972 locations)..."
-python scripts/datasources/hifld/download_arcgis_dataset.py \
-  --item-id 333a74c8e9c64cb6870689d31e8836af \
-  --to-parquet
+python scripts/datasources/hifld/download_hifld.py
 
 # ⚠️ DATASETS THAT REQUIRE ALTERNATIVE METHODS:
 # 

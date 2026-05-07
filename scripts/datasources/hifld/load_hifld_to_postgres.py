@@ -46,13 +46,15 @@ def get_connection():
 
 def create_table(conn):
     """
-    Create organizations_locations table if it doesn't exist.
-    
+    Create bronze.bronze_locations table if it doesn't exist.
+
     Unified schema for all HIFLD infrastructure types.
     """
     with conn.cursor() as cur:
         cur.execute("""
-            CREATE TABLE IF NOT EXISTS organizations_locations (
+            CREATE SCHEMA IF NOT EXISTS bronze;
+
+            CREATE TABLE IF NOT EXISTS bronze.bronze_locations (
                 id SERIAL PRIMARY KEY,
                 source_id VARCHAR(100),
                 name VARCHAR(500),
@@ -71,19 +73,20 @@ def create_table(conn):
                 source_dataset VARCHAR(200),
                 additional_info JSONB,
                 created_at TIMESTAMP DEFAULT NOW(),
-                updated_at TIMESTAMP DEFAULT NOW()
+                updated_at TIMESTAMP DEFAULT NOW(),
+                CONSTRAINT uq_bronze_locations_source UNIQUE (source_dataset, source_id)
             );
-            
+
             -- Indexes for common queries
-            CREATE INDEX IF NOT EXISTS idx_orgloc_type ON organizations_locations(organization_type);
-            CREATE INDEX IF NOT EXISTS idx_orgloc_state ON organizations_locations(state);
-            CREATE INDEX IF NOT EXISTS idx_orgloc_city ON organizations_locations(city);
-            CREATE INDEX IF NOT EXISTS idx_orgloc_coords ON organizations_locations(latitude, longitude);
-            CREATE INDEX IF NOT EXISTS idx_orgloc_source ON organizations_locations(source_dataset);
+            CREATE INDEX IF NOT EXISTS idx_bronzeloc_type ON bronze.bronze_locations(organization_type);
+            CREATE INDEX IF NOT EXISTS idx_bronzeloc_state ON bronze.bronze_locations(state);
+            CREATE INDEX IF NOT EXISTS idx_bronzeloc_city ON bronze.bronze_locations(city);
+            CREATE INDEX IF NOT EXISTS idx_bronzeloc_coords ON bronze.bronze_locations(latitude, longitude);
+            CREATE INDEX IF NOT EXISTS idx_bronzeloc_source ON bronze.bronze_locations(source_dataset);
         """)
         conn.commit()
-    
-    logger.success("✅ Created organizations_locations table")
+
+    logger.success("✅ Created bronze.bronze_locations table")
 
 
 def map_organization_type(dataset_name: str, row: dict) -> str:
@@ -287,11 +290,12 @@ def load_parquet_to_postgres(
                 batch = records[i:i + batch_size]
                 
                 insert_query = """
-                    INSERT INTO organizations_locations (
+                    INSERT INTO bronze.bronze_locations (
                         source_id, name, organization_type, address, city, state, zip,
                         county, latitude, longitude, telephone, website,
                         source_dataset, additional_info
                     ) VALUES %s
+                    ON CONFLICT ON CONSTRAINT uq_bronze_locations_source DO NOTHING
                 """
                 
                 values = [
@@ -379,13 +383,13 @@ def main():
     # Summary
     conn = get_connection()
     with conn.cursor() as cur:
-        cur.execute("SELECT COUNT(*) FROM organizations_locations")
+        cur.execute("SELECT COUNT(*) FROM bronze.bronze_locations")
         total_count = cur.fetchone()[0]
-        
+
         cur.execute("""
-            SELECT organization_type, COUNT(*) 
-            FROM organizations_locations 
-            GROUP BY organization_type 
+            SELECT organization_type, COUNT(*)
+            FROM bronze.bronze_locations
+            GROUP BY organization_type
             ORDER BY COUNT(*) DESC
         """)
         type_counts = cur.fetchall()

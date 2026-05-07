@@ -4,7 +4,7 @@ Download Census Bureau TIGER/Line Shapefiles
 
 This script downloads U.S. Census Bureau TIGER/Line shapefiles for:
 - States (cb_<year>_us_state_500k.zip)
-- Counties (cb_<year>_us_county_500k.zip)  
+- Counties (cb_<year>_us_county_500k.zip)
 - ZIP Code Tabulation Areas / ZCTAs (cb_<year>_us_zcta520_500k.zip)
 
 Source: https://www.census.gov/geographies/mapping-files/time-series/geo/tiger-line-file.html
@@ -38,6 +38,7 @@ SHAPEFILE_URLS = {
     "counties": "https://www2.census.gov/geo/tiger/GENZ{year}/shp/cb_{year}_us_county_500k.zip",
     "zcta": "https://www2.census.gov/geo/tiger/GENZ{year}/shp/cb_{year}_us_zcta520_500k.zip",  # ZIP Code Tabulation Areas
 }
+
 
 # Alternative: Full TIGER/Line files (higher detail, larger files)
 # TIGER_URLS = {
@@ -146,6 +147,7 @@ def extract_shapefile(zip_path: Path, extract_dir: Path) -> None:
         logger.success(f"✅ Extracted {len(files)} files:")
         for file in sorted(files):
             logger.info(f"   - {file.name}")
+
 
 
 def download_all_shapefiles(year: int = 2023, types: list = None, extract: bool = False) -> dict:

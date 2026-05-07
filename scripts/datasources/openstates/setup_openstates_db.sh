@@ -18,14 +18,20 @@ echo "🏛️  OpenStates Database Setup"
 echo "===================================="
 echo ""
 
+# Load credentials from .env
+ENV_FILE="$(dirname "$0")/../../../.env"
+if [ -f "$ENV_FILE" ]; then
+    export $(grep -E "^POSTGRES_USER=|^POSTGRES_PASSWORD=" "$ENV_FILE" | xargs)
+fi
+
 # Configuration
 DB_NAME="openstates"
-DB_USER="postgres"
-DB_PASSWORD="password"
+DB_USER="${POSTGRES_USER:-postgres}"
+DB_PASSWORD="${POSTGRES_PASSWORD:-password}"
 DB_HOST="localhost"
-DB_PORT="5432"  # PostgreSQL container (charming_mestorf)
-SCHEMA_FILE="data/cache/legislation_bulk/postgres/2026-04-schema.pgdump"
-DATA_FILE="data/cache/legislation_bulk/postgres/2026-04-public.pgdump"
+DB_PORT="5433"  # PostgreSQL container (charming_mestorf)
+SCHEMA_FILE="data/cache/openstates/2026-05-schema.pgdump"
+DATA_FILE="data/cache/openstates/2026-05-public.pgdump"
 
 # Colors for output
 RED='\033[0;31m'
