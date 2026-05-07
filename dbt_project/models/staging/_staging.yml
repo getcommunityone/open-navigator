@@ -422,6 +422,18 @@ sources:
           - name: areawater_part
             description: "Water area of ZCTA part in this county (sq meters)"
       
+      - name: bronze_jurisdictions_county_fips_enriched
+        description: "Spatial county FIPS enrichment for jurisdictions whose county cannot be derived from GEOID structure or ZIP mapping. Populated by enrich_jurisdictions_county_fips.py using point-in-polygon lookup against Census county boundaries."
+        columns:
+          - name: geoid
+            description: "7-digit jurisdiction GEOID (place or school district)"
+          - name: county_fips_code
+            description: "5-digit county FIPS derived from spatial lookup"
+          - name: match_method
+            description: "How county was resolved: 'geo_places_name' or 'latlon_point_in_polygon'"
+          - name: enriched_at
+            description: "When the record was written"
+
       - name: bronze_events_cdp
         description: "Meeting events from Council Data Project - CDP-compatible schema: https://councildataproject.org/"
         columns:

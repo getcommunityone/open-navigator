@@ -6,7 +6,36 @@
 }}
 
 -- State abbreviation → FIPS + full name lookup
-WITH state_ref AS (
+WITH
+
+-- ZCTAs that map unambiguously to a single county
+single_county_zctas AS (
+    SELECT zcta, MIN(county_geoid) AS county_geoid
+    FROM {{ source('bronze', 'bronze_jurisdictions_zip_county') }}
+    GROUP BY zcta
+    HAVING COUNT(DISTINCT county_geoid) = 1
+),
+
+-- Municipality place GEOID → county via the ZCTA-to-place relationship.
+-- When a municipality spans multiple ZCTAs, pick the county that covers the
+-- most land area across all its ZCTAs (ties broken by county_geoid).
+muni_county_via_zip AS (
+    SELECT DISTINCT ON (zp.place_geoid)
+        zp.place_geoid                  AS geoid,
+        sc.county_geoid                 AS county_fips_code
+    FROM {{ source('bronze', 'bronze_jurisdictions_zip_place') }} zp
+    INNER JOIN single_county_zctas sc ON zp.zcta = sc.zcta
+    ORDER BY zp.place_geoid, zp.arealand_part DESC, sc.county_geoid
+),
+
+-- Spatial enrichment fallback (municipalities unresolved above + school districts).
+-- Populated by scripts/datasources/census/enrich_jurisdictions_county_fips.py.
+geo_enriched AS (
+    SELECT geoid, county_fips_code
+    FROM {{ source('bronze', 'bronze_jurisdictions_county_fips_enriched') }}
+),
+
+state_ref AS (
     SELECT * FROM (VALUES
         ('AL', '01', 'Alabama'),
         ('AK', '02', 'Alaska'),
@@ -94,55 +123,64 @@ counties AS (
 
 -- ── Municipalities ──────────────────────────────────────────────────────────
 -- GEOID = state_fips(2) + place_fips(5) = 7 chars
--- county_fips_code is NULL here — county is not encoded in the place GEOID.
--- Enrichment requires the Census place-county relationship files
--- (bronze_jurisdictions_zip_place + bronze_jurisdictions_zip_county),
--- which are loaded separately via download_census_relationships.py.
+-- County resolved via: (1) single-county ZCTA mapping, (2) spatial enrichment script.
 municipalities AS (
     SELECT
         m.geoid,
-        m.geoid                     AS fips_code,
-        LEFT(m.geoid, 2)            AS state_fips_code,
-        NULL::TEXT                  AS county_fips_code,
-        NULL::TEXT[]                AS county_fips_codes,
-        m.usps                      AS state_code,
+        m.geoid                                                         AS fips_code,
+        LEFT(m.geoid, 2)                                                AS state_fips_code,
+        COALESCE(mz.county_fips_code, ge.county_fips_code)             AS county_fips_code,
+        CASE
+            WHEN COALESCE(mz.county_fips_code, ge.county_fips_code) IS NOT NULL
+            THEN ARRAY[COALESCE(mz.county_fips_code, ge.county_fips_code)]::TEXT[]
+            ELSE NULL::TEXT[]
+        END                                                             AS county_fips_codes,
+        m.usps                                                          AS state_code,
         m.name,
-        'municipality'              AS jurisdiction_type,
+        'municipality'                                                  AS jurisdiction_type,
         m.ansicode,
         m.lsad,
         m.funcstat,
-        NULL::VARCHAR(5)            AS lograde,
-        NULL::VARCHAR(5)            AS higrade,
-        m.aland_sqmi                AS area_sq_miles,
-        m.intptlat                  AS latitude,
-        m.intptlong                 AS longitude,
+        NULL::VARCHAR(5)                                                AS lograde,
+        NULL::VARCHAR(5)                                                AS higrade,
+        m.aland_sqmi                                                    AS area_sq_miles,
+        m.intptlat                                                      AS latitude,
+        m.intptlong                                                     AS longitude,
         m.ingestion_date
     FROM {{ source('bronze', 'bronze_jurisdictions_municipalities') }} m
+    LEFT JOIN muni_county_via_zip mz ON m.geoid = mz.geoid
+    LEFT JOIN geo_enriched ge ON m.geoid = ge.geoid
 ),
 
 -- ── School districts ────────────────────────────────────────────────────────
 -- GEOID = state_fips(2) + district_code(5) = 7 chars
--- County is not encoded in the GEOID; left NULL at silver — can be enriched later
+-- County not encoded in GEOID; resolved via spatial enrichment script.
+-- No ZCTA-to-school-district relationship exists in Census data.
 school_districts AS (
     SELECT
-        geoid,
-        geoid                   AS fips_code,
-        LEFT(geoid, 2)          AS state_fips_code,
-        NULL::TEXT              AS county_fips_code,
-        NULL::TEXT[]            AS county_fips_codes,
-        usps                    AS state_code,
-        name,
-        'school_district'       AS jurisdiction_type,
-        NULL::VARCHAR(8)        AS ansicode,
-        NULL::VARCHAR(5)        AS lsad,
-        NULL::VARCHAR(1)        AS funcstat,
-        lograde,
-        higrade,
-        aland_sqmi              AS area_sq_miles,
-        intptlat                AS latitude,
-        intptlong               AS longitude,
-        ingestion_date
-    FROM {{ source('bronze', 'bronze_jurisdictions_school_districts') }}
+        sd.geoid,
+        sd.geoid                                AS fips_code,
+        LEFT(sd.geoid, 2)                       AS state_fips_code,
+        ge.county_fips_code                     AS county_fips_code,
+        CASE
+            WHEN ge.county_fips_code IS NOT NULL
+            THEN ARRAY[ge.county_fips_code]::TEXT[]
+            ELSE NULL::TEXT[]
+        END                                     AS county_fips_codes,
+        sd.usps                                 AS state_code,
+        sd.name,
+        'school_district'                       AS jurisdiction_type,
+        NULL::VARCHAR(8)                        AS ansicode,
+        NULL::VARCHAR(5)                        AS lsad,
+        NULL::VARCHAR(1)                        AS funcstat,
+        sd.lograde,
+        sd.higrade,
+        sd.aland_sqmi                           AS area_sq_miles,
+        sd.intptlat                             AS latitude,
+        sd.intptlong                            AS longitude,
+        sd.ingestion_date
+    FROM {{ source('bronze', 'bronze_jurisdictions_school_districts') }} sd
+    LEFT JOIN geo_enriched ge ON sd.geoid = ge.geoid
 ),
 
 -- ── Townships ───────────────────────────────────────────────────────────────
