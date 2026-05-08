@@ -8,7 +8,7 @@ FIXES:
 import psycopg2
 from loguru import logger
 
-BRONZE_DB = "postgresql://postgres:password@localhost:5433/open_navigator_bronze"
+BRONZE_DB = "postgresql://postgres:password@localhost:5433/open_navigator"
 PROD_DB = "postgresql://postgres:password@localhost:5433/open_navigator"
 
 def rebuild_stats():
@@ -22,6 +22,9 @@ def rebuild_stats():
     try:
         bronze_cur = bronze_conn.cursor()
         prod_cur = prod_conn.cursor()
+
+        # Keep all "bronze" tables in the bronze schema of open_navigator.
+        bronze_cur.execute("SET search_path TO bronze, public")
         
         logger.info("📊 Step 1: Drop and recreate stats_aggregates in bronze...")
         bronze_cur.execute("DROP TABLE IF EXISTS stats_aggregates CASCADE")
@@ -177,10 +180,16 @@ def rebuild_stats():
         prod_conn.close()
         
         import subprocess
-        result = subprocess.run([
-            'bash', '-c',
-            f"PGPASSWORD=password pg_dump -h localhost -p 5433 -U postgres -d open_navigator_bronze -t stats_aggregates --no-owner --no-acl | PGPASSWORD=password psql -h localhost -p 5433 -U postgres -d open_navigator 2>&1"
-        ], capture_output=True, text=True)
+        result = subprocess.run(
+            [
+                "bash",
+                "-c",
+                "PGPASSWORD=password pg_dump -h localhost -p 5433 -U postgres -d open_navigator -t bronze.stats_aggregates --no-owner --no-acl "
+                "| PGPASSWORD=password psql -h localhost -p 5433 -U postgres -d open_navigator 2>&1",
+            ],
+            capture_output=True,
+            text=True,
+        )
         
         if result.returncode != 0 and "already exists" not in result.stderr:
             logger.error(f"pg_dump error: {result.stderr}")

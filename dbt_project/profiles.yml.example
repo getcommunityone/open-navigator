@@ -33,6 +33,6 @@ open_navigator:
       port: 5433
       user: postgres
       password: "{{ env_var('POSTGRES_PASSWORD', 'password') }}"
-      dbname: open_navigator_bronze
-      schema: public
+      dbname: open_navigator
+      schema: bronze
       threads: 2

@@ -17,7 +17,7 @@ Data Quality Fixes:
 3. Clean and standardize names
 4. Add derived fields
 
-Source: bronze_jurisdictions (open_navigator_bronze database)
+Source: bronze_jurisdictions (in `open_navigator.bronze` schema)
 */
 
 WITH source_data AS (

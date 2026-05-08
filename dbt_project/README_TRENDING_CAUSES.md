@@ -230,8 +230,8 @@ subprocess.run(['dbt', 'run', '--select', 'stats_aggregates'],
 ### Source Configuration
 
 Sources are defined in `models/staging/_staging.yml`:
-- Database: `open_navigator_bronze`
-- Schema: `public`
+- Database: `open_navigator`
+- Schema: `bronze`
 
 ## Data Quality Tests
 

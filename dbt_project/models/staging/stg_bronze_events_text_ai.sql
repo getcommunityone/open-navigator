@@ -11,7 +11,7 @@ Staging view for bronze_events_text_ai
 Applies basic cleaning and quality checks to video transcripts.
 Filters out low-quality or empty transcripts.
 
-Source: bronze_events_text_ai (from open_navigator_bronze via FDW)
+Source: bronze_events_text_ai (from `open_navigator.bronze` schema)
 Target: Intermediate models for text analysis and search
 */
 

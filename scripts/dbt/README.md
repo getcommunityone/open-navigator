@@ -26,7 +26,7 @@ cd dbt_project
 dbt run --target bronze --select bronze_organizations_nonprofits
 ```
 
-**Output:** `open_navigator_bronze.public.bronze_organizations_nonprofits` (756 MB, 70 columns)
+**Output:** `open_navigator.bronze.bronze_organizations_nonprofits` (756 MB, 70 columns)
 
 ### 2. `stats_aggregates` (Marts)
 
@@ -39,18 +39,18 @@ dbt run --target bronze --select bronze_organizations_nonprofits
 
 **Build and sync to production - see workflow below.**
 
-**Output:** `open_navigator_bronze.public.stats_aggregates` (8,779 records)
+**Output:** `open_navigator.bronze.stats_aggregates` (8,779 records)
 
 ## Pipeline Architecture
 
 ```
-Bronze DB (dev)  →  Production DB (queries)  →  Neon Cloud (website)
-open_navigator_bronze  →  open_navigator  →  Neon PostgreSQL
+Bronze schema (dev)  →  Public schema (queries)  →  Neon Cloud (website)
+open_navigator.bronze  →  open_navigator.public  →  Neon PostgreSQL
 ```
 
 ### Database Roles
 
-- **`open_navigator_bronze`**: Development database for raw data and dbt transformations
+- **`open_navigator.bronze`**: Development schema for raw data and dbt transformations
   - Contains `bronze_*` tables from data loading scripts
   - dbt models run here (staging, intermediate, marts)
   - NOT deployed to production servers
@@ -68,7 +68,7 @@ open_navigator_bronze  →  open_navigator  →  Neon PostgreSQL
 
 ### 1. Run dbt models
 
-Build the stats in the bronze database:
+Build the stats in the bronze schema:
 
 ```bash
 cd dbt_project
@@ -81,7 +81,7 @@ dbt run --target bronze --select stg_bronze_decisions+
 - `int_trending_causes_by_jurisdiction`: Aggregates decisions by NTEE cause category
 - `stats_aggregates`: Final stats table with trending causes JSON
 
-**Output:** `open_navigator_bronze.public.stats_aggregates`
+**Output:** `open_navigator.bronze.stats_aggregates`
 
 ### 2. Export to production database
 
@@ -94,7 +94,7 @@ python scripts/dbt/export_stats_to_open_navigator.py
 ```
 
 **What this does:**
-- Reads from `open_navigator_bronze.public.stats_aggregates`
+- Reads from `open_navigator.bronze.stats_aggregates`
 - Deletes old data from `open_navigator.stats_aggregates`
 - Inserts updated stats (3 records: national, state, jurisdiction levels)
 - Handles JSONB serialization for trending_causes column
@@ -281,7 +281,7 @@ national_stats = cursor.fetchone()
 The `~/.dbt/profiles.yml` file defines three targets:
 
 - **`dev`**: Default target, uses `open_navigator` database
-- **`bronze`**: Uses `open_navigator_bronze` for stats pipeline
+- **`bronze`**: Uses `open_navigator` database with `bronze` schema
 - **`prod`**: Neon cloud database (requires env vars)
 
 To switch targets:

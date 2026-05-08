@@ -2,7 +2,7 @@
 """
 Export stats_aggregates from bronze DB to open_navigator DB
 
-This syncs the dbt-generated stats from open_navigator_bronze to the 
+This syncs the dbt-generated stats from open_navigator (bronze schema) to the
 production-ready open_navigator database for fast queries.
 
 Usage:
@@ -16,7 +16,7 @@ from datetime import datetime
 import json
 
 # Database connections
-BRONZE_DB = "postgresql://postgres:password@localhost:5433/open_navigator_bronze"
+BRONZE_DB = "postgresql://postgres:password@localhost:5433/open_navigator"
 PROD_DB = "postgresql://postgres:password@localhost:5433/open_navigator"
 
 
@@ -33,8 +33,8 @@ def sync_stats():
         bronze_cursor = bronze_conn.cursor()
         prod_cursor = prod_conn.cursor()
         
-        # Step 1: Read stats from bronze
-        logger.info("📥 Reading stats from bronze database...")
+        # Step 1: Read stats from bronze schema (same database)
+        logger.info("📥 Reading stats from bronze schema...")
         bronze_cursor.execute("""
             SELECT 
                 level,
@@ -52,7 +52,7 @@ def sync_stats():
                 total_assets,
                 trending_causes,
                 last_updated
-            FROM stats_aggregates
+            FROM bronze.stats_aggregates
             ORDER BY level, state_code, county, city
         """)
         
@@ -60,7 +60,7 @@ def sync_stats():
         logger.info(f"  Found {len(stats_rows)} stats records")
         
         if not stats_rows:
-            logger.warning("⚠️  No stats found in bronze database. Run dbt first!")
+            logger.warning("⚠️  No stats found in bronze schema. Run dbt first!")
             return False
         
         # Step 2: Clear existing stats in production
@@ -141,7 +141,7 @@ def sync_stats():
 def main():
     """Main entry point"""
     logger.info("=" * 60)
-    logger.info("Stats Sync: open_navigator_bronze → open_navigator")
+    logger.info("Stats Sync: open_navigator.bronze → open_navigator.public")
     logger.info("=" * 60)
     
     success = sync_stats()

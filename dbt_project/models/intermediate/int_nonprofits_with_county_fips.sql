@@ -26,9 +26,7 @@ Sources:
 - bronze_jurisdictions (has county fips_code)
 - bronze_jurisdictions_zip_county (has ZCTA to county mappings)
 
-Note: This is a documentation model. Actual enrichment is done via SQL script
-because dbt doesn't support cross-database queries between open_navigator_bronze
-and the default database.
+Note: This is a documentation model. Actual enrichment is done via SQL script.
 
 Actual enrichment script: scripts/datasources/census/enrich_nonprofits_with_county_fips.sql
 */

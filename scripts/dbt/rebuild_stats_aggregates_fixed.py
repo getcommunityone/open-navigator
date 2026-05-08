@@ -8,7 +8,7 @@ FIXES:
 import psycopg2
 from loguru import logger
 
-BRONZE_DB = "postgresql://postgres:password@localhost:5433/open_navigator_bronze"
+BRONZE_DB = "postgresql://postgres:password@localhost:5433/open_navigator"
 PROD_DB = "postgresql://postgres:password@localhost:5433/open_navigator"
 
 def rebuild_stats():
@@ -22,6 +22,9 @@ def rebuild_stats():
     try:
         bronze_cur = bronze_conn.cursor()
         prod_cur = prod_conn.cursor()
+
+        # Keep all "bronze" tables in the bronze schema of open_navigator.
+        bronze_cur.execute("SET search_path TO bronze, public")
         
         logger.info("📊 Step 1: Drop and recreate stats_aggregates in bronze...")
         bronze_cur.execute("DROP TABLE IF EXISTS stats_aggregates CASCADE")
@@ -171,9 +174,6 @@ def rebuild_stats():
         logger.info(f"   📊 Total rows: {total:,}, Levels: {levels}")
         
         logger.info("📊 Step 6: Copy to production database...")
-        prod_cur.execute("DROP TABLE IF EXISTS stats_aggregates CASCADE")
-        prod_cur.execute("SELECT * INTO stats_aggregates FROM dblink('dbname=open_navigator_bronze', 'SELECT * FROM stats_aggregates') AS t(id INT, level VARCHAR, state_code VARCHAR, state VARCHAR, county VARCHAR, city VARCHAR, jurisdictions_count INT, school_districts_count INT, nonprofits_count INT, events_count INT, bills_count INT, contacts_count INT, total_revenue BIGINT, total_assets BIGINT, trending_causes JSONB, last_updated TIMESTAMP)")
-        
         # Simpler approach: pg_dump and restore
         logger.info("   Using pg_dump to copy table...")
         bronze_conn.close()
@@ -182,7 +182,8 @@ def rebuild_stats():
         import subprocess
         subprocess.run([
             'bash', '-c',
-            f"PGPASSWORD=password pg_dump -h localhost -p 5433 -U postgres -d open_navigator_bronze -t stats_aggregates --no-owner --no-acl | PGPASSWORD=password psql -h localhost -p 5433 -U postgres -d open_navigator"
+            "PGPASSWORD=password pg_dump -h localhost -p 5433 -U postgres -d open_navigator -t bronze.stats_aggregates --no-owner --no-acl "
+            "| PGPASSWORD=password psql -h localhost -p 5433 -U postgres -d open_navigator"
         ], check=True)
         
         logger.info("✅ Stats aggregates rebuilt successfully!")
