@@ -218,6 +218,10 @@ class WikidataQuery:
                     self._write_cache(query, results)
                     return results
 
+                except (asyncio.CancelledError, KeyboardInterrupt):
+                    # Don't retry on cancellation / user interrupt.
+                    raise
+
                 except httpx.HTTPStatusError as e:
                     status = e.response.status_code
 

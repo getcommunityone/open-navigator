@@ -166,6 +166,23 @@ class JurisdictionsWikiDataLoader:
                     ballotpedia_id VARCHAR(255),
                     tripadvisor_id VARCHAR(255),
                     subreddit VARCHAR(255),
+
+                    -- State metadata (mostly for jurisdiction_type = 'state')
+                    jurisdiction_label TEXT,
+                    jurisdiction_description TEXT,
+                    jurisdiction_aliases JSONB,
+                    native_label TEXT,
+                    nickname JSONB,
+                    short_name JSONB,
+                    demonym JSONB,
+                    official_language JSONB,
+                    motto TEXT,
+                    anthem JSONB,
+                    inception_date DATE,
+                    capital JSONB,
+                    iso_3166_2 TEXT,
+                    pronunciation_audio TEXT,
+                    geoshape TEXT,
                     
                     -- Metadata
                     confidence_score FLOAT DEFAULT 1.0,
@@ -199,6 +216,22 @@ class JurisdictionsWikiDataLoader:
             cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS ballotpedia_id VARCHAR(255);")
             cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS tripadvisor_id VARCHAR(255);")
             cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS subreddit VARCHAR(255);")
+
+            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS jurisdiction_label TEXT;")
+            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS jurisdiction_description TEXT;")
+            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS jurisdiction_aliases JSONB;")
+            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS native_label TEXT;")
+            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS nickname JSONB;")
+            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS short_name JSONB;")
+            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS demonym JSONB;")
+            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS official_language JSONB;")
+            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS motto TEXT;")
+            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS anthem JSONB;")
+            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS inception_date DATE;")
+            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS capital JSONB;")
+            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS iso_3166_2 TEXT;")
+            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS pronunciation_audio TEXT;")
+            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS geoshape TEXT;")
             
             # Create indexes
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_wikidata_state ON jurisdictions_wikidata(state_code);")
@@ -646,7 +679,17 @@ class JurisdictionsWikiDataLoader:
         
         query = f"""
         SELECT DISTINCT 
-            ?item ?itemLabel ?website ?population ?area
+            ?item ?itemLabel ?itemDescription ?nativeLabel
+            (GROUP_CONCAT(DISTINCT ?altLabel; separator="||") AS ?altLabels)
+            (GROUP_CONCAT(DISTINCT STR(?nickname); separator="||") AS ?nicknames)
+            (GROUP_CONCAT(DISTINCT STR(?shortName); separator="||") AS ?shortNames)
+            (GROUP_CONCAT(DISTINCT STR(?demonym); separator="||") AS ?demonyms)
+            (GROUP_CONCAT(DISTINCT ?officialLanguageLabel; separator="||") AS ?officialLanguages)
+            ?motto
+            (GROUP_CONCAT(DISTINCT ?anthemLabel; separator="||") AS ?anthems)
+            (GROUP_CONCAT(DISTINCT ?capitalLabel; separator="||") AS ?capitals)
+            ?inception ?iso31662 ?pronunciationAudio ?geoshape
+            ?website ?population ?area
             ?facebook ?twitter ?youtube ?fips ?image ?banner ?locatorMap
             ?dialingCode ?googleMapsCustomerId ?households ?medianAge ?languageLabel
             ?lat ?lon
@@ -657,6 +700,51 @@ class JurisdictionsWikiDataLoader:
         WHERE {{
           # Direct reference to the state
           BIND(wd:{state_q_code} AS ?item)
+
+          # Description + aliases
+          OPTIONAL {{
+            ?item schema:description ?itemDescription .
+            FILTER(LANG(?itemDescription) = "en")
+          }}
+          OPTIONAL {{
+            ?item skos:altLabel ?altLabel .
+            FILTER(LANG(?altLabel) = "en")
+          }}
+          OPTIONAL {{
+            ?item wdt:P1705 ?nativeLabel .
+            FILTER(LANG(?nativeLabel) = "en")
+          }}
+          OPTIONAL {{ ?item wdt:P1448 ?nickname . }}      # official name / nickname-ish in practice
+          OPTIONAL {{ ?item wdt:P2561 ?nickname . }}      # official name (native)
+          OPTIONAL {{ ?item wdt:P1813 ?shortName . }}     # short name
+          OPTIONAL {{ ?item wdt:P1549 ?demonym . }}       # demonym
+          OPTIONAL {{
+            ?item wdt:P37 ?officialLanguage .  # official language
+            OPTIONAL {{
+              ?officialLanguage rdfs:label ?officialLanguageLabel .
+              FILTER(LANG(?officialLanguageLabel) = "en")
+            }}
+          }}
+          OPTIONAL {{ ?item wdt:P1906 ?hogOffice . }}      # office held by head of government (often "Governor of <State>")
+          OPTIONAL {{ ?item wdt:P1451 ?motto . }}         # motto
+          OPTIONAL {{
+            ?item wdt:P85 ?anthem .  # anthem
+            OPTIONAL {{
+              ?anthem rdfs:label ?anthemLabel .
+              FILTER(LANG(?anthemLabel) = "en")
+            }}
+          }}
+          OPTIONAL {{
+            ?item wdt:P36 ?capital .  # capital
+            OPTIONAL {{
+              ?capital rdfs:label ?capitalLabel .
+              FILTER(LANG(?capitalLabel) = "en")
+            }}
+          }}
+          OPTIONAL {{ ?item wdt:P571 ?inception . }}      # inception
+          OPTIONAL {{ ?item wdt:P300 ?iso31662 . }}       # ISO 3166-2 code
+          OPTIONAL {{ ?item wdt:P443 ?pronunciationAudio . }} # pronunciation audio
+          OPTIONAL {{ ?item wdt:P3896 ?geoshape . }}      # geoshape dataset
           
           OPTIONAL {{ ?item wdt:P856 ?website . }}
           OPTIONAL {{ ?item wdt:P1082 ?population . }}
@@ -677,23 +765,12 @@ class JurisdictionsWikiDataLoader:
           OPTIONAL {{ ?item wdt:P1310 ?medianAge . }}
           OPTIONAL {{ ?item wdt:P407 ?language . }}
           
-          # Head of government (Governor)
-          OPTIONAL {{ 
-            {{
-              SELECT ?headOfGov ?headStart WHERE {{
-                ?item p:P6 ?headStmt .
-                ?headStmt ps:P6 ?headOfGov .
-                OPTIONAL {{ ?headStmt pq:P580 ?headStart . }}
-                # Restrict to governors (Wikidata can contain erroneous/alternate P6 statements)
-                ?headOfGov wdt:P39 ?posHeld .
-                ?posHeld wdt:P31/wdt:P279* wd:Q132176 .  # governor
-
-                FILTER(BOUND(?headStart))
-                FILTER(YEAR(?headStart) < 3000)
-              }}
-              ORDER BY DESC(?headStart)
-              LIMIT 1
-            }}
+          # Head of government (most recent by start time)
+          OPTIONAL {{
+            ?item p:P6 ?headStmt .
+            ?headStmt ps:P6 ?headOfGov .
+            ?headStmt pq:P580 ?headStart .
+            FILTER(?headStart <= NOW())
             OPTIONAL {{ ?headOfGov wdt:P39 ?position . }}
           }}
           
@@ -707,6 +784,16 @@ class JurisdictionsWikiDataLoader:
           
           SERVICE wikibase:label {{ bd:serviceParam wikibase:language "[AUTO_LANGUAGE],en". }}
         }}
+        GROUP BY
+          ?item ?itemLabel ?itemDescription ?nativeLabel
+          ?motto ?inception ?iso31662 ?pronunciationAudio ?geoshape
+          ?website ?population ?area ?facebook ?twitter ?youtube ?fips ?image ?banner ?locatorMap
+          ?dialingCode ?googleMapsCustomerId ?households ?medianAge ?languageLabel
+          ?lat ?lon ?headOfGov ?headOfGovLabel ?positionLabel
+          ?headStart ?postalCode ?perCapitaIncome ?timeZone ?timeZoneLabel
+          ?ballotpediaId ?tripadvisorId ?subreddit ?geonamesId ?hogOffice
+        ORDER BY DESC(?headStart)
+        LIMIT 1
         """
         
         logger.info(f"Querying WikiData for state: {state_name}...")
@@ -717,6 +804,30 @@ class JurisdictionsWikiDataLoader:
             return []
         
         result = results[0]
+        # State labels/aliases/meta (English)
+        jurisdiction_label = result.get("itemLabel") or state_name
+        jurisdiction_description = result.get("itemDescription")
+        aliases_en = [a for a in result.get("altLabels", "").split("||") if a] if result.get("altLabels") else None
+        native_label = result.get("nativeLabel")
+        nicknames = [a for a in result.get("nicknames", "").split("||") if a] if result.get("nicknames") else None
+        short_names = [a for a in result.get("shortNames", "").split("||") if a] if result.get("shortNames") else None
+        demonyms = [a for a in result.get("demonyms", "").split("||") if a] if result.get("demonyms") else None
+        official_languages = [a for a in result.get("officialLanguages", "").split("||") if a] if result.get("officialLanguages") else None
+        motto = result.get("motto")
+        anthems = [a for a in result.get("anthems", "").split("||") if a] if result.get("anthems") else None
+        capitals = [a for a in result.get("capitals", "").split("||") if a] if result.get("capitals") else None
+        iso_3166_2 = result.get("iso31662")
+        pronunciation_audio = result.get("pronunciationAudio")
+        geoshape = result.get("geoshape")
+
+        inception_date = None
+        inception_raw = result.get("inception")
+        if inception_raw:
+            try:
+                inception_date = inception_raw[:10]
+            except Exception:
+                inception_date = None
+
         youtube_channel_id = result.get("youtube")
         image_url = result.get("image")
         locator_map_url = result.get("locatorMap")
@@ -732,7 +843,7 @@ class JurisdictionsWikiDataLoader:
         
         # Extract head of government info (Governor)
         head_of_gov = result.get("headOfGovLabel")
-        head_of_gov_position = result.get("positionLabel")
+        head_of_gov_position = result.get("hogOfficeLabel") or result.get("positionLabel")
         head_start = result.get("headStart")
         
         # Extract postal codes (can be multiple)
@@ -765,6 +876,21 @@ class JurisdictionsWikiDataLoader:
             'state_code': state_code,
             'state': state_name,
             'jurisdiction_type': 'state',
+            'jurisdiction_label': jurisdiction_label,
+            'jurisdiction_description': jurisdiction_description,
+            'jurisdiction_aliases': json.dumps(aliases_en) if aliases_en else None,
+            'native_label': native_label,
+            'nickname': json.dumps(nicknames) if nicknames else None,
+            'short_name': json.dumps(short_names) if short_names else None,
+            'demonym': json.dumps(demonyms) if demonyms else None,
+            'official_language': json.dumps(official_languages) if official_languages else None,
+            'motto': motto,
+            'anthem': json.dumps(anthems) if anthems else None,
+            'inception_date': inception_date,
+            'capital': json.dumps(capitals) if capitals else None,
+            'iso_3166_2': iso_3166_2,
+            'pronunciation_audio': pronunciation_audio,
+            'geoshape': geoshape,
             'official_website': result.get("website"),
             'official_image_url': image_url,
             'page_banner_image': banner_url,
@@ -810,6 +936,9 @@ class JurisdictionsWikiDataLoader:
         insert_query = """
             INSERT INTO jurisdictions_wikidata (
                 wikidata_id, jurisdiction_id, jurisdiction_id_type, jurisdiction_name, state_code, state, jurisdiction_type,
+                jurisdiction_label, jurisdiction_description, jurisdiction_aliases, native_label,
+                nickname, short_name, demonym, official_language, motto, anthem, inception_date,
+                capital, iso_3166_2, pronunciation_audio, geoshape,
                 official_website, official_image_url, locator_map_image, page_banner_image,
                 youtube_channel_id, youtube_channel_url,
                 facebook_username, facebook_url, twitter_username, twitter_url,
@@ -821,6 +950,9 @@ class JurisdictionsWikiDataLoader:
                 confidence_score, fetched_at
             ) VALUES (
                 %(wikidata_id)s, %(jurisdiction_id)s, %(jurisdiction_id_type)s, %(jurisdiction_name)s, %(state_code)s, %(state)s, %(jurisdiction_type)s,
+                %(jurisdiction_label)s, %(jurisdiction_description)s, %(jurisdiction_aliases)s::jsonb, %(native_label)s,
+                %(nickname)s::jsonb, %(short_name)s::jsonb, %(demonym)s::jsonb, %(official_language)s::jsonb, %(motto)s, %(anthem)s::jsonb, %(inception_date)s,
+                %(capital)s::jsonb, %(iso_3166_2)s, %(pronunciation_audio)s, %(geoshape)s,
                 %(official_website)s, %(official_image_url)s, %(locator_map_image)s, %(page_banner_image)s,
                 %(youtube_channel_id)s, %(youtube_channel_url)s,
                 %(facebook_username)s, %(facebook_url)s, %(twitter_username)s, %(twitter_url)s,
@@ -834,6 +966,21 @@ class JurisdictionsWikiDataLoader:
             ON CONFLICT (wikidata_id) DO UPDATE SET
                 jurisdiction_id = COALESCE(EXCLUDED.jurisdiction_id, jurisdictions_wikidata.jurisdiction_id),
                 jurisdiction_id_type = COALESCE(EXCLUDED.jurisdiction_id_type, jurisdictions_wikidata.jurisdiction_id_type),
+                jurisdiction_label = COALESCE(EXCLUDED.jurisdiction_label, jurisdictions_wikidata.jurisdiction_label),
+                jurisdiction_description = COALESCE(EXCLUDED.jurisdiction_description, jurisdictions_wikidata.jurisdiction_description),
+                jurisdiction_aliases = COALESCE(EXCLUDED.jurisdiction_aliases, jurisdictions_wikidata.jurisdiction_aliases),
+                native_label = COALESCE(EXCLUDED.native_label, jurisdictions_wikidata.native_label),
+                nickname = COALESCE(EXCLUDED.nickname, jurisdictions_wikidata.nickname),
+                short_name = COALESCE(EXCLUDED.short_name, jurisdictions_wikidata.short_name),
+                demonym = COALESCE(EXCLUDED.demonym, jurisdictions_wikidata.demonym),
+                official_language = COALESCE(EXCLUDED.official_language, jurisdictions_wikidata.official_language),
+                motto = COALESCE(EXCLUDED.motto, jurisdictions_wikidata.motto),
+                anthem = COALESCE(EXCLUDED.anthem, jurisdictions_wikidata.anthem),
+                inception_date = COALESCE(EXCLUDED.inception_date, jurisdictions_wikidata.inception_date),
+                capital = COALESCE(EXCLUDED.capital, jurisdictions_wikidata.capital),
+                iso_3166_2 = COALESCE(EXCLUDED.iso_3166_2, jurisdictions_wikidata.iso_3166_2),
+                pronunciation_audio = COALESCE(EXCLUDED.pronunciation_audio, jurisdictions_wikidata.pronunciation_audio),
+                geoshape = COALESCE(EXCLUDED.geoshape, jurisdictions_wikidata.geoshape),
                 official_website = COALESCE(EXCLUDED.official_website, jurisdictions_wikidata.official_website),
                 official_image_url = COALESCE(EXCLUDED.official_image_url, jurisdictions_wikidata.official_image_url),
                 locator_map_image = COALESCE(EXCLUDED.locator_map_image, jurisdictions_wikidata.locator_map_image),
@@ -856,9 +1003,9 @@ class JurisdictionsWikiDataLoader:
                 nces_id = COALESCE(EXCLUDED.nces_id, jurisdictions_wikidata.nces_id),
                 geonames_id = COALESCE(EXCLUDED.geonames_id, jurisdictions_wikidata.geonames_id),
                 geoid = COALESCE(EXCLUDED.geoid, jurisdictions_wikidata.geoid),
-                head_of_government = COALESCE(EXCLUDED.head_of_government, jurisdictions_wikidata.head_of_government),
-                head_of_government_position = COALESCE(EXCLUDED.head_of_government_position, jurisdictions_wikidata.head_of_government_position),
-                head_of_government_start_time = COALESCE(EXCLUDED.head_of_government_start_time, jurisdictions_wikidata.head_of_government_start_time),
+                head_of_government = EXCLUDED.head_of_government,
+                head_of_government_position = EXCLUDED.head_of_government_position,
+                head_of_government_start_time = EXCLUDED.head_of_government_start_time,
                 postal_codes = COALESCE(EXCLUDED.postal_codes, jurisdictions_wikidata.postal_codes),
                 local_dialing_code = COALESCE(EXCLUDED.local_dialing_code, jurisdictions_wikidata.local_dialing_code),
                 google_maps_customer_id = COALESCE(EXCLUDED.google_maps_customer_id, jurisdictions_wikidata.google_maps_customer_id),
@@ -1016,4 +1163,8 @@ async def main():
 
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        # Graceful stop on Ctrl-C (avoid noisy asyncio/httpx traceback).
+        logger.warning("Interrupted by user (Ctrl-C). Exiting.")

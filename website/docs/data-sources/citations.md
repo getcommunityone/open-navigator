@@ -50,7 +50,7 @@ This page documents all data sources, standards, and research contributions used
   </a>
   <a href="#-community-solutions--use-cases" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #FFEB3B'}}>
     <strong>🌟 Community Solutions & Use Cases</strong><br/>
-    <span style={{fontSize: '0.9em', color: '#666'}}>Spectrum of Engagement, Harvard, Brookings, Open Data Impact, IATI</span>
+    <span style={{fontSize: '0.9em', color: '#666'}}>Spectrum of Engagement, Harvard, Brookings, Open Data Impact, Tableau Data Equity Hub, IATI</span>
   </a>
   <a href="#acknowledgments" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #607D8B'}}>
     <strong>🙏 Acknowledgments</strong><br/>
@@ -2067,6 +2067,7 @@ https://www.arcgis.com/home/item.html?id=333a74c8e9c64cb6870689d31e8836af
 - [Harvard Ash Center: Data-Smart City Solutions (Archived)](#harvard-ash-center-data-smart-city-solutions-archived)
 - [Brookings Institution: Data-Driven Policymaking](#brookings-institution-data-driven-policymaking)
 - [Open Data Impact: Evidence-Based Research](#open-data-impact-evidence-based-research)
+- [Tableau Data Equity Hub (Salesforce Data for Good)](#tableau-data-equity-hub-salesforce-data-for-good)
 
 ### Spectrum of Community Engagement to Ownership
 
@@ -2441,6 +2442,46 @@ Their research proves: **Open data alone isn't enough. You need the ecosystem we
 
 ---
 
+### Tableau Data Equity Hub (Salesforce Data for Good)
+
+**Organization:** Tableau / Salesforce  
+**What we use:** Data equity frameworks, community-centered data storytelling resources, and visualization best practices for presenting civic and social impact data equitably.
+
+- **Source:** https://www.salesforce.com/company/equality/
+- **License:** Proprietary (educational/reference use)
+- **Program:** Tableau Data for Good / Salesforce Equality initiatives
+
+**Key Resources:**
+
+| Resource | Relevance to Our Platform |
+|----------|--------------------------|
+| **Data Equity Hub** | Frameworks for equitable data representation in dashboards |
+| **Viz for Social Good** | Best practices for community-facing analytics |
+| **Tableau Public** | Free publishing platform for civic data visualizations |
+| **Data + Equality** | Research on closing data gaps in underrepresented communities |
+
+**Why This Matters for Open Navigator:**
+
+Tableau's Data Equity Hub provides principles for **presenting civic data without reproducing bias** — directly applicable to our `/analytics/dashboard_metrics` and `/analytics/metric_views` templates:
+
+- **Representation:** Ensure demographic data in `/jurisdictions/demographics` is visualized equitably
+- **Accessibility:** Chart design standards for community-facing dashboards
+- **Framing:** Avoid deficit narratives when displaying health, income, and education data
+- **Participation:** Center community voices in data storytelling
+
+**Citation:**
+```bibtex
+@misc{tableau_data_equity_hub,
+  author = {{Tableau} and {Salesforce}},
+  title = {Data Equity Hub — Salesforce Equality},
+  year = {2024},
+  url = {https://www.salesforce.com/company/equality/},
+  note = {Tableau Data for Good initiative. Frameworks for equitable data visualization and community-centered data storytelling.}
+}
+```
+
+---
+
 
 ---\n\n### IATI Standard (International Aid Transparency Initiative)\n\n**Organization:** IATI Secretariat  \n**What we use:** International development funding transparency framework - informs grant tracking, nonprofit program outcomes, and cross-sector collaboration metrics.\n\n- **Source:** https://iatistandard.org/\n- **Current Version:** IATI Standard v2.03\n- **Specification:** https://iatistandard.org/en/iati-standard/203/\n- **License:** Open Data Commons Attribution License (ODC-By)\n- **Coverage:** 1,300+ publishers, $1+ trillion in development aid tracked\n- **Used for:** Grant funding transparency, nonprofit program measurement, community solution tracking\n\n**Why IATI in Community Solutions:**\n\nIATI provides a proven framework for **tracking community impact across sectors** - government, nonprofits, foundations, and international partners.\n\n**Citation:**\n```bibtex\n@misc{iati_standard,\n  author = {{IATI Secretariat}},\n  title = {IATI Standard Version 2.03},\n  year = {2018},\n  url = {https://iatistandard.org/},\n  note = {Open Data Commons Attribution License (ODC-By)}\n}\n```\n\n**Resources:**\n- **Registry:** https://iatiregistry.org/\n- **d-Portal:** https://d-portal.org/\n- **Datastore:** https://iatidatastore.iatistandard.org/
 ## �🙏 Acknowledgments
@@ -2476,7 +2517,7 @@ We are grateful to the following organizations and individuals:
 - **Databricks** - Databricks for Good (Unity Catalog, Delta Lake, MLflow, Agent Bricks)
 - **Snowflake** - Snowflake for Good (Data Marketplace)
 - **Oracle** - NetSuite Social Impact (Fund accounting models)
-- **Salesforce** - Salesforce.org (Nonprofit Success Pack)
+- **Salesforce / Tableau** - Salesforce.org (Nonprofit Success Pack), Tableau Data Equity Hub (Data for Good)
 - **Cisco** - Crisis Response (Network resilience)
 - **IBM** - Science for Social Good (AI use cases)
 - **Meta** - Data for Good (Population mapping)
