@@ -130,6 +130,9 @@ class WikidataQuery:
         else:
             p = explicit or (os.getenv("CLOUDFLARE_PROXY_URL") or "").strip() or None
             self._proxy_urls = [p] if p else [None]
+        # Each new SPARQL call starts from the next proxy in the ring (helps multi-proxy egress).
+        self._proxy_query_rr = 0
+        self._429_rotate_sleep_s = float(os.getenv("WIKIDATA_429_ROTATE_SLEEP", "2") or "2")
         self._headers = {
             # WDQS is frequently fronted by anti-bot protections; use a browser-like UA.
             "User-Agent": (
@@ -140,10 +143,11 @@ class WikidataQuery:
             "Accept": "application/sparql-results+json",
         }
 
-    def _proxy_for_attempt(self, attempt: int) -> str | None:
+    def _proxy_for_query_attempt(self, query_offset: int, attempt: int) -> str | None:
         if not self._proxy_urls:
             return None
-        return self._proxy_urls[(attempt - 1) % len(self._proxy_urls)]
+        n = len(self._proxy_urls)
+        return self._proxy_urls[(query_offset + attempt - 1) % n]
 
     def _cache_key(self, query: str) -> str:
         h = hashlib.sha256(query.encode("utf-8")).hexdigest()
@@ -204,8 +208,10 @@ class WikidataQuery:
         if cached is not None:
             return cached
 
-        # Ensure we don't hammer the endpoint across concurrent calls.
+        # Throttle + pick starting proxy index for this query (round-robin across queries).
         async with self._request_lock:
+            query_proxy_off = self._proxy_query_rr
+            self._proxy_query_rr = (self._proxy_query_rr + 1) % max(1, len(self._proxy_urls))
             min_gap = self._throttle_s + max(0.0, self._burst_throttle_s)
             if min_gap > 0:
                 now = time.monotonic()
@@ -219,13 +225,15 @@ class WikidataQuery:
 
         max_attempts = 8
         base_delay_s = 2.0
+        nprox = len(self._proxy_urls)
 
         for attempt in range(1, max_attempts + 1):
-            proxy = self._proxy_for_attempt(attempt)
-            if len(self._proxy_urls) > 1 and attempt > 1:
+            proxy = self._proxy_for_query_attempt(query_proxy_off, attempt)
+            slot = (query_proxy_off + attempt - 1) % max(1, nprox)
+            if nprox > 1:
                 logger.debug(
-                    f"Wikidata retry attempt {attempt}/{max_attempts} using proxy slot "
-                    f"{(attempt - 1) % len(self._proxy_urls)} (of {len(self._proxy_urls)})"
+                    f"Wikidata attempt {attempt}/{max_attempts} proxy_slot={slot}/{nprox} "
+                    f"(query_offset={query_proxy_off})"
                 )
 
             try:
@@ -264,6 +272,24 @@ class WikidataQuery:
                 status = e.response.status_code
 
                 if status == 429:
+                    # With multiple egress URLs, rotate through them with a short pause before obeying Retry-After.
+                    if nprox > 1 and attempt < nprox:
+                        jitter = random.uniform(0.0, 0.75)
+                        logger.warning(
+                            f"Wikidata rate limited (429): rotating proxy ({attempt}→{attempt + 1} of {nprox}) "
+                            f"after {self._429_rotate_sleep_s + jitter:.1f}s (not applying Retry-After yet)"
+                        )
+                        await asyncio.sleep(self._429_rotate_sleep_s + jitter)
+                        self._burst_throttle_s = min(120.0, max(self._burst_throttle_s + 4.0, 8.0))
+                        continue
+
+                    if nprox <= 1 and attempt == 1:
+                        logger.warning(
+                            "Only one WDQS proxy is configured — IP does not rotate between requests. "
+                            "Use WIKIDATA_PROXY_URLS with multiple egress URLs or raise "
+                            "WIKIDATA_THROTTLE_SECONDS."
+                        )
+
                     retry_after = e.response.headers.get("Retry-After")
                     wait_s: float = base_delay_s
                     if retry_after:
