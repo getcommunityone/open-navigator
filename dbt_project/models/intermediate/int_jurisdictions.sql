@@ -10,7 +10,11 @@ WITH
 -- Nearest ZCTA centroid for all non-county jurisdictions.
 -- Uses a 1-degree bounding box to avoid a full cross join, then picks the
 -- closest centroid by Euclidean distance on lat/lon.
+-- Skip with: dbt run --vars '{"skip_zip_mapping": true}'
 jurisdiction_zip AS (
+{% if var('skip_zip_mapping', false) %}
+    SELECT NULL::VARCHAR(10) AS geoid, NULL::VARCHAR(5) AS zip WHERE false
+{% else %}
     SELECT DISTINCT ON (j.geoid)
         j.geoid,
         z.geoid AS zip
@@ -28,6 +32,7 @@ jurisdiction_zip AS (
       AND j.intptlong IS NOT NULL
     ORDER BY j.geoid,
         (z.intptlat  - j.intptlat)^2 + (z.intptlong - j.intptlong)^2
+{% endif %}
 ),
 
 -- ZIPs that map unambiguously to a single county
@@ -243,6 +248,13 @@ unioned AS (
     SELECT * FROM school_districts
     UNION ALL
     SELECT * FROM townships
+),
+
+county_dim AS (
+    SELECT
+        geoid AS county_fips_code,
+        name  AS county
+    FROM {{ source('bronze', 'bronze_jurisdictions_counties') }}
 )
 
 SELECT
@@ -257,6 +269,7 @@ SELECT
     u.county_fips_codes,
     u.state_code,
     s.state_name                                        AS state,
+    cd.county,
     u.name,
     u.jurisdiction_type,
     u.ansicode,
@@ -272,3 +285,4 @@ SELECT
     CURRENT_TIMESTAMP                                   AS transformed_at
 FROM unioned u
 LEFT JOIN state_ref s ON u.state_code = s.state_code
+LEFT JOIN county_dim cd ON u.county_fips_code = cd.county_fips_code

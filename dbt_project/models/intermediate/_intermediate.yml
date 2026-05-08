@@ -16,6 +16,8 @@ models:
         - school_districts: county_fips_code = NULL (no county embedded; enrich separately)
 
     columns:
+      - name: jurisdiction_id
+        description: "Type-prefixed GEOID primary key (e.g. municipality_0601234)"
       - name: geoid
         description: "Padded Census GEOID — 5 chars (county), 7 chars (municipality/school_district), 10 chars (township)"
         tests:
@@ -31,6 +33,8 @@ models:
         description: "Primary 5-digit county FIPS code. NULL for school_districts."
       - name: county_fips_codes
         description: "All county FIPS codes as TEXT array. Populated for municipalities spanning multiple counties."
+      - name: county
+        description: "County name resolved from county_fips_code (when available)"
       - name: state_code
         description: "2-letter state abbreviation (USPS)"
         tests:
@@ -64,6 +68,8 @@ models:
         description: "Internal point latitude"
       - name: longitude
         description: "Internal point longitude"
+      - name: zip
+        description: "Nearest ZCTA (5-digit) for non-county jurisdictions (when available)"
       - name: ingestion_date
         description: "When the bronze record was loaded"
       - name: transformed_at

@@ -1,0 +1,31 @@
+# Spark / Delta Lake — optional extras
+#
+# These are large (~300 MB) and require a working Java runtime (JDK 8 or 17+)
+# at runtime. Most of the project (including `python scripts/download_bronze.py`)
+# does NOT need them — only the following workflows do:
+#
+#   - scripts/discovery/external_url_datasets.py
+#   - scripts/discovery/batch_processor.py
+#   - scripts/discovery/discovery_pipeline.py
+#   - scripts/datasources/openstates/openstates_sources.py
+#   - scripts/datasources/meetingbank/load_meetingbank.py
+#   - scripts/datasources/cityscrapers/city_scrapers_urls.py
+#   - scripts/datasources/nces/load_nces.py
+#   - scripts/datasources/wikidata/wikidata_integration.py
+#   - scripts/datasources/google_civic/google_civic_integration.py
+#   - scripts/datasources/dbpedia/dbpedia_integration.py
+#   - scripts/datasources/ballotpedia/ballotpedia_integration.py
+#   - scripts/datasources/localview/archive/download_localview_data.py
+#   - notebooks/Jurisdiction_Discovery.py
+#
+# Install on top of the base requirements:
+#
+#   pip install -r requirements.txt
+#   pip install -r requirements-spark.txt
+#
+# And install Java if you don't already have it:
+#
+#   sudo apt install -y openjdk-17-jre-headless     # Debian/Ubuntu
+#   brew install openjdk@17                          # macOS
+delta-spark==3.0.0
+pyspark==3.5.0

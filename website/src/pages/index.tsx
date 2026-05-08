@@ -28,8 +28,12 @@ function HomepageHeader() {
           </Heading>
         </div>
         <p className="hero__subtitle">{siteConfig.tagline}</p>
-        <p style={{ fontSize: '1.2rem', marginTop: '1rem', marginBottom: '2rem' }}>
-          Analyze municipal meetings and budgets across 90,000+ jurisdictions to find advocacy opportunities
+        <p style={{ fontSize: '1.15rem', marginTop: '1rem', marginBottom: '0.5rem', maxWidth: '720px', margin: '1rem auto 0.5rem' }}>
+          Every person deserves to find the help they need and have a voice in the decisions that shape their lives.
+          But public resources are scattered, gaps go unseen, and communities are left navigating alone.
+        </p>
+        <p style={{ fontSize: '1.15rem', fontWeight: 600, marginBottom: '2rem', maxWidth: '720px', margin: '0.5rem auto 2rem' }}>
+          CommunityOne changes that — one platform connecting residents, leaders, and funders to what's really happening on the ground.
         </p>
       </div>
     </header>
@@ -368,7 +372,7 @@ export default function Home(): ReactNode {
   return (
     <Layout
       title={`${siteConfig.title}`}
-      description="The open path to everything local">
+      description="One platform connecting residents, leaders, and funders to what's really happening on the ground — so no community has to fight just to be seen.">
       
       <HomepageHeader />
       <main>

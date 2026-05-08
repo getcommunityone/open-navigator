@@ -117,8 +117,20 @@ class ACSDataIngestion:
         if not PYSPARK_AVAILABLE:
             logger.warning("PySpark not available - data will be stored as Parquet only")
             self.spark = None
+        elif spark is not None:
+            self.spark = spark
         else:
-            self.spark = spark or SparkSession.builder.appName("ACSIngestion").getOrCreate()
+            # PySpark is importable but starting a session needs a working Java
+            # runtime. The API-based downloader path doesn't actually use Spark,
+            # so failing here would be unhelpful — degrade to parquet-only.
+            try:
+                self.spark = SparkSession.builder.appName("ACSIngestion").getOrCreate()
+            except Exception as e:
+                logger.warning(
+                    f"Could not start Spark session ({e.__class__.__name__}): {e}. "
+                    "Continuing without Spark — data will be stored as Parquet only."
+                )
+                self.spark = None
         
         # Census API key (optional but recommended for higher rate limits)
         self.api_key = settings.CENSUS_API_KEY if hasattr(settings, 'CENSUS_API_KEY') else None

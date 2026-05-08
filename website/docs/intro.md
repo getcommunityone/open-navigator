@@ -5,7 +5,13 @@ displayed_sidebar: gettingStartedSidebar
 
 # Introduction
 
-Welcome to **Open Navigator** - an AI-powered platform that analyzes municipal meeting minutes and financial documents to identify policy opportunities for advocacy.
+## CommunityOne: One Map for Every Community
+
+> Every person deserves to find the help they need and have a voice in the decisions that shape their lives. But public resources are scattered, gaps go unseen, and communities are left navigating alone.
+>
+> CommunityOne changes that. One platform connects residents, leaders, and funders to what's really happening on the ground — so no community has to fight just to be seen.
+
+**Open Navigator** is the open-source engine powering CommunityOne — an AI platform that analyzes municipal meeting minutes, budgets, and nonprofit data to surface opportunities for advocacy and community impact.
 
 :::tip[All Data is Cited & Properly Attributed]
 Every dataset, standard, and research source used in this platform is properly cited with complete attribution, licenses, and BibTeX references.

@@ -45,6 +45,7 @@ const sidebars: SidebarsConfig = {
             'families/voter-registration',
             'families/service-requests',
             'families/community-resources',
+            'resources/nonprofit-resources',
           ],
         },
         {
@@ -88,6 +89,13 @@ const sidebars: SidebarsConfig = {
             },
             'data-sources/nonprofit-sources',
             'data-sources/video-sources',
+          ],
+        },
+        {
+          type: 'category',
+          label: 'Nonprofit Resources',
+          items: [
+            'resources/nonprofit-resources',
           ],
         },
         {
@@ -287,6 +295,13 @@ const sidebars: SidebarsConfig = {
             },
             'data-sources/nonprofit-sources',
             'data-sources/video-sources',
+          ],
+        },
+        {
+          type: 'category',
+          label: 'Nonprofit Resources',
+          items: [
+            'resources/nonprofit-resources',
           ],
         },
         {

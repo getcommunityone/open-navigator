@@ -58,7 +58,7 @@ CREATE INDEX IF NOT EXISTS idx_bjcfe_geoid
 
 UPSERT = """
 INSERT INTO bronze.bronze_jurisdictions_county_fips_enriched
-    (geoid, county_fips_code, match_method, enriched_at)
+    (geoid, county_fips_code, match_method)
 VALUES %s
 ON CONFLICT (geoid) DO UPDATE SET
     county_fips_code = EXCLUDED.county_fips_code,

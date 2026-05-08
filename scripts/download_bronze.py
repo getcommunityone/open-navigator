@@ -12,6 +12,7 @@ Downloaders (run in order):
   3. school_districts — School district shapefiles (TIGER/Line)    → census/download_census_school_districts.py
   4. relationships    — ZCTA-County / ZCTA-Place crosswalks        → census/download_census_relationships.py
   5. municipalities   — Municipalities Gazetteer CSV               → census/download_census_municipalities.py
+  6. acs              — ACS demographic tables (Census API)        → census/download_census_acs_data.py
 
 Usage:
     python scripts/download_bronze.py                          # download everything
@@ -84,6 +85,18 @@ DOWNLOADERS = [
         "label": "Municipalities Gazetteer CSV (Census Places)",
         "script": "scripts/datasources/census/download_census_municipalities.py",
         "cache_dirs": ["data/cache/census"],
+        "supports_force": True,
+        "supports_year": False,
+        "supports_extract": False,
+    },
+    {
+        # ACS uses its own vintage (latest 5-yr release = 2022) which is decoupled
+        # from the TIGER vintage used by other steps, so supports_year is False here.
+        # To use a non-default ACS year, run download_census_acs_data.py directly.
+        "key": "acs",
+        "label": "ACS Demographic Tables (Census API → parquet)",
+        "script": "scripts/datasources/census/download_census_acs_data.py",
+        "cache_dirs": ["data/cache/census/acs"],
         "supports_force": True,
         "supports_year": False,
         "supports_extract": False,
@@ -333,6 +346,7 @@ Available downloaders:
   school_districts School district shapefiles: unified, elementary, secondary
   relationships    ZCTA-to-County and ZCTA-to-Place crosswalks
   municipalities   Municipalities Gazetteer CSV
+  acs              ACS demographic tables via Census API (→ parquet cache)
         """,
     )
 

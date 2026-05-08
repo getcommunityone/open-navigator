@@ -27,9 +27,8 @@ databricks-sdk>=0.18.0
 mlflow>=2.10.0
 databricks-agents>=0.1.0
 databricks-vectorsearch>=0.22.0
-delta-spark>=3.0.0
-# PySpark is large but needed for Delta Lake - consider removing if not using Databricks
-pyspark>=3.5.0
+# Spark + Delta Lake live in requirements-spark.txt (optional, requires Java).
+# Install with: pip install -r requirements-spark.txt
 pandas>=2.1.0
 polars>=0.20.0
 pyarrow>=14.0.0

@@ -4,6 +4,10 @@
 
 **See [STATUS.md](./STATUS.md)** for complete details and API integration guide.
 
+**For a reference of every Census file the project downloads** (source URLs,
+cache paths, geographic granularity, what's available at city level), see
+[DATASETS.md](./DATASETS.md).
+
 ## Quick Reference
 
 **The `jurisdictions` table is ready to use in `open_navigator` database:**

@@ -1,21 +1,32 @@
 """
-Download American Community Survey (ACS) Data to D Drive
+Download American Community Survey (ACS) Data
 
-This script demonstrates downloading comprehensive demographic data from the
-U.S. Census Bureau's American Community Survey and storing it on the D drive.
+Downloads comprehensive demographic data from the U.S. Census Bureau's
+American Community Survey (5-year estimates) and caches each table as a
+parquet file under ``--data-dir`` (default: ``data/cache/census/acs``).
+
+Designed to be invoked either standalone or as a step in
+``scripts/download_bronze.py``.
 
 Usage:
-    # Download all key tables for all U.S. counties to D drive
-    python download_acs_to_d_drive.py --geography county --state *
-    
-    # Download California county data only
-    python download_acs_to_d_drive.py --geography county --state 06
-    
-    # Download city-level data for Texas
-    python download_acs_to_d_drive.py --geography place --state 48
-    
+    # Download all key tables for all U.S. counties (default cache dir)
+    python scripts/datasources/census/download_census_acs_data.py
+
+    # California counties only
+    python scripts/datasources/census/download_census_acs_data.py --state 06
+
+    # City-level data for Texas
+    python scripts/datasources/census/download_census_acs_data.py \\
+        --geography place --state 48
+
+    # Re-download even if cached
+    python scripts/datasources/census/download_census_acs_data.py --force
+
+    # Different ACS 5-year vintage
+    python scripts/datasources/census/download_census_acs_data.py --year 2021
+
     # List all available tables
-    python download_acs_to_d_drive.py --list-tables
+    python scripts/datasources/census/download_census_acs_data.py --list-tables
 """
 import asyncio
 import argparse
@@ -37,16 +48,20 @@ async def download_comprehensive_acs_data(
     data_dir: Path,
     geography: str = "county",
     state: str = "*",
-    tables: Optional[list] = None
+    tables: Optional[list] = None,
+    year: int = 2022,
+    force: bool = False,
 ):
     """
     Download comprehensive ACS demographic data.
-    
+
     Args:
-        data_dir: Directory to store data (e.g., D:/open-navigator-data/acs)
+        data_dir: Directory to store data
         geography: Geographic level (county, place, tract)
         state: State FIPS code (* for all states)
         tables: List of table codes (None = download key tables)
+        year: ACS 5-year vintage (e.g., 2022)
+        force: If True, re-download even if cached parquet already exists
     """
     logger.info("=" * 80)
     logger.info("ACS Data Download to D Drive")
@@ -85,75 +100,84 @@ async def download_comprehensive_acs_data(
             "B25064",  # Median Gross Rent
         ]
     
-    logger.info(f"Downloading {len(tables)} tables...")
-    
-    # Download each table
+    logger.info(f"Downloading {len(tables)} tables (year={year}, force={force})...")
+
+    failures: list[tuple[str, str]] = []
     results = {}
     for i, table in enumerate(tables, 1):
+        table_name = acs.ACS_TABLES.get(table, "Unknown")
+        cache_file = data_dir / f"{table}_{geography}_{state}_{year}.parquet"
+
+        if cache_file.exists() and not force:
+            logger.info(f"[{i}/{len(tables)}] {table}: cached → {cache_file.name}")
+            results[table] = None
+            continue
+
         try:
-            table_name = acs.ACS_TABLES.get(table, "Unknown")
             logger.info(f"\n[{i}/{len(tables)}] Downloading {table}: {table_name}")
-            
+
             df = await acs.download_acs_data_api(
                 table=table,
                 geography=geography,
-                state=state
+                state=state,
+                year=year,
             )
-            
+
             results[table] = df
             logger.success(f"✅ {table}: {len(df)} records")
-            
-            # Rate limiting - be nice to Census API
+
+            # Rate limiting — be nice to the Census API
             await asyncio.sleep(1.5)
-            
+
         except Exception as e:
             logger.error(f"❌ Failed to download {table}: {e}")
+            failures.append((table, str(e)))
             continue
-    
+
     logger.info("\n" + "=" * 80)
     logger.info("Download Complete!")
     logger.info("=" * 80)
-    logger.info(f"Successfully downloaded: {len(results)}/{len(tables)} tables")
+    n_ok = len(results)
+    logger.info(f"Successfully downloaded or cached: {n_ok}/{len(tables)} tables")
     logger.info(f"Data saved to: {data_dir.absolute()}")
-    
-    # Print summary
+
     print("\n📊 Downloaded Tables Summary:\n")
-    for table_code, df in results.items():
+    total_bytes = 0
+    for table_code in results:
         table_name = acs.ACS_TABLES.get(table_code, "Unknown")
-        file_path = data_dir / f"{table_code}_{geography}_{state}_2022.parquet"
-        file_size_mb = file_path.stat().st_size / (1024 * 1024)
-        
+        file_path = data_dir / f"{table_code}_{geography}_{state}_{year}.parquet"
+        if not file_path.exists():
+            continue
+        file_size = file_path.stat().st_size
+        total_bytes += file_size
         print(f"  {table_code}: {table_name}")
-        print(f"    Records: {len(df):,}")
         print(f"    File: {file_path.name}")
-        print(f"    Size: {file_size_mb:.2f} MB")
+        print(f"    Size: {file_size / (1024 * 1024):.2f} MB")
         print()
-    
-    # Calculate total storage used
-    total_size_mb = sum(
-        (data_dir / f"{t}_{geography}_{state}_2022.parquet").stat().st_size / (1024 * 1024)
-        for t in results.keys()
-    )
-    
-    logger.info(f"Total storage used: {total_size_mb:.2f} MB")
-    
-    return results
+
+    logger.info(f"Total storage used: {total_bytes / (1024 * 1024):.2f} MB")
+
+    return results, failures
 
 
-async def download_health_insurance_focus(data_dir: Path, state: str = "*"):
+async def download_health_insurance_focus(
+    data_dir: Path,
+    state: str = "*",
+    year: int = 2022,
+    force: bool = False,
+):
     """
-    Download health insurance focused tables for oral health policy analysis.
-    
-    This downloads detailed health insurance coverage data by age, type, and
-    geographic area - critical for analyzing dental coverage gaps.
+    Download health-insurance-focused tables for oral-health policy analysis.
+
+    Detailed health insurance coverage data by age, type, and geographic area —
+    useful for analyzing dental coverage gaps.
     """
     logger.info("=" * 80)
     logger.info("Health Insurance Data Download (Oral Health Policy Focus)")
     logger.info("=" * 80)
-    
+
     acs = ACSDataIngestion(data_dir=data_dir)
-    
-    # Health insurance tables
+
     health_tables = {
         "B27001": "Health Insurance Coverage Status by Age",
         "B27010": "Health Insurance Coverage by Age (Under 19) ⭐ CRITICAL",
@@ -161,212 +185,235 @@ async def download_health_insurance_focus(data_dir: Path, state: str = "*"):
         "B18101": "Disability Status (impacts dental needs)",
         "B17001": "Poverty Status (Medicaid eligibility)",
     }
-    
-    logger.info(f"Downloading {len(health_tables)} health insurance tables...")
-    
-    results = {}
+
+    logger.info(f"Downloading {len(health_tables)} health insurance tables (year={year}, force={force})...")
+
+    failures: list[tuple[str, str]] = []
+    results: dict = {}
     for table_code, description in health_tables.items():
+        cache_file = data_dir / f"{table_code}_county_{state}_{year}.parquet"
+        if cache_file.exists() and not force:
+            logger.info(f"{table_code}: cached → {cache_file.name}")
+            results[table_code] = None
+            continue
+
         try:
             logger.info(f"\nDownloading: {table_code} - {description}")
-            
             df = await acs.download_acs_data_api(
                 table=table_code,
                 geography="county",
-                state=state
+                state=state,
+                year=year,
             )
-            
             results[table_code] = df
             logger.success(f"✅ Downloaded {len(df)} counties")
-            
             await asyncio.sleep(1.5)
-            
         except Exception as e:
             logger.error(f"❌ Failed: {e}")
+            failures.append((table_code, str(e)))
             continue
-    
+
     logger.success(f"\n✅ Downloaded {len(results)} health insurance tables to {data_dir}")
-    
-    return results
+
+    return results, failures
 
 
-async def download_by_state_batch(data_dir: Path, states: list, geography: str = "county"):
+async def download_by_state_batch(
+    data_dir: Path,
+    states: list,
+    geography: str = "county",
+    year: int = 2022,
+    force: bool = False,
+):
     """
     Download data for multiple states in batch.
-    
-    This is more efficient than downloading all states at once if you only
-    need data for specific states.
-    
+
+    More efficient than downloading all states at once if you only need data
+    for specific states.
+
     Args:
         data_dir: Storage directory
         states: List of state FIPS codes (e.g., ["06", "48", "36"])
         geography: Geographic level
+        year: ACS 5-year vintage
+        force: If True, re-download even if cached
     """
     acs = ACSDataIngestion(data_dir=data_dir)
-    
-    logger.info(f"Downloading data for {len(states)} states: {states}")
-    
-    # Key tables
+
+    logger.info(f"Downloading data for {len(states)} states: {states} (year={year}, force={force})")
+
     tables = ["B19013", "B27010", "B17001"]  # Income, child insurance, poverty
-    
+    failures: list[tuple[str, str]] = []
+
     for state_fips in states:
         logger.info(f"\n{'=' * 60}")
         logger.info(f"Processing State: {state_fips}")
         logger.info(f"{'=' * 60}")
-        
+
         for table in tables:
+            cache_file = data_dir / f"{table}_{geography}_{state_fips}_{year}.parquet"
+            if cache_file.exists() and not force:
+                logger.info(f"{table} ({state_fips}): cached → {cache_file.name}")
+                continue
+
             try:
-                df = await acs.download_acs_data_api(table, geography, state_fips)
+                df = await acs.download_acs_data_api(table, geography, state_fips, year=year)
                 logger.success(f"✅ {table}: {len(df)} records")
                 await asyncio.sleep(1)
             except Exception as e:
                 logger.error(f"❌ {table}: {e}")
+                failures.append((f"{table}/{state_fips}", str(e)))
                 continue
 
+    return failures
 
-def verify_d_drive_setup(data_dir: Path):
+
+def verify_data_dir(data_dir: Path) -> bool:
     """
-    Verify that D drive is accessible and has enough space.
+    Verify that ``data_dir`` exists, is writable, and has enough free space.
     """
-    logger.info("Verifying D drive setup...")
-    
-    # Check if directory exists
+    logger.info(f"Verifying data directory: {data_dir}")
+
     if not data_dir.exists():
-        logger.warning(f"Directory does not exist: {data_dir}")
-        logger.info("Creating directory...")
+        logger.info(f"Creating directory: {data_dir}")
         data_dir.mkdir(parents=True, exist_ok=True)
-        logger.success(f"✅ Created: {data_dir}")
-    
-    # Check write permissions
+
     test_file = data_dir / ".test_write"
     try:
         test_file.write_text("test")
         test_file.unlink()
-        logger.success("✅ Write permissions OK")
     except Exception as e:
-        logger.error(f"❌ Cannot write to directory: {e}")
+        logger.error(f"❌ Cannot write to {data_dir}: {e}")
         return False
-    
-    # Check available space
+
     import shutil
     stat = shutil.disk_usage(data_dir)
-    free_gb = stat.free / (1024**3)
-    
+    free_gb = stat.free / (1024 ** 3)
     logger.info(f"Available space: {free_gb:.2f} GB")
-    
+
     if free_gb < 5:
         logger.warning(f"⚠️ Low disk space: {free_gb:.2f} GB available")
-        logger.warning("Consider freeing up space or using a different drive")
         return False
-    
-    logger.success(f"✅ D drive setup verified: {data_dir}")
+
+    logger.success(f"✅ Data directory ready: {data_dir}")
     return True
 
 
-def main():
-    """Main CLI interface."""
+def main() -> int:
+    """Main CLI interface. Returns process exit code."""
     parser = argparse.ArgumentParser(
-        description="Download ACS demographic data to D drive",
+        description="Download ACS demographic data into the local cache",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Download all key tables for all U.S. counties to D drive (WSL)
-  python download_acs_to_d_drive.py --geography county --state *
-  
-  # Download California counties only
-  python download_acs_to_d_drive.py --geography county --state 06
-  
-  # Download health insurance data only
-  python download_acs_to_d_drive.py --health-insurance-only
-  
-  # Download for multiple states
-  python download_acs_to_d_drive.py --states 06 48 36  # CA, TX, NY
-  
-  # Use Windows native path (if running in Windows, not WSL)
-  python download_acs_to_d_drive.py --data-dir D:/open-navigator-data/acs
-  
-  # Use custom data directory
-  python download_acs_to_d_drive.py --data-dir /mnt/d/acs-data
-  
+  # Download key tables for all U.S. counties (default cache dir)
+  python scripts/datasources/census/download_census_acs_data.py
+
+  # California counties only
+  python scripts/datasources/census/download_census_acs_data.py --state 06
+
+  # Health-insurance focused tables only
+  python scripts/datasources/census/download_census_acs_data.py --health-insurance-only
+
+  # Multi-state batch (CA, TX, NY)
+  python scripts/datasources/census/download_census_acs_data.py --states 06 48 36
+
+  # Re-download even if cached
+  python scripts/datasources/census/download_census_acs_data.py --force
+
+  # Different ACS 5-year vintage
+  python scripts/datasources/census/download_census_acs_data.py --year 2021
+
+  # Custom data directory
+  python scripts/datasources/census/download_census_acs_data.py --data-dir /mnt/d/acs
+
   # List available tables
-  python download_acs_to_d_drive.py --list-tables
-        """
+  python scripts/datasources/census/download_census_acs_data.py --list-tables
+        """,
     )
-    
+
     parser.add_argument(
         "--data-dir",
         type=Path,
-        default=Path("/mnt/d/open-navigator-data/acs"),
-        help="Directory to store ACS data (default: /mnt/d/open-navigator-data/acs for WSL, D:/open-navigator-data/acs for Windows)"
+        default=Path("data/cache/census/acs"),
+        help="Directory to store ACS data (default: data/cache/census/acs)",
     )
-    
     parser.add_argument(
         "--geography",
         choices=["county", "place", "tract", "cousub"],
         default="county",
-        help="Geographic level (default: county)"
+        help="Geographic level (default: county)",
     )
-    
     parser.add_argument(
         "--state",
         default="*",
-        help="State FIPS code or * for all states (default: *)"
+        help="State FIPS code or * for all states (default: *)",
     )
-    
     parser.add_argument(
         "--states",
         nargs="+",
-        help="Multiple state FIPS codes (e.g., 06 48 36 for CA TX NY)"
+        help="Multiple state FIPS codes (e.g., 06 48 36 for CA TX NY)",
     )
-    
+    parser.add_argument(
+        "--year",
+        type=int,
+        default=2022,
+        help="ACS 5-year vintage (default: 2022 — most recent complete release)",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Re-download even if a cached parquet already exists",
+    )
     parser.add_argument(
         "--health-insurance-only",
         action="store_true",
-        help="Download only health insurance tables (oral health focus)"
+        help="Download only health-insurance tables (oral-health focus)",
     )
-    
     parser.add_argument(
         "--list-tables",
         action="store_true",
-        help="List all available ACS tables and exit"
+        help="List all available ACS tables and exit",
     )
-    
+
     args = parser.parse_args()
-    
-    # List tables if requested
+
     if args.list_tables:
         acs = ACSDataIngestion()
         acs.list_available_tables()
-        return
-    
-    # Verify D drive setup
-    if not verify_d_drive_setup(args.data_dir):
-        logger.error("D drive setup verification failed. Please fix errors above.")
-        return
-    
-    # Download data based on options
+        return 0
+
+    if not verify_data_dir(args.data_dir):
+        logger.error("Data directory verification failed. See errors above.")
+        return 1
+
+    failures: list[tuple[str, str]] = []
     if args.health_insurance_only:
-        # Health insurance focus
-        asyncio.run(download_health_insurance_focus(args.data_dir, args.state))
-    
-    elif args.states:
-        # Multiple states
-        asyncio.run(download_by_state_batch(args.data_dir, args.states, args.geography))
-    
-    else:
-        # Comprehensive download
-        asyncio.run(download_comprehensive_acs_data(
-            args.data_dir,
-            args.geography,
-            args.state
+        _, failures = asyncio.run(download_health_insurance_focus(
+            args.data_dir, args.state, year=args.year, force=args.force,
         ))
-    
-    logger.success("\n🎉 All downloads complete!")
+    elif args.states:
+        failures = asyncio.run(download_by_state_batch(
+            args.data_dir, args.states, args.geography,
+            year=args.year, force=args.force,
+        ))
+    else:
+        _, failures = asyncio.run(download_comprehensive_acs_data(
+            args.data_dir, args.geography, args.state,
+            year=args.year, force=args.force,
+        ))
+
     logger.info(f"Data stored in: {args.data_dir.absolute()}")
-    logger.info("\nNext steps:")
-    logger.info("1. Verify data using: ls -lh " + str(args.data_dir))
-    logger.info("2. Load data in your analysis scripts")
-    logger.info("3. Join with jurisdiction data for enriched analysis")
+
+    if failures:
+        logger.error(f"\n❌ {len(failures)} table(s) failed:")
+        for name, err in failures:
+            logger.error(f"  - {name}: {err}")
+        return 1
+
+    logger.success("\n🎉 All downloads complete!")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

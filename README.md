@@ -11,9 +11,13 @@ license: apache-2.0
 
 # 🏛️ Open Navigator
 
-> **CommunityOne: The open path to everything local**
+> ## CommunityOne: One Map for Every Community
 >
-> AI-powered civic engagement platform with React + FastAPI web interface
+> Every person deserves to find the help they need and have a voice in the decisions that shape their lives. But public resources are scattered, gaps go unseen, and communities are left navigating alone.
+>
+> CommunityOne changes that. One platform connects residents, leaders, and funders to what's really happening on the ground — so no community has to fight just to be seen.
+
+AI-powered civic engagement platform with React + FastAPI web interface
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
@@ -124,6 +128,10 @@ make dev-docs      # Docs only
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+
+# Optional: Spark + Delta Lake (only if you'll run Databricks/Spark scripts).
+# Requires a Java runtime (e.g. `sudo apt install openjdk-17-jre-headless`).
+# pip install -r requirements-spark.txt
 
 # React app
 cd frontend && npm install && cd ..

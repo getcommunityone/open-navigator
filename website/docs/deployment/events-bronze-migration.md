@@ -42,7 +42,7 @@ Marts Layer (dbt tables - production-ready)
    - Staging view cleaning video transcripts
    - Calculates `word_count` and `transcript_length`
    - Adds quality flags: `missing_transcript`, `very_short_transcript`, `missing_segments`
-   - Filters out transcripts <100 characters
+   - Filters out transcripts &lt;100 characters
 
 ### dbt Mart Models (Production)
 
@@ -213,7 +213,7 @@ WHERE video_url IS NOT NULL;
 ├──────────────────────────────┬───────────────────────────────────┤
 │  stg_bronze_events_search    │  stg_bronze_events_text_ai        │
 │  - Clean & normalize         │  - Calculate word count           │
-│  - Quality flags             │  - Filter <100 chars              │
+│  - Quality flags             │  - Filter &lt;100 chars              │
 │  - No deduplication          │  - Quality scoring                │
 └──────────────┬───────────────┴──────────────┬────────────────────┘
                │                              │
@@ -250,7 +250,7 @@ WHERE video_url IS NOT NULL;
 **After:**
 - Quality score based on: manual > auto-generated, word count
 - Keeps only highest quality transcript per video
-- Filters transcripts <100 characters
+- Filters transcripts &lt;100 characters
 
 ### Data Lineage
 

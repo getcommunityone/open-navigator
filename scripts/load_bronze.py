@@ -7,12 +7,14 @@ Each step's stdout/stderr is streamed to the terminal AND saved to a timestamped
 log file under logs/load_bronze/<run_id>/.
 
 Loaders (run in order):
-  1. census     — Jurisdictions     → scripts/datasources/census/load_census_gazetteer.py
-  2. gsa        — Gov Websites      → scripts/datasources/gsa/load_gsa_domains_to_postgres.py
-  3. localview  — Meetings (Old)    → scripts/datasources/localview/load_localview_to_postgres.py
-  4. irs        — Non-Profits       → scripts/datasources/irs/load_irs_bmf.py
-  5. enrich_ai       — AI Meeting Analysis (Gemini) → scripts/datasources/gemini/load_enriched_events_ai.py --only analyze
-  6. hud_zip_county  — ZIP-County Crosswalk (HUD)  → scripts/datasources/hud/load_zip_county.py
+  1. census           — Jurisdictions     → scripts/datasources/census/load_census_gazetteer.py
+  2. gsa              — Gov Websites      → scripts/datasources/gsa/load_gsa_domains_to_postgres.py
+  3. localview        — Meetings (Old)    → scripts/datasources/localview/load_localview_to_postgres.py
+  4. irs              — Non-Profits       → scripts/datasources/irs/load_irs_bmf.py
+  5. enrich_ai        — AI Meeting Analysis (Gemini) → scripts/datasources/gemini/load_enriched_events_ai.py --only analyze
+  6. hud_zip_county   — ZIP-County Crosswalk (HUD)   → scripts/datasources/hud/load_zip_county.py
+  7. shapefiles       — Geometry Shapefiles (Census TIGER) → scripts/datasources/census/load_census_shapefiles.py
+  8. place_crosswalks — Place → County / ZCTA Crosswalks  → scripts/datasources/census/load_place_crosswalks.py
 
 Usage:
     python scripts/load_bronze.py                        # run all loaders + dbt bronze
@@ -115,6 +117,21 @@ LOADERS = [
             "bronze.bronze_geo_counties",
             "bronze.bronze_geo_places",
             "bronze.bronze_geo_zcta",
+        ],
+    },
+    {
+        # Depends on shapefiles being downloaded (place + county) and on the
+        # zcta_place relationship file being downloaded. Computes its own
+        # spatial overlay rather than relying on bronze_geo_* tables, so it
+        # can run independently of the `shapefiles` step having succeeded.
+        "key": "place_crosswalks",
+        "label": "Place → County / ZCTA Crosswalks",
+        "script": "scripts/datasources/census/load_place_crosswalks.py",
+        "supports_truncate": True,
+        "supports_dry_run": True,
+        "tables": [
+            "bronze.bronze_jurisdictions_place_county",
+            "bronze.bronze_jurisdictions_place_zcta",
         ],
     },
 ]
