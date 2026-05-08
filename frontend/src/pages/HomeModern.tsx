@@ -1250,6 +1250,29 @@ export default function HomeModern() {
         </div>
       </section>
 
+      {/* Mission + PBC */}
+      <section className="py-16 px-4 bg-white">
+        <div className="max-w-3xl mx-auto text-center bg-gradient-to-br from-gray-50 to-white border-2 border-gray-200 rounded-2xl p-10">
+          <p className="text-xs font-bold uppercase tracking-widest text-[#52796F] mb-2">Our Mission</p>
+          <h2 className="text-3xl font-bold mb-4" style={{ color: '#354F52' }}>
+            CommunityOne: One Map for Every Community
+          </h2>
+          <p className="text-lg text-gray-700 leading-relaxed mb-3">
+            Every person deserves to find the help they need and have a voice in the decisions that shape their lives. But public resources are scattered, gaps go unseen, and communities are left navigating alone.
+          </p>
+          <p className="text-lg text-gray-700 leading-relaxed mb-8">
+            CommunityOne changes that. One platform connects residents, leaders, and funders to what's really happening on the ground — so no community has to fight just to be seen.
+          </p>
+
+          <div className="border-t border-gray-200 pt-6">
+            <p className="text-xs font-bold uppercase tracking-widest text-[#52796F] mb-2">Public Benefit Corporation</p>
+            <p className="text-base text-gray-600 leading-relaxed">
+              GroundVue is a public benefit corporation with a fiscal-sponsored nonprofit 501(c)(3). We are solely funded by mission-aligned impact investors and philanthropic institutions.
+            </p>
+          </div>
+        </div>
+      </section>
+
       {/* Documentation Section */}
       <section id="get-started" className="py-20 px-4" style={{ background: 'linear-gradient(135deg, #354F52 0%, #52796F 100%)' }}>
         <div className="max-w-7xl mx-auto">

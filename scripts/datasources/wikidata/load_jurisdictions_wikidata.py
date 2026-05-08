@@ -3,7 +3,16 @@
 Load Jurisdictions from WikiData
 
 Queries WikiData for all cities, counties, school districts, and states,
-populating a jurisdictions_wikidata table with official data including:
+and writes Wikidata metadata into these bronze tables:
+- bronze.bronze_jurisdictions_states_wikidata
+- bronze.bronze_jurisdictions_counties_wikidata
+- bronze.bronze_jurisdictions_municipalities_wikidata
+- bronze.bronze_jurisdictions_school_districts_wikidata
+
+The legacy `public.jurisdictions_wikidata` table is deprecated and is no longer
+created/used by this script.
+
+Wikidata metadata includes:
 - Official websites
 - YouTube channels
 - Social media (Facebook, Twitter)
@@ -107,146 +116,210 @@ class JurisdictionsWikiDataLoader:
         self._create_table()
     
     def _create_table(self):
-        """Create jurisdictions_wikidata table."""
-        cursor = self.conn.cursor()
-        
+        """Deprecated: we no longer create/use `public.jurisdictions_wikidata`."""
+        return
+
+    def _seed_wikidata_table(self, state_code: str, task: str) -> None:
+        """Rebuild the per-type bronze *_wikidata table rows for one state from its base table."""
+        mapping: dict[str, tuple[str, str, str]] = {
+            "state": (
+                "bronze.bronze_jurisdictions_states",
+                "bronze.bronze_jurisdictions_states_wikidata",
+                "geoid, usps, ansicode, name, aland, awater, aland_sqmi, awater_sqmi, intptlat, intptlong, ingestion_date",
+            ),
+            "county": (
+                "bronze.bronze_jurisdictions_counties",
+                "bronze.bronze_jurisdictions_counties_wikidata",
+                "geoid, usps, ansicode, name, aland, awater, aland_sqmi, awater_sqmi, intptlat, intptlong, ingestion_date",
+            ),
+            # city task enriches municipalities
+            "city": (
+                "bronze.bronze_jurisdictions_municipalities",
+                "bronze.bronze_jurisdictions_municipalities_wikidata",
+                "geoid, usps, ansicode, name, lsad, funcstat, aland, awater, aland_sqmi, awater_sqmi, intptlat, intptlong, ingestion_date",
+            ),
+            "school_district": (
+                "bronze.bronze_jurisdictions_school_districts",
+                "bronze.bronze_jurisdictions_school_districts_wikidata",
+                "geoid, usps, name, lograde, higrade, aland, awater, aland_sqmi, awater_sqmi, intptlat, intptlong, ingestion_date",
+            ),
+        }
+        if task not in mapping:
+            raise ValueError(f"Unknown seed task: {task}")
+
+        base_table, wikidata_table, cols = mapping[task]
+        cur = self.conn.cursor()
         try:
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS jurisdictions_wikidata (
-                    id SERIAL PRIMARY KEY,
-                    
-                    -- Identifiers
-                    wikidata_id VARCHAR(20) UNIQUE NOT NULL,
-                    jurisdiction_id VARCHAR(50),  -- Link to jurisdictions_details_search
-                    jurisdiction_id_type VARCHAR(50),
-                    jurisdiction_name VARCHAR(200) NOT NULL,
-                    state_code VARCHAR(2) NOT NULL,
-                    state VARCHAR(50) NOT NULL,
-                    jurisdiction_type VARCHAR(50) NOT NULL,  -- city, county, school_district, state
-                    
-                    -- Official links
-                    official_website TEXT,
-                    official_image_url TEXT,
-                    locator_map_image TEXT,
-                    page_banner_image TEXT,
-                    youtube_channel_id VARCHAR(50),
-                    youtube_channel_url TEXT,
-                    facebook_username VARCHAR(100),
-                    facebook_url TEXT,
-                    twitter_username VARCHAR(100),
-                    twitter_url TEXT,
-                    
-                    -- Demographics
-                    population INTEGER,
-                    area_sq_km FLOAT,
-                    per_capita_income INTEGER,
-                    number_of_households DOUBLE PRECISION,
-                    median_age DOUBLE PRECISION,
-                    
-                    -- Geographic
-                    latitude FLOAT,
-                    longitude FLOAT,
-
-                    -- Standard identifiers for joins
-                    fips_code VARCHAR(20),
-                    gnis_id VARCHAR(20),
-                    nces_id VARCHAR(20),
-                    geonames_id VARCHAR(20),
-                    geoid VARCHAR(20),
-
-                    -- Additional metadata
-                    head_of_government VARCHAR(255),
-                    head_of_government_position VARCHAR(255),
-                    head_of_government_start_time TIMESTAMP,
-                    postal_codes JSONB,
-                    local_dialing_code VARCHAR(50),
-                    google_maps_customer_id VARCHAR(50),
-                    language_of_work_or_name VARCHAR(100),
-                    time_zone VARCHAR(255),
-                    ballotpedia_id VARCHAR(255),
-                    tripadvisor_id VARCHAR(255),
-                    subreddit VARCHAR(255),
-
-                    -- State metadata (mostly for jurisdiction_type = 'state')
-                    jurisdiction_label TEXT,
-                    jurisdiction_description TEXT,
-                    jurisdiction_aliases JSONB,
-                    native_label TEXT,
-                    nickname JSONB,
-                    short_name JSONB,
-                    demonym JSONB,
-                    official_language JSONB,
-                    motto TEXT,
-                    anthem JSONB,
-                    inception_date DATE,
-                    capital JSONB,
-                    iso_3166_2 TEXT,
-                    pronunciation_audio TEXT,
-                    geoshape TEXT,
-                    
-                    -- Metadata
-                    confidence_score FLOAT DEFAULT 1.0,
-                    fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    notes TEXT
-                );
-            """)
-
-            # Backward-compatible adds for existing tables created with older schema
-            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS jurisdiction_id_type VARCHAR(50);")
-            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS official_image_url TEXT;")
-            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS locator_map_image TEXT;")
-            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS page_banner_image TEXT;")
-            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS per_capita_income INTEGER;")
-            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS number_of_households DOUBLE PRECISION;")
-            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS median_age DOUBLE PRECISION;")
-            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS fips_code VARCHAR(20);")
-            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS gnis_id VARCHAR(20);")
-            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS nces_id VARCHAR(20);")
-            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS geonames_id VARCHAR(20);")
-            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS geoid VARCHAR(20);")
-            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS head_of_government VARCHAR(255);")
-            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS head_of_government_position VARCHAR(255);")
-            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS head_of_government_start_time TIMESTAMP;")
-            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS postal_codes JSONB;")
-            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS local_dialing_code VARCHAR(50);")
-            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS google_maps_customer_id VARCHAR(50);")
-            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS language_of_work_or_name VARCHAR(100);")
-            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS time_zone VARCHAR(255);")
-            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS ballotpedia_id VARCHAR(255);")
-            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS tripadvisor_id VARCHAR(255);")
-            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS subreddit VARCHAR(255);")
-
-            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS jurisdiction_label TEXT;")
-            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS jurisdiction_description TEXT;")
-            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS jurisdiction_aliases JSONB;")
-            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS native_label TEXT;")
-            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS nickname JSONB;")
-            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS short_name JSONB;")
-            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS demonym JSONB;")
-            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS official_language JSONB;")
-            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS motto TEXT;")
-            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS anthem JSONB;")
-            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS inception_date DATE;")
-            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS capital JSONB;")
-            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS iso_3166_2 TEXT;")
-            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS pronunciation_audio TEXT;")
-            cursor.execute("ALTER TABLE jurisdictions_wikidata ADD COLUMN IF NOT EXISTS geoshape TEXT;")
-            
-            # Create indexes
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_wikidata_state ON jurisdictions_wikidata(state_code);")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_wikidata_type ON jurisdictions_wikidata(jurisdiction_type);")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_wikidata_youtube ON jurisdictions_wikidata(youtube_channel_id);")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_wikidata_jurisdiction_id ON jurisdictions_wikidata(jurisdiction_id);")
-            
+            cur.execute(f"DELETE FROM {wikidata_table} WHERE usps = %s", (state_code,))
+            cur.execute(
+                f"""
+                INSERT INTO {wikidata_table} ({cols})
+                SELECT {cols}
+                FROM {base_table}
+                WHERE usps = %s
+                """,
+                (state_code,),
+            )
             self.conn.commit()
-            logger.success("✓ Created jurisdictions_wikidata table")
-            
-        except Exception as e:
-            self.conn.rollback()
-            logger.warning(f"Table creation note: {e}")
         finally:
-            cursor.close()
+            cur.close()
+
+    def _apply_wikidata_updates(self, task: str, jurisdictions: List[Dict]) -> None:
+        """Update the appropriate bronze *_wikidata table based on loader task."""
+        if not jurisdictions:
+            return
+
+        if task == "county":
+            table = "bronze.bronze_jurisdictions_counties_wikidata"
+            key_field = "fips_code"
+            extra_cols = {
+                "wikidata_fips_code": "fips_code",
+                "wikidata_geoid": "geoid",
+            }
+        elif task == "city":
+            table = "bronze.bronze_jurisdictions_municipalities_wikidata"
+            key_field = "fips_code"
+            extra_cols = {
+                "wikidata_fips_code": "fips_code",
+                "wikidata_gnis_id": "gnis_id",
+                "wikidata_geoid": "geoid",
+            }
+        elif task == "school_district":
+            table = "bronze.bronze_jurisdictions_school_districts_wikidata"
+            key_field = "nces_id"
+            extra_cols = {
+                "wikidata_nces_id": "nces_id",
+                "wikidata_geoid": "geoid",
+            }
+        elif task == "state":
+            table = "bronze.bronze_jurisdictions_states_wikidata"
+            key_field = "fips_code"
+            extra_cols = {
+                "wikidata_fips_code": "fips_code",
+                "wikidata_geoid": "geoid",
+            }
+        else:
+            raise ValueError(f"Unknown update task: {task}")
+
+        set_parts = [
+            "wikidata_id = %(wikidata_id)s",
+            "official_website = %(official_website)s",
+            "official_image_url = %(official_image_url)s",
+            "page_banner_image = %(page_banner_image)s",
+            "locator_map_image = %(locator_map_image)s",
+            "youtube_channel_id = %(youtube_channel_id)s",
+            "youtube_channel_url = %(youtube_channel_url)s",
+            "facebook_username = %(facebook_username)s",
+            "facebook_url = %(facebook_url)s",
+            "twitter_username = %(twitter_username)s",
+            "twitter_url = %(twitter_url)s",
+            "population = %(population)s",
+            "area_sq_km = %(area_sq_km)s",
+            "per_capita_income = %(per_capita_income)s",
+            "number_of_households = %(number_of_households)s",
+            "median_age = %(median_age)s",
+            "time_zone = %(time_zone)s",
+            "local_dialing_code = %(local_dialing_code)s",
+            "google_maps_customer_id = %(google_maps_customer_id)s",
+            "language_of_work_or_name = %(language_of_work_or_name)s",
+            "head_of_government = %(head_of_government)s",
+            "head_of_government_position = %(head_of_government_position)s",
+            "head_of_government_start_time = %(head_of_government_start_time)s",
+            "postal_codes = %(postal_codes)s::jsonb",
+            "latitude = %(latitude)s",
+            "longitude = %(longitude)s",
+            "wikidata_fetched_at = CURRENT_TIMESTAMP",
+            "wikidata_last_updated = CURRENT_TIMESTAMP",
+        ]
+
+        # State table has additional descriptive metadata columns
+        if task == "state":
+            set_parts.extend(
+                [
+                    "jurisdiction_label = %(jurisdiction_label)s",
+                    "jurisdiction_description = %(jurisdiction_description)s",
+                    "jurisdiction_aliases = %(jurisdiction_aliases)s::jsonb",
+                    "native_label = %(native_label)s",
+                    "nickname = %(nickname)s::jsonb",
+                    "short_name = %(short_name)s::jsonb",
+                    "demonym = %(demonym)s::jsonb",
+                    "official_language = %(official_language)s::jsonb",
+                    "motto = %(motto)s",
+                    "anthem = %(anthem)s::jsonb",
+                    "inception_date = %(inception_date)s",
+                    "capital = %(capital)s::jsonb",
+                    "iso_3166_2 = %(iso_3166_2)s",
+                    "pronunciation_audio = %(pronunciation_audio)s",
+                    "geoshape = %(geoshape)s",
+                ]
+            )
+
+        for col, src in extra_cols.items():
+            set_parts.append(f"{col} = %({src})s")
+
+        update_sql = f"""
+            UPDATE {table}
+            SET {", ".join(set_parts)}
+            WHERE geoid = %({key_field})s
+        """
+
+        required = {
+            "wikidata_id",
+            "official_website",
+            "official_image_url",
+            "page_banner_image",
+            "locator_map_image",
+            "youtube_channel_id",
+            "youtube_channel_url",
+            "facebook_username",
+            "facebook_url",
+            "twitter_username",
+            "twitter_url",
+            "population",
+            "area_sq_km",
+            "per_capita_income",
+            "number_of_households",
+            "median_age",
+            "time_zone",
+            "local_dialing_code",
+            "google_maps_customer_id",
+            "language_of_work_or_name",
+            "head_of_government",
+            "head_of_government_position",
+            "head_of_government_start_time",
+            "postal_codes",
+            "latitude",
+            "longitude",
+            "fips_code",
+            "gnis_id",
+            "nces_id",
+            "geoid",
+            "jurisdiction_label",
+            "jurisdiction_description",
+            "jurisdiction_aliases",
+            "native_label",
+            "nickname",
+            "short_name",
+            "demonym",
+            "official_language",
+            "motto",
+            "anthem",
+            "inception_date",
+            "capital",
+            "iso_3166_2",
+            "pronunciation_audio",
+            "geoshape",
+        }
+        for j in jurisdictions:
+            for k in required:
+                j.setdefault(k, None)
+
+        cur = self.conn.cursor()
+        try:
+            execute_batch(cur, update_sql, jurisdictions, page_size=200)
+            self.conn.commit()
+        finally:
+            cur.close()
     
     async def query_all_jurisdictions_in_state(self, state_code: str, types: List[str]) -> List[Dict]:
         """Query WikiData for all jurisdiction types in a state using optimized two-pronged approach."""
@@ -305,8 +378,7 @@ class JurisdictionsWikiDataLoader:
             ?facebook ?twitter ?youtube ?fips ?gnis ?nces ?image ?banner ?locatorMap
             ?dialingCode ?googleMapsCustomerId ?households ?medianAge ?languageLabel
             ?lat ?lon
-            ?headOfGov ?headOfGovLabel ?positionLabel
-            ?headStart ?postalCode ?perCapitaIncome ?timeZone ?timeZoneLabel
+            ?postalCode ?perCapitaIncome ?timeZone ?timeZoneLabel
             ?ballotpediaId ?tripadvisorId ?subreddit
             ?geonamesId
         WHERE {{
@@ -410,8 +482,7 @@ class JurisdictionsWikiDataLoader:
             ?facebook ?twitter ?youtube ?fips ?gnis ?nces ?image ?banner ?locatorMap
             ?dialingCode ?googleMapsCustomerId ?households ?medianAge ?languageLabel
             ?lat ?lon
-            ?headOfGov ?headOfGovLabel ?positionLabel
-            ?headStart ?postalCode ?perCapitaIncome ?timeZone ?timeZoneLabel
+            ?postalCode ?perCapitaIncome ?timeZone ?timeZoneLabel
             ?ballotpediaId ?tripadvisorId ?subreddit
             ?geonamesId
         WHERE {{
@@ -486,7 +557,7 @@ class JurisdictionsWikiDataLoader:
             ?facebook ?twitter ?youtube ?fips ?gnis ?nces ?image ?banner ?locatorMap
             ?dialingCode ?googleMapsCustomerId ?households ?medianAge ?languageLabel
             ?lat ?lon
-            ?headOfGov ?headOfGovLabel ?positionLabel
+            ?headOfGov ?headOfGovLabel
             ?headStart ?postalCode ?perCapitaIncome ?timeZone ?timeZoneLabel
             ?ballotpediaId ?tripadvisorId ?subreddit
             ?geonamesId
@@ -693,8 +764,7 @@ class JurisdictionsWikiDataLoader:
             ?facebook ?twitter ?youtube ?fips ?image ?banner ?locatorMap
             ?dialingCode ?googleMapsCustomerId ?households ?medianAge ?languageLabel
             ?lat ?lon
-            ?headOfGov ?headOfGovLabel ?positionLabel
-            ?headStart ?postalCode ?perCapitaIncome ?timeZone ?timeZoneLabel
+            ?postalCode ?perCapitaIncome ?timeZone ?timeZoneLabel
             ?ballotpediaId ?tripadvisorId ?subreddit
             ?geonamesId
         WHERE {{
@@ -765,15 +835,6 @@ class JurisdictionsWikiDataLoader:
           OPTIONAL {{ ?item wdt:P1310 ?medianAge . }}
           OPTIONAL {{ ?item wdt:P407 ?language . }}
           
-          # Head of government (most recent by start time)
-          OPTIONAL {{
-            ?item p:P6 ?headStmt .
-            ?headStmt ps:P6 ?headOfGov .
-            ?headStmt pq:P580 ?headStart .
-            FILTER(?headStart <= NOW())
-            OPTIONAL {{ ?headOfGov wdt:P39 ?position . }}
-          }}
-          
           # Additional metadata
           OPTIONAL {{ ?item wdt:P281 ?postalCode . }}
           OPTIONAL {{ ?item wdt:P3529 ?perCapitaIncome . }}
@@ -789,10 +850,8 @@ class JurisdictionsWikiDataLoader:
           ?motto ?inception ?iso31662 ?pronunciationAudio ?geoshape
           ?website ?population ?area ?facebook ?twitter ?youtube ?fips ?image ?banner ?locatorMap
           ?dialingCode ?googleMapsCustomerId ?households ?medianAge ?languageLabel
-          ?lat ?lon ?headOfGov ?headOfGovLabel ?positionLabel
-          ?headStart ?postalCode ?perCapitaIncome ?timeZone ?timeZoneLabel
+          ?lat ?lon ?postalCode ?perCapitaIncome ?timeZone ?timeZoneLabel
           ?ballotpediaId ?tripadvisorId ?subreddit ?geonamesId ?hogOffice
-        ORDER BY DESC(?headStart)
         LIMIT 1
         """
         
@@ -841,10 +900,41 @@ class JurisdictionsWikiDataLoader:
         jurisdiction_id = f"state_{fips_code}"
         jurisdiction_id_type = 'state_fips'
         
-        # Extract head of government info (Governor)
-        head_of_gov = result.get("headOfGovLabel")
-        head_of_gov_position = result.get("hogOfficeLabel") or result.get("positionLabel")
-        head_start = result.get("headStart")
+        # Head of government is fetched via a separate lightweight query to avoid
+        # Blazegraph correlated-subquery quirks that can return unrelated leaders.
+        head_of_gov = None
+        head_of_gov_position = result.get("hogOfficeLabel") or f"Governor of {state_name}"
+        head_start = None
+
+        hog_query = f"""
+        SELECT ?headOfGovLabel ?headStart
+        WHERE {{
+          wd:{state_q_code} p:P6 ?stmt .
+          ?stmt ps:P6 ?headOfGov .
+          OPTIONAL {{ ?stmt pq:P580 ?headStart . }}
+          SERVICE wikibase:label {{ bd:serviceParam wikibase:language "en". }}
+        }}
+        ORDER BY DESC(?headStart)
+        LIMIT 1
+        """
+        try:
+            hog_rows = await self.wikidata.execute_sparql(hog_query)
+        except Exception:
+            hog_rows = []
+
+        if hog_rows:
+            hog_row = hog_rows[0]
+            head_of_gov = hog_row.get("headOfGovLabel")
+            # US states: head of government is the Governor.
+            head_of_gov_position = f"Governor of {state_name}"
+            head_start_raw = hog_row.get("headStart")
+            if head_start_raw:
+                try:
+                    # Store as naive midnight timestamp to avoid timezone shifts when writing
+                    # into a `timestamp without time zone` column.
+                    head_start = datetime.fromisoformat(head_start_raw[:10])
+                except Exception:
+                    head_start = head_start_raw
         
         # Extract postal codes (can be multiple)
         postal_code = result.get("postalCode")
@@ -927,106 +1017,24 @@ class JurisdictionsWikiDataLoader:
         }]
     
     def insert_jurisdictions(self, jurisdictions: List[Dict]):
-        """Insert jurisdictions into database."""
+        """Apply Wikidata enrichment into bronze *_wikidata tables (no public table)."""
         if not jurisdictions:
             return
-        
-        cursor = self.conn.cursor()
-        
-        insert_query = """
-            INSERT INTO jurisdictions_wikidata (
-                wikidata_id, jurisdiction_id, jurisdiction_id_type, jurisdiction_name, state_code, state, jurisdiction_type,
-                jurisdiction_label, jurisdiction_description, jurisdiction_aliases, native_label,
-                nickname, short_name, demonym, official_language, motto, anthem, inception_date,
-                capital, iso_3166_2, pronunciation_audio, geoshape,
-                official_website, official_image_url, locator_map_image, page_banner_image,
-                youtube_channel_id, youtube_channel_url,
-                facebook_username, facebook_url, twitter_username, twitter_url,
-                population, area_sq_km, per_capita_income, number_of_households, median_age, latitude, longitude,
-                fips_code, gnis_id, nces_id, geonames_id, geoid,
-                head_of_government, head_of_government_position, head_of_government_start_time,
-                postal_codes, local_dialing_code, google_maps_customer_id, language_of_work_or_name, time_zone,
-                ballotpedia_id, tripadvisor_id, subreddit,
-                confidence_score, fetched_at
-            ) VALUES (
-                %(wikidata_id)s, %(jurisdiction_id)s, %(jurisdiction_id_type)s, %(jurisdiction_name)s, %(state_code)s, %(state)s, %(jurisdiction_type)s,
-                %(jurisdiction_label)s, %(jurisdiction_description)s, %(jurisdiction_aliases)s::jsonb, %(native_label)s,
-                %(nickname)s::jsonb, %(short_name)s::jsonb, %(demonym)s::jsonb, %(official_language)s::jsonb, %(motto)s, %(anthem)s::jsonb, %(inception_date)s,
-                %(capital)s::jsonb, %(iso_3166_2)s, %(pronunciation_audio)s, %(geoshape)s,
-                %(official_website)s, %(official_image_url)s, %(locator_map_image)s, %(page_banner_image)s,
-                %(youtube_channel_id)s, %(youtube_channel_url)s,
-                %(facebook_username)s, %(facebook_url)s, %(twitter_username)s, %(twitter_url)s,
-                %(population)s, %(area_sq_km)s, %(per_capita_income)s, %(number_of_households)s, %(median_age)s, %(latitude)s, %(longitude)s,
-                %(fips_code)s, %(gnis_id)s, %(nces_id)s, %(geonames_id)s, %(geoid)s,
-                %(head_of_government)s, %(head_of_government_position)s, %(head_of_government_start_time)s,
-                %(postal_codes)s::jsonb, %(local_dialing_code)s, %(google_maps_customer_id)s, %(language_of_work_or_name)s, %(time_zone)s,
-                %(ballotpedia_id)s, %(tripadvisor_id)s, %(subreddit)s,
-                1.0, CURRENT_TIMESTAMP
-            )
-            ON CONFLICT (wikidata_id) DO UPDATE SET
-                jurisdiction_id = COALESCE(EXCLUDED.jurisdiction_id, jurisdictions_wikidata.jurisdiction_id),
-                jurisdiction_id_type = COALESCE(EXCLUDED.jurisdiction_id_type, jurisdictions_wikidata.jurisdiction_id_type),
-                jurisdiction_label = COALESCE(EXCLUDED.jurisdiction_label, jurisdictions_wikidata.jurisdiction_label),
-                jurisdiction_description = COALESCE(EXCLUDED.jurisdiction_description, jurisdictions_wikidata.jurisdiction_description),
-                jurisdiction_aliases = COALESCE(EXCLUDED.jurisdiction_aliases, jurisdictions_wikidata.jurisdiction_aliases),
-                native_label = COALESCE(EXCLUDED.native_label, jurisdictions_wikidata.native_label),
-                nickname = COALESCE(EXCLUDED.nickname, jurisdictions_wikidata.nickname),
-                short_name = COALESCE(EXCLUDED.short_name, jurisdictions_wikidata.short_name),
-                demonym = COALESCE(EXCLUDED.demonym, jurisdictions_wikidata.demonym),
-                official_language = COALESCE(EXCLUDED.official_language, jurisdictions_wikidata.official_language),
-                motto = COALESCE(EXCLUDED.motto, jurisdictions_wikidata.motto),
-                anthem = COALESCE(EXCLUDED.anthem, jurisdictions_wikidata.anthem),
-                inception_date = COALESCE(EXCLUDED.inception_date, jurisdictions_wikidata.inception_date),
-                capital = COALESCE(EXCLUDED.capital, jurisdictions_wikidata.capital),
-                iso_3166_2 = COALESCE(EXCLUDED.iso_3166_2, jurisdictions_wikidata.iso_3166_2),
-                pronunciation_audio = COALESCE(EXCLUDED.pronunciation_audio, jurisdictions_wikidata.pronunciation_audio),
-                geoshape = COALESCE(EXCLUDED.geoshape, jurisdictions_wikidata.geoshape),
-                official_website = COALESCE(EXCLUDED.official_website, jurisdictions_wikidata.official_website),
-                official_image_url = COALESCE(EXCLUDED.official_image_url, jurisdictions_wikidata.official_image_url),
-                locator_map_image = COALESCE(EXCLUDED.locator_map_image, jurisdictions_wikidata.locator_map_image),
-                page_banner_image = COALESCE(EXCLUDED.page_banner_image, jurisdictions_wikidata.page_banner_image),
-                youtube_channel_id = COALESCE(EXCLUDED.youtube_channel_id, jurisdictions_wikidata.youtube_channel_id),
-                youtube_channel_url = COALESCE(EXCLUDED.youtube_channel_url, jurisdictions_wikidata.youtube_channel_url),
-                facebook_username = COALESCE(EXCLUDED.facebook_username, jurisdictions_wikidata.facebook_username),
-                facebook_url = COALESCE(EXCLUDED.facebook_url, jurisdictions_wikidata.facebook_url),
-                twitter_username = COALESCE(EXCLUDED.twitter_username, jurisdictions_wikidata.twitter_username),
-                twitter_url = COALESCE(EXCLUDED.twitter_url, jurisdictions_wikidata.twitter_url),
-                population = COALESCE(EXCLUDED.population, jurisdictions_wikidata.population),
-                area_sq_km = COALESCE(EXCLUDED.area_sq_km, jurisdictions_wikidata.area_sq_km),
-                per_capita_income = COALESCE(EXCLUDED.per_capita_income, jurisdictions_wikidata.per_capita_income),
-                number_of_households = COALESCE(EXCLUDED.number_of_households, jurisdictions_wikidata.number_of_households),
-                median_age = COALESCE(EXCLUDED.median_age, jurisdictions_wikidata.median_age),
-                latitude = COALESCE(EXCLUDED.latitude, jurisdictions_wikidata.latitude),
-                longitude = COALESCE(EXCLUDED.longitude, jurisdictions_wikidata.longitude),
-                fips_code = COALESCE(EXCLUDED.fips_code, jurisdictions_wikidata.fips_code),
-                gnis_id = COALESCE(EXCLUDED.gnis_id, jurisdictions_wikidata.gnis_id),
-                nces_id = COALESCE(EXCLUDED.nces_id, jurisdictions_wikidata.nces_id),
-                geonames_id = COALESCE(EXCLUDED.geonames_id, jurisdictions_wikidata.geonames_id),
-                geoid = COALESCE(EXCLUDED.geoid, jurisdictions_wikidata.geoid),
-                head_of_government = EXCLUDED.head_of_government,
-                head_of_government_position = EXCLUDED.head_of_government_position,
-                head_of_government_start_time = EXCLUDED.head_of_government_start_time,
-                postal_codes = COALESCE(EXCLUDED.postal_codes, jurisdictions_wikidata.postal_codes),
-                local_dialing_code = COALESCE(EXCLUDED.local_dialing_code, jurisdictions_wikidata.local_dialing_code),
-                google_maps_customer_id = COALESCE(EXCLUDED.google_maps_customer_id, jurisdictions_wikidata.google_maps_customer_id),
-                language_of_work_or_name = COALESCE(EXCLUDED.language_of_work_or_name, jurisdictions_wikidata.language_of_work_or_name),
-                time_zone = COALESCE(EXCLUDED.time_zone, jurisdictions_wikidata.time_zone),
-                ballotpedia_id = COALESCE(EXCLUDED.ballotpedia_id, jurisdictions_wikidata.ballotpedia_id),
-                tripadvisor_id = COALESCE(EXCLUDED.tripadvisor_id, jurisdictions_wikidata.tripadvisor_id),
-                subreddit = COALESCE(EXCLUDED.subreddit, jurisdictions_wikidata.subreddit),
-                last_updated = CURRENT_TIMESTAMP
-        """
-        
-        try:
-            execute_batch(cursor, insert_query, jurisdictions, page_size=100)
-            self.conn.commit()
-            logger.success(f"✓ Inserted {len(jurisdictions)} jurisdictions")
-        except Exception as e:
-            self.conn.rollback()
-            logger.error(f"Error inserting jurisdictions: {e}")
-            raise
-        finally:
-            cursor.close()
+
+        # All rows in this batch correspond to the same task (state/county/city/school_district)
+        # by construction.
+        jtype = jurisdictions[0].get("jurisdiction_type")
+        if jtype == "county":
+            task = "county"
+        elif jtype == "school_district":
+            task = "school_district"
+        elif jtype == "state":
+            task = "state"
+        else:
+            # city/town are stored as municipalities in bronze
+            task = "city"
+
+        self._apply_wikidata_updates(task, jurisdictions)
     
     async def load_state(self, state_code: str, types: List[str], checkpoint: Optional['CheckpointManager'] = None):
         """Load all jurisdiction types for a state."""
@@ -1056,6 +1064,10 @@ class JurisdictionsWikiDataLoader:
             if checkpoint and checkpoint.is_done(state_code, task):
                 logger.info(f"  Skipping {task} for {state_code} (already completed)")
                 continue
+
+            # Rebuild the bronze *_wikidata base rows for this state+type, then apply updates.
+            # This ensures we never end up with "all NULL" base geography columns after truncation.
+            self._seed_wikidata_table(state_code, task)
 
             if task == 'state':
                 results = await self.query_state_info(state_code)
@@ -1134,16 +1146,32 @@ async def main():
         for state in states:
             await loader.load_state(state, types, checkpoint)
         
-        # Final summary
+        # Final summary (bronze *_wikidata tables)
         cursor = loader.conn.cursor()
         cursor.execute("""
-            SELECT 
-                jurisdiction_type,
-                COUNT(*) as count,
-                COUNT(*) FILTER (WHERE youtube_channel_id IS NOT NULL) as with_youtube,
-                COUNT(*) FILTER (WHERE official_website IS NOT NULL) as with_website
-            FROM jurisdictions_wikidata
-            GROUP BY jurisdiction_type
+            SELECT 'state'::text AS jurisdiction_type,
+                   COUNT(*)::int AS count,
+                   COUNT(*) FILTER (WHERE youtube_channel_id IS NOT NULL)::int AS with_youtube,
+                   COUNT(*) FILTER (WHERE official_website IS NOT NULL)::int AS with_website
+            FROM bronze.bronze_jurisdictions_states_wikidata
+            UNION ALL
+            SELECT 'county'::text,
+                   COUNT(*)::int,
+                   COUNT(*) FILTER (WHERE youtube_channel_id IS NOT NULL)::int,
+                   COUNT(*) FILTER (WHERE official_website IS NOT NULL)::int
+            FROM bronze.bronze_jurisdictions_counties_wikidata
+            UNION ALL
+            SELECT 'municipality'::text,
+                   COUNT(*)::int,
+                   COUNT(*) FILTER (WHERE youtube_channel_id IS NOT NULL)::int,
+                   COUNT(*) FILTER (WHERE official_website IS NOT NULL)::int
+            FROM bronze.bronze_jurisdictions_municipalities_wikidata
+            UNION ALL
+            SELECT 'school_district'::text,
+                   COUNT(*)::int,
+                   COUNT(*) FILTER (WHERE youtube_channel_id IS NOT NULL)::int,
+                   COUNT(*) FILTER (WHERE official_website IS NOT NULL)::int
+            FROM bronze.bronze_jurisdictions_school_districts_wikidata
             ORDER BY count DESC
         """)
         

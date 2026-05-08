@@ -28,13 +28,87 @@ function HomepageHeader() {
           </Heading>
         </div>
         <p className="hero__subtitle">{siteConfig.tagline}</p>
-        <p style={{ fontSize: '1.15rem', marginTop: '1rem', marginBottom: '0.5rem', maxWidth: '720px', margin: '1rem auto 0.5rem' }}>
-          Every person deserves to find the help they need and have a voice in the decisions that shape their lives.
-          But public resources are scattered, gaps go unseen, and communities are left navigating alone.
-        </p>
-        <p style={{ fontSize: '1.15rem', fontWeight: 600, marginBottom: '2rem', maxWidth: '720px', margin: '0.5rem auto 2rem' }}>
-          CommunityOne changes that — one platform connecting residents, leaders, and funders to what's really happening on the ground.
-        </p>
+
+        <div style={{
+          maxWidth: '800px',
+          margin: '2rem auto',
+          background: 'rgba(255,255,255,0.15)',
+          borderRadius: '12px',
+          padding: '2rem 2.5rem',
+          borderLeft: '5px solid rgba(255,255,255,0.7)',
+          textAlign: 'left',
+        }}>
+          <p style={{
+            fontSize: '0.8rem',
+            textTransform: 'uppercase',
+            letterSpacing: '0.14em',
+            fontWeight: 700,
+            opacity: 0.75,
+            marginBottom: '0.5rem',
+          }}>
+            Our Mission
+          </p>
+          <p style={{
+            fontSize: '1.5rem',
+            fontWeight: 700,
+            lineHeight: 1.45,
+            marginBottom: '1rem',
+          }}>
+            CommunityOne: One Map for Every Community
+          </p>
+          <p style={{
+            fontSize: '1.1rem',
+            opacity: 0.9,
+            marginBottom: '0.75rem',
+          }}>
+            Every person deserves to find the help they need and have a voice in the decisions that shape their lives. But public resources are scattered, gaps go unseen, and communities are left navigating alone.
+          </p>
+          <p style={{
+            fontSize: '1.1rem',
+            opacity: 0.9,
+            marginBottom: 0,
+          }}>
+            CommunityOne changes that. One platform connects residents, leaders, and funders to what's really happening on the ground — so no community has to fight just to be seen.
+          </p>
+        </div>
+
+        <div style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '0.75rem',
+          justifyContent: 'center',
+          marginTop: '2rem',
+          marginBottom: '0.5rem',
+        }}>
+          {[
+            { label: '🏛️ Public Benefit Corporation' },
+            { label: '🤝 Fiscal-Sponsored 501(c)(3)' },
+            { label: '💡 Mission-Aligned Impact Investors' },
+            { label: '🌱 Philanthropic Institutions' },
+          ].map(({ label }) => (
+            <span key={label} style={{
+              background: 'rgba(255,255,255,0.18)',
+              border: '1px solid rgba(255,255,255,0.45)',
+              borderRadius: '999px',
+              padding: '0.35rem 1rem',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              letterSpacing: '0.01em',
+              whiteSpace: 'nowrap',
+            }}>
+              {label}
+            </span>
+          ))}
+        </div>
+        <div style={{ margin: '1.25rem auto 1.5rem', maxWidth: '640px' }}>
+          <p style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.14em', fontWeight: 700, opacity: 0.7, marginBottom: '0.4rem' }}>
+            Public Benefit Corporation
+          </p>
+          <p style={{ fontSize: '0.9rem', opacity: 0.8, marginBottom: 0, lineHeight: 1.6 }}>
+            GroundVue is a public benefit corporation with a fiscal-sponsored nonprofit 501(c)(3). We are solely funded by mission-aligned impact investors and philanthropic institutions.
+          </p>
+        </div>
+
       </div>
     </header>
   );
@@ -285,41 +359,123 @@ function HomepageStats() {
 
 function WhyItMatters() {
   return (
-    <section className="container margin-vert--xl">
-      <div className="text--center margin-bottom--lg">
-        <Heading as="h2">Why This Matters</Heading>
-        <p style={{ fontSize: '1.1rem', color: '#666', marginTop: '1rem' }}>
-          Turn public data into accountability and action
-        </p>
-      </div>
-      <div className="row margin-top--lg">
-        <div className="col col--4 padding--md">
-          <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
-            <span style={{ fontSize: '3rem' }}>🎯</span>
-          </div>
-          <Heading as="h4" style={{ textAlign: 'center' }}>Direct Community Impact</Heading>
-          <p style={{ textAlign: 'center' }}>
-            Find nonprofits and organizations already providing services, connect citizens to care, and identify partnership opportunities.
+    <section style={{ background: '#f0f4ff', padding: '4rem 0' }}>
+      <div className="container">
+
+        {/* Mission statement */}
+        <div style={{
+          maxWidth: '780px',
+          margin: '0 auto 3rem',
+          textAlign: 'center',
+        }}>
+          <p style={{
+            fontSize: '0.8rem',
+            textTransform: 'uppercase',
+            letterSpacing: '0.14em',
+            fontWeight: 700,
+            color: '#3949AB',
+            marginBottom: '0.75rem',
+          }}>
+            Our Mission
+          </p>
+          <Heading as="h2" style={{ marginBottom: '0.5rem' }}>CommunityOne: One Map for Every Community</Heading>
+          <p style={{ fontSize: '1.2rem', fontWeight: 600, lineHeight: 1.5, color: '#1a1a2e', marginBottom: '0.75rem' }}>
+            Every person deserves to find the help they need and have a voice in the decisions that shape their lives. But public resources are scattered, gaps go unseen, and communities are left navigating alone.
+          </p>
+          <p style={{ fontSize: '1.05rem', color: '#444', lineHeight: 1.7 }}>
+            CommunityOne changes that. One platform connects residents, leaders, and funders to what's really happening on the ground — so no community has to fight just to be seen.
           </p>
         </div>
-        <div className="col col--4 padding--md">
-          <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
-            <span style={{ fontSize: '3rem' }}>⚖️</span>
+
+        {/* Three impact columns */}
+        <div className="row margin-top--lg">
+          <div className="col col--4 padding--md">
+            <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+              <span style={{ fontSize: '3rem' }}>🎯</span>
+            </div>
+            <Heading as="h4" style={{ textAlign: 'center' }}>Direct Community Impact</Heading>
+            <p style={{ textAlign: 'center' }}>
+              Find nonprofits and organizations already providing services, connect citizens to care, and identify partnership opportunities.
+            </p>
           </div>
-          <Heading as="h4" style={{ textAlign: 'center' }}>Government Accountability</Heading>
-          <p style={{ textAlign: 'center' }}>
-            Challenge "impossibility" claims, expose resource gaps, and compare spending priorities with service provision.
-          </p>
-        </div>
-        <div className="col col--4 padding--md">
-          <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
-            <span style={{ fontSize: '3rem' }}>🚀</span>
+          <div className="col col--4 padding--md">
+            <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+              <span style={{ fontSize: '3rem' }}>⚖️</span>
+            </div>
+            <Heading as="h4" style={{ textAlign: 'center' }}>Government Accountability</Heading>
+            <p style={{ textAlign: 'center' }}>
+              Challenge "impossibility" claims, expose resource gaps, and compare spending priorities with service provision.
+            </p>
           </div>
-          <Heading as="h4" style={{ textAlign: 'center' }}>Strategic Advocacy</Heading>
-          <p style={{ textAlign: 'center' }}>
-            Ground campaigns in real data, build coalitions, and mobilize communities with evidence-based messaging.
-          </p>
+          <div className="col col--4 padding--md">
+            <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+              <span style={{ fontSize: '3rem' }}>🚀</span>
+            </div>
+            <Heading as="h4" style={{ textAlign: 'center' }}>Strategic Advocacy</Heading>
+            <p style={{ textAlign: 'center' }}>
+              Ground campaigns in real data, build coalitions, and mobilize communities with evidence-based messaging.
+            </p>
+          </div>
         </div>
+
+        {/* PBC / 501(c)(3) trust strip */}
+        <div style={{
+          marginTop: '3rem',
+          paddingTop: '2rem',
+          borderTop: '1px solid #c5cae9',
+          textAlign: 'center',
+        }}>
+          <p style={{
+            fontSize: '0.8rem',
+            textTransform: 'uppercase',
+            letterSpacing: '0.14em',
+            fontWeight: 700,
+            color: '#3949AB',
+            marginBottom: '1rem',
+          }}>
+            Who We Are
+          </p>
+          <p style={{
+            fontSize: '0.8rem',
+            textTransform: 'uppercase',
+            letterSpacing: '0.14em',
+            fontWeight: 700,
+            color: '#3949AB',
+            marginBottom: '0.5rem',
+          }}>
+            Public Benefit Corporation
+          </p>
+          <p style={{ fontSize: '1rem', color: '#333', maxWidth: '620px', margin: '0 auto 1.25rem', lineHeight: 1.7 }}>
+            GroundVue is a public benefit corporation with a fiscal-sponsored nonprofit <strong>501(c)(3)</strong>. We are solely funded by mission-aligned impact investors and philanthropic institutions.
+          </p>
+          <div style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '0.75rem',
+            justifyContent: 'center',
+          }}>
+            {[
+              { label: '🏛️ Public Benefit Corporation' },
+              { label: '🤝 Fiscal-Sponsored 501(c)(3)' },
+              { label: '💡 Mission-Aligned Impact Investors' },
+              { label: '🌱 Philanthropic Institutions' },
+            ].map(({ label }) => (
+              <span key={label} style={{
+                background: '#e8eaf6',
+                border: '1px solid #9fa8da',
+                borderRadius: '999px',
+                padding: '0.35rem 1rem',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                color: '#283593',
+                whiteSpace: 'nowrap',
+              }}>
+                {label}
+              </span>
+            ))}
+          </div>
+        </div>
+
       </div>
     </section>
   );

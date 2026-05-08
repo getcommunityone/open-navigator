@@ -1013,6 +1013,14 @@ export default function Home() {
                   Quick Navigation
                 </h3>
                 <nav className="space-y-2 flex-1">
+                  <a
+                    href="#mission"
+                    onClick={(e) => { e.preventDefault(); scrollToSection('mission'); }}
+                    className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-[#354F52] hover:text-white transition-all group"
+                  >
+                    <HeartIcon className="h-5 w-5 group-hover:scale-110 transition-transform" />
+                    <span className="font-medium">Our Mission</span>
+                  </a>
                   <Link
                     to="/explore"
                     className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-[#354F52] hover:text-white transition-all group"
@@ -1829,7 +1837,7 @@ export default function Home() {
             </h2>
             <div className="w-24 h-1 bg-gradient-to-r from-[#52796F] to-[#84A98C] mx-auto rounded mb-4"></div>
             <p className="text-lg text-gray-600">
-              Making civic engagement accessible to everyone
+              One platform connecting residents, leaders, and funders to what's really happening on the ground
             </p>
           </div>
 
@@ -1875,12 +1883,29 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Mission Statement */}
-          <div className="max-w-3xl mx-auto text-center bg-gradient-to-br from-gray-50 to-white border-2 border-gray-200 rounded-2xl p-8">
-            <p className="text-lg text-gray-700 leading-relaxed mb-4">
-              Open Navigator empowers communities by making local government transparent and accessible. 
-              We believe informed citizens create stronger democracies.
+          {/* Mission + PBC */}
+          <div id="mission" className="max-w-3xl mx-auto text-center bg-gradient-to-br from-gray-50 to-white border-2 border-gray-200 rounded-2xl p-8">
+            <h2 className="text-3xl md:text-4xl font-bold mb-2" style={{ color: '#354F52' }}>
+              Our Mission
+            </h2>
+            <div className="w-24 h-1 bg-gradient-to-r from-[#52796F] to-[#84A98C] mx-auto rounded mb-4"></div>
+            <p className="text-lg text-gray-600 mb-4">
+              CommunityOne: One Map for Every Community
             </p>
+            <p className="text-lg text-gray-700 leading-relaxed mb-3">
+              Every person deserves to find the help they need and have a voice in the decisions that shape their lives. But public resources are scattered, gaps go unseen, and communities are left navigating alone.
+            </p>
+            <p className="text-lg text-gray-700 leading-relaxed mb-6">
+              CommunityOne changes that. One platform connects residents, leaders, and funders to what's really happening on the ground — so no community has to fight just to be seen.
+            </p>
+
+            <div className="border-t border-gray-200 pt-6 mb-6">
+              <p className="text-xs font-bold uppercase tracking-widest text-[#52796F] mb-2">Public Benefit Corporation</p>
+              <p className="text-base text-gray-600 leading-relaxed">
+                GroundVue is a public benefit corporation with a fiscal-sponsored nonprofit 501(c)(3). We are solely funded by mission-aligned impact investors and philanthropic institutions.
+              </p>
+            </div>
+
             <Link
               to="/explore"
               className="inline-flex items-center gap-2 px-6 py-3 bg-[#354F52] text-white rounded-lg hover:bg-[#2e4346] transition-colors font-semibold"

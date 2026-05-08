@@ -252,6 +252,28 @@ class WikidataQuery:
                         await asyncio.sleep(wait_s)
                         continue
 
+                    # WDQS sometimes returns HTTP 500 with a Blazegraph TimeoutException when overloaded.
+                    # Treat that specific case as transient and retry.
+                    if status == 500:
+                        body = ""
+                        try:
+                            body = e.response.text or ""
+                        except Exception:
+                            body = ""
+
+                        if (
+                            "java.util.concurrent.TimeoutException" in body
+                            or "SystemOverloadFilter" in body
+                            or "RequestConcurrencyFilter" in body
+                        ):
+                            wait_s = min(base_delay_s * (2 ** (attempt - 1)), 90.0) + random.uniform(0.0, 3.0)
+                            logger.warning(
+                                "Wikidata query service error (500 timeout/overload). "
+                                f"Sleeping {wait_s:.1f}s then retrying (attempt {attempt}/{max_attempts})"
+                            )
+                            await asyncio.sleep(wait_s)
+                            continue
+
                     logger.error(f"SPARQL query failed: {status}")
                     logger.error(f"Response: {e.response.text}")
                     raise
