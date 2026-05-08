@@ -1,0 +1,29 @@
+{
+  "completed": [
+    [
+      "GA",
+      "city"
+    ],
+    [
+      "AL",
+      "state"
+    ],
+    [
+      "GA",
+      "state"
+    ],
+    [
+      "AL",
+      "county"
+    ],
+    [
+      "AL",
+      "school_district"
+    ],
+    [
+      "AL",
+      "city"
+    ]
+  ],
+  "last_updated": "2026-05-08T13:06:36.057758"
+}

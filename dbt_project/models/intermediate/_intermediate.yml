@@ -194,6 +194,12 @@ models:
           combination_of_columns:
             - full_name_normalized
             - org_id
+
+  - name: int_localview_channel_geography
+    description: >
+      Maps LocalView-derived YouTube channels to jurisdiction geography by linking
+      LocalView events (jurisdiction_name/state) to Census place/school district GEOIDs
+      and then to counties via the place→county crosswalk.
   
   - name: int_nonprofits_irs_with_zcta
     description: |

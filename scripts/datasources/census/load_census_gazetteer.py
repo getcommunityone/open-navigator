@@ -3,6 +3,7 @@
 Load Census Gazetteer data into bronze jurisdiction tables.
 
 Reads cached CSVs from data/cache/census/gazetteer/ and loads into:
+  states                → bronze.bronze_jurisdictions_states
   counties              → bronze.bronze_jurisdictions_counties
   municipalities        → bronze.bronze_jurisdictions_municipalities
   school_districts      → bronze.bronze_jurisdictions_school_districts  (unified only)
@@ -12,9 +13,9 @@ Reads cached CSVs from data/cache/census/gazetteer/ and loads into:
 Run download_census_gazetteer.py first to populate the cache.
 
 Usage:
-    python scripts/datasources/census/load_census_gazetteer.py
-    python scripts/datasources/census/load_census_gazetteer.py --types counties municipalities
-    python scripts/datasources/census/load_census_gazetteer.py --limit 100
+    python3 scripts/datasources/census/load_census_gazetteer.py
+    python3 scripts/datasources/census/load_census_gazetteer.py --types counties municipalities
+    python3 scripts/datasources/census/load_census_gazetteer.py --limit 100
 """
 import argparse
 import os
@@ -32,6 +33,45 @@ DATABASE_URL = f"postgresql://postgres:{POSTGRES_PASSWORD}@localhost:5433/open_n
 
 # Configuration for each jurisdiction type
 TYPES = {
+    "states": {
+        "table": "bronze.bronze_jurisdictions_states",
+        "cache_file": "states.csv",
+        "geoid_len": 2,
+        "ddl": """
+            CREATE SCHEMA IF NOT EXISTS bronze;
+            CREATE TABLE IF NOT EXISTS bronze.bronze_jurisdictions_states (
+                geoid          VARCHAR(2)    PRIMARY KEY,
+                usps           VARCHAR(2),
+                ansicode       VARCHAR(8),
+                name           VARCHAR(255),
+                aland          BIGINT,
+                awater         BIGINT,
+                aland_sqmi     NUMERIC(12, 6),
+                awater_sqmi    NUMERIC(12, 6),
+                intptlat       NUMERIC(11, 8),
+                intptlong      NUMERIC(12, 8),
+                ingestion_date TIMESTAMP DEFAULT NOW()
+            );
+            CREATE INDEX IF NOT EXISTS idx_bjs_usps   ON bronze.bronze_jurisdictions_states(usps);
+            CREATE INDEX IF NOT EXISTS idx_bjs_coords ON bronze.bronze_jurisdictions_states(intptlat, intptlong);
+        """,
+        "insert": """
+            INSERT INTO bronze.bronze_jurisdictions_states
+                (geoid, usps, ansicode, name, aland, awater, aland_sqmi, awater_sqmi, intptlat, intptlong)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (geoid) DO UPDATE SET
+                usps           = EXCLUDED.usps,
+                ansicode       = EXCLUDED.ansicode,
+                name           = EXCLUDED.name,
+                aland          = EXCLUDED.aland,
+                awater         = EXCLUDED.awater,
+                aland_sqmi     = EXCLUDED.aland_sqmi,
+                awater_sqmi    = EXCLUDED.awater_sqmi,
+                intptlat       = EXCLUDED.intptlat,
+                intptlong      = EXCLUDED.intptlong,
+                ingestion_date = NOW()
+        """,
+    },
     "counties": {
         "table": "bronze.bronze_jurisdictions_counties",
         "cache_file": "counties.csv",
@@ -280,7 +320,15 @@ def build_records(df: pd.DataFrame, jtype: str) -> list:
             safe_float(row.get("INTPTLONG")),
         )
 
-        if jtype == "counties":
+        if jtype == "states":
+            records.append((
+                geoid,
+                safe_str(row.get("USPS"), 2),
+                safe_str(row.get("ANSICODE"), 8),
+                safe_str(row.get("NAME"), 255),
+                *common,
+            ))
+        elif jtype == "counties":
             records.append((
                 geoid,
                 safe_str(row.get("USPS"), 2),

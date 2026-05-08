@@ -52,6 +52,11 @@ from typing import List, Dict, Optional, Any
 from datetime import datetime
 from pathlib import Path
 import httpx
+import random
+import hashlib
+import json
+import os
+import time
 from loguru import logger
 
 try:
@@ -100,8 +105,55 @@ class WikidataQuery:
     
     def __init__(self, cache_dir: str = "data/cache/wikidata"):
         """Initialize Wikidata query client."""
+        cache_dir = os.getenv("WIKIDATA_CACHE_DIR", cache_dir)
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
+        self._throttle_s = float(os.getenv("WIKIDATA_THROTTLE_SECONDS", "1") or "1")
+        self._cache_ttl_s = int(os.getenv("WIKIDATA_CACHE_TTL_SECONDS", str(7 * 24 * 60 * 60)))
+        self._last_request_monotonic: float | None = None
+        self._request_lock = asyncio.Lock()
+
+    def _cache_key(self, query: str) -> str:
+        h = hashlib.sha256(query.encode("utf-8")).hexdigest()
+        return h
+
+    def _cache_path(self, key: str) -> Path:
+        return self.cache_dir / f"sparql_{key}.json"
+
+    def _read_cache(self, query: str) -> List[Dict] | None:
+        key = self._cache_key(query)
+        path = self._cache_path(key)
+        if not path.exists():
+            return None
+        try:
+            payload = json.loads(path.read_text())
+        except Exception:
+            return None
+
+        fetched_at = payload.get("fetched_at_epoch")
+        if fetched_at is None:
+            return None
+        age = time.time() - float(fetched_at)
+        if age > self._cache_ttl_s:
+            return None
+        results = payload.get("results")
+        if isinstance(results, list):
+            logger.debug(f"Cache hit for SPARQL query (age={age:.0f}s)")
+            return results
+        return None
+
+    def _write_cache(self, query: str, results: List[Dict]) -> None:
+        key = self._cache_key(query)
+        path = self._cache_path(key)
+        payload = {
+            "fetched_at_epoch": time.time(),
+            "results": results,
+        }
+        try:
+            path.write_text(json.dumps(payload))
+        except Exception:
+            # Cache is best-effort; never fail the query for cache write issues.
+            return
     
     async def execute_sparql(self, query: str) -> List[Dict]:
         """
@@ -115,43 +167,102 @@ class WikidataQuery:
         """
         logger.info(f"Executing SPARQL query...")
         logger.debug(f"Query: {query}")
+
+        cached = self._read_cache(query)
+        if cached is not None:
+            return cached
+
+        # Ensure we don't hammer the endpoint across concurrent calls.
+        async with self._request_lock:
+            if self._throttle_s > 0:
+                now = time.monotonic()
+                if self._last_request_monotonic is not None:
+                    elapsed = now - self._last_request_monotonic
+                    if elapsed < self._throttle_s:
+                        sleep_s = self._throttle_s - elapsed
+                        logger.debug(f"Throttling Wikidata request: sleeping {sleep_s:.2f}s")
+                        await asyncio.sleep(sleep_s)
+                self._last_request_monotonic = time.monotonic()
         
         async with httpx.AsyncClient(timeout=180.0) as client:  # Increased timeout for complex queries
-            try:
-                response = await client.get(
-                    self.SPARQL_ENDPOINT,
-                    params={
-                        "query": query,
-                        "format": "json"
-                    },
-                    headers={
-                        "User-Agent": "CivicEngagementBot/1.0 (Educational Research)",
-                        "Accept": "application/sparql-results+json"
-                    }
-                )
-                response.raise_for_status()
-                data = response.json()
-                
-                # Extract results
-                bindings = data.get("results", {}).get("bindings", [])
-                results = []
-                
-                for binding in bindings:
-                    result = {}
-                    for key, value in binding.items():
-                        result[key] = value.get("value")
-                    results.append(result)
-                
-                logger.info(f"✅ Query returned {len(results)} results")
-                return results
-                
-            except httpx.HTTPStatusError as e:
-                logger.error(f"SPARQL query failed: {e.response.status_code}")
-                logger.error(f"Response: {e.response.text}")
-                raise
-            except Exception as e:
-                logger.error(f"Error executing SPARQL query: {e}")
-                raise
+            max_attempts = 8
+            base_delay_s = 2.0
+
+            for attempt in range(1, max_attempts + 1):
+                try:
+                    response = await client.get(
+                        self.SPARQL_ENDPOINT,
+                        params={
+                            "query": query,
+                            "format": "json"
+                        },
+                        headers={
+                            "User-Agent": "CivicEngagementBot/1.0 (Educational Research)",
+                            "Accept": "application/sparql-results+json"
+                        }
+                    )
+                    response.raise_for_status()
+                    data = response.json()
+
+                    # Extract results
+                    bindings = data.get("results", {}).get("bindings", [])
+                    results: List[Dict] = []
+
+                    for binding in bindings:
+                        result = {}
+                        for key, value in binding.items():
+                            result[key] = value.get("value")
+                        results.append(result)
+
+                    logger.info(f"✅ Query returned {len(results)} results")
+                    self._write_cache(query, results)
+                    return results
+
+                except httpx.HTTPStatusError as e:
+                    status = e.response.status_code
+
+                    # Wikidata Query Service rate limits aggressively; handle 429 with backoff.
+                    if status == 429:
+                        retry_after = e.response.headers.get("Retry-After")
+                        if retry_after:
+                            try:
+                                wait_s = float(retry_after)
+                            except ValueError:
+                                wait_s = base_delay_s
+                        else:
+                            # Exponential backoff with jitter, cap at 60s
+                            wait_s = min(base_delay_s * (2 ** (attempt - 1)), 60.0)
+                            wait_s = wait_s + random.uniform(0.0, 1.5)
+
+                        logger.warning(f"Wikidata rate limited (429). Sleeping {wait_s:.1f}s then retrying (attempt {attempt}/{max_attempts})")
+                        await asyncio.sleep(wait_s)
+                        continue
+
+                    # Transient upstream errors/timeouts from the query service.
+                    if status in (502, 503, 504):
+                        wait_s = min(base_delay_s * (2 ** (attempt - 1)), 60.0) + random.uniform(0.0, 2.0)
+                        logger.warning(
+                            f"Wikidata query service error ({status}). Sleeping {wait_s:.1f}s then retrying "
+                            f"(attempt {attempt}/{max_attempts})"
+                        )
+                        await asyncio.sleep(wait_s)
+                        continue
+
+                    logger.error(f"SPARQL query failed: {status}")
+                    logger.error(f"Response: {e.response.text}")
+                    raise
+
+                except Exception as e:
+                    # Retry transient network failures a few times
+                    if attempt < max_attempts:
+                        wait_s = min(base_delay_s * (2 ** (attempt - 1)), 30.0) + random.uniform(0.0, 1.0)
+                        logger.warning(f"SPARQL query error: {e}. Sleeping {wait_s:.1f}s then retrying (attempt {attempt}/{max_attempts})")
+                        await asyncio.sleep(wait_s)
+                        continue
+                    logger.error(f"Error executing SPARQL query: {e}")
+                    raise
+
+            raise RuntimeError("SPARQL query failed after retries")
     
     async def find_school_board_members(
         self,

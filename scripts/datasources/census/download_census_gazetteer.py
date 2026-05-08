@@ -13,9 +13,9 @@ Data Sources:
 - https://www.census.gov/geographies/reference-files/time-series/geo/gazetteer-files.html
 
 Usage:
-    python scripts/datasources/census/download_census_gazetteer.py
-    python scripts/datasources/census/download_census_gazetteer.py --skip-school-districts
-    python scripts/datasources/census/download_census_gazetteer.py --types counties municipalities
+    python3 scripts/datasources/census/download_census_gazetteer.py
+    python3 scripts/datasources/census/download_census_gazetteer.py --skip-school-districts
+    python3 scripts/datasources/census/download_census_gazetteer.py --types counties municipalities
 """
 import sys
 import asyncio
@@ -38,6 +38,7 @@ CACHE_DIR = Path("data/cache/census/gazetteer")
 GOLD_DIR = Path("data/gold")
 
 GID_URLS = {
+    "states": "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2024_Gazetteer/2024_Gaz_state_national.zip",
     "counties": "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2024_Gazetteer/2024_Gaz_counties_national.zip",
     "municipalities": "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2024_Gazetteer/2024_Gaz_place_national.zip",
     "townships": "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2024_Gazetteer/2024_Gaz_cousubs_national.zip",
@@ -49,6 +50,7 @@ GID_URLS = {
 
 # Maps download type → gold output file (school district types are merged into one file)
 GOLD_OUTPUT = {
+    "states": "jurisdictions_states.parquet",
     "counties": "jurisdictions_counties.parquet",
     "municipalities": "jurisdictions_cities.parquet",
     "townships": "jurisdictions_townships.parquet",
