@@ -215,6 +215,64 @@ def _wikidata_hybrid_municipality_map_mode() -> str:
     return "bulk_state"
 
 
+def _wikidata_school_bulk_supplement_sparql() -> bool:
+    """
+    After bulk school-district WDQS + in-memory match, optionally run FILTER IN for misses.
+
+    Env: ``WIKIDATA_SCHOOL_BULK_SUPPLEMENT_SPARQL`` (default True).
+    """
+    return _env_truthy("WIKIDATA_SCHOOL_BULK_SUPPLEMENT_SPARQL", default=True)
+
+
+def _wikidata_municipality_bulk_supplement_sparql() -> bool:
+    """
+    After bulk P131+ WDQS + in-memory match, optionally run a second FILTER IN WDQS query for misses.
+
+    Set ``WIKIDATA_MUNICIPALITY_BULK_SUPPLEMENT_SPARQL=0`` to use **only** the bulk rows (one WDQS query
+    per state). Fewer calls and no huge ``FILTER … IN (...)`` — but any bronze place that did not match
+    a bulk binding stays without a Q-id until another strategy exists.
+
+    Env: ``WIKIDATA_MUNICIPALITY_BULK_SUPPLEMENT_SPARQL`` (default True).
+    """
+    return _env_truthy("WIKIDATA_MUNICIPALITY_BULK_SUPPLEMENT_SPARQL", default=True)
+
+
+def _apply_wikidata_happy_path_env_defaults() -> None:
+    """
+    ``WIKIDATA_HAPPY_PATH=1`` (or ``--happy-path``): set **only unset** env keys to reduce
+    429s — slower pacing, no extra FILTER supplements after bulk, no county wbsearchentities
+    fallback, skip priority USPS that are already enriched. Run a second pass later with
+    supplements / gap retry / entity-search when WDQS is quiet.
+    """
+    if not _env_truthy("WIKIDATA_HAPPY_PATH"):
+        return
+    # Only fill keys that the user has not already set (explicit empty string counts as set for dotenv).
+    defaults = {
+        "WIKIDATA_RETRY_AFTER_MAX_SECONDS": "120",
+        "WIKIDATA_THROTTLE_SECONDS": "12",
+        "WIKIDATA_TASK_SLEEP_SECONDS": "8",
+        "WIKIDATA_INCREMENTAL_MERGE": "1",
+        "WIKIDATA_PRIORITY_STATES_SKIP_COMPLETE": "1",
+        "WIKIDATA_LOAD_RETRY_COUNTY_GAPS": "0",
+        "WIKIDATA_MUNICIPALITY_BULK_SUPPLEMENT_SPARQL": "0",
+        "WIKIDATA_SCHOOL_BULK_SUPPLEMENT_SPARQL": "0",
+        "WIKIDATA_COUNTY_BULK_FALLBACK_ENTITY_SEARCH": "0",
+        "WIKIDATA_COUNTY_CHUNK_SLEEP_SECONDS": "3",
+    }
+    applied = []
+    for key, val in defaults.items():
+        raw = (os.getenv(key) or "").strip()
+        if raw == "":
+            os.environ[key] = val
+            applied.append(key)
+    if applied:
+        logger.info(
+            "WIKIDATA_HAPPY_PATH active — filled unset keys: "
+            + ", ".join(applied)
+            + " (see module doc / run_wikidata_happy_path.sh)."
+        )
+
+
 def _wikidata_hybrid_school_map_mode() -> str:
     """
     Hybrid school-district id→Q resolution:
@@ -244,8 +302,11 @@ def _wikidata_incremental_merge() -> bool:
     """
     When True, seeding merges Census base rows into *_wikidata without wiping existing QIDs,
     and WDQS runs only for rows where wikidata_id is still NULL (see WIKIDATA_INCREMENTAL_MERGE).
+
+    Default **True**: without merge, each run DELETE+re-seeds rows and clears enrichment, so
+    ``--priority-states`` would refetch Wikidata even when coverage is already 100%.
     """
-    return _env_truthy("WIKIDATA_INCREMENTAL_MERGE", default=False)
+    return _env_truthy("WIKIDATA_INCREMENTAL_MERGE", default=True)
 
 
 def fetch_usps_county_wikidata_gaps(database_url: str) -> List[str]:
@@ -287,6 +348,70 @@ def fetch_usps_county_wikidata_gaps(database_url: str) -> List[str]:
     if unknown:
         logger.warning(f"Ignoring {len(unknown)} USPS code(s) not in STATE_MAP (sample): {unknown[:10]}")
     return [s.upper() for s in rows if s.upper() in STATE_MAP]
+
+
+def _loader_query_tasks_from_types(types: List[str]) -> List[str]:
+    """Same task ordering as ``load_state`` (city/town → single city task)."""
+    query_tasks: List[str] = []
+    if "state" in types:
+        query_tasks.append("state")
+    if "city" in types or "town" in types:
+        query_tasks.append("city")
+    if "county" in types:
+        query_tasks.append("county")
+    if "school_district" in types:
+        query_tasks.append("school_district")
+    return query_tasks
+
+
+def filter_states_with_pending_wikidata_for_types(
+    database_url: str, state_codes: List[str], types: List[str]
+) -> List[str]:
+    """
+    USPS codes that still need Wikidata joins: at least one row in a selected *_wikidata
+    table has NULL/empty ``wikidata_id`` for that USPS.
+    """
+    tasks = _loader_query_tasks_from_types(types)
+    if not tasks:
+        return [s.upper() for s in state_codes if s.strip()]
+    tbl_map = {
+        "state": "bronze.bronze_jurisdictions_states_wikidata",
+        "county": "bronze.bronze_jurisdictions_counties_wikidata",
+        "city": "bronze.bronze_jurisdictions_municipalities_wikidata",
+        "school_district": "bronze.bronze_jurisdictions_school_districts_wikidata",
+    }
+    conn = psycopg2.connect(database_url)
+    try:
+        out: List[str] = []
+        for us in state_codes:
+            usup = str(us).strip().upper()
+            if not usup:
+                continue
+            needs_work = False
+            for task in tasks:
+                tbl = tbl_map[task]
+                cur = conn.cursor()
+                try:
+                    cur.execute(
+                        f"""
+                        SELECT 1
+                        FROM {tbl}
+                        WHERE usps = %s
+                          AND (wikidata_id IS NULL OR BTRIM(wikidata_id::text) = '')
+                        LIMIT 1
+                        """,
+                        (usup,),
+                    )
+                    if cur.fetchone() is not None:
+                        needs_work = True
+                        break
+                finally:
+                    cur.close()
+            if needs_work:
+                out.append(usup)
+        return out
+    finally:
+        conn.close()
 
 
 def _sparql_quote_string_literal(s: str) -> str:
@@ -610,10 +735,11 @@ class JurisdictionsWikiDataLoader:
     def _any_missing_wikidata_id_for_task(self, state_code: str, task: str) -> bool:
         """
         True if this USPS still has at least one row in the *_wikidata table with NULL wikidata_id.
-        Used with WIKIDATA_INCREMENTAL_MERGE to skip WDQS entirely when fully enriched.
+
+        With ``WIKIDATA_INCREMENTAL_MERGE=1`` (default), if this returns False after seeding,
+        WDQS is skipped for that task. With merge off, the table is re-seeded empty of Q IDs,
+        so this is typically True until Wikidata is fetched again.
         """
-        if not _wikidata_incremental_merge():
-            return True
         tbl = {
             "state": "bronze.bronze_jurisdictions_states_wikidata",
             "county": "bronze.bronze_jurisdictions_counties_wikidata",
@@ -981,9 +1107,15 @@ class JurisdictionsWikiDataLoader:
                     if iq.startswith("Q"):
                         qcache.remember_muni(iq, mr.get("fips"), mr.get("gnis"))
                 logger.info(
-                    f"  Bulk WDQS returned {len(bulk_rows or [])} row(s); "
-                    f"matching {len(pairs)} bronze places in memory"
+                    f"  Bulk WDQS: {len(bulk_rows or [])} distinct place item(s) under this state "
+                    f"(P131+/types). Next chunks: for each bronze GEOID, resolve Q via "
+                    f"literal cache → scan bulk bindings (P774/P590) → optional FILTER IN → wbgetentities."
                 )
+                if use_bulk and not _wikidata_municipality_bulk_supplement_sparql():
+                    logger.info(
+                        "  WIKIDATA_MUNICIPALITY_BULK_SUPPLEMENT_SPARQL=0 — "
+                        "no supplemental FILTER IN per chunk; bulk + cache matches only."
+                    )
             except Exception as e:
                 logger.warning(f"Bulk state municipality WDQS failed: {type(e).__name__}: {e}")
                 bulk_rows = None
@@ -1000,10 +1132,13 @@ class JurisdictionsWikiDataLoader:
             chi = ix // chunk_size + 1
             mlabel = "bulk-state" if use_bulk else "WDQS-map"
             logger.info(
-                f"Hybrid municipalities {mlabel} chunk {chi}/{n_chunks} ({len(chunk)} GEOIDs, {state_name})…"
+                f"Hybrid municipalities {mlabel} chunk {chi}/{n_chunks} "
+                f"({len(chunk)} bronze places, {state_name})…"
             )
 
             geo_to_q: Dict[str, str] = {}
+            n_map_cache = 0
+            n_map_bulk = 0
 
             need_fips: Set[str] = set()
             need_gnis: Set[str] = set()
@@ -1014,6 +1149,7 @@ class JurisdictionsWikiDataLoader:
                 cq = qcache.lookup_q_for_municipality(ff, gg)
                 if cq:
                     geo_to_q[gid] = cq
+                    n_map_cache += 1
                     continue
                 if use_bulk:
                     matched_q: Optional[str] = None
@@ -1025,10 +1161,18 @@ class JurisdictionsWikiDataLoader:
                                 break
                     if matched_q:
                         geo_to_q[gid] = matched_q
+                        n_map_bulk += 1
                         continue
-                if inner_mode == "sparql" or use_bulk:
+                # Pure sparql mode (no bulk rows): every miss needs a FILTER batch.
+                if inner_mode == "sparql" and not use_bulk:
                     need_fips |= ff
                     need_gnis |= gg
+                # Bulk mode: optional second WDQS query (FILTER IN) for rows bulk did not match.
+                elif use_bulk and _wikidata_municipality_bulk_supplement_sparql():
+                    need_fips |= ff
+                    need_gnis |= gg
+
+            n_after_pass1 = len(geo_to_q)
 
             filt_parts: List[str] = []
             f_list = sorted(_sparql_quote_string_literal(x) for x in need_fips)
@@ -1051,6 +1195,14 @@ class JurisdictionsWikiDataLoader:
             if filt:
                 lim = min(5000, max(400, len(chunk) * 60))
                 qtext = _wikidata_hybrid_sql.municipality_mapping_sparql(filt, lim)
+                n_lit_f = len(need_fips)
+                n_lit_g = len(need_gnis)
+                n_miss_p1 = len(chunk) - n_after_pass1
+                logger.info(
+                    f"  chunk {chi}/{n_chunks}: pass-1 done — cache={n_map_cache}, bulk_match={n_map_bulk}, "
+                    f"unmapped={n_miss_p1}/{len(chunk)} → running 2nd WDQS query (FILTER IN: {n_lit_f} FIPS + "
+                    f"{n_lit_g} GNIS literal variants)…"
+                )
                 try:
                     mapping_rows = await self.wikidata.execute_sparql(qtext)
                 except Exception as e:
@@ -1062,6 +1214,25 @@ class JurisdictionsWikiDataLoader:
                     if not iq.startswith("Q"):
                         continue
                     qcache.remember_muni(iq, mr.get("fips"), mr.get("gnis"))
+                logger.info(
+                    f"  chunk {chi}/{n_chunks}: FILTER IN WDQS → {len(mapping_rows)} distinct item(s); "
+                    f"reconciling GEOID→Q via cache…"
+                )
+            elif not filt:
+                n_miss = len(chunk) - n_after_pass1
+                sup = _wikidata_municipality_bulk_supplement_sparql()
+                hint = ""
+                if n_miss:
+                    hint = (
+                        " — set WIKIDATA_MUNICIPALITY_BULK_SUPPLEMENT_SPARQL=1 for FILTER WDQS on misses"
+                        if use_bulk and not sup
+                        else " (run backfill / wider matching later)"
+                    )
+                logger.info(
+                    f"  chunk {chi}/{n_chunks}: id→Q pass-1 — geography cache={n_map_cache}, "
+                    f"bulk WDQS row match={n_map_bulk}, GEOIDs_with_Q={n_after_pass1}/{len(chunk)}"
+                    f"{hint}"
+                )
 
             for geo, ansi in chunk:
                 gid = str(geo).strip()
@@ -1072,10 +1243,23 @@ class JurisdictionsWikiDataLoader:
                 if iq:
                     geo_to_q[gid] = iq
 
+            n_map_supplement = len(geo_to_q) - n_after_pass1
+            n_mapped_geo = sum(1 for g, _ in chunk if str(g).strip() in geo_to_q)
+            n_unmapped = len(chunk) - n_mapped_geo
+
             chunk_geos = {str(g).strip() for g, _ in chunk}
             q_needed = sorted({geo_to_q[g] for g in chunk_geos if g in geo_to_q})
             if not q_needed:
                 qcache.save()
+                if filt:
+                    logger.info(
+                        f"  chunk {chi}/{n_chunks}: done — no wbgetentities (no GEOID resolved to a Q-id in this chunk)."
+                    )
+                else:
+                    logger.info(
+                        f"  chunk {chi}/{n_chunks}: done — mapped GEOIDs={n_mapped_geo}/{len(chunk)}; "
+                        f"no hydrate step (all unmapped or no Q-ids)."
+                    )
                 continue
 
             enriched: List[Dict] = []
@@ -1085,6 +1269,12 @@ class JurisdictionsWikiDataLoader:
             else:
                 api_payload = await self.wikidata.wikibase_get_entities(q_needed)
                 enriched.extend(entities_response_to_rows({"entities": api_payload}))
+            logger.info(
+                f"  chunk {chi}/{n_chunks}: hydrate — wbgetentities(Pywikibot) for {len(q_needed)} Q-id(s) "
+                f"(labels/claims); GEOIDs with Q this chunk={n_mapped_geo}/{len(chunk)}"
+                + (f", +{n_map_supplement} from FILTER+relookup" if n_map_supplement > 0 else "")
+                + (f"; {n_unmapped} GEOID(s) still without Q — backfill later" if n_unmapped else "")
+            )
 
             by_q: Dict[str, Dict] = {}
             for row in enriched:
@@ -1114,7 +1304,22 @@ class JurisdictionsWikiDataLoader:
             if chunk_sleep > 0 and chi < n_chunks:
                 await asyncio.sleep(chunk_sleep)
 
+        n_pairs = len(pairs)
         logger.info(f"  Found {len(aggregated)} cities (hybrid)")
+        if n_pairs and len(aggregated) == 0:
+            logger.error(
+                f"Hybrid municipalities for {state_code}: 0 Postgres-ready rows despite {n_pairs} bronze "
+                f"places — no GEOID→Q resolution + hydrate (no rows for insert_jurisdictions). "
+                f"Common: WIKIDATA_MUNICIPALITY_BULK_SUPPLEMENT_SPARQL=0 (happy path) while bulk P131+ did not "
+                f"match Census literals — set supplement=1; or WDQS 429/throttle. "
+                f"Verify NULLs: SELECT COUNT(*) FROM bronze.bronze_jurisdictions_municipalities_wikidata "
+                f"WHERE usps = '{state_code.upper()}' AND (wikidata_id IS NULL OR BTRIM(wikidata_id::text) = '');"
+            )
+        elif n_pairs and len(aggregated) < n_pairs:
+            logger.warning(
+                f"Hybrid municipalities for {state_code}: enriched {len(aggregated)}/{n_pairs} places this run — "
+                f"remaining bronze rows still have NULL wikidata_id until supplement/backfill."
+            )
         return aggregated
 
     async def _query_counties_in_state_via_hybrid(self, state_code: str, state_q_code: str, state_name: str) -> List[Dict]:
@@ -1422,6 +1627,11 @@ class JurisdictionsWikiDataLoader:
                     f"  Bulk WDQS returned {len(bulk_rows or [])} row(s); "
                     f"matching {len(geoids)} bronze district GEOIDs in memory"
                 )
+                if use_bulk and not _wikidata_school_bulk_supplement_sparql():
+                    logger.info(
+                        "  WIKIDATA_SCHOOL_BULK_SUPPLEMENT_SPARQL=0 — "
+                        "no supplemental FILTER IN per chunk; bulk + cache matches only."
+                    )
             except Exception as e:
                 logger.warning(f"Bulk state school-district WDQS failed: {type(e).__name__}: {e}")
                 bulk_rows = None
@@ -1458,7 +1668,9 @@ class JurisdictionsWikiDataLoader:
                     if matched_q:
                         geo_to_q[g] = matched_q
                         continue
-                if inner_mode == "sparql" or use_bulk:
+                if inner_mode == "sparql" and not use_bulk:
+                    literals |= lits
+                elif use_bulk and _wikidata_school_bulk_supplement_sparql():
                     literals |= lits
 
             mapping_rows: List[Dict] = []
@@ -3060,12 +3272,29 @@ async def main():
         ),
     )
 
+    parser.add_argument(
+        '--happy-path',
+        action=BooleanOptionalAction,
+        default=None,
+        help=(
+            "Apply WIKIDATA_HAPPY_PATH=1 and conservative defaults for unset env (slow WDQS cadence, "
+            "bulk-only muni/school mapping, no county entity-search fallback, skip enriched priority USPS). "
+            "Backfill stragglers later with supplements / --retry-county-gap-states."
+        ),
+    )
+
     args = parser.parse_args()
 
     if args.incremental_merge is True:
         os.environ["WIKIDATA_INCREMENTAL_MERGE"] = "1"
     elif args.incremental_merge is False:
         os.environ["WIKIDATA_INCREMENTAL_MERGE"] = "0"
+
+    if args.happy_path is True:
+        os.environ["WIKIDATA_HAPPY_PATH"] = "1"
+    elif args.happy_path is False:
+        os.environ["WIKIDATA_HAPPY_PATH"] = "0"
+    _apply_wikidata_happy_path_env_defaults()
 
     types = [t.strip().lower() for t in args.types.split(',') if t.strip()]
 
@@ -3080,8 +3309,26 @@ async def main():
         )
         args.retry_county_gap_states = False
 
-    # Parse states and types
-    if args.retry_county_gap_states:
+    # Parse states and types.
+    # Precedence: --all-us-states > --priority-states > county-gap discovery > explicit --states.
+    # (County-gap env WIKIDATA_LOAD_RETRY_COUNTY_GAPS must not override an explicit --priority-states run.)
+    if args.all_us_states:
+        states = sorted(STATE_MAP.keys())
+    elif args.priority_states:
+        states = PRIORITY_STATES
+        if _env_truthy("WIKIDATA_PRIORITY_STATES_SKIP_COMPLETE", default=True):
+            before = len(states)
+            states = filter_states_with_pending_wikidata_for_types(DATABASE_URL, states, types)
+            logger.info(
+                f"Priority USPS with pending Wikidata (NULL wikidata_id) for types {types!r}: "
+                f"{len(states)}/{before} — {','.join(states) if states else '(none)'}"
+            )
+            if not states:
+                logger.success(
+                    "All priority states already have wikidata_id for every row in the selected types — nothing to do."
+                )
+                return
+    elif args.retry_county_gap_states:
         logger.info("Discovering USPS with incomplete county Wikidata enrichment (bronze vs *_wikidata)...")
         states = fetch_usps_county_wikidata_gaps(DATABASE_URL)
         if not states:
@@ -3093,10 +3340,6 @@ async def main():
             logger.info(f"Cleared checkpoint for county on {cleared} USPS so those tasks rerun.")
         elif args.force:
             logger.info("FORCE=1 — checkpoint ignored; querying WDQS again for gap states.")
-    elif args.all_us_states:
-        states = sorted(STATE_MAP.keys())
-    elif args.priority_states:
-        states = PRIORITY_STATES
     else:
         states = [s.strip().upper() for s in args.states.split(',') if s.strip()]
 
