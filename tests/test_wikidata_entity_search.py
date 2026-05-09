@@ -21,6 +21,10 @@ if str(_root) not in sys.path:
 
 from scripts.datasources.wikidata import wikidata_entity_search as wes
 from scripts.datasources.wikidata import wikidata_hybrid_sql
+from scripts.datasources.wikidata.load_jurisdictions_wikidata import (
+    _batched_sorted_literals,
+    _municipality_wd_literal_sets,
+)
 
 
 def test_county_search_strings_includes_state_phrases() -> None:
@@ -62,6 +66,61 @@ def test_county_bulk_by_state_sparql_contains_state_and_p131() -> None:
     assert "wd:Q1393" in q
     assert "wdt:P131" in q
     assert "P882" in q
+
+
+def test_municipality_mapping_sparql_property_led_union_no_p17() -> None:
+    q = wikidata_hybrid_sql.municipality_mapping_sparql('"0100100"', "", 500)
+    assert "wdt:P17" not in q
+    assert "OPTIONAL" not in q  # required P774 / P590 leads only
+    assert "wdt:P774" in q
+    assert 'REPLACE(STR(?fips), "-", "")' in q
+    assert '"0100100"' in q
+    assert "UNION" not in q  # single branch when GNIS empty
+
+    q2 = wikidata_hybrid_sql.municipality_mapping_sparql('"01"', '"2402638"', 400)
+    assert "UNION" in q2
+    assert "wdt:P590" in q2
+
+
+def test_batched_sorted_literals_chunk_size() -> None:
+    s = {str(i).zfill(3) for i in range(25)}
+    batches = _batched_sorted_literals(s, 10)
+    assert len(batches) == 3
+    assert sum(len(b) for b in batches) == 25
+    assert all(len(b) <= 10 for b in batches)
+
+
+def test_municipality_wd_literal_sets_hyphen_geoid_and_padding() -> None:
+    ff1, _ = _municipality_wd_literal_sets("01-00100", None)
+    assert "0100100" in ff1
+    ff2, _ = _municipality_wd_literal_sets("100100", None)
+    assert "0100100" in ff2 and "100100" in ff2
+
+
+def test_municipality_bulk_by_state_no_p17() -> None:
+    q = wikidata_hybrid_sql.municipality_bulk_by_state_sparql("Q173", limit_rows=500)
+    assert "wdt:P17" not in q
+    assert "wdt:P131+" in q
+
+
+def test_county_mapping_sparql_union_required_claims() -> None:
+    q = wikidata_hybrid_sql.county_mapping_sparql(
+        "wd:Q47168",
+        '"01001", "01003"',
+        800,
+    )
+    assert "?fips IN" in q
+    assert "?fipsAlt IN" in q
+    assert "UNION" in q
+    assert "REPLACE(STR(" not in q
+    assert "OPTIONAL" not in q
+
+
+def test_school_mapping_sparql_union() -> None:
+    q = wikidata_hybrid_sql.school_mapping_sparql('"060001"', 900)
+    assert "UNION" in q
+    assert "?nces IN" in q or "FILTER(?nces IN" in q
+    assert "BOUND(" not in q
 
 
 def test_entity_claim_identifier_literals_no_match() -> None:

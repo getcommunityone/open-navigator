@@ -167,7 +167,8 @@ class WikidataQuery:
         self._connect_retry_base_s = float(os.getenv("WIKIDATA_CONNECT_RETRY_BASE_SECONDS", "10") or "10")
         self._connect_retry_max_s = float(os.getenv("WIKIDATA_CONNECT_RETRY_MAX_SECONDS", "300") or "300")
         self._sparql_max_attempts = int(os.getenv("WIKIDATA_SPARQL_MAX_ATTEMPTS", "10") or "10")
-        self._sparql_timeout_s = float(os.getenv("WIKIDATA_SPARQL_TIMEOUT_SECONDS", "120") or "120")
+        # WDQS often needs >60s under load; Wikimedia docs suggest allowing up to ~120–180s client read time.
+        self._sparql_timeout_s = float(os.getenv("WIKIDATA_SPARQL_TIMEOUT_SECONDS", "180") or "180")
         try:
             _wbt = float(os.getenv("WIKIDATA_WIKIBASE_API_TIMEOUT_SECONDS", "") or 0)
         except ValueError:
@@ -229,9 +230,9 @@ class WikidataQuery:
         )
         if self._http_proxy:
             logger.info(
-                "Wikidata HTTP client proxy enabled via WIKIDATA_HTTPS_PROXY or "
-                "WIKIDATA_HTTP_PROXY (socks5 supported when socksio is installed). "
-                "If WARP/SOCKS is disconnected, calls can stall until timeout — unset the proxy or fix the tunnel."
+                f"Wikidata HTTP client proxy enabled → {self._http_proxy!r} "
+                "(WIKIDATA_HTTPS_PROXY / WIKIDATA_HTTP_PROXY; Docker WARP must expose SOCKS on that host:port). "
+                "SOCKS5 requires socksio (see requirements.txt). If the tunnel is down, calls stall until timeout."
             )
 
         # Per-slot network outcome counts (indexed when using WIKIDATA_USER_AGENT_POOL).

@@ -3,6 +3,7 @@ set -euo pipefail
 
 # Low-429 Wikidata jurisdiction load: enables ``--happy-path`` (see
 # ``_apply_wikidata_happy_path_env_defaults`` in load_jurisdictions_wikidata.py).
+# Fills ``WIKIDATA_HYBRID_ENRICH=1`` when unset (bulk id→Q + wbgetentities — not legacy FILTER batches).
 # Uses one bulk WDQS query per state where applicable, slower spacing, no FILTER supplements
 # for muni/school misses and no county wbsearchentities fallback — backfill later when WDQS is quiet.
 #

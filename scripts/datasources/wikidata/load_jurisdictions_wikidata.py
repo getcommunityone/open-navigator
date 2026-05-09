@@ -48,21 +48,16 @@ from pathlib import Path
 from typing import List, Dict, Optional, Set, Tuple, Any
 from datetime import datetime
 
+_PSYCOPG2_AVAILABLE = True
 try:
     import psycopg2
     from psycopg2.extras import execute_batch
 except ModuleNotFoundError as exc:
     if exc.name != "psycopg2":
         raise
-    _repo_root = Path(__file__).resolve().parents[3]
-    _venv_py = _repo_root / ".venv" / "bin" / "python"
-    sys.stderr.write(
-        "ModuleNotFoundError: psycopg2 — install deps in the project venv or use its interpreter.\n"
-        f"  Example: {_venv_py} {_repo_root / 'scripts/datasources/wikidata/load_jurisdictions_wikidata.py'} ...\n"
-        "  Or: source .venv/bin/activate   (then run python3 …)\n"
-        "  Setup: python3 -m venv .venv && .venv/bin/pip install -r requirements.txt\n"
-    )
-    sys.exit(1)
+    _PSYCOPG2_AVAILABLE = False
+    psycopg2 = None  # type: ignore[assignment]
+    execute_batch = None  # type: ignore[assignment]
 from loguru import logger
 from dotenv import load_dotenv
 
@@ -70,7 +65,7 @@ from dotenv import load_dotenv
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 
 from scripts.datasources.wikidata.wikidata_integration import WikidataQuery
-from scripts.datasources.wikidata.geography_qid_cache import GeographyQidCache
+from scripts.datasources.wikidata.geography_qid_cache import GeographyQidCache, norm_lit
 from scripts.datasources.wikidata import wikidata_hybrid_sql as _wikidata_hybrid_sql
 from scripts.datasources.wikidata.wikidata_wbget_claims import (
     collect_state_related_qids,
@@ -219,22 +214,43 @@ def _wikidata_school_bulk_supplement_sparql() -> bool:
     """
     After bulk school-district WDQS + in-memory match, optionally run FILTER IN for misses.
 
-    Env: ``WIKIDATA_SCHOOL_BULK_SUPPLEMENT_SPARQL`` (default True).
+    Env: ``WIKIDATA_SCHOOL_BULK_SUPPLEMENT_SPARQL`` (default False).
     """
-    return _env_truthy("WIKIDATA_SCHOOL_BULK_SUPPLEMENT_SPARQL", default=True)
+    return _env_truthy("WIKIDATA_SCHOOL_BULK_SUPPLEMENT_SPARQL", default=False)
 
 
 def _wikidata_municipality_bulk_supplement_sparql() -> bool:
     """
     After bulk P131+ WDQS + in-memory match, optionally run a second FILTER IN WDQS query for misses.
 
-    Set ``WIKIDATA_MUNICIPALITY_BULK_SUPPLEMENT_SPARQL=0`` to use **only** the bulk rows (one WDQS query
-    per state). Fewer calls and no huge ``FILTER … IN (...)`` — but any bronze place that did not match
-    a bulk binding stays without a Q-id until another strategy exists.
+    Uses **only** the bulk rows by default (one WDQS query per state). Set
+    ``WIKIDATA_MUNICIPALITY_BULK_SUPPLEMENT_SPARQL=1`` as a dedicated backfill pass when WDQS is quiet.
 
-    Env: ``WIKIDATA_MUNICIPALITY_BULK_SUPPLEMENT_SPARQL`` (default True).
+    Env: ``WIKIDATA_MUNICIPALITY_BULK_SUPPLEMENT_SPARQL`` (default False).
     """
-    return _env_truthy("WIKIDATA_MUNICIPALITY_BULK_SUPPLEMENT_SPARQL", default=True)
+    return _env_truthy("WIKIDATA_MUNICIPALITY_BULK_SUPPLEMENT_SPARQL", default=False)
+
+
+def _municipality_pre_bulk_wdqs_pause_seconds() -> float:
+    """Sleep before the **one** state bulk municipality WDQS query (first heavy hit; eases cold 429)."""
+    try:
+        return max(0.0, float(os.getenv("WIKIDATA_MUNICIPALITY_PRE_BULK_WDQS_PAUSE_SECONDS", "0") or "0"))
+    except ValueError:
+        return 0.0
+
+
+def _wikidata_municipality_sparql_when_bulk_empty() -> bool:
+    """
+    If the one **bulk_state** WDQS query returns **0 rows** (or throws), optionally fall back to the
+    **heavy** per-chunk ``municipality_mapping_sparql`` FILTER queries. That fallback often triggers 429/500.
+
+    Env: ``WIKIDATA_MUNICIPALITY_SPARQL_WHEN_BULK_EMPTY`` — default **on** (``1``); happy path fills **0**
+    so a failed/empty bulk **stops** instead of spamming WDQS.
+    """
+    raw = (os.getenv("WIKIDATA_MUNICIPALITY_SPARQL_WHEN_BULK_EMPTY") or "1").strip().lower()
+    if not raw:
+        return True
+    return raw not in ("0", "false", "no", "off")
 
 
 def _apply_wikidata_happy_path_env_defaults() -> None:
@@ -251,13 +267,18 @@ def _apply_wikidata_happy_path_env_defaults() -> None:
         "WIKIDATA_RETRY_AFTER_MAX_SECONDS": "120",
         "WIKIDATA_THROTTLE_SECONDS": "12",
         "WIKIDATA_TASK_SLEEP_SECONDS": "8",
+        # Without hybrid, municipalities fall back to legacy huge FILTER-IN WDQS per chunk — not what
+        # operators expect from ``--happy-path`` (bulk map + wbgetentities). Explicit ``WIKIDATA_HYBRID_ENRICH=0`` still wins.
+        "WIKIDATA_HYBRID_ENRICH": "1",
         "WIKIDATA_INCREMENTAL_MERGE": "1",
         "WIKIDATA_PRIORITY_STATES_SKIP_COMPLETE": "1",
         "WIKIDATA_LOAD_RETRY_COUNTY_GAPS": "0",
         "WIKIDATA_MUNICIPALITY_BULK_SUPPLEMENT_SPARQL": "0",
+        "WIKIDATA_MUNICIPALITY_SPARQL_WHEN_BULK_EMPTY": "0",
         "WIKIDATA_SCHOOL_BULK_SUPPLEMENT_SPARQL": "0",
         "WIKIDATA_COUNTY_BULK_FALLBACK_ENTITY_SEARCH": "0",
         "WIKIDATA_COUNTY_CHUNK_SLEEP_SECONDS": "3",
+        "WIKIDATA_MUNICIPALITY_PRE_BULK_WDQS_PAUSE_SECONDS": "30",
         "WIKIDATA_MUNICIPALITY_POST_BULK_WDQS_GAP_SECONDS": "12",
         "WIKIDATA_MUNICIPALITY_FILTER_WDQS_GAP_SECONDS": "8",
         "WIKIDATA_SCHOOL_POST_BULK_WDQS_GAP_SECONDS": "12",
@@ -424,6 +445,35 @@ def _sparql_quote_string_literal(s: str) -> str:
     return f'"{esc}"'
 
 
+def _lat_lon_from_wikidata_coord_binding(coord_val: Any) -> Tuple[Optional[float], Optional[float]]:
+    """
+    Parse WDQS binding for ``wdt:P625`` (GeoShape / WKT) into ``(latitude, longitude)``.
+    Wikidata commonly returns ``Point(lon lat)`` as a literal string.
+    """
+    import re
+
+    if coord_val is None:
+        return None, None
+    if isinstance(coord_val, dict):
+        coord_val = coord_val.get("value")
+    s = str(coord_val).strip()
+    if not s:
+        return None, None
+    if "^^" in s:
+        s = s.split("^^", 1)[0].strip().strip('"').strip()
+    m = re.search(
+        r"Point\s*\(\s*([+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\s+"
+        r"([+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\s*\)",
+        s,
+        re.I,
+    )
+    if not m:
+        return None, None
+    lon = float(m.group(1))
+    lat = float(m.group(2))
+    return lat, lon
+
+
 def _county_fips_literal_alternatives(geoid: str, state_fips: Optional[str]) -> Set[str]:
     """
     Alternate string forms WD may expose for P882 (county/admin FIPS) or P3006
@@ -503,23 +553,81 @@ def _school_filter_wdqs_gap_seconds() -> float:
         return 6.0
 
 
+def _wikidata_filter_in_literal_chunk_size() -> int:
+    """Max literals per ``FILTER … IN (...)`` WDQS sub-query (mapping batches)."""
+    try:
+        v = int(os.getenv("WIKIDATA_FILTER_IN_LITERAL_CHUNK_SIZE", "12") or "12")
+        return max(5, min(50, v))
+    except ValueError:
+        return 12
+
+
+def _wikidata_filter_in_subquery_gap_seconds() -> float:
+    """Pause between FILTER IN sub-queries when literals are split (reduces WDQS timeouts)."""
+    try:
+        return max(0.0, float(os.getenv("WIKIDATA_FILTER_IN_SUBQUERY_GAP_SECONDS", "1") or "1"))
+    except ValueError:
+        return 1.0
+
+
+def _batched_sorted_literals(literals: Set[str], chunk_sz: int) -> List[List[str]]:
+    xs = sorted(x for x in literals if str(x).strip())
+    if chunk_sz <= 0:
+        chunk_sz = 12
+    return [xs[i : i + chunk_sz] for i in range(0, len(xs), chunk_sz)]
+
+
+def _wikidata_municipality_flush_db_each_chunk() -> bool:
+    """
+    After each hybrid municipality chunk with ≥1 enriched row, ``UPDATE`` Postgres immediately so
+    dashboards can show progress before the full state task finishes.
+
+    Env: ``WIKIDATA_MUNICIPALITY_FLUSH_DB_EACH_CHUNK`` — default **on** (``1``); set ``0`` to only
+    commit once at end of the city task (legacy behavior).
+    """
+    raw = (os.getenv("WIKIDATA_MUNICIPALITY_FLUSH_DB_EACH_CHUNK") or "1").strip().lower()
+    if not raw:
+        return True
+    return raw not in ("0", "false", "no", "off")
+
+
+def _wikidata_municipality_supplement_split_wdqs() -> bool:
+    """
+    Hybrid municipality **supplement** step: run two WDQS queries (FIPS literals only, then GNIS only)
+    instead of one ``FILTER(fips IN (...) || gnis IN (...))``. Combined OR + large IN lists often triggers
+    WDQS HTTP 500 (timeout / SystemOverloadFilter).
+
+    Env: ``WIKIDATA_MUNICIPALITY_SUPPLEMENT_SPLIT_WDQS`` — default **on** (``1``); set ``0`` for legacy single query.
+    """
+    raw = (os.getenv("WIKIDATA_MUNICIPALITY_SUPPLEMENT_SPLIT_WDQS") or "1").strip().lower()
+    if not raw:
+        return True
+    return raw not in ("0", "false", "no", "off")
+
+
 # Bronze municipality rows join Wikidata largely via P774 (FIPS place code); P590 is GNIS (often = ansicode).
 def _municipality_wd_literal_sets(geoid: str, ansicode: Optional[str]) -> tuple[Set[str], Set[str]]:
+    """
+    Literals for WDQS ``FILTER(REPLACE(STR(?fips), "-", "") IN (...))`` and cache lookup.
+
+    Wikidata ``P774`` uses hyphenated ``SS-CCCPP`` or compact 7-digit strings; we emit **digits-only**
+    variants so one IN-list entry matches both (REPLACE strips hyphens server-side). Avoid ad hoc 5-digit
+    slices that inflated the batch without matching WD storage.
+    """
     fips_lit: Set[str] = set()
     gnis_lit: Set[str] = set()
-    g = str(geoid).strip().replace("-", "")
-    if not g:
+    raw_geo = str(geoid).strip()
+    if not raw_geo:
         return fips_lit, gnis_lit
-    fips_lit.add(g)
-    if g.isdigit():
-        if len(g) >= 7:
-            p = g[2:7]
-            fips_lit.add(p)
-            fips_lit.add(p.zfill(5))
-            fips_lit.add(g[-5:])
-            fips_lit.add(g[-5:].zfill(5))
-        elif len(g) == 5:
-            fips_lit.add(g.zfill(5))
+    d = norm_lit(raw_geo)
+    if d.isdigit():
+        fips_lit.add(d)
+        if len(d) < 7:
+            fips_lit.add(d.zfill(7))
+        if len(d) >= 7:
+            fips_lit.add(d[:7])
+    elif d:
+        fips_lit.add(d)
     if ansicode is not None and str(ansicode).strip():
         raw = str(ansicode).strip().replace("-", "")
         gnis_lit.add(raw)
@@ -616,17 +724,72 @@ class CheckpointManager:
 
 
 class JurisdictionsWikiDataLoader:
-    """Load jurisdiction data from WikiData into PostgreSQL."""
-    
-    def __init__(self, database_url: str):
-        self.conn = psycopg2.connect(database_url)
+    """Load jurisdiction data from WikiData into PostgreSQL (or JSON cache when --json-cache-dir is used)."""
+
+    def __init__(self, database_url: str, json_cache_dir: Optional[str] = None):
+        self._json_cache_dir: Optional[Path] = Path(json_cache_dir) if json_cache_dir else None
+        self._json_bronze: Optional[Dict[str, Any]] = None
+        # Accumulated enrichment rows keyed by task → list[dict], written to JSON on close.
+        self._json_results: Dict[str, List[Dict]] = {}
+
+        if self._json_cache_dir:
+            self.conn = None
+            self._load_json_cache()
+        else:
+            if not _PSYCOPG2_AVAILABLE:
+                _repo_root = Path(__file__).resolve().parents[3]
+                _venv_py = _repo_root / ".venv" / "bin" / "python"
+                sys.stderr.write(
+                    "ModuleNotFoundError: psycopg2 — install deps in the project venv or use its interpreter.\n"
+                    f"  Example: {_venv_py} {_repo_root / 'scripts/datasources/wikidata/load_jurisdictions_wikidata.py'} ...\n"
+                    "  Or: source .venv/bin/activate   (then run python3 …)\n"
+                    "  Setup: python3 -m venv .venv && .venv/bin/pip install -r requirements.txt\n"
+                    "  Alternatively, run offline with --json-cache-dir (no Postgres required).\n"
+                )
+                sys.exit(1)
+            self.conn = psycopg2.connect(database_url)
+
         self.wikidata = WikidataQuery()
         self._geography_qid_cache: GeographyQidCache | None = None
         self._state_entities_bulk: Dict[str, Dict[str, Any]] = {}
         self._state_bulk_prefetch_attempted = False
+        self._municipality_chunk_db_flush_used = False
 
-        # Create table
-        self._create_table()
+        if not self._json_cache_dir:
+            self._create_table()
+
+    # ------------------------------------------------------------------
+    # JSON cache helpers
+    # ------------------------------------------------------------------
+
+    def _load_json_cache(self) -> None:
+        """Load the bronze JSON cache produced by export_bronze_to_json.py."""
+        cache_file = self._json_cache_dir / "bronze_jurisdictions.json"  # type: ignore[operator]
+        if not cache_file.exists():
+            raise FileNotFoundError(
+                f"Bronze JSON cache not found: {cache_file}\n"
+                "  Run export_bronze_to_json.py first:\n"
+                "    .venv/bin/python scripts/datasources/wikidata/export_bronze_to_json.py"
+            )
+        logger.info(f"Loading bronze JSON cache from {cache_file}…")
+        with open(cache_file, "r", encoding="utf-8") as f:
+            self._json_bronze = json.load(f)
+        exported_at = self._json_bronze.get("exported_at", "unknown")
+        cached_states = self._json_bronze.get("states", [])
+        logger.info(
+            f"JSON cache loaded: {len(cached_states)} state(s), exported {exported_at}"
+        )
+
+    def _json_save_results(self) -> None:
+        """Write accumulated enrichment results to JSON in the cache dir."""
+        if not self._json_cache_dir or not self._json_results:
+            return
+        ts = datetime.now().strftime("%Y%m%dT%H%M%S")
+        out = self._json_cache_dir / f"wikidata_enrichment_{ts}.json"
+        with open(out, "w", encoding="utf-8") as f:
+            json.dump(self._json_results, f, indent=2, default=str)
+        total = sum(len(v) for v in self._json_results.values())
+        logger.success(f"Enrichment results saved → {out} ({total} rows)")
 
     def geography_qid_cache(self) -> GeographyQidCache:
         if self._geography_qid_cache is None:
@@ -634,6 +797,8 @@ class JurisdictionsWikiDataLoader:
         return self._geography_qid_cache
 
     def warm_geography_qid_cache_from_db(self, state_code: str, warm_task: str) -> None:
+        if self._json_cache_dir:
+            return  # no Postgres in JSON mode
         if not _wikidata_mapping_cache_warm_db():
             return
         us = state_code.upper()
@@ -691,6 +856,8 @@ class JurisdictionsWikiDataLoader:
 
     def _seed_wikidata_table(self, state_code: str, task: str) -> None:
         """Rebuild the per-type bronze *_wikidata table rows for one state from its base table."""
+        if self._json_cache_dir:
+            return  # seeding is a no-op in JSON mode; source data comes from the cache file
         mapping: dict[str, tuple[str, str, str]] = {
             "state": (
                 "bronze.bronze_jurisdictions_states",
@@ -779,6 +946,9 @@ class JurisdictionsWikiDataLoader:
         WDQS is skipped for that task. With merge off, the table is re-seeded empty of Q IDs,
         so this is typically True until Wikidata is fetched again.
         """
+        if self._json_cache_dir:
+            # In JSON mode, always proceed — no enrichment has been applied yet.
+            return True
         tbl = {
             "state": "bronze.bronze_jurisdictions_states_wikidata",
             "county": "bronze.bronze_jurisdictions_counties_wikidata",
@@ -811,6 +981,19 @@ class JurisdictionsWikiDataLoader:
 
     def _fetch_geoids_missing_wikidata_qid(self, state_code: str, wikidata_table: str) -> Set[str]:
         """GEOIDs (digits-only) for this USPS that still need a Wikidata QID."""
+        if self._json_cache_dir:
+            # In JSON mode, all GEOIDs are un-enriched; determine task from table name.
+            us = state_code.upper()
+            assert self._json_bronze is not None
+            if "municipalities" in wikidata_table:
+                return {r["geoid"] for r in self._json_bronze.get("municipalities", {}).get(us, [])}
+            if "counties" in wikidata_table:
+                return {r["geoid"] for r in self._json_bronze.get("counties", {}).get(us, [])}
+            if "school_districts" in wikidata_table:
+                return {r["geoid"] for r in self._json_bronze.get("school_districts", {}).get(us, [])}
+            if "states" in wikidata_table:
+                return {r["geoid"] for r in self._json_bronze.get("states_data", {}).get(us, [])}
+            return set()
         cur = self.conn.cursor()
         try:
             cur.execute(
@@ -830,8 +1013,14 @@ class JurisdictionsWikiDataLoader:
             cur.close()
 
     def _apply_wikidata_updates(self, task: str, jurisdictions: List[Dict]) -> None:
-        """Update the appropriate bronze *_wikidata table based on loader task."""
+        """Update the appropriate bronze *_wikidata table (or JSON cache) based on loader task."""
         if not jurisdictions:
+            return
+
+        if self._json_cache_dir:
+            bucket = self._json_results.setdefault(task, [])
+            bucket.extend(jurisdictions)
+            logger.info(f"  JSON mode: accumulated {len(jurisdictions)} {task} row(s)")
             return
 
         if task == "county":
@@ -1044,6 +1233,17 @@ class JurisdictionsWikiDataLoader:
         return all_jurisdictions
     
     def _fetch_bronze_municipality_geoid_ansi_pairs(self, state_code: str) -> List[tuple[str, Optional[str]]]:
+        if self._json_cache_dir:
+            assert self._json_bronze is not None
+            rows = self._json_bronze.get("municipalities", {}).get(state_code.upper(), [])
+            pairs: List[tuple[str, Optional[str]]] = []
+            for r in rows:
+                geo = str(r.get("geoid") or "").strip().replace("-", "")
+                if not geo:
+                    continue
+                ansi = r.get("ansicode")
+                pairs.append((geo, str(ansi).strip() if ansi else None))
+            return pairs
         cur = self.conn.cursor()
         try:
             cur.execute(
@@ -1068,6 +1268,10 @@ class JurisdictionsWikiDataLoader:
             cur.close()
 
     def _fetch_bronze_school_geoids(self, state_code: str) -> List[str]:
+        if self._json_cache_dir:
+            assert self._json_bronze is not None
+            rows = self._json_bronze.get("school_districts", {}).get(state_code.upper(), [])
+            return [str(r.get("geoid") or "").strip().replace("-", "") for r in rows if r.get("geoid")]
         cur = self.conn.cursor()
         try:
             cur.execute(
@@ -1135,6 +1339,13 @@ class JurisdictionsWikiDataLoader:
             blim = _positive_int_env("WIKIDATA_MUNICIPALITY_BULK_STATE_LIMIT", 8000, 200, 12000)
             mq = _wikidata_hybrid_sql.municipality_bulk_by_state_sparql(state_q_code, blim)
             try:
+                pre_b = _municipality_pre_bulk_wdqs_pause_seconds()
+                if pre_b > 0:
+                    logger.info(
+                        f"Waiting {pre_b:.0f}s before municipality bulk WDQS "
+                        f"(WIKIDATA_MUNICIPALITY_PRE_BULK_WDQS_PAUSE_SECONDS — reduces immediate 429 on cold start)…"
+                    )
+                    await asyncio.sleep(pre_b)
                 logger.info(
                     f"Hybrid municipalities: one WDQS query (P131+ state, US place types) for {state_name}…"
                 )
@@ -1161,6 +1372,16 @@ class JurisdictionsWikiDataLoader:
 
         inner_mode = map_mode
         if map_mode == "bulk_state" and not use_bulk:
+            if not _wikidata_municipality_sparql_when_bulk_empty():
+                logger.error(
+                    "Hybrid municipalities: bulk WDQS returned **no rows** or **failed** for this state. "
+                    "Not falling back to per-chunk FILTER IN queries "
+                    "(WIKIDATA_MUNICIPALITY_SPARQL_WHEN_BULK_EMPTY=0 — default under --happy-path). "
+                    "Otherwise WDQS spams the same heavy query and 429s. Fix: delete stale JSON under "
+                    "WIKIDATA_CACHE_DIR for empty bulk responses, retry when WDQS is quiet, or set "
+                    "WIKIDATA_MUNICIPALITY_SPARQL_WHEN_BULK_EMPTY=1 to allow the heavy fallback."
+                )
+                return []
             inner_mode = "sparql"
             logger.warning(
                 "bulk_state returned no data — municipality mapping uses FILTER batches per chunk"
@@ -1226,43 +1447,29 @@ class JurisdictionsWikiDataLoader:
 
             n_after_pass1 = len(geo_to_q)
 
-            filt_parts: List[str] = []
-            f_list = sorted(_sparql_quote_string_literal(x) for x in need_fips)
-            g_list = sorted(_sparql_quote_string_literal(x) for x in need_gnis)
-            if need_fips:
-                filt_parts.append(
-                    '(BOUND(?fips) && REPLACE(STR(?fips), "-", "") IN (' + ", ".join(f_list) + "))"
-                )
-            if need_gnis:
-                filt_parts.append(
-                    '(BOUND(?gnis) && REPLACE(STR(?gnis), "-", "") IN (' + ", ".join(g_list) + "))"
-                )
-            filt = ""
-            if len(filt_parts) == 2:
-                filt = f"FILTER({' || '.join(filt_parts)})"
-            elif len(filt_parts) == 1:
-                filt = f"FILTER({filt_parts[0]})"
-
             mapping_rows: List[Dict] = []
-            if filt:
+            supplement_wdqs_ran = False
+            if need_fips or need_gnis:
                 lim = min(5000, max(400, len(chunk) * 60))
-                qtext = _wikidata_hybrid_sql.municipality_mapping_sparql(filt, lim)
                 n_lit_f = len(need_fips)
                 n_lit_g = len(need_gnis)
                 n_miss_p1 = len(chunk) - n_after_pass1
+                gapf = _municipality_filter_wdqs_gap_seconds()
                 logger.info(
                     f"  chunk {chi}/{n_chunks}: pass-1 done — cache={n_map_cache}, bulk_match={n_map_bulk}, "
-                    f"unmapped={n_miss_p1}/{len(chunk)} → running 2nd WDQS query (FILTER IN: {n_lit_f} FIPS + "
-                    f"{n_lit_g} GNIS literal variants)…"
+                    f"unmapped={n_miss_p1}/{len(chunk)} → UNION WDQS (FIPS {n_lit_f} lits, GNIS {n_lit_g} lits)…"
                 )
-                gapf = _municipality_filter_wdqs_gap_seconds()
                 if gapf > 0:
                     await asyncio.sleep(gapf)
                 try:
-                    mapping_rows = await self.wikidata.execute_sparql(qtext)
+                    mapping_rows = await self._wdqs_municipality_mapping_chunked(
+                        need_fips, need_gnis, lim, chi, n_chunks
+                    )
+                    mapping_rows = self._dedupe_sparql_bindings_by_item(mapping_rows or [])
                 except Exception as e:
                     logger.warning(f"Hybrid city mapping WDQS failed ({chi}/{n_chunks}): {type(e).__name__}: {e}")
                     mapping_rows = []
+                supplement_wdqs_ran = True
                 mapping_rows = self._dedupe_sparql_bindings_by_item(mapping_rows)
                 for mr in mapping_rows:
                     iq = (mr.get("item") or "").rsplit("/", 1)[-1].strip()
@@ -1270,10 +1477,10 @@ class JurisdictionsWikiDataLoader:
                         continue
                     qcache.remember_muni(iq, mr.get("fips"), mr.get("gnis"))
                 logger.info(
-                    f"  chunk {chi}/{n_chunks}: FILTER IN WDQS → {len(mapping_rows)} distinct item(s); "
+                    f"  chunk {chi}/{n_chunks}: FILTER supplement WDQS → {len(mapping_rows)} distinct item(s); "
                     f"reconciling GEOID→Q via cache…"
                 )
-            elif not filt:
+            else:
                 n_miss = len(chunk) - n_after_pass1
                 sup = _wikidata_municipality_bulk_supplement_sparql()
                 hint = ""
@@ -1306,7 +1513,7 @@ class JurisdictionsWikiDataLoader:
             q_needed = sorted({geo_to_q[g] for g in chunk_geos if g in geo_to_q})
             if not q_needed:
                 qcache.save()
-                if filt:
+                if supplement_wdqs_ran:
                     logger.info(
                         f"  chunk {chi}/{n_chunks}: done — no wbgetentities (no GEOID resolved to a Q-id in this chunk)."
                     )
@@ -1354,6 +1561,13 @@ class JurisdictionsWikiDataLoader:
                     chunk_out.append(j0)
 
             self._repair_city_geoids_from_ansi_map(chunk_out, ansi_to_geoid)
+            if chunk_out and _wikidata_municipality_flush_db_each_chunk():
+                self.insert_jurisdictions(chunk_out)
+                self._municipality_chunk_db_flush_used = True
+                logger.info(
+                    f"  chunk {chi}/{n_chunks}: committed {len(chunk_out)} row(s) to "
+                    f"bronze.bronze_jurisdictions_municipalities_wikidata (per-chunk flush)"
+                )
             aggregated.extend(chunk_out)
             qcache.save()
             if chunk_sleep > 0 and chi < n_chunks:
@@ -1560,15 +1774,26 @@ class JurisdictionsWikiDataLoader:
 
                 mapping_rows: List[Dict] = []
                 if literals:
-                    in_list = ", ".join(sorted(_sparql_quote_string_literal(x) for x in literals))
+                    cz = _wikidata_filter_in_literal_chunk_size()
+                    gap_sub = _wikidata_filter_in_subquery_gap_seconds()
                     lim = min(2500, max(520, len(chunk) * 25))
-                    mq = _wikidata_hybrid_sql.county_mapping_sparql(ctype, in_list, lim)
-                    try:
-                        mapping_rows = await self.wikidata.execute_sparql(mq)
-                    except Exception as e:
-                        logger.warning(f"Hybrid county mapping failed: {type(e).__name__}: {e}")
-                        mapping_rows = []
-                    mapping_rows = self._dedupe_sparql_bindings_by_item(mapping_rows)
+                    batches = _batched_sorted_literals(literals, cz)
+                    if len(batches) > 1:
+                        logger.info(
+                            f"  county FILTER IN → {len(batches)} WDQS sub-queries "
+                            f"(≤{cz} literals; gap={gap_sub:.1f}s)"
+                        )
+                    acc_co: List[Dict] = []
+                    for bi, batch in enumerate(batches):
+                        if gap_sub > 0 and bi > 0:
+                            await asyncio.sleep(gap_sub)
+                        in_list = ", ".join(_sparql_quote_string_literal(x) for x in batch)
+                        mq = _wikidata_hybrid_sql.county_mapping_sparql(ctype, in_list, lim)
+                        try:
+                            acc_co.extend(await self.wikidata.execute_sparql(mq) or [])
+                        except Exception as e:
+                            logger.warning(f"Hybrid county mapping failed: {type(e).__name__}: {e}")
+                    mapping_rows = self._dedupe_sparql_bindings_by_item(acc_co)
                     for mr in mapping_rows:
                         iq = (mr.get("item") or "").rsplit("/", 1)[-1].strip()
                         if iq.startswith("Q"):
@@ -1739,18 +1964,29 @@ class JurisdictionsWikiDataLoader:
 
             mapping_rows: List[Dict] = []
             if literals:
-                id_in = ", ".join(sorted(_sparql_quote_string_literal(x) for x in literals))
+                cz = _wikidata_filter_in_literal_chunk_size()
+                gap_sub = _wikidata_filter_in_subquery_gap_seconds()
                 lim = min(2500, max(520, len(chunk) * 28))
-                mq = _wikidata_hybrid_sql.school_mapping_sparql(id_in, lim)
+                batches = _batched_sorted_literals(literals, cz)
+                if len(batches) > 1:
+                    logger.info(
+                        f"  school FILTER IN → {len(batches)} WDQS sub-queries "
+                        f"(≤{cz} literals; gap={gap_sub:.1f}s)"
+                    )
                 gapf = _school_filter_wdqs_gap_seconds()
                 if gapf > 0:
                     await asyncio.sleep(gapf)
-                try:
-                    mapping_rows = await self.wikidata.execute_sparql(mq)
-                except Exception as e:
-                    logger.warning(f"Hybrid school mapping failed: {type(e).__name__}: {e}")
-                    mapping_rows = []
-                mapping_rows = self._dedupe_sparql_bindings_by_item(mapping_rows)
+                acc_sd: List[Dict] = []
+                for bi, batch in enumerate(batches):
+                    if gap_sub > 0 and bi > 0:
+                        await asyncio.sleep(gap_sub)
+                    id_in = ", ".join(_sparql_quote_string_literal(x) for x in batch)
+                    mq = _wikidata_hybrid_sql.school_mapping_sparql(id_in, lim)
+                    try:
+                        acc_sd.extend(await self.wikidata.execute_sparql(mq) or [])
+                    except Exception as e:
+                        logger.warning(f"Hybrid school mapping failed: {type(e).__name__}: {e}")
+                mapping_rows = self._dedupe_sparql_bindings_by_item(acc_sd)
                 for mr in mapping_rows:
                     iq = (mr.get("item") or "").rsplit("/", 1)[-1].strip()
                     if iq.startswith("Q"):
@@ -1860,72 +2096,69 @@ class JurisdictionsWikiDataLoader:
                 fips_lit |= ff
                 gnis_lit |= gg
 
-            f_in = ", ".join(sorted(_sparql_quote_string_literal(x) for x in fips_lit))
-            g_in = ", ".join(sorted(_sparql_quote_string_literal(x) for x in gnis_lit))
-            filt_parts: List[str] = []
-            if f_in.strip():
-                filt_parts.append(
-                    f'(BOUND(?fips) && REPLACE(STR(?fips), "-", "") IN ({f_in}))'
-                )
-            if g_in.strip():
-                filt_parts.append(
-                    f'(BOUND(?gnis) && REPLACE(STR(?gnis), "-", "") IN ({g_in}))'
-                )
-            filt = ""
-            if len(filt_parts) == 2:
-                filt = f"FILTER({' || '.join(filt_parts)})"
-            elif len(filt_parts) == 1:
-                filt = f"FILTER({filt_parts[0]})"
-            else:
+            if not fips_lit and not gnis_lit:
                 logger.warning(f"City batch has no literals (chunk)—skipping WDQS.")
                 continue
 
-            limit_rows = min(5000, max(900, chunk_size * 48))
+            limit_rows = min(5000, max(400, chunk_size * 60))
             chi = ix // chunk_size + 1
             logger.info(f"Querying municipalities in {state_name} via identifier batch ({chi}/{n_chunks})…")
 
-            query = f"""
+            cz = _wikidata_filter_in_literal_chunk_size()
+            gap_sub = _wikidata_filter_in_subquery_gap_seconds()
+            f_batches = _batched_sorted_literals(fips_lit, cz)
+            g_batches = _batched_sorted_literals(gnis_lit, cz)
+            sub_seq: List[Tuple[str, List[str]]] = [("fips", b) for b in f_batches] + [
+                ("gnis", b) for b in g_batches
+            ]
+            if len(sub_seq) > 1:
+                logger.info(
+                    f"  chunk {chi}/{n_chunks}: FILTER IN → {len(sub_seq)} WDQS sub-queries "
+                    f"(≤{cz} literals; gap={gap_sub:.1f}s)"
+                )
+
+            chunk_rows: List[Dict] = []
+            for si, (branch, batch) in enumerate(sub_seq):
+                if gap_sub > 0 and si > 0:
+                    await asyncio.sleep(gap_sub)
+                branches_sparql: List[str] = []
+                if branch == "fips":
+                    f_in = ", ".join(_sparql_quote_string_literal(x) for x in batch)
+                    branches_sparql.append(
+                        f"{{ ?item wdt:P774 ?fips . FILTER(REPLACE(STR(?fips), \"-\", \"\") IN ({f_in})) }}"
+                    )
+                else:
+                    g_in = ", ".join(_sparql_quote_string_literal(x) for x in batch)
+                    branches_sparql.append(f"{{ ?item wdt:P590 ?gnis . FILTER(?gnis IN ({g_in})) }}")
+                union_block = "\n              UNION\n              ".join(branches_sparql)
+                query = f"""
             SELECT DISTINCT
                 ?item ?itemLabel
                 ?website ?population ?area
                 ?facebook ?twitter ?youtube
                 ?fips ?gnis
                 ?image ?banner ?locatorMap
-                ?lat ?lon
+                ?coord
             WHERE {{
-              VALUES ?placeType {{
-                wd:Q515 wd:Q3957 wd:Q15284 wd:Q486972 wd:Q493522 wd:Q1115575
-                wd:Q1549591 wd:Q15222645 wd:Q2989398 wd:Q1426695
-              }}
-              ?item wdt:P31 ?placeType .
-              ?item wdt:P17 wd:Q30 .
-
+              {union_block}
               OPTIONAL {{ ?item wdt:P856 ?website . }}
               OPTIONAL {{ ?item wdt:P1082 ?population . }}
               OPTIONAL {{ ?item wdt:P2046 ?area . }}
               OPTIONAL {{ ?item wdt:P2013 ?facebook . }}
               OPTIONAL {{ ?item wdt:P2002 ?twitter . }}
               OPTIONAL {{ ?item wdt:P2397 ?youtube . }}
-              OPTIONAL {{ ?item wdt:P774 ?fips . }}
-              OPTIONAL {{ ?item wdt:P590 ?gnis . }}
               OPTIONAL {{ ?item wdt:P18 ?image . }}
               OPTIONAL {{ ?item wdt:P242 ?locatorMap . }}
               OPTIONAL {{ ?item wdt:P948 ?banner . }}
-              OPTIONAL {{ ?item p:P625/psv:P625/wikibase:geoLatitude ?lat . }}
-              OPTIONAL {{ ?item p:P625/psv:P625/wikibase:geoLongitude ?lon . }}
-
-              {filt}
-
+              OPTIONAL {{ ?item wdt:P625 ?coord . }}
               SERVICE wikibase:label {{ bd:serviceParam wikibase:language "[AUTO_LANGUAGE],en". }}
             }}
             LIMIT {limit_rows}
             """
-
-            try:
-                chunk_rows = await self.wikidata.execute_sparql(query)
-            except Exception as e:
-                logger.warning(f"City batch query failed ({chi}/{n_chunks}): {type(e).__name__}: {e}")
-                chunk_rows = []
+                try:
+                    chunk_rows.extend(await self.wikidata.execute_sparql(query) or [])
+                except Exception as e:
+                    logger.warning(f"City batch query failed ({chi}/{n_chunks}): {type(e).__name__}: {e}")
             aggregated.extend(chunk_rows)
 
             if chunk_sleep > 0 and ix + chunk_size < len(pairs):
@@ -1948,15 +2181,9 @@ class JurisdictionsWikiDataLoader:
             ?facebook ?twitter ?youtube
             ?fips ?gnis
             ?image ?banner ?locatorMap
-            ?lat ?lon
+            ?coord
         WHERE {{
-          VALUES ?placeType {{
-            wd:Q515 wd:Q3957 wd:Q15284 wd:Q486972 wd:Q493522 wd:Q1115575
-            wd:Q1549591 wd:Q15222645 wd:Q2989398 wd:Q1426695
-          }}
-          ?item wdt:P31 ?placeType .
           ?item wdt:P131+ wd:{state_q_code} .
-          ?item wdt:P17 wd:Q30 .
 
           OPTIONAL {{ ?item wdt:P856 ?website . }}
           OPTIONAL {{ ?item wdt:P1082 ?population . }}
@@ -1964,15 +2191,12 @@ class JurisdictionsWikiDataLoader:
           OPTIONAL {{ ?item wdt:P2013 ?facebook . }}
           OPTIONAL {{ ?item wdt:P2002 ?twitter . }}
           OPTIONAL {{ ?item wdt:P2397 ?youtube . }}
-          OPTIONAL {{ ?item wdt:P774 ?fips . }}
+          ?item wdt:P774 ?fips .
           OPTIONAL {{ ?item wdt:P590 ?gnis . }}
           OPTIONAL {{ ?item wdt:P18 ?image . }}
           OPTIONAL {{ ?item wdt:P242 ?locatorMap . }}
           OPTIONAL {{ ?item wdt:P948 ?banner . }}
-          OPTIONAL {{ ?item p:P625/psv:P625/wikibase:geoLatitude ?lat . }}
-          OPTIONAL {{ ?item p:P625/psv:P625/wikibase:geoLongitude ?lon . }}
-
-          FILTER(BOUND(?fips))
+          OPTIONAL {{ ?item wdt:P625 ?coord . }}
 
           SERVICE wikibase:label {{ bd:serviceParam wikibase:language "[AUTO_LANGUAGE],en". }}
         }}
@@ -1992,6 +2216,17 @@ class JurisdictionsWikiDataLoader:
 
     def _fetch_bronze_county_geoids(self, state_code: str) -> List[str]:
         """County GEOIDs in bronze for this USPS (digits only in practice)."""
+        if self._json_cache_dir:
+            assert self._json_bronze is not None
+            rows = self._json_bronze.get("counties", {}).get(state_code.upper(), [])
+            seen: Set[str] = set()
+            out: List[str] = []
+            for r in rows:
+                g = str(r.get("geoid") or "").strip().replace("-", "")
+                if g and g not in seen:
+                    seen.add(g)
+                    out.append(g)
+            return out
         cur = self.conn.cursor()
         try:
             cur.execute(
@@ -2010,6 +2245,18 @@ class JurisdictionsWikiDataLoader:
 
     def _fetch_bronze_county_geoid_name_pairs(self, state_code: str) -> List[Tuple[str, str]]:
         """County GEOIDs with Census gazetteer display names (for entity-search mapping)."""
+        if self._json_cache_dir:
+            assert self._json_bronze is not None
+            rows = self._json_bronze.get("counties", {}).get(state_code.upper(), [])
+            seen_g: Set[str] = set()
+            out_pairs: List[Tuple[str, str]] = []
+            for r in rows:
+                g = str(r.get("geoid") or "").strip().replace("-", "")
+                if not g or g in seen_g:
+                    continue
+                seen_g.add(g)
+                out_pairs.append((g, str(r.get("name") or "").strip()))
+            return out_pairs
         cur = self.conn.cursor()
         try:
             cur.execute(
@@ -2198,6 +2445,39 @@ class JurisdictionsWikiDataLoader:
                 by_id[iid] = row
         return list(by_id.values())
 
+    async def _wdqs_municipality_mapping_chunked(
+        self,
+        need_fips: Set[str],
+        need_gnis: Set[str],
+        lim: int,
+        chunk_i: int,
+        chunk_n: int,
+    ) -> List[Dict]:
+        """Thin P774/P590 mapping — small FILTER IN lists to reduce WDQS timeouts."""
+        cz = _wikidata_filter_in_literal_chunk_size()
+        gap = _wikidata_filter_in_subquery_gap_seconds()
+        f_batches = _batched_sorted_literals(need_fips, cz)
+        g_batches = _batched_sorted_literals(need_gnis, cz)
+        seq: List[Tuple[str, List[str]]] = [("FIPS", b) for b in f_batches] + [("GNIS", b) for b in g_batches]
+        if len(seq) > 1:
+            logger.info(
+                f"  chunk {chunk_i}/{chunk_n}: FILTER IN → {len(seq)} WDQS sub-queries "
+                f"(≤{cz} literals each; inter-batch gap={gap:.1f}s)"
+            )
+        out: List[Dict] = []
+        for i, (kind, batch) in enumerate(seq):
+            if gap > 0 and i > 0:
+                await asyncio.sleep(gap)
+            if kind == "FIPS":
+                part = ", ".join(_sparql_quote_string_literal(x) for x in batch)
+                q = _wikidata_hybrid_sql.municipality_mapping_sparql(part, "", lim)
+            else:
+                part = ", ".join(_sparql_quote_string_literal(x) for x in batch)
+                q = _wikidata_hybrid_sql.municipality_mapping_sparql("", part, lim)
+            rows = await self.wikidata.execute_sparql(q)
+            out.extend(rows or [])
+        return out
+
     async def _query_counties_in_state(
         self, state_code: str, state_q_code: str, state_name: str
     ) -> List[Dict]:
@@ -2266,20 +2546,46 @@ class JurisdictionsWikiDataLoader:
             literals: Set[str] = set()
             for gid in chunk:
                 literals.update(_county_fips_literal_alternatives(gid, sf))
-            in_list = ", ".join(sorted(_sparql_quote_string_literal(x) for x in literals))
 
             limit_rows = max(550, chunk_size * 25)
             limit_rows = min(limit_rows, 2500)
 
-            query = f"""
+            cz = _wikidata_filter_in_literal_chunk_size()
+            gap_sub = _wikidata_filter_in_subquery_gap_seconds()
+            batches = _batched_sorted_literals(literals, cz)
+
+            chi = ix // chunk_size + 1
+            logger.info(f"  County WDQS chunk {chi}/{n_chunks} ({len(chunk)} GEOIDs, ~{len(literals)} literals)…")
+            if len(batches) > 1:
+                logger.info(
+                    f"    → {len(batches)} FILTER IN sub-queries (≤{cz} literals; gap={gap_sub:.1f}s)"
+                )
+
+            chunk_rows: List[Dict] = []
+            for bi, batch in enumerate(batches):
+                if gap_sub > 0 and bi > 0:
+                    await asyncio.sleep(gap_sub)
+                in_list = ", ".join(_sparql_quote_string_literal(x) for x in batch)
+                query = f"""
             SELECT DISTINCT
                 ?item ?itemLabel ?website ?population ?area
                 ?facebook ?twitter ?youtube ?fips ?fipsAlt ?gnis ?nces ?image ?banner ?locatorMap
-                ?lat ?lon
+                ?coord
                 ?geonamesId
             WHERE {{
-              VALUES ?countyType {{ {county_type_values} }}
-              ?item wdt:P31 ?countyType .
+              {{
+                VALUES ?countyType {{ {county_type_values} }}
+                ?item wdt:P31 ?countyType .
+                ?item wdt:P882 ?fips .
+                FILTER(?fips IN ({in_list}))
+              }}
+              UNION
+              {{
+                VALUES ?countyType {{ {county_type_values} }}
+                ?item wdt:P31 ?countyType .
+                ?item wdt:P3006 ?fipsAlt .
+                FILTER(?fipsAlt IN ({in_list}))
+              }}
 
               OPTIONAL {{ ?item wdt:P856 ?website . }}
               OPTIONAL {{ ?item wdt:P1082 ?population . }}
@@ -2287,21 +2593,13 @@ class JurisdictionsWikiDataLoader:
               OPTIONAL {{ ?item wdt:P2013 ?facebook . }}
               OPTIONAL {{ ?item wdt:P2002 ?twitter . }}
               OPTIONAL {{ ?item wdt:P2397 ?youtube . }}
-              OPTIONAL {{ ?item wdt:P882 ?fips . }}
-              OPTIONAL {{ ?item wdt:P3006 ?fipsAlt . }}
               OPTIONAL {{ ?item wdt:P590 ?gnis . }}
               OPTIONAL {{ ?item wdt:P6545 ?nces . }}
               OPTIONAL {{ ?item wdt:P18 ?image . }}
               OPTIONAL {{ ?item wdt:P242 ?locatorMap . }}
               OPTIONAL {{ ?item wdt:P948 ?banner . }}
               OPTIONAL {{ ?item wdt:P1566 ?geonamesId . }}
-              OPTIONAL {{ ?item p:P625/psv:P625/wikibase:geoLatitude ?lat . }}
-              OPTIONAL {{ ?item p:P625/psv:P625/wikibase:geoLongitude ?lon . }}
-
-              FILTER(
-                (BOUND(?fips) && REPLACE(STR(?fips), "-", "") IN ({in_list}))
-                || (BOUND(?fipsAlt) && REPLACE(STR(?fipsAlt), "-", "") IN ({in_list}))
-              )
+              OPTIONAL {{ ?item wdt:P625 ?coord . }}
 
               SERVICE wikibase:label {{
                 bd:serviceParam wikibase:language "[AUTO_LANGUAGE],en".
@@ -2309,14 +2607,10 @@ class JurisdictionsWikiDataLoader:
             }}
             LIMIT {limit_rows}
             """
-
-            chi = ix // chunk_size + 1
-            logger.info(f"  County WDQS chunk {chi}/{n_chunks} ({len(chunk)} GEOIDs, ~{len(literals)} literals)…")
-            try:
-                chunk_rows = await self.wikidata.execute_sparql(query)
-            except Exception as e:
-                logger.warning(f"County batch query failed ({chi}/{n_chunks}): {type(e).__name__}: {e}")
-                chunk_rows = []
+                try:
+                    chunk_rows.extend(await self.wikidata.execute_sparql(query) or [])
+                except Exception as e:
+                    logger.warning(f"County batch query failed ({chi}/{n_chunks}): {type(e).__name__}: {e}")
             aggregated.extend(chunk_rows)
 
             if chunk_sleep > 0 and ix + chunk_size < len(geoids):
@@ -2342,13 +2636,20 @@ class JurisdictionsWikiDataLoader:
         SELECT DISTINCT
             ?item ?itemLabel ?website ?population ?area
             ?facebook ?twitter ?youtube ?fips ?fipsAlt ?gnis ?nces ?image ?banner ?locatorMap
-            ?lat ?lon
+            ?coord
             ?geonamesId
         WHERE {{
           VALUES ?countyType {{ {county_type_values} }}
           ?item wdt:P31 ?countyType .
-
           ?item wdt:P131+ wd:{state_q_code} .
+
+          {{
+            ?item wdt:P882 ?fips .
+          }}
+          UNION
+          {{
+            ?item wdt:P3006 ?fipsAlt .
+          }}
 
           OPTIONAL {{ ?item wdt:P856 ?website . }}
           OPTIONAL {{ ?item wdt:P1082 ?population . }}
@@ -2356,18 +2657,13 @@ class JurisdictionsWikiDataLoader:
           OPTIONAL {{ ?item wdt:P2013 ?facebook . }}
           OPTIONAL {{ ?item wdt:P2002 ?twitter . }}
           OPTIONAL {{ ?item wdt:P2397 ?youtube . }}
-          OPTIONAL {{ ?item wdt:P882 ?fips . }}
-          OPTIONAL {{ ?item wdt:P3006 ?fipsAlt . }}
           OPTIONAL {{ ?item wdt:P590 ?gnis . }}
           OPTIONAL {{ ?item wdt:P6545 ?nces . }}
           OPTIONAL {{ ?item wdt:P18 ?image . }}
           OPTIONAL {{ ?item wdt:P242 ?locatorMap . }}
           OPTIONAL {{ ?item wdt:P948 ?banner . }}
           OPTIONAL {{ ?item wdt:P1566 ?geonamesId . }}
-          OPTIONAL {{ ?item p:P625/psv:P625/wikibase:geoLatitude ?lat . }}
-          OPTIONAL {{ ?item p:P625/psv:P625/wikibase:geoLongitude ?lon . }}
-
-          FILTER(BOUND(?fips) || BOUND(?fipsAlt))
+          OPTIONAL {{ ?item wdt:P625 ?coord . }}
 
           SERVICE wikibase:label {{ bd:serviceParam wikibase:language "[AUTO_LANGUAGE],en". }}
         }}
@@ -2434,32 +2730,48 @@ class JurisdictionsWikiDataLoader:
             for gid in chunk:
                 literals |= _school_id_literal_alternatives(gid)
 
-            id_in = ", ".join(sorted(_sparql_quote_string_literal(x) for x in literals))
-
-            filt = ""
-            if id_in.strip():
-                filt = f"""FILTER(
-                  (BOUND(?nces) && REPLACE(STR(?nces), "-", "") IN ({id_in}))
-                  || (BOUND(?fips) && REPLACE(STR(?fips), "-", "") IN ({id_in}))
-                )"""
-            else:
+            if not literals:
                 continue
 
             limit_rows = min(2500, max(520, chunk_size * 28))
             chi = ix // chunk_size + 1
             logger.info(f"Querying school districts in {state_name} via NCES/FIPS batch ({chi}/{n_chunks})…")
 
-            query = f"""
+            cz = _wikidata_filter_in_literal_chunk_size()
+            gap_sub = _wikidata_filter_in_subquery_gap_seconds()
+            batches = _batched_sorted_literals(literals, cz)
+            if len(batches) > 1:
+                logger.info(
+                    f"  chunk {chi}/{n_chunks}: FILTER IN → {len(batches)} WDQS sub-queries "
+                    f"(≤{cz} literals; gap={gap_sub:.1f}s)"
+                )
+
+            chunk_rows: List[Dict] = []
+            for bi, batch in enumerate(batches):
+                if gap_sub > 0 and bi > 0:
+                    await asyncio.sleep(gap_sub)
+                id_in = ", ".join(_sparql_quote_string_literal(x) for x in batch)
+                query = f"""
             SELECT DISTINCT
                 ?item ?itemLabel ?website ?population ?area
                 ?facebook ?twitter ?youtube ?fips ?gnis ?nces ?image ?banner ?locatorMap
                 ?dialingCode ?googleMapsCustomerId ?households ?medianAge
-                ?lat ?lon
+                ?coord
                 ?postalCode ?perCapitaIncome ?timeZone ?timeZoneLabel
                 ?ballotpediaId ?tripadvisorId ?subreddit
                 ?geonamesId
             WHERE {{
-              ?item wdt:P31 wd:Q1455778 .
+              {{
+                ?item wdt:P31 wd:Q1455778 .
+                ?item wdt:P6545 ?nces .
+                FILTER(?nces IN ({id_in}))
+              }}
+              UNION
+              {{
+                ?item wdt:P31 wd:Q1455778 .
+                ?item wdt:P882 ?fips .
+                FILTER(?fips IN ({id_in}))
+              }}
 
               OPTIONAL {{ ?item wdt:P856 ?website . }}
               OPTIONAL {{ ?item wdt:P1082 ?population . }}
@@ -2467,15 +2779,12 @@ class JurisdictionsWikiDataLoader:
               OPTIONAL {{ ?item wdt:P2013 ?facebook . }}
               OPTIONAL {{ ?item wdt:P2002 ?twitter . }}
               OPTIONAL {{ ?item wdt:P2397 ?youtube . }}
-              OPTIONAL {{ ?item wdt:P882 ?fips . }}
               OPTIONAL {{ ?item wdt:P590 ?gnis . }}
-              OPTIONAL {{ ?item wdt:P6545 ?nces . }}
               OPTIONAL {{ ?item wdt:P18 ?image . }}
               OPTIONAL {{ ?item wdt:P242 ?locatorMap . }}
               OPTIONAL {{ ?item wdt:P948 ?banner . }}
               OPTIONAL {{ ?item wdt:P1566 ?geonamesId . }}
-              OPTIONAL {{ ?item p:P625/psv:P625/wikibase:geoLatitude ?lat . }}
-              OPTIONAL {{ ?item p:P625/psv:P625/wikibase:geoLongitude ?lon . }}
+              OPTIONAL {{ ?item wdt:P625 ?coord . }}
               OPTIONAL {{ ?item wdt:P473 ?dialingCode . }}
               OPTIONAL {{ ?item wdt:P3749 ?googleMapsCustomerId . }}
               OPTIONAL {{ ?item wdt:P1538 ?households . }}
@@ -2487,22 +2796,18 @@ class JurisdictionsWikiDataLoader:
               OPTIONAL {{ ?item wdt:P3134 ?tripadvisorId . }}
               OPTIONAL {{ ?item wdt:P3984 ?subreddit . }}
 
-              {filt}
-
               SERVICE wikibase:label {{
                 bd:serviceParam wikibase:language "[AUTO_LANGUAGE],en".
               }}
             }}
             LIMIT {limit_rows}
             """
-
-            try:
-                chunk_rows = await self.wikidata.execute_sparql(query)
-            except Exception as e:
-                logger.warning(
-                    f"School district batch query failed ({chi}/{n_chunks}): {type(e).__name__}: {e}"
-                )
-                chunk_rows = []
+                try:
+                    chunk_rows.extend(await self.wikidata.execute_sparql(query) or [])
+                except Exception as e:
+                    logger.warning(
+                        f"School district batch query failed ({chi}/{n_chunks}): {type(e).__name__}: {e}"
+                    )
             aggregated.extend(chunk_rows)
 
             if chunk_sleep > 0 and ix + chunk_size < len(geoids):
@@ -2521,7 +2826,7 @@ class JurisdictionsWikiDataLoader:
             ?item ?itemLabel ?website ?population ?area
             ?facebook ?twitter ?youtube ?fips ?gnis ?nces ?image ?banner ?locatorMap
             ?dialingCode ?googleMapsCustomerId ?households ?medianAge ?languageLabel
-            ?lat ?lon
+            ?coord
             ?headOfGov ?headOfGovLabel
             ?headStart ?postalCode ?perCapitaIncome ?timeZone ?timeZoneLabel
             ?ballotpediaId ?tripadvisorId ?subreddit
@@ -2543,8 +2848,7 @@ class JurisdictionsWikiDataLoader:
           OPTIONAL {{ ?item wdt:P242 ?locatorMap . }}
           OPTIONAL {{ ?item wdt:P948 ?banner . }}
           OPTIONAL {{ ?item wdt:P1566 ?geonamesId . }}
-          OPTIONAL {{ ?item p:P625/psv:P625/wikibase:geoLatitude ?lat . }}
-          OPTIONAL {{ ?item p:P625/psv:P625/wikibase:geoLongitude ?lon . }}
+          OPTIONAL {{ ?item wdt:P625 ?coord . }}
           OPTIONAL {{ ?item wdt:P473 ?dialingCode . }}
           OPTIONAL {{ ?item wdt:P3749 ?googleMapsCustomerId . }}
           OPTIONAL {{ ?item wdt:P1538 ?households . }}
@@ -2693,6 +2997,15 @@ class JurisdictionsWikiDataLoader:
             number_of_households = _safe_float(result.get("households"))
             median_age = _safe_float(result.get("medianAge"))
             language_of_work_or_name = result.get("languageLabel")
+
+            lat_v = _safe_float(result.get("lat"))
+            lon_v = _safe_float(result.get("lon"))
+            if lat_v is None or lon_v is None:
+                clat, clon = _lat_lon_from_wikidata_coord_binding(result.get("coord"))
+                if lat_v is None:
+                    lat_v = clat
+                if lon_v is None:
+                    lon_v = clon
             
             jurisdictions.append({
                 'wikidata_id': wikidata_id,
@@ -2715,8 +3028,8 @@ class JurisdictionsWikiDataLoader:
                 'area_sq_km': float(result.get("area")) if result.get("area") else None,
                 'number_of_households': number_of_households,
                 'median_age': median_age,
-                'latitude': float(result.get("lat")) if result.get("lat") else None,
-                'longitude': float(result.get("lon")) if result.get("lon") else None,
+                'latitude': lat_v,
+                'longitude': lon_v,
                 'fips_code': fips_code,
                 'gnis_id': gnis_id,
                 'nces_id': nces_id,
@@ -2818,6 +3131,25 @@ class JurisdictionsWikiDataLoader:
             median_age = None
         language_of_work_or_name = result.get("languageLabel")
 
+        lat_sv = None
+        lon_sv = None
+        try:
+            if result.get("lat") not in (None, ""):
+                lat_sv = float(result.get("lat"))
+        except (TypeError, ValueError):
+            lat_sv = None
+        try:
+            if result.get("lon") not in (None, ""):
+                lon_sv = float(result.get("lon"))
+        except (TypeError, ValueError):
+            lon_sv = None
+        if lat_sv is None or lon_sv is None:
+            clat, clon = _lat_lon_from_wikidata_coord_binding(result.get("coord"))
+            if lat_sv is None:
+                lat_sv = clat
+            if lon_sv is None:
+                lon_sv = clon
+
         return [
             {
                 "wikidata_id": state_q_code,
@@ -2857,8 +3189,8 @@ class JurisdictionsWikiDataLoader:
                 "twitter_url": f"https://twitter.com/{result.get('twitter')}" if result.get("twitter") else None,
                 "population": int(result.get("population")) if result.get("population") else None,
                 "area_sq_km": float(result.get("area")) if result.get("area") else None,
-                "latitude": float(result.get("lat")) if result.get("lat") else None,
-                "longitude": float(result.get("lon")) if result.get("lon") else None,
+                "latitude": lat_sv,
+                "longitude": lon_sv,
                 "fips_code": fips_code,
                 "gnis_id": None,
                 "nces_id": None,
@@ -2977,7 +3309,7 @@ class JurisdictionsWikiDataLoader:
             ?website ?population ?area
             ?facebook ?twitter ?youtube ?fips ?image ?banner ?locatorMap
             ?dialingCode ?googleMapsCustomerId ?households ?medianAge ?languageLabel
-            ?lat ?lon
+            ?coord
             ?postalCode ?perCapitaIncome ?timeZone ?timeZoneLabel
             ?ballotpediaId ?tripadvisorId ?subreddit
             ?geonamesId
@@ -3039,8 +3371,7 @@ class JurisdictionsWikiDataLoader:
           OPTIONAL {{ ?item wdt:P242 ?locatorMap . }}
           OPTIONAL {{ ?item wdt:P948 ?banner . }}
           OPTIONAL {{ ?item wdt:P1566 ?geonamesId . }}
-          OPTIONAL {{ ?item p:P625/psv:P625/wikibase:geoLatitude ?lat . }}
-          OPTIONAL {{ ?item p:P625/psv:P625/wikibase:geoLongitude ?lon . }}
+          OPTIONAL {{ ?item wdt:P625 ?coord . }}
           OPTIONAL {{ ?item wdt:P473 ?dialingCode . }}
           OPTIONAL {{ ?item wdt:P3749 ?googleMapsCustomerId . }}
           OPTIONAL {{ ?item wdt:P1538 ?households . }}
@@ -3061,7 +3392,7 @@ class JurisdictionsWikiDataLoader:
           ?motto ?inception ?iso31662 ?pronunciationAudio ?geoshape
           ?website ?population ?area ?facebook ?twitter ?youtube ?fips ?image ?banner ?locatorMap
           ?dialingCode ?googleMapsCustomerId ?households ?medianAge ?languageLabel
-          ?lat ?lon ?postalCode ?perCapitaIncome ?timeZone ?timeZoneLabel
+          ?coord ?postalCode ?perCapitaIncome ?timeZone ?timeZoneLabel
           ?ballotpediaId ?tripadvisorId ?subreddit ?geonamesId ?hogOffice
         LIMIT 1
         """
@@ -3167,6 +3498,7 @@ class JurisdictionsWikiDataLoader:
             if task == 'state':
                 results = await self.query_state_info(state_code)
             elif task == 'city':
+                self._municipality_chunk_db_flush_used = False
                 results = await self._query_cities_in_state(state_code, state_q_code, state_name)
             elif task == 'county':
                 results = await self._query_counties_in_state(state_code, state_q_code, state_name)
@@ -3177,7 +3509,14 @@ class JurisdictionsWikiDataLoader:
 
             all_jurisdictions.extend(results)
             if results:
-                self.insert_jurisdictions(results)
+                skip_dup_insert = task == "city" and self._municipality_chunk_db_flush_used
+                if skip_dup_insert:
+                    logger.info(
+                        "  city task: bronze municipalities already updated per hybrid chunk — "
+                        "skipping duplicate end-of-task batch UPDATE"
+                    )
+                else:
+                    self.insert_jurisdictions(results)
             if checkpoint:
                 # Do not checkpoint empty WDQS *or* rows that never produced a joinable geoid/nces:
                 # otherwise resume skips while wikidata_id stays NULL.
@@ -3228,7 +3567,8 @@ class JurisdictionsWikiDataLoader:
         logger.info(f"  With official websites: {with_website}")
     
     def close(self):
-        """Close database connection."""
+        """Close database connection and flush any pending JSON results."""
+        self._json_save_results()
         if self.conn:
             self.conn.close()
 
@@ -3282,6 +3622,18 @@ async def main():
             or 'city,county,state,school_district'
         ),
         help='Comma-separated jurisdiction types (default: env WIKIDATA_LOAD_TYPES)',
+    )
+
+    parser.add_argument(
+        '--json-cache-dir',
+        type=str,
+        default=(os.getenv("WIKIDATA_JSON_CACHE_DIR") or "").strip() or None,
+        help=(
+            "Directory containing bronze_jurisdictions.json (produced by export_bronze_to_json.py). "
+            "When set, no Postgres connection is made: GEOIDs are read from JSON and enrichment "
+            "results are written to wikidata_enrichment_<ts>.json in the same dir. "
+            "Default: env WIKIDATA_JSON_CACHE_DIR."
+        ),
     )
 
     parser.add_argument(
@@ -3383,7 +3735,7 @@ async def main():
         states = sorted(STATE_MAP.keys())
     elif args.priority_states:
         states = PRIORITY_STATES
-        if _env_truthy("WIKIDATA_PRIORITY_STATES_SKIP_COMPLETE", default=True):
+        if not args.json_cache_dir and _env_truthy("WIKIDATA_PRIORITY_STATES_SKIP_COMPLETE", default=True):
             before = len(states)
             states = filter_states_with_pending_wikidata_for_types(DATABASE_URL, states, types)
             logger.info(
@@ -3396,17 +3748,23 @@ async def main():
                 )
                 return
     elif args.retry_county_gap_states:
-        logger.info("Discovering USPS with incomplete county Wikidata enrichment (bronze vs *_wikidata)...")
-        states = fetch_usps_county_wikidata_gaps(DATABASE_URL)
-        if not states:
-            logger.success("No county Wikidata gaps found — all states match base row counts and wikidata_id coverage.")
-            return
-        logger.info(f"County gap rerun for {len(states)} USPS: {','.join(states)}")
-        if checkpoint:
-            cleared = sum(1 for s in states if checkpoint.unmark(s, "county"))
-            logger.info(f"Cleared checkpoint for county on {cleared} USPS so those tasks rerun.")
-        elif args.force:
-            logger.info("FORCE=1 — checkpoint ignored; querying WDQS again for gap states.")
+        if args.json_cache_dir:
+            logger.warning(
+                "--retry-county-gap-states requires Postgres and is not supported in JSON cache mode; ignoring."
+            )
+            states = [s.strip().upper() for s in args.states.split(',') if s.strip()]
+        else:
+            logger.info("Discovering USPS with incomplete county Wikidata enrichment (bronze vs *_wikidata)...")
+            states = fetch_usps_county_wikidata_gaps(DATABASE_URL)
+            if not states:
+                logger.success("No county Wikidata gaps found — all states match base row counts and wikidata_id coverage.")
+                return
+            logger.info(f"County gap rerun for {len(states)} USPS: {','.join(states)}")
+            if checkpoint:
+                cleared = sum(1 for s in states if checkpoint.unmark(s, "county"))
+                logger.info(f"Cleared checkpoint for county on {cleared} USPS so those tasks rerun.")
+            elif args.force:
+                logger.info("FORCE=1 — checkpoint ignored; querying WDQS again for gap states.")
     else:
         states = [s.strip().upper() for s in args.states.split(',') if s.strip()]
 
@@ -3419,58 +3777,64 @@ async def main():
         )
 
     # Load data
-    loader = JurisdictionsWikiDataLoader(DATABASE_URL)
-    
+    loader = JurisdictionsWikiDataLoader(DATABASE_URL, json_cache_dir=args.json_cache_dir)
+
     try:
         for state in states:
             await loader.load_state(state, types, checkpoint)
             # Be kind to WDQS; pause between states as well.
             if args.task_sleep_seconds and args.task_sleep_seconds > 0:
                 await asyncio.sleep(args.task_sleep_seconds)
-        
-        # Final summary (bronze *_wikidata tables)
-        cursor = loader.conn.cursor()
-        cursor.execute("""
-            SELECT 'state'::text AS jurisdiction_type,
-                   COUNT(*)::int AS count,
-                   COUNT(*) FILTER (WHERE youtube_channel_id IS NOT NULL)::int AS with_youtube,
-                   COUNT(*) FILTER (WHERE official_website IS NOT NULL)::int AS with_website
-            FROM bronze.bronze_jurisdictions_states_wikidata
-            UNION ALL
-            SELECT 'county'::text,
-                   COUNT(*)::int,
-                   COUNT(*) FILTER (WHERE youtube_channel_id IS NOT NULL)::int,
-                   COUNT(*) FILTER (WHERE official_website IS NOT NULL)::int
-            FROM bronze.bronze_jurisdictions_counties_wikidata
-            UNION ALL
-            SELECT 'municipality'::text,
-                   COUNT(*)::int,
-                   COUNT(*) FILTER (WHERE youtube_channel_id IS NOT NULL)::int,
-                   COUNT(*) FILTER (WHERE official_website IS NOT NULL)::int
-            FROM bronze.bronze_jurisdictions_municipalities_wikidata
-            UNION ALL
-            SELECT 'school_district'::text,
-                   COUNT(*)::int,
-                   COUNT(*) FILTER (WHERE youtube_channel_id IS NOT NULL)::int,
-                   COUNT(*) FILTER (WHERE official_website IS NOT NULL)::int
-            FROM bronze.bronze_jurisdictions_school_districts_wikidata
-            ORDER BY count DESC
-        """)
-        
+
         logger.info("")
         logger.info("=" * 80)
         logger.info("FINAL SUMMARY")
         logger.info("=" * 80)
-        logger.info(
-            "Bronze totals in Postgres across all USPS (not scoped to today's --states / gap list)."
-        )
 
-        for row in cursor.fetchall():
-            jtype, count, youtube, website = row
-            logger.info(f"{jtype:15s}: {count:4d} total, {youtube:3d} with YouTube, {website:3d} with website")
-        
-        cursor.close()
-        
+        if args.json_cache_dir:
+            # Summarise from accumulated in-memory results (no Postgres).
+            for task, rows in loader._json_results.items():
+                youtube = sum(1 for r in rows if r.get("youtube_channel_id"))
+                website = sum(1 for r in rows if r.get("official_website"))
+                logger.info(f"{task:15s}: {len(rows):4d} rows fetched, {youtube:3d} with YouTube, {website:3d} with website")
+            logger.info("Results will be saved to wikidata_enrichment_<ts>.json in the cache dir on close.")
+        else:
+            # Final summary (bronze *_wikidata tables)
+            logger.info(
+                "Bronze totals in Postgres across all USPS (not scoped to today's --states / gap list)."
+            )
+            cursor = loader.conn.cursor()
+            cursor.execute("""
+                SELECT 'state'::text AS jurisdiction_type,
+                       COUNT(*)::int AS count,
+                       COUNT(*) FILTER (WHERE youtube_channel_id IS NOT NULL)::int AS with_youtube,
+                       COUNT(*) FILTER (WHERE official_website IS NOT NULL)::int AS with_website
+                FROM bronze.bronze_jurisdictions_states_wikidata
+                UNION ALL
+                SELECT 'county'::text,
+                       COUNT(*)::int,
+                       COUNT(*) FILTER (WHERE youtube_channel_id IS NOT NULL)::int,
+                       COUNT(*) FILTER (WHERE official_website IS NOT NULL)::int
+                FROM bronze.bronze_jurisdictions_counties_wikidata
+                UNION ALL
+                SELECT 'municipality'::text,
+                       COUNT(*)::int,
+                       COUNT(*) FILTER (WHERE youtube_channel_id IS NOT NULL)::int,
+                       COUNT(*) FILTER (WHERE official_website IS NOT NULL)::int
+                FROM bronze.bronze_jurisdictions_municipalities_wikidata
+                UNION ALL
+                SELECT 'school_district'::text,
+                       COUNT(*)::int,
+                       COUNT(*) FILTER (WHERE youtube_channel_id IS NOT NULL)::int,
+                       COUNT(*) FILTER (WHERE official_website IS NOT NULL)::int
+                FROM bronze.bronze_jurisdictions_school_districts_wikidata
+                ORDER BY count DESC
+            """)
+            for row in cursor.fetchall():
+                jtype, count, youtube, website = row
+                logger.info(f"{jtype:15s}: {count:4d} total, {youtube:3d} with YouTube, {website:3d} with website")
+            cursor.close()
+
     finally:
         loader.close()
 
