@@ -168,6 +168,12 @@ class WikidataQuery:
         self._connect_retry_max_s = float(os.getenv("WIKIDATA_CONNECT_RETRY_MAX_SECONDS", "300") or "300")
         self._sparql_max_attempts = int(os.getenv("WIKIDATA_SPARQL_MAX_ATTEMPTS", "10") or "10")
         self._sparql_timeout_s = float(os.getenv("WIKIDATA_SPARQL_TIMEOUT_SECONDS", "120") or "120")
+        try:
+            _wbt = float(os.getenv("WIKIDATA_WIKIBASE_API_TIMEOUT_SECONDS", "") or 0)
+        except ValueError:
+            _wbt = 0.0
+        # wbgetentities / wbsearchentities: cap lower than WDQS by default — dead SOCKS/WARP otherwise hangs ~2–4m per call.
+        self._wikibase_api_timeout_s = _wbt if _wbt > 0 else min(float(self._sparql_timeout_s), 75.0)
         # Prefer POST when GET would embed a huge URL (SPARQL 1.1 protocol limits / proxies).
         self._sparql_max_get_chars = max(
             512,
@@ -224,7 +230,8 @@ class WikidataQuery:
         if self._http_proxy:
             logger.info(
                 "Wikidata HTTP client proxy enabled via WIKIDATA_HTTPS_PROXY or "
-                "WIKIDATA_HTTP_PROXY (socks5 supported when socksio is installed)."
+                "WIKIDATA_HTTP_PROXY (socks5 supported when socksio is installed). "
+                "If WARP/SOCKS is disconnected, calls can stall until timeout — unset the proxy or fix the tunnel."
             )
 
         # Per-slot network outcome counts (indexed when using WIKIDATA_USER_AGENT_POOL).
@@ -321,6 +328,26 @@ class WikidataQuery:
             limits = httpx.Limits(max_connections=32, max_keepalive_connections=0)
         client_kw: Dict[str, Any] = {
             "timeout": self._sparql_timeout_s,
+            "headers": hdrs,
+            "limits": limits,
+        }
+        if self._http_proxy:
+            client_kw["proxy"] = self._http_proxy
+        return httpx.AsyncClient(**client_kw)
+
+    def _wikibase_http_client(self, user_agent: str) -> httpx.AsyncClient:
+        """HTTP client for wikidata.org ``w/api.php`` (same proxy as WDQS; shorter read timeout)."""
+        hdrs = {
+            **self._headers_common,
+            "User-Agent": user_agent,
+        }
+        if self._http_keepalive:
+            limits = httpx.Limits(max_connections=32, max_keepalive_connections=8)
+        else:
+            hdrs["Connection"] = "close"
+            limits = httpx.Limits(max_connections=32, max_keepalive_connections=0)
+        client_kw: Dict[str, Any] = {
+            "timeout": self._wikibase_api_timeout_s,
             "headers": hdrs,
             "limits": limits,
         }
@@ -473,7 +500,7 @@ class WikidataQuery:
                     self._last_request_monotonic = time.monotonic()
 
                 try:
-                    async with self._sparql_http_client(user_agent) as client:
+                    async with self._wikibase_http_client(user_agent) as client:
                         r = await client.get(
                             url,
                             params={
@@ -570,7 +597,7 @@ class WikidataQuery:
                 "Accept": "application/json",
             }
             try:
-                async with self._sparql_http_client(user_agent) as client:
+                async with self._wikibase_http_client(user_agent) as client:
                     r = await client.get(
                         url,
                         headers=hdrs,

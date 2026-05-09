@@ -43,6 +43,7 @@ import argparse
 from argparse import BooleanOptionalAction
 import asyncio
 import json
+import time
 from pathlib import Path
 from typing import List, Dict, Optional, Set, Tuple, Any
 from datetime import datetime
@@ -183,13 +184,55 @@ def _wikidata_hybrid_enrich_enabled() -> bool:
 
 def _wikidata_hybrid_county_map_mode() -> str:
     """
-    Hybrid county id→Q resolution: ``entity_search`` (wbsearchentities + FIPS reconcile, no WDQS map query)
-    or ``sparql`` (FILTER IN batch on WDQS). Default: entity_search — avoids giant SPARQL mapping batches.
+    Hybrid county id→Q resolution:
+
+    * ``bulk_state`` — **one** WDQS query: counties with P131 = state (+ types), match FIPS/GNIS in-process (default).
+    * ``entity_search`` — wbsearchentities + wbgetentities per county (slow).
+    * ``sparql`` — legacy batched FILTER IN mapping on WDQS.
+
+    Env: ``WIKIDATA_HYBRID_COUNTY_MAP_MODE``.
     """
-    raw = (os.getenv("WIKIDATA_HYBRID_COUNTY_MAP_MODE") or "entity_search").strip().lower()
+    raw = (os.getenv("WIKIDATA_HYBRID_COUNTY_MAP_MODE") or "bulk_state").strip().lower()
     if raw in ("sparql", "wdqs", "map_sparql"):
         return "sparql"
-    return "entity_search"
+    if raw in ("entity_search", "search", "wbsearch"):
+        return "entity_search"
+    return "bulk_state"
+
+
+def _wikidata_hybrid_municipality_map_mode() -> str:
+    """
+    Hybrid municipality id→Q resolution (hybrid enrich path):
+
+    * ``bulk_state`` — **one** WDQS query per state: P131+ to state, US place types; match P774/P590 in memory (default).
+    * ``sparql`` — FILTER IN batches on literals per chunk (legacy hybrid map).
+
+    Env: ``WIKIDATA_HYBRID_MUNICIPALITY_MAP_MODE``.
+    """
+    raw = (os.getenv("WIKIDATA_HYBRID_MUNICIPALITY_MAP_MODE") or "bulk_state").strip().lower()
+    if raw in ("sparql", "wdqs", "map_sparql"):
+        return "sparql"
+    return "bulk_state"
+
+
+def _wikidata_hybrid_school_map_mode() -> str:
+    """
+    Hybrid school-district id→Q resolution:
+
+    * ``bulk_state`` — **one** WDQS query per state: P131+ to state, Q1455778; match NCES/FIPS in memory (default).
+    * ``sparql`` — FILTER IN batches per chunk.
+
+    Env: ``WIKIDATA_HYBRID_SCHOOL_MAP_MODE``.
+    """
+    raw = (os.getenv("WIKIDATA_HYBRID_SCHOOL_MAP_MODE") or "bulk_state").strip().lower()
+    if raw in ("sparql", "wdqs", "map_sparql"):
+        return "sparql"
+    return "bulk_state"
+
+
+def _wikidata_state_bulk_wbgetentities() -> bool:
+    """When True, first state task prefetches all ``STATE_MAP`` q_codes in one batched ``wbgetentities``."""
+    return _env_truthy("WIKIDATA_STATE_BULK_WBGETENTITIES", default=False)
 
 
 def _wikidata_state_legacy_sparql() -> bool:
@@ -415,7 +458,9 @@ class JurisdictionsWikiDataLoader:
         self.conn = psycopg2.connect(database_url)
         self.wikidata = WikidataQuery()
         self._geography_qid_cache: GeographyQidCache | None = None
-        
+        self._state_entities_bulk: Dict[str, Dict[str, Any]] = {}
+        self._state_bulk_prefetch_attempted = False
+
         # Create table
         self._create_table()
 
@@ -898,6 +943,7 @@ class JurisdictionsWikiDataLoader:
     async def _query_cities_in_state_via_hybrid(
         self,
         state_code: str,
+        state_q_code: str,
         state_name: str,
         pairs: List[tuple[str, Optional[str]]],
         ansi_to_geoid: Dict[str, str],
@@ -905,6 +951,8 @@ class JurisdictionsWikiDataLoader:
         """
         Narrow WDQS: only resolve Census literals → Wikidata items; hydrate claims via
         ``wbgetentities`` (or Pywikibot when ``WIKIDATA_ENRICH_USE_PYWIKIBOT=1``).
+        Default: **one** bulk WDQS query per state (P131+ / place types) + in-memory match;
+        ``WIKIDATA_HYBRID_MUNICIPALITY_MAP_MODE=sparql`` keeps FILTER-batched maps per chunk.
         Mappings accumulate in ``geography_qid_mapping_v1.json`` for incremental reruns.
         """
         self.warm_geography_qid_cache_from_db(state_code, "city")
@@ -914,10 +962,46 @@ class JurisdictionsWikiDataLoader:
         aggregated: List[Dict] = []
         n_chunks = (len(pairs) + chunk_size - 1) // chunk_size
 
+        map_mode = _wikidata_hybrid_municipality_map_mode()
+        bulk_rows: Optional[List[Dict]] = None
+        use_bulk = False
+        sq = (state_q_code or "").strip()
+        if map_mode == "bulk_state" and sq:
+            blim = _positive_int_env("WIKIDATA_MUNICIPALITY_BULK_STATE_LIMIT", 8000, 200, 12000)
+            mq = _wikidata_hybrid_sql.municipality_bulk_by_state_sparql(state_q_code, blim)
+            try:
+                logger.info(
+                    f"Hybrid municipalities: one WDQS query (P131+ state, US place types) for {state_name}…"
+                )
+                raw_b = await self.wikidata.execute_sparql(mq)
+                bulk_rows = self._dedupe_sparql_bindings_by_item(raw_b or [])
+                use_bulk = len(bulk_rows) > 0
+                for mr in bulk_rows or []:
+                    iq = (mr.get("item") or "").rsplit("/", 1)[-1].strip()
+                    if iq.startswith("Q"):
+                        qcache.remember_muni(iq, mr.get("fips"), mr.get("gnis"))
+                logger.info(
+                    f"  Bulk WDQS returned {len(bulk_rows or [])} row(s); "
+                    f"matching {len(pairs)} bronze places in memory"
+                )
+            except Exception as e:
+                logger.warning(f"Bulk state municipality WDQS failed: {type(e).__name__}: {e}")
+                bulk_rows = None
+
+        inner_mode = map_mode
+        if map_mode == "bulk_state" and not use_bulk:
+            inner_mode = "sparql"
+            logger.warning(
+                "bulk_state returned no data — municipality mapping uses FILTER batches per chunk"
+            )
+
         for ix in range(0, len(pairs), chunk_size):
             chunk = pairs[ix : ix + chunk_size]
             chi = ix // chunk_size + 1
-            logger.info(f"Hybrid municipalities chunk {chi}/{n_chunks} ({len(chunk)} GEOIDs, {state_name})…")
+            mlabel = "bulk-state" if use_bulk else "WDQS-map"
+            logger.info(
+                f"Hybrid municipalities {mlabel} chunk {chi}/{n_chunks} ({len(chunk)} GEOIDs, {state_name})…"
+            )
 
             geo_to_q: Dict[str, str] = {}
 
@@ -925,11 +1009,24 @@ class JurisdictionsWikiDataLoader:
             need_gnis: Set[str] = set()
 
             for geo, ansi in chunk:
+                gid = str(geo).strip()
                 ff, gg = _municipality_wd_literal_sets(geo, ansi)
-                q = qcache.lookup_q_for_municipality(ff, gg)
-                if q:
-                    geo_to_q[str(geo).strip()] = q
-                else:
+                cq = qcache.lookup_q_for_municipality(ff, gg)
+                if cq:
+                    geo_to_q[gid] = cq
+                    continue
+                if use_bulk:
+                    matched_q: Optional[str] = None
+                    for mr in bulk_rows or []:
+                        if self._municipality_mapping_row_matches_literals(mr, ff, gg):
+                            iq = (mr.get("item") or "").rsplit("/", 1)[-1].strip()
+                            if iq.startswith("Q"):
+                                matched_q = iq
+                                break
+                    if matched_q:
+                        geo_to_q[gid] = matched_q
+                        continue
+                if inner_mode == "sparql" or use_bulk:
                     need_fips |= ff
                     need_gnis |= gg
 
@@ -1063,14 +1160,100 @@ class JurisdictionsWikiDataLoader:
         agg: List[Dict] = []
         n_chunks = (len(geoids) + csize - 1) // csize
 
+        bulk_rows: Optional[List[Dict]] = None
+        use_bulk = False
+        if map_mode == "bulk_state":
+            blim = _positive_int_env("WIKIDATA_COUNTY_BULK_STATE_LIMIT", 600, 50, 2000)
+            mq = _wikidata_hybrid_sql.county_bulk_by_state_sparql(ctype, state_q_code, blim)
+            try:
+                logger.info(
+                    f"Hybrid counties: one WDQS query (P131 = state, US county types) for {state_name}…"
+                )
+                raw_b = await self.wikidata.execute_sparql(mq)
+                bulk_rows = self._dedupe_sparql_bindings_by_item(raw_b or [])
+                use_bulk = len(bulk_rows) > 0
+                for mr in bulk_rows:
+                    iq = (mr.get("item") or "").rsplit("/", 1)[-1].strip()
+                    if iq.startswith("Q"):
+                        qcache.remember_county(iq, mr.get("fips"), mr.get("fipsAlt"), mr.get("gnis"))
+                logger.info(
+                    f"  Bulk WDQS returned {len(bulk_rows)} row(s); matching {len(geoids)} bronze GEOIDs in memory"
+                )
+            except Exception as e:
+                logger.warning(f"Bulk state county WDQS failed: {type(e).__name__}: {e}")
+                bulk_rows = None
+
+        inner_mode = map_mode
+        if map_mode == "bulk_state" and not use_bulk:
+            inner_mode = (
+                "entity_search" if _env_truthy("WIKIDATA_COUNTY_BULK_FALLBACK_ENTITY_SEARCH", True) else "sparql"
+            )
+            logger.warning(
+                f"bulk_state returned no data — inner mapping for this state uses {inner_mode!r}"
+            )
+
         for ix in range(0, len(geoids), csize):
             chunk = geoids[ix : ix + csize]
             chi = ix // csize + 1
-            mlabel = "entity-search" if map_mode == "entity_search" else "WDQS-map"
+            if use_bulk:
+                mlabel = "bulk-state"
+            elif inner_mode == "entity_search":
+                mlabel = "entity-search"
+            else:
+                mlabel = "WDQS-map"
             logger.info(f"Hybrid counties {mlabel} chunk {chi}/{n_chunks} ({state_name})…")
             geo_to_q: Dict[str, str] = {}
 
-            if map_mode == "entity_search":
+            if use_bulk:
+                fb_ent = _env_truthy("WIKIDATA_COUNTY_BULK_FALLBACK_ENTITY_SEARCH", True)
+                n_in_chunk = len(chunk)
+                for j, gid in enumerate(chunk, start=1):
+                    g = str(gid).strip()
+                    lits = _county_fips_literal_alternatives(gid, sf)
+                    cq = qcache.lookup_q_for_county(lits)
+                    if cq:
+                        geo_to_q[g] = cq
+                        logger.info(f"  [{j}/{n_in_chunk}] GEOID {g}: literal cache hit → {cq}")
+                        continue
+                    matched_q: Optional[str] = None
+                    for mr in bulk_rows or []:
+                        if self._county_mapping_row_matches_geoid_literals(mr, lits):
+                            iq = (mr.get("item") or "").rsplit("/", 1)[-1].strip()
+                            if iq.startswith("Q"):
+                                matched_q = iq
+                                break
+                    if matched_q:
+                        geo_to_q[g] = matched_q
+                        logger.info(f"  [{j}/{n_in_chunk}] GEOID {g} → {matched_q} (bulk match)")
+                    elif fb_ent:
+                        display_name = pair_by_g.get(g, "")
+                        nm = (display_name or "").strip() or "(no gazetteer name in bronze)"
+                        logger.info(f"  [{j}/{n_in_chunk}] GEOID {g} — {nm[:56]} — bulk miss, entity-search fallback…")
+                        res = await self._county_resolve_via_entity_search(
+                            display_name, state_name, state_q_code, lits
+                        )
+                        if res:
+                            qid, ent = res
+                            geo_to_q[g] = qid
+                            row_mini = entity_to_wdqs_like_row(ent, qid)
+                            qcache.remember_county(
+                                qid,
+                                row_mini.get("fips"),
+                                row_mini.get("fipsAlt"),
+                                row_mini.get("gnis"),
+                            )
+                            logger.info(f"  [{j}/{n_in_chunk}] GEOID {g} → {qid} (fallback)")
+                        else:
+                            logger.warning(
+                                f"  [{j}/{n_in_chunk}] entity-search fallback miss GEOID={g} "
+                                f"name={nm[:40]!r}"
+                            )
+                    else:
+                        logger.warning(
+                            f"  [{j}/{n_in_chunk}] bulk miss, no fallback GEOID={g} lits={sorted(lits)[:8]}"
+                        )
+
+            elif inner_mode == "entity_search":
                 n_in_chunk = len(chunk)
                 for j, gid in enumerate(chunk, start=1):
                     g = str(gid).strip()
@@ -1146,6 +1329,11 @@ class JurisdictionsWikiDataLoader:
                 qcache.save()
                 continue
 
+            logger.info(
+                f"  Hydrating {len(q_needed)} distinct county Q-id(s) via wbgetentities / Pywikibot "
+                f"(chunk {chi}/{n_chunks})…"
+            )
+
             enriched: List[Dict] = []
             py_try = try_pywikibot_rows(q_needed)
             if py_try is not None:
@@ -1212,18 +1400,65 @@ class JurisdictionsWikiDataLoader:
         agg: List[Dict] = []
         n_chunks = (len(geoids) + chunk_size - 1) // chunk_size
 
+        map_mode = _wikidata_hybrid_school_map_mode()
+        bulk_rows: Optional[List[Dict]] = None
+        use_bulk = False
+        sq = (state_q_code or "").strip()
+        if map_mode == "bulk_state" and sq:
+            blim = _positive_int_env("WIKIDATA_SCHOOL_BULK_STATE_LIMIT", 2500, 100, 5000)
+            mq = _wikidata_hybrid_sql.school_bulk_by_state_sparql(state_q_code, blim)
+            try:
+                logger.info(
+                    f"Hybrid school districts: one WDQS query (P131+ state, Q1455778) for {state_name}…"
+                )
+                raw_b = await self.wikidata.execute_sparql(mq)
+                bulk_rows = self._dedupe_sparql_bindings_by_item(raw_b or [])
+                use_bulk = len(bulk_rows) > 0
+                for mr in bulk_rows or []:
+                    iq = (mr.get("item") or "").rsplit("/", 1)[-1].strip()
+                    if iq.startswith("Q"):
+                        qcache.remember_school(iq, mr.get("fips"), mr.get("gnis"), mr.get("nces"))
+                logger.info(
+                    f"  Bulk WDQS returned {len(bulk_rows or [])} row(s); "
+                    f"matching {len(geoids)} bronze district GEOIDs in memory"
+                )
+            except Exception as e:
+                logger.warning(f"Bulk state school-district WDQS failed: {type(e).__name__}: {e}")
+                bulk_rows = None
+
+        inner_mode = map_mode
+        if map_mode == "bulk_state" and not use_bulk:
+            inner_mode = "sparql"
+            logger.warning(
+                "bulk_state returned no data — school id→Q mapping uses FILTER batches per chunk"
+            )
+
         for ix in range(0, len(geoids), chunk_size):
             chunk = geoids[ix : ix + chunk_size]
             chi = ix // chunk_size + 1
-            logger.info(f"Hybrid school districts map chunk {chi}/{n_chunks} ({state_name})…")
+            mlabel = "bulk-state" if use_bulk else "WDQS-map"
+            logger.info(f"Hybrid school districts {mlabel} chunk {chi}/{n_chunks} ({state_name})…")
             geo_to_q: Dict[str, str] = {}
             literals: Set[str] = set()
             for gid in chunk:
+                g = str(gid).strip()
                 lits = _school_id_literal_alternatives(gid)
                 cq = qcache.lookup_q_for_school(lits)
                 if cq:
-                    geo_to_q[str(gid).strip()] = cq
-                else:
+                    geo_to_q[g] = cq
+                    continue
+                if use_bulk:
+                    matched_q: Optional[str] = None
+                    for mr in bulk_rows or []:
+                        if self._school_mapping_row_matches_literals(mr, lits):
+                            iq = (mr.get("item") or "").rsplit("/", 1)[-1].strip()
+                            if iq.startswith("Q"):
+                                matched_q = iq
+                                break
+                    if matched_q:
+                        geo_to_q[g] = matched_q
+                        continue
+                if inner_mode == "sparql":
                     literals |= lits
 
             mapping_rows: List[Dict] = []
@@ -1329,7 +1564,7 @@ class JurisdictionsWikiDataLoader:
 
         if _wikidata_hybrid_enrich_enabled():
             return await self._query_cities_in_state_via_hybrid(
-                state_code, state_name, pairs, ansi_to_geoid
+                state_code, state_q_code, state_name, pairs, ansi_to_geoid
             )
 
         chunk_size = _positive_int_env("WIKIDATA_CITY_CHUNK_SIZE", 25, 5, 150)
@@ -1542,14 +1777,26 @@ class JurisdictionsWikiDataLoader:
         if not phrases:
             return None
 
+        t0 = time.monotonic()
         seen_ids: Set[str] = set()
         ordered_ids: List[str] = []
-        for phrase in phrases:
+        search_calls = 0
+        for pi, phrase in enumerate(phrases, start=1):
+            logger.info(f"    phrase {pi}/{len(phrases)} wbsearchentities: {phrase[:80]!r}…")
+            t_ph = time.monotonic()
             try:
                 hits = await self.wikidata.wikibase_search_entities(phrase, limit=14)
+                search_calls += 1
             except Exception as exc:
-                logger.debug(f"wbsearchentities failed for {phrase[:60]!r}: {type(exc).__name__}: {exc}")
+                logger.warning(
+                    f"wbsearchentities failed for {phrase[:60]!r}: {type(exc).__name__}: {exc}"
+                )
                 hits = []
+            dt = time.monotonic() - t_ph
+            logger.info(
+                f"    → {len(hits)} search hit(s) in {dt:.1f}s "
+                f"(each w/api.php call waits WIKIDATA_THROTTLE_SECONDS after the previous one)"
+            )
             for h in hits:
                 qid = h.get("id")
                 if isinstance(qid, str) and qid.startswith("Q") and qid not in seen_ids:
@@ -1559,8 +1806,14 @@ class JurisdictionsWikiDataLoader:
                 break
 
         if not ordered_ids:
+            logger.info(
+                f"    county entity-search gave up after {time.monotonic() - t0:.1f}s "
+                f"({search_calls} wbsearchentities, 0 candidates)"
+            )
             return None
 
+        logger.info(f"    wbgetentities reconcile: {len(ordered_ids[:28])} candidate Q-id(s)…")
+        t_get = time.monotonic()
         try:
             ents = await self.wikidata.wikibase_get_entities(
                 ordered_ids[:28], wikibase_props="labels|claims"
@@ -1568,6 +1821,8 @@ class JurisdictionsWikiDataLoader:
         except Exception as exc:
             logger.warning(f"wbgetentities (county search reconcile) failed: {type(exc).__name__}: {exc}")
             return None
+        get_dt = time.monotonic() - t_get
+        logger.info(f"    wbgetentities reconcile done in {get_dt:.1f}s")
 
         for qid in ordered_ids:
             ent = ents.get(qid)
@@ -1575,8 +1830,82 @@ class JurisdictionsWikiDataLoader:
                 continue
             ok, _seen = wes.entity_claim_identifier_literals(ent, lits)
             if ok:
+                total = time.monotonic() - t0
+                logger.info(
+                    f"    county resolve total {total:.1f}s — "
+                    f"{search_calls}× wbsearchentities + 1× wbgetentities (not one FIPS query; "
+                    f"Wikidata has no bulk FIPS API, so we search labels then match claims)"
+                )
                 return (qid, ent)
+        logger.info(
+            f"    no identifier match after {time.monotonic() - t0:.1f}s "
+            f"({search_calls} search + reconcile get)"
+        )
         return None
+
+    @staticmethod
+    def _county_mapping_row_matches_geoid_literals(mr: Dict, lits: Set[str]) -> bool:
+        """True if SPARQL binding ?fips/?fipsAlt/?gnis overlaps GEOID literal alternates."""
+        from scripts.datasources.wikidata.geography_qid_cache import norm_lit
+
+        got: Set[str] = set()
+        for k in ("fips", "fipsAlt", "gnis"):
+            v = mr.get(k)
+            if v is None or str(v).strip() == "":
+                continue
+            s = str(v).strip().replace("-", "")
+            got.add(norm_lit(s))
+            if s.isdigit():
+                got.add(norm_lit(s.lstrip("0") or "0"))
+        targets = {norm_lit(x) for x in lits if str(x).strip()}
+        return bool(got & targets)
+
+    @staticmethod
+    def _municipality_mapping_row_matches_literals(
+        mr: Dict, fips_lits: Set[str], gnis_lits: Set[str]
+    ) -> bool:
+        """True if SPARQL binding ?fips/?gnis overlaps municipality literal sets."""
+        from scripts.datasources.wikidata.geography_qid_cache import norm_lit
+
+        got: Set[str] = set()
+        for k in ("fips", "gnis"):
+            v = mr.get(k)
+            if v is None or str(v).strip() == "":
+                continue
+            s = str(v).strip().replace("-", "")
+            got.add(norm_lit(s))
+            if s.isdigit():
+                got.add(norm_lit(s.lstrip("0") or "0"))
+        targets = {norm_lit(x) for x in (fips_lits | gnis_lits) if str(x).strip()}
+        for x in list(targets):
+            xs = str(x).replace("-", "")
+            if xs.isdigit():
+                targets.add(norm_lit(xs.lstrip("0") or "0"))
+        return bool(got & targets)
+
+    @staticmethod
+    def _school_mapping_row_matches_literals(mr: Dict, lits: Set[str]) -> bool:
+        """True if binding ?nces/?fips/?gnis overlaps school GEOID/NCES literal alternates."""
+        from scripts.datasources.wikidata.geography_qid_cache import norm_lit
+
+        got: Set[str] = set()
+        for k in ("nces", "fips", "gnis"):
+            v = mr.get(k)
+            if v is None or str(v).strip() == "":
+                continue
+            s = str(v).strip().replace("-", "")
+            got.add(norm_lit(s))
+            if s.isdigit():
+                got.add(norm_lit(s.lstrip("0") or "0"))
+                if k == "nces" or len(s) >= 5:
+                    got.add(norm_lit(s.zfill(7)))
+        targets = {norm_lit(x) for x in lits if str(x).strip()}
+        for x in list(targets):
+            xs = str(x).replace("-", "")
+            if xs.isdigit():
+                targets.add(norm_lit(xs.lstrip("0") or "0"))
+                targets.add(norm_lit(xs.zfill(7)))
+        return bool(got & targets)
 
     @staticmethod
     def _dedupe_sparql_bindings_by_item(results: List[Dict]) -> List[Dict]:
@@ -2287,14 +2616,51 @@ class JurisdictionsWikiDataLoader:
             return await self._query_state_info_via_sparql(state_code, state_info)
         return await self._query_state_info_via_wikibase(state_code, state_info)
 
+    async def _ensure_state_entities_bulk_prefetch(self) -> None:
+        """Optional: one batched ``wbgetentities`` for every ``STATE_MAP`` q_code (full-US runs)."""
+        if self._state_bulk_prefetch_attempted:
+            return
+        self._state_bulk_prefetch_attempted = True
+        if not _wikidata_state_bulk_wbgetentities():
+            return
+        ids = sorted(
+            {
+                str(inf["q_code"]).strip()
+                for inf in STATE_MAP.values()
+                if inf.get("q_code") and str(inf["q_code"]).strip().startswith("Q")
+            }
+        )
+        if not ids:
+            return
+        try:
+            logger.info(
+                f"Bulk US jurisdiction prefetch: wbgetentities for {len(ids)} "
+                "state/territory Q-ids (WIKIDATA_STATE_BULK_WBGETENTITIES=1)…"
+            )
+            merged = await self.wikidata.wikibase_get_entities(
+                ids, wikibase_props="labels|descriptions|aliases|claims"
+            )
+            for qid, ent in merged.items():
+                if isinstance(ent, dict) and not ent.get("missing"):
+                    self._state_entities_bulk[str(qid)] = ent
+            logger.info(f"  Cached {len(self._state_entities_bulk)} state Wikidata entities in memory.")
+        except Exception as e:
+            logger.warning(f"State bulk wbgetentities prefetch failed ({type(e).__name__}): {e}")
+
     async def _query_state_info_via_wikibase(self, state_code: str, state_info: dict) -> List[Dict]:
         state_name = state_info["name"]
         state_q_code = state_info["q_code"]
-        logger.info(f"Fetching state Wikidata entity via API ({state_name}, {state_q_code})…")
-        ents = await self.wikidata.wikibase_get_entities(
-            [state_q_code], wikibase_props="labels|descriptions|aliases|claims"
-        )
-        entity = ents.get(state_q_code)
+        await self._ensure_state_entities_bulk_prefetch()
+
+        entity: Optional[Dict[str, Any]] = self._state_entities_bulk.get(state_q_code)
+        if entity is None:
+            logger.info(f"Fetching state Wikidata entity via API ({state_name}, {state_q_code})…")
+            ents = await self.wikidata.wikibase_get_entities(
+                [state_q_code], wikibase_props="labels|descriptions|aliases|claims"
+            )
+            entity = ents.get(state_q_code)
+        else:
+            logger.info(f"Using bulk-prefetched Wikidata entity ({state_name}, {state_q_code})…")
         if not isinstance(entity, dict) or entity.get("missing"):
             logger.warning(f"No Wikibase entity for {state_name} ({state_q_code})")
             return []

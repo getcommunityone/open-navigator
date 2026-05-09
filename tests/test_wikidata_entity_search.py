@@ -20,6 +20,7 @@ if str(_root) not in sys.path:
     sys.path.insert(0, str(_root))
 
 from scripts.datasources.wikidata import wikidata_entity_search as wes
+from scripts.datasources.wikidata import wikidata_hybrid_sql
 
 
 def test_county_search_strings_includes_state_phrases() -> None:
@@ -53,6 +54,14 @@ def test_entity_claim_identifier_literals_p882_match() -> None:
     ok, seen = wes.entity_claim_identifier_literals(entity, {"01001", "1001", "01"})
     assert ok
     assert "01001" in seen or "1001" in seen
+
+
+def test_county_bulk_by_state_sparql_contains_state_and_p131() -> None:
+    q = wikidata_hybrid_sql.county_bulk_by_state_sparql("wd:Q47168", "Q1393", limit_rows=100)
+    assert "wd:Q47168" in q
+    assert "wd:Q1393" in q
+    assert "wdt:P131" in q
+    assert "P882" in q
 
 
 def test_entity_claim_identifier_literals_no_match() -> None:
