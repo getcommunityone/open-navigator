@@ -40,6 +40,7 @@ Usage:
 import os
 import sys
 import argparse
+from argparse import BooleanOptionalAction
 import asyncio
 import json
 from pathlib import Path
@@ -71,7 +72,11 @@ from scripts.datasources.wikidata.wikidata_integration import WikidataQuery
 
 load_dotenv()
 
-DATABASE_URL = os.getenv('NEON_DATABASE_URL_DEV', 'postgresql://postgres:password@localhost:5433/open_navigator')
+DATABASE_URL = (
+    os.getenv("NEON_DATABASE_URL_DEV")
+    or os.getenv("NEON_DATABASE_URL")
+    or "postgresql://postgres:password@localhost:5433/open_navigator"
+)
 
 # State mapping: USPS → display name, Wikidata state item, 2-digit state FIPS.
 # county_type is optional: state-specific subtype of US county on Wikidata. When omitted,
@@ -148,6 +153,54 @@ STATE_MAP = {
 PRIORITY_STATES = ["AL", "GA", "IN", "MA", "WA", "WI"]
 
 
+def _env_truthy(key: str, default: bool = False) -> bool:
+    raw = (os.getenv(key) or "").strip().lower()
+    if not raw:
+        return default
+    return raw in ("1", "true", "yes", "on")
+
+
+def fetch_usps_county_wikidata_gaps(database_url: str) -> List[str]:
+    """
+    USPS codes where bronze county rows exist but Wikidata enrichment is incomplete:
+    fewer *_wikidata rows than base counties, or not every row has wikidata_id.
+    """
+    sql = """
+    WITH base AS (
+      SELECT usps, COUNT(*)::bigint AS n_base
+      FROM bronze.bronze_jurisdictions_counties
+      GROUP BY usps
+    ),
+    enr AS (
+      SELECT
+        usps,
+        COUNT(*)::bigint AS n_rows,
+        COUNT(*) FILTER (WHERE wikidata_id IS NOT NULL)::bigint AS n_with_wikidata
+      FROM bronze.bronze_jurisdictions_counties_wikidata
+      GROUP BY usps
+    )
+    SELECT b.usps
+    FROM base b
+    LEFT JOIN enr e ON e.usps = b.usps
+    WHERE COALESCE(e.n_rows, 0) < b.n_base
+       OR COALESCE(e.n_with_wikidata, 0) < b.n_base
+    ORDER BY b.usps
+    """
+    conn = psycopg2.connect(database_url)
+    try:
+        cur = conn.cursor()
+        cur.execute(sql)
+        rows = [r[0] for r in cur.fetchall() if r and r[0]]
+        cur.close()
+    finally:
+        conn.close()
+
+    unknown = sorted({s.upper() for s in rows if s.upper() not in STATE_MAP})
+    if unknown:
+        logger.warning(f"Ignoring {len(unknown)} USPS code(s) not in STATE_MAP (sample): {unknown[:10]}")
+    return [s.upper() for s in rows if s.upper() in STATE_MAP]
+
+
 def _county_type_values_clause(state_code: str) -> str:
     """Build WDQS VALUES clause for county/county-equivalent instance-of types."""
     info = STATE_MAP.get(state_code) or {}
@@ -204,6 +257,15 @@ class CheckpointManager:
     def mark_done(self, state: str, jtype: str):
         self._completed.add((state, jtype))
         self._save()
+
+    def unmark(self, state: str, jtype: str) -> bool:
+        """Remove a task from the checkpoint so it will run again."""
+        key = (state, jtype)
+        if key not in self._completed:
+            return False
+        self._completed.discard(key)
+        self._save()
+        return True
 
     def _save(self):
         self.path.write_text(json.dumps({
@@ -1152,6 +1214,7 @@ class JurisdictionsWikiDataLoader:
         logger.info("=" * 80)
 
         all_jurisdictions = []
+        skipped_tasks = 0
 
         # Determine ordered sub-queries, merging city/town into one task
         query_tasks = []
@@ -1167,6 +1230,7 @@ class JurisdictionsWikiDataLoader:
         for task in query_tasks:
             if checkpoint and checkpoint.is_done(state_code, task):
                 logger.info(f"  Skipping {task} for {state_code} (already completed)")
+                skipped_tasks += 1
                 continue
 
             # Rebuild the bronze *_wikidata base rows for this state+type, then apply updates.
@@ -1213,7 +1277,16 @@ class JurisdictionsWikiDataLoader:
         with_website = sum(1 for j in all_jurisdictions if j.get('official_website'))
 
         logger.info("")
-        logger.success(f"✓ Loaded {len(all_jurisdictions)} jurisdictions for {state_code}")
+        if query_tasks and skipped_tasks == len(query_tasks) and not all_jurisdictions:
+            logger.success(
+                f"✓ Processed 0 rows for {state_code} this run — all {len(query_tasks)} task(s) "
+                f"skipped (checkpoint). Existing bronze *_wikidata rows are unchanged."
+            )
+        else:
+            logger.success(
+                f"✓ Processed {len(all_jurisdictions)} jurisdiction row(s) for {state_code} this run "
+                f"(from Wikidata fetches; not the full table row count)"
+            )
         logger.info(f"  With YouTube channels: {with_youtube}")
         logger.info(f"  With official websites: {with_website}")
     
@@ -1230,27 +1303,43 @@ async def main():
     parser.add_argument(
         '--states',
         type=str,
-        default=",".join(PRIORITY_STATES),
-        help=f'Comma-separated list of state codes (default: {",".join(PRIORITY_STATES)})'
+        default=(
+            os.getenv("WIKIDATA_LOAD_STATES", "").strip() or ",".join(PRIORITY_STATES)
+        ),
+        help=(
+            'Comma-separated list of state codes (default: '
+            f'env WIKIDATA_LOAD_STATES or {",".join(PRIORITY_STATES)})'
+        ),
     )
 
     parser.add_argument(
         '--priority-states',
-        action='store_true',
-        help=f'Convenience flag: load all priority states ({", ".join(PRIORITY_STATES)})'
+        action=BooleanOptionalAction,
+        default=_env_truthy("WIKIDATA_LOAD_PRIORITY_STATES"),
+        help=(
+            'Load priority development states '
+            f'({", ".join(PRIORITY_STATES)}); '
+            'default from WIKIDATA_LOAD_PRIORITY_STATES (1/true/yes/on)'
+        ),
     )
 
     parser.add_argument(
         '--all-us-states',
-        action='store_true',
-        help='Load every USPS code in STATE_MAP (50 states, DC, and PR)'
+        action=BooleanOptionalAction,
+        default=_env_truthy("WIKIDATA_LOAD_ALL_US_STATES"),
+        help=(
+            'Load every USPS code in STATE_MAP (50 states, DC, PR); '
+            'default from WIKIDATA_LOAD_ALL_US_STATES (1/true/yes/on)'
+        ),
     )
-    
+
     parser.add_argument(
         '--types',
         type=str,
-        default='city,county,state',
-        help='Comma-separated jurisdiction types (default: city,county,state)'
+        default=(
+            os.getenv("WIKIDATA_LOAD_TYPES", "city,county,state").strip() or 'city,county,state'
+        ),
+        help='Comma-separated jurisdiction types (default: env WIKIDATA_LOAD_TYPES)',
     )
 
     parser.add_argument(
@@ -1263,20 +1352,59 @@ async def main():
     parser.add_argument(
         '--checkpoint-file',
         type=str,
-        default='.wikidata_checkpoint.json',
-        help='Checkpoint file for resume support (default: .wikidata_checkpoint.json)'
+        default=(
+            os.getenv("WIKIDATA_LOAD_CHECKPOINT_FILE", ".wikidata_checkpoint.json").strip()
+            or ".wikidata_checkpoint.json"
+        ),
+        help=(
+            'Checkpoint file for resume (default: '
+            'env WIKIDATA_LOAD_CHECKPOINT_FILE or .wikidata_checkpoint.json)'
+        ),
     )
 
     parser.add_argument(
         '--force',
-        action='store_true',
-        help='Ignore existing checkpoint and re-fetch everything'
+        action=BooleanOptionalAction,
+        default=_env_truthy("WIKIDATA_LOAD_FORCE"),
+        help='Ignore existing checkpoint and re-fetch (default: env WIKIDATA_LOAD_FORCE)',
+    )
+
+    parser.add_argument(
+        '--retry-county-gap-states',
+        action=BooleanOptionalAction,
+        default=_env_truthy("WIKIDATA_LOAD_RETRY_COUNTY_GAPS"),
+        help=(
+            "Query Postgres for USPS where county *_wikidata rows or wikidata_id coverage lags bronze; "
+            "clear checkpoint for county on those USPS and rerun only those states (env "
+            "WIKIDATA_LOAD_RETRY_COUNTY_GAPS)"
+        ),
     )
 
     args = parser.parse_args()
 
+    types = [t.strip().lower() for t in args.types.split(',') if t.strip()]
+
+    checkpoint = None if args.force else CheckpointManager(args.checkpoint_file)
+
     # Parse states and types
-    if args.priority_states:
+    if args.retry_county_gap_states:
+        if "county" not in types:
+            raise SystemExit(
+                "--retry-county-gap-states requires 'county' in --types / WIKIDATA_LOAD_TYPES "
+                f"(got {types!r})."
+            )
+        logger.info("Discovering USPS with incomplete county Wikidata enrichment (bronze vs *_wikidata)...")
+        states = fetch_usps_county_wikidata_gaps(DATABASE_URL)
+        if not states:
+            logger.success("No county Wikidata gaps found — all states match base row counts and wikidata_id coverage.")
+            return
+        logger.info(f"County gap rerun for {len(states)} USPS: {','.join(states)}")
+        if checkpoint:
+            cleared = sum(1 for s in states if checkpoint.unmark(s, "county"))
+            logger.info(f"Cleared checkpoint for county on {cleared} USPS so those tasks rerun.")
+        elif args.force:
+            logger.info("FORCE=1 — checkpoint ignored; querying WDQS again for gap states.")
+    elif args.priority_states:
         states = PRIORITY_STATES
     elif args.all_us_states:
         states = sorted(STATE_MAP.keys())
@@ -1290,10 +1418,6 @@ async def main():
         raise SystemExit(
             f"Unknown state code(s): {', '.join(unknown_states)}. Known codes (sample): {known_sample}"
         )
-
-    types = [t.strip().lower() for t in args.types.split(',')]
-
-    checkpoint = None if args.force else CheckpointManager(args.checkpoint_file)
 
     # Load data
     loader = JurisdictionsWikiDataLoader(DATABASE_URL)

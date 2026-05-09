@@ -48,6 +48,7 @@ USAGE:
     orgs = await wikidata.find_person_organizations("Walt Maddox")
 """
 import asyncio
+from collections import defaultdict
 from typing import List, Dict, Optional, Any
 from datetime import datetime
 from pathlib import Path
@@ -66,6 +67,13 @@ try:
 except ImportError:
     SPARK_AVAILABLE = False
     settings = None
+
+
+def _env_truthy_integration(key: str, default: bool = False) -> bool:
+    raw = (os.getenv(key) or "").strip().lower()
+    if not raw:
+        return default
+    return raw in ("1", "true", "yes", "on")
 
 
 class WikidataQuery:
@@ -117,19 +125,125 @@ class WikidataQuery:
         self._cache_ttl_s = int(os.getenv("WIKIDATA_CACHE_TTL_SECONDS", str(7 * 24 * 60 * 60)))
         self._last_request_monotonic: float | None = None
         self._request_lock = asyncio.Lock()
+        # When WDQS returns Retry-After (429) or overload-ish failures, apply a global cooldown
+        # so other queries in this process don't immediately hammer the endpoint.
+        self._cooldown_until_monotonic: float = 0.0
         # Transient TCP failures to WDQS — backoff can run longer than HTTP error retries.
         self._connect_retry_base_s = float(os.getenv("WIKIDATA_CONNECT_RETRY_BASE_SECONDS", "10") or "10")
         self._connect_retry_max_s = float(os.getenv("WIKIDATA_CONNECT_RETRY_MAX_SECONDS", "300") or "300")
         self._sparql_max_attempts = int(os.getenv("WIKIDATA_SPARQL_MAX_ATTEMPTS", "10") or "10")
-        self._headers = {
-            # WDQS is frequently fronted by anti-bot protections; use a browser-like UA.
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/120.0.0.0 Safari/537.36"
-            ),
+        default_ua = (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Safari/537.36"
+        )
+        # Single UA, used when WIKIDATA_USER_AGENT_POOL is unset/empty.
+        self._fallback_user_agent = (os.getenv("WIKIDATA_USER_AGENT") or "").strip() or default_ua
+        # Multiple UAs separated by ### (commas occur inside typical Mozilla strings — do not split on comma).
+        _pool_raw = (os.getenv("WIKIDATA_USER_AGENT_POOL") or "").strip()
+        self._user_agent_pool = [s.strip() for s in _pool_raw.split("###") if s.strip()]
+        self._user_agent_rr = 0
+        self._headers_common = {
             "Accept": "application/sparql-results+json",
         }
+        # Long throttles + VPN: reused keep-alive sockets often die → httpx.RemoteProtocolError.
+        # Opt in with WIKIDATA_HTTP_KEEPALIVE=1 if you want pooled connections.
+        _ka = (os.getenv("WIKIDATA_HTTP_KEEPALIVE") or "").strip().lower()
+        self._http_keepalive = _ka in ("1", "true", "yes")
+
+        # Per-slot network outcome counts (indexed when using WIKIDATA_USER_AGENT_POOL).
+        self._ua_net: dict[str, dict[str, int]] = defaultdict(
+            lambda: {"ok": 0, "429": 0, "5xx": 0, "tx": 0, "misc": 0},
+        )
+        self._wdqs_net_completed = 0
+        self._log_ua_stats = _env_truthy_integration(
+            "WIKIDATA_LOG_UA_STATS", default=bool(self._user_agent_pool)
+        )
+        self._ua_stats_every = max(
+            1,
+            int(os.getenv("WIKIDATA_UA_STATS_LOG_EVERY_NET", "10") or "10"),
+        )
+
+        if self._user_agent_pool:
+            logger.info(
+                f"WIKIDATA_USER_AGENT_POOL enabled: rotating {len(self._user_agent_pool)} User-Agent value(s)"
+            )
+            if self._log_ua_stats:
+                logger.info(
+                    f"UA net stats logging: every {self._ua_stats_every} WDQS completions "
+                    "(WIKIDATA_LOG_UA_STATS / WIKIDATA_UA_STATS_LOG_EVERY_NET)"
+                )
+
+    def _ua_slot_label(self, user_agent: str) -> str:
+        if user_agent in self._user_agent_pool:
+            ix = self._user_agent_pool.index(user_agent)
+            snip = user_agent.replace("\n", " ").strip()
+            if len(snip) > 56:
+                snip = snip[:53] + "…"
+            return f"[slot {ix}] {snip}"
+        snip = self._fallback_user_agent.replace("\n", " ").strip()
+        if len(snip) > 56:
+            snip = snip[:53] + "…"
+        return f"[single] {snip}"
+
+    def _record_ua_net(self, user_agent: str, outcome: str) -> None:
+        label = self._ua_slot_label(user_agent)
+        b = self._ua_net[label]
+        if outcome == "ok":
+            b["ok"] += 1
+            self._wdqs_net_completed += 1
+            if self._log_ua_stats and self._wdqs_net_completed % self._ua_stats_every == 0:
+                self._log_wdqs_user_agent_stats()
+            return
+        if outcome == "429":
+            b["429"] += 1
+            return
+        if outcome == "5xx":
+            b["5xx"] += 1
+            return
+        if outcome == "tx":
+            b["tx"] += 1
+            return
+        b["misc"] += 1
+
+    def _log_wdqs_user_agent_stats(self) -> None:
+        if not self._ua_net:
+            return
+        parts: List[str] = []
+        total_ok = sum(d["ok"] for d in self._ua_net.values())
+        total_bad = sum(
+            d["429"] + d["5xx"] + d["tx"] + d["misc"] for d in self._ua_net.values()
+        )
+        denom = total_ok + total_bad if (total_ok + total_bad) else 1
+        for label in sorted(self._ua_net.keys()):
+            d = self._ua_net[label]
+            o = d["ok"]
+            t = d["429"] + d["5xx"] + d["tx"] + d["misc"]
+            td = max(1, o + t)
+            parts.append(f"{label} ok={o} errs={t} ok_share={(100.0 * o / td):.0f}%")
+        logger.info(
+            f"WDQS User-Agent net stats (overall ok_share={(100.0 * total_ok / denom):.0f}%): "
+            + " │ ".join(parts)
+        )
+
+    def _pick_user_agent(self) -> str:
+        if self._user_agent_pool:
+            i = self._user_agent_rr % len(self._user_agent_pool)
+            self._user_agent_rr += 1
+            return self._user_agent_pool[i]
+        return self._fallback_user_agent
+
+    def _sparql_http_client(self, user_agent: str) -> httpx.AsyncClient:
+        hdrs = {
+            **self._headers_common,
+            "User-Agent": user_agent,
+        }
+        if self._http_keepalive:
+            limits = httpx.Limits(max_connections=32, max_keepalive_connections=8)
+        else:
+            hdrs["Connection"] = "close"
+            limits = httpx.Limits(max_connections=32, max_keepalive_connections=0)
+        return httpx.AsyncClient(timeout=180.0, headers=hdrs, limits=limits)
 
     def _cache_key(self, query: str) -> str:
         h = hashlib.sha256(query.encode("utf-8")).hexdigest()
@@ -195,6 +309,12 @@ class WikidataQuery:
             return cached
 
         async with self._request_lock:
+            now = time.monotonic()
+            if self._cooldown_until_monotonic > now:
+                sleep_s = self._cooldown_until_monotonic - now
+                logger.warning(f"WDQS cooldown active: sleeping {sleep_s:.1f}s before next request")
+                await asyncio.sleep(sleep_s)
+
             min_gap = self._throttle_s + max(0.0, self._burst_throttle_s)
             if min_gap > 0:
                 now = time.monotonic()
@@ -210,10 +330,9 @@ class WikidataQuery:
         base_delay_s = 2.0
 
         for attempt in range(1, max_attempts + 1):
+            user_agent = self._pick_user_agent()
             try:
-                async with httpx.AsyncClient(
-                    timeout=180.0, headers=self._headers
-                ) as client:
+                async with self._sparql_http_client(user_agent) as client:
                     response = await client.get(
                         self.SPARQL_ENDPOINT,
                         params={
@@ -241,6 +360,7 @@ class WikidataQuery:
                     else:
                         logger.info(f"✅ Query returned {len(results)} results")
                     self._write_cache(query, results)
+                    self._record_ua_net(user_agent, "ok")
                     # Ease backoff after successes.
                     self._burst_throttle_s = max(0.0, self._burst_throttle_s * 0.5)
                     return results
@@ -252,6 +372,7 @@ class WikidataQuery:
                 status = e.response.status_code
 
                 if status == 429:
+                    self._record_ua_net(user_agent, "429")
                     if attempt == 1:
                         logger.warning(
                             "Wikidata rate limited (429). Raise WIKIDATA_THROTTLE_SECONDS if this persists."
@@ -281,6 +402,8 @@ class WikidataQuery:
                     wait_s += random.uniform(0.25, 1.25)
                     # Fewer successive 429s: widen spacing for subsequent queries in this process.
                     self._burst_throttle_s = min(120.0, max(self._burst_throttle_s + 8.0, 12.0))
+                    # Global cooldown so other queries don't immediately get 429'd too.
+                    self._cooldown_until_monotonic = max(self._cooldown_until_monotonic, time.monotonic() + wait_s)
 
                     logger.warning(
                         f"Wikidata rate limited (429). Sleeping {wait_s:.1f}s then retrying "
@@ -290,7 +413,9 @@ class WikidataQuery:
                     continue
 
                 if status in (502, 503, 504):
+                    self._record_ua_net(user_agent, "5xx")
                     wait_s = min(base_delay_s * (2 ** (attempt - 1)), 60.0) + random.uniform(0.0, 2.0)
+                    self._cooldown_until_monotonic = max(self._cooldown_until_monotonic, time.monotonic() + wait_s)
                     logger.warning(
                         f"Wikidata query service error ({status}). Sleeping {wait_s:.1f}s then retrying "
                         f"(attempt {attempt}/{max_attempts})"
@@ -310,7 +435,9 @@ class WikidataQuery:
                         or "SystemOverloadFilter" in body
                         or "RequestConcurrencyFilter" in body
                     ):
+                        self._record_ua_net(user_agent, "5xx")
                         wait_s = min(base_delay_s * (2 ** (attempt - 1)), 90.0) + random.uniform(0.0, 3.0)
+                        self._cooldown_until_monotonic = max(self._cooldown_until_monotonic, time.monotonic() + wait_s)
                         logger.warning(
                             "Wikidata query service error (500 timeout/overload). "
                             f"Sleeping {wait_s:.1f}s then retrying (attempt {attempt}/{max_attempts})"
@@ -318,11 +445,13 @@ class WikidataQuery:
                         await asyncio.sleep(wait_s)
                         continue
 
+                self._record_ua_net(user_agent, "misc")
                 logger.error(f"SPARQL query failed: {status}")
                 logger.error(f"Response: {e.response.text}")
                 raise
 
             except httpx.ConnectError as e:
+                self._record_ua_net(user_agent, "tx")
                 if attempt >= max_attempts:
                     logger.error(f"Error executing SPARQL query: {e}")
                     raise
@@ -331,6 +460,7 @@ class WikidataQuery:
                     max(self._connect_retry_max_s, self._connect_retry_base_s),
                 )
                 wait_s += random.uniform(0.5, 2.5)
+                self._cooldown_until_monotonic = max(self._cooldown_until_monotonic, time.monotonic() + wait_s)
                 logger.warning(
                     f"WDQS connect error ({type(e).__name__}): {e}. "
                     f"Sleeping {wait_s:.1f}s then retrying (attempt {attempt}/{max_attempts})"
@@ -339,10 +469,12 @@ class WikidataQuery:
                 continue
 
             except httpx.TimeoutException as e:
+                self._record_ua_net(user_agent, "tx")
                 if attempt >= max_attempts:
                     logger.error(f"Error executing SPARQL query: {e}")
                     raise
                 wait_s = min(base_delay_s * (2 ** (attempt - 1)), 90.0) + random.uniform(0.5, 3.0)
+                self._cooldown_until_monotonic = max(self._cooldown_until_monotonic, time.monotonic() + wait_s)
                 logger.warning(
                     f"SPARQL query timeout: {e}. Sleeping {wait_s:.1f}s then retrying "
                     f"(attempt {attempt}/{max_attempts})"
@@ -351,6 +483,7 @@ class WikidataQuery:
                 continue
 
             except httpx.RequestError as e:
+                self._record_ua_net(user_agent, "tx")
                 # Any transport-level issue (DNS, TLS, socket reset, read error, etc.).
                 if attempt >= max_attempts:
                     logger.error(f"Error executing SPARQL query: {type(e).__name__}: {e}")
@@ -360,6 +493,7 @@ class WikidataQuery:
                     max(self._connect_retry_max_s, self._connect_retry_base_s),
                 )
                 wait_s += random.uniform(0.5, 2.5)
+                self._cooldown_until_monotonic = max(self._cooldown_until_monotonic, time.monotonic() + wait_s)
                 logger.warning(
                     f"WDQS request error ({type(e).__name__}): {e}. "
                     f"Sleeping {wait_s:.1f}s then retrying (attempt {attempt}/{max_attempts})"
@@ -368,6 +502,7 @@ class WikidataQuery:
                 continue
 
             except Exception as e:
+                self._record_ua_net(user_agent, "misc")
                 if attempt < max_attempts:
                     wait_s = min(base_delay_s * (2 ** (attempt - 1)), 45.0) + random.uniform(0.0, 1.5)
                     logger.warning(
@@ -379,6 +514,8 @@ class WikidataQuery:
                 logger.error(f"Error executing SPARQL query: {e}")
                 raise
 
+        if self._log_ua_stats and self._ua_net:
+            self._log_wdqs_user_agent_stats()
         raise RuntimeError("SPARQL query failed after retries")
     
     async def find_school_board_members(
