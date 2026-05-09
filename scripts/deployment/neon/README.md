@@ -47,14 +47,36 @@ This directory contains the Neon Postgres integration for fast API queries on Hu
            └───────────────────┘
 ```
 
+## Bronze jurisdictions (Census + Wikidata) without `pg_dump`
+
+For **`bronze.bronze_jurisdictions_*`** and **`bronze.bronze_jurisdictions_*_wikidata`**, use programmatic DDL + loaders (Neon-compatible connection resolution):
+
+| Step | Script |
+|------|--------|
+| Resolve URL | `OPEN_NAVIGATOR_DATABASE_URL` **first**, else `NEON_DATABASE_URL_DEV` → `NEON_DATABASE_URL` → local docker (`scripts/database/target_database_url.py`) |
+| Schema + empty `*_wikidata` mirrors | `python scripts/deployment/neon/ensure_bronze_jurisdictions_cloud.py --schema-only` |
+| Load Census CSVs → bronze | Same URL + `python scripts/datasources/census/load_census_gazetteer.py` (+ optional `--filter-usps AL,GA`) |
+| One-shot orchestrator | `./scripts/deployment/neon/run_bronze_jurisdictions_to_cloud.sh` (+ pass-through Gazetteer CLI args) |
+
+Wikidata enrichment after rows exist:
+
+```bash
+WIKIDATA_INCREMENTAL_MERGE=1 \
+  .venv/bin/python scripts/datasources/wikidata/load_jurisdictions_wikidata.py --priority-states
+```
+
+Prerequisite gazetteer cache: `scripts/datasources/census/download_census_gazetteer.py`.
+
 ## 📁 Files
 
 ```
 neon/
-├── schema.sql          # Database schema (tables, indexes, views)
-├── migrate.py          # Data migration script (parquet → Neon)
-├── README.md           # This file
-└── (future: sync.py)   # Automated sync for updates
+├── schema.sql                        # Neon API search/aggregate tables (migrate.py path)
+├── migrate.py                        # Parquet → Neon (stats/search)
+├── ensure_bronze_jurisdictions_cloud.py # Idempotent bronze jurisdiction DDL (+ *_wikidata shells)
+├── run_bronze_jurisdictions_to_cloud.sh # ensure + load_census_gazetteer (no pg_dump)
+├── README.md                         # This file
+└── (future: sync.py)                  # Automated sync for updates
 ```
 
 ## 🗄️ Database Schema
@@ -112,8 +134,11 @@ neon/
 ### Step 2: Configure Locally
 
 ```bash
-# Add to .env file (already done!)
-NEON_DATABASE_URL=postgresql://neondb_owner:npg_6WMcFKpIgj3T@ep-noisy-fire-anrnmxxy-pooler.c-6.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
+# Add your Neon branch URL(s) — use secrets, not committed credentials
+NEON_DATABASE_URL=postgresql://USER:PASSWORD@ep-PROJECT.neon.tech/neondb?sslmode=require
+
+# Optional: pin every loader + ensure script to one URL explicitly
+# OPEN_NAVIGATOR_DATABASE_URL="$NEON_DATABASE_URL"
 ```
 
 ### Step 3: Run Migration

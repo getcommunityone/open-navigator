@@ -15,10 +15,13 @@ Run download_census_gazetteer.py first to populate the cache.
 Usage:
     python3 scripts/datasources/census/load_census_gazetteer.py
     python3 scripts/datasources/census/load_census_gazetteer.py --types counties municipalities
-    python3 scripts/datasources/census/load_census_gazetteer.py --limit 100
+    NEON_DATABASE_URL_DEV='postgresql://…' python3 scripts/…/load_census_gazetteer.py --filter-usps AL,GA
+
+URL resolution: scripts/database/target_database_url.py (Neon URLs take precedence unless OPEN_NAVIGATOR_DATABASE_URL overrides).
 """
 import argparse
 import os
+import sys
 from pathlib import Path
 
 import pandas as pd
@@ -26,10 +29,13 @@ import psycopg2
 from psycopg2.extras import execute_batch
 from loguru import logger
 
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+from scripts.database.target_database_url import resolve_target_database_url  # noqa: E402
+
 
 CACHE_DIR = Path("data/cache/census/gazetteer")
-POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "password")
-DATABASE_URL = f"postgresql://postgres:{POSTGRES_PASSWORD}@localhost:5433/open_navigator"
 
 # Configuration for each jurisdiction type
 TYPES = {
@@ -274,8 +280,41 @@ TYPES = {
 }
 
 
-def get_connection():
-    return psycopg2.connect(DATABASE_URL)
+def _apply_ddl_statements(cursor, ddl: str) -> None:
+    """psycopg2 cannot execute multi-statement strings; split on ';'."""
+    for chunk in ddl.split(";"):
+        stmt = chunk.strip()
+        if stmt:
+            cursor.execute(stmt + ";")
+
+
+def _filter_gazetteer_df(df: pd.DataFrame, jtype: str, filter_usps: set[str], include_zcta: bool):
+    """Keep rows whose USPS matches filter_usps; ZCTAs are national-only unless --include-zcta-national."""
+    if not filter_usps:
+        return df
+    if jtype == "zcta":
+        if include_zcta:
+            return df
+        logger.warning(
+            "Skipping zcta rows: --filter-usps is set; pass --include-zcta-national to load national ZCTA anyway."
+        )
+        return df.iloc[0:0].copy()
+    col = None
+    for c in df.columns:
+        if str(c).strip().upper() == "USPS":
+            col = c
+            break
+    if col is None:
+        logger.warning(f"No USPS column in {jtype} gazetteer; loading all rows (no USPS filter)")
+        return df
+    normalized = df[col].fillna("").astype(str).str.strip().str.upper()
+    return df.loc[normalized.isin(filter_usps)].copy()
+
+
+def get_connection(database_url: str | None = None):
+    """Connect to Postgres (defaults to Neon / OPEN_NAVIGATOR_DATABASE_URL resolution)."""
+    url = database_url or resolve_target_database_url()
+    return psycopg2.connect(url)
 
 
 def safe_int(val):
@@ -370,7 +409,13 @@ def build_records(df: pd.DataFrame, jtype: str) -> list:
     return records
 
 
-def load_type(jtype: str, limit: int = None) -> int:
+def load_type(
+    jtype: str,
+    limit: int = None,
+    filter_usps: set[str] | None = None,
+    include_zcta: bool = False,
+    database_url: str | None = None,
+) -> int:
     cfg = TYPES[jtype]
     cache_file = CACHE_DIR / cfg["cache_file"]
 
@@ -381,15 +426,18 @@ def load_type(jtype: str, limit: int = None) -> int:
     logger.info(f"Reading {jtype} from {cache_file}...")
     df = pd.read_csv(cache_file, dtype=str, low_memory=False)
     df.columns = [c.strip() for c in df.columns]
+    if filter_usps:
+        df = _filter_gazetteer_df(df, jtype, filter_usps, include_zcta)
+        logger.info(f"After USPS filter {sorted(filter_usps)}: {len(df):,} {jtype} row(s)")
     if limit:
         df = df.head(limit)
 
     records = build_records(df, jtype)
     logger.info(f"Prepared {len(records):,} {jtype} records")
 
-    conn = get_connection()
+    conn = get_connection(database_url=database_url)
     cur = conn.cursor()
-    cur.execute(cfg["ddl"])
+    _apply_ddl_statements(cur, cfg["ddl"])
     conn.commit()
 
     execute_batch(cur, cfg["insert"], records, page_size=5000)
@@ -411,18 +459,51 @@ def main():
         help="Types to load (default: all)",
     )
     parser.add_argument("--limit", type=int, help="Limit records per type (for testing)")
+    parser.add_argument(
+        "--database-url",
+        default="",
+        help="Override Postgres URL (default: NEON_* / OPEN_NAVIGATOR_DATABASE_URL / localhost)",
+    )
+    parser.add_argument(
+        "--filter-usps",
+        default="",
+        help="Comma-separated USPS (e.g. AL,WA). Skips national ZCTA unless --include-zcta-national.",
+    )
+    parser.add_argument(
+        "--include-zcta-national",
+        action="store_true",
+        help="When using --filter-usps, still load full ZCTA file (national, not USPS scoped).",
+    )
     args = parser.parse_args()
+
+    filter_usps: set[str] = set()
+    if args.filter_usps.strip():
+        filter_usps = {x.strip().upper() for x in args.filter_usps.split(",") if x.strip()}
+
+    db_url = args.database_url.strip() or None
+    resolved = resolve_target_database_url()
+    masked = resolved.split("@", 1)
+    preview = masked[1] if len(masked) == 2 else resolved
+    logger.info(f"Target database host/snippet: ...@{preview}")
 
     logger.info("=" * 70)
     logger.info("Census Gazetteer → Bronze Jurisdiction Tables")
     logger.info("=" * 70)
     logger.info(f"Types: {', '.join(args.types)}")
+    if filter_usps:
+        logger.info(f"Filter USPS: {', '.join(sorted(filter_usps))}")
     if args.limit:
         logger.warning(f"Limit: {args.limit} records per type (test mode)")
 
     total = 0
     for jtype in args.types:
-        total += load_type(jtype, limit=args.limit)
+        total += load_type(
+            jtype,
+            limit=args.limit,
+            filter_usps=filter_usps if filter_usps else None,
+            include_zcta=args.include_zcta_national,
+            database_url=db_url,
+        )
 
     logger.success("=" * 70)
     logger.success(f"Done. {total:,} total records loaded across {len(args.types)} type(s).")

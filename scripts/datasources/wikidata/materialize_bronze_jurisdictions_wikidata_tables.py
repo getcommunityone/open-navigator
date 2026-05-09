@@ -15,8 +15,10 @@ They are intentionally separate tables (suffix `_wikidata`) so we do not mutate
 the canonical Census bronze tables.
 """
 
-import os
 import argparse
+import os
+import sys
+from pathlib import Path
 from typing import Iterable
 
 import psycopg2
@@ -24,11 +26,18 @@ from loguru import logger
 from dotenv import load_dotenv
 
 
+_ROOT = Path(__file__).resolve().parents[3]
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+
+from scripts.database.target_database_url import resolve_target_database_url  # noqa: E402
+
+
 load_dotenv()
 
-DATABASE_URL = os.getenv(
-    "NEON_DATABASE_URL_DEV",
-    "postgresql://postgres:password@localhost:5433/open_navigator",
+DATABASE_URL = (
+    os.getenv("OPEN_NAVIGATOR_DATABASE_URL", "").strip()
+    or resolve_target_database_url()
 )
 
 

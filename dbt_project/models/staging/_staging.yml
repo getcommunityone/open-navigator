@@ -256,6 +256,30 @@ sources:
           - name: county_fips
           - name: website_url
 
+      - name: bronze_jurisdictions_states
+        description: |
+          Census Gazetteer US state/DC/PR rows — required base data before `load_jurisdictions_wikidata.py` can seed `bronze_jurisdictions_states_wikidata`.
+          Loaded by scripts/datasources/census/load_census_gazetteer.py (see scripts/load_bronze.py).
+        columns:
+          - name: geoid
+            description: "2-digit state GEOID — primary key"
+          - name: usps
+            description: "2-letter state abbreviation"
+          - name: ansicode
+            description: "8-digit ANSI code"
+          - name: name
+            description: "State or equivalent name"
+          - name: aland_sqmi
+            description: "Land area in square miles"
+          - name: awater_sqmi
+            description: "Water area in square miles"
+          - name: intptlat
+            description: "Internal point latitude"
+          - name: intptlong
+            description: "Internal point longitude"
+          - name: ingestion_date
+            description: "When record was loaded"
+
       - name: bronze_jurisdictions_counties
         description: "Census Gazetteer county-level jurisdictions (3,233 US counties)"
         columns:
@@ -327,6 +351,62 @@ sources:
             description: "Internal point longitude"
           - name: ingestion_date
             description: "When record was loaded"
+
+      - name: bronze_jurisdictions_states_wikidata
+        description: |
+          US state rows from Census `bronze_jurisdictions_states` plus Wikidata (QID, official site, social, YouTube, etc.).
+          Populated by scripts/datasources/wikidata/load_jurisdictions_wikidata.py (not legacy public.jurisdictions_wikidata).
+        columns:
+          - name: geoid
+            description: "State GEOID — primary key"
+          - name: usps
+            description: "2-letter state abbreviation"
+          - name: wikidata_id
+            description: "Wikidata Q-item id for the state (when resolved)"
+          - name: wikidata_fetched_at
+            description: "When Wikidata fields were last fetched"
+
+      - name: bronze_jurisdictions_counties_wikidata
+        description: |
+          County rows aligned to `bronze_jurisdictions_counties` plus Wikidata enrichment.
+          Loaded by scripts/datasources/wikidata/load_jurisdictions_wikidata.py.
+        columns:
+          - name: geoid
+            description: "5-digit county GEOID — primary key"
+          - name: usps
+            description: "2-letter state abbreviation"
+          - name: wikidata_id
+            description: "Wikidata Q-item id (when resolved)"
+          - name: wikidata_fetched_at
+            description: "When Wikidata fields were last fetched"
+
+      - name: bronze_jurisdictions_municipalities_wikidata
+        description: |
+          Place/municipality rows aligned to `bronze_jurisdictions_municipalities` plus Wikidata enrichment.
+          Loaded by scripts/datasources/wikidata/load_jurisdictions_wikidata.py.
+        columns:
+          - name: geoid
+            description: "7-digit place GEOID — primary key"
+          - name: usps
+            description: "2-letter state abbreviation"
+          - name: wikidata_id
+            description: "Wikidata Q-item id (when resolved)"
+          - name: wikidata_fetched_at
+            description: "When Wikidata fields were last fetched"
+
+      - name: bronze_jurisdictions_school_districts_wikidata
+        description: |
+          School district rows aligned to `bronze_jurisdictions_school_districts` plus Wikidata enrichment.
+          Loaded by scripts/datasources/wikidata/load_jurisdictions_wikidata.py.
+        columns:
+          - name: geoid
+            description: "7-digit school district GEOID — primary key"
+          - name: usps
+            description: "2-letter state abbreviation"
+          - name: wikidata_id
+            description: "Wikidata Q-item id (when resolved)"
+          - name: wikidata_fetched_at
+            description: "When Wikidata fields were last fetched"
 
       - name: bronze_jurisdictions_townships
         description: "Census Gazetteer county subdivision (township/minor civil division) jurisdictions"

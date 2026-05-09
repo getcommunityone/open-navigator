@@ -34,8 +34,8 @@ Usage:
     # Explicit list
     .venv/bin/python scripts/datasources/wikidata/load_jurisdictions_wikidata.py --states TX,NY,OH
 
-    # Load all jurisdiction types for one state
-    .venv/bin/python scripts/datasources/wikidata/load_jurisdictions_wikidata.py --states AL --types city,county,school_district,state
+    # Load all jurisdiction types for one state (defaults include all four types + six priority USPS)
+    .venv/bin/python scripts/datasources/wikidata/load_jurisdictions_wikidata.py --states AL
 """
 import os
 import sys
@@ -44,7 +44,7 @@ from argparse import BooleanOptionalAction
 import asyncio
 import json
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Set, Tuple, Any
 from datetime import datetime
 
 try:
@@ -69,6 +69,16 @@ from dotenv import load_dotenv
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 
 from scripts.datasources.wikidata.wikidata_integration import WikidataQuery
+from scripts.datasources.wikidata.geography_qid_cache import GeographyQidCache
+from scripts.datasources.wikidata import wikidata_hybrid_sql as _wikidata_hybrid_sql
+from scripts.datasources.wikidata.wikidata_wbget_claims import (
+    collect_state_related_qids,
+    entities_response_to_rows,
+    entity_en_label,
+    entity_to_wdqs_like_row,
+    state_entity_to_sparql_shaped_row,
+    try_pywikibot_rows,
+)
 
 load_dotenv()
 
@@ -160,6 +170,41 @@ def _env_truthy(key: str, default: bool = False) -> bool:
     return raw in ("1", "true", "yes", "on")
 
 
+def _wikidata_mapping_cache_warm_db() -> bool:
+    """Rebuild literal→Q mappings from Postgres when hybrid mode runs (unset env → on)."""
+    raw = (os.getenv("WIKIDATA_QID_CACHE_WARM_DB") or "1").strip().lower()
+    return raw not in ("0", "false", "no", "off")
+
+
+def _wikidata_hybrid_enrich_enabled() -> bool:
+    """Light WDQS map (id→Q) + Wikibase wbgetentities / optional Pywikibot for claims."""
+    return _env_truthy("WIKIDATA_HYBRID_ENRICH", default=False)
+
+
+def _wikidata_hybrid_county_map_mode() -> str:
+    """
+    Hybrid county id→Q resolution: ``entity_search`` (wbsearchentities + FIPS reconcile, no WDQS map query)
+    or ``sparql`` (FILTER IN batch on WDQS). Default: entity_search — avoids giant SPARQL mapping batches.
+    """
+    raw = (os.getenv("WIKIDATA_HYBRID_COUNTY_MAP_MODE") or "entity_search").strip().lower()
+    if raw in ("sparql", "wdqs", "map_sparql"):
+        return "sparql"
+    return "entity_search"
+
+
+def _wikidata_state_legacy_sparql() -> bool:
+    """When True, use WDQS for ``query_state_info``. Default: Wikibase API (wbgetentities / same JSON as EntityData)."""
+    return _env_truthy("WIKIDATA_STATE_LEGACY_SPARQL", default=False)
+
+
+def _wikidata_incremental_merge() -> bool:
+    """
+    When True, seeding merges Census base rows into *_wikidata without wiping existing QIDs,
+    and WDQS runs only for rows where wikidata_id is still NULL (see WIKIDATA_INCREMENTAL_MERGE).
+    """
+    return _env_truthy("WIKIDATA_INCREMENTAL_MERGE", default=False)
+
+
 def fetch_usps_county_wikidata_gaps(database_url: str) -> List[str]:
     """
     USPS codes where bronze county rows exist but Wikidata enrichment is incomplete:
@@ -201,6 +246,94 @@ def fetch_usps_county_wikidata_gaps(database_url: str) -> List[str]:
     return [s.upper() for s in rows if s.upper() in STATE_MAP]
 
 
+def _sparql_quote_string_literal(s: str) -> str:
+    """Escape a string for WDQS FILTER IN (\"…\") literals."""
+    esc = str(s).replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{esc}"'
+
+
+def _county_fips_literal_alternatives(geoid: str, state_fips: Optional[str]) -> Set[str]:
+    """
+    Alternate string forms WD may expose for P882 (county/admin FIPS) or P3006
+    versus bronze 5-character county GEOIDs.
+    Mirrors len-based branches in `_parse_jurisdiction_results` only as string targets.
+    """
+    g = str(geoid).strip().replace("-", "")
+    out: Set[str] = {g}
+    if not g.isdigit():
+        return out
+    sf = state_fips or ""
+    sf = sf.strip().replace("-", "")
+    if len(g) == 5:
+        out.add(g[2:])
+        out.add(g[1:])
+        if sf and sf.isdigit() and g.startswith(sf):
+            out.add(g[len(sf) :])  # county-only digits as stored with state prefix stripped
+            out.add(g[len(sf) :].zfill(3))
+    elif len(g) <= 4 and sf and sf.isdigit():
+        padded = g.zfill(5) if len(g) <= 3 else g
+        if len(padded) == 5 and padded.startswith(sf):
+            out.add(padded)
+    return {x.replace("-", "") for x in out if x}
+
+
+def _positive_int_env(name: str, default: int, lo: int = 1, hi: int = 10_000) -> int:
+    try:
+        raw = (os.getenv(name) or "").strip()
+        v = int(raw or str(default))
+        return max(lo, min(hi, v))
+    except ValueError:
+        return default
+
+
+def _chunk_sleep_seconds(default: float = 1.0) -> float:
+    try:
+        return max(
+            0.0,
+            float(os.getenv("WIKIDATA_COUNTY_CHUNK_SLEEP_SECONDS", str(default)) or str(default)),
+        )
+    except ValueError:
+        return default
+
+
+# Bronze municipality rows join Wikidata largely via P774 (FIPS place code); P590 is GNIS (often = ansicode).
+def _municipality_wd_literal_sets(geoid: str, ansicode: Optional[str]) -> tuple[Set[str], Set[str]]:
+    fips_lit: Set[str] = set()
+    gnis_lit: Set[str] = set()
+    g = str(geoid).strip().replace("-", "")
+    if not g:
+        return fips_lit, gnis_lit
+    fips_lit.add(g)
+    if g.isdigit():
+        if len(g) >= 7:
+            p = g[2:7]
+            fips_lit.add(p)
+            fips_lit.add(p.zfill(5))
+            fips_lit.add(g[-5:])
+            fips_lit.add(g[-5:].zfill(5))
+        elif len(g) == 5:
+            fips_lit.add(g.zfill(5))
+    if ansicode is not None and str(ansicode).strip():
+        raw = str(ansicode).strip().replace("-", "")
+        gnis_lit.add(raw)
+        if raw.isdigit():
+            stripped = raw.lstrip("0") or "0"
+            gnis_lit.add(stripped)
+            gnis_lit.add(raw.zfill(len(raw)))
+    return {x.replace("-", "") for x in fips_lit if x}, {y.replace("-", "") for y in gnis_lit if y}
+
+
+def _school_id_literal_alternatives(geoid_or_nces: str) -> Set[str]:
+    s = str(geoid_or_nces).strip().replace("-", "")
+    if not s:
+        return set()
+    out: Set[str] = {s}
+    if s.isdigit():
+        t = s.lstrip("0") or "0"
+        out.update({t, s.zfill(7), t.zfill(7)})
+    return {x.replace("-", "") for x in out if x}
+
+
 def _county_type_values_clause(state_code: str) -> str:
     """Build WDQS VALUES clause for county/county-equivalent instance-of types."""
     info = STATE_MAP.get(state_code) or {}
@@ -239,6 +372,7 @@ class CheckpointManager:
 
     def __init__(self, checkpoint_file: str):
         self.path = Path(checkpoint_file)
+        self.path.parent.mkdir(parents=True, exist_ok=True)
         self._completed: set = set()
         self._load()
 
@@ -280,9 +414,67 @@ class JurisdictionsWikiDataLoader:
     def __init__(self, database_url: str):
         self.conn = psycopg2.connect(database_url)
         self.wikidata = WikidataQuery()
+        self._geography_qid_cache: GeographyQidCache | None = None
         
         # Create table
         self._create_table()
+
+    def geography_qid_cache(self) -> GeographyQidCache:
+        if self._geography_qid_cache is None:
+            self._geography_qid_cache = GeographyQidCache()
+        return self._geography_qid_cache
+
+    def warm_geography_qid_cache_from_db(self, state_code: str, warm_task: str) -> None:
+        if not _wikidata_mapping_cache_warm_db():
+            return
+        us = state_code.upper()
+        qcache = self.geography_qid_cache()
+        cur = self.conn.cursor()
+        try:
+            if warm_task == "city":
+                cur.execute(
+                    """
+                    SELECT geoid::text, ansicode::text, wikidata_id::text
+                    FROM bronze.bronze_jurisdictions_municipalities_wikidata
+                    WHERE usps = %s AND BTRIM(COALESCE(wikidata_id::text, '')) <> ''
+                      AND wikidata_id::text LIKE 'Q%%'
+                    """,
+                    (us,),
+                )
+                rows = [(r[0], r[1], r[2]) for r in cur.fetchall()]
+            elif warm_task == "county":
+                cur.execute(
+                    """
+                    SELECT geoid::text, wikidata_id::text
+                    FROM bronze.bronze_jurisdictions_counties_wikidata
+                    WHERE usps = %s AND BTRIM(COALESCE(wikidata_id::text, '')) <> ''
+                      AND wikidata_id::text LIKE 'Q%%'
+                    """,
+                    (us,),
+                )
+                rows = [(r[0], None, r[1]) for r in cur.fetchall()]
+            elif warm_task == "school_district":
+                cur.execute(
+                    """
+                    SELECT geoid::text, wikidata_id::text
+                    FROM bronze.bronze_jurisdictions_school_districts_wikidata
+                    WHERE usps = %s AND BTRIM(COALESCE(wikidata_id::text, '')) <> ''
+                      AND wikidata_id::text LIKE 'Q%%'
+                    """,
+                    (us,),
+                )
+                rows = [(r[0], None, r[1]) for r in cur.fetchall()]
+            else:
+                return
+            if rows:
+                qcache.warm_from_enriched_rows(warm_task, state_code, rows)
+                qcache.save()
+                logger.info(
+                    f"Warmed geography→Q mapping cache ({warm_task}) with {len(rows)} "
+                    f"Postgres rows for USPS {state_code.upper()}"
+                )
+        finally:
+            cur.close()
     
     def _create_table(self):
         """Deprecated: we no longer create/use `public.jurisdictions_wikidata`."""
@@ -319,17 +511,111 @@ class JurisdictionsWikiDataLoader:
         base_table, wikidata_table, cols = mapping[task]
         cur = self.conn.cursor()
         try:
-            cur.execute(f"DELETE FROM {wikidata_table} WHERE usps = %s", (state_code,))
+            us = state_code.upper()
+            if _wikidata_incremental_merge():
+                # Drop wikidata rows no longer present in Census base for this USPS (orphans).
+                cur.execute(
+                    f"""
+                    DELETE FROM {wikidata_table} w
+                    WHERE w.usps = %s
+                      AND NOT EXISTS (
+                        SELECT 1
+                        FROM {base_table} b
+                        WHERE b.usps = w.usps
+                          AND b.geoid::text = w.geoid::text
+                      )
+                    """,
+                    (us,),
+                )
+                # Insert new base rows not yet present (preserve existing enriched rows / QIDs).
+                cur.execute(
+                    f"""
+                    INSERT INTO {wikidata_table} ({cols})
+                    SELECT {cols}
+                    FROM {base_table} b
+                    WHERE b.usps = %s
+                      AND NOT EXISTS (
+                        SELECT 1
+                        FROM {wikidata_table} w
+                        WHERE w.usps = b.usps
+                          AND w.geoid::text = b.geoid::text
+                      )
+                    """,
+                    (us,),
+                )
+                logger.info(
+                    f"Incremental merge seed for {wikidata_table} ({us}): "
+                    f"orphan cleanup + insert missing base rows (existing wikidata_id preserved)."
+                )
+            else:
+                cur.execute(f"DELETE FROM {wikidata_table} WHERE usps = %s", (us,))
+                cur.execute(
+                    f"""
+                    INSERT INTO {wikidata_table} ({cols})
+                    SELECT {cols}
+                    FROM {base_table}
+                    WHERE usps = %s
+                    """,
+                    (us,),
+                )
+            self.conn.commit()
+        finally:
+            cur.close()
+
+    def _any_missing_wikidata_id_for_task(self, state_code: str, task: str) -> bool:
+        """
+        True if this USPS still has at least one row in the *_wikidata table with NULL wikidata_id.
+        Used with WIKIDATA_INCREMENTAL_MERGE to skip WDQS entirely when fully enriched.
+        """
+        if not _wikidata_incremental_merge():
+            return True
+        tbl = {
+            "state": "bronze.bronze_jurisdictions_states_wikidata",
+            "county": "bronze.bronze_jurisdictions_counties_wikidata",
+            "city": "bronze.bronze_jurisdictions_municipalities_wikidata",
+            "school_district": "bronze.bronze_jurisdictions_school_districts_wikidata",
+        }.get(task)
+        if not tbl:
+            return True
+        us = state_code.upper()
+        cur = self.conn.cursor()
+        try:
             cur.execute(
                 f"""
-                INSERT INTO {wikidata_table} ({cols})
-                SELECT {cols}
-                FROM {base_table}
+                SELECT 1
+                FROM {tbl}
                 WHERE usps = %s
+                  AND (wikidata_id IS NULL OR BTRIM(wikidata_id::text) = '')
+                LIMIT 1
                 """,
-                (state_code,),
+                (us,),
             )
-            self.conn.commit()
+            return cur.fetchone() is not None
+        except Exception as exc:
+            logger.warning(
+                f"Could not check NULL wikidata_id on {tbl} for {us}: {exc}; assuming work remains."
+            )
+            return True
+        finally:
+            cur.close()
+
+    def _fetch_geoids_missing_wikidata_qid(self, state_code: str, wikidata_table: str) -> Set[str]:
+        """GEOIDs (digits-only) for this USPS that still need a Wikidata QID."""
+        cur = self.conn.cursor()
+        try:
+            cur.execute(
+                f"""
+                SELECT geoid::text
+                FROM {wikidata_table}
+                WHERE usps = %s
+                  AND (wikidata_id IS NULL OR BTRIM(wikidata_id::text) = '')
+                """,
+                (state_code.upper(),),
+            )
+            return {str(r[0]).strip().replace("-", "") for r in cur.fetchall() if r and r[0]}
+        except Exception as exc:
+            logger.warning(f"Could not list missing wikidata_id GEOIDs on {wikidata_table}: {exc}")
+            return set()
         finally:
             cur.close()
 
@@ -547,15 +833,602 @@ class JurisdictionsWikiDataLoader:
         logger.success(f"✓ Found {len(all_jurisdictions)} jurisdictions in {state_name}")
         return all_jurisdictions
     
-    async def _query_cities_in_state(self, state_code: str, state_q_code: str, state_name: str) -> List[Dict]:
-        """Query cities/towns/settlements in a state.
+    def _fetch_bronze_municipality_geoid_ansi_pairs(self, state_code: str) -> List[tuple[str, Optional[str]]]:
+        cur = self.conn.cursor()
+        try:
+            cur.execute(
+                """
+                SELECT geoid, ansicode
+                FROM bronze.bronze_jurisdictions_municipalities
+                WHERE usps = %s
+                ORDER BY geoid
+                """,
+                (state_code.upper(),),
+            )
+            pairs: List[tuple[str, Optional[str]]] = []
+            for r in cur.fetchall():
+                if not r or not r[0]:
+                    continue
+                geo = str(r[0]).strip().replace("-", "")
+                a = r[1]
+                ansi = str(a).strip() if a is not None else None
+                pairs.append((geo, ansi if ansi else None))
+            return pairs
+        finally:
+            cur.close()
 
-        Wikidata does not consistently model US municipalities strictly as `instance of city (Q515)`.
-        This query broadens to common settlement/municipality types and constrains to US places
-        that have at least one of (FIPS place code, GNIS ID) so results are joinable downstream.
+    def _fetch_bronze_school_geoids(self, state_code: str) -> List[str]:
+        cur = self.conn.cursor()
+        try:
+            cur.execute(
+                """
+                SELECT geoid
+                FROM bronze.bronze_jurisdictions_school_districts
+                WHERE usps = %s
+                ORDER BY geoid
+                """,
+                (state_code.upper(),),
+            )
+            return [str(r[0]).strip().replace("-", "") for r in cur.fetchall() if r and r[0]]
+        finally:
+            cur.close()
+
+    @staticmethod
+    def _repair_city_geoids_from_ansi_map(jurisdictions: List[Dict], ansi_to_geoid: Dict[str, str]) -> None:
+        if not ansi_to_geoid:
+            return
+        for j in jurisdictions:
+            if j.get("jurisdiction_type") != "city":
+                continue
+            if j.get("geoid"):
+                continue
+            gid = j.get("gnis_id")
+            if gid is None:
+                continue
+            ks = str(gid).strip()
+            geo = ansi_to_geoid.get(ks)
+            if geo is None and ks.isdigit():
+                geo = ansi_to_geoid.get(ks.lstrip("0") or "0")
+            if geo:
+                j["geoid"] = geo
+                if not j.get("jurisdiction_id"):
+                    j["jurisdiction_id"] = ks
+                    j["jurisdiction_id_type"] = "gnis_id"
+
+    async def _query_cities_in_state_via_hybrid(
+        self,
+        state_code: str,
+        state_name: str,
+        pairs: List[tuple[str, Optional[str]]],
+        ansi_to_geoid: Dict[str, str],
+    ) -> List[Dict]:
         """
+        Narrow WDQS: only resolve Census literals → Wikidata items; hydrate claims via
+        ``wbgetentities`` (or Pywikibot when ``WIKIDATA_ENRICH_USE_PYWIKIBOT=1``).
+        Mappings accumulate in ``geography_qid_mapping_v1.json`` for incremental reruns.
+        """
+        self.warm_geography_qid_cache_from_db(state_code, "city")
+        qcache = self.geography_qid_cache()
+        chunk_size = _positive_int_env("WIKIDATA_CITY_CHUNK_SIZE", 25, 5, 150)
+        chunk_sleep = _chunk_sleep_seconds(1.0)
+        aggregated: List[Dict] = []
+        n_chunks = (len(pairs) + chunk_size - 1) // chunk_size
+
+        for ix in range(0, len(pairs), chunk_size):
+            chunk = pairs[ix : ix + chunk_size]
+            chi = ix // chunk_size + 1
+            logger.info(f"Hybrid municipalities chunk {chi}/{n_chunks} ({len(chunk)} GEOIDs, {state_name})…")
+
+            geo_to_q: Dict[str, str] = {}
+
+            need_fips: Set[str] = set()
+            need_gnis: Set[str] = set()
+
+            for geo, ansi in chunk:
+                ff, gg = _municipality_wd_literal_sets(geo, ansi)
+                q = qcache.lookup_q_for_municipality(ff, gg)
+                if q:
+                    geo_to_q[str(geo).strip()] = q
+                else:
+                    need_fips |= ff
+                    need_gnis |= gg
+
+            filt_parts: List[str] = []
+            f_list = sorted(_sparql_quote_string_literal(x) for x in need_fips)
+            g_list = sorted(_sparql_quote_string_literal(x) for x in need_gnis)
+            if need_fips:
+                filt_parts.append(
+                    '(BOUND(?fips) && REPLACE(STR(?fips), "-", "") IN (' + ", ".join(f_list) + "))"
+                )
+            if need_gnis:
+                filt_parts.append(
+                    '(BOUND(?gnis) && REPLACE(STR(?gnis), "-", "") IN (' + ", ".join(g_list) + "))"
+                )
+            filt = ""
+            if len(filt_parts) == 2:
+                filt = f"FILTER({' || '.join(filt_parts)})"
+            elif len(filt_parts) == 1:
+                filt = f"FILTER({filt_parts[0]})"
+
+            mapping_rows: List[Dict] = []
+            if filt:
+                lim = min(5000, max(400, len(chunk) * 60))
+                qtext = _wikidata_hybrid_sql.municipality_mapping_sparql(filt, lim)
+                try:
+                    mapping_rows = await self.wikidata.execute_sparql(qtext)
+                except Exception as e:
+                    logger.warning(f"Hybrid city mapping WDQS failed ({chi}/{n_chunks}): {type(e).__name__}: {e}")
+                    mapping_rows = []
+                mapping_rows = self._dedupe_sparql_bindings_by_item(mapping_rows)
+                for mr in mapping_rows:
+                    iq = (mr.get("item") or "").rsplit("/", 1)[-1].strip()
+                    if not iq.startswith("Q"):
+                        continue
+                    qcache.remember_muni(iq, mr.get("fips"), mr.get("gnis"))
+
+            for geo, ansi in chunk:
+                gid = str(geo).strip()
+                if gid in geo_to_q:
+                    continue
+                ff, gg = _municipality_wd_literal_sets(geo, ansi)
+                iq = qcache.lookup_q_for_municipality(ff, gg)
+                if iq:
+                    geo_to_q[gid] = iq
+
+            chunk_geos = {str(g).strip() for g, _ in chunk}
+            q_needed = sorted({geo_to_q[g] for g in chunk_geos if g in geo_to_q})
+            if not q_needed:
+                qcache.save()
+                continue
+
+            enriched: List[Dict] = []
+            py_try = try_pywikibot_rows(q_needed)
+            if py_try is not None:
+                enriched.extend(py_try)
+            else:
+                api_payload = await self.wikidata.wikibase_get_entities(q_needed)
+                enriched.extend(entities_response_to_rows({"entities": api_payload}))
+
+            by_q: Dict[str, Dict] = {}
+            for row in enriched:
+                u = row.get("item") or ""
+                iq = str(u).rsplit("/", 1)[-1]
+                if iq.startswith("Q"):
+                    by_q[iq] = row
+
+            chunk_out: List[Dict] = []
+            for geo, ansi in chunk:
+                gid = str(geo).strip()
+                qid = geo_to_q.get(gid)
+                if not qid:
+                    continue
+                raw = by_q.get(qid)
+                if not raw:
+                    continue
+                pj = self._parse_jurisdiction_results([raw], state_code, state_name, "city")
+                if pj:
+                    j0 = pj[0]
+                    j0["geoid"] = gid
+                    chunk_out.append(j0)
+
+            self._repair_city_geoids_from_ansi_map(chunk_out, ansi_to_geoid)
+            aggregated.extend(chunk_out)
+            qcache.save()
+            if chunk_sleep > 0 and chi < n_chunks:
+                await asyncio.sleep(chunk_sleep)
+
+        logger.info(f"  Found {len(aggregated)} cities (hybrid)")
+        return aggregated
+
+    async def _query_counties_in_state_via_hybrid(self, state_code: str, state_q_code: str, state_name: str) -> List[Dict]:
+        self.warm_geography_qid_cache_from_db(state_code, "county")
+        qcache = self.geography_qid_cache()
+
+        legacy_wide = False
+        _legacy_env = (os.getenv("WIKIDATA_COUNTY_LEGACY_STATE_QUERY") or "").strip()
+        if _legacy_env:
+            legacy_wide = _env_truthy("WIKIDATA_COUNTY_LEGACY_STATE_QUERY", default=False)
+        else:
+            legacy_wide = not _env_truthy("WIKIDATA_COUNTY_FIPS_BATCH", default=True)
+        if legacy_wide:
+            return await self._query_counties_in_state_wide(
+                _county_type_values_clause(state_code), state_q_code, state_name, state_code
+            )
+
+        geoids = self._fetch_bronze_county_geoids(state_code)
+        if not geoids:
+            return await self._query_counties_in_state_wide(
+                _county_type_values_clause(state_code), state_q_code, state_name, state_code
+            )
+
+        if _wikidata_incremental_merge():
+            miss = self._fetch_geoids_missing_wikidata_qid(
+                state_code, "bronze.bronze_jurisdictions_counties_wikidata"
+            )
+            geoids = [g for g in geoids if g in miss]
+            if not geoids:
+                logger.info(f"Hybrid county incremental: nothing pending for USPS {state_code}")
+                return []
+
+        sf = STATE_MAP.get(state_code, {}).get("fips")
+        try:
+            raw_chunk_sz = os.getenv("WIKIDATA_COUNTY_CHUNK_SIZE", "35") or "35"
+            csize = max(5, min(120, int(str(raw_chunk_sz).strip())))
+        except ValueError:
+            csize = 35
+        chunk_sleep = _chunk_sleep_seconds(1.0)
+        ctype = _county_type_values_clause(state_code)
+        map_mode = _wikidata_hybrid_county_map_mode()
+        pair_by_g = dict(self._fetch_bronze_county_geoid_name_pairs(state_code))
+        agg: List[Dict] = []
+        n_chunks = (len(geoids) + csize - 1) // csize
+
+        for ix in range(0, len(geoids), csize):
+            chunk = geoids[ix : ix + csize]
+            chi = ix // csize + 1
+            mlabel = "entity-search" if map_mode == "entity_search" else "WDQS-map"
+            logger.info(f"Hybrid counties {mlabel} chunk {chi}/{n_chunks} ({state_name})…")
+            geo_to_q: Dict[str, str] = {}
+
+            if map_mode == "entity_search":
+                n_in_chunk = len(chunk)
+                for j, gid in enumerate(chunk, start=1):
+                    g = str(gid).strip()
+                    lits = _county_fips_literal_alternatives(gid, sf)
+                    cq = qcache.lookup_q_for_county(lits)
+                    if cq:
+                        geo_to_q[g] = cq
+                        logger.info(f"  [{j}/{n_in_chunk}] GEOID {g}: literal cache hit → {cq}")
+                        continue
+                    display_name = pair_by_g.get(g, "")
+                    nm = (display_name or "").strip() or "(no gazetteer name in bronze)"
+                    logger.info(
+                        f"  [{j}/{n_in_chunk}] GEOID {g} — {nm[:72]} — "
+                        f"wbsearchentities + wbgetentities (may take seconds per county; respects throttle)…"
+                    )
+                    res = await self._county_resolve_via_entity_search(
+                        display_name, state_name, state_q_code, lits
+                    )
+                    if res:
+                        qid, ent = res
+                        geo_to_q[g] = qid
+                        row_mini = entity_to_wdqs_like_row(ent, qid)
+                        qcache.remember_county(
+                            qid,
+                            row_mini.get("fips"),
+                            row_mini.get("fipsAlt"),
+                            row_mini.get("gnis"),
+                        )
+                        logger.info(f"  [{j}/{n_in_chunk}] GEOID {g} → {qid} (identifiers matched)")
+                    else:
+                        logger.warning(
+                            f"  [{j}/{n_in_chunk}] entity-search miss GEOID={g} name={nm[:48]!r} "
+                            f"lits={sorted(lits)[:8]}…"
+                        )
+            else:
+                literals: Set[str] = set()
+                for gid in chunk:
+                    lits = _county_fips_literal_alternatives(gid, sf)
+                    cq = qcache.lookup_q_for_county(lits)
+                    if cq:
+                        geo_to_q[str(gid).strip()] = cq
+                    else:
+                        literals |= lits
+
+                mapping_rows: List[Dict] = []
+                if literals:
+                    in_list = ", ".join(sorted(_sparql_quote_string_literal(x) for x in literals))
+                    lim = min(2500, max(520, len(chunk) * 25))
+                    mq = _wikidata_hybrid_sql.county_mapping_sparql(ctype, in_list, lim)
+                    try:
+                        mapping_rows = await self.wikidata.execute_sparql(mq)
+                    except Exception as e:
+                        logger.warning(f"Hybrid county mapping failed: {type(e).__name__}: {e}")
+                        mapping_rows = []
+                    mapping_rows = self._dedupe_sparql_bindings_by_item(mapping_rows)
+                    for mr in mapping_rows:
+                        iq = (mr.get("item") or "").rsplit("/", 1)[-1].strip()
+                        if iq.startswith("Q"):
+                            qcache.remember_county(iq, mr.get("fips"), mr.get("fipsAlt"), mr.get("gnis"))
+
+                    for gid in chunk:
+                        g = str(gid).strip()
+                        if g in geo_to_q:
+                            continue
+                        lits2 = _county_fips_literal_alternatives(gid, sf)
+                        cq2 = qcache.lookup_q_for_county(lits2)
+                        if cq2:
+                            geo_to_q[g] = cq2
+
+            chunk_geoids = {str(g).strip() for g in chunk}
+            q_needed = sorted({geo_to_q[g] for g in chunk_geoids if g in geo_to_q})
+            if not q_needed:
+                qcache.save()
+                continue
+
+            enriched: List[Dict] = []
+            py_try = try_pywikibot_rows(q_needed)
+            if py_try is not None:
+                enriched.extend(py_try)
+            else:
+                enriched.extend(
+                    entities_response_to_rows({"entities": await self.wikidata.wikibase_get_entities(q_needed)})
+                )
+
+            by_q: Dict[str, Dict] = {}
+            for row in enriched:
+                u = row.get("item") or ""
+                iq = str(u).rsplit("/", 1)[-1]
+                if iq.startswith("Q"):
+                    by_q[iq] = row
+
+            for gid in chunk:
+                g = str(gid).strip()
+                qid = geo_to_q.get(g)
+                if not qid:
+                    continue
+                raw = by_q.get(qid)
+                if not raw:
+                    continue
+                pj = self._parse_jurisdiction_results([raw], state_code, state_name, "county")
+                if pj:
+                    j0 = pj[0]
+                    j0["geoid"] = g
+                    agg.append(j0)
+            qcache.save()
+            if chunk_sleep > 0 and chi < n_chunks:
+                await asyncio.sleep(chunk_sleep)
+
+        logger.info(f"  Found {len(agg)} counties (hybrid)")
+        return agg
+
+    async def _query_schools_in_state_via_hybrid(self, state_code: str, state_q_code: str, state_name: str) -> List[Dict]:
+        self.warm_geography_qid_cache_from_db(state_code, "school_district")
+        qcache = self.geography_qid_cache()
+
+        _legacy_s = (os.getenv("WIKIDATA_SCHOOL_LEGACY_STATE_QUERY") or "").strip()
+        if _legacy_s:
+            legacy_wide = _env_truthy("WIKIDATA_SCHOOL_LEGACY_STATE_QUERY", default=False)
+        else:
+            legacy_wide = not _env_truthy("WIKIDATA_SCHOOL_IDENTIFIER_BATCH", default=True)
+        if legacy_wide:
+            return await self._query_schools_in_state_wide(state_code, state_q_code, state_name)
+
+        geoids = self._fetch_bronze_school_geoids(state_code)
+        if not geoids:
+            return await self._query_schools_in_state_wide(state_code, state_q_code, state_name)
+
+        if _wikidata_incremental_merge():
+            miss = self._fetch_geoids_missing_wikidata_qid(
+                state_code, "bronze.bronze_jurisdictions_school_districts_wikidata"
+            )
+            geoids = [g for g in geoids if g in miss]
+            if not geoids:
+                logger.info(f"Hybrid school incremental: nothing pending for USPS {state_code}")
+                return []
+
+        chunk_size = _positive_int_env("WIKIDATA_SCHOOL_CHUNK_SIZE", 35, 5, 200)
+        chunk_sleep = _chunk_sleep_seconds(1.0)
+        agg: List[Dict] = []
+        n_chunks = (len(geoids) + chunk_size - 1) // chunk_size
+
+        for ix in range(0, len(geoids), chunk_size):
+            chunk = geoids[ix : ix + chunk_size]
+            chi = ix // chunk_size + 1
+            logger.info(f"Hybrid school districts map chunk {chi}/{n_chunks} ({state_name})…")
+            geo_to_q: Dict[str, str] = {}
+            literals: Set[str] = set()
+            for gid in chunk:
+                lits = _school_id_literal_alternatives(gid)
+                cq = qcache.lookup_q_for_school(lits)
+                if cq:
+                    geo_to_q[str(gid).strip()] = cq
+                else:
+                    literals |= lits
+
+            mapping_rows: List[Dict] = []
+            if literals:
+                id_in = ", ".join(sorted(_sparql_quote_string_literal(x) for x in literals))
+                lim = min(2500, max(520, len(chunk) * 28))
+                mq = _wikidata_hybrid_sql.school_mapping_sparql(id_in, lim)
+                try:
+                    mapping_rows = await self.wikidata.execute_sparql(mq)
+                except Exception as e:
+                    logger.warning(f"Hybrid school mapping failed: {type(e).__name__}: {e}")
+                    mapping_rows = []
+                mapping_rows = self._dedupe_sparql_bindings_by_item(mapping_rows)
+                for mr in mapping_rows:
+                    iq = (mr.get("item") or "").rsplit("/", 1)[-1].strip()
+                    if iq.startswith("Q"):
+                        qcache.remember_school(iq, mr.get("fips"), mr.get("gnis"), mr.get("nces"))
+
+                for gid in chunk:
+                    g = str(gid).strip()
+                    if g in geo_to_q:
+                        continue
+                    lits = _school_id_literal_alternatives(gid)
+                    cq = qcache.lookup_q_for_school(lits)
+                    if cq:
+                        geo_to_q[g] = cq
+
+            chunk_geoids = {str(g).strip() for g in chunk}
+            q_needed = sorted({geo_to_q[g] for g in chunk_geoids if g in geo_to_q})
+            if not q_needed:
+                qcache.save()
+                continue
+
+            py_rows = try_pywikibot_rows(q_needed)
+            if py_rows is not None:
+                enriched = py_rows
+            else:
+                enriched = entities_response_to_rows(
+                    {"entities": await self.wikidata.wikibase_get_entities(q_needed)}
+                )
+
+            by_q: Dict[str, Dict] = {}
+            for row in enriched:
+                u = row.get("item") or ""
+                iq = str(u).rsplit("/", 1)[-1]
+                if iq.startswith("Q"):
+                    by_q[iq] = row
+
+            for gid in chunk:
+                g = str(gid).strip()
+                qid = geo_to_q.get(g)
+                if not qid:
+                    continue
+                raw = by_q.get(qid)
+                if not raw:
+                    continue
+                pj = self._parse_jurisdiction_results([raw], state_code, state_name, "school_district")
+                if pj:
+                    j0 = pj[0]
+                    j0["geoid"] = g
+                    agg.append(j0)
+            qcache.save()
+            if chunk_sleep > 0 and chi < n_chunks:
+                await asyncio.sleep(chunk_sleep)
+
+        logger.info(f"  Found {len(agg)} school districts (hybrid)")
+        return agg
+
+    async def _query_cities_in_state(self, state_code: str, state_q_code: str, state_name: str) -> List[Dict]:
+        """Places: default batch by bronze GEOID / GNIS (+P774/+P590) to avoid flaky P131+ on WDQS."""
+
+        _legacy_city = (os.getenv("WIKIDATA_CITY_LEGACY_STATE_QUERY") or "").strip()
+        if _legacy_city:
+            legacy_wide = _env_truthy("WIKIDATA_CITY_LEGACY_STATE_QUERY", default=False)
+        else:
+            legacy_wide = not _env_truthy("WIKIDATA_CITY_IDENTIFIER_BATCH", default=True)
+
+        if legacy_wide:
+            return await self._query_cities_in_state_wide(state_code, state_q_code, state_name)
+
+        pairs = self._fetch_bronze_municipality_geoid_ansi_pairs(state_code)
+        if not pairs:
+            logger.warning(
+                f"No bronze municipality rows for {state_code}; falling back to P131+ Wikidata crawl."
+            )
+            return await self._query_cities_in_state_wide(state_code, state_q_code, state_name)
+
+        if _wikidata_incremental_merge():
+            miss = self._fetch_geoids_missing_wikidata_qid(
+                state_code, "bronze.bronze_jurisdictions_municipalities_wikidata"
+            )
+            pairs = [p for p in pairs if p[0] in miss]
+            if not pairs:
+                logger.info(
+                    f"Incremental merge: no municipalities with NULL wikidata_id for {state_name} — skipping WDQS"
+                )
+                return []
+
+        ansi_to_geoid: Dict[str, str] = {}
+        for geo, ansi in pairs:
+            if ansi:
+                ansi_to_geoid[str(ansi).strip()] = geo
+
+        if _wikidata_hybrid_enrich_enabled():
+            return await self._query_cities_in_state_via_hybrid(
+                state_code, state_name, pairs, ansi_to_geoid
+            )
+
+        chunk_size = _positive_int_env("WIKIDATA_CITY_CHUNK_SIZE", 25, 5, 150)
+        chunk_sleep = _chunk_sleep_seconds(1.0)
+
+        aggregated: List[Dict] = []
+        n_chunks = (len(pairs) + chunk_size - 1) // chunk_size
+        for ix in range(0, len(pairs), chunk_size):
+            chunk = pairs[ix : ix + chunk_size]
+            fips_lit: Set[str] = set()
+            gnis_lit: Set[str] = set()
+            for geo, ansi in chunk:
+                ff, gg = _municipality_wd_literal_sets(geo, ansi)
+                fips_lit |= ff
+                gnis_lit |= gg
+
+            f_in = ", ".join(sorted(_sparql_quote_string_literal(x) for x in fips_lit))
+            g_in = ", ".join(sorted(_sparql_quote_string_literal(x) for x in gnis_lit))
+            filt_parts: List[str] = []
+            if f_in.strip():
+                filt_parts.append(
+                    f'(BOUND(?fips) && REPLACE(STR(?fips), "-", "") IN ({f_in}))'
+                )
+            if g_in.strip():
+                filt_parts.append(
+                    f'(BOUND(?gnis) && REPLACE(STR(?gnis), "-", "") IN ({g_in}))'
+                )
+            filt = ""
+            if len(filt_parts) == 2:
+                filt = f"FILTER({' || '.join(filt_parts)})"
+            elif len(filt_parts) == 1:
+                filt = f"FILTER({filt_parts[0]})"
+            else:
+                logger.warning(f"City batch has no literals (chunk)—skipping WDQS.")
+                continue
+
+            limit_rows = min(5000, max(900, chunk_size * 48))
+            chi = ix // chunk_size + 1
+            logger.info(f"Querying municipalities in {state_name} via identifier batch ({chi}/{n_chunks})…")
+
+            query = f"""
+            SELECT DISTINCT
+                ?item ?itemLabel
+                ?website ?population ?area
+                ?facebook ?twitter ?youtube
+                ?fips ?gnis
+                ?image ?banner ?locatorMap
+                ?lat ?lon
+            WHERE {{
+              VALUES ?placeType {{
+                wd:Q515 wd:Q3957 wd:Q15284 wd:Q486972 wd:Q493522 wd:Q1115575
+                wd:Q1549591 wd:Q15222645 wd:Q2989398 wd:Q1426695
+              }}
+              ?item wdt:P31 ?placeType .
+              ?item wdt:P17 wd:Q30 .
+
+              OPTIONAL {{ ?item wdt:P856 ?website . }}
+              OPTIONAL {{ ?item wdt:P1082 ?population . }}
+              OPTIONAL {{ ?item wdt:P2046 ?area . }}
+              OPTIONAL {{ ?item wdt:P2013 ?facebook . }}
+              OPTIONAL {{ ?item wdt:P2002 ?twitter . }}
+              OPTIONAL {{ ?item wdt:P2397 ?youtube . }}
+              OPTIONAL {{ ?item wdt:P774 ?fips . }}
+              OPTIONAL {{ ?item wdt:P590 ?gnis . }}
+              OPTIONAL {{ ?item wdt:P18 ?image . }}
+              OPTIONAL {{ ?item wdt:P242 ?locatorMap . }}
+              OPTIONAL {{ ?item wdt:P948 ?banner . }}
+              OPTIONAL {{ ?item p:P625/psv:P625/wikibase:geoLatitude ?lat . }}
+              OPTIONAL {{ ?item p:P625/psv:P625/wikibase:geoLongitude ?lon . }}
+
+              {filt}
+
+              SERVICE wikibase:label {{ bd:serviceParam wikibase:language "[AUTO_LANGUAGE],en". }}
+            }}
+            LIMIT {limit_rows}
+            """
+
+            try:
+                chunk_rows = await self.wikidata.execute_sparql(query)
+            except Exception as e:
+                logger.warning(f"City batch query failed ({chi}/{n_chunks}): {type(e).__name__}: {e}")
+                chunk_rows = []
+            aggregated.extend(chunk_rows)
+
+            if chunk_sleep > 0 and ix + chunk_size < len(pairs):
+                await asyncio.sleep(chunk_sleep)
+
+        results = self._dedupe_sparql_bindings_by_item(aggregated)
+        jurisdictions = self._parse_jurisdiction_results(results, state_code, state_name, "city")
+        self._repair_city_geoids_from_ansi_map(jurisdictions, ansi_to_geoid)
+        logger.info(f"  Found {len(jurisdictions)} cities")
+        return jurisdictions
+
+    async def _query_cities_in_state_wide(
+        self, state_code: str, state_q_code: str, state_name: str
+    ) -> List[Dict]:
+        """Legacy: transitive P131+ on the state — can time out under WDQS load."""
         query = f"""
-        SELECT DISTINCT 
+        SELECT DISTINCT
             ?item ?itemLabel
             ?website ?population ?area
             ?facebook ?twitter ?youtube
@@ -563,36 +1436,20 @@ class JurisdictionsWikiDataLoader:
             ?image ?banner ?locatorMap
             ?lat ?lon
         WHERE {{
-          # Enumerate types explicitly; direct wdt:P31 is much faster than
-          # wdt:P31/wdt:P279* (full subclass traversal).
           VALUES ?placeType {{
-            wd:Q515       # city
-            wd:Q3957      # town
-            wd:Q15284     # municipality
-            wd:Q486972    # human settlement
-            wd:Q493522    # census-designated place
-            wd:Q1115575   # city with county status
-            wd:Q1549591   # big city
-            wd:Q15222645  # unincorporated community
-            wd:Q2989398   # populated place in the United States
-            wd:Q1426695   # township (United States)
+            wd:Q515 wd:Q3957 wd:Q15284 wd:Q486972 wd:Q493522 wd:Q1115575
+            wd:Q1549591 wd:Q15222645 wd:Q2989398 wd:Q1426695
           }}
           ?item wdt:P31 ?placeType .
-
-          # Within state (transitive - includes places in counties)
           ?item wdt:P131+ wd:{state_q_code} .
-
-          # United States
           ?item wdt:P17 wd:Q30 .
-          
+
           OPTIONAL {{ ?item wdt:P856 ?website . }}
           OPTIONAL {{ ?item wdt:P1082 ?population . }}
           OPTIONAL {{ ?item wdt:P2046 ?area . }}
           OPTIONAL {{ ?item wdt:P2013 ?facebook . }}
           OPTIONAL {{ ?item wdt:P2002 ?twitter . }}
           OPTIONAL {{ ?item wdt:P2397 ?youtube . }}
-          # For US places, use FIPS 55-3 (Wikidata P774). P882 is not reliably
-          # populated for municipalities/places.
           OPTIONAL {{ ?item wdt:P774 ?fips . }}
           OPTIONAL {{ ?item wdt:P590 ?gnis . }}
           OPTIONAL {{ ?item wdt:P18 ?image . }}
@@ -601,35 +1458,280 @@ class JurisdictionsWikiDataLoader:
           OPTIONAL {{ ?item p:P625/psv:P625/wikibase:geoLatitude ?lat . }}
           OPTIONAL {{ ?item p:P625/psv:P625/wikibase:geoLongitude ?lon . }}
 
-          # Require a joinable identifier.
-          # Our bronze municipalities table is keyed by 7-digit Census place GEOID
-          # (state_fips + place_fips), so we must have a FIPS place code to update rows.
           FILTER(BOUND(?fips))
-          
-          SERVICE wikibase:label {{ bd:serviceParam wikibase:language "en". }}
+
+          SERVICE wikibase:label {{ bd:serviceParam wikibase:language "[AUTO_LANGUAGE],en". }}
         }}
         LIMIT 2000
         """
-        
-        logger.info(f"Querying WikiData for cities in {state_name}...")
+
+        logger.info(f"Querying municipalities in {state_name} (legacy P131+ Wikidata crawl)…")
         try:
-            results = await self.wikidata.execute_sparql(query)
+            raw = await self.wikidata.execute_sparql(query)
         except Exception as e:
-            logger.warning(f"City query failed: {e}")
-            results = []
-        
-        jurisdictions = self._parse_jurisdiction_results(results, state_code, state_name, 'city')
+            logger.warning(f"City query failed: {type(e).__name__}: {e}")
+            raw = []
+
+        jurisdictions = self._parse_jurisdiction_results(raw, state_code, state_name, "city")
         logger.info(f"  Found {len(jurisdictions)} cities")
         return jurisdictions
-    
-    async def _query_counties_in_state(self, state_code: str, state_q_code: str, state_name: str) -> List[Dict]:
-        """Query counties using state-specific subtype (when present) and/or Q47168 US county."""
-        county_type_values = _county_type_values_clause(state_code)
 
-        # Lighter query than city/school loaders: no head-of-government subselect or extra
-        # demographics (WDQS often returns 500/504 on heavy county patterns).
+    def _fetch_bronze_county_geoids(self, state_code: str) -> List[str]:
+        """County GEOIDs in bronze for this USPS (digits only in practice)."""
+        cur = self.conn.cursor()
+        try:
+            cur.execute(
+                """
+                SELECT geoid
+                FROM bronze.bronze_jurisdictions_counties
+                WHERE usps = %s
+                ORDER BY geoid
+                """,
+                (state_code.upper(),),
+            )
+            out = [str(r[0]).strip().replace("-", "") for r in cur.fetchall() if r and r[0]]
+            return list(dict.fromkeys(out))
+        finally:
+            cur.close()
+
+    def _fetch_bronze_county_geoid_name_pairs(self, state_code: str) -> List[Tuple[str, str]]:
+        """County GEOIDs with Census gazetteer display names (for entity-search mapping)."""
+        cur = self.conn.cursor()
+        try:
+            cur.execute(
+                """
+                SELECT geoid, COALESCE(name, '')
+                FROM bronze.bronze_jurisdictions_counties
+                WHERE usps = %s
+                ORDER BY geoid
+                """,
+                (state_code.upper(),),
+            )
+            seen: Set[str] = set()
+            out: List[Tuple[str, str]] = []
+            for r in cur.fetchall():
+                if not r or not r[0]:
+                    continue
+                g = str(r[0]).strip().replace("-", "")
+                if g in seen:
+                    continue
+                seen.add(g)
+                out.append((g, str(r[1] or "").strip()))
+            return out
+        finally:
+            cur.close()
+
+    async def _county_resolve_via_entity_search(
+        self,
+        display_name: str,
+        state_name: str,
+        state_q_code: str,
+        lits: Set[str],
+    ) -> Optional[Tuple[str, Dict[str, Any]]]:
+        """
+        Resolve county GEOID via wbsearchentities + wbgetentities, matching P882 / P3006 / P590 to ``lits``.
+        ``state_q_code`` reserved for future P131 tightening.
+        """
+        _ = state_q_code
+        from scripts.datasources.wikidata import wikidata_entity_search as wes
+
+        if not (display_name or "").strip():
+            return None
+
+        phrases = wes.county_search_strings(display_name, state_name)
+        if not phrases:
+            return None
+
+        seen_ids: Set[str] = set()
+        ordered_ids: List[str] = []
+        for phrase in phrases:
+            try:
+                hits = await self.wikidata.wikibase_search_entities(phrase, limit=14)
+            except Exception as exc:
+                logger.debug(f"wbsearchentities failed for {phrase[:60]!r}: {type(exc).__name__}: {exc}")
+                hits = []
+            for h in hits:
+                qid = h.get("id")
+                if isinstance(qid, str) and qid.startswith("Q") and qid not in seen_ids:
+                    seen_ids.add(qid)
+                    ordered_ids.append(qid)
+            if len(ordered_ids) >= 24:
+                break
+
+        if not ordered_ids:
+            return None
+
+        try:
+            ents = await self.wikidata.wikibase_get_entities(
+                ordered_ids[:28], wikibase_props="labels|claims"
+            )
+        except Exception as exc:
+            logger.warning(f"wbgetentities (county search reconcile) failed: {type(exc).__name__}: {exc}")
+            return None
+
+        for qid in ordered_ids:
+            ent = ents.get(qid)
+            if not ent:
+                continue
+            ok, _seen = wes.entity_claim_identifier_literals(ent, lits)
+            if ok:
+                return (qid, ent)
+        return None
+
+    @staticmethod
+    def _dedupe_sparql_bindings_by_item(results: List[Dict]) -> List[Dict]:
+        by_id: Dict[str, Dict] = {}
+        for row in results:
+            iurl = row.get("item") or ""
+            iid = iurl.rsplit("/", 1)[-1]
+            if not iid:
+                continue
+            if iid not in by_id:
+                by_id[iid] = row
+        return list(by_id.values())
+
+    async def _query_counties_in_state(
+        self, state_code: str, state_q_code: str, state_name: str
+    ) -> List[Dict]:
+        """Counties: WDQS is sensitive to transitive P131 + DISTINCT + many OPTIONALS."""
+
+        _legacy_env = (os.getenv("WIKIDATA_COUNTY_LEGACY_STATE_QUERY") or "").strip()
+        if _legacy_env:
+            legacy_wide = _env_truthy("WIKIDATA_COUNTY_LEGACY_STATE_QUERY", default=False)
+        else:
+            legacy_wide = not _env_truthy("WIKIDATA_COUNTY_FIPS_BATCH", default=True)
+        county_type_values = _county_type_values_clause(state_code)
+        sf = STATE_MAP.get(state_code, {}).get("fips")
+
+        if legacy_wide:
+            return await self._query_counties_in_state_wide(
+                county_type_values, state_q_code, state_name, state_code
+            )
+
+        geoids = self._fetch_bronze_county_geoids(state_code)
+        if not geoids:
+            logger.warning(
+                f"No bronze county GEOIDs for {state_code}; falling back to P131+ state-wide query."
+            )
+            return await self._query_counties_in_state_wide(
+                county_type_values, state_q_code, state_name, state_code
+            )
+
+        if _wikidata_incremental_merge():
+            miss = self._fetch_geoids_missing_wikidata_qid(
+                state_code, "bronze.bronze_jurisdictions_counties_wikidata"
+            )
+            geoids = [g for g in geoids if g in miss]
+            if not geoids:
+                logger.info(
+                    f"Incremental merge: no counties with NULL wikidata_id for {state_name} — skipping WDQS"
+                )
+                return []
+
+        if _wikidata_hybrid_enrich_enabled():
+            return await self._query_counties_in_state_via_hybrid(
+                state_code, state_q_code, state_name
+            )
+
+        try:
+            raw_chunk = os.getenv("WIKIDATA_COUNTY_CHUNK_SIZE", "35") or "35"
+            chunk_size = max(5, min(120, int(str(raw_chunk).strip())))
+        except ValueError:
+            chunk_size = 35
+
+        try:
+            chunk_sleep = float(os.getenv("WIKIDATA_COUNTY_CHUNK_SLEEP_SECONDS", "1") or "1")
+        except ValueError:
+            chunk_sleep = 1.0
+        chunk_sleep = max(0.0, chunk_sleep)
+
+        logger.info(
+            f"Querying WikiData counties in {state_name} via "
+            f"FIPS-batched WDQS (~{chunk_size} GEOIDs/request, "
+            "no transitive P131+ — avoids common WDQS timeouts)."
+        )
+
+        aggregated: List[Dict] = []
+        n_chunks = (len(geoids) + chunk_size - 1) // chunk_size
+        for ix in range(0, len(geoids), chunk_size):
+            chunk = geoids[ix : ix + chunk_size]
+            literals: Set[str] = set()
+            for gid in chunk:
+                literals.update(_county_fips_literal_alternatives(gid, sf))
+            in_list = ", ".join(sorted(_sparql_quote_string_literal(x) for x in literals))
+
+            limit_rows = max(550, chunk_size * 25)
+            limit_rows = min(limit_rows, 2500)
+
+            query = f"""
+            SELECT DISTINCT
+                ?item ?itemLabel ?website ?population ?area
+                ?facebook ?twitter ?youtube ?fips ?fipsAlt ?gnis ?nces ?image ?banner ?locatorMap
+                ?lat ?lon
+                ?geonamesId
+            WHERE {{
+              VALUES ?countyType {{ {county_type_values} }}
+              ?item wdt:P31 ?countyType .
+
+              OPTIONAL {{ ?item wdt:P856 ?website . }}
+              OPTIONAL {{ ?item wdt:P1082 ?population . }}
+              OPTIONAL {{ ?item wdt:P2046 ?area . }}
+              OPTIONAL {{ ?item wdt:P2013 ?facebook . }}
+              OPTIONAL {{ ?item wdt:P2002 ?twitter . }}
+              OPTIONAL {{ ?item wdt:P2397 ?youtube . }}
+              OPTIONAL {{ ?item wdt:P882 ?fips . }}
+              OPTIONAL {{ ?item wdt:P3006 ?fipsAlt . }}
+              OPTIONAL {{ ?item wdt:P590 ?gnis . }}
+              OPTIONAL {{ ?item wdt:P6545 ?nces . }}
+              OPTIONAL {{ ?item wdt:P18 ?image . }}
+              OPTIONAL {{ ?item wdt:P242 ?locatorMap . }}
+              OPTIONAL {{ ?item wdt:P948 ?banner . }}
+              OPTIONAL {{ ?item wdt:P1566 ?geonamesId . }}
+              OPTIONAL {{ ?item p:P625/psv:P625/wikibase:geoLatitude ?lat . }}
+              OPTIONAL {{ ?item p:P625/psv:P625/wikibase:geoLongitude ?lon . }}
+
+              FILTER(
+                (BOUND(?fips) && REPLACE(STR(?fips), "-", "") IN ({in_list}))
+                || (BOUND(?fipsAlt) && REPLACE(STR(?fipsAlt), "-", "") IN ({in_list}))
+              )
+
+              SERVICE wikibase:label {{
+                bd:serviceParam wikibase:language "[AUTO_LANGUAGE],en".
+              }}
+            }}
+            LIMIT {limit_rows}
+            """
+
+            chi = ix // chunk_size + 1
+            logger.info(f"  County WDQS chunk {chi}/{n_chunks} ({len(chunk)} GEOIDs, ~{len(literals)} literals)…")
+            try:
+                chunk_rows = await self.wikidata.execute_sparql(query)
+            except Exception as e:
+                logger.warning(f"County batch query failed ({chi}/{n_chunks}): {type(e).__name__}: {e}")
+                chunk_rows = []
+            aggregated.extend(chunk_rows)
+
+            if chunk_sleep > 0 and ix + chunk_size < len(geoids):
+                await asyncio.sleep(chunk_sleep)
+
+        results = self._dedupe_sparql_bindings_by_item(aggregated)
+        jurisdictions = self._parse_jurisdiction_results(results, state_code, state_name, "county")
+        logger.info(f"  Found {len(jurisdictions)} counties")
+        return jurisdictions
+
+    async def _query_counties_in_state_wide(
+        self,
+        county_type_values: str,
+        state_q_code: str,
+        state_name: str,
+        state_code: str,
+    ) -> List[Dict]:
+        """
+        Original state-wide pattern: P131+ on the state item. Can time out on WDQS
+        under load; prefer FIPS batches (default).
+        """
         query = f"""
-        SELECT DISTINCT 
+        SELECT DISTINCT
             ?item ?itemLabel ?website ?population ?area
             ?facebook ?twitter ?youtube ?fips ?fipsAlt ?gnis ?nces ?image ?banner ?locatorMap
             ?lat ?lon
@@ -637,10 +1739,9 @@ class JurisdictionsWikiDataLoader:
         WHERE {{
           VALUES ?countyType {{ {county_type_values} }}
           ?item wdt:P31 ?countyType .
-          
-          # Must be located in this state
+
           ?item wdt:P131+ wd:{state_q_code} .
-          
+
           OPTIONAL {{ ?item wdt:P856 ?website . }}
           OPTIONAL {{ ?item wdt:P1082 ?population . }}
           OPTIONAL {{ ?item wdt:P2046 ?area . }}
@@ -648,7 +1749,6 @@ class JurisdictionsWikiDataLoader:
           OPTIONAL {{ ?item wdt:P2002 ?twitter . }}
           OPTIONAL {{ ?item wdt:P2397 ?youtube . }}
           OPTIONAL {{ ?item wdt:P882 ?fips . }}
-          # Some counties only have P3006 (FIPS 6-4 / Census county id); use as join fallback.
           OPTIONAL {{ ?item wdt:P3006 ?fipsAlt . }}
           OPTIONAL {{ ?item wdt:P590 ?gnis . }}
           OPTIONAL {{ ?item wdt:P6545 ?nces . }}
@@ -659,29 +1759,157 @@ class JurisdictionsWikiDataLoader:
           OPTIONAL {{ ?item p:P625/psv:P625/wikibase:geoLatitude ?lat . }}
           OPTIONAL {{ ?item p:P625/psv:P625/wikibase:geoLongitude ?lon . }}
 
-          # Need at least one Census-style county identifier for bronze geoid join.
           FILTER(BOUND(?fips) || BOUND(?fipsAlt))
 
           SERVICE wikibase:label {{ bd:serviceParam wikibase:language "[AUTO_LANGUAGE],en". }}
         }}
         LIMIT 500
         """
-        
-        logger.info(f"Querying WikiData for counties in {state_name}...")
+
+        logger.info(f"Querying WikiData for counties in {state_name} (legacy P131+ query)…")
         try:
             results = await self.wikidata.execute_sparql(query)
         except Exception as e:
             logger.warning(f"County query failed: {type(e).__name__}: {e}")
             results = []
-        
-        jurisdictions = self._parse_jurisdiction_results(results, state_code, state_name, 'county')
+
+        jurisdictions = self._parse_jurisdiction_results(results, state_code, state_name, "county")
         logger.info(f"  Found {len(jurisdictions)} counties")
         return jurisdictions
     
     async def _query_schools_in_state(self, state_code: str, state_q_code: str, state_name: str) -> List[Dict]:
-        """Query school districts - use transitive since they can be nested."""
+        """
+        Schools: batch by bronze NCES/GEOID (+P6545 / P882) by default — avoids P131+ and avoids
+        the expensive correlated OPTIONAL sub-select for superintendent (bulk loads rarely need it).
+        """
+
+        _legacy_s = (os.getenv("WIKIDATA_SCHOOL_LEGACY_STATE_QUERY") or "").strip()
+        if _legacy_s:
+            legacy_wide = _env_truthy("WIKIDATA_SCHOOL_LEGACY_STATE_QUERY", default=False)
+        else:
+            legacy_wide = not _env_truthy("WIKIDATA_SCHOOL_IDENTIFIER_BATCH", default=True)
+
+        if legacy_wide:
+            return await self._query_schools_in_state_wide(state_code, state_q_code, state_name)
+
+        geoids = self._fetch_bronze_school_geoids(state_code)
+        if not geoids:
+            logger.warning(
+                f"No bronze school-district GEOIDs for {state_code}; falling back to legacy P131+ query."
+            )
+            return await self._query_schools_in_state_wide(state_code, state_q_code, state_name)
+
+        if _wikidata_incremental_merge():
+            miss = self._fetch_geoids_missing_wikidata_qid(
+                state_code, "bronze.bronze_jurisdictions_school_districts_wikidata"
+            )
+            geoids = [g for g in geoids if g in miss]
+            if not geoids:
+                logger.info(
+                    f"Incremental merge: no school districts with NULL wikidata_id for {state_name} — skipping WDQS"
+                )
+                return []
+
+        if _wikidata_hybrid_enrich_enabled():
+            return await self._query_schools_in_state_via_hybrid(
+                state_code, state_q_code, state_name
+            )
+
+        chunk_size = _positive_int_env("WIKIDATA_SCHOOL_CHUNK_SIZE", 35, 5, 200)
+        chunk_sleep = _chunk_sleep_seconds(1.0)
+        aggregated: List[Dict] = []
+        n_chunks = (len(geoids) + chunk_size - 1) // chunk_size
+
+        for ix in range(0, len(geoids), chunk_size):
+            chunk = geoids[ix : ix + chunk_size]
+            literals: Set[str] = set()
+            for gid in chunk:
+                literals |= _school_id_literal_alternatives(gid)
+
+            id_in = ", ".join(sorted(_sparql_quote_string_literal(x) for x in literals))
+
+            filt = ""
+            if id_in.strip():
+                filt = f"""FILTER(
+                  (BOUND(?nces) && REPLACE(STR(?nces), "-", "") IN ({id_in}))
+                  || (BOUND(?fips) && REPLACE(STR(?fips), "-", "") IN ({id_in}))
+                )"""
+            else:
+                continue
+
+            limit_rows = min(2500, max(520, chunk_size * 28))
+            chi = ix // chunk_size + 1
+            logger.info(f"Querying school districts in {state_name} via NCES/FIPS batch ({chi}/{n_chunks})…")
+
+            query = f"""
+            SELECT DISTINCT
+                ?item ?itemLabel ?website ?population ?area
+                ?facebook ?twitter ?youtube ?fips ?gnis ?nces ?image ?banner ?locatorMap
+                ?dialingCode ?googleMapsCustomerId ?households ?medianAge
+                ?lat ?lon
+                ?postalCode ?perCapitaIncome ?timeZone ?timeZoneLabel
+                ?ballotpediaId ?tripadvisorId ?subreddit
+                ?geonamesId
+            WHERE {{
+              ?item wdt:P31 wd:Q1455778 .
+
+              OPTIONAL {{ ?item wdt:P856 ?website . }}
+              OPTIONAL {{ ?item wdt:P1082 ?population . }}
+              OPTIONAL {{ ?item wdt:P2046 ?area . }}
+              OPTIONAL {{ ?item wdt:P2013 ?facebook . }}
+              OPTIONAL {{ ?item wdt:P2002 ?twitter . }}
+              OPTIONAL {{ ?item wdt:P2397 ?youtube . }}
+              OPTIONAL {{ ?item wdt:P882 ?fips . }}
+              OPTIONAL {{ ?item wdt:P590 ?gnis . }}
+              OPTIONAL {{ ?item wdt:P6545 ?nces . }}
+              OPTIONAL {{ ?item wdt:P18 ?image . }}
+              OPTIONAL {{ ?item wdt:P242 ?locatorMap . }}
+              OPTIONAL {{ ?item wdt:P948 ?banner . }}
+              OPTIONAL {{ ?item wdt:P1566 ?geonamesId . }}
+              OPTIONAL {{ ?item p:P625/psv:P625/wikibase:geoLatitude ?lat . }}
+              OPTIONAL {{ ?item p:P625/psv:P625/wikibase:geoLongitude ?lon . }}
+              OPTIONAL {{ ?item wdt:P473 ?dialingCode . }}
+              OPTIONAL {{ ?item wdt:P3749 ?googleMapsCustomerId . }}
+              OPTIONAL {{ ?item wdt:P1538 ?households . }}
+              OPTIONAL {{ ?item wdt:P1310 ?medianAge . }}
+              OPTIONAL {{ ?item wdt:P281 ?postalCode . }}
+              OPTIONAL {{ ?item wdt:P3529 ?perCapitaIncome . }}
+              OPTIONAL {{ ?item wdt:P421 ?timeZone . }}
+              OPTIONAL {{ ?item wdt:P2390 ?ballotpediaId . }}
+              OPTIONAL {{ ?item wdt:P3134 ?tripadvisorId . }}
+              OPTIONAL {{ ?item wdt:P3984 ?subreddit . }}
+
+              {filt}
+
+              SERVICE wikibase:label {{
+                bd:serviceParam wikibase:language "[AUTO_LANGUAGE],en".
+              }}
+            }}
+            LIMIT {limit_rows}
+            """
+
+            try:
+                chunk_rows = await self.wikidata.execute_sparql(query)
+            except Exception as e:
+                logger.warning(
+                    f"School district batch query failed ({chi}/{n_chunks}): {type(e).__name__}: {e}"
+                )
+                chunk_rows = []
+            aggregated.extend(chunk_rows)
+
+            if chunk_sleep > 0 and ix + chunk_size < len(geoids):
+                await asyncio.sleep(chunk_sleep)
+
+        results = self._dedupe_sparql_bindings_by_item(aggregated)
+        jurisdictions = self._parse_jurisdiction_results(results, state_code, state_name, "school_district")
+        logger.info(f"  Found {len(jurisdictions)} school districts")
+        return jurisdictions
+
+    async def _query_schools_in_state_wide(self, state_code: str, state_q_code: str, state_name: str) -> List[Dict]:
+        """Heavy legacy query: transitive P131+ plus superintendent sub-select."""
+
         query = f"""
-        SELECT DISTINCT 
+        SELECT DISTINCT
             ?item ?itemLabel ?website ?population ?area
             ?facebook ?twitter ?youtube ?fips ?gnis ?nces ?image ?banner ?locatorMap
             ?dialingCode ?googleMapsCustomerId ?households ?medianAge ?languageLabel
@@ -691,9 +1919,9 @@ class JurisdictionsWikiDataLoader:
             ?ballotpediaId ?tripadvisorId ?subreddit
             ?geonamesId
         WHERE {{
-          ?item wdt:P31 wd:Q1455778 .  # School district
+          ?item wdt:P31 wd:Q1455778 .
           ?item wdt:P131+ wd:{state_q_code} .
-          
+
           OPTIONAL {{ ?item wdt:P856 ?website . }}
           OPTIONAL {{ ?item wdt:P1082 ?population . }}
           OPTIONAL {{ ?item wdt:P2046 ?area . }}
@@ -714,9 +1942,8 @@ class JurisdictionsWikiDataLoader:
           OPTIONAL {{ ?item wdt:P1538 ?households . }}
           OPTIONAL {{ ?item wdt:P1310 ?medianAge . }}
           OPTIONAL {{ ?item wdt:P407 ?language . }}
-          
-          # Head of government/superintendent
-          OPTIONAL {{ 
+
+          OPTIONAL {{
             {{
               SELECT ?headOfGov ?headStart WHERE {{
                 ?item p:P6 ?headStmt .
@@ -729,31 +1956,30 @@ class JurisdictionsWikiDataLoader:
             }}
             OPTIONAL {{ ?headOfGov wdt:P39 ?position . }}
           }}
-          
-          # Additional metadata
+
           OPTIONAL {{ ?item wdt:P281 ?postalCode . }}
           OPTIONAL {{ ?item wdt:P3529 ?perCapitaIncome . }}
           OPTIONAL {{ ?item wdt:P421 ?timeZone . }}
           OPTIONAL {{ ?item wdt:P2390 ?ballotpediaId . }}
           OPTIONAL {{ ?item wdt:P3134 ?tripadvisorId . }}
           OPTIONAL {{ ?item wdt:P3984 ?subreddit . }}
-          
+
           SERVICE wikibase:label {{ bd:serviceParam wikibase:language "[AUTO_LANGUAGE],en". }}
         }}
         LIMIT 500
         """
-        
-        logger.info(f"Querying WikiData for school districts in {state_name}...")
+
+        logger.info(f"Querying school districts in {state_name} (legacy P131+ / superintendent query)…")
         try:
             results = await self.wikidata.execute_sparql(query)
         except Exception as e:
             logger.warning(f"School district query failed: {type(e).__name__}: {e}")
             results = []
-        
-        jurisdictions = self._parse_jurisdiction_results(results, state_code, state_name, 'school_district')
+
+        jurisdictions = self._parse_jurisdiction_results(results, state_code, state_name, "school_district")
         logger.info(f"  Found {len(jurisdictions)} school districts")
         return jurisdictions
-    
+
     def _parse_jurisdiction_results(self, results: List[Dict], state_code: str, state_name: str, jurisdiction_type: str) -> List[Dict]:
         """Parse SPARQL results into jurisdiction records."""
         def _safe_float(v: Optional[str]) -> Optional[float]:
@@ -905,15 +2131,192 @@ class JurisdictionsWikiDataLoader:
         
         return jurisdictions
     
+    def _state_jurisdiction_rows_from_ws_result(
+        self,
+        state_code: str,
+        state_info: dict,
+        result: Dict,
+        hog_row: Optional[Dict],
+    ) -> List[Dict]:
+        """Turn a WDQS-shaped ``result`` dict + optional governor row into bronze state payload(s)."""
+        state_name = state_info["name"]
+        state_q_code = state_info["q_code"]
+
+        jurisdiction_label = result.get("itemLabel") or state_name
+        jurisdiction_description = result.get("itemDescription")
+        aliases_en = [a for a in result.get("altLabels", "").split("||") if a] if result.get("altLabels") else None
+        native_label = result.get("nativeLabel")
+        nicknames = [a for a in result.get("nicknames", "").split("||") if a] if result.get("nicknames") else None
+        short_names = [a for a in result.get("shortNames", "").split("||") if a] if result.get("shortNames") else None
+        demonyms = [a for a in result.get("demonyms", "").split("||") if a] if result.get("demonyms") else None
+        official_languages = (
+            [a for a in result.get("officialLanguages", "").split("||") if a] if result.get("officialLanguages") else None
+        )
+        motto = result.get("motto")
+        anthems = [a for a in result.get("anthems", "").split("||") if a] if result.get("anthems") else None
+        capitals = [a for a in result.get("capitals", "").split("||") if a] if result.get("capitals") else None
+        iso_3166_2 = result.get("iso31662")
+        pronunciation_audio = result.get("pronunciationAudio")
+        geoshape = result.get("geoshape")
+
+        inception_date = None
+        inception_raw = result.get("inception")
+        if inception_raw:
+            try:
+                inception_date = str(inception_raw).lstrip("+")[:10]
+            except Exception:
+                inception_date = None
+
+        youtube_channel_id = result.get("youtube")
+        image_url = result.get("image")
+        locator_map_url = result.get("locatorMap")
+        banner_url = result.get("banner")
+        geonames_id = result.get("geonamesId")
+
+        fips_code = state_info["fips"]
+        jurisdiction_id = f"state_{fips_code}"
+        jurisdiction_id_type = "state_fips"
+
+        head_of_gov = None
+        head_of_gov_position = result.get("hogOfficeLabel") or f"Governor of {state_name}"
+        head_start = None
+        if hog_row:
+            head_of_gov = hog_row.get("headOfGovLabel")
+            head_of_gov_position = f"Governor of {state_name}"
+            head_start_raw = hog_row.get("headStart")
+            if head_start_raw:
+                try:
+                    head_start = datetime.fromisoformat(str(head_start_raw)[:10])
+                except Exception:
+                    head_start = head_start_raw
+
+        postal_code = result.get("postalCode")
+        postal_codes = json.dumps([postal_code]) if postal_code else None
+
+        per_capita_income = int(result.get("perCapitaIncome")) if result.get("perCapitaIncome") else None
+        time_zone = result.get("timeZoneLabel") or result.get("timeZone")
+        ballotpedia_id = result.get("ballotpediaId")
+        tripadvisor_id = result.get("tripadvisorId")
+        subreddit = result.get("subreddit")
+        dialing_code = result.get("dialingCode")
+        google_maps_customer_id = result.get("googleMapsCustomerId")
+        try:
+            number_of_households = float(result.get("households")) if result.get("households") else None
+        except Exception:
+            number_of_households = None
+        try:
+            median_age = float(result.get("medianAge")) if result.get("medianAge") else None
+        except Exception:
+            median_age = None
+        language_of_work_or_name = result.get("languageLabel")
+
+        return [
+            {
+                "wikidata_id": state_q_code,
+                "jurisdiction_id": jurisdiction_id,
+                "jurisdiction_id_type": jurisdiction_id_type,
+                "jurisdiction_name": state_name,
+                "state_code": state_code,
+                "state": state_name,
+                "jurisdiction_type": "state",
+                "jurisdiction_label": jurisdiction_label,
+                "jurisdiction_description": jurisdiction_description,
+                "jurisdiction_aliases": json.dumps(aliases_en) if aliases_en else None,
+                "native_label": native_label,
+                "nickname": json.dumps(nicknames) if nicknames else None,
+                "short_name": json.dumps(short_names) if short_names else None,
+                "demonym": json.dumps(demonyms) if demonyms else None,
+                "official_language": json.dumps(official_languages) if official_languages else None,
+                "motto": motto,
+                "anthem": json.dumps(anthems) if anthems else None,
+                "inception_date": inception_date,
+                "capital": json.dumps(capitals) if capitals else None,
+                "iso_3166_2": iso_3166_2,
+                "pronunciation_audio": pronunciation_audio,
+                "geoshape": geoshape,
+                "official_website": result.get("website"),
+                "official_image_url": image_url,
+                "page_banner_image": banner_url,
+                "youtube_channel_id": youtube_channel_id,
+                "youtube_channel_url": f"https://www.youtube.com/channel/{youtube_channel_id}"
+                if youtube_channel_id
+                else None,
+                "facebook_username": result.get("facebook"),
+                "facebook_url": f"https://www.facebook.com/{result.get('facebook')}"
+                if result.get("facebook")
+                else None,
+                "twitter_username": result.get("twitter"),
+                "twitter_url": f"https://twitter.com/{result.get('twitter')}" if result.get("twitter") else None,
+                "population": int(result.get("population")) if result.get("population") else None,
+                "area_sq_km": float(result.get("area")) if result.get("area") else None,
+                "latitude": float(result.get("lat")) if result.get("lat") else None,
+                "longitude": float(result.get("lon")) if result.get("lon") else None,
+                "fips_code": fips_code,
+                "gnis_id": None,
+                "nces_id": None,
+                "geonames_id": geonames_id,
+                "geoid": fips_code,
+                "locator_map_image": locator_map_url,
+                "head_of_government": head_of_gov,
+                "head_of_government_position": head_of_gov_position,
+                "head_of_government_start_time": head_start,
+                "postal_codes": postal_codes,
+                "per_capita_income": per_capita_income,
+                "number_of_households": number_of_households,
+                "median_age": median_age,
+                "local_dialing_code": dialing_code,
+                "google_maps_customer_id": google_maps_customer_id,
+                "language_of_work_or_name": language_of_work_or_name,
+                "time_zone": time_zone,
+                "ballotpedia_id": ballotpedia_id,
+                "tripadvisor_id": tripadvisor_id,
+                "subreddit": subreddit,
+            }
+        ]
+
     async def query_state_info(self, state_code: str) -> List[Dict]:
-        """Query WikiData for state government info."""
+        """US state row: default Wikibase API (same JSON as Special:EntityData); optional legacy WDQS."""
         state_info = STATE_MAP.get(state_code)
         if not state_info:
             return []
-        
+
         state_name = state_info["name"]
         state_q_code = state_info["q_code"]
-        
+
+        if _wikidata_state_legacy_sparql():
+            return await self._query_state_info_via_sparql(state_code, state_info)
+        return await self._query_state_info_via_wikibase(state_code, state_info)
+
+    async def _query_state_info_via_wikibase(self, state_code: str, state_info: dict) -> List[Dict]:
+        state_name = state_info["name"]
+        state_q_code = state_info["q_code"]
+        logger.info(f"Fetching state Wikidata entity via API ({state_name}, {state_q_code})…")
+        ents = await self.wikidata.wikibase_get_entities(
+            [state_q_code], wikibase_props="labels|descriptions|aliases|claims"
+        )
+        entity = ents.get(state_q_code)
+        if not isinstance(entity, dict) or entity.get("missing"):
+            logger.warning(f"No Wikibase entity for {state_name} ({state_q_code})")
+            return []
+
+        related = collect_state_related_qids(entity)
+        related_labels: Dict[str, str] = {}
+        if related:
+            ref_ents = await self.wikidata.wikibase_get_entities(related, wikibase_props="labels")
+            for qid, ent in ref_ents.items():
+                if not str(qid).startswith("Q"):
+                    continue
+                lb = entity_en_label(ent)
+                if lb:
+                    related_labels[str(qid)] = lb
+
+        shaped, hog_row = state_entity_to_sparql_shaped_row(entity, state_q_code, related_labels)
+        return self._state_jurisdiction_rows_from_ws_result(state_code, state_info, shaped, hog_row)
+
+    async def _query_state_info_via_sparql(self, state_code: str, state_info: dict) -> List[Dict]:
+        state_name = state_info["name"]
+        state_q_code = state_info["q_code"]
+
         query = f"""
         SELECT DISTINCT 
             ?item ?itemLabel ?itemDescription ?nativeLabel
@@ -934,10 +2337,8 @@ class JurisdictionsWikiDataLoader:
             ?ballotpediaId ?tripadvisorId ?subreddit
             ?geonamesId
         WHERE {{
-          # Direct reference to the state
           BIND(wd:{state_q_code} AS ?item)
 
-          # Description + aliases
           OPTIONAL {{
             ?item schema:description ?itemDescription .
             FILTER(LANG(?itemDescription) = "en")
@@ -950,49 +2351,49 @@ class JurisdictionsWikiDataLoader:
             ?item wdt:P1705 ?nativeLabel .
             FILTER(LANG(?nativeLabel) = "en")
           }}
-          OPTIONAL {{ ?item wdt:P1448 ?nickname . }}      # official name / nickname-ish in practice
-          OPTIONAL {{ ?item wdt:P2561 ?nickname . }}      # official name (native)
-          OPTIONAL {{ ?item wdt:P1813 ?shortName . }}     # short name
-          OPTIONAL {{ ?item wdt:P1549 ?demonym . }}       # demonym
+          OPTIONAL {{ ?item wdt:P1448 ?nickname . }}
+          OPTIONAL {{ ?item wdt:P2561 ?nickname . }}
+          OPTIONAL {{ ?item wdt:P1813 ?shortName . }}
+          OPTIONAL {{ ?item wdt:P1549 ?demonym . }}
           OPTIONAL {{
-            ?item wdt:P37 ?officialLanguage .  # official language
+            ?item wdt:P37 ?officialLanguage .
             OPTIONAL {{
               ?officialLanguage rdfs:label ?officialLanguageLabel .
               FILTER(LANG(?officialLanguageLabel) = "en")
             }}
           }}
-          OPTIONAL {{ ?item wdt:P1906 ?hogOffice . }}      # office held by head of government (often "Governor of <State>")
-          OPTIONAL {{ ?item wdt:P1451 ?motto . }}         # motto
+          OPTIONAL {{ ?item wdt:P1906 ?hogOffice . }}
+          OPTIONAL {{ ?item wdt:P1451 ?motto . }}
           OPTIONAL {{
-            ?item wdt:P85 ?anthem .  # anthem
+            ?item wdt:P85 ?anthem .
             OPTIONAL {{
               ?anthem rdfs:label ?anthemLabel .
               FILTER(LANG(?anthemLabel) = "en")
             }}
           }}
           OPTIONAL {{
-            ?item wdt:P36 ?capital .  # capital
+            ?item wdt:P36 ?capital .
             OPTIONAL {{
               ?capital rdfs:label ?capitalLabel .
               FILTER(LANG(?capitalLabel) = "en")
             }}
           }}
-          OPTIONAL {{ ?item wdt:P571 ?inception . }}      # inception
-          OPTIONAL {{ ?item wdt:P300 ?iso31662 . }}       # ISO 3166-2 code
-          OPTIONAL {{ ?item wdt:P443 ?pronunciationAudio . }} # pronunciation audio
-          OPTIONAL {{ ?item wdt:P3896 ?geoshape . }}      # geoshape dataset
-          
+          OPTIONAL {{ ?item wdt:P571 ?inception . }}
+          OPTIONAL {{ ?item wdt:P300 ?iso31662 . }}
+          OPTIONAL {{ ?item wdt:P443 ?pronunciationAudio . }}
+          OPTIONAL {{ ?item wdt:P3896 ?geoshape . }}
+
           OPTIONAL {{ ?item wdt:P856 ?website . }}
           OPTIONAL {{ ?item wdt:P1082 ?population . }}
           OPTIONAL {{ ?item wdt:P2046 ?area . }}
           OPTIONAL {{ ?item wdt:P2013 ?facebook . }}
           OPTIONAL {{ ?item wdt:P2002 ?twitter . }}
           OPTIONAL {{ ?item wdt:P2397 ?youtube . }}
-          OPTIONAL {{ ?item wdt:P882 ?fips . }}    # FIPS code
-          OPTIONAL {{ ?item wdt:P18 ?image . }}    # Official image
-          OPTIONAL {{ ?item wdt:P242 ?locatorMap . }}  # Locator map image
+          OPTIONAL {{ ?item wdt:P882 ?fips . }}
+          OPTIONAL {{ ?item wdt:P18 ?image . }}
+          OPTIONAL {{ ?item wdt:P242 ?locatorMap . }}
           OPTIONAL {{ ?item wdt:P948 ?banner . }}
-          OPTIONAL {{ ?item wdt:P1566 ?geonamesId . }} # GeoNames ID
+          OPTIONAL {{ ?item wdt:P1566 ?geonamesId . }}
           OPTIONAL {{ ?item p:P625/psv:P625/wikibase:geoLatitude ?lat . }}
           OPTIONAL {{ ?item p:P625/psv:P625/wikibase:geoLongitude ?lon . }}
           OPTIONAL {{ ?item wdt:P473 ?dialingCode . }}
@@ -1000,15 +2401,14 @@ class JurisdictionsWikiDataLoader:
           OPTIONAL {{ ?item wdt:P1538 ?households . }}
           OPTIONAL {{ ?item wdt:P1310 ?medianAge . }}
           OPTIONAL {{ ?item wdt:P407 ?language . }}
-          
-          # Additional metadata
+
           OPTIONAL {{ ?item wdt:P281 ?postalCode . }}
           OPTIONAL {{ ?item wdt:P3529 ?perCapitaIncome . }}
           OPTIONAL {{ ?item wdt:P421 ?timeZone . }}
           OPTIONAL {{ ?item wdt:P2390 ?ballotpediaId . }}
           OPTIONAL {{ ?item wdt:P3134 ?tripadvisorId . }}
           OPTIONAL {{ ?item wdt:P3984 ?subreddit . }}
-          
+
           SERVICE wikibase:label {{ bd:serviceParam wikibase:language "[AUTO_LANGUAGE],en". }}
         }}
         GROUP BY
@@ -1020,58 +2420,15 @@ class JurisdictionsWikiDataLoader:
           ?ballotpediaId ?tripadvisorId ?subreddit ?geonamesId ?hogOffice
         LIMIT 1
         """
-        
-        logger.info(f"Querying WikiData for state: {state_name}...")
+
+        logger.info(f"Querying WikiData for state (legacy WDQS): {state_name}…")
         results = await self.wikidata.execute_sparql(query)
-        
         if not results:
             logger.warning(f"No WikiData entry found for {state_name}")
             return []
-        
+
         result = results[0]
-        # State labels/aliases/meta (English)
-        jurisdiction_label = result.get("itemLabel") or state_name
-        jurisdiction_description = result.get("itemDescription")
-        aliases_en = [a for a in result.get("altLabels", "").split("||") if a] if result.get("altLabels") else None
-        native_label = result.get("nativeLabel")
-        nicknames = [a for a in result.get("nicknames", "").split("||") if a] if result.get("nicknames") else None
-        short_names = [a for a in result.get("shortNames", "").split("||") if a] if result.get("shortNames") else None
-        demonyms = [a for a in result.get("demonyms", "").split("||") if a] if result.get("demonyms") else None
-        official_languages = [a for a in result.get("officialLanguages", "").split("||") if a] if result.get("officialLanguages") else None
-        motto = result.get("motto")
-        anthems = [a for a in result.get("anthems", "").split("||") if a] if result.get("anthems") else None
-        capitals = [a for a in result.get("capitals", "").split("||") if a] if result.get("capitals") else None
-        iso_3166_2 = result.get("iso31662")
-        pronunciation_audio = result.get("pronunciationAudio")
-        geoshape = result.get("geoshape")
-
-        inception_date = None
-        inception_raw = result.get("inception")
-        if inception_raw:
-            try:
-                inception_date = inception_raw[:10]
-            except Exception:
-                inception_date = None
-
-        youtube_channel_id = result.get("youtube")
-        image_url = result.get("image")
-        locator_map_url = result.get("locatorMap")
-        banner_url = result.get("banner")
-        geonames_id = result.get("geonamesId")
-        
-        # Use hardcoded FIPS code from STATE_MAP (WikiData doesn't have state FIPS codes)
-        fips_code = state_info["fips"]
-        
-        # State jurisdiction_id: state_{FIPS} (e.g., state_01 for Alabama)
-        jurisdiction_id = f"state_{fips_code}"
-        jurisdiction_id_type = 'state_fips'
-        
-        # Head of government is fetched via a separate lightweight query to avoid
-        # Blazegraph correlated-subquery quirks that can return unrelated leaders.
-        head_of_gov = None
-        head_of_gov_position = result.get("hogOfficeLabel") or f"Governor of {state_name}"
-        head_start = None
-
+        hog_row: Optional[Dict] = None
         hog_query = f"""
         SELECT ?headOfGovLabel ?headStart
         WHERE {{
@@ -1085,102 +2442,12 @@ class JurisdictionsWikiDataLoader:
         """
         try:
             hog_rows = await self.wikidata.execute_sparql(hog_query)
+            if hog_rows:
+                hog_row = hog_rows[0]
         except Exception:
-            hog_rows = []
+            pass
 
-        if hog_rows:
-            hog_row = hog_rows[0]
-            head_of_gov = hog_row.get("headOfGovLabel")
-            # US states: head of government is the Governor.
-            head_of_gov_position = f"Governor of {state_name}"
-            head_start_raw = hog_row.get("headStart")
-            if head_start_raw:
-                try:
-                    # Store as naive midnight timestamp to avoid timezone shifts when writing
-                    # into a `timestamp without time zone` column.
-                    head_start = datetime.fromisoformat(head_start_raw[:10])
-                except Exception:
-                    head_start = head_start_raw
-        
-        # Extract postal codes (can be multiple)
-        postal_code = result.get("postalCode")
-        postal_codes = json.dumps([postal_code]) if postal_code else None
-        
-        # Extract additional metadata
-        per_capita_income = int(result.get("perCapitaIncome")) if result.get("perCapitaIncome") else None
-        time_zone = result.get("timeZoneLabel") or result.get("timeZone")
-        ballotpedia_id = result.get("ballotpediaId")
-        tripadvisor_id = result.get("tripadvisorId")
-        subreddit = result.get("subreddit")
-        dialing_code = result.get("dialingCode")
-        google_maps_customer_id = result.get("googleMapsCustomerId")
-        try:
-            number_of_households = float(result.get("households")) if result.get("households") else None
-        except Exception:
-            number_of_households = None
-        try:
-            median_age = float(result.get("medianAge")) if result.get("medianAge") else None
-        except Exception:
-            median_age = None
-        language_of_work_or_name = result.get("languageLabel")
-        
-        return [{
-            'wikidata_id': state_q_code,
-            'jurisdiction_id': jurisdiction_id,
-            'jurisdiction_id_type': jurisdiction_id_type,
-            'jurisdiction_name': state_name,
-            'state_code': state_code,
-            'state': state_name,
-            'jurisdiction_type': 'state',
-            'jurisdiction_label': jurisdiction_label,
-            'jurisdiction_description': jurisdiction_description,
-            'jurisdiction_aliases': json.dumps(aliases_en) if aliases_en else None,
-            'native_label': native_label,
-            'nickname': json.dumps(nicknames) if nicknames else None,
-            'short_name': json.dumps(short_names) if short_names else None,
-            'demonym': json.dumps(demonyms) if demonyms else None,
-            'official_language': json.dumps(official_languages) if official_languages else None,
-            'motto': motto,
-            'anthem': json.dumps(anthems) if anthems else None,
-            'inception_date': inception_date,
-            'capital': json.dumps(capitals) if capitals else None,
-            'iso_3166_2': iso_3166_2,
-            'pronunciation_audio': pronunciation_audio,
-            'geoshape': geoshape,
-            'official_website': result.get("website"),
-            'official_image_url': image_url,
-            'page_banner_image': banner_url,
-            'youtube_channel_id': youtube_channel_id,
-            'youtube_channel_url': f"https://www.youtube.com/channel/{youtube_channel_id}" if youtube_channel_id else None,
-            'facebook_username': result.get("facebook"),
-            'facebook_url': f"https://www.facebook.com/{result.get('facebook')}" if result.get('facebook') else None,
-            'twitter_username': result.get("twitter"),
-            'twitter_url': f"https://twitter.com/{result.get('twitter')}" if result.get('twitter') else None,
-            'population': int(result.get("population")) if result.get("population") else None,
-            'area_sq_km': float(result.get("area")) if result.get("area") else None,
-            'latitude': float(result.get("lat")) if result.get("lat") else None,
-            'longitude': float(result.get("lon")) if result.get("lon") else None,
-            'fips_code': fips_code,
-            'gnis_id': None,
-            'nces_id': None,
-            'geonames_id': geonames_id,
-            'geoid': fips_code,  # For states, GEOID is the 2-digit FIPS code
-            'locator_map_image': locator_map_url,
-            'head_of_government': head_of_gov,
-            'head_of_government_position': head_of_gov_position,
-            'head_of_government_start_time': head_start,
-            'postal_codes': postal_codes,
-            'per_capita_income': per_capita_income,
-            'number_of_households': number_of_households,
-            'median_age': median_age,
-            'local_dialing_code': dialing_code,
-            'google_maps_customer_id': google_maps_customer_id,
-            'language_of_work_or_name': language_of_work_or_name,
-            'time_zone': time_zone,
-            'ballotpedia_id': ballotpedia_id,
-            'tripadvisor_id': tripadvisor_id,
-            'subreddit': subreddit,
-        }]
+        return self._state_jurisdiction_rows_from_ws_result(state_code, state_info, result, hog_row)
     
     def insert_jurisdictions(self, jurisdictions: List[Dict]):
         """Apply Wikidata enrichment into bronze *_wikidata tables (no public table)."""
@@ -1213,8 +2480,9 @@ class JurisdictionsWikiDataLoader:
         logger.info(f"LOADING WIKIDATA FOR {state_name}")
         logger.info("=" * 80)
 
-        all_jurisdictions = []
+        all_jurisdictions: List[Dict] = []
         skipped_tasks = 0
+        incremental_tasks_skipped_entirely = 0
 
         # Determine ordered sub-queries, merging city/town into one task
         query_tasks = []
@@ -1234,8 +2502,22 @@ class JurisdictionsWikiDataLoader:
                 continue
 
             # Rebuild the bronze *_wikidata base rows for this state+type, then apply updates.
-            # This ensures we never end up with "all NULL" base geography columns after truncation.
+            # With WIKIDATA_INCREMENTAL_MERGE, seed merges new Census rows without deleting QIDs.
             self._seed_wikidata_table(state_code, task)
+
+            if _wikidata_incremental_merge() and not self._any_missing_wikidata_id_for_task(
+                state_code, task
+            ):
+                incremental_tasks_skipped_entirely += 1
+                logger.success(
+                    f"  Incremental merge: all {task} rows for {state_code} already have wikidata_id — skipping WDQS"
+                )
+                if checkpoint:
+                    checkpoint.mark_done(state_code, task)
+                task_sleep_s = float(os.getenv("WIKIDATA_TASK_SLEEP_SECONDS", "2") or "2")
+                if task_sleep_s > 0:
+                    await asyncio.sleep(task_sleep_s)
+                continue
 
             if task == 'state':
                 results = await self.query_state_info(state_code)
@@ -1282,10 +2564,20 @@ class JurisdictionsWikiDataLoader:
                 f"✓ Processed 0 rows for {state_code} this run — all {len(query_tasks)} task(s) "
                 f"skipped (checkpoint). Existing bronze *_wikidata rows are unchanged."
             )
+        elif (
+            incremental_tasks_skipped_entirely == len(query_tasks)
+            and incremental_tasks_skipped_entirely > 0
+            and not all_jurisdictions
+        ):
+            logger.success(
+                f"✓ Applied 0 new Wikidata updates for {state_code} — incremental merge: "
+                f"every {state_code} row for the requested task(s) already had wikidata_id, "
+                "so WDQS/API was not needed. Bronze *_wikidata is already filled for those rows."
+            )
         else:
             logger.success(
                 f"✓ Processed {len(all_jurisdictions)} jurisdiction row(s) for {state_code} this run "
-                f"(from Wikidata fetches; not the full table row count)"
+                f"(from Wikidata fetches merged into Postgres this pass; does not subtract prior runs)"
             )
         logger.info(f"  With YouTube channels: {with_youtube}")
         logger.info(f"  With official websites: {with_website}")
@@ -1329,7 +2621,8 @@ async def main():
         default=_env_truthy("WIKIDATA_LOAD_ALL_US_STATES"),
         help=(
             'Load every USPS code in STATE_MAP (50 states, DC, PR); '
-            'default from WIKIDATA_LOAD_ALL_US_STATES (1/true/yes/on)'
+            'default from WIKIDATA_LOAD_ALL_US_STATES (1/true/yes/on). '
+            'Takes precedence over --priority-states when both are enabled.'
         ),
     )
 
@@ -1337,7 +2630,11 @@ async def main():
         '--types',
         type=str,
         default=(
-            os.getenv("WIKIDATA_LOAD_TYPES", "city,county,state").strip() or 'city,county,state'
+            os.getenv(
+                "WIKIDATA_LOAD_TYPES",
+                "city,county,state,school_district",
+            ).strip()
+            or 'city,county,state,school_district'
         ),
         help='Comma-separated jurisdiction types (default: env WIKIDATA_LOAD_TYPES)',
     )
@@ -1353,12 +2650,19 @@ async def main():
         '--checkpoint-file',
         type=str,
         default=(
-            os.getenv("WIKIDATA_LOAD_CHECKPOINT_FILE", ".wikidata_checkpoint.json").strip()
-            or ".wikidata_checkpoint.json"
+            (os.getenv("WIKIDATA_LOAD_CHECKPOINT_FILE") or "").strip()
+            or str(
+                Path(
+                    (
+                        os.getenv("WIKIDATA_CACHE_DIR", "data/cache/wikidata").strip()
+                        or "data/cache/wikidata"
+                    )
+                ).joinpath("wikidata_jurisdictions_checkpoint.json")
+            )
         ),
         help=(
-            'Checkpoint file for resume (default: '
-            'env WIKIDATA_LOAD_CHECKPOINT_FILE or .wikidata_checkpoint.json)'
+            "Checkpoint JSON for resume (default: beside WDQS cache dir under "
+            "WIKIDATA_CACHE_DIR …/wikidata_jurisdictions_checkpoint.json)."
         ),
     )
 
@@ -1367,6 +2671,16 @@ async def main():
         action=BooleanOptionalAction,
         default=_env_truthy("WIKIDATA_LOAD_FORCE"),
         help='Ignore existing checkpoint and re-fetch (default: env WIKIDATA_LOAD_FORCE)',
+    )
+
+    parser.add_argument(
+        '--incremental-merge',
+        action=BooleanOptionalAction,
+        default=None,
+        help=(
+            'Preserve existing QIDs in bronze *_wikidata; only WDQS rows with NULL wikidata_id. '
+            'Unset = use env WIKIDATA_INCREMENTAL_MERGE only.'
+        ),
     )
 
     parser.add_argument(
@@ -1382,17 +2696,26 @@ async def main():
 
     args = parser.parse_args()
 
+    if args.incremental_merge is True:
+        os.environ["WIKIDATA_INCREMENTAL_MERGE"] = "1"
+    elif args.incremental_merge is False:
+        os.environ["WIKIDATA_INCREMENTAL_MERGE"] = "0"
+
     types = [t.strip().lower() for t in args.types.split(',') if t.strip()]
 
     checkpoint = None if args.force else CheckpointManager(args.checkpoint_file)
 
+    if args.retry_county_gap_states and "county" not in types:
+        logger.warning(
+            "County-gap mode (--retry-county-gap-states / WIKIDATA_LOAD_RETRY_COUNTY_GAPS) is on but "
+            f"'county' is not in --types / WIKIDATA_LOAD_TYPES (got {types!r}). Ignoring county-gap discovery "
+            "for this run. To scan Postgres for county gaps, include county in --types; to silence this, set "
+            "WIKIDATA_LOAD_RETRY_COUNTY_GAPS=0 or pass --no-retry-county-gap-states."
+        )
+        args.retry_county_gap_states = False
+
     # Parse states and types
     if args.retry_county_gap_states:
-        if "county" not in types:
-            raise SystemExit(
-                "--retry-county-gap-states requires 'county' in --types / WIKIDATA_LOAD_TYPES "
-                f"(got {types!r})."
-            )
         logger.info("Discovering USPS with incomplete county Wikidata enrichment (bronze vs *_wikidata)...")
         states = fetch_usps_county_wikidata_gaps(DATABASE_URL)
         if not states:
@@ -1404,10 +2727,10 @@ async def main():
             logger.info(f"Cleared checkpoint for county on {cleared} USPS so those tasks rerun.")
         elif args.force:
             logger.info("FORCE=1 — checkpoint ignored; querying WDQS again for gap states.")
-    elif args.priority_states:
-        states = PRIORITY_STATES
     elif args.all_us_states:
         states = sorted(STATE_MAP.keys())
+    elif args.priority_states:
+        states = PRIORITY_STATES
     else:
         states = [s.strip().upper() for s in args.states.split(',') if s.strip()]
 
@@ -1462,7 +2785,10 @@ async def main():
         logger.info("=" * 80)
         logger.info("FINAL SUMMARY")
         logger.info("=" * 80)
-        
+        logger.info(
+            "Bronze totals in Postgres across all USPS (not scoped to today's --states / gap list)."
+        )
+
         for row in cursor.fetchall():
             jtype, count, youtube, website = row
             logger.info(f"{jtype:15s}: {count:4d} total, {youtube:3d} with YouTube, {website:3d} with website")

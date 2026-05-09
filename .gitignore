@@ -63,6 +63,9 @@ bigquery-*.json
 logs/
 *.log
 
+# Wikidata loaders — runtime resume state (historical root default); prefer data/cache/wikidata/
+.wikidata_checkpoint.json
+
 # Jupyter Notebook
 .ipynb_checkpoints
 *.ipynb
@@ -70,6 +73,7 @@ logs/
 # Exception: Allow Colab tutorial notebooks (must have outputs cleared before commit)
 !scripts/datasources/youtube/load_youtube_events_colab.ipynb
 !scripts/datasources/youtube/download_audio_colab.ipynb
+!scripts/datasources/wikidata/load_jurisdictions_wikidata_colab.ipynb
 
 # Data files
 data/
