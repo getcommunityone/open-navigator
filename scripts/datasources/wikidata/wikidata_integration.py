@@ -103,7 +103,7 @@ class WikidataQuery:
         "school_district": "Q1244442",  # School district
     }
     
-    def __init__(self, cache_dir: str = "data/cache/wikidata", proxy_url: str | None = None):
+    def __init__(self, cache_dir: str = "data/cache/wikidata"):
         """Initialize Wikidata query client."""
         cache_dir = os.getenv("WIKIDATA_CACHE_DIR", cache_dir)
         self.cache_dir = Path(cache_dir)
@@ -117,22 +117,10 @@ class WikidataQuery:
         self._cache_ttl_s = int(os.getenv("WIKIDATA_CACHE_TTL_SECONDS", str(7 * 24 * 60 * 60)))
         self._last_request_monotonic: float | None = None
         self._request_lock = asyncio.Lock()
-        # Round-robin across attempts when WIKIDATA_PROXY_URLS lists multiple proxies.
-        # If `--proxy` is passed and differs from env list, it is tried first each cycle.
-        multi = os.getenv("WIKIDATA_PROXY_URLS")
-        explicit = (proxy_url or "").strip() or None
-        if multi:
-            urls = [x.strip() for x in multi.split(",") if x.strip()]
-            if explicit and explicit not in urls:
-                self._proxy_urls = [explicit, *urls]
-            else:
-                self._proxy_urls = urls if urls else [None]
-        else:
-            p = explicit or (os.getenv("CLOUDFLARE_PROXY_URL") or "").strip() or None
-            self._proxy_urls = [p] if p else [None]
-        # Each new SPARQL call starts from the next proxy in the ring (helps multi-proxy egress).
-        self._proxy_query_rr = 0
-        self._429_rotate_sleep_s = float(os.getenv("WIKIDATA_429_ROTATE_SLEEP", "2") or "2")
+        # Transient TCP failures to WDQS — backoff can run longer than HTTP error retries.
+        self._connect_retry_base_s = float(os.getenv("WIKIDATA_CONNECT_RETRY_BASE_SECONDS", "10") or "10")
+        self._connect_retry_max_s = float(os.getenv("WIKIDATA_CONNECT_RETRY_MAX_SECONDS", "300") or "300")
+        self._sparql_max_attempts = int(os.getenv("WIKIDATA_SPARQL_MAX_ATTEMPTS", "10") or "10")
         self._headers = {
             # WDQS is frequently fronted by anti-bot protections; use a browser-like UA.
             "User-Agent": (
@@ -142,12 +130,6 @@ class WikidataQuery:
             ),
             "Accept": "application/sparql-results+json",
         }
-
-    def _proxy_for_query_attempt(self, query_offset: int, attempt: int) -> str | None:
-        if not self._proxy_urls:
-            return None
-        n = len(self._proxy_urls)
-        return self._proxy_urls[(query_offset + attempt - 1) % n]
 
     def _cache_key(self, query: str) -> str:
         h = hashlib.sha256(query.encode("utf-8")).hexdigest()
@@ -173,12 +155,16 @@ class WikidataQuery:
         if age > self._cache_ttl_s:
             return None
         results = payload.get("results")
-        if isinstance(results, list):
-            logger.debug(f"Cache hit for SPARQL query (age={age:.0f}s)")
+        # Never reuse cached empty result sets — WDQS can intermittently return 200 + zero rows
+        # while overloaded; caching that poisons loads until TTL expires.
+        if isinstance(results, list) and len(results) > 0:
+            logger.info(f"SPARQL cache hit: {len(results)} row(s) (age={age:.0f}s)")
             return results
         return None
 
     def _write_cache(self, query: str, results: List[Dict]) -> None:
+        if not results:
+            return
         key = self._cache_key(query)
         path = self._cache_path(key)
         payload = {
@@ -208,10 +194,7 @@ class WikidataQuery:
         if cached is not None:
             return cached
 
-        # Throttle + pick starting proxy index for this query (round-robin across queries).
         async with self._request_lock:
-            query_proxy_off = self._proxy_query_rr
-            self._proxy_query_rr = (self._proxy_query_rr + 1) % max(1, len(self._proxy_urls))
             min_gap = self._throttle_s + max(0.0, self._burst_throttle_s)
             if min_gap > 0:
                 now = time.monotonic()
@@ -223,22 +206,13 @@ class WikidataQuery:
                         await asyncio.sleep(sleep_s)
                 self._last_request_monotonic = time.monotonic()
 
-        max_attempts = 8
+        max_attempts = max(3, self._sparql_max_attempts)
         base_delay_s = 2.0
-        nprox = len(self._proxy_urls)
 
         for attempt in range(1, max_attempts + 1):
-            proxy = self._proxy_for_query_attempt(query_proxy_off, attempt)
-            slot = (query_proxy_off + attempt - 1) % max(1, nprox)
-            if nprox > 1:
-                logger.debug(
-                    f"Wikidata attempt {attempt}/{max_attempts} proxy_slot={slot}/{nprox} "
-                    f"(query_offset={query_proxy_off})"
-                )
-
             try:
                 async with httpx.AsyncClient(
-                    timeout=180.0, proxy=proxy, headers=self._headers
+                    timeout=180.0, headers=self._headers
                 ) as client:
                     response = await client.get(
                         self.SPARQL_ENDPOINT,
@@ -259,7 +233,13 @@ class WikidataQuery:
                             result[key] = value.get("value")
                         results.append(result)
 
-                    logger.info(f"✅ Query returned {len(results)} results")
+                    if len(results) == 0:
+                        logger.warning(
+                            "WDQS returned HTTP 200 with zero bindings — treating as non-cacheable; "
+                            "if this persists, raise WIKIDATA_THROTTLE_SECONDS or retry later."
+                        )
+                    else:
+                        logger.info(f"✅ Query returned {len(results)} results")
                     self._write_cache(query, results)
                     # Ease backoff after successes.
                     self._burst_throttle_s = max(0.0, self._burst_throttle_s * 0.5)
@@ -272,22 +252,9 @@ class WikidataQuery:
                 status = e.response.status_code
 
                 if status == 429:
-                    # With multiple egress URLs, rotate through them with a short pause before obeying Retry-After.
-                    if nprox > 1 and attempt < nprox:
-                        jitter = random.uniform(0.0, 0.75)
+                    if attempt == 1:
                         logger.warning(
-                            f"Wikidata rate limited (429): rotating proxy ({attempt}→{attempt + 1} of {nprox}) "
-                            f"after {self._429_rotate_sleep_s + jitter:.1f}s (not applying Retry-After yet)"
-                        )
-                        await asyncio.sleep(self._429_rotate_sleep_s + jitter)
-                        self._burst_throttle_s = min(120.0, max(self._burst_throttle_s + 4.0, 8.0))
-                        continue
-
-                    if nprox <= 1 and attempt == 1:
-                        logger.warning(
-                            "Only one WDQS proxy is configured — IP does not rotate between requests. "
-                            "Use WIKIDATA_PROXY_URLS with multiple egress URLs or raise "
-                            "WIKIDATA_THROTTLE_SECONDS."
+                            "Wikidata rate limited (429). Raise WIKIDATA_THROTTLE_SECONDS if this persists."
                         )
 
                     retry_after = e.response.headers.get("Retry-After")
@@ -355,11 +322,56 @@ class WikidataQuery:
                 logger.error(f"Response: {e.response.text}")
                 raise
 
+            except httpx.ConnectError as e:
+                if attempt >= max_attempts:
+                    logger.error(f"Error executing SPARQL query: {e}")
+                    raise
+                wait_s = min(
+                    self._connect_retry_base_s * (2 ** (attempt - 1)),
+                    max(self._connect_retry_max_s, self._connect_retry_base_s),
+                )
+                wait_s += random.uniform(0.5, 2.5)
+                logger.warning(
+                    f"WDQS connect error ({type(e).__name__}): {e}. "
+                    f"Sleeping {wait_s:.1f}s then retrying (attempt {attempt}/{max_attempts})"
+                )
+                await asyncio.sleep(wait_s)
+                continue
+
+            except httpx.TimeoutException as e:
+                if attempt >= max_attempts:
+                    logger.error(f"Error executing SPARQL query: {e}")
+                    raise
+                wait_s = min(base_delay_s * (2 ** (attempt - 1)), 90.0) + random.uniform(0.5, 3.0)
+                logger.warning(
+                    f"SPARQL query timeout: {e}. Sleeping {wait_s:.1f}s then retrying "
+                    f"(attempt {attempt}/{max_attempts})"
+                )
+                await asyncio.sleep(wait_s)
+                continue
+
+            except httpx.RequestError as e:
+                # Any transport-level issue (DNS, TLS, socket reset, read error, etc.).
+                if attempt >= max_attempts:
+                    logger.error(f"Error executing SPARQL query: {type(e).__name__}: {e}")
+                    raise
+                wait_s = min(
+                    self._connect_retry_base_s * (2 ** (attempt - 1)),
+                    max(self._connect_retry_max_s, self._connect_retry_base_s),
+                )
+                wait_s += random.uniform(0.5, 2.5)
+                logger.warning(
+                    f"WDQS request error ({type(e).__name__}): {e}. "
+                    f"Sleeping {wait_s:.1f}s then retrying (attempt {attempt}/{max_attempts})"
+                )
+                await asyncio.sleep(wait_s)
+                continue
+
             except Exception as e:
                 if attempt < max_attempts:
-                    wait_s = min(base_delay_s * (2 ** (attempt - 1)), 30.0) + random.uniform(0.0, 1.0)
+                    wait_s = min(base_delay_s * (2 ** (attempt - 1)), 45.0) + random.uniform(0.0, 1.5)
                     logger.warning(
-                        f"SPARQL query error: {e}. Sleeping {wait_s:.1f}s then retrying "
+                        f"SPARQL query error ({type(e).__name__}): {e}. Sleeping {wait_s:.1f}s then retrying "
                         f"(attempt {attempt}/{max_attempts})"
                     )
                     await asyncio.sleep(wait_s)

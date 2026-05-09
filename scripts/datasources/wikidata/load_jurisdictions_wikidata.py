@@ -23,17 +23,19 @@ This serves as a validation source for channel quality and provides
 authoritative jurisdiction metadata.
 
 Usage:
-    # Load priority development states (AL, GA, IN, MA, WA, WI)
-    python scripts/datasources/wikidata/load_jurisdictions_wikidata.py --priority-states
+    From the repo root, use the project virtualenv (see README Quick Start: python3 -m venv .venv && pip install -r requirements.txt):
 
-    # All 50 states + DC (requires rows in bronze base tables per state where applicable)
-    python scripts/datasources/wikidata/load_jurisdictions_wikidata.py --all-us-states --types county
+    # Load priority development states (AL, GA, IN, MA, WA, WI)
+    .venv/bin/python scripts/datasources/wikidata/load_jurisdictions_wikidata.py --priority-states
+
+    # All 50 states + DC + PR (requires rows in bronze base tables per USPS where applicable)
+    .venv/bin/python scripts/datasources/wikidata/load_jurisdictions_wikidata.py --all-us-states --types county
 
     # Explicit list
-    python scripts/datasources/wikidata/load_jurisdictions_wikidata.py --states TX,NY,OH
+    .venv/bin/python scripts/datasources/wikidata/load_jurisdictions_wikidata.py --states TX,NY,OH
 
     # Load all jurisdiction types for one state
-    python scripts/datasources/wikidata/load_jurisdictions_wikidata.py --states AL --types city,county,school_district,state
+    .venv/bin/python scripts/datasources/wikidata/load_jurisdictions_wikidata.py --states AL --types city,county,school_district,state
 """
 import os
 import sys
@@ -43,8 +45,22 @@ import json
 from pathlib import Path
 from typing import List, Dict, Optional
 from datetime import datetime
-import psycopg2
-from psycopg2.extras import execute_batch
+
+try:
+    import psycopg2
+    from psycopg2.extras import execute_batch
+except ModuleNotFoundError as exc:
+    if exc.name != "psycopg2":
+        raise
+    _repo_root = Path(__file__).resolve().parents[3]
+    _venv_py = _repo_root / ".venv" / "bin" / "python"
+    sys.stderr.write(
+        "ModuleNotFoundError: psycopg2 — install deps in the project venv or use its interpreter.\n"
+        f"  Example: {_venv_py} {_repo_root / 'scripts/datasources/wikidata/load_jurisdictions_wikidata.py'} ...\n"
+        "  Or: source .venv/bin/activate   (then run python3 …)\n"
+        "  Setup: python3 -m venv .venv && .venv/bin/pip install -r requirements.txt\n"
+    )
+    sys.exit(1)
 from loguru import logger
 from dotenv import load_dotenv
 
@@ -107,6 +123,13 @@ STATE_MAP = {
     "OK": {"name": "Oklahoma", "q_code": "Q1649", "fips": "40"},
     "OR": {"name": "Oregon", "q_code": "Q824", "fips": "41"},
     "PA": {"name": "Pennsylvania", "q_code": "Q1400", "fips": "42"},
+    "PR": {
+        "name": "Puerto Rico",
+        "q_code": "Q1183",
+        "fips": "72",
+        # Census county-equivalents are municipios; WDQS typing is rarely plain Q47168 only.
+        "county_instance_types": ["Q47168", "Q263639"],
+    },
     "RI": {"name": "Rhode Island", "q_code": "Q1387", "fips": "44"},
     "SC": {"name": "South Carolina", "q_code": "Q1456", "fips": "45"},
     "SD": {"name": "South Dakota", "q_code": "Q1211", "fips": "46"},
@@ -135,6 +158,17 @@ def _county_type_values_clause(state_code: str) -> str:
     if county_type_q:
         return f"wd:{county_type_q} wd:Q47168"
     return "wd:Q47168"
+
+
+def _wikidata_task_has_join_keys(task: str, rows: List[Dict]) -> bool:
+    """True if parsed rows can run UPDATE ... WHERE geoid = ... (or state equivalent)."""
+    if not rows:
+        return False
+    if task == "state":
+        return bool(rows[0].get("geoid"))
+    if task in ("county", "city", "school_district"):
+        return any(r.get("geoid") for r in rows)
+    return False
 
 
 # WikiData Q-codes for jurisdiction types
@@ -181,9 +215,9 @@ class CheckpointManager:
 class JurisdictionsWikiDataLoader:
     """Load jurisdiction data from WikiData into PostgreSQL."""
     
-    def __init__(self, database_url: str, proxy_url: Optional[str] = None):
+    def __init__(self, database_url: str):
         self.conn = psycopg2.connect(database_url)
-        self.wikidata = WikidataQuery(proxy_url=proxy_url)
+        self.wikidata = WikidataQuery()
         
         # Create table
         self._create_table()
@@ -273,6 +307,19 @@ class JurisdictionsWikiDataLoader:
             }
         else:
             raise ValueError(f"Unknown update task: {task}")
+
+        before_ct = len(jurisdictions)
+        jurisdictions = [j for j in jurisdictions if j.get(key_field)]
+        if before_ct and not jurisdictions:
+            logger.warning(
+                f"No {task} rows with {key_field=}; skipping bronze UPDATE ({before_ct} raw rows lacked join key)"
+            )
+            return
+        if len(jurisdictions) < before_ct:
+            logger.warning(
+                f"Dropped {before_ct - len(jurisdictions)} {task} rows missing {key_field} "
+                f"(bulk UPDATE targets {len(jurisdictions)})"
+            )
 
         set_parts = [
             "wikidata_id = %(wikidata_id)s",
@@ -522,7 +569,7 @@ class JurisdictionsWikiDataLoader:
         query = f"""
         SELECT DISTINCT 
             ?item ?itemLabel ?website ?population ?area
-            ?facebook ?twitter ?youtube ?fips ?gnis ?nces ?image ?banner ?locatorMap
+            ?facebook ?twitter ?youtube ?fips ?fipsAlt ?gnis ?nces ?image ?banner ?locatorMap
             ?lat ?lon
             ?geonamesId
         WHERE {{
@@ -539,6 +586,8 @@ class JurisdictionsWikiDataLoader:
           OPTIONAL {{ ?item wdt:P2002 ?twitter . }}
           OPTIONAL {{ ?item wdt:P2397 ?youtube . }}
           OPTIONAL {{ ?item wdt:P882 ?fips . }}
+          # Some counties only have P3006 (FIPS 6-4 / Census county id); use as join fallback.
+          OPTIONAL {{ ?item wdt:P3006 ?fipsAlt . }}
           OPTIONAL {{ ?item wdt:P590 ?gnis . }}
           OPTIONAL {{ ?item wdt:P6545 ?nces . }}
           OPTIONAL {{ ?item wdt:P18 ?image . }}
@@ -548,13 +597,20 @@ class JurisdictionsWikiDataLoader:
           OPTIONAL {{ ?item p:P625/psv:P625/wikibase:geoLatitude ?lat . }}
           OPTIONAL {{ ?item p:P625/psv:P625/wikibase:geoLongitude ?lon . }}
 
+          # Need at least one Census-style county identifier for bronze geoid join.
+          FILTER(BOUND(?fips) || BOUND(?fipsAlt))
+
           SERVICE wikibase:label {{ bd:serviceParam wikibase:language "[AUTO_LANGUAGE],en". }}
         }}
         LIMIT 500
         """
         
         logger.info(f"Querying WikiData for counties in {state_name}...")
-        results = await self.wikidata.execute_sparql(query)
+        try:
+            results = await self.wikidata.execute_sparql(query)
+        except Exception as e:
+            logger.warning(f"County query failed: {type(e).__name__}: {e}")
+            results = []
         
         jurisdictions = self._parse_jurisdiction_results(results, state_code, state_name, 'county')
         logger.info(f"  Found {len(jurisdictions)} counties")
@@ -626,7 +682,11 @@ class JurisdictionsWikiDataLoader:
         """
         
         logger.info(f"Querying WikiData for school districts in {state_name}...")
-        results = await self.wikidata.execute_sparql(query)
+        try:
+            results = await self.wikidata.execute_sparql(query)
+        except Exception as e:
+            logger.warning(f"School district query failed: {type(e).__name__}: {e}")
+            results = []
         
         jurisdictions = self._parse_jurisdiction_results(results, state_code, state_name, 'school_district')
         logger.info(f"  Found {len(jurisdictions)} school districts")
@@ -647,8 +707,8 @@ class JurisdictionsWikiDataLoader:
             wikidata_id = result.get("item", "").split("/")[-1]
             youtube_channel_id = result.get("youtube")
             
-            # Extract US government IDs
-            fips_code = result.get("fips")
+            # Extract US government IDs (P882 preferred; P3006 is common fallback on WD)
+            fips_code = result.get("fips") or result.get("fipsAlt")
             if isinstance(fips_code, str):
                 fips_code = fips_code.replace("-", "")
             gnis_id = result.get("gnis")
@@ -674,12 +734,25 @@ class JurisdictionsWikiDataLoader:
                 if fc.isdigit():
                     if len(fc) == 5:
                         geoid = fc
+                    elif (
+                        state_fips
+                        and len(fc) == 4
+                        and fc.startswith(state_fips)
+                    ):
+                        # e.g. 05001 as "5001" (leading state digit clipped in export)
+                        geoid = f"{state_fips}{fc[len(state_fips) :].zfill(3)}"
                     elif state_fips and len(fc) <= 3:
                         geoid = f"{state_fips}{fc.zfill(3)}"
                     else:
                         geoid = fc
                 else:
                     geoid = fc
+                # Wikidata often exports a 4-digit value that is the full state+county FIPS missing one
+                # leading zero vs Census 5-char GEOID (e.g. "5001" → "05001"). Bronze stores 5-digit text.
+                if geoid:
+                    g = str(geoid).strip().replace("-", "")
+                    if g.isdigit() and len(g) == 4:
+                        geoid = g.zfill(5)
                 fips_code = geoid
                 jurisdiction_id = f"county_{geoid}" if geoid else None
                 jurisdiction_id_type = 'county_fips' if geoid else None
@@ -1115,8 +1188,22 @@ class JurisdictionsWikiDataLoader:
             if results:
                 self.insert_jurisdictions(results)
             if checkpoint:
-                checkpoint.mark_done(state_code, task)
-            # Avoid tripping WDQS/Cloudflare protections; this is distinct from per-request throttling
+                # Do not checkpoint empty WDQS *or* rows that never produced a joinable geoid/nces:
+                # otherwise resume skips while wikidata_id stays NULL.
+                if not results:
+                    cache_dir = Path(os.getenv("WIKIDATA_CACHE_DIR", "data/cache/wikidata")).resolve()
+                    logger.warning(
+                        f"  No Wikidata rows for {state_code} task={task}; not checkpointing — resume will retry. "
+                        f"If WDQS usually returns data here, delete `{cache_dir}` (empty responses were previously cached)."
+                    )
+                elif not _wikidata_task_has_join_keys(task, results):
+                    logger.warning(
+                        f"  Wikidata returned {len(results)} row(s) for {state_code} task={task} but none "
+                        f"had a usable join key (GEOID/FIPS/etc.); not checkpointing — resume will retry"
+                    )
+                else:
+                    checkpoint.mark_done(state_code, task)
+            # Avoid tripping WDQS overload protections; distinct from per-request throttling
             # because some tasks run large SPARQL queries back-to-back.
             task_sleep_s = float(os.getenv("WIKIDATA_TASK_SLEEP_SECONDS", "2") or "2")
             if task_sleep_s > 0:
@@ -1156,7 +1243,7 @@ async def main():
     parser.add_argument(
         '--all-us-states',
         action='store_true',
-        help='Load every USPS code in STATE_MAP (50 states plus DC)'
+        help='Load every USPS code in STATE_MAP (50 states, DC, and PR)'
     )
     
     parser.add_argument(
@@ -1164,13 +1251,6 @@ async def main():
         type=str,
         default='city,county,state',
         help='Comma-separated jurisdiction types (default: city,county,state)'
-    )
-
-    parser.add_argument(
-        '--proxy',
-        type=str,
-        default=os.getenv('CLOUDFLARE_PROXY_URL'),
-        help='Proxy URL for Wikidata requests (ignored if WIKIDATA_PROXY_URLS is set; else default env CLOUDFLARE_PROXY_URL)'
     )
 
     parser.add_argument(
@@ -1216,12 +1296,12 @@ async def main():
     checkpoint = None if args.force else CheckpointManager(args.checkpoint_file)
 
     # Load data
-    loader = JurisdictionsWikiDataLoader(DATABASE_URL, proxy_url=args.proxy)
+    loader = JurisdictionsWikiDataLoader(DATABASE_URL)
     
     try:
         for state in states:
             await loader.load_state(state, types, checkpoint)
-            # Be kind to WDQS / Cloudflare; pause between states as well.
+            # Be kind to WDQS; pause between states as well.
             if args.task_sleep_seconds and args.task_sleep_seconds > 0:
                 await asyncio.sleep(args.task_sleep_seconds)
         
