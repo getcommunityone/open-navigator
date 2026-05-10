@@ -328,6 +328,27 @@ sources:
           - name: ingestion_date
             description: "When record was loaded"
 
+      - name: bronze_jurisdictions_openstates
+        description: |
+          Snapshot of Open States ``opencivicdata_jurisdiction``. Loaded via
+          scripts/datasources/openstates/map_openstates_jurisdiction_ids.py (migration 014). Used by
+          ``int_jurisdictions`` to attach ``open_states_jurisdiction_id``.
+        columns:
+          - name: id
+            description: "OCD jurisdiction id string (primary key), e.g. ocd-jurisdiction/country:us/state:ma/government"
+          - name: name
+          - name: url
+          - name: classification
+          - name: division_id
+            description: "OCD division id (links to geography; GEOID-aligned numeric segments mapped in int_jurisdictions)"
+          - name: latest_bill_update
+          - name: latest_people_update
+          - name: created_at
+          - name: updated_at
+          - name: extras
+          - name: loaded_at
+            description: "When this row was copied into bronze"
+
       - name: bronze_jurisdictions_school_districts
         description: "Census Gazetteer unified school districts"
         columns:

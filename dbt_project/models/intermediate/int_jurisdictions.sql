@@ -7,12 +7,12 @@
 
 WITH
 
--- Nearest ZCTA centroid for all non-county jurisdictions.
--- Uses a 1-degree bounding box to avoid a full cross join, then picks the
--- closest centroid by Euclidean distance on lat/lon.
--- Skip with: dbt run --vars '{"skip_zip_mapping": true}'
+-- Nearest ZCTA centroid for non-county jurisdictions (expensive). Off by default; `zip` stays NULL.
+-- Enable with project var `include_nearest_postal_zip: true` or:
+--   dbt run --vars '{"include_nearest_postal_zip": true}'
+-- Uses a 1-degree bounding box, then nearest centroid by Euclidean distance on lat/lon.
 jurisdiction_zip AS (
-{% if var('skip_zip_mapping', false) %}
+{% if not var('include_nearest_postal_zip', false) %}
     SELECT NULL::VARCHAR(10) AS geoid, NULL::VARCHAR(5) AS zip WHERE false
 {% else %}
     SELECT DISTINCT ON (j.geoid)
@@ -94,6 +94,155 @@ state_ref AS (
         ('PR', '72', 'Puerto Rico'),
         ('VI', '78', 'U.S. Virgin Islands')
     ) AS t(state_code, state_fips, state_name)
+),
+
+/*
+Open States: attach OCD row when division_id has numeric place/county/school segments.
+County: supports 3-digit in-state FIPS (057) or full 5-digit county GEOID (01057). Slug counties
+(county:name) are still unmapped here.
+*/
+openstates_jurisdictions_raw AS (
+    SELECT
+        j.id AS open_states_jurisdiction_id,
+        j.name AS openstates_name,
+        j.classification AS openstates_classification,
+        j.division_id,
+        -- Prefer division_id when present; otherwise parse state from jurisdiction id.
+        UPPER(COALESCE(
+            (regexp_match(j.division_id, 'state:([a-z]{2})'))[1],
+            (regexp_match(j.id, 'ocd-jurisdiction/country:us/state:([a-z]{2})'))[1]
+        )) AS state_usps,
+        (regexp_match(j.id, '/place:([^/]+)/'))[1]  AS place_slug,
+        (regexp_match(j.id, '/county:([^/]+)/'))[1] AS county_slug
+    FROM {{ source('bronze', 'bronze_jurisdictions_openstates') }} j
+    WHERE regexp_match(j.id, 'ocd-jurisdiction/country:us/state:([a-z]{2})') IS NOT NULL
+),
+
+openstates_with_geoid AS (
+    SELECT
+        r.open_states_jurisdiction_id,
+        r.openstates_name,
+        r.openstates_classification,
+        r.division_id,
+        r.state_usps,
+        sf.state_fips,
+        CASE
+            WHEN r.division_id ~ 'place:[0-9]+' THEN 'municipality'
+            WHEN r.division_id ~ 'county:[0-9]+' THEN 'county'
+            WHEN r.division_id ~ '(?:school_districts|school_district):[0-9]+' THEN 'school_district'
+            ELSE NULL
+        END AS map_jurisdiction_type,
+        CASE
+            WHEN r.division_id ~ 'place:[0-9]+'
+                THEN sf.state_fips || LPAD((regexp_match(r.division_id, 'place:([0-9]+)'))[1], 5, '0')
+            -- County: intra-state FIPS is 3 digits (LPAD OK). Open States sometimes encodes full 5-digit
+            -- county GEOID after county: — LPAD(..., 3) would truncate (e.g. 01057 → 010) and break joins.
+            WHEN r.division_id ~ 'county:[0-9]+'
+                THEN CASE
+                    WHEN LENGTH((regexp_match(r.division_id, 'county:([0-9]+)'))[1]) >= 5
+                        THEN LEFT((regexp_match(r.division_id, 'county:([0-9]+)'))[1], 5)
+                    ELSE sf.state_fips || LPAD((regexp_match(r.division_id, 'county:([0-9]+)'))[1], 3, '0')
+                END
+            WHEN r.division_id ~ '(?:school_districts|school_district):[0-9]+'
+                THEN sf.state_fips || LPAD(
+                    (regexp_match(
+                        r.division_id,
+                        '(?:school_districts|school_district):([0-9]+)'
+                    ))[1],
+                    5,
+                    '0'
+                )
+            ELSE NULL
+        END AS census_geoid
+    FROM openstates_jurisdictions_raw r
+    INNER JOIN state_ref sf ON r.state_usps = sf.state_code
+    WHERE CASE
+            WHEN r.division_id ~ 'place:[0-9]+' THEN TRUE
+            WHEN r.division_id ~ 'county:[0-9]+' THEN TRUE
+            WHEN r.division_id ~ '(?:school_districts|school_district):[0-9]+' THEN TRUE
+            ELSE FALSE
+        END
+),
+
+-- Slug-based fallback mapping: Open States uses place/county slugs (e.g. place:lexington),
+-- while Census bronze tables use numeric GEOIDs. We join by normalized name within state.
+openstates_with_slug_geoid AS (
+    SELECT
+        r.open_states_jurisdiction_id,
+        r.openstates_name,
+        r.openstates_classification,
+        r.division_id,
+        r.state_usps,
+        CASE
+            WHEN r.place_slug IS NOT NULL AND r.openstates_classification = 'municipality' THEN 'municipality'
+            WHEN r.county_slug IS NOT NULL THEN 'county'
+            ELSE NULL
+        END AS map_jurisdiction_type,
+        COALESCE(m.geoid, c.geoid) AS census_geoid
+    FROM openstates_jurisdictions_raw r
+    LEFT JOIN {{ source('bronze', 'bronze_jurisdictions_municipalities') }} m
+        ON r.openstates_classification = 'municipality'
+        AND r.place_slug IS NOT NULL
+        AND m.usps = r.state_usps
+        AND regexp_replace(
+                regexp_replace(lower(m.name), ' (city|town|village|borough|cdp)$', '', 'g'),
+                '[^a-z0-9]+',
+                '',
+                'g'
+            )
+            = regexp_replace(
+                regexp_replace(replace(lower(r.place_slug), '_', ' '), ' (city|town|village|borough|cdp)$', '', 'g'),
+                '[^a-z0-9]+',
+                '',
+                'g'
+            )
+    LEFT JOIN {{ source('bronze', 'bronze_jurisdictions_counties') }} c
+        ON r.county_slug IS NOT NULL
+        AND c.usps = r.state_usps
+        AND regexp_replace(
+                regexp_replace(lower(c.name), ' county$', '', 'g'),
+                '[^a-z0-9]+',
+                '',
+                'g'
+            )
+            = regexp_replace(
+                regexp_replace(replace(lower(r.county_slug), '_', ' '), ' county$', '', 'g'),
+                '[^a-z0-9]+',
+                '',
+                'g'
+            )
+    WHERE (r.place_slug IS NOT NULL OR r.county_slug IS NOT NULL)
+),
+
+openstates_census_map AS (
+    SELECT DISTINCT ON (map_jurisdiction_type, census_geoid, state_usps)
+        open_states_jurisdiction_id,
+        openstates_name,
+        openstates_classification,
+        map_jurisdiction_type,
+        census_geoid,
+        state_usps
+    FROM (
+        SELECT
+            open_states_jurisdiction_id,
+            openstates_name,
+            openstates_classification,
+            map_jurisdiction_type,
+            census_geoid,
+            state_usps
+        FROM openstates_with_geoid
+        UNION ALL
+        SELECT
+            open_states_jurisdiction_id,
+            openstates_name,
+            openstates_classification,
+            map_jurisdiction_type,
+            census_geoid,
+            state_usps
+        FROM openstates_with_slug_geoid
+    ) x
+    WHERE map_jurisdiction_type IS NOT NULL AND census_geoid IS NOT NULL
+    ORDER BY map_jurisdiction_type, census_geoid, state_usps, open_states_jurisdiction_id
 ),
 
 -- ── Counties ────────────────────────────────────────────────────────────────
@@ -206,6 +355,10 @@ SELECT
     -- all four jurisdiction types (municipality and school_district share 7-digit
     -- GEOID namespace and DO have collisions in practice)
     u.jurisdiction_type || '_' || u.geoid               AS jurisdiction_id,
+    osc.open_states_jurisdiction_id,
+    osc.open_states_jurisdiction_id                     AS openstates_id,
+    osc.openstates_name,
+    osc.openstates_classification,
     u.geoid,
     u.fips_code,
     u.state_fips_code,
@@ -226,3 +379,7 @@ SELECT
     CURRENT_TIMESTAMP                                   AS transformed_at
 FROM unioned u
 LEFT JOIN state_ref s ON u.state_code = s.state_code
+LEFT JOIN openstates_census_map osc
+    ON osc.map_jurisdiction_type = u.jurisdiction_type
+    AND osc.census_geoid = u.geoid
+    AND osc.state_usps = u.state_code

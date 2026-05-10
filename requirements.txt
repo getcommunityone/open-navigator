@@ -42,6 +42,7 @@ databricks-sdk==0.18.0
 # Spark + Delta Lake live in requirements-spark.txt (optional, requires Java).
 # Install with: pip install -r requirements-spark.txt
 pandas==2.1.4
+pyreadr>=0.5.0
 polars==0.20.2
 pyarrow==14.0.2
 duckdb>=0.9.0

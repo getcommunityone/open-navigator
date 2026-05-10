@@ -11,6 +11,16 @@ models:
     columns:
       - name: jurisdiction_id
         description: "Type-prefixed GEOID primary key (e.g. municipality_0601234)"
+      - name: open_states_jurisdiction_id
+        description: |
+          Same as ``openstates_id`` — OCD jurisdiction id when the Open States ``division_id`` matches a
+          Census GEOID via numeric place/county/school segment. NULL for most rows (slug divisions, townships, no match).
+      - name: openstates_id
+        description: "Alias of open_states_jurisdiction_id (Open States opencivicdata_jurisdiction.id)"
+      - name: openstates_name
+        description: "Open States jurisdiction name when the GEOID join matches; NULL otherwise"
+      - name: openstates_classification
+        description: "Open States jurisdiction classification (e.g. government) when matched; NULL otherwise"
       - name: geoid
         description: "Padded Census GEOID — 5 chars (county), 7 chars (municipality/school_district), 10 chars (township)"
         tests:
@@ -56,7 +66,9 @@ models:
       - name: longitude
         description: "Internal point longitude"
       - name: zip
-        description: "Nearest ZCTA (5-digit) for non-county jurisdictions (when available)"
+        description: >
+          Nearest ZCTA (5-digit) for non-county jurisdictions — only populated when project var
+          `include_nearest_postal_zip` is true (otherwise NULL; default false for faster builds).
       - name: ingestion_date
         description: "When the bronze record was loaded"
       - name: transformed_at

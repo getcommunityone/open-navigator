@@ -6,6 +6,25 @@ sidebar_position: 10
 
 Complete guide to using the Open States PostgreSQL dump downloaded from Plural Policy.
 
+## Scope & limitations (important)
+
+Open States focuses on **state legislative data** — lawmakers' voting records, committee assignments, bill status, sponsors, and bill text — aggregated into a unified, machine-readable format across **all 50 states**, plus **Washington, D.C.** and **Puerto Rico**.
+
+It **does not** cover local government offices or elections. In particular, you should **not** expect Open States to have data on:
+
+- **County commissioners**
+- **County elections**
+- **School boards**
+- **Municipal offices**
+
+Open States was built specifically for **state legislatures**. The project was adopted by **Plural Policy** in 2021 and is now accessible via [Plural Policy](https://www.pluralpolicy.com/), which adds AI-powered tracking on top of the original dataset while staying in the state-legislative lane.
+
+For **county/local ballot information**, good starting points are:
+
+- [Ballotpedia](https://ballotpedia.org/)
+- [VOTE411](https://www.vote411.org/)
+- Directly from **county election administrator** websites
+
 ## � Quick Start (Complete Setup)
 
 **Prerequisites:**

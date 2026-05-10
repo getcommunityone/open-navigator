@@ -1,0 +1,8 @@
+# dbt pulls protobuf 6.x and pathspec 0.12.x — conflicts with grpc/google-generativeai, black, mypy
+# in the main .venv. Do NOT pip install this file into .venv alongside requirements.txt.
+#
+# Recommended:
+#   ./scripts/datasources/openstates/setup_dbt_venv.sh
+#
+# Uses: .venv-dbt/bin/dbt (run_openstates_jurisdiction_mapping.sh prefers it).
+dbt-postgres>=1.7,<2

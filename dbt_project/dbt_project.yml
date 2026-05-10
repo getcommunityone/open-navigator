@@ -74,3 +74,6 @@ vars:
   # Datasources
   authoritative_sources: ['openstates_api', 'irs_bmf', 'irs_990']
   ai_sources: ['gemini_ai_extraction']
+
+  # int_jurisdictions: nearest ZCTA → zip column (slow). Default false keeps zip NULL.
+  include_nearest_postal_zip: false

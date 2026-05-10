@@ -237,6 +237,37 @@ CREATE TABLE precinct_results (
 
 ---
 
+## 🏙️ Local office elections (best sources)
+
+If your goal is **local offices** (mayors, city councils, county executives/legislatures, sheriffs, prosecutors, school boards), the most important distinction is:
+
+- **Historical results** (what happened) vs
+- **Upcoming/current ballot content** (what will be on the next ballot)
+
+There is no single free source that covers **upcoming/current ballot content** for all local jurisdictions at national scale. For truly current candidate/ballot measure data you typically either **pay** (commercial aggregators) or scrape **individual county election administrator** websites.
+
+### 1. American Local Government Elections Database (ALGEE) ⭐ **Best single free source**
+
+A publicly available dataset covering **57,139 contests** and **77,853 unique candidates** across **1,747** cities, counties, prosecutor districts, and school districts (1989–2021).
+
+**Offices covered:** mayors, city councils, county executives, county legislatures, sheriffs, prosecutors, school boards.  
+**Candidate attributes:** partisanship, gender, race/ethnicity, incumbency status.  
+**Publication:** Nature / Scientific Data (downloadable for free).
+
+**Reference:** [Nature / Scientific Data paper](https://www.nature.com/articles/s41597-023-02792-x)
+
+**Dataset / project page:** [OSF overview](https://osf.io/mv5e6/overview)
+
+### 2. Ballotpedia — School Board Elections CSV (2018–2024)
+
+Candidate-level dataset for school board election results from the **100 largest cities** and the **top 200 districts by enrollment**, available as **CSV** via Ballotpedia research publications (free download).
+
+### 3. Our Campaigns (ourcampaigns.com) — scrapeable, not clean bulk
+
+Volunteer-contributed election results for many local county and municipal offices, typically in HTML tables and often with source links.
+
+**Trade-off:** broad coverage, but not a standardized bulk download — best treated as a scrape target.
+
 ## 🎯 Fluoridation Vote Tracking (Use Case)
 
 **Goal:** Track all water fluoridation ballot measures across the United States
