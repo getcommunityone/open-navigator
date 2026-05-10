@@ -10,7 +10,7 @@ County Explorer profiles (County Seat, GDP, contact HTML, etc.): fetched via
 https://ce.naco.org/get/county?fips=##### — same payload as ``county_explorer_url``
 (https://ce.naco.org/?county_info=#####) — merged into each county JSON by default.
 
-Run ``load_naco_to_bronze.py`` afterward (bronze reads flattened fields + ``raw_json``).
+Run ``load_naco_to_bronze.py`` afterward → ``bronze.bronze_jurisdictions_counties_naco``.
 
 Data Source: https://ce.naco.org/
 Organization: National Association of Counties

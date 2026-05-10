@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Scrape NACo for all states in scraper's ALL_STATES list (50), then load today's caches into bronze.
+# Scrape NACo for all states in scraper's ALL_STATES list (50), then load into bronze_jurisdictions_*_naco tables.
 #
 # First run (full ~3k counties × /get/county — slow, be polite with default delays):
 #   ./scripts/datasources/naco/run_naco_all_states.sh

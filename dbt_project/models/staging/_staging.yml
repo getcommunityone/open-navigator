@@ -302,6 +302,25 @@ sources:
           - name: ingestion_date
             description: "When record was loaded"
 
+      - name: bronze_jurisdictions_counties_naco
+        description: "NACo County Explorer county enrichment (websites, seats, demographics JSON). Loaded by scripts/datasources/naco/load_naco_to_bronze.py."
+        columns:
+          - name: naco_id
+          - name: county_name
+          - name: state_code
+          - name: fips_code
+          - name: website
+          - name: raw_json
+
+      - name: bronze_jurisdictions_officials_naco
+        description: "NACo county officials (when scrape collects them). Companion to bronze_jurisdictions_counties_naco."
+        columns:
+          - name: state_code
+          - name: county_name
+          - name: fips_code
+          - name: official_name
+          - name: raw_json
+
       - name: bronze_jurisdictions_municipalities
         description: "Census Gazetteer place-level jurisdictions (cities, towns, villages, boroughs, CDPs)"
         columns:

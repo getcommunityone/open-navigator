@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Scrape NACo County Explorer → data/cache/naco, then load bronze.bronze_naco_*.
+# Scrape NACo County Explorer → data/cache/naco, then bronze_jurisdictions_*_naco (see load_naco_to_bronze.py).
 #
 # Usage (from repo root, or any cwd — script cds to open-navigator root):
 #   ./scripts/datasources/naco/run_naco_pipeline.sh

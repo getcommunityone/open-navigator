@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Load cached NACo county data into bronze.bronze_naco_* tables.
+Load cached NACo county data into bronze jurisdictions NACo tables.
 
 Run scrape_naco_counties.py first to populate the cache.
 
@@ -8,8 +8,10 @@ Database URL resolution matches the rest of the repo: NEON_DATABASE_URL_DEV,
 NEON_DATABASE_URL, OPEN_NAVIGATOR_DATABASE_URL — see scripts/database/target_database_url.py.
 
 Tables created:
-    bronze.bronze_naco_counties   — one row per county
-    bronze.bronze_naco_officials  — one row per county official
+    bronze.bronze_jurisdictions_counties_naco   — one row per county (NACo County Explorer)
+    bronze.bronze_jurisdictions_officials_naco  — one row per county official
+
+Legacy rename: migrations/015_rename_bronze_naco_jurisdictions.sql from bronze_naco_*.
 
 Usage:
     ./.venv/bin/python scripts/datasources/naco/load_naco_to_bronze.py
@@ -90,10 +92,13 @@ def _database_url_source_label() -> str:
 
 CACHE_DIR = Path("data/cache/naco")
 
-CREATE_COUNTIES_SQL = """
+BRONZE_NACO_COUNTIES = "bronze.bronze_jurisdictions_counties_naco"
+BRONZE_NACO_OFFICIALS = "bronze.bronze_jurisdictions_officials_naco"
+
+CREATE_COUNTIES_SQL = f"""
     CREATE SCHEMA IF NOT EXISTS bronze;
 
-    CREATE TABLE IF NOT EXISTS bronze.bronze_naco_counties (
+    CREATE TABLE IF NOT EXISTS {BRONZE_NACO_COUNTIES} (
         naco_id             VARCHAR(50),
         county_name         VARCHAR(255),
         state_code          VARCHAR(2),
@@ -109,12 +114,12 @@ CREATE_COUNTIES_SQL = """
         PRIMARY KEY (state_code, county_name)
     );
 
-    CREATE INDEX IF NOT EXISTS idx_bnc_state      ON bronze.bronze_naco_counties(state_code);
-    CREATE INDEX IF NOT EXISTS idx_bnc_fips       ON bronze.bronze_naco_counties(fips_code);
+    CREATE INDEX IF NOT EXISTS idx_bjcnc_state ON {BRONZE_NACO_COUNTIES}(state_code);
+    CREATE INDEX IF NOT EXISTS idx_bjcnc_fips  ON {BRONZE_NACO_COUNTIES}(fips_code);
 """
 
-CREATE_OFFICIALS_SQL = """
-    CREATE TABLE IF NOT EXISTS bronze.bronze_naco_officials (
+CREATE_OFFICIALS_SQL = f"""
+    CREATE TABLE IF NOT EXISTS {BRONZE_NACO_OFFICIALS} (
         id                  SERIAL PRIMARY KEY,
         state_code          VARCHAR(2),
         county_name         VARCHAR(255),
@@ -127,13 +132,13 @@ CREATE_OFFICIALS_SQL = """
         ingestion_date      TIMESTAMP DEFAULT NOW()
     );
 
-    CREATE INDEX IF NOT EXISTS idx_bno_state      ON bronze.bronze_naco_officials(state_code);
-    CREATE INDEX IF NOT EXISTS idx_bno_fips       ON bronze.bronze_naco_officials(fips_code);
-    CREATE INDEX IF NOT EXISTS idx_bno_county     ON bronze.bronze_naco_officials(state_code, county_name);
+    CREATE INDEX IF NOT EXISTS idx_bjcno_state  ON {BRONZE_NACO_OFFICIALS}(state_code);
+    CREATE INDEX IF NOT EXISTS idx_bjcno_fips   ON {BRONZE_NACO_OFFICIALS}(fips_code);
+    CREATE INDEX IF NOT EXISTS idx_bjcno_county ON {BRONZE_NACO_OFFICIALS}(state_code, county_name);
 """
 
-UPSERT_COUNTY_SQL = """
-    INSERT INTO bronze.bronze_naco_counties
+UPSERT_COUNTY_SQL = f"""
+    INSERT INTO {BRONZE_NACO_COUNTIES}
         (naco_id, county_name, state_code, fips_code, website, phone, email,
          population, area_sq_miles, county_seat, raw_json)
     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
@@ -150,8 +155,8 @@ UPSERT_COUNTY_SQL = """
         ingestion_date = NOW()
 """
 
-INSERT_OFFICIAL_SQL = """
-    INSERT INTO bronze.bronze_naco_officials
+INSERT_OFFICIAL_SQL = f"""
+    INSERT INTO {BRONZE_NACO_OFFICIALS}
         (state_code, county_name, fips_code, official_name, title, email, phone, raw_json)
     VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
 """
@@ -341,13 +346,18 @@ def load_to_postgres(
     conn.commit()
 
     if truncate:
-        cur.execute("SELECT COUNT(*) FROM bronze.bronze_naco_counties")
+        cur.execute(f"SELECT COUNT(*) FROM {BRONZE_NACO_COUNTIES}")
         before_c = cur.fetchone()[0]
-        cur.execute("SELECT COUNT(*) FROM bronze.bronze_naco_officials")
+        cur.execute(f"SELECT COUNT(*) FROM {BRONZE_NACO_OFFICIALS}")
         before_o = cur.fetchone()[0]
-        cur.execute("TRUNCATE TABLE bronze.bronze_naco_counties, bronze.bronze_naco_officials")
+        cur.execute(
+            f"TRUNCATE TABLE {BRONZE_NACO_COUNTIES}, {BRONZE_NACO_OFFICIALS}"
+        )
         conn.commit()
-        logger.info(f"Truncated bronze_naco_counties ({before_c:,} rows) and bronze_naco_officials ({before_o:,} rows)")
+        logger.info(
+            f"Truncated {BRONZE_NACO_COUNTIES} ({before_c:,} rows) and "
+            f"{BRONZE_NACO_OFFICIALS} ({before_o:,} rows)"
+        )
 
     stats = {"counties_parsed": len(county_records), "officials_parsed": len(official_records)}
 
@@ -363,9 +373,12 @@ def load_to_postgres(
     if county_records:
         execute_batch(cur, UPSERT_COUNTY_SQL, county_records, page_size=2000)
         conn.commit()
-        cur.execute("SELECT COUNT(*) FROM bronze.bronze_naco_counties")
+        cur.execute(f"SELECT COUNT(*) FROM {BRONZE_NACO_COUNTIES}")
         total_c = cur.fetchone()[0]
-        logger.success(f"Upserted {len(county_records):,} counties → bronze.bronze_naco_counties (table total: {total_c:,})")
+        logger.success(
+            f"Upserted {len(county_records):,} counties → {BRONZE_NACO_COUNTIES} "
+            f"(table total: {total_c:,})"
+        )
     else:
         logger.warning("No county records to load.")
         total_c = 0
@@ -373,9 +386,12 @@ def load_to_postgres(
     if official_records:
         execute_batch(cur, INSERT_OFFICIAL_SQL, official_records, page_size=2000)
         conn.commit()
-        cur.execute("SELECT COUNT(*) FROM bronze.bronze_naco_officials")
+        cur.execute(f"SELECT COUNT(*) FROM {BRONZE_NACO_OFFICIALS}")
         total_o = cur.fetchone()[0]
-        logger.success(f"Inserted {len(official_records):,} officials → bronze.bronze_naco_officials (table total: {total_o:,})")
+        logger.success(
+            f"Inserted {len(official_records):,} officials → {BRONZE_NACO_OFFICIALS} "
+            f"(table total: {total_o:,})"
+        )
     else:
         logger.info("No official records found (run scrape with --details to collect them).")
         total_o = 0
@@ -388,7 +404,7 @@ def load_to_postgres(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Load cached NACo county data into bronze.bronze_naco_* tables"
+        description="Load cached NACo county data into bronze_jurisdictions_*_naco tables"
     )
     parser.add_argument("--states", type=str, help="Comma-separated state codes to load (e.g., AL,GA,MA)")
     parser.add_argument("--date", type=str, help="Cache date to load (YYYYMMDD). Default: today.")
@@ -397,7 +413,9 @@ def main():
     args = parser.parse_args()
 
     logger.info("=" * 70)
-    logger.info("NACo cache → bronze.bronze_naco_counties / bronze_naco_officials")
+    logger.info(
+        f"NACo cache → {BRONZE_NACO_COUNTIES} / {BRONZE_NACO_OFFICIALS.split('.')[-1]}"
+    )
     logger.info("=" * 70)
     logger.info(
         f"Database: {_database_url_source_label()} → {DATABASE_URL.split('@')[-1]}"
