@@ -408,6 +408,68 @@ sources:
           - name: wikidata_fetched_at
             description: "When Wikidata fields were last fetched"
 
+      - name: bronze_jurisdictions_states_scraped
+        description: |
+          State-level discovery output from ``scripts/discovery/jurisdiction_discovery_pipeline.py``
+          (GSA bulk and/or deep scrape). DDL: ``scripts/discovery/sql/bronze_jurisdictions_scraped.sql`` (Neon 009).
+        columns:
+          - name: geoid
+            description: "2-digit state GEOID (Census) — primary key"
+          - name: usps
+          - name: discovered_at
+          - name: homepage_url
+          - name: homepage_final_url
+          - name: gsa_matched_domain
+          - name: discovery_source
+          - name: status
+          - name: completeness_score
+          - name: payload
+            description: "JSONB — websites, YouTube, platforms, social, etc."
+
+      - name: bronze_jurisdictions_municipalities_scraped
+        description: |
+          Place/municipality discovery keyed by Census place GEOID. Populated by
+          ``jurisdiction_discovery_pipeline`` (not Wikidata loaders).
+        columns:
+          - name: geoid
+          - name: usps
+          - name: discovered_at
+          - name: homepage_url
+          - name: homepage_final_url
+          - name: gsa_matched_domain
+          - name: discovery_source
+          - name: status
+          - name: completeness_score
+          - name: payload
+
+      - name: bronze_jurisdictions_counties_scraped
+        description: "County-level discovery (5-digit county GEOID) from jurisdiction discovery pipeline."
+        columns:
+          - name: geoid
+          - name: usps
+          - name: discovered_at
+          - name: homepage_url
+          - name: homepage_final_url
+          - name: gsa_matched_domain
+          - name: discovery_source
+          - name: status
+          - name: completeness_score
+          - name: payload
+
+      - name: bronze_jurisdictions_school_districts_scraped
+        description: "School district discovery (7-digit GEOID) from jurisdiction discovery pipeline."
+        columns:
+          - name: geoid
+          - name: usps
+          - name: discovered_at
+          - name: homepage_url
+          - name: homepage_final_url
+          - name: gsa_matched_domain
+          - name: discovery_source
+          - name: status
+          - name: completeness_score
+          - name: payload
+
       - name: bronze_jurisdictions_townships
         description: "Census Gazetteer county subdivision (township/minor civil division) jurisdictions"
         columns:

@@ -151,12 +151,15 @@ class WikidataQuery:
         # After 429 / overload, temporarily add extra spacing (seconds, decays per successful request).
         self._burst_throttle_s = 0.0
         # WDQS often sends Retry-After: 120–1000+; cap keeps bulk loads moving. ``0`` = honor full Retry-After (can stall ~17m).
-        self._retry_after_cap_s = float(os.getenv("WIKIDATA_RETRY_AFTER_MAX_SECONDS", "120") or "120")
-        if self._retry_after_cap_s <= 0:
+        _cap_raw = float(os.getenv("WIKIDATA_RETRY_AFTER_MAX_SECONDS", "120") or "120")
+        if _cap_raw <= 0:
             logger.warning(
-                "WIKIDATA_RETRY_AFTER_MAX_SECONDS<=0 — 429 Retry-After is NOT capped (WDQS often sends ~1000s). "
-                "For unattended loads use 90–180, or raise WIKIDATA_THROTTLE_SECONDS / WIKIDATA_HYBRID_ENRICH / a proxy."
+                "WIKIDATA_RETRY_AFTER_MAX_SECONDS<=0 is invalid for bulk discovery (WDQS often sends Retry-After ~1000s); "
+                "using 120s cap. Set WIKIDATA_RETRY_AFTER_MAX_SECONDS=120 (or 90–180) explicitly if you need a different cap."
             )
+            self._retry_after_cap_s = 120.0
+        else:
+            self._retry_after_cap_s = _cap_raw
         self._cache_ttl_s = int(os.getenv("WIKIDATA_CACHE_TTL_SECONDS", str(7 * 24 * 60 * 60)))
         self._last_request_monotonic: float | None = None
         self._request_lock = asyncio.Lock()
@@ -674,6 +677,7 @@ class WikidataQuery:
 
         One in-process request at a time plus rolling budgets approximates Wikimedia limits
         (~60s query-time / minute + burst, and error-rate caps per IP + User-Agent) to avoid 502 storms.
+        The retry loop runs **outside** the WDQS semaphore so 429/5xx backoff sleeps do not block other tasks.
         """
         logger.info("Executing SPARQL query…")
         logger.debug(f"Query: {query}")
@@ -691,29 +695,29 @@ class WikidataQuery:
                 "using application/x-www-form-urlencoded POST"
             )
 
-        async with self._wdqs_semaphore:
-            async with self._request_lock:
-                now = time.monotonic()
-                if self._cooldown_until_monotonic > now:
-                    sleep_s = self._cooldown_until_monotonic - now
-                    logger.warning(f"WDQS cooldown active: sleeping {sleep_s:.1f}s before next request")
-                    await asyncio.sleep(sleep_s)
-
-                min_gap = self._throttle_s + max(0.0, self._burst_throttle_s)
-                if min_gap > 0:
-                    now = time.monotonic()
-                    if self._last_request_monotonic is not None:
-                        elapsed = now - self._last_request_monotonic
-                        if elapsed < min_gap:
-                            sleep_s = min_gap - elapsed
-                            logger.debug(f"Throttling Wikidata request: sleeping {sleep_s:.2f}s")
+        for attempt in range(1, max_attempts + 1):
+            await self._await_wdqs_compute_budget_room()
+            user_agent = self._pick_user_agent()
+            try:
+                async with self._wdqs_semaphore:
+                    async with self._request_lock:
+                        now = time.monotonic()
+                        if self._cooldown_until_monotonic > now:
+                            sleep_s = self._cooldown_until_monotonic - now
+                            logger.warning(f"WDQS cooldown active: sleeping {sleep_s:.1f}s before next request")
                             await asyncio.sleep(sleep_s)
-                    self._last_request_monotonic = time.monotonic()
 
-            for attempt in range(1, max_attempts + 1):
-                await self._await_wdqs_compute_budget_room()
-                user_agent = self._pick_user_agent()
-                try:
+                        min_gap = self._throttle_s + max(0.0, self._burst_throttle_s)
+                        if min_gap > 0:
+                            now = time.monotonic()
+                            if self._last_request_monotonic is not None:
+                                elapsed = now - self._last_request_monotonic
+                                if elapsed < min_gap:
+                                    sleep_s = min_gap - elapsed
+                                    logger.debug(f"Throttling Wikidata request: sleeping {sleep_s:.2f}s")
+                                    await asyncio.sleep(sleep_s)
+                            self._last_request_monotonic = time.monotonic()
+
                     async with self._sparql_http_client(user_agent) as client:
                         if post_body:
                             response = await client.post(
@@ -726,198 +730,198 @@ class WikidataQuery:
                                 params={"query": query, "format": "json"},
                             )
                         response.raise_for_status()
-                        try:
-                            data = response.json()
-                        except Exception as parse_exc:
-                            self._record_ua_net(user_agent, "misc")
-                            self._record_wdqs_hard_error_event(f"JSON {type(parse_exc).__name__}")
-                            if attempt >= max_attempts:
-                                raise
-                            wait_s = min(base_delay_s * (2 ** (attempt - 1)), 45.0) + random.uniform(0.0, 1.5)
-                            await asyncio.sleep(wait_s)
-                            continue
-
-                        bindings = data.get("results", {}).get("bindings", [])
-                        results: List[Dict] = []
-                        for binding in bindings:
-                            result = {}
-                            for key, value in binding.items():
-                                result[key] = value.get("value")
-                            results.append(result)
-
                         self._charge_wdqs_elapsed_budget(response)
+                        raw_body = response.content
 
-                        if len(results) == 0:
-                            logger.warning(
-                                "WDQS returned HTTP 200 with zero bindings — treating as non-cacheable; "
-                                "if this persists, raise WIKIDATA_THROTTLE_SECONDS or retry later."
-                            )
-                        else:
-                            logger.info(f"✅ Query returned {len(results)} results")
-                        self._write_cache(query, results)
-                        self._record_ua_net(user_agent, "ok")
-                        self._burst_throttle_s = max(0.0, self._burst_throttle_s * 0.5)
-                        return results
-
-                except (asyncio.CancelledError, KeyboardInterrupt):
-                    raise
-
-                except httpx.HTTPStatusError as e:
-                    status = e.response.status_code
-                    if status == 429 or status >= 500:
-                        self._record_wdqs_hard_error_event(f"HTTP {status}")
-
-                    if status == 429:
-                        self._record_ua_net(user_agent, "429")
-                        if attempt == 1:
-                            logger.warning(
-                                "Wikidata rate limited (429). Raise WIKIDATA_THROTTLE_SECONDS if this persists."
-                            )
-
-                        retry_after = e.response.headers.get("Retry-After")
-                        wait_s: float = base_delay_s
-                        if retry_after:
-                            try:
-                                wait_s = float(str(retry_after).strip())
-                            except ValueError:
-                                wait_s = min(base_delay_s * (2 ** (attempt - 1)), self._retry_after_cap_s)
-                        else:
-                            wait_s = min(base_delay_s * (2 ** (attempt - 1)), 60.0)
-                            wait_s = wait_s + random.uniform(0.0, 1.5)
-
-                        if self._retry_after_cap_s > 0:
-                            capped = min(wait_s, self._retry_after_cap_s)
-                            if capped < wait_s - 1e-3:
-                                logger.warning(
-                                    f"Capping Retry-After {wait_s:.0f}s → {capped:.0f}s "
-                                    f"(WIKIDATA_RETRY_AFTER_MAX_SECONDS={self._retry_after_cap_s:.0f})"
-                                )
-                            wait_s = capped
-
-                        wait_s += random.uniform(0.25, 1.25)
-                        self._burst_throttle_s = min(120.0, max(self._burst_throttle_s + 8.0, 12.0))
-                        self._cooldown_until_monotonic = max(
-                            self._cooldown_until_monotonic, time.monotonic() + wait_s
-                        )
-
-                        logger.warning(
-                            f"Wikidata rate limited (429). Sleeping {wait_s:.1f}s then retrying "
-                            f"(attempt {attempt}/{max_attempts})"
-                        )
-                        await asyncio.sleep(wait_s)
-                        continue
-
-                    if status in (502, 503, 504):
-                        self._record_ua_net(user_agent, "5xx")
-                        wait_s = min(base_delay_s * (2 ** (attempt - 1)), 60.0) + random.uniform(0.0, 2.0)
-                        self._cooldown_until_monotonic = max(
-                            self._cooldown_until_monotonic, time.monotonic() + wait_s
-                        )
-                        logger.warning(
-                            f"Wikidata query service error ({status}). Sleeping {wait_s:.1f}s then retrying "
-                            f"(attempt {attempt}/{max_attempts})"
-                        )
-                        await asyncio.sleep(wait_s)
-                        continue
-
-                    if status == 500:
-                        body = ""
-                        try:
-                            body = e.response.text or ""
-                        except Exception:
-                            body = ""
-
-                        if (
-                            "java.util.concurrent.TimeoutException" in body
-                            or "SystemOverloadFilter" in body
-                            or "RequestConcurrencyFilter" in body
-                        ):
-                            self._record_ua_net(user_agent, "5xx")
-                            wait_s = min(base_delay_s * (2 ** (attempt - 1)), 90.0) + random.uniform(0.0, 3.0)
-                            self._cooldown_until_monotonic = max(
-                                self._cooldown_until_monotonic, time.monotonic() + wait_s
-                            )
-                            logger.warning(
-                                "Wikidata query service error (500 timeout/overload). "
-                                f"Sleeping {wait_s:.1f}s then retrying (attempt {attempt}/{max_attempts})"
-                            )
-                            await asyncio.sleep(wait_s)
-                            continue
-
+                try:
+                    data = json.loads(raw_body)
+                except Exception as parse_exc:
                     self._record_ua_net(user_agent, "misc")
-                    logger.error(f"SPARQL query failed: {status}")
-                    logger.error(f"Response: {e.response.text}")
-                    raise
-
-                except httpx.ConnectError as e:
-                    self._record_ua_net(user_agent, "tx")
-                    self._record_wdqs_hard_error_event("connect")
+                    self._record_wdqs_hard_error_event(f"JSON {type(parse_exc).__name__}")
                     if attempt >= max_attempts:
-                        logger.error(f"Error executing SPARQL query: {e}")
                         raise
-                    wait_s = min(
-                        self._connect_retry_base_s * (2 ** (attempt - 1)),
-                        max(self._connect_retry_max_s, self._connect_retry_base_s),
-                    )
-                    wait_s += random.uniform(0.5, 2.5)
-                    self._cooldown_until_monotonic = max(self._cooldown_until_monotonic, time.monotonic() + wait_s)
-                    logger.warning(
-                        f"WDQS connect error ({type(e).__name__}): {e}. "
-                        f"Sleeping {wait_s:.1f}s then retrying (attempt {attempt}/{max_attempts})"
-                    )
+                    wait_s = min(base_delay_s * (2 ** (attempt - 1)), 45.0) + random.uniform(0.0, 1.5)
                     await asyncio.sleep(wait_s)
                     continue
 
-                except httpx.TimeoutException as e:
-                    self._record_ua_net(user_agent, "tx")
-                    self._record_wdqs_hard_error_event("timeout")
-                    if attempt >= max_attempts:
-                        logger.error(f"Error executing SPARQL query: {e}")
-                        raise
-                    wait_s = min(base_delay_s * (2 ** (attempt - 1)), 90.0) + random.uniform(0.5, 3.0)
-                    self._cooldown_until_monotonic = max(self._cooldown_until_monotonic, time.monotonic() + wait_s)
-                    _ctx = f"{type(e).__name__}"
-                    if str(e).strip():
-                        _ctx += f": {e}"
+                bindings = data.get("results", {}).get("bindings", [])
+                results: List[Dict] = []
+                for binding in bindings:
+                    result = {}
+                    for key, value in binding.items():
+                        result[key] = value.get("value")
+                    results.append(result)
+
+                if len(results) == 0:
                     logger.warning(
-                        f"SPARQL query timeout ({_ctx}, "
-                        f"client timeout={self._sparql_timeout_s}s). Sleeping {wait_s:.1f}s then retrying "
+                        "WDQS returned HTTP 200 with zero bindings — treating as non-cacheable; "
+                        "if this persists, raise WIKIDATA_THROTTLE_SECONDS or retry later."
+                    )
+                else:
+                    logger.info(f"✅ Query returned {len(results)} results")
+                self._write_cache(query, results)
+                self._record_ua_net(user_agent, "ok")
+                self._burst_throttle_s = max(0.0, self._burst_throttle_s * 0.5)
+                return results
+
+            except (asyncio.CancelledError, KeyboardInterrupt):
+                raise
+
+            except httpx.HTTPStatusError as e:
+                status = e.response.status_code
+                if status == 429 or status >= 500:
+                    self._record_wdqs_hard_error_event(f"HTTP {status}")
+
+                if status == 429:
+                    self._record_ua_net(user_agent, "429")
+                    if attempt == 1:
+                        logger.warning(
+                            "Wikidata rate limited (429). Raise WIKIDATA_THROTTLE_SECONDS if this persists."
+                        )
+
+                    retry_after = e.response.headers.get("Retry-After")
+                    wait_s: float = base_delay_s
+                    if retry_after:
+                        try:
+                            wait_s = float(str(retry_after).strip())
+                        except ValueError:
+                            wait_s = min(base_delay_s * (2 ** (attempt - 1)), self._retry_after_cap_s)
+                    else:
+                        wait_s = min(base_delay_s * (2 ** (attempt - 1)), 60.0)
+                        wait_s = wait_s + random.uniform(0.0, 1.5)
+
+                    capped = min(wait_s, self._retry_after_cap_s)
+                    if capped < wait_s - 1e-3:
+                        logger.warning(
+                            f"Capping Retry-After {wait_s:.0f}s → {capped:.0f}s "
+                            f"(WIKIDATA_RETRY_AFTER_MAX_SECONDS={self._retry_after_cap_s:.0f})"
+                        )
+                    wait_s = capped
+
+                    wait_s += random.uniform(0.25, 1.25)
+                    self._burst_throttle_s = min(120.0, max(self._burst_throttle_s + 8.0, 12.0))
+                    self._cooldown_until_monotonic = max(
+                        self._cooldown_until_monotonic, time.monotonic() + wait_s
+                    )
+
+                    logger.warning(
+                        f"Wikidata rate limited (429). Sleeping {wait_s:.1f}s then retrying "
                         f"(attempt {attempt}/{max_attempts})"
                     )
                     await asyncio.sleep(wait_s)
                     continue
 
-                except httpx.RequestError as e:
-                    self._record_ua_net(user_agent, "tx")
-                    self._record_wdqs_hard_error_event(f"transport {type(e).__name__}")
-                    if attempt >= max_attempts:
-                        logger.error(f"Error executing SPARQL query: {type(e).__name__}: {e}")
-                        raise
-                    wait_s = min(
-                        self._connect_retry_base_s * (2 ** (attempt - 1)),
-                        max(self._connect_retry_max_s, self._connect_retry_base_s),
+                if status in (502, 503, 504):
+                    self._record_ua_net(user_agent, "5xx")
+                    wait_s = min(base_delay_s * (2 ** (attempt - 1)), 60.0) + random.uniform(0.0, 2.0)
+                    self._cooldown_until_monotonic = max(
+                        self._cooldown_until_monotonic, time.monotonic() + wait_s
                     )
-                    wait_s += random.uniform(0.5, 2.5)
-                    self._cooldown_until_monotonic = max(self._cooldown_until_monotonic, time.monotonic() + wait_s)
                     logger.warning(
-                        f"WDQS request error ({type(e).__name__}): {e}. "
-                        f"Sleeping {wait_s:.1f}s then retrying (attempt {attempt}/{max_attempts})"
+                        f"Wikidata query service error ({status}). Sleeping {wait_s:.1f}s then retrying "
+                        f"(attempt {attempt}/{max_attempts})"
                     )
                     await asyncio.sleep(wait_s)
                     continue
 
-                except Exception as e:
-                    self._record_ua_net(user_agent, "misc")
-                    if attempt < max_attempts:
-                        wait_s = min(base_delay_s * (2 ** (attempt - 1)), 45.0) + random.uniform(0.0, 1.5)
+                if status == 500:
+                    body = ""
+                    try:
+                        body = e.response.text or ""
+                    except Exception:
+                        body = ""
+
+                    if (
+                        "java.util.concurrent.TimeoutException" in body
+                        or "SystemOverloadFilter" in body
+                        or "RequestConcurrencyFilter" in body
+                    ):
+                        self._record_ua_net(user_agent, "5xx")
+                        wait_s = min(base_delay_s * (2 ** (attempt - 1)), 90.0) + random.uniform(0.0, 3.0)
+                        self._cooldown_until_monotonic = max(
+                            self._cooldown_until_monotonic, time.monotonic() + wait_s
+                        )
                         logger.warning(
-                            f"SPARQL query error ({type(e).__name__}): {e}. Sleeping {wait_s:.1f}s then retrying "
-                            f"(attempt {attempt}/{max_attempts})"
+                            "Wikidata query service error (500 timeout/overload). "
+                            f"Sleeping {wait_s:.1f}s then retrying (attempt {attempt}/{max_attempts})"
                         )
                         await asyncio.sleep(wait_s)
                         continue
+
+                self._record_ua_net(user_agent, "misc")
+                logger.error(f"SPARQL query failed: {status}")
+                logger.error(f"Response: {e.response.text}")
+                raise
+
+            except httpx.ConnectError as e:
+                self._record_ua_net(user_agent, "tx")
+                self._record_wdqs_hard_error_event("connect")
+                if attempt >= max_attempts:
                     logger.error(f"Error executing SPARQL query: {e}")
                     raise
+                wait_s = min(
+                    self._connect_retry_base_s * (2 ** (attempt - 1)),
+                    max(self._connect_retry_max_s, self._connect_retry_base_s),
+                )
+                wait_s += random.uniform(0.5, 2.5)
+                self._cooldown_until_monotonic = max(self._cooldown_until_monotonic, time.monotonic() + wait_s)
+                logger.warning(
+                    f"WDQS connect error ({type(e).__name__}): {e}. "
+                    f"Sleeping {wait_s:.1f}s then retrying (attempt {attempt}/{max_attempts})"
+                )
+                await asyncio.sleep(wait_s)
+                continue
+
+            except httpx.TimeoutException as e:
+                self._record_ua_net(user_agent, "tx")
+                self._record_wdqs_hard_error_event("timeout")
+                if attempt >= max_attempts:
+                    logger.error(f"Error executing SPARQL query: {e}")
+                    raise
+                wait_s = min(base_delay_s * (2 ** (attempt - 1)), 90.0) + random.uniform(0.5, 3.0)
+                self._cooldown_until_monotonic = max(self._cooldown_until_monotonic, time.monotonic() + wait_s)
+                _ctx = f"{type(e).__name__}"
+                if str(e).strip():
+                    _ctx += f": {e}"
+                logger.warning(
+                    f"SPARQL query timeout ({_ctx}, "
+                    f"client timeout={self._sparql_timeout_s}s). Sleeping {wait_s:.1f}s then retrying "
+                    f"(attempt {attempt}/{max_attempts})"
+                )
+                await asyncio.sleep(wait_s)
+                continue
+
+            except httpx.RequestError as e:
+                self._record_ua_net(user_agent, "tx")
+                self._record_wdqs_hard_error_event(f"transport {type(e).__name__}")
+                if attempt >= max_attempts:
+                    logger.error(f"Error executing SPARQL query: {type(e).__name__}: {e}")
+                    raise
+                wait_s = min(
+                    self._connect_retry_base_s * (2 ** (attempt - 1)),
+                    max(self._connect_retry_max_s, self._connect_retry_base_s),
+                )
+                wait_s += random.uniform(0.5, 2.5)
+                self._cooldown_until_monotonic = max(self._cooldown_until_monotonic, time.monotonic() + wait_s)
+                logger.warning(
+                    f"WDQS request error ({type(e).__name__}): {e}. "
+                    f"Sleeping {wait_s:.1f}s then retrying (attempt {attempt}/{max_attempts})"
+                )
+                await asyncio.sleep(wait_s)
+                continue
+
+            except Exception as e:
+                self._record_ua_net(user_agent, "misc")
+                if attempt < max_attempts:
+                    wait_s = min(base_delay_s * (2 ** (attempt - 1)), 45.0) + random.uniform(0.0, 1.5)
+                    logger.warning(
+                        f"SPARQL query error ({type(e).__name__}): {e}. Sleeping {wait_s:.1f}s then retrying "
+                        f"(attempt {attempt}/{max_attempts})"
+                    )
+                    await asyncio.sleep(wait_s)
+                    continue
+                logger.error(f"Error executing SPARQL query: {e}")
+                raise
 
         if self._log_ua_stats and self._ua_net:
             self._log_wdqs_user_agent_stats()

@@ -46,20 +46,25 @@ TYPES = {
         "ddl": """
             CREATE SCHEMA IF NOT EXISTS bronze;
             CREATE TABLE IF NOT EXISTS bronze.bronze_jurisdictions_states (
-                geoid          VARCHAR(2)    PRIMARY KEY,
-                usps           VARCHAR(2),
-                ansicode       VARCHAR(8),
-                name           VARCHAR(255),
-                aland          BIGINT,
-                awater         BIGINT,
-                aland_sqmi     NUMERIC(12, 6),
-                awater_sqmi    NUMERIC(12, 6),
-                intptlat       NUMERIC(11, 8),
-                intptlong      NUMERIC(12, 8),
-                ingestion_date TIMESTAMP DEFAULT NOW()
+                geoid           VARCHAR(2)    PRIMARY KEY,
+                usps            VARCHAR(2),
+                ansicode        VARCHAR(8),
+                name            VARCHAR(255),
+                aland           BIGINT,
+                awater          BIGINT,
+                aland_sqmi      NUMERIC(12, 6),
+                awater_sqmi     NUMERIC(12, 6),
+                intptlat        NUMERIC(11, 8),
+                intptlong       NUMERIC(12, 8),
+                ingestion_date  TIMESTAMP DEFAULT NOW(),
+                jurisdiction_id      TEXT GENERATED ALWAYS AS (usps) STORED,
+                jurisdiction_type       bronze.jurisdiction_type_enum      NOT NULL DEFAULT 'state',
+                jurisdiction_id_source bronze.jurisdiction_id_source_enum NOT NULL DEFAULT 'usps',
+                UNIQUE (jurisdiction_id)
             );
-            CREATE INDEX IF NOT EXISTS idx_bjs_usps   ON bronze.bronze_jurisdictions_states(usps);
-            CREATE INDEX IF NOT EXISTS idx_bjs_coords ON bronze.bronze_jurisdictions_states(intptlat, intptlong);
+            CREATE INDEX IF NOT EXISTS idx_bjs_usps            ON bronze.bronze_jurisdictions_states(usps);
+            CREATE INDEX IF NOT EXISTS idx_bjs_coords          ON bronze.bronze_jurisdictions_states(intptlat, intptlong);
+            CREATE INDEX IF NOT EXISTS idx_bjs_jurisdiction_id ON bronze.bronze_jurisdictions_states(jurisdiction_id);
         """,
         "insert": """
             INSERT INTO bronze.bronze_jurisdictions_states
@@ -85,20 +90,25 @@ TYPES = {
         "ddl": """
             CREATE SCHEMA IF NOT EXISTS bronze;
             CREATE TABLE IF NOT EXISTS bronze.bronze_jurisdictions_counties (
-                geoid          VARCHAR(5)    PRIMARY KEY,
-                usps           VARCHAR(2),
-                ansicode       VARCHAR(8),
-                name           VARCHAR(255),
-                aland          BIGINT,
-                awater         BIGINT,
-                aland_sqmi     NUMERIC(12, 6),
-                awater_sqmi    NUMERIC(12, 6),
-                intptlat       NUMERIC(11, 8),
-                intptlong      NUMERIC(12, 8),
-                ingestion_date TIMESTAMP DEFAULT NOW()
+                geoid           VARCHAR(5)    PRIMARY KEY,
+                usps            VARCHAR(2),
+                ansicode        VARCHAR(8),
+                name            VARCHAR(255),
+                aland           BIGINT,
+                awater          BIGINT,
+                aland_sqmi      NUMERIC(12, 6),
+                awater_sqmi     NUMERIC(12, 6),
+                intptlat        NUMERIC(11, 8),
+                intptlong       NUMERIC(12, 8),
+                ingestion_date  TIMESTAMP DEFAULT NOW(),
+                jurisdiction_id        TEXT GENERATED ALWAYS AS ('c-' || usps || '-' || geoid) STORED,
+                jurisdiction_type       bronze.jurisdiction_type_enum      NOT NULL DEFAULT 'county',
+                jurisdiction_id_source bronze.jurisdiction_id_source_enum NOT NULL DEFAULT 'county_fips',
+                UNIQUE (jurisdiction_id)
             );
-            CREATE INDEX IF NOT EXISTS idx_bjc_usps   ON bronze.bronze_jurisdictions_counties(usps);
-            CREATE INDEX IF NOT EXISTS idx_bjc_coords ON bronze.bronze_jurisdictions_counties(intptlat, intptlong);
+            CREATE INDEX IF NOT EXISTS idx_bjc_usps            ON bronze.bronze_jurisdictions_counties(usps);
+            CREATE INDEX IF NOT EXISTS idx_bjc_coords          ON bronze.bronze_jurisdictions_counties(intptlat, intptlong);
+            CREATE INDEX IF NOT EXISTS idx_bjc_jurisdiction_id ON bronze.bronze_jurisdictions_counties(jurisdiction_id);
         """,
         "insert": """
             INSERT INTO bronze.bronze_jurisdictions_counties
@@ -124,24 +134,29 @@ TYPES = {
         "ddl": """
             CREATE SCHEMA IF NOT EXISTS bronze;
             CREATE TABLE IF NOT EXISTS bronze.bronze_jurisdictions_municipalities (
-                geoid          VARCHAR(7)    PRIMARY KEY,
-                usps           VARCHAR(2),
-                ansicode       VARCHAR(8),
-                name           VARCHAR(255),
-                lsad           VARCHAR(5),
-                funcstat       VARCHAR(1),
-                aland          BIGINT,
-                awater         BIGINT,
-                aland_sqmi     NUMERIC(12, 6),
-                awater_sqmi    NUMERIC(12, 6),
-                intptlat       NUMERIC(11, 8),
-                intptlong      NUMERIC(12, 8),
-                ingestion_date TIMESTAMP DEFAULT NOW()
+                geoid           VARCHAR(7)    PRIMARY KEY,
+                usps            VARCHAR(2),
+                ansicode        VARCHAR(8),
+                name            VARCHAR(255),
+                lsad            VARCHAR(5),
+                funcstat        VARCHAR(1),
+                aland           BIGINT,
+                awater          BIGINT,
+                aland_sqmi      NUMERIC(12, 6),
+                awater_sqmi     NUMERIC(12, 6),
+                intptlat        NUMERIC(11, 8),
+                intptlong       NUMERIC(12, 8),
+                ingestion_date  TIMESTAMP DEFAULT NOW(),
+                jurisdiction_id        TEXT GENERATED ALWAYS AS ('m-' || usps || '-' || geoid) STORED,
+                jurisdiction_type       bronze.jurisdiction_type_enum      NOT NULL DEFAULT 'municipality',
+                jurisdiction_id_source bronze.jurisdiction_id_source_enum NOT NULL DEFAULT 'place_geoid',
+                UNIQUE (jurisdiction_id)
             );
-            CREATE INDEX IF NOT EXISTS idx_bjm_usps     ON bronze.bronze_jurisdictions_municipalities(usps);
-            CREATE INDEX IF NOT EXISTS idx_bjm_lsad     ON bronze.bronze_jurisdictions_municipalities(lsad);
-            CREATE INDEX IF NOT EXISTS idx_bjm_funcstat ON bronze.bronze_jurisdictions_municipalities(funcstat);
-            CREATE INDEX IF NOT EXISTS idx_bjm_coords   ON bronze.bronze_jurisdictions_municipalities(intptlat, intptlong);
+            CREATE INDEX IF NOT EXISTS idx_bjm_usps            ON bronze.bronze_jurisdictions_municipalities(usps);
+            CREATE INDEX IF NOT EXISTS idx_bjm_lsad            ON bronze.bronze_jurisdictions_municipalities(lsad);
+            CREATE INDEX IF NOT EXISTS idx_bjm_funcstat        ON bronze.bronze_jurisdictions_municipalities(funcstat);
+            CREATE INDEX IF NOT EXISTS idx_bjm_coords          ON bronze.bronze_jurisdictions_municipalities(intptlat, intptlong);
+            CREATE INDEX IF NOT EXISTS idx_bjm_jurisdiction_id ON bronze.bronze_jurisdictions_municipalities(jurisdiction_id);
         """,
         "insert": """
             INSERT INTO bronze.bronze_jurisdictions_municipalities
@@ -169,21 +184,26 @@ TYPES = {
         "ddl": """
             CREATE SCHEMA IF NOT EXISTS bronze;
             CREATE TABLE IF NOT EXISTS bronze.bronze_jurisdictions_school_districts (
-                geoid          VARCHAR(7)    PRIMARY KEY,
-                usps           VARCHAR(2),
-                name           VARCHAR(255),
-                lograde        VARCHAR(5),
-                higrade        VARCHAR(5),
-                aland          BIGINT,
-                awater         BIGINT,
-                aland_sqmi     NUMERIC(12, 6),
-                awater_sqmi    NUMERIC(12, 6),
-                intptlat       NUMERIC(11, 8),
-                intptlong      NUMERIC(12, 8),
-                ingestion_date TIMESTAMP DEFAULT NOW()
+                geoid           VARCHAR(7)    PRIMARY KEY,
+                usps            VARCHAR(2),
+                name            VARCHAR(255),
+                lograde         VARCHAR(5),
+                higrade         VARCHAR(5),
+                aland           BIGINT,
+                awater          BIGINT,
+                aland_sqmi      NUMERIC(12, 6),
+                awater_sqmi     NUMERIC(12, 6),
+                intptlat        NUMERIC(11, 8),
+                intptlong       NUMERIC(12, 8),
+                ingestion_date  TIMESTAMP DEFAULT NOW(),
+                jurisdiction_id        TEXT GENERATED ALWAYS AS ('s-' || usps || '-' || geoid) STORED,
+                jurisdiction_type       bronze.jurisdiction_type_enum      NOT NULL DEFAULT 'school_district',
+                jurisdiction_id_source bronze.jurisdiction_id_source_enum NOT NULL DEFAULT 'school_district_geoid',
+                UNIQUE (jurisdiction_id)
             );
-            CREATE INDEX IF NOT EXISTS idx_bjsd_usps   ON bronze.bronze_jurisdictions_school_districts(usps);
-            CREATE INDEX IF NOT EXISTS idx_bjsd_coords ON bronze.bronze_jurisdictions_school_districts(intptlat, intptlong);
+            CREATE INDEX IF NOT EXISTS idx_bjsd_usps            ON bronze.bronze_jurisdictions_school_districts(usps);
+            CREATE INDEX IF NOT EXISTS idx_bjsd_coords          ON bronze.bronze_jurisdictions_school_districts(intptlat, intptlong);
+            CREATE INDEX IF NOT EXISTS idx_bjsd_jurisdiction_id ON bronze.bronze_jurisdictions_school_districts(jurisdiction_id);
         """,
         "insert": """
             INSERT INTO bronze.bronze_jurisdictions_school_districts

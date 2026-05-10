@@ -96,6 +96,42 @@ models:
       - name: transformed_at
         description: "When this silver record was created"
 
+  - name: int_jurisdictions_scraped_discoveries
+    description: >
+      Union of ``bronze.bronze_jurisdictions_{states,municipalities,counties,school_districts}_scraped``:
+      outputs from ``scripts/discovery/jurisdiction_discovery_pipeline.py`` (GSA bulk / deep scrape).
+      Joins ``int_jurisdictions`` for municipality, county, and school rows; joins Census
+      ``bronze_jurisdictions_states`` for state-class rows. Tables created by the discovery
+      pipeline (or Neon migration 009, same DDL as ``scripts/discovery/sql/bronze_jurisdictions_scraped.sql``).
+    columns:
+      - name: geoid
+        description: "Census GEOID (2 / 5 / 7 chars depending on jurisdiction_class)"
+        tests:
+          - not_null
+      - name: usps
+        description: "State USPS code"
+      - name: jurisdiction_class
+        description: "state | municipality | county | school_district"
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['state', 'municipality', 'county', 'school_district']
+      - name: discovered_at
+      - name: homepage_url
+      - name: homepage_final_url
+      - name: gsa_matched_domain
+      - name: discovery_source
+      - name: status
+      - name: completeness_score
+      - name: payload
+        description: "Full discovery JSON (websites, YouTube, platforms, social, etc.)"
+      - name: jurisdiction_id
+        description: "From int_jurisdictions when join matches (NULL for unmatched or state rows without int row)"
+      - name: census_or_payload_name
+        description: "Best-effort display name from int_jurisdictions, state gazetteer, or payload"
+      - name: transformed_at
+
   - name: int_trending_causes_by_jurisdiction
     description: |
       Aggregates trending causes by jurisdiction based on decisions in the last 90 days.

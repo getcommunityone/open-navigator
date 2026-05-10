@@ -232,38 +232,28 @@ def discover_jurisdictions(limit: Optional[int], state: Optional[str], jurisdict
     """Run jurisdiction discovery pipeline to identify government websites."""
     logger.info(f"Starting jurisdiction discovery (limit={limit}, state={state}, type={jurisdiction_type})")
     
-    # Check for PySpark
     try:
-        from scripts.discovery.discovery_pipeline import PYSPARK_AVAILABLE
-        if not PYSPARK_AVAILABLE:
-            click.echo("❌ PySpark not installed!")
-            click.echo("   For full discovery with data storage, install:")
-            click.echo("   pip install pyspark delta-spark")
-            click.echo("")
-            click.echo("   PySpark can run locally without Databricks for data processing.")
-            return
+        from scripts.discovery.discovery_pipeline import DiscoveryPipeline
     except ImportError:
         click.echo("❌ Discovery modules not available!")
         return
-    
+
     async def run_discovery():
-        from scripts.discovery.discovery_pipeline import DiscoveryPipeline
-        
         pipeline = DiscoveryPipeline()
-        
-        # Run full pipeline with optional filters
-        results = await pipeline.run_full_pipeline(
-            discovery_limit=limit,
-            state_filter=state,
-            type_filter=jurisdiction_type
-        )
-        
-        logger.info(f"Discovery completed: {results}")
-        click.echo(f"\n✅ Discovery Complete!")
-        click.echo(f"   Bronze records: {results.get('bronze_records', 0)}")
-        click.echo(f"   URLs discovered: {results.get('urls_discovered', 0)}")
-        click.echo(f"   Scraping targets: {results.get('scraping_targets', 0)}")
-    
+        try:
+            results = await pipeline.run_full_pipeline(
+                discovery_limit=limit,
+                state_filter=state,
+                type_filter=jurisdiction_type,
+            )
+            logger.info(f"Discovery completed: {results}")
+            click.echo(f"\n✅ Discovery Complete!")
+            click.echo(f"   Bronze records: {results.get('bronze_records', 0)}")
+            click.echo(f"   URLs discovered: {results.get('urls_discovered', 0)}")
+            click.echo(f"   Scraping targets: {results.get('scraping_targets', 0)}")
+        finally:
+            pipeline.close()
+
     asyncio.run(run_discovery())
 
 

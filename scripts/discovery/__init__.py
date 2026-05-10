@@ -8,4 +8,7 @@ Data Sources:
 - Census Bureau Government Integrated Directory (GID)
 - CISA .gov Domain Master List (cisagov/dotgov-data)
 - NCES Common Core of Data (school districts)
+
+Postgres path (recommended): ``python -m scripts.discovery.jurisdiction_discovery_pipeline``
+writes to ``bronze.bronze_jurisdictions_*_scraped`` (see migration 009).
 """

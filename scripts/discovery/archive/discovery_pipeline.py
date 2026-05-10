@@ -1,11 +1,12 @@
 """
 Jurisdiction discovery (Postgres bronze → bronze *_scraped).
 
-CLI: ``python -m scripts.discovery.jurisdiction_discovery_pipeline`` (creates tables + runs).
+Legacy Delta/Spark ingestion paths were removed. Use
+``scripts.discovery.jurisdiction_discovery_pipeline`` for the merged implementation.
 
-Legacy imports: ``DiscoveryPipeline``, ``main``, etc.
+For CLI:
 
-``PYSPARK_AVAILABLE`` is always false — the pipeline is Postgres-only (no Delta/Spark).
+  .venv/bin/python -m scripts.discovery.jurisdiction_discovery_pipeline --help
 """
 import sys
 from pathlib import Path
@@ -21,10 +22,7 @@ from scripts.discovery.jurisdiction_discovery_pipeline import (
     load_gsa_domain_set,
     load_jurisdictions_from_postgres,
     main,
-    scraped_jurisdictions_ddl_path,
 )
-
-PYSPARK_AVAILABLE = False
 
 __all__ = [
     "DiscoveryPipeline",
@@ -33,7 +31,6 @@ __all__ = [
     "load_gsa_domain_set",
     "load_jurisdictions_from_postgres",
     "main",
-    "scraped_jurisdictions_ddl_path",
 ]
 
 if __name__ == "__main__":

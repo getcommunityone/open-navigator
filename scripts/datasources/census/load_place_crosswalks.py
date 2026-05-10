@@ -140,13 +140,18 @@ CREATE TABLE IF NOT EXISTS bronze.bronze_jurisdictions_place_zcta (
     is_primary      BOOLEAN     NOT NULL,
     source          VARCHAR(255),
     ingestion_date  TIMESTAMP   DEFAULT NOW(),
+    -- 'z-' || state_fips || '-' || zcta; NOT unique — same zcta spans multiple places
+    jurisdiction_id        TEXT GENERATED ALWAYS AS ('z-' || state_fips || '-' || zcta) STORED,
+    jurisdiction_type      bronze.jurisdiction_type_enum      NOT NULL DEFAULT 'zcta',
+    jurisdiction_id_source bronze.jurisdiction_id_source_enum NOT NULL DEFAULT 'zip_code',
     PRIMARY KEY (place_geoid, zcta)
 );
 
-CREATE INDEX IF NOT EXISTS idx_bjpz_place   ON bronze.bronze_jurisdictions_place_zcta(place_geoid);
-CREATE INDEX IF NOT EXISTS idx_bjpz_zcta    ON bronze.bronze_jurisdictions_place_zcta(zcta);
-CREATE INDEX IF NOT EXISTS idx_bjpz_state   ON bronze.bronze_jurisdictions_place_zcta(state_fips);
-CREATE INDEX IF NOT EXISTS idx_bjpz_primary ON bronze.bronze_jurisdictions_place_zcta(place_geoid) WHERE is_primary;
+CREATE INDEX IF NOT EXISTS idx_bjpz_place           ON bronze.bronze_jurisdictions_place_zcta(place_geoid);
+CREATE INDEX IF NOT EXISTS idx_bjpz_zcta            ON bronze.bronze_jurisdictions_place_zcta(zcta);
+CREATE INDEX IF NOT EXISTS idx_bjpz_state           ON bronze.bronze_jurisdictions_place_zcta(state_fips);
+CREATE INDEX IF NOT EXISTS idx_bjpz_primary         ON bronze.bronze_jurisdictions_place_zcta(place_geoid) WHERE is_primary;
+CREATE INDEX IF NOT EXISTS idx_bjpz_jurisdiction_id ON bronze.bronze_jurisdictions_place_zcta(jurisdiction_id);
 
 COMMENT ON TABLE  bronze.bronze_jurisdictions_place_zcta IS
     'Place (city/town) to ZCTA crosswalk derived from the Census 2020 ZCTA-Place relationship file. is_primary=TRUE marks the ZCTA whose land overlap with the place is the largest — i.e. the place''s primary postal code.';

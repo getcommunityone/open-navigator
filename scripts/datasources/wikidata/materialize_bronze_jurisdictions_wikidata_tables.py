@@ -62,18 +62,61 @@ def _replace_table(conn, fqtn: str, select_sql: str) -> None:
 
 def _create_indexes(conn) -> None:
     stmts: Iterable[str] = [
-        "CREATE INDEX IF NOT EXISTS idx_bjsw_geoid ON bronze.bronze_jurisdictions_states_wikidata(geoid);",
-        "CREATE INDEX IF NOT EXISTS idx_bjcw_geoid ON bronze.bronze_jurisdictions_counties_wikidata(geoid);",
-        "CREATE INDEX IF NOT EXISTS idx_bjmw_geoid ON bronze.bronze_jurisdictions_municipalities_wikidata(geoid);",
+        # geoid indexes
+        "CREATE INDEX IF NOT EXISTS idx_bjsw_geoid  ON bronze.bronze_jurisdictions_states_wikidata(geoid);",
+        "CREATE INDEX IF NOT EXISTS idx_bjcw_geoid  ON bronze.bronze_jurisdictions_counties_wikidata(geoid);",
+        "CREATE INDEX IF NOT EXISTS idx_bjmw_geoid  ON bronze.bronze_jurisdictions_municipalities_wikidata(geoid);",
         "CREATE INDEX IF NOT EXISTS idx_bjsdw_geoid ON bronze.bronze_jurisdictions_school_districts_wikidata(geoid);",
-        "CREATE INDEX IF NOT EXISTS idx_bjcw_wikidata_id ON bronze.bronze_jurisdictions_counties_wikidata(wikidata_id);",
-        "CREATE INDEX IF NOT EXISTS idx_bjmw_wikidata_id ON bronze.bronze_jurisdictions_municipalities_wikidata(wikidata_id);",
+        # wikidata_id indexes
+        "CREATE INDEX IF NOT EXISTS idx_bjcw_wikidata_id  ON bronze.bronze_jurisdictions_counties_wikidata(wikidata_id);",
+        "CREATE INDEX IF NOT EXISTS idx_bjmw_wikidata_id  ON bronze.bronze_jurisdictions_municipalities_wikidata(wikidata_id);",
         "CREATE INDEX IF NOT EXISTS idx_bjsdw_wikidata_id ON bronze.bronze_jurisdictions_school_districts_wikidata(wikidata_id);",
+        # jurisdiction_id indexes
+        "CREATE INDEX IF NOT EXISTS idx_bjsw_jurisdiction_id  ON bronze.bronze_jurisdictions_states_wikidata(jurisdiction_id);",
+        "CREATE INDEX IF NOT EXISTS idx_bjcw_jurisdiction_id  ON bronze.bronze_jurisdictions_counties_wikidata(jurisdiction_id);",
+        "CREATE INDEX IF NOT EXISTS idx_bjmw_jurisdiction_id  ON bronze.bronze_jurisdictions_municipalities_wikidata(jurisdiction_id);",
+        "CREATE INDEX IF NOT EXISTS idx_bjsdw_jurisdiction_id ON bronze.bronze_jurisdictions_school_districts_wikidata(jurisdiction_id);",
+        # jurisdiction_type indexes
+        "CREATE INDEX IF NOT EXISTS idx_bjsw_jtype  ON bronze.bronze_jurisdictions_states_wikidata(jurisdiction_type);",
+        "CREATE INDEX IF NOT EXISTS idx_bjcw_jtype  ON bronze.bronze_jurisdictions_counties_wikidata(jurisdiction_type);",
+        "CREATE INDEX IF NOT EXISTS idx_bjmw_jtype  ON bronze.bronze_jurisdictions_municipalities_wikidata(jurisdiction_type);",
+        "CREATE INDEX IF NOT EXISTS idx_bjsdw_jtype ON bronze.bronze_jurisdictions_school_districts_wikidata(jurisdiction_type);",
+        # jurisdiction_id_source indexes
+        "CREATE INDEX IF NOT EXISTS idx_bjsw_jsrc  ON bronze.bronze_jurisdictions_states_wikidata(jurisdiction_id_source);",
+        "CREATE INDEX IF NOT EXISTS idx_bjcw_jsrc  ON bronze.bronze_jurisdictions_counties_wikidata(jurisdiction_id_source);",
+        "CREATE INDEX IF NOT EXISTS idx_bjmw_jsrc  ON bronze.bronze_jurisdictions_municipalities_wikidata(jurisdiction_id_source);",
+        "CREATE INDEX IF NOT EXISTS idx_bjsdw_jsrc ON bronze.bronze_jurisdictions_school_districts_wikidata(jurisdiction_id_source);",
+        # FK constraints back to base jurisdiction tables
+        """ALTER TABLE bronze.bronze_jurisdictions_states_wikidata
+               ADD CONSTRAINT fk_bjsw_jurisdiction_id
+               FOREIGN KEY (jurisdiction_id)
+               REFERENCES bronze.bronze_jurisdictions_states (jurisdiction_id)
+               ON DELETE CASCADE""",
+        """ALTER TABLE bronze.bronze_jurisdictions_counties_wikidata
+               ADD CONSTRAINT fk_bjcw_jurisdiction_id
+               FOREIGN KEY (jurisdiction_id)
+               REFERENCES bronze.bronze_jurisdictions_counties (jurisdiction_id)
+               ON DELETE CASCADE""",
+        """ALTER TABLE bronze.bronze_jurisdictions_municipalities_wikidata
+               ADD CONSTRAINT fk_bjmw_jurisdiction_id
+               FOREIGN KEY (jurisdiction_id)
+               REFERENCES bronze.bronze_jurisdictions_municipalities (jurisdiction_id)
+               ON DELETE CASCADE""",
+        """ALTER TABLE bronze.bronze_jurisdictions_school_districts_wikidata
+               ADD CONSTRAINT fk_bjsdw_jurisdiction_id
+               FOREIGN KEY (jurisdiction_id)
+               REFERENCES bronze.bronze_jurisdictions_school_districts (jurisdiction_id)
+               ON DELETE CASCADE""",
     ]
     with conn.cursor() as cur:
         for s in stmts:
-            cur.execute(s)
-    conn.commit()
+            try:
+                cur.execute(s)
+                conn.commit()
+            except Exception as exc:
+                # Constraint/index already exists — safe to skip on re-runs.
+                conn.rollback()
+                logger.debug("Skipped (already exists): {}", exc)
 
 
 SELECT_STATES = """
@@ -288,14 +331,15 @@ def main() -> int:
     try:
         _exec(conn, DDL)
 
-        if args.require_wikidata:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT to_regclass('public.jurisdictions_wikidata'), (SELECT COUNT(*) FROM jurisdictions_wikidata)"
-                )
-                rel, n = cur.fetchone()
-            if rel is None or n == 0:
-                raise RuntimeError("jurisdictions_wikidata missing or empty; run load_jurisdictions_wikidata.py first")
+        with conn.cursor() as cur:
+            cur.execute("SELECT to_regclass('public.jurisdictions_wikidata')")
+            rel = cur.fetchone()[0]
+
+        if rel is None:
+            if args.require_wikidata:
+                raise RuntimeError("jurisdictions_wikidata missing; run load_jurisdictions_wikidata.py first")
+            logger.warning("jurisdictions_wikidata not found — run load_jurisdictions_wikidata.py first")
+            return 0
 
         logger.info("Creating bronze.bronze_jurisdictions_states_wikidata…")
         _replace_table(conn, "bronze.bronze_jurisdictions_states_wikidata", SELECT_STATES)
