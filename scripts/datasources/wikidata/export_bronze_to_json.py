@@ -60,9 +60,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ---------------------------------------------------------------------------
-# Drive config — mirrors log_sync.py conventions
+# Drive config — same mount helper as log_sync / meetings scraper
 # ---------------------------------------------------------------------------
-GDRIVE_MOUNT = Path(os.getenv("LOG_GDRIVE_MOUNT", "/mnt/g/My Drive"))
+from scripts.utils.gdrive_paths import gdrive_mount_path
+
+GDRIVE_MOUNT = gdrive_mount_path()
 WIKIDATA_GDRIVE_BASE = os.getenv("WIKIDATA_GDRIVE_BASE", "CommunityOne/wikidata")
 RCLONE_REMOTE = os.getenv("RCLONE_GDRIVE_REMOTE", "gdrive")
 

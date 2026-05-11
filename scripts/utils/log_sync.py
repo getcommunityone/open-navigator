@@ -26,8 +26,10 @@ from pathlib import Path
 
 from loguru import logger
 
+from scripts.utils.gdrive_paths import gdrive_mount_path
 
-GDRIVE_MOUNT = Path(os.getenv("LOG_GDRIVE_MOUNT", "/mnt/g/My Drive"))
+
+GDRIVE_MOUNT = gdrive_mount_path()
 GDRIVE_BASE = os.getenv("LOG_GDRIVE_BASE", "CommunityOne/open-navigator-logs")
 MACHINE_ID = os.getenv("LOG_MACHINE_ID", socket.gethostname())
 RCLONE_REMOTE = os.getenv("RCLONE_GDRIVE_REMOTE", "gdrive")
