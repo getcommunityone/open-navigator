@@ -6,35 +6,36 @@ NULLIF(
                 REGEXP_REPLACE(
                     REGEXP_REPLACE(
                         REGEXP_REPLACE(
-                            LOWER(TRIM({{ expr }})),
-                            '^\\s*st\\.\\s+',
-                            'saint ',
+                            REGEXP_REPLACE(
+                                LOWER(TRIM({{ expr }})),
+                                '^\\s*st\\.\\s+',
+                                'saint ',
+                                'gi'
+                            ),
+                            '(^|[^[:alpha:]])st\\.\\s+',
+                            '\\1saint ',
                             'gi'
                         ),
-                        '(^|[^[:alpha:]])st\\.\\s+',
-                        '\\1saint ',
+                        '^(city|town|village|borough|county|township|parish) of\\s+',
+                        '',
                         'gi'
                     ),
-                    '^(city|town|village|borough|county|township|parish) of\\s+',
+                    '\\s+(city|town|village|borough|county|township|parish)$',
                     '',
                     'gi'
                 ),
-                '\\s+(city|town|village|borough|county|township|parish)$',
-                '',
+                '\\s+parish$',
+                ' county',
                 'gi'
             ),
-            '\\s+parish$',
-            ' county',
-            'gi'
+            '[^a-z0-9]+',
+            ' ',
+            'g'
         ),
-        '[^a-z0-9]+',
+        '\\s+',
         ' ',
         'g'
     ),
-    '\\s+',
-    ' ',
-    'g'
-),
-''
+    ''
 )
 {%- endmacro %}

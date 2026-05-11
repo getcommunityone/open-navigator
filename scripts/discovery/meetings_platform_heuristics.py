@@ -83,10 +83,19 @@ def is_trusted_offsite(url: str) -> bool:
     return any(_host_matches_suffix(h, s) for s in _OFFSITE_SUFFIXES)
 
 
+def _host_without_www(netloc: str) -> str:
+    """Compare apex and ``www`` as the same site (Revize / county sites often mix both)."""
+    h = (netloc or "").lower().split(":")[0].rstrip(".")
+    return h[4:] if h.startswith("www.") else h
+
+
 def is_same_site(url: str, homepage: str) -> bool:
     try:
-        a, b = urlparse(url).netloc.lower(), urlparse(homepage).netloc.lower()
-        return bool(a and a == b)
+        a = urlparse(url).netloc
+        b = urlparse(homepage).netloc
+        if not a or not b:
+            return False
+        return _host_without_www(a) == _host_without_www(b)
     except Exception:
         return False
 
@@ -104,6 +113,71 @@ def is_vendor_meeting_page_url(url: str) -> bool:
         return False
     pq = _path_query_lower(url)
     return any(snippet in pq for snippet in _VENDOR_PATH_SNIPPETS)
+
+
+# Counties sometimes link a short branded host (e.g. ``tallaco.com/commission-meetings/``) that is
+# not the GSA/NACO ``website_url`` host. Only follow when the href is present in HTML and path
+# looks like a commission/board meeting archive — no blind host generation.
+_LINKED_MEETING_ARCHIVE_PATH_MARKERS: Tuple[str, ...] = (
+    "commission-meeting",
+    "commission_meeting",
+    "board-meeting",
+    "board_meeting",
+    "/meetings/",
+    "/minutes/",
+    "/agendas/",
+    "commission-minute",
+    "meeting-archive",
+    "meeting_archive",
+    "county-commission",
+    "county_commission",
+)
+
+_THIRD_PARTY_MEETING_NAV_EXCLUDED_HOST_SUFFIXES: Tuple[str, ...] = (
+    "facebook.com",
+    "fb.com",
+    "twitter.com",
+    "x.com",
+    "instagram.com",
+    "linkedin.com",
+    "youtube.com",
+    "youtu.be",
+    "google.com",
+    "tiktok.com",
+    "pinterest.com",
+    "yelp.com",
+    "wikipedia.org",
+    "amazon.com",
+)
+
+
+def is_linked_local_meeting_microsite(url: str, homepage: str) -> bool:
+    """
+    True for http(s) URLs on a host **different** from ``homepage`` whose path/query suggests a
+    local meeting archive (linked from the county site). Excludes known social / search hosts and
+    vendor stacks handled by :func:`is_vendor_meeting_page_url`.
+    """
+    if not url or not homepage:
+        return False
+    if is_same_site(url, homepage):
+        return False
+    if is_trusted_offsite(url):
+        return False
+    try:
+        p = urlparse(url)
+        if p.scheme not in ("http", "https"):
+            return False
+        host = p.netloc.lower().split(":")[0].rstrip(".")
+        if not host or "." not in host:
+            return False
+        if any(
+            host == s or host.endswith("." + s) for s in _THIRD_PARTY_MEETING_NAV_EXCLUDED_HOST_SUFFIXES
+        ):
+            return False
+        pq = _path_query_lower(url)
+        return any(m in pq for m in _LINKED_MEETING_ARCHIVE_PATH_MARKERS)
+    except Exception:
+        return False
 
 
 PDF_EXT = re.compile(r"\.pdf(\?|#|$)", re.I)
@@ -812,10 +886,14 @@ def extract_meeting_urls(
         text = (a.get_text() or "").strip()
         text_l = text.lower()
         if PDF_EXT.search(full):
-            if is_same_site(full, homepage) or is_trusted_offsite(full):
+            if (
+                is_same_site(full, homepage)
+                or is_same_site(full, page_url)
+                or is_trusted_offsite(full)
+            ):
                 add_pdf(full, text)
             continue
-        if is_same_site(full, homepage):
+        if is_same_site(full, homepage) or is_same_site(full, page_url):
             if (
                 generic_hint.search(full)
                 or generic_hint.search(text_l)
@@ -825,6 +903,14 @@ def extract_meeting_urls(
                 add_nav(full)
         elif is_vendor_meeting_page_url(full):
             add_nav(full)
+        elif is_linked_local_meeting_microsite(full, homepage):
+            if (
+                generic_hint.search(full)
+                or generic_hint.search(text_l)
+                or _SITE_SEARCH_URL_RE.search(full)
+                or _SITE_SEARCH_URL_RE.search(href)
+            ):
+                add_nav(full)
 
     # iframes (embedded Legistar / Granicus calendars)
     for tag in soup.find_all(["iframe", "frame"], src=True):
@@ -832,7 +918,11 @@ def extract_meeting_urls(
         if not src:
             continue
         full = resolve_page_href(page_url, src)
-        if is_same_site(full, homepage) or is_vendor_meeting_page_url(full):
+        if (
+            is_same_site(full, homepage)
+            or is_same_site(full, page_url)
+            or is_vendor_meeting_page_url(full)
+        ):
             add_nav(full)
 
     return nav, pdfs

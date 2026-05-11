@@ -10,6 +10,12 @@ Goals:
 - Apply **vendor-style heuristics** (Legistar, Granicus, CivicClerk, …) in
   ``meetings_platform_heuristics`` — same spirit as City-Bureau city-scrapers, without Scrapy.
 - Follow agenda / minutes / meeting links from the homepage and search results.
+- Optionally seed the crawl from **XML sitemaps** (``/sitemap.xml``, ``robots.txt`` ``Sitemap:``,
+  WordPress ``wp-sitemap.xml``, …): meeting-ish ``<loc>`` URLs are enqueued so pages that are not
+  linked in HTML can still be fetched. Disable with ``SCRAPED_MEETINGS_SITEMAP=false``.
+- Follow **linked** meeting-archive URLs on other hosts when the path looks like a commission/board
+  archive (e.g. ``/commission-meetings/``); after landing, treat same host as ``page_url`` for PDFs
+  (see :func:`meetings_platform_heuristics.is_linked_local_meeting_microsite`).
 - Handle URLs with fragments (e.g. ``.../monthly-meetings/#toggle-id-2``) by fetching the base URL
   and still collecting same-page anchors.
 - Collect **YouTube** video and channel links from crawled HTML (anchors, embeds, ``data-src``);
@@ -124,6 +130,7 @@ from scripts.discovery.meetings_platform_heuristics import (
     site_search_portal_variants,
     youtube_url_for_oembed,
 )
+from scripts.discovery.meetings_sitemap_discovery import discover_meeting_candidate_urls_from_sitemaps
 
 try:
     import psycopg2
@@ -1088,6 +1095,23 @@ class ComprehensiveDiscoveryPipelineMeetings:
             # (avoids ``/?s=webcast`` noise on Revize, Granicus, static sites, …).
             if _meetings_home_url_is_actionable(hp):
                 _enqueue(hp)
+                try:
+                    sitemap_urls = await discover_meeting_candidate_urls_from_sitemaps(client, hp)
+                    for su in sitemap_urls:
+                        _enqueue(su)
+                    if sitemap_urls:
+                        logger.info(
+                            "meetings_sitemap_enqueued jurisdiction={} n={}",
+                            jid,
+                            len(sitemap_urls),
+                        )
+                except Exception as exc:
+                    logger.warning(
+                        "meetings_sitemap_seed_failed jurisdiction={} err={!r}",
+                        jid,
+                        exc,
+                    )
+                    result.errors.append(f"sitemap_seed:{exc!r}")
             else:
                 result.errors.append("no_usable_homepage_url")
 
