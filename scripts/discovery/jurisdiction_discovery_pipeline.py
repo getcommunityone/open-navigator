@@ -20,6 +20,7 @@ Usage:
   .venv/bin/python -m scripts.discovery.jurisdiction_discovery_pipeline --state AL
   .venv/bin/python -m scripts.discovery.jurisdiction_discovery_pipeline --state AL --include-states
   .venv/bin/python -m scripts.discovery.jurisdiction_discovery_pipeline --state AL --gsa-bulk-only
+  .venv/bin/python -m scripts.discovery.jurisdiction_discovery_pipeline --state AL --truncate-scraped --no-incremental
   # (--gsa-bulk-only: bulk upsert using int_jurisdiction_websites only; name kept for CLI compatibility)
   ./scripts/discovery/run_jurisdiction_discovery.sh --state AL --gsa-bulk-only
 """
@@ -124,6 +125,39 @@ def ensure_scraped_tables(conn) -> None:
         cur.execute(sql)
     conn.commit()
     logger.info(f"Ensured bronze *_scraped tables from {p.name}")
+
+
+def clean_scraped_tables(conn, *, state_filter: Optional[str] = None) -> None:
+    """
+    Remove rows from ``bronze.*_scraped`` before a discovery run.
+
+    - ``state_filter`` = 2-letter USPS: ``DELETE`` only those rows in each scraped table.
+    - ``state_filter`` = ``None``: ``TRUNCATE`` all four ``*_scraped`` tables (every state).
+    """
+    tables = sorted(set(SCRAPED_TABLE.values()))
+    with conn.cursor() as cur:
+        if state_filter:
+            st = state_filter.strip().upper()
+            if len(st) != 2:
+                raise ValueError(f"state_filter must be 2-letter USPS, got {state_filter!r}")
+            deleted = 0
+            for tbl in tables:
+                cur.execute(
+                    f"DELETE FROM {tbl} WHERE upper(btrim(usps::text)) = %s",
+                    (st,),
+                )
+                deleted += cur.rowcount
+            conn.commit()
+            logger.warning(
+                "Removed {:,} scraped row(s) across {} table(s) for state {}",
+                deleted,
+                len(tables),
+                st,
+            )
+        else:
+            cur.execute("TRUNCATE TABLE " + ", ".join(tables))
+            conn.commit()
+            logger.warning("Truncated ALL rows in bronze *_scraped tables: {}", tables)
 
 
 def load_gsa_domain_set(conn) -> Set[str]:
@@ -533,9 +567,11 @@ class JurisdictionDiscoveryPipeline(ComprehensiveDiscoveryPipeline):
         incremental: bool = True,
         refresh_days: int = 90,
         write_parquet_backup: bool = False,
+        wikidata_enabled: bool = False,
     ):
         self.database_url = database_url or resolve_database_url()
         self.write_parquet_backup = write_parquet_backup
+        self.wikidata_enabled = bool(wikidata_enabled)
         if psycopg2 is None:
             raise RuntimeError("psycopg2 is required for JurisdictionDiscoveryPipeline")
         self._pg: Optional[Any] = None
@@ -548,6 +584,7 @@ class JurisdictionDiscoveryPipeline(ComprehensiveDiscoveryPipeline):
             gold_output_dir="data/gold",
             incremental=incremental,
             refresh_days=refresh_days,
+            enable_wikidata=self.wikidata_enabled,
         )
 
     def _conn(self):
@@ -592,6 +629,8 @@ class JurisdictionDiscoveryPipeline(ComprehensiveDiscoveryPipeline):
 
     async def _enrich_with_wikidata(self, results: Dict[str, Any], name: str, state: str, jtype: str) -> None:
         """Keep YouTube/social from Wikidata; never add a primary **website** from Wikidata."""
+        if not self.wikidata_enabled:
+            return
         await super()._enrich_with_wikidata(results, name, state, jtype)
         results["websites"] = [
             w
@@ -960,13 +999,29 @@ async def _async_main() -> None:
         "Large and slow — use --limit during tests.",
     )
     parser.add_argument("--limit", type=int, help="Max rows per jurisdiction class from bronze")
-    parser.add_argument("--all-types", action="store_true", help="Include school districts as well as places + counties")
+    # School districts are included by default (seeded from intermediate.int_jurisdiction_websites).
+    # Opt-out exists because school runs are large.
+    parser.add_argument(
+        "--no-schools",
+        action="store_true",
+        help="Do NOT process school districts (default is to include them).",
+    )
     parser.add_argument(
         "--include-states",
         action="store_true",
         help="Include rows from bronze.bronze_jurisdictions_states (state portal discovery)",
     )
     parser.add_argument("--gsa-bulk-only", action="store_true", help="Only GSA domain matching (no deep HTTP crawl)")
+    parser.add_argument(
+        "--wikidata",
+        action="store_true",
+        help="Enable Wikidata enrichment (default OFF; can be slow / rate-limited).",
+    )
+    parser.add_argument(
+        "--truncate-scraped",
+        action="store_true",
+        help="Before run: DELETE *_scraped rows for --state USPS, or TRUNCATE every *_scraped table if --all-states or no state.",
+    )
     parser.add_argument("--no-incremental", action="store_true")
     parser.add_argument("--max-concurrent", type=int, default=8)
     parser.add_argument("--youtube-api-key", type=str, default=os.getenv("YOUTUBE_DATA_API_KEY"))
@@ -990,6 +1045,7 @@ async def _async_main() -> None:
         max_concurrent=args.max_concurrent,
         incremental=not args.no_incremental,
         write_parquet_backup=args.parquet_backup,
+        wikidata_enabled=args.wikidata,
     )
     try:
         if not args.skip_ddl:
@@ -999,6 +1055,13 @@ async def _async_main() -> None:
             logger.error("Use either --all-states or --state XX, not both.")
             return
 
+        if args.truncate_scraped:
+            # With --state AL: remove only AL rows. With --all-states or no state: empty all scraped tables.
+            clean_scraped_tables(
+                pipeline._conn(),
+                state_filter=state_filter,
+            )
+
         if args.gsa_bulk_only:
             await pipeline.run_gsa_bulk_only(
                 state_filter=state_filter,
@@ -1006,7 +1069,7 @@ async def _async_main() -> None:
                 include_states=args.include_states,
                 include_municipalities=True,
                 include_counties=True,
-                include_schools=args.all_types,
+                include_schools=not args.no_schools,
             )
             return
 
@@ -1016,7 +1079,7 @@ async def _async_main() -> None:
             include_states=args.include_states,
             include_municipalities=True,
             include_counties=True,
-            include_schools=args.all_types,
+            include_schools=not args.no_schools,
         )
         if not jurisdictions:
             logger.warning("No jurisdictions to process")

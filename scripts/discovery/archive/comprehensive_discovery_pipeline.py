@@ -63,7 +63,8 @@ class ComprehensiveDiscoveryPipeline:
         output_dir: str = "data/bronze/discovered_sources",
         gold_output_dir: str = "data/gold",
         incremental: bool = True,
-        refresh_days: int = 90
+        refresh_days: int = 90,
+        enable_wikidata: bool = False,
     ):
         """
         Initialize discovery pipeline.
@@ -81,6 +82,7 @@ class ComprehensiveDiscoveryPipeline:
         self.gold_output_dir.mkdir(parents=True, exist_ok=True)
         self.incremental = incremental
         self.refresh_days = refresh_days
+        self.enable_wikidata = bool(enable_wikidata)
         
         # Load existing discoveries for incremental mode
         self.existing_discoveries = self._load_existing_discoveries() if incremental else {}
@@ -91,7 +93,8 @@ class ComprehensiveDiscoveryPipeline:
         # Initialize discovery agents
         # Note: URLDiscoveryAgent is optional - we use direct pattern matching
         self.semaphore = asyncio.Semaphore(max_concurrent)
-        self.wikidata = WikidataQuery()  # Free enrichment for missing data
+        # Wikidata is powerful but can be slow / rate-limited; keep optional.
+        self.wikidata = WikidataQuery() if self.enable_wikidata else None
     
     async def discover_jurisdiction(
         self,
@@ -212,7 +215,7 @@ class ComprehensiveDiscoveryPipeline:
                     results['agenda_portals'] = agendas
                 
                 # Step 7: Wikidata enrichment (fallback for missing data)
-                if not homepage_url or results['status'] == 'partial':
+                if self.enable_wikidata and (not homepage_url or results['status'] == 'partial'):
                     logger.debug(f"  Step 7/7: Wikidata enrichment (filling gaps)")
                     wd_timeout_s = float(
                         os.getenv("WIKIDATA_DISCOVERY_ENRICH_TIMEOUT_SECONDS", "60") or "60"
@@ -534,6 +537,8 @@ class ComprehensiveDiscoveryPipeline:
         This is especially useful for smaller jurisdictions where direct discovery fails.
         """
         try:
+            if not self.wikidata:
+                return
             wiki_info = await self.wikidata.get_jurisdiction_info(name, state, jtype)
             
             if not wiki_info:
