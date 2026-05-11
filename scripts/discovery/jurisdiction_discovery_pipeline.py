@@ -87,6 +87,17 @@ SCRAPED_TABLE: Dict[str, str] = {
 # dbt intermediate model (``dbt run --select int_jurisdiction_websites``)
 INT_JURISDICTION_WEBSITES_TABLE = "intermediate.int_jurisdiction_websites"
 
+# SQL fragment for ``ORDER BY`` / ``MIN()`` when picking among multiple URLs per ``jurisdiction_id``.
+# Counties: NACO (association-maintained county site) before GSA — reduces bad GSA stem/name matches
+# on .gov domains. Other types: keep GSA first (authoritative .gov registry).
+WEBSITE_SOURCE_PRIORITY_ORDER_SQL = (
+    "CASE WHEN jurisdiction_id LIKE 'county_%' THEN "
+    "CASE website_source WHEN 'naco' THEN 1 WHEN 'gsa' THEN 2 WHEN 'uscm' THEN 3 "
+    "WHEN 'nces_directory' THEN 4 ELSE 5 END ELSE "
+    "CASE website_source WHEN 'gsa' THEN 1 WHEN 'uscm' THEN 2 WHEN 'nces_directory' THEN 3 "
+    "WHEN 'naco' THEN 4 ELSE 5 END END"
+)
+
 _SCRAPED_DDL_PATH = Path(__file__).resolve().parent / "sql" / "bronze_jurisdictions_scraped.sql"
 
 
@@ -254,13 +265,7 @@ def load_int_jurisdiction_website_map(conn) -> Dict[str, str]:
           AND website_url IS NOT NULL
           AND btrim(website_url) <> ''
         ORDER BY jurisdiction_id,
-            CASE website_source
-                WHEN 'gsa' THEN 1
-                WHEN 'uscm' THEN 2
-                WHEN 'nces_directory' THEN 3
-                WHEN 'naco' THEN 4
-                ELSE 5
-            END,
+            ({WEBSITE_SOURCE_PRIORITY_ORDER_SQL}),
             website_record_key
     """
     with conn.cursor() as cur:

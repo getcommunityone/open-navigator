@@ -1,0 +1,10 @@
+version: 2
+
+seeds:
+  - name: jurisdiction_website_domain_denylist
+    description: >
+      Lowercase hostname only (no scheme). Rows are removed from int_jurisdiction_websites for every
+      source where domain_name matches. Curate manually for verified wrong or non-governmental hosts.
+    columns:
+      - name: domain
+        description: "FQDN to exclude, e.g. wilcoxcountyal.gov"

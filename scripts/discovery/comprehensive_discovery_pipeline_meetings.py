@@ -31,6 +31,13 @@ as wikidata JSON). Override with env ``SCRAPED_MEETINGS_ROOT`` (e.g. a Google Dr
 
 TLS: set ``SCRAPED_MEETINGS_HTTP_VERIFY=false`` only if you must (corporate MITM / broken CA store).
 
+CAPTCHA / anti-bot: successful HTTP 200 responses that look like Cloudflare hCaptcha/reCAPTCHA
+interstitials (and a few other WAFs) are treated as fetch failures with reason ``captcha:…`` and
+log event ``meetings_fetch_captcha_or_bot_wall``. There is no in-repo bypass; use a real browser
+(Playwright), a different network / egress IP, lower concurrency, or add an alternate
+``website_url`` in ``int_jurisdiction_websites`` (e.g. ``www.…`` vs apex) if the host serves real
+HTML to browsers but not to this scraper.
+
 Timeouts: ``--timeout`` applies to **connect** and **read** (and write/pool). Optional
 ``SCRAPED_MEETINGS_FETCH_RETRIES`` (default ``1``) adds backoff retries after ``ConnectTimeout`` /
 ``ReadTimeout`` only.
@@ -90,6 +97,7 @@ if str(_root) not in sys.path:
 
 from scripts.discovery.jurisdiction_discovery_pipeline import (
     INT_JURISDICTION_WEBSITES_TABLE,
+    WEBSITE_SOURCE_PRIORITY_ORDER_SQL,
     jurisdiction_pk_from_geoid,
     resolve_database_url,
 )
@@ -334,14 +342,6 @@ def _infer_year(url: str, fallback: int) -> int:
     return fallback
 
 
-_WEBSITE_SOURCE_PRIORITY_SQL = """CASE website_source
-                    WHEN 'gsa' THEN 1
-                    WHEN 'uscm' THEN 2
-                    WHEN 'nces_directory' THEN 3
-                    WHEN 'naco' THEN 4
-                    ELSE 5 END"""
-
-
 def _load_homepage_candidates_from_db(jurisdiction_id: str) -> List[str]:
     """
     All distinct homepage URLs for ``jurisdiction_id``, ordered by ``website_source`` priority
@@ -349,7 +349,7 @@ def _load_homepage_candidates_from_db(jurisdiction_id: str) -> List[str]:
     """
     if psycopg2 is None:
         raise RuntimeError("psycopg2 required for --from-db")
-    pri = _WEBSITE_SOURCE_PRIORITY_SQL
+    pri = WEBSITE_SOURCE_PRIORITY_ORDER_SQL
     db_url = resolve_database_url()
     out: List[str] = []
     with psycopg2.connect(db_url) as conn:
@@ -458,7 +458,7 @@ def load_meeting_scrape_jobs_for_state(
           AND website_url IS NOT NULL
           AND btrim(website_url) <> ''
         ORDER BY jurisdiction_id,
-            ({_WEBSITE_SOURCE_PRIORITY_SQL}),
+            ({WEBSITE_SOURCE_PRIORITY_ORDER_SQL}),
             website_record_key
     """
     jobs: List[Dict[str, str]] = []
@@ -646,6 +646,70 @@ def _fetch_retries() -> int:
     return max(0, min(n, 5))
 
 
+def _captcha_or_bot_wall_reason(html: str, headers: Any) -> Optional[str]:
+    """
+    If the HTTP 200 body looks like a bot / CAPTCHA interstitial (not a normal HTML site),
+    return a short reason token for logging and ``(None, "captcha:…")`` from the fetch layer.
+
+    Heuristics are conservative on **large** pages so we do not flag normal sites that embed a
+    small reCAPTCHA/hCaptcha widget in the footer.
+    """
+    if not html or not isinstance(html, str):
+        return None
+    n = len(html)
+    low = html.lower()
+    head = low[:120000]
+
+    # Cloudflare JS / managed challenge (common small-body case)
+    if "__cf_chl" in head or "/cdn-cgi/challenge-platform/" in head or "cf-chl-seq" in head:
+        return "cloudflare_js_challenge"
+    if "checking your browser before accessing" in head:
+        return "cloudflare_interstitial"
+    if "just a moment" in head and (
+        "cloudflare" in head or "cf-ray" in head or "challenges.cloudflare.com" in head
+    ):
+        return "cloudflare_just_a_moment"
+    try:
+        srv = (headers.get("server") or "").lower() if headers is not None else ""
+    except Exception:
+        srv = ""
+    if srv == "cloudflare" and n < 8000 and ("challenge" in head or "ray id" in head):
+        return "cloudflare_challenge_short_html"
+
+    # Incapsula / Imperva
+    if "incapsula incident id" in head or "_incapsula_resource_" in head:
+        return "incapsula_block"
+    if "request unsuccessful: incapsula incident" in head:
+        return "incapsula_block"
+
+    # Google interstitial
+    if "detected unusual traffic" in head and "google" in head:
+        return "google_unusual_traffic"
+
+    # DataDome / geo captcha delivery (usually short pages)
+    if n < 12000 and "geo.captcha-delivery.com" in head:
+        return "geo_captcha_delivery"
+
+    # PerimeterX / HUMAN
+    if "perimeterx" in head or "_pxcaptcha" in head or "px-captcha" in head:
+        return "perimeterx_challenge"
+
+    # Embedded CAPTCHA providers as **primary** content (small interstitial-sized bodies only)
+    if n < 25000:
+        if "verify you are human" in head or "verify you're human" in head:
+            return "human_verification_phrase"
+        if "are you a robot" in head or "i'm not a robot" in head:
+            return "robot_check_phrase"
+        if "hcaptcha.com" in head and ("hcaptcha" in head or "verify" in head):
+            return "hcaptcha_interstitial"
+        if "arkoselabs" in head or "funcaptcha" in head:
+            return "arkoselabs_funcaptcha"
+        if "google.com/recaptcha" in head and ("sorry" in head or "unusual traffic" in head):
+            return "recaptcha_google_wall"
+
+    return None
+
+
 def _meetings_contact_extract_enabled() -> bool:
     v = (os.getenv("SCRAPED_MEETINGS_CONTACT_EXTRACT") or "true").strip().lower()
     return v not in ("0", "false", "no", "off")
@@ -700,7 +764,18 @@ class ComprehensiveDiscoveryPipelineMeetings:
                     loc=(r.headers.get("location") or ""),
                 )
                 return None, reason
-            return r.text, ""
+            text = r.text
+            captcha_hint = _captcha_or_bot_wall_reason(text, r.headers)
+            if captcha_hint:
+                logfn = logger.debug if _is_probable_site_search_probe(url) else logger.warning
+                logfn(
+                    "meetings_fetch_captcha_or_bot_wall url={url!r} signal={signal} html_chars={}",
+                    url=url,
+                    signal=captcha_hint,
+                    len(text),
+                )
+                return None, f"captcha:{captcha_hint}"
+            return text, ""
         except httpx.TimeoutException as exc:
             reason = f"timeout:{type(exc).__name__}"
             logfn = logger.debug if _is_probable_site_search_probe(url) else logger.warning

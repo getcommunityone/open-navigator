@@ -13,6 +13,10 @@
 -- joins, optionally ``SET work_mem = '256MB'`` in the session before ``dbt run`` (avoid embedding in
 -- ``config(pre_hook=...)`` here: dbt's config parser rejects nested string quotes in some versions).
 -- Query that schema/name after ``dbt run --select int_jurisdiction_websites`` — public.* may be stale/wrong.
+--
+-- After adding denylist rows: ``dbt seed --select jurisdiction_website_domain_denylist`` then rebuild this model.
+-- Python scrapers (meetings, jurisdiction discovery) prefer **NACO over GSA** when ``jurisdiction_id`` is ``county_*``
+-- so county commission URLs from NACO beat questionable GSA .gov registry matches.
 
 -- Map GSA domain_type labels to the jurisdiction_type values used in int_jurisdictions
 -- so the name-match join targets the right pool of records.
@@ -586,21 +590,34 @@ combined AS (
     SELECT * FROM nces_rows
     UNION ALL
     SELECT * FROM naco_rows
+),
+
+-- Human-curated hostnames to exclude (wrong GSA rows, parked domains, etc.). See seed CSV.
+domain_denylist AS (
+    SELECT lower(btrim(domain)) AS domain
+    FROM {{ ref('jurisdiction_website_domain_denylist') }}
+    WHERE domain IS NOT NULL
+      AND btrim(domain) <> ''
 )
 
 SELECT
-    website_record_key,
-    website_source,
-    domain_name,
-    website_url,
-    domain_type,
-    jurisdiction_category,
-    organization_name,
-    agency,
-    city,
-    state_code,
-    state,
-    jurisdiction_id,
-    ingestion_date,
-    transformed_at
-FROM combined
+    c.website_record_key,
+    c.website_source,
+    c.domain_name,
+    c.website_url,
+    c.domain_type,
+    c.jurisdiction_category,
+    c.organization_name,
+    c.agency,
+    c.city,
+    c.state_code,
+    c.state,
+    c.jurisdiction_id,
+    c.ingestion_date,
+    c.transformed_at
+FROM combined c
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM domain_denylist d
+    WHERE d.domain = lower(btrim(c.domain_name))
+)

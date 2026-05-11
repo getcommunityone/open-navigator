@@ -1,41 +1,39 @@
 {% macro normalize_jurisdiction_label_for_match(expr) -%}
 NULLIF(
-    TRIM(
+    REGEXP_REPLACE(
         REGEXP_REPLACE(
             REGEXP_REPLACE(
                 REGEXP_REPLACE(
                     REGEXP_REPLACE(
                         REGEXP_REPLACE(
-                            REGEXP_REPLACE(
-                                LOWER(TRIM({{ expr }})),
-                                '^\\s*st\\.\\s+',
-                                'saint ',
-                                'gi'
-                            ),
-                            '(^|[^[:alpha:]])st\\.\\s+',
-                            '\\1saint ',
+                            LOWER(TRIM({{ expr }})),
+                            '^\\s*st\\.\\s+',
+                            'saint ',
                             'gi'
                         ),
-                        '^(city|town|village|borough|county|township|parish) of\\s+',
-                        '',
+                        '(^|[^[:alpha:]])st\\.\\s+',
+                        '\\1saint ',
                         'gi'
                     ),
-                    '\\s+(city|town|village|borough|county|township|parish)$',
+                    '^(city|town|village|borough|county|township|parish) of\\s+',
                     '',
                     'gi'
                 ),
-                '\\s+parish$',
-                ' county',
+                '\\s+(city|town|village|borough|county|township|parish)$',
+                '',
                 'gi'
             ),
-            '[^a-z0-9]+',
-            ' ',
-            'g'
+            '\\s+parish$',
+            ' county',
+            'gi'
         ),
-        '\\s+',
+        '[^a-z0-9]+',
         ' ',
         'g'
-    )
+    ),
+    '\\s+',
+    ' ',
+    'g'
 ),
 ''
 )
