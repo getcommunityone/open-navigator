@@ -347,6 +347,71 @@ sources:
           - name: ingestion_date
             description: "When record was loaded"
 
+      - name: bronze_jurisdictions_municipalities_uscm
+        description: |
+          US Conference of Mayors « Meet the Mayors » directory (cities 30k+). Loaded via
+          scripts/datasources/uscm/load_uscm_mayors_to_bronze.py after download_uscm_mayors.py.
+          (Older installs: migrations/016_rename_bronze_jurisdictions_municipalities_uscm.sql.)
+        columns:
+          - name: state_code
+          - name: municipality_name
+          - name: mayor_name
+          - name: population
+          - name: mayor_photo_url
+          - name: city_website
+          - name: bio_url
+          - name: next_election_raw
+          - name: phone
+          - name: email
+          - name: search_term_used
+          - name: source_url
+          - name: scraped_at
+          - name: raw_json
+          - name: ingestion_date
+
+      - name: bronze_jurisdictions_school_districts_nces_directory
+        description: |
+          NCES CCD LEA directory row per district. Loaded via
+          scripts/datasources/nces/load_nces_school_districts_to_bronze.py (CSV cache from download_nces.py).
+        columns:
+          - name: nces_id
+          - name: district_name
+          - name: state_code
+          - name: state_fips
+          - name: street_address
+          - name: city
+          - name: zip
+          - name: phone
+          - name: website
+          - name: district_type
+          - name: num_schools
+          - name: school_year
+          - name: raw_json
+          - name: ingestion_date
+
+      - name: bronze_jurisdictions_school_districts_nces_membership
+        description: |
+          NCES CCD membership totals per LEA (aggregated student counts). Same loader as directory.
+        columns:
+          - name: nces_id
+          - name: state_code
+          - name: state_fips
+          - name: total_students
+          - name: school_year
+          - name: ingestion_date
+
+      - name: bronze_jurisdictions_school_districts_nces_staff
+        description: |
+          NCES CCD staff counts per LEA and category (long format). Same loader as directory.
+        columns:
+          - name: nces_id
+          - name: state_code
+          - name: state_fips
+          - name: staff_category
+          - name: staff_count
+          - name: school_year
+          - name: ingestion_date
+
       - name: bronze_jurisdictions_openstates
         description: |
           Snapshot of Open States ``opencivicdata_jurisdiction``. Loaded via

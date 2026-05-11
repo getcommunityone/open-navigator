@@ -141,9 +141,27 @@ class ComprehensiveDiscoveryPipeline:
                 
                 # Step 2: Discover YouTube channels
                 logger.debug(f"  Step 2/6: Finding YouTube channels")
-                youtube_channels = await self._discover_youtube(
-                    name, state, jtype, homepage_url
+                yt_timeout_s = float(
+                    os.getenv("JURISDICTION_DISCOVERY_YOUTUBE_TIMEOUT_SECONDS", "90") or "90"
                 )
+                if yt_timeout_s <= 0:
+                    youtube_channels = await self._discover_youtube(
+                        name, state, jtype, homepage_url
+                    )
+                else:
+                    try:
+                        youtube_channels = await asyncio.wait_for(
+                            self._discover_youtube(name, state, jtype, homepage_url),
+                            timeout=yt_timeout_s,
+                        )
+                    except asyncio.TimeoutError:
+                        logger.warning(
+                            "YouTube discovery timed out after {:.0f}s for {}, {} — continuing without channels",
+                            yt_timeout_s,
+                            name,
+                            state,
+                        )
+                        youtube_channels = []
                 
                 # Add LocalView channels if available
                 localview_channel = self._get_localview_channel(name, state)
@@ -181,7 +199,25 @@ class ComprehensiveDiscoveryPipeline:
                 # Step 7: Wikidata enrichment (fallback for missing data)
                 if not homepage_url or results['status'] == 'partial':
                     logger.debug(f"  Step 7/7: Wikidata enrichment (filling gaps)")
-                    await self._enrich_with_wikidata(results, name, state, jtype)
+                    wd_timeout_s = float(
+                        os.getenv("WIKIDATA_DISCOVERY_ENRICH_TIMEOUT_SECONDS", "60") or "60"
+                    )
+                    if wd_timeout_s <= 0:
+                        await self._enrich_with_wikidata(results, name, state, jtype)
+                    else:
+                        try:
+                            await asyncio.wait_for(
+                                self._enrich_with_wikidata(results, name, state, jtype),
+                                timeout=wd_timeout_s,
+                            )
+                        except asyncio.TimeoutError:
+                            logger.warning(
+                                "Wikidata enrichment timed out after {:.0f}s for {}, {} — continuing without it "
+                                "(set WIKIDATA_DISCOVERY_ENRICH_TIMEOUT_SECONDS=0 to disable this cap)",
+                                wd_timeout_s,
+                                name,
+                                state,
+                            )
                 
                 # Calculate completeness score
                 results['completeness_score'] = self._calculate_completeness(results)
@@ -194,6 +230,35 @@ class ComprehensiveDiscoveryPipeline:
                 results['error'] = str(e)
             
             return results
+
+    async def _discover_jurisdiction_safe(self, jurisdiction: Dict) -> Dict:
+        """
+        Run ``discover_jurisdiction`` but never raise — one bad row must not abort the whole batch
+        (otherwise Postgres ``*_scraped`` never gets a final commit).
+        """
+        try:
+            return await self.discover_jurisdiction(jurisdiction)
+        except Exception as e:
+            logger.exception(
+                "Discovery task crashed for GEOID={} name={}: {}",
+                jurisdiction.get("GEOID"),
+                jurisdiction.get("name"),
+                e,
+            )
+            return {
+                "jurisdiction": jurisdiction,
+                "jurisdiction_id": str(jurisdiction.get("GEOID") or ""),
+                "discovery_timestamp": datetime.now().isoformat(),
+                "websites": [],
+                "youtube_channels": [],
+                "other_video": [],
+                "meeting_platforms": [],
+                "social_media": {},
+                "agenda_portals": [],
+                "status": "error",
+                "error": str(e),
+                "completeness_score": 0.0,
+            }
     
     async def _discover_website(
         self,
@@ -544,24 +609,31 @@ class ComprehensiveDiscoveryPipeline:
         
         logger.info(f"Starting batch discovery for {len(jurisdictions)} jurisdictions")
         
-        # Process with progress bar
-        tasks = [
-            self.discover_jurisdiction(j)
-            for j in jurisdictions
-        ]
-        
-        for i, task in enumerate(tqdm.as_completed(tasks, total=len(tasks))):
-            result = await task
-            results.append(result)
-            
-            # Save intermediate results
-            if (i + 1) % save_interval == 0:
-                self._save_results(results, f'batch_{i+1}')
-                logger.info(f"Saved {i+1} results")
-        
-        # Final save
-        self._save_results(results, 'final')
-        
+        # Process with progress bar (safe per task so one failure cannot skip the final persist)
+        tasks = [self._discover_jurisdiction_safe(j) for j in jurisdictions]
+
+        try:
+            for i, task in enumerate(tqdm.as_completed(tasks, total=len(tasks))):
+                result = await task
+                results.append(result)
+
+                if (i + 1) % save_interval == 0:
+                    self._save_results(results, f'batch_{i+1}')
+                    logger.info(f"Saved {i+1} results")
+
+            self._save_results(results, 'final')
+        except BaseException:
+            if results:
+                logger.warning(
+                    "Batch interrupted or failed after {} result(s); attempting one last persist",
+                    len(results),
+                )
+                try:
+                    self._save_results(results, 'partial_recovery')
+                except Exception as save_err:
+                    logger.error("Partial persist failed: {}", save_err, exc_info=save_err)
+            raise
+
         return results
     
     def _save_results(self, results: List[Dict], suffix: str = ''):

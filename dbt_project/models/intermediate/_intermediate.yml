@@ -76,33 +76,56 @@ models:
 
   - name: int_jurisdiction_websites
     description: >
-      Cleaned and standardized .gov domain registry from GSA (cisagov/dotgov-data).
-      Excludes federal agency domains; focuses on local/state government websites.
-      Adds full state name and normalizes domain_type to jurisdiction_category.
+      Materialized as ``intermediate.int_jurisdiction_websites`` (custom intermediate schema — not ``public``).
+      Run ``dbt run --select int_jurisdiction_websites`` before expecting columns like ``website_source`` in the warehouse.
+
+      For **GSA** rows, ``jurisdiction_id`` is ``COALESCE(URL match, name match)``: same normalized site origin
+      (https host, lowercase, no ``www.``, no trailing slash) as a USCM city, NCES district, or NACo county row
+      wins over the legacy city+state name match alone.
+
+      Jurisdiction website URLs from multiple bronze sources: GSA .gov registry (cisagov/dotgov-data),
+      US Conference of Mayors city sites (bronze_jurisdictions_municipalities_uscm.city_website),
+      NCES CCD LEA directory (bronze_jurisdictions_school_districts_nces_directory.website),
+      and NACo county explorer (bronze_jurisdictions_counties_naco.website). Federal agency .gov
+      domains are excluded from the GSA slice only. ``website_source`` identifies the upstream bronze
+      lineage; ``website_record_key`` is unique per row.
     columns:
-      - name: domain_name
-        description: "Lowercase .gov domain (primary key)"
+      - name: website_record_key
+        description: "Stable unique key per row (e.g. gsa domain, uscm|ST|municipality, nces_directory|LEAID, naco|county GEOID)"
         tests:
           - unique
           - not_null
+      - name: website_source
+        description: "Upstream bronze lineage: gsa (bronze_gov_domains), uscm, nces_directory, or naco"
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['gsa', 'uscm', 'nces_directory', 'naco']
+      - name: domain_name
+        description: "Lowercase hostname when derivable from URL; for GSA rows the .gov domain"
       - name: website_url
-        description: "Full https:// URL constructed from domain_name"
+        description: "Normalized https URL (scheme added when missing)"
         tests:
           - not_null
       - name: domain_type
-        description: "Raw domain type from GSA (City, County, State, School District, etc.)"
+        description: "Raw domain type from GSA only (City, County, etc.); NULL for non-GSA rows"
       - name: jurisdiction_category
         description: "Standardized jurisdiction category (municipality, county, state, school_district, township, special_district, other)"
       - name: organization_name
-        description: "Registering organization name"
+        description: "Organization or jurisdiction display name (GSA organization, USCM municipality, NCES district, NACo county)"
       - name: agency
-        description: "Parent agency (often NULL for local gov)"
+        description: "Parent agency from GSA when present; NULL for other sources"
       - name: city
-        description: "City of the registrant"
+        description: "City from GSA registrant or USCM municipality name when applicable"
       - name: state_code
         description: "2-letter state abbreviation"
       - name: state
         description: "Full state name"
+      - name: jurisdiction_id
+        description: >
+          int_jurisdictions GEOID key when matched. Non-GSA rows use name/GEOID joins from bronze.
+          GSA: URL origin match to USCM / NCES directory / NACo website first, else former name+city match.
       - name: ingestion_date
         description: "When the bronze record was loaded"
       - name: transformed_at

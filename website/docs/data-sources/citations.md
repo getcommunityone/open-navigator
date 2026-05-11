@@ -34,7 +34,7 @@ This page documents all data sources, standards, and research contributions used
   </a>
   <a href="#election--advocacy" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #9C27B0'}}>
     <strong>🗳️ Election & Advocacy</strong><br/>
-    <span style={{fontSize: '0.9em', color: '#666'}}>Ballotpedia, MIT Election Lab, OpenElections</span>
+    <span style={{fontSize: '0.9em', color: '#666'}}>Ballotpedia, MIT Election Lab, OpenElections, Alabama FCPA campaign finance disclosures</span>
   </a>
   <a href="#nonprofit--philanthropy" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #F44336'}}>
     <strong>🏢 Nonprofit & Philanthropy</strong><br/>
@@ -886,6 +886,7 @@ concept_id_1 | concept_id_2 | relationship_id
 - [Ballotpedia](#ballotpedia)
 - [MIT Election Data + Science Lab](#mit-election-data--science-lab)
 - [OpenElections](#openelections)
+- [Alabama FCPA public general reports](#alabama-fcpa-public-general-reports)
 
 ### Ballotpedia
 
@@ -915,6 +916,26 @@ concept_id_1 | concept_id_2 | relationship_id
 - **GitHub:** https://github.com/openelections
 - **Coverage:** All 50 states (various completion levels), precinct-level data
 - **License:** Open source (varies by state)
+
+### Alabama FCPA public general reports
+
+**Organization:** Alabama Secretary of State (Fair Campaign Practices Act disclosures via Alabama Votes)  
+**What we use:** Alabama **state and local campaign finance** public filings — browse and export style reports through the FCPA disclosure portal (`fcpa.alabamavotes.gov`).
+
+- **Public general reports:** [https://fcpa.alabamavotes.gov/page.request.do?page=page.acfPublicGeneralReports](https://fcpa.alabamavotes.gov/page.request.do?page=page.acfPublicGeneralReports)
+- **Portal home:** https://fcpa.alabamavotes.gov/
+- **Coverage:** Alabama candidates, PACs/committees, and related disclosures as filed under Alabama law (see official site for report types and update cadence).
+- **License / access:** Public government disclosure data; scraping or bulk reuse must comply with site terms of use and applicable law.
+
+**BibTeX:**
+```bibtex
+@misc{alabama_fcpa_public_reports,
+  author = {{Alabama Secretary of State}},
+  title = {Fair Campaign Practices Act (FCPA) --- Public general reports},
+  url = {https://fcpa.alabamavotes.gov/page.request.do?page=page.acfPublicGeneralReports},
+  note = {Alabama campaign finance disclosure portal accessed via Alabama Votes.}
+}
+```
 
 ---
 
@@ -2531,6 +2552,7 @@ We are grateful to the following organizations and individuals:
 - Findhelp.org for local social services directory (400K+ programs)
 
 **Government:**
+- Alabama Secretary of State for Fair Campaign Practices Act (FCPA) public campaign finance reports ([Alabama Votes FCPA portal](https://fcpa.alabamavotes.gov/page.request.do?page=page.acfPublicGeneralReports))
 - U.S. Census Bureau for demographic data
 - National Center for Education Statistics (NCES)
 - IRS for tax-exempt organization data

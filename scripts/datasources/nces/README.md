@@ -20,7 +20,8 @@ Track school districts for educational civic engagement:
 
 ## 📁 Scripts
 
-- `nces_ingestion.py` - Download and process NCES Directory data (requires PySpark)
+- `download_nces.py` — download CCD LEA zips to ``data/cache/nces/`` and optional partitioned Parquet under ``data/lake/bronze/`` (pandas + pyarrow, no Spark)
+- `load_nces_school_districts_to_bronze.py` — upsert CSV cache into ``bronze.bronze_jurisdictions_school_districts_nces_*`` (incremental by district PK / optional ``--states``)
 
 ## 🚀 Usage
 

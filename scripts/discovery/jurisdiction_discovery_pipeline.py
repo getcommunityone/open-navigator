@@ -3,11 +3,10 @@ Jurisdiction discovery pipeline (merged)
 
 Combines:
 - **Postgres bronze** inputs: ``bronze.bronze_jurisdictions_{states,municipalities,counties,school_districts}``
-  and optional **GSA bulk** matching via ``bronze.bronze_gov_domains`` (same idea as the legacy
-  Delta ``run_url_discovery`` pass).
-- **Deep discovery** from ``ComprehensiveDiscoveryPipeline``: HTTP website checks, YouTube, social,
-  meeting platforms, agenda links, Wikidata gap-fill. When those miss a homepage, we fall back to
-  ``bronze.bronze_gov_domains`` (hostname heuristics + ``city``/``state`` row match).
+- **Homepage seeds** from dbt ``intermediate.int_jurisdiction_websites`` only (GSA/USCM/NCES/NACO union
+  built in the warehouse). No pattern-guessed ``.gov`` URLs and no Wikidata **website** backfill.
+- **Deep discovery** from ``ComprehensiveDiscoveryPipeline``: crawl that seed URL for YouTube, social,
+  meeting platforms, agenda links, etc. (derived links are from scraping the allowed homepage.)
 
 Writes discovered metadata to **new** tables (suffix ``_scraped``), not Delta Lake.
 Each completed jurisdiction is **upserted to Postgres immediately** (no waiting for a large batch).
@@ -21,6 +20,7 @@ Usage:
   .venv/bin/python -m scripts.discovery.jurisdiction_discovery_pipeline --state AL
   .venv/bin/python -m scripts.discovery.jurisdiction_discovery_pipeline --state AL --include-states
   .venv/bin/python -m scripts.discovery.jurisdiction_discovery_pipeline --state AL --gsa-bulk-only
+  # (--gsa-bulk-only: bulk upsert using int_jurisdiction_websites only; name kept for CLI compatibility)
   ./scripts/discovery/run_jurisdiction_discovery.sh --state AL --gsa-bulk-only
 """
 from __future__ import annotations
@@ -82,6 +82,9 @@ SCRAPED_TABLE: Dict[str, str] = {
     "county": "bronze.bronze_jurisdictions_counties_scraped",
     "school_district": "bronze.bronze_jurisdictions_school_districts_scraped",
 }
+
+# dbt intermediate model (``dbt run --select int_jurisdiction_websites``)
+INT_JURISDICTION_WEBSITES_TABLE = "intermediate.int_jurisdiction_websites"
 
 _SCRAPED_DDL_PATH = Path(__file__).resolve().parent / "sql" / "bronze_jurisdictions_scraped.sql"
 
@@ -176,6 +179,68 @@ def load_gsa_city_state_domain_map(conn) -> Dict[Tuple[str, str], str]:
             if k not in out:
                 out[k] = host
     logger.info(f"Loaded {len(out):,} GSA city/state → host keys from bronze.bronze_gov_domains")
+    return out
+
+
+def jurisdiction_pk_from_geoid(geoid: Optional[str], jtype: Optional[str]) -> str:
+    """
+    Primary key matching ``int_jurisdictions.jurisdiction_id`` (``{type}_{padded_geoid}``).
+
+    Aligns with dbt ``int_jurisdictions`` padding: county 5, municipality/school 7, township 10, state 2.
+    """
+    raw = str(geoid or "").strip().replace("-", "")
+    if not raw or not raw.isdigit():
+        return ""
+    jt = (jtype or "city").lower()
+    if jt == "state":
+        return f"state_{raw.zfill(2)}"
+    if jt == "county":
+        return f"county_{raw.zfill(5)}"
+    if jt in ("school_district", "school"):
+        return f"school_district_{raw.zfill(7)}"
+    if jt == "township":
+        return f"township_{raw.zfill(10)}"
+    # city / municipality / place
+    return f"municipality_{raw.zfill(7)}"
+
+
+def load_int_jurisdiction_website_map(conn) -> Dict[str, str]:
+    """
+    ``jurisdiction_id`` → canonical ``website_url`` from ``intermediate.int_jurisdiction_websites``.
+
+    One URL per jurisdiction (prefers USCM, then NACo, NCES directory, then GSA).
+    """
+    out: Dict[str, str] = {}
+    sql = f"""
+        SELECT DISTINCT ON (jurisdiction_id)
+            jurisdiction_id,
+            trim(website_url) AS website_url
+        FROM {INT_JURISDICTION_WEBSITES_TABLE}
+        WHERE jurisdiction_id IS NOT NULL
+          AND website_url IS NOT NULL
+          AND btrim(website_url) <> ''
+        ORDER BY jurisdiction_id,
+            CASE website_source
+                WHEN 'uscm' THEN 1
+                WHEN 'naco' THEN 2
+                WHEN 'nces_directory' THEN 3
+                WHEN 'gsa' THEN 4
+                ELSE 5
+            END,
+            website_record_key
+    """
+    with conn.cursor() as cur:
+        cur.execute(sql)
+        for jid, url in cur.fetchall():
+            key = str(jid or "").strip()
+            val = str(url or "").strip()
+            if key and val:
+                out[key] = val
+    logger.info(
+        "Loaded {:,} jurisdiction_id → website_url row(s) from {}",
+        len(out),
+        INT_JURISDICTION_WEBSITES_TABLE,
+    )
     return out
 
 
@@ -433,7 +498,8 @@ def _result_to_scraped_row(r: Dict[str, Any]) -> Tuple[str, str, str, Optional[s
     }
     gsa_dom = None
     for w in websites:
-        if (w or {}).get("discovery_method") == "gsa_match":
+        dm = (w or {}).get("discovery_method")
+        if dm in ("gsa_match", "int_jurisdiction_websites"):
             gsa_dom = (w.get("url") or "").replace("https://", "").replace("http://", "").split("/")[0].lower()
             break
     return (
@@ -452,8 +518,9 @@ def _result_to_scraped_row(r: Dict[str, Any]) -> Tuple[str, str, str, Optional[s
 
 class JurisdictionDiscoveryPipeline(ComprehensiveDiscoveryPipeline):
     """
-    Postgres-backed discovery: read bronze jurisdiction rows, optionally GSA-match in bulk,
-    run async deep discovery, upsert into ``*_scraped`` tables.
+    Postgres-backed discovery: read bronze jurisdiction rows, seed homepages from
+    ``intermediate.int_jurisdiction_websites``, run async deep discovery from that URL,
+    upsert into ``*_scraped`` tables.
     """
 
     def __init__(
@@ -470,8 +537,8 @@ class JurisdictionDiscoveryPipeline(ComprehensiveDiscoveryPipeline):
         if psycopg2 is None:
             raise RuntimeError("psycopg2 is required for JurisdictionDiscoveryPipeline")
         self._pg: Optional[Any] = None
-        self._gsa_host_set: Optional[Set[str]] = None
-        self._gsa_city_host: Optional[Dict[Tuple[str, str], str]] = None
+        self._ijw_by_jurisdiction_id: Optional[Dict[str, str]] = None
+        self._discovery_context: Optional[Dict[str, Any]] = None
         super().__init__(
             youtube_api_key=youtube_api_key,
             max_concurrent=max_concurrent,
@@ -490,41 +557,62 @@ class JurisdictionDiscoveryPipeline(ComprehensiveDiscoveryPipeline):
         if self._pg is not None:
             self._pg.close()
             self._pg = None
-        self._gsa_host_set = None
-        self._gsa_city_host = None
+        self._ijw_by_jurisdiction_id = None
 
-    def _ensure_gsa_lookup_cache(self) -> None:
-        if self._gsa_host_set is not None:
+    def _ensure_int_jurisdiction_websites_cache(self) -> None:
+        if self._ijw_by_jurisdiction_id is not None:
             return
         conn = self._conn()
-        self._gsa_host_set = load_gsa_domain_set(conn)
-        self._gsa_city_host = load_gsa_city_state_domain_map(conn)
+        self._ijw_by_jurisdiction_id = load_int_jurisdiction_website_map(conn)
 
-    def _gsa_website_entry(self, jurisdiction: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        self._ensure_gsa_lookup_cache()
-        assert self._gsa_host_set is not None and self._gsa_city_host is not None
-        host = match_jurisdiction_to_gsa_host(
-            jurisdiction.get("name") or "",
-            jurisdiction.get("state_code") or "",
-            jurisdiction.get("type") or "city",
-            self._gsa_host_set,
-            self._gsa_city_host,
+    def _seed_website_from_int_table(self, jurisdiction: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        self._ensure_int_jurisdiction_websites_cache()
+        assert self._ijw_by_jurisdiction_id is not None
+        pk = jurisdiction_pk_from_geoid(
+            str(jurisdiction.get("GEOID") or ""),
+            str(jurisdiction.get("type") or "city"),
         )
-        if not host:
+        if not pk:
             return None
-        url = f"https://{host}"
-        return {"url": url, "final_url": url, "status": "active", "discovery_method": "gsa_match"}
+        url = self._ijw_by_jurisdiction_id.get(pk)
+        if not url:
+            return None
+        u = url.strip()
+        if not u.lower().startswith(("http://", "https://")):
+            u = f"https://{u.lstrip('/')}"
+        return {"url": u, "final_url": u, "status": "active", "discovery_method": "int_jurisdiction_websites"}
+
+    async def _discover_website(self, name: str, state: str, jtype: str) -> Optional[Dict[str, Any]]:
+        """Use dbt ``int_jurisdiction_websites`` only — no pattern-probed .com/.gov guesses."""
+        del name, state  # context carries GEOID + type
+        j = self._discovery_context or {}
+        return self._seed_website_from_int_table(j)
+
+    async def _enrich_with_wikidata(self, results: Dict[str, Any], name: str, state: str, jtype: str) -> None:
+        """Keep YouTube/social from Wikidata; never add a primary **website** from Wikidata."""
+        await super()._enrich_with_wikidata(results, name, state, jtype)
+        results["websites"] = [
+            w
+            for w in (results.get("websites") or [])
+            if (w or {}).get("discovery_method") != "wikidata"
+        ]
+        if not results["websites"] and results.get("status") == "success":
+            results["status"] = "partial"
 
     async def discover_jurisdiction(self, jurisdiction: Dict[str, Any]) -> Dict[str, Any]:
-        result = await super().discover_jurisdiction(jurisdiction)
-        if not result.get("websites"):
-            hint = self._gsa_website_entry(jurisdiction)
-            if hint:
-                result["websites"] = [hint]
-                if result.get("status") == "partial":
-                    result["status"] = "success"
-                result["completeness_score"] = self._calculate_completeness(result)
-        return result
+        self._discovery_context = jurisdiction
+        try:
+            result = await super().discover_jurisdiction(jurisdiction)
+            if not result.get("websites"):
+                hint = self._seed_website_from_int_table(jurisdiction)
+                if hint:
+                    result["websites"] = [hint]
+                    if result.get("status") == "partial":
+                        result["status"] = "success"
+                    result["completeness_score"] = self._calculate_completeness(result)
+            return result
+        finally:
+            self._discovery_context = None
 
     async def discover_batch(self, jurisdictions: List[Dict[str, Any]], save_interval: int = 100) -> List[Dict[str, Any]]:
         """
@@ -533,7 +621,7 @@ class JurisdictionDiscoveryPipeline(ComprehensiveDiscoveryPipeline):
         ``save_interval`` is ignored for Postgres (kept for API compatibility). If
         ``write_parquet_backup`` is true, a single legacy JSON/CSV/parquet export runs at the end.
         """
-        self._ensure_gsa_lookup_cache()
+        self._ensure_int_jurisdiction_websites_cache()
         results: List[Dict[str, Any]] = []
         n = len(jurisdictions)
         logger.info(f"Starting batch discovery for {n} jurisdictions (per-row Postgres upsert)")
@@ -701,14 +789,14 @@ class JurisdictionDiscoveryPipeline(ComprehensiveDiscoveryPipeline):
         include_schools: bool = False,
     ) -> Dict[str, int]:
         """
-        Fast path: match jurisdiction name patterns against ``bronze.bronze_gov_domains`` only
-        (no per-site HTTP discovery). Writes rows with ``discovery_source='gsa_bulk'``.
+        Fast path: join bronze jurisdictions to ``intermediate.int_jurisdiction_websites`` by
+        ``jurisdiction_id`` (no per-site HTTP discovery). Writes ``discovery_source='int_jurisdiction_websites_bulk'``.
+        CLI flag ``--gsa-bulk-only`` is kept for backward compatibility.
         """
         conn = self._conn()
-        self._ensure_gsa_lookup_cache()
-        assert self._gsa_host_set is not None and self._gsa_city_host is not None
-        gsa_hosts = self._gsa_host_set
-        city_map = self._gsa_city_host
+        self._ensure_int_jurisdiction_websites_cache()
+        assert self._ijw_by_jurisdiction_id is not None
+        ijw = self._ijw_by_jurisdiction_id
         jurisdictions = load_jurisdictions_from_postgres(
             conn,
             state_filter=state_filter,
@@ -722,20 +810,30 @@ class JurisdictionDiscoveryPipeline(ComprehensiveDiscoveryPipeline):
         batch: Dict[str, List[tuple]] = {}
         matched = 0
         for j in jurisdictions:
-            name = j.get("name") or ""
-            st = j.get("state_code") or ""
             jt = j.get("type") or "city"
             geoid = j.get("GEOID") or ""
+            st = j.get("state_code") or ""
             if not geoid:
                 continue
-            dom = match_jurisdiction_to_gsa_host(name, st, jt, gsa_hosts, city_map)
-            if not dom:
+            pk = jurisdiction_pk_from_geoid(str(geoid), str(jt))
+            url = ijw.get(pk) if pk else None
+            if not url:
                 continue
+            u = url.strip()
+            if not u.lower().startswith(("http://", "https://")):
+                u = f"https://{u.lstrip('/')}"
+            dom = normalize_gov_host(u)
             matched += 1
             tbl = _scraped_table_for(jt)
-            url = f"https://{dom}"
             payload = {
-                "websites": [{"url": url, "final_url": url, "status": "active", "discovery_method": "gsa_match"}],
+                "websites": [
+                    {
+                        "url": u,
+                        "final_url": u,
+                        "status": "active",
+                        "discovery_method": "int_jurisdiction_websites",
+                    }
+                ],
                 "jurisdiction": j,
                 "discovery_timestamp": now,
             }
@@ -743,10 +841,10 @@ class JurisdictionDiscoveryPipeline(ComprehensiveDiscoveryPipeline):
                 (
                     geoid,
                     st.upper(),
-                    url,
-                    url,
+                    u,
+                    u,
                     dom,
-                    "gsa_bulk",
+                    "int_jurisdiction_websites_bulk",
                     "success",
                     0.25,
                     Json(payload),
@@ -773,8 +871,16 @@ class JurisdictionDiscoveryPipeline(ComprehensiveDiscoveryPipeline):
             for tbl, rows in batch.items():
                 execute_batch(cur, sql.format(tbl=tbl), rows, page_size=500)
         conn.commit()
-        logger.success(f"GSA bulk: matched {matched:,} jurisdiction(s) across {len(jurisdictions):,} candidates")
-        return {"candidates": len(jurisdictions), "gsa_matched": matched, "tables": len(batch)}
+        logger.success(
+            "int_jurisdiction_websites bulk: matched {:,} jurisdiction(s) across {:,} candidates",
+            matched,
+            len(jurisdictions),
+        )
+        return {
+            "candidates": len(jurisdictions),
+            "gsa_matched": matched,
+            "tables": len(batch),
+        }
 
     async def run_full_pipeline(
         self,

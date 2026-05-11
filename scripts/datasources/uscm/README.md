@@ -6,6 +6,7 @@ Official organization representing cities with populations of 30,000+.
 
 - **Website:** https://www.usmayors.org/
 - **Election Results:** https://www.usmayors.org/elections/election-results-2/
+- **Meet the Mayors (directory):** https://www.usmayors.org/mayors/meet-the-mayors/
 - **Coverage:** 1,400+ cities with mayors
 - **Update Frequency:** Ongoing as elections occur
 
@@ -19,8 +20,21 @@ Track current and incoming mayors for U.S. cities:
 
 ## 📁 Scripts
 
-- `scrape_mayor_elections.py` - Scrape election results and update database
-- `add_mayor_columns.sql` - Add mayor-related columns to database
+- `scrape_mayor_elections.py` — scrape election results (election-results page)
+- `download_uscm_mayors.py` — download the Meet the Mayors directory by state (POST search); writes `data/cache/uscm/meet_the_mayors_us_YYYYMMDD.json`
+- `load_uscm_mayors_to_bronze.py` — load that JSON into `bronze.bronze_jurisdictions_municipalities_uscm`
+- `state_names.py` — USPS → full state name (required by the Meet the Mayors search form)
+- `add_mayor_columns.sql` — add mayor-related columns to legacy tables
+
+### Meet the Mayors → bronze
+
+```bash
+./.venv/bin/python scripts/datasources/uscm/download_uscm_mayors.py
+./.venv/bin/python scripts/datasources/uscm/load_uscm_mayors_to_bronze.py
+# Optional: ./.venv/bin/python scripts/datasources/uscm/load_uscm_mayors_to_bronze.py --truncate
+```
+
+If you already had data in `bronze.bronze_jurisdictions_municipalities_mayors`, apply `scripts/deployment/neon/migrations/016_rename_bronze_jurisdictions_municipalities_uscm.sql` once before relying on the new table name.
 
 ## 🚀 Usage
 
