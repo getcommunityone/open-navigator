@@ -94,9 +94,9 @@ WEBSITE_SOURCE_PRIORITY_ORDER_SQL = (
     # ``%%`` so psycopg2 does not treat ``county_%`` as a printf-style placeholder when this
     # fragment is embedded next to ``%s`` parameters (e.g. meetings ``--from-db`` queries).
     "CASE WHEN jurisdiction_id LIKE 'county_%%' THEN "
-    "CASE website_source WHEN 'naco' THEN 1 WHEN 'gsa' THEN 2 WHEN 'uscm' THEN 3 "
+    "CASE website_source WHEN 'override' THEN 0 WHEN 'naco' THEN 1 WHEN 'gsa' THEN 2 WHEN 'uscm' THEN 3 "
     "WHEN 'nces_directory' THEN 4 ELSE 5 END ELSE "
-    "CASE website_source WHEN 'gsa' THEN 1 WHEN 'uscm' THEN 2 WHEN 'nces_directory' THEN 3 "
+    "CASE website_source WHEN 'override' THEN 0 WHEN 'gsa' THEN 1 WHEN 'uscm' THEN 2 WHEN 'nces_directory' THEN 3 "
     "WHEN 'naco' THEN 4 ELSE 5 END END"
 )
 

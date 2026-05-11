@@ -8,3 +8,15 @@ seeds:
     columns:
       - name: domain
         description: "FQDN to exclude, e.g. wilcoxcountyal.gov"
+
+  - name: jurisdiction_website_url_overrides
+    description: >
+      Manual canonical website per jurisdiction_id when bronze/GSA/NACo rows are missing or wrong.
+      Rows are unioned into int_jurisdiction_websites with website_source = override and win first in
+      downstream URL pickers. After editing: dbt seed --select jurisdiction_website_url_overrides &&
+      dbt run --select int_jurisdiction_websites
+    columns:
+      - name: jurisdiction_id
+        description: "Primary key matching int_jurisdictions (e.g. county_01093)"
+      - name: website_url
+        description: "Full site URL (https://…); normalized like other sources"

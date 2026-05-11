@@ -15,8 +15,9 @@
 -- Query that schema/name after ``dbt run --select int_jurisdiction_websites`` — public.* may be stale/wrong.
 --
 -- After adding denylist rows: ``dbt seed --select jurisdiction_website_domain_denylist`` then rebuild this model.
--- Python scrapers (meetings, jurisdiction discovery) prefer **NACO over GSA** when ``jurisdiction_id`` is ``county_*``
--- so county commission URLs from NACO beat questionable GSA .gov registry matches.
+-- Curated URLs: ``jurisdiction_website_url_overrides`` seed (``dbt seed --select jurisdiction_website_url_overrides``).
+-- Python scrapers rank **override** (this seed) first, then **NACO over GSA** for ``county_*`` ids so
+-- curated and NACo county URLs beat questionable GSA .gov registry matches.
 
 -- Map GSA domain_type labels to the jurisdiction_type values used in int_jurisdictions
 -- so the name-match join targets the right pool of records.
@@ -582,6 +583,55 @@ naco_rows AS (
     LEFT JOIN state_ref s ON n.state_code = s.state_code
 ),
 
+-- Hand-picked canonical URL when upstream sources omit it or list a failing / alternate host.
+jurisdiction_url_override_seed AS (
+    SELECT
+        TRIM(ob.jurisdiction_id) AS jurisdiction_id,
+        TRIM(ob.website_url) AS raw_website
+    FROM {{ ref('jurisdiction_website_url_overrides') }} ob
+    WHERE ob.jurisdiction_id IS NOT NULL
+      AND TRIM(ob.jurisdiction_id) <> ''
+      AND ob.website_url IS NOT NULL
+      AND TRIM(ob.website_url) <> ''
+),
+
+override_rows AS (
+    SELECT
+        'override|' || j.jurisdiction_id AS website_record_key,
+        'override' AS website_source,
+        NULLIF(
+          LOWER(TRIM((regexp_match(
+            regexp_replace(
+              CASE
+                WHEN o.raw_website ~* '^https?://' THEN TRIM(o.raw_website)
+                ELSE 'https://' || TRIM(REGEXP_REPLACE(o.raw_website, '^/+', ''))
+              END,
+              '^https?://', '', 'i'
+            ),
+            '^([^/?#]+)'
+          ))[1])),
+          ''
+        ) AS domain_name,
+        CASE
+            WHEN o.raw_website ~* '^https?://' THEN TRIM(o.raw_website)
+            ELSE 'https://' || TRIM(REGEXP_REPLACE(o.raw_website, '^/+', ''))
+        END AS website_url,
+        CAST(NULL AS VARCHAR) AS domain_type,
+        j.jurisdiction_type AS jurisdiction_category,
+        j.name AS organization_name,
+        CAST(NULL AS VARCHAR) AS agency,
+        CAST(NULL AS VARCHAR) AS city,
+        j.state_code,
+        s.state_name AS state,
+        j.jurisdiction_id,
+        CURRENT_TIMESTAMP AS ingestion_date,
+        CURRENT_TIMESTAMP AS transformed_at
+    FROM jurisdiction_url_override_seed o
+    INNER JOIN {{ ref('int_jurisdictions') }} j
+        ON j.jurisdiction_id = o.jurisdiction_id
+    LEFT JOIN state_ref s ON j.state_code = s.state_code
+),
+
 combined AS (
     SELECT * FROM gsa_rows
     UNION ALL
@@ -590,6 +640,8 @@ combined AS (
     SELECT * FROM nces_rows
     UNION ALL
     SELECT * FROM naco_rows
+    UNION ALL
+    SELECT * FROM override_rows
 ),
 
 -- Human-curated hostnames to exclude (wrong GSA rows, parked domains, etc.). See seed CSV.

@@ -92,23 +92,24 @@ models:
       Jurisdiction website URLs from multiple bronze sources: GSA .gov registry (cisagov/dotgov-data),
       US Conference of Mayors city sites (bronze_jurisdictions_municipalities_uscm.city_website),
       NCES CCD LEA directory (bronze_jurisdictions_school_districts_nces_directory.website),
-      and NACo county explorer (bronze_jurisdictions_counties_naco.website). Federal agency .gov
-      domains are excluded from the GSA slice only. ``website_source`` identifies the upstream bronze
-      lineage; ``website_record_key`` is unique per row. Downstream Python pickers prefer
-      **gsa → uscm → nces_directory → naco** (GSA .gov registry first when a row exists for that jurisdiction).
+      NACo county explorer (bronze_jurisdictions_counties_naco.website), plus optional
+      **jurisdiction_website_url_overrides** (``website_source`` = ``override``). Federal agency .gov
+      domains are excluded from the GSA slice only. ``website_source`` identifies lineage;
+      ``website_record_key`` is unique per row. Downstream Python pickers rank **override** first,
+      then **naco → gsa → …** for counties and **override → gsa → …** for other types.
     columns:
       - name: website_record_key
-        description: "Stable unique key per row (e.g. gsa domain, uscm|ST|municipality, nces_directory|LEAID, naco|county GEOID)"
+        description: "Stable unique key per row (e.g. gsa domain, uscm|ST|municipality, nces_directory|LEAID, naco|county GEOID, override|jurisdiction_id)"
         tests:
           - unique
           - not_null
       - name: website_source
-        description: "Upstream bronze lineage: gsa (bronze_gov_domains), uscm, nces_directory, or naco"
+        description: "Upstream lineage: gsa, uscm, nces_directory, naco, or override (seed)"
         tests:
           - not_null
           - accepted_values:
               arguments:
-                values: ['gsa', 'uscm', 'nces_directory', 'naco']
+                values: ['gsa', 'uscm', 'nces_directory', 'naco', 'override']
       - name: domain_name
         description: "Lowercase hostname when derivable from URL; for GSA rows the .gov domain"
       - name: website_url
