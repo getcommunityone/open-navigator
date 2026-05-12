@@ -20,11 +20,15 @@ import zipfile
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from pathlib import Path
+import re
 import httpx
 import pandas as pd
 from loguru import logger
 
 from config import settings
+
+# Subject summary tables (e.g. ``S0801``) use ``…/acs/acs5/subject``; detailed ``B*`` / ``C*`` use ``…/acs/acs5``.
+_SUBJECT_TABLE_RE = re.compile(r"^S\d{4}$", re.I)
 
 
 class ACSDataIngestion:
@@ -64,7 +68,8 @@ class ACSDataIngestion:
         "B01002": "Median Age by Sex",
         "B19301": "Per Capita Income",
         "B19083": "Gini Index of Income Inequality",
-        "B08303": "Travel Time to Work",
+        "B08303": "Travel Time to Work (time buckets; total in _001E is worker count)",
+        "S0801": "Commuting Characteristics by Sex (subject; includes mean travel time)",
         "B25070": "Gross Rent as Percentage of Household Income",
         "B01003": "Total Population",
         
@@ -160,8 +165,9 @@ class ACSDataIngestion:
             logger.warning("No Census API key found. Get one at: https://api.census.gov/data/key_signup.html")
             logger.info("Without API key, you're limited to 500 requests/day")
         
-        # Construct API URL
-        base_url = f"https://api.census.gov/data/{year}/acs/acs5"
+        # Construct API URL (subject vs detailed 5-year endpoint)
+        base_tail = "acs/acs5/subject" if _SUBJECT_TABLE_RE.match(table.strip()) else "acs/acs5"
+        base_url = f"https://api.census.gov/data/{year}/{base_tail}"
         
         # Nested geographies use ``for=...&in=state:XX``. State summary uses ``for=state:*`` or ``for=state:06`` only.
         geo_params = {

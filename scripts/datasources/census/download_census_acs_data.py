@@ -172,7 +172,7 @@ async def download_comprehensive_acs_data(
                 "B01002",
                 "B19301",
                 "B19083",
-                "B08303",
+                "S0801",
                 "B25070",
                 "B25001",
                 "B01003",

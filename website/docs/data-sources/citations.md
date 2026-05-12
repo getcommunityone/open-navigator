@@ -455,9 +455,27 @@ This is separate from the word-finding API and has different pricing.
 - **Website:** https://statesymbolsusa.org/
 - **State colors (category):** https://statesymbolsusa.org/categories/colors
 - **License / use:** Site content is copyrighted; treat as **reference-only**. Link and credit [State Symbols USA](https://statesymbolsusa.org/) when you mention or display derived context. Do **not** republish their imagery or text as your own without permission from the site operators.
-- **Local cache:** A representative **license-plate collage** image used on state-colors content can be mirrored for offline documentation via `scripts/state_symbols/download_state_symbols_assets.sh` → `data/cache/state_symbols/` (see `scripts/state_symbols/README.md` and `_manifest.json` next to the JPEG).
 
-**BibTeX:**
+### Wikimedia Commons (reference assets)
+
+**Organization:** Wikimedia Foundation — [Wikimedia Commons](https://commons.wikimedia.org/)  
+**What we use:** **Local mirrors** of freely licensed **SVG state flags** and **U.S. license plate** images for documentation and design reference.
+
+- **Local cache:** Run `scripts/wikicommons/download_wikicommons_assets.sh` → `data/cache/wikicommons/` (see `scripts/wikicommons/README.md` and `_manifest.json`). Outputs `{USPS}_colors_hero.svg` (canonical `Flag of …` per state category) and per-state/year license plates plus `{USPS}_latest.*`.
+- **Attribution:** Cite each file’s Commons page; licenses are typically CC BY-SA (verify on the file page).
+
+**BibTeX (Commons, generic):**
+```bibtex
+@misc{wikimedia_commons,
+  author = {{Wikimedia Commons contributors}},
+  title = {Wikimedia Commons},
+  year = {2026},
+  url = {https://commons.wikimedia.org/},
+  note = {Per-file license on each description page; typically CC BY-SA.}
+}
+```
+
+**BibTeX (State Symbols USA site, no local mirror):**
 ```bibtex
 @misc{state_symbols_usa,
   author = {{State Symbols USA}},

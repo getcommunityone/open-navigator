@@ -22,6 +22,9 @@ Usage (from repo root, project venv):
   .venv/bin/python scripts/datasources/census/export_census_map_static.py \\
       --all-years --place-states 01
 
+  # Place (city) layer for every state + DC + PR (large: needs place ACS parquets per state):
+  .venv/bin/python scripts/datasources/census/export_census_map_static.py --all-place-states --year 2022
+
   # Optionally fetch missing county / place parquets (same tables as METRICS) before export:
   .venv/bin/python scripts/datasources/census/export_census_map_static.py --fetch --place-states 01
 """
@@ -107,10 +110,10 @@ METRICS: list[dict[str, Any]] = [
     },
     {
         "slug": "travel_time_to_work_minutes",
-        "label": "Median travel time to work (minutes)",
-        "table": "B08303",
-        "estimate_col": "B08303_001E",
-        "format": "count",
+        "label": "Mean travel time to work (minutes)",
+        "table": "S0801",
+        "estimate_col": "S0801_C01_046E",
+        "format": "minutes",
     },
     {
         "slug": "housing_units",
@@ -554,6 +557,14 @@ def main() -> int:
         help="State FIPS codes to emit place GeoJSON for (e.g. 01 06). Default: none.",
     )
     parser.add_argument(
+        "--all-place-states",
+        action="store_true",
+        help=(
+            "Emit place GeoJSON (and place trends when using --all-years) for all U.S. states, "
+            "DC, and PR (same 52 FIPS as county trend sidecars). Overrides --place-states."
+        ),
+    )
+    parser.add_argument(
         "--fetch",
         action="store_true",
         help="Download missing ACS parquets via Census API before export",
@@ -574,6 +585,9 @@ def main() -> int:
         ),
     )
     args = parser.parse_args()
+
+    if args.all_place_states:
+        args.place_states = list(_CENSUS_STATE_FIPS_ALL)
 
     if args.all_years:
         years_plan = discover_county_parquet_years(args.acs_dir)

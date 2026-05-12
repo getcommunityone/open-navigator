@@ -53,7 +53,7 @@ July 2023, Toronto, Canada.
 - Colors category: https://statesymbolsusa.org/categories/colors
 - Site: https://statesymbolsusa.org/
 - **Use:** Reference and attribution only; site content is copyrighted—link to the live site in published materials.
-- **Local asset mirror:** `scripts/state_symbols/download_state_symbols_assets.sh` caches the license-plate collage used on state-colors pages under `data/cache/state_symbols/` (see [website/docs/data-sources/citations.md](website/docs/data-sources/citations.md#state-symbols-usa-reference) for full notes).
+- **Local asset mirror (flags + license plates):** `scripts/wikicommons/download_wikicommons_assets.sh` pulls **Wikimedia Commons** SVG state flags and U.S. license-plate imagery into `data/cache/wikicommons/` (see [website/docs/data-sources/citations.md](website/docs/data-sources/citations.md#wikimedia-commons-reference-assets)).
 
 ### **Open States / Plural Policy** ⭐
 - Comprehensive state and local legislative information

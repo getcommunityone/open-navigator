@@ -2577,11 +2577,43 @@ export default function Home() {
             </a>
           </div>
           
-          <div className="flex justify-center gap-8 text-sm text-gray-400">
-            <a href={DOCS_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Documentation</a>
-            <a href={import.meta.env.PROD ? 'https://www.communityone.com/api/docs' : 'http://localhost:8000/docs'} target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">API</a>
-            <Link to="/explore" className="hover:text-white transition-colors">Explore</Link>
-          </div>
+          <nav aria-label="Site sections" className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-gray-400 max-w-4xl mx-auto px-2">
+            <Link to="/explore" className="hover:text-white transition-colors">
+              Explore
+            </Link>
+            <Link to="/search" className="hover:text-white transition-colors">
+              Search
+            </Link>
+            <Link to="/jurisdictions" className="hover:text-white transition-colors">
+              Jurisdictions
+            </Link>
+            <Link to="/nonprofits" className="hover:text-white transition-colors">
+              Nonprofits
+            </Link>
+            <Link to="/analytics" className="hover:text-white transition-colors">
+              Analytics
+            </Link>
+            <Link to="/policy-map" className="hover:text-white transition-colors">
+              Policy map
+            </Link>
+            <Link to="/documents" className="hover:text-white transition-colors">
+              Documents
+            </Link>
+            <Link to="/dashboard" className="hover:text-white transition-colors">
+              Dashboard
+            </Link>
+            <a href={DOCS_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
+              Documentation
+            </a>
+            <a
+              href={import.meta.env.PROD ? 'https://www.communityone.com/api/docs' : 'http://localhost:8000/docs'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-white transition-colors"
+            >
+              API
+            </a>
+          </nav>
           <p className="text-gray-500 text-sm mt-6">
             © 2026 CommunityOne. All rights reserved.
           </p>

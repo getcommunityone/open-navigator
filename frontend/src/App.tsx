@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query'
 import { Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom'
 import Layout from './components/Layout'
 import Home from './pages/Home'
@@ -32,9 +33,42 @@ import NotFound from './pages/NotFound'
 function CensusCountyAliasRedirect() {
   const { vintage, metric } = useParams<{ vintage: string; metric: string }>()
   const { search } = useLocation()
-  const v = vintage ?? '2022'
+  const v = vintage ?? '2024'
   const m = metric ?? 'median_household_income'
   return <Navigate to={`/census-map/us/${v}/${m}${search}`} replace />
+}
+
+function CensusMapDefaultRedirect() {
+  const { data, isError, isPending } = useQuery({
+    queryKey: ['census-map-root-redirect'],
+    queryFn: async (): Promise<string> => {
+      const rm = await fetch('/data/census-map/manifest.json')
+      if (!rm.ok) throw new Error('manifest')
+      const manifest = (await rm.json()) as {
+        vintage?: string
+        vintages?: string[]
+        metrics?: { slug: string }[]
+      }
+      const mv =
+        Array.isArray(manifest.vintages) && manifest.vintages.length > 0
+          ? manifest.vintages
+          : manifest.vintage
+            ? [manifest.vintage]
+            : []
+      let vintages = mv
+      const rt = await fetch('/data/census-map/state_trends.json')
+      if (rt.ok) {
+        const t = (await rt.json()) as { vintages?: string[] }
+        if (t.vintages?.length) vintages = t.vintages
+      }
+      const v = vintages.length ? vintages[vintages.length - 1]! : (manifest.vintage ?? '2024')
+      const metric = manifest.metrics?.[0]?.slug ?? 'median_household_income'
+      return `/census-map/us/${v}/${metric}`
+    },
+  })
+  if (isPending) return <div className="p-8 text-slate-600">Loading census map…</div>
+  if (isError) return <Navigate to="/census-map/us/2024/median_household_income" replace />
+  return <Navigate to={data!} replace />
 }
 
 function App() {
@@ -58,10 +92,7 @@ function App() {
         <Route path="people" element={<PeopleFinder />} />
         <Route path="heatmap" element={<Heatmap />} />
         <Route path="policy-map" element={<PolicyMap />} />
-        <Route
-          path="census-map"
-          element={<Navigate to="/census-map/us/2022/median_household_income" replace />}
-        />
+        <Route path="census-map" element={<CensusMapDefaultRedirect />} />
         <Route path="census-map/us/:vintage/:metric" element={<CensusMapPage />} />
         <Route path="census-map/state/:stateFips/:vintage/:metric" element={<CensusMapPage />} />
         <Route
