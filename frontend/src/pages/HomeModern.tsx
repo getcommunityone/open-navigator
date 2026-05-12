@@ -1264,12 +1264,14 @@ export default function HomeModern() {
             CommunityOne changes that. One platform connects residents, leaders, and funders to what's really happening on the ground — so no community has to fight just to be seen.
           </p>
 
+          {/* Temporarily hidden until PBC approval — restore when ready.
           <div className="border-t border-gray-200 pt-6">
             <p className="text-xs font-bold uppercase tracking-widest text-[#52796F] mb-2">Public Benefit Corporation</p>
             <p className="text-base text-gray-600 leading-relaxed">
               CommunityOne is a public benefit corporation with a fiscal-sponsored nonprofit 501(c)(3). We are solely funded by mission-aligned impact investors and philanthropic institutions.
             </p>
           </div>
+          */}
         </div>
       </section>
 
@@ -1494,7 +1496,7 @@ export default function HomeModern() {
           <div className="flex justify-center gap-8 text-sm text-gray-400">
             <a href={`${docsBaseUrl}/intro`} target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Documentation</a>
             <a href={import.meta.env.PROD ? 'https://www.communityone.com/api/docs' : 'http://localhost:8000/docs'} target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">API</a>
-            <Link to="/explore" className="hover:text-white transition-colors">Explore</Link>
+            <Link to="/explore" className="hover:text-white transition-colors">Take action</Link>
           </div>
           <p className="text-gray-500 text-sm mt-6">
             © 2026 CommunityOne. All rights reserved.

@@ -3,6 +3,9 @@
  * Maps a raw metric value to a display position t ∈ [0, 1] for color and bubble sizing.
  */
 
+import type { CensusValueMode } from './censusMapValueMode'
+import { giniLetterSuffix } from './giniLetterGrade'
+
 export type CensusScaleId = 'linear' | 'sqrt' | 'log' | 'exp'
 
 /**
@@ -153,7 +156,7 @@ export function formatCensusMapAxisTick(x: number, valueSpan?: number): string {
     if (valueSpan <= 120) return n.toFixed(1)
   }
   if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  if (Math.abs(n) >= 1000) return `${Math.round(n / 1000)}k`
+  if (Math.abs(n) >= 1000) return `${Math.round(n / 1000)}K`
   return String(Math.round(n))
 }
 
@@ -200,10 +203,20 @@ export function formatCensusMapAxisTickForMetric(
   metrics: CensusMetricFormatRow[],
   x: number,
   valueSpan?: number,
+  valueMode: CensusValueMode = 'raw',
 ): string {
   const m = metrics.find((r) => r.slug === slug)
   if (m?.format === 'minutes' || slug === 'travel_time_to_work_minutes') {
     return formatCensusMapAxisTickMinutes(x, valueSpan)
+  }
+  if (valueMode === 'yoy' || valueMode === 'vs_natl') {
+    const n = Number(x)
+    if (!Number.isFinite(n)) return ''
+    const span =
+      valueSpan != null && Number.isFinite(valueSpan) && valueSpan > 0 ? valueSpan : 20
+    const a = Math.abs(n)
+    const decimals = span <= 3 ? 1 : a >= 10 ? 0 : 1
+    return `${n.toFixed(decimals)}%`
   }
   return formatCensusMapAxisTick(x, valueSpan)
 }
@@ -215,14 +228,29 @@ function stripFracZeros(s: string): string {
   return s.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '')
 }
 
+/** Optional display tuning for dense tables (e.g. Data Explorer scorecard). */
+export type FormatMetricValueDisplayOptions = {
+  /**
+   * When true, use fixed fractional width for currency/count K/M/B, percents, and years
+   * so columns align (e.g. ``$64.12K`` vs ``$62.03K``, ``3.20%``).
+   */
+  uniformTableDecimals?: boolean
+}
+
 /** ``$`` / count style compact: 1.2k, 3.4M, 12 (no unit suffix for counts). */
-function formatCompactMagnitude(abs: number, withDollar: boolean): string {
+function formatCompactMagnitude(abs: number, withDollar: boolean, uniformTable = false): string {
   const p = withDollar ? '$' : ''
   if (!(abs > 0) || !Number.isFinite(abs)) return `${p}0`
+  if (uniformTable) {
+    if (abs >= 1e9) return `${p}${(abs / 1e9).toFixed(2)}B`
+    if (abs >= 1e6) return `${p}${(abs / 1e6).toFixed(2)}M`
+    if (abs >= 1000) return `${p}${(abs / 1000).toFixed(2)}K`
+    return withDollar ? `${p}${abs.toFixed(2)}` : `${p}${abs.toFixed(0)}`
+  }
   if (abs >= 1e9) return `${p}${stripFracZeros((abs / 1e9).toFixed(2))}B`
   if (abs >= 1e6) return `${p}${stripFracZeros((abs / 1e6).toFixed(2))}M`
-  if (abs >= 100_000) return `${p}${Math.round(abs / 1000)}k`
-  if (abs >= 1000) return `${p}${stripFracZeros((abs / 1000).toFixed(2))}k`
+  if (abs >= 100_000) return `${p}${Math.round(abs / 1000)}K`
+  if (abs >= 1000) return `${p}${stripFracZeros((abs / 1000).toFixed(2))}K`
   if (abs >= 100) return `${p}${Math.round(abs)}`
   if (abs >= 10) return `${p}${stripFracZeros(abs.toFixed(1))}`
   if (abs >= 1) return `${p}${stripFracZeros(abs.toFixed(1))}`
@@ -255,7 +283,49 @@ export function formatMetricValueCompact(
   if (f === 'currency') return `${sign}${formatCompactMagnitude(av, true)}`
   if (f === 'count') return `${sign}${formatCompactMagnitude(av, false)}`
   if (f === 'percent') return `${stripFracZeros(v.toFixed(1))}%`
-  if (f === 'ratio') return stripFracZeros(v.toFixed(3))
+  if (f === 'ratio') {
+    const base = stripFracZeros(v.toFixed(3))
+    return slug === 'gini_income_inequality' && valueMode === 'raw' ? `${base}${giniLetterSuffix(v)}` : base
+  }
   if (f === 'years') return `${stripFracZeros(v.toFixed(1))}y`
   return `${sign}${formatCompactMagnitude(av, false)}`
+}
+
+/**
+ * Human-readable values for tooltips, tables, and bar-chart main figures: ``$39.3M``, ``39287K``,
+ * percents for YoY / vs-national modes, and full words for minutes.
+ *
+ * Pass ``{ uniformTableDecimals: true }`` from scorecard-style tables so K/M/B and % line up.
+ */
+export function formatMetricValueDisplay(
+  slug: string,
+  v: number | null | undefined,
+  metrics: CensusMetricFormatRow[],
+  valueMode: CensusValueMode = 'raw',
+  options?: FormatMetricValueDisplayOptions,
+): string {
+  if (v == null || !Number.isFinite(v)) return '—'
+  const u = options?.uniformTableDecimals ?? false
+  if (valueMode === 'yoy' || valueMode === 'vs_natl') {
+    const a = Math.abs(v)
+    return `${v.toFixed(u ? 2 : a >= 10 ? 0 : 1)}%`
+  }
+  const m = metrics.find((x) => x.slug === slug)
+  const f = m?.format ?? ''
+  if (f === 'minutes' || slug === 'travel_time_to_work_minutes') {
+    return formatMinutesDisplay(v)
+  }
+  if (f === 'currency') {
+    const sign = v < 0 ? '-' : ''
+    return `${sign}${formatCompactMagnitude(Math.abs(v), true, u)}`
+  }
+  if (f === 'count') {
+    const sign = v < 0 ? '-' : ''
+    return `${sign}${formatCompactMagnitude(Math.abs(v), false, u)}`
+  }
+  if (f === 'percent') return `${v.toFixed(u ? 2 : 1)}%`
+  if (f === 'ratio') return v.toFixed(3)
+  if (f === 'years') return `${v.toFixed(u ? 2 : 1)} yrs`
+  const sign = v < 0 ? '-' : ''
+  return `${sign}${formatCompactMagnitude(Math.abs(v), false, u)}`
 }

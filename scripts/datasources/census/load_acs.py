@@ -70,7 +70,8 @@ class ACSDataIngestion:
         "B19083": "Gini Index of Income Inequality",
         "B08303": "Travel Time to Work (time buckets; total in _001E is worker count)",
         "S0801": "Commuting Characteristics by Sex (subject; includes mean travel time)",
-        "B25070": "Gross Rent as Percentage of Household Income",
+        "B25070": "Gross Rent as Percentage of Household Income (distribution)",
+        "B25071": "Median Gross Rent as a Percentage of Household Income",
         "B01003": "Total Population",
         
         # Education
@@ -258,9 +259,16 @@ class ACSDataIngestion:
                 return df
                 
             except httpx.HTTPStatusError as e:
-                logger.error(f"API request failed: {e}")
-                logger.error(f"Status: {e.response.status_code}")
-                logger.error(f"Response: {e.response.text[:500]}")
+                # 400 often means the table was not published for this ACS 5-year vintage (e.g. B27010 in 2011).
+                if e.response.status_code == 400:
+                    snippet = (e.response.text or "")[:240]
+                    logger.warning(
+                        f"Census API HTTP 400 for {table} ({geography}, state={state}, year={year}): {snippet!r}"
+                    )
+                else:
+                    logger.error(f"API request failed: {e}")
+                    logger.error(f"Status: {e.response.status_code}")
+                    logger.error(f"Response: {e.response.text[:500]}")
                 raise
     
     async def download_all_demographics(self, geography: str = "county", state: str = "*") -> Dict[str, pd.DataFrame]:

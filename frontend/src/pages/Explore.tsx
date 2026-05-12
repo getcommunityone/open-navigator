@@ -1,5 +1,6 @@
-import { Link } from 'react-router-dom';
-import { useEffect } from 'react';
+import { Link } from 'react-router-dom'
+import { useEffect, Fragment } from 'react'
+import type { ReactNode } from 'react'
 import {
   UserGroupIcon,
   BuildingOfficeIcon,
@@ -17,22 +18,37 @@ import {
   HeartIcon,
   CodeBracketIcon,
   RocketLaunchIcon,
-} from '@heroicons/react/24/outline';
+  LightBulbIcon,
+  MegaphoneIcon,
+  WrenchScrewdriverIcon,
+} from '@heroicons/react/24/outline'
 
 interface ExploreCard {
-  title: string;
-  description: string;
-  icon: React.ComponentType<{ className?: string }>;
-  path: string;
-  color: string;
-  stats?: string;
+  title: string
+  description: string
+  icon: React.ComponentType<{ className?: string }>
+  path: string
+  color: string
+  stats?: string
 }
 
-// Policy Maker-focused sections
-const policyMakerOptions: ExploreCard[] = [
+interface ActionPhase {
+  id: string
+  step: string
+  title: string
+  subtitle: string
+  cards: ExploreCard[]
+  gridClass: string
+}
+
+const CARD_CTA = 'Take the next step →'
+
+/** Step 1 — Pull primary sources: meetings, money, law, verification, census. */
+const phaseLearnCards: ExploreCard[] = [
   {
     title: 'Policy Decisions',
-    description: 'Track decisions, budget deltas, stakeholder positions, and deferral patterns across government meetings.',
+    description:
+      'Start with the record: agendas, votes, deferrals, and who said what in public meetings across jurisdictions.',
     icon: DocumentTextIcon,
     path: '/documents',
     color: '#354F52',
@@ -40,99 +56,95 @@ const policyMakerOptions: ExploreCard[] = [
   },
   {
     title: 'Budget Analysis',
-    description: 'Explore city, county, and school budgets with budget-to-minutes delta analysis showing rhetoric vs. reality.',
+    description:
+      'Follow the money — compare budgets to meeting rhetoric so you know what is funded versus what is only talked about.',
     icon: ChartBarIcon,
     path: '/analytics',
     color: '#52796F',
-    stats: 'Real-time tracking',
-  },
-  {
-    title: 'Elected Officials',
-    description: 'Find local, state, and school board officials with voting records and decision patterns.',
-    icon: UserGroupIcon,
-    path: '/people',
-    color: '#84A98C',
-    stats: '100K+ officials',
+    stats: 'Rhetoric vs. reality',
   },
   {
     title: 'Policy Map',
-    description: 'Track state legislation and bills across all sessions. Search and filter 13,000+ bills by topic, session, and status.',
+    description:
+      'See how issues move through state capitols: bills, sponsors, and status so you are arguing from the text, not the headline.',
     icon: MapIcon,
     path: '/policy-map',
-    color: '#CAD2C5',
-    stats: '13K+ bills',
-  },
-];
-
-// Community & Advocate-focused sections
-const advocateOptions: ExploreCard[] = [
-  {
-    title: 'Nonprofits & Churches',
-    description: 'Search 43,726 nonprofits including 4,372 churches with financial data from 5 states.',
-    icon: BuildingOfficeIcon,
-    path: '/nonprofits',
-    color: '#354F52',
-    stats: '43,726 organizations',
-  },
-  {
-    title: 'Advocacy Topics',
-    description: 'Track what your community is discussing. Find advocacy alerts and engagement opportunities.',
-    icon: BellAlertIcon,
-    path: '/advocacy-topics',
-    color: '#52796F',
-    stats: 'Get involved',
-  },
-  {
-    title: 'Grants & Funding',
-    description: 'Discover government grants, foundation funding, and program delivery outcomes for nonprofits.',
-    icon: BriefcaseIcon,
-    path: '/analytics',
     color: '#84A98C',
-    stats: 'Find funding',
+    stats: '13K+ bills',
   },
   {
     title: 'Fact-Checking',
-    description: 'Verify claims from meetings and legislation with PolitiFact, FactCheck.org, and Google Fact Check data.',
+    description:
+      'Stress-test claims from meetings and campaigns against trusted fact-check sources before you repeat them.',
     icon: MicrophoneIcon,
     path: '/fact-checking',
     color: '#CAD2C5',
-    stats: 'Verified claims',
+    stats: 'Verify, then share',
   },
-];
-
-// Developers-focused sections
-const developerOptions: ExploreCard[] = [
   {
-    title: 'Open Source Projects',
-    description: 'Contribute to civic tech, data pipelines, AI models, and open government tools.',
-    icon: CodeBracketIcon,
-    path: '/opensource',
+    title: 'ACS map & scorecard',
+    description:
+      'Layer census context — browse the national map, drill into states, then open the scorecard for multi-year trends.',
+    icon: MapIcon,
+    path: '/data-explorer',
+    color: '#2f5d62',
+    stats: 'National → state → trends',
+  },
+]
+
+/** Step 2 — Interpret and align with people, orgs, and movements. */
+const phaseDecideCards: ExploreCard[] = [
+  {
+    title: 'Nonprofits & Churches',
+    description:
+      'Find partners already doing the work — financials and program footprints help you choose who to support or cite.',
+    icon: BuildingOfficeIcon,
+    path: '/nonprofits',
     color: '#354F52',
-    stats: 'Join the community',
+    stats: '43K+ organizations',
   },
   {
-    title: 'Hackathons for Good',
-    description: 'Build solutions for civic engagement, transparency, and community empowerment at our quarterly hackathons.',
-    icon: RocketLaunchIcon,
-    path: '/hackathons',
+    title: 'Advocacy Topics',
+    description:
+      'See what communities are organizing around now so your action matches real demand, not a generic template.',
+    icon: BellAlertIcon,
+    path: '/advocacy-topics',
     color: '#52796F',
-    stats: 'Make an impact',
+    stats: 'Live issues',
   },
-];
+  {
+    title: 'Grants & Funding',
+    description:
+      'Map funding streams and outcomes so proposals, testimony, or coalition asks are grounded in how money flows.',
+    icon: BriefcaseIcon,
+    path: '/analytics',
+    color: '#84A98C',
+    stats: 'Funding intelligence',
+  },
+  {
+    title: 'Elected Officials',
+    description:
+      'Know who holds the pen: local, state, and school decision-makers before you call, write, or show up.',
+    icon: UserGroupIcon,
+    path: '/people',
+    color: '#CAD2C5',
+    stats: '100K+ officials',
+  },
+]
 
-// Families & Individuals-focused sections
-const familyOptions: ExploreCard[] = [
+/** Step 3 — Concrete civic participation. */
+const phaseActCards: ExploreCard[] = [
   {
     title: 'Community Events',
-    description: 'Discover local government meetings, public hearings, town halls, and community events you can attend.',
+    description: 'Put what you learned on the calendar — hearings, town halls, and public sessions where decisions open up.',
     icon: CalendarIcon,
     path: '/events',
     color: '#354F52',
-    stats: 'Attend & engage',
+    stats: 'Show up',
   },
   {
     title: 'Training & Services',
-    description: 'Find community programs, educational workshops, health services, and family support resources.',
+    description: 'Use programs and workshops to build skills (and connect neighbors) after you have identified gaps.',
     icon: AcademicCapIcon,
     path: '/services',
     color: '#52796F',
@@ -140,329 +152,225 @@ const familyOptions: ExploreCard[] = [
   },
   {
     title: 'Voter Registration',
-    description: 'Register to vote, find your polling place, check registration status, and learn about candidates.',
+    description: 'Channel insight into ballots — registration, polling places, and election context for your area.',
     icon: CheckBadgeIcon,
     path: '/analytics?topic=elections',
     color: '#84A98C',
-    stats: 'Make your voice heard',
+    stats: 'Vote informed',
   },
   {
     title: 'Contact Your Representatives',
-    description: 'Find contact information for elected officials, city council members, and school board representatives.',
+    description: 'Turn research into outreach — direct lines for councils, legislatures, and school boards.',
     icon: PhoneIcon,
     path: '/people?view=contact',
     color: '#CAD2C5',
-    stats: '100K+ officials',
+    stats: 'Make the call',
   },
   {
     title: 'Submit Feedback',
-    description: 'Provide public comments, share concerns, and participate in community decision-making processes.',
+    description: 'Use formal comment windows and public feedback routes so your position is on the record.',
     icon: ChatBubbleLeftRightIcon,
     path: '/opportunities?type=feedback',
     color: '#52796F',
-    stats: 'Be heard',
+    stats: 'Official input',
   },
   {
     title: 'Community Resources',
-    description: 'Access food banks, housing assistance, healthcare, childcare, and other family support services.',
+    description: 'Connect people to food, housing, health, and family supports when data surfaces unmet needs.',
     icon: HeartIcon,
     path: '/nonprofits?category=family-services',
     color: '#84A98C',
-    stats: 'Get help',
+    stats: 'Help neighbors',
   },
-];
+]
+
+const phaseBuildCards: ExploreCard[] = [
+  {
+    title: 'Open Source Projects',
+    description: 'Fork pipelines, models, and civic UX so the same evidence others read can power your own tools.',
+    icon: CodeBracketIcon,
+    path: '/opensource',
+    color: '#354F52',
+    stats: 'Ship together',
+  },
+  {
+    title: 'Hackathons for Good',
+    description: 'Prototype fixes fast — from transparency dashboards to intake bots — alongside other builders.',
+    icon: RocketLaunchIcon,
+    path: '/hackathons',
+    color: '#52796F',
+    stats: '48-hour impact',
+  },
+]
+
+const ACTION_PHASES: ActionPhase[] = [
+  {
+    id: 'learn',
+    step: '1',
+    title: 'Learn what happened',
+    subtitle: 'Gather authoritative sources before you speak, fund, or file.',
+    cards: phaseLearnCards,
+    gridClass: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6',
+  },
+  {
+    id: 'decide',
+    step: '2',
+    title: 'Decide who to work with',
+    subtitle: 'Interpret the record — align with organizations, issues, funders, and decision-makers.',
+    cards: phaseDecideCards,
+    gridClass: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6',
+  },
+  {
+    id: 'act',
+    step: '3',
+    title: 'Show up & act',
+    subtitle: 'Move from screens to rooms — events, services, ballots, calls, and public comment.',
+    cards: phaseActCards,
+    gridClass: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6',
+  },
+  {
+    id: 'build',
+    step: '4',
+    title: 'Build on the data',
+    subtitle: 'Extend the commons — open source and hackathons for teams who ship.',
+    cards: phaseBuildCards,
+    gridClass: 'grid grid-cols-1 md:grid-cols-2 gap-6',
+  },
+]
+
+const PROCESS_STEPS: { n: string; title: string; blurb: string; icon: typeof LightBulbIcon }[] = [
+  { n: '1', title: 'Learn', blurb: 'Meetings, budgets, law, census, fact checks', icon: LightBulbIcon },
+  { n: '2', title: 'Decide', blurb: 'Partners, issues, officials, funding', icon: MegaphoneIcon },
+  { n: '3', title: 'Act', blurb: 'Events, services, ballots, contact, comment', icon: WrenchScrewdriverIcon },
+]
+
+function ActionCard({ option, cta = CARD_CTA }: { option: ExploreCard; cta?: string }): ReactNode {
+  const Icon = option.icon
+  const isExternal = option.path.startsWith('http')
+  const inner = (
+    <div className="group bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100 hover:border-gray-200">
+      <div className="p-6">
+        <div
+          className="w-14 h-14 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300"
+          style={{ backgroundColor: `${option.color}15` }}
+        >
+          <div style={{ color: option.color }}>
+            <Icon className="h-7 w-7" />
+          </div>
+        </div>
+        <div className="mb-3">
+          <h3 className="text-xl font-bold text-gray-900 mb-1 group-hover:text-[#354F52] transition-colors">{option.title}</h3>
+          {option.stats ? (
+            <p className="text-sm font-medium" style={{ color: option.color }}>
+              {option.stats}
+            </p>
+          ) : null}
+        </div>
+        <p className="text-gray-600 text-sm leading-relaxed">{option.description}</p>
+        <div className="mt-4 flex items-center text-sm font-medium" style={{ color: option.color }}>
+          <span className="group-hover:translate-x-1 transition-transform duration-300">{cta}</span>
+        </div>
+      </div>
+      <div
+        className="h-1 w-full transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left"
+        style={{ backgroundColor: option.color }}
+      />
+    </div>
+  )
+
+  if (isExternal) {
+    return (
+      <a href={option.path} target="_blank" rel="noopener noreferrer">
+        {inner}
+      </a>
+    )
+  }
+  return <Link to={option.path}>{inner}</Link>
+}
 
 export default function Explore() {
-  // Scroll to top with smooth behavior when page loads
   useEffect(() => {
-    window.scrollTo({
-      top: 0,
-      behavior: 'smooth'
-    });
-  }, []);
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [])
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      {/* Header */}
-      <div className="bg-white shadow-sm">
+      <div className="bg-white shadow-sm border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="text-center">
-            <h1 className="text-4xl font-bold text-gray-900 mb-3">
-              Explore Open Navigator Data
-            </h1>
-            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              Access comprehensive data on government decisions, budgets, demographics, nonprofits, and community engagement.
+          <div className="text-center max-w-3xl mx-auto">
+            <p className="text-xs font-semibold uppercase tracking-widest text-teal-800/90 mb-2">Take action</p>
+            <h1 className="text-4xl font-bold text-gray-900 mb-3">From information to impact</h1>
+            <p className="text-lg text-gray-600">
+              CommunityOne is built as a path: pull the public record, decide who to work with, then show up where decisions
+              are made. Pick a step below — each card opens a concrete workflow.
             </p>
+          </div>
+
+          <div
+            className="mt-8 flex flex-col gap-3 md:flex-row md:flex-wrap md:items-stretch md:justify-center max-w-4xl mx-auto"
+            aria-label="Action path: learn, decide, act"
+          >
+            {PROCESS_STEPS.map((s, i) => {
+              const Icon = s.icon
+              return (
+                <Fragment key={s.n}>
+                  <div className="flex flex-1 min-w-[10rem] items-start gap-3 rounded-xl border border-gray-200 bg-slate-50/80 px-4 py-3 text-left shadow-sm">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-teal-800 text-sm font-bold text-white">
+                      {s.n}
+                    </span>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <Icon className="h-5 w-5 text-teal-800" aria-hidden />
+                        <span className="font-semibold text-gray-900">{s.title}</span>
+                      </div>
+                      <p className="mt-1 text-xs leading-snug text-gray-600">{s.blurb}</p>
+                    </div>
+                  </div>
+                  {i < PROCESS_STEPS.length - 1 ? (
+                    <span
+                      className="hidden md:flex shrink-0 items-center self-center px-1 text-lg font-light text-gray-300"
+                      aria-hidden
+                    >
+                      →
+                    </span>
+                  ) : null}
+                </Fragment>
+              )
+            })}
           </div>
         </div>
       </div>
 
-      {/* Families & Individuals Section - FIRST */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">For Families & Individuals</h2>
-          <p className="text-gray-600">Events, training, services, voter registration, and ways to engage with your community.</p>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-          {familyOptions.map((option) => {
-            const Icon = option.icon;
-            return (
-              <Link
-                key={option.path}
-                to={option.path}
-                className="group bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100 hover:border-gray-200"
-              >
-                <div className="p-6">
-                  {/* Icon */}
-                  <div
-                    className="w-14 h-14 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300"
-                    style={{ backgroundColor: `${option.color}15` }}
-                  >
-                    <div style={{ color: option.color }}>
-                      <Icon className="h-7 w-7" />
-                    </div>
-                  </div>
-
-                  {/* Title and Stats */}
-                  <div className="mb-3">
-                    <h3 className="text-xl font-bold text-gray-900 mb-1 group-hover:text-[#354F52] transition-colors">
-                      {option.title}
-                    </h3>
-                    {option.stats && (
-                      <p className="text-sm font-medium" style={{ color: option.color }}>
-                        {option.stats}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Description */}
-                  <p className="text-gray-600 text-sm leading-relaxed">
-                    {option.description}
-                  </p>
-
-                  {/* Arrow indicator */}
-                  <div className="mt-4 flex items-center text-sm font-medium" style={{ color: option.color }}>
-                    <span className="group-hover:translate-x-1 transition-transform duration-300">
-                      Explore →
-                    </span>
-                  </div>
-                </div>
-
-                {/* Hover effect bar */}
-                <div
-                  className="h-1 w-full transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left"
-                  style={{ backgroundColor: option.color }}
-                />
-              </Link>
-            );
-          })}
-        </div>
-
-        {/* Policy Makers Section */}
-        <div className="mb-8 mt-16">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">For Policy Makers & Government</h2>
-          <p className="text-gray-600">Track decisions, budgets, officials, and demographic data across 90,000+ jurisdictions.</p>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-          {policyMakerOptions.map((option) => {
-            const Icon = option.icon;
-            return (
-              <Link
-                key={option.path}
-                to={option.path}
-                className="group bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100 hover:border-gray-200"
-              >
-                <div className="p-6">
-                  {/* Icon */}
-                  <div
-                    className="w-14 h-14 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300"
-                    style={{ backgroundColor: `${option.color}15` }}
-                  >
-                    <div style={{ color: option.color }}>
-                      <Icon className="h-7 w-7" />
-                    </div>
-                  </div>
-
-                  {/* Title and Stats */}
-                  <div className="mb-3">
-                    <h3 className="text-xl font-bold text-gray-900 mb-1 group-hover:text-[#354F52] transition-colors">
-                      {option.title}
-                    </h3>
-                    {option.stats && (
-                      <p className="text-sm font-medium" style={{ color: option.color }}>
-                        {option.stats}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Description */}
-                  <p className="text-gray-600 text-sm leading-relaxed">
-                    {option.description}
-                  </p>
-
-                  {/* Arrow indicator */}
-                  <div className="mt-4 flex items-center text-sm font-medium" style={{ color: option.color }}>
-                    <span className="group-hover:translate-x-1 transition-transform duration-300">
-                      Explore →
-                    </span>
-                  </div>
-                </div>
-
-                {/* Hover effect bar */}
-                <div
-                  className="h-1 w-full transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left"
-                  style={{ backgroundColor: option.color }}
-                />
-              </Link>
-            );
-          })}
-        </div>
-
-        {/* Advocates Section */}
-        <div className="mb-8 mt-16">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">For Advocates & Community Members</h2>
-          <p className="text-gray-600">Find nonprofits, advocacy topics, funding, and fact-checked information.</p>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {advocateOptions.map((option) => {
-            const Icon = option.icon;
-            return (
-              <Link
-                key={option.path}
-                to={option.path}
-                className="group bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100 hover:border-gray-200"
-              >
-                <div className="p-6">
-                  {/* Icon */}
-                  <div
-                    className="w-14 h-14 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300"
-                    style={{ backgroundColor: `${option.color}15` }}
-                  >
-                    <div style={{ color: option.color }}>
-                      <Icon className="h-7 w-7" />
-                    </div>
-                  </div>
-
-                  {/* Title and Stats */}
-                  <div className="mb-3">
-                    <h3 className="text-xl font-bold text-gray-900 mb-1 group-hover:text-[#354F52] transition-colors">
-                      {option.title}
-                    </h3>
-                    {option.stats && (
-                      <p className="text-sm font-medium" style={{ color: option.color }}>
-                        {option.stats}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Description */}
-                  <p className="text-gray-600 text-sm leading-relaxed">
-                    {option.description}
-                  </p>
-
-                  {/* Arrow indicator */}
-                  <div className="mt-4 flex items-center text-sm font-medium" style={{ color: option.color }}>
-                    <span className="group-hover:translate-x-1 transition-transform duration-300">
-                      Explore →
-                    </span>
-                  </div>
-                </div>
-
-                {/* Hover effect bar */}
-                <div
-                  className="h-1 w-full transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left"
-                  style={{ backgroundColor: option.color }}
-                />
-              </Link>
-            );
-          })}
-        </div>
-
-        {/* Developers Section */}
-        <div className="mb-8 mt-16">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">For Developers & Civic Tech</h2>
-          <p className="text-gray-600">Build with open data, contribute to open source, and join hackathons for social good.</p>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {developerOptions.map((option) => {
-            const Icon = option.icon;
-            const isExternal = option.path.startsWith('http');
-            
-            const card = (
-              <div className="group bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100 hover:border-gray-200">
-                <div className="p-6">
-                  {/* Icon */}
-                  <div
-                    className="w-14 h-14 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300"
-                    style={{ backgroundColor: `${option.color}15` }}
-                  >
-                    <div style={{ color: option.color }}>
-                      <Icon className="h-7 w-7" />
-                    </div>
-                  </div>
-
-                  {/* Title and Stats */}
-                  <div className="mb-3">
-                    <h3 className="text-xl font-bold text-gray-900 mb-1 group-hover:text-[#354F52] transition-colors">
-                      {option.title}
-                    </h3>
-                    {option.stats && (
-                      <p className="text-sm font-medium" style={{ color: option.color }}>
-                        {option.stats}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Description */}
-                  <p className="text-gray-600 text-sm leading-relaxed">
-                    {option.description}
-                  </p>
-
-                  {/* Arrow indicator */}
-                  <div className="mt-4 flex items-center text-sm font-medium" style={{ color: option.color }}>
-                    <span className="group-hover:translate-x-1 transition-transform duration-300">
-                      {isExternal ? 'View on GitHub →' : 'Explore →'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Hover effect bar */}
-                <div
-                  className="h-1 w-full transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left"
-                  style={{ backgroundColor: option.color }}
-                />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-16">
+        {ACTION_PHASES.map((phase, idx) => (
+          <section key={phase.id} aria-labelledby={`phase-${phase.id}`}>
+            <div className="mb-6 flex flex-wrap items-end justify-between gap-3 border-b border-gray-200 pb-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-widest text-teal-800">Step {phase.step}</p>
+                <h2 id={`phase-${phase.id}`} className="text-2xl font-bold text-gray-900">
+                  {phase.title}
+                </h2>
+                <p className="mt-1 max-w-3xl text-gray-600">{phase.subtitle}</p>
               </div>
-            );
-            
-            return isExternal ? (
-              <a
-                key={option.path}
-                href={option.path}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                {card}
-              </a>
-            ) : (
-              <Link key={option.path} to={option.path}>
-                {card}
-              </Link>
-            );
-          })}
-        </div>
+              {idx === 0 ? (
+                <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-900 ring-1 ring-emerald-200">
+                  Start here if you are new
+                </span>
+              ) : null}
+            </div>
+            <div className={phase.gridClass}>
+              {phase.cards.map((option) => (
+                <ActionCard key={`${phase.id}-${option.title}`} option={option} />
+              ))}
+            </div>
+          </section>
+        ))}
 
-        {/* Bottom CTA */}
-        <div className="mt-16 text-center">
+        <div className="text-center">
           <div className="bg-white rounded-xl shadow-md p-8 max-w-2xl mx-auto border border-gray-100">
-            <h2 className="text-2xl font-bold text-gray-900 mb-3">
-              Access the Complete Dataset
-            </h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-3">Need the raw files?</h2>
             <p className="text-gray-600 mb-6">
-              All data is available on HuggingFace with full documentation, APIs, and CSV/Parquet downloads.
+              Bulk tables, APIs, and documentation for teams building their own workflows on top of the same data.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <a
@@ -472,31 +380,31 @@ export default function Explore() {
                 className="px-6 py-3 rounded-lg text-white font-semibold hover:shadow-lg transition-all"
                 style={{ backgroundColor: '#354F52' }}
               >
-                🤗 View on HuggingFace
+                View on HuggingFace
               </a>
               <a
-                href={import.meta.env.PROD ? 'https://www.communityone.com/docs/data-sources/data-model-erd' : 'http://localhost:3000/docs/data-sources/data-model-erd'}
+                href={
+                  import.meta.env.PROD
+                    ? 'https://www.communityone.com/docs/data-sources/data-model-erd'
+                    : 'http://localhost:3000/docs/data-sources/data-model-erd'
+                }
                 target="_blank"
                 rel="noopener noreferrer"
                 className="px-6 py-3 rounded-lg font-semibold hover:shadow-lg transition-all border-2"
                 style={{ borderColor: '#354F52', color: '#354F52' }}
               >
-                📊 Explore Data Model
+                Data model diagram
               </a>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Back to Home */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 text-center">
-        <Link
-          to="/"
-          className="inline-flex items-center text-gray-600 hover:text-gray-900 font-medium transition-colors"
-        >
+        <Link to="/" className="inline-flex items-center text-gray-600 hover:text-gray-900 font-medium transition-colors">
           ← Back to Home
         </Link>
       </div>
     </div>
-  );
+  )
 }

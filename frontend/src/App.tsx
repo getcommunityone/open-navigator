@@ -26,21 +26,24 @@ import UnifiedSearch from './pages/UnifiedSearch'
 import JurisdictionsSearch from './pages/JurisdictionsSearch'
 import PolicyMap from './pages/PolicyMap'
 import CensusMapPage from './pages/CensusMapPage'
+import DataExplorerLayout from './components/DataExplorerLayout'
+import DataExplorerScorecardPage from './pages/DataExplorerScorecardPage'
 import BillDetail from './pages/BillDetail'
 import NotFound from './pages/NotFound'
+import { DATA_EXPLORER_MAP_BASE } from './utils/dataExplorerPaths'
 
-/** Old bookmarked URLs used `/census-map/county/...`; national view is now state-level at `/census-map/us/...`. */
+/** Old bookmarked URLs used `/census-map/county/...`; national view is now state-level under Data explorer. */
 function CensusCountyAliasRedirect() {
   const { vintage, metric } = useParams<{ vintage: string; metric: string }>()
   const { search } = useLocation()
   const v = vintage ?? '2024'
   const m = metric ?? 'median_household_income'
-  return <Navigate to={`/census-map/us/${v}/${m}${search}`} replace />
+  return <Navigate to={`${DATA_EXPLORER_MAP_BASE}/us/${v}/${m}${search}`} replace />
 }
 
-function CensusMapDefaultRedirect() {
+function DataExplorerMapDefaultRedirect() {
   const { data, isError, isPending } = useQuery({
-    queryKey: ['census-map-root-redirect'],
+    queryKey: ['data-explorer-map-root-redirect'],
     queryFn: async (): Promise<string> => {
       const rm = await fetch('/data/census-map/manifest.json')
       if (!rm.ok) throw new Error('manifest')
@@ -63,12 +66,22 @@ function CensusMapDefaultRedirect() {
       }
       const v = vintages.length ? vintages[vintages.length - 1]! : (manifest.vintage ?? '2024')
       const metric = manifest.metrics?.[0]?.slug ?? 'median_household_income'
-      return `/census-map/us/${v}/${metric}`
+      return `${DATA_EXPLORER_MAP_BASE}/us/${v}/${metric}`
     },
   })
-  if (isPending) return <div className="p-8 text-slate-600">Loading census map…</div>
-  if (isError) return <Navigate to="/census-map/us/2024/median_household_income" replace />
+  if (isPending) return <div className="p-8 text-slate-600">Loading map…</div>
+  if (isError) return <Navigate to={`${DATA_EXPLORER_MAP_BASE}/us/2024/median_household_income`} replace />
   return <Navigate to={data!} replace />
+}
+
+/** Rewrites `/census-map/...` bookmarks to `/data-explorer/map/...`. */
+function LegacyCensusMapRedirect() {
+  const { pathname, search } = useLocation()
+  if (pathname === '/census-map' || pathname === '/census-map/') {
+    return <DataExplorerMapDefaultRedirect />
+  }
+  const path = pathname.replace(/^\/census-map/, DATA_EXPLORER_MAP_BASE)
+  return <Navigate to={`${path}${search}`} replace />
 }
 
 function App() {
@@ -92,14 +105,16 @@ function App() {
         <Route path="people" element={<PeopleFinder />} />
         <Route path="heatmap" element={<Heatmap />} />
         <Route path="policy-map" element={<PolicyMap />} />
-        <Route path="census-map" element={<CensusMapDefaultRedirect />} />
-        <Route path="census-map/us/:vintage/:metric" element={<CensusMapPage />} />
-        <Route path="census-map/state/:stateFips/:vintage/:metric" element={<CensusMapPage />} />
-        <Route
-          path="census-map/county/:vintage/:metric"
-          element={<CensusCountyAliasRedirect />}
-        />
-        <Route path="census-map/place/:stateFips/:vintage/:metric" element={<CensusMapPage />} />
+        <Route path="census-map/county/:vintage/:metric" element={<CensusCountyAliasRedirect />} />
+        <Route path="census-map/*" element={<LegacyCensusMapRedirect />} />
+        <Route path="data-explorer" element={<DataExplorerLayout />}>
+          <Route index element={<DataExplorerMapDefaultRedirect />} />
+          <Route path="scorecard" element={<DataExplorerScorecardPage />} />
+          <Route path="map/us/:vintage/:metric" element={<CensusMapPage />} />
+          <Route path="map/state/:stateFips/:vintage/:metric" element={<CensusMapPage />} />
+          <Route path="map/place/:stateFips/:vintage/:metric" element={<CensusMapPage />} />
+          <Route path="map" element={<DataExplorerMapDefaultRedirect />} />
+        </Route>
         <Route path="bill/:billId" element={<BillDetail />} />
         <Route path="documents" element={<Documents />} />
         <Route path="opportunities" element={<Opportunities />} />

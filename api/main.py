@@ -171,6 +171,11 @@ async def log_requests(request: Request, call_next):
 static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend", "public")
 if os.path.exists(static_dir):
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
+    census_map_dir = Path(static_dir) / "data" / "census-map"
+    if census_map_dir.is_dir():
+        app.mount("/data/census-map", StaticFiles(directory=census_map_dir), name="census_map_public")
+    else:
+        logger.warning(f"Census map static bundle missing (expected {census_map_dir})")
 else:
     logger.warning(f"Static directory not found: {static_dir}")
 

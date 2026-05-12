@@ -49,8 +49,11 @@ from loguru import logger
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from scripts.datasources.census.load_acs import ACSDataIngestion  # noqa: E402
+from scripts.datasources.census.download_census_acs_data import DEFAULT_DOWNLOAD_TABLES  # noqa: E402
 
-# (table, estimate column — first table-prefixed ``_001E`` used if exact match missing)
+# One choropleth value per slug; ``estimate_col`` resolved via ``_estimate_col_for_table``.
+# **Table coverage**: include every table in ``DEFAULT_DOWNLOAD_TABLES`` (default ACS download) so
+# a standard county/state cache can populate the map bundle. Re-run export after adding columns.
 METRICS: list[dict[str, Any]] = [
     {
         "slug": "median_household_income",
@@ -104,8 +107,10 @@ METRICS: list[dict[str, Any]] = [
     {
         "slug": "median_gross_rent_pct_hhincome",
         "label": "Median gross rent as % of household income",
-        "table": "B25070",
-        "estimate_col": "B25070_001E",
+        # B25070_001E is the distribution table “Total” (a count), not a median %.
+        # B25071_001E is the published median gross rent as % of household income.
+        "table": "B25071",
+        "estimate_col": "B25071_001E",
         "format": "percent",
     },
     {
@@ -136,7 +141,82 @@ METRICS: list[dict[str, Any]] = [
         "estimate_col": "B23025_003E",
         "format": "count",
     },
+    # --- Additional metrics: one (or more) per table in ``DEFAULT_DOWNLOAD_TABLES`` ---
+    {
+        "slug": "sex_by_age_table_total",
+        "label": "Population (sex by age, table total)",
+        "table": "B01001",
+        "estimate_col": "B01001_001E",
+        "format": "count",
+    },
+    {
+        "slug": "race_table_total",
+        "label": "Population (race, table total)",
+        "table": "B02001",
+        "estimate_col": "B02001_001E",
+        "format": "count",
+    },
+    {
+        "slug": "hispanic_latino_by_race_total",
+        "label": "Population (Hispanic or Latino by race, table total)",
+        "table": "B03002",
+        "estimate_col": "B03002_001E",
+        "format": "count",
+    },
+    {
+        "slug": "population_income_below_poverty_level",
+        "label": "Population with income below poverty level",
+        "table": "B17001",
+        "estimate_col": "B17001_002E",
+        "format": "count",
+    },
+    {
+        "slug": "employed_civilian",
+        "label": "Civilian employed (16+)",
+        "table": "B23025",
+        "estimate_col": "B23025_004E",
+        "format": "count",
+    },
+    {
+        "slug": "unemployed_civilian",
+        "label": "Civilian unemployed (16+)",
+        "table": "B23025",
+        "estimate_col": "B23025_005E",
+        "format": "count",
+    },
+    {
+        "slug": "health_insurance_civilian_noninstitutional_total",
+        "label": "Civilian noninstitutionalized population (health insurance universe)",
+        "table": "B27001",
+        "estimate_col": "B27001_001E",
+        "format": "count",
+    },
+    {
+        "slug": "health_insurance_under19_table_total",
+        "label": "Population (health insurance by age under 19, table total)",
+        "table": "B27010",
+        "estimate_col": "B27010_001E",
+        "format": "count",
+    },
+    {
+        "slug": "population_25_and_over_education_universe",
+        "label": "Population 25 years and over (educational attainment universe)",
+        "table": "B15003",
+        "estimate_col": "B15003_001E",
+        "format": "count",
+    },
+    {
+        "slug": "school_enrollment_total",
+        "label": "Population enrolled in school (enrollment table total)",
+        "table": "B14001",
+        "estimate_col": "B14001_001E",
+        "format": "count",
+    },
 ]
+
+assert frozenset(DEFAULT_DOWNLOAD_TABLES) <= frozenset(
+    m["table"] for m in METRICS
+), "METRICS must list at least one metric per DEFAULT_DOWNLOAD_TABLES entry"
 
 TIGER_PLACE_ZIP = (
     "https://www2.census.gov/geo/tiger/GENZ{year}/shp/cb_{year}_{statefp}_place_500k.zip"
@@ -203,12 +283,49 @@ def discover_county_parquet_years(acs_dir: Path) -> list[int]:
 
 
 def _estimate_col_for_table(df: pd.DataFrame, table: str, preferred: str) -> Optional[str]:
-    if preferred in df.columns:
-        return preferred
-    candidates = [c for c in df.columns if c.endswith("_001E") and c.startswith(table)]
+    """Pick the ACS estimate column for ``preferred``, with safe fallbacks for B/C tables only.
+
+    Subject tables (``S*``) expose many columns; ``S0801_001E`` is a **universe total** (worker count),
+    not mean travel time. Older code fell back to any ``*_001E`` when ``S0801_C01_046E`` was missing,
+    which produced “commutes” in the thousands of hours after the UI formatted counts as minutes.
+    """
+    cols = list(df.columns)
+    if not cols:
+        return None
+
+    def norm(s: object) -> str:
+        return str(s).strip()
+
+    tbl = norm(table)
+    pref = norm(preferred)
+
+    for c in cols:
+        if norm(c) == pref:
+            return norm(c)
+    by_lower = {norm(c).lower(): norm(c) for c in cols}
+    if pref.lower() in by_lower:
+        return by_lower[pref.lower()]
+
+    is_subject = bool(re.match(r"^S[0-9]", tbl, re.I))
+    if is_subject:
+        if pref.lower().startswith(tbl.lower() + "_"):
+            rest = pref[len(tbl) :].lstrip("_")
+        else:
+            rest = pref
+        if rest:
+            rlow = rest.lower()
+            tlow = tbl.lower()
+            for c in cols:
+                sc = norm(c)
+                slo = sc.lower()
+                if slo.startswith(tlow + "_") and slo.endswith(rlow):
+                    return sc
+        return None
+
+    candidates = [norm(c) for c in cols if str(c).endswith("_001E") and str(c).startswith(tbl)]
     if candidates:
         return candidates[0]
-    alt = [c for c in df.columns if re.match(rf"^{re.escape(table)}_[0-9]+E$", str(c))]
+    alt = [norm(c) for c in cols if re.match(rf"^{re.escape(tbl)}_[0-9]+E$", str(c))]
     return alt[0] if alt else None
 
 
@@ -404,6 +521,11 @@ def build_national_reference(acs_dir: Path, years: list[int]) -> dict[str, dict[
                 w_den += pop
             w_avg = (w_num / w_den) if w_den > 0 else None
             per_slug[slug] = {"us": us_val, "pop_weighted_states": w_avg}
+            if slug == "median_household_income" and us_val is None and w_avg is None:
+                logger.warning(
+                    f"National benchmark missing for {slug} ACS {vy}: "
+                    f"need B19013_us_1_{y}.parquet and/or state-level B19013 + B01003 parquets."
+                )
         by_vintage[vy] = per_slug
     return by_vintage
 
@@ -436,22 +558,35 @@ async def _ensure_parquets(
         return
     acs = ACSDataIngestion(data_dir=acs_dir)
     tables = list({m["table"] for m in METRICS})
+
+    async def _fetch_one(table: str, geography: str, state: str) -> None:
+        try:
+            await acs.download_acs_data_api(table, geography, state, year=year)
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 400:
+                logger.warning(
+                    f"--fetch: skip {table} {geography} state={state!r} year={year} "
+                    f"(HTTP 400 — table often absent for early ACS 5-year vintages)"
+                )
+                return
+            raise
+
     logger.info(f"--fetch: downloading county tables {tables} …")
     for t in tables:
-        await acs.download_acs_data_api(t, "county", "*", year=year)
+        await _fetch_one(t, "county", "*")
         await asyncio.sleep(1.2)
     logger.info("--fetch: downloading state tables (all states) …")
     for t in tables:
-        await acs.download_acs_data_api(t, "state", "*", year=year)
+        await _fetch_one(t, "state", "*")
         await asyncio.sleep(1.2)
     logger.info("--fetch: downloading US (national) summary rows …")
     for t in tables:
-        await acs.download_acs_data_api(t, "us", "1", year=year)
+        await _fetch_one(t, "us", "1")
         await asyncio.sleep(1.2)
     for st in place_states:
         logger.info(f"--fetch: downloading place tables for state {st} …")
         for t in tables:
-            await acs.download_acs_data_api(t, "place", st, year=year)
+            await _fetch_one(t, "place", st)
             await asyncio.sleep(1.0)
 
 

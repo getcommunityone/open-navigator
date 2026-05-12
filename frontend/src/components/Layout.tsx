@@ -10,6 +10,7 @@ import {
   Cog6ToothIcon,
   ChartBarIcon,
   MagnifyingGlassIcon,
+  BoltIcon,
   BookOpenIcon,
   UserGroupIcon,
   AcademicCapIcon,
@@ -28,7 +29,7 @@ import { useLocation as useLocationContext } from '../contexts/LocationContext'
 
 const navigation = [
   { name: 'Home', href: '/', icon: HomeIcon },
-  { name: 'Explore Data', href: '/explore', icon: MagnifyingGlassIcon },
+  { name: 'Take Action', href: '/explore', icon: BoltIcon },
   { name: 'Search', href: '/search', icon: MagnifyingGlassIcon },
   { name: 'Jurisdictions', href: '/jurisdictions', icon: MapPinIcon },
   { 
@@ -46,7 +47,7 @@ const navigation = [
       { name: 'Elected Officials', href: '/people', icon: UserGroupIcon },
       { name: 'Public Policies', href: '/public-policies', icon: DocumentTextIcon },
       { name: 'Policy Map', href: '/policy-map', icon: MapIcon },
-      { name: 'Census map', href: '/census-map', icon: MapIcon },
+      { name: 'Data explorer', href: '/data-explorer', icon: MapIcon },
     ]
   },
   { 
@@ -66,6 +67,13 @@ const navigation = [
   },
   { name: 'Settings', href: '/settings', icon: Cog6ToothIcon },
 ]
+
+function pathMatchesNavHref(pathname: string, href: string): boolean {
+  if (href === '/data-explorer') {
+    return pathname === '/data-explorer' || pathname.startsWith('/data-explorer/')
+  }
+  return pathname === href
+}
 
 export default function Layout() {
   const location = useLocation()
@@ -402,7 +410,7 @@ export default function Layout() {
                     {item.section}
                   </div>
                   {item.items.map((subItem) => {
-                    const isActive = location.pathname === subItem.href
+                    const isActive = pathMatchesNavHref(location.pathname, subItem.href)
                     const isExternal = 'external' in subItem && subItem.external
                     
                     const linkClasses = `
@@ -447,7 +455,7 @@ export default function Layout() {
             
             // Handle regular navigation items
             if ('href' in item && item.href) {
-              const isActive = location.pathname === item.href
+              const isActive = pathMatchesNavHref(location.pathname, item.href)
               return (
                 <Link
                   key={item.name}
@@ -503,7 +511,7 @@ export default function Layout() {
       )}
 
       {/* Main content */}
-      <div className="md:pl-64 pt-16">
+      <div className="flex min-h-[calc(100dvh-5rem)] flex-col pt-16 md:pl-64">
         {/* Auth Error Banner - Mobile Friendly */}
         {authError && (
           <div className="bg-red-50 border-l-4 border-red-500 p-4 m-4">
@@ -531,7 +539,7 @@ export default function Layout() {
             </div>
           </div>
         )}
-        <main>
+        <main className="flex min-h-0 flex-1 flex-col">
           <Outlet />
         </main>
       </div>

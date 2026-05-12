@@ -665,7 +665,15 @@ static_dir = Path(__file__).parent / "static"
 if static_dir.exists():
     # Mount static files (JS, CSS, images)
     app.mount("/assets", StaticFiles(directory=static_dir / "assets"), name="assets")
-    
+
+    # ACS map / scorecard JSON (same paths as Vite dev: /data/census-map/...)
+    frontend_public = Path(__file__).parent.parent / "frontend" / "public"
+    census_map_dir = frontend_public / "data" / "census-map"
+    if census_map_dir.is_dir():
+        app.mount("/data/census-map", StaticFiles(directory=census_map_dir), name="census_map_public")
+    else:
+        logger.warning(f"Census map static bundle missing (expected {census_map_dir})")
+
     # Serve index.html for all non-API routes (SPA routing)
     @app.get("/{full_path:path}")
     async def serve_react_app(full_path: str):

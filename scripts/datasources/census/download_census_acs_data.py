@@ -62,6 +62,30 @@ _ACS5_FALLBACK_FIRST_YEAR = 2009
 _ACS5_FALLBACK_LAST_YEAR = 2024
 _CENSUS_DATA_CATALOG_URL = "https://api.census.gov/data.json"
 
+# Default ACS detail/subject tables when ``--tables`` is omitted. Keep table set aligned with
+# ``export_census_map_static.METRICS`` (each map metric must have matching county/state parquets).
+DEFAULT_DOWNLOAD_TABLES: tuple[str, ...] = (
+    "B01001",
+    "B01002",
+    "B01003",
+    "B02001",
+    "B03002",
+    "B14001",
+    "B15003",
+    "B17001",
+    "B19013",
+    "B19083",
+    "B19301",
+    "B23025",
+    "B25001",
+    "B25064",
+    "B25071",
+    "B25077",
+    "B27001",
+    "B27010",
+    "S0801",
+)
+
 # U.S. states, the District of Columbia, and Puerto Rico (two-digit FIPS) for
 # per-state ACS pulls (place, school districts, state-scoped county, etc.).
 CENSUS_ACS_STATE_FIPS: tuple[str, ...] = (
@@ -155,29 +179,7 @@ async def download_comprehensive_acs_data(
     
     # Default key tables if none specified
     if tables is None:
-        tables = sorted(
-            {
-                "B01001",
-                "B02001",
-                "B03002",
-                "B19013",
-                "B17001",
-                "B23025",
-                "B27001",
-                "B27010",
-                "B15003",
-                "B14001",
-                "B25077",
-                "B25064",
-                "B01002",
-                "B19301",
-                "B19083",
-                "S0801",
-                "B25070",
-                "B25001",
-                "B01003",
-            }
-        )
+        tables = list(DEFAULT_DOWNLOAD_TABLES)
     
     logger.info(f"Downloading {len(tables)} tables (year={year}, force={force})...")
 
@@ -502,6 +504,9 @@ Examples:
   # Different ACS 5-year vintage
   python scripts/datasources/census/download_census_acs_data.py --year 2021
 
+  # Early vintage: some tables are not published (HTTP 400) — skip and continue
+  python scripts/datasources/census/download_census_acs_data.py --year 2011 --skip-http-400
+
   # Every ACS 5-year vintage (Census API catalog)
   python scripts/datasources/census/download_census_acs_data.py --all-years
 
@@ -576,6 +581,14 @@ Examples:
         help="Re-download even if a cached parquet already exists",
     )
     parser.add_argument(
+        "--skip-http-400",
+        action="store_true",
+        help=(
+            "On Census HTTP 400 (table not in that vintage), log a warning and continue. "
+            "Useful with --year for early ACS releases; implied when using --all-years."
+        ),
+    )
+    parser.add_argument(
         "--health-insurance-only",
         action="store_true",
         help="Download only health-insurance tables (oral-health focus)",
@@ -645,7 +658,7 @@ Examples:
             years,
             args.force,
             args.health_insurance_only,
-            skip_http_400=args.all_years,
+            skip_http_400=args.all_years or args.skip_http_400,
             comprehensive_state_fips=comp_state_list,
         )
     )

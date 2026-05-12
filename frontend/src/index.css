@@ -71,6 +71,14 @@ body {
 .leaflet-container.census-choropleth-map {
   background: #ffffff;
 }
+/* Align default zoom (+/−) with map card horizontal padding (toolbar uses px-3). */
+.leaflet-container.census-choropleth-map .leaflet-top.leaflet-left {
+  top: 0.5rem;
+  left: 0.75rem;
+}
+.leaflet-container.census-choropleth-map .leaflet-control-zoom {
+  margin-top: 0;
+}
 .leaflet-container.census-choropleth-map svg path.leaflet-interactive {
   transition: fill 1.2s cubic-bezier(0.65, 0, 0.35, 1), fill-opacity 0.5s cubic-bezier(0.65, 0, 0.35, 1);
 }

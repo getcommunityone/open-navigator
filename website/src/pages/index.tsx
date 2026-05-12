@@ -72,6 +72,7 @@ function HomepageHeader() {
           </p>
         </div>
 
+        {/* Temporarily hidden until PBC approval — restore when ready.
         <div style={{
           display: 'flex',
           flexWrap: 'wrap',
@@ -108,6 +109,7 @@ function HomepageHeader() {
             CommunityOne is a public benefit corporation with a fiscal-sponsored nonprofit 501(c)(3). We are solely funded by mission-aligned impact investors and philanthropic institutions.
           </p>
         </div>
+        */}
 
       </div>
     </header>
@@ -418,7 +420,8 @@ function WhyItMatters() {
           </div>
         </div>
 
-        {/* PBC / 501(c)(3) trust strip */}
+        {/* Temporarily hidden until PBC approval — restore when ready.
+        PBC / 501(c)(3) trust strip
         <div style={{
           marginTop: '3rem',
           paddingTop: '2rem',
@@ -475,6 +478,7 @@ function WhyItMatters() {
             ))}
           </div>
         </div>
+        */}
 
       </div>
     </section>

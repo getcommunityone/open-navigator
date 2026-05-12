@@ -1037,11 +1037,11 @@ export default function Home() {
                     <span className="font-medium">Policy Map</span>
                   </Link>
                   <Link
-                    to="/census-map"
+                    to="/data-explorer"
                     className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-[#354F52] hover:text-white transition-all group"
                   >
                     <GlobeAmericasIcon className="h-5 w-5 group-hover:scale-110 transition-transform" />
-                    <span className="font-medium">Census map</span>
+                    <span className="font-medium">Data explorer</span>
                   </Link>
                   <Link
                     to="/nonprofits"
@@ -1736,7 +1736,7 @@ export default function Home() {
             </Link>
 
             <Link
-              to="/census-map"
+              to="/data-explorer"
               className="group bg-gradient-to-br from-gray-50 to-white border-2 border-gray-200 rounded-2xl p-8 hover:border-[#354F52] hover:shadow-xl transition-all"
             >
               <div
@@ -1746,10 +1746,11 @@ export default function Home() {
                 <GlobeAmericasIcon className="h-7 w-7" style={{ color: '#354F52' }} />
               </div>
               <h3 className="text-xl font-bold mb-3" style={{ color: '#354F52' }}>
-                Census map
+                Data explorer
               </h3>
               <p className="text-gray-600 mb-4">
-                Explore ACS county metrics and drill into city-level places where data is published
+                Map ACS 5-year estimates or read a scorecard with multi-year trends and country, region, or state
+                benchmarks
               </p>
               <span className="inline-flex items-center gap-2 text-sm font-medium" style={{ color: '#52796F' }}>
                 Open map <ArrowRightIcon className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
@@ -1928,12 +1929,14 @@ export default function Home() {
               CommunityOne changes that. One platform connects residents, leaders, and funders to what's really happening on the ground — so no community has to fight just to be seen.
             </p>
 
+            {/* Temporarily hidden until PBC approval — restore when ready.
             <div className="border-t border-gray-200 pt-6 mb-6">
               <p className="text-xs font-bold uppercase tracking-widest text-[#52796F] mb-2">Public Benefit Corporation</p>
               <p className="text-base text-gray-600 leading-relaxed">
                 CommunityOne is a public benefit corporation with a fiscal-sponsored nonprofit 501(c)(3). We are solely funded by mission-aligned impact investors and philanthropic institutions.
               </p>
             </div>
+            */}
 
             <Link
               to="/explore"
@@ -2579,7 +2582,7 @@ export default function Home() {
           
           <nav aria-label="Site sections" className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-gray-400 max-w-4xl mx-auto px-2">
             <Link to="/explore" className="hover:text-white transition-colors">
-              Explore
+              Take action
             </Link>
             <Link to="/search" className="hover:text-white transition-colors">
               Search

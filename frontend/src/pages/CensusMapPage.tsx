@@ -1,5 +1,5 @@
 // @ts-nocheck — react-simple-maps ships without TypeScript types (same as USMap.tsx)
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { startTransition, useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, useReducedMotion } from 'framer-motion'
 import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
@@ -30,33 +30,42 @@ import {
   colorFromT,
   formatCensusMapAxisTickForMetric,
   formatMetricValueCompact,
-  formatMinutesDisplay,
+  formatMetricValueDisplay,
   metricToDisplayT,
   minMaxExtent,
   quantileExtent,
   type CensusScaleId,
 } from '../utils/censusMapTransforms'
+import { giniLetterSuffix } from '../utils/giniLetterGrade'
 import {
   type CensusValueMode,
   displayValueForMode,
-  nationalBaseline,
+  nationalBaselineWithFallback,
   prevVintageInList,
   trendCell,
 } from '../utils/censusMapValueMode'
 import {
+  type CensusChoroLegendSemantics,
+  censusChoroLegendSemantics,
+  censusMetricExploreQuestion,
   censusMetricFullHelp,
   censusMetricRankDirection,
+  censusMetricStaleDataNote,
   censusMetricWinnerCaption,
   compareRankedMetricValues,
+  CENSUS_EXPLORER_HIDDEN_METRIC_SLUGS,
   CENSUS_MAP_UI_HELP,
 } from '../utils/censusDataDictionary'
 import {
   buildCensusNarrativePack,
   buildCensusTrendChartTitle,
+  buildPlaceTrendNarrative,
   type CensusNarrativePack,
 } from '../utils/censusMapNarrative'
 import { CensusRaceBarChart } from '../components/CensusRaceBarChart'
+import { GiniIncomeInequalityLetterLegend } from '../components/GiniInequalityReadout'
 import { InfoHelpTrigger } from '../components/InfoHelpTrigger'
+import { censusMapPathPrefix, mapPathPlace, mapPathState, mapPathUs } from '../utils/dataExplorerPaths'
 
 const STATES_TOPO = 'https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json'
 const COUNTY_TOPO = 'https://cdn.jsdelivr.net/npm/us-atlas@3/counties-10m.json'
@@ -357,7 +366,7 @@ function collectAllVintageDisplayValuesState(
   const vals: number[] = []
   for (const vy of vintages) {
     const prevV = prevVintageInList(vintages, vy)
-    const nat = nationalBaseline(nationalRef, vy, metricSlug)
+    const nat = nationalBaselineWithFallback(nationalRef, vy, metricSlug, { stateTrends: trends })
     for (const row of Object.values(trends.by_state)) {
       const rec = row as Record<string, unknown>
       const series = rec[metricSlug]
@@ -378,12 +387,13 @@ function collectAllVintageDisplayValuesCounty(
   metricSlug: string,
   valueMode: CensusValueMode,
   nationalRef: CensusManifest['national_ref'],
+  stateTrends: StateTrendsPayload | null | undefined,
 ): number[] {
   const stp = stateFips.padStart(2, '0')
   const vals: number[] = []
   for (const vy of vintages) {
     const prevV = prevVintageInList(vintages, vy)
-    const nat = nationalBaseline(nationalRef, vy, metricSlug)
+    const nat = nationalBaselineWithFallback(nationalRef, vy, metricSlug, { stateTrends })
     for (const [gid, row] of Object.entries(trends.byGeoid)) {
       if (!gid.startsWith(stp)) continue
       const rec = row as Record<string, unknown>
@@ -405,12 +415,13 @@ function collectAllVintageDisplayValuesPlace(
   metricSlug: string,
   valueMode: CensusValueMode,
   nationalRef: CensusManifest['national_ref'],
+  stateTrends: StateTrendsPayload | null | undefined,
 ): number[] {
   const stp = stateFips.padStart(2, '0')
   const vals: number[] = []
   for (const vy of vintages) {
     const prevV = prevVintageInList(vintages, vy)
-    const nat = nationalBaseline(nationalRef, vy, metricSlug)
+    const nat = nationalBaselineWithFallback(nationalRef, vy, metricSlug, { stateTrends })
     for (const [gid, row] of Object.entries(trends.byGeoid)) {
       if (!gid.startsWith(stp)) continue
       const rec = row as Record<string, unknown>
@@ -447,26 +458,50 @@ function CensusMetricToolbarControl({
   metrics,
   metricSlug,
   onPickMetric,
+  unconstrainedWidth = false,
 }: {
   metricFullHelp: string
   metrics: CensusMetric[]
   metricSlug: string
   onPickMetric: (slug: string) => void
+  /** When true, drop the narrow max-width so the control can fill a toolbar tile. */
+  unconstrainedWidth?: boolean
 }) {
+  const current = metrics.find((m) => m.slug === metricSlug)
   return (
-    <div className="flex flex-wrap items-center gap-2 min-w-0 max-w-full">
-      <LabelWithInfo label="Metric" help={metricFullHelp} />
+    <div
+      className={
+        unconstrainedWidth
+          ? 'flex min-w-0 max-w-full flex-col gap-0.5'
+          : 'flex min-w-0 max-w-full flex-col gap-0.5 sm:max-w-[min(26rem,calc(100vw-9rem))]'
+      }
+    >
+      <LabelWithInfo
+        label="What do you want to explore?"
+        help={`${CENSUS_MAP_UI_HELP.metric}\n\n${metricFullHelp}`}
+        labelClassName={
+          unconstrainedWidth
+            ? 'text-[10px] font-semibold uppercase tracking-wide text-slate-500 leading-tight'
+            : undefined
+        }
+      />
       <select
-        className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-900 shadow-sm max-w-[min(20rem,calc(100vw-10rem))]"
+        aria-label="Topic to show on the map"
+        className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs font-medium text-slate-900 shadow-sm w-full"
         value={metricSlug}
         onChange={(e) => onPickMetric(e.target.value)}
       >
         {metrics.map((m) => (
           <option key={m.slug} value={m.slug}>
-            {m.label}
+            {censusMetricExploreQuestion(m.slug, m.label)}
           </option>
         ))}
       </select>
+      {current ? (
+        <span className="text-[10px] leading-snug text-slate-500">
+          Census label: <span className="font-medium text-slate-600">{current.label}</span>
+        </span>
+      ) : null}
     </div>
   )
 }
@@ -476,19 +511,28 @@ function CensusMapHeadingStrip({
   titleId,
   title,
   insight,
+  selectionActive,
 }: {
   titleId: string
   title: string
   /** Extra context (e.g. selected state vs national) shown under the title. */
   insight?: string | null
+  /** True when a leaderboard row is pinned so the strip reads as “this location is selected.” */
+  selectionActive?: boolean
 }) {
   return (
-    <div className="border-b border-slate-100 bg-slate-50/60 px-3 py-1.5 sm:px-3">
+    <div
+      className={
+        selectionActive
+          ? 'border-b border-amber-200/90 bg-amber-50/80 px-3 py-1 sm:px-3 border-l-[5px] border-l-amber-500'
+          : 'border-b border-slate-100 bg-slate-50/60 px-3 py-1 sm:px-3'
+      }
+    >
       <h2 id={titleId} className="text-sm font-semibold text-slate-900 leading-snug tracking-tight">
         {title}
       </h2>
       {insight ? (
-        <p className="mt-1 text-xs leading-snug text-slate-600" id={`${titleId}-insight`}>
+        <p className="mt-0.5 text-xs leading-snug text-slate-600" id={`${titleId}-insight`}>
           {insight}
         </p>
       ) : null}
@@ -502,7 +546,7 @@ function CensusMapExplainerDetails({ subtitle, calloutLines }: { subtitle: strin
   const [open, setOpen] = useState(false)
   return (
     <div className="border-b border-slate-200 bg-slate-50/40">
-      <div className="flex items-center justify-end gap-2 px-3 py-1.5">
+      <div className="flex items-center justify-end gap-2 px-3 py-1">
         <button
           type="button"
           className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#354F52] focus-visible:ring-offset-2"
@@ -555,6 +599,8 @@ function CensusMapAdvancedMapOptionsFlyout({
   setScale,
   valueMode,
   setValueMode,
+  focusSection,
+  onConsumedFocusSection,
 }: {
   open: boolean
   onClose: () => void
@@ -565,6 +611,9 @@ function CensusMapAdvancedMapOptionsFlyout({
   setScale: (s: CensusScaleId) => void
   valueMode: CensusValueMode
   setValueMode: (m: CensusValueMode) => void
+  /** When opening from a toolbar affordance, scroll this block into view. */
+  focusSection?: 'view' | 'scale' | 'values' | null
+  onConsumedFocusSection?: () => void
 }) {
   useEffect(() => {
     if (!open) return
@@ -580,6 +629,21 @@ function CensusMapAdvancedMapOptionsFlyout({
     }
   }, [open, onClose])
 
+  useEffect(() => {
+    if (!open || !focusSection) return
+    const id =
+      focusSection === 'view'
+        ? 'census-advanced-section-view'
+        : focusSection === 'scale'
+          ? 'census-advanced-section-scale'
+          : 'census-advanced-section-values'
+    const t = window.setTimeout(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      onConsumedFocusSection?.()
+    }, 40)
+    return () => window.clearTimeout(t)
+  }, [open, focusSection, onConsumedFocusSection])
+
   if (!open || typeof document === 'undefined') return null
 
   return createPortal(
@@ -587,7 +651,7 @@ function CensusMapAdvancedMapOptionsFlyout({
       <button
         type="button"
         className="absolute inset-0 z-0 bg-slate-900/45"
-        aria-label="Close advanced map options"
+        aria-label="Close map options"
         onClick={onClose}
       />
       <div
@@ -598,7 +662,7 @@ function CensusMapAdvancedMapOptionsFlyout({
       >
         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200 px-3 py-2.5">
           <h2 id="census-advanced-map-options-title" className="text-sm font-semibold text-slate-900">
-            Advanced — map display
+            Map display options
           </h2>
           <button
             type="button"
@@ -610,10 +674,10 @@ function CensusMapAdvancedMapOptionsFlyout({
           </button>
         </div>
         <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain p-3">
-          <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3">
+          <div id="census-advanced-section-view" className="rounded-lg border border-slate-200 bg-slate-50/50 p-3 scroll-mt-3">
             <div className="mb-2">
               <LabelWithInfo
-                label="View"
+                label="Map view"
                 help={`${CENSUS_MAP_UI_HELP.vizFilled} ${CENSUS_MAP_UI_HELP.vizBubble}\n\n${metricFullHelp}`}
               />
             </div>
@@ -638,9 +702,9 @@ function CensusMapAdvancedMapOptionsFlyout({
               </button>
             </div>
           </div>
-          <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3">
+          <div id="census-advanced-section-scale" className="rounded-lg border border-slate-200 bg-slate-50/50 p-3 scroll-mt-3">
             <div className="mb-2">
-              <LabelWithInfo label="Scale" help={`${CENSUS_MAP_UI_HELP.scale}\n\n${metricFullHelp}`} />
+              <LabelWithInfo label="Color spread" help={`${CENSUS_MAP_UI_HELP.scale}\n\n${metricFullHelp}`} />
             </div>
             <select
               className="w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-xs text-slate-900 shadow-sm"
@@ -654,9 +718,9 @@ function CensusMapAdvancedMapOptionsFlyout({
               ))}
             </select>
           </div>
-          <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3">
+          <div id="census-advanced-section-values" className="rounded-lg border border-slate-200 bg-slate-50/50 p-3 scroll-mt-3">
             <div className="mb-2">
-              <LabelWithInfo label="Map value" help={`${CENSUS_MAP_UI_HELP.mapValue}\n\n${metricFullHelp}`} />
+              <LabelWithInfo label="What numbers are on the map" help={`${CENSUS_MAP_UI_HELP.mapValue}\n\n${metricFullHelp}`} />
             </div>
             <select
               className="w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-xs shadow-sm"
@@ -694,6 +758,7 @@ function VintageAndPlayControls({
   playing,
   setPlaying,
   onVintageChange,
+  onBeginPlay,
   yearHelp = CENSUS_MAP_UI_HELP.year,
 }: {
   vintages: string[]
@@ -703,41 +768,179 @@ function VintageAndPlayControls({
   playing: boolean
   setPlaying: (v: boolean) => void
   onVintageChange: (v: string) => void
+  /** When starting Play, jump to the first year in the list (oldest). */
+  onBeginPlay?: () => void
   yearHelp?: string
 }) {
-  const vintageIndex = Math.max(0, vintages.indexOf(displayVintage))
+  const yearScrollRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    const root = yearScrollRef.current
+    if (!root || !vintages.length) return
+    const active = root.querySelector<HTMLElement>(`[data-census-vintage="${displayVintage}"]`)
+    if (!active) return
+    const run = () => active.scrollIntoView({ behavior: 'auto', inline: 'center', block: 'nearest' })
+    requestAnimationFrame(() => requestAnimationFrame(run))
+  }, [displayVintage, vintages])
+
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <div className="flex items-center gap-2">
-        <LabelWithInfo label="Year" help={yearHelp} />
-        <input
-          type="range"
-          min={0}
-          max={Math.max(0, vintages.length - 1)}
-          step={1}
-          value={vintageIndex}
-          disabled={singleVintage}
-          onChange={(e) => {
-            setPlaying(false)
-            onVintageChange(vintages[Number(e.target.value)]!)
-          }}
-          className="w-36 accent-[#354F52] disabled:opacity-40"
+    <div className="flex min-w-0 max-w-full flex-wrap items-center gap-x-1.5 gap-y-1">
+      <div className="flex min-w-0 max-w-full flex-1 flex-col gap-0.5">
+        <LabelWithInfo
+          label="Year (ACS end year)"
+          help={yearHelp}
+          labelClassName="text-[10px] font-semibold uppercase tracking-wide text-slate-500 leading-tight"
         />
-        <span className="text-sm font-mono text-slate-800 tabular-nums min-w-[44px]" title="ACS 5-year end year">
-          {displayVintage}
-        </span>
+        <div
+          ref={yearScrollRef}
+          className="flex min-w-0 max-w-full flex-nowrap items-center gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain py-0.5 [scrollbar-gutter:stable] [scrollbar-width:thin] pr-1 [-webkit-overflow-scrolling:touch]"
+          role="group"
+          aria-label="Select ACS vintage"
+        >
+          {vintages.map((y) => {
+            const active = y === displayVintage
+            return (
+              <button
+                key={y}
+                type="button"
+                data-census-vintage={y}
+                disabled={singleVintage && !active}
+                onClick={() => {
+                  setPlaying(false)
+                  onVintageChange(y)
+                }}
+                className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold tabular-nums transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#354F52] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40 ${
+                  active
+                    ? 'border-[#354F52] bg-[#354F52] text-white shadow-sm'
+                    : 'border-slate-300 bg-white text-slate-800 hover:bg-slate-50'
+                }`}
+              >
+                {y}
+              </button>
+            )
+          })}
+        </div>
       </div>
       {showPlay ? (
         <button
           type="button"
-          onClick={() => setPlaying(!playing)}
+          onClick={() => {
+            if (playing) {
+              setPlaying(false)
+            } else {
+              onBeginPlay?.()
+              setPlaying(true)
+            }
+          }}
           className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 shrink-0"
-          title={playing ? 'Pause animation' : CENSUS_MAP_UI_HELP.play}
+          title={playing ? 'Pause animation' : `${CENSUS_MAP_UI_HELP.play} Starts from the first year, then steps forward.`}
         >
           {playing ? <PauseIcon className="h-4 w-4" /> : <PlayIcon className="h-4 w-4" />}
-          {playing ? 'Pause' : 'Play'}
+          {playing ? 'Pause' : 'Play years'}
         </button>
       ) : null}
+    </div>
+  )
+}
+
+const explorerFilterTile =
+  'rounded-xl border border-slate-200 bg-white px-2 py-1.5 shadow-sm sm:px-2.5 sm:py-2 min-w-0 flex flex-col justify-center'
+
+function CensusExplorerFilterBar({
+  leadingSlot,
+  metricFullHelp,
+  metrics,
+  metricSlug,
+  onMetricChange,
+  vintages,
+  displayVintage,
+  singleVintage,
+  showPlay,
+  playing,
+  setPlaying,
+  onVintageChange,
+  onBeginPlay,
+  yearHelp,
+  onOpenAdvanced,
+}: {
+  leadingSlot?: ReactNode
+  metricFullHelp: string
+  metrics: CensusMetric[]
+  metricSlug: string
+  onMetricChange: (slug: string) => void
+  vintages: string[]
+  displayVintage: string
+  singleVintage: boolean
+  showPlay: boolean
+  playing: boolean
+  setPlaying: (v: boolean) => void
+  onVintageChange: (v: string) => void
+  onBeginPlay?: () => void
+  yearHelp: string
+  onOpenAdvanced: (section: 'view' | 'scale' | 'values') => void
+}) {
+  return (
+    <div
+      className="flex flex-col gap-1.5 xl:flex-row xl:flex-wrap xl:items-stretch"
+      role="toolbar"
+      aria-label="Map and chart filters"
+    >
+      {leadingSlot ? (
+        <div className={`${explorerFilterTile} shrink-0 xl:max-w-[min(100%,22rem)]`}>
+          <div className="flex flex-wrap items-center gap-2">{leadingSlot}</div>
+        </div>
+      ) : null}
+      <div className={`${explorerFilterTile} min-w-0 flex-1 xl:min-w-[11rem] xl:max-w-md`}>
+        <CensusMetricToolbarControl
+          metricFullHelp={metricFullHelp}
+          metrics={metrics}
+          metricSlug={metricSlug}
+          onPickMetric={onMetricChange}
+          unconstrainedWidth
+        />
+      </div>
+      <div className={`${explorerFilterTile} min-w-0 flex-1 xl:min-w-[18rem]`}>
+        <VintageAndPlayControls
+          vintages={vintages}
+          displayVintage={displayVintage}
+          singleVintage={singleVintage}
+          showPlay={showPlay}
+          playing={playing}
+          setPlaying={setPlaying}
+          onVintageChange={onVintageChange}
+          onBeginPlay={onBeginPlay}
+          yearHelp={yearHelp}
+        />
+      </div>
+      <div
+        className={`${explorerFilterTile} flex flex-row flex-wrap items-center gap-1 xl:ml-auto xl:max-w-[24rem] xl:justify-end`}
+      >
+        <button
+          type="button"
+          title="Filled map vs bubbles"
+          onClick={() => onOpenAdvanced('view')}
+          className="inline-flex shrink-0 items-center rounded-md border border-slate-300 bg-white px-2 py-1.5 text-[11px] font-medium text-slate-800 shadow-sm hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#354F52] focus-visible:ring-offset-2"
+        >
+          Map view
+        </button>
+        <button
+          type="button"
+          title="How values stretch across colors"
+          onClick={() => onOpenAdvanced('scale')}
+          className="inline-flex shrink-0 items-center rounded-md border border-slate-300 bg-white px-2 py-1.5 text-[11px] font-medium text-slate-800 shadow-sm hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#354F52] focus-visible:ring-offset-2"
+        >
+          Color spread
+        </button>
+        <button
+          type="button"
+          title="Raw ACS value, year-over-year change, or vs national"
+          onClick={() => onOpenAdvanced('values')}
+          className="inline-flex shrink-0 items-center gap-1 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-[11px] font-medium text-slate-800 shadow-sm hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#354F52] focus-visible:ring-offset-2"
+        >
+          <AdjustmentsHorizontalIcon className="h-3.5 w-3.5 shrink-0 text-slate-600" aria-hidden />
+          Map numbers
+        </button>
+      </div>
     </div>
   )
 }
@@ -750,6 +953,7 @@ function AcTrendChart({
   points,
   format,
   metricHelp,
+  metricTooltipLabel,
 }: {
   title: string
   subtitle?: string
@@ -758,6 +962,8 @@ function AcTrendChart({
   points: { year: string; value: number | null }[]
   format: (v: number) => string
   metricHelp?: string
+  /** Shown in the point tooltip as ``{label}: {formatted value}``. */
+  metricTooltipLabel?: string
 }) {
   const readingPanelId = useId()
   const [readingOpen, setReadingOpen] = useState(false)
@@ -817,26 +1023,26 @@ function AcTrendChart({
       role="region"
       {...(chartTitleId ? { 'aria-labelledby': chartTitleId } : {})}
     >
-      <div className="mb-2 flex min-w-0 items-start gap-1 border-b border-slate-100 pb-2">
+      <div className="mb-1.5 flex min-w-0 items-start gap-1 border-b border-slate-100 pb-1.5">
         <div className="min-w-0 flex-1">
           <div
             id={chartTitleId}
-            className="text-xs font-semibold uppercase tracking-wide text-slate-800 leading-snug"
+            className="text-[11px] font-semibold uppercase tracking-wide text-slate-800 leading-tight"
             title={title}
           >
             {title}
           </div>
           {subtitle ? (
-            <p className="mt-1 text-xs font-normal normal-case text-slate-600 leading-relaxed">{subtitle}</p>
+            <p className="mt-0.5 text-xs font-normal normal-case text-slate-600 leading-relaxed">{subtitle}</p>
           ) : null}
         </div>
         {metricHelp ? <InfoHelpTrigger help={metricHelp} topic="Trend chart" align="right" /> : null}
       </div>
       {readingLines?.length ? (
-        <div className="mb-2">
+        <div className="mb-1.5">
           <button
             type="button"
-            className="mb-2 inline-flex w-full items-center justify-center gap-1.5 rounded-md border border-amber-200/90 bg-amber-50/60 px-2.5 py-1.5 text-xs font-medium text-amber-950/90 shadow-sm hover:bg-amber-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#354F52] focus-visible:ring-offset-2 sm:w-auto sm:justify-start"
+            className="mb-1.5 inline-flex w-full items-center justify-center gap-1.5 rounded-md border border-amber-200/90 bg-amber-50/60 px-2.5 py-1.5 text-xs font-medium text-amber-950/90 shadow-sm hover:bg-amber-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#354F52] focus-visible:ring-offset-2 sm:w-auto sm:justify-start"
             aria-expanded={readingOpen}
             aria-controls={readingPanelId}
             onClick={() => setReadingOpen((v) => !v)}
@@ -888,7 +1094,12 @@ function AcTrendChart({
             />
             <RechartsTooltip
               {...CENSUS_RECHARTS_TOOLTIP}
-              formatter={(value: number) => [format(value), '']}
+              formatter={(value: number | string) => {
+                const n = Number(value)
+                const formatted = Number.isFinite(n) ? format(n) : String(value)
+                const line = metricTooltipLabel ? `${metricTooltipLabel}: ${formatted}` : formatted
+                return [line, '']
+              }}
               labelFormatter={(y) => `Year ${y}`}
             />
             <Line type="monotone" dataKey="value" stroke="#52796F" strokeWidth={2} dot={{ r: 3 }} connectNulls />
@@ -959,18 +1170,19 @@ function formatMetricValue(
   metrics: CensusMetric[],
   valueMode: CensusValueMode = 'raw',
 ): string {
-  if (v == null || !Number.isFinite(v)) return '—'
-  if (valueMode === 'yoy' || valueMode === 'vs_natl') return `${v.toFixed(1)}%`
-  const m = metrics.find((x) => x.slug === slug)
-  if (m?.format === 'minutes' || slug === 'travel_time_to_work_minutes') {
-    return formatMinutesDisplay(v)
-  }
-  if (m?.format === 'currency') return `$${Math.round(v).toLocaleString()}`
-  if (m?.format === 'count') return `${Math.round(v).toLocaleString()}`
-  if (m?.format === 'percent') return `${v.toFixed(1)}%`
-  if (m?.format === 'ratio') return v.toFixed(3)
-  if (m?.format === 'years') return `${v.toFixed(1)} yrs`
-  return String(v)
+  const s = formatMetricValueDisplay(slug, v, metrics, valueMode)
+  if (slug !== 'gini_income_inequality' || valueMode !== 'raw' || v == null || !Number.isFinite(v)) return s
+  return `${s}${giniLetterSuffix(v)}`
+}
+
+function metricValueTooltipLine(
+  metricLabel: string,
+  slug: string,
+  v: number | null | undefined,
+  metrics: CensusMetric[],
+  valueMode: CensusValueMode,
+): string {
+  return `${metricLabel}: ${formatMetricValue(slug, v, metrics, valueMode)}`
 }
 
 /** County / place drill-down: fit data, clamp zoom/pan so wheel zoom cannot leave the state/city context. */
@@ -986,7 +1198,7 @@ function DrilldownMapBoundsController({ data }: { data: GeoJSONFeatureCollection
     let clampOnMoveEnd: (() => void) | null = null
 
     /** Padding passed to getBoundsZoom (Leaflet subtracts this once from map width/height). */
-    const fitPad = L.point(20, 20)
+    const fitPad = L.point(28, 28)
 
     const run = () => {
       if (cancelled) return
@@ -1003,18 +1215,16 @@ function DrilldownMapBoundsController({ data }: { data: GeoJSONFeatureCollection
       const zIn = Math.max(zLoose, zTight)
       let safeMin = Math.max(5, Math.floor(zOut) - 1)
 
-      // Initial view: fit the whole area in the map (inside=false). Using inside=true behaves like
-      // CSS "cover" and zooms in until the view is filled — too tight for wide states (e.g. AL) in a tall pane.
-      const zFit = map.getBoundsZoom(b.pad(0.035), false, fitPad)
+      // Initial view: fit the whole area in the map (inside=false). Use generous bounds padding so
+      // narrow side-by-side layouts do not “over-zoom” into a few counties (e.g. Alabama in a short map pane).
+      const zFit = map.getBoundsZoom(b.pad(0.14), false, fitPad)
       if (!Number.isFinite(zFit)) return
 
       let safeMax = Math.min(13, Math.max(Math.ceil(zIn) + 1, Math.ceil(zFit) + 2))
       if (safeMax <= safeMin) safeMax = safeMin + 1
 
-      let z = Math.max(safeMin, Math.min(safeMax, zFit))
-      // Tall panes letterbox “contain” fits; one extra integer zoom fills the view better when allowed.
-      const portraitPane = size.y > size.x * 1.08
-      if (portraitPane && z < safeMax) z += 1
+      // Use floor(zFit) so the entire padded bounds stay in view; avoid +1 here — it was zooming one level too tight.
+      let z = Math.min(safeMax, Math.max(safeMin, Math.floor(zFit)))
 
       map.setMinZoom(safeMin)
       map.setMaxZoom(safeMax)
@@ -1084,6 +1294,8 @@ function ChoroplethLegend({
   valueMode = 'raw',
   extentPoolsAllVintages = false,
   metricHelp,
+  semantics,
+  letterGradeLegend,
 }: {
   min: number
   max: number
@@ -1093,6 +1305,10 @@ function ChoroplethLegend({
   /** When trend sidecars are used, min/max are from all vintages pooled (still ~4th–96th pct.). */
   extentPoolsAllVintages?: boolean
   metricHelp?: string
+  /** Plain-language ends of the ramp + one sentence on how to read color intensity. */
+  semantics?: CensusChoroLegendSemantics | null
+  /** Optional strip (e.g. Gini A–F grades) shown under the semantics line. */
+  letterGradeLegend?: import('react').ReactNode
 }) {
   const legendHelpPanelId = useId()
   const [legendHelpOpen, setLegendHelpOpen] = useState(false)
@@ -1129,11 +1345,24 @@ function ChoroplethLegend({
       <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-600 mb-2">
         <SwatchIcon className="h-4 w-4 shrink-0" />
         {metricHelp ? (
-          <LabelWithInfo label="Color scale (filled map)" help={metricHelp} />
+          <LabelWithInfo label="What the colors mean" help={metricHelp} />
         ) : (
-          <span>Color scale (filled map)</span>
+          <span>What the colors mean</span>
         )}
       </div>
+      {semantics ? (
+        <>
+          <div className="mb-1 flex items-center justify-between gap-2 px-0.5 text-[10px] font-semibold text-slate-700">
+            <span className="min-w-0 text-left leading-tight">{semantics.lowEnd}</span>
+            <span className="shrink-0 text-slate-400" aria-hidden>
+              ←→
+            </span>
+            <span className="min-w-0 text-right leading-tight">{semantics.highEnd}</span>
+          </div>
+          <p className="mb-2 text-[10px] leading-snug text-slate-600">{semantics.gradientHint}</p>
+        </>
+      ) : null}
+      {letterGradeLegend}
       <svg width="100%" height="52" viewBox="0 0 260 52" preserveAspectRatio="xMidYMid meet" className="max-w-full">
         <defs>
           <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="0%">
@@ -1187,12 +1416,14 @@ function BubbleLegend({
   scale,
   format,
   metricHelp,
+  letterGradeLegend,
 }: {
   min: number
   max: number
   scale: CensusScaleId
   format: (v: number) => string
   metricHelp?: string
+  letterGradeLegend?: import('react').ReactNode
 }) {
   const legendHelpPanelId = useId()
   const [legendHelpOpen, setLegendHelpOpen] = useState(false)
@@ -1218,6 +1449,7 @@ function BubbleLegend({
           <span>Bubble size scale</span>
         )}
       </div>
+      {letterGradeLegend}
       <div className="flex items-end justify-around gap-2 px-2" style={{ height: 56 }}>
         {items.map((it, i) => (
           <div key={i} className="flex flex-col items-center gap-1">
@@ -1283,9 +1515,13 @@ function CensusMapPage() {
   const stateUsps = stateFips ? FIPS2_TO_USPS[stateFips] : undefined
   const stateName = stateUsps ? STATE_CODE_TO_NAME[stateUsps] : undefined
 
+  const mapPrefix = useMemo(() => censusMapPathPrefix(location.pathname), [location.pathname])
+
   const mode = useMemo(() => {
-    if (location.pathname.includes('/census-map/place/')) return 'place'
-    if (location.pathname.includes('/census-map/state/')) return 'stateCounty'
+    if (location.pathname.includes('/census-map/place/') || location.pathname.includes('/data-explorer/map/place/'))
+      return 'place'
+    if (location.pathname.includes('/census-map/state/') || location.pathname.includes('/data-explorer/map/state/'))
+      return 'stateCounty'
     return 'us'
   }, [location.pathname])
 
@@ -1320,6 +1556,25 @@ function CensusMapPage() {
   }
 
   const [advancedMapOptionsOpen, setAdvancedMapOptionsOpen] = useState(false)
+  const [advancedFocusSection, setAdvancedFocusSection] = useState<'view' | 'scale' | 'values' | null>(null)
+  const [censusOnboardingDismissed, setCensusOnboardingDismissed] = useState(() => {
+    if (typeof window === 'undefined') return false
+    try {
+      return window.localStorage.getItem('open-navigator-census-map-onboarding-dismissed') === '1'
+    } catch {
+      return false
+    }
+  })
+  const dismissCensusOnboarding = useCallback(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem('open-navigator-census-map-onboarding-dismissed', '1')
+      }
+    } catch {
+      /* ignore */
+    }
+    setCensusOnboardingDismissed(true)
+  }, [])
 
   const { data: manifest, isError: manifestError } = useQuery({
     queryKey: ['census-map-manifest'],
@@ -1410,10 +1665,29 @@ function CensusMapPage() {
   const vintagesRef = useRef(vintages)
   vintagesRef.current = vintages
 
+  /** While dragging the year slider, update charts immediately; URL follows on a short debounce. */
+  const [scrubVintage, setScrubVintage] = useState<string | null>(null)
+  const vintageNavigateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   useEffect(() => {
+    return () => {
+      if (vintageNavigateTimerRef.current) window.clearTimeout(vintageNavigateTimerRef.current)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (scrubVintage != null && vintage === scrubVintage) setScrubVintage(null)
+  }, [vintage, scrubVintage])
+
+  useEffect(() => {
+    setScrubVintage(null)
+  }, [metricSlug, mode, stateFips])
+
+  useEffect(() => {
+    if (playing) return
     const ix = vintages.indexOf(effectiveVintage)
     setAnimIndex(ix >= 0 ? ix : 0)
-  }, [effectiveVintage, vintages.join(',')])
+  }, [effectiveVintage, vintages.join(','), playing])
 
   const canPlayMultiVintage =
     vintages.length > 1 &&
@@ -1421,8 +1695,11 @@ function CensusMapPage() {
 
   const canTrendAnimate = canPlayMultiVintage
 
-  const displayVintage =
-    playing && canTrendAnimate ? vintages[animIndex % vintages.length]! : effectiveVintage
+  const displayVintage = useMemo(() => {
+    if (playing && canTrendAnimate) return vintages[animIndex % vintages.length]!
+    if (scrubVintage && vintages.includes(scrubVintage)) return scrubVintage
+    return effectiveVintage
+  }, [playing, canTrendAnimate, animIndex, vintages, scrubVintage, effectiveVintage])
 
   useEffect(() => {
     if (!playing || !canTrendAnimate) return
@@ -1459,6 +1736,7 @@ function CensusMapPage() {
     },
     enabled: mode === 'us' && !!displayVintage && !stateTrendsDriveStatePayload,
     placeholderData: keepPreviousData,
+    staleTime: 1000 * 60 * 60,
     retry: false,
   })
 
@@ -1478,6 +1756,7 @@ function CensusMapPage() {
     },
     enabled: mode === 'stateCounty' && !!displayVintage && !countyTrendsDriveCountyPayload,
     placeholderData: keepPreviousData,
+    staleTime: 1000 * 60 * 60,
     retry: false,
   })
 
@@ -1514,6 +1793,8 @@ function CensusMapPage() {
     },
     enabled: mode === 'place' && !!placeUrl,
     placeholderData: keepPreviousData,
+    staleTime: 1000 * 60 * 60,
+    retry: false,
   })
 
   const placeGeoMerged = useMemo(
@@ -1521,7 +1802,48 @@ function CensusMapPage() {
     [placeGeo, placeTrends, displayVintage, metricSlugsList],
   )
 
-  const metrics = manifest?.metrics ?? []
+  const [countyHover, setCountyHover] = useState<{ id: string; name: string; value: number | null } | null>(null)
+  const [placeHover, setPlaceHover] = useState<{ id: string; name: string; value: number | null } | null>(null)
+  /** Bar-chart selection: highlight matching area on the map (click same bar again to clear). */
+  const [leaderboardPinnedId, setLeaderboardPinnedId] = useState<string | null>(null)
+
+  useEffect(() => {
+    setLeaderboardPinnedId(null)
+  }, [mode, stateFips, metricSlug])
+
+  const toggleLeaderboardPin = useCallback((id: string) => {
+    setLeaderboardPinnedId((prev) => (prev === id ? null : id))
+  }, [])
+
+  const placePinnedLabel = useMemo((): string | null => {
+    if (mode !== 'place' || !leaderboardPinnedId || !placeGeoMerged?.features.length) return null
+    const pid = leaderboardPinnedId
+    for (const f of placeGeoMerged.features) {
+      const p = f.properties as Record<string, unknown> | null
+      if (placeGeoid7FromProperties(p, 0) === pid) {
+        const n = String(p?.NAME ?? '').trim()
+        return n || null
+      }
+    }
+    return null
+  }, [mode, leaderboardPinnedId, placeGeoMerged])
+
+  const focusPinnedStateNarrative = useMemo(() => {
+    if (mode !== 'us' || leaderboardPinnedId == null || leaderboardPinnedId === '' || !statePayload?.values)
+      return null
+    const sid = normalizeStateFips(leaderboardPinnedId) ?? leaderboardPinnedId
+    const row = statePayload.values[sid]
+    if (!row) return null
+    const name = typeof row.NAME === 'string' && row.NAME.trim() ? row.NAME.trim() : sid
+    return { geoid: sid, name }
+  }, [mode, leaderboardPinnedId, statePayload])
+
+  const manifestMetrics = manifest?.metrics ?? []
+  const selectableMetrics = useMemo(
+    () => manifestMetrics.filter((m) => !CENSUS_EXPLORER_HIDDEN_METRIC_SLUGS.has(m.slug)),
+    [manifestMetrics],
+  )
+  const metrics = manifestMetrics
   const placeStates = manifest?.place_states ?? []
 
   const currentMetricMeta = useMemo(() => metrics.find((m) => m.slug === metricSlug), [metrics, metricSlug])
@@ -1529,6 +1851,357 @@ function CensusMapPage() {
     () => censusMetricFullHelp(metricSlug, currentMetricMeta),
     [metricSlug, currentMetricMeta],
   )
+
+  const choroLegendSemantics = useMemo(
+    () => censusChoroLegendSemantics(metricSlug, valueMode, currentMetricMeta?.label ?? metricSlug),
+    [metricSlug, valueMode, currentMetricMeta?.label],
+  )
+
+  const giniRawLetterLegend = useMemo(
+    () => (metricSlug === 'gini_income_inequality' && valueMode === 'raw' ? <GiniIncomeInequalityLetterLegend /> : null),
+    [metricSlug, valueMode],
+  )
+
+  const nationalContextNote = useMemo(() => {
+    if (valueMode !== 'raw' || mode !== 'us') return null
+    const baseline = nationalBaselineWithFallback(manifest?.national_ref, displayVintage, metricSlug, {
+      stateRows: statePayload?.values,
+      stateTrends,
+    })
+    if (baseline == null || !Number.isFinite(baseline)) return null
+    const label = currentMetricMeta?.label ?? metricSlug
+    const formatted = formatMetricValue(metricSlug, baseline, metrics, 'raw')
+    return `National benchmark for ${label}: ${formatted} (population-weighted U.S. composite when available).`
+  }, [valueMode, mode, manifest?.national_ref, displayVintage, metricSlug, currentMetricMeta?.label, metrics, statePayload, stateTrends])
+
+  const [hoverRegion, setHoverRegion] = useState<{
+    id: string
+    name: string
+    value: number | null
+  } | null>(null)
+
+  const trendAsideCapturingHoverRef = useRef(false)
+  const hoverClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const cancelScheduledHoverClear = useCallback(() => {
+    if (hoverClearTimerRef.current != null) {
+      window.clearTimeout(hoverClearTimerRef.current)
+      hoverClearTimerRef.current = null
+    }
+  }, [])
+
+  const scheduleHoverRegionClear = useCallback(() => {
+    cancelScheduledHoverClear()
+    hoverClearTimerRef.current = window.setTimeout(() => {
+      hoverClearTimerRef.current = null
+      if (!trendAsideCapturingHoverRef.current) {
+        setHoverRegion(null)
+      }
+    }, 240)
+  }, [cancelScheduledHoverClear])
+
+  useEffect(() => {
+    return () => {
+      cancelScheduledHoverClear()
+    }
+  }, [cancelScheduledHoverClear])
+
+  useEffect(() => {
+    cancelScheduledHoverClear()
+  }, [metricSlug, mode, cancelScheduledHoverClear])
+
+  const usMapInnerRef = useRef<HTMLDivElement | null>(null)
+  const [usMapTipPos, setUsMapTipPos] = useState<{ x: number; y: number } | null>(null)
+
+  const updateUsMapTip = useCallback((clientX: number, clientY: number) => {
+    const el = usMapInnerRef.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    const lx = clientX - r.left + el.scrollLeft
+    const ly = clientY - r.top + el.scrollTop
+    const estW = 280
+    const estH = 132
+    let left = lx + 14
+    let top = ly + 14
+    if (left + estW > el.scrollWidth - 8) left = Math.max(8, lx - estW - 14)
+    if (top + estH > el.scrollTop + el.clientHeight - 8) top = Math.max(8, ly - estH - 14)
+    left = Math.max(8, Math.min(left, Math.max(8, el.scrollWidth - estW - 8)))
+    top = Math.max(8, Math.min(top, Math.max(8, el.scrollTop + el.clientHeight - estH - 8)))
+    setUsMapTipPos({ x: left, y: top })
+  }, [])
+
+  const [tableSort, setTableSort] = useState<{ key: 'name' | 'value' | 'geoid'; dir: 'asc' | 'desc' }>(() => ({
+    key: 'value',
+    dir: censusMetricRankDirection(metricSlug) === 'lower' ? 'asc' : 'desc',
+  }))
+
+  useEffect(() => {
+    setTableSort((prev) =>
+      prev.key === 'value'
+        ? { key: 'value', dir: censusMetricRankDirection(metricSlug) === 'lower' ? 'asc' : 'desc' }
+        : prev,
+    )
+  }, [metricSlug])
+
+  const reduceMotion = useReducedMotion()
+  const trendChartOpenCounty = Boolean(countyTrends && countyHover && stateFips)
+  const trendFadeTransition = { duration: reduceMotion ? 0 : 0.28, ease: 'easeInOut' }
+
+  const stateDisplayById = useMemo(() => {
+    const out: Record<string, number | null> = {}
+    if (!statePayload || !metricSlug) return out
+    const prevV = prevVintageInList(vintages, displayVintage)
+    const nat = nationalBaselineWithFallback(manifest?.national_ref, displayVintage, metricSlug, {
+      stateRows: statePayload.values,
+      stateTrends,
+    })
+    for (const [sid, row] of Object.entries(statePayload.values)) {
+      const raw = typeof row[metricSlug] === 'number' && Number.isFinite(row[metricSlug]) ? row[metricSlug] : null
+      let prev: number | null = null
+      if (valueMode === 'yoy' && prevV && stateTrends?.by_state?.[sid]) {
+        prev = trendCell((stateTrends.by_state[sid] as Record<string, unknown>)[metricSlug], prevV)
+      }
+      out[sid] = displayValueForMode(valueMode, raw, prev, nat)
+    }
+    return out
+  }, [
+    statePayload,
+    metricSlug,
+    valueMode,
+    displayVintage,
+    vintages.join(','),
+    stateTrends,
+    manifest?.national_ref,
+  ])
+
+  useEffect(() => {
+    setHoverRegion((prev) => {
+      if (!prev?.id) return prev
+      const row = statePayload?.values?.[prev.id]
+      const name = row && typeof row.NAME === 'string' ? row.NAME : prev.name
+      const disp = stateDisplayById[prev.id] ?? null
+      if (name === prev.name && disp === prev.value) return prev
+      return { ...prev, name, value: disp }
+    })
+  }, [statePayload, stateDisplayById, displayVintage, metricSlug])
+
+  /** US trend line: hovered state, or the bar-chart pinned state when the pointer has left the map. */
+  const usTrendSubject = useMemo(() => {
+    if (mode !== 'us') return null
+    if (hoverRegion) return hoverRegion
+    if (leaderboardPinnedId != null && leaderboardPinnedId !== '' && statePayload?.values) {
+      const sid = normalizeStateFips(leaderboardPinnedId) ?? leaderboardPinnedId
+      const row = statePayload.values[sid]
+      if (!row) return null
+      const name = typeof (row as { NAME?: string }).NAME === 'string' ? (row as { NAME: string }).NAME : sid
+      const disp = stateDisplayById[sid] ?? null
+      return { id: sid, name, value: disp }
+    }
+    return null
+  }, [mode, hoverRegion, leaderboardPinnedId, statePayload, stateDisplayById])
+
+  const trendChartOpenUs = Boolean(stateTrends && usTrendSubject)
+
+  const stateChoroPooledForLegend = useMemo((): number[] | null => {
+    if (mode !== 'us' || !stateTrends || !metricSlug || vintages.length < 2) return null
+    const arr = collectAllVintageDisplayValuesState(
+      stateTrends,
+      vintages,
+      metricSlug,
+      valueMode,
+      manifest?.national_ref,
+    )
+    return arr.length >= 20 ? arr : null
+  }, [mode, stateTrends, vintages.join(','), metricSlug, valueMode, manifest?.national_ref])
+
+  const stateChoroExtent = useMemo(() => {
+    if (stateChoroPooledForLegend?.length) return quantileExtent(stateChoroPooledForLegend)
+    const vals = Object.values(stateDisplayById).filter(
+      (x): x is number => typeof x === 'number' && Number.isFinite(x),
+    )
+    if (!vals.length) return { min: 0, max: 1 }
+    return quantileExtent(vals)
+  }, [stateChoroPooledForLegend, stateDisplayById])
+
+  const stateBubbleExtent = useMemo(() => {
+    if (!statePayload || !metricSlug) return { min: 0, max: 1 }
+    const displayVals = Object.values(stateDisplayById).filter(
+      (x): x is number => typeof x === 'number' && Number.isFinite(x),
+    )
+    if (displayVals.length >= 2) {
+      return minMaxExtent(displayVals)
+    }
+    const vals = Object.values(statePayload.values)
+      .map((row) => row[metricSlug])
+      .filter((x): x is number => typeof x === 'number' && Number.isFinite(x))
+    if (!vals.length) return { min: 0, max: 1 }
+    return minMaxExtent(vals)
+  }, [statePayload, metricSlug, stateDisplayById])
+
+  const placeDisplayByGeoid = useMemo(() => {
+    const out: Record<string, number | null> = {}
+    const g = placeGeoMerged
+    if (!g || !metricSlug) return out
+    const prevV = prevVintageInList(vintages, displayVintage)
+    const nat = nationalBaselineWithFallback(manifest?.national_ref, displayVintage, metricSlug, {
+      stateRows: statePayload?.values,
+      stateTrends,
+    })
+    for (const f of g.features) {
+      const p = f.properties as Record<string, unknown> | null
+      const raw = typeof p?.[metricSlug] === 'number' && Number.isFinite(p[metricSlug]) ? p[metricSlug] : null
+      const rawG = String(p?.GEOID ?? '').replace(/\D/g, '')
+      const gid7 = rawG.length <= 7 ? rawG.padStart(7, '0') : rawG.slice(-7).padStart(7, '0')
+      let prev: number | null = null
+      if (valueMode === 'yoy' && prevV && placeTrends?.byGeoid?.[gid7]) {
+        prev = trendCell((placeTrends.byGeoid[gid7] as Record<string, unknown>)[metricSlug], prevV)
+      }
+      out[gid7] = displayValueForMode(valueMode, raw, prev, nat)
+    }
+    return out
+  }, [
+    placeGeoMerged,
+    metricSlug,
+    valueMode,
+    displayVintage,
+    vintages.join(','),
+    placeTrends,
+    manifest?.national_ref,
+    stateTrends,
+    statePayload,
+  ])
+
+  const placeTrendSubject = useMemo(() => {
+    if (mode !== 'place') return null
+    if (placeHover) return placeHover
+    if (leaderboardPinnedId && placeGeoMerged?.features.length) {
+      for (const f of placeGeoMerged.features) {
+        const p = f.properties as Record<string, unknown> | null
+        const gid7 = placeGeoid7FromProperties(p, 0)
+        if (gid7 === leaderboardPinnedId) {
+          const name = String(p?.NAME ?? gid7)
+          const value = placeDisplayByGeoid[gid7] ?? null
+          return { id: gid7, name, value }
+        }
+      }
+    }
+    return null
+  }, [mode, placeHover, leaderboardPinnedId, placeGeoMerged, placeDisplayByGeoid])
+
+  const trendChartOpenPlace = Boolean(placeTrends && placeTrendSubject)
+
+  const placeChoroPooledForLegend = useMemo((): number[] | null => {
+    if (mode !== 'place' || !placeTrends || !stateFips || !metricSlug || vintages.length < 2) return null
+    const arr = collectAllVintageDisplayValuesPlace(
+      placeTrends,
+      stateFips,
+      vintages,
+      metricSlug,
+      valueMode,
+      manifest?.national_ref,
+      stateTrends,
+    )
+    return arr.length >= 20 ? arr : null
+  }, [mode, placeTrends, stateFips, vintages.join(','), metricSlug, valueMode, manifest?.national_ref, stateTrends])
+
+  const placeChoroExtent = useMemo(() => {
+    if (placeChoroPooledForLegend?.length) return quantileExtent(placeChoroPooledForLegend)
+    const vals = Object.values(placeDisplayByGeoid).filter(
+      (x): x is number => typeof x === 'number' && Number.isFinite(x),
+    )
+    if (!vals.length) return { min: 0, max: 1 }
+    return quantileExtent(vals)
+  }, [placeChoroPooledForLegend, placeDisplayByGeoid])
+
+  const placeBubbleExtent = useMemo(() => {
+    const g = placeGeoMerged
+    if (!g || !metricSlug) return { min: 0, max: 1 }
+    const displayVals = Object.values(placeDisplayByGeoid).filter(
+      (x): x is number => typeof x === 'number' && Number.isFinite(x),
+    )
+    if (displayVals.length >= 2) {
+      return minMaxExtent(displayVals)
+    }
+    const vals = g.features
+      .map((f) => {
+        const v = (f.properties as Record<string, unknown> | null)?.[metricSlug]
+        return typeof v === 'number' && Number.isFinite(v) ? v : null
+      })
+      .filter((x): x is number => x != null)
+    if (!vals.length) return { min: 0, max: 1 }
+    return minMaxExtent(vals)
+  }, [placeGeoMerged, metricSlug, placeDisplayByGeoid])
+
+  const placeRankByGeoid = useMemo(() => {
+    const m = new Map<string, { rank: number; total: number }>()
+    const g = placeGeoMerged
+    if (!g) return m
+    const rows: { id: string; value: number }[] = []
+    for (const f of g.features) {
+      const p = f.properties as Record<string, unknown> | null
+      const gid7 = placeGeoid7FromProperties(p, 0)
+      const v = placeDisplayByGeoid[gid7]
+      if (typeof v === 'number' && Number.isFinite(v)) rows.push({ id: gid7, value: v })
+    }
+    rows.sort((a, b) => compareRankedMetricValues(a.value, b.value, metricSlug))
+    const total = rows.length
+    rows.forEach((r, i) => m.set(r.id, { rank: i + 1, total }))
+    return m
+  }, [placeGeoMerged, placeDisplayByGeoid, metricSlug])
+
+  const stateCountyGeo = useMemo(() => {
+    if (mode !== 'stateCounty' || !stateFips || !countyTopo || !countyPayload?.values) return null
+    return buildStateCountyGeoJson(countyTopo, countyPayload.values, stateFips, metricSlug)
+  }, [mode, stateFips, countyTopo, countyPayload, metricSlug])
+
+  const countyDisplayByGeoid = useMemo(() => {
+    const out: Record<string, number | null> = {}
+    if (!stateCountyGeo || !metricSlug) return out
+    const prevV = prevVintageInList(vintages, displayVintage)
+    const nat = nationalBaselineWithFallback(manifest?.national_ref, displayVintage, metricSlug, {
+      stateRows: statePayload?.values,
+      stateTrends,
+    })
+    for (const f of stateCountyGeo.features) {
+      const p = f.properties as Record<string, unknown> | null
+      const gid = countyGeoidFromFeature(f as GeoJSON.Feature)
+      const raw = typeof p?.[metricSlug] === 'number' && Number.isFinite(p[metricSlug]) ? p[metricSlug] : null
+      let prev: number | null = null
+      if (valueMode === 'yoy' && prevV && countyTrends?.byGeoid?.[gid]) {
+        prev = trendCell((countyTrends.byGeoid[gid] as Record<string, unknown>)[metricSlug], prevV)
+      }
+      out[gid] = displayValueForMode(valueMode, raw, prev, nat)
+    }
+    return out
+  }, [
+    stateCountyGeo,
+    metricSlug,
+    valueMode,
+    displayVintage,
+    vintages.join(','),
+    countyTrends,
+    manifest?.national_ref,
+    stateTrends,
+    statePayload,
+  ])
+
+  const focusPinnedCountyNarrative = useMemo(() => {
+    if (
+      mode !== 'stateCounty' ||
+      leaderboardPinnedId == null ||
+      leaderboardPinnedId === '' ||
+      !stateCountyGeo?.features?.length
+    )
+      return null
+    for (const f of stateCountyGeo.features) {
+      const gid = countyGeoidFromFeature(f as GeoJSON.Feature)
+      if (gid !== leaderboardPinnedId) continue
+      const p = (f as GeoJSON.Feature).properties as Record<string, unknown> | null
+      const name = String(p?.NAME ?? gid).trim() || gid
+      return { geoid: gid, name }
+    }
+    return { geoid: leaderboardPinnedId, name: leaderboardPinnedId }
+  }, [mode, leaderboardPinnedId, stateCountyGeo])
 
   const narrativePack = useMemo((): CensusNarrativePack => {
     const label = currentMetricMeta?.label ?? metricSlug
@@ -1563,6 +2236,9 @@ function CensusMapPage() {
       nationalRef: manifest?.national_ref,
       vintages,
       focusState,
+      focusPlaceName: mode === 'place' ? placePinnedLabel : null,
+      focusPinnedState: focusPinnedStateNarrative,
+      focusPinnedCounty: focusPinnedCountyNarrative,
     })
   }, [
     mode,
@@ -1576,226 +2252,35 @@ function CensusMapPage() {
     manifest?.national_ref,
     vintages.join(','),
     stateTrends,
+    placePinnedLabel,
+    focusPinnedStateNarrative,
+    focusPinnedCountyNarrative,
   ])
 
-  const [hoverRegion, setHoverRegion] = useState<{
-    id: string
-    name: string
-    value: number | null
-  } | null>(null)
+  const mapHeadingSelectionActive =
+    leaderboardPinnedId != null && String(leaderboardPinnedId).trim() !== ''
 
-  const usMapInnerRef = useRef<HTMLDivElement | null>(null)
-  const [usMapTipPos, setUsMapTipPos] = useState<{ x: number; y: number } | null>(null)
-
-  const updateUsMapTip = useCallback((clientX: number, clientY: number) => {
-    const el = usMapInnerRef.current
-    if (!el) return
-    const r = el.getBoundingClientRect()
-    const lx = clientX - r.left + el.scrollLeft
-    const ly = clientY - r.top + el.scrollTop
-    const estW = 280
-    const estH = 102
-    let left = lx + 14
-    let top = ly + 14
-    if (left + estW > el.scrollWidth - 8) left = Math.max(8, lx - estW - 14)
-    if (top + estH > el.scrollTop + el.clientHeight - 8) top = Math.max(8, ly - estH - 14)
-    left = Math.max(8, Math.min(left, Math.max(8, el.scrollWidth - estW - 8)))
-    top = Math.max(8, Math.min(top, Math.max(8, el.scrollTop + el.clientHeight - estH - 8)))
-    setUsMapTipPos({ x: left, y: top })
-  }, [])
-
-  const [countyHover, setCountyHover] = useState<{ id: string; name: string; value: number | null } | null>(null)
-
-  const [placeHover, setPlaceHover] = useState<{ id: string; name: string; value: number | null } | null>(null)
-
-  /** Bar-chart selection: highlight matching area on the map (click same bar again to clear). */
-  const [leaderboardPinnedId, setLeaderboardPinnedId] = useState<string | null>(null)
-
-  useEffect(() => {
-    setLeaderboardPinnedId(null)
-  }, [mode, stateFips, metricSlug])
-
-  const toggleLeaderboardPin = useCallback((id: string) => {
-    setLeaderboardPinnedId((prev) => (prev === id ? null : id))
-  }, [])
-
-  const [tableSort, setTableSort] = useState<{ key: 'name' | 'value' | 'geoid'; dir: 'asc' | 'desc' }>(() => ({
-    key: 'value',
-    dir: censusMetricRankDirection(metricSlug) === 'lower' ? 'asc' : 'desc',
-  }))
-
-  useEffect(() => {
-    setTableSort((prev) =>
-      prev.key === 'value'
-        ? { key: 'value', dir: censusMetricRankDirection(metricSlug) === 'lower' ? 'asc' : 'desc' }
-        : prev,
-    )
-  }, [metricSlug])
-
-  const reduceMotion = useReducedMotion()
-  const trendChartOpenUs = Boolean(stateTrends && hoverRegion)
-  const trendChartOpenCounty = Boolean(countyTrends && countyHover && stateFips)
-  const trendChartOpenPlace = Boolean(placeTrends && placeHover)
-  const trendFadeTransition = { duration: reduceMotion ? 0 : 0.28, ease: 'easeInOut' }
-
-  const stateDisplayById = useMemo(() => {
-    const out: Record<string, number | null> = {}
-    if (!statePayload || !metricSlug) return out
-    const prevV = prevVintageInList(vintages, displayVintage)
-    const nat = nationalBaseline(manifest?.national_ref, displayVintage, metricSlug)
-    for (const [sid, row] of Object.entries(statePayload.values)) {
-      const raw = typeof row[metricSlug] === 'number' && Number.isFinite(row[metricSlug]) ? row[metricSlug] : null
-      let prev: number | null = null
-      if (valueMode === 'yoy' && prevV && stateTrends?.by_state?.[sid]) {
-        prev = trendCell((stateTrends.by_state[sid] as Record<string, unknown>)[metricSlug], prevV)
+  const censusStaleDataNote = useMemo(() => {
+    if (valueMode !== 'raw') return null
+    const raw: number[] = []
+    if (mode === 'us' && statePayload?.values) {
+      for (const row of Object.values(statePayload.values)) {
+        const v = (row as Record<string, unknown>)[metricSlug]
+        if (typeof v === 'number' && Number.isFinite(v)) raw.push(v)
       }
-      out[sid] = displayValueForMode(valueMode, raw, prev, nat)
-    }
-    return out
-  }, [
-    statePayload,
-    metricSlug,
-    valueMode,
-    displayVintage,
-    vintages.join(','),
-    stateTrends,
-    manifest?.national_ref,
-  ])
-
-  useEffect(() => {
-    setHoverRegion((prev) => {
-      if (!prev?.id) return prev
-      const row = statePayload?.values?.[prev.id]
-      const name = row && typeof row.NAME === 'string' ? row.NAME : prev.name
-      const disp = stateDisplayById[prev.id] ?? null
-      if (name === prev.name && disp === prev.value) return prev
-      return { ...prev, name, value: disp }
-    })
-  }, [statePayload, stateDisplayById, displayVintage, metricSlug])
-
-  const stateChoroPooledForLegend = useMemo((): number[] | null => {
-    if (mode !== 'us' || !stateTrends || !metricSlug || vintages.length < 2) return null
-    const arr = collectAllVintageDisplayValuesState(
-      stateTrends,
-      vintages,
-      metricSlug,
-      valueMode,
-      manifest?.national_ref,
-    )
-    return arr.length >= 20 ? arr : null
-  }, [mode, stateTrends, vintages.join(','), metricSlug, valueMode, manifest?.national_ref])
-
-  const stateChoroExtent = useMemo(() => {
-    if (stateChoroPooledForLegend?.length) return quantileExtent(stateChoroPooledForLegend)
-    const vals = Object.values(stateDisplayById).filter(
-      (x): x is number => typeof x === 'number' && Number.isFinite(x),
-    )
-    if (!vals.length) return { min: 0, max: 1 }
-    return quantileExtent(vals)
-  }, [stateChoroPooledForLegend, stateDisplayById])
-
-  const stateBubbleExtent = useMemo(() => {
-    if (!statePayload || !metricSlug) return { min: 0, max: 1 }
-    const vals = Object.values(statePayload.values)
-      .map((row) => row[metricSlug])
-      .filter((x): x is number => typeof x === 'number' && Number.isFinite(x))
-    if (!vals.length) return { min: 0, max: 1 }
-    return minMaxExtent(vals)
-  }, [statePayload, metricSlug])
-
-  const placeDisplayByGeoid = useMemo(() => {
-    const out: Record<string, number | null> = {}
-    const g = placeGeoMerged
-    if (!g || !metricSlug) return out
-    const prevV = prevVintageInList(vintages, displayVintage)
-    const nat = nationalBaseline(manifest?.national_ref, displayVintage, metricSlug)
-    for (const f of g.features) {
-      const p = f.properties as Record<string, unknown> | null
-      const raw = typeof p?.[metricSlug] === 'number' && Number.isFinite(p[metricSlug]) ? p[metricSlug] : null
-      const rawG = String(p?.GEOID ?? '').replace(/\D/g, '')
-      const gid7 = rawG.length <= 7 ? rawG.padStart(7, '0') : rawG.slice(-7).padStart(7, '0')
-      let prev: number | null = null
-      if (valueMode === 'yoy' && prevV && placeTrends?.byGeoid?.[gid7]) {
-        prev = trendCell((placeTrends.byGeoid[gid7] as Record<string, unknown>)[metricSlug], prevV)
-      }
-      out[gid7] = displayValueForMode(valueMode, raw, prev, nat)
-    }
-    return out
-  }, [
-    placeGeoMerged,
-    metricSlug,
-    valueMode,
-    displayVintage,
-    vintages.join(','),
-    placeTrends,
-    manifest?.national_ref,
-  ])
-
-  const placeChoroPooledForLegend = useMemo((): number[] | null => {
-    if (mode !== 'place' || !placeTrends || !stateFips || !metricSlug || vintages.length < 2) return null
-    const arr = collectAllVintageDisplayValuesPlace(
-      placeTrends,
-      stateFips,
-      vintages,
-      metricSlug,
-      valueMode,
-      manifest?.national_ref,
-    )
-    return arr.length >= 20 ? arr : null
-  }, [mode, placeTrends, stateFips, vintages.join(','), metricSlug, valueMode, manifest?.national_ref])
-
-  const placeChoroExtent = useMemo(() => {
-    if (placeChoroPooledForLegend?.length) return quantileExtent(placeChoroPooledForLegend)
-    const vals = Object.values(placeDisplayByGeoid).filter(
-      (x): x is number => typeof x === 'number' && Number.isFinite(x),
-    )
-    if (!vals.length) return { min: 0, max: 1 }
-    return quantileExtent(vals)
-  }, [placeChoroPooledForLegend, placeDisplayByGeoid])
-
-  const placeBubbleExtent = useMemo(() => {
-    const g = placeGeoMerged
-    if (!g || !metricSlug) return { min: 0, max: 1 }
-    const vals = g.features
-      .map((f) => {
+    } else if (mode === 'stateCounty' && stateCountyGeo?.features?.length) {
+      for (const f of stateCountyGeo.features) {
         const v = (f.properties as Record<string, unknown> | null)?.[metricSlug]
-        return typeof v === 'number' && Number.isFinite(v) ? v : null
-      })
-      .filter((x): x is number => x != null)
-    if (!vals.length) return { min: 0, max: 1 }
-    return minMaxExtent(vals)
-  }, [placeGeoMerged, metricSlug])
-
-  const stateCountyGeo = useMemo(() => {
-    if (mode !== 'stateCounty' || !stateFips || !countyTopo || !countyPayload?.values) return null
-    return buildStateCountyGeoJson(countyTopo, countyPayload.values, stateFips, metricSlug)
-  }, [mode, stateFips, countyTopo, countyPayload, metricSlug])
-
-  const countyDisplayByGeoid = useMemo(() => {
-    const out: Record<string, number | null> = {}
-    if (!stateCountyGeo || !metricSlug) return out
-    const prevV = prevVintageInList(vintages, displayVintage)
-    const nat = nationalBaseline(manifest?.national_ref, displayVintage, metricSlug)
-    for (const f of stateCountyGeo.features) {
-      const p = f.properties as Record<string, unknown> | null
-      const gid = countyGeoidFromFeature(f as GeoJSON.Feature)
-      const raw = typeof p?.[metricSlug] === 'number' && Number.isFinite(p[metricSlug]) ? p[metricSlug] : null
-      let prev: number | null = null
-      if (valueMode === 'yoy' && prevV && countyTrends?.byGeoid?.[gid]) {
-        prev = trendCell((countyTrends.byGeoid[gid] as Record<string, unknown>)[metricSlug], prevV)
+        if (typeof v === 'number' && Number.isFinite(v)) raw.push(v)
       }
-      out[gid] = displayValueForMode(valueMode, raw, prev, nat)
+    } else if (mode === 'place' && placeGeoMerged?.features?.length) {
+      for (const f of placeGeoMerged.features) {
+        const v = (f.properties as Record<string, unknown> | null)?.[metricSlug]
+        if (typeof v === 'number' && Number.isFinite(v)) raw.push(v)
+      }
     }
-    return out
-  }, [
-    stateCountyGeo,
-    metricSlug,
-    valueMode,
-    displayVintage,
-    vintages.join(','),
-    countyTrends,
-    manifest?.national_ref,
-  ])
+    return censusMetricStaleDataNote(metricSlug, valueMode, raw)
+  }, [mode, valueMode, metricSlug, statePayload, stateCountyGeo, placeGeoMerged])
 
   const countyChoroPooledForLegend = useMemo((): number[] | null => {
     if (mode !== 'stateCounty' || !countyTrends || !stateFips || !metricSlug || vintages.length < 2) return null
@@ -1806,9 +2291,10 @@ function CensusMapPage() {
       metricSlug,
       valueMode,
       manifest?.national_ref,
+      stateTrends,
     )
     return arr.length >= 20 ? arr : null
-  }, [mode, countyTrends, stateFips, vintages.join(','), metricSlug, valueMode, manifest?.national_ref])
+  }, [mode, countyTrends, stateFips, vintages.join(','), metricSlug, valueMode, manifest?.national_ref, stateTrends])
 
   const countyChoroExtent = useMemo(() => {
     if (countyChoroPooledForLegend?.length) return quantileExtent(countyChoroPooledForLegend)
@@ -1821,6 +2307,12 @@ function CensusMapPage() {
 
   const countyBubbleExtent = useMemo(() => {
     if (!stateCountyGeo || !metricSlug) return { min: 0, max: 1 }
+    const displayVals = Object.values(countyDisplayByGeoid).filter(
+      (x): x is number => typeof x === 'number' && Number.isFinite(x),
+    )
+    if (displayVals.length >= 2) {
+      return minMaxExtent(displayVals)
+    }
     const vals = stateCountyGeo.features
       .map((f) => {
         const v = (f.properties as Record<string, unknown> | null)?.[metricSlug]
@@ -1829,32 +2321,41 @@ function CensusMapPage() {
       .filter((x): x is number => x != null)
     if (!vals.length) return { min: 0, max: 1 }
     return minMaxExtent(vals)
-  }, [stateCountyGeo, metricSlug])
+  }, [stateCountyGeo, metricSlug, countyDisplayByGeoid])
+
+  const countyRankByGeoid = useMemo(() => {
+    const m = new Map<string, { rank: number; total: number }>()
+    if (!stateCountyGeo) return m
+    const rows: { id: string; value: number }[] = []
+    for (const f of stateCountyGeo.features) {
+      const gid = countyGeoidFromFeature(f as GeoJSON.Feature)
+      const v = countyDisplayByGeoid[gid]
+      if (typeof v === 'number' && Number.isFinite(v)) rows.push({ id: gid, value: v })
+    }
+    rows.sort((a, b) => compareRankedMetricValues(a.value, b.value, metricSlug))
+    const total = rows.length
+    rows.forEach((r, i) => m.set(r.id, { rank: i + 1, total }))
+    return m
+  }, [stateCountyGeo, countyDisplayByGeoid, metricSlug])
 
   const fmt = useCallback(
     (v: number) => formatMetricValue(metricSlug, v, metrics, valueMode),
     [metricSlug, metrics, valueMode],
   )
 
-  const fmtRaw = useCallback(
-    (v: number) => formatMetricValue(metricSlug, v, metrics, 'raw'),
-    [metricSlug, metrics],
-  )
-
   const formatAxisTick = useCallback(
-    (x: number, span?: number) => formatCensusMapAxisTickForMetric(metricSlug, metrics, x, span),
-    [metricSlug, metrics],
+    (x: number, span?: number) => formatCensusMapAxisTickForMetric(metricSlug, metrics, x, span, valueMode),
+    [metricSlug, metrics, valueMode],
   )
 
   const stateRows = useMemo(() => {
     if (!statePayload) return []
     return Object.entries(statePayload.values).map(([st, row]) => {
       const name = typeof row.NAME === 'string' ? row.NAME : st
-      const v = row[metricSlug]
-      const num = typeof v === 'number' && Number.isFinite(v) ? v : null
-      return { geoid: st, name, value: num }
+      const disp = stateDisplayById[st] ?? null
+      return { geoid: st, name, value: disp }
     })
-  }, [statePayload, metricSlug])
+  }, [statePayload, metricSlug, stateDisplayById])
 
   const sortedStateRows = useMemo(() => {
     const arr = [...stateRows]
@@ -1880,6 +2381,15 @@ function CensusMapPage() {
     }))
   }, [stateRows, metricSlug])
 
+  const stateRankByGeoid = useMemo(() => {
+    const m = new Map<string, { rank: number; total: number }>()
+    const withVal = stateRows.filter((r) => r.value != null)
+    withVal.sort((a, b) => compareRankedMetricValues(a.value!, b.value!, metricSlug))
+    const total = withVal.length
+    withVal.forEach((r, i) => m.set(r.geoid, { rank: i + 1, total }))
+    return m
+  }, [stateRows, metricSlug])
+
   const onMetricChange = (slug: string) => {
     if (!manifest) return
     const list = sliderVintages({
@@ -1896,23 +2406,31 @@ function CensusMapPage() {
       : (list[list.length - 1] ?? effectiveVintage)
     const q = searchParams.toString()
     if (mode === 'place' && stateFips) {
-      navigate(`/census-map/place/${stateFips}/${nextV}/${slug}?${q}`)
+      navigate(mapPathPlace(mapPrefix, stateFips, nextV, slug, q))
     } else if (mode === 'stateCounty' && stateFips) {
-      navigate(`/census-map/state/${stateFips}/${nextV}/${slug}?${q}`)
+      navigate(mapPathState(mapPrefix, stateFips, nextV, slug, q))
     } else {
-      navigate(`/census-map/us/${nextV}/${slug}?${q}`)
+      navigate(mapPathUs(mapPrefix, nextV, slug, q))
     }
   }
 
   const onVintageChange = (v: string) => {
+    setPlaying(false)
+    setScrubVintage(v)
     const q = searchParams.toString()
-    if (mode === 'place' && stateFips) {
-      navigate(`/census-map/place/${stateFips}/${v}/${metricSlug}?${q}`, { replace: true })
-    } else if (mode === 'stateCounty' && stateFips) {
-      navigate(`/census-map/state/${stateFips}/${v}/${metricSlug}?${q}`, { replace: true })
-    } else {
-      navigate(`/census-map/us/${v}/${metricSlug}?${q}`, { replace: true })
-    }
+    if (vintageNavigateTimerRef.current) window.clearTimeout(vintageNavigateTimerRef.current)
+    vintageNavigateTimerRef.current = window.setTimeout(() => {
+      vintageNavigateTimerRef.current = null
+      startTransition(() => {
+        if (mode === 'place' && stateFips) {
+          navigate(mapPathPlace(mapPrefix, stateFips, v, metricSlug, q), { replace: true })
+        } else if (mode === 'stateCounty' && stateFips) {
+          navigate(mapPathState(mapPrefix, stateFips, v, metricSlug, q), { replace: true })
+        } else {
+          navigate(mapPathUs(mapPrefix, v, metricSlug, q), { replace: true })
+        }
+      })
+    }, 90)
   }
 
   const stateFill = useCallback(
@@ -1928,7 +2446,7 @@ function CensusMapPage() {
   const onStateClick = (stateId: string) => {
     const fid = normalizeStateFips(stateId)
     if (!fid) return
-    navigate(`/census-map/state/${fid}/${effectiveVintage}/${metricSlug}?${searchParams.toString()}`)
+    navigate(mapPathState(mapPrefix, fid, effectiveVintage, metricSlug, searchParams.toString()))
   }
 
   const toggleTableSort = (key: 'name' | 'value' | 'geoid') => {
@@ -1970,27 +2488,27 @@ function CensusMapPage() {
     return <div className="p-8 text-slate-600">Loading census map…</div>
   }
 
-  const knownSlugs = new Set(metrics.map((m) => m.slug))
+  const knownSlugs = new Set(selectableMetrics.map((m) => m.slug))
   if (metric && !knownSlugs.has(metric)) {
-    const fallback = metrics[0]?.slug ?? 'median_household_income'
+    const fallback = selectableMetrics[0]?.slug ?? metrics[0]?.slug ?? 'median_household_income'
     if (mode === 'place' && stateFips) {
-      return <Navigate to={`/census-map/place/${stateFips}/${effectiveVintage}/${fallback}`} replace />
+      return <Navigate to={mapPathPlace(mapPrefix, stateFips, effectiveVintage, fallback)} replace />
     }
     if (mode === 'stateCounty' && stateFips) {
-      return <Navigate to={`/census-map/state/${stateFips}/${effectiveVintage}/${fallback}`} replace />
+      return <Navigate to={mapPathState(mapPrefix, stateFips, effectiveVintage, fallback)} replace />
     }
-    return <Navigate to={`/census-map/us/${effectiveVintage}/${fallback}`} replace />
+    return <Navigate to={mapPathUs(mapPrefix, effectiveVintage, fallback)} replace />
   }
 
   if (vintage && vintages.length && !vintages.includes(vintage)) {
     const q = searchParams.toString()
     if (mode === 'place' && stateFips) {
-      return <Navigate to={`/census-map/place/${stateFips}/${effectiveVintage}/${metricSlug}?${q}`} replace />
+      return <Navigate to={mapPathPlace(mapPrefix, stateFips, effectiveVintage, metricSlug, q)} replace />
     }
     if (mode === 'stateCounty' && stateFips) {
-      return <Navigate to={`/census-map/state/${stateFips}/${effectiveVintage}/${metricSlug}?${q}`} replace />
+      return <Navigate to={mapPathState(mapPrefix, stateFips, effectiveVintage, metricSlug, q)} replace />
     }
-    return <Navigate to={`/census-map/us/${effectiveVintage}/${metricSlug}?${q}`} replace />
+    return <Navigate to={mapPathUs(mapPrefix, effectiveVintage, metricSlug, q)} replace />
   }
 
   const singleVintage = vintages.length <= 1
@@ -1999,7 +2517,7 @@ function CensusMapPage() {
     (mode === 'place' || mode === 'stateCounty') && stateFips ? (
       <div className="flex flex-wrap items-center gap-2 shrink-0">
         <Link
-          to={`/census-map/us/${effectiveVintage}/${metricSlug}?${searchParams.toString()}`}
+          to={mapPathUs(mapPrefix, effectiveVintage, metricSlug, searchParams.toString())}
           className="inline-flex items-center gap-2 rounded-md bg-[#354F52] px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-[#2d4245] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#354F52] focus-visible:ring-offset-2 focus-visible:ring-offset-white"
         >
           <ArrowLeftIcon className="h-4 w-4 shrink-0" aria-hidden />
@@ -2007,7 +2525,7 @@ function CensusMapPage() {
         </Link>
         {mode === 'stateCounty' && placeStates.includes(stateFips) ? (
           <Link
-            to={`/census-map/place/${stateFips}/${effectiveVintage}/${metricSlug}?${searchParams.toString()}`}
+            to={mapPathPlace(mapPrefix, stateFips, effectiveVintage, metricSlug, searchParams.toString())}
             className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-800 shadow-sm hover:bg-slate-50"
           >
             Cities / places
@@ -2015,7 +2533,7 @@ function CensusMapPage() {
         ) : null}
         {mode === 'place' ? (
           <Link
-            to={`/census-map/state/${stateFips}/${effectiveVintage}/${metricSlug}?${searchParams.toString()}`}
+            to={mapPathState(mapPrefix, stateFips, effectiveVintage, metricSlug, searchParams.toString())}
             className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-800 shadow-sm hover:bg-slate-50"
           >
             Counties
@@ -2024,19 +2542,67 @@ function CensusMapPage() {
       </div>
     ) : null
 
+  const nestedInDataExplorer = location.pathname.includes('/data-explorer/map')
+
+  const wrapExplorerMap = (child: JSX.Element) =>
+    nestedInDataExplorer ? (
+      <div className="rounded-xl border border-slate-200/80 bg-slate-100/90 p-3 sm:p-4 md:p-5">{child}</div>
+    ) : (
+      child
+    )
+
   return (
-    <div className="max-w-[1600px] mx-auto p-4 md:p-6">
-      <header className="mb-3 max-w-[60rem] border-b border-slate-200/80 pb-3">
-        <h1 className="text-xl font-semibold text-slate-900">Census explorer</h1>
-        <p className="mt-1 max-w-[60rem] text-xs leading-snug text-slate-600">
-          American Community Survey (5-year) estimates. Choose a metric and year, then use the map — click a state to
-          open counties or cities when that data is bundled.
-        </p>
-      </header>
+    <div
+      className={
+        nestedInDataExplorer ? 'mx-auto w-full min-w-0 space-y-4' : 'mx-auto w-full max-w-[1600px] p-4 md:p-6'
+      }
+    >
+      {!nestedInDataExplorer ? (
+        <header className="mb-3 max-w-[60rem] border-b border-slate-200/80 pb-3">
+          <h1 className="text-xl font-semibold text-slate-900">Census explorer</h1>
+          <p className="mt-1 max-w-[60rem] text-xs leading-snug text-slate-600">
+            Explore American Community Survey (5-year) estimates on the map. Pick a question and year, then click a
+            state to open county or city views when that data is bundled for download.
+          </p>
+        </header>
+      ) : null}
+
+      {!censusOnboardingDismissed ? (
+        <div
+          className={
+            nestedInDataExplorer
+              ? 'mb-4 rounded-xl border border-slate-200/80 bg-slate-100/90 p-3 sm:p-4'
+              : 'mb-4'
+          }
+        >
+          <div
+            className="flex flex-col gap-2 rounded-lg border border-sky-200 bg-sky-50/80 px-3 py-2.5 text-sm text-slate-800 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+            role="status"
+          >
+            <p className="min-w-0 leading-snug">
+            <span aria-hidden>👋 </span>
+            Pick what you want to explore above, choose a year, then <strong>click any state</strong> on the map. Use the
+            ranking panel on the right to jump to a state — bars are numbered #1–#10 for this metric.
+          </p>
+          <button
+            type="button"
+            onClick={dismissCensusOnboarding}
+            className="shrink-0 self-start rounded-md border border-sky-300 bg-white px-3 py-1.5 text-xs font-semibold text-sky-950 shadow-sm hover:bg-sky-100/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#354F52] focus-visible:ring-offset-2 sm:self-center"
+          >
+            Got it
+          </button>
+        </div>
+        </div>
+      ) : null}
 
       <CensusMapAdvancedMapOptionsFlyout
         open={advancedMapOptionsOpen}
-        onClose={() => setAdvancedMapOptionsOpen(false)}
+        onClose={() => {
+          setAdvancedMapOptionsOpen(false)
+          setAdvancedFocusSection(null)
+        }}
+        focusSection={advancedFocusSection}
+        onConsumedFocusSection={() => setAdvancedFocusSection(null)}
         metricFullHelp={metricFullHelp}
         viz={viz}
         setViz={setViz}
@@ -2046,46 +2612,38 @@ function CensusMapPage() {
         setValueMode={setValueMode}
       />
 
-      {mode === 'us' && (
-        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(300px,26rem)] gap-5 items-start">
+      {mode === 'us' && wrapExplorerMap(
+        <div className="flex min-w-0 flex-col gap-4">
+          <CensusExplorerFilterBar
+            metricFullHelp={metricFullHelp}
+            metrics={selectableMetrics}
+            metricSlug={metricSlug}
+            onMetricChange={onMetricChange}
+            vintages={vintages}
+            displayVintage={displayVintage}
+            singleVintage={singleVintage}
+            showPlay={showPlay}
+            playing={playing}
+            setPlaying={setPlaying}
+            onVintageChange={onVintageChange}
+            onBeginPlay={() => setAnimIndex(0)}
+            yearHelp={`${CENSUS_MAP_UI_HELP.year}\n\n${metricFullHelp}`}
+            onOpenAdvanced={(section) => {
+              setAdvancedFocusSection(section)
+              setAdvancedMapOptionsOpen(true)
+            }}
+          />
+          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(300px,26rem)] gap-4 items-start">
           <div
             className="flex min-w-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"
             role="region"
             aria-labelledby="census-explorer-map-title-us"
           >
-            <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 bg-white px-3 py-2">
-              <CensusMetricToolbarControl
-                metricFullHelp={metricFullHelp}
-                metrics={metrics}
-                metricSlug={metricSlug}
-                onPickMetric={onMetricChange}
-              />
-              <div className="hidden h-6 w-px bg-slate-200 sm:block" />
-              <VintageAndPlayControls
-                vintages={vintages}
-                displayVintage={displayVintage}
-                singleVintage={singleVintage}
-                showPlay={showPlay}
-                playing={playing}
-                setPlaying={setPlaying}
-                onVintageChange={onVintageChange}
-                yearHelp={`${CENSUS_MAP_UI_HELP.year}\n\n${metricFullHelp}`}
-              />
-              <div className="hidden h-6 w-px bg-slate-200 sm:block" />
-              <button
-                type="button"
-                title="Map display: filled vs bubbles, color scale, and map value mode"
-                onClick={() => setAdvancedMapOptionsOpen(true)}
-                className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-800 shadow-sm hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#354F52] focus-visible:ring-offset-2"
-              >
-                <AdjustmentsHorizontalIcon className="h-4 w-4 shrink-0 text-slate-600" aria-hidden />
-                Advanced
-              </button>
-            </div>
             <CensusMapHeadingStrip
               titleId="census-explorer-map-title-us"
               title={narrativePack.mapTitle}
               insight={narrativePack.mapTitleInsight}
+              selectionActive={mapHeadingSelectionActive}
             />
             <CensusMapExplainerDetails
               subtitle={narrativePack.mapSubtitle}
@@ -2108,7 +2666,6 @@ function CensusMapPage() {
                       onMouseMove={(e) => updateUsMapTip(e.clientX, e.clientY)}
                       onMouseLeave={() => {
                         setUsMapTipPos(null)
-                        setHoverRegion(null)
                       }}
                     >
                       <ComposableMap
@@ -2165,10 +2722,8 @@ function CensusMapPage() {
                                       },
                                     }}
                                     onMouseEnter={(e) => {
-                                      const v = row?.[metricSlug]
-                                      const disp =
-                                        stateDisplayById[sid] ??
-                                        (typeof v === 'number' && Number.isFinite(v) ? v : null)
+                                      cancelScheduledHoverClear()
+                                      const disp = stateDisplayById[sid] ?? null
                                       setHoverRegion({
                                         id: sid,
                                         name: typeof name === 'string' ? name : sid,
@@ -2176,7 +2731,7 @@ function CensusMapPage() {
                                       })
                                       updateUsMapTip(e.clientX, e.clientY)
                                     }}
-                                    onMouseLeave={() => setHoverRegion(null)}
+                                    onMouseLeave={() => scheduleHoverRegionClear()}
                                     onClick={() => onStateClick(sid)}
                                   />
                                 )
@@ -2184,15 +2739,13 @@ function CensusMapPage() {
                               {viz === 'bubble' &&
                                 geographies.map((geo) => {
                                   const sid = normalizeStateFips(geo.id) ?? String(geo.id)
-                                  const row = statePayload.values[sid]
-                                  const v = row?.[metricSlug]
-                                  const num = typeof v === 'number' && Number.isFinite(v) ? v : null
+                                  const num = stateDisplayById[sid] ?? null
                                   if (num == null) return null
                                   const geom = geo.geometry
                                   if (!geom) return null
-                                  let raw
+                                  let centroidPt
                                   try {
-                                    raw = geoCentroid({
+                                    centroidPt = geoCentroid({
                                       type: 'Feature',
                                       properties: {},
                                       geometry: geom,
@@ -2200,7 +2753,7 @@ function CensusMapPage() {
                                   } catch {
                                     return null
                                   }
-                                  const pair = toLonLatPair(raw)
+                                  const pair = toLonLatPair(centroidPt)
                                   if (!pair) return null
                                   const xy = safeProjectScreen(projection, pair)
                                   if (!xy) return null
@@ -2234,8 +2787,21 @@ function CensusMapPage() {
                           style={{ left: usMapTipPos.x, top: usMapTipPos.y }}
                         >
                           <div className="font-semibold leading-snug text-white">{hoverRegion.name}</div>
-                          <div className="mt-0.5 text-slate-100 tabular-nums">
-                            {formatMetricValue(metricSlug, hoverRegion.value, metrics, valueMode)}
+                          <div className="mt-0.5 text-slate-100 tabular-nums leading-snug">
+                            {formatMetricValueCompact(metricSlug, hoverRegion.value, metrics, valueMode)}
+                            {(() => {
+                              const stRank = stateRankByGeoid.get(hoverRegion.id)
+                              if (!stRank) return null
+                              return (
+                                <span className="text-slate-300">
+                                  {' '}
+                                  · Ranked #{stRank.rank} of {stRank.total}
+                                </span>
+                              )
+                            })()}
+                          </div>
+                          <div className="mt-1 text-[11px] leading-snug text-slate-400">
+                            {currentMetricMeta?.label ?? metricSlug}
                           </div>
                           <div className="mt-1.5 text-xs font-medium text-slate-300">
                             Click for county-level map
@@ -2247,6 +2813,33 @@ function CensusMapPage() {
                 </>
               )}
               </div>
+              {viz === 'filled' && (
+                <div className="border-t border-slate-100 px-3 pt-3 pb-2">
+                  <ChoroplethLegend
+                    min={stateChoroExtent.min}
+                    max={stateChoroExtent.max}
+                    scale={scale}
+                    format={fmt}
+                    valueMode={valueMode}
+                    extentPoolsAllVintages={stateChoroPooledForLegend != null}
+                    metricHelp={metricFullHelp}
+                    semantics={choroLegendSemantics}
+                    letterGradeLegend={giniRawLetterLegend}
+                  />
+                </div>
+              )}
+              {viz === 'bubble' && (
+                <div className="border-t border-slate-100 px-3 pt-3 pb-2">
+                  <BubbleLegend
+                    min={stateBubbleExtent.min}
+                    max={stateBubbleExtent.max}
+                    scale={scale}
+                    format={fmt}
+                    metricHelp={metricFullHelp}
+                    letterGradeLegend={giniRawLetterLegend}
+                  />
+                </div>
+              )}
               <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 px-3 py-2 text-xs text-slate-500">
                 <span>
                   U.S. Census Bureau ACS 5-year · state estimates (
@@ -2261,37 +2854,26 @@ function CensusMapPage() {
           </div>
 
           <aside className="flex flex-col gap-4 xl:sticky xl:top-4">
-            {viz === 'filled' && (
-              <ChoroplethLegend
-                min={stateChoroExtent.min}
-                max={stateChoroExtent.max}
-                scale={scale}
-                format={fmt}
-                valueMode={valueMode}
-                extentPoolsAllVintages={stateChoroPooledForLegend != null}
-                metricHelp={metricFullHelp}
-              />
-            )}
-            {viz === 'bubble' && (
-              <BubbleLegend
-                min={stateBubbleExtent.min}
-                max={stateBubbleExtent.max}
-                scale={scale}
-                format={fmtRaw}
-                metricHelp={metricFullHelp}
-              />
-            )}
-
-            {stateTrends && hoverRegion
-              ? (() => {
+            {stateTrends && usTrendSubject ? (
+              <div
+                onMouseEnter={() => {
+                  trendAsideCapturingHoverRef.current = true
+                  cancelScheduledHoverClear()
+                }}
+                onMouseLeave={() => {
+                  trendAsideCapturingHoverRef.current = false
+                  scheduleHoverRegionClear()
+                }}
+              >
+                {(() => {
                   const trendPts = trendPointsFromSeries(
                     stateTrends.vintages,
-                    stateTrends.by_state[hoverRegion.id]?.[metricSlug] as Record<string, unknown> | undefined,
+                    stateTrends.by_state[usTrendSubject.id]?.[metricSlug] as Record<string, unknown> | undefined,
                   )
                   return (
                     <AcTrendChart
                       title={buildCensusTrendChartTitle(
-                        hoverRegion.name,
+                        usTrendSubject.name,
                         metricSlug,
                         metrics.find((m) => m.slug === metricSlug)?.label ?? metricSlug,
                         trendPts,
@@ -2302,10 +2884,16 @@ function CensusMapPage() {
                       points={trendPts}
                       format={fmt}
                       metricHelp={metricFullHelp}
+                      metricTooltipLabel={currentMetricMeta?.label ?? metricSlug}
                     />
                   )
-                })()
-              : null}
+                })()}
+                <p className="mt-2 text-[10px] leading-snug text-slate-500">
+                  Move the pointer onto this panel before leaving the map to keep the chart, or click a state in the
+                  ranking list to lock its trend until you click that bar again.
+                </p>
+              </div>
+            ) : null}
 
             <motion.div
               className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm relative"
@@ -2314,23 +2902,19 @@ function CensusMapPage() {
               transition={trendFadeTransition}
               style={{ pointerEvents: trendChartOpenUs ? 'none' : undefined }}
             >
-              <div className="mb-2 flex flex-wrap items-start justify-between gap-2 border-b border-slate-100 pb-2">
-                <div className="flex min-w-0 gap-2">
-                  <ChartBarSquareIcon className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" aria-hidden />
-                  <div className="min-w-0">
-                    <h3 className="text-sm font-semibold leading-snug text-slate-900">
-                      {narrativePack.leaderboardSectionTitle}
-                    </h3>
-                    <p className="mt-0.5 text-xs leading-snug text-slate-600">
-                      {narrativePack.leaderboardSectionSubtitle}
-                    </p>
-                  </div>
+              <div className="mb-2 flex gap-2 border-b border-slate-100 pb-2">
+                <ChartBarSquareIcon className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" aria-hidden />
+                <div className="flex min-w-0 flex-1 items-start gap-1.5">
+                  <h3 className="min-w-0 flex-1 text-sm font-semibold leading-snug text-slate-900 [overflow-wrap:anywhere]">
+                    {narrativePack.leaderboardSectionTitle}
+                  </h3>
+                  <InfoHelpTrigger
+                    topic="Leaderboard strip"
+                    align="left"
+                    help={`${metricFullHelp}\n\nClick a bar to highlight that state on the map (click again to clear); click the map to drill down.`}
+                    buttonClassName="shrink-0 self-start rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                  />
                 </div>
-                <InfoHelpTrigger
-                  topic="Leaderboard strip"
-                  align="right"
-                  help={`${metricFullHelp}\n\nStrip shows the top-ranked states using the same values as the map for the selected year and map value mode. Click a bar to highlight that state on the map (click again to clear); click the map to drill down.`}
-                />
               </div>
               <div className="relative w-full pr-1">
                 <CensusRaceBarChart
@@ -2348,9 +2932,12 @@ function CensusMapPage() {
                   winnerUsps={barData[0] ? FIPS2_TO_USPS[barData[0].geoid] : null}
                   vintageYear={displayVintage}
                   yearHelp={CENSUS_MAP_UI_HELP.year}
-                  winnerCaption={censusMetricWinnerCaption(metricSlug, currentMetricMeta?.label ?? metricSlug)}
+                  winnerCaption={censusMetricWinnerCaption(metricSlug)}
+                  nationalContextNote={nationalContextNote}
+                  winnerRankLabel={currentMetricMeta?.label ?? metricSlug}
                   winnerMetricHelp={metricFullHelp}
                   readingCalloutLines={narrativePack.barChartCallouts}
+                  dataQualityNote={censusStaleDataNote}
                   selectedRowId={leaderboardPinnedId}
                   onRowClick={toggleLeaderboardPin}
                 />
@@ -2407,50 +2994,42 @@ function CensusMapPage() {
             </div>
           </aside>
         </div>
+        </div>
       )}
 
-      {mode === 'stateCounty' && stateFips && (
-        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(300px,26rem)] gap-5 items-start">
+      {mode === 'stateCounty' && stateFips && wrapExplorerMap(
+        <div className="flex min-w-0 flex-col gap-4">
+          <CensusExplorerFilterBar
+            leadingSlot={mapToolbarDrillNav}
+            metricFullHelp={metricFullHelp}
+            metrics={selectableMetrics}
+            metricSlug={metricSlug}
+            onMetricChange={onMetricChange}
+            vintages={vintages}
+            displayVintage={displayVintage}
+            singleVintage={singleVintage}
+            showPlay={showPlay}
+            playing={playing}
+            setPlaying={setPlaying}
+            onVintageChange={onVintageChange}
+            onBeginPlay={() => setAnimIndex(0)}
+            yearHelp={`${CENSUS_MAP_UI_HELP.year}\n\n${metricFullHelp}`}
+            onOpenAdvanced={(section) => {
+              setAdvancedFocusSection(section)
+              setAdvancedMapOptionsOpen(true)
+            }}
+          />
+          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(300px,26rem)] gap-4 items-start">
           <div
             className="flex min-w-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"
             role="region"
             aria-labelledby="census-explorer-map-title-county"
           >
-            <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 bg-white px-3 py-2">
-              {mapToolbarDrillNav}
-              {mapToolbarDrillNav ? <div className="hidden h-6 w-px bg-slate-200 sm:block" /> : null}
-              <CensusMetricToolbarControl
-                metricFullHelp={metricFullHelp}
-                metrics={metrics}
-                metricSlug={metricSlug}
-                onPickMetric={onMetricChange}
-              />
-              <div className="hidden h-6 w-px bg-slate-200 sm:block" />
-              <VintageAndPlayControls
-                vintages={vintages}
-                displayVintage={displayVintage}
-                singleVintage={singleVintage}
-                showPlay={showPlay}
-                playing={playing}
-                setPlaying={setPlaying}
-                onVintageChange={onVintageChange}
-                yearHelp={`${CENSUS_MAP_UI_HELP.year}\n\n${metricFullHelp}`}
-              />
-              <div className="hidden h-6 w-px bg-slate-200 sm:block" />
-              <button
-                type="button"
-                title="Map display: filled vs bubbles, color scale, and map value mode"
-                onClick={() => setAdvancedMapOptionsOpen(true)}
-                className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-800 shadow-sm hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#354F52] focus-visible:ring-offset-2"
-              >
-                <AdjustmentsHorizontalIcon className="h-4 w-4 shrink-0 text-slate-600" aria-hidden />
-                Advanced
-              </button>
-            </div>
             <CensusMapHeadingStrip
               titleId="census-explorer-map-title-county"
               title={narrativePack.mapTitle}
               insight={narrativePack.mapTitleInsight}
+              selectionActive={mapHeadingSelectionActive}
             />
             <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-3 py-1.5 text-xs text-slate-600">
                 {!countyPayload && countyPayloadLoading && <span className="text-slate-500">Loading metrics…</span>}
@@ -2469,7 +3048,7 @@ function CensusMapPage() {
               subtitle={narrativePack.mapSubtitle}
               calloutLines={narrativePack.mapCallouts}
             />
-            <div className="h-[min(70vh,560px)] w-full bg-white relative z-0">
+            <div className="h-[min(78vh,620px)] w-full bg-white relative z-0">
                 {stateCountyGeo && (
                   <MapContainer
                     center={[37.8, -86.8]}
@@ -2501,13 +3080,22 @@ function CensusMapPage() {
                           const p = feature.properties as Record<string, unknown>
                           const gid = countyGeoidFromFeature(feature as GeoJSON.Feature)
                           const name = String(p?.NAME ?? gid ?? '')
-                          const v = p?.[metricSlug]
-                          const num = typeof v === 'number' && Number.isFinite(v) ? v : null
+                          const disp = countyDisplayByGeoid[gid] ?? null
+                          const rk = countyRankByGeoid.get(gid)
+                          const rankLine = rk
+                            ? `<br/><span style="font-size:11px;color:#475569;">Ranked #${rk.rank} of ${rk.total}</span>`
+                            : ''
                           layer.bindPopup(
-                            `<div><strong>${name}</strong><br/>${formatMetricValue(metricSlug, num, metrics, valueMode)}</div>`,
+                            `<div><strong>${name}</strong><br/>${metricValueTooltipLine(
+                              currentMetricMeta?.label ?? metricSlug,
+                              metricSlug,
+                              disp,
+                              metrics,
+                              valueMode,
+                            )}${rankLine}</div>`,
                           )
                           layer.on('mouseover', () => {
-                            setCountyHover({ id: gid, name, value: num })
+                            setCountyHover({ id: gid, name, value: disp })
                           })
                           layer.on('mouseout', () => setCountyHover(null))
                         }}
@@ -2517,8 +3105,7 @@ function CensusMapPage() {
                       stateCountyGeo.features.map((f, idx) => {
                         const p = f.properties as Record<string, unknown> | null
                         const id = countyGeoidFromFeature(f as GeoJSON.Feature) || String(p?.GEOID ?? idx)
-                        const v = p?.[metricSlug]
-                        const num = typeof v === 'number' && Number.isFinite(v) ? v : null
+                        const num = countyDisplayByGeoid[id] ?? null
                         if (num == null || f.geometry == null) return null
                         const ll = featureLatLng(f)
                         if (!ll) return null
@@ -2548,8 +3135,17 @@ function CensusMapPage() {
                               <div className="text-xs text-slate-900">
                                 <div className="font-semibold text-slate-950">{name}</div>
                                 <div className="tabular-nums text-slate-800">
-                                  {formatMetricValue(metricSlug, num, metrics, valueMode)}
+                                  {formatMetricValueCompact(metricSlug, num, metrics, valueMode)}
                                 </div>
+                                {(() => {
+                                  const rk = countyRankByGeoid.get(id)
+                                  if (!rk) return null
+                                  return (
+                                    <div className="mt-0.5 text-[10px] font-medium text-slate-600">
+                                      Ranked #{rk.rank} of {rk.total}
+                                    </div>
+                                  )
+                                })()}
                               </div>
                             </LeafletTooltip>
                           </CircleMarker>
@@ -2583,6 +3179,8 @@ function CensusMapPage() {
                 valueMode={valueMode}
                 extentPoolsAllVintages={countyChoroPooledForLegend != null}
                 metricHelp={metricFullHelp}
+                semantics={choroLegendSemantics}
+                letterGradeLegend={giniRawLetterLegend}
               />
             )}
             {viz === 'bubble' && (
@@ -2590,8 +3188,9 @@ function CensusMapPage() {
                 min={countyBubbleExtent.min}
                 max={countyBubbleExtent.max}
                 scale={scale}
-                format={fmtRaw}
+                format={fmt}
                 metricHelp={metricFullHelp}
+                letterGradeLegend={giniRawLetterLegend}
               />
             )}
             {countyTrends && countyHover && stateFips
@@ -2614,6 +3213,7 @@ function CensusMapPage() {
                       points={trendPts}
                       format={fmt}
                       metricHelp={metricFullHelp}
+                      metricTooltipLabel={currentMetricMeta?.label ?? metricSlug}
                     />
                   )
                 })()
@@ -2621,47 +3221,47 @@ function CensusMapPage() {
             {stateCountyGeo && (
               <>
                 <motion.div
-                  className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm"
+                  className="flex min-h-0 flex-col rounded-lg border border-slate-200 bg-white p-3 shadow-sm"
                   initial={false}
                   animate={{ opacity: trendChartOpenCounty ? 0 : 1 }}
                   transition={trendFadeTransition}
                   style={{ pointerEvents: trendChartOpenCounty ? 'none' : undefined }}
                 >
-                  <div className="mb-2 flex flex-wrap items-start justify-between gap-2 border-b border-slate-100 pb-2">
-                    <div className="flex min-w-0 gap-2">
-                      <ChartBarSquareIcon className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" aria-hidden />
-                      <div className="min-w-0">
-                        <h3 className="text-sm font-semibold leading-snug text-slate-900">
-                          {narrativePack.leaderboardSectionTitle}
-                        </h3>
-                        <p className="mt-0.5 text-xs leading-snug text-slate-600">
-                          {narrativePack.leaderboardSectionSubtitle}
-                        </p>
-                      </div>
+                  <div className="mb-2 flex shrink-0 gap-2 border-b border-slate-100 pb-2">
+                    <ChartBarSquareIcon className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" aria-hidden />
+                    <div className="flex min-w-0 flex-1 items-start gap-1.5">
+                      <h3 className="min-w-0 flex-1 text-sm font-semibold leading-snug text-slate-900 [overflow-wrap:anywhere]">
+                        {narrativePack.leaderboardSectionTitle}
+                      </h3>
+                      <InfoHelpTrigger
+                        topic="Leaderboard strip"
+                        align="left"
+                        help={`${metricFullHelp}\n\nClick a bar to highlight that county on the map (click again to clear).`}
+                        buttonClassName="shrink-0 self-start rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                      />
                     </div>
-                    <InfoHelpTrigger
-                      topic="Leaderboard strip"
-                      align="right"
-                      help={`${metricFullHelp}\n\nStrip shows the top-ranked counties using the same values as the map for the selected year and map value mode. Click a bar to highlight that county on the map (click again to clear).`}
-                    />
                   </div>
-                  <div className="w-full min-h-0 max-h-[min(28rem,52vh)] overflow-y-auto overflow-x-hidden overscroll-contain [scrollbar-gutter:stable]">
-                    <PlaceBarChart
-                      features={stateCountyGeo.features}
-                      metricSlug={metricSlug}
-                      metrics={metrics}
-                      valueMode={valueMode}
-                      playing={playing}
-                      narrativePack={narrativePack}
-                      geoLevel="county"
-                      pinnedRowId={leaderboardPinnedId}
-                      onTogglePinnedRow={toggleLeaderboardPin}
-                      leaderPlateUsps={stateUsps ?? null}
-                    />
-                  </div>
+                  <PlaceBarChart
+                    className="min-h-0 flex-1"
+                    rowsScrollClassName="max-h-[min(20rem,48vh)]"
+                    features={stateCountyGeo.features}
+                    metricSlug={metricSlug}
+                    metrics={metrics}
+                    valueMode={valueMode}
+                    displayByGeoid={countyDisplayByGeoid}
+                    playing={playing}
+                    narrativePack={narrativePack}
+                    geoLevel="county"
+                    pinnedRowId={leaderboardPinnedId}
+                    onTogglePinnedRow={toggleLeaderboardPin}
+                    leaderPlateUsps={stateUsps ?? null}
+                    displayVintage={displayVintage}
+                  />
                 </motion.div>
                 <PlaceTable
                   features={stateCountyGeo.features}
+                  geoLevel="county"
+                  displayByGeoid={countyDisplayByGeoid}
                   metricSlug={metricSlug}
                   metrics={metrics}
                   valueMode={valueMode}
@@ -2671,50 +3271,42 @@ function CensusMapPage() {
             )}
           </aside>
         </div>
+        </div>
       )}
 
-      {mode === 'place' && (
-        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(300px,26rem)] gap-5 items-start">
+      {mode === 'place' && wrapExplorerMap(
+        <div className="flex min-w-0 flex-col gap-4">
+          <CensusExplorerFilterBar
+            leadingSlot={mapToolbarDrillNav}
+            metricFullHelp={metricFullHelp}
+            metrics={selectableMetrics}
+            metricSlug={metricSlug}
+            onMetricChange={onMetricChange}
+            vintages={vintages}
+            displayVintage={displayVintage}
+            singleVintage={singleVintage}
+            showPlay={showPlay}
+            playing={playing}
+            setPlaying={setPlaying}
+            onVintageChange={onVintageChange}
+            onBeginPlay={() => setAnimIndex(0)}
+            yearHelp={`${CENSUS_MAP_UI_HELP.year}\n\n${metricFullHelp}`}
+            onOpenAdvanced={(section) => {
+              setAdvancedFocusSection(section)
+              setAdvancedMapOptionsOpen(true)
+            }}
+          />
+          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(300px,26rem)] gap-4 items-start">
           <div
             className="flex min-w-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"
             role="region"
             aria-labelledby="census-explorer-map-title-place"
           >
-            <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 bg-white px-3 py-2">
-              {mapToolbarDrillNav}
-              {mapToolbarDrillNav ? <div className="hidden h-6 w-px bg-slate-200 sm:block" /> : null}
-              <CensusMetricToolbarControl
-                metricFullHelp={metricFullHelp}
-                metrics={metrics}
-                metricSlug={metricSlug}
-                onPickMetric={onMetricChange}
-              />
-              <div className="hidden h-6 w-px bg-slate-200 sm:block" />
-              <VintageAndPlayControls
-                vintages={vintages}
-                displayVintage={displayVintage}
-                singleVintage={singleVintage}
-                showPlay={showPlay}
-                playing={playing}
-                setPlaying={setPlaying}
-                onVintageChange={onVintageChange}
-                yearHelp={`${CENSUS_MAP_UI_HELP.year}\n\n${metricFullHelp}`}
-              />
-              <div className="hidden h-6 w-px bg-slate-200 sm:block" />
-              <button
-                type="button"
-                title="Map display: filled vs bubbles, color scale, and map value mode"
-                onClick={() => setAdvancedMapOptionsOpen(true)}
-                className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-800 shadow-sm hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#354F52] focus-visible:ring-offset-2"
-              >
-                <AdjustmentsHorizontalIcon className="h-4 w-4 shrink-0 text-slate-600" aria-hidden />
-                Advanced
-              </button>
-            </div>
             <CensusMapHeadingStrip
               titleId="census-explorer-map-title-place"
               title={narrativePack.mapTitle}
               insight={narrativePack.mapTitleInsight}
+              selectionActive={mapHeadingSelectionActive}
             />
             <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-3 py-1.5 text-xs text-slate-600">
                 {!placeGeo && !placeGeoError && <span className="text-slate-500">Loading…</span>}
@@ -2740,7 +3332,7 @@ function CensusMapPage() {
               subtitle={narrativePack.mapSubtitle}
               calloutLines={narrativePack.mapCallouts}
             />
-            <div className="h-[min(70vh,560px)] w-full bg-white relative z-0">
+            <div className="h-[min(78vh,620px)] w-full bg-white relative z-0">
                 {placeGeoMerged && (
                   <MapContainer
                     center={[37.8, -86.8]}
@@ -2773,13 +3365,22 @@ function CensusMapPage() {
                           const p = feature.properties as Record<string, unknown>
                           const gid7 = placeGeoid7FromProperties(p, 0)
                           const name = String(p?.NAME ?? gid7 ?? '')
-                          const v = p?.[metricSlug]
-                          const num = typeof v === 'number' && Number.isFinite(v) ? v : null
+                          const disp = placeDisplayByGeoid[gid7] ?? null
+                          const rk = placeRankByGeoid.get(gid7)
+                          const rankLine = rk
+                            ? `<br/><span style="font-size:11px;color:#475569;">Ranked #${rk.rank} of ${rk.total}</span>`
+                            : ''
                           layer.bindPopup(
-                            `<div><strong>${name}</strong><br/>${formatMetricValue(metricSlug, num, metrics, valueMode)}</div>`,
+                            `<div><strong>${name}</strong><br/>${metricValueTooltipLine(
+                              currentMetricMeta?.label ?? metricSlug,
+                              metricSlug,
+                              disp,
+                              metrics,
+                              valueMode,
+                            )}${rankLine}</div>`,
                           )
                           layer.on('mouseover', () => {
-                            setPlaceHover({ id: gid7, name, value: num })
+                            setPlaceHover({ id: gid7, name, value: disp })
                           })
                           layer.on('mouseout', () => setPlaceHover(null))
                         }}
@@ -2791,8 +3392,7 @@ function CensusMapPage() {
                         const rawId = String(p?.GEOID ?? idx).replace(/\D/g, '')
                         const gid7 =
                           rawId.length <= 7 ? rawId.padStart(7, '0') : rawId.slice(-7).padStart(7, '0')
-                        const v = p?.[metricSlug]
-                        const num = typeof v === 'number' && Number.isFinite(v) ? v : null
+                        const num = placeDisplayByGeoid[gid7] ?? null
                         if (num == null || f.geometry == null) return null
                         const ll = featureLatLng(f)
                         if (!ll) return null
@@ -2822,8 +3422,17 @@ function CensusMapPage() {
                               <div className="text-xs text-slate-900">
                                 <div className="font-semibold text-slate-950">{name}</div>
                                 <div className="tabular-nums text-slate-800">
-                                  {formatMetricValue(metricSlug, num, metrics, valueMode)}
+                                  {formatMetricValueCompact(metricSlug, num, metrics, valueMode)}
                                 </div>
+                                {(() => {
+                                  const rk = placeRankByGeoid.get(gid7)
+                                  if (!rk) return null
+                                  return (
+                                    <div className="mt-0.5 text-[10px] font-medium text-slate-600">
+                                      Ranked #{rk.rank} of {rk.total}
+                                    </div>
+                                  )
+                                })()}
                               </div>
                             </LeafletTooltip>
                           </CircleMarker>
@@ -2857,6 +3466,8 @@ function CensusMapPage() {
                 valueMode={valueMode}
                 extentPoolsAllVintages={placeChoroPooledForLegend != null}
                 metricHelp={metricFullHelp}
+                semantics={choroLegendSemantics}
+                letterGradeLegend={giniRawLetterLegend}
               />
             )}
             {viz === 'bubble' && (
@@ -2864,30 +3475,38 @@ function CensusMapPage() {
                 min={placeBubbleExtent.min}
                 max={placeBubbleExtent.max}
                 scale={scale}
-                format={fmtRaw}
+                format={fmt}
                 metricHelp={metricFullHelp}
+                letterGradeLegend={giniRawLetterLegend}
               />
             )}
-            {placeTrends && placeHover
+            {placeTrends && placeTrendSubject
               ? (() => {
                   const trendPts = trendPointsFromSeries(
                     placeTrends.vintages,
-                    placeTrends.byGeoid[placeHover.id]?.[metricSlug] as Record<string, unknown> | undefined,
+                    placeTrends.byGeoid[placeTrendSubject.id]?.[metricSlug] as Record<string, unknown> | undefined,
+                  )
+                  const stateLabel = stateName && String(stateName).trim() ? String(stateName) : 'this state'
+                  const placeTrendNarr = buildPlaceTrendNarrative(
+                    placeTrendSubject.name,
+                    stateLabel,
+                    narrativePack.trendChartCallouts,
                   )
                   return (
                     <AcTrendChart
                       title={buildCensusTrendChartTitle(
-                        placeHover.name,
+                        placeTrendSubject.name,
                         metricSlug,
                         metrics.find((m) => m.slug === metricSlug)?.label ?? metricSlug,
                         trendPts,
                       )}
-                      subtitle={narrativePack.trendChartSubtitle}
-                      readingLines={narrativePack.trendChartCallouts}
+                      subtitle={placeTrendNarr.subtitle}
+                      readingLines={placeTrendNarr.readingLines}
                       chartTitleId="census-explorer-trend-chart-place"
                       points={trendPts}
                       format={fmt}
                       metricHelp={metricFullHelp}
+                      metricTooltipLabel={currentMetricMeta?.label ?? metricSlug}
                     />
                   )
                 })()
@@ -2895,72 +3514,69 @@ function CensusMapPage() {
             {placeGeoMerged && (
               <>
                 <motion.div
-                  className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm"
+                  className="flex min-h-0 flex-col rounded-lg border border-slate-200 bg-white p-3 shadow-sm"
                   initial={false}
                   animate={{ opacity: trendChartOpenPlace ? 0 : 1 }}
                   transition={trendFadeTransition}
                   style={{ pointerEvents: trendChartOpenPlace ? 'none' : undefined }}
                 >
-                  <div className="mb-2 flex flex-wrap items-start justify-between gap-2 border-b border-slate-100 pb-2">
-                    <div className="flex min-w-0 gap-2">
-                      <ChartBarSquareIcon className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" aria-hidden />
-                      <div className="min-w-0">
-                        <h3 className="text-sm font-semibold leading-snug text-slate-900">
-                          {narrativePack.leaderboardSectionTitle}
-                        </h3>
-                        <p className="mt-0.5 text-xs leading-snug text-slate-600">
-                          {narrativePack.leaderboardSectionSubtitle}
-                        </p>
-                      </div>
+                  <div className="mb-2 flex shrink-0 gap-2 border-b border-slate-100 pb-2">
+                    <ChartBarSquareIcon className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" aria-hidden />
+                    <div className="flex min-w-0 flex-1 items-start gap-1.5">
+                      <h3 className="min-w-0 flex-1 text-sm font-semibold leading-snug text-slate-900 [overflow-wrap:anywhere]">
+                        {narrativePack.leaderboardSectionTitle}
+                      </h3>
+                      <InfoHelpTrigger
+                        topic="Leaderboard strip"
+                        align="left"
+                        help={`${metricFullHelp}\n\nClick a bar to highlight that place on the map (click again to clear).`}
+                        buttonClassName="shrink-0 self-start rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                      />
                     </div>
-                    <InfoHelpTrigger
-                      topic="Leaderboard strip"
-                      align="right"
-                      help={`${metricFullHelp}\n\nStrip shows the top-ranked places using the same values as the map for the selected year and map value mode. Click a bar to highlight that place on the map (click again to clear).`}
-                    />
                   </div>
-                  <div className="w-full min-h-0 max-h-[min(28rem,52vh)] overflow-y-auto overflow-x-hidden overscroll-contain [scrollbar-gutter:stable]">
-                    <PlaceBarChart
-                      features={placeGeoMerged.features}
-                      metricSlug={metricSlug}
-                      metrics={metrics}
-                      valueMode={valueMode}
-                      playing={playing}
-                      narrativePack={narrativePack}
-                      geoLevel="place"
-                      pinnedRowId={leaderboardPinnedId}
-                      onTogglePinnedRow={toggleLeaderboardPin}
-                      leaderPlateUsps={stateUsps ?? null}
-                    />
-                  </div>
+                  <PlaceBarChart
+                    className="min-h-0 flex-1"
+                    rowsScrollClassName="max-h-[min(20rem,48vh)]"
+                    features={placeGeoMerged.features}
+                    metricSlug={metricSlug}
+                    metrics={metrics}
+                    valueMode={valueMode}
+                    displayByGeoid={placeDisplayByGeoid}
+                    playing={playing}
+                    narrativePack={narrativePack}
+                    geoLevel="place"
+                    pinnedRowId={leaderboardPinnedId}
+                    onTogglePinnedRow={toggleLeaderboardPin}
+                    leaderPlateUsps={stateUsps ?? null}
+                    displayVintage={displayVintage}
+                  />
                 </motion.div>
-                <PlaceTable features={placeGeoMerged.features} metricSlug={metricSlug} metrics={metrics} valueMode={valueMode} />
+                <PlaceTable
+                  features={placeGeoMerged.features}
+                  geoLevel="place"
+                  displayByGeoid={placeDisplayByGeoid}
+                  metricSlug={metricSlug}
+                  metrics={metrics}
+                  valueMode={valueMode}
+                />
               </>
             )}
           </aside>
+        </div>
         </div>
       )}
     </div>
   )
 }
 
-function PlaceBarChart({
-  features,
-  metricSlug,
-  metrics,
-  valueMode,
-  playing = false,
-  topN = CENSUS_TOP_BAR_ROW_LIMIT,
-  narrativePack,
-  geoLevel,
-  pinnedRowId = null,
-  onTogglePinnedRow,
-  leaderPlateUsps = null,
-}: {
+type PlaceBarChartProps = {
+  className?: string
+  rowsScrollClassName?: string
   features: GeoJSON.Feature[]
   metricSlug: string
   metrics: CensusMetric[]
   valueMode: CensusValueMode
+  displayByGeoid: Record<string, number | null>
   playing?: boolean
   topN?: number
   narrativePack?: CensusNarrativePack | null
@@ -2969,19 +3585,38 @@ function PlaceBarChart({
   onTogglePinnedRow?: (id: string) => void
   /** State plate at top of strip while #1 row may be a county or place. */
   leaderPlateUsps?: string | null
-}) {
+  displayVintage: string
+}
+
+function PlaceBarChart(props: PlaceBarChartProps) {
+  const {
+    className = '',
+    rowsScrollClassName,
+    features,
+    metricSlug,
+    metrics,
+    valueMode,
+    displayByGeoid,
+    playing = false,
+    topN = CENSUS_TOP_BAR_ROW_LIMIT,
+    narrativePack,
+    geoLevel,
+    pinnedRowId = null,
+    onTogglePinnedRow,
+    leaderPlateUsps = null,
+    displayVintage,
+  } = props
   const rows = useMemo(() => {
     return features
       .map((f, i) => {
         const p = f.properties as Record<string, unknown> | null
-        const v = p?.[metricSlug]
-        const num = typeof v === 'number' && Number.isFinite(v) ? v : null
-        const name = String(p?.NAME ?? p?.GEOID ?? i)
         const id =
           geoLevel === 'county'
             ? countyGeoidFromFeature(f as GeoJSON.Feature) || `idx_${i}`
             : placeGeoid7FromProperties(p, i)
-        return { id, name, fullName: name, value: num }
+        const name = String(p?.NAME ?? p?.GEOID ?? i)
+        const disp = displayByGeoid[id] ?? null
+        return { id, name, fullName: name, value: disp }
       })
       .filter((r) => r.value != null)
       .sort((a, b) => compareRankedMetricValues(a.value!, b.value!, metricSlug))
@@ -2992,41 +3627,61 @@ function PlaceBarChart({
         fullName: r.fullName,
         value: r.value!,
       }))
-  }, [features, metricSlug, topN, geoLevel])
+  }, [features, metricSlug, topN, geoLevel, displayByGeoid])
 
   const formatAxisTick = useCallback(
-    (x: number, span?: number) => formatCensusMapAxisTickForMetric(metricSlug, metrics, x, span),
-    [metricSlug, metrics],
+    (x: number, span?: number) => formatCensusMapAxisTickForMetric(metricSlug, metrics, x, span, valueMode),
+    [metricSlug, metrics, valueMode],
   )
+
+  const metricMeta = useMemo(() => metrics.find((m) => m.slug === metricSlug), [metrics, metricSlug])
+  const winnerRankLabel = metricMeta?.label ?? metricSlug
+  const winnerMetricHelp = useMemo(() => censusMetricFullHelp(metricSlug, metricMeta), [metricSlug, metricMeta])
+
+  const dataQualityNote = useMemo(() => {
+    if (valueMode !== 'raw') return null
+    const raw = features.map((f) => {
+      const v = (f.properties as Record<string, unknown> | null)?.[metricSlug]
+      return typeof v === 'number' && Number.isFinite(v) ? v : null
+    })
+    return censusMetricStaleDataNote(metricSlug, valueMode, raw)
+  }, [features, metricSlug, valueMode])
 
   return (
     <CensusRaceBarChart
+      className={className}
+      rowsScrollClassName={rowsScrollClassName}
       rows={rows}
       formatValue={(v) => formatMetricValue(metricSlug, v, metrics, valueMode)}
       formatBarEnd={(v) => formatMetricValueCompact(metricSlug, v, metrics, valueMode)}
       formatAxisTick={formatAxisTick}
       playing={playing}
       leaderPlateUsps={leaderPlateUsps}
+      vintageYear={displayVintage}
+      yearHelp={CENSUS_MAP_UI_HELP.year}
+      winnerCaption={censusMetricWinnerCaption(metricSlug)}
+      winnerRankLabel={winnerRankLabel}
+      winnerMetricHelp={winnerMetricHelp}
       readingCalloutLines={narrativePack?.barChartCallouts ?? null}
+      dataQualityNote={dataQualityNote}
       selectedRowId={pinnedRowId}
       onRowClick={onTogglePinnedRow}
     />
   )
 }
 
-function PlaceTable({
-  features,
-  metricSlug,
-  metrics,
-  valueMode,
-  tableLabel = 'All places',
-}: {
+type PlaceTableProps = {
   features: GeoJSON.Feature[]
+  geoLevel: 'county' | 'place'
+  displayByGeoid: Record<string, number | null>
   metricSlug: string
   metrics: CensusMetric[]
   valueMode: CensusValueMode
   tableLabel?: string
-}) {
+}
+
+function PlaceTable(props: PlaceTableProps) {
+  const { features, geoLevel, displayByGeoid, metricSlug, metrics, valueMode, tableLabel = 'All places' } = props
   const [sort, setSort] = useState<{ key: 'name' | 'value' | 'geoid'; dir: 'asc' | 'desc' }>(() => ({
     key: 'value',
     dir: censusMetricRankDirection(metricSlug) === 'lower' ? 'asc' : 'desc',
@@ -3043,13 +3698,15 @@ function PlaceTable({
   const rows = useMemo(() => {
     return features.map((f, i) => {
       const p = f.properties as Record<string, unknown> | null
-      const geoid = String(p?.GEOID ?? i)
-      const name = String(p?.NAME ?? geoid)
-      const v = p?.[metricSlug]
-      const num = typeof v === 'number' && Number.isFinite(v) ? v : null
-      return { geoid, name, value: num }
+      const id =
+        geoLevel === 'county'
+          ? countyGeoidFromFeature(f as GeoJSON.Feature) || `idx_${i}`
+          : placeGeoid7FromProperties(p, i)
+      const name = String(p?.NAME ?? id)
+      const disp = displayByGeoid[id] ?? null
+      return { geoid: id, name, value: disp }
     })
-  }, [features, metricSlug])
+  }, [features, metricSlug, displayByGeoid, geoLevel])
 
   const sorted = useMemo(() => {
     const arr = [...rows]

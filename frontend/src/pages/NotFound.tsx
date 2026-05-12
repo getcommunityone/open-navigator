@@ -68,8 +68,8 @@ export default function NotFound() {
             >
               <MapIcon className="h-6 w-6 text-gray-400 group-hover:text-blue-600 mr-3" />
               <div className="text-left">
-                <div className="font-semibold text-gray-900 group-hover:text-blue-600">Explore</div>
-                <div className="text-sm text-gray-500">Browse categories</div>
+                <div className="font-semibold text-gray-900 group-hover:text-blue-600">Take action</div>
+                <div className="text-sm text-gray-500">Learn, decide, and act</div>
               </div>
             </Link>
 

@@ -196,30 +196,29 @@ function buildMapTitle(
 ): string {
   if (geoLevel === 'us_states') {
     if (valueMode === 'yoy')
-      return `Where ${topic} is surging or cooling fastest year over year across states (${displayVintage} vs. prior year in the slider)`
+      return `% change in ${topic} by state (${displayVintage} vs prior year)`
     if (valueMode === 'vs_natl')
-      return `How each state compares to the national level on ${topic} (${displayVintage})`
-    if (rank === 'higher') return `Where ${topic} runs highest across states (${displayVintage})`
-    if (rank === 'lower') return `Where ${topic} is lowest across states in ${displayVintage}`
-    return `How ${topic} stacks up across states (${displayVintage})`
+      return `% vs national ${topic} by state (${displayVintage})`
+    if (rank === 'higher') return `Highest ${topic} by state (${displayVintage})`
+    if (rank === 'lower') return `Lowest ${topic} by state (${displayVintage})`
+    return `${topic} by state (${displayVintage})`
   }
   const place = regionDisplayName
   if (geoLevel === 'counties') {
     if (valueMode === 'yoy')
-      return `Where ${topic} is surging or cooling fastest year over year across counties in ${place} (${displayVintage})`
+      return `% change in ${topic} by county in ${place} (${displayVintage})`
     if (valueMode === 'vs_natl')
-      return `Where ${topic} diverges most from the national norm across counties in ${place} (${displayVintage})`
-    if (rank === 'higher') return `Where ${topic} runs highest across counties in ${place} in ${displayVintage}`
-    if (rank === 'lower') return `Where ${topic} is lowest across counties in ${place} in ${displayVintage}`
-    return `How ${topic} stacks up across counties in ${place} in ${displayVintage}`
+      return `% vs national ${topic} by county in ${place} (${displayVintage})`
+    if (rank === 'higher') return `Highest ${topic} by county in ${place} (${displayVintage})`
+    if (rank === 'lower') return `Lowest ${topic} by county in ${place} (${displayVintage})`
+    return `${topic} by county in ${place} (${displayVintage})`
   }
-  if (valueMode === 'yoy')
-    return `Where ${topic} is surging or cooling fastest year over year across places in ${place} (${displayVintage})`
+  if (valueMode === 'yoy') return `% change in ${topic} by place in ${place} (${displayVintage})`
   if (valueMode === 'vs_natl')
-    return `Where ${topic} diverges most from the national norm across places in ${place} (${displayVintage})`
-  if (rank === 'higher') return `Where ${topic} runs highest across places in ${place} in ${displayVintage}`
-  if (rank === 'lower') return `Where ${topic} is lowest across places in ${place} in ${displayVintage}`
-  return `How ${topic} stacks up across places in ${place} in ${displayVintage}`
+    return `% vs national ${topic} by place in ${place} (${displayVintage})`
+  if (rank === 'higher') return `Highest ${topic} by place in ${place} (${displayVintage})`
+  if (rank === 'lower') return `Lowest ${topic} by place in ${place} (${displayVintage})`
+  return `${topic} by place in ${place} (${displayVintage})`
 }
 
 function buildLeaderboardTitle(
@@ -230,32 +229,9 @@ function buildLeaderboardTitle(
   rank: CensusMetricRankDirection,
   displayVintage: string,
 ): string {
-  if (geoLevel === 'us_states') {
-    if (valueMode === 'yoy')
-      return `Where ${topic} is surging or cooling fastest among states (${displayVintage})`
-    if (valueMode === 'vs_natl')
-      return `States sitting furthest above or below the national picture on ${topic} (${displayVintage})`
-    if (rank === 'higher') return `Where ${topic} runs highest among states (${displayVintage})`
-    if (rank === 'lower') return `Where ${topic} is lowest among states in ${displayVintage}`
-    return `How states stack up on ${topic} (${displayVintage})`
-  }
-  const place = regionDisplayName
-  if (geoLevel === 'counties') {
-    if (valueMode === 'yoy')
-      return `Where ${topic} is surging or cooling fastest among counties in ${place} (${displayVintage})`
-    if (valueMode === 'vs_natl')
-      return `Counties in ${place} sitting furthest above or below the national norm on ${topic} (${displayVintage})`
-    if (rank === 'higher') return `Where ${topic} runs highest among counties in ${place} in ${displayVintage}`
-    if (rank === 'lower') return `Where ${topic} is lowest among counties in ${place} in ${displayVintage}`
-    return `How counties in ${place} stack up on ${topic} in ${displayVintage}`
-  }
-  if (valueMode === 'yoy')
-    return `Where ${topic} is surging or cooling fastest among places in ${place} (${displayVintage})`
-  if (valueMode === 'vs_natl')
-    return `Places in ${place} sitting furthest above or below the national norm on ${topic} (${displayVintage})`
-  if (rank === 'higher') return `Where ${topic} runs highest among places in ${place} in ${displayVintage}`
-  if (rank === 'lower') return `Where ${topic} is lowest among places in ${place} in ${displayVintage}`
-  return `How places in ${place} stack up on ${topic} in ${displayVintage}`
+  // Match the map heading strip: “Highest … by state”, “Lowest … by county in Alabama”, etc.
+  // (Previously this panel used shorter “Top states: …” copy, which felt like a step back vs the map title.)
+  return buildMapTitle(geoLevel, regionDisplayName, topic, valueMode, rank, displayVintage)
 }
 
 export type CensusNarrativePack = {
@@ -265,7 +241,6 @@ export type CensusNarrativePack = {
   mapSubtitle: string
   mapCallouts: string[]
   leaderboardSectionTitle: string
-  leaderboardSectionSubtitle: string
   barChartCallouts: string[]
   trendChartSubtitle: string
   trendChartCallouts: string[]
@@ -291,6 +266,22 @@ export function buildCensusTrendChartTitle(
   return `How ${topic} shifted between ${yStart} and ${yEnd} in ${areaDisplayName}`
 }
 
+/** Trend panel copy when a specific place (hover or pinned row) is driving the chart. */
+export function buildPlaceTrendNarrative(
+  placeName: string,
+  stateName: string,
+  baseTrendCallouts: string[],
+): { subtitle: string; readingLines: string[] } {
+  const st = stateName.trim() || 'this state'
+  return {
+    subtitle: `Each year’s dot is ${placeName} in ${st} — same metric and map value mode as the map (5-year average ending in that survey year).`,
+    readingLines: [
+      `This line tracks ${placeName} only; the place map still compares all places in ${st}.`,
+      ...baseTrendCallouts,
+    ],
+  }
+}
+
 export function buildCensusNarrativePack(input: {
   geoLevel: CensusNarrativeGeoLevel
   regionDisplayName: string
@@ -307,6 +298,12 @@ export function buildCensusNarrativePack(input: {
     stateFips: string
     stateMetricSeries: Record<string, unknown> | undefined
   } | null
+  /** Pinned place row (place map): personalize leaderboard + bar “how to read” copy. */
+  focusPlaceName?: string | null
+  /** Pinned state row on the U.S. map: lead the map title with that state. */
+  focusPinnedState?: { geoid: string; name: string } | null
+  /** Pinned county row on the state county map: lead the map title with that county. */
+  focusPinnedCounty?: { geoid: string; name: string } | null
 }): CensusNarrativePack {
   const {
     geoLevel,
@@ -319,6 +316,9 @@ export function buildCensusNarrativePack(input: {
     nationalRef,
     vintages,
     focusState,
+    focusPlaceName,
+    focusPinnedState,
+    focusPinnedCounty,
   } = input
   const rank = censusMetricRankDirection(metricSlug)
   const topic = everydayTopicForMetric(metricSlug, metricLabel)
@@ -336,7 +336,20 @@ export function buildCensusNarrativePack(input: {
 
   const mapTitle = buildMapTitle(geoLevel, regionDisplayName, topic, valueMode, rank, displayVintage)
 
-  const mapTitleInsight =
+  const pinStateName = focusPinnedState?.name?.trim()
+  const pinCountyName = focusPinnedCounty?.name?.trim()
+  const pinPlaceName = focusPlaceName?.trim()
+
+  let mapTitleResolved = mapTitle
+  if (geoLevel === 'us_states' && pinStateName) {
+    mapTitleResolved = `${pinStateName} — ${mapTitle}`
+  } else if (geoLevel === 'counties' && pinCountyName) {
+    mapTitleResolved = `${pinCountyName} — ${mapTitle}`
+  } else if (geoLevel === 'places' && pinPlaceName) {
+    mapTitleResolved = `${pinPlaceName} — ${mapTitle}`
+  }
+
+  let mapTitleInsight =
     geoLevel !== 'us_states' && focusState
       ? buildFocusStateMapInsight({
           stateName: focusState.stateName,
@@ -348,6 +361,16 @@ export function buildCensusNarrativePack(input: {
           stateMetricSeries: focusState.stateMetricSeries,
         })
       : null
+
+  if (geoLevel === 'us_states' && pinStateName) {
+    mapTitleInsight = `${pinStateName} is highlighted on the map and in the state list below; click the bar again to clear.`
+  } else if (geoLevel === 'counties' && pinCountyName) {
+    const line = `${pinCountyName} is outlined on the map and highlighted in the county list; click the bar again to clear.`
+    mapTitleInsight = mapTitleInsight ? `${mapTitleInsight} ${line}` : line
+  } else if (geoLevel === 'places' && pinPlaceName) {
+    const line = `${pinPlaceName} is outlined on the map and highlighted in the place list; click the bar again to clear.`
+    mapTitleInsight = mapTitleInsight ? `${mapTitleInsight} ${line}` : line
+  }
 
   const surveyLine = `Source: U.S. Census Bureau American Community Survey (5-year results ending in ${displayVintage}) for ${geoNoun}.`
   const mapSubtitleParts = [surveyLine, vizClause(viz), valueModeClause(valueMode)]
@@ -366,7 +389,7 @@ export function buildCensusNarrativePack(input: {
       : 'Compare bubble sizes to the reference circles in the bubble legend on the right.',
   ]
 
-  const leaderboardSectionTitle = buildLeaderboardTitle(
+  let leaderboardSectionTitle = buildLeaderboardTitle(
     geoLevel,
     regionDisplayName,
     topic,
@@ -374,7 +397,15 @@ export function buildCensusNarrativePack(input: {
     rank,
     displayVintage,
   )
-  const leaderboardSectionSubtitle = `Same numbers as the map for ${displayVintage} and the map value mode you picked.`
+  if (geoLevel === 'us_states' && pinStateName) {
+    leaderboardSectionTitle = `${leaderboardSectionTitle} — ${pinStateName} highlighted`
+  }
+  if (geoLevel === 'counties' && pinCountyName) {
+    leaderboardSectionTitle = `${leaderboardSectionTitle} — ${pinCountyName} highlighted`
+  }
+  if (geoLevel === 'places' && pinPlaceName) {
+    leaderboardSectionTitle = `${leaderboardSectionTitle} — ${pinPlaceName} highlighted`
+  }
 
   const orderHint =
     rank === 'higher'
@@ -383,9 +414,28 @@ export function buildCensusNarrativePack(input: {
         ? 'The strip lists the smallest values first (what we treat as “best” when lower is better).'
         : 'The strip lists the largest values first; check the metric tooltip if “bigger” is good or bad.'
 
+  const rowNoun =
+    geoLevel === 'us_states' ? 'state' : geoLevel === 'counties' ? 'county' : 'place'
+  const mapLinkLine = `Same numbers as the map for ${displayVintage} and the map value mode you picked.`
   const barChartCallouts = [
+    mapLinkLine,
+    ...(geoLevel === 'us_states' && pinStateName
+      ? [
+          `“${pinStateName}” is the highlighted row; the map outline matches it until you click that bar again to clear.`,
+        ]
+      : []),
+    ...(geoLevel === 'counties' && pinCountyName
+      ? [
+          `“${pinCountyName}” is the highlighted row; the map outline matches it until you click that bar again to clear.`,
+        ]
+      : []),
+    ...(geoLevel === 'places' && pinPlaceName
+      ? [
+          `“${pinPlaceName}” is the highlighted row; the map outline matches it until you click that bar again to clear.`,
+        ]
+      : []),
     orderHint,
-    'Each row is a place; the bar length lines up with the horizontal number scale.',
+    `Each row is one ${rowNoun}; bar length lines up with the horizontal number scale.`,
     'The right column repeats the value in a compact form so you can scan quickly.',
   ]
 
@@ -398,12 +448,11 @@ export function buildCensusNarrativePack(input: {
   ]
 
   return {
-    mapTitle,
+    mapTitle: mapTitleResolved,
     mapTitleInsight,
     mapSubtitle,
     mapCallouts,
     leaderboardSectionTitle,
-    leaderboardSectionSubtitle,
     barChartCallouts,
     trendChartSubtitle,
     trendChartCallouts,
