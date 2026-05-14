@@ -26,6 +26,54 @@ DATABASE_URL = NEON_DATABASE_URL_DEV or NEON_DATABASE_URL
 # Connection pool (created on first request)
 _db_pool = None
 
+# Cached per-table column sets (public schema) — invalid when pool resets
+_table_columns: Dict[str, frozenset] = {}
+
+
+def _reset_schema_cache() -> None:
+    global _table_columns
+    _table_columns = {}
+
+
+async def _get_table_columns(conn, table: str) -> frozenset:
+    """Columns for `table` in public schema (lowercase names)."""
+    if table not in _table_columns:
+        rows = await conn.fetch(
+            """
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = $1
+            """,
+            table,
+        )
+        _table_columns[table] = frozenset(r["column_name"] for r in rows)
+    return _table_columns[table]
+
+
+def _state_usps_match_sql(columns: frozenset, param: str = "$1") -> str:
+    """
+    SQL boolean expression: row matches USPS state from API (2-letter in param).
+
+    Supports:
+    - dbt / schema.sql: state_code set, state often NULL
+    - legacy migrate / calculate_stats_only: only `state` with 2-letter value
+    - both columns present: match either code or 2-char state field
+    """
+    has_sc = "state_code" in columns
+    has_st = "state" in columns
+    if has_sc and has_st:
+        return (
+            f"(UPPER(TRIM(COALESCE(state_code::text, ''))) = UPPER(TRIM({param}::text)) "
+            f"OR (state IS NOT NULL AND LENGTH(TRIM(state::text)) = 2 "
+            f"AND UPPER(TRIM(state::text)) = UPPER(TRIM({param}::text)))"
+            f")"
+        )
+    if has_sc:
+        return f"UPPER(TRIM(COALESCE(state_code::text, ''))) = UPPER(TRIM({param}::text))"
+    if has_st:
+        return f"UPPER(TRIM(COALESCE(state::text, ''))) = UPPER(TRIM({param}::text))"
+    raise ValueError(f"Table has neither state_code nor state among columns: {columns}")
+
 
 async def get_db_pool():
     """Get or create database connection pool"""
@@ -38,6 +86,7 @@ async def get_db_pool():
         db_type = "Development (Local PostgreSQL)" if NEON_DATABASE_URL_DEV else "Production (Neon)"
         logger.info(f"🗄️  [Stats] Connecting to {db_type}: {DATABASE_URL[:50]}...")
         
+        _reset_schema_cache()
         _db_pool = await asyncpg.create_pool(DATABASE_URL, min_size=1, max_size=10)
     return _db_pool
 
@@ -173,6 +222,10 @@ async def fetch_stats_from_neon(
         pool = await get_db_pool()
         
         async with pool.acquire() as conn:
+            stats_cols = await _get_table_columns(conn, "stats_aggregates")
+            state_pred_stats = _state_usps_match_sql(stats_cols, "$1")
+            state_val = state.upper() if state and len(state) == 2 else state
+
             # Build query based on level
             if level == 'national':
                 query = """
@@ -183,79 +236,92 @@ async def fetch_stats_from_neon(
                 result = await conn.fetchrow(query)
                 
             elif level == 'state':
-                query = """
+                query = f"""
                     SELECT * FROM stats_aggregates 
-                    WHERE level = 'state' AND state_code = $1
+                    WHERE level = 'state' AND ({state_pred_stats})
                     LIMIT 1
                 """
-                result = await conn.fetchrow(query, state.upper() if state and len(state) == 2 else state)
+                result = await conn.fetchrow(query, state_val)
                 
             elif level == 'county':
                 # Try county-level stats first
                 # Normalize county name (remove 'County' suffix)
                 county_name = county.replace(' County', '').strip() if county else county
-                query = """
+                query = f"""
                     SELECT * FROM stats_aggregates 
                     WHERE level = 'county' 
-                      AND state_code = $1 
+                      AND ({state_pred_stats})
                       AND county ILIKE $2
                     LIMIT 1
                 """
-                result = await conn.fetchrow(query, state.upper() if state and len(state) == 2 else state, f"%{county_name}%")
+                result = await conn.fetchrow(query, state_val, f"%{county_name}%")
                 
                 # Fall back to state-level if county not found
                 if not result and state:
                     logger.info(f"County '{county}' not found in stats, falling back to state '{state}'")
-                    query = """
+                    query = f"""
                         SELECT * FROM stats_aggregates 
-                        WHERE level = 'state' AND state_code = $1
+                        WHERE level = 'state' AND ({state_pred_stats})
                         LIMIT 1
                     """
-                    result = await conn.fetchrow(query, state.upper() if state and len(state) == 2 else state)
+                    result = await conn.fetchrow(query, state_val)
                 
             elif level == 'city':
                 # Try city-level stats first from stats_aggregates
-                query = """
+                query = f"""
                     SELECT * FROM stats_aggregates 
                     WHERE level = 'city' 
-                      AND state_code = $1 
+                      AND ({state_pred_stats})
                       AND city ILIKE $2
                     LIMIT 1
                 """
-                result = await conn.fetchrow(query, state.upper() if state and len(state) == 2 else state, f"%{city}%")
+                result = await conn.fetchrow(query, state_val, f"%{city}%")
                 
                 # If not in stats_aggregates, query jurisdictions_search directly
                 if not result:
                     logger.info(f"City '{city}' not in stats_aggregates, querying jurisdictions_search directly")
                     
+                    jur_cols = await _get_table_columns(conn, "jurisdictions_search")
+                    jur_state_pred = _state_usps_match_sql(jur_cols, "$1")
+                    
                     # Count jurisdictions for this city
-                    jurisdiction_query = """
+                    jurisdiction_query = f"""
                         SELECT COUNT(DISTINCT id) as count
                         FROM jurisdictions_search
-                        WHERE (state_code = $1 OR state ILIKE $2)
-                          AND name ILIKE $3
+                        WHERE ({jur_state_pred})
+                          AND name ILIKE $2
                     """
-                    jur_result = await conn.fetchrow(jurisdiction_query, state.upper() if len(state) == 2 else state, f"%{state}%", f"%{city}%")
+                    jur_result = await conn.fetchrow(
+                        jurisdiction_query,
+                        state_val,
+                        f"%{city}%",
+                    )
                     jurisdictions = jur_result['count'] if jur_result else 0
                     
                     # Count school districts
-                    school_query = """
+                    school_query = f"""
                         SELECT COUNT(*) as count
                         FROM jurisdictions_search
                         WHERE type = 'school_district'
-                          AND (state_code = $1 OR state ILIKE $2)
-                          AND name ILIKE $3
+                          AND ({jur_state_pred})
+                          AND name ILIKE $2
                     """
-                    school_result = await conn.fetchrow(school_query, state.upper() if len(state) == 2 else state, f"%{state}%", f"%{city}%")
+                    school_result = await conn.fetchrow(
+                        school_query,
+                        state_val,
+                        f"%{city}%",
+                    )
                     school_districts = school_result['count'] if school_result else 0
                     
                     # Count contacts
-                    contact_query = """
+                    contact_cols = await _get_table_columns(conn, "contacts_search")
+                    contact_state_pred = _state_usps_match_sql(contact_cols, "$1")
+                    contact_query = f"""
                         SELECT COUNT(*) as count
                         FROM contacts_search
-                        WHERE (state_code = $1 OR state ILIKE $2)
+                        WHERE ({contact_state_pred})
                     """
-                    contact_result = await conn.fetchrow(contact_query, state.upper() if len(state) == 2 else state, f"%{state}%")
+                    contact_result = await conn.fetchrow(contact_query, state_val)
                     contacts = contact_result['count'] if contact_result else 0
                     
                     # Return constructed stats
@@ -280,12 +346,12 @@ async def fetch_stats_from_neon(
                 # Still no data? Fall back to state-level
                 if not result and state:
                     logger.info(f"City '{city}' not found in database, falling back to state '{state}'")
-                    query = """
+                    query = f"""
                         SELECT * FROM stats_aggregates 
-                        WHERE level = 'state' AND UPPER(state) = UPPER($1)
+                        WHERE level = 'state' AND ({state_pred_stats})
                         LIMIT 1
                     """
-                    result = await conn.fetchrow(query, state)
+                    result = await conn.fetchrow(query, state_val)
             
             else:
                 return None
@@ -382,3 +448,4 @@ async def shutdown_db_pool():
     if _db_pool:
         await _db_pool.close()
         _db_pool = None
+    _reset_schema_cache()

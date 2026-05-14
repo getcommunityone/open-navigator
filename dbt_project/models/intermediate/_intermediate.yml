@@ -99,7 +99,9 @@ models:
       then **naco → gsa → …** for counties and **override → gsa → …** for other types.
     columns:
       - name: website_record_key
-        description: "Stable unique key per row (e.g. gsa domain, uscm|ST|municipality, nces_directory|LEAID, naco|county GEOID, override|jurisdiction_id)"
+        description: >
+          Stable unique key per row (e.g. gsa domain, uscm|ST|municipality, nces_directory|LEAID,
+          naco|county GEOID, override|jurisdiction_id|md5(url) when multiple curated URLs exist).
         tests:
           - unique
           - not_null
@@ -226,8 +228,28 @@ models:
   - name: int_events_channels
     description: >
       YouTube channel registry derived from `int_events_localview` channel_ids,
-      enriched with `bronze_events_youtube` URLs and `jurisdictions` JSONB from
-      `int_localview_channel_geography` joined to `int_jurisdictions`.
+      enriched with `bronze_events_youtube` URLs (or canonical channel URL),
+      `jurisdictions` / `jurisdiction_ids`, and scalar `jurisdiction_id` (first sorted id)
+      from `int_localview_channel_geography` joined to `int_jurisdictions`.
+      Optional `channel_title`, `channel_description`, `subscriber_count`, `video_count`,
+      `view_count` (lifetime channel views from About scrape), and `channel_external_links`
+      from `bronze_events_channels`
+      when present (see `channel_about_links.py`).
+    columns:
+      - name: channel_external_links
+        description: >
+          JSON array of outbound links: About-tab featured links plus URLs parsed from
+          the channel description; from bronze.bronze_events_channels when populated.
+      - name: jurisdiction_id
+        description: >
+          Smallest `jurisdiction_id` among resolved matches (same order as
+          `jurisdiction_ids`); NULL when geography does not resolve to `int_jurisdictions`.
+      - name: channel_url
+        description: >
+          URL from `bronze_events_youtube` when non-blank; otherwise
+          `https://www.youtube.com/channel/{channel_id}`.
+        tests:
+          - not_null
 
   - name: int_events_channels_enriched
     description: |

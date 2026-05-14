@@ -10,7 +10,7 @@ This is faster than querying all WikiData jurisdictions because we only
 check the jurisdictions we already know about.
 
 Usage:
-    python scripts/datasources/wikidata/validate_channels_wikidata.py --states AL,GA,IN,MA,WA,WI
+    python scripts/datasources/wikidata/validate_channels_wikidata.py --states AL,GA,IN,MA,MT,WA,WI
     
     python scripts/datasources/wikidata/validate_channels_wikidata.py --states AL --limit 10
 """

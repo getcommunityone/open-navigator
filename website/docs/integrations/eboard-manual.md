@@ -6,13 +6,88 @@ eBoard Solutions (https://simbli.eboardsolutions.com) uses **Incapsula** anti-bo
 
 ## Affected School Districts
 
-### Tuscaloosa City Schools
-- **URL**: http://simbli.eboardsolutions.com/index.aspx?s=2088
-- **Meetings**: http://simbli.eboardsolutions.com/SB_Meetings/SB_MeetingListing.aspx?S=2088
+| District (AL) | `jurisdiction_id` | Public hub / board page | Simbli agendas & minutes |
+| --- | --- | --- | --- |
+| **Tuscaloosa City School District** | `school_district_0103360` | [Board of Education](https://www.tuscaloosacityschools.com/about-us/board-of-education) (Finalsite) | [Simbli meeting listing `S=2088`](https://simbli.eboardsolutions.com/SB_Meetings/SB_MeetingListing.aspx?S=2088) · [index `s=2088`](https://simbli.eboardsolutions.com/index.aspx?s=2088) |
+| **Tuscaloosa County School District (TCSS)** | `school_district_0103390` | [Board of Education](https://www.tcss.net/board-of-education) (Finalsite; links to Simbli) | [Simbli meeting listing `S=2092`](https://simbli.eboardsolutions.com/SB_Meetings/SB_MeetingListing.aspx?S=2092) · [index `s=2092`](https://simbli.eboardsolutions.com/index.aspx?s=2092) |
 
-### Tuscaloosa County Schools
-- **URL**: https://simbli.eboardsolutions.com/SB_Meetings/SB_MeetingListing.aspx?S=2092
-- **Website**: https://www.tcss.net/board-of-education (links to eBoard)
+Curated Tuscaloosa **city** (`school_district_0103360`) and **county** (`school_district_0103390`) hub + Simbli URLs are in the dbt seed [`jurisdiction_website_url_overrides.csv`](https://github.com/getcommunityone/open-navigator-for-engagement/blob/main/dbt_project/seeds/jurisdiction_website_url_overrides.csv). NCES does not emit Simbli links, so **`%simbli%` appears only via these overrides** after `dbt seed` + `dbt run --select int_jurisdiction_websites`.
+
+## Query from Postgres
+
+After `dbt seed` and `dbt run --select int_jurisdiction_websites`, use **`intermediate.int_jurisdiction_websites`** (see `dbt_project/models/intermediate/int_jurisdiction_websites.sql` — `public.*` may be wrong or stale).
+
+**Tuscaloosa County School District — hub + Simbli:**
+
+```sql
+SELECT
+  jurisdiction_id,
+  organization_name,
+  website_source,
+  website_url
+FROM intermediate.int_jurisdiction_websites
+WHERE jurisdiction_id = 'school_district_0103390'
+  AND (
+    website_url ILIKE '%tcss.net%'
+    OR website_url ILIKE '%simbli.eboardsolutions.com%'
+  )
+ORDER BY website_url;
+```
+
+**Tuscaloosa City School District — board hub + Simbli:**
+
+```sql
+SELECT
+  jurisdiction_id,
+  organization_name,
+  website_source,
+  website_url
+FROM intermediate.int_jurisdiction_websites
+WHERE jurisdiction_id = 'school_district_0103360'
+  AND (
+    website_url ILIKE '%tuscaloosacityschools.com%'
+    OR website_url ILIKE '%simbli.eboardsolutions.com%'
+  )
+ORDER BY website_url;
+```
+
+**Simbli URLs only (Tuscaloosa City)** — prefer `trim(website_url)` and path patterns so you still match Simbli if the host string differs slightly:
+
+```sql
+SELECT
+  jurisdiction_id,
+  organization_name,
+  website_source,
+  trim(website_url) AS website_url
+FROM intermediate.int_jurisdiction_websites
+WHERE jurisdiction_id = 'school_district_0103360'
+  AND (
+    trim(website_url) ILIKE '%simbli%'
+    OR trim(website_url) ILIKE '%SB_MeetingListing.aspx%'
+    OR trim(website_url) ILIKE '%/SB_Meetings/%'
+  )
+ORDER BY website_url;
+```
+
+If this returns nothing, confirm the seed row exists and rebuild `int_jurisdiction_websites` (`dbt seed` + `dbt run`).
+
+**Both districts (debug):**
+
+```sql
+SELECT jurisdiction_id, organization_name, website_source, website_url
+FROM intermediate.int_jurisdiction_websites
+WHERE jurisdiction_id IN ('school_district_0103360', 'school_district_0103390')
+ORDER BY jurisdiction_id, website_url;
+```
+
+**Seed table only:**
+
+```sql
+SELECT jurisdiction_id, website_url
+FROM seeds.jurisdiction_website_url_overrides
+WHERE jurisdiction_id IN ('school_district_0103360', 'school_district_0103390')
+ORDER BY jurisdiction_id, website_url;
+```
 
 ## Manual Download Steps
 

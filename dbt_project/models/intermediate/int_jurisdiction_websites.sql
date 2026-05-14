@@ -595,9 +595,30 @@ jurisdiction_url_override_seed AS (
       AND TRIM(ob.website_url) <> ''
 ),
 
+-- Census GEOIDs embed 2-digit state FIPS at the left; map to USPS for orphan overrides (no int_jurisdictions row).
+state_fips_to_usps AS (
+    SELECT * FROM (VALUES
+        ('01', 'AL'), ('02', 'AK'), ('04', 'AZ'), ('05', 'AR'), ('06', 'CA'), ('08', 'CO'), ('09', 'CT'),
+        ('10', 'DE'), ('11', 'DC'), ('12', 'FL'), ('13', 'GA'), ('15', 'HI'), ('16', 'ID'), ('17', 'IL'),
+        ('18', 'IN'), ('19', 'IA'), ('20', 'KS'), ('21', 'KY'), ('22', 'LA'), ('23', 'ME'), ('24', 'MD'),
+        ('25', 'MA'), ('26', 'MI'), ('27', 'MN'), ('28', 'MS'), ('29', 'MO'), ('30', 'MT'), ('31', 'NE'),
+        ('32', 'NV'), ('33', 'NH'), ('34', 'NJ'), ('35', 'NM'), ('36', 'NY'), ('37', 'NC'), ('38', 'ND'),
+        ('39', 'OH'), ('40', 'OK'), ('41', 'OR'), ('42', 'PA'), ('44', 'RI'), ('45', 'SC'), ('46', 'SD'),
+        ('47', 'TN'), ('48', 'TX'), ('49', 'UT'), ('50', 'VT'), ('51', 'VA'), ('53', 'WA'), ('54', 'WV'),
+        ('55', 'WI'), ('56', 'WY'), ('60', 'AS'), ('66', 'GU'), ('69', 'MP'), ('72', 'PR'), ('78', 'VI')
+    ) AS m(state_fips, state_code)
+),
+
 override_rows AS (
     SELECT
-        'override|' || j.jurisdiction_id AS website_record_key,
+        -- One seed row per URL; multiple overrides per jurisdiction must not share the same key
+        -- (schema uniqueness test and any dedupe-on-key tooling).
+        'override|' || TRIM(o.jurisdiction_id) || '|' || md5(
+            CASE
+                WHEN o.raw_website ~* '^https?://' THEN TRIM(o.raw_website)
+                ELSE 'https://' || TRIM(REGEXP_REPLACE(o.raw_website, '^/+', ''))
+            END
+        ) AS website_record_key,
         'override' AS website_source,
         NULLIF(
           LOWER(TRIM((regexp_match(
@@ -617,19 +638,35 @@ override_rows AS (
             ELSE 'https://' || TRIM(REGEXP_REPLACE(o.raw_website, '^/+', ''))
         END AS website_url,
         CAST(NULL AS VARCHAR) AS domain_type,
-        j.jurisdiction_type AS jurisdiction_category,
-        j.name AS organization_name,
+        COALESCE(
+            j.jurisdiction_type,
+            CASE
+                WHEN o.jurisdiction_id ~* '^county_' THEN 'county'
+                WHEN o.jurisdiction_id ~* '^municipality_' THEN 'municipality'
+                WHEN o.jurisdiction_id ~* '^school_district_' THEN 'school_district'
+                WHEN o.jurisdiction_id ~* '^township_' THEN 'township'
+                WHEN o.jurisdiction_id ~* '^state_' THEN 'state'
+                ELSE 'municipality'
+            END
+        ) AS jurisdiction_category,
+        COALESCE(j.name, TRIM(o.jurisdiction_id)) AS organization_name,
         CAST(NULL AS VARCHAR) AS agency,
         CAST(NULL AS VARCHAR) AS city,
-        j.state_code,
-        s.state_name AS state,
-        j.jurisdiction_id,
+        COALESCE(j.state_code, s2.state_code) AS state_code,
+        COALESCE(s.state_name, s2.state_name) AS state,
+        TRIM(o.jurisdiction_id) AS jurisdiction_id,
         CURRENT_TIMESTAMP AS ingestion_date,
         CURRENT_TIMESTAMP AS transformed_at
     FROM jurisdiction_url_override_seed o
-    INNER JOIN {{ ref('int_jurisdictions') }} j
-        ON j.jurisdiction_id = o.jurisdiction_id
+    LEFT JOIN {{ ref('int_jurisdictions') }} j
+        ON j.jurisdiction_id = TRIM(o.jurisdiction_id)
     LEFT JOIN state_ref s ON j.state_code = s.state_code
+    LEFT JOIN state_fips_to_usps fmap
+        ON fmap.state_fips = LEFT(
+            regexp_replace(TRIM(o.jurisdiction_id), '^(county|municipality|state|township|school_district)_', '', 'i'),
+            2
+        )
+    LEFT JOIN state_ref s2 ON s2.state_code = fmap.state_code
 ),
 
 combined AS (

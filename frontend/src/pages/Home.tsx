@@ -1,6 +1,6 @@
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import React, { useState, Fragment, useEffect, useRef } from 'react'
-import { Tab, Menu, Transition } from '@headlessui/react'
+import { Menu, Transition } from '@headlessui/react'
 import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
 import { 
@@ -10,18 +10,10 @@ import {
   BuildingLibraryIcon,
   ArrowRightIcon,
   BookOpenIcon,
-  CurrencyDollarIcon,
-  HomeIcon,
-  TruckIcon,
   HeartIcon,
-  AcademicCapIcon,
-  BriefcaseIcon,
   ScaleIcon,
   UserGroupIcon,
   ChatBubbleBottomCenterTextIcon,
-  CodeBracketIcon,
-  BuildingOfficeIcon,
-  UserIcon,
   CheckCircleIcon,
   MapPinIcon,
   PlusIcon,
@@ -31,15 +23,23 @@ import {
   XMarkIcon,
   UserCircleIcon,
   ChevronDownIcon,
-  MapIcon,
-  BellAlertIcon,
   EnvelopeIcon,
   Cog6ToothIcon,
   ArrowRightOnRectangleIcon,
-  GlobeAmericasIcon,
+  ClipboardDocumentListIcon,
+  FunnelIcon,
+  CodeBracketIcon,
 } from '@heroicons/react/24/outline'
+import {
+  EXPLORE_BUILD_ID,
+  EXPLORE_CAUSES_ID,
+  EXPLORE_FIND_HELP_ID,
+  EXPLORE_PLAN_ID,
+  EXPLORE_TRACK_DECISIONS_ID,
+} from '../data/exploreActionPhases'
 import { useAuth } from '../contexts/AuthContext'
 import AddressLookup from '../components/AddressLookup'
+import HeroLicensePlateBadge from '../components/HeroLicensePlateBadge'
 import { useLocation as useLocationContext } from '../contexts/LocationContext'
 
 // Trending topic/cause interface
@@ -121,6 +121,43 @@ const FEATURED_STORIES = [
   },
 ]
 
+type HeroSearchCategoryTab =
+  | 'all'
+  | 'leaders'
+  | 'nonprofits'
+  | 'decisions'
+  | 'causes'
+  | 'bills'
+  | 'donors'
+
+const HERO_SEARCH_TAB_DEFS: { id: HeroSearchCategoryTab; label: string; types: string; count?: string }[] = [
+  { id: 'all', label: 'All', types: 'causes,contacts,organizations,bills,topics,decisions' },
+  { id: 'leaders', label: 'Leaders', types: 'contacts', count: '75K' },
+  { id: 'nonprofits', label: 'Nonprofits', types: 'organizations', count: '1.8M' },
+  { id: 'decisions', label: 'Decisions', types: 'decisions', count: '169' },
+  { id: 'causes', label: 'Causes', types: 'causes', count: '650+' },
+  { id: 'bills', label: 'Bills', types: 'bills' },
+  {
+    id: 'donors',
+    label: 'Donors',
+    /* No dedicated donor index yet — combined people + orgs until search adds a donors type. */
+    types: 'contacts,organizations',
+  },
+]
+
+function formatCompactCount(n: number | undefined): string | undefined {
+  if (n == null || Number.isNaN(n) || n < 0) return undefined
+  if (n >= 1_000_000) {
+    const x = n / 1_000_000
+    return x >= 10 ? `${Math.round(x)}M` : `${x.toFixed(1).replace(/\.0$/, '')}M`
+  }
+  if (n >= 1_000) {
+    const x = n / 1_000
+    return x >= 100 ? `${Math.round(x)}K` : `${x.toFixed(1).replace(/\.0$/, '')}K`
+  }
+  return String(n)
+}
+
 export default function Home() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -129,6 +166,7 @@ export default function Home() {
   const [searchScope, setSearchScope] = useState('city') // city, county, state, national, community (school)
   const [selectedTab, setSelectedTab] = useState(0)
   const [selectedStoryTab, setSelectedStoryTab] = useState(0)
+  const [heroSearchTab, setHeroSearchTab] = useState<HeroSearchCategoryTab>('all')
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [showLoginMenu, setShowLoginMenu] = useState(false)
@@ -277,69 +315,22 @@ export default function Home() {
     return globalCauses.filter((cause: any) => (cause.decision_count || 0) > 0)
   }, [locationStats, trendingData])
 
-  // Generate dynamic stats text based on location (memoized for performance)
-  const statsText = React.useMemo(() => {
-    console.log('📊 [Home] Recomputing stats text, locationStats:', locationStats, 'location:', location);
-    
-    // If national scope selected, always show national stats
-    if (searchScope === 'national') {
-      return '90,000+ jurisdictions • 1.8M nonprofits • 75K+ leaders • 169 decisions • 650+ causes • 100% free';
-    }
-    
-    // If no location data or stats are loading, show national stats
-    if (!locationStats) {
-      return '90,000+ jurisdictions • 1.8M nonprofits • 75K+ leaders • 169 decisions • 650+ causes • 100% free';
-    }
+  const heroSearchTypes = React.useMemo(() => {
+    const row = HERO_SEARCH_TAB_DEFS.find((t) => t.id === heroSearchTab)
+    return row?.types ?? HERO_SEARCH_TAB_DEFS[0].types
+  }, [heroSearchTab])
 
-    // If database returns zeros, show location-specific message
-    if (locationStats.jurisdictions === 0 && 
-        locationStats.nonprofits === 0 && 
-        locationStats.contacts === 0) {
-      // Show which location we're looking at
-      const locationName = locationStats.city || locationStats.county || locationStats.state || 'this area';
-      return `Searching ${locationName} • Database loading • Check back soon • 100% free`;
-    }
-
-    const parts = [];
-    
-    // Format jurisdictions count
-    if (locationStats.jurisdictions && locationStats.jurisdictions > 0) {
-      const count = locationStats.jurisdictions >= 1000 
-        ? `${(locationStats.jurisdictions / 1000).toFixed(1)}K` 
-        : locationStats.jurisdictions.toLocaleString();
-      parts.push(`${count} jurisdiction${locationStats.jurisdictions === 1 ? '' : 's'}`);
-    }
-    
-    // Format nonprofits count
-    if (locationStats.nonprofits && locationStats.nonprofits > 0) {
-      const count = locationStats.nonprofits >= 1000 
-        ? `${(locationStats.nonprofits / 1000).toFixed(1)}K` 
-        : locationStats.nonprofits.toLocaleString();
-      parts.push(`${count} nonprofit${locationStats.nonprofits === 1 ? '' : 's'}`);
-    }
-    
-    // Format contacts count (leaders)
-    if (locationStats.contacts && locationStats.contacts > 0) {
-      const count = locationStats.contacts >= 1000 
-        ? `${(locationStats.contacts / 1000).toFixed(1)}K` 
-        : locationStats.contacts.toLocaleString();
-      parts.push(`${count} leader${locationStats.contacts === 1 ? '' : 's'}`);
-    }
-    
-    // Format decisions count
-    if (locationStats.decisions && locationStats.decisions > 0) {
-      const count = locationStats.decisions >= 1000 
-        ? `${(locationStats.decisions / 1000).toFixed(1)}K` 
-        : locationStats.decisions.toLocaleString();
-      parts.push(`${count} decision${locationStats.decisions === 1 ? '' : 's'}`);
-    }
-    
-    // Add causes count (estimate or fixed)
-    parts.push('650+ causes');
-    parts.push('100% free');
-    
-    return parts.join(' • ');
-  }, [locationStats, location, searchScope]);
+  const heroLocationLabel = React.useMemo(() => {
+    if (!location?.state) return 'Set your location'
+    if (searchScope === 'national') return 'United States'
+    if (searchScope === 'county' && location.county) return `${location.county}, ${location.state}`
+    if (searchScope === 'city' && location.city) return `${location.city}, ${location.state}`
+    if (searchScope === 'state') return location.state
+    if (searchScope === 'community' && location.city) return `${location.city} (schools), ${location.state}`
+    if (location.county) return `${location.county}, ${location.state}`
+    if (location.city) return `${location.city}, ${location.state}`
+    return location.state
+  }, [location, searchScope])
 
   // Generate dynamic subtitle based on location and search scope
   const getSubtitle = () => {
@@ -414,30 +405,9 @@ export default function Home() {
     });
   };
 
-  // Generate dynamic description based on search scope
-  const getDescription = () => {
-    if (searchScope === 'national') {
-      return 'Search leaders, charities, and causes across the United States';
-    }
-    if (searchScope === 'state' && location?.state) {
-      return `Follow leaders, charities, and causes in ${location.state}.`;
-    }
-    if (searchScope === 'county' && location?.county) {
-      return `Follow leaders, charities, and causes in ${location.county}.`;
-    }
-    if (searchScope === 'community' && location?.city) {
-      return `Follow school boards, educators, and education causes in ${location.city}.`;
-    }
-    // Default for city or when location exists
-    if (location?.city) {
-      return `Follow leaders, charities, and causes in ${location.city}.`;
-    }
-    return 'Follow leaders, charities, and causes in your community.';
-  };
-
   // Live search preview (type-ahead with actual results from API)
   const { data: previewResults, isLoading: previewLoading, error: previewError } = useQuery({
-    queryKey: ['search-preview-home', debouncedKeyword, location?.state, searchScope],
+    queryKey: ['search-preview-home', debouncedKeyword, location?.state, searchScope, heroSearchTypes],
     queryFn: async () => {
       console.log('🔍 [Home] Fetching preview for:', debouncedKeyword, 'in state:', location?.state);
       if (!debouncedKeyword || debouncedKeyword.length < 2) {
@@ -449,7 +419,7 @@ export default function Home() {
         const url = '/search/';
         const params: any = {
           q: debouncedKeyword,
-          types: 'causes,contacts,organizations,bills,topics,decisions',
+          types: heroSearchTypes,
           limit: 12  // Higher limit to show results from multiple types
         };
         
@@ -499,7 +469,7 @@ export default function Home() {
   useEffect(() => {
     const tabParam = searchParams.get('tab')
     if (tabParam === 'community') {
-      setSelectedTab(1) // Switch to "Find/Change My Community" tab
+      setSelectedTab(1) // Open location modal
     }
   }, [searchParams])
 
@@ -523,6 +493,9 @@ export default function Home() {
     // Navigate to search results with the selected suggestion
     const params = new URLSearchParams()
     params.set('q', suggestion)
+    if (heroSearchTab !== 'all') {
+      params.set('types', heroSearchTypes)
+    }
     if (location && location.state) {
       params.set('state', location.state)
     }
@@ -544,23 +517,28 @@ export default function Home() {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
     console.log('🔍 [Home] Search submitted:', { keyword, location: location?.state, searchScope });
-    
-    if (keyword.trim()) {
-      const params = new URLSearchParams()
-      params.set('q', keyword.trim())
-      
-      // Add location context if available
-      if (location && location.state) {
-        params.set('state', location.state)
-        console.log('📍 [Home] Adding state filter:', location.state);
-      }
-      
-      const searchUrl = `/search?${params.toString()}`;
-      console.log('🚀 [Home] Navigating to:', searchUrl);
-      navigate(searchUrl)
-    } else {
+
+    const q = keyword.trim()
+    // Unified search supports browse-by-type with no query; hero still requires a query on "All".
+    if (!q && heroSearchTab === 'all') {
       console.warn('⚠️ [Home] Search submitted with empty keyword');
+      return
     }
+
+    const params = new URLSearchParams()
+    if (q) params.set('q', q)
+    if (heroSearchTab !== 'all') {
+      params.set('types', heroSearchTypes)
+    }
+
+    if (location && location.state) {
+      params.set('state', location.state)
+      console.log('📍 [Home] Adding state filter:', location.state)
+    }
+
+    const searchUrl = `/search?${params.toString()}`
+    console.log('🚀 [Home] Navigating to:', searchUrl)
+    navigate(searchUrl)
   }
 
   const handleAddressFound = (locationData: any) => {
@@ -586,31 +564,6 @@ export default function Home() {
     console.log('📍 [Home] Current subtitle:', getSubtitle());
   }, [location]);
 
-  const categories = [
-    { name: 'People', icon: UserGroupIcon, query: '', route: '/people' },
-    { name: 'Community', icon: CodeBracketIcon, query: 'community engagement' },
-    { name: 'Budget', icon: CurrencyDollarIcon, query: 'budget funding' },
-    { name: 'Housing', icon: HomeIcon, query: 'housing affordable' },
-    { name: 'Transport', icon: TruckIcon, query: 'transportation transit' },
-    { name: 'Health', icon: HeartIcon, query: 'health dental' },
-    { name: 'Education', icon: AcademicCapIcon, query: 'education school' },
-    { name: 'Jobs', icon: BriefcaseIcon, query: 'employment jobs' },
-    { name: 'Legal', icon: ScaleIcon, query: 'legal services' },
-    { name: 'Charities', icon: BuildingLibraryIcon, query: '', route: '/nonprofits' },
-  ]
-
-  const quickSearch = (category: { query: string, route?: string }) => {
-    if (category.route) {
-      if (category.route.startsWith('http')) {
-        window.open(category.route, '_blank')
-      } else {
-        navigate(category.route)
-      }
-    } else if (category.query) {
-      navigate(`/search?q=${encodeURIComponent(category.query)}`)
-    }
-  }
-
   // Smooth scroll to section with offset for sticky header
   const scrollToSection = (sectionId: string) => {
     const element = document.getElementById(sectionId)
@@ -626,8 +579,16 @@ export default function Home() {
     }
   }
 
+  /** Top nav "Search": return to hero and focus the main search field (no route change). */
+  const scrollToTopHeroSearch = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    window.setTimeout(() => {
+      document.getElementById('hero-search-input')?.focus({ preventScroll: true })
+    }, 350)
+  }
+
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-slate-300">
       {/* Navigation Header */}
       <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -658,11 +619,12 @@ export default function Home() {
 
             {/* Desktop Navigation Links - Centered with underline */}
             <div className="hidden md:flex items-center gap-8">
-              <button 
-                onClick={() => scrollToSection('features')} 
+              <button
+                type="button"
+                onClick={scrollToTopHeroSearch}
                 className="text-sm font-medium text-gray-600 hover:text-[#354F52] transition-colors pb-1 border-b-2 border-transparent hover:border-[#354F52] cursor-pointer"
               >
-                Features
+                Search
               </button>
               <button 
                 onClick={() => scrollToSection('how-it-works')} 
@@ -676,14 +638,6 @@ export default function Home() {
               >
                 Impact
               </button>
-              <a 
-                href={DOCS_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm font-medium text-gray-600 hover:text-[#354F52] transition-colors pb-1 border-b-2 border-transparent hover:border-[#354F52]"
-              >
-                Documentation
-              </a>
               <button 
                 onClick={() => scrollToSection('contact')} 
                 className="text-sm font-medium text-gray-600 hover:text-[#354F52] transition-colors pb-1 border-b-2 border-transparent hover:border-[#354F52] cursor-pointer"
@@ -891,13 +845,25 @@ export default function Home() {
                   )}
                 </div>
               )}
-              <Link
-                to="/explore"
-                className="h-[42px] px-6 rounded-lg text-white font-semibold hover:shadow-lg transition-all flex items-center"
-                style={{ backgroundColor: '#354F52' }}
-              >
-                Explore Now
-              </Link>
+              <div className="flex items-center gap-2">
+                <Link
+                  to="/explore"
+                  className="h-[42px] px-6 rounded-lg text-white font-semibold hover:shadow-lg transition-all flex items-center"
+                  style={{ backgroundColor: '#354F52' }}
+                >
+                  Explore Now
+                </Link>
+                <a
+                  href={DOCS_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Documentation"
+                  aria-label="Documentation"
+                  className="h-[42px] w-[42px] shrink-0 rounded-lg border-2 font-semibold text-lg flex items-center justify-center transition-colors border-[#354F52] text-[#354F52] hover:bg-[#354F52]/10"
+                >
+                  ?
+                </a>
+              </div>
             </div>
 
             {/* Mobile Menu Button */}
@@ -920,13 +886,14 @@ export default function Home() {
           <div className="md:hidden border-t border-gray-200 bg-white">
             <div className="px-4 py-3 space-y-1">
               <button
+                type="button"
                 className="block w-full text-left px-4 py-3 rounded-lg text-base font-medium text-gray-700 hover:bg-gray-100"
                 onClick={() => {
-                  scrollToSection('features')
+                  scrollToTopHeroSearch()
                   setMobileMenuOpen(false)
                 }}
               >
-                Features
+                Search
               </button>
               <button
                 className="block w-full text-left px-4 py-3 rounded-lg text-base font-medium text-gray-700 hover:bg-gray-100"
@@ -950,10 +917,12 @@ export default function Home() {
                 href={DOCS_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="block px-4 py-3 rounded-lg text-base font-medium text-gray-700 hover:bg-gray-100"
+                title="Documentation"
+                aria-label="Documentation"
+                className="flex items-center justify-center mx-4 py-3 rounded-lg text-lg font-semibold text-[#354F52] border border-[#354F52] hover:bg-gray-100"
                 onClick={() => setMobileMenuOpen(false)}
               >
-                Documentation
+                ?
               </a>
               <button
                 className="block w-full text-left px-4 py-3 rounded-lg text-base font-medium text-gray-700 hover:bg-gray-100"
@@ -971,7 +940,7 @@ export default function Home() {
 
       {/* Trending Topics Bar - Compact and Professional - Only show if there are topics */}
       {trendingTopics && trendingTopics.length > 0 && (
-        <div className="border-b border-gray-200 bg-white">
+        <div className="border-b border-slate-400/50 bg-slate-200/95">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
             <div className="flex items-center gap-2 md:gap-3">
               {/* Trending Icon */}
@@ -1003,141 +972,141 @@ export default function Home() {
         </div>
       )}
 
-      {/* Featured Story Hero with gradient background */}
-      <div className="py-8" style={{ background: 'linear-gradient(135deg, #F1F5F9 0%, #E8EEF2 100%)' }}>
+      {/* Featured Story Hero */}
+      <div className="pt-2 pb-4 md:pt-3 md:pb-7 bg-gradient-to-b from-stone-50 via-white to-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex gap-6">
-            {/* Left Sidebar Navigation */}
-            <div className="hidden lg:block w-64 flex-shrink-0">
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 sticky top-24 h-[500px] flex flex-col">
-                <h3 className="text-lg font-bold mb-4" style={{ color: '#354F52' }}>
-                  Quick Navigation
-                </h3>
-                <nav className="space-y-2 flex-1">
-                  <a
-                    href="#mission"
-                    onClick={(e) => { e.preventDefault(); scrollToSection('mission'); }}
-                    className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-[#354F52] hover:text-white transition-all group"
-                  >
-                    <HeartIcon className="h-5 w-5 group-hover:scale-110 transition-transform" />
-                    <span className="font-medium">Our Mission</span>
-                  </a>
-                  <Link
-                    to="/explore"
-                    className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-[#354F52] hover:text-white transition-all group"
-                  >
-                    <MapIcon className="h-5 w-5 group-hover:scale-110 transition-transform" />
-                    <span className="font-medium">Explore</span>
-                  </Link>
-                  <Link
-                    to="/policy-map"
-                    className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-[#354F52] hover:text-white transition-all group"
-                  >
-                    <ChartBarIcon className="h-5 w-5 group-hover:scale-110 transition-transform" />
-                    <span className="font-medium">Policy Map</span>
-                  </Link>
-                  <Link
-                    to="/data-explorer"
-                    className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-[#354F52] hover:text-white transition-all group"
-                  >
-                    <GlobeAmericasIcon className="h-5 w-5 group-hover:scale-110 transition-transform" />
-                    <span className="font-medium">Data explorer</span>
-                  </Link>
-                  <Link
-                    to="/nonprofits"
-                    className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-[#354F52] hover:text-white transition-all group"
-                  >
-                    <BuildingLibraryIcon className="h-5 w-5 group-hover:scale-110 transition-transform" />
-                    <span className="font-medium">Charity Search</span>
-                  </Link>
-                </nav>
-                
-                {/* Additional Info */}
-                <div className="mt-auto pt-6 border-t border-gray-200">
-                  <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
-                    <BellAlertIcon className="h-4 w-4 text-primary-600" />
-                    <span className="font-semibold">Stay Updated</span>
-                  </div>
-                  <p className="text-xs text-gray-500 mb-3">
-                    Get alerts for new policies and opportunities in your area
-                  </p>
-                  <Link
-                    to="/explore"
-                    className="block w-full px-4 py-2 text-center bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium"
-                  >
-                    Get Started
-                  </Link>
-                </div>
-              </div>
-            </div>
-
-            {/* Hero Carousel with Search as First Item */}
-            <div className="flex-1">
-              <div className="animate-[slideUp_0.6s_ease-out]">
+          <div className="animate-[slideUp_0.6s_ease-out]">
                 {/* Story Content - Conditional rendering based on type */}
                 {FEATURED_STORIES[selectedStoryTab].type === 'hero' ? (
                   /* Hero Search Interface */
-                  <div className="relative rounded-2xl shadow-2xl min-h-[400px] md:h-[500px] flex items-center justify-center p-4 md:p-8 lg:p-12 bg-gradient-to-br from-gray-50 to-white" style={{ overflow: 'visible' }}>
-                    <div className="text-center max-w-4xl w-full">
-                      <p className="text-base md:text-xl lg:text-2xl text-gray-600 mb-3 md:mb-4 px-2">
-                        {FEATURED_STORIES[selectedStoryTab].title}
-                      </p>
-                      <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-7xl font-bold mb-4 md:mb-6 leading-tight px-2" style={{
-                        background: 'linear-gradient(135deg, #354F52 0%, #52796F 50%, #84A98C 100%)',
-                        WebkitBackgroundClip: 'text',
-                        WebkitTextFillColor: 'transparent',
-                        backgroundClip: 'text'
-                      }}>
-                        {getSubtitle()}
-                      </h1>
-                      <p className="text-sm md:text-lg lg:text-xl text-gray-600 mb-4 md:mb-6 px-2">
-                        {getDescription()}
-                      </p>
-                      <div className="text-xs md:text-sm lg:text-base text-gray-500 mb-6 md:mb-8 font-medium flex flex-wrap items-center justify-center gap-1 md:gap-2 px-2">
-                        {/* Parse statsText and make each part clickable */}
-                        {statsText.split('•').map((part, index, array) => {
-                          const trimmed = part.trim();
-                          let link = '';
-                          
-                          // Determine the appropriate link based on the content
-                          if (trimmed.includes('jurisdiction')) {
-                            link = '/jurisdictions';
-                          } else if (trimmed.includes('nonprofit')) {
-                            link = '/nonprofits';
-                          } else if (trimmed.includes('leader')) {
-                            link = '/people';
-                          } else if (trimmed.includes('cause')) {
-                            link = '/search';
-                          }
-                          
-                          return (
-                            <React.Fragment key={index}>
-                              {link ? (
-                                <Link
-                                  to={link}
-                                  className="hover:text-[#354F52] hover:underline transition-colors cursor-pointer"
-                                >
-                                  {trimmed}
-                                </Link>
-                              ) : (
-                                <span>{trimmed}</span>
-                              )}
-                              {index < array.length - 1 && <span className="text-gray-400">•</span>}
-                            </React.Fragment>
-                          );
-                        })}
+                  <div
+                    className="relative flex flex-col items-center justify-center pt-1 pb-3 md:pt-2 md:pb-5 px-2 md:px-6"
+                    style={{ overflow: 'visible' }}
+                  >
+                    <div className="text-center max-w-6xl w-full mx-auto space-y-1 md:space-y-1.5">
+                      <div className="flex justify-center px-2">
+                        <HeroLicensePlateBadge
+                          location={location}
+                          onChangeLocation={() => setSelectedTab(1)}
+                          changeLocationLabel="Change your community location"
+                        />
                       </div>
-                      
+                      <h1
+                        className="px-1 mb-0 font-semibold leading-[1.07] tracking-tight text-[clamp(2rem,5.5vw,4.125rem)]"
+                        style={{ fontFamily: "'Fraunces', serif" }}
+                      >
+                        <span className="block text-[#0f2b2b]">Your community.</span>
+                        <span className="block text-[#1a6b6b] italic mt-0.5 font-semibold">Your decisions.</span>
+                      </h1>
+                      <p className="mx-auto max-w-[460px] px-2 text-[15px] sm:text-[17px] font-normal leading-[1.65] text-[#6b8a8a]">
+                        Follow leaders, track local decisions, and find support — all in one place. Free, forever.
+                      </p>
+
+                      <span id="hero-search-hint" className="sr-only">
+                        Search examples include school board budget, mental health nonprofit, zoning, and transit.
+                      </span>
+
+                      <div className="mx-auto w-full max-w-6xl px-1">
+                        <p
+                          id="hero-search-tabs-label"
+                          className="mb-2 flex items-center justify-center gap-1.5 text-center text-[11px] font-semibold uppercase tracking-[0.1em] text-[#6b8a8a]"
+                        >
+                          <FunnelIcon className="h-3.5 w-3.5 shrink-0 text-[#1a6b6b]" aria-hidden />
+                          <span>Filter search by category</span>
+                        </p>
+                      <div
+                        role="tablist"
+                        aria-labelledby="hero-search-tabs-label"
+                        className="flex justify-center"
+                        onKeyDown={(e) => {
+                          const idx = HERO_SEARCH_TAB_DEFS.findIndex((t) => t.id === heroSearchTab)
+                          if (idx < 0) return
+                          if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+                            e.preventDefault()
+                            const next = HERO_SEARCH_TAB_DEFS[(idx + 1) % HERO_SEARCH_TAB_DEFS.length]
+                            setHeroSearchTab(next.id)
+                            window.requestAnimationFrame(() => {
+                              document.getElementById(`hero-search-tab-${next.id}`)?.focus()
+                            })
+                          } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+                            e.preventDefault()
+                            const prev =
+                              HERO_SEARCH_TAB_DEFS[
+                                (idx - 1 + HERO_SEARCH_TAB_DEFS.length) % HERO_SEARCH_TAB_DEFS.length
+                              ]
+                            setHeroSearchTab(prev.id)
+                            window.requestAnimationFrame(() => {
+                              document.getElementById(`hero-search-tab-${prev.id}`)?.focus()
+                            })
+                          }
+                        }}
+                      >
+                        <div className="inline-flex max-w-full flex-wrap justify-center gap-2 rounded-full border border-[#d4e8e8] bg-[#e8f2f2] p-2 shadow-inner">
+                          {HERO_SEARCH_TAB_DEFS.map((tab) => {
+                            const selected = heroSearchTab === tab.id
+                            const countBadge =
+                              tab.id === 'bills'
+                                ? formatCompactCount(locationStats?.bills as number | undefined)
+                                : tab.count
+                            return (
+                              <button
+                                key={tab.id}
+                                type="button"
+                                id={`hero-search-tab-${tab.id}`}
+                                role="tab"
+                                aria-selected={selected}
+                                tabIndex={selected ? 0 : -1}
+                                title={`Show ${tab.label} results`}
+                                className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-4 py-2 text-[13px] font-semibold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1a6b6b] focus-visible:ring-offset-2 active:scale-[0.98] ${
+                                  selected
+                                    ? 'border-[#1a6b6b] bg-[#1a6b6b] text-white shadow-[0_2px_10px_rgba(26,107,107,0.35)]'
+                                    : 'border border-white/90 bg-white text-[#4a6a6a] shadow-sm hover:border-[#1a6b6b]/45 hover:bg-[#f7fafb] hover:text-[#0f2b2b] hover:shadow-md'
+                                }`}
+                                onClick={() => setHeroSearchTab(tab.id)}
+                              >
+                                {tab.label}
+                                {countBadge ? (
+                                  <span
+                                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold leading-none tabular-nums ${
+                                      selected
+                                        ? 'border border-white/30 bg-white/20 text-white'
+                                        : 'bg-[#e8f4f4] text-[#1a6b6b]'
+                                    }`}
+                                  >
+                                    {countBadge}
+                                  </span>
+                                ) : null}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                      </div>
+
                       {/* Search Box */}
-                      <div className="max-w-3xl mx-auto mb-6">
-                        <div className="bg-white rounded-xl shadow-lg border-2 border-gray-200 p-4" ref={searchContainerRef}>
-                          <form onSubmit={handleSearch}>
-                            {/* Search Input and Scope Dropdown on Same Line */}
-                            <div className="flex flex-col sm:flex-row gap-2 mb-3 relative">
-                              <div className="flex-1 relative">
+                      <div className="w-full max-w-6xl mx-auto" ref={searchContainerRef}>
+                        <div
+                          id="hero-search-primary"
+                          className="overflow-visible rounded-xl border-[1.5px] border-[#d4e8e8] bg-white shadow-[0_4px_20px_rgba(26,107,107,0.08)]"
+                        >
+                          <form onSubmit={handleSearch} className="flex flex-col lg:flex-row lg:items-stretch divide-y lg:divide-y-0 lg:divide-x divide-[#d4e8e8]">
+                            <div className="relative min-w-0 flex-1 p-3 md:py-3.5 md:pl-4 md:pr-2">
+                              <label htmlFor="hero-search-input" className="sr-only">
+                                Search query
+                              </label>
+                              <div className="flex min-h-[2.75rem] items-center gap-2.5 rounded-[10px] border border-[#c5dede] bg-[#f7fafb] px-3 py-1.5 shadow-[inset_0_1px_2px_rgba(15,43,43,0.06)] transition-colors focus-within:border-[#1a6b6b] focus-within:bg-white focus-within:shadow-[inset_0_0_0_1px_rgba(26,107,107,0.2),0_1px_3px_rgba(26,107,107,0.08)]">
+                                <MagnifyingGlassIcon
+                                  className="pointer-events-none h-5 w-5 shrink-0 text-[#6b8a8a]"
+                                  aria-hidden
+                                />
                                 <input
-                                  type="text"
-                                  placeholder={window.innerWidth < 640 ? "Search organizations, bills, causes..." : "Search contacts, organizations, bills, topics, decisions, causes..."}
+                                  id="hero-search-input"
+                                  type="search"
+                                  name="q"
+                                  autoComplete="off"
+                                  placeholder="Try 'school board budget' or 'mental health nonprofits'…"
+                                  title='Examples: "school board budget", "mental health nonprofit", "zoning", "transit".'
+                                  aria-describedby="hero-search-hint"
                                   value={keyword}
                                   onChange={handleKeywordChange}
                                   onFocus={() => {
@@ -1145,8 +1114,10 @@ export default function Home() {
                                       setShowSuggestions(true)
                                     }
                                   }}
-                                  className="w-full px-3 md:px-4 py-2 text-sm md:text-base border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#354F52] focus:border-transparent text-gray-900"
+                                  className="min-h-[2.25rem] min-w-0 flex-1 border-0 bg-transparent p-0 text-[15px] leading-snug text-[#0f2b2b] placeholder:text-[#9bb8b8] placeholder:leading-snug focus:outline-none focus:ring-0"
+                                  style={{ fontFamily: "'DM Sans', sans-serif" }}
                                 />
+                              </div>
                                 
                                 {/* Error Display - Below Input */}
                                 {keyword.length >= 2 && previewError && (
@@ -1432,12 +1403,28 @@ export default function Home() {
                                 )}
                               </div>
                               
-                              {/* Search Scope Dropdown */}
+                            <div className="flex flex-col justify-center gap-2 border-[#d4e8e8] px-3 py-3 md:px-4 lg:w-[min(20rem,32vw)] lg:shrink-0 lg:border-t-0">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedTab(1)}
+                                className="flex w-full items-center gap-2 rounded-lg py-1 text-left transition-colors hover:bg-[#f2fafa]"
+                                aria-label={`Location: ${heroLocationLabel}. Change location.`}
+                              >
+                                <MapPinIcon className="mt-0.5 h-5 w-5 shrink-0 text-red-600" aria-hidden />
+                                <span
+                                  className="break-words text-sm font-medium leading-snug text-[#2c4a4a] md:text-[15px]"
+                                  style={{ fontFamily: "'DM Sans', sans-serif" }}
+                                >
+                                  {heroLocationLabel}
+                                </span>
+                              </button>
                               {location ? (
                                 <select
                                   value={searchScope}
                                   onChange={(e) => setSearchScope(e.target.value)}
-                                  className="w-full sm:w-auto px-3 sm:px-4 py-2 text-sm border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#354F52] focus:border-transparent bg-white text-gray-900"
+                                  className="w-full rounded-md border border-[#d4e8e8] bg-[#f7fafa] px-2 py-1.5 text-xs text-[#6b8a8a] focus:outline-none focus:ring-1 focus:ring-[#1a6b6b]"
+                                  aria-label="Search area"
+                                  style={{ fontFamily: "'DM Sans', sans-serif" }}
                                 >
                                   <option value="city">City: {location.city}</option>
                                   <option value="county">County: {location.county || 'County'}</option>
@@ -1447,19 +1434,12 @@ export default function Home() {
                                 </select>
                               ) : null}
                             </div>
-                            
-                            <div className="flex gap-2 items-center">
-                              <button
-                                onClick={() => setSelectedTab(1)}
-                                type="button"
-                                className="px-3 py-2 text-sm font-medium text-[#354F52] hover:text-[#52796F] transition-colors whitespace-nowrap"
-                              >
-                                📍 {location ? 'Change My Location' : 'Find My Community'}
-                              </button>
-                              
+
+                            <div className="flex items-stretch p-1.5 lg:min-w-[8.5rem] lg:flex-initial lg:justify-center lg:p-2">
                               <button
                                 type="submit"
-                                className="flex-1 px-6 py-2 bg-[#354F52] text-white rounded-lg hover:bg-[#2e4346] transition-colors font-semibold shadow-lg text-sm"
+                                className="w-full rounded-lg bg-[#1a6b6b] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#2a8585] lg:self-stretch lg:py-0 lg:leading-none"
+                                style={{ fontFamily: "'DM Sans', sans-serif" }}
                               >
                                 Search
                               </button>
@@ -1469,50 +1449,6 @@ export default function Home() {
                       </div>
                     </div>
 
-                    {/* Navigation Arrows */}
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault()
-                        setSelectedStoryTab((prev) => (prev === 0 ? FEATURED_STORIES.length - 1 : prev - 1))
-                      }}
-                      className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 bg-white/20 backdrop-blur-sm hover:bg-white/30 rounded-full flex items-center justify-center text-gray-700 transition-all"
-                      aria-label="Previous story"
-                    >
-                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                      </svg>
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault()
-                        setSelectedStoryTab((prev) => (prev === FEATURED_STORIES.length - 1 ? 0 : prev + 1))
-                      }}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 bg-white/20 backdrop-blur-sm hover:bg-white/30 rounded-full flex items-center justify-center text-gray-700 transition-all"
-                      aria-label="Next story"
-                    >
-                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
-                    </button>
-
-                    {/* Story Indicators */}
-                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
-                      {FEATURED_STORIES.map((_, idx) => (
-                        <button
-                          key={idx}
-                          onClick={(e) => {
-                            e.preventDefault()
-                            setSelectedStoryTab(idx)
-                          }}
-                          className={`w-2 h-2 rounded-full transition-all ${
-                            selectedStoryTab === idx
-                              ? 'bg-gray-700 w-8'
-                              : 'bg-gray-400 hover:bg-gray-600'
-                          }`}
-                          aria-label={`Go to story ${idx + 1}`}
-                        />
-                      ))}
-                    </div>
                   </div>
                 ) : (
                   /* Regular Story with Image */
@@ -1559,30 +1495,10 @@ export default function Home() {
                         </svg>
                       </button>
 
-                      {/* Story Indicators */}
-                      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
-                        {FEATURED_STORIES.map((_, idx) => (
-                          <button
-                            key={idx}
-                            onClick={(e) => {
-                              e.preventDefault()
-                              setSelectedStoryTab(idx)
-                            }}
-                            className={`w-2 h-2 rounded-full transition-all ${
-                              selectedStoryTab === idx
-                                ? 'bg-white w-8'
-                                : 'bg-white/50 hover:bg-white/75'
-                            }`}
-                            aria-label={`Go to story ${idx + 1}`}
-                          />
-                        ))}
-                      </div>
                     </div>
                   </Link>
                 )}
               </div>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -1637,223 +1553,66 @@ export default function Home() {
         </div>
       )}
 
-      {/* Features Section */}
-      <section id="features" className="py-16 px-4 bg-white">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-12 animate-[slideUp_0.8s_ease-out_0.8s_both]">
-            <h2 className="text-3xl md:text-4xl font-bold mb-2" style={{ color: '#354F52' }}>
-              Everything You Need
-            </h2>
-            <div className="w-24 h-1 bg-gradient-to-r from-[#52796F] to-[#84A98C] mx-auto rounded mb-4"></div>
-            <p className="text-lg text-gray-600">
-              Powerful tools to stay informed and engaged
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 animate-[slideUp_0.8s_ease-out_1s_both]">
-            <Link
-              to="/documents"
-              className="group bg-gradient-to-br from-gray-50 to-white border-2 border-gray-200 rounded-2xl p-8 hover:border-[#354F52] hover:shadow-xl transition-all"
-            >
-              <div
-                className="w-14 h-14 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"
-                style={{ backgroundColor: '#354F5215' }}
-              >
-                <DocumentTextIcon className="h-7 w-7" style={{ color: '#354F52' }} />
-              </div>
-              <h3 className="text-xl font-bold mb-3" style={{ color: '#354F52' }}>
-                Policy Decisions
-              </h3>
-              <p className="text-gray-600 mb-4">
-                Track 500K+ meeting pages with decision analysis, deferral patterns, and stakeholder positions
-              </p>
-              <span className="inline-flex items-center gap-2 text-sm font-medium" style={{ color: '#354F52' }}>
-                Learn more <ArrowRightIcon className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
-              </span>
-            </Link>
-
-            <Link
-              to="/analytics"
-              className="group bg-gradient-to-br from-gray-50 to-white border-2 border-gray-200 rounded-2xl p-8 hover:border-[#52796F] hover:shadow-xl transition-all"
-            >
-              <div
-                className="w-14 h-14 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"
-                style={{ backgroundColor: '#52796F15' }}
-              >
-                <ChartBarIcon className="h-7 w-7" style={{ color: '#52796F' }} />
-              </div>
-              <h3 className="text-xl font-bold mb-3" style={{ color: '#354F52' }}>
-                Budget Analysis
-              </h3>
-              <p className="text-gray-600 mb-4">
-                Compare budget rhetoric to reality with $2T+ in tracked spending and delta analysis
-              </p>
-              <span className="inline-flex items-center gap-2 text-sm font-medium" style={{ color: '#52796F' }}>
-                Learn more <ArrowRightIcon className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
-              </span>
-            </Link>
-
-            <Link
-              to="/people"
-              className="group bg-gradient-to-br from-gray-50 to-white border-2 border-gray-200 rounded-2xl p-8 hover:border-[#84A98C] hover:shadow-xl transition-all"
-            >
-              <div
-                className="w-14 h-14 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"
-                style={{ backgroundColor: '#84A98C15' }}
-              >
-                <UserGroupIcon className="h-7 w-7" style={{ color: '#84A98C' }} />
-              </div>
-              <h3 className="text-xl font-bold mb-3" style={{ color: '#354F52' }}>
-                Elected Officials
-              </h3>
-              <p className="text-gray-600 mb-4">
-                Follow 362 officials across 925 jurisdictions with voting records and decision patterns
-              </p>
-              <span className="inline-flex items-center gap-2 text-sm font-medium" style={{ color: '#84A98C' }}>
-                Learn more <ArrowRightIcon className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
-              </span>
-            </Link>
-
-            <Link
-              to="/policy-map"
-              className="group bg-gradient-to-br from-gray-50 to-white border-2 border-gray-200 rounded-2xl p-8 hover:border-[#4A90E2] hover:shadow-xl transition-all"
-            >
-              <div
-                className="w-14 h-14 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"
-                style={{ backgroundColor: '#4A90E215' }}
-              >
-                <MapIcon className="h-7 w-7" style={{ color: '#4A90E2' }} />
-              </div>
-              <h3 className="text-xl font-bold mb-3" style={{ color: '#354F52' }}>
-                Policy Map
-              </h3>
-              <p className="text-gray-600 mb-4">
-                Track state legislation and bills across all sessions. Search 13,000+ bills by topic and status
-              </p>
-              <span className="inline-flex items-center gap-2 text-sm font-medium" style={{ color: '#4A90E2' }}>
-                Learn more <ArrowRightIcon className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
-              </span>
-            </Link>
-
-            <Link
-              to="/data-explorer"
-              className="group bg-gradient-to-br from-gray-50 to-white border-2 border-gray-200 rounded-2xl p-8 hover:border-[#354F52] hover:shadow-xl transition-all"
-            >
-              <div
-                className="w-14 h-14 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"
-                style={{ backgroundColor: '#354F5220' }}
-              >
-                <GlobeAmericasIcon className="h-7 w-7" style={{ color: '#354F52' }} />
-              </div>
-              <h3 className="text-xl font-bold mb-3" style={{ color: '#354F52' }}>
-                Data explorer
-              </h3>
-              <p className="text-gray-600 mb-4">
-                Map ACS 5-year estimates or read a scorecard with multi-year trends and country, region, or state
-                benchmarks
-              </p>
-              <span className="inline-flex items-center gap-2 text-sm font-medium" style={{ color: '#52796F' }}>
-                Open map <ArrowRightIcon className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
-              </span>
-            </Link>
-
-            <Link
-              to="/nonprofits"
-              className="group bg-gradient-to-br from-gray-50 to-white border-2 border-gray-200 rounded-2xl p-8 hover:border-[#9B59B6] hover:shadow-xl transition-all"
-            >
-              <div
-                className="w-14 h-14 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"
-                style={{ backgroundColor: '#9B59B615' }}
-              >
-                <BuildingLibraryIcon className="h-7 w-7" style={{ color: '#9B59B6' }} />
-              </div>
-              <h3 className="text-xl font-bold mb-3" style={{ color: '#354F52' }}>
-                Nonprofits & Churches
-              </h3>
-              <p className="text-gray-600 mb-4">
-                43,726 nonprofits including 4,372 churches with financial data from 5 states
-              </p>
-              <span className="inline-flex items-center gap-2 text-sm font-medium" style={{ color: '#9B59B6' }}>
-                Learn more <ArrowRightIcon className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
-              </span>
-            </Link>
-
-            <Link
-              to="/debate-grader"
-              className="group bg-gradient-to-br from-gray-50 to-white border-2 border-gray-200 rounded-2xl p-8 hover:border-[#E74C3C] hover:shadow-xl transition-all"
-            >
-              <div
-                className="w-14 h-14 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"
-                style={{ backgroundColor: '#E74C3C15' }}
-              >
-                <BellAlertIcon className="h-7 w-7" style={{ color: '#E74C3C' }} />
-              </div>
-              <h3 className="text-xl font-bold mb-3" style={{ color: '#354F52' }}>
-                Fact-Checking
-              </h3>
-              <p className="text-gray-600 mb-4">
-                Verify claims with integrated PolitiFact, FactCheck.org, and Google Fact Check data
-              </p>
-              <span className="inline-flex items-center gap-2 text-sm font-medium" style={{ color: '#E74C3C' }}>
-                Learn more <ArrowRightIcon className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
-              </span>
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* How It Works Section */}
+      {/* How It Works — aligned with /explore “From information to impact” flow */}
       <section id="how-it-works" className="py-16 px-4 bg-gradient-to-br from-gray-50 to-gray-100">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold mb-2" style={{ color: '#354F52' }}>
-              How It Works
-            </h2>
+          <div className="text-center mb-12 max-w-3xl mx-auto">
+            <p className="text-xs font-semibold uppercase tracking-widest text-teal-800/90 mb-2">How it works</p>
+            <h2 className="text-3xl md:text-4xl font-bold mb-3 text-gray-900">From information to impact</h2>
             <div className="w-24 h-1 bg-gradient-to-r from-[#52796F] to-[#84A98C] mx-auto rounded mb-4"></div>
-            <p className="text-lg text-gray-600">
-              Three simple steps to stay engaged with your community
+            <p className="text-lg text-gray-600 leading-relaxed">
+              Start by choosing a cause, make a plan (learn the record, decide who to work with, then show up), find help
+              when someone needs direct support, track the decisions that matter, and build on open data.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-            {/* Step 1 */}
-            <div className="text-center">
-              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#354F52] text-white text-2xl font-bold mb-4">
-                1
-              </div>
-              <h3 className="text-xl font-bold mb-3" style={{ color: '#354F52' }}>
-                Discover
-              </h3>
-              <p className="text-gray-600">
-                Search across 925 jurisdictions and 43,726 nonprofits to find topics, people, and causes that matter to you
-              </p>
-            </div>
-
-            {/* Step 2 */}
-            <div className="text-center">
-              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#52796F] text-white text-2xl font-bold mb-4">
-                2
-              </div>
-              <h3 className="text-xl font-bold mb-3" style={{ color: '#354F52' }}>
-                Track
-              </h3>
-              <p className="text-gray-600">
-                Monitor legislation, meetings, and policy decisions with AI-powered analysis and real-time updates
-              </p>
-            </div>
-
-            {/* Step 3 */}
-            <div className="text-center">
-              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#84A98C] text-white text-2xl font-bold mb-4">
-                3
-              </div>
-              <h3 className="text-xl font-bold mb-3" style={{ color: '#354F52' }}>
-                Engage
-              </h3>
-              <p className="text-gray-600">
-                Take action by contacting officials, supporting causes, and participating in local democracy
-              </p>
-            </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 lg:gap-3">
+            {(
+              [
+                {
+                  href: `/explore#${EXPLORE_CAUSES_ID}`,
+                  Icon: MapPinIcon,
+                  title: 'Choose a cause',
+                  blurb: 'Roads, schools, safety, family, health, or something else.',
+                },
+                {
+                  href: `/explore#${EXPLORE_PLAN_ID}`,
+                  Icon: ClipboardDocumentListIcon,
+                  title: 'Make a plan',
+                  blurb: 'Personal and community paths, allies, and outcomes.',
+                },
+                {
+                  href: `/explore#${EXPLORE_FIND_HELP_ID}`,
+                  Icon: HeartIcon,
+                  title: 'Find help',
+                  blurb: 'Nonprofits, programs, and family supports.',
+                },
+                {
+                  href: `/explore#${EXPLORE_TRACK_DECISIONS_ID}`,
+                  Icon: ChartBarIcon,
+                  title: 'Track decisions',
+                  blurb: 'Meetings, budgets, maps, and verification.',
+                },
+                {
+                  href: `/explore#${EXPLORE_BUILD_ID}`,
+                  Icon: CodeBracketIcon,
+                  title: 'Build with data',
+                  blurb: 'Open datasets, APIs, and civic tooling.',
+                },
+              ] as const
+            ).map((step) => (
+              <Link
+                key={step.title}
+                to={step.href}
+                className="flex flex-col rounded-xl border border-gray-200 bg-white p-5 text-left shadow-sm transition-all hover:border-teal-700/40 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
+              >
+                <span className="mb-3 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#354F52] text-white">
+                  <step.Icon className="h-5 w-5" aria-hidden />
+                </span>
+                <h3 className="text-base font-bold text-gray-900">{step.title}</h3>
+                <p className="mt-2 text-sm leading-snug text-gray-600">{step.blurb}</p>
+              </Link>
+            ))}
           </div>
         </div>
       </section>
@@ -1866,51 +1625,9 @@ export default function Home() {
               Our Impact
             </h2>
             <div className="w-24 h-1 bg-gradient-to-r from-[#52796F] to-[#84A98C] mx-auto rounded mb-4"></div>
-            <p className="text-lg text-gray-600">
+            <p className="mb-10 text-lg text-gray-600">
               One platform connecting residents, leaders, and funders to what's really happening on the ground
             </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
-            {/* Stat 1 */}
-            <div className="text-center">
-              <div className="text-4xl md:text-5xl font-bold mb-2" style={{ color: '#354F52' }}>
-                925
-              </div>
-              <div className="text-gray-600 font-medium">
-                Jurisdictions Tracked
-              </div>
-            </div>
-
-            {/* Stat 2 */}
-            <div className="text-center">
-              <div className="text-4xl md:text-5xl font-bold mb-2" style={{ color: '#52796F' }}>
-                43K+
-              </div>
-              <div className="text-gray-600 font-medium">
-                Nonprofits Indexed
-              </div>
-            </div>
-
-            {/* Stat 3 */}
-            <div className="text-center">
-              <div className="text-4xl md:text-5xl font-bold mb-2" style={{ color: '#84A98C' }}>
-                500K+
-              </div>
-              <div className="text-gray-600 font-medium">
-                Meeting Pages
-              </div>
-            </div>
-
-            {/* Stat 4 */}
-            <div className="text-center">
-              <div className="text-4xl md:text-5xl font-bold mb-2" style={{ color: '#4A90E2' }}>
-                13K+
-              </div>
-              <div className="text-gray-600 font-medium">
-                Legislative Bills
-              </div>
-            </div>
           </div>
 
           {/* Mission + PBC */}
@@ -1947,470 +1664,6 @@ export default function Home() {
           </div>
         </div>
       </section>
-
-      {/* Search Section (Collapsible) */}
-      <div className="bg-gray-50 py-12 border-t border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-8 animate-[slideUp_0.8s_ease-out_0.8s_both]">
-            <h2 className="text-3xl md:text-4xl font-bold mb-2" style={{ color: '#354F52' }}>
-              Search Your Community
-            </h2>
-            <div className="w-24 h-1 bg-gradient-to-r from-[#52796F] to-[#84A98C] mx-auto rounded mb-4"></div>
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              Track local governments and charities. Find leaders by name. Discover causes.{' '}
-              <Link to="/jurisdictions" className="font-semibold text-[#52796F] hover:text-[#354F52] hover:underline hover:decoration-2 transition-colors">925 jurisdictions</Link>.{' '}
-              <Link to="/search?types=organizations" className="font-semibold hover:underline">43,726 nonprofits</Link>. All free.
-            </p>
-          </div>
-
-          {/* Tabbed Interface */}
-          <div className="max-w-5xl mx-auto mb-8">
-            <Tab.Group selectedIndex={selectedTab} onChange={setSelectedTab}>
-              <Tab.List className="flex space-x-2 rounded-xl bg-white p-2 shadow-lg mb-6">
-                <Tab as={Fragment}>
-                  {({ selected }) => (
-                    <button
-                      className={`w-full rounded-lg py-3 px-4 text-base font-medium leading-5 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
-                        selected ? 'text-white shadow' : 'text-gray-700 hover:bg-gray-100'
-                      }`}
-                      style={selected ? { backgroundColor: '#354F52' } : {}}
-                    >
-                      🔍 Search Topics
-                    </button>
-                  )}
-                </Tab>
-                <Tab as={Fragment}>
-                  {({ selected }) => (
-                    <button
-                      className={`w-full rounded-lg py-3 px-4 text-base font-medium leading-5 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
-                        selected ? 'text-white shadow' : 'text-gray-700 hover:bg-gray-100'
-                      }`}
-                      style={selected ? { backgroundColor: '#354F52' } : {}}
-                    >
-                      📍 {location ? 'Change My Community' : 'Find My Local Community'}
-                    </button>
-                  )}
-                </Tab>
-              </Tab.List>
-
-              <Tab.Panels>
-                {/* Search Tab */}
-                <Tab.Panel>
-                  <div className="bg-white rounded-xl shadow-lg p-8" style={{ overflow: 'visible' }}>
-                    <form onSubmit={handleSearch}>
-                      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-end">
-                        <div className="lg:col-span-7">
-                          <label className="block text-left text-sm font-medium text-gray-700 mb-2">
-                            Search for topics, people, organizations, or causes
-                          </label>
-                          <div className="relative">
-                            <input
-                              type="text"
-                              placeholder="Try: mayor, dental clinic, food bank, affordable housing..."
-                              value={keyword}
-                              onChange={handleKeywordChange}
-                              onFocus={() => {
-                                if (keyword.length >= 2) {
-                                  setShowSuggestions(true)
-                                }
-                              }}
-                              className="w-full px-4 py-3 text-lg border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-gray-900"
-                            />
-                            
-                            {/* Error Display */}
-                            {showSuggestions && previewError && (
-                              <div className="absolute z-50 w-full mt-2 bg-red-50 border border-red-200 rounded-lg shadow-xl p-4">
-                                <div className="flex items-start gap-3">
-                                  <div className="flex-shrink-0">
-                                    <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                                    </svg>
-                                  </div>
-                                  <div className="flex-1">
-                                    <h3 className="text-sm font-medium text-red-800">Search Error</h3>
-                                    <p className="mt-1 text-sm text-red-700">
-                                      {(previewError as any)?.response?.status === 404 
-                                        ? 'Search endpoint not found. The API may still be starting up.'
-                                        : 'Unable to fetch search results. Please try again.'}
-                                    </p>
-                                    <p className="mt-2 text-xs text-red-600">
-                                      Error details: {(previewError as any)?.message || 'Unknown error'}
-                                    </p>
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-                            
-                            {/* Loading Display */}
-                            {showSuggestions && previewLoading && (
-                              <div className="absolute z-50 w-full mt-2 bg-white border border-gray-200 rounded-lg shadow-xl p-4">
-                                <div className="flex items-center justify-center gap-3">
-                                  <svg className="animate-spin h-5 w-5 text-primary-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                  </svg>
-                                  <span className="text-sm text-gray-600">Searching...</span>
-                                </div>
-                              </div>
-                            )}
-                            
-                            {/* Rich Preview Dropdown with Grouped Results */}
-                            {showSuggestions && !previewLoading && !previewError && previewResults && previewResults.total_results > 0 && (
-                              <div className="absolute z-50 w-full mt-2 bg-white border border-gray-200 rounded-lg shadow-xl max-h-96 overflow-y-auto">
-                                
-                                {/* Causes Section */}
-                                {previewResults.results.causes.length > 0 && (
-                                  <div className="border-b border-gray-200">
-                                    <div className="px-4 py-2 bg-gray-50 flex items-center justify-between">
-                                      <div className="flex items-center gap-2">
-                                        <HeartIcon className="h-4 w-4 text-gray-500" />
-                                        <span className="text-xs font-semibold text-gray-700 uppercase">Causes</span>
-                                      </div>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleViewAllCategory('causes')}
-                                        className="text-xs text-primary-600 hover:text-primary-700 font-medium"
-                                      >
-                                        View All
-                                      </button>
-                                    </div>
-                                    {previewResults.results.causes.slice(0, 3).map((result: any, idx: number) => (
-                                      <button
-                                        key={idx}
-                                        type="button"
-                                        onClick={() => handleSelectSuggestion(result.title)}
-                                        className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
-                                      >
-                                        <HeartIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
-                                        <div className="flex-1 min-w-0">
-                                          <div className="font-medium text-gray-900 truncate">{result.title}</div>
-                                          <div className="text-sm text-gray-600 truncate">
-                                            {result.breadcrumb || result.subtitle || result.description || ''}
-                                          </div>
-                                        </div>
-                                      </button>
-                                    ))}
-                                  </div>
-                                )}
-
-                                {/* People (Contacts) Section */}
-                                {previewResults.results.contacts.length > 0 && (
-                                  <div className="border-b border-gray-200">
-                                    <div className="px-4 py-2 bg-gray-50 flex items-center justify-between">
-                                      <div className="flex items-center gap-2">
-                                        <UserIcon className="h-4 w-4 text-gray-500" />
-                                        <span className="text-xs font-semibold text-gray-700 uppercase">People</span>
-                                      </div>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleViewAllCategory('contacts')}
-                                        className="text-xs text-primary-600 hover:text-primary-700 font-medium"
-                                      >
-                                        View All
-                                      </button>
-                                    </div>
-                                    {previewResults.results.contacts.slice(0, 3).map((result: any, idx: number) => (
-                                      <button
-                                        key={idx}
-                                        type="button"
-                                        onClick={() => handleSelectSuggestion(result.title)}
-                                        className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
-                                      >
-                                        <UserIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
-                                        <div className="flex-1 min-w-0">
-                                          <div className="font-medium text-gray-900 truncate">{result.title}</div>
-                                          <div className="text-sm text-gray-600 truncate">{result.subtitle}</div>
-                                        </div>
-                                      </button>
-                                    ))}
-                                  </div>
-                                )}
-
-                                {/* Organizations Section */}
-                                {previewResults.results.organizations.length > 0 && (
-                                  <div>
-                                    <div className="px-4 py-2 bg-gray-50 flex items-center justify-between">
-                                      <div className="flex items-center gap-2">
-                                        <BuildingOfficeIcon className="h-4 w-4 text-gray-500" />
-                                        <span className="text-xs font-semibold text-gray-700 uppercase">Organizations</span>
-                                      </div>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleViewAllCategory('organizations')}
-                                        className="text-xs text-primary-600 hover:text-primary-700 font-medium"
-                                      >
-                                        View All
-                                      </button>
-                                    </div>
-                                    {previewResults.results.organizations.slice(0, 3).map((result: any, idx: number) => (
-                                      <button
-                                        key={idx}
-                                        type="button"
-                                        onClick={() => handleSelectSuggestion(result.title)}
-                                        className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors last:rounded-b-lg"
-                                      >
-                                        {result.metadata?.logo_url ? (
-                                          <img 
-                                            src={result.metadata.logo_url} 
-                                            alt={`${result.title} logo`}
-                                            className="h-5 w-5 rounded object-contain mt-0.5 flex-shrink-0"
-                                            onError={(e) => {
-                                              // Fallback to icon if image fails to load
-                                              e.currentTarget.style.display = 'none';
-                                              e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                                            }}
-                                          />
-                                        ) : null}
-                                        <BuildingOfficeIcon className={`h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0 ${result.metadata?.logo_url ? 'hidden' : ''}`} />
-                                        <div className="flex-1 min-w-0">
-                                          <div className="font-medium text-gray-900 truncate">{result.title}</div>
-                                          <div className="text-sm text-gray-600 truncate">{result.subtitle}</div>
-                                        </div>
-                                      </button>
-                                    ))}
-                                  </div>
-                                )}
-
-                                {/* Bills Section */}
-                                {previewResults.results.bills && previewResults.results.bills.length > 0 && (
-                                  <div className="border-b border-gray-200">
-                                    <div className="px-4 py-2 bg-gray-50 flex items-center justify-between">
-                                      <div className="flex items-center gap-2">
-                                        <DocumentTextIcon className="h-4 w-4 text-gray-500" />
-                                        <span className="text-xs font-semibold text-gray-700 uppercase">Bills</span>
-                                      </div>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleViewAllCategory('bills')}
-                                        className="text-xs text-primary-600 hover:text-primary-700 font-medium"
-                                      >
-                                        View All
-                                      </button>
-                                    </div>
-                                    {previewResults.results.bills.slice(0, 3).map((result: any, idx: number) => (
-                                      <button
-                                        key={idx}
-                                        type="button"
-                                        onClick={() => handleSelectSuggestion(result.title)}
-                                        className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
-                                      >
-                                        <DocumentTextIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
-                                        <div className="flex-1 min-w-0">
-                                          <div className="font-medium text-gray-900 truncate">{result.title}</div>
-                                          <div className="text-sm text-gray-600 truncate">{result.subtitle || result.description}</div>
-                                        </div>
-                                      </button>
-                                    ))}
-                                  </div>
-                                )}
-
-                                {/* Topics Section */}
-                                {previewResults.results.topics && previewResults.results.topics.length > 0 && (
-                                  <div className="border-b border-gray-200">
-                                    <div className="px-4 py-2 bg-gray-50 flex items-center justify-between">
-                                      <div className="flex items-center gap-2">
-                                        <ChatBubbleBottomCenterTextIcon className="h-4 w-4 text-gray-500" />
-                                        <span className="text-xs font-semibold text-gray-700 uppercase">Topics</span>
-                                      </div>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleViewAllCategory('topics')}
-                                        className="text-xs text-primary-600 hover:text-primary-700 font-medium"
-                                      >
-                                        View All
-                                      </button>
-                                    </div>
-                                    {previewResults.results.topics.slice(0, 3).map((result: any, idx: number) => (
-                                      <button
-                                        key={idx}
-                                        type="button"
-                                        onClick={() => handleSelectSuggestion(result.title)}
-                                        className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
-                                      >
-                                        <ChatBubbleBottomCenterTextIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
-                                        <div className="flex-1 min-w-0">
-                                          <div className="font-medium text-gray-900 truncate">{result.title}</div>
-                                          <div className="text-sm text-gray-600 truncate">{result.subtitle || result.description}</div>
-                                        </div>
-                                      </button>
-                                    ))}
-                                  </div>
-                                )}
-
-                                {/* Decisions Section */}
-                                {previewResults.results.decisions && previewResults.results.decisions.length > 0 && (
-                                  <div className="border-b border-gray-200">
-                                    <div className="px-4 py-2 bg-gray-50 flex items-center justify-between">
-                                      <div className="flex items-center gap-2">
-                                        <ScaleIcon className="h-4 w-4 text-gray-500" />
-                                        <span className="text-xs font-semibold text-gray-700 uppercase">Decisions</span>
-                                      </div>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleViewAllCategory('decisions')}
-                                        className="text-xs text-primary-600 hover:text-primary-700 font-medium"
-                                      >
-                                        View All
-                                      </button>
-                                    </div>
-                                    {previewResults.results.decisions.slice(0, 3).map((result: any, idx: number) => (
-                                      <button
-                                        key={idx}
-                                        type="button"
-                                        onClick={() => handleSelectSuggestion(result.title)}
-                                        className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
-                                      >
-                                        <ScaleIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
-                                        <div className="flex-1 min-w-0">
-                                          <div className="font-medium text-gray-900 truncate">{result.title}</div>
-                                          <div className="text-sm text-gray-600 truncate">{result.subtitle || result.description}</div>
-                                        </div>
-                                      </button>
-                                    ))}
-                                  </div>
-                                )}
-
-                                {/* Footer with total results */}
-                                <div className="px-4 py-2 bg-gray-50 text-center border-t border-gray-200">
-                                  <button
-                                    type="submit"
-                                    className="text-sm text-primary-600 hover:text-primary-700 font-medium"
-                                  >
-                                    See all {previewResults.total_results} results →
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="lg:col-span-3">
-                          <label className="block text-left text-sm font-medium text-gray-700 mb-2">
-                            Search In
-                          </label>
-                          {location ? (
-                            <div className="relative">
-                              <select
-                                value={searchScope}
-                                onChange={(e) => setSearchScope(e.target.value)}
-                                className="w-full px-4 py-3 text-lg border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white text-gray-900"
-                              >
-                                <option value="city">My City ({location.city})</option>
-                                <option value="county">My County ({location.county || 'County'})</option>
-                                <option value="community">School Board ({location.city})</option>
-                                <option value="state">My State ({location.state})</option>
-                                <option value="national">National</option>
-                              </select>
-                              <button
-                                type="button"
-                                onClick={() => navigate('/?tab=community')}
-                                className="absolute -bottom-6 left-0 right-0 text-xs text-primary-600 hover:text-primary-700 font-medium underline flex items-center justify-center gap-1"
-                              >
-                                <MapPinIcon className="h-3 w-3" />
-                                Change Location
-                              </button>
-                            </div>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => navigate('/?tab=community')}
-                              className="w-full px-4 py-3 text-lg border-2 border-primary-600 rounded-lg bg-primary-50 text-primary-700 hover:bg-primary-100 transition-colors font-semibold flex items-center justify-center gap-2"
-                            >
-                              <MapPinIcon className="h-5 w-5" />
-                              Set Your Location First
-                            </button>
-                          )}
-                        </div>
-
-                        <div className="lg:col-span-2">
-                          <label className="block text-left text-sm font-medium text-gray-700 mb-2 invisible">
-                            Search
-                          </label>
-                          <button
-                            type="submit"
-                            className="w-full text-white px-6 py-3 rounded-lg transition-colors text-lg font-semibold flex items-center justify-center gap-2"
-                            style={{ backgroundColor: '#354F52' }}
-                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2e4346'}
-                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#354F52'}
-                          >
-                            <MagnifyingGlassIcon className="h-6 w-6" />
-                            Search
-                          </button>
-                        </div>
-                      </div>
-                    </form>
-                  </div>
-                </Tab.Panel>
-
-                {/* Find My Community Tab */}
-                <Tab.Panel>
-                  <div className="bg-white rounded-xl shadow-lg p-8">
-                    <h2 className="text-2xl font-bold mb-3 text-center" style={{ color: '#354F52' }}>
-                      {location ? `What's Happening in ${location.city}, ${location.state}?` : "What's Happening in Your Community?"}
-                    </h2>
-                    <p className="text-gray-600 text-center mb-6">
-                      {location 
-                        ? 'Update your address to change your community location' 
-                        : 'Enter your address to find local organizations, city councils, county boards, school districts, and charities near you'}
-                    </p>
-                    <AddressLookup onLocationFound={handleAddressFound} />
-                    
-                    {/* Success message and return to search button */}
-                    {location && (
-                      <div className="mt-8 p-6 bg-green-50 border-2 border-green-200 rounded-xl">
-                        <div className="flex items-start gap-3 mb-4">
-                          <CheckCircleIcon className="h-6 w-6 text-green-600 flex-shrink-0 mt-0.5" />
-                          <div className="flex-1">
-                            <h3 className="text-lg font-bold text-green-900 mb-1">
-                              Location Set Successfully!
-                            </h3>
-                            <p className="text-green-700">
-                              You're all set for <strong>{location.city}, {location.state}</strong>. Now you can search for topics in your community.
-                            </p>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => setSelectedTab(0)}
-                          className="w-full bg-green-600 hover:bg-green-700 text-white px-6 py-4 rounded-lg font-semibold text-lg flex items-center justify-center gap-2 transition-all shadow-lg hover:shadow-xl"
-                        >
-                          <MagnifyingGlassIcon className="h-6 w-6" />
-                          Search Topics in My Community
-                          <ArrowRightIcon className="h-5 w-5" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </Tab.Panel>
-              </Tab.Panels>
-            </Tab.Group>
-          </div>
-
-          {/* Quick Topics */}
-          <div className="max-w-5xl mx-auto mb-6">
-            <p className="text-sm text-gray-600 text-center mb-3">Popular topics:</p>
-            <div className="flex flex-wrap justify-center gap-3">
-              {categories.map((category) => (
-                <button
-                  key={category.name}
-                  onClick={() => quickSearch(category)}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-white border-2 border-gray-300 rounded-lg hover:border-primary-500 hover:bg-primary-50 transition-colors"
-                >
-                  <category.icon className="h-5 w-5 text-gray-600" />
-                  <span className="font-medium text-gray-700">{category.name}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Terms */}
-          <p className="text-sm text-gray-500">
-            By continuing, you agree to the{' '}
-            <a href="#" className="text-primary-600 hover:underline">Terms</a>
-            {' & '}
-            <a href="#" className="text-primary-600 hover:underline">Privacy</a>.
-          </p>
-        </div>
-      </div>
 
       {/* Features Grid */}
       <div className="py-16" style={{ backgroundColor: '#354F52' }}>
@@ -2456,38 +1709,6 @@ export default function Home() {
                 </span>
               </div>
             </a>
-          </div>
-        </div>
-      </div>
-
-      {/* Stats Section */}
-      <div className="py-16" style={{ backgroundColor: '#F1F5F9' }}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 text-center">
-            <div>
-              <div className="text-4xl font-bold text-primary-600 mb-2">2,500+</div>
-              <div className="text-gray-600">Causes Tracked</div>
-            </div>
-            <div>
-              <div className="text-4xl font-bold text-emerald-600 mb-2">15,000+</div>
-              <div className="text-gray-600">Government Decisions</div>
-            </div>
-            <div>
-              <div className="text-4xl font-bold text-amber-600 mb-2">8 Years</div>
-              <div className="text-gray-600">Historical Coverage</div>
-            </div>
-            <div>
-              <div className="text-4xl font-bold text-cyan-600 mb-2">5,000+</div>
-              <div className="text-gray-600">Meeting Records</div>
-            </div>
-            <div>
-              <div className="text-4xl font-bold mb-2" style={{ color: '#354F52' }}>12,000+</div>
-              <div className="text-gray-600">Hours of Video</div>
-            </div>
-            <div>
-              <div className="text-4xl font-bold text-purple-600 mb-2">100%</div>
-              <div className="text-gray-600">Free & Open</div>
-            </div>
           </div>
         </div>
       </div>

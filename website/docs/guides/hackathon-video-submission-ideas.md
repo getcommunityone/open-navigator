@@ -1,6 +1,6 @@
 ---
 displayed_sidebar: developersSidebar
-description: Reference patterns and a checklist for strong “Google for Good”–style hackathon demo videos (CommunityOne / Open Navigator), plus a catalog of short inspirational civic data and visualization talks.
+description: Reference patterns and a checklist for strong “Google for Good”–style hackathon demo videos (CommunityOne / Open Navigator), plus a catalog of short inspirational civic data and visualization talks and case studies.
 ---
 
 # Hackathon video submission ideas (reference library)
@@ -51,7 +51,7 @@ Judges and voters often decide from a **short demo**: problem clarity, human fac
 
 ## Inspirational catalog: civic data, tech & visualizations
 
-Short talks and product stories that show how **data + maps + humane design** change what people can *see* and *do* in civic life. Most clips are **under about seven minutes** (one TED talk runs slightly longer—called out below). Use them as **tone references** for your own demo: problem → insight → action.
+Short talks, product stories, and case studies that show how **data + maps + humane design** change what people can *see* and *do* in civic life. Most clips are **under about seven minutes** (one TED talk runs slightly longer—called out below). Use them as **tone references** for your own demo: problem → insight → action.
 
 ### 1. The Joy of Stats — 200 countries, 200 years in minutes
 
@@ -174,6 +174,18 @@ Short talks and product stories that show how **data + maps + humane design** ch
 **The tech:** A **structured curriculum** (short videos + materials) teaches power centers, roles, and **no-blame** problem framing—**civic education as a platform**.
 
 **Why it’s inspirational:** It treats democracy partly as **literacy and method**—skills that compound when paired with open data products.
+
+---
+
+### 11. Township garage sale — from paper maps to live vendor layout (Maine Township, Illinois)
+
+**Case study:** [CivicPlus — *Modernizing Tradition: Maine Township’s Garage Sale Goes Digital*](https://www.civicplus.com/case-studies/pr/maine-township-goes-digital-successfully/)
+
+**The problem:** A large annual community fundraiser relied on **in-person-only** vendor signup, **cash/check** payments, and a **paper map** of spaces—creating long lines, weak accessibility for non-residents and daytime workers, and occasional **double bookings** when availability wasn’t updated in real time.
+
+**The tech:** **Online registration and payments**, an **interactive map** of vendor spaces with **live sold/available** status, **centralized records** (including walk-ins entered into the same system), and **equipment rental** inventory (e.g. tables).
+
+**Why it’s inspirational:** It’s a concrete **“civic operations + maps + payments”** story—exactly the kind of workflow a hackathon team could reimagine with **open data**, transparent rules, and **resident-first** UX without requiring a proprietary stack.
 
 ---
 

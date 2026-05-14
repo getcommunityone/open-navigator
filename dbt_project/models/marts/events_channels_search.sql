@@ -37,10 +37,13 @@ SELECT
     channel_url,
     channel_title,
     channel_type,
+    channel_description,
+    channel_external_links,
     
     -- Channel metrics
     subscriber_count,
     video_count,
+    view_count,
     
     -- Source validation flags
     in_localview,
@@ -57,6 +60,7 @@ SELECT
     -- Jurisdiction associations
     jurisdictions,
     jurisdiction_ids,
+    jurisdiction_id,
     jurisdiction_association_count,
     event_jurisdiction_count,
     

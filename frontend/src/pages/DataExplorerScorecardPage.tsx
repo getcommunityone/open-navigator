@@ -61,6 +61,41 @@ function intersectVintageLists(base: string[], side: string[] | undefined): stri
   return out.length ? out : base
 }
 
+/** Compact toggle label: multi-year options are rolling ACS 5-year windows. */
+function scorecardTrendToggleLabel(years: 1 | 3 | 5): string {
+  if (years === 1) return '1yr'
+  return years === 3 ? 'Roll 3yr' : 'Roll 5yr'
+}
+
+/** Short phrase for help copy (e.g. "rolling 5-year"). */
+function scorecardRollingWindowAdjective(years: 1 | 3 | 5): string {
+  if (years === 1) return '1-year'
+  return `rolling ${years}-year`
+}
+
+/** Inline “over …” line under % change in the trend column. */
+function scorecardTrendOverLine(trendYears: 1 | 3 | 5): string {
+  if (trendYears === 1) return 'over 1 yr (successive ACS end-years)'
+  return `over rolling ${trendYears}-yr window`
+}
+
+function scorecardTrendPercentTitle(trendYears: 1 | 3 | 5, neutral: boolean): string {
+  const base = neutral ? 'Percent change in the published estimate' : 'Percent change'
+  if (trendYears === 1) return `${base} (1-yr successive end-years)`
+  return `${base} (rolling ${trendYears}-yr window)`
+}
+
+/** Caption under the trend window control. */
+function scorecardTrendCompareCaption(years: 1 | 3 | 5, displayVintage: string, vy: string | null): string {
+  if (!vy) {
+    return `End year ${displayVintage} — comparison vintage for this window is not in the published bundle.`
+  }
+  if (years === 1) {
+    return `Year-over-year on ACS end-years: ${vy} → ${displayVintage}.`
+  }
+  return `Rolling ${years}-year window: ACS 5-year estimates from survey ending ${vy} to ending ${displayVintage} (${years} years between end-years; each value is a full 5-year pooled rolling estimate).`
+}
+
 const SCORECARD_GROUPS: { id: string; title: string; slugs: string[] }[] = [
   {
     id: 'income',
@@ -193,12 +228,14 @@ function directedTrendHeadline(
   return null
 }
 
-function neutralChangeBadge(arrows: TrendArrowPack, yearsBack: number): ReactNode {
+function neutralChangeBadge(arrows: TrendArrowPack, trendYears: 1 | 3 | 5): ReactNode {
   if (!arrows.label || arrows.arrow === '—') return <span className="text-slate-400">—</span>
+  const win =
+    trendYears === 1 ? '1-yr step' : trendYears === 3 ? 'rolling 3-yr window' : 'rolling 5-yr window'
   if (arrows.label === 'Flat') {
     return (
       <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
-        Flat vs {yearsBack} yr{yearsBack === 1 ? '' : 's'} ago
+        Flat ({win})
       </span>
     )
   }
@@ -210,7 +247,7 @@ function neutralChangeBadge(arrows: TrendArrowPack, yearsBack: number): ReactNod
       }`}
       title="Directional change for the selected window. This metric has no built-in “higher is better” rule — interpret with context."
     >
-      {up ? `Up vs ${yearsBack} yr${yearsBack === 1 ? '' : 's'} ago` : `Down vs ${yearsBack} yr${yearsBack === 1 ? '' : 's'} ago`}
+      {up ? `Up (${win})` : `Down (${win})`}
       <span className="font-normal text-slate-600"> · {arrows.label}</span>
     </span>
   )
@@ -427,9 +464,14 @@ function ScorecardTrendArrowsHelpInline(): ReactElement {
       </summary>
       <div className="absolute right-0 top-full z-30 mt-1 w-[min(22rem,calc(100vw-2.5rem))] rounded-md border border-slate-200 bg-white p-2 text-left shadow-lg">
         <p className="text-[10px] leading-snug text-slate-600">
-          Scored metrics (e.g. income, poverty): ↑↑ / ↑ = stronger vs milder <span className="text-emerald-800">favorable</span>{' '}
-          change; ↓↓ / ↓ = <span className="text-amber-900">unfavorable</span>. Neutral metrics (e.g. median rent): same arrows
-          for magnitude; labels do not call the move good or bad.
+          <span className="font-semibold text-slate-800">Trend column</span> uses this area’s ACS values only (percent
+          change over the window you picked)—<span className="font-semibold">not</span> vs the benchmark. ↑↓ = estimate rose
+          or fell; double vs single arrow ≈ strong vs slight move (about 8%+ absolute change). For scored metrics, green
+          “Favorable” / amber “Unfavorable” means that move is good or bad for{' '}
+          <span className="font-semibold">that metric’s direction</span> (e.g. poverty down is good). Neutral metrics: arrows
+          show magnitude; we do not label the move good or bad. Benchmark level and pace appear in the “vs.” column when
+          shown. Section letter grades count favorable <span className="font-semibold">area</span> trends; changing the
+          benchmark does not change them.
         </p>
       </div>
     </details>
@@ -879,9 +921,10 @@ export default function DataExplorerScorecardPage() {
   const helpTrend =
     trendYears === 1
       ? `1yr trend: percent change between successive ACS 5-year estimates in this bundle (${vyPr1 ?? '…'} → ${displayVintage}). Each value is a full 5-year survey window, not a single calendar year. The ↑/↓ arrows follow the sign of that change; double arrows mean a large move (about 8%+ absolute change). “Favorable / unfavorable” uses each metric’s direction (e.g. higher income is usually better; longer commute time is worse).`
-      : `${trendYears}yr trend: percent change between the ACS 5-year estimate ending in ${displayVintage} and the estimate ending in ${vyForTrendHelp ?? '…'} (${trendYears} calendar years earlier on the survey end-year — two published 5-year tables, not single-year ACS). The ↑/↓ arrows follow the sign of that change; double arrows mean a large move (about 8%+ absolute change). “Favorable / unfavorable” uses each metric’s direction.`
+      : `Rolling ${trendYears}-year trend: percent change between two ACS 5-year estimates as the pooled rolling survey advances ${trendYears} years on the end-year—values ending ${vyForTrendHelp ?? '…'} and ${displayVintage}. Each endpoint is still a full 5-year pooled estimate (not a one-year tabulation). The ↑/↓ arrows follow the sign of that change; double arrows mean a large move (about 8%+ absolute change). “Favorable / unfavorable” uses each metric’s direction.`
+  const paceWindowLabel = scorecardRollingWindowAdjective(trendYears)
   const helpVs = showBenchmarkColumn
-    ? `“Ahead / behind” compares ${selectedPlaceLabel}'s latest ${displayVintage} value to ${benchmarkEntitySentence}. The smaller line compares ${trendYears}-year growth pace (percentage-point difference in % change) versus ${paceVersusLabel}.`
+    ? `“Ahead / behind” compares ${selectedPlaceLabel}'s latest ${displayVintage} value to ${benchmarkEntitySentence}. The smaller line compares ${paceWindowLabel} growth pace (percentage-point difference in % change) versus ${paceVersusLabel}.`
     : ''
 
   return (
@@ -1106,8 +1149,8 @@ export default function DataExplorerScorecardPage() {
                 <p className="mt-3 text-sm leading-snug text-slate-600">
                   {trendPanorama.total === 0 ? (
                     <span>
-                      No trend values for the selected {trendYears}-year window in this export (check older vintages or
-                      try another window).
+                      No trend values for the selected {scorecardRollingWindowAdjective(trendYears)} window in this
+                      export (check older vintages or try another window).
                     </span>
                   ) : (
                     <>
@@ -1116,7 +1159,9 @@ export default function DataExplorerScorecardPage() {
                       <span className="font-semibold text-emerald-700">{trendPanorama.total}</span>
                       <span> tracked metrics </span>
                       <span>
-                        are improving over {trendYears} {trendYears === 1 ? 'year' : 'years'}.
+                        {trendYears === 1
+                          ? 'are improving on the 1-year (successive ACS end-year) trend.'
+                          : `are improving on the rolling ${trendYears}-year trend window.`}
                       </span>
                     </>
                   )}
@@ -1126,7 +1171,7 @@ export default function DataExplorerScorecardPage() {
                 <TrendPanoramaBar ratio={trendPanorama.ratio} zone={trendPanorama.zone} />
               </div>
               <div className="flex w-full flex-col gap-2 lg:w-56 lg:flex-none">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Show trends over</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Trend window</p>
                 <div className="flex rounded-lg border border-slate-200 bg-slate-50/90 p-0.5">
                   {([1, 3, 5] as const).map((y) => {
                     const can = y === 1 ? canTrend1 : y === 3 ? canTrend3 : canTrend5
@@ -1135,6 +1180,11 @@ export default function DataExplorerScorecardPage() {
                         key={y}
                         type="button"
                         disabled={!can}
+                        title={
+                          y === 1
+                            ? 'Successive ACS 5-year end-years in this bundle'
+                            : `Rolling ${y}-year window: compare ACS 5-year estimates ${y} end-years apart`
+                        }
                         onClick={() => can && setTrendYears(y)}
                         className={[
                           'flex-1 rounded-md px-2 py-2 text-center text-xs font-semibold transition-colors',
@@ -1145,15 +1195,13 @@ export default function DataExplorerScorecardPage() {
                               : 'cursor-not-allowed text-slate-300',
                         ].join(' ')}
                       >
-                        {y}yr
+                        {scorecardTrendToggleLabel(y)}
                       </button>
                     )
                   })}
                 </div>
                 <p className="text-[11px] leading-snug text-slate-500">
-                  {vyPrTrend
-                    ? `Comparing ${displayVintage} to ${vyPrTrend}.`
-                    : `End year ${displayVintage} — comparison vintage for this window is not in the published bundle.`}
+                  {scorecardTrendCompareCaption(trendYears, displayVintage, vyPrTrend)}
                 </p>
               </div>
             </div>
@@ -1187,7 +1235,7 @@ export default function DataExplorerScorecardPage() {
                 </span>
                 <span
                   className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-slate-300 bg-white text-sm font-bold text-slate-800"
-                  title={`Trend-only section grade (${trendYears}-yr window). Changing U.S. / region / state benchmark does not recalculate this letter.`}
+                  title={`Trend-only section grade (${scorecardRollingWindowAdjective(trendYears)} window). Changing U.S. / region / state benchmark does not recalculate this letter.`}
                 >
                   {letter}
                 </span>
@@ -1206,7 +1254,7 @@ export default function DataExplorerScorecardPage() {
                   </th>
                   <th className="min-w-0 px-2 py-2 align-top">
                     <span className="inline-flex items-center gap-1">
-                      Trend ({trendYears} yr)
+                      Trend ({scorecardTrendToggleLabel(trendYears)})
                       <InfoHelpTrigger topic="Trend window" help={helpTrend} align="left" />
                     </span>
                   </th>
@@ -1279,7 +1327,7 @@ export default function DataExplorerScorecardPage() {
                     giniNoTrend || !anyTrend || dir === 'neutral' ? null : directedTrendHeadline(stW, arrows, dir, pW)
                   const paceLine =
                     showBenchmarkColumn && !giniNoTrend
-                      ? paceVsBenchOneLiner(pW, bW, paceVersusLabel, `${trendYears}-year`)
+                      ? paceVsBenchOneLiner(pW, bW, paceVersusLabel, paceWindowLabel)
                       : null
 
                   return (
@@ -1319,15 +1367,16 @@ export default function DataExplorerScorecardPage() {
                         ) : dir === 'neutral' ? (
                           <div className="flex flex-col gap-1">
                             <div className="flex flex-wrap items-baseline gap-1.5 tabular-nums">
-                              <span className="font-mono text-base text-slate-800" title={`${trendYears}-year percent change`}>
+                              <span
+                                className="font-mono text-base text-slate-800"
+                                title={scorecardTrendPercentTitle(trendYears, true)}
+                              >
                                 {neutralArrows?.arrow ?? '—'}
                               </span>
                               <span className="text-sm font-semibold text-slate-900">
                                 {pW == null ? '—' : `${pW > 0 ? '+' : ''}${pW.toFixed(SCORECARD_PCT_DECIMALS)}%`}
                               </span>
-                              <span className="text-[11px] text-slate-500">
-                                over {trendYears} yr{trendYears === 1 ? '' : 's'}
-                              </span>
+                              <span className="text-[11px] text-slate-500">{scorecardTrendOverLine(trendYears)}</span>
                             </div>
                             <div>{neutralChangeBadge(neutralArrows ?? { arrow: '—', label: '' }, trendYears)}</div>
                           </div>
@@ -1337,15 +1386,16 @@ export default function DataExplorerScorecardPage() {
                               <p className="text-[11px] font-semibold leading-snug text-slate-800">{trendHeadlineDirected}</p>
                             ) : null}
                             <div className="flex flex-wrap items-baseline gap-1.5 tabular-nums">
-                              <span className="font-mono text-base text-slate-800" title={`${trendYears}-year percent change in the published estimate`}>
+                              <span
+                                className="font-mono text-base text-slate-800"
+                                title={scorecardTrendPercentTitle(trendYears, false)}
+                              >
                                 {arrows.arrow}
                               </span>
                               <span className="text-sm font-semibold text-slate-900">
                                 {pW == null ? '—' : `${pW > 0 ? '+' : ''}${pW.toFixed(SCORECARD_PCT_DECIMALS)}%`}
                               </span>
-                              <span className="text-[11px] text-slate-500">
-                                over {trendYears} yr{trendYears === 1 ? '' : 's'}
-                              </span>
+                              <span className="text-[11px] text-slate-500">{scorecardTrendOverLine(trendYears)}</span>
                             </div>
                             <div>{favorabilityPill(stW)}</div>
                           </div>
@@ -1380,6 +1430,12 @@ export default function DataExplorerScorecardPage() {
         )
       })
         : null}
+
+      {locationFips ? (
+        <div className="rounded-xl border border-slate-400/45 bg-slate-300/35 p-2 shadow-sm sm:p-2.5">
+          <ScorecardGiniLegend />
+        </div>
+      ) : null}
     </div>
   )
 }

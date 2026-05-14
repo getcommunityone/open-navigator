@@ -2,30 +2,22 @@
 """
 Load YouTube Channels to Bronze
 
-This script loads channels from jurisdictions_details_search into bronze_events_channels,
-validates them against multiple sources, and flags junk channels.
+This script builds jurisdiction → channel rows from **bronze.bronze_events_youtube**
+(distinct channel per jurisdiction) and upserts into **bronze_events_channels** with
+`jurisdictions` JSON (no dependency on gold ``jurisdictions_details_search``).
 
 Features:
-1. Enriches jurisdictions_details_search with Wikidata population and metadata
-2. Matches LocalView events to YouTube channels
-3. Validates channels against WikiData
-4. Auto-flags junk channels (news, entertainment, etc.)
-5. **Loads to BRONZE database** (not production)
+1. Derives channels from existing YouTube video rows in bronze
+2. Auto-flags junk channels (news, entertainment, etc.) when ``--auto-flag`` is set
+3. **Single database URL** — default localhost uses DB ``open_navigator``; set ``OPEN_NAVIGATOR_DATABASE_URL`` / ``DATABASE_URL`` for Neon
 
-Validation sources:
-1. LocalView dataset - channels with historical meeting data
-2. WikiData - official government YouTube channels
-3. Pattern matching - flag news, entertainment, political figures
+Validation sources (pattern / title heuristics only in this script):
+1. Pattern matching — flag news, entertainment, political figures
 
 Usage:
-    # Load all channels (enriches with Wikidata automatically)
-    python scripts/datasources/youtube/load_youtube_channels_bronze.py --states AL,GA,IN,MA,WA,WI
-    
-    # Load and validate
-    python scripts/datasources/youtube/load_youtube_channels_bronze.py --states AL,GA,IN,MA,WA,WI --validate
-    
-    # Auto-flag junk channels
-    python scripts/datasources/youtube/load_youtube_channels_bronze.py --states AL,GA,IN,MA,WA,WI --auto-flag
+    python scripts/datasources/youtube/load_youtube_channels_bronze.py --states AL,GA,IN,MA,MT,WA,WI
+
+    python scripts/datasources/youtube/load_youtube_channels_bronze.py --states AL,GA,IN,MA,MT,WA,WI --auto-flag
 """
 import os
 import sys
@@ -38,21 +30,47 @@ import psycopg2
 from psycopg2.extras import RealDictCursor, execute_batch
 from loguru import logger
 from dotenv import load_dotenv
+from urllib.parse import urlparse
 
 # Add parent directory to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 
-from scripts.datasources.wikidata.wikidata_integration import WikidataQuery
 
-load_dotenv()
+def _reject_placeholder_dsn(label: str, url: str) -> None:
+    """Fail fast when docs/examples used a literal … placeholder as hostname."""
+    if not (url or "").strip():
+        logger.error(f"{label}: database URL is empty.")
+        sys.exit(2)
+    if "\u2026" in url or "…" in url:
+        logger.error(
+            f"{label}: URL contains a placeholder ellipsis (…). "
+            "Do not copy export lines from docs literally — use a real postgresql://… connection string, "
+            "or unset BRONZE_DATABASE_URL / NEON_DATABASE_URL_DEV so .env or localhost defaults apply."
+        )
+        sys.exit(2)
+    try:
+        parsed = urlparse(url)
+        host = (parsed.hostname or "").strip()
+        if host in ("\u2026", "…", "...", ".."):
+            logger.error(f"{label}: hostname {host!r} is not valid. Fix the URL or unset the env var.")
+            sys.exit(2)
+    except ValueError:
+        pass
 
-# ⚠️ CRITICAL: Load to BRONZE database, not production
-BRONZE_DATABASE_URL = os.getenv('BRONZE_DATABASE_URL', 
-    'postgresql://postgres:password@localhost:5433/open_navigator_bronze')
 
-# Production database for reading source data
-PROD_DATABASE_URL = os.getenv('NEON_DATABASE_URL_DEV', 
-    'postgresql://postgres:password@localhost:5433/open_navigator')
+def _resolve_database_url() -> str:
+    """Single Neon / Postgres URL (bronze schema tables live here)."""
+    load_dotenv()
+    url = (
+        (os.getenv("OPEN_NAVIGATOR_DATABASE_URL") or "").strip()
+        or (os.getenv("NEON_DATABASE_URL_DEV") or "").strip()
+        or (os.getenv("NEON_DATABASE_URL") or "").strip()
+        or (os.getenv("DATABASE_URL") or "").strip()
+        or (os.getenv("BRONZE_DATABASE_URL") or "").strip()
+        or "postgresql://postgres:password@localhost:5433/open_navigator"
+    )
+    _reject_placeholder_dsn("Database URL", url)
+    return url
 
 # Junk channel patterns - ONLY obvious non-government channels
 # Be conservative to avoid false positives
@@ -72,19 +90,17 @@ JUNK_PATTERNS = [
 
 
 class ChannelLoaderBronze:
-    """Load and validate YouTube channels to bronze database."""
-    
-    def __init__(self, bronze_db_url: str, prod_db_url: str):
-        self.bronze_conn = psycopg2.connect(bronze_db_url)
-        self.prod_conn = psycopg2.connect(prod_db_url)
-        self.wikidata = WikidataQuery()
-        
-        # Ensure bronze table exists
+    """Load YouTube channels into bronze_events_channels from bronze_events_youtube."""
+
+    def __init__(self, database_url: str):
+        self.conn = psycopg2.connect(database_url)
+
+        # Ensure bronze table exists (public or default schema — same connection as reads)
         self._create_channels_table()
     
     def _create_channels_table(self):
         """Create bronze_events_channels table if it doesn't exist."""
-        cursor = self.bronze_conn.cursor()
+        cursor = self.conn.cursor()
         
         try:
             cursor.execute("""
@@ -116,6 +132,12 @@ class ChannelLoaderBronze:
                     is_government BOOLEAN DEFAULT NULL,
                     flagged_as_junk BOOLEAN DEFAULT FALSE,
                     flag_reason TEXT,
+
+                    -- About-tab featured links (see channel_about_links.py)
+                    channel_external_links JSONB,
+                    channel_external_links_fetched_at TIMESTAMPTZ,
+                    channel_description TEXT,
+                    view_count BIGINT,
                     
                     -- Metadata
                     loaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -123,6 +145,14 @@ class ChannelLoaderBronze:
                     notes TEXT
                 );
             """)
+
+            for alter in (
+                "ALTER TABLE bronze_events_channels ADD COLUMN IF NOT EXISTS channel_external_links JSONB",
+                "ALTER TABLE bronze_events_channels ADD COLUMN IF NOT EXISTS channel_external_links_fetched_at TIMESTAMPTZ",
+                "ALTER TABLE bronze_events_channels ADD COLUMN IF NOT EXISTS channel_description TEXT",
+                "ALTER TABLE bronze_events_channels ADD COLUMN IF NOT EXISTS view_count BIGINT",
+            ):
+                cursor.execute(alter + ";")
             
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_bronze_channels_channel_id ON bronze_events_channels(channel_id);")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_bronze_channels_in_localview ON bronze_events_channels(in_localview);")
@@ -130,44 +160,76 @@ class ChannelLoaderBronze:
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_bronze_channels_is_government ON bronze_events_channels(is_government);")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_bronze_channels_flagged ON bronze_events_channels(flagged_as_junk);")
             
-            self.bronze_conn.commit()
+            self.conn.commit()
             logger.success("✓ Ensured bronze_events_channels table exists")
             
         except Exception as e:
-            self.bronze_conn.rollback()
+            self.conn.rollback()
             logger.warning(f"Note: {e}")
         finally:
             cursor.close()
     
     def get_jurisdictions_channels(self, states_filter: Optional[List[str]] = None) -> List[Dict]:
-        """Get all channels from jurisdictions_details_search (production database)."""
-        cursor = self.prod_conn.cursor(cursor_factory=RealDictCursor)
-        
+        """Aggregate distinct YouTube channels per jurisdiction from bronze.bronze_events_youtube."""
+        cursor = self.conn.cursor(cursor_factory=RealDictCursor)
+
         query = """
-            SELECT 
-                jurisdiction_id,
-                jurisdiction_name,
-                state_code,
-                state,
-                jurisdiction_type,
-                youtube_channels
-            FROM jurisdictions_details_search
-            WHERE youtube_channel_count > 0
-                AND youtube_channels IS NOT NULL
+            WITH distinct_pairs AS (
+                SELECT
+                    jurisdiction_id::text AS jurisdiction_id,
+                    MAX(jurisdiction_name) AS jurisdiction_name,
+                    MAX(state_code) AS state_code,
+                    MAX(state) AS state,
+                    MAX(jurisdiction_type) AS jurisdiction_type,
+                    channel_id,
+                    MAX(
+                        COALESCE(
+                            NULLIF(BTRIM(channel_url), ''),
+                            'https://www.youtube.com/channel/' || channel_id
+                        )
+                    ) AS channel_url,
+                    MAX(NULLIF(BTRIM(channel_type), '')) AS channel_type_hint
+                FROM bronze.bronze_events_youtube
+                WHERE channel_id IS NOT NULL
+                  AND BTRIM(channel_id) <> ''
+                  AND jurisdiction_id IS NOT NULL
+                  AND BTRIM(jurisdiction_id::text) <> ''
+                  AND jurisdiction_name IS NOT NULL
         """
-        
-        params = []
+        params: list = []
         if states_filter:
-            query += " AND state_code = ANY(%s)"
+            query += "              AND state_code = ANY(%s)\n"
             params.append(states_filter)
-        
-        query += " ORDER BY state_code, jurisdiction_name"
-        
+        query += """
+                GROUP BY jurisdiction_id, channel_id
+            )
+            SELECT
+                jurisdiction_id,
+                MAX(jurisdiction_name) AS jurisdiction_name,
+                MAX(state_code) AS state_code,
+                MAX(state) AS state,
+                MAX(jurisdiction_type) AS jurisdiction_type,
+                jsonb_agg(
+                    jsonb_build_object(
+                        'channel_id', channel_id,
+                        'channel_url', channel_url,
+                        'channel_title', COALESCE(NULLIF(channel_type_hint, ''), ''),
+                        'discovery_method', 'bronze_events_youtube'
+                    )
+                    ORDER BY channel_id
+                ) AS youtube_channels
+            FROM distinct_pairs
+            GROUP BY jurisdiction_id
+            ORDER BY MAX(state_code) NULLS LAST, MAX(jurisdiction_name)
+        """
+
         cursor.execute(query, params)
         jurisdictions = cursor.fetchall()
         cursor.close()
-        
-        logger.info(f"Found {len(jurisdictions)} jurisdictions with YouTube channels")
+
+        logger.info(
+            f"Found {len(jurisdictions)} jurisdiction(s) with channels from bronze.bronze_events_youtube"
+        )
         return jurisdictions
     
     def extract_channels(self, youtube_channels_json: any) -> List[Dict]:
@@ -194,7 +256,7 @@ class ChannelLoaderBronze:
                             'video_count': item.get('video_count'),
                             'confidence': item.get('confidence'),
                             'policy_score': item.get('policy_score', 0),
-                            'discovery_method': item.get('discovery_method', 'jurisdictions_details')
+                            'discovery_method': item.get('discovery_method', 'bronze_events_youtube')
                         })
         
         return channels
@@ -244,7 +306,7 @@ class ChannelLoaderBronze:
     
     def upsert_channel(self, channel_data: Dict):
         """Insert or update channel in bronze_events_channels."""
-        cursor = self.bronze_conn.cursor()
+        cursor = self.conn.cursor()
         
         try:
             cursor.execute("""
@@ -258,7 +320,7 @@ class ChannelLoaderBronze:
                 ) VALUES (
                     %(channel_id)s, %(channel_url)s, %(channel_title)s, %(channel_type)s,
                     %(subscriber_count)s, %(video_count)s,
-                    %(in_localview)s, TRUE, %(in_wikidata)s,
+                    %(in_localview)s, %(in_jurisdictions_details)s, %(in_wikidata)s,
                     %(discovery_method)s, CURRENT_TIMESTAMP, %(confidence)s,
                     %(jurisdictions)s::jsonb, %(is_government)s, %(flagged_as_junk)s, %(flag_reason)s,
                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
@@ -269,7 +331,7 @@ class ChannelLoaderBronze:
                     subscriber_count = COALESCE(EXCLUDED.subscriber_count, bronze_events_channels.subscriber_count),
                     video_count = COALESCE(EXCLUDED.video_count, bronze_events_channels.video_count),
                     in_localview = EXCLUDED.in_localview OR bronze_events_channels.in_localview,
-                    in_jurisdictions_details = TRUE,
+                    in_jurisdictions_details = bronze_events_channels.in_jurisdictions_details OR EXCLUDED.in_jurisdictions_details,
                     in_wikidata = EXCLUDED.in_wikidata OR bronze_events_channels.in_wikidata,
                     confidence_score = COALESCE(EXCLUDED.confidence_score, bronze_events_channels.confidence_score),
                     jurisdictions = CASE
@@ -284,10 +346,10 @@ class ChannelLoaderBronze:
                     last_updated = CURRENT_TIMESTAMP
             """, channel_data)
             
-            self.bronze_conn.commit()
+            self.conn.commit()
             
         except Exception as e:
-            self.bronze_conn.rollback()
+            self.conn.rollback()
             logger.error(f"Error upserting channel {channel_data['channel_id']}: {e}")
             raise
         finally:
@@ -299,19 +361,20 @@ class ChannelLoaderBronze:
         validate: bool = False,
         auto_flag: bool = False
     ):
-        """Load channels from jurisdictions_details_search to bronze."""
-        
+        """Load channels from bronze.bronze_events_youtube into bronze_events_channels."""
+
         logger.info("")
         logger.info("=" * 80)
         logger.info("CHANNEL LOADER (BRONZE)")
         logger.info("=" * 80)
-        logger.info(f"Target: bronze_events_channels (BRONZE DATABASE)")
+        logger.info("Source: bronze.bronze_events_youtube (aggregated per jurisdiction)")
+        logger.info(f"Target: bronze_events_channels")
         logger.info(f"States: {', '.join(states_filter) if states_filter else 'ALL'}")
         logger.info(f"Validate: {validate}")
         logger.info(f"Auto-flag: {auto_flag}")
         logger.info("")
-        
-        # Get jurisdictions from production database
+
+        # Jurisdiction/channel groups from bronze video rows
         jurisdictions = self.get_jurisdictions_channels(states_filter)
         
         total_channels = 0
@@ -347,8 +410,9 @@ class ChannelLoaderBronze:
                     'subscriber_count': channel.get('subscriber_count'),
                     'video_count': channel.get('video_count'),
                     'in_localview': False,  # Will be updated by separate process
-                    'in_wikidata': False,  # Will be updated if validation enabled
-                    'discovery_method': channel.get('discovery_method', 'jurisdictions_details'),
+                    'in_wikidata': False,
+                    'in_jurisdictions_details': False,
+                    'discovery_method': channel.get('discovery_method', 'bronze_events_youtube'),
                     'confidence': channel.get('confidence'),
                     'jurisdictions': json.dumps([jurisdiction_info]),
                     'is_government': None if not is_junk else False,
@@ -370,9 +434,8 @@ class ChannelLoaderBronze:
         logger.info("")
     
     def close(self):
-        """Close database connections."""
-        self.bronze_conn.close()
-        self.prod_conn.close()
+        """Close database connection."""
+        self.conn.close()
 
 
 def main():
@@ -384,8 +447,9 @@ def main():
     args = parser.parse_args()
     
     states_filter = args.states.split(',') if args.states else None
-    
-    loader = ChannelLoaderBronze(BRONZE_DATABASE_URL, PROD_DATABASE_URL)
+
+    url = _resolve_database_url()
+    loader = ChannelLoaderBronze(url)
     
     try:
         asyncio.run(loader.load_channels(

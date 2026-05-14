@@ -1,4 +1,7 @@
 
+# Sister project file at repo root: ../dbt_project.yml (for dbt without --project-dir).
+# When you change models/seeds/snapshots/vars here, mirror those sections in ../dbt_project.yml.
+
 # Name your project! Project names should contain only lowercase characters
 # and underscores. A good package name should reflect your organization's
 # name or the intended use of these models

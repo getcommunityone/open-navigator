@@ -8,7 +8,7 @@
 #   Set NEON_DATABASE_URL_DEV (or NEON_DATABASE_URL / OPEN_NAVIGATOR_DATABASE_URL) in .env, then:
 #     ./scripts/deployment/neon/run_bronze_jurisdictions_to_cloud.sh
 #   Priority states subset + skip national ZCTA:
-#     ./scripts/deployment/neon/run_bronze_jurisdictions_to_cloud.sh --filter-usps AL,GA,IN,MA,WA,WI
+#     ./scripts/deployment/neon/run_bronze_jurisdictions_to_cloud.sh --filter-usps AL,GA,IN,MA,MT,WA,WI
 #   Gazetteer CLI flags pass through last step only (everything after `--`):
 
 set -euo pipefail

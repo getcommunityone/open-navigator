@@ -6,7 +6,7 @@ Extracts mayor election data from https://www.usmayors.org/elections/election-re
 and updates jurisdictions_details_search with current/incoming mayor information.
 
 Usage:
-    python scrape_mayor_elections.py --states AL,GA,IN,MA,WA,WI
+    python scrape_mayor_elections.py --states AL,GA,IN,MA,MT,WA,WI
     python scrape_mayor_elections.py --dry-run
 """
 

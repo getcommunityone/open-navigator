@@ -62,6 +62,7 @@ import {
   censusMetricRankDirection,
   censusMetricStaleDataNote,
   censusMetricWinnerCaption,
+  censusMapShowOfficialCensusLabel,
   compareRankedMetricValues,
   CENSUS_EXPLORER_HIDDEN_METRIC_SLUGS,
   CENSUS_MAP_UI_HELP,
@@ -545,7 +546,7 @@ function CensusMetricToolbarControl({
           </option>
         ))}
       </select>
-      {current ? (
+      {current && censusMapShowOfficialCensusLabel(current.slug) ? (
         <span className="text-[10px] leading-snug text-slate-500">
           Census label: <span className="font-medium text-slate-600">{current.label}</span>
         </span>
@@ -1323,21 +1324,6 @@ function DrilldownMapBoundsController({ data }: { data: GeoJSONFeatureCollection
       map.options.maxBoundsViscosity = undefined
     }
   }, [map, data])
-  return null
-}
-
-/** Wheel on county/place maps zooms the map; scroll is not passed to the page (drill-down UX). */
-function CensusLeafletCaptureWheelZoom() {
-  const map = useMap()
-  useEffect(() => {
-    const el = map.getContainer()
-    L.DomEvent.disableScrollPropagation(el)
-    L.DomEvent.disableClickPropagation(el)
-    return () => {
-      L.DomEvent.enableScrollPropagation(el)
-      L.DomEvent.enableClickPropagation(el)
-    }
-  }, [map])
   return null
 }
 
@@ -2441,6 +2427,42 @@ function CensusMapPage() {
     return m
   }, [stateCountyGeo, countyDisplayByGeoid, metricSlug])
 
+  /** Stable ref for react-leaflet GeoJSON `style` — inline functions change every render and trigger Leaflet
+   * `setStyle` on all paths whenever e.g. `countyHover` updates, which clears hover / breaks tooltips. */
+  const countyFilledGeoJsonStyle = useCallback(
+    (feature: GeoJSON.Feature) => {
+      const gid = countyGeoidFromFeature(feature)
+      const disp = countyDisplayByGeoid[gid]
+      const t = metricToDisplayT(disp, countyChoroExtent.min, countyChoroExtent.max, scale)
+      const isHL = leaderboardPinnedId != null && gid === leaderboardPinnedId
+      return {
+        fillColor: colorFromT(t),
+        color: isHL ? '#b45309' : '#334155',
+        weight: isHL ? 3 : 0.5,
+        fillOpacity: 0.88,
+      }
+    },
+    [scale, countyChoroExtent.min, countyChoroExtent.max, countyDisplayByGeoid, leaderboardPinnedId],
+  )
+
+  const placeFilledGeoJsonStyle = useCallback(
+    (feature: GeoJSON.Feature) => {
+      const p = feature?.properties as Record<string, unknown> | undefined
+      const raw = String(p?.GEOID ?? '').replace(/\D/g, '')
+      const gid7 = raw.length <= 7 ? raw.padStart(7, '0') : raw.slice(-7).padStart(7, '0')
+      const disp = placeDisplayByGeoid[gid7]
+      const t = metricToDisplayT(disp, placeChoroExtent.min, placeChoroExtent.max, scale)
+      const isHL = leaderboardPinnedId != null && gid7 === leaderboardPinnedId
+      return {
+        fillColor: colorFromT(t),
+        color: isHL ? '#b45309' : '#334155',
+        weight: isHL ? 3 : 0.5,
+        fillOpacity: 0.88,
+      }
+    },
+    [scale, placeChoroExtent.min, placeChoroExtent.max, placeDisplayByGeoid, leaderboardPinnedId],
+  )
+
   const fmt = useCallback(
     (v: number) => formatMetricValue(metricSlug, v, metrics, valueMode),
     [metricSlug, metrics, valueMode],
@@ -3153,27 +3175,14 @@ function CensusMapPage() {
                     minZoom={5}
                     maxZoom={13}
                     className="h-full w-full census-choropleth-map"
-                    scrollWheelZoom
+                    scrollWheelZoom={false}
                     style={{ height: '100%', width: '100%', minHeight: 400 }}
                   >
-                    <CensusLeafletCaptureWheelZoom />
                     {viz === 'filled' && (
                       <GeoJSON
                         key={`${metricSlug}-${scale}-county-filled`}
                         data={stateCountyGeo}
-                        style={(feature) => {
-                          const p = feature?.properties as Record<string, unknown> | undefined
-                          const gid = countyGeoidFromFeature(feature as GeoJSON.Feature)
-                          const disp = countyDisplayByGeoid[gid]
-                          const t = metricToDisplayT(disp, countyChoroExtent.min, countyChoroExtent.max, scale)
-                          const isHL = leaderboardPinnedId != null && gid === leaderboardPinnedId
-                          return {
-                            fillColor: colorFromT(t),
-                            color: isHL ? '#b45309' : '#334155',
-                            weight: isHL ? 3 : 0.5,
-                            fillOpacity: 0.88,
-                          }
-                        }}
+                        style={countyFilledGeoJsonStyle}
                         onEachFeature={(feature, layer) => {
                           const p = feature.properties as Record<string, unknown>
                           const gid = countyGeoidFromFeature(feature as GeoJSON.Feature)
@@ -3438,28 +3447,14 @@ function CensusMapPage() {
                     minZoom={5}
                     maxZoom={13}
                     className="h-full w-full census-choropleth-map"
-                    scrollWheelZoom
+                    scrollWheelZoom={false}
                     style={{ height: '100%', width: '100%', minHeight: 400 }}
                   >
-                    <CensusLeafletCaptureWheelZoom />
                     {viz === 'filled' && (
                       <GeoJSON
                         key={`${metricSlug}-${scale}-place-filled`}
                         data={placeGeoMerged}
-                        style={(feature) => {
-                          const p = feature?.properties as Record<string, unknown> | undefined
-                          const raw = String(p?.GEOID ?? '').replace(/\D/g, '')
-                          const gid7 = raw.length <= 7 ? raw.padStart(7, '0') : raw.slice(-7).padStart(7, '0')
-                          const disp = placeDisplayByGeoid[gid7]
-                          const t = metricToDisplayT(disp, placeChoroExtent.min, placeChoroExtent.max, scale)
-                          const isHL = leaderboardPinnedId != null && gid7 === leaderboardPinnedId
-                          return {
-                            fillColor: colorFromT(t),
-                            color: isHL ? '#b45309' : '#334155',
-                            weight: isHL ? 3 : 0.5,
-                            fillOpacity: 0.88,
-                          }
-                        }}
+                        style={placeFilledGeoJsonStyle}
                         onEachFeature={(feature, layer) => {
                           const p = feature.properties as Record<string, unknown>
                           const gid7 = placeGeoid7FromProperties(p, 0)

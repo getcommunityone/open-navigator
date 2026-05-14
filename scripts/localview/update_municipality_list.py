@@ -6,7 +6,7 @@ Searches for municipal government YouTube channels and adds them to the database
 
 Usage:
     # Search for channels in specific states
-    python scripts/localview/update_municipality_list.py --states AL,GA,IN,MA,WA,WI
+    python scripts/localview/update_municipality_list.py --states AL,GA,IN,MA,MT,WA,WI
     
     # Search for specific municipalities
     python scripts/localview/update_municipality_list.py --cities "Birmingham,Boston,Seattle"

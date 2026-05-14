@@ -60,6 +60,10 @@ import yt_dlp
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'localview'))
 from scrape_youtube_channels import MunicipalYouTubeScraper
 
+from scripts.datasources.youtube.channel_about_links import (
+    ensure_bronze_events_channels_link_columns,
+)
+
 # Load environment variables
 load_dotenv()
 
@@ -110,6 +114,7 @@ class YouTubeEventsLoader:
         self._add_jurisdiction_id_column()
         self._create_bronze_events_text_ai_table()
         self._create_events_channels_search_table()
+        ensure_bronze_events_channels_link_columns(self.conn)
     
     def _sanitize_database_url(self, url: str) -> str:
         """Sanitize database URL to fix common connection issues.
@@ -346,6 +351,12 @@ class YouTubeEventsLoader:
                     is_government BOOLEAN DEFAULT NULL,
                     flagged_as_junk BOOLEAN DEFAULT FALSE,
                     flag_reason TEXT,
+
+                    -- About-tab featured links (parsed from public /about HTML)
+                    channel_external_links JSONB,
+                    channel_external_links_fetched_at TIMESTAMPTZ,
+                    channel_description TEXT,
+                    view_count BIGINT,
                     
                     -- Metadata
                     last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -396,18 +407,48 @@ class YouTubeEventsLoader:
         discovery_method: str = 'jurisdictions_details',
         confidence_score: float = None
     ):
-        """Upsert channel information into events_channels_search table."""
+        """Upsert channel information into bronze.bronze_events_channels."""
         cursor = self.conn.cursor()
         
         try:
-            # Check if channel exists in LocalView (events with same channel_id from localview source)
-            cursor.execute("""
-                SELECT EXISTS(
-                    SELECT 1 FROM bronze.bronze_events_localview 
-                    WHERE channel_id = %s AND datasource = 'localview'
-                )
-            """, (channel_id,))
-            in_localview = cursor.fetchone()[0]
+            # bronze_events_localview has no channel_id; link LocalView rows (datasource_id = video_id)
+            # to a channel via int_localview_youtube_video_channels (dbt) or bronze_events_youtube.
+            in_localview = False
+            for probe_sql, probe_params in (
+                (
+                    """
+                    SELECT EXISTS(
+                        SELECT 1
+                        FROM bronze.bronze_events_localview lv
+                        INNER JOIN intermediate.int_localview_youtube_video_channels m
+                            ON m.video_id = lv.datasource_id
+                        WHERE lv.datasource = 'localview'
+                          AND m.channel_id = %s
+                    )
+                    """,
+                    (channel_id,),
+                ),
+                (
+                    """
+                    SELECT EXISTS(
+                        SELECT 1
+                        FROM bronze.bronze_events_localview lv
+                        INNER JOIN bronze.bronze_events_youtube y
+                            ON y.video_id = lv.datasource_id
+                        WHERE lv.datasource = 'localview'
+                          AND y.channel_id = %s
+                    )
+                    """,
+                    (channel_id,),
+                ),
+            ):
+                try:
+                    cursor.execute(probe_sql, probe_params)
+                    if cursor.fetchone()[0]:
+                        in_localview = True
+                        break
+                except Exception as exc:
+                    logger.debug("LocalView channel probe skipped: {}", exc)
             
             # Prepare jurisdiction data
             jurisdiction_data = {
@@ -977,7 +1018,7 @@ class YouTubeEventsLoader:
             return 0
         
         insert_query = """
-            INSERT INTO bronze.bronze_events_youtube (
+            INSERT INTO bronze.bronze_events_youtube AS y (
                 event_id, video_id, jurisdiction_id, channel_id, channel_url, 
                 title, description, event_date, event_time, published_at,
                 jurisdiction_name, jurisdiction_type, state_code, state, city,
@@ -993,10 +1034,13 @@ class YouTubeEventsLoader:
                 %(language)s, %(channel_type)s, %(datasource)s, %(datasource_id)s, %(last_updated)s
             )
             ON CONFLICT (video_id) DO UPDATE SET
+                event_date = COALESCE(EXCLUDED.event_date, y.event_date),
+                event_time = COALESCE(EXCLUDED.event_time, y.event_time),
+                published_at = COALESCE(EXCLUDED.published_at, y.published_at),
                 view_count = EXCLUDED.view_count,
                 like_count = EXCLUDED.like_count,
                 last_updated = EXCLUDED.last_updated
-            RETURNING id, event_id, video_id
+            RETURNING y.id, y.event_id, y.video_id
         """
         
         cursor = self.conn.cursor()
@@ -1358,14 +1402,14 @@ class YouTubeEventsLoader:
             logger.info("⚡ Next step: Add transcripts (without rate limits)")
             logger.info("")
             logger.info("  Run backfill script to fetch transcripts for existing events:")
-            logger.info(f"  python scripts/datasources/youtube/backfill_transcripts.py --states {','.join(states_filter) if states_filter else 'AL,GA,IN,MA,WA,WI'} --limit 100")
+            logger.info(f"  python scripts/datasources/youtube/backfill_transcripts.py --states {','.join(states_filter) if states_filter else 'AL,GA,IN,MA,MT,WA,WI'} --limit 100")
             logger.info("")
             logger.info("  💡 Backfill uses slower delays (2s) to avoid rate limits")
         elif transcript_count < stats[0]:
             missing = stats[0] - transcript_count
             logger.warning(f"⚠️  Missing transcripts: {missing:,} events don't have transcripts")
             logger.info("  Run backfill to fetch missing transcripts:")
-            logger.info(f"  python scripts/datasources/youtube/backfill_transcripts.py --states {','.join(states_filter) if states_filter else 'AL,GA,IN,MA,WA,WI'}")
+            logger.info(f"  python scripts/datasources/youtube/backfill_transcripts.py --states {','.join(states_filter) if states_filter else 'AL,GA,IN,MA,MT,WA,WI'}")
         
         logger.info("")
         logger.info("Query examples:")

@@ -283,6 +283,12 @@ models:
         description: Channel display name
         tests:
           - not_null
+      - name: channel_external_links
+        description: >
+          JSON array of outbound links (About-tab featured + URLs parsed from description)
+          when enriched
+      - name: view_count
+        description: Total lifetime channel views from public /about scrape when available
       - name: quality_score
         description: Quality score 0-1 based on validation sources
         tests:
@@ -301,6 +307,8 @@ models:
         description: JSONB array of jurisdiction objects (jurisdiction_id, name, state, geoid, type)
       - name: jurisdiction_ids
         description: Ordered text array of canonical jurisdiction_id values (type_geoid), same rows as jurisdictions
+      - name: jurisdiction_id
+        description: Primary canonical jurisdiction_id (smallest among resolved matches); NULL when geography did not resolve
 
   - name: events_search
     description: |

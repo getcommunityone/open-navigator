@@ -22,7 +22,7 @@ This page documents all data sources, standards, and research contributions used
 <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', margin: '20px 0'}}>
   <a href="#-academic-research" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #2196F3'}}>
     <strong>🎓 Academic Research</strong><br/>
-    <span style={{fontSize: '0.9em', color: '#666'}}>MeetingBank, LocalView, CivicSearch, Datamuse API, Roper Center, CDP, City Scrapers</span>
+    <span style={{fontSize: '0.9em', color: '#666'}}>MeetingBank, LocalView, Opportunity Insights, CivicSearch, Datamuse API, Roper Center, CDP, City Scrapers</span>
   </a>
   <a href="#government-data" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #4CAF50'}}>
     <strong>🏛️ Government Data</strong><br/>
@@ -50,7 +50,11 @@ This page documents all data sources, standards, and research contributions used
   </a>
   <a href="#-community-solutions--use-cases" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #FFEB3B'}}>
     <strong>🌟 Community Solutions & Use Cases</strong><br/>
-    <span style={{fontSize: '0.9em', color: '#666'}}>Spectrum of Engagement, Harvard, Brookings, Open Data Impact, Tableau Data Equity Hub, IATI</span>
+    <span style={{fontSize: '0.9em', color: '#666'}}>Spectrum of Engagement, Harvard, Brookings, Reason Foundation, Open Data Impact, Tableau Data Equity Hub, PolicyMap, IATI</span>
+  </a>
+  <a href="#-civic-engagement-frameworks" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #00BCD4'}}>
+    <strong>🤝 Civic Engagement Frameworks</strong><br/>
+    <span style={{fontSize: '0.9em', color: '#666'}}>Maine Township digital community programs (CivicPlus case study)</span>
   </a>
   <a href="#acknowledgments" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #607D8B'}}>
     <strong>🙏 Acknowledgments</strong><br/>
@@ -65,6 +69,7 @@ This page documents all data sources, standards, and research contributions used
 **In this section:**
 - [MeetingBank Dataset](#meetingbank-dataset)
 - [LocalView Dataset (Harvard Dataverse)](#localview-dataset-harvard-dataverse)
+- [Opportunity Insights](#opportunity-insights)
 - [Measuring Conflict in Local Politics](#measuring-conflict-in-local-politics)
 - [Council Data Project (CDP)](#council-data-project-cdp)
 - [City Scrapers / Documenters.org](#city-scrapers--documentersorg)
@@ -126,6 +131,31 @@ This page documents all data sources, standards, and research contributions used
   publisher = {Harvard Dataverse},
   doi = {10.7910/DVN/NJTBEM},
   url = {https://www.localview.net/}
+}
+```
+
+---
+
+### Opportunity Insights
+
+**Organization:** [Opportunity Insights](https://opportunityinsights.org/) — a non-partisan, not-for-profit research group based at Harvard University that studies **economic mobility**, **neighborhoods**, **education**, and related topics using large-scale data, and publishes tools such as the **Opportunity Atlas** and **Social Capital Atlas** for public use.
+
+**What we cite:** Open Navigator links readers to Opportunity Insights as a **reference** for rigorous, neighborhood- and institution-level evidence on upward mobility and place-based policy. **We do not redistribute Opportunity Insights datasets in this repository**; if you use their data or figures, cite the specific paper, dataset, or tool page from [opportunityinsights.org](https://opportunityinsights.org/) and follow their terms.
+
+**Primary site:** [https://opportunityinsights.org/](https://opportunityinsights.org/)
+
+**Resources (examples):**
+- [Opportunity Atlas](https://www.opportunityatlas.org/) — neighborhood-level mobility and related maps (see also **Data** on [opportunityinsights.org](https://opportunityinsights.org/))
+- Research library, replication materials, and downloadable data repository (see **Data** and **Research** on the site)
+
+**BibTeX (organization + portal — adapt if you cite a specific paper or dataset):**
+```bibtex
+@misc{opportunity_insights_portal,
+  author = {{Opportunity Insights}},
+  title = {Opportunity Insights: Research and Data on Economic Mobility},
+  year = {2026},
+  url = {https://opportunityinsights.org/},
+  note = {Non-partisan research institute based at Harvard University; includes Opportunity Atlas and related tools}
 }
 ```
 
@@ -2129,8 +2159,10 @@ https://www.arcgis.com/home/item.html?id=333a74c8e9c64cb6870689d31e8836af
 - [Spectrum of Community Engagement to Ownership](#spectrum-of-community-engagement-to-ownership)
 - [Harvard Ash Center: Data-Smart City Solutions (Archived)](#harvard-ash-center-data-smart-city-solutions-archived)
 - [Brookings Institution: Data-Driven Policymaking](#brookings-institution-data-driven-policymaking)
+- [Reason Foundation](#reason-foundation)
 - [Open Data Impact: Evidence-Based Research](#open-data-impact-evidence-based-research)
 - [Tableau Data Equity Hub (Salesforce Data for Good)](#tableau-data-equity-hub-salesforce-data-for-good)
+- [PolicyMap](#policymap)
 
 ### Spectrum of Community Engagement to Ownership
 
@@ -2376,6 +2408,28 @@ City Creates Dashboard → Residents Attend Data Academy → Data Informs Policy
 
 ---
 
+### Reason Foundation
+
+**Organization:** [Reason Foundation](https://reason.org/) — 501(c)(3) nonprofit think tank publishing policy research (including transportation, infrastructure, and governance topics).
+
+**What we use:** Context and references to state highway performance, transportation innovation, and related policy materials (for example the **Annual Highway Report** and other publications hosted on [reason.org](https://reason.org/)).
+
+- **Website:** https://reason.org/
+- **Use:** When you quote, summarize, or reproduce Reason materials, cite the **specific report or page** and follow Reason Foundation’s terms and copyright notices on that content.
+
+**Citation:**
+```bibtex
+@misc{reason_foundation,
+  author = {{Reason Foundation}},
+  title = {Reason Foundation},
+  year = {2026},
+  url = {https://reason.org/},
+  note = {Nonprofit policy research organization; transportation and governance among topic areas}
+}
+```
+
+---
+
 ### Open Data Impact: Evidence-Based Research
 
 **Organization:** The GovLab at New York University (NYU Tandon School of Engineering)  
@@ -2545,15 +2599,97 @@ Tableau's Data Equity Hub provides principles for **presenting civic data withou
 
 ---
 
+### PolicyMap
 
----\n\n### IATI Standard (International Aid Transparency Initiative)\n\n**Organization:** IATI Secretariat  \n**What we use:** International development funding transparency framework - informs grant tracking, nonprofit program outcomes, and cross-sector collaboration metrics.\n\n- **Source:** https://iatistandard.org/\n- **Current Version:** IATI Standard v2.03\n- **Specification:** https://iatistandard.org/en/iati-standard/203/\n- **License:** Open Data Commons Attribution License (ODC-By)\n- **Coverage:** 1,300+ publishers, $1+ trillion in development aid tracked\n- **Used for:** Grant funding transparency, nonprofit program measurement, community solution tracking\n\n**Why IATI in Community Solutions:**\n\nIATI provides a proven framework for **tracking community impact across sectors** - government, nonprofits, foundations, and international partners.\n\n**Citation:**\n```bibtex\n@misc{iati_standard,\n  author = {{IATI Secretariat}},\n  title = {IATI Standard Version 2.03},\n  year = {2018},\n  url = {https://iatistandard.org/},\n  note = {Open Data Commons Attribution License (ODC-By)}\n}\n```\n\n**Resources:**\n- **Registry:** https://iatiregistry.org/\n- **d-Portal:** https://d-portal.org/\n- **Datastore:** https://iatidatastore.iatistandard.org/
-## �🙏 Acknowledgments
+**Organization:** PolicyMap, Inc.  
+**What we cite:** [PolicyMap](https://www.policymap.com/) offers **mapping, analytics, and curated U.S. socio-economic data** for understanding communities and markets—widely used in housing, health, government, and nonprofit contexts. We reference it as an example of **neighborhood-level decision support** that complements open government and Census-based workflows in Open Navigator. **We do not redistribute PolicyMap data in this repository**; their data catalog, licensing, and attribution rules apply when you use their products directly (see their site, including **Citing Us** and **Terms** in the footer).
+
+**Primary site:** [https://www.policymap.com/](https://www.policymap.com/)
+
+**BibTeX (portal — follow [PolicyMap](https://www.policymap.com/) citing guidance for specific datasets or maps):**
+```bibtex
+@misc{policymap_portal,
+  author = {{PolicyMap}},
+  title = {PolicyMap: Mapping, Analytics, and Data Visualization},
+  year = {2026},
+  url = {https://www.policymap.com/},
+  note = {Commercial mapping and data platform; cite per publisher requirements when using licensed data}
+}
+```
+
+---
+
+### IATI Standard (International Aid Transparency Initiative)
+
+**Organization:** IATI Secretariat  
+**What we use:** International development funding transparency framework - informs grant tracking, nonprofit program outcomes, and cross-sector collaboration metrics.
+
+- **Source:** https://iatistandard.org/
+- **Current Version:** IATI Standard v2.03
+- **Specification:** https://iatistandard.org/en/iati-standard/203/
+- **License:** Open Data Commons Attribution License (ODC-By)
+- **Coverage:** 1,300+ publishers, $1+ trillion in development aid tracked
+- **Used for:** Grant funding transparency, nonprofit program measurement, community solution tracking
+
+**Why IATI in Community Solutions:**
+
+IATI provides a proven framework for **tracking community impact across sectors** - government, nonprofits, foundations, and international partners.
+
+**Citation:**
+```bibtex
+@misc{iati_standard,
+  author = {{IATI Secretariat}},
+  title = {IATI Standard Version 2.03},
+  year = {2018},
+  url = {https://iatistandard.org/},
+  note = {Open Data Commons Attribution License (ODC-By)}
+}
+```
+
+**Resources:**
+- **Registry:** https://iatiregistry.org/
+- **d-Portal:** https://d-portal.org/
+- **Datastore:** https://iatidatastore.iatistandard.org/
+
+---
+
+## 🤝 Civic Engagement Frameworks
+
+**In this section:**
+- [Maine Township: digital community marketplace (case study)](#maine-township-digital-community-marketplace-case-study)
+
+### Maine Township: digital community marketplace (case study)
+
+**Organization:** CivicPlus (published case study); Maine Township, Illinois (local government)  
+**What we use:** A reference narrative for **resident-facing civic engagement** in parks, recreation, and special events—shifting high-demand programs from **in-person-only** registration and **paper-based** space tracking to **online access**, **interactive maps** with **real-time availability**, **digital payments**, **unified records** for walk-in and web signups, and **timely notifications** (for example weather updates to participants).
+
+- **Case study:** [CivicPlus — *Modernizing Tradition: Maine Township’s Garage Sale Goes Digital*](https://www.civicplus.com/case-studies/pr/maine-township-goes-digital-successfully/)
+- **Publisher summary:** Vendor registration moved online in **2024**; reported outcomes include shorter in-person queues, higher online adoption, fewer space-assignment errors, and staff time reclaimed for community programs (per the case study page).
+
+**Why we cite it:** It documents an **operational engagement pattern**—inform, transact, visualize spatial capacity, and communicate at scale—that informs how we think about accessibility, transparency, and service design for community programs (not an endorsement of any particular vendor or product).
+
+**License / attribution:** Public marketing case study on the publisher’s site; link and summarize rather than reproducing long excerpts without permission.
+
+**Citation:**
+```bibtex
+@misc{civicplus_maine_township_garage_sale_2026,
+  author = {{CivicPlus}},
+  title = {Modernizing Tradition: Maine Township's Garage Sale Goes Digital},
+  year = {2026},
+  url = {https://www.civicplus.com/case-studies/pr/maine-township-goes-digital-successfully/},
+  note = {Case study; recreation and community event digital engagement}
+}
+```
+
+
+## 🙏 Acknowledgments
 
 We are grateful to the following organizations and individuals:
 
 **Academic Institutions:**
 - Association for Computational Linguistics (ACL) for MeetingBank
 - Harvard University Mellon Urbanism Lab for LocalView
+- [Opportunity Insights](https://opportunityinsights.org/) (Harvard University) for public research and data on economic mobility and neighborhoods
 - Cornell University Roper Center for public opinion research
 - MIT Election Data + Science Lab for election data
 - University of Pennsylvania Annenberg Center for fact-checking
@@ -2587,6 +2723,7 @@ We are grateful to the following organizations and individuals:
 
 **Data Platforms & Organizations:**
 - HuggingFace for dataset hosting
+- [PolicyMap](https://www.policymap.com/) for commercial neighborhood mapping and socio-economic data reference (see [Community Solutions — PolicyMap](#policymap))
 - ProPublica for nonprofit financial data (3M+ organizations), congressional voting records, campaign finance data, and healthcare provider information
 - Open States for legislative data
 - OHDSI for OMOP Common Data Model (vocabulary system)

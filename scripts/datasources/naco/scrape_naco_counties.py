@@ -103,7 +103,7 @@ ALL_STATES = [
     "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC",
     "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY",
 ]
-DEFAULT_STATES = ["AL", "GA", "IN", "MA", "WA", "WI"]
+DEFAULT_STATES = ["AL", "GA", "IN", "MA", "MT", "WA", "WI"]
 
 NACO_HEADERS = {
     "User-Agent": "OpenNavigator/1.0 (Civic Research; https://github.com/getcommunityone/open-navigator)",

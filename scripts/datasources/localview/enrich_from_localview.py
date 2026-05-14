@@ -157,7 +157,7 @@ def match_and_enrich(conn, localview_df):
     
     cursor = conn.cursor()
     
-    # Get all jurisdictions from database for the 6 states
+    # Get all jurisdictions from database for the priority dev states
     cursor.execute("""
         SELECT 
             id,
@@ -171,7 +171,7 @@ def match_and_enrich(conn, localview_df):
     """)
     
     db_jurisdictions = cursor.fetchall()
-    logger.info(f"  Found {len(db_jurisdictions)} jurisdictions in database for 6 states")
+    logger.info(f"  Found {len(db_jurisdictions)} jurisdictions in database for priority states")
     
     # Create matching dataframe
     db_df = pd.DataFrame(db_jurisdictions, columns=[

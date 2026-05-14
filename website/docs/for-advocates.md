@@ -67,27 +67,36 @@ Includes:
 
 ## What You'll Find Here
 
-### 📊 Understanding the Data
+Use the **left sidebar** as a simple path from mission to outcomes. The same flow is summarized here:
 
-Learn about the data sources powering Open Navigator:
-- **[Data Overview](/docs/data-sources/overview)** - What data is available and where it comes from
-- **[Meeting Datasets](/docs/data-sources/confirmed-datasets)** - 1,000+ cities with meeting minutes and transcripts
-- **[Nonprofit Data](/docs/data-sources/nonprofit-sources)** - 3M+ organizations with financial data
-- **[Video Sources](/docs/data-sources/video-sources)** - YouTube channels and meeting videos
+### 1. Define your cause / mission
 
-### 🎯 Analysis & Strategy
+- **[Nonprofit resources](/docs/resources/nonprofit-resources)** — Sector context and mission-aligned organizations
 
-Powerful frameworks for accountability and advocacy:
-- **[Budget-to-Minutes Analysis](/docs/guides/political-economy)** - Correlate rhetoric with spending
-- **[Accountability Strategy](/docs/guides/accountability-strategy)** - Track gaps between talk and action
-- **[Impact Navigation](/docs/guides/impact-navigation)** - Find opportunities for policy change
+### 2. Identify who to engage
 
-### Real-World Examples
+Learn who and what the data covers so you can target the right officials, organizations, and forums:
 
-See how it works in practice:
-- **[Tuscaloosa Complete Analysis](/docs/case-studies/tuscaloosa-complete)** - Full data sources and statistics
-- **[Tuscaloosa Discovery Process](/docs/case-studies/tuscaloosa-discovery)** - How we found the data
-- **[Tuscaloosa Pipeline Guide](/docs/case-studies/tuscaloosa-pipeline)** - Step-by-step implementation
+- **[Data overview](/docs/data-sources/overview)** — What data is available and where it comes from
+- **[Citations & Data Sources](/docs/data-sources/citations)** — Licenses, methods, and full source list
+- **[Nonprofit data](/docs/data-sources/nonprofit-sources)** — Financial and program signals for organizations
+- **[Video sources](/docs/data-sources/video-sources)** — Meeting channels and video discovery
+
+### 3. Choose a strategy
+
+Frameworks for accountability and advocacy:
+
+- **[Budget-to-minutes analysis](/docs/guides/political-economy)** — Correlate rhetoric with spending
+- **[Accountability strategy](/docs/guides/accountability-strategy)** — Track gaps between talk and action
+- **[Impact navigation](/docs/guides/impact-navigation)** — Find opportunities for policy change
+
+### 4. Define what success looks like
+
+See end-to-end examples and implementation patterns:
+
+- **[Tuscaloosa complete analysis](/docs/case-studies/tuscaloosa-complete)** — Full data sources and statistics
+- **[Tuscaloosa discovery process](/docs/case-studies/tuscaloosa-discovery)** — How we found the data
+- **[Tuscaloosa pipeline guide](/docs/case-studies/tuscaloosa-pipeline)** — Step-by-step implementation
 
 ## Common Use Cases
 

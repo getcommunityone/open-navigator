@@ -25,7 +25,7 @@ authoritative jurisdiction metadata.
 Usage:
     From the repo root, use the project virtualenv (see README Quick Start: python3 -m venv .venv && pip install -r requirements.txt):
 
-    # Load priority development states (AL, GA, IN, MA, WA, WI)
+    # Load priority development states (AL, GA, IN, MA, MT, WA, WI)
     .venv/bin/python scripts/datasources/wikidata/load_jurisdictions_wikidata.py --priority-states
 
     # All 50 states + DC + PR (requires rows in bronze base tables per USPS where applicable)
@@ -34,7 +34,7 @@ Usage:
     # Explicit list
     .venv/bin/python scripts/datasources/wikidata/load_jurisdictions_wikidata.py --states TX,NY,OH
 
-    # Load all jurisdiction types for one state (defaults include all four types + six priority USPS)
+    # Load all jurisdiction types for one state (defaults include all four types + priority dev USPS)
     .venv/bin/python scripts/datasources/wikidata/load_jurisdictions_wikidata.py --states AL
 """
 import os
@@ -156,7 +156,7 @@ STATE_MAP = {
 }
 
 # Priority development states (subset of STATE_MAP).
-PRIORITY_STATES = ["AL", "GA", "IN", "MA", "WA", "WI"]
+PRIORITY_STATES = ["AL", "GA", "IN", "MA", "MT", "WA", "WI"]
 
 
 def _env_truthy(key: str, default: bool = False) -> bool:

@@ -5,10 +5,6 @@ import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
 import { 
   MagnifyingGlassIcon, 
-  DocumentTextIcon, 
-  ChartBarIcon,
-  BuildingLibraryIcon,
-  UserGroupIcon,
   MapIcon,
   BellAlertIcon,
   SparklesIcon,
@@ -304,7 +300,7 @@ export default function HomeModern() {
   // Track active section on scroll
   useEffect(() => {
     const handleScroll = () => {
-      const sections = ['hero', 'features', 'how-it-works', 'stats', 'get-started']
+      const sections = ['hero', 'how-it-works', 'stats', 'get-started']
       const scrollPosition = window.scrollY + 100
 
       for (const section of sections) {
@@ -351,56 +347,9 @@ export default function HomeModern() {
 
   const navLinks = [
     { id: 'hero', label: 'Home' },
-    { id: 'features', label: 'Features' },
     { id: 'how-it-works', label: 'How It Works' },
     { id: 'stats', label: 'Impact' },
-    { id: 'get-started', label: 'Documentation' },
     { id: 'contact', label: 'Contact' },
-  ]
-
-  const features = [
-    {
-      icon: DocumentTextIcon,
-      title: 'Policy Decisions',
-      description: 'Track 500K+ meeting pages with decision analysis, deferral patterns, and stakeholder positions',
-      link: '/documents',
-      color: '#354F52'
-    },
-    {
-      icon: ChartBarIcon,
-      title: 'Budget Analysis',
-      description: 'Compare budget rhetoric to reality with $2T+ in tracked spending and delta analysis',
-      link: '/analytics',
-      color: '#52796F'
-    },
-    {
-      icon: UserGroupIcon,
-      title: 'Elected Officials',
-      description: 'Follow 362 officials across 925 jurisdictions with voting records and decision patterns',
-      link: '/people',
-      color: '#84A98C'
-    },
-    {
-      icon: MapIcon,
-      title: 'Policy Map',
-      description: 'Track state legislation and bills across all sessions. Search 13,000+ bills by topic and status',
-      link: '/policy-map',
-      color: '#4A90E2'
-    },
-    {
-      icon: BuildingLibraryIcon,
-      title: 'Nonprofits & Churches',
-      description: '43,726 nonprofits including 4,372 churches with financial data from 5 states',
-      link: '/nonprofits',
-      color: '#9B59B6'
-    },
-    {
-      icon: BellAlertIcon,
-      title: 'Fact-Checking',
-      description: 'Verify claims with integrated PolitiFact, FactCheck.org, and Google Fact Check data',
-      link: '/debate-grader',
-      color: '#E74C3C'
-    },
   ]
 
   return (
@@ -1038,46 +987,6 @@ export default function HomeModern() {
                 Request Coverage
               </a>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section id="features" className="py-20 px-4 bg-white">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold mb-4" style={{ color: '#354F52' }}>
-              Everything You Need
-            </h2>
-            <p className="text-xl text-gray-600">
-              Powerful tools to stay informed and engaged with the most impactful details
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {features.map((feature, index) => (
-              <Link
-                key={index}
-                to={feature.link}
-                className="group bg-gradient-to-br from-gray-50 to-white border-2 border-gray-200 rounded-2xl p-8 hover:border-[#354F52] hover:shadow-xl transition-all"
-              >
-                <div
-                  className="w-14 h-14 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"
-                  style={{ backgroundColor: `${feature.color}15` }}
-                >
-                  <feature.icon className="h-7 w-7" style={{ color: feature.color }} />
-                </div>
-                <h3 className="text-xl font-bold mb-3" style={{ color: '#354F52' }}>
-                  {feature.title}
-                </h3>
-                <p className="text-gray-600 mb-4">
-                  {feature.description}
-                </p>
-                <span className="inline-flex items-center gap-2 text-sm font-medium" style={{ color: feature.color }}>
-                  Learn more <ArrowRightIcon className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
-                </span>
-              </Link>
-            ))}
           </div>
         </div>
       </section>

@@ -1,248 +1,45 @@
-import { Link } from 'react-router-dom'
-import { useEffect, Fragment } from 'react'
-import type { ReactNode } from 'react'
+import { Link, useLocation } from 'react-router-dom'
+import { useLayoutEffect, Fragment, useState, type ReactNode } from 'react'
+import { ChevronRightIcon } from '@heroicons/react/24/outline'
 import {
-  UserGroupIcon,
-  BuildingOfficeIcon,
-  BriefcaseIcon,
-  DocumentTextIcon,
-  MapIcon,
-  ChartBarIcon,
-  MicrophoneIcon,
-  BellAlertIcon,
-  CalendarIcon,
-  AcademicCapIcon,
-  CheckBadgeIcon,
-  PhoneIcon,
-  ChatBubbleLeftRightIcon,
-  HeartIcon,
-  CodeBracketIcon,
-  RocketLaunchIcon,
-  LightBulbIcon,
-  MegaphoneIcon,
-  WrenchScrewdriverIcon,
-} from '@heroicons/react/24/outline'
-
-interface ExploreCard {
-  title: string
-  description: string
-  icon: React.ComponentType<{ className?: string }>
-  path: string
-  color: string
-  stats?: string
-}
-
-interface ActionPhase {
-  id: string
-  step: string
-  title: string
-  subtitle: string
-  cards: ExploreCard[]
-  gridClass: string
-}
+  BUILD_PHASE,
+  EXPLORE_BUILD_ID,
+  EXPLORE_CAUSES_ID,
+  EXPLORE_FIND_HELP_ID,
+  EXPLORE_PLAN_ID,
+  EXPLORE_PRIMARY_NAV,
+  EXPLORE_SECTION_SCROLL_MARGIN_CLASS,
+  EXPLORE_TRACK_DECISIONS_ID,
+  FIND_HELP_SECTION,
+  LEGACY_EXPLORE_HASH_REDIRECT,
+  PLAN_DEFINE_SUCCESS_BY_BRANCH,
+  PLAN_IDENTIFY_ALLIES_BY_BRANCH,
+  PLAN_PATH_BRANCH_OPTIONS,
+  TRACK_DECISIONS_SECTION,
+  explorePlanSubsectionId,
+  type ExploreCard,
+  type PlanPathBranchId,
+} from '../data/exploreActionPhases'
+import { CAUSES } from '../data/causes'
+import { flyoutIcons } from '../data/homeQuickNavFlyouts'
 
 const CARD_CTA = 'Take the next step →'
 
-/** Step 1 — Pull primary sources: meetings, money, law, verification, census. */
-const phaseLearnCards: ExploreCard[] = [
-  {
-    title: 'Policy Decisions',
-    description:
-      'Start with the record: agendas, votes, deferrals, and who said what in public meetings across jurisdictions.',
-    icon: DocumentTextIcon,
-    path: '/documents',
-    color: '#354F52',
-    stats: '500K+ meeting pages',
-  },
-  {
-    title: 'Budget Analysis',
-    description:
-      'Follow the money — compare budgets to meeting rhetoric so you know what is funded versus what is only talked about.',
-    icon: ChartBarIcon,
-    path: '/analytics',
-    color: '#52796F',
-    stats: 'Rhetoric vs. reality',
-  },
-  {
-    title: 'Policy Map',
-    description:
-      'See how issues move through state capitols: bills, sponsors, and status so you are arguing from the text, not the headline.',
-    icon: MapIcon,
-    path: '/policy-map',
-    color: '#84A98C',
-    stats: '13K+ bills',
-  },
-  {
-    title: 'Fact-Checking',
-    description:
-      'Stress-test claims from meetings and campaigns against trusted fact-check sources before you repeat them.',
-    icon: MicrophoneIcon,
-    path: '/fact-checking',
-    color: '#CAD2C5',
-    stats: 'Verify, then share',
-  },
-  {
-    title: 'ACS map & scorecard',
-    description:
-      'Layer census context — browse the national map, drill into states, then open the scorecard for multi-year trends.',
-    icon: MapIcon,
-    path: '/data-explorer',
-    color: '#2f5d62',
-    stats: 'National → state → trends',
-  },
-]
+const PLAN_BRANCH_TAG_CLASS: Record<PlanPathBranchId, string> = {
+  personal: 'rounded-full bg-sky-100 px-3 py-0.5 text-xs font-semibold text-sky-900 ring-1 ring-sky-200',
+  macro: 'rounded-full bg-amber-50 px-3 py-0.5 text-xs font-semibold text-amber-900 ring-1 ring-amber-200',
+  professional:
+    'rounded-full bg-violet-50 px-3 py-0.5 text-xs font-semibold text-violet-900 ring-1 ring-violet-200',
+}
 
-/** Step 2 — Interpret and align with people, orgs, and movements. */
-const phaseDecideCards: ExploreCard[] = [
-  {
-    title: 'Nonprofits & Churches',
-    description:
-      'Find partners already doing the work — financials and program footprints help you choose who to support or cite.',
-    icon: BuildingOfficeIcon,
-    path: '/nonprofits',
-    color: '#354F52',
-    stats: '43K+ organizations',
-  },
-  {
-    title: 'Advocacy Topics',
-    description:
-      'See what communities are organizing around now so your action matches real demand, not a generic template.',
-    icon: BellAlertIcon,
-    path: '/advocacy-topics',
-    color: '#52796F',
-    stats: 'Live issues',
-  },
-  {
-    title: 'Grants & Funding',
-    description:
-      'Map funding streams and outcomes so proposals, testimony, or coalition asks are grounded in how money flows.',
-    icon: BriefcaseIcon,
-    path: '/analytics',
-    color: '#84A98C',
-    stats: 'Funding intelligence',
-  },
-  {
-    title: 'Elected Officials',
-    description:
-      'Know who holds the pen: local, state, and school decision-makers before you call, write, or show up.',
-    icon: UserGroupIcon,
-    path: '/people',
-    color: '#CAD2C5',
-    stats: '100K+ officials',
-  },
-]
+const PLAN_SUP_TAG_CLASS: Record<'allies' | 'success', string> = {
+  allies: 'rounded-full bg-sky-100 px-3 py-0.5 text-xs font-semibold text-sky-900 ring-1 ring-sky-200',
+  success: 'rounded-full bg-sky-100 px-3 py-0.5 text-xs font-semibold text-sky-900 ring-1 ring-sky-200',
+}
 
-/** Step 3 — Concrete civic participation. */
-const phaseActCards: ExploreCard[] = [
-  {
-    title: 'Community Events',
-    description: 'Put what you learned on the calendar — hearings, town halls, and public sessions where decisions open up.',
-    icon: CalendarIcon,
-    path: '/events',
-    color: '#354F52',
-    stats: 'Show up',
-  },
-  {
-    title: 'Training & Services',
-    description: 'Use programs and workshops to build skills (and connect neighbors) after you have identified gaps.',
-    icon: AcademicCapIcon,
-    path: '/services',
-    color: '#52796F',
-    stats: 'Learn & grow',
-  },
-  {
-    title: 'Voter Registration',
-    description: 'Channel insight into ballots — registration, polling places, and election context for your area.',
-    icon: CheckBadgeIcon,
-    path: '/analytics?topic=elections',
-    color: '#84A98C',
-    stats: 'Vote informed',
-  },
-  {
-    title: 'Contact Your Representatives',
-    description: 'Turn research into outreach — direct lines for councils, legislatures, and school boards.',
-    icon: PhoneIcon,
-    path: '/people?view=contact',
-    color: '#CAD2C5',
-    stats: 'Make the call',
-  },
-  {
-    title: 'Submit Feedback',
-    description: 'Use formal comment windows and public feedback routes so your position is on the record.',
-    icon: ChatBubbleLeftRightIcon,
-    path: '/opportunities?type=feedback',
-    color: '#52796F',
-    stats: 'Official input',
-  },
-  {
-    title: 'Community Resources',
-    description: 'Connect people to food, housing, health, and family supports when data surfaces unmet needs.',
-    icon: HeartIcon,
-    path: '/nonprofits?category=family-services',
-    color: '#84A98C',
-    stats: 'Help neighbors',
-  },
-]
-
-const phaseBuildCards: ExploreCard[] = [
-  {
-    title: 'Open Source Projects',
-    description: 'Fork pipelines, models, and civic UX so the same evidence others read can power your own tools.',
-    icon: CodeBracketIcon,
-    path: '/opensource',
-    color: '#354F52',
-    stats: 'Ship together',
-  },
-  {
-    title: 'Hackathons for Good',
-    description: 'Prototype fixes fast — from transparency dashboards to intake bots — alongside other builders.',
-    icon: RocketLaunchIcon,
-    path: '/hackathons',
-    color: '#52796F',
-    stats: '48-hour impact',
-  },
-]
-
-const ACTION_PHASES: ActionPhase[] = [
-  {
-    id: 'learn',
-    step: '1',
-    title: 'Learn what happened',
-    subtitle: 'Gather authoritative sources before you speak, fund, or file.',
-    cards: phaseLearnCards,
-    gridClass: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6',
-  },
-  {
-    id: 'decide',
-    step: '2',
-    title: 'Decide who to work with',
-    subtitle: 'Interpret the record — align with organizations, issues, funders, and decision-makers.',
-    cards: phaseDecideCards,
-    gridClass: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6',
-  },
-  {
-    id: 'act',
-    step: '3',
-    title: 'Show up & act',
-    subtitle: 'Move from screens to rooms — events, services, ballots, calls, and public comment.',
-    cards: phaseActCards,
-    gridClass: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6',
-  },
-  {
-    id: 'build',
-    step: '4',
-    title: 'Build on the data',
-    subtitle: 'Extend the commons — open source and hackathons for teams who ship.',
-    cards: phaseBuildCards,
-    gridClass: 'grid grid-cols-1 md:grid-cols-2 gap-6',
-  },
-]
-
-const PROCESS_STEPS: { n: string; title: string; blurb: string; icon: typeof LightBulbIcon }[] = [
-  { n: '1', title: 'Learn', blurb: 'Meetings, budgets, law, census, fact checks', icon: LightBulbIcon },
-  { n: '2', title: 'Decide', blurb: 'Partners, issues, officials, funding', icon: MegaphoneIcon },
-  { n: '3', title: 'Act', blurb: 'Events, services, ballots, contact, comment', icon: WrenchScrewdriverIcon },
-]
+function scrollToExploreTarget(targetId: string) {
+  document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
 
 function ActionCard({ option, cta = CARD_CTA }: { option: ExploreCard; cta?: string }): ReactNode {
   const Icon = option.icon
@@ -288,83 +85,372 @@ function ActionCard({ option, cta = CARD_CTA }: { option: ExploreCard; cta?: str
   return <Link to={option.path}>{inner}</Link>
 }
 
+const CAUSE_ACCENT = ['#354F52', '#52796F', '#84A98C', '#2f5d62', '#52796F', '#354F52'] as const
+
+function CauseEntryCard({ cause, color }: { cause: (typeof CAUSES)[number]; color: string }) {
+  const icon = flyoutIcons[cause.iconKey]()
+  const isExternal = cause.to.startsWith('http')
+  const inner = (
+    <div className="group flex h-full flex-col rounded-xl border border-gray-100 bg-white p-5 shadow-md transition-all duration-300 hover:border-gray-200 hover:shadow-xl">
+      <div
+        className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg transition-transform group-hover:scale-105"
+        style={{ backgroundColor: `${color}18` }}
+      >
+        <span style={{ color }}>{icon}</span>
+      </div>
+      <h3 className="mb-1 text-lg font-bold text-gray-900 group-hover:text-[#354F52]">{cause.label}</h3>
+      <p className="mb-3 flex-1 text-sm leading-relaxed text-gray-600">{cause.desc}</p>
+      <span
+        className="mt-auto w-fit rounded-full px-2 py-0.5 text-[10px] font-bold"
+        style={{
+          background: cause.hot ? '#fff4d6' : `${color}15`,
+          color: cause.hot ? '#a06000' : color,
+        }}
+      >
+        {cause.tag}
+        {cause.hot ? ' 🔥' : ''}
+      </span>
+      <div className="mt-3 text-sm font-medium" style={{ color }}>
+        <span className="group-hover:translate-x-0.5 inline-block transition-transform">{CARD_CTA}</span>
+      </div>
+    </div>
+  )
+  if (isExternal) {
+    return (
+      <a href={cause.to} target="_blank" rel="noopener noreferrer" className="block h-full">
+        {inner}
+      </a>
+    )
+  }
+  return (
+    <Link to={cause.to} className="block h-full">
+      {inner}
+    </Link>
+  )
+}
+
 export default function Explore() {
-  useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }, [])
+  const location = useLocation()
+  const [planBranch, setPlanBranch] = useState<PlanPathBranchId | null>(null)
+
+  useLayoutEffect(() => {
+    const raw = location.hash.replace(/^#/, '')
+    if (!raw) {
+      window.scrollTo({ top: 0, behavior: 'auto' })
+      return
+    }
+    const targetId = LEGACY_EXPLORE_HASH_REDIRECT[raw] ?? raw
+    requestAnimationFrame(() => {
+      document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }, [location.pathname, location.hash])
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      <div className="bg-white shadow-sm border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="text-center max-w-3xl mx-auto">
-            <p className="text-xs font-semibold uppercase tracking-widest text-teal-800/90 mb-2">Take action</p>
-            <h1 className="text-4xl font-bold text-gray-900 mb-3">From information to impact</h1>
-            <p className="text-lg text-gray-600">
-              CommunityOne is built as a path: pull the public record, decide who to work with, then show up where decisions
-              are made. Pick a step below — each card opens a concrete workflow.
-            </p>
-          </div>
+    <div className="min-h-screen bg-slate-300">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 pb-2">
+        <div className="rounded-2xl border border-slate-400/40 bg-white shadow-[0_4px_28px_-10px_rgba(15,23,42,0.18)]">
+          <div className="px-4 sm:px-6 lg:px-8 py-8">
+            <div className="text-center max-w-3xl mx-auto">
+              <p className="text-xs font-semibold uppercase tracking-widest text-teal-800/90 mb-2">Take action</p>
+              <h1 className="text-4xl font-bold text-gray-900 mb-3">From information to impact</h1>
+              <p className="text-lg text-gray-600">
+                Start by choosing a cause, make a plan (learn the record, decide who to work with, then show up), find help when
+                someone needs direct support, track the decisions that matter, and build on open data.
+              </p>
+            </div>
 
-          <div
-            className="mt-8 flex flex-col gap-3 md:flex-row md:flex-wrap md:items-stretch md:justify-center max-w-4xl mx-auto"
-            aria-label="Action path: learn, decide, act"
-          >
-            {PROCESS_STEPS.map((s, i) => {
-              const Icon = s.icon
-              return (
-                <Fragment key={s.n}>
-                  <div className="flex flex-1 min-w-[10rem] items-start gap-3 rounded-xl border border-gray-200 bg-slate-50/80 px-4 py-3 text-left shadow-sm">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-teal-800 text-sm font-bold text-white">
-                      {s.n}
-                    </span>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <Icon className="h-5 w-5 text-teal-800" aria-hidden />
-                        <span className="font-semibold text-gray-900">{s.title}</span>
-                      </div>
-                      <p className="mt-1 text-xs leading-snug text-gray-600">{s.blurb}</p>
-                    </div>
-                  </div>
-                  {i < PROCESS_STEPS.length - 1 ? (
-                    <span
-                      className="hidden md:flex shrink-0 items-center self-center px-1 text-lg font-light text-gray-300"
-                      aria-hidden
+            <div
+              className="mt-8 flex flex-col gap-3 md:flex-row md:flex-wrap md:items-stretch md:justify-center max-w-6xl mx-auto"
+              aria-label="Explore: choose a cause, make a plan, find help, track decisions, build with data"
+            >
+              {EXPLORE_PRIMARY_NAV.map((step, i) => {
+                const Icon = step.Icon
+                const next = EXPLORE_PRIMARY_NAV[i + 1]
+                return (
+                  <Fragment key={step.key}>
+                    <button
+                      type="button"
+                      onClick={() => scrollToExploreTarget(step.targetId)}
+                      className="flex flex-1 min-w-[10rem] cursor-pointer items-start gap-3 rounded-xl border border-gray-200 bg-slate-50/90 px-4 py-3 text-left shadow-sm transition-colors hover:border-teal-700/40 hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
                     >
-                      →
-                    </span>
-                  ) : null}
-                </Fragment>
-              )
-            })}
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-teal-800 text-white">
+                        <Icon className="h-5 w-5" aria-hidden />
+                      </span>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-gray-900">{step.title}</span>
+                        </div>
+                        <p className="mt-1 text-xs leading-snug text-gray-600">{step.blurb}</p>
+                      </div>
+                    </button>
+                    {next ? (
+                      <button
+                        type="button"
+                        className="hidden md:flex shrink-0 items-center self-center rounded-full p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-teal-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
+                        aria-label={`Jump to ${next.title}`}
+                        onClick={() => scrollToExploreTarget(next.targetId)}
+                      >
+                        <ChevronRightIcon className="h-6 w-6" aria-hidden />
+                      </button>
+                    ) : null}
+                  </Fragment>
+                )
+              })}
+            </div>
           </div>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-16">
-        {ACTION_PHASES.map((phase, idx) => (
-          <section key={phase.id} aria-labelledby={`phase-${phase.id}`}>
+        <section
+          id={EXPLORE_CAUSES_ID}
+          className={EXPLORE_SECTION_SCROLL_MARGIN_CLASS}
+          aria-labelledby="explore-causes-heading"
+        >
+          <div className="mb-6 flex flex-wrap items-end justify-between gap-3 border-b border-gray-200 pb-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-widest text-teal-800">Start</p>
+              <h2 id="explore-causes-heading" className="text-2xl font-bold text-gray-900">
+                Choose a cause
+              </h2>
+              <p className="mt-1 max-w-3xl text-gray-600">
+                Pick where you are starting — each card sends you to search, services, or a formal route that fits.
+              </p>
+            </div>
+            <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-900 ring-1 ring-emerald-200">
+              Start here if you are new
+            </span>
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {CAUSES.map((cause, i) => (
+              <CauseEntryCard key={cause.id} cause={cause} color={CAUSE_ACCENT[i % CAUSE_ACCENT.length]!} />
+            ))}
+          </div>
+        </section>
+
+        <section
+          id={EXPLORE_PLAN_ID}
+          className={`${EXPLORE_SECTION_SCROLL_MARGIN_CLASS} space-y-16`}
+          aria-labelledby="explore-plan-heading"
+        >
+          <div className="flex flex-wrap items-end justify-between gap-3 border-b border-gray-200 pb-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-widest text-teal-800">Plan</p>
+              <h2 id="explore-plan-heading" className="text-2xl font-bold text-gray-900">
+                Make a plan
+              </h2>
+              <p className="mt-1 max-w-3xl text-gray-600">
+                Choose <strong>Personal Path</strong>, <strong>Macro Path</strong>, or <strong>Professional Path</strong>{' '}
+                (one at a time). Your Identify Allies and Define Success steps update from that choice.
+              </p>
+            </div>
+          </div>
+
+          <section
+            id={explorePlanSubsectionId('path')}
+            className={EXPLORE_SECTION_SCROLL_MARGIN_CLASS}
+            aria-labelledby="plan-path-heading"
+          >
             <div className="mb-6 flex flex-wrap items-end justify-between gap-3 border-b border-gray-200 pb-4">
               <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-teal-800">Step {phase.step}</p>
-                <h2 id={`phase-${phase.id}`} className="text-2xl font-bold text-gray-900">
-                  {phase.title}
-                </h2>
-                <p className="mt-1 max-w-3xl text-gray-600">{phase.subtitle}</p>
+                <p className="text-xs font-bold uppercase tracking-widest text-teal-800">Plan · Step 1 of 4</p>
+                <h3 id="plan-path-heading" className="text-2xl font-bold text-gray-900">
+                  Choose your path
+                </h3>
+                <p className="mt-1 max-w-3xl text-gray-600">
+                  Select one branch below. You can switch anytime; only the allies and success tools for that branch are
+                  shown.
+                </p>
               </div>
-              {idx === 0 ? (
-                <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-900 ring-1 ring-emerald-200">
-                  Start here if you are new
-                </span>
-              ) : null}
             </div>
-            <div className={phase.gridClass}>
-              {phase.cards.map((option) => (
-                <ActionCard key={`${phase.id}-${option.title}`} option={option} />
-              ))}
+
+            <div
+              className="grid grid-cols-1 gap-4 md:grid-cols-3"
+              role="radiogroup"
+              aria-label="Personal path, macro path, or professional path"
+            >
+              {PLAN_PATH_BRANCH_OPTIONS.map((opt) => {
+                const selected = planBranch === opt.branch
+                return (
+                  <button
+                    key={opt.branch}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => setPlanBranch(opt.branch)}
+                    className={`rounded-xl border-2 p-5 text-left shadow-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 ${
+                      selected
+                        ? 'border-teal-700 bg-teal-50/60 ring-1 ring-teal-800/15'
+                        : 'border-gray-200 bg-white hover:border-teal-300 hover:bg-gray-50/80'
+                    }`}
+                  >
+                    <h4 className="text-xl font-bold text-gray-900">{opt.title}</h4>
+                    <p className="mt-2 text-sm leading-relaxed text-gray-600">{opt.subtitle}</p>
+                    <p className="mt-3">
+                      <span className={PLAN_BRANCH_TAG_CLASS[opt.branch]}>{opt.tag}</span>
+                    </p>
+                  </button>
+                )
+              })}
             </div>
+
+            {planBranch ? (
+              <>
+                {(() => {
+                  const opt = PLAN_PATH_BRANCH_OPTIONS.find((o) => o.branch === planBranch)
+                  if (!opt) return null
+                  return (
+                    <>
+                      <div className="mb-6 mt-12 flex flex-wrap items-end justify-between gap-3 border-b border-gray-200 pb-4">
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-widest text-teal-800">Plan · Step 2 of 4</p>
+                          <h3 className="text-2xl font-bold text-gray-900">{opt.title}</h3>
+                          <p className="mt-1 max-w-3xl text-gray-600">{opt.subtitle}</p>
+                          <p className="mt-2">
+                            <span className={PLAN_BRANCH_TAG_CLASS[opt.branch]}>{opt.tag}</span>
+                          </p>
+                        </div>
+                      </div>
+                      <div className={opt.gridClass}>
+                        {opt.cards.map((option) => (
+                          <ActionCard key={`path-${opt.branch}-${option.title}`} option={option} />
+                        ))}
+                      </div>
+                    </>
+                  )
+                })()}
+              </>
+            ) : (
+              <p
+                className="mt-8 rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-6 text-center text-sm text-gray-600"
+                role="status"
+              >
+                Choose <strong>Personal Path</strong>, <strong>Macro Path</strong>, or{' '}
+                <strong>Professional Path</strong> to see your path resources and the Identify Allies and Define Success
+                steps.
+              </p>
+            )}
           </section>
-        ))}
+
+          {planBranch ? (
+            <>
+              <section
+                id={explorePlanSubsectionId('allies')}
+                className={EXPLORE_SECTION_SCROLL_MARGIN_CLASS}
+                aria-labelledby="plan-allies-heading"
+              >
+                <div className="mb-6 flex flex-wrap items-end justify-between gap-3 border-b border-gray-200 pb-4">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-widest text-teal-800">Plan · Step 3 of 4</p>
+                    <h3 id="plan-allies-heading" className="text-2xl font-bold text-gray-900">
+                      Identify Allies
+                    </h3>
+                    <p className="mt-1 max-w-3xl text-gray-600">
+                      {PLAN_IDENTIFY_ALLIES_BY_BRANCH[planBranch].subtitle}
+                    </p>
+                    <p className="mt-2">
+                      <span className={PLAN_SUP_TAG_CLASS.allies}>Strategy</span>
+                    </p>
+                  </div>
+                </div>
+                <div className={PLAN_IDENTIFY_ALLIES_BY_BRANCH[planBranch].gridClass}>
+                  {PLAN_IDENTIFY_ALLIES_BY_BRANCH[planBranch].cards.map((option) => (
+                    <ActionCard key={`allies-${planBranch}-${option.title}`} option={option} />
+                  ))}
+                </div>
+              </section>
+
+              <section
+                id={explorePlanSubsectionId('success')}
+                className={EXPLORE_SECTION_SCROLL_MARGIN_CLASS}
+                aria-labelledby="plan-success-heading"
+              >
+                <div className="mb-6 flex flex-wrap items-end justify-between gap-3 border-b border-gray-200 pb-4">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-widest text-teal-800">Plan · Step 4 of 4</p>
+                    <h3 id="plan-success-heading" className="text-2xl font-bold text-gray-900">
+                      Define Success
+                    </h3>
+                    <p className="mt-1 max-w-3xl text-gray-600">
+                      {PLAN_DEFINE_SUCCESS_BY_BRANCH[planBranch].subtitle}
+                    </p>
+                    <p className="mt-2">
+                      <span className={PLAN_SUP_TAG_CLASS.success}>Outcomes</span>
+                    </p>
+                  </div>
+                </div>
+                <div className={PLAN_DEFINE_SUCCESS_BY_BRANCH[planBranch].gridClass}>
+                  {PLAN_DEFINE_SUCCESS_BY_BRANCH[planBranch].cards.map((option) => (
+                    <ActionCard key={`success-${planBranch}-${option.title}`} option={option} />
+                  ))}
+                </div>
+              </section>
+            </>
+          ) : null}
+        </section>
+
+        <section
+          id={EXPLORE_FIND_HELP_ID}
+          className={EXPLORE_SECTION_SCROLL_MARGIN_CLASS}
+          aria-labelledby="explore-find-help-heading"
+        >
+          <div className="mb-6 flex flex-wrap items-end justify-between gap-3 border-b border-gray-200 pb-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-widest text-teal-800">Find</p>
+              <h2 id="explore-find-help-heading" className="text-2xl font-bold text-gray-900">
+                {FIND_HELP_SECTION.title}
+              </h2>
+              <p className="mt-1 max-w-3xl text-gray-600">{FIND_HELP_SECTION.subtitle}</p>
+            </div>
+          </div>
+          <div className={FIND_HELP_SECTION.gridClass}>
+            {FIND_HELP_SECTION.cards.map((option) => (
+              <ActionCard key={`find-help-${option.title}`} option={option} />
+            ))}
+          </div>
+        </section>
+
+        <section
+          id={EXPLORE_TRACK_DECISIONS_ID}
+          className={EXPLORE_SECTION_SCROLL_MARGIN_CLASS}
+          aria-labelledby="explore-track-heading"
+        >
+          <div className="mb-6 flex flex-wrap items-end justify-between gap-3 border-b border-gray-200 pb-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-widest text-teal-800">Track</p>
+              <h2 id="explore-track-heading" className="text-2xl font-bold text-gray-900">
+                {TRACK_DECISIONS_SECTION.title}
+              </h2>
+              <p className="mt-1 max-w-3xl text-gray-600">{TRACK_DECISIONS_SECTION.subtitle}</p>
+            </div>
+          </div>
+          <div className={TRACK_DECISIONS_SECTION.gridClass}>
+            {TRACK_DECISIONS_SECTION.cards.map((option) => (
+              <ActionCard key={`track-${option.title}`} option={option} />
+            ))}
+          </div>
+        </section>
+
+        <section
+          id={EXPLORE_BUILD_ID}
+          className={EXPLORE_SECTION_SCROLL_MARGIN_CLASS}
+          aria-labelledby="explore-build-heading"
+        >
+          <div className="mb-6 flex flex-wrap items-end justify-between gap-3 border-b border-gray-200 pb-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-widest text-teal-800">Build</p>
+              <h2 id="explore-build-heading" className="text-2xl font-bold text-gray-900">
+                {BUILD_PHASE.title}
+              </h2>
+              <p className="mt-1 max-w-3xl text-gray-600">{BUILD_PHASE.subtitle}</p>
+            </div>
+          </div>
+          <div className={BUILD_PHASE.gridClass}>
+            {BUILD_PHASE.cards.map((option) => (
+              <ActionCard key={`build-${option.title}`} option={option} />
+            ))}
+          </div>
+        </section>
 
         <div className="text-center">
           <div className="bg-white rounded-xl shadow-md p-8 max-w-2xl mx-auto border border-gray-100">

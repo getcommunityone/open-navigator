@@ -107,6 +107,7 @@ export default function Heatmap() {
         <MapContainer
           center={[39.8283, -98.5795]} // Center of USA
           zoom={4}
+          scrollWheelZoom={false}
           style={{ height: '100%', width: '100%' }}
         >
           <TileLayer

@@ -1,0 +1,69 @@
+# Thin wrapper so `dbt` / Cursor can run from the repository root without
+# `--project-dir dbt_project`. Paths point at the real project under `dbt_project/`.
+#
+# IMPORTANT: dbt looks for profiles.yml next to THIS file (repo root). Ours lives in
+# `dbt_project/profiles.yml`. Always set DBT_PROFILES_DIR or use ./scripts/dbt-root.sh:
+#   export DBT_PROFILES_DIR="$(pwd)/dbt_project"
+#   .venv-dbt/bin/dbt seed --select jurisdiction_website_url_overrides && ...
+#
+# Keep `models`, `seeds`, `snapshots`, and `vars` in sync with `dbt_project/dbt_project.yml`.
+
+name: 'open_navigator_dbt'
+version: '1.0.0'
+config-version: 2
+
+profile: 'open_navigator'
+
+model-paths: ["dbt_project/models"]
+analysis-paths: ["dbt_project/analyses"]
+test-paths: ["dbt_project/tests"]
+seed-paths: ["dbt_project/seeds"]
+macro-paths: ["dbt_project/macros"]
+snapshot-paths: ["dbt_project/snapshots"]
+
+target-path: "dbt_project/target"
+packages-install-path: "dbt_project/dbt_packages"
+
+clean-targets:
+  - "dbt_project/target"
+  - "dbt_project/dbt_packages"
+
+models:
+  open_navigator_dbt:
+    staging:
+      +materialized: view
+      +schema: staging
+
+    intermediate:
+      +materialized: table
+      +schema: intermediate
+
+    marts:
+      +materialized: incremental
+      +on_schema_change: sync_all_columns
+      +unique_key: id
+
+seeds:
+  open_navigator_dbt:
+    +schema: seeds
+
+snapshots:
+  open_navigator_dbt:
+    +target_schema: snapshots
+    +unique_key: id
+    +strategy: timestamp
+    +updated_at: last_updated
+
+vars:
+  confidence_authoritative: 1.0
+  confidence_high: 0.90
+  confidence_medium: 0.70
+  confidence_ai: 0.60
+  confidence_low: 0.50
+
+  fuzzy_match_threshold: 0.85
+
+  authoritative_sources: ['openstates_api', 'irs_bmf', 'irs_990']
+  ai_sources: ['gemini_ai_extraction']
+
+  include_nearest_postal_zip: false

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Load Wikidata for the six PRIORITY_STATES (AL, GA, IN, MA, WA, WI) with settings
+# Load Wikidata for PRIORITY_STATES (AL, GA, IN, MA, MT, WA, WI) with settings
 # suited to long unattended runs on a VPS or workstation (not Colab).
 #
 # Usage:

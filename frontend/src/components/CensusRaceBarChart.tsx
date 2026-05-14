@@ -34,13 +34,14 @@ function tickPositionPercent(tickValue: number, min: number, max: number): numbe
 
 const AXIS_TICK_COUNT = 6
 
-/** Try newest plate first, then SVG flag heroes (wikicommons export), then legacy ``/data/state-symbols/``. */
+/** Try Vite public ``/wikicommons/{USPS}_latest.*``, then ``/data/wikicommons/…``, flags, legacy ``/data/state-symbols/``. */
 function winnerVisualCandidates(usps: string): string[] {
+  const pubLatest = (['png', 'jpg', 'jpeg', 'webp'] as const).map((ext) => `/wikicommons/${usps}_latest.${ext}`)
   const w = `/data/wikicommons/${usps}`
   const latest = (['png', 'jpg', 'jpeg', 'webp', 'svg'] as const).map((ext) => `${w}_latest.${ext}`)
   const heroes = [`${w}_colors_hero.svg`, `${w}_colors_hero.jpg`]
   const legacy = [`/data/state-symbols/${usps}_colors_hero.jpg`, `/data/state-symbols/${usps}_colors_hero.svg`]
-  return [...latest, ...heroes, ...legacy]
+  return [...pubLatest, ...latest, ...heroes, ...legacy]
 }
 
 type CensusRaceBarChartProps = {

@@ -144,12 +144,26 @@ sources:
             description: "Full YouTube channel URL"
           - name: channel_title
             description: "Channel display name"
+          - name: channel_description
+            description: >
+              Channel About description from public /about HTML (when scraped by
+              scripts/datasources/youtube/channel_about_links.py).
+          - name: channel_external_links
+            description: >
+              JSON array of outbound links: About-tab featured links plus http(s)/www URLs
+              scraped from the channel description (see channel_about_links.py).
+          - name: channel_external_links_fetched_at
+            description: "When channel_external_links was last scraped from YouTube About"
           - name: channel_type
             description: "Type: municipal, county, state, school, unknown"
           - name: subscriber_count
             description: "Number of subscribers"
           - name: video_count
-            description: "Number of videos"
+            description: "Number of videos on the channel"
+          - name: view_count
+            description: >
+              Total lifetime channel views from public /about HTML when scraped by
+              channel_about_links.py (from viewCountText); NULL if hidden or unparseable.
           - name: in_localview
             description: "TRUE if channel has videos in LocalView dataset"
           - name: in_jurisdictions_details

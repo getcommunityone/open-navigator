@@ -65,7 +65,7 @@ These mirror Census gazetteer rows for a state and add Wikidata entity metadata 
 |------|---------|
 | `wikidata_integration.py` | WDQS client (`WikidataQuery`) used by loaders |
 | `run_load_jurisdictions_wikidata.sh` | Thin wrapper: forwards all args to `load_jurisdictions_wikidata.py` via `.venv` |
-| `run_wikidata_priority_states_background.sh` | **Local / VPS:** six priority USPS, all four jurisdiction types, incremental merge + sensible WDQS env; **`nohup`** + log under `data/logs/` (`RUN_FOREGROUND=1` to block) |
+| `run_wikidata_priority_states_background.sh` | **Local / VPS:** priority dev USPS (`PRIORITY_STATES`), all four jurisdiction types, incremental merge + sensible WDQS env; **`nohup`** + log under `data/logs/` (`RUN_FOREGROUND=1` to block) |
 | `load_jurisdictions_wikidata_colab.ipynb` | Optional Jupyter driver (defaults match priority states locally) |
 | `fix_fips_codes.py`, `cleanup_bad_counties.py` | Data fixes for jurisdiction FIPS / county quality |
 | `generate_mapping_report.sql` | Ad hoc reporting |
@@ -77,7 +77,7 @@ These mirror Census gazetteer rows for a state and add Wikidata entity metadata 
 
 ## Main entrypoint (jurisdictions)
 
-Six **priority development states** in code: **`AL`, `GA`, `IN`, `MA`, `WA`, `WI`** (`PRIORITY_STATES` in `load_jurisdictions_wikidata.py`).
+Seven **priority development states** in code: **`AL`, `GA`, `IN`, `MA`, `MT`, `WA`, `WI`** (`PRIORITY_STATES` in `load_jurisdictions_wikidata.py`).
 
 **Run and forget (recommended on a workstation or VPS):**
 

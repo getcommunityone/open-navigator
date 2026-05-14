@@ -9,13 +9,13 @@ const TREND_LEGEND = [
   { icon: '↓↓', label: 'Notable decline', className: 'text-rose-700' },
 ] as const
 
-/** Trend arrows for scored metrics (shown near the top of the scorecard). */
+/** Trend arrows for the scorecard table (see copy: area ACS change, not benchmark). */
 export function ScorecardTrendLegend(): ReactElement {
   return (
     <div className="rounded-lg border border-slate-300/80 bg-white px-2.5 py-1.5 shadow-sm sm:px-3">
       <p className="mb-1 text-[9px] font-semibold uppercase tracking-wide text-slate-500">How to read this page</p>
       <div>
-        <p className="mb-0.5 text-[10px] font-semibold text-slate-600">Trend (scored metrics)</p>
+        <p className="mb-0.5 text-[10px] font-semibold text-slate-600">This area’s trend column</p>
         <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[10px] leading-tight">
           {TREND_LEGEND.map((row) => (
             <span key={row.icon} className="inline-flex items-center gap-1 whitespace-nowrap">
@@ -24,6 +24,18 @@ export function ScorecardTrendLegend(): ReactElement {
             </span>
           ))}
         </div>
+        <p className="mt-1.5 text-[9px] leading-snug text-slate-600">
+          <span className="font-semibold text-slate-700">Not vs benchmark.</span> Arrows follow percent change in{' '}
+          <span className="font-semibold">this area’s</span> published ACS estimate (↑ rose, ↓ fell). “Strong / Slight” is
+          move size (about 8%+ absolute change = strong / double arrow). “Improvement / decline” and the Favorable chip mean
+          that move is good or bad <span className="font-semibold">for that metric’s direction</span> (e.g. higher income
+          usually better; longer commute usually worse)—independent of the U.S. / region / state benchmark.
+        </p>
+        <p className="mt-1 text-[9px] leading-snug text-slate-600">
+          The <span className="font-semibold">vs.</span> column is where benchmark shows up (today’s level and optional pace
+          vs benchmark). <span className="font-semibold">Section letter</span> grades count favorable{' '}
+          <span className="font-semibold">area</span> trends only; switching benchmark does not recalculate them.
+        </p>
       </div>
     </div>
   )

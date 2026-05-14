@@ -6,7 +6,7 @@ Analyzes what meeting data exists and what needs to be loaded/scraped.
 
 Usage:
     python scripts/localview/check_meeting_data.py
-    python scripts/localview/check_meeting_data.py --states AL,GA,IN,MA,WA,WI
+    python scripts/localview/check_meeting_data.py --states AL,GA,IN,MA,MT,WA,WI
 """
 
 import argparse
@@ -222,7 +222,7 @@ def check_youtube_cache(states: List[str]) -> Dict[str, Dict]:
         print("="*70)
         print("\n❌ No YouTube channel data found")
         print("\nTo discover channels:")
-        print("python scripts/localview/update_municipality_list.py --states AL,GA,IN,MA,WA,WI")
+        print("python scripts/localview/update_municipality_list.py --states AL,GA,IN,MA,MT,WA,WI")
     
     return results
 

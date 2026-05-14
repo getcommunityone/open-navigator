@@ -27,8 +27,6 @@ export const LocationProvider: React.FC<{ children: ReactNode }> = ({ children }
 
   // Load location from user profile or localStorage (only on initial mount)
   useEffect(() => {
-    console.log('🏠 [LocationContext] Initial load, checking saved location...');
-    
     // Check localStorage first (most recent manual selection)
     const savedLocation = localStorage.getItem('user_location')
     if (savedLocation) {
@@ -40,7 +38,6 @@ export const LocationProvider: React.FC<{ children: ReactNode }> = ({ children }
           parsed.state = stateNameToCode(parsed.state)
         }
         
-        console.log('📍 [LocationContext] Loaded from localStorage:', parsed);
         setLocationState(parsed)
         
         // Save back the migrated version
@@ -62,24 +59,18 @@ export const LocationProvider: React.FC<{ children: ReactNode }> = ({ children }
         school_board: user.school_board,
       }
       
-      console.log('👤 [LocationContext] Loaded from user profile:', profileLocation);
       setLocationState(profileLocation)
-    } else {
-      console.log('❌ [LocationContext] No saved location found');
     }
   }, []) // Empty dependency array - only run on mount
 
   const setLocation = (newLocation: LocationData) => {
-    console.log('🔧 [LocationContext] Setting location:', newLocation);
     setLocationState(newLocation)
     
     // Always save to localStorage (even for authenticated users as a backup)
     localStorage.setItem('user_location', JSON.stringify(newLocation))
-    console.log('💾 [LocationContext] Saved to localStorage');
   }
 
   const clearLocation = () => {
-    console.log('🗑️ [LocationContext] Clearing location');
     setLocationState(null)
     localStorage.removeItem('user_location')
   }

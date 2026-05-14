@@ -266,6 +266,18 @@ export function censusMetricFullHelp(
   return `${base}${tbl}${rank}`
 }
 
+/** Slugs where we omit the “Census label:” line under the map picker (universe / table totals; redundant with the dropdown). */
+const CENSUS_MAP_SLUGS_HIDE_OFFICIAL_LABEL = new Set([
+  'population_25_and_over_education_universe',
+  'health_insurance_under19_table_total',
+  'health_insurance_civilian_noninstitutional_total',
+  'poverty_universe',
+])
+
+export function censusMapShowOfficialCensusLabel(slug: string): boolean {
+  return !CENSUS_MAP_SLUGS_HIDE_OFFICIAL_LABEL.has(slug)
+}
+
 export const CENSUS_MAP_UI_HELP = {
   year: `The selected year is the end year of the ACS 5-year period. Each estimate pools five consecutive years of responses, so it is labeled by the latest year in that window (not a single calendar year snapshot).`,
   metric:

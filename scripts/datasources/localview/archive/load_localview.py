@@ -91,7 +91,7 @@ async def download_localview():
         logger.info("")
         logger.info("Next steps:")
         logger.info("1. Run ingestion: python scripts/datasources/localview/localview_ingestion.py")
-        logger.info("2. Check data: python scripts/localview/check_meeting_data.py --states AL,GA,IN,MA,WA,WI")
+        logger.info("2. Check data: python scripts/localview/check_meeting_data.py --states AL,GA,IN,MA,MT,WA,WI")
         
         return True
         

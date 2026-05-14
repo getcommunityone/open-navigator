@@ -16,10 +16,24 @@ alwaysApply: true
 
 **Run dbt (repo root):**
 
+The real project lives under **`dbt_project/`**. Prefer **`./scripts/dbt.sh`** (runs inside `dbt_project/` and sets **`DBT_PROFILES_DIR`** so `dbt_project/profiles.yml` is used, not `~/.dbt`).
+
+If you run **`.venv-dbt/bin/dbt` from the repo root** (root `dbt_project.yml` for Cursor), you **must** point profiles at the same place or dbt will use **`~/.dbt/profiles.yml`** and load seeds / build models on the **wrong database** (overrides never show up in Neon):
+
+```bash
+export DBT_PROFILES_DIR="$(pwd)/dbt_project"
+.venv-dbt/bin/dbt seed --select jurisdiction_website_url_overrides
+.venv-dbt/bin/dbt run --select int_jurisdiction_websites
+```
+
+Or use **`./scripts/dbt-root.sh`** (same as above, from repo root). For the nested project only:
+
 ```bash
 .venv-dbt/bin/dbt run --project-dir dbt_project --select <model>
 ```
 
 Use **`.venv-dbt/bin/dbt`** (or `python` from that venv) for `dbt run`, `dbt compile`, `dbt test`, etc. Add `--profiles-dir` if the project’s `profiles.yml` is not next to `dbt_project`.
+
+When changing **`models` / `seeds` / `snapshots` / `vars`** in `dbt_project/dbt_project.yml`, mirror the same blocks in the root **`dbt_project.yml`** wrapper (or only edit the nested file and copy those sections over).
 
 When suggesting commands to the user, **prefer the full path** `.venv-dbt/bin/dbt` so copy-paste works without activating a venv.

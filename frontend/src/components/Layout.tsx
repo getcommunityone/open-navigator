@@ -26,6 +26,7 @@ import {
 } from '@heroicons/react/24/outline'
 import { useAuth } from '../contexts/AuthContext'
 import { useLocation as useLocationContext } from '../contexts/LocationContext'
+import ExploreQuickNavSidebarPanel from './ExploreQuickNavSidebarPanel'
 
 const navigation = [
   { name: 'Home', href: '/', icon: HomeIcon },
@@ -77,6 +78,10 @@ function pathMatchesNavHref(pathname: string, href: string): boolean {
 
 export default function Layout() {
   const location = useLocation()
+  const isExplorePage = location.pathname === '/explore'
+  const isDataExplorerSection =
+    location.pathname === '/data-explorer' || location.pathname.startsWith('/data-explorer/')
+  const useExploreQuickNavSidebar = isExplorePage || isDataExplorerSection
   const navigate = useNavigate()
   const [searchQuery, setSearchQuery] = useState('')
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -95,8 +100,15 @@ export default function Layout() {
     }
   }
 
+  const goToSearchPage = () => {
+    navigate('/search')
+    window.requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    })
+  }
+
   return (
-    <div className="min-h-screen" style={{ backgroundColor: '#F1F5F9' }}>
+    <div className="min-h-screen bg-slate-300">
       {/* Top Header Bar */}
       <div className="fixed top-0 left-0 right-0 bg-white border-b border-gray-200 z-50">
         <div className="flex items-center justify-between px-4 md:px-6 py-3">
@@ -369,6 +381,15 @@ export default function Layout() {
                 )}
               </div>
             )}
+
+            <button
+              type="button"
+              onClick={goToSearchPage}
+              className="flex items-center gap-1.5 px-2 md:px-3 py-2 text-gray-700 hover:text-primary-600 transition-colors font-medium"
+            >
+              <MagnifyingGlassIcon className="h-5 w-5 shrink-0" aria-hidden />
+              <span>Search</span>
+            </button>
             
             <a
               href={docsUrl}
@@ -394,26 +415,36 @@ export default function Layout() {
         </div>
       </div>
 
-      {/* Sidebar */}
-      <div className={`
-        fixed top-16 inset-y-0 left-0 w-64 bg-white border-r border-gray-200 z-40
+      {/* Sidebar — on /explore and Data explorer, match home Quick Navigation (expand/collapse shortcut panels) */}
+      <div
+        className={`
+        fixed top-16 inset-y-0 left-0 border-r border-gray-200 z-40
         transform transition-transform duration-200 ease-in-out
+        ${useExploreQuickNavSidebar ? 'w-72 bg-slate-300' : 'w-64 bg-white'}
         ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
-      `}>
-        <nav className="mt-6 px-4 overflow-y-auto h-[calc(100vh-10rem)]">
-          {navigation.map((item, index) => {
-            // Handle section headers with nested items
-            if ('section' in item && item.section && item.items) {
-              return (
-                <div key={index} className="mb-6">
-                  <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    {item.section}
-                  </div>
-                  {item.items.map((subItem) => {
-                    const isActive = pathMatchesNavHref(location.pathname, subItem.href)
-                    const isExternal = 'external' in subItem && subItem.external
-                    
-                    const linkClasses = `
+      `}
+      >
+        {useExploreQuickNavSidebar ? (
+          <ExploreQuickNavSidebarPanel
+            onNavigate={() => setMobileMenuOpen(false)}
+            deferSectionNavigationMs={isDataExplorerSection ? 280 : undefined}
+          />
+        ) : (
+          <>
+            <nav className="mt-6 px-4 overflow-y-auto h-[calc(100vh-10rem)]">
+              {navigation.map((item, index) => {
+                // Handle section headers with nested items
+                if ('section' in item && item.section && item.items) {
+                  return (
+                    <div key={index} className="mb-6">
+                      <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                        {item.section}
+                      </div>
+                      {item.items.map((subItem) => {
+                        const isActive = pathMatchesNavHref(location.pathname, subItem.href)
+                        const isExternal = 'external' in subItem && subItem.external
+
+                        const linkClasses = `
                       flex items-center gap-3 px-4 py-3 mb-1 rounded-lg transition-colors
                       ${
                         isActive
@@ -421,47 +452,54 @@ export default function Layout() {
                           : 'text-gray-700 hover:bg-gray-100'
                       }
                     `
-                    
-                    if (isExternal) {
-                      return (
-                        <a
-                          key={subItem.name}
-                          href={subItem.href}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className={linkClasses}
-                        >
-                          <subItem.icon className="h-5 w-5" />
-                          <span className="text-sm">{subItem.name}</span>
-                        </a>
-                      )
-                    }
-                    
-                    return (
-                      <Link
-                        key={subItem.name}
-                        to={subItem.href}
-                        onClick={() => setMobileMenuOpen(false)}
-                        className={linkClasses}
-                      >
-                        <subItem.icon className="h-5 w-5" />
-                        <span className="text-sm">{subItem.name}</span>
-                      </Link>
-                    )
-                  })}
-                </div>
-              )
-            }
-            
-            // Handle regular navigation items
-            if ('href' in item && item.href) {
-              const isActive = pathMatchesNavHref(location.pathname, item.href)
-              return (
-                <Link
-                  key={item.name}
-                  to={item.href}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={`
+
+                        if (isExternal) {
+                          return (
+                            <a
+                              key={subItem.name}
+                              href={subItem.href}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={linkClasses}
+                            >
+                              <subItem.icon className="h-5 w-5" />
+                              <span className="text-sm">{subItem.name}</span>
+                            </a>
+                          )
+                        }
+
+                        return (
+                          <Link
+                            key={subItem.name}
+                            to={subItem.href}
+                            onClick={() => setMobileMenuOpen(false)}
+                            className={linkClasses}
+                          >
+                            <subItem.icon className="h-5 w-5" />
+                            <span className="text-sm">{subItem.name}</span>
+                          </Link>
+                        )
+                      })}
+                    </div>
+                  )
+                }
+
+                // Handle regular navigation items
+                if ('href' in item && item.href) {
+                  const isActive = pathMatchesNavHref(location.pathname, item.href)
+                  return (
+                    <Link
+                      key={item.name}
+                      to={item.href}
+                      onClick={() => {
+                        setMobileMenuOpen(false)
+                        if (item.href === '/search') {
+                          window.requestAnimationFrame(() => {
+                            window.scrollTo({ top: 0, behavior: 'smooth' })
+                          })
+                        }
+                      }}
+                      className={`
                     flex items-center gap-3 px-4 py-3 mb-2 rounded-lg transition-colors
                     ${
                       isActive
@@ -469,37 +507,46 @@ export default function Layout() {
                         : 'text-gray-700 hover:bg-gray-100'
                     }
                   `}
-                >
-                  <item.icon className="h-6 w-6" />
-                  <span>{item.name}</span>
-                </Link>
-              )
-            }
-            
-            return null
-          })}
-        </nav>
+                    >
+                      <item.icon className="h-6 w-6" />
+                      <span>{item.name}</span>
+                    </Link>
+                  )
+                }
 
-        {/* Sidebar Footer */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 bg-white">
-          <div className="text-sm text-gray-600">
-            <div className="font-medium mb-1">Open Data Sources</div>
-            <div className="text-xs">
-              • <Link to="/jurisdictions" className="hover:text-primary-600 hover:underline">925 Jurisdictions</Link><br />
-              • <Link to="/search?types=organizations" className="hover:text-primary-600 hover:underline">43,726 Nonprofits</Link><br />
-              • 6,913 Meeting Pages<br />
-              • <Link to="/search?types=contacts" className="hover:text-primary-600 hover:underline">362 Officials</Link>
+                return null
+              })}
+            </nav>
+
+            {/* Sidebar Footer */}
+            <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 bg-white">
+              <div className="text-sm text-gray-600">
+                <div className="font-medium mb-1">Open Data Sources</div>
+                <div className="text-xs">
+                  • <Link to="/jurisdictions" className="hover:text-primary-600 hover:underline">925 Jurisdictions</Link>
+                  <br />
+                  • <Link to="/search?types=organizations" className="hover:text-primary-600 hover:underline">
+                    43,726 Nonprofits
+                  </Link>
+                  <br />
+                  • 6,913 Meeting Pages
+                  <br />
+                  • <Link to="/search?types=contacts" className="hover:text-primary-600 hover:underline">
+                    362 Officials
+                  </Link>
+                </div>
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  <Link
+                    to="/#contact"
+                    className="text-xs text-primary-600 hover:text-primary-700 hover:underline font-medium"
+                  >
+                    📍 Request Jurisdiction Coverage
+                  </Link>
+                </div>
+              </div>
             </div>
-            <div className="mt-3 pt-3 border-t border-gray-100">
-              <Link 
-                to="/#contact" 
-                className="text-xs text-primary-600 hover:text-primary-700 hover:underline font-medium"
-              >
-                📍 Request Jurisdiction Coverage
-              </Link>
-            </div>
-          </div>
-        </div>
+          </>
+        )}
       </div>
 
       {/* Mobile menu overlay */}
@@ -511,7 +558,9 @@ export default function Layout() {
       )}
 
       {/* Main content */}
-      <div className="flex min-h-[calc(100dvh-5rem)] flex-col pt-16 md:pl-64">
+      <div
+        className={`flex w-full min-w-0 min-h-[calc(100dvh-5rem)] flex-col bg-slate-300 pt-16 ${useExploreQuickNavSidebar ? 'md:pl-72' : 'md:pl-64'}`}
+      >
         {/* Auth Error Banner - Mobile Friendly */}
         {authError && (
           <div className="bg-red-50 border-l-4 border-red-500 p-4 m-4">

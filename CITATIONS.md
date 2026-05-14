@@ -48,6 +48,18 @@ July 2023, Toronto, Canada.
 - Source: https://www.census.gov/
 - License: Public Domain (U.S. Government)
 
+### **Opportunity Insights** (reference)
+- Non-partisan research on economic mobility, neighborhoods, and education; public tools such as the Opportunity Atlas ([https://opportunityinsights.org/](https://opportunityinsights.org/))
+- **Use:** Cite their papers, datasets, or tool pages directly when you use their materials; see [website/docs/data-sources/citations.md](website/docs/data-sources/citations.md#opportunity-insights)
+
+### **PolicyMap** (reference)
+- Commercial platform for U.S. community mapping, analytics, and licensed socio-economic data ([https://www.policymap.com/](https://www.policymap.com/))
+- **Use:** Follow PolicyMap’s **Citing Us** / terms when you use their data or maps; see [website/docs/data-sources/citations.md](website/docs/data-sources/citations.md#policymap)
+
+### **Reason Foundation** (reference)
+- Nonprofit policy research organization ([https://reason.org/](https://reason.org/)); transportation, infrastructure, and governance are among its topic areas (for example the Annual Highway Report and related publications).
+- **Use:** Cite specific Reason reports or pages when you use their materials; see [website/docs/data-sources/citations.md](website/docs/data-sources/citations.md#reason-foundation)
+
 ### **State Symbols USA** (reference)
 - Curated state colors and civic identity reference material (third-party educational site, not a government primary source)
 - Colors category: https://statesymbolsusa.org/categories/colors

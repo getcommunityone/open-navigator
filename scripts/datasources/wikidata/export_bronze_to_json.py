@@ -71,7 +71,7 @@ RCLONE_REMOTE = os.getenv("RCLONE_GDRIVE_REMOTE", "gdrive")
 # ---------------------------------------------------------------------------
 # State map
 # ---------------------------------------------------------------------------
-PRIORITY_STATES = ["AL", "GA", "IN", "MA", "WA", "WI"]
+PRIORITY_STATES = ["AL", "GA", "IN", "MA", "MT", "WA", "WI"]
 
 STATE_NAMES: Dict[str, str] = {
     "AL": "Alabama", "AK": "Alaska", "AZ": "Arizona", "AR": "Arkansas",

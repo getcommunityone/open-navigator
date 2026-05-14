@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Repo root (this file: scripts/datasources/wikidata/)
-# For long unattended runs on six priority USPS, use run_wikidata_priority_states_background.sh.
+# For long unattended runs on priority dev USPS, use run_wikidata_priority_states_background.sh.
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 cd "$ROOT"
 

@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 """
-Load ``_manifest.json`` from ``data/cache/scraped_meetings/{STATE}/`` into bronze as **one row per
-scraped link or document** (never one row per manifest):
+Load ``_manifest.json`` from the meetings scrape cache into bronze as **one row per scraped link or
+document** (never one row per manifest).
+
+**Default cache root** matches the meetings scraper: ``resolve_scraped_meetings_output_root()`` —
+``<repo>/data/cache/scraped_meetings`` unless ``SCRAPED_MEETINGS_ROOT`` is set. Use the same env (or
+pass ``--cache-root``) as you used when scraping; if you scraped with ``--output-root /path/to/other``,
+pass that path as ``--cache-root`` here (or re-scrape without ``--output-root`` into the standard tree).
 
 - **resource_category** ``link`` — HTML pages in ``pages_fetched``, YouTube URLs, other stream URLs.
 - **resource_category** ``document`` — PDFs from ``pdfs`` (downloaded file metadata when present).
@@ -18,6 +23,7 @@ Examples::
 
     .venv/bin/python scripts/discovery/load_scraped_meetings_manifests_to_bronze.py --state AL --apply-ddl
     .venv/bin/python scripts/discovery/load_scraped_meetings_manifests_to_bronze.py -s AL
+    .venv/bin/python scripts/discovery/load_scraped_meetings_manifests_to_bronze.py -s AL --cache-root /path/to/scrape/root
 """
 from __future__ import annotations
 
@@ -47,6 +53,7 @@ except ModuleNotFoundError as exc:  # pragma: no cover
     psycopg2 = None  # type: ignore[misc,assignment]
 
 from scripts.discovery.jurisdiction_discovery_pipeline import resolve_database_url
+from scripts.utils.gdrive_paths import resolve_scraped_meetings_output_root
 from scripts.utils.http_url_normalize import normalize_http_url_path_encoding as _norm_http_url
 
 _JID_RE = re.compile(r"^(?P<jtype>county|municipality|school_district)_(?P<geoid>.+)$")
@@ -573,7 +580,8 @@ def main() -> None:
         description=__doc__,
         epilog=(
             "If you omit --state, set SCRAPED_MEETINGS_STATE=AL (or pass -s AL). "
-            "Use --apply-ddl once per DB to run migration 020 (drops and recreates the three tables)."
+            "Use --apply-ddl once per DB to run migration 020 (drops and recreates the three tables). "
+            "Default --cache-root matches SCRAPED_MEETINGS_ROOT / data/cache/scraped_meetings (same as the scraper)."
         ),
     )
     parser.add_argument(
@@ -586,8 +594,11 @@ def main() -> None:
     parser.add_argument(
         "--cache-root",
         type=str,
-        default=str(_root / "data" / "cache" / "scraped_meetings"),
-        help="Root that contains {STATE}/county|municipality|school/...",
+        default="",
+        help=(
+            "Root containing {STATE}/county|municipality|school/.../jurisdiction_id/_manifest.json. "
+            "Default: same as meetings scraper (SCRAPED_MEETINGS_ROOT or repo data/cache/scraped_meetings)."
+        ),
     )
     parser.add_argument(
         "--repo-root",
@@ -616,7 +627,11 @@ def main() -> None:
         raise SystemExit("psycopg2 is required unless --dry-run")
 
     repo_root = Path(args.repo_root).expanduser().resolve()
-    cache_root = Path(args.cache_root).expanduser().resolve()
+    cache_root = (
+        Path(args.cache_root).expanduser().resolve()
+        if (args.cache_root or "").strip()
+        else resolve_scraped_meetings_output_root().resolve()
+    )
 
     paths = _manifest_paths(cache_root, state)
     logger.info("Found {} manifest(s) under {}", len(paths), cache_root / state)

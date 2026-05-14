@@ -9,7 +9,7 @@
   /* App shell is light (see Layout). Dark scheme + white inherited color broke native controls (e.g. <select>). */
   color-scheme: light;
   color: #0f172a;
-  background-color: #f1f5f9;
+  background-color: #cbd5e1;
 }
 
 html {

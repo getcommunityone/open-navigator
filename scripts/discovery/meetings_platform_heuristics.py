@@ -13,6 +13,30 @@ from urllib.parse import parse_qs, quote_plus, urljoin, urlparse, urlunparse
 from bs4 import BeautifulSoup
 from loguru import logger
 
+
+def _beautifulsoup_meetings(html: Optional[str], *, page_url: str, log_label: str) -> Optional[BeautifulSoup]:
+    """
+    Parse page HTML for meeting heuristics.
+
+    Returns ``None`` when the body is empty or when BeautifulSoup rejects the markup
+    (e.g. gzipped/binary served as ``text/html``, corrupted CDATA) so crawls keep going.
+    """
+    raw = html or ""
+    if not raw.strip():
+        return None
+    try:
+        return BeautifulSoup(raw, "html.parser")
+    except Exception as exc:
+        logger.debug(
+            "meetings_bs4_skip label={lbl} page_url={pu!r} exc_type={tn} exc={ex!r}",
+            lbl=log_label,
+            pu=page_url,
+            tn=type(exc).__name__,
+            ex=exc,
+        )
+        return None
+
+
 # Hosts where PDFs / meeting UI often live off the jurisdiction’s marketing domain.
 _OFFSITE_SUFFIXES: Tuple[str, ...] = (
     "legistar.com",
@@ -345,7 +369,9 @@ def extract_opencivic_content_search_portals(html: str, page_url: str, homepage:
 
     Example host: ``dallascounty-al.org`` (Granicus OpenCivic ``Content-search``).
     """
-    soup = BeautifulSoup(html or "", "html.parser")
+    soup = _beautifulsoup_meetings(html, page_url=page_url, log_label="opencivic_content_search")
+    if soup is None:
+        return []
     join_base = document_join_base(page_url, soup)
     found: List[str] = []
     seen: Set[str] = set()
@@ -424,14 +450,8 @@ def extract_site_search_portal_urls(html: str, page_url: str, homepage: str) -> 
     These are not covered by WordPress ``/?s=`` heuristics; we scrape the homepage/nav HTML for
     ``pg=Site+Search``, ``action=search``, and similar patterns.
     """
-    try:
-        soup = BeautifulSoup(html or "", "html.parser")
-    except (AssertionError, UnicodeDecodeError, TypeError, ValueError) as exc:
-        logger.debug(
-            "meetings_site_search_portal_parse_skip page_url={url!r} detail={}",
-            url=page_url,
-            detail=repr(exc),
-        )
+    soup = _beautifulsoup_meetings(html, page_url=page_url, log_label="site_search_portal")
+    if soup is None:
         return []
     found: List[str] = []
     seen: Set[str] = set()
@@ -670,7 +690,9 @@ def extract_youtube_refs(html: str, page_url: str) -> List[Dict[str, str]]:
     Collect YouTube video and channel URLs from ``<a href>``, ``<iframe>`` / ``<embed>`` src,
     ``<link href>``, and common ``data-*`` lazy attributes.
     """
-    soup = BeautifulSoup(html or "", "html.parser")
+    soup = _beautifulsoup_meetings(html, page_url=page_url, log_label="youtube_refs")
+    if soup is None:
+        return []
     out: List[Dict[str, str]] = []
     seen: Set[str] = set()
 
@@ -790,7 +812,9 @@ def extract_other_video_stream_refs(html: str, page_url: str) -> List[Dict[str, 
     ``<a href>``, ``<iframe>`` / ``<embed>`` ``src``, ``<video>`` / ``<source>``, and common
     ``data-*`` player attributes.
     """
-    soup = BeautifulSoup(html or "", "html.parser")
+    soup = _beautifulsoup_meetings(html, page_url=page_url, log_label="other_video_streams")
+    if soup is None:
+        return []
     out: List[Dict[str, str]] = []
     seen: Set[str] = set()
 
@@ -901,7 +925,9 @@ def extract_meeting_urls(
     - Trusted offsite PDFs (Legistar / Granicus / …).
     - Trusted offsite vendor meeting pages (narrow path heuristics).
     """
-    soup = BeautifulSoup(html or "", "html.parser")
+    soup = _beautifulsoup_meetings(html, page_url=page_url, log_label="extract_meeting_urls")
+    if soup is None:
+        return [], []
     join_base = document_join_base(page_url, soup)
     nav: List[str] = []
     pdfs: List[Tuple[str, str]] = []

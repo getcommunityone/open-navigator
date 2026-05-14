@@ -124,7 +124,7 @@ def main():
     parser.add_argument(
         '--states',
         type=str,
-        help='Comma-separated list of state codes (e.g., AL,GA,IN,MA,WA,WI)'
+        help='Comma-separated list of state codes (e.g., AL,GA,IN,MA,MT,WA,WI)'
     )
     args = parser.parse_args()
     

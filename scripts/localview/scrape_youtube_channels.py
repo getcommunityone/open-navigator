@@ -16,7 +16,7 @@ Usage:
     python scripts/localview/scrape_youtube_channels.py --channels "UCxxxxx,UCyyyyy"
     
     # Scrape by state
-    python scripts/localview/scrape_youtube_channels.py --states AL,GA,IN,MA,WA,WI
+    python scripts/localview/scrape_youtube_channels.py --states AL,GA,IN,MA,MT,WA,WI
 """
 
 import argparse

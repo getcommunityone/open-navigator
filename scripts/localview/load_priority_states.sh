@@ -1,10 +1,10 @@
 #!/bin/bash
 # Quick-start script to load and update meeting data for priority states
-# States: AL, GA, IN, MA, WA, WI
+# States: AL, GA, IN, MA, MT, WA, WI
 
 set -e  # Exit on error
 
-STATES="AL,GA,IN,MA,WA,WI"
+STATES="AL,GA,IN,MA,MT,WA,WI"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
@@ -46,7 +46,7 @@ echo "   - Add to .env: YOUTUBE_API_KEY=your_key_here"
 echo "   - Run this script with --scrape flag (scrapes last 850 days)"
 echo ""
 echo "3. Use Existing OpenStates Legislative Events"
-echo "   - Already loaded for all 6 states"
+echo "   - Already loaded for all 7 states"
 echo "   - Contains committee hearings, sessions, participants"
 echo "   - See: data/gold/states/{STATE}/events_events.parquet"
 echo ""

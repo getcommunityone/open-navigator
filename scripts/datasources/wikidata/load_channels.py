@@ -18,13 +18,13 @@ Validation sources:
 
 Usage:
     # Load all channels (enriches with Wikidata automatically)
-    python scripts/datasources/youtube/load_channels.py --states AL,GA,IN,MA,WA,WI
+    python scripts/datasources/youtube/load_channels.py --states AL,GA,IN,MA,MT,WA,WI
     
     # Load and validate
-    python scripts/datasources/youtube/load_channels.py --states AL,GA,IN,MA,WA,WI --validate
+    python scripts/datasources/youtube/load_channels.py --states AL,GA,IN,MA,MT,WA,WI --validate
     
     # Auto-flag junk channels
-    python scripts/datasources/youtube/load_channels.py --states AL,GA,IN,MA,WA,WI --auto-flag
+    python scripts/datasources/youtube/load_channels.py --states AL,GA,IN,MA,MT,WA,WI --auto-flag
 """
 import os
 import sys

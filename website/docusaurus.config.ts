@@ -4,10 +4,30 @@ import type * as Preset from '@docusaurus/preset-classic';
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
+/** Ensures `window.gtag` exists before @docusaurus/plugin-google-gtag client code runs. */
+function ensureGtagHeadStubPlugin() {
+  return {
+    name: 'ensure-gtag-fn-head-stub',
+    injectHtmlTags(_args: { content: unknown }): { headTags: { tagName: 'script'; innerHTML: string }[] } {
+      return {
+        headTags: [
+          {
+            tagName: 'script',
+            innerHTML: `window.dataLayer=window.dataLayer||[];if(typeof window.gtag!=="function"){window.gtag=function(){window.dataLayer.push(arguments)};}`,
+          },
+        ],
+      }
+    },
+  }
+}
+
 const config: Config = {
   title: 'Open Navigator',
   tagline: 'One Map for Every Community',
   favicon: 'img/favicon.ico',
+
+  /** Runs before plugin client modules so `window.gtag` is always callable. */
+  clientModules: ['./src/clientModules/gtagSafeShim.ts'],
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
   future: {
@@ -91,6 +111,8 @@ const config: Config = {
   ],
 
   themes: ['@docusaurus/theme-mermaid'],
+
+  plugins: [() => ensureGtagHeadStubPlugin()],
 
   markdown: {
     mermaid: true,
