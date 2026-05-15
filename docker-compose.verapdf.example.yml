@@ -1,0 +1,27 @@
+# Example: veraPDF batch worker against Neon/local Postgres.
+#
+#   cp docker-compose.verapdf.example.yml docker-compose.verapdf.yml
+#   docker compose -f docker-compose.verapdf.yml build
+#   docker compose -f docker-compose.verapdf.yml run --rm verapdf-worker --state AL --limit 20
+#
+# Requires Docker access to pull verapdf/cli and network for PDF downloads.
+
+services:
+  verapdf-worker:
+    build:
+      context: .
+      dockerfile: scripts/accessibility/docker/Dockerfile.verapdf-worker
+    image: open-navigator/verapdf-worker:latest
+    env_file:
+      - .env
+    environment:
+      VERAPDF_USE_DOCKER: "false"
+      VERAPDF_FLAVOUR: "ua1"
+      VERAPDF_WORKERS: "4"
+      OPEN_NAVIGATOR_DATABASE_URL: ${OPEN_NAVIGATOR_DATABASE_URL:-${NEON_DATABASE_URL_DEV:-}}
+    volumes:
+      - ./data/cache/accessibility:/app/data/cache/accessibility
+    entrypoint:
+      - python3
+      - -m
+      - scripts.accessibility.docker_entrypoint

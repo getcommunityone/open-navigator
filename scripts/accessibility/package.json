@@ -1,0 +1,18 @@
+{
+  "name": "@open-navigator/jurisdiction-accessibility",
+  "private": true,
+  "description": "Bulk WCAG scans for int_jurisdiction_websites (Pa11y-CI + axe-core)",
+  "type": "module",
+  "scripts": {
+    "axe": "node run_axe_scan.mjs",
+    "pa11y": "node run_pa11y_workers.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@axe-core/puppeteer": "^4.10.2",
+    "pa11y-ci": "^3.1.0",
+    "puppeteer": "^24.2.0"
+  }
+}
