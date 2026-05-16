@@ -754,6 +754,16 @@ def resolve_model_id(
     )
 
 
+def _triage_backend_label(model: str) -> str:
+    """Human-readable backend for logs (hybrid: E2B → HF, 26B etc. → AI Studio)."""
+    try:
+        from gemma_hf_backend import use_huggingface_for_model
+
+        return "Hugging Face" if use_huggingface_for_model(model) else "Google AI Studio"
+    except ImportError:
+        return "Google AI Studio"
+
+
 def call_gemma_triage(
     *,
     client: Any,
@@ -1112,7 +1122,8 @@ def triage_pdf(
                 os.environ.get("GOVERNANCE_GATEKEEPER_API_TIMEOUT_SECONDS", "120")
             )
             logger.info(
-                "  gemma START (text-only) | model=%s | timeout=%ds — first call can take 1-3 min",
+                "  gemma START (text-only) | backend=%s | model=%s | timeout=%ds",
+                _triage_backend_label(model),
                 model,
                 _timeout,
             )
@@ -1168,7 +1179,8 @@ def triage_pdf(
     media = [(b, "image/png") for b in page_bytes]
     _timeout = int(os.environ.get("GOVERNANCE_GATEKEEPER_API_TIMEOUT_SECONDS", "120"))
     logger.info(
-        "  gemma START (visual) | %s | %d page image(s) | model=%s | timeout=%ds",
+        "  gemma START (visual) | backend=%s | %s | %d page image(s) | model=%s | timeout=%ds",
+        _triage_backend_label(model),
         pdf_path.name,
         len(page_bytes),
         model,
@@ -1250,7 +1262,8 @@ def triage_audio(
         media = [(audio_bytes, "audio/mpeg")]
         _timeout = int(os.environ.get("GOVERNANCE_GATEKEEPER_API_TIMEOUT_SECONDS", "120"))
         logger.info(
-            "  gemma START (audio) | %s | model=%s | timeout=%ds",
+            "  gemma START (audio) | backend=%s | %s | model=%s | timeout=%ds",
+            _triage_backend_label(model),
             audio_path.name,
             model,
             _timeout,
