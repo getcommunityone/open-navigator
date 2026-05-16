@@ -1130,7 +1130,7 @@ def run_triage(
         if max_files is not None and processed >= max_files:
             logger.info("Reached --max-files=%d, stopping.", max_files)
             if progress_stdout:
-                print(f"Gatekeeper: reached max_files={max_files}, stopping.", flush=True)
+                logger.info("Gatekeeper: reached max_files=%d, stopping.", max_files)
             break
         processed += 1
         ext = path.suffix.lower()
@@ -1220,6 +1220,7 @@ def run_triage(
         "Gatekeeper done | processed=%d | proceed=%d | excluded=%d | errors=%d",
         processed, len(report.proceed), len(report.excluded), len(report.errors),
     )
+    flush_gatekeeper_logs(fsync=_fsync_logs)
     return report
 
 
@@ -1330,12 +1331,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     args = parser.parse_args(argv)
 
     raw_root = (args.raw_root or _default_raw_root()).expanduser().resolve()
-    log_file = None
-    if args.report_path:
-        log_file = args.report_path.with_suffix(".log")
+    log_file = args.report_path.with_suffix(".log") if args.report_path else None
     configure_logging(verbose=args.verbose, log_path=log_file, console=True)
 
-    raw_root = raw_root
     api_key = _resolve_api_key(args.api_key)
 
     kinds = tuple(k.strip().lower() for k in args.kinds.split(",") if k.strip())
