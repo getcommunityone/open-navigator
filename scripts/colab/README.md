@@ -111,7 +111,7 @@ With `GOVERNANCE_ORGANIZE_MEETINGS=1` (default), kept/scoped files move under
 
 1. Open [`02_run_meeting_llm.ipynb`](02_run_meeting_llm.ipynb) (or the legacy [`03_run_meeting_llm.ipynb`](03_run_meeting_llm.ipynb) alias).
 2. **Bootstrap** — repo discovery (`OPEN_NAVIGATOR_ROOT` or walk parents for `scripts/colab/colab_paths.py`), optional Drive mount in Colab only, `PATHS = setup_notebook_paths()`, then git + `GOVERNANCE_PIPELINE_DATA_ROOT` + imports (same pattern as **`01_init_drive_layout.ipynb`**).
-3. **`%pip install`** cell — `google-genai`, `pymupdf`, `pdf2image` (+ apt installs `poppler-utils` on Colab).
+3. **`%pip install`** cell — `google-genai`, **`transformers>=5.5.0`** (Gemma 4 / `gemma4` on HF), `accelerate`, `pymupdf`, `pdf2image` (+ `poppler-utils` on Colab). **Restart runtime** after install.
 4. **Secrets / API + caps** — Colab Secret `GEMINI_API_KEY` or env `GEMINI_API_KEY` / `GOOGLE_API_KEY`. Adjust `GOVERNANCE_GENAI_MODEL` if your AI Studio project lists a different Gemma 4 id. Demo caps in env: `GOVERNANCE_DEMO_MAX_PDFS_PER_JUR` (3), `GOVERNANCE_DEMO_MAX_PAGES_PER_PDF` (8), `GOVERNANCE_DEMO_MAX_AUDIO_PER_JUR` (1), `GOVERNANCE_DEMO_MAX_AUDIO_CHUNKS` (4), `GOVERNANCE_DEMO_MAX_IMAGES_PER_JUR` (12), `GOVERNANCE_DEMO_THINKING_BUDGET` (-1).
 5. **Step 0 — Gatekeeper** cell — runs `gatekeeper_triage.run_triage()` on the raw root. Skip with `GOVERNANCE_GATEKEEPER_ENABLED=0`; audit with `GOVERNANCE_GATEKEEPER_DRY_RUN=1`.
 6. **Walker** cell — `walk_raw_inputs(RAW_ROOT)` yields one `MeetingInventory` per `<STATE>/<scope>/<jurisdiction>` with PDFs, audio, and images. Prints the inventory and stores it in `INVENTORIES`.

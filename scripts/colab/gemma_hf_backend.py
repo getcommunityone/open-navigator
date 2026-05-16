@@ -223,6 +223,43 @@ def _move_batch_to_device(inputs: Any, device: Any) -> Any:
     return inputs
 
 
+def _assert_transformers_supports_gemma4() -> None:
+    """Gemma 4 Hub checkpoints use ``model_type=gemma4`` (transformers >= 5.5.0)."""
+    try:
+        import transformers
+    except ImportError as exc:
+        raise RuntimeError(
+            'Hugging Face backend needs transformers>=5.5.0. '
+            'Notebook §2: %pip install -q "transformers>=5.5.0" accelerate'
+        ) from exc
+
+    ver = getattr(transformers, "__version__", "0.0.0")
+    try:
+        from packaging.version import Version
+
+        too_old = Version(ver) < Version("5.5.0")
+    except Exception:
+        too_old = ver < "5.5.0"
+    if too_old:
+        raise RuntimeError(
+            f"transformers {ver} is too old for Gemma 4 (needs >= 5.5.0 for model_type "
+            f"'gemma4'). Re-run notebook §2: "
+            '%pip install -q "transformers>=5.5.0" accelerate then Runtime → Restart session.'
+        )
+    try:
+        from transformers.models.auto.configuration_auto import CONFIG_MAPPING
+
+        if "gemma4" not in CONFIG_MAPPING:
+            raise RuntimeError(
+                f"transformers {ver} is installed but does not register 'gemma4'. "
+                'Upgrade: %pip install -q "transformers>=5.5.0" then restart the runtime.'
+            )
+    except RuntimeError:
+        raise
+    except Exception:
+        pass
+
+
 def load_gemma_hf(
     model_id: Optional[str] = None,
     *,
@@ -244,20 +281,35 @@ def load_gemma_hf(
         return _CACHE[cache_key]
 
     logger.info("Loading HF weights for %s (needs_audio=%s)…", repo_id, use_mm)
+    _assert_transformers_supports_gemma4()
     try:
         from transformers import AutoProcessor
     except ImportError as exc:
         raise RuntimeError(
             "transformers is required for Hugging Face backend. "
-            'Install with: pip install -U "transformers>=4.50" torch accelerate'
+            'Install with: pip install -q "transformers>=5.5.0" accelerate'
         ) from exc
 
     import torch
 
     token = resolve_hf_token() or None
-    processor = AutoProcessor.from_pretrained(
-        repo_id, token=token, padding_side="left"
-    )
+
+    def _wrap_gemma4_load_error(exc: BaseException) -> None:
+        msg = str(exc)
+        if "gemma4" in msg or "model type" in msg.lower():
+            raise RuntimeError(
+                "Gemma 4 (google/gemma-4-E2B) needs transformers>=5.5.0. "
+                "Re-run notebook §2, then Runtime → Restart session, then §3–§4. "
+                f"Original error: {msg}"
+            ) from exc
+        raise exc
+
+    try:
+        processor = AutoProcessor.from_pretrained(
+            repo_id, token=token, padding_side="left"
+        )
+    except (ValueError, KeyError) as exc:
+        _wrap_gemma4_load_error(exc)
 
     torch_dtype = dtype if dtype is not None else _load_torch_dtype()
     load_kw: Dict[str, Any] = dict(
@@ -268,18 +320,21 @@ def load_gemma_hf(
     if device_map is not None and (device_map != "auto" or torch.cuda.is_available()):
         load_kw["device_map"] = device_map
 
-    if use_mm:
-        from transformers import AutoModelForMultimodalLM
+    try:
+        if use_mm:
+            from transformers import AutoModelForMultimodalLM
 
-        model = AutoModelForMultimodalLM.from_pretrained(repo_id, **load_kw)
-        multimodal = True
-        logger.info("Loaded %s via AutoModelForMultimodalLM (audio+image+text)", repo_id)
-    else:
-        from transformers import AutoModelForImageTextToText
+            model = AutoModelForMultimodalLM.from_pretrained(repo_id, **load_kw)
+            multimodal = True
+            logger.info("Loaded %s via AutoModelForMultimodalLM (audio+image+text)", repo_id)
+        else:
+            from transformers import AutoModelForImageTextToText
 
-        model = AutoModelForImageTextToText.from_pretrained(repo_id, **load_kw)
-        multimodal = False
-        logger.info("Loaded %s via AutoModelForImageTextToText", repo_id)
+            model = AutoModelForImageTextToText.from_pretrained(repo_id, **load_kw)
+            multimodal = False
+            logger.info("Loaded %s via AutoModelForImageTextToText", repo_id)
+    except (ValueError, KeyError) as exc:
+        _wrap_gemma4_load_error(exc)
 
     if "device_map" not in load_kw:
         model = model.to(torch_dtype).eval()
