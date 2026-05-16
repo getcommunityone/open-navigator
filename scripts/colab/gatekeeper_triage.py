@@ -106,6 +106,9 @@ TRIAGE_JSON_FIELDS = {
     "document_or_audio_type": "string — one of: meeting_agenda, meeting_minutes, meeting_audio, meeting_video, reference_packet, invoice, brochure, correspondence, other",
     "confidence_score": "number between 0.0 and 1.0 — your confidence in is_governance_meeting",
     "reasoning": "string — short Smart-Brevity rationale: headline, colon, evidence cited from the file",
+    "meeting_date": "string YYYY-MM-DD calendar date of the meeting, or null if unknown",
+    "meeting_title": "string short label (e.g. City Council Regular Session, Planning Commission)",
+    "meeting_instance_slug": "string snake_case slug unique per body/session on that date (e.g. city-council, planning-commission) — required when is_governance_meeting is true",
 }
 
 logger = logging.getLogger("gatekeeper")
@@ -247,6 +250,9 @@ class TriageVerdict:
     elapsed_seconds: float = 0.0
     error: Optional[str] = None  # populated on call / parse failures
     raw_model_text: Optional[str] = None
+    meeting_date: Optional[str] = None
+    meeting_title: Optional[str] = None
+    meeting_instance_slug: Optional[str] = None
 
 
 @dataclass
@@ -752,8 +758,15 @@ def _safe_parse_triage_json(raw_text: str) -> Optional[dict]:
 
 def _verdict_from_json(payload: Optional[dict]) -> Tuple[bool, str, float, str]:
     """Normalize a parsed JSON dict into the four triage fields with safe defaults."""
+    is_m, doc_type, conf, reason, _, _, _ = _verdict_from_json_full(payload)
+    return is_m, doc_type, conf, reason
+
+
+def _verdict_from_json_full(
+    payload: Optional[dict],
+) -> Tuple[bool, str, float, str, Optional[str], Optional[str], Optional[str]]:
     if not isinstance(payload, dict):
-        return False, "other", 0.0, "Model did not return parseable JSON."
+        return False, "other", 0.0, "Model did not return parseable JSON.", None, None, None
     is_meeting = bool(payload.get("is_governance_meeting", False))
     doc_type = str(payload.get("document_or_audio_type", "other"))[:64].strip() or "other"
     try:
@@ -762,7 +775,46 @@ def _verdict_from_json(payload: Optional[dict]) -> Tuple[bool, str, float, str]:
         confidence = 0.0
     confidence = max(0.0, min(1.0, confidence))
     reasoning = str(payload.get("reasoning", ""))[:2000].strip()
-    return is_meeting, doc_type, confidence, reasoning
+    meeting_date = payload.get("meeting_date")
+    meeting_title = payload.get("meeting_title")
+    instance_slug = payload.get("meeting_instance_slug")
+    if meeting_date is not None:
+        meeting_date = str(meeting_date).strip()[:10] or None
+    if meeting_title is not None:
+        meeting_title = str(meeting_title).strip()[:200] or None
+    if instance_slug is not None:
+        instance_slug = str(instance_slug).strip()[:64] or None
+    return is_meeting, doc_type, confidence, reasoning, meeting_date, meeting_title, instance_slug
+
+
+def _apply_meeting_metadata(verdict: TriageVerdict, path: Path, payload: Optional[dict]) -> None:
+    """Fill meeting_* fields from model JSON with filename/path fallbacks."""
+    (
+        _is_m,
+        _doc,
+        _conf,
+        _reason,
+        meeting_date,
+        meeting_title,
+        instance_slug,
+    ) = _verdict_from_json_full(payload)
+    try:
+        from meeting_grouping import (
+            infer_instance_slug_from_path,
+            infer_meeting_date_from_path,
+            slugify_meeting_label,
+        )
+    except ImportError:
+        return
+    if not meeting_date:
+        meeting_date = infer_meeting_date_from_path(path)
+    if not instance_slug:
+        instance_slug = infer_instance_slug_from_path(path, verdict.document_or_audio_type)
+    if not meeting_title:
+        meeting_title = instance_slug.replace("-", " ").title()
+    verdict.meeting_date = meeting_date
+    verdict.meeting_title = meeting_title
+    verdict.meeting_instance_slug = slugify_meeting_label(instance_slug or "meeting")
 
 
 # ─────────────────────────────────────────────────────────────
@@ -795,7 +847,9 @@ def audio_user_prompt(window_seconds: int) -> str:
         f"  is_governance_meeting (bool), document_or_audio_type (string — one of "
         f"meeting_audio, meeting_video, reference_packet, invoice, brochure, correspondence, "
         f"other), confidence_score (0.0-1.0 float), reasoning (short Smart-Brevity sentence "
-        f"citing the specific cue you heard or its absence)."
+        f"citing the specific cue you heard or its absence), "
+        f"meeting_date (YYYY-MM-DD or null), meeting_title (string or null), "
+        f"meeting_instance_slug (snake_case, e.g. city-council vs planning-commission on the same day)."
     )
 
 
@@ -822,7 +876,9 @@ PDF_USER = (
     "type is meeting_agenda or meeting_minutes), document_or_audio_type (string — one of "
     "meeting_agenda, meeting_minutes, reference_packet, invoice, brochure, correspondence, "
     "other), confidence_score (0.0-1.0), reasoning (short Smart-Brevity sentence citing "
-    "the visual evidence — body name, date, layout pattern)."
+    "the visual evidence — body name, date, layout pattern), "
+    "meeting_date (YYYY-MM-DD or null), meeting_title (string or null), "
+    "meeting_instance_slug (snake_case slug distinguishing multiple meetings on the same date)."
 )
 
 
@@ -887,6 +943,7 @@ def triage_pdf(
     verdict.confidence_score = conf
     verdict.reasoning = reason
     verdict.raw_model_text = raw[:4000] if raw else None
+    _apply_meeting_metadata(verdict, pdf_path, parsed)
     verdict.elapsed_seconds = round(time.time() - t0, 2)
     return verdict
 
@@ -1075,6 +1132,7 @@ def run_triage(
     progress_stdout: bool = False,
     log_path: Optional[Path | str] = None,
     flush_log_each_file: bool = True,
+    organize_meetings: bool = False,
 ) -> TriageReport:
     """Walk ``raw_root``, triage every PDF / audio, move failures under ``excluded_inputs/``."""
     if not raw_root.is_dir():
@@ -1235,6 +1293,18 @@ def run_triage(
         processed, len(report.proceed), len(report.excluded), len(report.errors),
     )
     flush_gatekeeper_logs(fsync=_fsync_logs)
+
+    if organize_meetings and report.proceed and not dry_run:
+        try:
+            from meeting_grouping import organize_proceed_into_meeting_folders
+
+            moves = organize_proceed_into_meeting_folders(
+                raw_root, report.proceed, dry_run=False
+            )
+            logger.info("Organized %d file(s) into meetings/ folders", len(moves))
+        except Exception as exc:
+            logger.error("Meeting folder organization failed: %s", exc)
+
     return report
 
 
