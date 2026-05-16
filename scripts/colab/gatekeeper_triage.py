@@ -110,6 +110,111 @@ TRIAGE_JSON_FIELDS = {
 
 logger = logging.getLogger("gatekeeper")
 
+# Opened by :func:`configure_logging` when ``log_path`` is set; closed by :func:`close_gatekeeper_logging`.
+_log_file_handle: Optional[Any] = None
+
+
+class _FlushingStreamHandler(logging.StreamHandler):
+    """``StreamHandler`` that flushes the underlying stream after every log record."""
+
+    def emit(self, record: logging.LogRecord) -> None:
+        super().emit(record)
+        try:
+            self.flush()
+            stream = self.stream
+            if stream is not None and hasattr(stream, "flush"):
+                stream.flush()
+        except Exception:
+            self.handleError(record)
+
+
+def flush_gatekeeper_logs(*, fsync: bool = False) -> None:
+    """Push buffered log lines to disk (and optionally ``fsync`` the log file)."""
+    for handler in logger.handlers:
+        try:
+            handler.flush()
+        except Exception:
+            pass
+        stream = getattr(handler, "stream", None)
+        if stream is not None and hasattr(stream, "flush"):
+            try:
+                stream.flush()
+            except Exception:
+                pass
+    if fsync and _log_file_handle is not None and hasattr(_log_file_handle, "fileno"):
+        try:
+            os.fsync(_log_file_handle.fileno())
+        except OSError:
+            pass
+
+
+def configure_logging(
+    *,
+    verbose: bool = True,
+    log_path: Optional[Path | str] = None,
+    console: bool = True,
+) -> Path | None:
+    """
+    Configure the ``gatekeeper`` logger for notebook / CLI runs.
+
+    When ``log_path`` is set, each log line is written with line buffering and flushed
+    immediately so ``tail -f`` on Drive/WSL sees progress without waiting for the sweep
+    to finish.
+    """
+    global _log_file_handle
+    close_gatekeeper_logging()
+
+    level = logging.DEBUG if verbose else logging.INFO
+    logger.setLevel(level)
+    logger.handlers.clear()
+    logger.propagate = False
+
+    formatter = logging.Formatter(
+        "%(asctime)s %(levelname)-7s %(message)s",
+        datefmt="%H:%M:%S",
+    )
+
+    resolved_log: Path | None = None
+    if log_path:
+        resolved_log = Path(log_path).expanduser()
+        resolved_log.parent.mkdir(parents=True, exist_ok=True)
+        _log_file_handle = open(
+            resolved_log,
+            mode="w",
+            encoding="utf-8",
+            buffering=1,
+        )
+        file_handler = _FlushingStreamHandler(_log_file_handle)
+        file_handler.setLevel(level)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+
+    if console:
+        console_handler = _FlushingStreamHandler(sys.stdout)
+        console_handler.setLevel(level)
+        console_handler.setFormatter(formatter)
+        logger.addHandler(console_handler)
+
+    return resolved_log
+
+
+def close_gatekeeper_logging() -> None:
+    """Close the on-disk log file opened by :func:`configure_logging`."""
+    global _log_file_handle
+    flush_gatekeeper_logs(fsync=True)
+    for handler in list(logger.handlers):
+        try:
+            handler.close()
+        except Exception:
+            pass
+        logger.removeHandler(handler)
+    if _log_file_handle is not None:
+        try:
+            _log_file_handle.close()
+        except Exception:
+            pass
+        _log_file_handle = None
+
 
 # ─────────────────────────────────────────────────────────────
 # Data classes
@@ -955,10 +1060,21 @@ def run_triage(
     max_files: Optional[int] = None,
     preload_models: bool = True,
     progress_stdout: bool = False,
+    log_path: Optional[Path | str] = None,
+    flush_log_each_file: bool = True,
 ) -> TriageReport:
     """Walk ``raw_root``, triage every PDF / audio, move failures under ``excluded_inputs/``."""
     if not raw_root.is_dir():
         raise FileNotFoundError(f"Raw inputs root not found: {raw_root}")
+
+    if log_path is not None and not logger.handlers:
+        configure_logging(verbose=True, log_path=log_path, console=True)
+
+    _fsync_logs = os.environ.get("GOVERNANCE_GATEKEEPER_FSYNC", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
 
     excluded_root = raw_root / EXCLUDED_DIRNAME
     if not dry_run:
@@ -1021,7 +1137,7 @@ def run_triage(
         rel_str, geo = relative_geography(path, raw_root)
         if progress_stdout:
             cap = f"/{max_files}" if max_files is not None else ""
-            print(f"[Gatekeeper {processed}{cap}] {rel_str}", flush=True)
+            logger.info("[Gatekeeper %d%s] %s", processed, cap, rel_str)
 
         try:
             if ext in PDF_EXTS:
@@ -1097,6 +1213,9 @@ def run_triage(
 
         report.add(verdict)
 
+        if flush_log_each_file:
+            flush_gatekeeper_logs(fsync=_fsync_logs)
+
     logger.info(
         "Gatekeeper done | processed=%d | proceed=%d | excluded=%d | errors=%d",
         processed, len(report.proceed), len(report.excluded), len(report.errors),
@@ -1152,12 +1271,8 @@ def _resolve_api_key(cli_value: Optional[str]) -> str:
 
 
 def _configure_logging(verbose: bool) -> None:
-    logging.basicConfig(
-        format="%(asctime)s %(levelname)-7s %(message)s",
-        datefmt="%H:%M:%S",
-        level=logging.DEBUG if verbose else logging.INFO,
-        stream=sys.stdout,
-    )
+    """Backward-compatible alias — prefer :func:`configure_logging`."""
+    configure_logging(verbose=verbose, log_path=None, console=True)
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -1214,9 +1329,13 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     args = parser.parse_args(argv)
 
-    _configure_logging(args.verbose)
-
     raw_root = (args.raw_root or _default_raw_root()).expanduser().resolve()
+    log_file = None
+    if args.report_path:
+        log_file = args.report_path.with_suffix(".log")
+    configure_logging(verbose=args.verbose, log_path=log_file, console=True)
+
+    raw_root = raw_root
     api_key = _resolve_api_key(args.api_key)
 
     kinds = tuple(k.strip().lower() for k in args.kinds.split(",") if k.strip())
