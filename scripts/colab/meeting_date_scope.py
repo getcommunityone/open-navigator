@@ -114,6 +114,8 @@ def _date_from_meetings_folder(path: Path, raw_root: Path) -> Optional[str]:
 
 
 _HASH_TOKEN_RE = re.compile(r"_([0-9a-f]{6,12})(?:_\d+)?$", re.I)
+# Trailing ``_2``, ``_8`` on scrape copies of the same manifest asset.
+_SCRAPE_COPY_SUFFIX_RE = re.compile(r"_(\d+)$")
 
 
 @lru_cache(maxsize=64)
@@ -240,6 +242,40 @@ def file_media_role(path: Path, raw_root: Path) -> Optional[str]:
     return None
 
 
+def content_identity_key(path: Path, raw_root: Path) -> str:
+    """
+    Stable id for one logical document (agenda/minutes/audio).
+
+    Scrape duplicates share a hex token (``…_a5fb5b7c_8.pdf`` → ``a5fb5b7c``).
+    """
+    role = file_media_role(path, raw_root) or "file"
+    hm = _HASH_TOKEN_RE.search(path.stem)
+    if hm:
+        return f"{role}:{hm.group(1).lower()}"
+    stem = _SCRAPE_COPY_SUFFIX_RE.sub("", path.stem).lower()
+    return f"{role}:{stem}"
+
+
+def dedupe_scrape_copies(paths: Sequence[Path], raw_root: Path) -> List[Path]:
+    """Keep one file per (jurisdiction, meeting date, logical document)."""
+    best: Dict[Tuple[str, str, str], Path] = {}
+    for path in paths:
+        jur = jurisdiction_prefix_from_path(path, raw_root)
+        date_s = infer_meeting_date_for_file(path, raw_root) or ""
+        ident = content_identity_key(path, raw_root)
+        key = (jur, date_s, ident)
+        prev = best.get(key)
+        if prev is None:
+            best[key] = path
+            continue
+        try:
+            if path.stat().st_mtime >= prev.stat().st_mtime:
+                best[key] = path
+        except OSError:
+            best[key] = path
+    return sorted(best.values(), key=lambda p: p.as_posix())
+
+
 def _allowed_dates_per_jurisdiction(
     paths: Sequence[Path],
     raw_root: Path,
@@ -298,6 +334,15 @@ def filter_paths_by_recent_meeting_dates(
         d = infer_meeting_date_for_file(path, raw_root)
         if d and jur in allowed and d in allowed[jur]:
             selected.append(path)
+
+    before_dedupe = len(selected)
+    selected = dedupe_scrape_copies(selected, raw_root)
+    if before_dedupe != len(selected):
+        logger.info(
+            "Date scope dedupe | %d files → %d unique documents (dropped scrape copies)",
+            before_dedupe,
+            len(selected),
+        )
 
     return selected, total, allowed
 

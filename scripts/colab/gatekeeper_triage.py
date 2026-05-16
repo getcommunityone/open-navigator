@@ -1280,7 +1280,8 @@ def run_triage(
     )
     if allowed_dates:
         logger.info(
-            "Gatekeeper date scope | candidates=%d | triaging=%d | last %d meeting date(s) per jurisdiction",
+            "Gatekeeper date scope | candidates=%d | triaging=%d unique doc(s) | "
+            "last %d meeting date(s)/jurisdiction (dates from manifest URLs, not Gatekeeper AI)",
             total_candidates,
             len(triage_paths),
             date_cap or 0,
