@@ -45,8 +45,7 @@ class HuggingFaceUploader:
             token: HF token (or set HF_TOKEN environment variable)
         """
         self.repo_name = repo_name
-        # Check HF_TOKEN first (matches .env), fall back to HF_TOKEN for backwards compatibility
-        self.token = token or os.getenv("HF_TOKEN") or os.getenv("HF_TOKEN")
+        self.token = token or os.getenv("HF_TOKEN")
         
         if not self.token:
             raise ValueError(

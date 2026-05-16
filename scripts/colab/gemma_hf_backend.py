@@ -61,17 +61,16 @@ def resolve_hf_token(cli_value: Optional[str] = None) -> str:
     """Hugging Face Hub token from CLI, env, or Colab Secret ``HF_TOKEN``."""
     if cli_value:
         return cli_value.strip()
-    for env in ("HF_TOKEN", "HUGGING_FACE_HUB_TOKEN", "HF_TOKEN"):
+    for env in ("HF_TOKEN", "HUGGING_FACE_HUB_TOKEN"):
         val = os.environ.get(env)
         if val:
             return val.strip()
     try:
         from google.colab import userdata  # type: ignore
 
-        for secret_name in ("HF_TOKEN", "HF_TOKEN"):
-            val = userdata.get(secret_name)
-            if val:
-                return val.strip()
+        val = userdata.get("HF_TOKEN")
+        if val:
+            return val.strip()
     except ImportError:
         pass
     return ""
@@ -88,7 +87,6 @@ def ensure_hf_token(cli_value: Optional[str] = None) -> str:
         )
     os.environ["HF_TOKEN"] = token
     os.environ.setdefault("HUGGING_FACE_HUB_TOKEN", token)
-    os.environ.setdefault("HF_TOKEN", token)  # libraries that still read HF_TOKEN
     return token
 
 

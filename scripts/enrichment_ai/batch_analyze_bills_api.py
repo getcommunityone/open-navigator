@@ -51,7 +51,7 @@ class HuggingFaceInferenceLLM:
         token: str = None
     ):
         self.model_name = model_name
-        self.token = token or os.getenv('HF_TOKEN') or os.getenv('HF_TOKEN')
+        self.token = token or os.getenv('HF_TOKEN')
         
         if not self.token:
             raise ValueError("HuggingFace token required! Set HF_TOKEN environment variable")
