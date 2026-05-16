@@ -6,6 +6,7 @@ VS Code** (repo checkout on ``sys.path``, pipeline data under ``data/`` in the r
 """
 from __future__ import annotations
 
+import glob
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -25,6 +26,27 @@ def repo_root_from_this_file() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
+# Drive-side candidate locations probed in Colab when GOVERNANCE_PIPELINE_DATA_ROOT is unset.
+# Order matters: the first directory that exists wins.
+_COLAB_DRIVE_CANDIDATES_REL = (
+    "MyDrive/CommunityOne/hackathons/2026_Gemma_4_Good",
+    "MyDrive/CommunityOne/governance_pipeline_data",
+)
+_COLAB_SHARED_GLOBS_REL = (
+    "Shareddrives/*/CommunityOne/hackathons/2026_Gemma_4_Good",
+    "Shareddrives/*/CommunityOne/governance_pipeline_data",
+)
+
+
+def _colab_drive_candidates(mount_point: str = "/content/drive") -> list[Path]:
+    """Ordered list of plausible governance-pipeline data roots under a mounted Drive."""
+    mount = Path(mount_point)
+    out: list[Path] = [mount / rel for rel in _COLAB_DRIVE_CANDIDATES_REL]
+    for pattern in _COLAB_SHARED_GLOBS_REL:
+        out.extend(sorted(Path(p) for p in glob.glob(str(mount / pattern))))
+    return out
+
+
 @dataclass(frozen=True)
 class NotebookLayoutPaths:
     """Paths returned by :func:`setup_notebook_paths`."""
@@ -34,7 +56,7 @@ class NotebookLayoutPaths:
     governance_pipeline_data: Path
 
 
-def setup_notebook_paths() -> NotebookLayoutPaths:
+def setup_notebook_paths(mount_point: str = "/content/drive") -> NotebookLayoutPaths:
     """
     Resolve repo root and the governance pipeline data directory.
 
@@ -43,16 +65,30 @@ def setup_notebook_paths() -> NotebookLayoutPaths:
     - **governance_pipeline_data** — root containing ``01_raw_inputs``, ``02_reference_data``,
       ``03_processed_outputs``:
 
-      - **Colab** (recommended layout): sibling of the repo under the same parent directory,
-        e.g. ``.../CommunityOne/governance_pipeline_data`` next to
-        ``.../CommunityOne/open-navigator``.
+      - **Colab**:
+
+        1. ``GOVERNANCE_PIPELINE_DATA_ROOT`` env var (absolute path) wins if set.
+        2. Otherwise probe ``/content/drive/MyDrive/CommunityOne/hackathons/2026_Gemma_4_Good``
+           and ``/content/drive/MyDrive/CommunityOne/governance_pipeline_data`` (in that order),
+           then matching ``Shareddrives/*/CommunityOne/…`` paths. First existing dir wins.
+        3. Fallback: the first candidate above (so callers get a clear "missing"
+           error referencing the expected Drive path, not a meaningless ``/content/`` sibling).
       - **Local**: ``<repo>/data/governance_pipeline_data`` (under gitignored ``data/``),
         unless ``GOVERNANCE_PIPELINE_DATA_ROOT`` is set to an absolute path.
     """
     repo = repo_root_from_this_file()
-    if in_colab():
-        return NotebookLayoutPaths(True, repo, repo.parent / "governance_pipeline_data")
     explicit = (os.getenv("GOVERNANCE_PIPELINE_DATA_ROOT") or "").strip()
+    if in_colab():
+        if explicit:
+            return NotebookLayoutPaths(True, repo, Path(explicit).expanduser())
+        candidates = _colab_drive_candidates(mount_point)
+        for cand in candidates:
+            if cand.is_dir():
+                return NotebookLayoutPaths(True, repo, cand)
+        # Nothing matched — return the first candidate so the downstream "missing"
+        # error names a real Drive path the user can create or correct.
+        fallback = candidates[0] if candidates else (repo.parent / "governance_pipeline_data")
+        return NotebookLayoutPaths(True, repo, fallback)
     if explicit:
         return NotebookLayoutPaths(False, repo, Path(explicit).expanduser().resolve())
     return NotebookLayoutPaths(False, repo, repo / "data" / "governance_pipeline_data")
