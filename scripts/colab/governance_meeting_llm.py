@@ -499,14 +499,15 @@ def call_google_genai_multimodal(
     back to the model default. ``include_thoughts=True`` asks the model for its
     reasoning trace, which is returned in ``GenAIResult.thoughts``.
 
-    Set ``GOVERNANCE_LLM_BACKEND=huggingface`` to run local weights from Hugging Face
-    (``google/gemma-4-E4B-it`` via ``AutoModelForImageTextToText``). Otherwise uses
-    ``pip install google-genai>=1.0`` and AI Studio.
+    Hybrid default: AI Studio (``google-genai``) for models listed on your API key.
+    Hugging Face is used automatically for E2B-only checkpoints (see
+    ``gemma_hf_backend.model_requires_huggingface``). Set
+    ``GOVERNANCE_LLM_BACKEND=huggingface`` to force all calls local.
     """
     try:
-        from gemma_hf_backend import call_gemma_hf_multimodal, use_huggingface
+        from gemma_hf_backend import call_gemma_hf_multimodal, use_huggingface_for_model
 
-        if use_huggingface():
+        if use_huggingface_for_model(model):
             hf = call_gemma_hf_multimodal(
                 model=model,
                 system_instruction=system_instruction,

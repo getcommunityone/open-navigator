@@ -1,11 +1,12 @@
 """
 Local Gemma 4 inference via Hugging Face Transformers.
 
-Default model: ``google/gemma-4-E4B-it`` with ``AutoProcessor`` +
-``AutoModelForImageTextToText`` for image+text. When the prompt includes audio
-(E2B/E4B only), loads ``AutoModelForMultimodalLM`` instead.
+**Hybrid default (hackathon notebook):** ``GOVERNANCE_LLM_BACKEND=google`` uses
+AI Studio / ``google-genai`` for Gemma 4 models listed there (e.g. 26B A4B MoE,
+EmbeddingGemma, ShieldGemma). Only **E2B** edge weights are loaded from Hugging Face
+(``google/gemma-4-E2B-it``) because that checkpoint is not on the AI Studio API.
 
-Enable with ``GOVERNANCE_LLM_BACKEND=huggingface`` (see ``02_run_meeting_llm.ipynb``).
+Set ``GOVERNANCE_LLM_BACKEND=huggingface`` to force every call through local weights.
 """
 
 from __future__ import annotations
@@ -35,8 +36,16 @@ HF_MODEL_ALIASES: Dict[str, str] = {
 }
 
 DEFAULT_HF_MODEL_ID = os.environ.get(
-    "GOVERNANCE_HF_MODEL_ID", "google/gemma-4-E4B-it"
+    "GOVERNANCE_HF_MODEL_ID", "google/gemma-4-E2B-it"
 ).strip()
+
+# Repos served from Hugging Face only (not on AI Studio ``models.list()``).
+_HF_ONLY_REPO_IDS = frozenset(
+    {
+        "google/gemma-4-e2b-it",
+        "google/gemma-4-e2b",
+    }
+)
 
 # Gemma 4 vision soft-token budget (matches governance_meeting_llm TOKEN_BUDGET_*).
 _SOFT_TOKENS_BY_RESOLUTION = {
@@ -54,7 +63,37 @@ def llm_backend() -> str:
 
 
 def use_huggingface() -> bool:
+    """True when every LLM call should use local Hugging Face weights."""
     return llm_backend() in ("huggingface", "hf", "local")
+
+
+def model_requires_huggingface(model: str) -> bool:
+    """
+    True when this model id must run on Hugging Face (not on AI Studio).
+
+    Default hybrid: only ``google/gemma-4-E2B`` / ``gemma-4-e2b-it`` and aliases.
+    Override with env ``GOVERNANCE_HF_ONLY_MODELS`` (comma-separated ids).
+    """
+    if use_huggingface():
+        return True
+    if os.environ.get("GOVERNANCE_FORCE_GOOGLE", "0").strip() in ("1", "true", "yes"):
+        return False
+    extra = os.environ.get("GOVERNANCE_HF_ONLY_MODELS", "").strip()
+    if extra:
+        extras = {resolve_hf_model_id(x).lower() for x in extra.split(",") if x.strip()}
+    else:
+        extras = set()
+    repo = resolve_hf_model_id(model or "").lower()
+    return repo in _HF_ONLY_REPO_IDS or repo in extras
+
+
+def use_huggingface_for_model(model: Optional[str] = None) -> bool:
+    """Route a single call to HF when the global backend or this model requires it."""
+    if use_huggingface():
+        return True
+    if model:
+        return model_requires_huggingface(model)
+    return False
 
 
 def resolve_hf_token(cli_value: Optional[str] = None) -> str:

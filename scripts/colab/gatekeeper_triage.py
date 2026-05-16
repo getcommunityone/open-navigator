@@ -75,9 +75,11 @@ SKIP_DIR_NAMES = {
 
 def _default_gatekeeper_model() -> str:
     try:
-        from gemma_hf_backend import DEFAULT_HF_MODEL_ID, use_huggingface
+        from gemma_hf_backend import DEFAULT_HF_MODEL_ID, model_requires_huggingface
 
-        if use_huggingface():
+        if model_requires_huggingface(
+            os.environ.get("GOVERNANCE_GATEKEEPER_MODEL", "").strip() or "gemma-4-e2b-it"
+        ):
             return (
                 os.environ.get("GOVERNANCE_GATEKEEPER_MODEL", "").strip()
                 or os.environ.get(
@@ -775,9 +777,9 @@ def call_gemma_triage(
       pages get the full ~1,120 image-token budget for layout / OCR fidelity.
     """
     try:
-        from gemma_hf_backend import call_gemma_hf_multimodal, use_huggingface
+        from gemma_hf_backend import call_gemma_hf_multimodal, use_huggingface_for_model
 
-        if use_huggingface():
+        if use_huggingface_for_model(model):
             resolution = "HIGH" if media_resolution_high else "LOW"
             hf = call_gemma_hf_multimodal(
                 model=model,
@@ -1541,14 +1543,14 @@ def run_triage(
         from gemma_hf_backend import (
             ensure_hf_ready_for_triage,
             hf_weights_cached,
+            model_requires_huggingface,
             print_hf_model_catalog,
             resolve_hf_model_id,
-            use_huggingface,
         )
     except ImportError:
-        use_huggingface = lambda: False  # type: ignore[assignment]
+        model_requires_huggingface = lambda _m: False  # type: ignore[assignment]
 
-    if use_huggingface():
+    if model_requires_huggingface(model):
         if log_llm_catalog_enabled():
             print_hf_model_catalog(requested=(model,), role="Gatekeeper (Hugging Face)")
         model = resolve_hf_model_id(model)
@@ -1749,9 +1751,13 @@ def _default_raw_root() -> Path:
 
 def _resolve_api_key(cli_value: Optional[str]) -> str:
     try:
-        from gemma_hf_backend import ensure_hf_token, use_huggingface
+        from gemma_hf_backend import ensure_hf_token, model_requires_huggingface
 
-        if use_huggingface():
+        model_hint = (
+            os.environ.get("GOVERNANCE_GATEKEEPER_MODEL", "").strip()
+            or "gemma-4-e2b-it"
+        )
+        if model_requires_huggingface(model_hint):
             return ensure_hf_token(cli_value)
     except ImportError:
         pass
