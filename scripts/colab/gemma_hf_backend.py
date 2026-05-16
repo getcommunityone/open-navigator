@@ -243,8 +243,9 @@ def _assert_transformers_supports_gemma4() -> None:
     if too_old:
         raise RuntimeError(
             f"transformers {ver} is too old for Gemma 4 (needs >= 5.5.0 for model_type "
-            f"'gemma4'). Re-run notebook §2: "
-            '%pip install -q "transformers>=5.5.0" accelerate then Runtime → Restart session.'
+            f"'gemma4'). Fix: run notebook §2 (pip install -U transformers>=5.5.0), then "
+            "Runtime → Restart session, then §3 again. Upgrading pip without restart leaves "
+            "this kernel on the old version (e.g. 5.0.0)."
         )
     try:
         from transformers.models.auto.configuration_auto import CONFIG_MAPPING
