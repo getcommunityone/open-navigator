@@ -2,9 +2,9 @@
 Local Gemma 4 inference via Hugging Face Transformers.
 
 **Hybrid default (hackathon notebook):** ``GOVERNANCE_LLM_BACKEND=google`` uses
-AI Studio / ``google-genai`` for Gemma 4 models listed there (e.g. 26B A4B MoE,
-EmbeddingGemma, ShieldGemma). Only **E2B** edge weights are loaded from Hugging Face
-(``google/gemma-4-E2B-it``) because that checkpoint is not on the AI Studio API.
+AI Studio for Gatekeeper (cheap triage), demos (26B A4B MoE), EmbeddingGemma, and
+ShieldGemma. Local Hugging Face weights (~10GB) load only when
+``GOVERNANCE_GATEKEEPER_FORCE_HF=1`` (``google/gemma-4-E2B-it``).
 
 Set ``GOVERNANCE_LLM_BACKEND=huggingface`` to force every call through local weights.
 """
@@ -39,13 +39,8 @@ DEFAULT_HF_MODEL_ID = os.environ.get(
     "GOVERNANCE_HF_MODEL_ID", "google/gemma-4-E2B-it"
 ).strip()
 
-# Repos served from Hugging Face only (not on AI Studio ``models.list()``).
-_HF_ONLY_REPO_IDS = frozenset(
-    {
-        "google/gemma-4-e2b-it",
-        "google/gemma-4-e2b",
-    }
-)
+# Default Gatekeeper HF checkpoint when ``GOVERNANCE_GATEKEEPER_FORCE_HF=1``.
+_HF_GATEKEEPER_REPO_DEFAULT = "google/gemma-4-E2B-it"
 
 # Gemma 4 vision soft-token budget (matches governance_meeting_llm TOKEN_BUDGET_*).
 _SOFT_TOKENS_BY_RESOLUTION = {
@@ -67,30 +62,49 @@ def use_huggingface() -> bool:
     return llm_backend() in ("huggingface", "hf", "local")
 
 
+def gatekeeper_use_huggingface() -> bool:
+    """
+    True when Gatekeeper should load local HF weights (slow ~10GB startup).
+
+    Default **off**: Gatekeeper uses Google AI Studio (fast). Set
+    ``GOVERNANCE_GATEKEEPER_FORCE_HF=1`` to load ``google/gemma-4-E2B-it`` from Hugging Face.
+    """
+    if use_huggingface():
+        return True
+    return os.environ.get("GOVERNANCE_GATEKEEPER_FORCE_HF", "0").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+
+
 def model_requires_huggingface(model: str) -> bool:
     """
-    True when this model id must run on Hugging Face (not on AI Studio).
+    True when demos / other calls must run on Hugging Face (not AI Studio).
 
-    Default hybrid: only ``google/gemma-4-E2B`` / ``gemma-4-e2b-it`` and aliases.
-    Override with env ``GOVERNANCE_HF_ONLY_MODELS`` (comma-separated ids).
+    Gatekeeper is handled separately via :func:`gatekeeper_use_huggingface`.
+    Optional ``GOVERNANCE_HF_ONLY_MODELS`` (comma-separated) for extra demo models on HF.
     """
     if use_huggingface():
         return True
     if os.environ.get("GOVERNANCE_FORCE_GOOGLE", "0").strip() in ("1", "true", "yes"):
         return False
     extra = os.environ.get("GOVERNANCE_HF_ONLY_MODELS", "").strip()
-    if extra:
-        extras = {resolve_hf_model_id(x).lower() for x in extra.split(",") if x.strip()}
-    else:
-        extras = set()
+    if not extra:
+        return False
+    extras = {resolve_hf_model_id(x).lower() for x in extra.split(",") if x.strip()}
     repo = resolve_hf_model_id(model or "").lower()
-    return repo in _HF_ONLY_REPO_IDS or repo in extras
+    return repo in extras
 
 
-def use_huggingface_for_model(model: Optional[str] = None) -> bool:
-    """Route a single call to HF when the global backend or this model requires it."""
+def use_huggingface_for_model(
+    model: Optional[str] = None, *, gatekeeper: bool = False
+) -> bool:
+    """Route a call to HF (local weights)."""
     if use_huggingface():
         return True
+    if gatekeeper:
+        return gatekeeper_use_huggingface()
     if model:
         return model_requires_huggingface(model)
     return False

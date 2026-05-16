@@ -154,8 +154,9 @@ Scraped meetings mirror is **step 1** above ([`01_copy_scraped_meetings_cache_to
 | `GOVERNANCE_RAW_INPUTS_ROOT` | Override the `01_raw_inputs/` location for the run notebook + Gatekeeper. |
 | `GOVERNANCE_LLM_BACKEND` | Default `google` (hybrid). Set `huggingface` to force all calls local. |
 | `GOVERNANCE_GENAI_MODEL` | Demos 1–5 on **AI Studio** (default `gemma-4-26b-a4b-it`). |
-| `GOVERNANCE_GATEKEEPER_MODEL` | Gatekeeper on **Hugging Face** (default `gemma-4-e2b-it` → [google/gemma-4-E2B](https://huggingface.co/google/gemma-4-E2B); not on AI Studio). |
-| `GOVERNANCE_HF_ONLY_MODELS` | Optional comma-separated extra model ids to route to HF. |
+| `GOVERNANCE_GATEKEEPER_MODEL` | Gatekeeper on **AI Studio** (default `gemma-3n-e2b-it`). |
+| `GOVERNANCE_GATEKEEPER_FORCE_HF` | Set `1` to load [google/gemma-4-E2B](https://huggingface.co/google/gemma-4-E2B) locally (~10GB; needs `HF_TOKEN` + `transformers>=5.5.0`). |
+| `GOVERNANCE_HF_ONLY_MODELS` | Optional comma-separated demo model ids to route to HF. |
 | `GOVERNANCE_GATEKEEPER_API_TIMEOUT_SECONDS` | Per-file Gemma triage timeout (default `120`). |
 | `GOVERNANCE_GATEKEEPER_ENABLED` | `0` to skip the triage step inside the notebook. |
 | `GOVERNANCE_GATEKEEPER_DRY_RUN` | `1` to log triage verdicts without moving files. |

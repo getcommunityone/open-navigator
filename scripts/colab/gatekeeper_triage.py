@@ -75,24 +75,22 @@ SKIP_DIR_NAMES = {
 
 def _default_gatekeeper_model() -> str:
     try:
-        from gemma_hf_backend import DEFAULT_HF_MODEL_ID, model_requires_huggingface
+        from gemma_hf_backend import (
+            _HF_GATEKEEPER_REPO_DEFAULT,
+            gatekeeper_use_huggingface,
+        )
 
-        if model_requires_huggingface(
-            os.environ.get("GOVERNANCE_GATEKEEPER_MODEL", "").strip() or "gemma-4-e2b-it"
-        ):
+        if gatekeeper_use_huggingface():
             return (
                 os.environ.get("GOVERNANCE_GATEKEEPER_MODEL", "").strip()
-                or os.environ.get(
-                    "GOVERNANCE_HF_GATEKEEPER_MODEL", "google/gemma-4-E2B-it"
-                ).strip()
-                or os.environ.get("GOVERNANCE_GENAI_MODEL", "").strip()
-                or DEFAULT_HF_MODEL_ID
+                or os.environ.get("GOVERNANCE_HF_GATEKEEPER_MODEL", "").strip()
+                or _HF_GATEKEEPER_REPO_DEFAULT
             )
     except ImportError:
         pass
     return (
         os.environ.get("GOVERNANCE_GATEKEEPER_MODEL", "").strip()
-        or "gemma-4-e2b-it"
+        or "gemma-3n-e2b-it"
     )
 
 
@@ -572,11 +570,11 @@ def _build_genai_client(api_key: str):
     return genai.Client(api_key=api_key)
 
 
-# Fallback chain when the requested Gatekeeper id is not on models.list().
-# Ordered cheapest → heaviest (E2B first for triage cost/latency).
+# Fallback chain when the requested Gatekeeper id is not on models.list() (AI Studio).
+# Ordered cheapest → heaviest; 3n-E2B first (usual default on API keys).
 _GEMMA_TRIAGE_FALLBACKS = (
-    "gemma-4-e2b-it",
     "gemma-3n-e2b-it",
+    "gemma-4-e2b-it",
     "gemma-4-e4b-it",
     "gemma-3n-e4b-it",
     "gemma-4-26b-a4b-it",
@@ -759,7 +757,11 @@ def _triage_backend_label(model: str) -> str:
     try:
         from gemma_hf_backend import use_huggingface_for_model
 
-        return "Hugging Face" if use_huggingface_for_model(model) else "Google AI Studio"
+        return (
+            "Hugging Face"
+            if use_huggingface_for_model(model, gatekeeper=True)
+            else "Google AI Studio"
+        )
     except ImportError:
         return "Google AI Studio"
 
@@ -789,7 +791,7 @@ def call_gemma_triage(
     try:
         from gemma_hf_backend import call_gemma_hf_multimodal, use_huggingface_for_model
 
-        if use_huggingface_for_model(model):
+        if use_huggingface_for_model(model, gatekeeper=True):
             resolution = "HIGH" if media_resolution_high else "LOW"
             hf = call_gemma_hf_multimodal(
                 model=model,
@@ -1556,14 +1558,14 @@ def run_triage(
         from gemma_hf_backend import (
             ensure_hf_ready_for_triage,
             hf_weights_cached,
-            model_requires_huggingface,
+            gatekeeper_use_huggingface,
             print_hf_model_catalog,
             resolve_hf_model_id,
         )
     except ImportError:
-        model_requires_huggingface = lambda _m: False  # type: ignore[assignment]
+        gatekeeper_use_huggingface = lambda: False  # type: ignore[assignment]
 
-    if model_requires_huggingface(model):
+    if gatekeeper_use_huggingface():
         if log_llm_catalog_enabled():
             print_hf_model_catalog(requested=(model,), role="Gatekeeper (Hugging Face)")
         model = resolve_hf_model_id(model)
@@ -1764,13 +1766,9 @@ def _default_raw_root() -> Path:
 
 def _resolve_api_key(cli_value: Optional[str]) -> str:
     try:
-        from gemma_hf_backend import ensure_hf_token, model_requires_huggingface
+        from gemma_hf_backend import ensure_hf_token, gatekeeper_use_huggingface
 
-        model_hint = (
-            os.environ.get("GOVERNANCE_GATEKEEPER_MODEL", "").strip()
-            or "gemma-4-e2b-it"
-        )
-        if model_requires_huggingface(model_hint):
+        if gatekeeper_use_huggingface():
             return ensure_hf_token(cli_value)
     except ImportError:
         pass
