@@ -146,12 +146,50 @@ def _soft_tokens(media_resolution: Optional[str]) -> int:
     )
 
 
+def _load_torch_dtype():
+    import torch
+
+    if torch.cuda.is_available():
+        return torch.bfloat16
+    return torch.float32
+
+
+def _model_device(model: Any):
+    """First real device for sharded or single-GPU models (never ``meta``)."""
+    import torch
+
+    if hasattr(model, "device"):
+        dev = model.device
+        if getattr(dev, "type", None) != "meta":
+            return dev
+    for p in model.parameters():
+        if getattr(p.device, "type", None) != "meta":
+            return p.device
+    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+def _move_batch_to_device(inputs: Any, device: Any) -> Any:
+    import torch
+
+    if hasattr(inputs, "to"):
+        try:
+            return inputs.to(device)
+        except Exception:
+            pass
+    if isinstance(inputs, dict):
+        return {
+            k: v.to(device) if isinstance(v, torch.Tensor) else v
+            for k, v in inputs.items()
+        }
+    return inputs
+
+
 def load_gemma_hf(
     model_id: Optional[str] = None,
     *,
     needs_audio: bool = False,
-    device_map: str = "auto",
-    dtype: str = "auto",
+    device_map: Optional[str] = "auto",
+    dtype: Optional[Any] = None,
 ) -> _HFBundle:
     """
     Load (or return cached) processor + model for ``model_id``.
@@ -173,31 +211,37 @@ def load_gemma_hf(
             'Install with: pip install -U "transformers>=4.50" torch accelerate'
         ) from exc
 
+    import torch
+
     token = resolve_hf_token() or None
-    processor = AutoProcessor.from_pretrained(repo_id, token=token)
+    processor = AutoProcessor.from_pretrained(
+        repo_id, token=token, padding_side="left"
+    )
+
+    torch_dtype = dtype if dtype is not None else _load_torch_dtype()
+    load_kw: Dict[str, Any] = dict(
+        token=token,
+        torch_dtype=torch_dtype,
+        attn_implementation="sdpa",
+    )
+    if device_map is not None and (device_map != "auto" or torch.cuda.is_available()):
+        load_kw["device_map"] = device_map
 
     if use_mm:
         from transformers import AutoModelForMultimodalLM
 
-        model = AutoModelForMultimodalLM.from_pretrained(
-            repo_id,
-            dtype=dtype,
-            device_map=device_map,
-            token=token,
-        )
+        model = AutoModelForMultimodalLM.from_pretrained(repo_id, **load_kw)
         multimodal = True
         logger.info("Loaded %s via AutoModelForMultimodalLM (audio+image+text)", repo_id)
     else:
         from transformers import AutoModelForImageTextToText
 
-        model = AutoModelForImageTextToText.from_pretrained(
-            repo_id,
-            dtype=dtype,
-            device_map=device_map,
-            token=token,
-        )
+        model = AutoModelForImageTextToText.from_pretrained(repo_id, **load_kw)
         multimodal = False
         logger.info("Loaded %s via AutoModelForImageTextToText", repo_id)
+
+    if "device_map" not in load_kw:
+        model = model.to(torch_dtype).eval()
 
     bundle = _HFBundle(repo_id=repo_id, processor=processor, model=model, multimodal=multimodal)
     _CACHE[cache_key] = bundle
@@ -345,23 +389,29 @@ def call_gemma_hf_multimodal(
         add_generation_prompt=True,
         enable_thinking=bool(include_thoughts or thinking_budget),
     )
-    # max_soft_tokens is supported on Gemma4Processor (transformers >= 4.50).
-    try:
-        inputs = bundle.processor.apply_chat_template(
+    # Gemma 4: vision budget belongs in processor_kwargs (not bare **kwargs).
+    inputs = None
+    for attempt in (
+        lambda: bundle.processor.apply_chat_template(
             messages,
-            max_soft_tokens=max_soft,
+            processor_kwargs={"max_soft_tokens": max_soft},
             **template_kwargs,
-        )
-    except TypeError:
+        ),
+        lambda: bundle.processor.apply_chat_template(
+            messages, max_soft_tokens=max_soft, **template_kwargs
+        ),
+        lambda: bundle.processor.apply_chat_template(messages, **template_kwargs),
+    ):
+        try:
+            inputs = attempt()
+            break
+        except TypeError:
+            continue
+    if inputs is None:
         inputs = bundle.processor.apply_chat_template(messages, **template_kwargs)
 
-    device = bundle.model.device
-    inputs = inputs.to(device)
-    if hasattr(inputs, "to") and bundle.multimodal:
-        try:
-            inputs = inputs.to(device, dtype=bundle.model.dtype)
-        except TypeError:
-            pass
+    device = _model_device(bundle.model)
+    inputs = _move_batch_to_device(inputs, device)
 
     input_len = inputs["input_ids"].shape[-1]
     gen_kwargs: Dict[str, Any] = dict(
