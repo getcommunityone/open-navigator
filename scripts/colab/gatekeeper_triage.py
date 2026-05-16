@@ -1315,7 +1315,7 @@ def select_triageable_files(
     kinds: Iterable[str] = ("pdf", "audio"),
     max_files: Optional[int] = None,
     max_meeting_dates: Optional[int] = None,
-) -> tuple[list[Path], int, Optional[dict]]:
+) -> tuple[list[Path], int, Optional[dict], Optional[dict]]:
     """
     Choose Gatekeeper inputs.
 
@@ -1325,9 +1325,32 @@ def select_triageable_files(
 
     Otherwise applies optional **count** cap (newest N by mtime).
 
-    Returns ``(selected_paths, total_walk_candidates, allowed_dates_by_jurisdiction)``.
+    Returns ``(selected_paths, total_walk_candidates, allowed_dates_by_jurisdiction, allowed_year_folders)``.
     """
-    paths = list(iter_triageable_files(raw_root, kinds=kinds))
+    allowed_year_folders: Optional[dict] = None
+    try:
+        from meeting_date_scope import (
+            discover_most_recent_year_folder_per_jurisdiction,
+            prune_year_folder_dirnames,
+            resolve_demo_year_folder_scope,
+        )
+
+        if resolve_demo_year_folder_scope():
+            allowed_year_folders = discover_most_recent_year_folder_per_jurisdiction(raw_root)
+            if allowed_year_folders:
+                logger.info(
+                    "Gatekeeper walk | DEMO year-folder scope (skip older 20xx/ trees)"
+                )
+                for jur, year in sorted(allowed_year_folders.items()):
+                    logger.info("  %s → only %s/", jur, year)
+    except ImportError:
+        pass
+
+    paths = list(
+        iter_triageable_files(
+            raw_root, kinds=kinds, allowed_year_folders=allowed_year_folders
+        )
+    )
     total = len(paths)
 
     try:
@@ -1341,7 +1364,7 @@ def select_triageable_files(
             selected, _media_total, allowed = filter_paths_by_recent_meeting_dates(
                 paths, raw_root, max_dates=date_cap
             )
-            return selected, total, allowed
+            return selected, total, allowed, allowed_year_folders
     except ImportError:
         pass
 
@@ -1349,11 +1372,14 @@ def select_triageable_files(
     cap = resolve_gatekeeper_max_files(max_files)
     if cap is not None and len(paths) > cap:
         paths = paths[-cap:]
-    return paths, total, None
+    return paths, total, None, allowed_year_folders
 
 
 def iter_triageable_files(
-    raw_root: Path, *, kinds: Iterable[str] = ("pdf", "audio")
+    raw_root: Path,
+    *,
+    kinds: Iterable[str] = ("pdf", "audio"),
+    allowed_year_folders: Optional[dict] = None,
 ) -> Iterable[Path]:
     """
     Yield candidate files via :func:`os.walk`. Skips any directory under the
@@ -1378,6 +1404,15 @@ def iter_triageable_files(
             if d not in SKIP_DIR_NAMES
             and not (SKIP_DIR_PREFIXES and d.startswith(SKIP_DIR_PREFIXES))
         ]
+        if allowed_year_folders:
+            try:
+                from meeting_date_scope import prune_year_folder_dirnames
+
+                prune_year_folder_dirnames(
+                    Path(dirpath), dirnames, raw_root_resolved, allowed_year_folders
+                )
+            except ImportError:
+                pass
         # Stable order so demo runs read predictably.
         dirnames.sort()
 
@@ -1490,13 +1525,24 @@ def run_triage(
 
     date_cap = resolve_demo_meeting_dates_limit()
     count_cap = resolve_gatekeeper_max_files(max_files)
-    triage_paths, total_candidates, allowed_dates = select_triageable_files(
+    logger.info(
+        "Gatekeeper: scanning %s (DEMO = newest year folder, then last meeting dates) …",
+        raw_root,
+    )
+    flush_gatekeeper_logs(fsync=_fsync_logs)
+
+    triage_paths, total_candidates, allowed_dates, allowed_years = select_triageable_files(
         raw_root, kinds=kinds, max_files=max_files
     )
+    if allowed_years:
+        logger.info(
+            "Gatekeeper year scope | walked %d pdf/audio path(s) under newest 20xx/ only",
+            total_candidates,
+        )
     if allowed_dates:
         logger.info(
             "Gatekeeper date scope | candidates=%d | triaging=%d unique doc(s) | "
-            "last %d meeting date(s)/jurisdiction (dates from manifest URLs, not Gatekeeper AI)",
+            "last %d meeting date(s)/jurisdiction in that year",
             total_candidates,
             len(triage_paths),
             date_cap or 0,

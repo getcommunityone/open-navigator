@@ -1,6 +1,9 @@
 """
-Date-based DEMO scope: keep PDFs, audio, and collateral only for the N most recent
-meeting calendar dates per jurisdiction.
+DEMO scope for Colab runs:
+
+1. **Year folder** — only files under each jurisdiction's newest ``20xx/`` calendar
+   folder (e.g. ``…/county_30097/2026/``), then
+2. **Meeting dates** — only the N most recent distinct meeting dates in that year.
 
 Used by Gatekeeper (what to triage) and the notebook inventory walker (what demos run).
 """
@@ -11,6 +14,7 @@ import logging
 import os
 import re
 from dataclasses import dataclass
+from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
@@ -28,6 +32,8 @@ _YYYYMMDD = re.compile(
 _MEETINGS_FOLDER_DATE = re.compile(
     r"^(?:(\d{4}-\d{2}-\d{2})|(\d{4})_(\d{2})_(\d{2})_meeting)"
 )
+
+_CALENDAR_YEAR_FOLDER = re.compile(r"^20\d{2}$")
 
 
 @dataclass(frozen=True)
@@ -55,6 +61,128 @@ def parse_yyyymmdd_from_blob(blob: str) -> Optional[str]:
     if not m:
         return None
     return f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
+
+
+def is_calendar_year_folder(name: str) -> bool:
+    """True for scrape layout folders like ``2026`` (not ``2026_05_06_meeting``)."""
+    if not _CALENDAR_YEAR_FOLDER.fullmatch(name or ""):
+        return False
+    y = int(name)
+    # Ignore bogus dirs (e.g. numeric IDs mis-synced as ``2034/``); allow next calendar year.
+    max_y = datetime.now().year + 1
+    return 2000 <= y <= max_y
+
+
+def resolve_demo_year_folder_scope() -> bool:
+    """
+    When True (DEMO default), restrict media to the newest ``20xx/`` folder per jurisdiction.
+
+    Set ``GOVERNANCE_DEMO_YEAR_SCOPE=0`` to disable.
+    """
+    if os.environ.get("GOVERNANCE_DEMO_YEAR_SCOPE", "").strip().lower() in (
+        "0",
+        "false",
+        "no",
+        "off",
+    ):
+        return False
+    if os.environ.get("GOVERNANCE_MODE", "").strip().upper() == "DEMO":
+        return True
+    return os.environ.get("GOVERNANCE_DEMO_YEAR_SCOPE", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+
+
+def calendar_year_folder_in_path(path: Path, raw_root: Path) -> Optional[str]:
+    """Largest ``20xx`` path segment under ``raw_root`` (e.g. ``2026`` in ``…/2026/foo.pdf``)."""
+    try:
+        rel = path.resolve().relative_to(raw_root.resolve())
+    except ValueError:
+        return None
+    years = [p for p in rel.parts if is_calendar_year_folder(p)]
+    return max(years) if years else None
+
+
+def discover_most_recent_year_folder_per_jurisdiction(raw_root: Path) -> Dict[str, str]:
+    """
+    Scan jurisdiction roots only (no deep file walk) for the newest ``20xx/`` folder.
+
+    Includes ``_gomeet_downloads/20xx`` when present.
+    """
+    raw_root = raw_root.resolve()
+    allowed: Dict[str, str] = {}
+    if not raw_root.is_dir():
+        return allowed
+
+    skip_names = {"excluded_inputs", "__pycache__"}
+
+    for state_dir in sorted(raw_root.iterdir()):
+        if not state_dir.is_dir() or state_dir.name in skip_names:
+            continue
+        if state_dir.name.startswith("_"):
+            continue
+        for scope_dir in sorted(state_dir.iterdir()):
+            if not scope_dir.is_dir():
+                continue
+            for jur_dir in sorted(scope_dir.iterdir()):
+                if not jur_dir.is_dir() or jur_dir.name.startswith("_"):
+                    continue
+                jur = f"{state_dir.name}/{scope_dir.name}/{jur_dir.name}"
+                years: Set[str] = set()
+                for child in jur_dir.iterdir():
+                    if child.is_dir() and is_calendar_year_folder(child.name):
+                        years.add(child.name)
+                gomeet = jur_dir / "_gomeet_downloads"
+                if gomeet.is_dir():
+                    for child in gomeet.iterdir():
+                        if child.is_dir() and is_calendar_year_folder(child.name):
+                            years.add(child.name)
+                if years:
+                    allowed[jur] = max(years)
+    return allowed
+
+
+def path_matches_year_folder_scope(
+    path: Path, raw_root: Path, allowed_years: Dict[str, str]
+) -> bool:
+    """True when the file is under the jurisdiction's newest calendar-year folder."""
+    jur = jurisdiction_prefix_from_path(path, raw_root)
+    if not jur or jur not in allowed_years:
+        return True
+    need = allowed_years[jur]
+    yfolder = calendar_year_folder_in_path(path, raw_root)
+    if yfolder:
+        return yfolder == need
+    meeting_date = infer_meeting_date_for_file(path, raw_root)
+    if meeting_date:
+        return meeting_date[:4] == need
+    return False
+
+
+def prune_year_folder_dirnames(
+    dirpath: Path,
+    dirnames: List[str],
+    raw_root: Path,
+    allowed_years: Dict[str, str],
+) -> None:
+    """
+    In-place ``os.walk`` prune: at jurisdiction root (and ``_gomeet_downloads``),
+    do not descend into older ``20xx/`` siblings.
+    """
+    jur = jurisdiction_prefix_from_path(dirpath, raw_root)
+    if not jur or jur not in allowed_years:
+        return
+    keep = allowed_years[jur]
+    jur_root = (raw_root / Path(*jur.split("/"))).resolve()
+    here = dirpath.resolve()
+    if here == jur_root or here == (jur_root / "_gomeet_downloads").resolve():
+        dirnames[:] = [
+            d for d in dirnames
+            if not is_calendar_year_folder(d) or d == keep
+        ]
 
 
 def resolve_demo_meeting_dates_limit(explicit: Optional[int] = None) -> Optional[int]:
@@ -315,6 +443,29 @@ def filter_paths_by_recent_meeting_dates(
     """
     cap = resolve_demo_meeting_dates_limit(max_dates)
     candidates = [p for p in paths if file_media_role(p, raw_root) is not None]
+
+    if resolve_demo_year_folder_scope():
+        allowed_years = discover_most_recent_year_folder_per_jurisdiction(raw_root)
+        if allowed_years:
+            before_year = len(candidates)
+            candidates = [
+                p
+                for p in candidates
+                if path_matches_year_folder_scope(p, raw_root, allowed_years)
+            ]
+            logger.info(
+                "Year folder scope | %d → %d media file(s) | newest calendar folder per jurisdiction",
+                before_year,
+                len(candidates),
+            )
+            for jur, year in sorted(allowed_years.items()):
+                logger.info("  %s → %s/", jur, year)
+        else:
+            logger.warning(
+                "Year folder scope enabled but no 20xx/ folders found under %s",
+                raw_root,
+            )
+
     total = len(candidates)
     if cap is None:
         return list(candidates), total, {}
