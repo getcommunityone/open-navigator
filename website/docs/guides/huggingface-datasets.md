@@ -30,12 +30,12 @@ With 1.9M+ nonprofits now available from IRS EO-BMF, you can:
 pip install huggingface_hub datasets pyarrow
 
 # Get your token from https://huggingface.co/settings/tokens
-export HUGGINGFACE_TOKEN="hf_YOUR_TOKEN_HERE"
+export HF_TOKEN="hf_YOUR_TOKEN_HERE"
 ```
 
 Add to `.env`:
 ```bash
-HUGGINGFACE_TOKEN=hf_your_write_token_here
+HF_TOKEN=hf_your_write_token_here
 ```
 
 ### Upload All Nonprofit Tables

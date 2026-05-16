@@ -397,7 +397,7 @@ type %APPDATA%\Claude\claude_desktop_config.json
 huggingface-cli login
 
 # Set token in environment
-export HUGGINGFACE_TOKEN=hf_...
+export HF_TOKEN=hf_...
 ```
 
 **Check dataset availability:**
@@ -421,7 +421,7 @@ All configurable via environment variables:
         "QDRANT_HOST": "localhost",
         "QDRANT_PORT": "6333",
         "DATABASE_URL": "postgresql://postgres:password@localhost:5433/open_navigator",
-        "HUGGINGFACE_TOKEN": "hf_..."
+        "HF_TOKEN": "hf_..."
       }
     }
   }

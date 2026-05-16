@@ -12,9 +12,9 @@ echo "🚀 Deploying to HuggingFace Spaces via Hub API"
 echo "=============================================="
 
 # Check for HF token
-if [ -z "$HUGGINGFACE_TOKEN" ]; then
-    echo "❌ Error: HUGGINGFACE_TOKEN not set"
-    echo "   Export it: export HUGGINGFACE_TOKEN=your_token"
+if [ -z "$HF_TOKEN" ]; then
+    echo "❌ Error: HF_TOKEN not set"
+    echo "   Export it: export HF_TOKEN=your_token"
     exit 1
 fi
 
@@ -48,11 +48,11 @@ from pathlib import Path
 from huggingface_hub import HfApi, upload_folder
 from loguru import logger
 
-token = os.getenv('HUGGINGFACE_TOKEN')
+token = os.getenv('HF_TOKEN')
 space_id = os.getenv('SPACE_ID', 'CommunityOne/open-navigator')
 
 if not token:
-    logger.error("HUGGINGFACE_TOKEN not set")
+    logger.error("HF_TOKEN not set")
     sys.exit(1)
 
 logger.info(f"Uploading to Space: {space_id}")

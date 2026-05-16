@@ -135,5 +135,5 @@ Required in `.env`:
 ```bash
 HF_ORGANIZATION=CommunityOne
 HF_USERNAME=CommunityOne
-HUGGINGFACE_TOKEN=hf_...
+HF_TOKEN=hf_...
 ```

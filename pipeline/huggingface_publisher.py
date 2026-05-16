@@ -54,7 +54,7 @@ class HuggingFacePublisher:
         Initialize HuggingFace publisher.
         
         Args:
-            token: HuggingFace API token (or use HUGGINGFACE_TOKEN env var)
+            token: HuggingFace API token (or use HF_TOKEN env var)
         """
         if not HF_AVAILABLE:
             raise ImportError("HuggingFace libraries required. Install with: pip install datasets huggingface-hub")
@@ -65,7 +65,7 @@ class HuggingFacePublisher:
         
         if not self.token:
             raise ValueError(
-                "HuggingFace token required. Set HUGGINGFACE_TOKEN in .env or pass token parameter."
+                "HuggingFace token required. Set HF_TOKEN in .env or pass token parameter."
             )
         
         # Login to HuggingFace

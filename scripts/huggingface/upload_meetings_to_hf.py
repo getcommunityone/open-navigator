@@ -25,7 +25,7 @@ Usage:
     pip install huggingface_hub datasets pyarrow
 
     # Set your token (get from https://huggingface.co/settings/tokens)
-    export HUGGINGFACE_TOKEN="hf_YOUR_TOKEN_HERE"
+    export HF_TOKEN="hf_YOUR_TOKEN_HERE"
     
     # Upload all meeting tables
     python scripts/upload_meetings_to_hf.py --all
@@ -118,18 +118,18 @@ class MeetingHFUploader:
                       - CommunityOne/civic-meetings-calendar
                       - CommunityOne/civic-meetings-transcripts
                       - etc.
-            token: HF token (or set HUGGINGFACE_TOKEN environment variable)
+            token: HF token (or set HF_TOKEN environment variable)
         """
         self.repo_prefix = repo_name or "CommunityOne/one-meetings"
         self.contacts_repo_prefix = "CommunityOne/one-contacts"
-        self.token = token or os.getenv("HUGGINGFACE_TOKEN")
+        self.token = token or os.getenv("HF_TOKEN")
         self.gold_path = Path("data/gold")
         
         if not self.token:
             raise ValueError(
                 "Hugging Face token required! "
                 "Get it from https://huggingface.co/settings/tokens "
-                "and set HUGGINGFACE_TOKEN environment variable"
+                "and set HF_TOKEN environment variable"
             )
         
         # Login

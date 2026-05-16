@@ -7,9 +7,9 @@ import sys
 from huggingface_hub import HfApi
 
 # Get token from environment
-token = os.getenv('HUGGINGFACE_TOKEN')
+token = os.getenv('HF_TOKEN')
 if not token:
-    print("❌ HUGGINGFACE_TOKEN not found in environment")
+    print("❌ HF_TOKEN not found in environment")
     print("   Run: source .env")
     sys.exit(1)
 

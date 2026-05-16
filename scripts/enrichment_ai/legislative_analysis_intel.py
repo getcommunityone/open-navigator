@@ -597,7 +597,7 @@ class IntelOptimizedLLM:
         import os
         
         # Get HF token from environment or .env file
-        hf_token = os.getenv('HUGGINGFACE_TOKEN') or os.getenv('HF_TOKEN')
+        hf_token = os.getenv('HF_TOKEN') or os.getenv('HF_TOKEN')
         
         self.model = AutoModelForCausalLM.from_pretrained(
             self.model_name,

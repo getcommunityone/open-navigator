@@ -58,17 +58,17 @@ def use_huggingface() -> bool:
 
 
 def resolve_hf_token(cli_value: Optional[str] = None) -> str:
-    """Hugging Face Hub token from CLI, env, or Colab Secret ``HUGGINGFACE_TOKEN``."""
+    """Hugging Face Hub token from CLI, env, or Colab Secret ``HF_TOKEN``."""
     if cli_value:
         return cli_value.strip()
-    for env in ("HUGGINGFACE_TOKEN", "HUGGING_FACE_HUB_TOKEN", "HF_TOKEN"):
+    for env in ("HF_TOKEN", "HUGGING_FACE_HUB_TOKEN", "HF_TOKEN"):
         val = os.environ.get(env)
         if val:
             return val.strip()
     try:
         from google.colab import userdata  # type: ignore
 
-        for secret_name in ("HUGGINGFACE_TOKEN", "HF_TOKEN"):
+        for secret_name in ("HF_TOKEN", "HF_TOKEN"):
             val = userdata.get(secret_name)
             if val:
                 return val.strip()
@@ -78,15 +78,15 @@ def resolve_hf_token(cli_value: Optional[str] = None) -> str:
 
 
 def ensure_hf_token(cli_value: Optional[str] = None) -> str:
-    """Return a Hub token and mirror it into ``HUGGINGFACE_TOKEN`` / Hub env vars."""
+    """Return a Hub token and mirror it into ``HF_TOKEN`` / Hub env vars."""
     token = resolve_hf_token(cli_value)
     if not token:
         raise RuntimeError(
-            "Set HUGGINGFACE_TOKEN (Colab Secret or environment). "
+            "Set HF_TOKEN (Colab Secret or environment). "
             "Create a token at https://huggingface.co/settings/tokens and accept "
             "the Gemma model license on the model page."
         )
-    os.environ["HUGGINGFACE_TOKEN"] = token
+    os.environ["HF_TOKEN"] = token
     os.environ.setdefault("HUGGING_FACE_HUB_TOKEN", token)
     os.environ.setdefault("HF_TOKEN", token)  # libraries that still read HF_TOKEN
     return token

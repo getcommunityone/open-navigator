@@ -100,21 +100,21 @@ fi
 echo "🔐 Checking Hugging Face authentication..."
 if ! hf whoami &> /dev/null; then
     # Not logged in - try to login with token from .env
-    if [ -n "$HUGGINGFACE_TOKEN" ]; then
-        echo "🔑 Logging in with HUGGINGFACE_TOKEN from .env..."
-        if hf auth login --token "$HUGGINGFACE_TOKEN" --add-to-git-credential; then
+    if [ -n "$HF_TOKEN" ]; then
+        echo "🔑 Logging in with HF_TOKEN from .env..."
+        if hf auth login --token "$HF_TOKEN" --add-to-git-credential; then
             echo "✅ Successfully authenticated with token from .env"
         else
-            echo "❌ Failed to authenticate with HUGGINGFACE_TOKEN"
+            echo "❌ Failed to authenticate with HF_TOKEN"
             echo "Please check your token in .env file"
             exit 1
         fi
     else
         echo "❌ Not logged in to Hugging Face"
         echo ""
-        echo "Option 1: Add HUGGINGFACE_TOKEN to .env file (RECOMMENDED)"
+        echo "Option 1: Add HF_TOKEN to .env file (RECOMMENDED)"
         echo "  Get token from: https://huggingface.co/settings/tokens"
-        echo "  Add to .env: HUGGINGFACE_TOKEN=hf_..."
+        echo "  Add to .env: HF_TOKEN=hf_..."
         echo ""
         echo "Option 2: Login manually"
         echo "  hf auth login"
@@ -316,7 +316,7 @@ echo "   - Go to Settings → Variables and secrets"
 echo "   - Add these secrets:"
 echo "     • OPENAI_API_KEY"
 echo "     • ANTHROPIC_API_KEY"
-echo "     • HUGGINGFACE_TOKEN"
+echo "     • HF_TOKEN"
 echo ""
 echo "4. Monitor build progress:"
 echo "   - Click 'Logs' tab in your Space"

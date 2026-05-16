@@ -86,18 +86,18 @@ class StateDataUploader:
         
         Args:
             repo_prefix: HF repo prefix (e.g., "CommunityOne/one-data")
-            token: HF token (or set HUGGINGFACE_TOKEN environment variable)
+            token: HF token (or set HF_TOKEN environment variable)
             splits_dir: Directory containing state-split parquet files
         """
         self.repo_prefix = repo_prefix or "CommunityOne/one-data"
-        self.token = token or os.getenv("HUGGINGFACE_TOKEN")
+        self.token = token or os.getenv("HF_TOKEN")
         self.splits_dir = Path(splits_dir)
         
         if not self.token:
             raise ValueError(
                 "Hugging Face token required! "
                 "Get it from https://huggingface.co/settings/tokens "
-                "and set HUGGINGFACE_TOKEN environment variable"
+                "and set HF_TOKEN environment variable"
             )
         
         # Login

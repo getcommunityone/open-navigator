@@ -35,7 +35,7 @@
 pip install huggingface_hub datasets
 
 # Set your token
-export HUGGINGFACE_TOKEN="hf_YOUR_TOKEN_HERE"
+export HF_TOKEN="hf_YOUR_TOKEN_HERE"
 ```
 
 ---
@@ -348,10 +348,10 @@ oral_health_only = load_dataset(
 ### "Authentication failed"
 ```bash
 # Make sure token is set
-echo $HUGGINGFACE_TOKEN
+echo $HF_TOKEN
 
 # If empty, set it
-export HUGGINGFACE_TOKEN="hf_YOUR_TOKEN"
+export HF_TOKEN="hf_YOUR_TOKEN"
 
 # Or login interactively
 huggingface-cli login

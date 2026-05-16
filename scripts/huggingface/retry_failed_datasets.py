@@ -16,7 +16,7 @@ import traceback
 load_dotenv()
 
 # Configuration
-HUGGINGFACE_TOKEN = os.getenv('HUGGINGFACE_TOKEN')
+HF_TOKEN = os.getenv('HF_TOKEN')
 HF_ORGANIZATION = os.getenv('HF_ORGANIZATION', 'CommunityOne')
 
 # Failed datasets to retry
@@ -94,7 +94,7 @@ def publish_dataset(file_path: Path, api: HfApi, private: bool = False) -> dict:
                 repo_type="dataset",
                 private=private,
                 exist_ok=True,
-                token=HUGGINGFACE_TOKEN
+                token=HF_TOKEN
             )
         except Exception as e:
             logger.debug(f"   Repo may already exist: {e}")
@@ -105,7 +105,7 @@ def publish_dataset(file_path: Path, api: HfApi, private: bool = False) -> dict:
             repo_id=repo_id,
             private=private,
             commit_message=f"Update {dataset_name} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-            token=HUGGINGFACE_TOKEN
+            token=HF_TOKEN
         )
         
         url = f"https://huggingface.co/datasets/{repo_id}"
@@ -126,11 +126,11 @@ def publish_dataset(file_path: Path, api: HfApi, private: bool = False) -> dict:
 def main():
     """Retry publishing failed datasets."""
     
-    if not HUGGINGFACE_TOKEN:
-        logger.error("❌ HUGGINGFACE_TOKEN not set in environment")
+    if not HF_TOKEN:
+        logger.error("❌ HF_TOKEN not set in environment")
         return
     
-    api = HfApi(token=HUGGINGFACE_TOKEN)
+    api = HfApi(token=HF_TOKEN)
     
     logger.info("=" * 80)
     logger.info(f"♻️  Retrying {len(FAILED_FILES)} failed datasets")

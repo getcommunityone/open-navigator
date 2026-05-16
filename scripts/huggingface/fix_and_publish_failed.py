@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-HUGGINGFACE_TOKEN = os.getenv('HUGGINGFACE_TOKEN')
+HF_TOKEN = os.getenv('HF_TOKEN')
 HF_ORGANIZATION = os.getenv('HF_ORGANIZATION', 'CommunityOne')
 GOLD_DIR = Path("data/gold")
 
@@ -28,7 +28,7 @@ def fix_and_publish_jurisdictions():
         'data/gold/reference/jurisdictions_townships.parquet',
     ]
     
-    api = HfApi(token=HUGGINGFACE_TOKEN)
+    api = HfApi(token=HF_TOKEN)
     
     for file_str in jurisdiction_files:
         file_path = Path(file_str)
@@ -65,7 +65,7 @@ def fix_and_publish_jurisdictions():
                     repo_type="dataset",
                     private=False,
                     exist_ok=True,
-                    token=HUGGINGFACE_TOKEN
+                    token=HF_TOKEN
                 )
             except Exception as e:
                 logger.debug(f"   Repo may already exist: {e}")
@@ -76,7 +76,7 @@ def fix_and_publish_jurisdictions():
                 repo_id=repo_id,
                 private=False,
                 commit_message=f"Update {dataset_name} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-                token=HUGGINGFACE_TOKEN
+                token=HF_TOKEN
             )
             
             url = f"https://huggingface.co/datasets/{repo_id}"
@@ -134,8 +134,8 @@ def check_old_meeting_files():
 def main():
     """Fix and publish failed datasets."""
     
-    if not HUGGINGFACE_TOKEN:
-        logger.error("❌ HUGGINGFACE_TOKEN not set")
+    if not HF_TOKEN:
+        logger.error("❌ HF_TOKEN not set")
         return
     
     logger.info("=" * 80)

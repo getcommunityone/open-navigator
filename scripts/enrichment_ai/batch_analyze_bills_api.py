@@ -13,7 +13,7 @@ Speed: ~1-2 seconds per bill (vs 10-15 min on CPU)
 
 Usage:
     # Analyze Alabama fluoride bills (fast test)
-    export HUGGINGFACE_TOKEN=your_token
+    export HF_TOKEN=your_token
     python scripts/enrichment_ai/batch_analyze_bills_api.py --state AL --topic fluoride --limit 10
     
     # Analyze 1000 bills (~$3, ~30 minutes)
@@ -51,10 +51,10 @@ class HuggingFaceInferenceLLM:
         token: str = None
     ):
         self.model_name = model_name
-        self.token = token or os.getenv('HUGGINGFACE_TOKEN') or os.getenv('HF_TOKEN')
+        self.token = token or os.getenv('HF_TOKEN') or os.getenv('HF_TOKEN')
         
         if not self.token:
-            raise ValueError("HuggingFace token required! Set HUGGINGFACE_TOKEN environment variable")
+            raise ValueError("HuggingFace token required! Set HF_TOKEN environment variable")
         
         # Initialize inference client
         self.client = InferenceClient(token=self.token)

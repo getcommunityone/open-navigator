@@ -30,7 +30,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 load_dotenv()
 
 # Configuration
-HUGGINGFACE_TOKEN = os.getenv('HUGGINGFACE_TOKEN')
+HF_TOKEN = os.getenv('HF_TOKEN')
 HF_ORGANIZATION = os.getenv('HF_ORGANIZATION', 'CommunityOne')
 HF_DATASET_PREFIX = os.getenv('HF_DATASET_PREFIX', 'one')
 
@@ -124,7 +124,7 @@ def upload_parquet_to_hf(
                 repo_type="dataset",
                 private=private,
                 exist_ok=True,
-                token=HUGGINGFACE_TOKEN
+                token=HF_TOKEN
             )
             logger.debug(f"   Created/verified repo: {repo_id}")
         except Exception as e:
@@ -135,7 +135,7 @@ def upload_parquet_to_hf(
             repo_id=repo_id,
             private=private,
             commit_message=f"Upload consolidated gold table - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-            token=HUGGINGFACE_TOKEN
+            token=HF_TOKEN
         )
         
         url = f"https://huggingface.co/datasets/{repo_id}"
@@ -172,9 +172,9 @@ def main():
     args = parser.parse_args()
     
     # Validate token
-    if not HUGGINGFACE_TOKEN:
-        logger.error("❌ HUGGINGFACE_TOKEN not set")
-        logger.error("   Set it in .env file or export HUGGINGFACE_TOKEN=your_token")
+    if not HF_TOKEN:
+        logger.error("❌ HF_TOKEN not set")
+        logger.error("   Set it in .env file or export HF_TOKEN=your_token")
         sys.exit(1)
     
     logger.info("=" * 70)
@@ -187,7 +187,7 @@ def main():
     logger.info("=" * 70)
     
     # Initialize HuggingFace API
-    api = HfApi(token=HUGGINGFACE_TOKEN)
+    api = HfApi(token=HF_TOKEN)
     
     # Get list of parquet files
     if args.file:

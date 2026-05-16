@@ -28,9 +28,9 @@ def main():
     parser.add_argument("--space-id", default="CommunityOne/open-navigator", help="Space ID")
     args = parser.parse_args()
     
-    token = os.getenv('HUGGINGFACE_TOKEN')
+    token = os.getenv('HF_TOKEN')
     if not token:
-        logger.error("❌ HUGGINGFACE_TOKEN not set in environment")
+        logger.error("❌ HF_TOKEN not set in environment")
         logger.error("   Add it to .env file or export it")
         sys.exit(1)
     

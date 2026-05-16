@@ -109,7 +109,7 @@ This will:
 
 ```bash
 # Upload all contacts tables
-export HUGGINGFACE_TOKEN="hf_YOUR_TOKEN"
+export HF_TOKEN="hf_YOUR_TOKEN"
 python scripts/upload_meetings_to_hf.py --contacts
 
 # Or upload specific table

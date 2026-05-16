@@ -9,7 +9,7 @@ Usage:
     pip install huggingface_hub datasets
 
     # Get your token from https://huggingface.co/settings/tokens
-    export HUGGINGFACE_TOKEN="hf_YOUR_TOKEN_HERE"
+    export HF_TOKEN="hf_YOUR_TOKEN_HERE"
     
     # Upload discovery results
     python scripts/upload_to_huggingface.py --discovery
@@ -42,17 +42,17 @@ class HuggingFaceUploader:
         
         Args:
             repo_name: Hugging Face repo name (e.g., "username/oral-health-policy-data")
-            token: HF token (or set HUGGINGFACE_TOKEN environment variable)
+            token: HF token (or set HF_TOKEN environment variable)
         """
         self.repo_name = repo_name
-        # Check HUGGINGFACE_TOKEN first (matches .env), fall back to HF_TOKEN for backwards compatibility
-        self.token = token or os.getenv("HUGGINGFACE_TOKEN") or os.getenv("HF_TOKEN")
+        # Check HF_TOKEN first (matches .env), fall back to HF_TOKEN for backwards compatibility
+        self.token = token or os.getenv("HF_TOKEN") or os.getenv("HF_TOKEN")
         
         if not self.token:
             raise ValueError(
                 "Hugging Face token required! "
                 "Get it from https://huggingface.co/settings/tokens "
-                "and set HUGGINGFACE_TOKEN environment variable"
+                "and set HF_TOKEN environment variable"
             )
         
         # Login

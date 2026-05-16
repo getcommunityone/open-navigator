@@ -45,7 +45,7 @@ Add to your `.env` file:
 
 ```bash
 # HuggingFace Configuration
-HUGGINGFACE_TOKEN=hf_your_write_token_here
+HF_TOKEN=hf_your_write_token_here
 HF_ORGANIZATION=CommunityOne  # Optional: your org name
 HF_DATASET_PREFIX=oral-health-policy-pulse
 ```
@@ -400,7 +400,7 @@ open https://huggingface.co/datasets/CommunityOne/oral-health-policy-pulse-disco
 ❌ Configuration error: HuggingFace token required
 ```
 
-**Solution:** Set `HUGGINGFACE_TOKEN` in `.env` file
+**Solution:** Set `HF_TOKEN` in `.env` file
 
 ### Repository Not Found
 

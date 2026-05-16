@@ -111,7 +111,7 @@ print(f"Primary Rationale: {analysis.primary_rationale}")
 python scripts/enrichment_ai/batch_analyze_bills.py --state GA --topic fluoride --limit 10
 
 # Using HuggingFace (once access granted, faster)
-export HUGGINGFACE_TOKEN=your_token_here
+export HF_TOKEN=your_token_here
 python scripts/enrichment_ai/batch_analyze_bills.py --state GA --topic fluoride --limit 10
 ```
 ### 🔨 In Progress

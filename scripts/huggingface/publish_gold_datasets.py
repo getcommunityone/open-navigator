@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Configuration
-HUGGINGFACE_TOKEN = os.getenv('HUGGINGFACE_TOKEN')
+HF_TOKEN = os.getenv('HF_TOKEN')
 HF_ORGANIZATION = os.getenv('HF_ORGANIZATION', 'CommunityOne')
 HF_DATASET_PREFIX = os.getenv('HF_DATASET_PREFIX', 'one')
 
@@ -61,7 +61,7 @@ def publish_dataset(file_path: Path, dataset_name: str, api: HfApi, private: boo
                 repo_type="dataset",
                 private=private,
                 exist_ok=True,
-                token=HUGGINGFACE_TOKEN
+                token=HF_TOKEN
             )
         except Exception as e:
             logger.debug(f"   Repo may already exist: {e}")
@@ -71,7 +71,7 @@ def publish_dataset(file_path: Path, dataset_name: str, api: HfApi, private: boo
             repo_id=repo_id,
             private=private,
             commit_message=f"Update {dataset_name} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-            token=HUGGINGFACE_TOKEN
+            token=HF_TOKEN
         )
         
         url = f"https://huggingface.co/datasets/{repo_id}"
@@ -92,17 +92,17 @@ def publish_dataset(file_path: Path, dataset_name: str, api: HfApi, private: boo
 def main():
     """Publish all gold datasets to HuggingFace."""
     
-    if not HUGGINGFACE_TOKEN:
-        logger.error("❌ HUGGINGFACE_TOKEN not set in environment")
+    if not HF_TOKEN:
+        logger.error("❌ HF_TOKEN not set in environment")
         logger.error("   Set it in .env file or export it")
         return
     
     # Login to HuggingFace
-    login(token=HUGGINGFACE_TOKEN)
-    api = HfApi(token=HUGGINGFACE_TOKEN)
+    login(token=HF_TOKEN)
+    api = HfApi(token=HF_TOKEN)
     
     # Get user info
-    user_info = api.whoami(token=HUGGINGFACE_TOKEN)
+    user_info = api.whoami(token=HF_TOKEN)
     username = user_info['name']
     
     logger.info("=" * 70)

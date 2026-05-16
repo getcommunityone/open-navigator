@@ -322,13 +322,13 @@ import pandas as pd
 from pathlib import Path
 
 # Configuration
-HUGGINGFACE_TOKEN = "hf_YOUR_TOKEN"  # From https://huggingface.co/settings/tokens
+HF_TOKEN = "hf_YOUR_TOKEN"  # From https://huggingface.co/settings/tokens
 HF_REPO = "your-username/oral-health-policy-data"
 
 def upload_discovery_results():
     """Upload discovery results (JSON/CSV)"""
     
-    login(token=HUGGINGFACE_TOKEN)
+    login(token=HF_TOKEN)
     
     # Load discovery data
     discovery_dir = Path("data/bronze/discovered_sources")
@@ -375,7 +375,7 @@ if __name__ == "__main__":
 
 ```bash
 # Set your token
-export HUGGINGFACE_TOKEN="hf_YOUR_TOKEN"
+export HF_TOKEN="hf_YOUR_TOKEN"
 
 # Upload discovery results
 python scripts/upload_to_huggingface.py

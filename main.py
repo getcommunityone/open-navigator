@@ -425,7 +425,7 @@ def publish_to_hf(dataset: str, private: bool, sample: bool):
         
     except ValueError as e:
         click.echo(f"❌ Configuration error: {e}")
-        click.echo("   Set HUGGINGFACE_TOKEN in .env file")
+        click.echo("   Set HF_TOKEN in .env file")
     except Exception as e:
         click.echo(f"❌ Publishing failed: {e}")
         logger.exception("HuggingFace publishing error")

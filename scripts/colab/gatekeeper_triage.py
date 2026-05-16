@@ -1144,7 +1144,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     parser.add_argument(
         "--api-key", default=None,
-        help="API key: HUGGINGFACE_TOKEN (Hugging Face backend) or GEMINI_API_KEY (Google backend).",
+        help="API key: HF_TOKEN (Hugging Face backend) or GEMINI_API_KEY (Google backend).",
     )
     parser.add_argument(
         "--model", default=DEFAULT_MODEL,

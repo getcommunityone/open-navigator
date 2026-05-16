@@ -29,10 +29,10 @@ You now have **3 new files** to push your 1.9M+ nonprofit datasets to HuggingFac
 
 ```bash
 # Add to .env file
-echo 'HUGGINGFACE_TOKEN=hf_YOUR_TOKEN_HERE' >> .env
+echo 'HF_TOKEN=hf_YOUR_TOKEN_HERE' >> .env
 
 # Or export for current session
-export HUGGINGFACE_TOKEN="hf_YOUR_TOKEN_HERE"
+export HF_TOKEN="hf_YOUR_TOKEN_HERE"
 ```
 
 ### Step 3: Install Dependencies
@@ -298,7 +298,7 @@ const DATASET_NAME = "your-username/nonprofits"
 
 **Solution:**
 ```bash
-export HUGGINGFACE_TOKEN="hf_YOUR_TOKEN"
+export HF_TOKEN="hf_YOUR_TOKEN"
 # Or add to .env file
 ```
 

@@ -174,7 +174,7 @@ git push hf huggingface-deploy:main
      ```
      OPENAI_API_KEY = sk-your-key-here
      ANTHROPIC_API_KEY = sk-ant-your-key-here
-     HUGGINGFACE_TOKEN = hf_your-token-here
+     HF_TOKEN = hf_your-token-here
      ```
    - Set environment variables:
      ```

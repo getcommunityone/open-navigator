@@ -245,7 +245,7 @@ python main.py generate-heatmap --output heatmap.html
 **Publishing Datasets**
 
 ```bash
-# Publish to HuggingFace (requires HUGGINGFACE_TOKEN in .env)
+# Publish to HuggingFace (requires HF_TOKEN in .env)
 python main.py publish-to-hf --dataset all
 python main.py publish-to-hf --dataset discovered-urls
 python main.py publish-to-hf --dataset census --sample
@@ -515,7 +515,7 @@ DATABRICKS_HOST=https://your-workspace.cloud.databricks.com
 DATABRICKS_TOKEN=dapi...
 
 # HuggingFace (optional)
-HUGGINGFACE_TOKEN=hf_...
+HF_TOKEN=hf_...
 
 # Dataverse (optional)
 DATAVERSE_API_KEY=...

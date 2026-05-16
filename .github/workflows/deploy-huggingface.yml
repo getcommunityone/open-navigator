@@ -39,7 +39,7 @@ jobs:
         run: pip install huggingface-hub
 
       - name: Login to Hugging Face
-        run: hf auth login --token ${{ secrets.HUGGINGFACE_TOKEN }}
+        run: hf auth login --token ${{ secrets.HF_TOKEN }}
 
       - name: Configure Git identity
         run: |
@@ -49,14 +49,14 @@ jobs:
       - name: Configure Git credentials for Hugging Face
         env:
           HF_USERNAME: ${{ inputs.HF_USERNAME || secrets.HF_USERNAME }}
-          HUGGINGFACE_TOKEN: ${{ secrets.HUGGINGFACE_TOKEN }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          git config --global url."https://${HF_USERNAME}:${HUGGINGFACE_TOKEN}@huggingface.co/".insteadOf "https://huggingface.co/"
+          git config --global url."https://${HF_USERNAME}:${HF_TOKEN}@huggingface.co/".insteadOf "https://huggingface.co/"
 
       - name: Deploy to Hugging Face Spaces
         env:
           HF_USERNAME: ${{ inputs.HF_USERNAME || secrets.HF_USERNAME }}
-          HUGGINGFACE_TOKEN: ${{ secrets.HUGGINGFACE_TOKEN }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           chmod +x ./deploy-huggingface.sh
           ./deploy-huggingface.sh

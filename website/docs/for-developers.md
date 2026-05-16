@@ -205,7 +205,7 @@ python main.py scrape --url "https://chicago.legistar.com" \
 ### Publish to HuggingFace
 
 ```bash
-# Requires HUGGINGFACE_TOKEN in .env
+# Requires HF_TOKEN in .env
 python main.py publish-to-hf --dataset all
 python main.py publish-to-hf --dataset discovered-urls
 python main.py publish-to-hf --dataset census --sample
@@ -345,7 +345,7 @@ DATABRICKS_HOST=https://your-workspace.cloud.databricks.com
 DATABRICKS_TOKEN=dapi...
 
 # Optional (for publishing)
-HUGGINGFACE_TOKEN=hf_...
+HF_TOKEN=hf_...
 
 # Optional (for Harvard Dataverse)
 DATAVERSE_API_KEY=...
