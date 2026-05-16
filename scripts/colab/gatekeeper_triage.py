@@ -72,8 +72,26 @@ SKIP_DIR_NAMES = {
     EXCLUDED_DIRNAME,
 }
 
-# Default Gemma 4 alias — override with --model or env GOVERNANCE_GENAI_MODEL.
-DEFAULT_MODEL = os.environ.get("GOVERNANCE_GENAI_MODEL", "gemma-4-26b-a4b-it").strip()
+def _default_gatekeeper_model() -> str:
+    try:
+        from gemma_hf_backend import DEFAULT_HF_MODEL_ID, use_huggingface
+
+        if use_huggingface():
+            return (
+                os.environ.get("GOVERNANCE_GATEKEEPER_MODEL", "").strip()
+                or os.environ.get("GOVERNANCE_GENAI_MODEL", "").strip()
+                or DEFAULT_HF_MODEL_ID
+            )
+    except ImportError:
+        pass
+    return (
+        os.environ.get("GOVERNANCE_GATEKEEPER_MODEL", "").strip()
+        or os.environ.get("GOVERNANCE_GENAI_MODEL", "gemma-4-26b-a4b-it").strip()
+    )
+
+
+# Default model — override with --model or env GOVERNANCE_GATEKEEPER_MODEL.
+DEFAULT_MODEL = _default_gatekeeper_model()
 
 # Triage cost / latency caps.
 DEFAULT_AUDIO_WINDOW_SECONDS = 120          # send only the first N seconds for triage
@@ -495,6 +513,27 @@ def call_gemma_triage(
     * ``media_resolution=HIGH`` is set when ``media_resolution_high=True`` so PDF
       pages get the full ~1,120 image-token budget for layout / OCR fidelity.
     """
+    try:
+        from gemma_hf_backend import call_gemma_hf_multimodal, use_huggingface
+
+        if use_huggingface():
+            resolution = "HIGH" if media_resolution_high else "LOW"
+            hf = call_gemma_hf_multimodal(
+                model=model,
+                system_instruction=system_instruction + "\n\nRespond with strict JSON only.",
+                user_text=user_text,
+                media=media,
+                temperature=0.0,
+                max_output_tokens=max_output_tokens,
+                media_resolution=resolution,
+                include_thoughts=False,
+                thinking_budget=thinking_budget if thinking_budget else None,
+            )
+            raw_text = hf.text or ""
+            return _safe_parse_triage_json(raw_text), raw_text
+    except ImportError:
+        pass
+
     from google.genai import types  # type: ignore
 
     parts: List[Any] = [types.Part.from_text(text=user_text)]
@@ -921,16 +960,30 @@ def run_triage(
     if dry_run:
         logger.info("(dry-run: no files will be moved)")
 
-    client = _build_genai_client(api_key)
+    try:
+        from gemma_hf_backend import (
+            preload_gemma_hf,
+            print_hf_model_catalog,
+            resolve_hf_model_id,
+            use_huggingface,
+        )
+    except ImportError:
+        use_huggingface = lambda: False  # type: ignore[assignment]
 
-    # Show the live model list before any fallback so notebook / CLI runs are auditable.
-    print_available_models(client, requested=(model,), role="Gatekeeper triage")
-
-    # Resolve the requested model against the SDK's actual model list. This
-    # converts a 404 NOT_FOUND (e.g. "gemma-4-e4b-it" on a project that only
-    # serves gemma-3n / gemma-3) into either a working fallback or a clear
-    # error listing the Gemma ids the project actually has.
-    model = resolve_model_id(client, model, role="Gatekeeper triage model")
+    if use_huggingface():
+        print_hf_model_catalog(requested=(model,), role="Gatekeeper (Hugging Face)")
+        model = resolve_hf_model_id(model)
+        preload_gemma_hf(model, load_audio_variant=True)
+        client = None
+    else:
+        client = _build_genai_client(api_key)
+        # Show the live model list before any fallback so notebook / CLI runs are auditable.
+        print_available_models(client, requested=(model,), role="Gatekeeper triage")
+        # Resolve the requested model against the SDK's actual model list. This
+        # converts a 404 NOT_FOUND (e.g. "gemma-4-e4b-it" on a project that only
+        # serves gemma-3n / gemma-3) into either a working fallback or a clear
+        # error listing the Gemma ids the project actually has.
+        model = resolve_model_id(client, model, role="Gatekeeper triage model")
     logger.info("Gatekeeper resolved model | model=%s", model)
 
     report = TriageReport(raw_root=str(raw_root), excluded_root=str(excluded_root))
@@ -1042,6 +1095,15 @@ def _default_raw_root() -> Path:
 
 
 def _resolve_api_key(cli_value: Optional[str]) -> str:
+    try:
+        from gemma_hf_backend import ensure_hf_token, use_huggingface
+
+        if use_huggingface():
+            return ensure_hf_token(cli_value)
+    except ImportError:
+        pass
+    except RuntimeError as exc:
+        raise SystemExit(str(exc)) from exc
     if cli_value:
         return cli_value
     for env in ("GEMINI_API_KEY", "GOOGLE_API_KEY"):
@@ -1082,7 +1144,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     parser.add_argument(
         "--api-key", default=None,
-        help="Gemini / Gemma API key (else GEMINI_API_KEY / GOOGLE_API_KEY env, else Colab Secret).",
+        help="API key: HF_TOKEN (Hugging Face backend) or GEMINI_API_KEY (Google backend).",
     )
     parser.add_argument(
         "--model", default=DEFAULT_MODEL,

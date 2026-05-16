@@ -499,8 +499,33 @@ def call_google_genai_multimodal(
     back to the model default. ``include_thoughts=True`` asks the model for its
     reasoning trace, which is returned in ``GenAIResult.thoughts``.
 
-    Requires ``pip install google-genai>=1.0``.
+    Set ``GOVERNANCE_LLM_BACKEND=huggingface`` to run local weights from Hugging Face
+    (``google/gemma-4-E4B-it`` via ``AutoModelForImageTextToText``). Otherwise uses
+    ``pip install google-genai>=1.0`` and AI Studio.
     """
+    try:
+        from gemma_hf_backend import call_gemma_hf_multimodal, use_huggingface
+
+        if use_huggingface():
+            hf = call_gemma_hf_multimodal(
+                model=model,
+                system_instruction=system_instruction,
+                user_text=user_text,
+                media=media,
+                temperature=temperature,
+                max_output_tokens=max_output_tokens,
+                media_resolution=media_resolution,
+                include_thoughts=include_thoughts,
+                thinking_budget=thinking_budget,
+            )
+            return GenAIResult(
+                text=hf.text,
+                thoughts=hf.thoughts,
+                raw_response=hf.raw_response,
+            )
+    except ImportError:
+        pass
+
     from google import genai
     from google.genai import types
 
