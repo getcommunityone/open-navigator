@@ -80,6 +80,9 @@ def _default_gatekeeper_model() -> str:
         if use_huggingface():
             return (
                 os.environ.get("GOVERNANCE_GATEKEEPER_MODEL", "").strip()
+                or os.environ.get(
+                    "GOVERNANCE_HF_GATEKEEPER_MODEL", "google/gemma-4-E2B-it"
+                ).strip()
                 or os.environ.get("GOVERNANCE_GENAI_MODEL", "").strip()
                 or DEFAULT_HF_MODEL_ID
             )
@@ -87,7 +90,7 @@ def _default_gatekeeper_model() -> str:
         pass
     return (
         os.environ.get("GOVERNANCE_GATEKEEPER_MODEL", "").strip()
-        or os.environ.get("GOVERNANCE_GENAI_MODEL", "gemma-4-26b-a4b-it").strip()
+        or "gemma-4-e2b-it"
     )
 
 
@@ -567,17 +570,15 @@ def _build_genai_client(api_key: str):
     return genai.Client(api_key=api_key)
 
 
-# Fallback chain used when the requested model id returns 404 NOT_FOUND.
-# Ordered cheapest → heaviest. The only Gemma 4 ids AI Studio currently serves
-# via the public API are the 26B MoE and 31B dense checkpoints; the E2B/E4B
-# "effective N" edge models are documented on the model card but not yet
-# exposed as endpoints. We still keep Gemma 3 aliases at the tail for older
-# accounts whose projects haven't been migrated to Gemma 4 yet.
+# Fallback chain when the requested Gatekeeper id is not on models.list().
+# Ordered cheapest → heaviest (E2B first for triage cost/latency).
 _GEMMA_TRIAGE_FALLBACKS = (
+    "gemma-4-e2b-it",
+    "gemma-3n-e2b-it",
+    "gemma-4-e4b-it",
+    "gemma-3n-e4b-it",
     "gemma-4-26b-a4b-it",
     "gemma-4-31b-it",
-    "gemma-3n-e4b-it",
-    "gemma-3n-e2b-it",
     "gemma-3-4b-it",
     "gemma-3-12b-it",
 )

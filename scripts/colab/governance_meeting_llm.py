@@ -564,8 +564,9 @@ def call_google_genai_multimodal(
         # Run the prompt as a normal generation; thoughts will come back empty.
         print(
             f"   ℹ️  Skipping thinking_config: {model!r} does not support it. "
-            "Demo 3's reasoning-trace output will be empty — use a Gemini 2.5+ model "
-            "(e.g. gemini-2.5-flash) via GOVERNANCE_GENAI_MODEL to see thinking output."
+            "Demo 3's `.thoughts.md` may be empty on this Gemma id — try "
+            "`GOVERNANCE_GENAI_MODEL=gemma-4-31b-it` or `GOVERNANCE_FORCE_THINKING=1` "
+            "if your AI Studio project exposes thinking on a Gemma 4 variant."
         )
 
     response = client.models.generate_content(
