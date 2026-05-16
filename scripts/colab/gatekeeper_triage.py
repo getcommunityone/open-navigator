@@ -164,6 +164,7 @@ def configure_logging(
     *,
     verbose: bool = True,
     log_path: Optional[Path | str] = None,
+    mirror_log_path: Optional[Path | str] = None,
     console: bool = True,
 ) -> Path | None:
     """
@@ -171,7 +172,8 @@ def configure_logging(
 
     When ``log_path`` is set, each log line is written with line buffering and flushed
     immediately so ``tail -f`` on Drive/WSL sees progress without waiting for the sweep
-    to finish.
+    to finish. ``mirror_log_path`` writes the same lines to a second file (e.g. ``00_logs/``
+    plus ``03_processed_outputs/_gatekeeper/``).
     """
     global _log_file_handle
     close_gatekeeper_logging()
@@ -200,6 +202,15 @@ def configure_logging(
         file_handler.setLevel(level)
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
+
+    if mirror_log_path:
+        mirror = Path(mirror_log_path).expanduser()
+        mirror.parent.mkdir(parents=True, exist_ok=True)
+        mirror_handle = open(mirror, mode="w", encoding="utf-8", buffering=1)
+        mh = _FlushingStreamHandler(mirror_handle)
+        mh.setLevel(level)
+        mh.setFormatter(formatter)
+        logger.addHandler(mh)
 
     if console:
         console_handler = _FlushingStreamHandler(sys.stdout)
@@ -909,6 +920,8 @@ def triage_pdf(
         geography_label=geo,
     )
     t0 = time.time()
+    logger.info("  pdf2image START | %s | pages=%d dpi=%d", pdf_path.name, pages, dpi)
+    flush_gatekeeper_logs()
     try:
         page_bytes = pdf_first_pages_to_png_bytes(pdf_path, pages=pages, dpi=dpi)
     except Exception as e:
@@ -922,6 +935,8 @@ def triage_pdf(
         return verdict
 
     media = [(b, "image/png") for b in page_bytes]
+    logger.info("  gemma START | %s | %d page image(s)", pdf_path.name, len(page_bytes))
+    flush_gatekeeper_logs()
     try:
         parsed, raw = call_gemma_triage(
             client=client,
@@ -1311,6 +1326,9 @@ def run_triage(
         if progress_stdout:
             cap_label = f"/{len(triage_paths)}" if triage_paths else ""
             logger.info("[Gatekeeper %d%s] %s", processed, cap_label, rel_str)
+
+        logger.info("Triage START | %s", rel_str)
+        flush_gatekeeper_logs(fsync=_fsync_logs)
 
         try:
             if ext in PDF_EXTS:
