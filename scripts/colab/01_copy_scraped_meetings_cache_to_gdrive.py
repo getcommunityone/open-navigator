@@ -2,14 +2,11 @@
 """
 Copy scraped-meetings **inventory** folders from the local cache to Google Drive (or ``--local`` staging).
 
-**Default (no flags):** syncs **only** these four subtrees under ``<src-root>/`` (Tuscaloosa + Big Timber)::
+**Default (no flags):** hackathon inventory only — four folders under
+``data/cache/scraped_meetings/`` (see ``HACKATHON_SCRAPED_MEETINGS_INVENTORY_REL`` in
+``scripts/utils/gdrive_paths.py``). Tuscaloosa county/city + Big Timber county/city.
 
-  AL/county/county_01125
-  MT/county/county_30097
-  AL/municipality/municipality_0177256
-  MT/municipality/municipality_3006475
-
-Use ``--all-cache`` to copy the **entire** ``scraped_meetings`` tree instead.
+Use ``--all-cache`` to copy the **entire** ``scraped_meetings`` tree instead of those four.
 
 Run from repo root::
 
@@ -43,19 +40,13 @@ if str(_repo_root) not in sys.path:
     sys.path.insert(0, str(_repo_root))
 
 from scripts.utils.gdrive_paths import (  # noqa: E402
+    HACKATHON_SCRAPED_MEETINGS_INVENTORY_REL,
     SCRAPED_MEETINGS_GDRIVE_REL,
+    hackathon_scraped_meetings_inventory_dirs,
     resolve_scraped_meetings_output_root,
     resolved_gdrive_mount_path,
     scraped_meetings_gdrive_mirror_root,
     scraped_meetings_gdrive_rclone_remote_subpath,
-)
-
-# Tuscaloosa County AL, Big Timber area MT, Tuscaloosa city, Big Timber city (default sync set)
-DEFAULT_REL_PATHS = (
-    "AL/county/county_01125",
-    "MT/county/county_30097",
-    "AL/municipality/municipality_0177256",
-    "MT/municipality/municipality_3006475",
 )
 
 RCLONE_REMOTE = os.getenv("RCLONE_GDRIVE_REMOTE", "gdrive")
@@ -188,7 +179,10 @@ def _copy_tree_files(
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Copy fixed scraped_meetings inventory folders to Google Drive (use --all-cache for full tree)."
+        description=(
+            "Copy 2026 Gemma hackathon scraped-meetings inventory to Google Drive "
+            "(default: four Tuscaloosa/Big Timber folders only; --all-cache for full tree)."
+        )
     )
     parser.add_argument(
         "--dry-run",
@@ -216,7 +210,11 @@ def main() -> int:
     parser.add_argument(
         "--all-cache",
         action="store_true",
-        help="Copy the entire scraped_meetings tree under src-root (default: only the four inventory paths).",
+        help=(
+            "Copy the entire scraped_meetings tree under src-root. "
+            "Default (without this flag): hackathon inventory only "
+            f"({len(HACKATHON_SCRAPED_MEETINGS_INVENTORY_REL)} folders)."
+        ),
     )
     parser.add_argument(
         "--local",
@@ -244,6 +242,15 @@ def main() -> int:
 
     print(f"Source root: {src_root}")
     print(f"Dest root:   {dest_root}")
+    if not args.all_cache:
+        print(
+            f"Scope:       hackathon inventory only "
+            f"({len(HACKATHON_SCRAPED_MEETINGS_INVENTORY_REL)} folders; use --all-cache for full tree)"
+        )
+        for inv in hackathon_scraped_meetings_inventory_dirs(src_root):
+            print(f"  · {inv}")
+    else:
+        print("Scope:       entire scraped_meetings tree (--all-cache)")
     if args.local:
         print(
             "(mode: --local — no Google Drive mount; output is under the repo in gitignored data/. "
@@ -322,7 +329,7 @@ def main() -> int:
             return 1
         return 0
 
-    for rel in DEFAULT_REL_PATHS:
+    for rel in HACKATHON_SCRAPED_MEETINGS_INVENTORY_REL:
         src = src_root / rel
         dst = dest_root / rel
         if not src.is_dir():

@@ -76,6 +76,28 @@ def default_scraped_meetings_data_cache() -> Path:
     return _REPO_ROOT / "data" / "cache" / "scraped_meetings"
 
 
+# 2026 Gemma hackathon Colab sync set (Tuscaloosa + Big Timber county/city). Used by
+# ``scripts/colab/01_copy_scraped_meetings_cache_to_gdrive.py`` (default scope; pass ``--all-cache`` for full tree).
+HACKATHON_SCRAPED_MEETINGS_INVENTORY_REL: tuple[str, ...] = (
+    "AL/county/county_01125",
+    "MT/county/county_30097",
+    "AL/municipality/municipality_0177256",
+    "MT/municipality/municipality_3006475",
+)
+
+
+def hackathon_scraped_meetings_inventory_dirs(
+    src_root: Path | None = None,
+) -> tuple[Path, ...]:
+    """Absolute paths for each hackathon inventory folder under ``src_root`` (default: repo cache)."""
+    root = (
+        src_root.expanduser().resolve()
+        if src_root is not None
+        else resolve_scraped_meetings_output_root()
+    )
+    return tuple(root / rel for rel in HACKATHON_SCRAPED_MEETINGS_INVENTORY_REL)
+
+
 # Default mirror location under ``My Drive`` when ``SCRAPED_MEETINGS_GDRIVE_MIRROR`` is unset.
 SCRAPED_MEETINGS_GDRIVE_REL = Path("CommunityOne") / "hackathons" / "2026_Gemma_4_Good" / "01_raw_inputs"
 
