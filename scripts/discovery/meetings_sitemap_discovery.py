@@ -35,7 +35,8 @@ import httpx
 from loguru import logger
 
 from scripts.discovery.meetings_platform_heuristics import (
-    PDF_EXT,
+    MEETING_DOWNLOAD_EXT,
+    is_amazonaws_document_cdn_host,
     is_linked_local_meeting_microsite,
     is_same_site,
     is_trusted_offsite,
@@ -48,7 +49,8 @@ from scripts.discovery.meetings_playwright_fetch import (
 )
 
 MEETING_URL_HINT = re.compile(
-    r"(meetings?|minutes?|proceedings|action\s*minutes|agenda|calendar|board|commission|council|hearing|session|video|zoom|webcast)",
+    r"(meetings?|minutes?|proceedings|action\s*minutes|agenda|calendar|board|commission|council|"
+    r"hearing|session|video|zoom|webcast|powerdms|commission-agenda)",
     re.I,
 )
 
@@ -162,11 +164,12 @@ def _loc_passes_filters(loc: str, homepage: str) -> bool:
     u = (loc or "").strip()
     if not u.startswith(("http://", "https://")):
         return False
-    if PDF_EXT.search(u):
+    if MEETING_DOWNLOAD_EXT.search(u):
         return bool(
             is_same_site(u, homepage)
             or is_linked_local_meeting_microsite(u, homepage)
             or is_trusted_offsite(u)
+            or is_amazonaws_document_cdn_host(u)
         )
     if is_vendor_meeting_page_url(u):
         return True
@@ -301,7 +304,7 @@ async def _http_get_content(
         return status, final, raw, None
     except Exception as exc:
         if playwright_fallback_enabled():
-            from scripts.discovery.comprehensive_discovery_pipeline_meetings import (
+            from scripts.discovery.comprehensive_discovery_pipeline_jurisdiction import (
                 _httpx_error_suggests_tls_or_cert_failure,
             )
 

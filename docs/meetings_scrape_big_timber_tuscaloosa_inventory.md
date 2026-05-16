@@ -2,6 +2,23 @@
 
 Snapshot of `data/cache/scraped_meetings` folders for side-by-side QA. Paths are relative to the repo root unless noted.
 
+## Jurisdiction IDs and website URLs (discovery / overrides)
+
+Sources in the warehouse row dump: `naco`, `nces_directory`, `uscm`, `league`, `override`. Where both a base URL and an `override` exist, the **override** URL is the one typically used for crawl entry (board / meetings / HTTPS).
+
+| jurisdiction_id | NCES / other key | Type | Name | Host / entry URL (effective) |
+| ----------------- | ---------------- | ---- | ---- | ------------------------------ |
+| `county_30097` | naco `30097` | county | Sweet Grass County, MT | [sweetgrasscountygov.com](http://sweetgrasscountygov.com/) (naco) |
+| `county_01125` | naco `01125` | county | Tuscaloosa County, AL | [www.tuscco.com](https://www.tuscco.com/) (override; naco lists `http://www.tuscco.com`) |
+| `municipality_3006475` | — | municipality | Big Timber city, MT | [cityofbigtimber.com](https://cityofbigtimber.com/) (override) |
+| `municipality_0177256` | uscm (AL, tuscaloosa) | municipality | Tuscaloosa, AL | [www.tuscaloosa.com](https://www.tuscaloosa.com/) (league; uscm `http://www.tuscaloosa.com`) |
+| `school_district_0103390` | NCES `0103390` | school_district | Tuscaloosa County School District, AL | District: [www.tcss.net](https://www.tcss.net); board hub: [tcss.net/board-of-education/](https://www.tcss.net/board-of-education/) (override); meetings listing: [simbli…S=2092](https://simbli.eboardsolutions.com/SB_Meetings/SB_MeetingListing.aspx?S=2092) (override) |
+| `school_district_0103360` | NCES `0103360` | school_district | Tuscaloosa City School District, AL | District: [www.tuscaloosacityschools.com](https://www.tuscaloosacityschools.com); board: [tuscaloosacityschools.com/…/board-of-education](https://www.tuscaloosacityschools.com/about-us/board-of-education) (override); meetings listing: [simbli…S=2088](https://simbli.eboardsolutions.com/SB_Meetings/SB_MeetingListing.aspx?S=2088) (override) |
+| *(no `school_district_*` in row)* | NCES `3000079` | school_district | Sweet Grass, MT | [www.co.sweetgrass.mt.us](https://www.co.sweetgrass.mt.us) (nces_directory) |
+| *(no `school_district_*` in row)* | NCES `3025560` | school_district | Sweet Grass County H S, MT | [www.sgchs.com](https://www.sgchs.com) (nces_directory) |
+
+Warehouse source id for the Tuscaloosa city row: `uscm|AL|tuscaloosa`.
+
 | Location | Entity | Folder | Crawl status |
 | -------- | ------ | ------ | ------------ |
 | Big Timber | County (Sweet Grass County; Big Timber is the seat) | `data/cache/scraped_meetings/MT/county/county_30097` | Complete manifest — `_manifest.json` present, scraped_at 2026-05-13T02:08:53Z, errors `[]`. WordPress; many HTML pages + PDFs under year subdirs. |

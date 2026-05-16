@@ -41,17 +41,78 @@ function chunkArray(arr, size) {
   return chunks;
 }
 
+/**
+ * Pa11y-CI --json emits { total, passes, errors, results: { "<url>": Issue[] | [Error-ish] } }.
+ * persist_results expects a list of { url, issues, error?, isError? } when scanner=pa11y.
+ */
+function flattenPa11yCiReport(part) {
+  if (Array.isArray(part)) return part;
+  if (!part || typeof part !== "object") return [];
+  const results = part.results;
+  const map =
+    typeof results === "object" && results !== null ? results : part;
+  if (typeof map !== "object" || map === null) return [];
+
+  const out = [];
+  for (const pageUrl of Object.keys(map)) {
+    const raw = map[pageUrl];
+    const url = String(pageUrl || "").trim();
+    if (!url || !Array.isArray(raw)) continue;
+
+    const issues = [];
+    let errMsg = null;
+    let isError = false;
+    for (const item of raw) {
+      if (
+        item &&
+        typeof item === "object" &&
+        ("type" in item ||
+          "code" in item ||
+          "runner" in item ||
+          "typeCode" in item ||
+          ("message" in item && "elements" in item))
+      ) {
+        issues.push(item);
+      } else if (
+        item &&
+        typeof item === "object" &&
+        "message" in item &&
+        raw.length === 1
+      ) {
+        // Pa11y-CI catches navigation failures as { message } (serialized Error).
+        isError = true;
+        errMsg = String(item.message ?? item);
+      } else if (typeof item === "string") {
+        isError = true;
+        errMsg = item;
+      }
+    }
+
+    const row = { url, issues };
+    if (isError && errMsg != null && errMsg !== "") {
+      row.error = errMsg;
+      row.isError = true;
+    }
+    out.push(row);
+  }
+  return out;
+}
+
 function runPa11yChunk({ chunkIndex, urls, outDir, batchId }) {
   return new Promise((resolve, reject) => {
-    const cfgPath = path.join(outDir, `pa11yci-chunk-${chunkIndex}.cjs`);
+    // pa11y-ci strips only .js/.json extensions before load; .cjs is parsed as JSON and fails.
+    const cfgPath = path.join(outDir, `pa11yci-chunk-${chunkIndex}.js`);
     const outPath = path.join(outDir, `pa11y-results-chunk-${chunkIndex}.json`);
     const baseCfg = path.join(__dirname, "pa11yci.config.cjs");
     const cfgBody = `const base = require(${JSON.stringify(baseCfg)});\nmodule.exports = {\n  ...base,\n  urls: ${JSON.stringify(urls)},\n};\n`;
     fs.writeFileSync(cfgPath, cfgBody);
 
+    // pa11y-ci exits 2 when issue count >= threshold (default 0) — useless for bulk warehouse loads.
+    // Override with PA11YCI_THRESHOLD=0 if you want process failure when any threshold is exceeded.
+    const threshold = (process.env.PA11YCI_THRESHOLD ?? `${Number.MAX_SAFE_INTEGER}`).trim();
     const child = spawn(
       process.platform === "win32" ? "npx.cmd" : "npx",
-      ["pa11y-ci", "--config", cfgPath, "--json"],
+      ["pa11y-ci", "--config", cfgPath, "--json", "--threshold", threshold],
       { cwd: __dirname, stdio: ["ignore", "pipe", "pipe"], env: process.env }
     );
     let stdout = "";
@@ -129,7 +190,7 @@ async function main() {
     const p = path.join(outDir, `pa11y-results-chunk-${i}.json`);
     if (!fs.existsSync(p)) continue;
     const part = JSON.parse(fs.readFileSync(p, "utf8"));
-    if (Array.isArray(part)) merged.push(...part);
+    merged.push(...flattenPa11yCiReport(part));
   }
 
   const mergedPath = path.join(outDir, "pa11y-results-merged.json");

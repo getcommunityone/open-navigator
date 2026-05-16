@@ -53,6 +53,11 @@ except ModuleNotFoundError as exc:  # pragma: no cover
     psycopg2 = None  # type: ignore[misc,assignment]
 
 from scripts.discovery.jurisdiction_discovery_pipeline import resolve_database_url
+from scripts.discovery.meeting_document_naming import (
+    date_from_url_query,
+    pdf_meeting_title as _pdf_meeting_title,
+    pick_meeting_date as _pick_meeting_date,
+)
 from scripts.utils.gdrive_paths import resolve_scraped_meetings_output_root
 from scripts.utils.http_url_normalize import normalize_http_url_path_encoding as _norm_http_url
 
@@ -79,13 +84,6 @@ _MEETING_HINT = re.compile(
     r"video\.php|watch\?v=|youtu\.be/)",
     re.I,
 )
-
-_ANCHOR_DATE_US = re.compile(
-    r"(?:agenda|minutes?|meeting|packet)\s+for\s+(\d{1,2})[/-](\d{1,2})[/-](\d{4})",
-    re.I,
-)
-
-_FILENAME_MMDDYYYY = re.compile(r"(?:^|[_\s-])(\d{2})(\d{2})(\d{4})(?:[_\s.-]|\.pdf)", re.I)
 
 
 def _url_key(u: str) -> str:
@@ -116,90 +114,6 @@ def _parse_scraped_at(raw: Any) -> datetime:
     return dt
 
 
-def _parse_y_m_d(parts: List[str]) -> Optional[date]:
-    if len(parts) != 3:
-        return None
-    try:
-        y, mo, d = int(parts[0]), int(parts[1]), int(parts[2])
-        return date(y, mo, d)
-    except ValueError:
-        return None
-
-
-def _date_from_url_query(url: str) -> Tuple[Optional[date], Optional[str]]:
-    q = parse_qs(urlparse(url).query)
-    for key in ("odate", "meeting_date", "meetingdate", "date", "dt"):
-        vals = q.get(key) or []
-        for v in vals:
-            raw = (v or "").strip()
-            if not raw:
-                continue
-            for sep in ("-", "/"):
-                if sep in raw:
-                    parts = [p for p in raw.replace("/", "-").split("-") if p]
-                    if len(parts) == 3 and parts[0].isdigit():
-                        d = _parse_y_m_d(parts) if len(parts[0]) == 4 else _parse_m_d_y(parts)
-                        if d:
-                            return d, f"url_query:{key}"
-    return None, None
-
-
-def _parse_m_d_y(parts: List[str]) -> Optional[date]:
-    """Assume M-D-Y when first token is 1-2 digits and third is 4-digit year."""
-    if len(parts) != 3:
-        return None
-    try:
-        if len(parts[2]) == 4 and parts[2].isdigit():
-            return date(int(parts[2]), int(parts[0]), int(parts[1]))
-    except ValueError:
-        return None
-    return None
-
-
-def _date_from_anchor(anchor: str) -> Tuple[Optional[date], Optional[str]]:
-    if not anchor:
-        return None, None
-    m = _ANCHOR_DATE_US.search(anchor)
-    if m:
-        try:
-            return date(int(m.group(3)), int(m.group(1)), int(m.group(2))), "anchor_text"
-        except ValueError:
-            pass
-    return None, None
-
-
-def _date_from_filename(name: str) -> Tuple[Optional[date], Optional[str]]:
-    m = _FILENAME_MMDDYYYY.search(name or "")
-    if not m:
-        return None, None
-    try:
-        mo, d, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
-        if 1 <= mo <= 12 and 1 <= d <= 31:
-            return date(y, mo, d), "filename"
-    except ValueError:
-        pass
-    return None, None
-
-
-def _pick_meeting_date(
-    *,
-    url: str,
-    anchor: str,
-    doc_type: Optional[str],
-) -> Tuple[Optional[date], Optional[str]]:
-    d, src = _date_from_anchor(anchor)
-    if d:
-        return d, src
-    d, src = _date_from_url_query(url)
-    if d:
-        return d, src
-    base = urlparse(url).path.split("/")[-1] or url
-    d, src = _date_from_filename(base)
-    if d:
-        return d, src
-    return None, None
-
-
 def _html_meeting_title(url: str) -> str:
     q = parse_qs(urlparse(url).query)
     for key in ("pg", "title", "t"):
@@ -210,18 +124,11 @@ def _html_meeting_title(url: str) -> str:
     return (seg[-1] if seg else url)[:500]
 
 
-def _pdf_meeting_title(anchor: str, url: str) -> str:
-    if (anchor or "").strip():
-        return str(anchor).strip()[:500]
-    base = urlparse(url).path.split("/")[-1]
-    return unquote_plus(base)[:500]
-
-
 def _is_likely_meeting_html(url: str) -> bool:
     u = url.lower()
     if _MEETING_HINT.search(u):
         return True
-    d, _ = _date_from_url_query(url)
+    d, _ = date_from_url_query(url)
     if d and ("calendar" in u or "event" in u or "meeting" in u or "display" in u):
         return True
     return False
@@ -247,7 +154,17 @@ def _is_likely_meeting_youtube(row: Dict[str, Any]) -> bool:
 
 def _is_likely_meeting_other_stream(row: Dict[str, Any]) -> bool:
     u = (row.get("url") or "").lower()
-    return any(x in u for x in ("zoom.us", "teams.microsoft", "meet.google", "vimeo.com", "m3u8"))
+    return any(
+        x in u
+        for x in (
+            "zoom.us",
+            "teams.microsoft",
+            "meet.google",
+            "vimeo.com",
+            "m3u8",
+            "gomeet.com",
+        )
+    )
 
 
 def _contact_hints_by_url(manifest: Dict[str, Any]) -> Dict[str, Dict[str, List[str]]]:
@@ -324,7 +241,7 @@ def _granular_rows_for_manifest(
         is_m = _is_likely_meeting_html(u)
         md, mdsrc = (None, None)
         if is_m:
-            md, mdsrc = _date_from_url_query(u)
+            md, mdsrc = date_from_url_query(u)
         title = _html_meeting_title(u)
         hints = _hints_for_url(hmap, u)
         rows.append(

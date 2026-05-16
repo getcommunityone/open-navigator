@@ -80,7 +80,8 @@ Comprehensive jurisdiction discovery and data source identification.
 - Batch processing with quality metrics
 
 **Key Scripts:**
-- `comprehensive_discovery_pipeline.py` - Master discovery for all jurisdictions
+- `discovery/archive/comprehensive_discovery_pipeline.py` - Master discovery for all jurisdictions (YouTube, platforms, social; legacy CLI)
+- `discovery/comprehensive_discovery_pipeline_jurisdiction.py` - Meeting PDF / `scraped_meetings` crawl and optional contact extraction
 - `youtube_channel_discovery.py` - Find municipal YouTube channels
 - `platform_detector.py` - Detect meeting platforms
 - `social_media_discovery.py` - Find social media accounts

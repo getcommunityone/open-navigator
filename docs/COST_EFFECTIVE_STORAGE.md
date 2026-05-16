@@ -230,7 +230,7 @@ async def process_jurisdiction_streaming(jurisdiction):
 
 ```bash
 # Run discovery for all jurisdictions
-python scripts/discovery/comprehensive_discovery_pipeline.py --all
+python scripts/discovery/archive/comprehensive_discovery_pipeline.py --all
 
 # Output: ~1 GB of JSON/CSV (fits on laptop!)
 # Upload to Hugging Face immediately

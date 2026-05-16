@@ -25,6 +25,7 @@ python-docx>=1.0.0         # Word document extraction
 openpyxl>=3.1.0            # Excel extraction
 pytesseract>=0.3.0         # OCR for scanned documents (optional)
 Pillow>=10.0.0             # Image processing for OCR
+pdf2image>=1.17.0          # PDF page rasterization (meeting cache PNGs; needs poppler-utils)
 
 # AI & LLM
 openai>=1.6.0

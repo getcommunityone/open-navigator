@@ -275,6 +275,8 @@ league_base AS (
     FROM {{ source('bronze', 'bronze_jurisdictions_municipalities_league') }} l
     WHERE l.website IS NOT NULL
       AND TRIM(l.website) != ''
+      AND TRIM(l.website) !~* '^https?://\s*/?\s*$'
+      AND LOWER(TRIM(l.website)) NOT IN ('https://', 'http://', 'https://)', 'http://)')
 ),
 
 league_ranked AS (

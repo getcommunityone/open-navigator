@@ -20,6 +20,10 @@ California (CA) uses the DNN member portal at ``https://my.calcities.org/Directo
 is not crawled for CA — it only yields stray nav links. Grid paging uses ASP.NET ``__doPostBack`` when
 present; as of 2026 each law-type filter returns the full grid on one page.
 
+Montana (MT) uses ``https://mtleague.org/about/municipal-directory`` (Bootstrap cards with
+Class / County / Population and ``VIEW PROFILE`` links to ``/directory/{slug}``). Profile pages
+supply address, phone, fax, and the municipal website when published.
+
 This is a best-effort static HTML pass (no headless browser). JavaScript-only
 directories will yield few or zero rows; the manifest records page counts and errors.
 
@@ -53,6 +57,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qsl, urljoin, urlparse, urlencode, urlunparse
+
+_ROOT = Path(__file__).resolve().parents[3]
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
 
 import httpx
 from bs4 import BeautifulSoup, Tag
@@ -180,6 +188,9 @@ EXTRA_DIRECTORY_SEEDS_BY_USPS: dict[str, tuple[str, ...]] = {
     "CA": (
         "https://my.calcities.org/Directories/City-Directory?lawtype=2",
         "https://my.calcities.org/Directories/City-Directory?lawtype=1",
+    ),
+    "MT": (
+        "https://mtleague.org/about/municipal-directory",
     ),
 }
 
@@ -311,6 +322,23 @@ def is_vendor_associate_page(url: str) -> bool:
 def is_akml_municipalities_directory(url: str) -> bool:
     p = urlparse(url.lower())
     return "akml.org" in host_key(p.netloc) and "/about/municipalities" in p.path
+
+
+def is_mtleague_municipal_directory_listing(url: str) -> bool:
+    """Montana League card grid (exclude submit-ads and other children of /about/municipal-directory)."""
+    p = urlparse(url.lower())
+    if host_key(p.netloc) != "mtleague.org":
+        return False
+    path = (p.path or "/").rstrip("/") or "/"
+    return path == "/about/municipal-directory"
+
+
+def is_mtleague_city_profile_url(url: str) -> bool:
+    p = urlparse(url.lower())
+    if host_key(p.netloc) != "mtleague.org":
+        return False
+    parts = [x for x in p.path.split("/") if x]
+    return len(parts) >= 2 and parts[0] == "directory" and bool(parts[1])
 
 
 def nav_text_score(label: str) -> int:
@@ -659,6 +687,7 @@ def extract_calcities_city_directory_from_soup(soup: BeautifulSoup, page_url: st
             rec["website"] = official_url_from_website_cell(tds[i_web], page_url)
         if not rec["website"]:
             rec["website"] = municipality_site_from_cells(cells, page_url)
+        rec["website"] = sanitize_league_website(rec.get("website"))
         if i_inc is not None and i_inc < len(cells) and cells[i_inc].strip():
             rec["source_detail"] = f"grid_row_{ri};incorporated={cells[i_inc].strip()}"
         out.append(rec)
@@ -1013,9 +1042,11 @@ def aggregate_armunileague_person_rows_to_cities(
         if not rec.get("website"):
             site = row[I_WEB].strip()
             if site.startswith("http"):
-                rec["website"] = strip_tracking_params(site)
+                rec["website"] = sanitize_league_website(strip_tracking_params(site))
             elif re.match(r"^www\.[a-z0-9.-]+\.[a-z]{2,}", site, re.I):
-                rec["website"] = strip_tracking_params("https://" + site)
+                rec["website"] = sanitize_league_website(
+                    strip_tracking_params("https://" + site)
+                )
     return list(by_norm.values())
 
 
@@ -1045,15 +1076,10 @@ def extract_armunileague_member_directory(
     return []
 
 
-def fix_double_scheme_url(url: str) -> str:
-    """Normalize ``http://https://example.com/`` style hrefs (Iowa league table)."""
-    u = url.strip()
-    if not u:
-        return u
-    m = re.match(r"^https?://(https?://.+)$", u, re.DOTALL)
-    if m:
-        return m.group(1)
-    return u
+from scripts.datasources.leagueofcities.league_website_sanitize import (
+    fix_double_scheme_url,
+    sanitize_league_website,
+)
 
 
 _LOOSE_DOMAIN = re.compile(
@@ -1104,9 +1130,7 @@ def official_url_from_website_cell(cell: Tag, page_url: str) -> str | None:
             continue
         if nh == ph:
             continue
-        if full.startswith("http://"):
-            full = "https://" + full[len("http://") :]
-        return full
+        return sanitize_league_website(full)
     return None
 
 
@@ -1169,7 +1193,9 @@ def municipality_site_from_cells(cells: list[str], page_url: str) -> str | None:
             continue
         if "/cities/" in cand:
             continue
-        return cand
+        cleaned = sanitize_league_website(cand)
+        if cleaned:
+            return cleaned
     return None
 
 
@@ -1291,7 +1317,9 @@ def extract_from_definition_lists(soup: BeautifulSoup, page_url: str) -> list[di
                     }
                     la = dd.find("a", href=True)
                     if la and la["href"].strip().startswith("http"):
-                        rec["website"] = strip_tracking_params(la["href"].strip())
+                        rec["website"] = sanitize_league_website(
+                            strip_tracking_params(la["href"].strip())
+                        )
                     out.append(rec)
     return out
 
@@ -1319,9 +1347,9 @@ def extract_from_member_lists(soup: BeautifulSoup, page_url: str) -> list[dict[s
         href = a["href"].strip() if a else ""
         website = None
         if href.startswith("http"):
-            website = strip_tracking_params(href)
+            website = sanitize_league_website(strip_tracking_params(href))
         elif href and not href.startswith("#"):
-            website = strip_tracking_params(urljoin(page_url, href))
+            website = sanitize_league_website(strip_tracking_params(urljoin(page_url, href)))
         out.append(
             {
                 "name": name[:200],
@@ -1393,6 +1421,137 @@ def extract_akml_municipal_directory_links(soup: BeautifulSoup, page_url: str) -
     return out
 
 
+def extract_mtleague_municipal_directory_cards(soup: BeautifulSoup, page_url: str) -> list[dict[str, Any]]:
+    """
+    Montana League lists members as Bootstrap cards under ``div.municipal-listing`` with
+    ``VIEW PROFILE`` links to ``/directory/{slug}``.
+    """
+    if not is_mtleague_municipal_directory_listing(page_url):
+        return []
+    out: list[dict[str, Any]] = []
+    root = soup.select_one("div.municipal-listing")
+    if not isinstance(root, Tag):
+        root = soup
+    i = 0
+    for card in root.select("div.card.text-center.h-100"):
+        h2 = card.find("h2")
+        if not isinstance(h2, Tag):
+            continue
+        name = h2.get_text(" ", strip=True)
+        if not looks_like_city_name(name):
+            continue
+        footer_a = card.select_one("div.card-footer a[href]")
+        league_profile_url: str | None = None
+        if isinstance(footer_a, Tag):
+            href = (footer_a.get("href") or "").strip()
+            if href:
+                league_profile_url = strip_tracking_params(
+                    urljoin(page_url, fix_double_scheme_url(href))
+                )
+        body = card.select_one("div.card-body") or card
+        text = body.get_text("\n", strip=True)
+        m_cls = re.search(r"Class:\s*([^\n]*)", text, re.I)
+        m_cty = re.search(r"County:\s*([^\n]*)", text, re.I)
+        m_pop = re.search(r"Population:\s*([\d,]+)", text, re.I)
+        class_val = (m_cls.group(1).strip() if m_cls else "") or None
+        if class_val == "":
+            class_val = None
+        county_val = (m_cty.group(1).strip() if m_cty else "") or None
+        if county_val == "":
+            county_val = None
+        pop_val: str | None = None
+        if m_pop:
+            pop_val = m_pop.group(1).replace(",", "").strip() or None
+        i += 1
+        out.append(
+            {
+                "name": name[:200],
+                "population": pop_val,
+                "county": county_val,
+                "mayor": None,
+                "website": None,
+                "phone": None,
+                "email": None,
+                "address": None,
+                "municipality_type": class_val,
+                "league_profile_url": league_profile_url,
+                "source_url": page_url,
+                "source_kind": "mt_municipal_directory_card",
+                "source_detail": f"card_{i}",
+                "raw_row": [name, text[:500]],
+            }
+        )
+    return out
+
+
+def extract_mtleague_city_profile(soup: BeautifulSoup, page_url: str) -> list[dict[str, Any]]:
+    """Single-city profile under ``/directory/{slug}`` (address, phone, website, class)."""
+    if not is_mtleague_city_profile_url(page_url):
+        return []
+    h1 = soup.find("h1", class_=re.compile(r"\bfw-bold\b"))
+    name = h1.get_text(" ", strip=True) if isinstance(h1, Tag) else ""
+    if not name or not looks_like_city_name(name):
+        parts = [x for x in urlparse(page_url).path.split("/") if x]
+        if len(parts) >= 2 and parts[0] == "directory":
+            slug = parts[1].replace("-", " ")
+            name = string.capwords(slug)
+    if not looks_like_city_name(name):
+        return []
+    address: str | None = None
+    phone: str | None = None
+    website: str | None = None
+    municipality_type: str | None = None
+    for h6 in soup.find_all("h6", class_=re.compile(r"\bfw-bold\b")):
+        if h6.find_parent("footer") or h6.find_parent("header"):
+            continue
+        lab = h6.get_text(" ", strip=True).rstrip(":").strip()
+        if not lab or len(lab) > 48:
+            continue
+        p_tag = h6.find_next_sibling("p")
+        if not isinstance(p_tag, Tag):
+            continue
+        low = lab.lower()
+        if low == "address":
+            lines = [ln.strip() for ln in p_tag.get_text("\n", strip=True).splitlines() if ln.strip()]
+            address = ", ".join(lines) if lines else None
+        elif low == "phone":
+            phone = p_tag.get_text(" ", strip=True) or None
+        elif low == "website":
+            la = p_tag.find("a", href=True)
+            if isinstance(la, Tag):
+                href = (la.get("href") or "").strip()
+                if href:
+                    if re.match(r"^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}(/.*)?$", href, re.I):
+                        website = sanitize_league_website(strip_tracking_params("https://" + href.lstrip("/")))
+                    else:
+                        website = sanitize_league_website(
+                            strip_tracking_params(urljoin(page_url, fix_double_scheme_url(href)))
+                        )
+            if not website:
+                t = p_tag.get_text(" ", strip=True)
+                website = sanitize_league_website(t) if t else None
+        elif low == "class":
+            municipality_type = p_tag.get_text(" ", strip=True) or None
+    return [
+        {
+            "name": name[:200],
+            "population": None,
+            "county": None,
+            "mayor": None,
+            "website": website,
+            "phone": phone,
+            "email": None,
+            "address": address,
+            "municipality_type": municipality_type,
+            "league_profile_url": strip_tracking_params(page_url),
+            "source_url": page_url,
+            "source_kind": "mt_city_profile",
+            "source_detail": "directory_profile",
+            "raw_row": [name],
+        }
+    ]
+
+
 def merge_city_records(records: list[dict[str, Any]], state_usps: str) -> list[dict[str, Any]]:
     by_key: dict[str, dict[str, Any]] = {}
     for r in records:
@@ -1412,6 +1571,8 @@ def merge_city_records(records: list[dict[str, Any]], state_usps: str) -> list[d
             "ar_member_directory": 3,
             "ar_member_directory_rest": 2,
             "calcities_city_directory": 4,
+            "mt_municipal_directory_card": 3,
+            "mt_city_profile": 4,
         }
         pr, rr = rank.get(prev.get("source_kind"), 0), rank.get(r.get("source_kind"), 0)
         base, other = (prev, r) if pr >= rr else (r, prev)
@@ -1434,6 +1595,7 @@ def merge_city_records(records: list[dict[str, Any]], state_usps: str) -> list[d
     final: list[dict[str, Any]] = []
     for r in by_key.values():
         r["state_usps"] = state_usps
+        r["website"] = sanitize_league_website(r.get("website"))
         final.append(r)
     final.sort(key=lambda x: normalize_city_name(x["name"]))
     return final
@@ -1642,6 +1804,15 @@ def crawl_state_league(
                     + extract_from_member_lists(psoup, url)
                     + extract_akml_municipal_directory_links(psoup, url)
                 )
+        elif usps == "MT":
+            rows = (
+                extract_mtleague_municipal_directory_cards(psoup, url)
+                + extract_mtleague_city_profile(psoup, url)
+                + extract_from_tables(psoup, url)
+                + extract_from_definition_lists(psoup, url)
+                + extract_from_member_lists(psoup, url)
+                + extract_akml_municipal_directory_links(psoup, url)
+            )
         else:
             rows = (
                 extract_from_tables(psoup, url)
@@ -1650,6 +1821,19 @@ def crawl_state_league(
                 + extract_akml_municipal_directory_links(psoup, url)
             )
         all_rows.extend(rows)
+        if usps == "MT" and is_mtleague_municipal_directory_listing(url):
+            new_profiles: list[str] = []
+            for r in rows:
+                pu = r.get("league_profile_url")
+                if not isinstance(pu, str):
+                    continue
+                pu_n = strip_tracking_params(pu)
+                if not is_mtleague_city_profile_url(pu_n) or pu_n in seen:
+                    continue
+                seen.add(pu_n)
+                new_profiles.append(pu_n)
+            if new_profiles:
+                queue[:0] = new_profiles
         pages_meta.append(
             {
                 "url": url,
@@ -1665,7 +1849,12 @@ def crawl_state_league(
         extra_norm = {
             strip_tracking_params(u).rstrip("/").lower() for u in EXTRA_DIRECTORY_SEEDS_BY_USPS.get(usps, ())
         }
-        hit_canonical = bool(extra_norm) and len(rows) >= min_cities and strip_tracking_params(url).rstrip("/").lower() in extra_norm
+        hit_canonical = (
+            usps != "MT"
+            and bool(extra_norm)
+            and len(rows) >= min_cities
+            and strip_tracking_params(url).rstrip("/").lower() in extra_norm
+        )
         if hit_canonical:
             queue.clear()
 

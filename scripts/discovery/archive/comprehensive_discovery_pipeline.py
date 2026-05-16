@@ -14,13 +14,13 @@ Scale: 3,143 counties + 19,000+ cities = ~22,000 jurisdictions
 
 Usage:
     # Run for all jurisdictions
-    python scripts/discovery/comprehensive_discovery_pipeline.py --all
+    python scripts/discovery/archive/comprehensive_discovery_pipeline.py --all
     
     # Run for specific state
-    python scripts/discovery/comprehensive_discovery_pipeline.py --state AL
+    python scripts/discovery/archive/comprehensive_discovery_pipeline.py --state AL
     
     # Run for top 100 cities
-    python scripts/discovery/comprehensive_discovery_pipeline.py --top 100
+    python scripts/discovery/archive/comprehensive_discovery_pipeline.py --top 100
 """
 import asyncio
 import argparse

@@ -49,7 +49,9 @@ except ModuleNotFoundError as exc:
         raise
     psycopg2 = None  # type: ignore[misc,assignment]
 
-from scripts.discovery.comprehensive_discovery_pipeline import ComprehensiveDiscoveryPipeline
+from scripts.discovery.archive.comprehensive_discovery_pipeline import (
+    ComprehensiveDiscoveryPipeline,
+)
 
 
 def _load_repo_dotenv() -> None:

@@ -16,12 +16,19 @@ STATS_CACHE: Dict[str, Dict[str, Any]] = {}
 CACHE_DURATION = timedelta(minutes=5)
 
 # Get database URL from environment
-# Priority: NEON_DATABASE_URL_DEV (local) > NEON_DATABASE_URL (production)
+# Priority: OPEN_NAVIGATOR_DATABASE_URL > NEON_DATABASE_URL_DEV > NEON_DATABASE_URL > DATABASE_URL
 NEON_DATABASE_URL_DEV = os.getenv('NEON_DATABASE_URL_DEV')
 NEON_DATABASE_URL = os.getenv('NEON_DATABASE_URL')
+OPEN_NAVIGATOR_DATABASE_URL = os.getenv('OPEN_NAVIGATOR_DATABASE_URL')
+GENERIC_DATABASE_URL = os.getenv('DATABASE_URL')
 
-# Use dev database for local development, production database for deployed environments
-DATABASE_URL = NEON_DATABASE_URL_DEV or NEON_DATABASE_URL
+DATABASE_URL = (
+    (OPEN_NAVIGATOR_DATABASE_URL or '').strip()
+    or (NEON_DATABASE_URL_DEV or '').strip()
+    or (NEON_DATABASE_URL or '').strip()
+    or (GENERIC_DATABASE_URL or '').strip()
+    or None
+)
 
 # Connection pool (created on first request)
 _db_pool = None
@@ -80,10 +87,17 @@ async def get_db_pool():
     global _db_pool
     if _db_pool is None:
         if not DATABASE_URL:
-            raise ValueError("DATABASE_URL not configured (set NEON_DATABASE_URL_DEV or NEON_DATABASE_URL)")
-        
-        # Log which database we're using
-        db_type = "Development (Local PostgreSQL)" if NEON_DATABASE_URL_DEV else "Production (Neon)"
+            raise ValueError(
+                "DATABASE_URL not configured (set OPEN_NAVIGATOR_DATABASE_URL, NEON_DATABASE_URL_DEV, "
+                "NEON_DATABASE_URL, or DATABASE_URL)"
+            )
+
+        if OPEN_NAVIGATOR_DATABASE_URL and DATABASE_URL == OPEN_NAVIGATOR_DATABASE_URL.strip():
+            db_type = "OPEN_NAVIGATOR_DATABASE_URL"
+        elif NEON_DATABASE_URL_DEV and DATABASE_URL == NEON_DATABASE_URL_DEV.strip():
+            db_type = "Development (NEON_DATABASE_URL_DEV)"
+        else:
+            db_type = "Production/Neon (NEON_DATABASE_URL or DATABASE_URL)"
         logger.info(f"🗄️  [Stats] Connecting to {db_type}: {DATABASE_URL[:50]}...")
         
         _reset_schema_cache()

@@ -19,6 +19,10 @@ const UA =
   process.env.ACCESSIBILITY_USER_AGENT ||
   "OpenNavigator-AccessibilityBot/1.0 (+https://www.communityone.com)";
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function parseArgs(argv) {
   const out = { urls: "", out: "", limit: 0, offset: 0, concurrency: 0 };
   for (let i = 2; i < argv.length; i++) {
@@ -43,42 +47,58 @@ function loadExport(filePath) {
 async function scanOne(browser, job) {
   const url = typeof job === "string" ? job : job.url;
   const meta = typeof job === "object" && job !== null ? job : { url };
-  const started = Date.now();
-  const page = await browser.newPage();
-  try {
-    await page.setUserAgent(UA);
-    await page.setViewport({ width: 1280, height: 720 });
-    const response = await page.goto(url, {
-      waitUntil: "domcontentloaded",
-      timeout: parseInt(process.env.AXE_NAV_TIMEOUT_MS || "45000", 10),
-    });
-    const httpStatus = response ? response.status() : null;
-    const finalUrl = page.url();
-    const pageTitle = await page.title();
-    const axeResults = await new AxePuppeteer(page).analyze();
-    return {
-      status: "ok",
-      meta,
-      url,
-      final_url: finalUrl,
-      http_status: httpStatus,
-      page_title: pageTitle,
-      scanned_at: new Date().toISOString(),
-      scan_duration_ms: Date.now() - started,
-      axe: axeResults,
-    };
-  } catch (err) {
-    return {
-      status: "error",
-      meta,
-      url,
-      error: String(err?.message || err),
-      scanned_at: new Date().toISOString(),
-      scan_duration_ms: Date.now() - started,
-    };
-  } finally {
-    await page.close().catch(() => {});
+  const maxAttempts = Math.max(
+    1,
+    parseInt(process.env.AXE_NAV_RETRIES || "3", 10) || 3
+  );
+  const backoffMs = parseInt(process.env.AXE_RETRY_BACKOFF_MS || "2500", 10) || 2500;
+  const navTimeout = parseInt(process.env.AXE_NAV_TIMEOUT_MS || "45000", 10) || 45000;
+
+  let lastErr;
+  const startedOuter = Date.now();
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const page = await browser.newPage();
+    try {
+      await page.setUserAgent(UA);
+      await page.setViewport({ width: 1280, height: 720 });
+      await page.setDefaultNavigationTimeout(navTimeout);
+
+      const response = await page.goto(url, {
+        waitUntil: "domcontentloaded",
+        timeout: navTimeout,
+      });
+      const httpStatus = response ? response.status() : null;
+      const finalUrl = page.url();
+      const pageTitle = await page.title();
+      const axeResults = await new AxePuppeteer(page).analyze();
+      await page.close().catch(() => {});
+      return {
+        status: "ok",
+        meta,
+        url,
+        final_url: finalUrl,
+        http_status: httpStatus,
+        page_title: pageTitle,
+        scanned_at: new Date().toISOString(),
+        scan_duration_ms: Date.now() - startedOuter,
+        axe: axeResults,
+        nav_attempts: attempt,
+      };
+    } catch (err) {
+      lastErr = err;
+      await page.close().catch(() => {});
+      if (attempt < maxAttempts) await sleep(backoffMs * attempt);
+    }
   }
+  return {
+    status: "error",
+    meta,
+    url,
+    error: String(lastErr?.message || lastErr),
+    scanned_at: new Date().toISOString(),
+    scan_duration_ms: Date.now() - startedOuter,
+    nav_attempts: maxAttempts,
+  };
 }
 
 async function poolMap(items, concurrency, fn) {

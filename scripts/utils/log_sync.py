@@ -8,6 +8,10 @@ Supports two backends (tried in order):
 Logs land at:
   <gdrive_root>/CommunityOne/open-navigator-logs/<machine_id>/<run_type>/<run_id>/
 
+For governance / Gemma pipeline folder layout (``01_raw_inputs``, ``02_reference_data/orbis_files``,
+``03_processed_outputs/...``), see ``GovernancePipelinePaths`` in ``scripts/utils/gdrive_paths.py`` and
+``scripts/utils/ensure_governance_pipeline_drive_layout.py``.
+
 Configuration (env vars — all optional):
   LOG_GDRIVE_MOUNT       Path to mounted Google Drive root
                          (default: /mnt/g/My Drive)

@@ -4,7 +4,7 @@ Suggest (or optionally append) ``jurisdiction_website_url_overrides`` rows when 
 meetings scrape was **missing**, **failed** (zero HTML pages), or **shallow** (few pages).
 
 Supports **county**, **municipality** (cities / places), and **school_district** via
-``--jurisdiction-type`` (cache layout matches ``comprehensive_discovery_pipeline_meetings``:
+``--jurisdiction-type`` (cache layout matches ``comprehensive_discovery_pipeline_jurisdiction``:
 ``{STATE}/{type}/{type}_{geoid}/``).
 
 Strategy (free tier, no paid APIs required for the core path):

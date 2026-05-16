@@ -14,6 +14,7 @@ Event shape (API Gateway / Step Functions):
 
 Engines:
   - ``axe`` / ``pa11y`` — HTML WCAG (Chromium in container image)
+  - ``lighthouse`` — Lighthouse audits (Chrome Launcher; use the same ``batch_id`` as axe to join in SQL)
   - ``verapdf`` — PDF/UA (container from ``docker/Dockerfile.verapdf-worker``;
     ``VERAPDF_USE_DOCKER=false`` in-image)
 """
@@ -38,6 +39,11 @@ def _persist_cmd(
         return (
             "scripts.accessibility.persist_verapdf_results",
             ["--input", str(result_path), "--ensure-ddl"],
+        )
+    if engine == "lighthouse":
+        return (
+            "scripts.accessibility.persist_lighthouse_results",
+            ["--input", str(result_path), "--batch-id", batch_id, "--ensure-ddl"],
         )
     return (
         "scripts.accessibility.persist_results",
@@ -114,6 +120,20 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             result_path = cache / "results.ndjson"
             subprocess.run(
                 [node, "run_axe_scan.mjs", "--urls", str(urls_file), "--out", str(result_path)],
+                check=True,
+                cwd=str(acc_dir),
+            )
+        elif engine == "lighthouse":
+            result_path = cache / f"lighthouse-{batch_id}.ndjson"
+            subprocess.run(
+                [
+                    node,
+                    "run_lighthouse_scan.mjs",
+                    "--urls",
+                    str(urls_file),
+                    "--out",
+                    str(result_path),
+                ],
                 check=True,
                 cwd=str(acc_dir),
             )

@@ -19,6 +19,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
 
 _ROOT = Path(__file__).resolve().parents[2]
 if str(_ROOT) not in sys.path:
@@ -40,6 +41,20 @@ from scripts.accessibility._int_websites import (
 from scripts.database.target_database_url import resolve_target_database_url
 
 _DEFAULT_OUT = _ROOT / "data" / "cache" / "accessibility" / "urls.json"
+
+
+def _is_plausible_http_url(url: str) -> bool:
+    """Skip values like 'https://' that waste scanner slots (crawler-style hygiene)."""
+    u = (url or "").strip()
+    if not u:
+        return False
+    p = urlparse(u)
+    if p.scheme not in ("http", "https"):
+        return False
+    netloc = (p.netloc or "").strip().lower()
+    if not netloc or netloc.startswith(":"):
+        return False
+    return True
 
 
 def _load_dotenv() -> None:
@@ -145,6 +160,11 @@ def main() -> None:
         default=_DEFAULT_OUT,
         help=f"Output JSON path (default: {_DEFAULT_OUT})",
     )
+    ap.add_argument(
+        "--include-invalid-urls",
+        action="store_true",
+        help="Export rows with no http(s) host (default: skip them for faster scans)",
+    )
     args = ap.parse_args()
 
     batch_id = (args.batch_id or "").strip() or datetime.now(timezone.utc).strftime(
@@ -156,6 +176,16 @@ def main() -> None:
         limit=args.limit,
         offset=args.offset,
     )
+    if not args.include_invalid_urls:
+        before = len(jobs)
+        jobs = [j for j in jobs if _is_plausible_http_url(str(j.get("url") or ""))]
+        dropped = before - len(jobs)
+        if dropped:
+            print(
+                f"Dropped {dropped:,} row(s) without a valid http(s) host "
+                "(use --include-invalid-urls to keep)",
+                file=sys.stderr,
+            )
     payload = build_export_payload(jobs, batch_id=batch_id)
 
     out_path: Path = args.out

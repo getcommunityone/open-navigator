@@ -96,6 +96,37 @@ def _scan_key(batch_id: str, scanner: str, jurisdiction_id: str, url: str) -> st
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:32]
 
 
+def _flatten_pa11y_ci_results_url_map(url_to_items: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Turn Pa11y-CI `--json` `{ "https://…": [ issue | error-ish ] }` into persist-friendly rows."""
+    out: List[Dict[str, Any]] = []
+    for page_url, raw in url_to_items.items():
+        url = str(page_url or "").strip()
+        if not url or not isinstance(raw, list):
+            continue
+
+        issues: List[Any] = []
+        err_msg: Optional[str] = None
+        is_error = False
+        for item in raw:
+            if isinstance(item, dict) and any(
+                k in item for k in ("type", "code", "runner", "typeCode", "elements")
+            ):
+                issues.append(item)
+            elif isinstance(item, dict) and "message" in item and len(raw) == 1:
+                is_error = True
+                err_msg = str(item.get("message") or "")
+            elif isinstance(item, str):
+                is_error = True
+                err_msg = item
+
+        rec: Dict[str, Any] = {"url": url, "issues": issues}
+        if is_error and err_msg:
+            rec["error"] = err_msg
+            rec["isError"] = True
+        out.append(rec)
+    return out
+
+
 def _meta_from_record(rec: Dict[str, Any]) -> Dict[str, Optional[str]]:
     meta = rec.get("meta") if isinstance(rec.get("meta"), dict) else rec
     return {
@@ -212,7 +243,18 @@ def _load_input(path: Path) -> tuple[str, List[Dict[str, Any]], Dict[str, Dict[s
                 if isinstance(job, dict) and job.get("url"):
                     meta_by_url[str(job["url"])] = job
             if "results" in data:
-                records = data["results"]
+                r = data["results"]
+                # Merged loader output: [{ "url": "...", "issues": [...] }, ...]
+                if isinstance(r, list):
+                    records = r
+                # Raw pa11y-ci --json envelope { total, passes, errors, results: { … } }
+                elif isinstance(r, dict):
+                    inner = (
+                        r.get("results") if isinstance(r.get("results"), dict) else r
+                    )
+                    records = _flatten_pa11y_ci_results_url_map(inner)
+                else:
+                    records = []
             elif "urls" in data:
                 records = data.get("urls") or []
         elif isinstance(data, list):
@@ -253,12 +295,12 @@ def normalize_records(
     return out
 
 
-def persist_rows(rows: List[Dict[str, Any]], *, ensure_ddl: bool) -> int:
+def persist_rows(rows: List[Dict[str, Any]], *, run_ddl: bool) -> int:
     if not rows:
         return 0
     conn = psycopg2.connect(_resolve_database_url())
     try:
-        if ensure_ddl:
+        if run_ddl:
             ensure_ddl(conn)
         with conn.cursor() as cur:
             execute_batch(cur, INSERT_SQL, rows, page_size=200)
@@ -281,7 +323,7 @@ def main() -> None:
         "%Y%m%dT%H%M%SZ"
     )
     rows = normalize_records(records, scanner=args.scanner, batch_id=batch_id, meta_by_url=meta_by_url)
-    n = persist_rows(rows, ensure_ddl=args.ensure_ddl)
+    n = persist_rows(rows, run_ddl=args.ensure_ddl)
     print(f"Upserted {n:,} row(s) into {BRONZE_ACCESSIBILITY_TABLE} (batch_id={batch_id})")
 
 

@@ -7,6 +7,9 @@ export const DATA_EXPLORER_SCORECARD = '/data-explorer/scorecard'
 /** Jurisdiction website mapping coverage (NACo / USCM / NCES / GSA + exports). */
 export const DATA_EXPLORER_JURISDICTION_QUALITY = '/data-explorer/jurisdiction-quality'
 
+/** Latest Lighthouse scores from bronze (paired with accessibility batches). */
+export const DATA_EXPLORER_LIGHTHOUSE_REPORT = '/data-explorer/lighthouse-report'
+
 /** Prefer new prefix; support legacy `/census-map` URLs until removed. */
 export function censusMapPathPrefix(pathname: string): string {
   if (pathname.includes(`${DATA_EXPLORER_MAP_BASE}/`) || pathname === DATA_EXPLORER_MAP_BASE) {

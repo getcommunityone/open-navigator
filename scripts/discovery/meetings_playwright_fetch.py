@@ -2,7 +2,7 @@
 Optional **Chromium (Playwright)** HTML fetch for meetings scraping when ``httpx`` gets blocked.
 
 Typical cases: ``403`` / ``401`` / ``429`` from bot-aware CDNs, ``202`` oddities, or a ``200`` body
-that still matches :func:`comprehensive_discovery_pipeline_meetings._captcha_or_bot_wall_reason`.
+that still matches :func:`comprehensive_discovery_pipeline_jurisdiction._captcha_or_bot_wall_reason`.
 
 Environment (defaults favor automation-friendly setups):
 
@@ -161,7 +161,7 @@ def _playwright_failure_reason(exc: BaseException) -> str:
 
 
 def _captcha_hint(html: str, headers: Dict[str, str]) -> Optional[str]:
-    from scripts.discovery.comprehensive_discovery_pipeline_meetings import (
+    from scripts.discovery.comprehensive_discovery_pipeline_jurisdiction import (
         _captcha_or_bot_wall_reason,
     )
 
@@ -428,3 +428,127 @@ async def fetch_html_via_playwright(
                     await browser.close()
         except Exception as exc:
             return None, _playwright_failure_reason(exc), url
+
+
+def _html_print_pdf_max_bytes() -> int:
+    try:
+        return max(500_000, int((os.getenv("SCRAPED_MEETINGS_HTML_PRINT_MAX_BYTES") or "35000000").strip()))
+    except ValueError:
+        return 35_000_000
+
+
+async def print_agenda_html_page_to_pdf_via_playwright(
+    url: str,
+    *,
+    referer: str,
+    timeout_ms: int,
+    user_agent: str,
+) -> Tuple[Optional[bytes], str]:
+    """
+    Navigate like normal HTML scraping, then emit a **print** PDF via Chromium (Playwright).
+
+    Used for vendors (e.g. Simbli / eBoard Solutions) that publish agendas/minutes as HTML ASP.NET
+    pages. Requires ``playwright install chromium`` (same as HTML fallback).
+
+    ``Referer`` is sent on the navigation request (many portals reject anonymous deep-links).
+    """
+    if not playwright_fallback_enabled():
+        return None, "playwright_disabled"
+    try:
+        from playwright.async_api import async_playwright
+    except ImportError:
+        return None, "playwright_not_installed"
+
+    ref = (referer or "").strip() or url
+    max_b = _html_print_pdf_max_bytes()
+    try:
+        from urllib.parse import urlparse
+
+        same_site = urlparse(ref).netloc.lower().split(":")[0] == urlparse(url).netloc.lower().split(
+            ":"
+        )[0]
+        sec_fetch_site = "same-origin" if same_site else "cross-site"
+    except Exception:
+        sec_fetch_site = "cross-site"
+
+    async with _pw_semaphore():
+        try:
+            async with async_playwright() as p:
+                browser = await _launch_chromium_browser(p)
+                try:
+                    hdrs = {
+                        "Accept-Language": "en-US,en;q=0.9",
+                        "Accept": (
+                            "text/html,application/xhtml+xml,application/xml;q=0.9,"
+                            "image/avif,image/webp,image/apng,*/*;q=0.8"
+                        ),
+                        "Upgrade-Insecure-Requests": "1",
+                        "Referer": ref,
+                        "Sec-Fetch-Dest": "document",
+                        "Sec-Fetch-Mode": "navigate",
+                        "Sec-Fetch-Site": sec_fetch_site,
+                        "Sec-Fetch-User": "?1",
+                    }
+                    ctx = await browser.new_context(
+                        viewport={"width": 1280, "height": 1800},
+                        user_agent=user_agent,
+                        locale="en-US",
+                        java_script_enabled=True,
+                        extra_http_headers=hdrs,
+                    )
+                    await ctx.add_init_script(_NAV_INIT_SCRIPT)
+                    page = await ctx.new_page()
+                    if _stealth_enabled():
+                        try:
+                            from playwright_stealth import Stealth
+
+                            await Stealth().apply_stealth_async(page)
+                        except Exception as exc:
+                            logger.warning(
+                                "meetings_playwright_stealth_failed html_print detail={}",
+                                repr(exc),
+                            )
+
+                    resp, html_chunk, rhdrs, final_url = await _goto_collect_html(page, url, timeout_ms)
+                    st = resp.status if resp is not None else 0
+
+                    if st >= 400:
+                        if not (_dom_looks_like_real_document(html_chunk) and not _captcha_hint(html_chunk, rhdrs)):
+                            if st == 403:
+                                _log_playwright_403_hint_once()
+                            return None, f"playwright_http_{st}"
+
+                    cap = _captcha_hint(html_chunk or "", rhdrs)
+                    if cap:
+                        return None, f"playwright_captcha:{cap}"
+
+                    pdf_bytes = await page.pdf(
+                        format="Letter",
+                        print_background=True,
+                        prefer_css_page_size=False,
+                        margin={
+                            "top": "0.35in",
+                            "bottom": "0.35in",
+                            "left": "0.35in",
+                            "right": "0.35in",
+                        },
+                    )
+                    if not pdf_bytes:
+                        return None, "empty_pdf"
+                    if len(pdf_bytes) > max_b:
+                        return None, f"pdf_oversize_{len(pdf_bytes)}_bytes"
+                    if len(pdf_bytes) < 900:
+                        return None, f"pdf_too_small_{len(pdf_bytes)}_bytes"
+                    if not pdf_bytes.startswith(b"%PDF"):
+                        return None, "non_pdf_magic"
+                    logger.info(
+                        "meetings_simbli_html_print_ok url={} final_url={} pdf_bytes={}",
+                        url[:180],
+                        final_url[:180],
+                        len(pdf_bytes),
+                    )
+                    return pdf_bytes, ""
+                finally:
+                    await browser.close()
+        except Exception as exc:
+            return None, _playwright_failure_reason(exc)

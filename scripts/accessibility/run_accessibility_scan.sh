@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Export int_jurisdiction_websites URLs → run Pa11y-CI or axe-core → persist to Postgres bronze.
+# Export int_jurisdiction_websites URLs → run axe / Pa11y / Lighthouse → persist to Postgres bronze.
 #
 # Examples:
 #   ./scripts/accessibility/run_accessibility_scan.sh --engine axe --state AL
 #   ./scripts/accessibility/run_accessibility_scan.sh --engine pa11y --limit 500
+#   ./scripts/accessibility/run_accessibility_scan.sh --engine lighthouse --state AL
 #   PA11YCI_CONCURRENCY=10 WORKER_POOL_SIZE=6 ./scripts/accessibility/run_accessibility_scan.sh --engine pa11y
 set -euo pipefail
 
@@ -91,17 +92,31 @@ case "$ENGINE" in
     (cd "$ACC_DIR" && node "${PA11Y_ARGS[@]}")
     RESULT_FILE="$CACHE_DIR/pa11y-${BATCH_ID:-run}/pa11y-results-merged.json"
     ;;
+  lighthouse)
+    OUT_FILE="$CACHE_DIR/lighthouse-${BATCH_ID:-run}.ndjson"
+    LH_ARGS=( run_lighthouse_scan.mjs --urls "$URLS_FILE" --out "$OUT_FILE" )
+    [[ -n "$LIMIT" ]] && LH_ARGS+=( --limit "$LIMIT" )
+    [[ "$OFFSET" -gt 0 ]] && LH_ARGS+=( --offset "$OFFSET" )
+    (cd "$ACC_DIR" && node "${LH_ARGS[@]}")
+    RESULT_FILE="$OUT_FILE"
+    ;;
   *)
-    echo "error: --engine must be axe or pa11y (got $ENGINE)" >&2
+    echo "error: --engine must be axe, pa11y, or lighthouse (got $ENGINE)" >&2
     exit 1
     ;;
 esac
 
 if [[ "$SKIP_PERSIST" -eq 0 ]]; then
-  "$PY" -m scripts.accessibility.persist_results \
-    --scanner "$ENGINE" \
-    --input "$RESULT_FILE" \
-    --ensure-ddl
+  if [[ "$ENGINE" == "lighthouse" ]]; then
+    "$PY" -m scripts.accessibility.persist_lighthouse_results \
+      --input "$RESULT_FILE" \
+      --ensure-ddl
+  else
+    "$PY" -m scripts.accessibility.persist_results \
+      --scanner "$ENGINE" \
+      --input "$RESULT_FILE" \
+      --ensure-ddl
+  fi
 fi
 
 echo "Done. Results: $RESULT_FILE"

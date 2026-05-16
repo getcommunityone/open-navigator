@@ -12,12 +12,17 @@ Crash/resume safe: every 500k entities a checkpoint parquet + state file are
 written. If the process dies, re-run with --resume and it will fast-forward
 past already-scanned entities instead of starting from scratch.
 
+If you see ``OSError: Invalid data stream`` from bz2, the local dump is almost
+always truncated or corrupted — compare file size to Wikimedia’s dump and
+``wget -c`` (or re-download). On that error the script flushes a final
+checkpoint so rows found since the last periodic flush are not lost.
+
 Usage:
-    # Full dump → Parquet (recommended, run once, ~3-6 hours)
+    # Full dump → Parquet (default: local dump + resume if checkpoint exists)
     .venv/bin/python scripts/datasources/wikidata/wikidata_fips_gnis_extract_local.py
 
-    # Resume after a crash (skips already-scanned entities)
-    .venv/bin/python scripts/datasources/wikidata/wikidata_fips_gnis_extract_local.py --resume
+    # Ignore checkpoint and scan from the beginning
+    .venv/bin/python scripts/datasources/wikidata/wikidata_fips_gnis_extract_local.py --no-resume
 
     # Save to Postgres instead of Parquet
     .venv/bin/python scripts/datasources/wikidata/wikidata_fips_gnis_extract_local.py --postgres
@@ -25,12 +30,14 @@ Usage:
     # Quick test — stop after 500k entities (~2-3 min)
     .venv/bin/python scripts/datasources/wikidata/wikidata_fips_gnis_extract_local.py --limit 500000
 
+    # Stream from Wikimedia over HTTP (no local .bz2)
+    .venv/bin/python scripts/datasources/wikidata/wikidata_fips_gnis_extract_local.py --remote
+
     # Unreliable Wi‑Fi / WSL: resumable download, then extract from disk
     mkdir -p data/cache/wikidata/dumps
     wget -c -O data/cache/wikidata/dumps/latest-all.json.bz2 \\
       https://dumps.wikimedia.org/wikidatawiki/entities/latest-all.json.bz2
-    .venv/bin/python scripts/datasources/wikidata/wikidata_fips_gnis_extract_local.py \\
-      --dump-file data/cache/wikidata/dumps/latest-all.json.bz2
+    .venv/bin/python scripts/datasources/wikidata/wikidata_fips_gnis_extract_local.py
 """
 
 import argparse
@@ -335,13 +342,20 @@ def main():
     ap.add_argument("--postgres", action="store_true", help="Write to Postgres instead of Parquet")
     ap.add_argument("--output",   default=str(PARQUET_PATH), help=f"Parquet output path (default: {PARQUET_PATH})")
     ap.add_argument("--limit",    type=int, default=0, help="Stop after N entities (for testing)")
-    ap.add_argument("--resume",   action="store_true",
-                    help="Resume a previous interrupted run — skips already-scanned entities and keeps found records")
+    ap.add_argument(
+        "--resume",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Resume a previous interrupted run (default: on). Skips already-scanned entities and keeps "
+        "checkpoint matches. Use --no-resume to start from scratch.",
+    )
+    ap.add_argument("--remote", action="store_true",
+                    help="Stream the dump from --url instead of reading the local --dump-file.")
     ap.add_argument("--url",      default=DUMP_URL, help="Override dump URL")
     ap.add_argument(
         "--dump-file",
-        default=None,
-        help=f"Local .json.bz2 path (default env WIKIDATA_DUMP_FILE: {DEFAULT_DUMP_FILE}). "
+        default=str(DEFAULT_DUMP_FILE),
+        help=f"Local .json.bz2 path (default: env WIKIDATA_DUMP_FILE or {DEFAULT_DUMP_FILE}). "
         "Use after wget -c; avoids ChunkedEncodingError on long HTTP streams.",
     )
     args = ap.parse_args()
@@ -370,8 +384,8 @@ def main():
             if state.get("entities_scanned", 0):
                 logger.warning(
                     f"Found a checkpoint at {state['entities_scanned']:,} entities "
-                    f"but --resume was not passed — starting from scratch and overwriting it. "
-                    "Pass --resume to continue from where it left off."
+                    f"but --no-resume was passed — starting from scratch and overwriting it. "
+                    "Re-run without --no-resume to continue from where it left off."
                 )
 
     entity_count = skip_entities   # total entities seen (including skipped)
@@ -380,22 +394,50 @@ def main():
     logger.info("Starting Wikidata FIPS/GNIS extraction (local — no Databricks needed)")
     logger.info(f"Output: {'Postgres' if args.postgres else output_path}")
 
-    dump_file = Path(args.dump_file) if args.dump_file else None
-    for entity in stream_wikidata_dump(
-        args.url, skip=skip_entities, limit=args.limit, dump_file=dump_file
-    ):
-        entity_count += 1
-        records.extend(entity_to_records(entity))
+    dump_file = None if args.remote else Path(args.dump_file)
+    try:
+        for entity in stream_wikidata_dump(
+            args.url, skip=skip_entities, limit=args.limit, dump_file=dump_file
+        ):
+            entity_count += 1
+            records.extend(entity_to_records(entity))
 
-        if entity_count % LOG_EVERY == 0:
-            elapsed = time.time() - start
-            logger.info(
-                f"Entities: {entity_count:,} | Matches: {len(records):,} | "
-                f"Elapsed: {elapsed/60:.1f}m"
+            if entity_count % LOG_EVERY == 0:
+                elapsed = time.time() - start
+                logger.info(
+                    f"Entities: {entity_count:,} | Matches: {len(records):,} | "
+                    f"Elapsed: {elapsed/60:.1f}m"
+                )
+
+            if not args.postgres and entity_count % FLUSH_EVERY == 0:
+                flush_checkpoint(records, entity_count)
+    except (OSError, EOFError) as e:
+        elapsed = time.time() - start
+        logger.exception(
+            "Dump read failed after {:.1f}m at entity_count={:,} (last entity fully parsed).",
+            elapsed / 60,
+            entity_count,
+        )
+        if dump_file is not None and dump_file.is_file():
+            sz = dump_file.stat().st_size
+            logger.error(
+                "Local bz2 read error ({!r}). This usually means the file is truncated or corrupt — "
+                "not a bug in the extractor. Fix: compare size to the dump server, then "
+                "`wget -c -O {} {}` (or delete and re-download).",
+                e,
+                dump_file,
+                args.url,
             )
-
-        if not args.postgres and entity_count % FLUSH_EVERY == 0:
+            logger.error("Local dump size: {:,} bytes ({:.1f} GB)", sz, sz / 1e9)
+        if not args.postgres and records and entity_count > skip_entities:
             flush_checkpoint(records, entity_count)
+            logger.warning(
+                "Wrote emergency checkpoint so matches up to this point are preserved; "
+                "--resume will still re-scan from the start of the file to fast-forward "
+                "to entity {:,} (slow on huge dumps until the file is repaired).",
+                entity_count,
+            )
+        raise SystemExit(1) from e
 
     elapsed = time.time() - start
     logger.info(

@@ -2,9 +2,11 @@
 
 Scripts for discovering government data sources across U.S. jurisdictions.
 
-## Comprehensive Discovery Pipeline
+For **meeting PDFs**, agendas, and optional contact extraction into `data/cache/scraped_meetings`, use **`comprehensive_discovery_pipeline_jurisdiction.py`** (see its module docstring for `python -m` examples).
 
-**Script:** `comprehensive_discovery_pipeline.py`
+## Comprehensive Discovery Pipeline (legacy master discovery)
+
+**Script:** `scripts/discovery/archive/comprehensive_discovery_pipeline.py`
 
 Automates discovery of data sources for all U.S. cities and counties (22,000+ jurisdictions):
 
@@ -25,12 +27,12 @@ Automates discovery of data sources for all U.S. cities and counties (22,000+ ju
 
 **Run for all jurisdictions (incremental mode):**
 ```bash
-python scripts/discovery/comprehensive_discovery_pipeline.py --all
+python scripts/discovery/archive/comprehensive_discovery_pipeline.py --all
 ```
 
 **Run for specific state:**
 ```bash
-python scripts/discovery/comprehensive_discovery_pipeline.py --state AL
+python scripts/discovery/archive/comprehensive_discovery_pipeline.py --state AL
 ```
 
 **Run for the 6 in-scope oral health states (AL, GA, IN, MA, WA, WI):**
@@ -41,27 +43,27 @@ bash scripts/discovery/discover_oral_health_states.sh
 
 Or run individual states manually:
 ```bash
-python scripts/discovery/comprehensive_discovery_pipeline.py --state AL
-python scripts/discovery/comprehensive_discovery_pipeline.py --state GA
-python scripts/discovery/comprehensive_discovery_pipeline.py --state IN
-python scripts/discovery/comprehensive_discovery_pipeline.py --state MA
-python scripts/discovery/comprehensive_discovery_pipeline.py --state WA
-python scripts/discovery/comprehensive_discovery_pipeline.py --state WI
+python scripts/discovery/archive/comprehensive_discovery_pipeline.py --state AL
+python scripts/discovery/archive/comprehensive_discovery_pipeline.py --state GA
+python scripts/discovery/archive/comprehensive_discovery_pipeline.py --state IN
+python scripts/discovery/archive/comprehensive_discovery_pipeline.py --state MA
+python scripts/discovery/archive/comprehensive_discovery_pipeline.py --state WA
+python scripts/discovery/archive/comprehensive_discovery_pipeline.py --state WI
 ```
 
 **Run for top N cities by population:**
 ```bash
-python scripts/discovery/comprehensive_discovery_pipeline.py --top 100
+python scripts/discovery/archive/comprehensive_discovery_pipeline.py --top 100
 ```
 
 **Disable incremental mode (rediscover all):**
 ```bash
-python scripts/discovery/comprehensive_discovery_pipeline.py --all --no-incremental
+python scripts/discovery/archive/comprehensive_discovery_pipeline.py --all --no-incremental
 ```
 
 **Change refresh threshold (default 90 days):**
 ```bash
-python scripts/discovery/comprehensive_discovery_pipeline.py --all --refresh-days 30
+python scripts/discovery/archive/comprehensive_discovery_pipeline.py --all --refresh-days 30
 ```
 
 ### Incremental Mode

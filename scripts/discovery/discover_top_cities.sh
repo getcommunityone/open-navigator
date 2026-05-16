@@ -22,7 +22,7 @@ echo "=========================================="
 echo ""
 
 # Build command with optional YouTube API key
-CMD="python scripts/discovery/comprehensive_discovery_pipeline.py --top ${TOP_N} --max-concurrent 5"
+CMD="python scripts/discovery/archive/comprehensive_discovery_pipeline.py --top ${TOP_N} --max-concurrent 5"
 
 if [ ! -z "${YOUTUBE_API_KEY}" ]; then
     CMD="${CMD} --youtube-api-key ${YOUTUBE_API_KEY}"

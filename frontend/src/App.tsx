@@ -19,6 +19,7 @@ import Events from './pages/Events'
 import Services from './pages/Services'
 import Developers from './pages/Developers'
 import JurisdictionMappingQualityPage from './pages/JurisdictionMappingQualityPage'
+import LighthouseReportPage from './pages/LighthouseReportPage'
 import Hackathons from './pages/Hackathons'
 import OpenSource from './pages/OpenSource'
 import AdvocacyTopics from './pages/AdvocacyTopics'
@@ -112,6 +113,7 @@ function App() {
           <Route index element={<DataExplorerMapDefaultRedirect />} />
           <Route path="scorecard" element={<DataExplorerScorecardPage />} />
           <Route path="jurisdiction-quality" element={<JurisdictionMappingQualityPage />} />
+          <Route path="lighthouse-report" element={<LighthouseReportPage />} />
           <Route path="map/us/:vintage/:metric" element={<CensusMapPage />} />
           <Route path="map/state/:stateFips/:vintage/:metric" element={<CensusMapPage />} />
           <Route path="map/place/:stateFips/:vintage/:metric" element={<CensusMapPage />} />

@@ -14,3 +14,5 @@ WEBSITE_SOURCE_PRIORITY_ORDER_SQL = (
 )
 
 BRONZE_ACCESSIBILITY_TABLE = "bronze.bronze_jurisdiction_website_accessibility"
+
+BRONZE_LIGHTHOUSE_TABLE = "bronze.bronze_jurisdiction_website_lighthouse"

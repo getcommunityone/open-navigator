@@ -38,7 +38,7 @@ cd /home/developer/projects/open-navigator
 source venv/bin/activate
 
 # Run discovery for all Alabama cities/counties
-python scripts/discovery/comprehensive_discovery_pipeline.py --state AL
+python scripts/discovery/archive/comprehensive_discovery_pipeline.py --state AL
 ```
 
 **Expected Output:**
@@ -62,7 +62,7 @@ Average completeness: 78%
 
 ```bash
 # Discover data for top 100 cities by population
-python scripts/discovery/comprehensive_discovery_pipeline.py --top 100
+python scripts/discovery/archive/comprehensive_discovery_pipeline.py --top 100
 ```
 
 **Use Case:** Get started quickly with major cities
@@ -71,7 +71,7 @@ python scripts/discovery/comprehensive_discovery_pipeline.py --top 100
 
 ```bash
 # Process ALL 22,000+ jurisdictions
-python scripts/discovery/comprehensive_discovery_pipeline.py --all
+python scripts/discovery/archive/comprehensive_discovery_pipeline.py --all
 
 # WARNING: This will take 24-48 hours!
 # Recommend running on server/cloud instance
@@ -85,7 +85,7 @@ python scripts/discovery/comprehensive_discovery_pipeline.py --all
 
 ```bash
 # Control concurrent requests (prevent rate limiting)
-python scripts/discovery/comprehensive_discovery_pipeline.py \
+python scripts/discovery/archive/comprehensive_discovery_pipeline.py \
     --max-concurrent 5 \
     --state CA
 
@@ -103,7 +103,7 @@ python scripts/discovery/comprehensive_discovery_pipeline.py \
 export YOUTUBE_API_KEY="AIza..."
 
 # Or pass directly
-python scripts/discovery/comprehensive_discovery_pipeline.py \
+python scripts/discovery/archive/comprehensive_discovery_pipeline.py \
     --youtube-api-key "AIza..." \
     --state AL
 ```
@@ -210,7 +210,7 @@ Let's run discovery for all Alabama jurisdictions and analyze results:
 source venv/bin/activate
 
 # Discover all Alabama cities and counties
-python scripts/discovery/comprehensive_discovery_pipeline.py --state AL \
+python scripts/discovery/archive/comprehensive_discovery_pipeline.py --state AL \
     --youtube-api-key "$YOUTUBE_API_KEY"
 ```
 
@@ -261,7 +261,7 @@ Top 10 Alabama cities by data completeness:
 ### Phase 1: Test (1 Day)
 ```bash
 # Test with your home state
-python scripts/discovery/comprehensive_discovery_pipeline.py --state AL
+python scripts/discovery/archive/comprehensive_discovery_pipeline.py --state AL
 
 # Review results, adjust parameters
 # Check completeness scores
@@ -270,32 +270,32 @@ python scripts/discovery/comprehensive_discovery_pipeline.py --state AL
 ### Phase 2: Major Cities (1 Week)
 ```bash
 # Top 100 cities (80% of population)
-python scripts/discovery/comprehensive_discovery_pipeline.py --top 100
+python scripts/discovery/archive/comprehensive_discovery_pipeline.py --top 100
 
 # Top 500 cities
-python scripts/discovery/comprehensive_discovery_pipeline.py --top 500
+python scripts/discovery/archive/comprehensive_discovery_pipeline.py --top 500
 ```
 
 ### Phase 3: Regional (1 Month)
 ```bash
 # Process by region to distribute load
 # South
-python scripts/discovery/comprehensive_discovery_pipeline.py --states AL,GA,FL,SC,NC
+python scripts/discovery/archive/comprehensive_discovery_pipeline.py --states AL,GA,FL,SC,NC
 
 # Midwest  
-python scripts/discovery/comprehensive_discovery_pipeline.py --states IL,IN,OH,MI,WI
+python scripts/discovery/archive/comprehensive_discovery_pipeline.py --states IL,IN,OH,MI,WI
 
 # West
-python scripts/discovery/comprehensive_discovery_pipeline.py --states CA,WA,OR,AZ,NV
+python scripts/discovery/archive/comprehensive_discovery_pipeline.py --states CA,WA,OR,AZ,NV
 
 # Northeast
-python scripts/discovery/comprehensive_discovery_pipeline.py --states NY,NJ,PA,MA,CT
+python scripts/discovery/archive/comprehensive_discovery_pipeline.py --states NY,NJ,PA,MA,CT
 ```
 
 ### Phase 4: Complete National (1-2 Months)
 ```bash
 # Full 22,000+ jurisdictions
-python scripts/discovery/comprehensive_discovery_pipeline.py --all
+python scripts/discovery/archive/comprehensive_discovery_pipeline.py --all
 
 # Run on cloud server (AWS, GCP, Azure)
 # Estimated time: 24-48 hours
@@ -320,13 +320,13 @@ python scripts/discovery/comprehensive_discovery_pipeline.py --all
 # Run multiple states in parallel on different terminals
 
 # Terminal 1
-python scripts/discovery/comprehensive_discovery_pipeline.py --state AL
+python scripts/discovery/archive/comprehensive_discovery_pipeline.py --state AL
 
 # Terminal 2
-python scripts/discovery/comprehensive_discovery_pipeline.py --state GA
+python scripts/discovery/archive/comprehensive_discovery_pipeline.py --state GA
 
 # Terminal 3
-python scripts/discovery/comprehensive_discovery_pipeline.py --state FL
+python scripts/discovery/archive/comprehensive_discovery_pipeline.py --state FL
 ```
 
 **3. YouTube API Key**
@@ -493,7 +493,7 @@ print(f"Found {len(relevant_docs)} relevant meetings across all jurisdictions")
 **1. Rate Limiting / Timeouts**
 ```bash
 # Reduce concurrent requests
-python scripts/discovery/comprehensive_discovery_pipeline.py \
+python scripts/discovery/archive/comprehensive_discovery_pipeline.py \
     --max-concurrent 3 \
     --state AL
 ```
@@ -512,7 +512,7 @@ Or: Continue without API key (less accurate stats)
 # Process in smaller batches
 # Instead of --all, do state by state
 for state in AL GA FL SC NC; do
-    python scripts/discovery/comprehensive_discovery_pipeline.py --state $state
+    python scripts/discovery/archive/comprehensive_discovery_pipeline.py --state $state
 done
 ```
 

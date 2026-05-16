@@ -199,7 +199,7 @@ print("https://huggingface.co/datasets/YOUR_USERNAME/oral-health-policy-data")
 ### Step 1: Run Discovery
 ```bash
 # Discover all Alabama jurisdictions
-python scripts/discovery/comprehensive_discovery_pipeline.py --state AL
+python scripts/discovery/archive/comprehensive_discovery_pipeline.py --state AL
 
 # Output: data/bronze/discovered_sources/discovery_summary_AL.csv (~50 KB)
 ```

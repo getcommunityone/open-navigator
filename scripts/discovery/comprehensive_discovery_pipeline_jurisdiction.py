@@ -1,5 +1,5 @@
 """
-Meetings / minutes scraper (separate from ``ComprehensiveDiscoveryPipeline``).
+Jurisdiction crawl: meetings/minutes plus optional board/council/contact-directory extraction (separate from ``ComprehensiveDiscoveryPipeline``).
 
 Goals:
 - Start from a jurisdiction homepage (or ``intermediate.int_jurisdiction_websites``).
@@ -29,7 +29,8 @@ Goals:
   language (agenda, council, commission, webcast, …). Meeting-related **search keywords** (including
   ``youtube``, ``video``, ``webcast``, ``live``) are only sent to templates we recognized.
 - Collect **other** meeting / stream platforms (Vimeo, Facebook video, Twitch, Granicus, Zoom,
-  Teams, Google Meet, Wistia, Brightcove, ``.m3u8`` HLS, …) into ``other_video_streams`` in the
+  Teams, Google Meet, Wistia, Brightcove, ``.m3u8`` HLS, **GoMeet** (``gomeet.com`` recording links), …)
+  into ``other_video_streams`` in the
   manifest (URLs are recorded; most are not downloaded). **SuiteOne** (``*.suiteonemedia.com``): after any SuiteOne
   HTML fetch, the crawl also enqueues ``https://{host}/?embed=1`` (full meeting index), not only when
   the jurisdiction homepage is on that host. JWPlayer inline ``var src`` and S3
@@ -42,14 +43,50 @@ Goals:
   sibling Opus exists (from earlier runs). Opus must be at least ``SCRAPED_MEETINGS_MIN_OPUS_BYTES_FOR_MP4_DELETE``
   bytes (default 102400) before the MP4 is removed.
   ``*.asset.json`` records source URL and paths. **Agendas:** SuiteOne
-  ``/event/GetAgendaFile/…`` and ``/event/GetMinutesFile/…`` links (no ``.pdf`` suffix) are downloaded
+  ``/event/GetAgendaFile/…`` and   ``/event/GetMinutesFile/…`` links (no ``.pdf`` suffix) are downloaded
   as PDFs like other meeting documents.
+- **Simbli / eBoard Solutions** (``*.eboardsolutions.com``): agendas and minutes often ship as **HTML**
+  ASP.NET pages. Matching ``<a href>`` targets are opened in Chromium and saved with **Playwright**
+  ``page.pdf()`` (Letter, print backgrounds). Toggle with ``SCRAPED_MEETINGS_SIMBLI_HTML_TO_PDF``
+  (default on). Caps output size with ``SCRAPED_MEETINGS_HTML_PRINT_MAX_BYTES`` (default 35MB).
+  ``SB_MeetingListing.aspx`` shells over plain HTTP trigger an automatic Playwright refetch once HTML is
+  shorter than ``SCRAPED_MEETINGS_SIMBLI_LISTING_MIN_HTML_CHARS`` (default ``8000``); row actions that
+  use ``ViewMeeting`` / ``ViewMinutes`` onclick handlers are turned into ``ViewMeeting.aspx?S=&MID=``
+  crawl seeds, queued **ahead of** generic site navigation in **listing order** (top rows first).
+  **Pagination:** grids often expose only **50 meetings** in the initial HTML — use
+  larger ``--max-pages`` / resume, and ensure the listing is scrolled or paged in-browser if you need
+  the full archive in one pass (future enhancement).
 - **PDF URLs** written to ``_manifest.json`` ``pdfs[].url`` are **path-normalized** (e.g. spaces
   percent-encoded as ``%20``) so manifests and downstream loaders match RFC-safe URLs used for GET.
+- **AWS S3** (``*.amazonaws.com``, e.g. ``s3.us-west-2.amazonaws.com/...``): meeting ``.pdf`` / ``.docx``
+  / ``.mp3`` / ``.m4a`` / other extensions matched by ``meetings_platform_heuristics.MEETING_DOWNLOAD_EXT`` on the
+  listing page are downloaded (not whole-bucket HTML crawls). **Audio:** ``.mp3`` / ``.m4a`` / ``.wav`` are
+  transcoded to **Opus** (``.opus``) with ``ffmpeg`` when ``SCRAPED_MEETINGS_MP3_TO_OPUS`` is true (default);
+  the original file is removed when ``SCRAPED_MEETINGS_DELETE_MP3_AFTER_OPUS`` is true (default). Minimum
+  output size uses ``SCRAPED_MEETINGS_MIN_OPUS_BYTES_FOR_MP4_DELETE`` (same threshold as SuiteOne MP4→Opus).
+
+- **Office → PDF:** When ``libreoffice`` or ``soffice`` is on ``PATH`` and ``SCRAPED_MEETINGS_OFFICE_TO_PDF`` is
+  true (default; alias ``SCRAPED_MEETINGS_DOCX_TO_PDF``), downloaded ``.docx`` / ``.doc`` files are converted to
+  ``.pdf`` next to the same basename, the Office file is deleted, and ``_manifest.json`` rows reference the PDF
+  (with ``converted_from_suffix``). Disable with ``SCRAPED_MEETINGS_OFFICE_TO_PDF=false`` to keep Word on disk.
+
+- **PDF → PNG (vision / Gemma):** After each meeting ``.pdf`` is finalized on disk (direct download, Office
+  conversion, or Simbli HTML print), optional **page PNGs** are written next to the PDF as
+  ``<stem>.page_001.png``, … (via ``pdf2image``; install **poppler-utils** so ``pdftoppm`` is on ``PATH``).
+  Scope is controlled by ``SCRAPED_MEETINGS_PDF_TO_PNG``: default ``inventory`` (Tuscaloosa + Big Timber county
+  and city cache folders only), ``all`` for every PDF under the meetings root, or ``false`` to disable.
+  DPI defaults to ``150``; override with ``SCRAPED_MEETINGS_PDF_TO_PNG_DPI``.
 
 - Download PDFs (and optional HTML snapshots of key pages) under:
 
     ``{root}/{state}/{jurisdiction_type}/{jurisdiction_id}/{year}/``
+
+  where ``{year}`` is the **meeting calendar year** when :func:`~scripts.discovery.meeting_document_naming.pick_meeting_date`
+  can infer a date from anchor text / ``FileName=`` / URL (aligned with readable filenames); otherwise the same URL-only
+  ``20xx`` heuristics as before, falling back to the scrape-time calendar year.
+
+  PDF files use readable names when metadata allows: ``YYYY-MM-DD_doc_type_title_snake.pdf``
+  (or ``YYYY_…`` when only a calendar year is known). Collisions append a short URL hash.
 
 Each fetched page is also written under ``_crawl_html/page_*.html``. When
 ``SCRAPED_MEETINGS_HTML_READABLE_TXT`` is true (default), a sibling ``page_*.readable.txt`` is
@@ -94,6 +131,35 @@ scanned for ``mailto:`` / ``tel:`` links and common email / US phone patterns. R
 into ``_manifest.json`` under ``extracted_contacts`` (deduplicated lists plus optional ``by_page``).
 This is best-effort crawl data, not authoritative directory information.
 
+**Built-in directory seeds:** a small map in ``jurisdiction_contact_seed_urls`` prepends known pilot
+URLs (e.g. Sweet Grass commissioner bios on ``sgcountymt.gov``, Big Timber mayor/council, Tuscaloosa
+County ``county-officials`` and ``commission-agenda-minutes`` on ``tuscco.com``) before ``--contact-seed-urls``. Disable with ``SCRAPED_CONTACT_BUILTIN_SEEDS=false``.
+
+**Structured contacts:** when ``SCRAPED_CONTACT_STRUCTURED_EXTRACT`` is true (default), pages flagged
+as directory-like (URL/title/body heuristics) or listed in ``--contact-seed-urls`` are parsed for
+schema.org ``Person`` JSON-LD, ``mailto:`` anchors, Bootstrap-style ``div.card`` grids, and
+**heading-block** sections (WordPress ``h2``–``h6`` bios with plain-text ``Email:`` / phones). Rows are written to ``_manifest.json`` under
+``structured_contacts`` and ``contact_directory_pages``. With ``--persist-contacts-db`` and a
+database URL, rows are inserted into ``bronze.bronze_contacts_scraped`` (migration ``035``).
+
+**Profile images:** when ``SCRAPED_CONTACT_PROFILE_IMAGES`` is true (default), directory-flagged pages
+also download person photos into ``_contact_images/`` (filenames from name, else title; see
+``contact_profile_images.person_image_filename_stem``). Jobs come from JSON-LD ``Person`` ``image``,
+portrait-ish ``<img>`` tags (including ``data-src`` / ``srcset``), and WordPress ``figure`` blocks
+placed above an official ``h2``–``h6`` title. Nav links from high ``person_adjacent_image_score``
+pages are boosted when paths look board/council/officials-like (``SCRAPED_CONTACT_PHOTO_NAV_BOOST_MIN``).
+
+Resume / deeper archives: each run writes ``_crawl_state.json`` (visited URLs, frontier queue,
+dedupe sets). Use ``--resume`` with a **larger** ``--max-pages`` — ``max_pages`` is a **total** cap on
+distinct HTML fetches across runs (already-visited URLs still count toward the cap). Without a saved
+state file, ``--resume`` can bootstrap the frontier from ``_manifest.json`` plus SuiteOne
+``/event/?id=…`` links mined from existing ``_crawl_html/page_*.html`` snapshots.
+Set ``SCRAPED_MEETINGS_PERSIST_CRAWL_STATE_EACH_PAGE=true`` to rewrite ``_crawl_state.json`` after
+every fetched page (slower; helps if the process dies mid-crawl).
+
+Accessibility tooling (**axe**, **Lighthouse**): useful on a **fixed URL list** for audits; they do
+not replace HTML/sitemap discovery for meeting archives or SuiteOne embed indexes here.
+
 Examples (Yuma County CO):
 - Search: https://yumacounty.net/?s=meetings
 - Page: https://yumacounty.net/monthly-meetings/
@@ -101,22 +167,34 @@ Examples (Yuma County CO):
 
 Run::
 
-    .venv/bin/python -m scripts.discovery.comprehensive_discovery_pipeline_meetings \\
+    .venv/bin/python -m scripts.discovery.comprehensive_discovery_pipeline_jurisdiction \\
         --state CO --geoid 08125 --type county --url https://yumacounty.net/
 
-    .venv/bin/python -m scripts.discovery.comprehensive_discovery_pipeline_meetings \\
+    .venv/bin/python -m scripts.discovery.comprehensive_discovery_pipeline_jurisdiction \\
         --state CO --geoid 08125 --type county --from-db
 
+    # Tuscaloosa County, AL — meetings + county officials directory; load homepage from warehouse
+    .venv/bin/python -m scripts.discovery.comprehensive_discovery_pipeline_jurisdiction \\
+        --state AL --geoid 01125 --type county --from-db \\
+        --contact-seed-urls "https://www.tuscco.com/county-officials/" \\
+        --max-pages 120 --max-pdfs 60 \\
+        --persist-contacts-db
+
     # Parallel batch (many sites, long timeouts)
-    .venv/bin/python -m scripts.discovery.comprehensive_discovery_pipeline_meetings \\
+    .venv/bin/python -m scripts.discovery.comprehensive_discovery_pipeline_jurisdiction \\
         --batch-from-db --state AL --type county --concurrency 8 --timeout 120
 
-    .venv/bin/python -m scripts.discovery.comprehensive_discovery_pipeline_meetings \\
+    .venv/bin/python -m scripts.discovery.comprehensive_discovery_pipeline_jurisdiction \\
         --state AL --type county --geoids 01001,01003,01009 --from-db --concurrency 6 --timeout 120
 
     # Rerun counties whose cached manifest is failed (0 pages) or shallow (few pages; see --shallow-max-pages)
-    .venv/bin/python -m scripts.discovery.comprehensive_discovery_pipeline_meetings \\
+    .venv/bin/python -m scripts.discovery.comprehensive_discovery_pipeline_jurisdiction \\
         --state AL --type county --from-db --retry-failed-shallow --concurrency 6 --timeout 120
+
+    # Continue a prior crawl (raise total page budget; merges with cached manifest)
+    .venv/bin/python -m scripts.discovery.comprehensive_discovery_pipeline_jurisdiction \\
+        --state AL --geoid 0177256 --type municipality --from-db --resume \\
+        --max-pages 500 --max-pdfs 800 --max-video-downloads 200
 """
 from __future__ import annotations
 
@@ -130,11 +208,12 @@ import shutil
 import subprocess
 import sys
 import time
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
-from urllib.parse import quote, parse_qs, unquote, urlparse, urlunparse
+from urllib.parse import quote, parse_qs, unquote, urljoin, urlparse, urlunparse
 
 import httpx
 from loguru import logger
@@ -156,17 +235,35 @@ from scripts.utils.gdrive_paths import (
 from scripts.utils.http_url_normalize import normalize_http_url_path_encoding as _normalize_http_url_path_encoding
 from scripts.discovery.contact_extract_from_html import (
     extract_contacts_from_page,
+    extract_structured_contacts_from_html,
     merge_contact_manifest_rows,
 )
+from scripts.discovery.contact_directory_heuristics import classify_contact_directory_page
+from scripts.discovery.bronze_contacts_scraped_persist import insert_bronze_contacts_scraped
+from scripts.discovery.contact_profile_images import (
+    download_profile_images,
+    extract_profile_image_jobs,
+    partition_nav_for_photo_priority,
+)
+from scripts.discovery.jurisdiction_contact_seed_urls import merged_contact_seed_urls
+from scripts.discovery.meeting_document_naming import (
+    allocate_unique_pdf_path,
+    infer_calendar_folder_year,
+    meeting_document_storage_suffix,
+)
 from scripts.discovery.meetings_platform_heuristics import (
+    MEETING_DOWNLOAD_EXT,
     classify_document,
     detect_meeting_stacks,
     extract_meeting_urls,
     extract_opencivic_content_search_portals,
     extract_other_video_stream_refs,
     extract_site_search_portal_urls,
+    extract_simbli_agenda_minutes_html_pairs,
     extract_youtube_refs,
     html_suggests_wordpress_site,
+    is_simbli_eboard_host,
+    is_simbli_meeting_listing_page_url,
     merge_stack_hints,
     opencivic_content_search_query_variants,
     score_youtube_meeting_relevance,
@@ -181,6 +278,7 @@ from scripts.discovery.meetings_playwright_fetch import (
     fetch_html_via_playwright,
     httpx_status_should_try_playwright,
     playwright_fallback_enabled,
+    print_agenda_html_page_to_pdf_via_playwright,
 )
 
 try:
@@ -189,11 +287,10 @@ except ModuleNotFoundError:  # pragma: no cover
     psycopg2 = None  # type: ignore[misc,assignment]
 
 MEETING_HINTS = re.compile(
-    r"(meetings?|minutes?|proceedings|action\s*minutes|agenda|calendar|board|commission|council|hearing|session|video|zoom|/event/|\bmedia\b)",
+    r"(meetings?|minutes?|proceedings|action\s*minutes|agenda|agendas|calendar|board|commission|council|"
+    r"hearing|session|video|zoom|/event/|\bmedia\b|prior\s*year|archive|powerdms)",
     re.I,
 )
-PDF_EXT = re.compile(r"\.pdf(\?|$)", re.I)
-YEAR_IN_PATH = re.compile(r"(20\d{2})")
 
 
 def _load_repo_dotenv() -> None:
@@ -271,6 +368,287 @@ def _strip_fragment(url: str) -> str:
     return urlunparse((p.scheme, p.netloc, p.path, p.params, p.query, ""))
 
 
+MEETINGS_CRAWL_STATE_FILENAME = "_crawl_state.json"
+MEETINGS_CRAWL_STATE_SCHEMA_VERSION = 1
+
+
+def _safe_load_json_dict(path: Path) -> Dict[str, Any]:
+    try:
+        if path.is_file():
+            data = json.loads(path.read_text(encoding="utf-8"))
+            return data if isinstance(data, dict) else {}
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.warning("meetings_json_load_failed path={} err={!r}", path, exc)
+    return {}
+
+
+def _merge_prior_extracted_contacts(prior: Dict[str, Any], fresh: Dict[str, Any]) -> Dict[str, Any]:
+    """Merge manifest ``extracted_contacts`` with a new crawl pass (same shape as merge_contact_manifest_rows)."""
+    if not prior:
+        return fresh
+    if not fresh:
+        return prior
+    pe = set(prior.get("emails") or [])
+    pp = set(prior.get("phones") or [])
+    fe = set(fresh.get("emails") or [])
+    fp = set(fresh.get("phones") or [])
+    by_prior = list(prior.get("by_page") or [])
+    by_fresh = list(fresh.get("by_page") or [])
+    seen_urls: Set[str] = set()
+    merged_by: List[Dict[str, Any]] = []
+    for row in by_prior + by_fresh:
+        if not row:
+            continue
+        u = _strip_fragment(str(row.get("page_url") or ""))
+        if not u or u in seen_urls:
+            continue
+        seen_urls.add(u)
+        merged_by.append(row)
+    return {
+        "emails": sorted(pe | fe)[:80],
+        "phones": sorted(pp | fp)[:50],
+        "by_page": merged_by[:56],
+    }
+
+
+def _merge_structured_contact_rows(prior: List[Dict[str, Any]], fresh: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Dedupe structured contact rows across resume passes."""
+    seen: Set[Tuple[str, str, str]] = set()
+    out: List[Dict[str, Any]] = []
+    for row in (prior or []) + (fresh or []):
+        if not row:
+            continue
+        pu = _strip_fragment(str(row.get("source_page_url") or ""))
+        em = str(row.get("email") or "").strip().lower()
+        nm = str(row.get("person_name") or "").strip().lower()
+        key = (pu, em, nm)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(row)
+    return out[:800]
+
+
+def _merge_contact_directory_pages(prior: List[Dict[str, Any]], fresh: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    by_url: Dict[str, Dict[str, Any]] = {}
+    for row in (prior or []) + (fresh or []):
+        if not row:
+            continue
+        u = _strip_fragment(str(row.get("page_url") or ""))
+        if u:
+            by_url[u] = row
+    return list(by_url.values())[:200]
+
+
+def _merge_contact_profile_images(prior: List[Dict[str, Any]], fresh: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    seen: Set[str] = set()
+    out: List[Dict[str, Any]] = []
+    for row in (prior or []) + (fresh or []):
+        if not row:
+            continue
+        key = str(row.get("saved_relative_path") or "") or (
+            str(row.get("image_url") or "")
+            + "#"
+            + str(row.get("saved_filename") or row.get("person_stem") or "")
+        )
+        if not key.strip("#"):
+            continue
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(row)
+    return out[:1200]
+
+
+def _expand_contact_seed_url(homepage: str, seed: str) -> str:
+    """Resolve a CLI seed (absolute or site-relative) against the working homepage."""
+    s = (seed or "").strip()
+    if not s:
+        return ""
+    if s.lower().startswith(("http://", "https://")):
+        return _normalize_http_url_path_encoding(s)
+    base = (homepage or "").strip().rstrip("/")
+    if not base:
+        return ""
+    joined = urljoin(base + "/", s.lstrip("/"))
+    return _normalize_http_url_path_encoding(joined)
+
+
+def _hydrate_result_from_prior_manifest(result: MeetingsScrapeResult, prior: Dict[str, Any]) -> None:
+    if not prior:
+        return
+    hp = str(prior.get("homepage_url") or "").strip()
+    if hp:
+        result.homepage_url = hp
+    cands = prior.get("homepage_url_candidates")
+    if isinstance(cands, list) and cands:
+        result.homepage_url_candidates = list(cands)
+    failures = prior.get("homepage_probe_failures")
+    if isinstance(failures, list) and failures:
+        result.homepage_probe_failures = list(failures)
+    stacks = prior.get("detected_stacks")
+    if isinstance(stacks, list) and stacks:
+        result.detected_stacks = list(stacks)
+    pages = prior.get("pages_fetched")
+    if isinstance(pages, list) and pages:
+        result.pages_fetched = list(pages)
+    pdfs = prior.get("pdfs")
+    if isinstance(pdfs, list) and pdfs:
+        result.pdfs_downloaded = list(pdfs)
+    yt = prior.get("youtube")
+    if isinstance(yt, list) and yt:
+        result.youtube = list(yt)
+    ovs = prior.get("other_video_streams")
+    if isinstance(ovs, list) and ovs:
+        result.other_video_streams = list(ovs)
+    va = prior.get("video_assets")
+    if isinstance(va, list) and va:
+        result.video_assets = list(va)
+    errs = prior.get("errors")
+    if isinstance(errs, list) and errs:
+        result.errors = list(errs)
+    cdp = prior.get("contact_directory_pages")
+    if isinstance(cdp, list) and cdp:
+        result.contact_directory_pages = list(cdp)
+    sc = prior.get("structured_contacts")
+    if isinstance(sc, list) and sc:
+        result.structured_contact_rows = list(sc)
+    bid = str(prior.get("scrape_batch_id") or "").strip()
+    if bid:
+        result.scrape_batch_id = bid
+    cpi = prior.get("contact_profile_images")
+    if isinstance(cpi, list) and cpi:
+        result.contact_profile_images = list(cpi)
+
+
+def _suiteone_https_bases_from_urls(urls: List[str]) -> List[str]:
+    bases: Set[str] = set()
+    for raw in urls:
+        u = (raw or "").strip()
+        if not u:
+            continue
+        try:
+            p = urlparse(u)
+            host = (p.netloc or "").lower().split(":")[0]
+            if not host or "suiteonemedia.com" not in host:
+                continue
+            bases.add(urlunparse(("https", host, "/", "", "", "")))
+        except Exception:
+            continue
+    return sorted(bases)
+
+
+def _recover_suiteone_event_urls_from_snapshots(
+    snap_dir: Path,
+    visited: Set[str],
+    *,
+    page_urls_for_hosts: List[str],
+) -> List[str]:
+    """Parse saved ``page_*.html`` snapshots for SuiteOne ``/event/?id=`` links (legacy resume without ``_crawl_state.json``)."""
+    from bs4 import BeautifulSoup
+
+    bases = _suiteone_https_bases_from_urls(page_urls_for_hosts)
+    found: Set[str] = set()
+    if not snap_dir.is_dir():
+        return []
+    for path in sorted(snap_dir.glob("page_*.html")):
+        try:
+            html = path.read_text(encoding="utf-8", errors="replace")[:2_500_000]
+        except OSError:
+            continue
+        soup = BeautifulSoup(html, "html.parser")
+        for tag in soup.find_all("a", href=True):
+            href = (tag.get("href") or "").strip()
+            if not href or href.startswith("#") or href.lower().startswith("javascript:"):
+                continue
+            low = href.lower()
+            full = ""
+            if low.startswith("http://") or low.startswith("https://"):
+                full = href.split("#", 1)[0]
+            elif low.startswith("/event") and bases:
+                for b in bases:
+                    cand = urljoin(b, href)
+                    if "suiteonemedia.com" in cand.lower():
+                        full = cand.split("#", 1)[0]
+                        break
+            if not full:
+                continue
+            try:
+                pl = urlparse(full)
+            except Exception:
+                continue
+            if "suiteonemedia.com" not in (pl.netloc or "").lower():
+                continue
+            path_l = (pl.path or "").lower()
+            if "/event" not in path_l:
+                continue
+            q = parse_qs(pl.query or "")
+            ids = q.get("id") or []
+            if not ids:
+                continue
+            nu = _strip_fragment(full)
+            if nu in visited:
+                continue
+            found.add(nu)
+
+    def _event_id(u: str) -> int:
+        try:
+            ids = parse_qs(urlparse(u).query or "").get("id") or []
+            return int(ids[0]) if ids else 0
+        except (ValueError, TypeError):
+            return 0
+
+    return sorted(found, key=_event_id, reverse=True)
+
+
+def _persist_meetings_crawl_state(
+    path: Path,
+    *,
+    jurisdiction_id: str,
+    resolved_homepage_url: str,
+    visited: Set[str],
+    queued: Set[str],
+    to_visit: List[str],
+    search_seeded: bool,
+    pdf_count: int,
+    pdfs_seen: Set[str],
+    youtube_seen: Set[str],
+    other_stream_seen: Set[str],
+    contact_page_rows: List[Dict[str, Any]],
+    stack_hints: List[str],
+) -> None:
+    payload = {
+        "schema_version": MEETINGS_CRAWL_STATE_SCHEMA_VERSION,
+        "jurisdiction_id": jurisdiction_id,
+        "resolved_homepage_url": resolved_homepage_url,
+        "visited": sorted(visited),
+        "queued": sorted(queued),
+        "to_visit": list(to_visit),
+        "search_seeded": search_seeded,
+        "pdf_count": int(pdf_count),
+        "pdfs_seen": sorted(pdfs_seen),
+        "youtube_seen": sorted(youtube_seen),
+        "other_stream_seen": sorted(other_stream_seen),
+        "contact_page_rows": contact_page_rows,
+        "stack_hints": list(stack_hints),
+        "saved_at": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    except OSError as exc:
+        logger.warning("meetings_crawl_state_write_failed path={} err={!r}", path, exc)
+
+
+def _meetings_crawl_state_each_page_enabled() -> bool:
+    return (os.getenv("SCRAPED_MEETINGS_PERSIST_CRAWL_STATE_EACH_PAGE") or "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+
+
 def _meetings_log_url(url: str, *, maxlen: int = 160) -> str:
     u = (url or "").strip()
     if len(u) <= maxlen:
@@ -282,17 +660,6 @@ def _fs_safe_segment(s: str) -> str:
     return re.sub(r'[^A-Za-z0-9._-]+', "_", (s or "").strip())[:200] or "unknown"
 
 
-def _meeting_pdf_disk_filename(pdf_url: str) -> str:
-    """Stable unique on-disk name; SuiteOne agendas often use ``/Agenda`` without a ``.pdf`` suffix."""
-    p = urlparse(pdf_url)
-    tail = Path(p.path).name or "document.pdf"
-    if tail.lower().endswith(".pdf"):
-        return _fs_safe_segment(tail)
-    stem = Path(tail).stem or "document"
-    h = hashlib.sha256(pdf_url.encode("utf-8", errors="replace")).hexdigest()[:14]
-    return _fs_safe_segment(f"{stem}_{h}.pdf")
-
-
 def _http_response_is_pdf(resp: httpx.Response) -> bool:
     """True if the body looks like a PDF (many ``.pdf`` URLs return HTML without ``Referer`` / cookies)."""
     data = resp.content or b""
@@ -300,6 +667,286 @@ def _http_response_is_pdf(resp: httpx.Response) -> bool:
         return True
     ct = (resp.headers.get("content-type") or "").lower()
     return "application/pdf" in ct and len(data) > 0
+
+
+def _http_response_is_acceptable_meeting_download(resp: httpx.Response, doc_url: str) -> bool:
+    """
+    Validate GET body for meeting documents (PDF, Word, RTF, PowerPoint) including S3 ``.docx`` / ``.pdf``.
+    """
+    suf = meeting_document_storage_suffix(doc_url)
+    data = resp.content or b""
+    if not data:
+        return False
+    ct = (resp.headers.get("content-type") or "").lower()
+    if suf == ".pdf":
+        return _http_response_is_pdf(resp)
+    if suf == ".docx":
+        if data.startswith(b"PK\x03\x04"):
+            return True
+        return "wordprocessingml" in ct
+    if suf == ".doc":
+        if data.startswith(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"):
+            return True
+        return "application/msword" in ct
+    if suf == ".rtf":
+        head = data.lstrip()[:32].upper()
+        return head.startswith(b"{\\RTF") or "application/rtf" in ct or "text/rtf" in ct
+    if suf == ".pptx":
+        if data.startswith(b"PK\x03\x04"):
+            return True
+        return "presentationml" in ct or "powerpoint" in ct
+    if suf == ".ppt":
+        if data.startswith(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"):
+            return True
+        return "application/vnd.ms-powerpoint" in ct or "ms-powerpoint" in ct
+    if suf in (".mp3", ".m4a", ".wav"):
+        if "audio/" in ct:
+            return len(data) > 200
+        if suf == ".mp3":
+            if data.startswith(b"ID3"):
+                return len(data) > 200
+            return data[:2] in (b"\xff\xfb", b"\xff\xfa", b"\xff\xf3") and len(data) > 200
+        if suf == ".m4a":
+            return (len(data) > 32 and b"ftyp" in data[4:40]) or "mp4" in ct
+        if suf == ".wav":
+            return data.startswith(b"RIFF") and b"WAVE" in data[:16]
+        return len(data) > 500
+    return _http_response_is_pdf(resp)
+
+
+def _meetings_office_to_pdf_enabled() -> bool:
+    v = (
+        os.getenv("SCRAPED_MEETINGS_OFFICE_TO_PDF") or os.getenv("SCRAPED_MEETINGS_DOCX_TO_PDF") or "true"
+    ).strip().lower()
+    return v not in ("0", "false", "no", "off")
+
+
+def _find_libreoffice_executable() -> Optional[str]:
+    for name in ("libreoffice", "soffice"):
+        hit = shutil.which(name)
+        if hit:
+            return hit
+    return None
+
+
+def _convert_office_file_to_pdf_sync(src_office: Path) -> Tuple[Optional[Path], str]:
+    """
+    Run LibreOffice headless to produce ``<stem>.pdf`` next to ``.docx`` / ``.doc``, then delete the
+    office file when conversion succeeds.
+    """
+    if not src_office.is_file():
+        return None, "missing_office_file"
+    exe = _find_libreoffice_executable()
+    if not exe:
+        return None, "libreoffice_not_on_path"
+    out_dir = src_office.parent
+    try:
+        subprocess.run(
+            [
+                exe,
+                "--headless",
+                "--nodefault",
+                "--nolockcheck",
+                "--convert-to",
+                "pdf",
+                "--outdir",
+                str(out_dir.resolve()),
+                str(src_office.resolve()),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=240,
+        )
+    except subprocess.TimeoutExpired:
+        return None, "libreoffice_timeout"
+    except subprocess.CalledProcessError as exc:
+        tail = ((exc.stderr or "") + (exc.stdout or ""))[:400]
+        return None, f"libreoffice_rc={exc.returncode}:{tail!r}"
+    except OSError as exc:
+        return None, f"libreoffice_oserror:{exc!r}"
+    pdf_path = src_office.with_suffix(".pdf")
+    if not pdf_path.is_file() or pdf_path.stat().st_size < 40:
+        return None, "libreoffice_missing_pdf_output"
+    try:
+        src_office.unlink(missing_ok=True)
+    except OSError as exc:
+        logger.warning("meetings_office_unlink_failed path={} detail={}", src_office, repr(exc))
+    return pdf_path, ""
+
+
+# Tuscaloosa + Big Timber pilot cache trees (matches default Colab Drive sync set).
+_MEETINGS_PDF_PNG_INVENTORY_PREFIXES: Tuple[str, ...] = (
+    "AL/county/county_01125",
+    "MT/county/county_30097",
+    "AL/municipality/municipality_0177256",
+    "MT/municipality/municipality_3006475",
+)
+
+
+def _meetings_pdf_to_png_mode() -> str:
+    """``inventory`` (default), ``all`` under meetings root, or ``off``."""
+    v = (os.getenv("SCRAPED_MEETINGS_PDF_TO_PNG") or "inventory").strip().lower()
+    if v in ("0", "false", "no", "off"):
+        return "off"
+    if v == "all":
+        return "all"
+    return "inventory"
+
+
+def _meetings_pdf_to_png_dpi() -> int:
+    raw = (os.getenv("SCRAPED_MEETINGS_PDF_TO_PNG_DPI") or "150").strip()
+    try:
+        d = int(raw)
+    except ValueError:
+        return 150
+    return max(36, min(600, d))
+
+
+def _pdf_path_eligible_for_png_pages(pdf_path: Path, meetings_root: Path, mode: str) -> bool:
+    if mode == "off":
+        return False
+    try:
+        root = meetings_root.resolve()
+        rel = pdf_path.resolve().relative_to(root)
+    except (ValueError, OSError):
+        return False
+    rel_s = rel.as_posix()
+    if mode == "all":
+        return True
+    for prefix in _MEETINGS_PDF_PNG_INVENTORY_PREFIXES:
+        if rel_s == prefix or rel_s.startswith(prefix + "/"):
+            return True
+    return False
+
+
+def _write_pdf_sibling_png_pages_sync(pdf_path: Path) -> Tuple[int, str]:
+    """
+    Rasterize ``pdf_path`` to ``<stem>.page_NNN.png`` siblings (one file per page).
+
+    Returns ``(page_count, error_message)``. ``error_message`` is empty on success (``page_count`` may be 0
+    if the PDF has no pages). Requires ``pdf2image`` and poppler (``pdftoppm``).
+    """
+    if not pdf_path.is_file():
+        return 0, "missing_pdf_file"
+    try:
+        from pdf2image import convert_from_path, pdfinfo_from_path
+    except ModuleNotFoundError:
+        return 0, "pdf2image_not_installed"
+    parent = pdf_path.parent
+    stem = pdf_path.stem
+    try:
+        for old in parent.glob(f"{stem}.page_*.png"):
+            try:
+                old.unlink(missing_ok=True)
+            except OSError:
+                pass
+        info = pdfinfo_from_path(str(pdf_path))
+        n = int(info.get("Pages") or 0)
+    except Exception as exc:
+        return 0, f"pdfinfo_failed:{exc!r}"
+    if n < 1:
+        return 0, ""
+    dpi = _meetings_pdf_to_png_dpi()
+    written = 0
+    for i in range(1, n + 1):
+        try:
+            pages = convert_from_path(
+                str(pdf_path),
+                dpi=dpi,
+                first_page=i,
+                last_page=i,
+            )
+        except Exception as exc:
+            return written, f"convert_page_{i}:{exc!r}"
+        if not pages:
+            return written, f"empty_page_{i}"
+        out_png = parent / f"{stem}.page_{i:03d}.png"
+        try:
+            pages[0].save(out_png, format="PNG")
+            written += 1
+        except Exception as exc:
+            return written, f"save_page_{i}:{exc!r}"
+    return written, ""
+
+
+def _meetings_mp3_to_opus_enabled() -> bool:
+    """Default **on**. Set ``SCRAPED_MEETINGS_MP3_TO_OPUS=false`` to keep downloaded ``.mp3`` / ``.m4a`` / ``.wav``."""
+    v = (os.getenv("SCRAPED_MEETINGS_MP3_TO_OPUS") or "1").strip().lower()
+    return v not in ("0", "false", "no", "off")
+
+
+def _meetings_delete_mp3_after_opus() -> bool:
+    """Default **on**. Set ``SCRAPED_MEETINGS_DELETE_MP3_AFTER_OPUS=false`` to retain the source audio after Opus."""
+    v = (os.getenv("SCRAPED_MEETINGS_DELETE_MP3_AFTER_OPUS") or "1").strip().lower()
+    return v not in ("0", "false", "no", "off")
+
+
+def _convert_meeting_audio_to_opus_sync(src_audio: Path, _source_suffix: str) -> Tuple[Optional[Path], str]:
+    """
+    Transcode meeting audio to ``<stem>.opus`` via ``ffmpeg`` (``libopus``), then delete ``src_audio`` when
+    :func:`_meetings_delete_mp3_after_opus` is true and the Opus output passes the minimum size check.
+    """
+    if not src_audio.is_file():
+        return None, "missing_audio_file"
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        return None, "ffmpeg_not_on_path"
+    opus_path = src_audio.with_suffix(".opus")
+    try:
+        opus_path.unlink(missing_ok=True)
+    except OSError:
+        pass
+    try:
+        subprocess.run(
+            [
+                ffmpeg,
+                "-y",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-i",
+                str(src_audio.resolve()),
+                "-vn",
+                "-c:a",
+                "libopus",
+                "-b:a",
+                "96k",
+                str(opus_path.resolve()),
+            ],
+            check=True,
+            capture_output=True,
+            timeout=900,
+        )
+    except subprocess.TimeoutExpired:
+        opus_path.unlink(missing_ok=True)
+        return None, "ffmpeg_opus_timeout"
+    except subprocess.CalledProcessError as exc:
+        err_b = (exc.stderr or b"") + (exc.stdout or b"")
+        tail = err_b[:500].decode("utf-8", errors="replace")
+        opus_path.unlink(missing_ok=True)
+        return None, f"ffmpeg_opus_rc={exc.returncode}:{tail!r}"
+    except OSError as exc:
+        opus_path.unlink(missing_ok=True)
+        return None, f"ffmpeg_opus_oserror:{exc!r}"
+    try:
+        sz = opus_path.stat().st_size
+    except OSError:
+        opus_path.unlink(missing_ok=True)
+        return None, "opus_stat_failed"
+    min_b = _meetings_min_opus_bytes_for_mp4_cleanup()
+    if sz < min_b:
+        try:
+            opus_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        return None, f"opus_too_small_bytes={sz}"
+    if _meetings_delete_mp3_after_opus():
+        try:
+            src_audio.unlink(missing_ok=True)
+        except OSError as exc:
+            logger.warning("meetings_audio_unlink_failed path={} detail={}", src_audio, repr(exc))
+    return opus_path, ""
 
 
 def _pdf_download_url_candidates(pdf_url: str) -> List[str]:
@@ -345,8 +992,9 @@ async def _fetch_pdf_with_referers(
     referers: List[str],
 ) -> tuple[Optional[httpx.Response], str]:
     """
-    GET a PDF URL with ``Referer`` hints (listing page, then homepage). Returns ``(response, "")``
-    when ``_http_response_is_pdf``, else ``(None, diagnostic)``.
+    GET a meeting-document URL with ``Referer`` hints (listing page, then homepage).
+
+    Returns ``(response, "")`` when the body matches the expected type (PDF, ``.docx``, …).
     """
     detail = ""
     for fetch_u in _pdf_download_url_candidates(pdf_url):
@@ -369,53 +1017,64 @@ async def _fetch_pdf_with_referers(
             if not pr.content:
                 detail = f"{fetch_u!r}:empty_body"
                 continue
-            if _http_response_is_pdf(pr):
+            if _http_response_is_acceptable_meeting_download(pr, fetch_u):
                 return pr, ""
             ct = pr.headers.get("content-type", "")
             prefix = (pr.content or b"")[:80]
-            detail = f"{fetch_u!r}:non_pdf ct={ct!r} prefix={prefix!r}"
+            detail = f"{fetch_u!r}:unexpected_body ct={ct!r} prefix={prefix!r}"
     return None, detail or "no_referer_matched"
+
+
+def _simbli_agenda_html_to_pdf_enabled() -> bool:
+    v = (os.getenv("SCRAPED_MEETINGS_SIMBLI_HTML_TO_PDF") or "true").strip().lower()
+    return v not in ("0", "false", "no", "off")
+
+
+async def _print_simbli_agenda_html_to_pdf_bytes(
+    url: str,
+    referers: List[str],
+    *,
+    timeout_s: float,
+    user_agent: str,
+) -> Tuple[Optional[bytes], str]:
+    """
+    Render a Simbli-style HTML agenda/minutes URL to PDF bytes via Playwright.
+
+    Tries each non-empty Referer (listing page, then homepage); falls back to self-referer.
+    """
+    timeout_ms = int(max(45_000, min(240_000, float(timeout_s) * 1000)))
+    last_why = ""
+    any_ref = False
+    for ref in referers:
+        rref = _strip_fragment(ref).strip()
+        if not rref:
+            continue
+        any_ref = True
+        pdf_bytes, why = await print_agenda_html_page_to_pdf_via_playwright(
+            url,
+            referer=rref,
+            timeout_ms=timeout_ms,
+            user_agent=user_agent,
+        )
+        if pdf_bytes:
+            return pdf_bytes, ""
+        last_why = why
+    fallback_ref = _strip_fragment(url).strip() or url
+    pdf_bytes, why = await print_agenda_html_page_to_pdf_via_playwright(
+        url,
+        referer=fallback_ref,
+        timeout_ms=timeout_ms,
+        user_agent=user_agent,
+    )
+    if pdf_bytes:
+        return pdf_bytes, ""
+    return None, why or last_why or ("no_referer_for_html_print" if not any_ref else "html_print_failed")
 
 
 def _jurisdiction_type_from_id(jurisdiction_id: str) -> str:
     if "_" in jurisdiction_id:
         return jurisdiction_id.split("_", 1)[0]
     return "unknown"
-
-
-def _infer_year(url: str, fallback: int) -> int:
-    """
-    Pick a calendar year from the URL for output folder names.
-
-    Regex ``finditer`` does not overlap, so ``01202026`` (Jan 20, 2026) only matched ``2020``.
-    Prefer an **overlapping** scan on the decoded filename stem, then fall back to the last
-    ``20xx`` in the full URL (``%2001`` in encoded paths can look like year 2001 — unquote first).
-    """
-    path = unquote(urlparse(url).path or "")
-    stem = Path(path).stem
-    found: List[Tuple[int, int]] = []
-    for i in range(0, max(0, len(stem) - 3)):
-        if stem[i : i + 2] != "20" or i + 4 > len(stem):
-            continue
-        if not stem[i + 2 : i + 4].isdigit():
-            continue
-        y = int(stem[i : i + 4])
-        if 1990 <= y <= 2100:
-            found.append((i, y))
-    if found:
-        return found[-1][1]
-    decoded = unquote(url)
-    years: List[int] = []
-    for m in YEAR_IN_PATH.finditer(decoded):
-        try:
-            y = int(m.group(1))
-            if 1990 <= y <= 2100:
-                years.append(y)
-        except ValueError:
-            continue
-    if years:
-        return years[-1]
-    return fallback
 
 
 def _load_homepage_candidates_from_db(jurisdiction_id: str) -> List[str]:
@@ -864,6 +1523,13 @@ def _is_suiteone_style_mp4_asset(url: str, platform: str = "", found_via: str = 
     low = (url or "").lower()
     if not low.startswith("http") or ".mp4" not in low:
         return False
+    try:
+        host = (urlparse(url).hostname or "").lower()
+    except ValueError:
+        host = ""
+    # Sweet Grass County MT posts commissioner recordings as direct MP4 on wp-content (WordPress).
+    if host.endswith("sgcountymt.gov"):
+        return True
     if platform == "suiteone_s3_mp4":
         return True
     if "suiteone" in low and "amazonaws.com" in low and "videofiles" in low:
@@ -1079,6 +1745,10 @@ class MeetingsScrapeResult:
     homepage_url_candidates: List[str] = field(default_factory=list)
     homepage_probe_failures: List[str] = field(default_factory=list)
     extracted_contacts: Dict[str, Any] = field(default_factory=dict)
+    contact_directory_pages: List[Dict[str, Any]] = field(default_factory=list)
+    structured_contact_rows: List[Dict[str, Any]] = field(default_factory=list)
+    scrape_batch_id: str = ""
+    contact_profile_images: List[Dict[str, Any]] = field(default_factory=list)
 
 
 _DEFAULT_UA = (
@@ -1244,13 +1914,72 @@ def _meetings_contact_extract_enabled() -> bool:
     return v not in ("0", "false", "no", "off")
 
 
-class ComprehensiveDiscoveryPipelineMeetings:
+def _structured_contact_extract_enabled() -> bool:
+    v = (os.getenv("SCRAPED_CONTACT_STRUCTURED_EXTRACT") or "true").strip().lower()
+    return v not in ("0", "false", "no", "off")
+
+
+def _contact_profile_images_enabled() -> bool:
+    v = (os.getenv("SCRAPED_CONTACT_PROFILE_IMAGES") or "true").strip().lower()
+    return v not in ("0", "false", "no", "off")
+
+
+def _contact_profile_image_max() -> int:
+    try:
+        return max(1, min(200, int((os.getenv("SCRAPED_CONTACT_PROFILE_IMAGE_MAX") or "48").strip())))
+    except ValueError:
+        return 48
+
+
+def _person_photo_nav_boost_min() -> int:
+    try:
+        return max(0, min(40, int((os.getenv("SCRAPED_CONTACT_PHOTO_NAV_BOOST_MIN") or "4").strip())))
+    except ValueError:
+        return 4
+
+
+def _simbli_meeting_listing_needs_playwright_html(url: str, html: str) -> bool:
+    """
+    Simbli ``SB_MeetingListing.aspx`` frequently returns a **small shell** over plain HTTP while the
+    meeting grid is populated client-side — the scraper needs Chromium to enumerate rows.
+
+    Threshold configurable via ``SCRAPED_MEETINGS_SIMBLI_LISTING_MIN_HTML_CHARS`` (default ``8000``).
+    """
+    if not playwright_fallback_enabled():
+        return False
+    if not is_simbli_eboard_host(url):
+        return False
+    try:
+        pq = (urlparse(url).path + "?" + urlparse(url).query).lower()
+    except Exception:
+        pq = ""
+    if "meetinglisting.aspx" not in pq:
+        return False
+    try:
+        min_chars = int((os.getenv("SCRAPED_MEETINGS_SIMBLI_LISTING_MIN_HTML_CHARS") or "8000").strip())
+    except ValueError:
+        min_chars = 8000
+    blob = (html or "").lower()
+    if len(html or "") < min_chars:
+        return True
+    return "viewmeeting(" not in blob
+
+
+class ComprehensiveDiscoveryPipelineJurisdiction:
     """
     Scrape meeting-related pages and download PDFs under the resolved output root (default
     ``data/cache/scraped_meetings`` in the repo unless ``SCRAPED_MEETINGS_ROOT`` / ``--output-root``).
 
+    Also flags board/council/officials **directory-style** HTML (heuristics + optional
+    ``contact_seed_urls``) and extracts structured person rows into the manifest and optionally
+    ``bronze.bronze_contacts_scraped``.
+
     ``max_pdfs`` caps **PDF GETs only**; the HTML crawl (navigation, ``other_video_streams``, …)
     continues until ``max_pages`` so vendor pages with MP4s are still reached after many agendas.
+
+    With ``resume=True``, loads ``_crawl_state.json`` (frontier queue + ``visited``). ``max_pages`` is a
+    **total** ceiling on distinct HTML URLs fetched across runs (already recorded in ``visited``
+    still counts). Each completed run writes an updated ``_crawl_state.json``.
     """
 
     def __init__(
@@ -1330,6 +2059,18 @@ class ComprehensiveDiscoveryPipelineMeetings:
                 )
                 return None, f"non_html:{nh}", str(r.url)
             text = r.text
+            resp_final = str(r.url)
+            if _simbli_meeting_listing_needs_playwright_html(url, text):
+                phtml, perr, pfinal = await fetch_html_via_playwright(
+                    url, timeout_ms=timeout_ms, user_agent=_DEFAULT_UA
+                )
+                if phtml and len(phtml) > len(text):
+                    logger.info(
+                        f"meetings_playwright_ok_simbli_meeting_listing url={url!r} "
+                        f"httpx_chars={len(text)} playwright_chars={len(phtml)}",
+                    )
+                    text = phtml
+                    resp_final = str(pfinal)
             captcha_hint = _captcha_or_bot_wall_reason(text, r.headers)
             if captcha_hint:
                 phtml, perr, pfinal = await fetch_html_via_playwright(
@@ -1350,8 +2091,8 @@ class ComprehensiveDiscoveryPipelineMeetings:
                     signal=captcha_hint,
                     html_chars=len(text),
                 )
-                return None, f"captcha:{captcha_hint}", str(r.url)
-            return text, "", str(r.url)
+                return None, f"captcha:{captcha_hint}", resp_final
+            return text, "", resp_final
         except httpx.TimeoutException as exc:
             reason = f"timeout:{type(exc).__name__}"
             logfn = logger.debug if _is_probable_site_search_probe(url) else logger.warning
@@ -1567,6 +2308,12 @@ class ComprehensiveDiscoveryPipelineMeetings:
         if not uniq and _meetings_home_url_is_actionable(passed_canon):
             uniq = [passed_canon]
 
+        # Explicit job URL (--url / batch row) beats warehouse order (NACO/GSA may lag the live site).
+        if _meetings_home_url_is_actionable(passed_canon):
+            pk = _strip_fragment(passed_canon)
+            uniq = [u for u in uniq if _strip_fragment(u) != pk]
+            uniq.insert(0, passed_canon)
+
         if not uniq:
             return "", [], ["no_homepage_candidates"]
 
@@ -1606,6 +2353,9 @@ class ComprehensiveDiscoveryPipelineMeetings:
         jtype: str,
         homepage_url: str,
         skip_output_root_mkdir: bool = False,
+        resume: bool = False,
+        contact_seed_urls: Optional[List[str]] = None,
+        persist_contacts_db: bool = False,
     ) -> MeetingsScrapeResult:
         st = (state or "").strip().upper()
         jid = jurisdiction_pk_from_geoid(geoid, jtype)
@@ -1614,42 +2364,26 @@ class ComprehensiveDiscoveryPipelineMeetings:
 
         initial_hp = _canonical_homepage_url(homepage_url or "")
         logger.info(
-            "meetings_scrape_start jurisdiction={} geoid={} state={} homepage={}",
+            "meetings_scrape_start jurisdiction={} geoid={} state={} homepage={} resume={}",
             jid,
             geoid,
             st,
             (initial_hp[:160] + "...") if len(initial_hp) > 160 else initial_hp,
+            resume,
         )
 
         year_now = datetime.now(timezone.utc).year
-        stack_hints: List[str] = []
+        scrape_batch_id = str(uuid.uuid4())
         result = MeetingsScrapeResult(
             jurisdiction_id=jid,
             state=st,
             homepage_url=initial_hp,
             root_dir=self.output_root,
+            scrape_batch_id=scrape_batch_id,
         )
 
         if not skip_output_root_mkdir:
             _mkdir_from_existing_ancestor(self.output_root)
-
-        visited: Set[str] = set()
-        queued: Set[str] = set()
-        to_visit: List[str] = []
-        pdfs_seen: Set[str] = set()
-        youtube_seen: Set[str] = set()
-        other_stream_seen: Set[str] = set()
-        pdf_count = 0
-        search_seeded = False
-        contact_page_rows: List[Dict[str, Any]] = []
-        sitemap_summary: Optional[Dict[str, Any]] = None
-
-        def _enqueue(u: str) -> None:
-            nu = _strip_fragment(u)
-            if nu in queued:
-                return
-            queued.add(nu)
-            to_visit.append(u)
 
         headers = {
             "User-Agent": _DEFAULT_UA,
@@ -1664,6 +2398,9 @@ class ComprehensiveDiscoveryPipelineMeetings:
         base_dir = self._jurisdiction_base_dir(st, jid)
         snap_dir = base_dir / "_crawl_html"
         snap_dir.mkdir(parents=True, exist_ok=True)
+        state_path = base_dir / MEETINGS_CRAWL_STATE_FILENAME
+        manifest_disk_path = base_dir / "_manifest.json"
+        prior_manifest_for_merge: Dict[str, Any] = {}
 
         async with httpx.AsyncClient(
             timeout=timeout,
@@ -1680,9 +2417,144 @@ class ComprehensiveDiscoveryPipelineMeetings:
             result.homepage_url_candidates = home_cands
             result.homepage_probe_failures = home_probe_failures
 
-            # Homepage first; WordPress / OpenCivic search URLs are added only after HTML detection
-            # (avoids ``/?s=webcast`` noise on Revize, Granicus, static sites, …).
-            if _meetings_home_url_is_actionable(hp):
+            visited: Set[str] = set()
+            queued: Set[str] = set()
+            to_visit: List[str] = []
+            pdfs_seen: Set[str] = set()
+            youtube_seen: Set[str] = set()
+            other_stream_seen: Set[str] = set()
+            pdf_count = 0
+            search_seeded = False
+            contact_page_rows: List[Dict[str, Any]] = []
+            stack_hints: List[str] = []
+            sitemap_summary: Optional[Dict[str, Any]] = None
+            resume_mode: Optional[str] = None
+            prior_manifest: Dict[str, Any] = {}
+
+            def _enqueue(u: str) -> None:
+                nu = _strip_fragment(u)
+                if nu in queued:
+                    return
+                queued.add(nu)
+                to_visit.append(u)
+
+            def _enqueue_many_front(urls: List[str]) -> None:
+                """Insert ``urls`` at the front of the frontier, preserving order (first = next fetch)."""
+                front: List[str] = []
+                for u in urls:
+                    nu = _strip_fragment(u)
+                    if nu in queued:
+                        continue
+                    queued.add(nu)
+                    front.append(u)
+                if front:
+                    to_visit[:] = front + to_visit
+
+            if resume:
+                prior_manifest = _safe_load_json_dict(manifest_disk_path)
+                pj = str(prior_manifest.get("jurisdiction_id") or "").strip()
+                manifest_jid_ok = pj == jid
+                if pj and pj != jid:
+                    logger.warning(
+                        "meetings_resume_manifest_jurisdiction_mismatch expected={} got={}",
+                        jid,
+                        pj,
+                    )
+                    prior_manifest = {}
+                    manifest_jid_ok = False
+                elif manifest_jid_ok:
+                    prior_manifest_for_merge = prior_manifest
+                    _hydrate_result_from_prior_manifest(result, prior_manifest)
+                    youtube_seen = {
+                        str(r.get("url") or "").strip() for r in result.youtube if r.get("url")
+                    }
+                    other_stream_seen = {
+                        str(r.get("url") or "").strip()
+                        for r in result.other_video_streams
+                        if r.get("url")
+                    }
+                    pdfs_seen = {
+                        _normalize_http_url_path_encoding(str(r["url"]).strip())
+                        for r in result.pdfs_downloaded
+                        if r.get("url")
+                    }
+                    pdf_count = len(result.pdfs_downloaded)
+                    stack_hints = list(result.detected_stacks or [])
+
+                if manifest_jid_ok:
+                    st_raw = _safe_load_json_dict(state_path)
+                    if (
+                        int(st_raw.get("schema_version") or 0) == MEETINGS_CRAWL_STATE_SCHEMA_VERSION
+                        and str(st_raw.get("jurisdiction_id") or "").strip() == jid
+                    ):
+                        resume_mode = "state"
+                        visited = {str(x) for x in (st_raw.get("visited") or [])}
+                        queued = {str(x) for x in (st_raw.get("queued") or [])}
+                        to_visit = list(st_raw.get("to_visit") or [])
+                        search_seeded = bool(st_raw.get("search_seeded"))
+                        pdf_count = max(pdf_count, int(st_raw.get("pdf_count") or 0))
+                        pdfs_seen = pdfs_seen | {
+                            _normalize_http_url_path_encoding(str(x))
+                            for x in (st_raw.get("pdfs_seen") or [])
+                            if x
+                        }
+                        youtube_seen = youtube_seen | {str(x) for x in (st_raw.get("youtube_seen") or []) if x}
+                        other_stream_seen = other_stream_seen | {
+                            str(x) for x in (st_raw.get("other_stream_seen") or []) if x
+                        }
+                        rows = st_raw.get("contact_page_rows")
+                        contact_page_rows = list(rows) if isinstance(rows, list) else []
+                        sh = st_raw.get("stack_hints")
+                        if isinstance(sh, list) and sh:
+                            stack_hints = list(sh)
+                            result.detected_stacks = list(stack_hints)
+                        hp_saved = str(st_raw.get("resolved_homepage_url") or "").strip()
+                        if hp_saved and not (hp or "").strip():
+                            hp = hp_saved
+                            result.homepage_url = hp
+                        sitemap_summary = prior_manifest.get("sitemaps")
+                        logger.info(
+                            "meetings_resume_state jurisdiction={} visited={} queue_pending={} pdf_count={}",
+                            jid,
+                            len(visited),
+                            len(to_visit),
+                            pdf_count,
+                        )
+                    elif prior_manifest.get("pages_fetched"):
+                        resume_mode = "bootstrap"
+                        visited = {
+                            _strip_fragment(str(u)) for u in (prior_manifest.get("pages_fetched") or []) if u
+                        }
+                        queued = set(visited)
+                        to_visit = []
+                        search_seeded = bool(hp and _strip_fragment(hp) in visited)
+                        stack_hints = list(result.detected_stacks or [])
+                        bp = prior_manifest.get("extracted_contacts") or {}
+                        bprows = bp.get("by_page") if isinstance(bp, dict) else None
+                        contact_page_rows = list(bprows) if isinstance(bprows, list) else []
+                        recovered = _recover_suiteone_event_urls_from_snapshots(
+                            snap_dir,
+                            visited,
+                            page_urls_for_hosts=list(prior_manifest.get("pages_fetched") or []),
+                        )
+                        for u in recovered:
+                            _enqueue(u)
+                        logger.warning(
+                            "meetings_resume_bootstrap jurisdiction={} recovered_event_urls={} "
+                            "(no valid _crawl_state.json; using manifest + HTML snapshots)",
+                            jid,
+                            len(recovered),
+                        )
+
+            structured_contact_rows_accum = list(result.structured_contact_rows)
+            contact_directory_pages = list(result.contact_directory_pages)
+            contact_profile_images_accum: List[Dict[str, Any]] = list(result.contact_profile_images)
+
+            should_seed_home_and_sitemap = resume_mode != "state"
+
+            if should_seed_home_and_sitemap and _meetings_home_url_is_actionable(hp):
+                # Homepage first; WordPress / OpenCivic search URLs are added only after HTML detection
+                # (avoids ``/?s=webcast`` noise on Revize, Granicus, static sites, …).
                 _enqueue(hp)
                 emb = suiteonemedia_embed_index_url(hp)
                 if emb:
@@ -1737,8 +2609,24 @@ class ComprehensiveDiscoveryPipelineMeetings:
                         exc,
                     )
                     result.errors.append(f"sitemap_seed:{exc!r}")
-            else:
+            elif should_seed_home_and_sitemap:
                 result.errors.append("no_usable_homepage_url")
+
+            contact_seed_list = merged_contact_seed_urls(jid, contact_seed_urls)
+            contact_seed_norm: Set[str] = set()
+            front_seeds: List[str] = []
+            for su in contact_seed_list:
+                au = _expand_contact_seed_url((hp or initial_hp or "").strip(), su)
+                if au:
+                    contact_seed_norm.add(_strip_fragment(au))
+                    front_seeds.append(au)
+            if front_seeds:
+                _enqueue_many_front(front_seeds)
+                logger.info(
+                    "jurisdiction_contact_seed_urls jurisdiction={} n={}",
+                    jid,
+                    len(front_seeds),
+                )
 
             while to_visit and len(visited) < self.max_pages:
                 url = to_visit.pop(0)
@@ -1779,6 +2667,72 @@ class ComprehensiveDiscoveryPipelineMeetings:
                 emb_idx = suiteonemedia_embed_index_url(page_ctx)
                 if emb_idx:
                     _enqueue(emb_idx)
+
+                cdir = classify_contact_directory_page(page_ctx, html)
+                seed_hit = _strip_fragment(page_ctx) in contact_seed_norm
+                flagged = bool(cdir.get("is_directory")) or seed_hit
+                if flagged:
+                    rec = {**cdir, "page_url": page_ctx, "is_directory": True}
+                    if seed_hit:
+                        rec["directory_kind"] = str(rec.get("directory_kind") or "seed_url")
+                        ms = list(rec.get("matched_signals") or [])
+                        ms.append("cli_seed_url")
+                        rec["matched_signals"] = ms
+                    contact_directory_pages.append(rec)
+
+                page_structured: List[Dict[str, Any]] = []
+                if _structured_contact_extract_enabled() and flagged:
+                    page_structured = extract_structured_contacts_from_html(html, page_ctx)
+                    for prow in page_structured:
+                        prow["source_page_url"] = page_ctx
+                        prow["page_classification"] = str(
+                            cdir.get("directory_kind") or ("seed_url" if seed_hit else "unknown")
+                        )
+                        prow["directory_score"] = int(cdir.get("score") or 0)
+                        structured_contact_rows_accum.append(prow)
+
+                if _contact_profile_images_enabled() and flagged:
+                    img_dir = base_dir / "_contact_images"
+                    jobs = extract_profile_image_jobs(
+                        html,
+                        page_ctx,
+                        max_jobs=_contact_profile_image_max(),
+                    )
+                    seen_img: Set[str] = {str(j.get("image_url") or "") for j in jobs}
+                    for prow in page_structured:
+                        pu = (prow.get("profile_image_url") or "").strip()
+                        if not pu or pu in seen_img:
+                            continue
+                        seen_img.add(pu)
+                        jobs.append(
+                            {
+                                "person_name": prow.get("person_name"),
+                                "title_or_role": prow.get("title_or_role"),
+                                "image_url": pu,
+                                "match_method": "json_ld_person_row",
+                            }
+                        )
+                    if jobs:
+                        try:
+                            dl_rows = await download_profile_images(
+                                client,
+                                jobs,
+                                img_dir,
+                                referer=page_ctx,
+                                max_images=_contact_profile_image_max(),
+                            )
+                            for dr in dl_rows:
+                                fn = dr.get("saved_filename")
+                                rel = f"_contact_images/{fn}" if fn else ""
+                                contact_profile_images_accum.append(
+                                    {
+                                        **dr,
+                                        "discovered_on": page_ctx,
+                                        "saved_relative_path": rel or None,
+                                    }
+                                )
+                        except Exception as exc:
+                            result.errors.append(f"contact_profile_images:{exc!r}")
 
                 if _meetings_contact_extract_enabled():
                     chunk = extract_contacts_from_page(html, page_ctx)
@@ -1845,58 +2799,273 @@ class ComprehensiveDiscoveryPipelineMeetings:
                         result.errors.append(f"snapshot_readable_build:{txt_path}:{exc!r}")
 
                 if pdf_count < self.max_pdfs:
-                    for pdf_raw, anchor_text in self._extract_pdf_pairs(html, page_ctx, hp):
+                    pdf_jobs = [
+                        ("pdf", u, a) for u, a in self._extract_pdf_pairs(html, page_ctx, hp)
+                    ]
+                    html_jobs: List[Tuple[str, str, str]] = []
+                    if _simbli_agenda_html_to_pdf_enabled():
+                        html_jobs = [
+                            ("html_print", u, a)
+                            for u, a in extract_simbli_agenda_minutes_html_pairs(html, page_ctx, hp)
+                        ]
+                    for kind, pdf_raw, anchor_text in pdf_jobs + html_jobs:
                         pdf = _normalize_http_url_path_encoding(pdf_raw)
                         if pdf in pdfs_seen:
                             continue
                         pdfs_seen.add(pdf)
-                        y = _infer_year(pdf, year_now)
+                        doc_label = classify_document(pdf, anchor_text)
+                        y = infer_calendar_folder_year(
+                            pdf,
+                            anchor_text,
+                            doc_label,
+                            fallback_year=year_now,
+                        )
                         dest_dir = self._target_dir(st, jid, y)
                         dest_dir.mkdir(parents=True, exist_ok=True)
-                        fname = _meeting_pdf_disk_filename(pdf)
-                        dest = dest_dir / fname
+                        storage_suffix = meeting_document_storage_suffix(pdf)
+                        dest = allocate_unique_pdf_path(
+                            dest_dir,
+                            pdf,
+                            anchor_text,
+                            doc_label,
+                            year_fallback=str(y),
+                            storage_suffix=storage_suffix,
+                        )
                         try:
-                            pr, why = await _fetch_pdf_with_referers(
-                                client, pdf, referers=[page_ctx, fetch_url, hp]
-                            )
-                            if pr is not None:
-                                dest.write_bytes(pr.content)
-                                result.pdfs_downloaded.append(
-                                    {
-                                        "url": pdf,
-                                        "path": str(dest),
-                                        # Calendar year as string in JSON (avoids int in manifests / TS strict JSON).
-                                        "year": str(y),
-                                        "bytes": len(pr.content),
-                                        "doc_type": classify_document(pdf, anchor_text),
-                                        "anchor_text": (anchor_text or "")[:500],
-                                    }
+                            blob: Optional[bytes] = None
+                            why = ""
+                            if kind == "pdf":
+                                pr, why = await _fetch_pdf_with_referers(
+                                    client, pdf, referers=[page_ctx, fetch_url, hp]
                                 )
+                                if pr is not None:
+                                    blob = pr.content
+                            else:
+                                blob, why = await _print_simbli_agenda_html_to_pdf_bytes(
+                                    pdf,
+                                    referers=[page_ctx, fetch_url, hp],
+                                    timeout_s=self.timeout_s,
+                                    user_agent=_DEFAULT_UA,
+                                )
+                            if blob is not None:
+                                dest.write_bytes(blob)
+                                final_dest = dest
+                                final_suffix = storage_suffix
+                                converted_from: Optional[str] = None
+                                out_bytes = len(blob)
+                                if (
+                                    kind == "pdf"
+                                    and storage_suffix in (".docx", ".doc")
+                                    and _meetings_office_to_pdf_enabled()
+                                ):
+                                    pdf_out, conv_why = await asyncio.to_thread(
+                                        _convert_office_file_to_pdf_sync, dest
+                                    )
+                                    if pdf_out is not None:
+                                        final_dest = pdf_out
+                                        final_suffix = ".pdf"
+                                        converted_from = storage_suffix
+                                        try:
+                                            blob = final_dest.read_bytes()
+                                            out_bytes = len(blob)
+                                        except OSError as exc:
+                                            result.errors.append(f"office_pdf_read:{pdf}:{exc!r}")
+                                            try:
+                                                out_bytes = int(final_dest.stat().st_size)
+                                            except OSError:
+                                                out_bytes = 0
+                                    elif conv_why:
+                                        result.errors.append(f"office_to_pdf:{pdf}:{conv_why}")
+                                if (
+                                    kind == "pdf"
+                                    and storage_suffix in (".mp3", ".m4a", ".wav")
+                                    and _meetings_mp3_to_opus_enabled()
+                                ):
+                                    opus_out, owhy = await asyncio.to_thread(
+                                        _convert_meeting_audio_to_opus_sync, final_dest, storage_suffix
+                                    )
+                                    if opus_out is not None:
+                                        final_dest = opus_out
+                                        final_suffix = ".opus"
+                                        if converted_from is None:
+                                            converted_from = storage_suffix
+                                        try:
+                                            out_bytes = int(final_dest.stat().st_size)
+                                        except OSError as exc:
+                                            result.errors.append(f"opus_stat:{pdf}:{exc!r}")
+                                    elif owhy:
+                                        result.errors.append(f"audio_to_opus:{pdf}:{owhy}")
+                                row: Dict[str, Any] = {
+                                    "url": pdf,
+                                    "path": str(final_dest),
+                                    # Calendar year as string in JSON (avoids int in manifests / TS strict JSON).
+                                    "year": str(y),
+                                    "bytes": out_bytes,
+                                    "doc_type": doc_label,
+                                    "anchor_text": (anchor_text or "")[:500],
+                                    "storage_suffix": final_suffix,
+                                }
+                                if converted_from:
+                                    row["converted_from_suffix"] = converted_from
+                                if kind == "html_print":
+                                    row["source_kind"] = "html_print"
+                                    row["renderer"] = "playwright_pdf"
+                                if final_suffix == ".pdf":
+                                    png_mode = _meetings_pdf_to_png_mode()
+                                    if _pdf_path_eligible_for_png_pages(
+                                        final_dest, self.output_root, png_mode
+                                    ):
+                                        _n_png, png_err = await asyncio.to_thread(
+                                            _write_pdf_sibling_png_pages_sync, final_dest
+                                        )
+                                        if png_err:
+                                            result.errors.append(f"pdf_to_png:{pdf}:{png_err}")
+                                result.pdfs_downloaded.append(row)
                                 pdf_count += 1
                             else:
-                                result.errors.append(f"pdf_rejected_not_pdf:{pdf}:{why}")
+                                label = (
+                                    "document_rejected_bad_body"
+                                    if kind == "pdf"
+                                    else "simbli_html_print_failed"
+                                )
+                                result.errors.append(f"{label}:{pdf}:{why}")
                                 try:
                                     if dest.is_file():
-                                        peek = dest.read_bytes()[:5]
-                                        if not peek.startswith(b"%PDF"):
+                                        peek = dest.read_bytes()[:16]
+                                        suf = meeting_document_storage_suffix(pdf)
+                                        bad = True
+                                        if suf == ".pdf":
+                                            bad = not peek.startswith(b"%PDF")
+                                        elif suf == ".docx":
+                                            bad = not peek.startswith(b"PK\x03\x04")
+                                        elif suf == ".doc":
+                                            bad = not peek.startswith(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1")
+                                        elif suf == ".rtf":
+                                            bad = not peek.lstrip().lower().startswith(b"{\\rtf")
+                                        elif suf == ".pptx":
+                                            bad = not peek.startswith(b"PK\x03\x04")
+                                        elif suf == ".ppt":
+                                            bad = not peek.startswith(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1")
+                                        elif suf == ".mp3":
+                                            bad = not (
+                                                peek.startswith(b"ID3")
+                                                or peek[:2] in (b"\xff\xfb", b"\xff\xfa", b"\xff\xf3")
+                                            )
+                                        elif suf == ".m4a":
+                                            bad = len(peek) < 12 or b"ftyp" not in peek[4:20]
+                                        elif suf == ".wav":
+                                            bad = not peek.startswith(b"RIFF")
+                                        if bad:
                                             dest.unlink(missing_ok=True)
                                 except OSError:
                                     pass
                         except OSError as exc:
                             result.errors.append(f"pdf_write:{pdf}:{exc}")
                         except Exception as exc:
-                            result.errors.append(f"pdf_dl:{pdf}:{exc}")
+                            tag = "pdf_dl" if kind == "pdf" else "html_print"
+                            result.errors.append(f"{tag}:{pdf}:{exc}")
 
                         if pdf_count >= self.max_pdfs:
                             break
 
-                # Enqueue linked meeting pages (not yet visited)
-                for link in self._extract_nav_urls(html, page_ctx, hp):
-                    if PDF_EXT.search(link):
+                # Enqueue linked meeting pages (not yet visited). Simbli listing: prefer ViewMeeting.aspx
+                # URLs in DOM order so top-of-grid meetings run before unrelated nav links exhaust max_pages.
+                nav_links = self._extract_nav_urls(html, page_ctx, hp)
+                if is_simbli_meeting_listing_page_url(page_ctx):
+                    prio: List[str] = []
+                    tail: List[str] = []
+                    for link in nav_links:
+                        if MEETING_DOWNLOAD_EXT.search(link):
+                            continue
+                        low = link.lower()
+                        if "viewmeeting.aspx" in low and "mid=" in low:
+                            prio.append(link)
+                        else:
+                            tail.append(link)
+                    _enqueue_many_front(prio)
+                    nav_links = tail
+                else:
+                    photo_hints = int(cdir.get("person_adjacent_image_score") or 0)
+                    try:
+                        page_host = (urlparse(page_ctx).netloc or "").lower()
+                    except Exception:
+                        page_host = ""
+                    html_nav = [l for l in nav_links if not MEETING_DOWNLOAD_EXT.search(l)]
+                    pdfs_nav = [l for l in nav_links if MEETING_DOWNLOAD_EXT.search(l)]
+                    prio_nav, rest_nav = partition_nav_for_photo_priority(
+                        html_nav,
+                        page_host=page_host,
+                        photo_score=photo_hints,
+                        min_photo_score=_person_photo_nav_boost_min(),
+                    )
+                    if prio_nav:
+                        _enqueue_many_front(prio_nav)
+                    nav_links = rest_nav + pdfs_nav
+                for link in nav_links:
+                    if MEETING_DOWNLOAD_EXT.search(link):
                         continue
                     nu = _strip_fragment(link)
                     if nu not in visited:
                         _enqueue(link)
+
+                if _meetings_crawl_state_each_page_enabled():
+                    for row in result.pdfs_downloaded:
+                        u = row.get("url")
+                        if u:
+                            pdfs_seen.add(_normalize_http_url_path_encoding(str(u).strip()))
+                    pdf_count = len(result.pdfs_downloaded)
+                    for r in result.youtube:
+                        u = r.get("url")
+                        if u:
+                            youtube_seen.add(str(u).strip())
+                    for r in result.other_video_streams:
+                        u = r.get("url")
+                        if u:
+                            other_stream_seen.add(str(u).strip())
+                    _persist_meetings_crawl_state(
+                        state_path,
+                        jurisdiction_id=jid,
+                        resolved_homepage_url=(hp or ""),
+                        visited=visited,
+                        queued=queued,
+                        to_visit=to_visit,
+                        search_seeded=search_seeded,
+                        pdf_count=pdf_count,
+                        pdfs_seen=pdfs_seen,
+                        youtube_seen=youtube_seen,
+                        other_stream_seen=other_stream_seen,
+                        contact_page_rows=contact_page_rows,
+                        stack_hints=stack_hints,
+                    )
+
+            for row in result.pdfs_downloaded:
+                u = row.get("url")
+                if u:
+                    pdfs_seen.add(_normalize_http_url_path_encoding(str(u).strip()))
+            pdf_count = len(result.pdfs_downloaded)
+            for r in result.youtube:
+                u = r.get("url")
+                if u:
+                    youtube_seen.add(str(u).strip())
+            for r in result.other_video_streams:
+                u = r.get("url")
+                if u:
+                    other_stream_seen.add(str(u).strip())
+            _persist_meetings_crawl_state(
+                state_path,
+                jurisdiction_id=jid,
+                resolved_homepage_url=(hp or ""),
+                visited=visited,
+                queued=queued,
+                to_visit=to_visit,
+                search_seeded=search_seeded,
+                pdf_count=pdf_count,
+                pdfs_seen=pdfs_seen,
+                youtube_seen=youtube_seen,
+                other_stream_seen=other_stream_seen,
+                contact_page_rows=contact_page_rows,
+                stack_hints=stack_hints,
+            )
 
             await self._enrich_youtube_rows(client, result.youtube, homepage_url=hp)
 
@@ -1933,6 +3102,10 @@ class ComprehensiveDiscoveryPipelineMeetings:
                         n_pruned,
                     )
                 seen_mp4: Set[str] = set()
+                for va in result.video_assets:
+                    u = (va.get("source_mp4_url") or "").strip()
+                    if u:
+                        seen_mp4.add(u)
                 max_b = _meetings_max_video_mp4_bytes()
                 for row in result.other_video_streams:
                     if len(result.video_assets) >= self.max_video_downloads:
@@ -1974,11 +3147,40 @@ class ComprehensiveDiscoveryPipelineMeetings:
                     n_pruned_after,
                 )
 
-            result.extracted_contacts = (
+            fresh_contacts = (
                 merge_contact_manifest_rows(contact_page_rows)
                 if _meetings_contact_extract_enabled()
                 else {}
             )
+            pec = prior_manifest_for_merge.get("extracted_contacts") if resume else None
+            if resume and isinstance(pec, dict) and pec:
+                result.extracted_contacts = _merge_prior_extracted_contacts(pec, fresh_contacts)
+            else:
+                result.extracted_contacts = fresh_contacts
+
+            prior_sc = prior_manifest_for_merge.get("structured_contacts") if resume else None
+            if resume and isinstance(prior_sc, list) and prior_sc:
+                result.structured_contact_rows = _merge_structured_contact_rows(
+                    prior_sc, structured_contact_rows_accum
+                )
+            else:
+                result.structured_contact_rows = list(structured_contact_rows_accum)
+
+            prior_cdp = prior_manifest_for_merge.get("contact_directory_pages") if resume else None
+            if resume and isinstance(prior_cdp, list) and prior_cdp:
+                result.contact_directory_pages = _merge_contact_directory_pages(
+                    prior_cdp, contact_directory_pages
+                )
+            else:
+                result.contact_directory_pages = list(contact_directory_pages)
+
+            prior_cpi = prior_manifest_for_merge.get("contact_profile_images") if resume else None
+            if resume and isinstance(prior_cpi, list) and prior_cpi:
+                result.contact_profile_images = _merge_contact_profile_images(
+                    prior_cpi, contact_profile_images_accum
+                )
+            else:
+                result.contact_profile_images = list(contact_profile_images_accum)
 
         manifest_path = base_dir / "_manifest.json"
         try:
@@ -2001,6 +3203,10 @@ class ComprehensiveDiscoveryPipelineMeetings:
                         "video_assets": result.video_assets,
                         "errors": result.errors,
                         "extracted_contacts": result.extracted_contacts,
+                        "scrape_batch_id": scrape_batch_id,
+                        "contact_directory_pages": result.contact_directory_pages,
+                        "structured_contacts": result.structured_contact_rows,
+                        "contact_profile_images": result.contact_profile_images,
                         "sitemaps": sitemap_summary,
                     },
                     indent=2,
@@ -2010,19 +3216,59 @@ class ComprehensiveDiscoveryPipelineMeetings:
         except OSError as exc:
             result.errors.append(f"manifest:{exc}")
 
+        if persist_contacts_db and result.structured_contact_rows:
+            dbu = (resolve_database_url() or "").strip()
+            if not dbu:
+                result.errors.append("contacts_db:no_database_url")
+            else:
+                try:
+                    n_ins = insert_bronze_contacts_scraped(
+                        dbu,
+                        scrape_batch_id=scrape_batch_id,
+                        jurisdiction_id=jid,
+                        state_code=st,
+                        rows=result.structured_contact_rows,
+                    )
+                    logger.info(
+                        "contacts_bronze_inserted jurisdiction={} rows={} batch={}",
+                        jid,
+                        n_ins,
+                        scrape_batch_id,
+                    )
+                except Exception as exc:
+                    result.errors.append(f"contacts_db:{exc!r}")
+
         return result
+
+
+ComprehensiveDiscoveryPipelineMeetings = ComprehensiveDiscoveryPipelineJurisdiction
+
+
+def _job_contact_seed_urls(job: Dict[str, Any]) -> Optional[List[str]]:
+    raw = job.get("contact_seed_urls")
+    if raw is None:
+        return None
+    if isinstance(raw, str):
+        out = [s.strip() for s in raw.split(",") if s.strip()]
+        return out or None
+    if isinstance(raw, list):
+        out = [str(s).strip() for s in raw if str(s).strip()]
+        return out or None
+    return None
 
 
 async def run_meetings_batch(
     pipe: ComprehensiveDiscoveryPipelineMeetings,
-    jobs: List[Dict[str, str]],
+    jobs: List[Dict[str, Any]],
     *,
     concurrency: int,
+    resume: bool = False,
 ) -> List[MeetingsScrapeResult]:
     """
     Run many ``scrape`` calls concurrently with a semaphore (bounded parallelism).
 
-    Each job dict: ``state``, ``geoid``, ``jtype``, ``url``, ``jurisdiction_id``.
+    Each job dict: ``state``, ``geoid``, ``jtype``, ``url``, ``jurisdiction_id``; optional
+    ``contact_seed_urls`` (list or comma string) and ``persist_contacts_db`` (bool).
     """
     if not jobs:
         return []
@@ -2035,7 +3281,7 @@ async def run_meetings_batch(
         concurrency,
     )
 
-    async def one(job: Dict[str, str]) -> MeetingsScrapeResult:
+    async def one(job: Dict[str, Any]) -> MeetingsScrapeResult:
         jid = job["jurisdiction_id"]
         async with sem:
             try:
@@ -2045,6 +3291,9 @@ async def run_meetings_batch(
                     jtype=job["jtype"],
                     homepage_url=job["url"],
                     skip_output_root_mkdir=True,
+                    resume=resume,
+                    contact_seed_urls=_job_contact_seed_urls(job),
+                    persist_contacts_db=bool(job.get("persist_contacts_db")),
                 )
                 logger.info(
                     "meetings_done jurisdiction={} pages={} pdfs={} youtube={} other_streams={} video_assets={} err_lines={}",
@@ -2077,7 +3326,10 @@ async def run_meetings_batch(
 def main() -> None:
     _load_repo_dotenv()
     parser = argparse.ArgumentParser(
-        description="Scrape meeting minutes; default output <repo>/data/cache/scraped_meetings (env SCRAPED_MEETINGS_ROOT overrides).",
+        description=(
+            "Jurisdiction crawl: meeting minutes/agendas plus optional board/council contact directory "
+            "scraping; default output <repo>/data/cache/scraped_meetings (env SCRAPED_MEETINGS_ROOT overrides)."
+        ),
     )
     parser.add_argument("--state", required=True, help="USPS, e.g. CO")
     parser.add_argument(
@@ -2134,6 +3386,15 @@ def main() -> None:
     parser.add_argument("--max-pages", type=int, default=40)
     parser.add_argument("--max-pdfs", type=int, default=80, help="Max PDF downloads per jurisdiction")
     parser.add_argument(
+        "--resume",
+        action="store_true",
+        help=(
+            "Continue from _crawl_state.json (visited + frontier queue). Treat --max-pages as the "
+            "**total** distinct HTML fetch budget across runs. If state is missing but _manifest.json "
+            "exists, bootstrap SuiteOne /event URLs from saved _crawl_html snapshots."
+        ),
+    )
+    parser.add_argument(
         "--max-video-downloads",
         type=int,
         default=None,
@@ -2154,10 +3415,24 @@ def main() -> None:
         default=8,
         help="Max concurrent jurisdictions for multi-job runs (--geoids, --batch-from-db, --retry-failed-shallow)",
     )
+    parser.add_argument(
+        "--contact-seed-urls",
+        default="",
+        help=(
+            "Comma-separated URLs to fetch first (absolute or site-relative to resolved homepage). "
+            "Merged after built-in pilot seeds (see jurisdiction_contact_seed_urls). "
+            "Flags directory/contact pages for structured extraction."
+        ),
+    )
+    parser.add_argument(
+        "--persist-contacts-db",
+        action="store_true",
+        help="INSERT structured contact rows into bronze.bronze_contacts_scraped (requires DATABASE_URL / Neon).",
+    )
     args = parser.parse_args()
 
     state = (args.state or "").strip().upper()
-    jobs: List[Dict[str, str]] = []
+    jobs: List[Dict[str, Any]] = []
 
     if args.batch_from_db and args.retry_failed_shallow:
         raise SystemExit("Choose only one of --batch-from-db or --retry-failed-shallow")
@@ -2232,6 +3507,12 @@ def main() -> None:
             )
         raise SystemExit("No scrape jobs to run (empty list).")
 
+    contact_seeds = [u.strip() for u in (args.contact_seed_urls or "").split(",") if u.strip()]
+    if len(jobs) == 1:
+        if contact_seeds:
+            jobs[0]["contact_seed_urls"] = contact_seeds
+        jobs[0]["persist_contacts_db"] = bool(args.persist_contacts_db)
+
     logger.info(
         "meetings_cli_ready jobs={} state={} mode={}",
         len(jobs),
@@ -2255,7 +3536,7 @@ def main() -> None:
             )
         except (TypeError, ValueError):
             max_video_downloads = 24
-    pipe = ComprehensiveDiscoveryPipelineMeetings(
+    pipe = ComprehensiveDiscoveryPipelineJurisdiction(
         output_root=root,
         max_pages=args.max_pages,
         max_pdfs=args.max_pdfs,
@@ -2263,7 +3544,8 @@ def main() -> None:
         timeout_s=args.timeout,
     )
     logger.info(
-        "meetings_limits max_pages={} max_pdfs={} max_video_downloads={}",
+        "meetings_limits resume={} max_pages={} max_pdfs={} max_video_downloads={}",
+        args.resume,
         pipe.max_pages,
         pipe.max_pdfs,
         pipe.max_video_downloads,
@@ -2277,6 +3559,9 @@ def main() -> None:
                 geoid=j0["geoid"],
                 jtype=j0["jtype"],
                 homepage_url=j0["url"],
+                resume=args.resume,
+                contact_seed_urls=_job_contact_seed_urls(j0),
+                persist_contacts_db=bool(j0.get("persist_contacts_db")),
             )
         )
         try:
@@ -2285,19 +3570,25 @@ def main() -> None:
             root_disp = str(pipe.output_root.expanduser())
         sample_pdf = out.pdfs_downloaded[0]["path"] if out.pdfs_downloaded else "(no pdfs)"
         logger.success(
-            "Done {} — pages={}, pdfs={}, youtube={}, other_streams={}, video_assets={}, errors={} | root={} | sample_pdf={}",
+            "Done {} — pages={}, pdfs={}, youtube={}, other_streams={}, video_assets={}, "
+            "structured_contacts={}, directory_pages={}, profile_images={}, errors={} | root={} | sample_pdf={}",
             out.jurisdiction_id,
             len(out.pages_fetched),
             len(out.pdfs_downloaded),
             len(out.youtube),
             len(out.other_video_streams),
             len(out.video_assets),
+            len(out.structured_contact_rows),
+            len(out.contact_directory_pages),
+            len(out.contact_profile_images),
             len(out.errors),
             root_disp,
             sample_pdf,
         )
     else:
-        results = asyncio.run(run_meetings_batch(pipe, jobs, concurrency=args.concurrency))
+        results = asyncio.run(
+            run_meetings_batch(pipe, jobs, concurrency=args.concurrency, resume=args.resume)
+        )
         n_crash = sum(
             1 for r in results if any(str(e).startswith("exception:") for e in r.errors)
         )

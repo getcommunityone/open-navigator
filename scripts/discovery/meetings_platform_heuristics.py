@@ -7,6 +7,7 @@ vendor stacks and extract document / navigation URLs — **without** Scrapy.
 from __future__ import annotations
 
 import re
+from html import unescape
 from typing import Dict, FrozenSet, List, Optional, Sequence, Set, Tuple
 from urllib.parse import parse_qs, quote_plus, urljoin, urlparse, urlunparse
 
@@ -52,6 +53,9 @@ _OFFSITE_SUFFIXES: Tuple[str, ...] = (
     "boarddocs.com",
     "municodemeetings.com",
     "suiteonemedia.com",
+    "eboardsolutions.com",
+    # PowerDMS public libraries (agenda/minutes archives), e.g. Tuscaloosa County Commission.
+    "powerdms.com",
 )
 
 # Offsite HTML we may follow (narrow path hints to avoid crawling the whole vendor CDN).
@@ -81,6 +85,8 @@ _STACK_PATTERNS: Tuple[Tuple[str, re.Pattern], ...] = (
     ("revize", re.compile(r"revize\.com", re.I)),
     ("wordpress", re.compile(r"/wp-content/|/wp-json/|wordpress|xmlrpc\.php", re.I)),
     ("boarddocs", re.compile(r"boarddocs\.com", re.I)),
+    ("powerdms", re.compile(r"powerdms\.com", re.I)),
+    ("eboard_simbli", re.compile(r"eboardsolutions\.com|simbli\.eboardsolutions", re.I)),
 )
 
 _DOC_TYPE_RULES: Tuple[Tuple[str, re.Pattern], ...] = (
@@ -115,6 +121,16 @@ def is_trusted_offsite(url: str) -> bool:
     if not h:
         return False
     return any(_host_matches_suffix(h, s) for s in _OFFSITE_SUFFIXES)
+
+
+def is_amazonaws_document_cdn_host(url: str) -> bool:
+    """
+    True when the URL host is an AWS object store / CDN hostname (``*.amazonaws.com``).
+
+    Used only together with :data:`MEETING_DOWNLOAD_EXT` so we do not crawl arbitrary HTML off S3.
+    """
+    h = _host(url)
+    return bool(h) and "amazonaws.com" in h
 
 
 def _host_without_www(netloc: str) -> str:
@@ -163,9 +179,254 @@ def is_vendor_meeting_page_url(url: str) -> bool:
     if host and _host_matches_suffix(host, "suiteonemedia.com"):
         if "/web/home.aspx" in pq or "/event/" in pq or "embed=1" in pq:
             return True
+    if host and _host_matches_suffix(host, "eboardsolutions.com"):
+        if "/sb_meetings/" in pq or "/sb_online" in pq.replace("\\", "/"):
+            return True
+        if any(
+            tok in pq
+            for tok in (
+                "meetinglisting.aspx",
+                "meeting.aspx",
+                "agenda.aspx",
+                "minutes.aspx",
+                "onlineagenda",
+                "onlineminutes",
+                "viewagenda",
+                "viewminutes",
+            )
+        ):
+            return True
+    if host and _host_matches_suffix(host, "powerdms.com"):
+        if re.search(r"(login|oauth|authorize|logout|sso)(/|\?|$)", pq, re.I):
+            return False
+        # Public libraries / document folders linked from county agenda index pages.
+        if re.search(
+            r"(/libraries?/|/documents?/|/files?/|/browse|/share|/published"
+            r"|documentid=|fileid=|libraryid=|folderid=|recordid=|permalink"
+            r"|commission|agenda|minute|meeting|archive|prior|published)",
+            pq,
+            re.I,
+        ):
+            return True
+        return False
     if not is_trusted_offsite(url):
         return False
     return any(snippet in pq for snippet in _VENDOR_PATH_SNIPPETS)
+
+
+def is_simbli_eboard_host(url: str) -> bool:
+    h = _host(url)
+    return bool(h and _host_matches_suffix(h, "eboardsolutions.com"))
+
+
+def is_simbli_meeting_listing_page_url(url: str) -> bool:
+    """True on Simbli meeting index pages that expand ``ViewMeeting`` rows into crawl seeds."""
+    if not is_simbli_eboard_host(url):
+        return False
+    pq = _path_query_lower(url)
+    return "meetinglisting.aspx" in pq or "sb_meetinglisting" in pq
+
+
+_SIMBLI_SKIP_HTML_PRINT_MARKERS: Tuple[str, ...] = (
+    "meetinglisting.aspx",
+    "sb_meetinglisting",
+    "login.aspx",
+    "logout.aspx",
+    "register.aspx",
+    "membership.aspx",
+    "directory.aspx",
+    "changepassword.aspx",
+)
+
+
+def is_simbli_agenda_minutes_html_target(url: str, anchor_text: str) -> bool:
+    """
+    Simbli / eBoard Solutions often serves agendas and minutes as **ASP.NET HTML pages**, not PDFs.
+
+    Conservative: only URLs that look like agenda/minutes viewers (plus anchor/text classified as
+    agenda/minutes on allowed paths).
+    """
+    if not is_simbli_eboard_host(url):
+        return False
+    low = _path_query_lower(url)
+    if any(m in low for m in _SIMBLI_SKIP_HTML_PRINT_MARKERS):
+        return False
+    try:
+        path_only = urlparse(url).path.lower()
+    except Exception:
+        path_only = ""
+    blob_l = f"{low} {path_only}".lower()
+    ct = classify_document(url, anchor_text)
+    if ct in ("agenda", "minutes"):
+        # Still exclude navigation shells.
+        if "meetinglisting.aspx" in blob_l:
+            return False
+        return True
+    # URL-shaped agenda/minutes pages even when anchor text is generic ("View", "Online").
+    if re.search(
+        r"(online)?agenda|viewagenda|/agenda\.aspx|agenda_|_agenda|aid=",
+        blob_l,
+        re.I,
+    ):
+        return True
+    if re.search(
+        r"(online)?minutes|viewminutes|/minutes\.aspx|minutes_|_minutes|mid=",
+        blob_l,
+        re.I,
+    ):
+        return True
+    # Meeting hub opened from SB_MeetingListing grids (onclick ``ViewMeeting`` → ``ViewMeeting.aspx``).
+    if "viewmeeting.aspx" in blob_l and "mid=" in blob_l:
+        return True
+    return False
+
+
+_VIEWMEETING_ONCLICK_RE = re.compile(
+    r"""ViewMeeting\s*\(\s*(?:["']|&quot;)(\d+)(?:["']|&quot;)\s*,\s*(?:["']|&quot;)(\d+)(?:["']|&quot;)""",
+    re.I,
+)
+_VIEWMINUTES_ONCLICK_RE = re.compile(
+    r"""ViewMinutes\s*\(\s*(?:["']|&quot;)(\d+)(?:["']|&quot;)\s*,\s*(?:["']|&quot;)(\d+)(?:["']|&quot;)\s*,\s*(?:["']|&quot;)([^"']+)(?:["']|&quot;)""",
+    re.I,
+)
+
+
+def extract_simbli_meeting_listing_synthetic_nav_urls(html: str, page_url: str) -> List[Tuple[str, str]]:
+    """
+    Simbli ``SB_MeetingListing.aspx`` rows often use ``href="javascript:void(0)"`` with ``onclick``
+    calling ``ViewMeeting`` / ``ViewMinutes``. Expand those into real ``ViewMeeting.aspx`` URLs so the
+    crawl can reach agendas/minutes (see ``SB_MeetingListingJS.js``).
+
+    Note: Listing grids often load **50 meetings per chunk** via AJAX — only meetings present in the
+    supplied HTML can be expanded here (additional pages may require scrolling/pagination in-browser).
+    """
+    if not html or not is_simbli_eboard_host(page_url):
+        return []
+    low = (html or "").lower()
+    if "meetinglisting.aspx" not in low and "sb_meetinglisting" not in low:
+        return []
+    if "viewmeeting(" not in low:
+        return []
+
+    soup = _beautifulsoup_meetings(html, page_url=page_url, log_label="extract_simbli_listing_syn")
+    if soup is None:
+        return []
+
+    try:
+        base_root = f"{urlparse(page_url).scheme}://{urlparse(page_url).netloc}"
+    except Exception:
+        return []
+
+    seen: Set[str] = set()
+    out: List[Tuple[str, str]] = []
+
+    def push(abs_url: str, label: str) -> None:
+        nu = urlunparse(urlparse(abs_url)._replace(fragment=""))
+        if nu not in seen:
+            seen.add(nu)
+            out.append((nu, label.strip()[:500]))
+
+    for tag in soup.find_all(attrs={"onclick": True}):
+        oc_raw = str(tag.get("onclick") or "")
+        oc = unescape(oc_raw).replace("&quot;", '"')
+
+        vm = _VIEWMEETING_ONCLICK_RE.search(oc)
+        if vm:
+            sid, mid = vm.group(1), vm.group(2)
+            title = (
+                (tag.get("aria-label") or "").strip()
+                or (tag.get_text() or "").strip()
+                or f"Simbli meeting {mid}"
+            )
+            rel = f"/SB_Meetings/ViewMeeting.aspx?S={sid}&MID={mid}"
+            push(urljoin(base_root, rel), title)
+
+        mm = _VIEWMINUTES_ONCLICK_RE.search(oc)
+        if mm:
+            sid, mid, status = mm.group(1), mm.group(2), (mm.group(3) or "").strip().upper()
+            if status != "PUBLISHED":
+                continue
+            title = (
+                (tag.get("aria-label") or "").strip()
+                or (tag.get_text() or "").strip()
+                or f"Simbli published minutes {mid}"
+            )
+            rel = f"/SB_Meetings/ViewMeeting.aspx?S={sid}&MID={mid}&T=1"
+            push(urljoin(base_root, rel), title)
+
+    return out
+
+
+def extract_simbli_agenda_minutes_html_pairs(
+    html: str,
+    page_url: str,
+    homepage: str,
+) -> List[Tuple[str, str]]:
+    """
+    Extract absolute HTTP(S) links to Simbli HTML agenda/minutes pages for PDF rendering.
+
+    Includes **the ViewMeeting hub URL itself** when ``page_url`` is ``ViewMeeting.aspx?MID=…`` — agendas
+    and minutes usually render inside that shell; nested ``<a href>`` alone often misses everything.
+
+    Same-origin / trusted-host rules mirror PDF extraction: homepage, current page, or trusted offsite.
+    """
+    soup = _beautifulsoup_meetings(html, page_url=page_url, log_label="extract_simbli_html")
+    if soup is None:
+        return []
+    join_base = document_join_base(page_url, soup)
+    out: List[Tuple[str, str]] = []
+    seen: Set[str] = set()
+
+    try:
+        pq_self = _path_query_lower(page_url)
+    except Exception:
+        pq_self = ""
+    if (
+        is_simbli_eboard_host(page_url)
+        and "viewmeeting.aspx" in pq_self
+        and "mid=" in pq_self
+    ):
+        nu_self = urlunparse(urlparse(page_url)._replace(fragment=""))
+        if nu_self not in seen:
+            seen.add(nu_self)
+            minutes_tab = bool(re.search(r"(?:^|[?&])t=1(?:&|$)", pq_self))
+            label = (
+                "Simbli ViewMeeting published minutes"
+                if minutes_tab
+                else "Simbli ViewMeeting packet"
+            )
+            out.append((nu_self, label))
+
+    def eligible_target(full: str) -> bool:
+        if not full.lower().startswith(("http://", "https://")):
+            return False
+        if not (
+            is_same_site(full, homepage)
+            or is_same_site(full, page_url)
+            or is_trusted_offsite(full)
+        ):
+            return False
+        return True
+
+    for a in soup.find_all("a", href=True):
+        href = (a.get("href") or "").strip()
+        if not href or href.startswith("#") or href.lower().startswith("javascript:"):
+            continue
+        full = resolve_page_href(join_base, href)
+        text = (a.get_text() or "").strip()
+        if not eligible_target(full):
+            continue
+        if not is_simbli_agenda_minutes_html_target(full, text):
+            continue
+        nu = urlunparse(urlparse(full)._replace(fragment=""))
+        if nu in seen:
+            continue
+        seen.add(nu)
+        out.append((nu, text))
+
+    # onclick / JS redirects occasionally expose agenda URLs without proper href — skip for safety.
+
+    return out
 
 
 # Counties sometimes link a short branded host (e.g. ``tallaco.com/commission-meetings/``) that is
@@ -219,6 +480,10 @@ def is_linked_local_meeting_microsite(url: str, homepage: str) -> bool:
         return False
     if is_trusted_offsite(url):
         return False
+    if is_amazonaws_document_cdn_host(url):
+        # S3 / CloudFront-style hosts: meeting materials are downloaded via ``MEETING_DOWNLOAD_EXT``,
+        # not crawled as HTML (paths like ``/Minutes/…`` would otherwise match archive markers).
+        return False
     try:
         p = urlparse(url)
         if p.scheme not in ("http", "https"):
@@ -237,6 +502,13 @@ def is_linked_local_meeting_microsite(url: str, homepage: str) -> bool:
 
 
 PDF_EXT = re.compile(r"\.pdf(\?|#|$)", re.I)
+
+# Meeting materials linked from government pages (same-site, vendor, or :func:`is_amazonaws_document_cdn_host`).
+# ``.doc`` is matched with a trailing boundary so ``.docker`` / ``.docs`` style paths are not treated as Word.
+MEETING_DOWNLOAD_EXT = re.compile(
+    r"\.(?:pdf|docx|rtf|pptx?|mp3|m4a|wav)(?:\?|#|$)|\.doc(?:\?|#|$)",
+    re.I,
+)
 
 # Revize / classic ASP / similar CMS “site search” portals (e.g. Autauga
 # ``Default.asp?ID=122&pg=Site+Search&action=search``).
@@ -811,6 +1083,8 @@ _OTHER_VIDEO_STREAM_PATTERNS: Tuple[Tuple[str, re.Pattern], ...] = (
     ("microsoft_stream", re.compile(r"microsoftstream\.com|web\.microsoftstream\.com", re.I)),
     ("jwplayer", re.compile(r"jwplayer\.com|cdn\.jwplayer\.com", re.I)),
     ("uscreen", re.compile(r"uscreen\.io|videodelivery\.net", re.I)),
+    # GoMeet / Meetmaps-style hosted recordings (e.g. Sweet Grass County MT commission table links).
+    ("gomeet", re.compile(r"gomeet\.com/", re.I)),
 )
 
 
@@ -834,7 +1108,7 @@ def _classify_other_stream_platform(full: str) -> Optional[str]:
 def extract_other_video_stream_refs(html: str, page_url: str) -> List[Dict[str, str]]:
     """
     Collect **non-YouTube** video / livestream URLs (Vimeo, Facebook video, Granicus, Zoom links,
-    Teams, Wistia, Brightcove, ``.m3u8`` manifests, …). Same discovery surfaces as YouTube:
+    Teams, GoMeet, Wistia, Brightcove, ``.m3u8`` manifests, …). Same discovery surfaces as YouTube:
     ``<a href>``, ``<iframe>`` / ``<embed>`` ``src``, ``<video>`` / ``<source>``, and common
     ``data-*`` player attributes.
     """
@@ -962,8 +1236,9 @@ def extract_meeting_urls(
 
     ``pdf_pairs`` are ``(absolute_url, anchor_text)`` for :pyfunc:`classify_document`.
 
-    - Same-site links matching ``generic_hint`` on URL or anchor text, or PDFs.
-    - Trusted offsite PDFs (Legistar / Granicus / …).
+    - Same-site links matching ``generic_hint`` on URL or anchor text, or meeting documents
+      (``pdf`` / ``docx`` / ``mp3`` / … — see :data:`MEETING_DOWNLOAD_EXT`).
+    - Trusted offsite PDFs (Legistar / Granicus / …) and **AWS** ``*.amazonaws.com`` document URLs.
     - SuiteOne ``/event/GetAgendaFile/…`` and ``/event/GetMinutesFile/…`` (no ``.pdf`` suffix).
     - Trusted offsite vendor meeting pages (narrow path heuristics).
     """
@@ -993,11 +1268,12 @@ def extract_meeting_urls(
         full = resolve_page_href(join_base, href)
         text = (a.get_text() or "").strip()
         text_l = text.lower()
-        if PDF_EXT.search(full):
+        if MEETING_DOWNLOAD_EXT.search(full):
             if (
                 is_same_site(full, homepage)
                 or is_same_site(full, page_url)
                 or is_trusted_offsite(full)
+                or is_amazonaws_document_cdn_host(full)
             ):
                 add_pdf(full, text)
             continue
@@ -1006,6 +1282,7 @@ def extract_meeting_urls(
                 is_same_site(full, homepage)
                 or is_same_site(full, page_url)
                 or is_trusted_offsite(full)
+                or is_amazonaws_document_cdn_host(full)
             ):
                 add_pdf(full, text)
             continue
@@ -1040,6 +1317,12 @@ def extract_meeting_urls(
             or is_vendor_meeting_page_url(full)
         ):
             add_nav(full)
+
+    for syn_u, _syn_a in extract_simbli_meeting_listing_synthetic_nav_urls(html, page_url):
+        if not syn_u.lower().startswith(("http://", "https://")):
+            continue
+        if is_vendor_meeting_page_url(syn_u):
+            add_nav(syn_u)
 
     return nav, pdfs
 

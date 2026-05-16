@@ -130,9 +130,12 @@ const sidebars: SidebarsConfig = {
       items: [
         'for-developers',
         {
-          type: 'doc',
-          id: 'guides/hackathon-video-submission-ideas',
-          label: 'Hackathon ideas & demo videos',
+          type: 'category',
+          label: 'Hackathon',
+          items: [
+            'guides/hackathon-video-submission-ideas',
+            'guides/hackathon/big-timber-tuscaloosa-jurisdiction-ids',
+          ],
         },
         {
           type: 'category',
@@ -175,6 +178,7 @@ const sidebars: SidebarsConfig = {
           type: 'category',
           label: 'How-To Guides',
           items: [
+            'guides/accessibility-testing',
             'guides/jurisdiction-setup',
             'guides/legislative-tracking-maps',
             'guides/huggingface-publishing',
@@ -338,9 +342,12 @@ const sidebars: SidebarsConfig = {
       items: [
         'for-developers',
         {
-          type: 'doc',
-          id: 'guides/hackathon-video-submission-ideas',
-          label: 'Hackathon ideas & demo videos',
+          type: 'category',
+          label: 'Hackathon',
+          items: [
+            'guides/hackathon-video-submission-ideas',
+            'guides/hackathon/big-timber-tuscaloosa-jurisdiction-ids',
+          ],
         },
         {
           type: 'category',
@@ -373,13 +380,18 @@ const sidebars: SidebarsConfig = {
             'data-sources/youtube-discovery',
             'data-sources/video-channels',
             'data-sources/open-source-repositories',
+            'data-sources/ballot-election-sources',
+            'data-sources/polling-survey-sources',
+            'data-sources/factcheck-sources',
           ],
         },
         {
           type: 'category',
           label: 'How-To Guides',
           items: [
+            'guides/accessibility-testing',
             'guides/jurisdiction-setup',
+            'guides/legislative-tracking-maps',
             'guides/huggingface-publishing',
             'guides/huggingface-quickstart',
             'guides/huggingface-features',

@@ -41,6 +41,10 @@ from pathlib import Path
 from typing import Any
 
 _ROOT = Path(__file__).resolve().parent.parent.parent.parent
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+
+from scripts.datasources.leagueofcities.league_website_sanitize import sanitize_league_website
 _VENV_REEXEC = "_OPEN_NAVIGATOR_LEAGUE_LOAD_VENV_REEXEC"
 
 
@@ -287,6 +291,11 @@ def _str(val: Any, maxlen: int | None = None) -> str | None:
     return s[:maxlen] if maxlen else s
 
 
+def _league_website(val: Any) -> str | None:
+    """Bronze ``website`` column: null scheme-only / empty hosts."""
+    return sanitize_league_website(_str(val))
+
+
 def _raw_row_json(city: dict[str, Any]) -> str:
     rr = city.get("raw_row")
     if isinstance(rr, list):
@@ -309,7 +318,7 @@ def _norm_placename(name: str) -> str:
 
 def _website_origin_norm(url: str | None) -> str | None:
     """Canonical https://host for URL ↔ jurisdiction matching (matches int_jurisdiction_websites)."""
-    u = (url or "").strip()
+    u = sanitize_league_website(url)
     if not u:
         return None
     if not re.match(r"^https?://", u, re.I):
@@ -616,7 +625,7 @@ def parse_city_files(
             jid: str | None = None
             geoid: str | None = None
             match_method: str | None = None
-            league_website = _str(c.get("website"))
+            league_website = _league_website(c.get("website"))
             if _should_attempt_jurisdiction_match(muni):
                 jid, geoid, match_method = idx.match(
                     match_usps,
@@ -656,7 +665,7 @@ def parse_city_files(
                     population_raw,
                     _str(c.get("county")),
                     _str(c.get("mayor")),
-                    _str(c.get("website")),
+                    _league_website(c.get("website")),
                     _str(c.get("phone"), 120),
                     _str(c.get("email")),
                     _str(c.get("address")),
@@ -751,7 +760,7 @@ def rematch_bronze_jurisdiction_ids(
     for row_key, state_code, muni, website, alts_json in rows:
         match_usps = str(state_code or "").upper()[:2]
         muni_s = str(muni or "").strip()
-        website_s = _str(website)
+        website_s = _league_website(website)
         jid: str | None = None
         geoid: str | None = None
         method: str | None = None
