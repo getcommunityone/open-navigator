@@ -891,6 +891,13 @@ def move_to_excluded(
 # ─────────────────────────────────────────────────────────────
 
 
+def count_triageable_files(
+    raw_root: Path, *, kinds: Iterable[str] = ("pdf", "audio")
+) -> int:
+    """Count PDF/audio files Gatekeeper would walk (for scope banners before a long run)."""
+    return sum(1 for _ in iter_triageable_files(raw_root, kinds=kinds))
+
+
 def iter_triageable_files(
     raw_root: Path, *, kinds: Iterable[str] = ("pdf", "audio")
 ) -> Iterable[Path]:
@@ -947,6 +954,7 @@ def run_triage(
     dry_run: bool = False,
     max_files: Optional[int] = None,
     preload_models: bool = True,
+    progress_stdout: bool = False,
 ) -> TriageReport:
     """Walk ``raw_root``, triage every PDF / audio, move failures under ``excluded_inputs/``."""
     if not raw_root.is_dir():
@@ -1005,10 +1013,15 @@ def run_triage(
     for path in iter_triageable_files(raw_root, kinds=kinds):
         if max_files is not None and processed >= max_files:
             logger.info("Reached --max-files=%d, stopping.", max_files)
+            if progress_stdout:
+                print(f"Gatekeeper: reached max_files={max_files}, stopping.", flush=True)
             break
         processed += 1
         ext = path.suffix.lower()
         rel_str, geo = relative_geography(path, raw_root)
+        if progress_stdout:
+            cap = f"/{max_files}" if max_files is not None else ""
+            print(f"[Gatekeeper {processed}{cap}] {rel_str}", flush=True)
 
         try:
             if ext in PDF_EXTS:
