@@ -85,10 +85,21 @@ def setup_notebook_paths(mount_point: str = "/content/drive") -> NotebookLayoutP
         for cand in candidates:
             if cand.is_dir():
                 return NotebookLayoutPaths(True, repo, cand)
-        # Nothing matched — return the first candidate so the downstream "missing"
-        # error names a real Drive path the user can create or correct.
-        fallback = candidates[0] if candidates else (repo.parent / "governance_pipeline_data")
-        return NotebookLayoutPaths(True, repo, fallback)
+        # Refuse to fall back to /content/ — that's ephemeral Colab disk and any
+        # PIPE.ensure_dirs() call would silently create an empty shell that judges
+        # mistake for the real data root. Force the caller to fix the layout or set
+        # GOVERNANCE_PIPELINE_DATA_ROOT explicitly.
+        probed = "\n".join(f"  · {c}" for c in candidates) or "  (no candidates)"
+        raise RuntimeError(
+            "Could not locate the governance pipeline data root on Google Drive.\n"
+            f"Probed (in order):\n{probed}\n"
+            "Fix one of:\n"
+            "  1. Mount Drive (`drive.mount('/content/drive')`) and confirm one of the candidate "
+            "folders exists.\n"
+            "  2. Set os.environ['GOVERNANCE_PIPELINE_DATA_ROOT'] = '/content/drive/MyDrive/...' "
+            "BEFORE calling setup_notebook_paths().\n"
+            "  3. Stage your data into one of the candidate Drive paths."
+        )
     if explicit:
         return NotebookLayoutPaths(False, repo, Path(explicit).expanduser().resolve())
     return NotebookLayoutPaths(False, repo, repo / "data" / "governance_pipeline_data")
