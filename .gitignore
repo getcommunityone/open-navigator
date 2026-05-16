@@ -79,6 +79,8 @@ logs/
 !scripts/datasources/youtube/download_audio_colab.ipynb
 !scripts/datasources/wikidata/load_jurisdictions_wikidata_colab.ipynb
 !scripts/datasources/wikidata/wikidata_fips_gnis_extract_colab.ipynb
+!scripts/colab/02_run_meeting_llm.ipynb
+!scripts/colab/03_run_meeting_llm.ipynb
 
 # Data files
 data/
