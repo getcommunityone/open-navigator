@@ -315,6 +315,30 @@ _GEMMA_HEAVY_FALLBACKS = (
 )
 
 
+def _model_short_id(m: Any) -> str:
+    raw = getattr(m, "name", None) or getattr(m, "model", None) or ""
+    return raw.split("/")[-1] if raw else ""
+
+
+def _model_family(short_id: str) -> str:
+    n = short_id.lower()
+    if n.startswith("gemma-4"):
+        return "1. gemma-4"
+    if n.startswith("gemma-3n"):
+        return "2. gemma-3n"
+    if n.startswith("gemma-3"):
+        return "3. gemma-3"
+    if n.startswith("gemma"):
+        return "4. gemma (other)"
+    if n.startswith("embeddinggemma"):
+        return "5. embeddinggemma"
+    if n.startswith("shieldgemma"):
+        return "6. shieldgemma"
+    if n.startswith("gemini"):
+        return "7. gemini"
+    return "8. other"
+
+
 def _list_available_model_ids(client: Any) -> List[str]:
     """Return SDK-visible model ids (best effort — empty list on any error)."""
     try:
@@ -323,11 +347,65 @@ def _list_available_model_ids(client: Any) -> List[str]:
         return []
     ids: List[str] = []
     for m in listed or []:
-        # SDK objects expose either ``name`` ("models/gemma-3-4b-it") or ``model``.
-        raw = getattr(m, "name", None) or getattr(m, "model", None) or ""
-        if not raw:
+        short_id = _model_short_id(m)
+        if short_id:
+            ids.append(short_id)
+    return ids
+
+
+def print_available_models(
+    client: Any,
+    *,
+    requested: Optional[Iterable[str]] = None,
+    role: str = "this API key",
+) -> List[str]:
+    """
+    Print every model id ``client.models.list()`` returns, grouped by family.
+
+    When ``requested`` is set, marks ids that are / are not listed *before* any
+    fallback in :func:`resolve_model_id`. Returns the flat id list (empty on error).
+    """
+    try:
+        all_models = list(client.models.list())
+    except Exception as exc:
+        print(f"⚠️  models.list() failed for {role}: {exc}")
+        return []
+
+    rows: List[Tuple[str, str, List[str]]] = []
+    for m in all_models:
+        name = _model_short_id(m)
+        if not name:
             continue
-        ids.append(raw.split("/")[-1])
+        display = getattr(m, "display_name", "") or ""
+        methods = list(getattr(m, "supported_generation_methods", []) or [])
+        rows.append((name, display, methods))
+
+    ids = [r[0] for r in rows]
+    available_set = set(ids)
+
+    print(f"\n── Models visible to {role} ({len(ids)} total) ──")
+
+    requested_list = [r.strip() for r in (requested or []) if r and str(r).strip()]
+    if requested_list:
+        for req in requested_list:
+            if req in available_set:
+                print(f"  ✓ requested {req!r} is listed")
+            else:
+                print(f"  ✗ requested {req!r} is NOT listed (fallback may apply)")
+
+    rows.sort(key=lambda r: (_model_family(r[0]), r[0]))
+    current: Optional[str] = None
+    for name, display, methods in rows:
+        fam = _model_family(name)
+        if fam != current:
+            print(f"\n=== {fam[3:]} ===")
+            current = fam
+        extras = f"  [{', '.join(methods)}]" if methods else ""
+        label = f"  — {display}" if display and display.lower() != name.lower() else ""
+        marker = "  ← requested" if name in requested_list else ""
+        print(f"  {name}{label}{extras}{marker}")
+
+    print()
     return ids
 
 
@@ -361,6 +439,17 @@ def resolve_model_id(
     available_set = set(available)
     if requested in available_set:
         return requested
+
+    gemma_ids = sorted(i for i in available if "gemma" in i.lower())
+    print(
+        f"\n── {role}: {requested!r} not in models.list() — Gemma ids on this key ──"
+    )
+    if gemma_ids:
+        for gid in gemma_ids:
+            print(f"  {gid}")
+    else:
+        print("  (no Gemma ids returned — enable Gemma access in AI Studio)")
+    print(f"  Fallback order: {list(fallbacks)}\n")
 
     # Don't re-try the requested id in the fallback walk.
     tried = [requested]
@@ -833,6 +922,9 @@ def run_triage(
         logger.info("(dry-run: no files will be moved)")
 
     client = _build_genai_client(api_key)
+
+    # Show the live model list before any fallback so notebook / CLI runs are auditable.
+    print_available_models(client, requested=(model,), role="Gatekeeper triage")
 
     # Resolve the requested model against the SDK's actual model list. This
     # converts a 404 NOT_FOUND (e.g. "gemma-4-e4b-it" on a project that only
