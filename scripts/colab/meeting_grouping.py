@@ -569,7 +569,7 @@ def _optional_identity_client_and_model() -> Tuple[Any, Optional[str]]:
         )
 
         client = _build_genai_client(key)
-        requested = os.environ.get("GOVERNANCE_GATEKEEPER_MODEL", "gemma-3n-e2b-it").strip()
+        requested = os.environ.get("GOVERNANCE_GATEKEEPER_MODEL", "gemma-4-e2b-it").strip()
         model = resolve_model_id(
             client,
             requested,

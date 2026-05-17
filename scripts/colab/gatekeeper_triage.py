@@ -110,7 +110,7 @@ def _default_gatekeeper_model() -> str:
         pass
     return (
         os.environ.get("GOVERNANCE_GATEKEEPER_MODEL", "").strip()
-        or "gemma-3n-e2b-it"
+        or "gemma-4-e2b-it"
     )
 
 
@@ -738,6 +738,15 @@ _GEMMA_THINKING_FALLBACKS = (
     "gemma-4-31b-it",
     "gemma-4-26b-a4b-it",
     "gemma-3-27b-it",
+)
+# Demo 4 meeting audio/video chunks — must accept audio bytes on AI Studio.
+# Do not use ``gemma-4-26b-a4b-it`` (PDF/image MoE) or assume ``gemma-3n-e2b-it`` exists.
+_GEMMA_DEMO4_AUDIO_FALLBACKS = (
+    "gemma-4-31b-it",
+    "gemma-4-e4b-it",
+    "gemma-4-e2b-it",
+    "gemma-3n-e4b-it",
+    "gemma-3n-e2b-it",
 )
 
 

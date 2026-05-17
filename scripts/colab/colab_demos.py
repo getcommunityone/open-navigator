@@ -620,16 +620,17 @@ def run_demo4(
         brief_cache = {}
 
     j = inv.jurisdiction
-    import os
-
-    demo4_model = resolve_demo4_genai_model(
+    demo4_model = (ctx.demo4_model or "").strip() or resolve_demo4_genai_model(
         ctx.genai_model,
-        gatekeeper_model=ctx.gatekeeper_model or ctx.demo4_model,
+        gatekeeper_model=ctx.gatekeeper_model,
+        thinking_model=ctx.thinking_model,
+        api_key=ctx.api_key,
     )
     if not model_supports_audio_video_input(demo4_model):
         print(
-            f"  ⚠ Demo 4 model {demo4_model!r} does not accept audio on this API key. "
-            "Set GOVERNANCE_DEMO4_MODEL=gemma-3n-e2b-it (or GOVERNANCE_GATEKEEPER_MODEL).",
+            f"  ⚠ Demo 4 model {demo4_model!r} likely rejects audio on this API key. "
+            "Set GOVERNANCE_DEMO4_MODEL to an id from models.list() "
+            "(e.g. gemma-4-31b-it, gemma-4-e2b-it) — not gemma-4-26b-a4b-it.",
             flush=True,
         )
     elif demo4_model != ctx.genai_model:

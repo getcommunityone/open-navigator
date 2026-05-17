@@ -89,13 +89,18 @@ def model_supports_thinking_budget(model: str) -> bool:
 
 
 def model_supports_audio_video_input(model: str) -> bool:
-    """Whether ``generate_content`` accepts audio/video bytes (not just PDF/images)."""
+    """Whether ``generate_content`` may accept audio/video bytes (not PDF-only MoE)."""
     mid = (model or "").lower()
     if mid.startswith("gemini"):
         return True
+    # AI Studio: 26B A4B MoE is used for Demo 1/2 PDFs; it rejects audio on most keys.
+    if "26b" in mid and "a4b" in mid:
+        return False
+    if "gemma-4-31b" in mid or mid.endswith("31b-it"):
+        return True
     if "gemma-3n" in mid or "gemma-4-e2b" in mid or "gemma-4-e4b" in mid:
         return True
-    if "3n-e2b" in mid or "3n-e4b" in mid:
+    if "3n-e2b" in mid or "3n-e4b" in mid or "e2b-it" in mid or "e4b-it" in mid:
         return True
     return False
 
@@ -112,25 +117,53 @@ def resolve_demo4_genai_model(
     genai_model: str,
     *,
     gatekeeper_model: str = "",
+    thinking_model: str = "",
+    client: Any = None,
+    api_key: str = "",
 ) -> str:
     """
-    Model for Demo 4 chunks. ``gemma-4-26b-a4b-it`` is vision/PDF-first on many keys;
-    use ``GOVERNANCE_DEMO4_MODEL`` or ``GOVERNANCE_GATEKEEPER_MODEL`` (``gemma-3n-e2b-it``).
+    Model for Demo 4 audio chunks.
+
+    Resolves against ``models.list()`` when ``client`` / ``api_key`` is set.
+    Default request: ``GOVERNANCE_DEMO4_MODEL`` → ``GOVERNANCE_THINKING_MODEL``
+    (``gemma-4-31b-it``) → Gemma 4 Edge (E2B/E4B). Never ``gemma-4-26b-a4b-it``.
     """
     explicit = os.environ.get("GOVERNANCE_DEMO4_MODEL", "").strip()
-    if explicit:
-        return explicit
+    thinking = (thinking_model or os.environ.get("GOVERNANCE_THINKING_MODEL", "")).strip()
     gk = (gatekeeper_model or os.environ.get("GOVERNANCE_GATEKEEPER_MODEL", "")).strip()
-    if gk and model_supports_audio_video_input(gk):
-        return gk
-    if model_supports_audio_video_input(genai_model):
-        return genai_model
-    fallback = os.environ.get(
-        "GOVERNANCE_DEMO4_FALLBACK_MODEL", "gemma-3n-e2b-it"
-    ).strip()
-    if fallback and model_supports_audio_video_input(fallback):
-        return fallback
-    return gk or genai_model
+    requested = explicit or thinking or "gemma-4-31b-it"
+    if not model_supports_audio_video_input(requested):
+        requested = "gemma-4-e2b-it"
+
+    if client is None and api_key:
+        try:
+            from gatekeeper_triage import _build_genai_client
+
+            client = _build_genai_client(api_key)
+        except Exception:
+            client = None
+
+    if client is not None:
+        try:
+            from gatekeeper_triage import _GEMMA_DEMO4_AUDIO_FALLBACKS, resolve_model_id
+
+            return resolve_model_id(
+                client,
+                requested,
+                fallbacks=_GEMMA_DEMO4_AUDIO_FALLBACKS,
+                role="Demo 4 audio",
+            )
+        except Exception:
+            pass
+
+    for cand in (requested, thinking, gk, "gemma-4-e4b-it", "gemma-4-e2b-it", "gemma-4-31b-it"):
+        c = (cand or "").strip()
+        if c and model_supports_audio_video_input(c):
+            return c
+    env_fb = os.environ.get("GOVERNANCE_DEMO4_FALLBACK_MODEL", "").strip()
+    if env_fb and model_supports_audio_video_input(env_fb):
+        return env_fb
+    return thinking or gk or "gemma-4-31b-it"
 
 
 def _genai_error_text(exc: BaseException) -> str:
