@@ -14,6 +14,8 @@ from governance_meeting_llm import JurisdictionDir, MeetingInventory  # noqa: E4
 from pipeline_media_scope import (  # noqa: E402
     apply_media_scope_to_environ,
     apply_media_scope_to_inventory,
+    demo4_step_label,
+    describe_demo4_file,
     filter_paths_for_media_scope,
     get_active_media_scope,
     normalize_media_scope_key,
@@ -135,3 +137,15 @@ def test_apply_media_scope_to_environ_audio() -> None:
     scope = apply_media_scope_to_environ("audio")
     assert scope.run_demo4 is True
     assert os.environ["GOVERNANCE_DEMO4_VIDEO_CHUNKS"] == "0"
+
+
+def test_demo4_labels() -> None:
+    os.environ["GOVERNANCE_PIPELINE_MEDIA_SCOPE"] = "video"
+    assert "video" in demo4_step_label().lower()
+    mp4 = describe_demo4_file(Path("2026_02_18.mp4"), demo4_model="gemma-4-31b-it")
+    assert "MP4" in mp4 and "audio" in mp4.lower()
+    gemini = describe_demo4_file(
+        Path("2026_02_18.mp4"),
+        demo4_model="gemini-2.0-flash",
+    )
+    assert "video/mp4" in gemini

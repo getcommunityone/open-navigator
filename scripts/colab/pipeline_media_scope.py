@@ -218,6 +218,43 @@ def print_media_scope_banner(scope: MediaScopeConfig | None = None) -> None:
         print("  Demo 4: GOVERNANCE_DEMO4_VIDEO_CHUNKS=0 (audio/mp3 chunks)", flush=True)
 
 
+def demo4_step_label(scope: MediaScopeConfig | None = None) -> str:
+    """Short label for ``timed_step`` (not the ffmpeg/API detail)."""
+    scope = scope or get_active_media_scope()
+    if scope.key == "video":
+        return "Demo 4 video recordings"
+    if scope.key == "audio":
+        return "Demo 4 audio recordings"
+    return "Demo 4 meeting recordings"
+
+
+def describe_demo4_file(path: Path, *, demo4_model: str) -> str:
+    """
+    Explain how a file is fed to Demo 4 (accurate for logs).
+
+    ``GOVERNANCE_DEMO4_VIDEO_CHUNKS=1`` only sends ``video/mp4`` bytes when the
+    model accepts video (Gemini). Gemma 4 on AI Studio uses **audio extracted**
+    from MP4 via ffmpeg — still a video *source*, not native video modality.
+    """
+    from governance_meeting_llm import (
+        VIDEO_EXTS,
+        demo4_use_video_chunks,
+        model_supports_video_input,
+    )
+
+    is_video_file = path.suffix.lower() in VIDEO_EXTS
+    use_video_api = (
+        is_video_file
+        and demo4_use_video_chunks()
+        and model_supports_video_input(demo4_model)
+    )
+    if use_video_api:
+        return "video/mp4 segments → Gemma"
+    if is_video_file:
+        return "MP4 → 15‑min audio slices → Gemma (audio modality on this model)"
+    return "15‑min audio slices → Gemma"
+
+
 def print_scoped_inventory_line(inv: MeetingInventory, scope: MediaScopeConfig | None = None) -> None:
     scope = scope or get_active_media_scope()
     print(

@@ -113,6 +113,32 @@ def format_people_markdown(
     return "\n".join(lines)
 
 
+def _format_playback_markdown(d: Dict[str, Any]) -> List[str]:
+    """Watch/listen line with markdown link when Demo 4 filled ``playback_url``."""
+    citation = d.get("media_citation") if isinstance(d.get("media_citation"), dict) else {}
+    ts_start = citation.get("timestamp_start") or d.get("timestamp_start")
+    ts_end = citation.get("timestamp_end") or d.get("timestamp_end")
+    url = citation.get("playback_url")
+    note = (citation.get("playback_url_note") or "").strip()
+    out: List[str] = []
+    if ts_start or ts_end:
+        span = str(ts_start or "?")
+        if ts_end:
+            span += f" – {ts_end}"
+        out.append(f"- **Recording time:** {span} (elapsed from start of meeting)")
+    if url:
+        label = f"Jump to {ts_start}" if ts_start else "Open recording"
+        out.append(f"- **Watch / listen:** [{label}]({url})")
+    elif ts_start:
+        out.append(
+            "- **Watch / listen:** _no playback URL — ensure ``_manifest.json`` "
+            "lists ``video_assets`` with ``source_mp4_url`` or YouTube URL_"
+        )
+    if note:
+        out.append(f"- _Playback note: {note}_")
+    return out
+
+
 def format_decisions_markdown(decisions: List[Any], *, heading: str) -> str:
     if not isinstance(decisions, list) or not decisions:
         return f"### {heading}\n\n_No decisions extracted._\n\n"
@@ -138,6 +164,7 @@ def format_decisions_markdown(decisions: List[Any], *, heading: str) -> str:
         vote = d.get("vote") or d.get("vote_result")
         if vote:
             lines.append(f"- **Vote:** {vote}")
+        lines.extend(_format_playback_markdown(d))
         lines.append("")
     return "\n".join(lines)
 
@@ -393,6 +420,34 @@ def build_consolidated_summary_markdown(artifacts: Dict[str, Any]) -> str:
         lines.append("")
         if th and isinstance(th, Path):
             lines.append(_read_text(th, max_chars=max_body // 6))
+        lines.append("")
+
+    media_sources: List[Dict[str, Any]] = []
+    for entry in artifacts.get("demo4_chunks") or []:
+        analysis = (entry.get("data") or {}).get("json_analysis")
+        if isinstance(analysis, dict):
+            meeting = analysis.get("meeting")
+            if isinstance(meeting, dict):
+                for src in meeting.get("media_sources") or []:
+                    if isinstance(src, dict) and src not in media_sources:
+                        media_sources.append(src)
+    if media_sources:
+        lines.append("## Recordings (playback sources)")
+        lines.append("")
+        for src in media_sources:
+            ms_id = src.get("media_source_id") or "—"
+            plat = src.get("platform") or "—"
+            canon = (src.get("canonical_url") or "").strip()
+            page = (src.get("page_url") or "").strip()
+            lines.append(f"- **{ms_id}** ({plat})")
+            if canon:
+                lines.append(f"  - Stream: [{canon}]({canon})")
+            if page and page != canon:
+                lines.append(f"  - Event page: [{page}]({page})")
+        lines.append(
+            "_Per-decision **[Jump to HH:MM](url)** links appear below when Demo 4 "
+            "returned ``timestamp_start`` in ``media_citation``._"
+        )
         lines.append("")
 
     if artifacts.get("demo4_chunks"):

@@ -321,7 +321,7 @@ def print_runtime_estimate(inv: "MeetingInventory", ctx: "DemoContext") -> WorkP
         flush=True,
     )
     print(
-        "  Heaviest steps: Demo 2 PDF pages, Demo 3 policy PDFs, Demo 4 audio chunks "
+        "  Heaviest steps: Demo 2 PDF pages, Demo 3 policy PDFs, Demo 4 recordings "
         "(video runs in Demo 4 only, after PDFs).",
         flush=True,
     )

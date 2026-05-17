@@ -28,7 +28,11 @@ from pipeline_logging import (
 )
 
 try:
-    from pipeline_media_scope import get_active_media_scope
+    from pipeline_media_scope import (
+        demo4_step_label,
+        describe_demo4_file,
+        get_active_media_scope,
+    )
 except ImportError:
 
     def get_active_media_scope():  # type: ignore[misc]
@@ -38,6 +42,12 @@ except ImportError:
             run_demo1 = run_demo2 = run_demo3 = run_demo4 = True
 
         return _All()
+
+    def demo4_step_label(scope=None):  # type: ignore[misc]
+        return "Demo 4 meeting recordings"
+
+    def describe_demo4_file(path, *, demo4_model):  # type: ignore[misc]
+        return "15‑min slices → Gemma"
 from governance_meeting_llm import (
     TOKEN_BUDGET_HIGH,
     TOKEN_BUDGET_LOW,
@@ -725,8 +735,7 @@ def run_demo4(
             and demo4_use_video_chunks()
             and model_supports_video_input(demo4_model)
         )
-        kind = "video/mp4 chunks" if use_video else "audio chunks"
-        print(f"  • {audio.name}  ({kind})")
+        log_line(f"• {audio.name}  ({describe_demo4_file(audio, demo4_model=demo4_model)})")
         per_audio_dir = mirror_output_path(
             input_path=audio,
             raw_root=ctx.raw_root,
@@ -814,7 +823,8 @@ def run_demo4(
             result = None
             chunk_model = demo4_model
             log_line(
-                f"chunk {idx}: calling {demo4_model} — audio slice "
+                f"chunk {idx}: calling {demo4_model} — "
+                f"{describe_demo4_file(chunk_path, demo4_model=demo4_model)} "
                 f"(often 2–5 min; 429 retries add time)…",
                 prefix="    ",
             )
@@ -988,7 +998,7 @@ def run_demos_for_jurisdiction(
         else:
             log_line(f"⊘ Demo 3 skipped (media scope: {mscope.key})")
         if mscope.run_demo4:
-            with timed_step(f"Demo 4 recordings (audio chunks) | {label}"):
+            with timed_step(f"{demo4_step_label(mscope)} | {label}"):
                 reports.demo4 = run_demo4(inv, ctx, brief_cache=brief_cache)
                 progress_tick("Demo 4 complete")
         else:
