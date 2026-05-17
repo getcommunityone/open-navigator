@@ -1790,7 +1790,7 @@ def select_triageable_files(
     allowed_year_folders: Optional[dict] = None
     try:
         from meeting_date_scope import (
-            discover_most_recent_year_folder_per_jurisdiction,
+            discover_year_folders_scoped,
             prune_year_folder_dirnames,
             resolve_demo_year_folder_scope,
         )
@@ -1802,7 +1802,7 @@ def select_triageable_files(
                     + (f" for {jur_label} …" if jur_label else " per jurisdiction …")
                 )
             t_year = time.perf_counter()
-            allowed_year_folders = discover_most_recent_year_folder_per_jurisdiction(
+            allowed_year_folders = discover_year_folders_scoped(
                 raw_root, jurisdiction_root=jurisdiction_root
             )
             if show_progress:

@@ -211,6 +211,24 @@ def discover_most_recent_year_folder_per_jurisdiction(
     return allowed
 
 
+def discover_year_folders_scoped(
+    raw_root: Path,
+    *,
+    jurisdiction_root: Optional[Path] = None,
+) -> Dict[str, str]:
+    """
+    Like :func:`discover_most_recent_year_folder_per_jurisdiction` with optional
+    single-jurisdiction scope. Tolerates older ``meeting_date_scope`` without
+    ``jurisdiction_root`` (Colab sessions before ``git pull``).
+    """
+    try:
+        return discover_most_recent_year_folder_per_jurisdiction(
+            raw_root, jurisdiction_root=jurisdiction_root
+        )
+    except TypeError:
+        return discover_most_recent_year_folder_per_jurisdiction(raw_root)
+
+
 def path_matches_year_folder_scope(
     path: Path, raw_root: Path, allowed_years: Dict[str, str]
 ) -> bool:
