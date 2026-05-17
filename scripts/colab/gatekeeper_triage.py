@@ -44,6 +44,7 @@ import os
 import re
 import shutil
 import signal
+import threading
 import subprocess
 import sys
 import tempfile
@@ -114,14 +115,18 @@ class NetworkDeadlockError(Exception):
     """LLM HTTP client hung past SIGALRM wall clock (socket freeze)."""
 
 
+def _gatekeeper_on_main_thread() -> bool:
+    return threading.current_thread() is threading.main_thread()
+
+
 def gatekeeper_socket_alarm_enabled() -> bool:
-    """When true (default on Linux/Colab), SIGALRM aborts stuck SDK sockets."""
+    """When true (default on Linux/Colab), SIGALRM aborts stuck SDK sockets (main thread only)."""
     raw = os.environ.get("GOVERNANCE_GATEKEEPER_SOCKET_ALARM", "").strip().lower()
     if raw in ("0", "false", "no"):
         return False
-    if raw in ("1", "true", "yes"):
-        return True
-    return hasattr(signal, "SIGALRM")
+    if not _gatekeeper_on_main_thread() or not hasattr(signal, "SIGALRM"):
+        return False
+    return True
 
 
 def gatekeeper_socket_alarm_seconds(api_timeout_seconds: int) -> int:
@@ -141,12 +146,15 @@ def gatekeeper_socket_freeze_guard(api_timeout_seconds: int):
     Abort if ``generate_content`` blocks the process past api_timeout + buffer.
 
     ThreadPoolExecutor timeouts do not always unblock a frozen HTTP socket; SIGALRM
-    on the main thread does (Colab / Linux only).
+    on the main thread does (Colab / Linux only). Off the main thread (e.g.
+    ``GOVERNANCE_PARALLEL_STATES`` workers) this is a no-op — use the SDK /
+    ``call_gemma_triage`` thread-pool timeout instead.
     """
     if (
         not gatekeeper_socket_alarm_enabled()
         or api_timeout_seconds <= 0
         or not hasattr(signal, "SIGALRM")
+        or not _gatekeeper_on_main_thread()
     ):
         yield
         return
