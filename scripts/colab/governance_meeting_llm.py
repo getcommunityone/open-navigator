@@ -352,8 +352,18 @@ def text_output_complete(path: Path, *, min_chars: int = 50) -> bool:
 
 
 def policy_analysis_json_complete(data: Any) -> bool:
+    """True when parsed ``json_analysis`` is usable for import (see policy_analysis_v1.md)."""
     if not isinstance(data, dict) or not data or "_error" in data:
         return False
+    decisions = data.get("decisions")
+    if not isinstance(decisions, list):
+        return False
+    for decision in decisions:
+        if not isinstance(decision, dict):
+            return False
+        cofog = decision.get("primary_theme_cofog")
+        if not isinstance(cofog, str) or not cofog.startswith("COFOG-"):
+            return False
     return True
 
 

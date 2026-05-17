@@ -62,8 +62,8 @@ Classify each agenda item under a primary theme and at most one secondary theme 
 - Intergovernmental Relations
 - Public Engagement and Communications
 
-## COFOG Mappings
-Map each primary theme to its COFOG code:
+## COFOG Mappings (per decision only)
+COFOG codes are **never** meeting-level labels. For **each** row in `decisions`, set `primary_theme_cofog` from that decision's `primary_theme` and `secondary_theme_cofog` from `secondary_theme` (or null) using this table only — do not invent codes or attach COFOG to people, organizations, or agenda items without a matching decision.
 
 | Theme | COFOG |
 |---|---|
@@ -193,26 +193,36 @@ mindmap
 
 ## Output Instructions
 
-Produce two documents in sequence. Follow the step instructions exactly.
+Produce **two documents in sequence**. Document 1 is the **database import artifact** (strict JSON). Document 2 is human-readable markdown derived from Document 1. **Do not** skip Document 1, **do not** substitute a markdown-only report, and **do not** wrap Document 1 in markdown code fences.
 
-### STEP 1 — JSON
-Output the JSON object below and nothing else until you have closed the final curly brace of the root object. Do not include any text, labels, comments, or markdown outside the JSON structure itself. The JSON must be parseable by `JSON.parse()` with no modification.
+### STEP 1 — JSON (required; import format)
+Output the JSON object defined in the schema below and **nothing else** until you have closed the final curly brace of the root object.
 
-**CRITICAL:** For each decision in the `decisions` array, populate both `diagram_timeline` and `diagram_mindmap` fields with valid Mermaid syntax strings following the rules above. These strings must be escaped for JSON (use `\n` for newlines, escape quotes). After the closing curly brace output exactly this token on its own line with no surrounding text:
+- The response must **begin** with `{` (first non-whitespace character).
+- No preamble, apology, explanation, section headings, or markdown outside the JSON.
+- No ` ```json ` fences around Document 1.
+- The JSON must be parseable by `JSON.parse()` with no modification.
+- Every decision must include `primary_theme`, `primary_theme_cofog`, and (when applicable) `secondary_theme` / `secondary_theme_cofog` derived from the COFOG table above.
+
+**CRITICAL:** For each decision in the `decisions` array, populate both `diagram_timeline` and `diagram_mindmap` fields with valid Mermaid syntax strings following the rules above. These strings must be escaped for JSON (use `\n` for newlines, escape quotes).
+
+After the closing curly brace of the root object, output exactly this token on its own line with no surrounding text:
 
 `---DOCUMENT_BREAK---`
 
-### STEP 2 — Human-Readable Summary
-After the first break token output a human-readable document that transforms the JSON into a narrative format optimized for human comprehension. Apply Smart Brevity principles throughout. Structure the document as follows:
+### STEP 2 — Human-Readable Summary (required; not a substitute for JSON)
+After the first break token, output a human-readable markdown document that **reflects the same facts** as Document 1. Apply Smart Brevity principles throughout. Structure the document as follows:
 
 **Meeting Overview**
 - Meeting identification (body name, type, date, location)
 - Attendance summary
 - Session context if multi-part
 
-**Key Decisions** (one section per decision)
+**Key Decisions** (one section per decision; use `decision_id` as the section anchor)
 For each decision provide:
+- **Decision ID:** [decision_id]
 - **Topic headline** (from decision.headline field)
+- **Themes:** Primary: [primary_theme] ([primary_theme_cofog]); Secondary: [secondary_theme] ([secondary_theme_cofog]) or none
 - **Location:** [city name, county name if present, postal_code if present, or "jurisdiction-wide"]
 - **Outcome:** [APPROVED/DENIED/etc] via [decision method]
 - **Vote:** [if formal vote, summarize tally and note dissenting members]
@@ -239,8 +249,10 @@ Table or list of all financial items with amount, type, and context
 **People and Organizations**
 Bullet list of key actors grouped by role with party affiliation and lobbyist status clearly marked
 
-**Themes**
-Summary of primary themes addressed with COFOG codes
+**Decision themes index** (optional quick reference — must match Document 1)
+Markdown table with one row per decision: `decision_id` | `topic` | `primary_theme` | `primary_theme_cofog` | `secondary_theme` | `secondary_theme_cofog`
+
+Do **not** add a separate meeting-level COFOG or theme summary that is not keyed by `decision_id`.
 
 Format all dollar amounts with commas and currency symbols. Use bold for section headers and key terms. Keep each section concise — front-load the most important information.
 
@@ -699,7 +711,16 @@ Assign `lineage_type` as:
 - Always quote timestamps in timeline diagrams: `"09:00"`, `"14:30"`
 - Keep diagram node text concise: 10 words or fewer per entry
 
+### Theme and COFOG Rules
+- Classify themes **per decision** in `decisions[]` only — not at meeting root
+- `primary_theme_cofog` must be the COFOG code from the table for that decision's `primary_theme`
+- `secondary_theme_cofog` must be the COFOG code for `secondary_theme`, or null when `secondary_theme` is null
+- Do not emit COFOG codes in Document 2 that are absent from or inconsistent with Document 1
+
 ### Output Format Requirements
-- **Document 1 (JSON)** must be parseable by `JSON.parse()` with no modification
+- **Document 1 (JSON)** is mandatory and is the canonical structured record for downstream import
+- **Document 1** must be parseable by `JSON.parse()` with no modification
+- **Markdown-only output is invalid** — if you cannot produce valid JSON, still output a minimal valid JSON object with `"_error"` describing the failure, then the break token, then Document 2
 - Output the two documents separated by `---DOCUMENT_BREAK---` with no other text outside the documents
 - No markdown code fences around the JSON in Document 1
+- Document 2 must not replace or omit fields present in Document 1 (especially per-decision themes and COFOG)

@@ -94,7 +94,9 @@ DEMO2_USER_BY_CLASS = {
 
 DEMO3_SYSTEM = (
     "You are an expert political scientist and data architect specializing in "
-    "local governance. Follow the user's instructions exactly; preserve JSON validity."
+    "local governance. Follow the user's instructions exactly. Document 1 must be "
+    "raw JSON starting with `{` (no markdown fences, no markdown-only reply). "
+    "COFOG codes belong on each decision via primary_theme_cofog / secondary_theme_cofog."
 )
 
 _PRIORITY_PATTERNS = (
@@ -113,8 +115,10 @@ _PRIORITY_PATTERNS = (
 
 DEMO4_SYSTEM = (
     "You are an expert political scientist analyzing one chunk of a long meeting. "
-    "Follow the user's instructions exactly; preserve JSON validity. The chunk_index "
-    "tells you which 15-minute slice of the meeting this audio covers."
+    "Follow the user's instructions exactly. Document 1 must be raw JSON starting with "
+    "`{` (no markdown fences, no markdown-only reply). COFOG codes belong on each "
+    "decision. The chunk_index tells you which 15-minute slice of the meeting this "
+    "audio covers."
 )
 
 
