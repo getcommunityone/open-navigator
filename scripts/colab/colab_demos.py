@@ -260,7 +260,15 @@ def run_demo2(inv: MeetingInventory, ctx: DemoContext) -> List[Dict[str, Any]]:
         except Exception as e:
             print(f"  ! render failed: {e}")
             continue
+        total_pages = len(pages)
         pages = pages[: ctx.max_pages_per_pdf]
+        if total_pages > len(pages):
+            print(
+                f"    {total_pages} pages in file; Demo 2 will process "
+                f"first {len(pages)} (GOVERNANCE_DEMO_MAX_PAGES_PER_PDF={ctx.max_pages_per_pdf})"
+            )
+        elif total_pages:
+            print(f"    {total_pages} page(s)")
         per_pdf_dir = mirror_output_path(
             input_path=pdf,
             raw_root=ctx.raw_root,
