@@ -687,11 +687,12 @@ def doc_type_for_path(path: Path, raw_root: Path) -> str:
     except ImportError:
         pass
     stem = path.stem.lower()
-    if any(x in stem for x in (".mp3", ".mp4", ".wav", ".m4a")) or path.suffix.lower() in {
+    if any(x in stem for x in (".mp3", ".mp4", ".wav", ".m4a", ".opus")) or path.suffix.lower() in {
         ".mp3",
         ".wav",
         ".m4a",
         ".mp4",
+        ".opus",
         ".webm",
     }:
         return "meeting_audio"

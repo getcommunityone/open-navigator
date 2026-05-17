@@ -58,7 +58,17 @@ from typing import Any, Iterable, List, Optional, Tuple
 # ─────────────────────────────────────────────────────────────
 
 PDF_EXTS = {".pdf"}
-AUDIO_EXTS = {".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".webm", ".mp4"}
+try:
+    from governance_meeting_llm import AUDIO_EXTS, _ffmpeg_audio_only_output_flags
+except ImportError:
+    AUDIO_EXTS = {
+        ".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".webm", ".mp4", ".opus",
+    }
+
+    def _ffmpeg_audio_only_output_flags(path: Path) -> List[str]:
+        if path.suffix.lower() in {".mp4", ".webm", ".mov", ".mkv"}:
+            return ["-vn", "-sn", "-map", "0:a:0?"]
+        return []
 
 # Excluded-inputs sub-folder under the raw root (per the project spec).
 EXCLUDED_DIRNAME = "excluded_inputs"
@@ -480,14 +490,16 @@ def _ensure_ffmpeg() -> None:
 def clip_audio_window(audio_path: Path, seconds: int, out_path: Path) -> Path:
     """
     Extract the first ``seconds`` of ``audio_path`` to ``out_path`` as mono 16 kHz
-    MP3. This is the *programmatic token constraint* on the audio gatekeeper —
-    we cap how deeply Gemma processes the stream by clipping the input window.
+    MP3. Video containers (``.mp4``, etc.) contribute audio only. This is the
+    *programmatic token constraint* on the audio gatekeeper — we cap how deeply
+    Gemma processes the stream by clipping the input window.
     """
     _ensure_ffmpeg()
     out_path.parent.mkdir(parents=True, exist_ok=True)
     cmd = [
         "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
         "-i", str(audio_path),
+        *_ffmpeg_audio_only_output_flags(audio_path),
         "-t", str(max(5, int(seconds))),
         "-ac", "1", "-ar", "16000",
         "-c:a", "libmp3lame", "-q:a", "5",

@@ -36,7 +36,11 @@ DOCUMENT_BREAK = "---DOCUMENT_BREAK---"
 
 # File-type sets shared by the walker and the demo cells.
 PDF_EXTS = {".pdf"}
-AUDIO_EXTS = {".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".webm", ".mp4"}
+# Meeting audio + video containers we process for *audio only* (ffmpeg strips video).
+AUDIO_EXTS = {
+    ".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".webm", ".mp4", ".opus",
+}
+VIDEO_CONTAINER_EXTS = frozenset({".mp4", ".webm", ".mov", ".mkv"})
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"}
 
 # Folders inside a jurisdiction directory that hold scraper-temp artifacts and
@@ -422,6 +426,13 @@ def _ffmpeg_available() -> bool:
         return False
 
 
+def _ffmpeg_audio_only_output_flags(path: Path) -> List[str]:
+    """Strip video/subtitles; keep the first audio track from MP4/WebM containers."""
+    if path.suffix.lower() in VIDEO_CONTAINER_EXTS:
+        return ["-vn", "-sn", "-map", "0:a:0?"]
+    return []
+
+
 def chunk_audio_ffmpeg(
     audio_path: Path,
     *,
@@ -431,8 +442,10 @@ def chunk_audio_ffmpeg(
 ) -> List[Path]:
     """
     Split ``audio_path`` into ``chunk_minutes``-minute pieces via ffmpeg's
-    segmenter. Returns the sorted list of chunk paths under ``out_dir``.
-    Raises if ffmpeg is not on PATH — Colab ships with it by default.
+    segmenter. Video containers (``.mp4``, ``.webm``, …) are treated like audio:
+    only the audio track is encoded into each chunk. Returns the sorted list of
+    chunk paths under ``out_dir``. Raises if ffmpeg is not on PATH — Colab ships
+    with it by default.
     """
     if not _ffmpeg_available():
         raise RuntimeError(
@@ -446,6 +459,7 @@ def chunk_audio_ffmpeg(
     cmd = [
         "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
         "-i", str(audio_path),
+        *_ffmpeg_audio_only_output_flags(audio_path),
         "-f", "segment", "-segment_time", str(seconds),
         "-c:a", "libmp3lame" if fmt == "mp3" else "copy",
         str(pattern),
@@ -1219,6 +1233,10 @@ def mime_for(path: Path) -> str:
             return "audio/wav"
         if ext == ".webm":
             return "audio/webm"
+        if ext == ".mp4":
+            return "video/mp4"
+        if ext == ".opus":
+            return "audio/opus"
         return f"audio/{ext.lstrip('.')}"
     return "application/octet-stream"
 
@@ -1265,7 +1283,7 @@ def call_openai_compatible_chat(
 
 __all__ = [
     "DOCUMENT_BREAK",
-    "PDF_EXTS", "AUDIO_EXTS", "IMAGE_EXTS",
+    "PDF_EXTS", "AUDIO_EXTS", "VIDEO_CONTAINER_EXTS", "IMAGE_EXTS",
     "TOKEN_BUDGET_HIGH", "TOKEN_BUDGET_MEDIUM", "TOKEN_BUDGET_LOW",
     "JurisdictionDir", "MeetingInventory",
     "PdfPageRender", "GenAIResult",

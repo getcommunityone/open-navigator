@@ -22,7 +22,12 @@ from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 logger = logging.getLogger(__name__)
 
 PDF_EXTS = {".pdf"}
-AUDIO_EXTS = {".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".webm", ".mp4"}
+try:
+    from governance_meeting_llm import AUDIO_EXTS
+except ImportError:
+    AUDIO_EXTS = {
+        ".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".webm", ".mp4", ".opus",
+    }
 
 # YYYYMMDD embedded in URLs/filenames (e.g. 20260506-Agenda.pdf).
 _YYYYMMDD = re.compile(

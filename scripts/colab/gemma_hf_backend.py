@@ -186,7 +186,8 @@ def _repo_supports_audio(repo_id: str) -> bool:
 
 def _needs_multimodal_lm(media: Iterable[Tuple[Any, str]]) -> bool:
     for _, mime in media:
-        if (mime or "").lower().startswith("audio/"):
+        mime_l = (mime or "").lower()
+        if mime_l.startswith("audio/") or mime_l.startswith("video/"):
             return True
     return False
 
@@ -472,7 +473,7 @@ def _media_to_content_parts(
         if mime_l.startswith("image/"):
             img = Image.open(io.BytesIO(data)).convert("RGB")
             parts.append({"type": "image", "image": img})
-        elif mime_l.startswith("audio/"):
+        elif mime_l.startswith("audio/") or mime_l.startswith("video/"):
             suffix = {
                 "audio/mpeg": ".mp3",
                 "audio/mp3": ".mp3",
@@ -483,6 +484,9 @@ def _media_to_content_parts(
                 "audio/webm": ".webm",
                 "audio/ogg": ".ogg",
                 "audio/flac": ".flac",
+                "audio/opus": ".opus",
+                "video/mp4": ".mp4",
+                "video/webm": ".webm",
             }.get(mime_l, ".wav")
             tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
             tmp.write(data)
