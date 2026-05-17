@@ -118,10 +118,7 @@ def filter_inventories_for_scope(
     inventories: List[MeetingInventory],
     preset: DemoScopePreset,
 ) -> List[MeetingInventory]:
-    """
-    Pick up to ``max_states`` states with one jurisdiction each (most media first),
-    capped at ``max_jurisdictions``.
-    """
+    """Up to ``max_states`` states, one jurisdiction each (richest media first)."""
     by_state: Dict[str, List[MeetingInventory]] = defaultdict(list)
     for inv in inventories:
         by_state[inv.jurisdiction.state_code].append(inv)
@@ -145,21 +142,49 @@ def filter_inventories_for_scope(
 
 
 def scope_banner_html(preset: DemoScopePreset) -> str:
-    return f"""
-<div style="font-family: system-ui, sans-serif; line-height: 1.45; max-width: 720px;">
-  <p style="margin:0 0 8px 0;"><b>{preset.label}</b> &nbsp;·&nbsp; {preset.eta}</p>
-  <table style="border-collapse: collapse; font-size: 13px; width: 100%;">
-    <tr style="background:#f5f5f5;"><th align="left" style="padding:6px 8px;">Setting</th><th align="left" style="padding:6px 8px;">Value</th></tr>
-    <tr><td style="padding:4px 8px;">States × jurisdictions</td><td style="padding:4px 8px;">{preset.max_states} × 1 (max {preset.max_jurisdictions} places)</td></tr>
-    <tr><td style="padding:4px 8px;">Meeting dates</td><td style="padding:4px 8px;">{preset.meeting_dates}</td></tr>
-    <tr><td style="padding:4px 8px;">PDFs / pages / audio chunks</td><td style="padding:4px 8px;">{preset.max_pdfs_per_jur} / {preset.max_pages_per_pdf} / {preset.max_audio_chunks}</td></tr>
-    <tr><td style="padding:4px 8px;">Parallel states</td><td style="padding:4px 8px;">{preset.parallel_states}</td></tr>
-  </table>
-  <p style="margin:10px 0 0 0; color:#555; font-size:12px;">Re-run §3 → §5 after changing scope. <b>Runtime → Run all</b> uses Fast unless you run this cell first.</p>
-</motion>
-</motion>
-"""
+    rows = [
+        ("States × jurisdictions", f"{preset.max_states} × 1 (max {preset.max_jurisdictions})"),
+        ("Meeting dates", str(preset.meeting_dates)),
+        (
+            "PDFs / pages / chunks",
+            f"{preset.max_pdfs_per_jur} / {preset.max_pages_per_pdf} / {preset.max_audio_chunks}",
+        ),
+        ("Parallel states", str(preset.parallel_states)),
+    ]
+    tr = "".join(
+        f'<tr><td style="padding:4px 8px;">{k}</td><td style="padding:4px 8px;">{v}</td></tr>'
+        for k, v in rows
+    )
+    return (
+        '<div style="font-family:system-ui,sans-serif;max-width:720px;line-height:1.45">'
+        f"<p style='margin:0 0 8px'><b>{preset.label}</b> · {preset.eta}</p>"
+        '<table style="border-collapse:collapse;font-size:13px;width:100%">'
+        '<tr style="background:#f5f5f5"><th align="left" style="padding:6px 8px">Setting</th>'
+        '<th align="left" style="padding:6px 8px">Value</th></tr>'
+        f"{tr}</table>"
+        '<p style="margin:10px 0 0;color:#555;font-size:12px">Re-run §3 → §5 after changing. '
+        "<b>Run all</b> defaults to Fast.</p></div>"
+    )
 
-# Fix HTML closing tag (editor artifact above)
-def scope_banner_html(preset: DemoScopePreset) -> str:  # noqa: F811
-    body = scope_banner_html.__wrapped__ if hasattr(scope_banner_html, "__wrapped__") else None
+
+def print_scope_plan(
+    preset: DemoScopePreset,
+    all_inventories: List[MeetingInventory],
+    selected: List[MeetingInventory],
+) -> None:
+    print(f"\n{'=' * 60}")
+    print(f"Demo scope: {preset.label}  ({preset.eta})")
+    print(f"{'=' * 60}")
+    print(
+        f"  Limits: {preset.max_states} state(s), {preset.max_jurisdictions} jurisdiction(s), "
+        f"{preset.meeting_dates} meeting date(s), "
+        f"{preset.max_pdfs_per_jur} PDF(s)/jur, {preset.max_audio_chunks} audio chunk(s)"
+    )
+    print(f"  On disk: {len(all_inventories)} jurisdiction(s) with media")
+    print(f"  This run: {len(selected)} jurisdiction(s)")
+    for inv in selected:
+        j = inv.jurisdiction
+        print(f"    • {j.relative_label}  (pdfs={len(inv.pdfs)} audio={len(inv.audio)})")
+    if len(all_inventories) > len(selected):
+        print(f"  Skipped: {len(all_inventories) - len(selected)} (pick a larger scope in §2)")
+    print(f"{'=' * 60}\n")
