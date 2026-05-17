@@ -68,6 +68,35 @@ def _flat_recordings_for_meeting(
     return found
 
 
+def _flat_pdfs_for_meeting(
+    meeting_dir: Path,
+    jurisdiction_root: Path,
+) -> Tuple[List[Path], List[Path]]:
+    """
+    Agenda/minutes PDFs still at jurisdiction root (e.g. ``2026_05_06-Agenda.pdf``).
+
+    Colab often leaves Drive flat while ``meetings/2026_05_06/session/`` exists empty;
+    the pipeline still writes Gemma outputs keyed by those flat paths.
+    """
+    date_s = _meeting_calendar_date(meeting_dir)
+    if not date_s or not jurisdiction_root.is_dir():
+        return [], []
+    underscored = date_s.replace("-", "_")
+    agenda: List[Path] = []
+    minutes: List[Path] = []
+    for p in sorted(jurisdiction_root.iterdir()):
+        if not p.is_file() or p.suffix.lower() != ".pdf":
+            continue
+        stem = p.stem.lower()
+        if underscored not in stem and date_s not in stem:
+            continue
+        if "minute" in stem:
+            minutes.append(p)
+        elif "agenda" in stem:
+            agenda.append(p)
+    return agenda, minutes
+
+
 def _doc_label(pdf: Path) -> str:
     name = pdf.name.lower()
     if "minute" in name:
@@ -195,11 +224,25 @@ def _gather_meeting_artifacts(
         "human_summaries": [],
         "thoughts_md": [],
         "meeting_brief": None,
+        "pdfs_from_jurisdiction_root": 0,
     }
     for sub, key in (("agenda", "agenda_pdfs"), ("minutes", "minutes_pdfs")):
         d = meeting_dir / sub
         if d.is_dir():
             out[key] = sorted(d.glob("*.pdf"))
+
+    if jurisdiction_root is not None:
+        flat_agenda, flat_minutes = _flat_pdfs_for_meeting(meeting_dir, jurisdiction_root)
+        seen = {p.resolve() for p in out["agenda_pdfs"] + out["minutes_pdfs"]}
+        for p in flat_agenda:
+            if p.resolve() not in seen:
+                out["agenda_pdfs"].append(p)
+                seen.add(p.resolve())
+        for p in flat_minutes:
+            if p.resolve() not in seen:
+                out["minutes_pdfs"].append(p)
+                seen.add(p.resolve())
+        out["pdfs_from_jurisdiction_root"] = len(flat_agenda) + len(flat_minutes)
 
     av = meeting_dir / "audio"
     if av.is_dir():
@@ -314,6 +357,14 @@ def build_consolidated_summary_markdown(artifacts: Dict[str, Any]) -> str:
         f"- **Transcripts:** {len(artifacts.get('transcripts') or [])}",
         "",
     ]
+    n_flat = int(artifacts.get("pdfs_from_jurisdiction_root") or 0)
+    if n_flat:
+        lines.append(
+            f"- **Layout:** {n_flat} PDF(s) at county root "
+            f"(e.g. `2026_05_06-Agenda.pdf`) — included even when not under "
+            f"`meetings/…/session/agenda/`"
+        )
+        lines.append("")
 
     missing: List[str] = []
     if artifacts.get("agenda_pdfs") and not any(
@@ -329,8 +380,9 @@ def build_consolidated_summary_markdown(artifacts: Dict[str, Any]) -> str:
         )
     if artifacts.get("audio_video") and not artifacts.get("demo4_chunks"):
         missing.append(
-            "recording present but no Demo 4 chunks — use audio-capable model "
-            "(`GOVERNANCE_DEMO4_MODEL` / `GOVERNANCE_GATEKEEPER_MODEL`)"
+            "recording present but no Demo 4 chunks — set "
+            "`GOVERNANCE_DEMO4_MODEL=gemma-4-e2b-it` (not 31B), restart runtime, "
+            "re-run §6; MP4→ffmpeg MP3 chunks (Opus conversion not required)"
         )
     if artifacts.get("demo4_chunks") and not artifacts.get("drift_json"):
         missing.append("chunks exist but no `policy_drift.json`")
