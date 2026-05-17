@@ -96,13 +96,32 @@ def model_supports_audio_video_input(model: str) -> bool:
     # AI Studio: 26B A4B MoE is used for Demo 1/2 PDFs; it rejects audio on most keys.
     if "26b" in mid and "a4b" in mid:
         return False
-    if "gemma-4-31b" in mid or mid.endswith("31b-it"):
-        return True
     if "gemma-3n" in mid or "gemma-4-e2b" in mid or "gemma-4-e4b" in mid:
         return True
     if "3n-e2b" in mid or "3n-e4b" in mid or "e2b-it" in mid or "e4b-it" in mid:
         return True
+    if "gemma-4-31b" in mid or mid.endswith("31b-it"):
+        return _demo4_allow_31b_audio()
     return False
+
+
+def _demo4_allow_31b_audio() -> bool:
+    """31B is for Demo 3 PDFs; most AI Studio keys reject its audio modality."""
+    return os.environ.get("GOVERNANCE_DEMO4_ALLOW_31B_AUDIO", "0").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+
+
+def model_accepts_demo4_audio_chunks(model: str) -> bool:
+    """Models to use for Demo 4 meeting recordings (excludes 31B unless opted in)."""
+    if not model_supports_audio_video_input(model):
+        return False
+    mid = (model or "").lower()
+    if ("31b" in mid or "gemma-4-31b" in mid) and not _demo4_allow_31b_audio():
+        return False
+    return True
 
 
 def model_supports_video_input(model: str) -> bool:
@@ -125,14 +144,13 @@ def resolve_demo4_genai_model(
     Model for Demo 4 audio chunks.
 
     Resolves against ``models.list()`` when ``client`` / ``api_key`` is set.
-    Default request: ``GOVERNANCE_DEMO4_MODEL`` → ``GOVERNANCE_THINKING_MODEL``
-    (``gemma-4-31b-it``) → Gemma 4 Edge (E2B/E4B). Never ``gemma-4-26b-a4b-it``.
+    Default: ``GOVERNANCE_DEMO4_MODEL`` → gatekeeper id → ``gemma-4-e4b-it`` / E2B.
+    Never ``gemma-4-31b-it`` unless ``GOVERNANCE_DEMO4_ALLOW_31B_AUDIO=1``.
     """
     explicit = os.environ.get("GOVERNANCE_DEMO4_MODEL", "").strip()
     gk = (gatekeeper_model or os.environ.get("GOVERNANCE_GATEKEEPER_MODEL", "")).strip()
-    # Demo 4 = audio bytes. Do not default to THINKING_MODEL (31B) — PDF/thinking only on many keys.
     requested = explicit or gk or "gemma-4-e4b-it"
-    if not model_supports_audio_video_input(requested):
+    if not model_accepts_demo4_audio_chunks(requested):
         requested = "gemma-4-e2b-it"
 
     if client is None and api_key:
@@ -145,20 +163,32 @@ def resolve_demo4_genai_model(
 
     if client is not None:
         try:
-            from gatekeeper_triage import _GEMMA_DEMO4_AUDIO_FALLBACKS, resolve_model_id
+            from gatekeeper_triage import (
+                _GEMMA_DEMO4_AUDIO_FALLBACKS,
+                _list_available_model_ids,
+                resolve_model_id,
+            )
 
-            return resolve_model_id(
+            resolved = resolve_model_id(
                 client,
                 requested,
                 fallbacks=_GEMMA_DEMO4_AUDIO_FALLBACKS,
                 role="Demo 4 audio",
             )
+            if model_accepts_demo4_audio_chunks(resolved):
+                return resolved
+            # resolve_model_id may fall through to 31B when Edge ids missing from list().
+            for cand in _GEMMA_DEMO4_AUDIO_FALLBACKS:
+                if cand in _list_available_model_ids(client) and model_accepts_demo4_audio_chunks(
+                    cand
+                ):
+                    return cand
         except Exception:
             pass
 
-    for cand in (requested, "gemma-4-e4b-it", "gemma-4-e2b-it", gk, "gemma-4-31b-it"):
+    for cand in (requested, *_GEMMA_DEMO4_AUDIO_FALLBACKS, gk):
         c = (cand or "").strip()
-        if c and model_supports_audio_video_input(c):
+        if c and model_accepts_demo4_audio_chunks(c):
             return c
     env_fb = os.environ.get("GOVERNANCE_DEMO4_FALLBACK_MODEL", "").strip()
     if env_fb and model_supports_audio_video_input(env_fb):
@@ -178,12 +208,13 @@ def demo4_models_to_try(primary: str, *, api_key: str = "") -> List[str]:
     """Ordered models for Demo 4 when the primary id rejects audio on this key."""
     try:
         from gatekeeper_triage import (
+            _DEMO4_EDGE_TRY_ALWAYS,
             _GEMMA_DEMO4_AUDIO_FALLBACKS,
             _build_genai_client,
             _list_available_model_ids,
         )
     except ImportError:
-        return [primary] if primary else []
+        return [primary] if primary and model_accepts_demo4_audio_chunks(primary) else []
 
     available: set[str] = set()
     if api_key:
@@ -193,15 +224,17 @@ def demo4_models_to_try(primary: str, *, api_key: str = "") -> List[str]:
             available = set()
 
     ordered: List[str] = []
-    for mid in (primary, *_GEMMA_DEMO4_AUDIO_FALLBACKS):
+    # Edge ids first (even if models.list omitted them — try API before giving up).
+    for mid in (*_DEMO4_EDGE_TRY_ALWAYS, primary, *_GEMMA_DEMO4_AUDIO_FALLBACKS):
         m = (mid or "").strip()
         if not m or m in ordered:
             continue
-        if available and m not in available:
+        if not model_accepts_demo4_audio_chunks(m):
             continue
-        if model_supports_audio_video_input(m):
-            ordered.append(m)
-    return ordered or ([primary] if primary else [])
+        if available and m not in available and m not in _DEMO4_EDGE_TRY_ALWAYS:
+            continue
+        ordered.append(m)
+    return ordered
 
 
 # ─────────────────────────────────────────────────────────────

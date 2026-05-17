@@ -741,14 +741,14 @@ _GEMMA_THINKING_FALLBACKS = (
 )
 # Demo 4 meeting audio/video chunks — must accept audio bytes on AI Studio.
 # Do not use ``gemma-4-26b-a4b-it`` (PDF/image MoE) or assume ``gemma-3n-e2b-it`` exists.
-# Edge / 3n first — many AI Studio keys list 31B but reject audio at runtime.
+# Edge / 3n only — do not put 31B here; many keys list it but reject audio at runtime.
 _GEMMA_DEMO4_AUDIO_FALLBACKS = (
     "gemma-4-e4b-it",
     "gemma-4-e2b-it",
     "gemma-3n-e4b-it",
     "gemma-3n-e2b-it",
-    "gemma-4-31b-it",
 )
+_DEMO4_EDGE_TRY_ALWAYS = _GEMMA_DEMO4_AUDIO_FALLBACKS
 
 
 def _model_short_id(m: Any) -> str:

@@ -695,18 +695,24 @@ def run_demo4(
         brief_cache = {}
 
     j = inv.jurisdiction
-    demo4_model = (ctx.demo4_model or "").strip() or resolve_demo4_genai_model(
+    from governance_meeting_llm import model_accepts_demo4_audio_chunks
+
+    # Always resolve at run time — do not trust notebook ctx.demo4_model if it is stale 31B.
+    demo4_model = resolve_demo4_genai_model(
         ctx.genai_model,
         gatekeeper_model=ctx.gatekeeper_model,
-        thinking_model=ctx.thinking_model,
         api_key=ctx.api_key,
     )
-    if not model_supports_audio_video_input(demo4_model):
-        print(
-            f"  ⚠ Demo 4 model {demo4_model!r} likely rejects audio on this API key. "
-            "Set GOVERNANCE_DEMO4_MODEL to an id from models.list() "
-            "(e.g. gemma-4-31b-it, gemma-4-e2b-it) — not gemma-4-26b-a4b-it.",
-            flush=True,
+    stale = (ctx.demo4_model or "").strip()
+    if stale and stale != demo4_model:
+        log_line(
+            f"Demo 4 model: using {demo4_model!r} "
+            f"(ignoring stale demo_ctx.demo4_model={stale!r})"
+        )
+    if not model_accepts_demo4_audio_chunks(demo4_model):
+        log_line(
+            f"⚠ Demo 4 model {demo4_model!r} is not an audio-chunk model. "
+            f"Set os.environ['GOVERNANCE_DEMO4_MODEL']='gemma-4-e2b-it' and restart runtime."
         )
     elif demo4_model != ctx.genai_model:
         print(
