@@ -42,6 +42,60 @@ Additional context from the same project:
 
 ---
 
+## Hackathon idea: Government website accessibility checker
+
+**Pitch hook:** *Can a resident who uses a screen reader actually pay a fine, find meeting minutes, or contact their commissioner on the official `.gov` site?*
+
+This pairs well with the fines-revenue story: towns that depend on ticketing often push residents to **online portals**—if those sites fail **WCAG** checks, “digital government” excludes the people most affected.
+
+### What’s already in Open Navigator
+
+Bulk scans of **canonical jurisdiction homepages** from `intermediate.int_jurisdiction_websites`, with results in Postgres bronze for maps and scorecards.
+
+| Layer | Engines | Bronze table |
+| --- | --- | --- |
+| **HTML homepages** | [axe-core](https://github.com/dequelabs/axe-core) + Puppeteer, [Pa11y-CI](https://github.com/pa11y/pa11y-ci) | `bronze.bronze_jurisdiction_website_accessibility` |
+| **PDFs linked from homepages** | [veraPDF](https://verapdf.org/) (PDF/UA, PDF/A) | `bronze.bronze_jurisdiction_pdf_verapdf` |
+
+Full runbook: **[Accessibility testing](/docs/guides/accessibility-testing)**.
+
+### Fast demo path (one state, one reveal)
+
+From the repo root, after `int_jurisdiction_websites` is built and `.env` has a database URL:
+
+```bash
+# HTML: WCAG-oriented violations (axe) for Alabama pilot jurisdictions
+./scripts/accessibility/run_accessibility_scan.sh --engine axe --state AL
+
+# Optional: PDF/UA on agenda/minutes PDFs discovered on those homepages
+./scripts/accessibility/run_verapdf_scan.sh --state AL --max-pdfs-per-site 3
+```
+
+**Video reveal:** Side-by-side—**Tuscaloosa County** vs **City of Tuscaloosa** homepage URLs, sorted by `violation_count` in SQL or a simple chart. Call out one concrete failure (missing form label, low contrast, empty link text) and tie it to a real task (“pay court costs,” “download tonight’s agenda PDF”).
+
+```sql
+SELECT jurisdiction_id, website_url, scanner, violation_count, status, scanned_at
+FROM bronze.bronze_jurisdiction_website_accessibility
+ORDER BY violation_count DESC NULLS LAST
+LIMIT 20;
+```
+
+### How to say it on camera
+
+- **Problem (15s):** “My town funds itself partly from fines, then sends me to a website my blind neighbor can’t use.”
+- **Demo (45s):** Run scan → show top violations → open the live `.gov` page with the same issue highlighted.
+- **Action (10s):** “Advocates can rank jurisdictions, file ADA complaints with evidence, or ask councils to fix the portal—not guess.”
+
+### Why judges like this track
+
+- Fits **“for good”** and **accessibility** rubrics (see §3 in this doc’s reference videos).
+- **Measurable** output (violation counts, PDF/UA pass-fail)—not a subjective LLM summary.
+- Complements the **Gemma meeting pipeline**: meetings are useless if residents cannot **reach** them online.
+
+**Caveats:** Automated tools catch many but not all barriers; say “axe/Pa11y flags” vs. “fully ADA compliant.” Homepage-only scans miss deep pages unless you extend the crawler.
+
+---
+
 ## Why this matters
 
 Judges and voters often decide from a **short demo**: problem clarity, human face, and a single **reveal** beat a long architecture tour. Treat the recording as a **pitch product**, not an afterthought.
@@ -233,10 +287,12 @@ Short talks, product stories, and case studies that show how **data + maps + hum
 | **Google / familiar UI** | If the hackathon is Google-adjacent, **show** Maps, Sheets/Looker Studio, or another familiar surface **next to** your data so trust is instant. |
 | **Demo over deck** | Prefer **screen capture** (e.g. OBS, Loom) of a **happy path** over architecture diagrams. |
 | **Data action** | Explicitly say what became **actionable** (find, compare, contact, plan) that wasn’t before. |
+| **Accessibility reveal** | Show a **scanner result** next to the live `.gov` page (axe/Pa11y violation → same element on screen). |
 
 ## Applying this to Open Navigator / CommunityOne
 
-- **One jurisdiction, one story:** Default hackathon run: **Tuscaloosa County, AL** (`county_01125`) and the question **“what share of revenue is fines?”** for that place—then compare to national bands (>10%, >20%) from Governing.
+- **One jurisdiction, one story:** Default Gemma run: **Tuscaloosa County, AL** (`county_01125`) and **“what share of revenue is fines?”**—or a parallel video using **`run_accessibility_scan.sh --state AL`** to ask **“can residents actually use that county’s website?”**
+- **Combine tracks (advanced):** Fines % from audits + accessibility score for the same `jurisdiction_id` → “revenue from tickets, barriers to paying online.”
 - **Other goals still work:** Officials lookup, nonprofit + government spend context, meeting drift—but keep **one** primary hook per video.
 - **Source credibility:** Flash **audit year**, **fund name**, and **Governing / state comptroller** on screen for a second—reinforces “real data,” not a mockup.
 - **End on a CTA:** What should a viewer **do tomorrow**—open their county’s folder, run the Colab notebook, or look up their town’s fine-revenue %?
