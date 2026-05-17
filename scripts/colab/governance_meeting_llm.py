@@ -320,6 +320,109 @@ def mirror_output_path(
 
 
 # ─────────────────────────────────────────────────────────────
+# Processed-output idempotency (skip when JSON exists; re-run when deleted)
+# ─────────────────────────────────────────────────────────────
+
+
+def force_reprocess_outputs() -> bool:
+    """When true, ignore existing Gemma JSON / text artifacts and call the API again."""
+    return os.environ.get("GOVERNANCE_FORCE_REPROCESS", "0").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+
+
+def read_json_file(path: Path) -> Optional[Any]:
+    if not path.is_file():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def text_output_complete(path: Path, *, min_chars: int = 50) -> bool:
+    if not path.is_file():
+        return False
+    try:
+        return len(path.read_text(encoding="utf-8").strip()) >= min_chars
+    except OSError:
+        return False
+
+
+def policy_analysis_json_complete(data: Any) -> bool:
+    if not isinstance(data, dict) or not data or "_error" in data:
+        return False
+    return True
+
+
+def policy_chunk_output_complete(path: Path) -> bool:
+    """True when a Demo 4 ``chunk_NNN.json`` has usable ``json_analysis``."""
+    data = read_json_file(path)
+    if not isinstance(data, dict):
+        return False
+    return policy_analysis_json_complete(data.get("json_analysis"))
+
+
+def demo2_page_output_complete(path: Path) -> bool:
+    data = read_json_file(path)
+    if not isinstance(data, dict):
+        return False
+    extracted = data.get("extracted")
+    if not isinstance(extracted, dict) or extracted.get("_parse_error"):
+        return False
+    return bool(extracted.get("raw_text") or extracted.get("page_type"))
+
+
+def demo2_pdf_outputs_complete(per_pdf_dir: Path, *, expected_pages: int) -> bool:
+    report = read_json_file(per_pdf_dir / "_token_budget_report.json")
+    if not isinstance(report, dict):
+        return False
+    if int(report.get("page_count") or 0) != expected_pages:
+        return False
+    for i in range(1, expected_pages + 1):
+        if not demo2_page_output_complete(per_pdf_dir / f"page_{i:03d}.json"):
+            return False
+    return True
+
+
+def demo3_thinking_json_complete(path: Path) -> bool:
+    return policy_analysis_json_complete(read_json_file(path))
+
+
+def demo4_drift_output_complete(path: Path) -> bool:
+    data = read_json_file(path)
+    if not isinstance(data, dict):
+        return False
+    if data.get("subjects") or data.get("drifted_subjects"):
+        return True
+    return isinstance(data.get("meeting_level_summary"), dict) and bool(
+        data["meeting_level_summary"]
+    )
+
+
+def load_demo4_chunk_analyses(per_audio_dir: Path, chunk_count: int) -> List[Dict[str, Any]]:
+    """Load ``json_analysis`` dicts from existing chunk JSON (missing chunks → empty dict)."""
+    out: List[Dict[str, Any]] = []
+    for idx in range(chunk_count):
+        path = per_audio_dir / f"chunk_{idx:03d}.json"
+        data = read_json_file(path)
+        if isinstance(data, dict) and policy_analysis_json_complete(data.get("json_analysis")):
+            out.append(data["json_analysis"])
+        else:
+            out.append({})
+    return out
+
+
+def find_existing_audio_chunks(scratch_dir: Path) -> List[Path]:
+    """Reuse ffmpeg segment files when JSON was deleted but scratch MP3 chunks remain."""
+    if not scratch_dir.is_dir():
+        return []
+    return sorted(scratch_dir.glob("*_chunk_*.mp3"))
+
+
+# ─────────────────────────────────────────────────────────────
 # PDF rendering + digital-text probing (visual-OCR demo)
 # ─────────────────────────────────────────────────────────────
 
@@ -1387,5 +1490,15 @@ __all__ = [
     "load_meeting_data_lookup", "load_contacts_lookup",
     "merge_meeting_data_by_jurisdiction", "merge_contacts_by_jurisdiction",
     "mime_for",
+    "force_reprocess_outputs",
+    "read_json_file",
+    "text_output_complete",
+    "policy_chunk_output_complete",
+    "demo2_page_output_complete",
+    "demo2_pdf_outputs_complete",
+    "demo3_thinking_json_complete",
+    "demo4_drift_output_complete",
+    "load_demo4_chunk_analyses",
+    "find_existing_audio_chunks",
     "OpenAICompatibleConfig", "call_openai_compatible_chat",
 ]

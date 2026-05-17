@@ -18,12 +18,21 @@ from governance_meeting_llm import (
     MeetingInventory,
     call_google_genai_multimodal,
     chunk_audio_ffmpeg,
+    demo2_page_output_complete,
+    demo2_pdf_outputs_complete,
+    demo3_thinking_json_complete,
+    demo4_drift_output_complete,
     extract_pdf_digital_text,
+    find_existing_audio_chunks,
+    force_reprocess_outputs,
     mime_for,
     mirror_output_path,
     parse_policy_analysis_response,
+    policy_chunk_output_complete,
     policy_drift_summarize,
+    read_json_file,
     render_pdf_pages,
+    text_output_complete,
 )
 
 
@@ -132,7 +141,29 @@ def run_demo1(inv: MeetingInventory, ctx: DemoContext) -> List[Dict[str, Any]]:
     if not pdfs:
         return report
     print(f"\n— Demo 1 | {j.relative_label} — {len(pdfs)} PDF(s)")
+    force = force_reprocess_outputs()
     for pdf in pdfs:
+        out_txt = mirror_output_path(
+            input_path=pdf,
+            raw_root=ctx.raw_root,
+            processed_root=ctx.gemma_json_root,
+            suffix=".visual_ocr.txt",
+        )
+        if not force and text_output_complete(out_txt):
+            print(f"  • {pdf.name}: reuse existing OCR → {out_txt.relative_to(ctx.processed_root)}")
+            report.append(
+                {
+                    "jurisdiction": j.relative_label,
+                    "fips": j.fips,
+                    "pdf": str(pdf.relative_to(ctx.raw_root)),
+                    "scanned": None,
+                    "digital_chars": None,
+                    "output": str(out_txt.relative_to(ctx.processed_root)),
+                    "model_chars": None,
+                    "reused": True,
+                }
+            )
+            continue
         try:
             digital_chars = len(extract_pdf_digital_text(pdf))
         except Exception as e:
@@ -155,12 +186,6 @@ def run_demo1(inv: MeetingInventory, ctx: DemoContext) -> List[Dict[str, Any]]:
         except Exception as e:
             print(f"    ! Gemma call failed: {e}")
             continue
-        out_txt = mirror_output_path(
-            input_path=pdf,
-            raw_root=ctx.raw_root,
-            processed_root=ctx.gemma_json_root,
-            suffix=".visual_ocr.txt",
-        )
         out_txt.write_text(result.text or "(empty response)", encoding="utf-8")
         report.append(
             {
@@ -184,6 +209,7 @@ def run_demo2(inv: MeetingInventory, ctx: DemoContext) -> List[Dict[str, Any]]:
     if not pdfs:
         return report
     print(f"\n— Demo 2 | {j.relative_label} — {len(pdfs)} PDF(s)")
+    force = force_reprocess_outputs()
     for pdf in pdfs:
         print(f"  • {pdf.name}")
         try:
@@ -202,6 +228,13 @@ def run_demo2(inv: MeetingInventory, ctx: DemoContext) -> List[Dict[str, Any]]:
         if per_pdf_dir.is_file():
             per_pdf_dir.unlink()
             per_pdf_dir.mkdir(parents=True, exist_ok=True)
+        if not force and demo2_pdf_outputs_complete(per_pdf_dir, expected_pages=len(pages)):
+            print(
+                f"    reuse existing page JSON ({len(pages)} pages) → "
+                f"{per_pdf_dir.relative_to(ctx.processed_root)}"
+            )
+            report.append(read_json_file(per_pdf_dir / "_token_budget_report.json") or {})
+            continue
         pdf_summary: Dict[str, Any] = {
             "jurisdiction": j.relative_label,
             "fips": j.fips,
@@ -211,6 +244,23 @@ def run_demo2(inv: MeetingInventory, ctx: DemoContext) -> List[Dict[str, Any]]:
             "pages": [],
         }
         for page in pages:
+            page_out = per_pdf_dir / f"page_{page.page_index + 1:03d}.json"
+            if not force and demo2_page_output_complete(page_out):
+                page_data = read_json_file(page_out) or {}
+                pdf_summary["budget_split"][page_data.get("token_budget", TOKEN_BUDGET_LOW)] = (
+                    pdf_summary["budget_split"].get(page_data.get("token_budget", TOKEN_BUDGET_LOW), 0) + 1
+                )
+                pdf_summary["pages"].append(
+                    {
+                        "page": page.page_index + 1,
+                        "classification": page_data.get("classification", page.classification),
+                        "token_budget": page_data.get("token_budget", page.token_budget),
+                        "elapsed_s": page_data.get("elapsed_s"),
+                        "reused": True,
+                    }
+                )
+                print(f"    page {page.page_index + 1}: reuse existing JSON")
+                continue
             budget = page.token_budget
             user = DEMO2_USER_BY_CLASS.get(page.classification, DEMO2_USER_LOW)
             t0 = time.time()
@@ -233,7 +283,6 @@ def run_demo2(inv: MeetingInventory, ctx: DemoContext) -> List[Dict[str, Any]]:
                 page_json = json.loads(result.text.strip().lstrip("`"))
             except Exception:
                 page_json = {"_parse_error": True, "_raw": (result.text or "")[:2000]}
-            page_out = per_pdf_dir / f"page_{page.page_index + 1:03d}.json"
             page_out.write_text(
                 json.dumps(
                     {
@@ -275,6 +324,23 @@ def run_demo3(inv: MeetingInventory, ctx: DemoContext) -> List[Dict[str, Any]]:
     if pdf is None:
         return report
     print(f"\n— Demo 3 | {j.relative_label}: {pdf.name}")
+    json_out = mirror_output_path(
+        input_path=pdf,
+        raw_root=ctx.raw_root,
+        processed_root=ctx.gemma_json_root,
+        suffix=".thinking.json",
+    )
+    if not force_reprocess_outputs() and demo3_thinking_json_complete(json_out):
+        print(f"  reuse existing → {json_out.relative_to(ctx.processed_root)}")
+        report.append(
+            {
+                "jurisdiction": j.relative_label,
+                "pdf": str(pdf.relative_to(ctx.raw_root)),
+                "json_ok": True,
+                "reused": True,
+            }
+        )
+        return report
     geo_hint = (
         f"Geography hint from folder layout: state_code={j.state_code}, "
         f"scope={j.scope}, fips_or_place_id={j.fips or 'unknown'}. "
@@ -310,12 +376,6 @@ def run_demo3(inv: MeetingInventory, ctx: DemoContext) -> List[Dict[str, Any]]:
     )
     raw_out.write_text(result.text or "", encoding="utf-8")
     if parsed.get("json_analysis") is not None:
-        json_out = mirror_output_path(
-            input_path=pdf,
-            raw_root=ctx.raw_root,
-            processed_root=ctx.gemma_json_root,
-            suffix=".thinking.json",
-        )
         json_out.write_text(
             json.dumps(parsed["json_analysis"], indent=2, ensure_ascii=False),
             encoding="utf-8",
@@ -378,6 +438,7 @@ def run_demo4(
     if not audios:
         return report
     print(f"\n— Demo 4 | {j.relative_label}: {len(audios)} audio file(s)")
+    force = force_reprocess_outputs()
     for audio in audios:
         print(f"  • {audio.name}")
         per_audio_dir = mirror_output_path(
@@ -390,15 +451,29 @@ def run_demo4(
         rel = audio.resolve().relative_to(ctx.raw_root.resolve())
         scratch = ctx.scratch_audio_root / rel.with_suffix("")
         scratch.mkdir(parents=True, exist_ok=True)
-        try:
-            chunks = chunk_audio_ffmpeg(audio, out_dir=scratch, chunk_minutes=15, fmt="mp3")
-        except Exception as e:
-            print(f"    ! ffmpeg chunking failed: {e}")
-            continue
+        drift_out = per_audio_dir / "policy_drift.json"
+        existing_chunks = find_existing_audio_chunks(scratch)
+        if existing_chunks and not force:
+            chunks = existing_chunks
+            print(f"    reuse {len(chunks)} ffmpeg chunk(s) from scratch")
+        else:
+            try:
+                chunks = chunk_audio_ffmpeg(audio, out_dir=scratch, chunk_minutes=15, fmt="mp3")
+            except Exception as e:
+                print(f"    ! ffmpeg chunking failed: {e}")
+                continue
         chunks = chunks[: ctx.max_audio_chunks]
         print(f"    {len(chunks)} chunk(s) (cap {ctx.max_audio_chunks})")
         chunk_jsons: List[Dict[str, Any]] = []
+        chunks_regenerated = False
         for idx, chunk_path in enumerate(chunks):
+            chunk_out = per_audio_dir / f"chunk_{idx:03d}.json"
+            if not force and policy_chunk_output_complete(chunk_out):
+                data = read_json_file(chunk_out) or {}
+                chunk_jsons.append(data.get("json_analysis") or {})
+                print(f"    chunk {idx}: reuse existing JSON")
+                continue
+            chunks_regenerated = True
             geo_hint = (
                 f"Geography hint: state_code={j.state_code}, scope={j.scope}, "
                 f"fips_or_place_id={j.fips or 'unknown'}. chunk_index={idx} of {len(chunks)}."
@@ -447,7 +522,6 @@ def run_demo4(
                 print(f"    ! chunk {idx} failed: {e}")
                 continue
             parsed = parse_policy_analysis_response(result.text or "")
-            chunk_out = per_audio_dir / f"chunk_{idx:03d}.json"
             chunk_out.write_text(
                 json.dumps(
                     {
@@ -464,17 +538,24 @@ def run_demo4(
             )
             chunk_jsons.append(parsed.get("json_analysis") or {})
             print(f"    chunk {idx}: → {chunk_out.relative_to(ctx.processed_root)}")
-        if not chunk_jsons:
+        if not chunk_jsons or not any(chunk_jsons):
             continue
-        drift = policy_drift_summarize(
-            chunk_jsons,
-            api_key=ctx.api_key,
-            model=ctx.genai_model,
-            focus_hint=ctx.drift_focus,
-            canonical_prompt_text=ctx.policy_prompt,
-        )
-        drift_out = per_audio_dir / "policy_drift.json"
-        drift_out.write_text(json.dumps(drift, indent=2, ensure_ascii=False), encoding="utf-8")
+        if (
+            not force
+            and not chunks_regenerated
+            and demo4_drift_output_complete(drift_out)
+        ):
+            drift = read_json_file(drift_out) or {}
+            print(f"    drift: reuse existing → {drift_out.relative_to(ctx.processed_root)}")
+        else:
+            drift = policy_drift_summarize(
+                chunk_jsons,
+                api_key=ctx.api_key,
+                model=ctx.genai_model,
+                focus_hint=ctx.drift_focus,
+                canonical_prompt_text=ctx.policy_prompt,
+            )
+            drift_out.write_text(json.dumps(drift, indent=2, ensure_ascii=False), encoding="utf-8")
         drifted = drift.get("subjects") or drift.get("drifted_subjects") or []
         mmd_blocks = []
         for s in drifted:
