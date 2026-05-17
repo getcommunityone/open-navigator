@@ -1,33 +1,59 @@
 """
-Per-jurisdiction end-to-end pipeline: Gatekeeper → scope → organize → demos 1–4.
+Per-jurisdiction pipeline: Gatekeeper → organize → demos 1–4.
 
-Used by ``02_run_meeting_llm.ipynb`` so each jurisdiction finishes before the next starts.
+Jurisdictions run sequentially within a state. Multiple states can run in
+parallel when ``GOVERNANCE_PARALLEL_STATES`` > 1.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import threading
+from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Dict, List, Optional
 
 import gatekeeper_triage
 from colab_demos import DemoContext, JurisdictionDemoReports, run_demos_for_jurisdiction
 from governance_meeting_llm import MeetingInventory, inventory_for_jurisdiction
 
-
-def per_jurisdiction_e2e_enabled() -> bool:
-    return os.environ.get("GOVERNANCE_PER_JURISDICTION_E2E", "1").strip().lower() not in (
-        "0",
-        "false",
-        "no",
-    )
+_gatekeeper_log_lock = threading.Lock()
 
 
 def gatekeeper_enabled() -> bool:
     return os.environ.get("GOVERNANCE_GATEKEEPER_ENABLED", "1") != "0"
+
+
+def resolve_parallel_state_workers(num_states: int) -> int:
+    """
+    Max concurrent state workers. ``1`` = fully sequential.
+    Default ``2`` when multiple states are present.
+    """
+    if num_states <= 1:
+        return 1
+    raw = os.environ.get("GOVERNANCE_PARALLEL_STATES", "2").strip().lower()
+    if raw in ("", "0", "1", "false", "no", "off"):
+        return 1
+    if raw == "auto":
+        return min(num_states, max(2, (os.cpu_count() or 4) // 2))
+    try:
+        n = int(raw)
+    except ValueError:
+        n = 2
+    return min(max(n, 1), num_states)
+
+
+def group_inventories_by_state(
+    inventories: List[MeetingInventory],
+) -> Dict[str, List[MeetingInventory]]:
+    by_state: Dict[str, List[MeetingInventory]] = defaultdict(list)
+    for inv in inventories:
+        by_state[inv.jurisdiction.state_code].append(inv)
+    return dict(sorted(by_state.items()))
 
 
 @dataclass
@@ -114,45 +140,48 @@ def run_gatekeeper_for_jurisdiction(
         jurisdiction_root=jur_root,
     )
     print(
-        f"  Gatekeeper | {label} | candidates={total} | will_triage={len(triage_paths)}"
+        f"  Gatekeeper | {label} | candidates={total} | will_triage={len(triage_paths)}",
+        flush=True,
     )
     if allowed_dates and label in allowed_dates:
-        print(f"    dates: {', '.join(sorted(allowed_dates[label]))}")
+        print(f"    dates: {', '.join(sorted(allowed_dates[label]))}", flush=True)
 
     log_path = report_dir / f"triage_{label.replace('/', '_')}_{stamp}.txt"
     mirror_log = logs_dir / f"gatekeeper_{label.replace('/', '_')}_{stamp}.log"
-    gatekeeper_triage.configure_logging(
-        verbose=True,
-        log_path=log_path,
-        mirror_log_path=mirror_log,
-        console=True,
-    )
-    try:
-        report = gatekeeper_triage.run_triage(
-            raw_root=ctx.raw_root,
-            api_key=ctx.api_key,
-            model=ctx.gatekeeper_model,
-            kinds=kinds,
-            pdf_pages=int(os.environ.get("GOVERNANCE_GATEKEEPER_PDF_PAGES", "2")),
-            pdf_dpi=int(os.environ.get("GOVERNANCE_GATEKEEPER_PDF_DPI", "120")),
-            audio_window_seconds=int(
-                os.environ.get("GOVERNANCE_GATEKEEPER_AUDIO_WINDOW", "120")
-            ),
-            confidence_threshold=float(
-                os.environ.get("GOVERNANCE_GATEKEEPER_CONFIDENCE", "0.6")
-            ),
-            dry_run=dry_run,
-            max_files=ctx.gatekeeper_max_files,
-            preload_models=False,
-            progress_stdout=True,
+
+    with _gatekeeper_log_lock:
+        gatekeeper_triage.configure_logging(
+            verbose=True,
             log_path=log_path,
-            flush_log_each_file=True,
-            organize_meetings=ctx.organize_meetings
-            and os.environ.get("GOVERNANCE_ORGANIZE_MEETINGS", "1") == "1",
-            jurisdiction_root=jur_root,
+            mirror_log_path=mirror_log,
+            console=True,
         )
-    finally:
-        gatekeeper_triage.close_gatekeeper_logging()
+        try:
+            report = gatekeeper_triage.run_triage(
+                raw_root=ctx.raw_root,
+                api_key=ctx.api_key,
+                model=ctx.gatekeeper_model,
+                kinds=kinds,
+                pdf_pages=int(os.environ.get("GOVERNANCE_GATEKEEPER_PDF_PAGES", "2")),
+                pdf_dpi=int(os.environ.get("GOVERNANCE_GATEKEEPER_PDF_DPI", "120")),
+                audio_window_seconds=int(
+                    os.environ.get("GOVERNANCE_GATEKEEPER_AUDIO_WINDOW", "120")
+                ),
+                confidence_threshold=float(
+                    os.environ.get("GOVERNANCE_GATEKEEPER_CONFIDENCE", "0.6")
+                ),
+                dry_run=dry_run,
+                max_files=ctx.gatekeeper_max_files,
+                preload_models=False,
+                progress_stdout=True,
+                log_path=log_path,
+                flush_log_each_file=True,
+                organize_meetings=ctx.organize_meetings
+                and os.environ.get("GOVERNANCE_ORGANIZE_MEETINGS", "1") == "1",
+                jurisdiction_root=jur_root,
+            )
+        finally:
+            gatekeeper_triage.close_gatekeeper_logging()
 
     report_path = report_dir / f"triage_report_{label.replace('/', '_')}_{stamp}.json"
     report_path.write_text(
@@ -160,7 +189,8 @@ def run_gatekeeper_for_jurisdiction(
     )
     print(
         f"  Gatekeeper done | keep={len(report.proceed)} exclude={len(report.excluded)} "
-        f"errors={len(report.errors)} → {report_path.name}"
+        f"errors={len(report.errors)} → {report_path.name}",
+        flush=True,
     )
     return report
 
@@ -175,36 +205,76 @@ def run_one_jurisdiction(
     report_dir: Path,
     logs_dir: Path,
     brief_cache: dict[str, str],
+    state_label: str = "",
 ) -> JurisdictionDemoReports:
     label = inv.jurisdiction.relative_label
-    banner = f"{'=' * 72}\n  [{idx}/{total}] {label}\n{'=' * 72}"
-    print(banner)
+    prefix = f"[{state_label}] " if state_label else ""
+    banner = f"{'=' * 72}\n  {prefix}[{idx}/{total}] {label}\n{'=' * 72}"
+    print(banner, flush=True)
 
-    run_gatekeeper_for_jurisdiction(inv, ctx, stamp=stamp, report_dir=report_dir, logs_dir=logs_dir)
+    run_gatekeeper_for_jurisdiction(
+        inv, ctx, stamp=stamp, report_dir=report_dir, logs_dir=logs_dir
+    )
     inv = reload_inventory(inv, ctx.raw_root, max_dates=ctx.demo_date_cap)
     if not inv.has_media:
-        print(f"  No media left after Gatekeeper for {label}.")
+        print(f"  No media left after Gatekeeper for {label}.", flush=True)
         return JurisdictionDemoReports()
 
     if ctx.organize_meetings and os.environ.get("GOVERNANCE_ORGANIZE_MEETINGS", "1") == "1":
         n_moves = organize_inventory(ctx.raw_root, inv)
         if n_moves:
-            print(f"  Organized {n_moves} file(s) into meetings/…")
+            print(f"  Organized {n_moves} file(s) into meetings/…", flush=True)
             inv = reload_inventory(inv, ctx.raw_root, max_dates=ctx.demo_date_cap)
 
     print(
-        f"  Demos | pdfs={len(inv.pdfs)} audio={len(inv.audio)} images={len(inv.images)}"
+        f"  Demos | pdfs={len(inv.pdfs)} audio={len(inv.audio)} images={len(inv.images)}",
+        flush=True,
     )
     reports = run_demos_for_jurisdiction(inv, ctx.demo_ctx, brief_cache=brief_cache)
-    print(f"\n  ✓ Finished {label} — outputs under {ctx.demo_ctx.processed_root.name}/")
+    print(
+        f"\n  ✓ Finished {label} — outputs under {ctx.demo_ctx.processed_root.name}/",
+        flush=True,
+    )
     return reports
 
 
-def run_per_jurisdiction_e2e(
+def _run_state_block(
+    state_code: str,
+    state_inventories: List[MeetingInventory],
+    ctx: JurisdictionRunContext,
+    *,
+    stamp: str,
+    report_dir: Path,
+    logs_dir: Path,
+    global_idx_start: int,
+    global_total: int,
+) -> List[JurisdictionDemoReports]:
+    brief_cache: dict[str, str] = {}
+    reports: List[JurisdictionDemoReports] = []
+    local_total = len(state_inventories)
+    for local_idx, inv in enumerate(state_inventories, 1):
+        global_idx = global_idx_start + local_idx - 1
+        reports.append(
+            run_one_jurisdiction(
+                inv,
+                ctx,
+                idx=global_idx,
+                total=global_total,
+                stamp=stamp,
+                report_dir=report_dir,
+                logs_dir=logs_dir,
+                brief_cache=brief_cache,
+                state_label=state_code,
+            )
+        )
+    return reports
+
+
+def run_governance_pipeline(
     inventories: List[MeetingInventory],
     ctx: JurisdictionRunContext,
 ) -> List[JurisdictionDemoReports]:
-    """Gatekeeper + organize + demos 1–4 for each jurisdiction in order."""
+    """Gatekeeper + organize + demos 1–4 for every jurisdiction."""
     if not inventories:
         print("No jurisdictions with media.")
         return []
@@ -215,26 +285,74 @@ def run_per_jurisdiction_e2e(
     logs_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
 
-    print(
-        f"Per-jurisdiction E2E | {len(inventories)} jurisdiction(s) | "
-        f"Gatekeeper → organize → demos 1–4"
-    )
+    by_state = group_inventories_by_state(inventories)
+    num_states = len(by_state)
+    workers = resolve_parallel_state_workers(num_states)
+    global_total = len(inventories)
+
+    if workers > 1:
+        print(
+            f"Pipeline | {global_total} jurisdiction(s) across {num_states} state(s) | "
+            f"{workers} state(s) in parallel",
+            flush=True,
+        )
+    else:
+        print(
+            f"Pipeline | {global_total} jurisdiction(s) | "
+            f"Gatekeeper → organize → demos 1–4",
+            flush=True,
+        )
 
     all_reports: List[JurisdictionDemoReports] = []
-    brief_cache: dict[str, str] = {}
-    total = len(inventories)
-    for idx, inv in enumerate(inventories, 1):
-        all_reports.append(
-            run_one_jurisdiction(
-                inv,
-                ctx,
-                idx=idx,
-                total=total,
-                stamp=stamp,
-                report_dir=report_dir,
-                logs_dir=logs_dir,
-                brief_cache=brief_cache,
+    idx_start = 1
+
+    if workers <= 1:
+        for state_code, state_invs in by_state.items():
+            all_reports.extend(
+                _run_state_block(
+                    state_code,
+                    state_invs,
+                    ctx,
+                    stamp=stamp,
+                    report_dir=report_dir,
+                    logs_dir=logs_dir,
+                    global_idx_start=idx_start,
+                    global_total=global_total,
+                )
             )
-        )
-    print(f"\n{'=' * 72}\nAll jurisdictions complete ({total}).\n{'=' * 72}")
+            idx_start += len(state_invs)
+    else:
+        futures = {}
+        offset = 1
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            for state_code, state_invs in by_state.items():
+                fut = pool.submit(
+                    _run_state_block,
+                    state_code,
+                    state_invs,
+                    ctx,
+                    stamp=stamp,
+                    report_dir=report_dir,
+                    logs_dir=logs_dir,
+                    global_idx_start=offset,
+                    global_total=global_total,
+                )
+                futures[fut] = state_code
+                offset += len(state_invs)
+            for fut in as_completed(futures):
+                state_code = futures[fut]
+                try:
+                    all_reports.extend(fut.result())
+                except Exception as exc:
+                    print(f"ERROR | state {state_code} | {exc}", flush=True)
+                    raise
+
+    print(
+        f"\n{'=' * 72}\nAll jurisdictions complete ({global_total}).\n{'=' * 72}",
+        flush=True,
+    )
     return all_reports
+
+
+# Notebook import alias
+run_per_jurisdiction_e2e = run_governance_pipeline
