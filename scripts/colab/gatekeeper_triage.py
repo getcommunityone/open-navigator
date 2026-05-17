@@ -59,11 +59,21 @@ from typing import Any, Iterable, List, Optional, Tuple
 
 PDF_EXTS = {".pdf"}
 try:
-    from governance_meeting_llm import AUDIO_EXTS, _ffmpeg_audio_only_output_flags
+    from governance_meeting_llm import (
+        AUDIO_EXTS,
+        VIDEO_EXTS,
+        _ffmpeg_audio_only_output_flags,
+        prepare_meeting_audio_for_processing,
+    )
 except ImportError:
     AUDIO_EXTS = {
-        ".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".webm", ".mp4", ".opus",
+        ".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".opus",
+        ".mp4", ".webm", ".mov", ".mkv", ".avi", ".m4v",
     }
+    VIDEO_EXTS = frozenset({".mp4", ".webm", ".mov", ".mkv", ".avi", ".m4v"})
+
+    def prepare_meeting_audio_for_processing(source_path, *, work_dir, bitrate="96k", min_opus_bytes=1024):
+        return source_path
 
     def _ffmpeg_audio_only_output_flags(path: Path) -> List[str]:
         if path.suffix.lower() in {".mp4", ".webm", ".mov", ".mkv"}:
@@ -490,15 +500,19 @@ def _ensure_ffmpeg() -> None:
 def clip_audio_window(audio_path: Path, seconds: int, out_path: Path) -> Path:
     """
     Extract the first ``seconds`` of ``audio_path`` to ``out_path`` as mono 16 kHz
-    MP3. Video containers (``.mp4``, etc.) contribute audio only. This is the
+    MP3. Video containers are transcoded to Opus first (see
+    :func:`~governance_meeting_llm.prepare_meeting_audio_for_processing`). This is the
     *programmatic token constraint* on the audio gatekeeper — we cap how deeply
     Gemma processes the stream by clipping the input window.
     """
     _ensure_ffmpeg()
     out_path.parent.mkdir(parents=True, exist_ok=True)
+    src = prepare_meeting_audio_for_processing(
+        audio_path, work_dir=out_path.parent / "_opus"
+    )
     cmd = [
         "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
-        "-i", str(audio_path),
+        "-i", str(src),
         *_ffmpeg_audio_only_output_flags(audio_path),
         "-t", str(max(5, int(seconds))),
         "-ac", "1", "-ar", "16000",

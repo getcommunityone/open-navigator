@@ -26,7 +26,8 @@ try:
     from governance_meeting_llm import AUDIO_EXTS
 except ImportError:
     AUDIO_EXTS = {
-        ".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".webm", ".mp4", ".opus",
+        ".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".opus",
+        ".mp4", ".webm", ".mov", ".mkv", ".avi", ".m4v",
     }
 
 # YYYYMMDD embedded in URLs/filenames (e.g. 20260506-Agenda.pdf).

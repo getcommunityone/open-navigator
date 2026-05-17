@@ -36,11 +36,13 @@ DOCUMENT_BREAK = "---DOCUMENT_BREAK---"
 
 # File-type sets shared by the walker and the demo cells.
 PDF_EXTS = {".pdf"}
-# Meeting audio + video containers we process for *audio only* (ffmpeg strips video).
-AUDIO_EXTS = {
-    ".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".webm", ".mp4", ".opus",
+_PURE_AUDIO_EXTS = {
+    ".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".opus",
 }
-VIDEO_CONTAINER_EXTS = frozenset({".mp4", ".webm", ".mov", ".mkv"})
+# Video containers discovered in inventory; transcoded to Opus before chunking / API calls.
+VIDEO_EXTS = frozenset({".mp4", ".webm", ".mov", ".mkv", ".avi", ".m4v"})
+VIDEO_CONTAINER_EXTS = VIDEO_EXTS  # backwards-compatible alias
+AUDIO_EXTS = _PURE_AUDIO_EXTS | VIDEO_EXTS
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"}
 
 # Folders inside a jurisdiction directory that hold scraper-temp artifacts and
@@ -275,7 +277,12 @@ def walk_raw_inputs(raw_root: Path) -> Iterator[MeetingInventory]:
                     ext = f.suffix.lower()
                     if ext in PDF_EXTS:
                         inv.pdfs.append(f)
-                    elif ext in AUDIO_EXTS:
+                    elif ext in VIDEO_EXTS:
+                        # Scrape often keeps sibling ``.opus`` and drops the container.
+                        if f.with_suffix(".opus").is_file():
+                            continue
+                        inv.audio.append(f)
+                    elif ext in _PURE_AUDIO_EXTS:
                         inv.audio.append(f)
                     elif ext in IMAGE_EXTS:
                         inv.images.append(f)
@@ -428,9 +435,83 @@ def _ffmpeg_available() -> bool:
 
 def _ffmpeg_audio_only_output_flags(path: Path) -> List[str]:
     """Strip video/subtitles; keep the first audio track from MP4/WebM containers."""
-    if path.suffix.lower() in VIDEO_CONTAINER_EXTS:
+    if path.suffix.lower() in VIDEO_EXTS:
         return ["-vn", "-sn", "-map", "0:a:0?"]
     return []
+
+
+def transcode_video_to_opus(
+    video_path: Path,
+    *,
+    out_path: Optional[Path] = None,
+    bitrate: str = "96k",
+    timeout_s: int = 7200,
+) -> Path:
+    """
+    Encode the audio track of a video container to Opus (``.opus``).
+
+    Raises if ffmpeg is missing or the output file is empty.
+    """
+    if not _ffmpeg_available():
+        raise RuntimeError(
+            "ffmpeg not found on PATH. On Colab it ships by default; locally run "
+            "`apt-get install -y ffmpeg` or `brew install ffmpeg`."
+        )
+    dest = (out_path or video_path.with_suffix(".opus")).resolve()
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-nostdin",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-i",
+            str(video_path),
+            *_ffmpeg_audio_only_output_flags(video_path),
+            "-c:a",
+            "libopus",
+            "-b:a",
+            bitrate,
+            str(dest),
+        ],
+        check=True,
+        capture_output=True,
+        timeout=timeout_s,
+    )
+    if not dest.is_file() or dest.stat().st_size < 1024:
+        raise RuntimeError(f"Opus transcode produced empty or tiny output: {dest}")
+    return dest
+
+
+def prepare_meeting_audio_for_processing(
+    source_path: Path,
+    *,
+    work_dir: Path,
+    bitrate: str = "96k",
+    min_opus_bytes: int = 1024,
+) -> Path:
+    """
+    Return an audio path ready for chunking / transcription.
+
+    Video containers (``.mp4``, ``.webm``, …) are transcoded to Opus first — reusing a
+    sibling ``<stem>.opus`` from scrape when present, otherwise writing under ``work_dir``.
+    """
+    source_path = source_path.resolve()
+    if source_path.suffix.lower() not in VIDEO_EXTS:
+        return source_path
+
+    sibling_opus = source_path.with_suffix(".opus")
+    if sibling_opus.is_file() and sibling_opus.stat().st_size >= min_opus_bytes:
+        return sibling_opus.resolve()
+
+    work_dir.mkdir(parents=True, exist_ok=True)
+    cached = (work_dir / f"{source_path.stem}.opus").resolve()
+    if cached.is_file() and cached.stat().st_size >= min_opus_bytes:
+        return cached
+
+    return transcode_video_to_opus(source_path, out_path=cached, bitrate=bitrate)
 
 
 def chunk_audio_ffmpeg(
@@ -441,11 +522,10 @@ def chunk_audio_ffmpeg(
     fmt: str = "mp3",
 ) -> List[Path]:
     """
-    Split ``audio_path`` into ``chunk_minutes``-minute pieces via ffmpeg's
-    segmenter. Video containers (``.mp4``, ``.webm``, …) are treated like audio:
-    only the audio track is encoded into each chunk. Returns the sorted list of
-    chunk paths under ``out_dir``. Raises if ffmpeg is not on PATH — Colab ships
-    with it by default.
+    Split ``audio_path`` into ``chunk_minutes``-minute pieces via ffmpeg's segmenter.
+    Call :func:`prepare_meeting_audio_for_processing` first when the source is a video
+    container so chunking runs on Opus. Returns the sorted list of chunk paths under
+    ``out_dir``. Raises if ffmpeg is not on PATH — Colab ships with it by default.
     """
     if not _ffmpeg_available():
         raise RuntimeError(
@@ -453,6 +533,9 @@ def chunk_audio_ffmpeg(
             "`apt-get install -y ffmpeg` or `brew install ffmpeg`."
         )
     out_dir.mkdir(parents=True, exist_ok=True)
+    audio_path = prepare_meeting_audio_for_processing(
+        audio_path, work_dir=out_dir / "_opus"
+    )
     stem = audio_path.stem
     pattern = out_dir / f"{stem}_chunk_%03d.{fmt}"
     seconds = max(60, int(chunk_minutes * 60))
@@ -1283,7 +1366,7 @@ def call_openai_compatible_chat(
 
 __all__ = [
     "DOCUMENT_BREAK",
-    "PDF_EXTS", "AUDIO_EXTS", "VIDEO_CONTAINER_EXTS", "IMAGE_EXTS",
+    "PDF_EXTS", "AUDIO_EXTS", "VIDEO_EXTS", "VIDEO_CONTAINER_EXTS", "IMAGE_EXTS",
     "TOKEN_BUDGET_HIGH", "TOKEN_BUDGET_MEDIUM", "TOKEN_BUDGET_LOW",
     "JurisdictionDir", "MeetingInventory",
     "PdfPageRender", "GenAIResult",
@@ -1292,6 +1375,8 @@ __all__ = [
     "parse_jurisdiction_dir", "walk_raw_inputs", "mirror_output_path",
     "classify_pdf_page_heuristic", "render_pdf_pages",
     "extract_pdf_digital_text", "is_scanned_pdf",
+    "transcode_video_to_opus",
+    "prepare_meeting_audio_for_processing",
     "chunk_audio_ffmpeg",
     "call_google_genai_multimodal",
     "transcribe_audio_with_gemma", "TRANSCRIPTION_SUPPORTED_LANGUAGES",
