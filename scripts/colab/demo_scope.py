@@ -1,7 +1,7 @@
 """
 Hackathon demo scope: limit states/jurisdictions and LLM caps for Colab runs.
 
-Set via §2 dropdown or env ``GOVERNANCE_DEMO_SCOPE`` (``fast`` | ``medium`` | ``full``).
+Set ``SCOPE`` in the notebook (``fast`` | ``medium`` | ``full``), default ``fast``.
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ class DemoScopePreset:
 PRESETS: Dict[str, DemoScopePreset] = {
     "fast": DemoScopePreset(
         key="fast",
-        label="⚡ Fast — 1 jurisdiction · 1 state",
+        label="Fast (1 state, 1 jurisdiction)",
         eta="~15–25 min",
         max_states=1,
         max_jurisdictions=1,
@@ -49,7 +49,7 @@ PRESETS: Dict[str, DemoScopePreset] = {
     ),
     "medium": DemoScopePreset(
         key="medium",
-        label="⚖️ Standard — 2 jurisdictions · 2 states",
+        label="Standard (2 states, 2 jurisdictions)",
         eta="~35–50 min",
         max_states=2,
         max_jurisdictions=2,
@@ -63,7 +63,7 @@ PRESETS: Dict[str, DemoScopePreset] = {
     ),
     "full": DemoScopePreset(
         key="full",
-        label="🐢 Full — 4 jurisdictions · 4 states",
+        label="Full (4 states, 4 jurisdictions)",
         eta="~90+ min",
         max_states=4,
         max_jurisdictions=4,
@@ -100,7 +100,7 @@ def get_active_preset() -> DemoScopePreset:
 
 
 def apply_preset_to_environ(preset: DemoScopePreset) -> None:
-    """Push preset limits into os.environ for §3 and downstream cells."""
+    """Push preset limits into os.environ for downstream cells."""
     os.environ[ENV_KEY] = preset.key
     os.environ["GOVERNANCE_MODE"] = "DEMO"
     os.environ["GOVERNANCE_DEMO_DATE_SCOPE"] = "1"
@@ -114,11 +114,19 @@ def apply_preset_to_environ(preset: DemoScopePreset) -> None:
     os.environ["GOVERNANCE_PARALLEL_STATES"] = str(preset.parallel_states)
 
 
+def apply_scope(scope: str) -> DemoScopePreset:
+    """Validate ``scope``, set env caps, return preset."""
+    key = normalize_scope_key(scope)
+    preset = PRESETS[key]
+    apply_preset_to_environ(preset)
+    return preset
+
+
 def filter_inventories_for_scope(
     inventories: List[MeetingInventory],
     preset: DemoScopePreset,
 ) -> List[MeetingInventory]:
-    """Up to ``max_states`` states, one jurisdiction each (richest media first)."""
+    """One jurisdiction per state (richest media first), up to preset limits."""
     by_state: Dict[str, List[MeetingInventory]] = defaultdict(list)
     for inv in inventories:
         by_state[inv.jurisdiction.state_code].append(inv)
@@ -127,8 +135,9 @@ def filter_inventories_for_scope(
     for state in sorted(by_state.keys()):
         if len(selected) >= preset.max_jurisdictions:
             break
-        if len({inv.jurisdiction.state_code for inv in selected}) >= preset.max_states:
-            break
+        states_so_far = {inv.jurisdiction.state_code for inv in selected}
+        if state not in states_so_far and len(states_so_far) >= preset.max_states:
+            continue
         invs = sorted(
             by_state[state],
             key=lambda i: (
@@ -141,42 +150,16 @@ def filter_inventories_for_scope(
     return selected[: preset.max_jurisdictions]
 
 
-def scope_banner_html(preset: DemoScopePreset) -> str:
-    rows = [
-        ("States × jurisdictions", f"{preset.max_states} × 1 (max {preset.max_jurisdictions})"),
-        ("Meeting dates", str(preset.meeting_dates)),
-        (
-            "PDFs / pages / chunks",
-            f"{preset.max_pdfs_per_jur} / {preset.max_pages_per_pdf} / {preset.max_audio_chunks}",
-        ),
-        ("Parallel states", str(preset.parallel_states)),
-    ]
-    tr = "".join(
-        f'<tr><td style="padding:4px 8px;">{k}</td><td style="padding:4px 8px;">{v}</td></tr>'
-        for k, v in rows
-    )
-    return (
-        '<div style="font-family:system-ui,sans-serif;max-width:720px;line-height:1.45">'
-        f"<p style='margin:0 0 8px'><b>{preset.label}</b> · {preset.eta}</p>"
-        '<table style="border-collapse:collapse;font-size:13px;width:100%">'
-        '<tr style="background:#f5f5f5"><th align="left" style="padding:6px 8px">Setting</th>'
-        '<th align="left" style="padding:6px 8px">Value</th></tr>'
-        f"{tr}</table>"
-        '<p style="margin:10px 0 0;color:#555;font-size:12px">Re-run §4 → §6 after changing. '
-        "<b>Run all</b> defaults to Fast.</p></div>"
-    )
-
-
 def print_scope_plan(
     preset: DemoScopePreset,
     all_inventories: List[MeetingInventory],
     selected: List[MeetingInventory],
 ) -> None:
     print(f"\n{'=' * 60}")
-    print(f"Demo scope: {preset.label}  ({preset.eta})")
+    print(f"SCOPE = {preset.key!r}  →  {preset.label}  ({preset.eta})")
     print(f"{'=' * 60}")
     print(
-        f"  Limits: {preset.max_states} state(s), {preset.max_jurisdictions} jurisdiction(s), "
+        f"  Caps: {preset.max_states} state(s), {preset.max_jurisdictions} jurisdiction(s), "
         f"{preset.meeting_dates} meeting date(s), "
         f"{preset.max_pdfs_per_jur} PDF(s)/jur, {preset.max_audio_chunks} audio chunk(s)"
     )
@@ -186,5 +169,8 @@ def print_scope_plan(
         j = inv.jurisdiction
         print(f"    • {j.relative_label}  (pdfs={len(inv.pdfs)} audio={len(inv.audio)})")
     if len(all_inventories) > len(selected):
-        print(f"  Skipped: {len(all_inventories) - len(selected)} (pick a larger scope in §2)")
+        print(
+            f"  Skipped: {len(all_inventories) - len(selected)} "
+            f"(raise SCOPE to medium or full in §2)"
+        )
     print(f"{'=' * 60}\n")
