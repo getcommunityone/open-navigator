@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
+from collections import defaultdict
 from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 logger = logging.getLogger(__name__)
@@ -558,6 +559,19 @@ def file_media_role(path: Path, raw_root: Path) -> Optional[str]:
     if "agenda" in stem or "minutes" in stem:
         return "pdf"
     if path.suffix.lower() == ".pdf":
+        try:
+            from gatekeeper_triage import gatekeeper_rules_only_enabled
+
+            if gatekeeper_rules_only_enabled():
+                if (
+                    "agenda" in parts_lower
+                    or "minutes" in parts_lower
+                    or "agenda" in stem
+                    or "minutes" in stem
+                ):
+                    return "pdf"
+        except ImportError:
+            pass
         skip_probe = os.environ.get("GOVERNANCE_GATEKEEPER_SKIP_PDF_PROBE", "").strip().lower() in (
             "1",
             "true",
@@ -701,3 +715,156 @@ def filter_inventory_media(
     new_pdfs = [p for p in pdfs if p.resolve() in sel_set]
     new_audio = [p for p in audio if p.resolve() in sel_set]
     return new_pdfs, new_audio
+
+
+def gatekeeper_include_collateral() -> bool:
+    return os.environ.get("GOVERNANCE_GATEKEEPER_INCLUDE_COLLATERAL", "0").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+
+
+def resolve_gatekeeper_max_meeting_sessions(explicit: Optional[int] = None) -> Optional[int]:
+    """Max ``meetings/<session>/`` folders per jurisdiction (DEMO default = meeting-date cap)."""
+    if explicit is not None:
+        return explicit if explicit > 0 else None
+    for key in (
+        "GOVERNANCE_GATEKEEPER_MAX_MEETING_SESSIONS",
+        "GOVERNANCE_GATEKEEPER_MAX_MEETING_DATES",
+    ):
+        env = os.environ.get(key, "").strip()
+        if env:
+            n = int(env)
+            return n if n > 0 else None
+    if os.environ.get("GOVERNANCE_MODE", "").strip().upper() == "DEMO":
+        return resolve_demo_meeting_dates_limit()
+    return None
+
+
+def meeting_session_key(path: Path, raw_root: Path) -> Optional[str]:
+    """
+    ``jurisdiction_prefix|meetings/<session_folder>`` when under ``…/meetings/…``.
+
+    Used to keep only the newest few meeting folders (e.g. after organize created
+  hundreds of ``undated_meeting_N`` trees).
+    """
+    try:
+        rel = path.resolve().relative_to(raw_root.resolve())
+    except ValueError:
+        return None
+    if "meetings" not in rel.parts:
+        return None
+    idx = rel.parts.index("meetings")
+    if idx + 1 >= len(rel.parts):
+        return None
+    jur = jurisdiction_prefix_from_path(path, raw_root)
+    session = rel.parts[idx + 1]
+    return f"{jur}|{session}"
+
+
+def _path_mtime(path: Path) -> float:
+    try:
+        return path.stat().st_mtime
+    except OSError:
+        return 0.0
+
+
+def limit_to_recent_meeting_sessions(
+    paths: Sequence[Path],
+    raw_root: Path,
+    *,
+    max_sessions: int,
+) -> List[Path]:
+    """Keep files only from the ``max_sessions`` newest ``meetings/<folder>/`` sessions."""
+    if max_sessions <= 0:
+        return list(paths)
+    other: List[Path] = []
+    by_session: Dict[str, List[Path]] = defaultdict(list)
+    for path in paths:
+        sk = meeting_session_key(path, raw_root)
+        if sk:
+            by_session[sk].append(path)
+        else:
+            other.append(path)
+    if not by_session:
+        return list(paths)
+
+    ranked = sorted(
+        by_session.keys(),
+        key=lambda sk: max(_path_mtime(p) for p in by_session[sk]),
+    )
+    kept = set(ranked[-max_sessions:])
+    out = list(other)
+    for sk in sorted(kept):
+        out.extend(by_session[sk])
+    logger.info(
+        "Gatekeeper session scope | %d meeting folder(s) → kept newest %d: %s",
+        len(by_session),
+        len(kept),
+        ", ".join(sorted(sk.split("|", 1)[-1] for sk in ranked[-max_sessions:])),
+    )
+    return out
+
+
+def _recency_sort_key(path: Path) -> tuple[float, int, str]:
+    year = 0
+    for part in path.parts:
+        if len(part) == 4 and part.isdigit() and part.startswith("20"):
+            year = max(year, int(part))
+    return (_path_mtime(path), year, path.as_posix())
+
+
+def narrow_gatekeeper_candidates(
+    candidates: Sequence[Path],
+    raw_root: Path,
+    *,
+    max_files: Optional[int] = None,
+    max_dates: Optional[int] = None,
+    max_sessions: Optional[int] = None,
+) -> Tuple[List[Path], Dict[str, Set[str]]]:
+    """
+    Shrink Gatekeeper inputs to a hackathon-sized set per jurisdiction.
+
+    Order: drop collateral → newest ``meetings/<session>/`` folders → recent
+    calendar dates → dedupe scrape copies → newest-N file cap.
+    """
+    before = len(candidates)
+    paths = list(candidates)
+
+    if not gatekeeper_include_collateral():
+        paths = [p for p in paths if file_media_role(p, raw_root) != "collateral"]
+
+    session_cap = resolve_gatekeeper_max_meeting_sessions(max_sessions)
+    if session_cap is not None and len(paths) > session_cap:
+        paths = limit_to_recent_meeting_sessions(paths, raw_root, max_sessions=session_cap)
+
+    selected, _total, allowed = filter_paths_by_recent_meeting_dates(
+        paths, raw_root, max_dates=max_dates
+    )
+    if allowed:
+        paths = selected
+    else:
+        paths = selected if selected else paths
+
+    paths = dedupe_scrape_copies(paths, raw_root)
+
+    try:
+        from gatekeeper_triage import resolve_gatekeeper_max_files
+    except ImportError:
+        resolve_gatekeeper_max_files = lambda explicit=None: None  # type: ignore
+
+    file_cap = resolve_gatekeeper_max_files(max_files)
+    paths.sort(key=_recency_sort_key)
+    if file_cap is not None and len(paths) > file_cap:
+        paths = paths[-file_cap:]
+
+    logger.info(
+        "Gatekeeper narrow | %d candidates → %d to triage (sessions=%s dates=%s files=%s)",
+        before,
+        len(paths),
+        session_cap if session_cap is not None else "off",
+        resolve_demo_meeting_dates_limit(max_dates) if allowed else "n/a",
+        file_cap if file_cap is not None else "off",
+    )
+    return paths, allowed

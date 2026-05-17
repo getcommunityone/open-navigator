@@ -112,6 +112,16 @@ def apply_preset_to_environ(preset: DemoScopePreset) -> None:
     os.environ["GOVERNANCE_DEMO_MAX_AUDIO_CHUNKS"] = str(preset.max_audio_chunks)
     os.environ["GOVERNANCE_DEMO_MAX_IMAGES_PER_JUR"] = str(preset.max_images_per_jur)
     os.environ["GOVERNANCE_PARALLEL_STATES"] = str(preset.parallel_states)
+    # Gatekeeper: filename/manifest rules (no PDF/API); match hackathon scope.
+    os.environ["GOVERNANCE_GATEKEEPER_RULES_ONLY"] = "1"
+    os.environ["GOVERNANCE_GATEKEEPER_MAX_MEETING_SESSIONS"] = str(preset.meeting_dates)
+    if not os.environ.get("GOVERNANCE_GATEKEEPER_MAX_FILES", "").strip():
+        os.environ["GOVERNANCE_GATEKEEPER_MAX_FILES"] = str(
+            max(
+                6,
+                (preset.max_pdfs_per_jur + preset.max_audio_per_jur) * preset.meeting_dates,
+            )
+        )
 
 
 def apply_scope(scope: str) -> DemoScopePreset:

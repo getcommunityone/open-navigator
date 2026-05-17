@@ -40,6 +40,30 @@ def _log_slug(label: str) -> str:
     return label.replace("/", "_").replace("\\", "_")
 
 
+def _gatekeeper_mirror_log_path(log_path: Path) -> Optional[Path]:
+    """
+    Duplicate Gatekeeper logs to Colab local disk when the primary path is on Drive.
+
+    Desktop Google Drive sync often lags minutes behind Colab; ``/content/…`` is instant.
+    Disable with ``GOVERNANCE_GATEKEEPER_LOG_MIRROR=0``.
+    """
+    if os.environ.get("GOVERNANCE_GATEKEEPER_LOG_MIRROR", "1").strip().lower() in (
+        "0",
+        "false",
+        "no",
+    ):
+        return None
+    if "/content/drive" not in log_path.as_posix():
+        return None
+    mirror_root = Path(
+        os.environ.get(
+            "GOVERNANCE_GATEKEEPER_LOG_MIRROR_DIR",
+            "/content/governance_pipeline_local/00_logs",
+        )
+    ).expanduser()
+    return mirror_root / log_path.name
+
+
 def resolve_parallel_state_workers(num_states: int) -> int:
     """
     Max concurrent state workers. ``1`` = fully sequential.
@@ -142,13 +166,17 @@ def run_gatekeeper_for_jurisdiction(
     label = inv.jurisdiction.relative_label
     slug = _log_slug(label)
     log_path = logs_dir / f"gatekeeper_{slug}_{stamp}.log"
-    print(f"  Gatekeeper log (tail on Drive): {log_path}", flush=True)
+    mirror_log = _gatekeeper_mirror_log_path(log_path)
+    print(f"  Gatekeeper log (Drive): {log_path}", flush=True)
+    if mirror_log is not None:
+        print(f"  Gatekeeper log (local, instant): {mirror_log}", flush=True)
 
     gk_logger = gatekeeper_triage.logger
     with _gatekeeper_log_lock:
         gatekeeper_triage.configure_logging(
             verbose=True,
             log_path=log_path,
+            mirror_log_path=mirror_log,
             console=True,
         )
         with timed_step(

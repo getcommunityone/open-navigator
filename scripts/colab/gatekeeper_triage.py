@@ -718,7 +718,15 @@ _GEMMA_TRIAGE_FALLBACKS = (
 )
 # Gatekeeper on AI Studio: prefer small/fast ids; include 26B/31B when that is all
 # the API key lists (common on Gemma-4-only AI Studio projects).
-_GEMMA_GATEKEEPER_AI_FALLBACKS = _GEMMA_TRIAGE_FALLBACKS
+# Gatekeeper must stay fast — never fall back to 26B/31B for yes/no triage.
+_GEMMA_GATEKEEPER_AI_FALLBACKS = (
+    "gemma-3n-e2b-it",
+    "gemma-4-e2b-it",
+    "gemma-4-e4b-it",
+    "gemma-3n-e4b-it",
+    "gemma-3-4b-it",
+    "gemma-3-12b-it",
+)
 _GEMMA_HEAVY_FALLBACKS = (
     "gemma-4-26b-a4b-it",
     "gemma-4-31b-it",
@@ -1157,6 +1165,162 @@ def _apply_meeting_metadata(
 
 
 # ─────────────────────────────────────────────────────────────
+# Rules-only triage (filename / path / manifest — no PDF read, no API)
+# ─────────────────────────────────────────────────────────────
+
+_RULES_AGENDA = re.compile(
+    r"(?:^|[-_\s])(?:agenda|agendas)(?:[-_.\s]|\.pdf$|$)",
+    re.I,
+)
+_RULES_MINUTES = re.compile(
+    r"(?:^|[-_\s])(?:minutes|minute|mins)(?:[-_.\s]|\.pdf$|$)",
+    re.I,
+)
+
+
+def gatekeeper_rules_only_enabled() -> bool:
+    """
+    Fast hackathon path: classify from filename, path folders, and ``_manifest.json``.
+
+    Set ``GOVERNANCE_GATEKEEPER_RULES_ONLY=0`` to restore Gemma API triage.
+    """
+    raw = os.environ.get("GOVERNANCE_GATEKEEPER_RULES_ONLY", "").strip().lower()
+    if raw in ("0", "false", "no"):
+        return False
+    if raw in ("1", "true", "yes"):
+        return True
+    return os.environ.get("GOVERNANCE_MODE", "").strip().upper() == "DEMO"
+
+
+def _rules_classify_path(path: Path, raw_root: Path) -> Tuple[str, bool, float, str]:
+    """
+    Returns ``(document_or_audio_type, is_governance_meeting, confidence, reasoning)``.
+    """
+    ext = path.suffix.lower()
+    name = path.name
+    stem = path.stem
+    try:
+        rel = path.resolve().relative_to(raw_root.resolve())
+        parts_lower = [p.lower() for p in rel.parts]
+    except ValueError:
+        parts_lower = []
+
+    try:
+        from meeting_date_scope import _lookup_manifest_row, jurisdiction_prefix_from_path
+
+        jur = jurisdiction_prefix_from_path(path, raw_root)
+        if jur:
+            row = _lookup_manifest_row(path, raw_root / Path(*jur.split("/")))
+            if row:
+                dt = (row.doc_type or "").strip().lower()
+                title = (row.anchor_text or "").strip()[:120]
+                if dt == "agenda":
+                    return (
+                        "meeting_agenda",
+                        True,
+                        0.96,
+                        f"manifest doc_type=agenda"
+                        + (f"; title={title!r}" if title else ""),
+                    )
+                if dt == "minutes":
+                    return (
+                        "meeting_minutes",
+                        True,
+                        0.96,
+                        f"manifest doc_type=minutes"
+                        + (f"; title={title!r}" if title else ""),
+                    )
+                if dt in ("recording", "video", "audio"):
+                    kind = "meeting_video" if ext in VIDEO_EXTS else "meeting_audio"
+                    return (
+                        kind,
+                        True,
+                        0.94,
+                        f"manifest doc_type={dt}"
+                        + (f"; title={title!r}" if title else ""),
+                    )
+    except ImportError:
+        pass
+
+    if ext in VIDEO_EXTS:
+        return (
+            "meeting_video",
+            True,
+            0.9,
+            f"video file {name!r} under jurisdiction tree",
+        )
+    if ext in AUDIO_EXTS:
+        return (
+            "meeting_audio",
+            True,
+            0.9,
+            f"audio file {name!r} under jurisdiction tree",
+        )
+
+    if ext in PDF_EXTS:
+        if "agenda" in parts_lower or _RULES_AGENDA.search(stem) or _RULES_AGENDA.search(name):
+            return (
+                "meeting_agenda",
+                True,
+                0.93,
+                f"agenda from path/filename: {name!r}",
+            )
+        if (
+            "minutes" in parts_lower
+            or _RULES_MINUTES.search(stem)
+            or _RULES_MINUTES.search(name)
+        ):
+            return (
+                "meeting_minutes",
+                True,
+                0.93,
+                f"minutes from path/filename: {name!r}",
+            )
+        dated_meeting_pdf = bool(
+            re.search(r"20\d{2}[-_]\d{2}[-_]\d{2}", stem, re.I)
+            or re.search(r"20\d{6}", stem)
+        )
+        if dated_meeting_pdf and ("meetings" in parts_lower or any(
+            len(p) == 4 and p.isdigit() and p.startswith("20") for p in parts_lower
+        )):
+            return (
+                "other",
+                False,
+                0.55,
+                f"dated pdf without agenda/minutes in name: {name!r}",
+            )
+        return (
+            "other",
+            False,
+            0.75,
+            f"pdf without agenda/minutes label: {name!r}",
+        )
+
+    return ("other", False, 0.5, f"unsupported extension {ext!r}")
+
+
+def triage_path_by_rules(path: Path, raw_root: Path) -> TriageVerdict:
+    """Instant triage from filename, folders, and manifest (no file I/O beyond manifest JSON)."""
+    rel_str, geo = relative_geography(path, raw_root)
+    ext = path.suffix.lower()
+    doc_type, is_meeting, confidence, reasoning = _rules_classify_path(path, raw_root)
+    verdict = TriageVerdict(
+        is_governance_meeting=is_meeting,
+        document_or_audio_type=doc_type,
+        confidence_score=confidence,
+        reasoning=reasoning,
+        triage_kind="pdf" if ext in PDF_EXTS else "audio",
+        file_path=str(path),
+        relative_path=rel_str,
+        geography_label=geo,
+        elapsed_seconds=0.0,
+        raw_model_text=None,
+    )
+    _apply_meeting_metadata(verdict, path, None, raw_root=raw_root)
+    return verdict
+
+
+# ─────────────────────────────────────────────────────────────
 # Triage prompts
 # ─────────────────────────────────────────────────────────────
 
@@ -1574,9 +1738,9 @@ def _triage_recency_key(path: Path) -> tuple[float, int, str]:
 
 def resolve_gatekeeper_max_files(explicit: Optional[int] = None) -> Optional[int]:
     """
-    Legacy **count** cap (used only when date scope is off).
+    Max files to send to the Gatekeeper API after :func:`narrow_gatekeeper_candidates`.
 
-    Prefer :func:`meeting_date_scope.resolve_demo_meeting_dates_limit` in DEMO mode.
+    DEMO mode defaults to **12** when unset (hackathon-sized).
     """
     if explicit is not None:
         return explicit if explicit > 0 else None
@@ -1584,6 +1748,8 @@ def resolve_gatekeeper_max_files(explicit: Optional[int] = None) -> Optional[int
     if env:
         n = int(env)
         return n if n > 0 else None
+    if os.environ.get("GOVERNANCE_MODE", "").strip().upper() == "DEMO":
+        return 12
     return None
 
 
@@ -1717,10 +1883,29 @@ def select_triageable_files(
                 len(paths),
             )
         candidates = apply_year_folder_scope_to_candidates(candidates, raw_root)
-        candidates.sort(key=_triage_recency_key)
-        cap = resolve_gatekeeper_max_files(max_files)
-        if cap is not None and len(candidates) > cap:
-            candidates = candidates[-cap:]
+        try:
+            from meeting_date_scope import narrow_gatekeeper_candidates
+
+            date_cap = max_meeting_dates
+            if date_cap is None:
+                try:
+                    from meeting_date_scope import resolve_demo_meeting_dates_limit
+
+                    date_cap = resolve_demo_meeting_dates_limit()
+                except ImportError:
+                    pass
+            candidates, allowed_dates = narrow_gatekeeper_candidates(
+                candidates,
+                raw_root,
+                max_files=max_files,
+                max_dates=date_cap,
+            )
+        except ImportError:
+            candidates.sort(key=_triage_recency_key)
+            cap = resolve_gatekeeper_max_files(max_files)
+            if cap is not None and len(candidates) > cap:
+                candidates = candidates[-cap:]
+            allowed_dates = None
         if show_progress:
             from colab_timed_steps import format_elapsed
 
@@ -1728,7 +1913,7 @@ def select_triageable_files(
                 f"  Gatekeeper | selection done — will_triage={len(candidates)} "
                 f"(from {total} on disk) | total {format_elapsed(time.perf_counter() - t_select)}"
             )
-        return candidates, total, None, allowed_year_folders
+        return candidates, total, allowed_dates, allowed_year_folders
     except ImportError:
         pass
 
@@ -1856,11 +2041,20 @@ def run_triage(
 
     kinds_tuple = tuple(k.strip().lower() for k in kinds if str(k).strip())
     pdf_pages = clamp_gatekeeper_pdf_pages(pdf_pages)
-    logger.info(
-        "Gatekeeper PDF triage | first %d page(s) per file as PDF subset (max %d)",
-        pdf_pages,
-        MAX_GATEKEEPER_PDF_PAGES,
-    )
+    rules_only = gatekeeper_rules_only_enabled()
+    client = None
+
+    if rules_only:
+        logger.info(
+            "Gatekeeper rules-only | classify from filename, path folders, and "
+            "_manifest.json doc_type (no PDF read, no ffmpeg, no API)"
+        )
+    else:
+        logger.info(
+            "Gatekeeper PDF triage | first %d page(s) per file as PDF subset (max %d)",
+            pdf_pages,
+            MAX_GATEKEEPER_PDF_PAGES,
+        )
 
     try:
         from gemma_hf_backend import (
@@ -1873,36 +2067,33 @@ def run_triage(
     except ImportError:
         gatekeeper_use_huggingface = lambda: False  # type: ignore[assignment]
 
-    if gatekeeper_use_huggingface():
-        if log_llm_catalog_enabled():
-            print_hf_model_catalog(requested=(model,), role="Gatekeeper (Hugging Face)")
-        model = resolve_hf_model_id(model)
-        if preload_models:
-            ensure_hf_ready_for_triage(model, kinds=kinds_tuple, skip_if_cached=True)
+    if not rules_only:
+        if gatekeeper_use_huggingface():
+            if log_llm_catalog_enabled():
+                print_hf_model_catalog(requested=(model,), role="Gatekeeper (Hugging Face)")
+            model = resolve_hf_model_id(model)
+            if preload_models:
+                ensure_hf_ready_for_triage(model, kinds=kinds_tuple, skip_if_cached=True)
+            else:
+                img_ok, aud_ok = hf_weights_cached(model)
+                if not img_ok or ("audio" in kinds_tuple and not aud_ok):
+                    raise RuntimeError(
+                        "HF weights not loaded. Run notebook §3 once per session before §4 Gatekeeper, "
+                        "or call run_triage(..., preload_models=True)."
+                    )
+                logger.info("Gatekeeper using in-memory HF weights (skipped reload)")
+            client = None
         else:
-            img_ok, aud_ok = hf_weights_cached(model)
-            if not img_ok or ("audio" in kinds_tuple and not aud_ok):
-                raise RuntimeError(
-                    "HF weights not loaded. Run notebook §3 once per session before §4 Gatekeeper, "
-                    "or call run_triage(..., preload_models=True)."
-                )
-            logger.info("Gatekeeper using in-memory HF weights (skipped reload)")
-        client = None
-    else:
-        client = _build_genai_client(api_key)
-        if log_llm_catalog_enabled():
-            print_available_models(client, requested=(model,), role="Gatekeeper triage")
-        # Resolve the requested model against the SDK's actual model list. This
-        # converts a 404 NOT_FOUND (e.g. "gemma-4-e4b-it" on a project that only
-        # serves gemma-3n / gemma-3) into either a working fallback or a clear
-        # error listing the Gemma ids the project actually has.
-        model = resolve_model_id(
-            client,
-            model,
-            fallbacks=_GEMMA_GATEKEEPER_AI_FALLBACKS,
-            role="Gatekeeper triage model",
-        )
-    logger.info("Gatekeeper resolved model | model=%s", model)
+            client = _build_genai_client(api_key)
+            if log_llm_catalog_enabled():
+                print_available_models(client, requested=(model,), role="Gatekeeper triage")
+            model = resolve_model_id(
+                client,
+                model,
+                fallbacks=_GEMMA_GATEKEEPER_AI_FALLBACKS,
+                role="Gatekeeper triage model",
+            )
+        logger.info("Gatekeeper resolved model | model=%s", model)
 
     report = TriageReport(raw_root=str(raw_root), excluded_root=excluded_label)
 
@@ -2006,7 +2197,9 @@ def run_triage(
         flush_gatekeeper_logs(fsync=_fsync_logs)
 
         try:
-            if ext in PDF_EXTS:
+            if rules_only:
+                verdict = triage_path_by_rules(path, raw_root)
+            elif ext in PDF_EXTS:
                 verdict = triage_pdf(
                     client=client, model=model,
                     pdf_path=path, raw_root=raw_root,
@@ -2093,9 +2286,11 @@ def run_triage(
         api_seconds += getattr(verdict, "elapsed_seconds", 0.0) or 0.0
         if progress_stdout:
             _gatekeeper_progress(
-                f"  Gatekeeper | [{processed}/{len(triage_paths)}] done {rel_str} — "
-                f"{verdict.elapsed_seconds:.1f}s | "
-                f"{'KEEP' if verdict.proceed else 'EXCLUDE' if not verdict.error else 'ERROR'}"
+                f"  Gatekeeper | [{processed}/{len(triage_paths)}] "
+                f"{'rules' if rules_only else f'{verdict.elapsed_seconds:.1f}s'} | "
+                f"{rel_str} | "
+                f"{'KEEP' if verdict.proceed else 'EXCLUDE' if not verdict.error else 'ERROR'} "
+                f"({verdict.document_or_audio_type})"
             )
 
         if flush_log_each_file:
