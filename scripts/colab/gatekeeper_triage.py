@@ -290,10 +290,12 @@ def gatekeeper_progress_stdout_enabled() -> bool:
     )
 
 
-def _gatekeeper_progress(msg: str) -> None:
-    """Print to the Colab cell (not only the log file) so long Drive scans are visible."""
+def _gatekeeper_progress(msg: str, *, also_log: bool = True) -> None:
+    """Print to the Colab cell (and ``gatekeeper`` logger when configured)."""
     if gatekeeper_progress_stdout_enabled():
         print(msg, flush=True)
+    if also_log and logger.handlers:
+        logger.info(msg)
 
 
 def _gatekeeper_progress_interval() -> int:
@@ -1611,6 +1613,7 @@ def select_triageable_files(
         else progress_stdout
     )
     every = _gatekeeper_progress_interval()
+    t_select = time.perf_counter()
     jur_label = ""
     if jurisdiction_root is not None:
         try:
@@ -1632,9 +1635,16 @@ def select_triageable_files(
                     "  Gatekeeper | resolving newest 20xx/ folder"
                     + (f" for {jur_label} …" if jur_label else " per jurisdiction …")
                 )
+            t_year = time.perf_counter()
             allowed_year_folders = discover_most_recent_year_folder_per_jurisdiction(
                 raw_root, jurisdiction_root=jurisdiction_root
             )
+            if show_progress:
+                from colab_timed_steps import format_elapsed
+
+                _gatekeeper_progress(
+                    f"  Gatekeeper | year folders resolved — {format_elapsed(time.perf_counter() - t_year)}"
+                )
             if allowed_year_folders:
                 logger.info(
                     "Gatekeeper walk | DEMO year-folder scope (skip older 20xx/ trees)"
@@ -1650,6 +1660,7 @@ def select_triageable_files(
             f"  Gatekeeper | walking Drive for pdf/audio{where} (can take several minutes) …"
         )
 
+    t_walk = time.perf_counter()
     paths: List[Path] = []
     for n, path in enumerate(
         iter_triageable_files(
@@ -1662,13 +1673,22 @@ def select_triageable_files(
     ):
         paths.append(path)
         if show_progress and n % every == 0:
-            _gatekeeper_progress(f"  Gatekeeper | … found {n} pdf/audio file(s) on Drive so far")
+            from colab_timed_steps import format_elapsed
+
+            _gatekeeper_progress(
+                f"  Gatekeeper | … found {n} pdf/audio file(s) so far "
+                f"({format_elapsed(time.perf_counter() - t_walk)})"
+            )
 
     total = len(paths)
     if show_progress:
+        from colab_timed_steps import format_elapsed
+
         _gatekeeper_progress(
-            f"  Gatekeeper | walk done — {total} pdf/audio path(s); classifying agendas/minutes …"
+            f"  Gatekeeper | walk done — {total} pdf/audio path(s) in "
+            f"{format_elapsed(time.perf_counter() - t_walk)}; classifying agendas/minutes …"
         )
+    t_classify = time.perf_counter()
 
     # Gatekeeper must see agenda/minutes candidates *before* dates are known.
     # Demo meeting-date caps apply to post-triage demos (filter_inventory_media), not here.
@@ -1683,9 +1703,12 @@ def select_triageable_files(
             if file_media_role(p, raw_root) is not None:
                 candidates.append(p)
             if show_progress and (i % every == 0 or i == total):
+                from colab_timed_steps import format_elapsed
+
                 _gatekeeper_progress(
                     f"  Gatekeeper | … classified {i}/{total} paths | "
-                    f"meeting-media candidates: {len(candidates)}"
+                    f"meeting-media: {len(candidates)} "
+                    f"({format_elapsed(time.perf_counter() - t_classify)})"
                 )
         if not candidates and paths:
             logger.warning(
@@ -1699,9 +1722,11 @@ def select_triageable_files(
         if cap is not None and len(candidates) > cap:
             candidates = candidates[-cap:]
         if show_progress:
+            from colab_timed_steps import format_elapsed
+
             _gatekeeper_progress(
                 f"  Gatekeeper | selection done — will_triage={len(candidates)} "
-                f"(from {total} on disk)"
+                f"(from {total} on disk) | total {format_elapsed(time.perf_counter() - t_select)}"
             )
         return candidates, total, None, allowed_year_folders
     except ImportError:
@@ -1967,6 +1992,8 @@ def run_triage(
         return report
 
     processed = 0
+    t_api_sweep = time.perf_counter()
+    api_seconds = 0.0
     for path in triage_paths:
         processed += 1
         ext = path.suffix.lower()
@@ -2063,14 +2090,38 @@ def run_triage(
             )
 
         report.add(verdict)
+        api_seconds += getattr(verdict, "elapsed_seconds", 0.0) or 0.0
+        if progress_stdout:
+            _gatekeeper_progress(
+                f"  Gatekeeper | [{processed}/{len(triage_paths)}] done {rel_str} — "
+                f"{verdict.elapsed_seconds:.1f}s | "
+                f"{'KEEP' if verdict.proceed else 'EXCLUDE' if not verdict.error else 'ERROR'}"
+            )
 
         if flush_log_each_file:
             flush_gatekeeper_logs(fsync=_fsync_logs)
 
+    sweep_elapsed = time.perf_counter() - t_api_sweep
+    try:
+        from colab_timed_steps import format_elapsed
+    except ImportError:
+        format_elapsed = lambda s: f"{s:.1f}s"  # type: ignore
+
     logger.info(
-        "Gatekeeper done | processed=%d | proceed=%d | excluded=%d | errors=%d",
-        processed, len(report.proceed), len(report.excluded), len(report.errors),
+        "Gatekeeper done | processed=%d | proceed=%d | excluded=%d | errors=%d | "
+        "api_wall=%s | api_model_sum=%.1fs",
+        processed,
+        len(report.proceed),
+        len(report.excluded),
+        len(report.errors),
+        format_elapsed(sweep_elapsed),
+        api_seconds,
     )
+    if progress_stdout:
+        _gatekeeper_progress(
+            f"  Gatekeeper | API sweep finished — wall {format_elapsed(sweep_elapsed)}, "
+            f"model time sum {api_seconds:.1f}s"
+        )
     flush_gatekeeper_logs(fsync=_fsync_logs)
 
     if organize_meetings and report.proceed and not dry_run:

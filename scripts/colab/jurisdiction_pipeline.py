@@ -19,6 +19,7 @@ from typing import Dict, List, Optional
 
 import gatekeeper_triage
 from colab_demos import DemoContext, JurisdictionDemoReports, run_demos_for_jurisdiction
+from colab_timed_steps import timed_step
 from governance_meeting_llm import MeetingInventory, inventory_for_jurisdiction
 
 _gatekeeper_log_lock = threading.Lock()
@@ -143,56 +144,59 @@ def run_gatekeeper_for_jurisdiction(
     log_path = logs_dir / f"gatekeeper_{slug}_{stamp}.log"
     print(f"  Gatekeeper log (tail on Drive): {log_path}", flush=True)
 
+    gk_logger = gatekeeper_triage.logger
     with _gatekeeper_log_lock:
         gatekeeper_triage.configure_logging(
             verbose=True,
             log_path=log_path,
             console=True,
         )
-        triage_paths, total, allowed_dates, _years = gatekeeper_triage.select_triageable_files(
-            ctx.raw_root,
-            kinds=kinds,
-            max_files=ctx.gatekeeper_max_files,
-            jurisdiction_root=jur_root,
-            progress_stdout=True,
-        )
+        with timed_step(
+            f"Gatekeeper | list & classify files | {label}",
+            logger=gk_logger,
+        ):
+            triage_paths, total, allowed_dates, _years = gatekeeper_triage.select_triageable_files(
+                ctx.raw_root,
+                kinds=kinds,
+                max_files=ctx.gatekeeper_max_files,
+                jurisdiction_root=jur_root,
+                progress_stdout=True,
+            )
         print(
             f"  Gatekeeper | {label} | candidates={total} | will_triage={len(triage_paths)}",
             flush=True,
         )
         if allowed_dates and label in allowed_dates:
             print(f"    dates: {', '.join(sorted(allowed_dates[label]))}", flush=True)
-        if triage_paths:
-            print(
-                f"  Gatekeeper | starting API triage for {len(triage_paths)} file(s) "
-                f"(~1–3 min each on AI Studio) …",
-                flush=True,
-            )
         try:
-            report = gatekeeper_triage.run_triage(
-                raw_root=ctx.raw_root,
-                api_key=ctx.api_key,
-                model=ctx.gatekeeper_model,
-                kinds=kinds,
-                pdf_pages=int(os.environ.get("GOVERNANCE_GATEKEEPER_PDF_PAGES", "2")),
-                pdf_dpi=int(os.environ.get("GOVERNANCE_GATEKEEPER_PDF_DPI", "120")),
-                audio_window_seconds=int(
-                    os.environ.get("GOVERNANCE_GATEKEEPER_AUDIO_WINDOW", "120")
-                ),
-                confidence_threshold=float(
-                    os.environ.get("GOVERNANCE_GATEKEEPER_CONFIDENCE", "0.6")
-                ),
-                dry_run=dry_run,
-                max_files=ctx.gatekeeper_max_files,
-                preload_models=False,
-                progress_stdout=True,
-                log_path=log_path,
-                flush_log_each_file=True,
-                organize_meetings=ctx.organize_meetings
-                and os.environ.get("GOVERNANCE_ORGANIZE_MEETINGS", "1") == "1",
-                jurisdiction_root=jur_root,
-                preselected_paths=triage_paths,
-            )
+            with timed_step(
+                f"Gatekeeper | API triage ({len(triage_paths)} file(s)) | {label}",
+                logger=gk_logger,
+            ):
+                report = gatekeeper_triage.run_triage(
+                    raw_root=ctx.raw_root,
+                    api_key=ctx.api_key,
+                    model=ctx.gatekeeper_model,
+                    kinds=kinds,
+                    pdf_pages=int(os.environ.get("GOVERNANCE_GATEKEEPER_PDF_PAGES", "2")),
+                    pdf_dpi=int(os.environ.get("GOVERNANCE_GATEKEEPER_PDF_DPI", "120")),
+                    audio_window_seconds=int(
+                        os.environ.get("GOVERNANCE_GATEKEEPER_AUDIO_WINDOW", "120")
+                    ),
+                    confidence_threshold=float(
+                        os.environ.get("GOVERNANCE_GATEKEEPER_CONFIDENCE", "0.6")
+                    ),
+                    dry_run=dry_run,
+                    max_files=ctx.gatekeeper_max_files,
+                    preload_models=False,
+                    progress_stdout=True,
+                    log_path=log_path,
+                    flush_log_each_file=True,
+                    organize_meetings=ctx.organize_meetings
+                    and os.environ.get("GOVERNANCE_ORGANIZE_MEETINGS", "1") == "1",
+                    jurisdiction_root=jur_root,
+                    preselected_paths=triage_paths,
+                )
         finally:
             gatekeeper_triage.close_gatekeeper_logging()
 
@@ -224,23 +228,28 @@ def run_one_jurisdiction(
     banner = f"{'=' * 72}\n  {prefix}[{idx}/{total}] {label}\n{'=' * 72}"
     print(banner, flush=True)
 
-    run_gatekeeper_for_jurisdiction(inv, ctx, stamp=stamp, logs_dir=logs_dir)
-    inv = reload_inventory(inv, ctx.raw_root, max_dates=ctx.demo_date_cap)
+    with timed_step(f"Gatekeeper | {label}"):
+        run_gatekeeper_for_jurisdiction(inv, ctx, stamp=stamp, logs_dir=logs_dir)
+    with timed_step(f"Reload inventory | {label}"):
+        inv = reload_inventory(inv, ctx.raw_root, max_dates=ctx.demo_date_cap)
     if not inv.has_media:
         print(f"  No media left after Gatekeeper for {label}.", flush=True)
         return JurisdictionDemoReports()
 
     if ctx.organize_meetings and os.environ.get("GOVERNANCE_ORGANIZE_MEETINGS", "1") == "1":
-        n_moves = organize_inventory(ctx.raw_root, inv)
+        with timed_step(f"Organize meetings/ | {label}"):
+            n_moves = organize_inventory(ctx.raw_root, inv)
         if n_moves:
             print(f"  Organized {n_moves} file(s) into meetings/…", flush=True)
-            inv = reload_inventory(inv, ctx.raw_root, max_dates=ctx.demo_date_cap)
+            with timed_step(f"Reload inventory after organize | {label}"):
+                inv = reload_inventory(inv, ctx.raw_root, max_dates=ctx.demo_date_cap)
 
     print(
         f"  Demos | pdfs={len(inv.pdfs)} audio={len(inv.audio)} images={len(inv.images)}",
         flush=True,
     )
-    reports = run_demos_for_jurisdiction(inv, ctx.demo_ctx, brief_cache=brief_cache)
+    with timed_step(f"Demos 1–4 | {label}"):
+        reports = run_demos_for_jurisdiction(inv, ctx.demo_ctx, brief_cache=brief_cache)
     print(
         f"\n  ✓ Finished {label} — outputs under {ctx.demo_ctx.processed_root.name}/",
         flush=True,

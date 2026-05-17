@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 from colab_paths import in_colab
+from colab_timed_steps import timed_step
 from governance_meeting_llm import MeetingInventory, parse_jurisdiction_dir
 
 
@@ -114,11 +115,8 @@ def mirror_jurisdiction(drive_jur: Path, local_jur: Path, *, force: bool = False
     """
     if not force and jurisdiction_mirror_up_to_date(drive_jur, local_jur):
         return False
-    print(
-        f"  Local mirror | copying {drive_jur.name} → {local_jur} …",
-        flush=True,
-    )
-    _copy_tree(drive_jur, local_jur)
+    with timed_step(f"Local mirror | copy {drive_jur.name} → {local_jur.name}"):
+        _copy_tree(drive_jur, local_jur)
     stamp = _mirror_stamp_path(local_jur)
     mtime = _drive_manifest_mtime(drive_jur)
     stamp.write_text(
@@ -178,19 +176,20 @@ def mirror_inventories_to_local_raw(
     remapped: List[MeetingInventory] = []
     copied = 0
     skipped = 0
-    for inv in inventories:
-        drive_jur = inv.jurisdiction.root.resolve()
-        rel = _jurisdiction_relpath(drive_jur, drive_raw_root)
-        local_jur = local_raw_root / rel
-        if mirror_jurisdiction(drive_jur, local_jur, force=force):
-            copied += 1
-        else:
-            skipped += 1
-            print(
-                f"  Local mirror | reuse {rel.as_posix()} (already on disk)",
-                flush=True,
-            )
-        remapped.append(remap_inventory_paths(inv, local_jur))
+    with timed_step(f"Local mirror | {len(inventories)} jurisdiction(s)"):
+        for inv in inventories:
+            drive_jur = inv.jurisdiction.root.resolve()
+            rel = _jurisdiction_relpath(drive_jur, drive_raw_root)
+            local_jur = local_raw_root / rel
+            if mirror_jurisdiction(drive_jur, local_jur, force=force):
+                copied += 1
+            else:
+                skipped += 1
+                print(
+                    f"  Local mirror | reuse {rel.as_posix()} (already on disk)",
+                    flush=True,
+                )
+            remapped.append(remap_inventory_paths(inv, local_jur))
 
     print(
         f"Local raw inputs: {local_raw_root} "
