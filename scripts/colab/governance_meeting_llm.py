@@ -985,13 +985,13 @@ def demo4_use_video_chunks() -> bool:
 
 
 def find_existing_demo4_chunks(scratch_dir: Path, *, video: bool) -> List[Path]:
-    """Reuse ffmpeg segment files under scratch (``.opus`` / ``.mp3`` / ``.mp4``)."""
+    """Reuse ffmpeg segment files under scratch (``.opus`` / ``.mp3`` / ``.mp4``), including subdirs."""
     if not scratch_dir.is_dir():
         return []
     if video:
-        return sorted(scratch_dir.glob("*_chunk_*.mp4"))
+        return sorted(scratch_dir.rglob("*_chunk_*.mp4"))
     for ext in ("opus", "mp3", "m4a", "aac"):
-        found = sorted(scratch_dir.glob(f"*_chunk_*.{ext}"))
+        found = sorted(scratch_dir.rglob(f"*_chunk_*.{ext}"))
         if found:
             return found
     return []
@@ -1167,6 +1167,10 @@ def discover_demo4_chunk_media(
 ) -> List[Tuple[Path, str]]:
     """Reuse ffmpeg segments under scratch (opus before mp3 when not video)."""
     paths = find_existing_demo4_chunks(scratch_dir, video=video)
+    if not video and demo4_prefer_opus_chunks():
+        opus_only = [p for p in paths if p.suffix.lower() == ".opus"]
+        if opus_only:
+            paths = opus_only
     return [(p, mime_for(p)) for p in paths]
 
 

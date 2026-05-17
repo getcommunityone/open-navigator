@@ -816,8 +816,18 @@ def run_demo4(
                 if not force and policy_chunk_output_complete(chunk_out):
                     data = read_json_file(chunk_out) or {}
                     strategy_jsons.append(data.get("json_analysis") or {})
-                    print(f"    chunk {idx}: reuse existing JSON")
+                    log_line(
+                        f"chunk {idx + 1}: reuse existing JSON "
+                        f"({chunk_out.relative_to(ctx.processed_root)})",
+                        prefix="    ",
+                    )
                     continue
+                if chunk_out.is_file() and not force:
+                    log_line(
+                        f"chunk {idx + 1}: re-infer — existing JSON incomplete "
+                        f"(need COFOG decisions in json_analysis)",
+                        prefix="    ",
+                    )
                 strategy_regenerated = True
                 chunks_regenerated = True
                 geo_hint = (
