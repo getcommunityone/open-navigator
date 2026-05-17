@@ -90,6 +90,10 @@ def normalize_scope_key(raw: str) -> str:
         "1": "fast",
         "one": "fast",
         "fastest": "fast",
+        "county_e2e": "fast",
+        "e2e": "fast",
+        "2026_02_18": "fast",
+        "tuscaloosa": "fast",
         "2": "medium",
         "two": "medium",
         "standard": "medium",
@@ -231,6 +235,10 @@ def print_scope_plan(
         f"{preset.max_audio_per_jur} recording(s)/jur, "
         f"{preset.max_audio_chunks} chunk(s) each"
     )
+    if preset.pinned_meeting_date:
+        print(f"  Pinned meeting date: {preset.pinned_meeting_date}")
+    if preset.default_media_scope:
+        print(f"  Default media scope: {preset.default_media_scope!r} (PDF + recordings)")
     print(f"  On disk: {len(all_inventories)} jurisdiction(s) with media")
     pref = _preferred_jurisdiction_slug(preset)
     if pref:

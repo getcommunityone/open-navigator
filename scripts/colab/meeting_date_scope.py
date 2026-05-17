@@ -294,6 +294,12 @@ def prune_year_folder_dirnames(
         ]
 
 
+def resolve_pinned_meeting_date() -> Optional[str]:
+    """When set (``GOVERNANCE_DEMO_MEETING_DATE_PIN``), only files for this ``YYYY-MM-DD``."""
+    raw = os.environ.get("GOVERNANCE_DEMO_MEETING_DATE_PIN", "").strip()
+    return normalize_meeting_date(raw) if raw else None
+
+
 def resolve_demo_meeting_dates_limit(explicit: Optional[int] = None) -> Optional[int]:
     """
     How many distinct meeting **calendar dates** to keep per jurisdiction in DEMO scope.
@@ -689,6 +695,11 @@ def filter_paths_by_recent_meeting_dates(
         return list(candidates), total, {}
 
     allowed = _allowed_dates_per_jurisdiction(candidates, raw_root, max_dates=cap)
+    pin = resolve_pinned_meeting_date()
+    if pin:
+        jurs = {jurisdiction_prefix_from_path(p, raw_root) for p in candidates}
+        allowed = {j: {pin} for j in jurs}
+        logger.info("Date scope: pinned to meeting date %s only", pin)
     if not allowed:
         logger.warning(
             "Date scope: no meeting dates inferred under %s — keeping all %d media files",

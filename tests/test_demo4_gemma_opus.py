@@ -98,6 +98,24 @@ def test_model_order_gemini_first_when_disabled(monkeypatch: pytest.MonkeyPatch)
     assert order.index("gemini-2.0-flash") < order.index("gemma-4-31b-it")
 
 
+def test_resolve_drift_uses_thinking_not_hf_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("GOVERNANCE_DRIFT_MODEL", raising=False)
+    monkeypatch.setenv("GOVERNANCE_DRIFT_USE_HF", "0")
+    monkeypatch.setenv("GOVERNANCE_DEMO4_USE_HF", "1")
+    mid, use_hf = resolve_drift_model("google/gemma-4-E2B-it", thinking_model="gemma-4-31b-it")
+    assert mid == "gemma-4-31b-it"
+    assert use_hf is False
+
+
+def test_resolve_transcription_hf_only_e2b(monkeypatch: pytest.MonkeyPatch) -> None:
+    from gemma_hf_backend import resolve_transcription_hf_model
+
+    monkeypatch.setenv("GOVERNANCE_TRANSCRIPTION_HF_MODEL", "gemma-4-31b-it")
+    assert resolve_transcription_hf_model() == "google/gemma-4-E2B-it"
+
+
 def test_iter_demo4_opus_label_before_video(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Without ffmpeg, only strategy *labels* are checked via a stubbed Opus path."""
     monkeypatch.setenv("GOVERNANCE_DEMO4_PREFER_OPUS", "1")
