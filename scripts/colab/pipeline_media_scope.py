@@ -242,25 +242,28 @@ def describe_demo4_file(path: Path, *, demo4_model: str) -> str:
         model_supports_video_input,
     )
 
+    from governance_meeting_llm import (
+        demo4_prefer_opus_chunks,
+        demo4_uses_huggingface,
+    )
+
     is_video_file = path.suffix.lower() in VIDEO_EXTS
+    backend = "Hugging Face E2B/E4B" if demo4_uses_huggingface() else "Google API"
+    if is_video_file and demo4_prefer_opus_chunks():
+        return (
+            f"MP4 → Opus transcode → 15‑min Opus slices → {backend} "
+            f"(not native video/mp4 unless Opus fails)"
+        )
     use_video_api = (
         is_video_file
         and demo4_use_video_chunks()
         and model_supports_video_input(demo4_model)
     )
     if use_video_api:
-        return "video/mp4 segments → API"
+        return f"video/mp4 segments → {backend}"
     if is_video_file:
-        from governance_meeting_llm import demo4_prefer_opus_chunks, demo4_uses_huggingface
-
-        backend = "Hugging Face E2B/E4B" if demo4_uses_huggingface() else "API"
-        if demo4_prefer_opus_chunks():
-            return (
-                f"MP4 → cached/scrape Opus → 15‑min Opus slices → {backend} "
-                f"(then video/mp4 or MP3 if needed)"
-            )
         return f"MP4 → 15‑min MP3 slices → {backend} (Opus fallback if needed)"
-    return "15‑min audio slices → API"
+    return f"15‑min audio slices → {backend}"
 
 
 def print_scoped_inventory_line(inv: MeetingInventory, scope: MediaScopeConfig | None = None) -> None:

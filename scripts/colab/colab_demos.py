@@ -18,7 +18,7 @@ from media_playback_links import (
     list_media_sources,
     resolve_media_for_input_file,
 )
-from colab_timed_steps import format_elapsed, log_line, timed_step
+from colab_timed_steps import format_elapsed, format_file_size, log_line, log_phase, timed_step
 from genai_quota_retry import genai_inter_call_pause
 from pipeline_logging import (
     PipelineProgress,
@@ -706,8 +706,9 @@ def run_demo4(
         try:
             from gemma_hf_backend import ensure_demo4_hf_ready
 
-            demo4_model = ensure_demo4_hf_ready(ctx.demo4_model or None)
-            log_line(f"Demo 4: Hugging Face {demo4_model!r} (native audio/video)")
+            with log_phase("Demo 4 load Hugging Face E2B (first time: download + GPU load)"):
+                demo4_model = ensure_demo4_hf_ready(ctx.demo4_model or None)
+            log_line(f"Demo 4 model: {demo4_model!r} (native audio/video on GPU)")
         except Exception as e:
             log_line(f"! Demo 4 skipped: {e}")
             return report
@@ -749,11 +750,15 @@ def run_demo4(
         if not Path(audio).is_file():
             print(f"  • {Path(audio).name}: skip — file not on disk ({audio})")
             continue
-        use_video = (
+        from governance_meeting_llm import demo4_prefer_opus_chunks
+
+        use_video_api = (
             audio.suffix.lower() in VIDEO_EXTS
             and demo4_use_video_chunks()
             and model_supports_video_input(demo4_model)
         )
+        # Opus-first ingest (default): cache and describe use audio slices, not mp4 segments.
+        use_video = use_video_api and not demo4_prefer_opus_chunks()
         log_line(f"• {audio.name}  ({describe_demo4_file(audio, demo4_model=demo4_model)})")
         per_audio_dir = mirror_output_path(
             input_path=audio,
@@ -771,18 +776,23 @@ def run_demo4(
             ]
             log_line(f"reuse {len(existing_chunks)} ffmpeg chunk(s) from scratch")
         else:
-            ingest_plans = list(
-                iter_demo4_ingest_strategies(
-                    audio,
-                    out_dir=scratch,
-                    chunk_minutes=15,
-                    prefer_video=use_video,
-                    demo4_model=demo4_model,
+            log_line(f"ffmpeg prep → scratch {scratch.relative_to(ctx.scratch_audio_root)}")
+            with log_phase(f"ffmpeg ingest {audio.name}", detail=format_file_size(audio)):
+                ingest_plans = list(
+                    iter_demo4_ingest_strategies(
+                        audio,
+                        out_dir=scratch,
+                        chunk_minutes=15,
+                        prefer_video=use_video,
+                        demo4_model=demo4_model,
+                    )
                 )
-            )
             if not ingest_plans:
                 log_line("! ffmpeg could not produce any audio slices (Opus or MP3)")
                 continue
+            for _lbl, _media in ingest_plans:
+                log_line(f"  plan: {_lbl} ({len(_media)} chunk(s))")
+                break
 
         chunk_jsons: List[Dict[str, Any]] = []
         chunks_regenerated = False
@@ -862,9 +872,10 @@ def run_demo4(
                         f"{media_hint}\n{ctx.policy_prompt}\n\n---\n{geo_hint}\n\n{chunk_hint}"
                     )
                 result = None
+                chunk_sz = format_file_size(chunk_path)
                 log_line(
-                    f"chunk {idx}: calling {demo4_model} — {chunk_mime} "
-                    f"(often 2–5 min; 429 retries add time)…",
+                    f"chunk {idx + 1}/{len(chunk_media)}: {demo4_model} — {chunk_mime} {chunk_sz} "
+                    f"(HF generate often 3–15 min; heartbeats every ~45s)…",
                     prefix="    ",
                 )
                 t_chunk = time.perf_counter()
@@ -875,6 +886,11 @@ def run_demo4(
                     chunk_mime=chunk_mime,
                 ):
                     try:
+                        if demo4_uses_huggingface():
+                            log_line(
+                                f"chunk {idx + 1}: ▶ HF forward pass starting…",
+                                prefix="      ",
+                            )
                         result = call_google_genai_multimodal(
                             api_key=ctx.api_key,
                             model=try_model,

@@ -445,10 +445,23 @@ def load_gemma_hf(
     use_mm = needs_audio and _repo_supports_audio(repo_id)
     cache_key = (repo_id, use_mm)
     if cache_key in _CACHE:
-        logger.debug("HF cache hit %s (needs_audio=%s)", repo_id, use_mm)
+        try:
+            from colab_timed_steps import log_line
+
+            log_line(f"HF cache hit {repo_id} (needs_audio={use_mm})")
+        except ImportError:
+            logger.debug("HF cache hit %s (needs_audio=%s)", repo_id, use_mm)
         return _CACHE[cache_key]
 
-    logger.info("Loading HF weights for %s (needs_audio=%s)…", repo_id, use_mm)
+    try:
+        from colab_timed_steps import log_line
+
+        log_line(
+            f"HF loading {repo_id} (needs_audio={use_mm}) — "
+            "first run may download ~10GB to HF hub cache"
+        )
+    except ImportError:
+        logger.info("Loading HF weights for %s (needs_audio=%s)…", repo_id, use_mm)
     _assert_transformers_supports_gemma4()
     try:
         from transformers import AutoProcessor
@@ -473,11 +486,20 @@ def load_gemma_hf(
         raise exc
 
     try:
-        processor = AutoProcessor.from_pretrained(
-            repo_id, token=token, padding_side="left"
-        )
-    except (ValueError, KeyError) as exc:
-        _wrap_gemma4_load_error(exc)
+        from colab_timed_steps import log_phase
+
+        proc_ctx: Any = log_phase(f"HF processor {repo_id}")
+    except ImportError:
+        from contextlib import nullcontext
+
+        proc_ctx = nullcontext()
+    with proc_ctx:
+        try:
+            processor = AutoProcessor.from_pretrained(
+                repo_id, token=token, padding_side="left"
+            )
+        except (ValueError, KeyError) as exc:
+            _wrap_gemma4_load_error(exc)
 
     torch_dtype = dtype if dtype is not None else _load_torch_dtype()
     load_kw: Dict[str, Any] = dict(
@@ -488,21 +510,40 @@ def load_gemma_hf(
     if device_map is not None and (device_map != "auto" or torch.cuda.is_available()):
         load_kw["device_map"] = device_map
 
+    weight_label = (
+        f"HF weights {repo_id} (MultimodalLM audio+video)"
+        if use_mm
+        else f"HF weights {repo_id} (image+text)"
+    )
     try:
-        if use_mm:
-            from transformers import AutoModelForMultimodalLM
+        from colab_timed_steps import log_phase
 
-            model = AutoModelForMultimodalLM.from_pretrained(repo_id, **load_kw)
-            multimodal = True
-            logger.info("Loaded %s via AutoModelForMultimodalLM (audio+image+text)", repo_id)
-        else:
-            from transformers import AutoModelForImageTextToText
+        weight_ctx: Any = log_phase(weight_label)
+    except ImportError:
+        from contextlib import nullcontext
 
-            model = AutoModelForImageTextToText.from_pretrained(repo_id, **load_kw)
-            multimodal = False
-            logger.info("Loaded %s via AutoModelForImageTextToText", repo_id)
+        weight_ctx = nullcontext()
+    try:
+        with weight_ctx:
+            if use_mm:
+                from transformers import AutoModelForMultimodalLM
+
+                model = AutoModelForMultimodalLM.from_pretrained(repo_id, **load_kw)
+                multimodal = True
+            else:
+                from transformers import AutoModelForImageTextToText
+
+                model = AutoModelForImageTextToText.from_pretrained(repo_id, **load_kw)
+                multimodal = False
     except (ValueError, KeyError) as exc:
         _wrap_gemma4_load_error(exc)
+    try:
+        from colab_timed_steps import log_line
+
+        kind = "MultimodalLM" if multimodal else "ImageTextToText"
+        log_line(f"HF ready {repo_id} via {kind}")
+    except ImportError:
+        logger.info("Loaded %s", repo_id)
 
     if "device_map" not in load_kw:
         model = model.to(torch_dtype).eval()
@@ -688,8 +729,25 @@ def call_gemma_hf_multimodal(
     if temperature > 0:
         gen_kwargs["temperature"] = temperature
 
-    with torch.inference_mode():
-        outputs = bundle.model.generate(**inputs, **gen_kwargs)
+    media_hint = ""
+    if media_list:
+        parts = [f"{mime}" for _, mime in media_list[:2]]
+        media_hint = f" media={','.join(parts)}"
+
+    try:
+        from colab_timed_steps import log_phase
+
+        infer_ctx: Any = log_phase(
+            f"HF generate {bundle.repo_id}",
+            detail=f"max_new_tokens={max_output_tokens}{media_hint}",
+        )
+    except ImportError:
+        from contextlib import nullcontext
+
+        infer_ctx = nullcontext()
+    with infer_ctx:
+        with torch.inference_mode():
+            outputs = bundle.model.generate(**inputs, **gen_kwargs)
 
     text, thoughts = _decode_generation(
         bundle,

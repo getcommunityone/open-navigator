@@ -1109,11 +1109,14 @@ def iter_demo4_ingest_strategies(
                 flush=True,
             )
 
-    if (
+    try_video_mp4 = (
         is_video_container
         and use_video
         and model_supports_video_input(demo4_model)
-    ):
+    )
+    if demo4_prefer_opus_chunks() and demo4_uses_huggingface():
+        try_video_mp4 = False
+    if try_video_mp4:
         try:
             paths = _chunk_video_ffmpeg(
                 source_path, out_dir=out_dir / "video_seg", chunk_minutes=chunk_minutes
@@ -1307,27 +1310,39 @@ def transcode_video_to_opus(
         )
     dest = (out_path or video_path.with_suffix(".opus")).resolve()
     dest.parent.mkdir(parents=True, exist_ok=True)
-    subprocess.run(
-        [
-            "ffmpeg",
-            "-nostdin",
-            "-hide_banner",
-            "-loglevel",
-            "error",
-            "-y",
-            "-i",
-            str(video_path),
-            *_ffmpeg_audio_only_output_flags(video_path),
-            "-c:a",
-            "libopus",
-            "-b:a",
-            bitrate,
-            str(dest),
-        ],
-        check=True,
-        capture_output=True,
-        timeout=timeout_s,
-    )
+    try:
+        from colab_timed_steps import format_file_size, log_phase
+
+        ctx: Any = log_phase(
+            f"ffmpeg → Opus {video_path.name}",
+            detail=format_file_size(video_path),
+        )
+    except ImportError:
+        from contextlib import nullcontext
+
+        ctx = nullcontext()
+    with ctx:
+        subprocess.run(
+            [
+                "ffmpeg",
+                "-nostdin",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-y",
+                "-i",
+                str(video_path),
+                *_ffmpeg_audio_only_output_flags(video_path),
+                "-c:a",
+                "libopus",
+                "-b:a",
+                bitrate,
+                str(dest),
+            ],
+            check=True,
+            capture_output=True,
+            timeout=timeout_s,
+        )
     if not dest.is_file() or dest.stat().st_size < 1024:
         raise RuntimeError(f"Opus transcode produced empty or tiny output: {dest}")
     return dest
@@ -1402,8 +1417,27 @@ def chunk_audio_ffmpeg(
         "-c:a", codec,
         str(pattern),
     ]
-    subprocess.run(cmd, check=True)
-    return sorted(out_dir.glob(f"{stem}_chunk_*.{fmt}"))
+    try:
+        from colab_timed_steps import format_file_size, log_phase
+
+        seg_ctx: Any = log_phase(
+            f"ffmpeg {chunk_minutes}min {fmt_l} slices",
+            detail=f"{audio_path.name} {format_file_size(audio_path)}",
+        )
+    except ImportError:
+        from contextlib import nullcontext
+
+        seg_ctx = nullcontext()
+    with seg_ctx:
+        subprocess.run(cmd, check=True)
+    chunks = sorted(out_dir.glob(f"{stem}_chunk_*.{fmt}"))
+    try:
+        from colab_timed_steps import log_line
+
+        log_line(f"ffmpeg produced {len(chunks)} {fmt_l} chunk(s) under {out_dir.name}/")
+    except ImportError:
+        pass
+    return chunks
 
 
 # ─────────────────────────────────────────────────────────────
