@@ -311,8 +311,8 @@ def configure_logging(
 
     When ``log_path`` is set, each log line is written with line buffering and flushed
     immediately so ``tail -f`` on Drive/WSL sees progress without waiting for the sweep
-    to finish. ``mirror_log_path`` writes the same lines to a second file (e.g. ``00_logs/``
-    plus ``03_processed_outputs/_gatekeeper/``).
+    to finish. ``mirror_log_path`` optionally duplicates lines to a second file (e.g. a
+    local copy while the primary log is on Drive under ``00_logs/``).
     """
     global _log_file_handle
     close_gatekeeper_logging()

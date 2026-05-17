@@ -28,6 +28,17 @@ def gatekeeper_enabled() -> bool:
     return os.environ.get("GOVERNANCE_GATEKEEPER_ENABLED", "1") != "0"
 
 
+def gatekeeper_logs_dir(pipe_root: Path) -> Path:
+    """All Gatekeeper console logs and triage JSON reports live under ``00_logs/``."""
+    logs_dir = pipe_root / "00_logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    return logs_dir
+
+
+def _log_slug(label: str) -> str:
+    return label.replace("/", "_").replace("\\", "_")
+
+
 def resolve_parallel_state_workers(num_states: int) -> int:
     """
     Max concurrent state workers. ``1`` = fully sequential.
@@ -114,7 +125,6 @@ def run_gatekeeper_for_jurisdiction(
     ctx: JurisdictionRunContext,
     *,
     stamp: str,
-    report_dir: Path,
     logs_dir: Path,
 ) -> Optional[gatekeeper_triage.TriageReport]:
     if not gatekeeper_enabled():
@@ -146,14 +156,13 @@ def run_gatekeeper_for_jurisdiction(
     if allowed_dates and label in allowed_dates:
         print(f"    dates: {', '.join(sorted(allowed_dates[label]))}", flush=True)
 
-    log_path = report_dir / f"triage_{label.replace('/', '_')}_{stamp}.txt"
-    mirror_log = logs_dir / f"gatekeeper_{label.replace('/', '_')}_{stamp}.log"
+    slug = _log_slug(label)
+    log_path = logs_dir / f"gatekeeper_{slug}_{stamp}.log"
 
     with _gatekeeper_log_lock:
         gatekeeper_triage.configure_logging(
             verbose=True,
             log_path=log_path,
-            mirror_log_path=mirror_log,
             console=True,
         )
         try:
@@ -183,13 +192,13 @@ def run_gatekeeper_for_jurisdiction(
         finally:
             gatekeeper_triage.close_gatekeeper_logging()
 
-    report_path = report_dir / f"triage_report_{label.replace('/', '_')}_{stamp}.json"
+    report_path = logs_dir / f"triage_report_{slug}_{stamp}.json"
     report_path.write_text(
         json.dumps(report.to_dict(), indent=2, ensure_ascii=False), encoding="utf-8"
     )
     print(
         f"  Gatekeeper done | keep={len(report.proceed)} exclude={len(report.excluded)} "
-        f"errors={len(report.errors)} → {report_path.name}",
+        f"errors={len(report.errors)} → 00_logs/{report_path.name}",
         flush=True,
     )
     return report
@@ -202,7 +211,6 @@ def run_one_jurisdiction(
     idx: int,
     total: int,
     stamp: str,
-    report_dir: Path,
     logs_dir: Path,
     brief_cache: dict[str, str],
     state_label: str = "",
@@ -212,9 +220,7 @@ def run_one_jurisdiction(
     banner = f"{'=' * 72}\n  {prefix}[{idx}/{total}] {label}\n{'=' * 72}"
     print(banner, flush=True)
 
-    run_gatekeeper_for_jurisdiction(
-        inv, ctx, stamp=stamp, report_dir=report_dir, logs_dir=logs_dir
-    )
+    run_gatekeeper_for_jurisdiction(inv, ctx, stamp=stamp, logs_dir=logs_dir)
     inv = reload_inventory(inv, ctx.raw_root, max_dates=ctx.demo_date_cap)
     if not inv.has_media:
         print(f"  No media left after Gatekeeper for {label}.", flush=True)
@@ -244,7 +250,6 @@ def _run_state_block(
     ctx: JurisdictionRunContext,
     *,
     stamp: str,
-    report_dir: Path,
     logs_dir: Path,
     global_idx_start: int,
     global_total: int,
@@ -261,7 +266,6 @@ def _run_state_block(
                 idx=global_idx,
                 total=global_total,
                 stamp=stamp,
-                report_dir=report_dir,
                 logs_dir=logs_dir,
                 brief_cache=brief_cache,
                 state_label=state_code,
@@ -279,11 +283,9 @@ def run_governance_pipeline(
         print("No jurisdictions with media.")
         return []
 
-    report_dir = ctx.pipe_root / "03_processed_outputs" / "_gatekeeper"
-    report_dir.mkdir(parents=True, exist_ok=True)
-    logs_dir = ctx.pipe_root / "00_logs"
-    logs_dir.mkdir(parents=True, exist_ok=True)
+    logs_dir = gatekeeper_logs_dir(ctx.pipe_root)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    print(f"Gatekeeper logs & triage reports → {logs_dir}", flush=True)
 
     by_state = group_inventories_by_state(inventories)
     num_states = len(by_state)
@@ -314,7 +316,6 @@ def run_governance_pipeline(
                     state_invs,
                     ctx,
                     stamp=stamp,
-                    report_dir=report_dir,
                     logs_dir=logs_dir,
                     global_idx_start=idx_start,
                     global_total=global_total,
@@ -332,7 +333,6 @@ def run_governance_pipeline(
                     state_invs,
                     ctx,
                     stamp=stamp,
-                    report_dir=report_dir,
                     logs_dir=logs_dir,
                     global_idx_start=offset,
                     global_total=global_total,
