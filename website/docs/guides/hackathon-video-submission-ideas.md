@@ -386,6 +386,60 @@ Short talks, product stories, and case studies that show how **data + maps + hum
 
 ---
 
+## Call to action slide (required closing beat)
+
+**Every hackathon submission video should end on a dedicated CTA slide**—not a trailing voiceover over code. Hold it **3–5 full seconds** so judges can screenshot it.
+
+### Slide layout (16:9 demo or 9:16 TikTok)
+
+| Zone | Content |
+| --- | --- |
+| **Headline (large)** | One imperative—what to do **next** |
+| **Subline** | One proof line—jurisdiction + source |
+| **Primary button / URL** | Single link or QR (repo, Colab, or lookup) |
+| **Logo** | CommunityOne / Open Navigator mark (small, corner) |
+
+### Copy templates (pick one track per video)
+
+**Fines / speed traps**
+
+- **Headline:** Look up your town’s **fine-revenue %**
+- **Subline:** Budget + meeting sources · Tuscaloosa County pilot
+- **CTA:** `github.com/…/open-navigator` · Run Colab `02_run_meeting_llm`
+
+**Potholes / infrastructure**
+
+- **Headline:** See **what your council approved** for your roads
+- **Subline:** Capital budget + meeting vote · linked timestamp
+- **CTA:** Open your county folder · Compare **$ streets** vs. **your ZIP**
+
+**TikTok / short-form**
+
+- **Headline:** **45 seconds** beats 4 hours of council video
+- **Subline:** AI summary + link to the real recording
+- **CTA:** Full meeting in bio · Comment your **ZIP** for a fact-check
+
+**100k meetings / safety scrub**
+
+- **Headline:** Ask for a **trust index** on public meeting AI
+- **Subline:** Shield-reviewed summaries · pilot → national scale
+- **CTA:** Star the repo · Request your **state** in the pilot
+
+**Accessibility**
+
+- **Headline:** Test **your** city’s `.gov` homepage
+- **Subline:** axe + Pa11y scan · violation count by jurisdiction
+- **CTA:** Run `./scripts/accessibility/run_accessibility_scan.sh --state AL`
+
+### Recording checklist
+
+- [ ] CTA slide is the **last frame** (no terminal scroll, no credits over UI)
+- [ ] URL or QR is **readable at 1080p** on a phone recording of the projector
+- [ ] Spoken line matches the slide: “**Do this tomorrow:** …”
+- [ ] One action only—don’t list three equal CTAs
+
+---
+
 ## “Wow” video checklist (summary)
 
 | Idea | What to do |
@@ -397,16 +451,17 @@ Short talks, product stories, and case studies that show how **data + maps + hum
 | **Data action** | Explicitly say what became **actionable** (find, compare, contact, plan) that wasn’t before. |
 | **Accessibility reveal** | Show a **scanner result** next to the live `.gov` page (axe/Pa11y violation → same element on screen). |
 | **TikTok beat** | One **vertical** clip: hook stat → 20s plain English → **source URL + timestamp** on the last frame. |
+| **CTA slide (required)** | Final **3–5s** full-screen slide: one headline + one link/QR—see [Call to action slide](#call-to-action-slide-required-closing-beat). |
 
 ## Applying this to Open Navigator / CommunityOne
 
 - **One jurisdiction, one story:** Default Gemma run: **Tuscaloosa County, AL** (`county_01125`) with **`SCOPE=fast`** (**2 meetings**, **6 PDFs**)—fines %, Feb+May meetings, and Shield review in one pass.
 - **Killer scale story:** Pilot on county_01125 → slide to **100k meetings** safety scrub (Shield + Gemma) as the national vision.
-- **Short-form branch:** Same JSON → one **issue-focused 45s script** (speed trap / fine % is the default hook) + optional clip at `media_citation.playback_url`.
+- **Short-form branch:** Same JSON → one **issue-focused 45s script** (speed trap / fine % or **potholes / street $** hook) + optional clip at `media_citation.playback_url`.
 - **Combine tracks (advanced):** Fines % + accessibility score + safety `_summary.json` for the same `jurisdiction_id`.
 - **Other goals still work:** Officials lookup, nonprofit + government spend context, meeting drift—but keep **one** primary hook per video.
 - **Source credibility:** Flash **audit year**, **fund name**, and **Governing / state comptroller** on screen for a second—reinforces “real data,” not a mockup.
-- **End on a CTA:** What should a viewer **do tomorrow**—open their county’s folder, run the Colab notebook, or look up their town’s fine-revenue %?
+- **End on the CTA slide (non-negotiable):** Use the [template above](#call-to-action-slide-required-closing-beat)—hold **3–5 seconds**, one headline, one link. Say aloud: “**Do this tomorrow:** run the notebook / look up your county / comment your ZIP.”
 
 ---
 
