@@ -42,6 +42,23 @@ _MEETINGS_DATE_DIR = re.compile(r"^(20\d{2})_(\d{2})_(\d{2})$")
 
 _CALENDAR_YEAR_FOLDER = re.compile(r"^20\d{2}$")
 
+_MONTH_WORD_TO_NUM = {
+    "january": 1, "jan": 1, "february": 2, "feb": 2, "march": 3, "mar": 3,
+    "april": 4, "apr": 4, "may": 5, "june": 6, "jun": 6, "july": 7, "jul": 7,
+    "august": 8, "aug": 8, "september": 9, "sep": 9, "sept": 9, "october": 10,
+    "oct": 10, "november": 11, "nov": 11, "december": 12, "dec": 12,
+}
+_MONTH_DAY_YEAR_TEXT = re.compile(
+    r"\b(january|february|march|april|may|june|july|august|september|october|november|december"
+    r"|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)"
+    r"\s+([0-3]?\d)(?:st|nd|rd|th)?,?\s*((?:19|20)\d{2})\b",
+    re.I,
+)
+_MEETING_AGENDA_HEADING = re.compile(
+    r"\b(?:county|city|town|municipal)\s+commission\b.*\bagenda\b|\bmeeting\s+agenda\b",
+    re.I | re.S,
+)
+
 
 @dataclass(frozen=True)
 class ManifestRow:
@@ -64,12 +81,22 @@ def normalize_meeting_date(value: Optional[str]) -> Optional[str]:
 
 
 def parse_yyyymmdd_from_blob(blob: str) -> Optional[str]:
-    """``YYYY-MM-DD`` from ``2026-04-06_…``, ``20260406``, or similar."""
+    """``YYYY-MM-DD`` from ISO, ``20260406``, ``February 4, 2026``, etc."""
     text = blob or ""
     iso = re.search(r"(20\d{2})-(\d{2})-(\d{2})", text)
     if iso:
         return f"{iso.group(1)}-{iso.group(2)}-{iso.group(3)}"
-    m = _YYYYMMDD.search(text.replace("_", "").replace("-", ""))
+    mdy = _MONTH_DAY_YEAR_TEXT.search(text)
+    if mdy:
+        mo = _MONTH_WORD_TO_NUM.get(mdy.group(1).lower())
+        if mo:
+            try:
+                day = int(mdy.group(2))
+                year = int(mdy.group(3))
+                return f"{year}-{mo:02d}-{day:02d}"
+            except ValueError:
+                pass
+    m = _YYYYMMDD.search(text.replace("_", "").replace("-", "").replace(",", " "))
     if not m:
         return None
     return f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
@@ -190,6 +217,12 @@ def path_matches_year_folder_scope(
     stem = path.stem.lower()
     if yfolder is None and ("agenda" in stem or "minutes" in stem):
         return True
+    try:
+        rel = path.resolve().relative_to(raw_root.resolve())
+        if "_video_assets" in rel.parts:
+            return True
+    except ValueError:
+        pass
     return False
 
 
@@ -373,12 +406,95 @@ def infer_meeting_date_for_file(path: Path, raw_root: Path) -> Optional[str]:
     if d:
         return d
 
+    if path.suffix.lower() == ".pdf":
+        d = _infer_meeting_date_from_pdf_pages(path)
+        if d:
+            return d
+
     try:
         from meeting_grouping import infer_meeting_date_from_path
 
         return infer_meeting_date_from_path(path)
     except Exception:
         return None
+
+
+def _pdf_excerpt_suggests_meeting_agenda(path: Path, *, pages: int = 1) -> bool:
+    """
+    True when page-1 text looks like a county/city commission agenda
+    (e.g. ``TUSCALOOSA COUNTY COMMISSION MEETING AGENDA`` + ``February 4, 2026``).
+    """
+    if path.suffix.lower() != ".pdf" or not path.is_file():
+        return False
+    try:
+        import fitz
+    except ImportError:
+        return False
+    try:
+        with fitz.open(path) as doc:
+            if doc.page_count < 1:
+                return False
+            text = doc.load_page(0).get_text("text") or ""
+    except Exception:
+        return False
+    if not text.strip():
+        return False
+    if _MEETING_AGENDA_HEADING.search(text):
+        return True
+    low = text.lower()
+    return (
+        "meeting agenda" in low
+        and ("commission" in low or "council" in low or "board" in low)
+        and parse_yyyymmdd_from_blob(text) is not None
+    )
+
+
+def _infer_meeting_date_from_pdf_pages(path: Path, *, pages: int = 2) -> Optional[str]:
+    """Read the first page(s) digital text and pull ``YYYY-MM-DD`` when present."""
+    if not path.is_file():
+        return None
+    try:
+        import fitz
+    except ImportError:
+        return None
+    try:
+        parts: List[str] = []
+        with fitz.open(path) as doc:
+            for i in range(min(max(1, pages), doc.page_count)):
+                parts.append(doc.load_page(i).get_text("text") or "")
+        return parse_yyyymmdd_from_blob("\n".join(parts))
+    except Exception:
+        return None
+
+
+def apply_year_folder_scope_to_candidates(
+    candidates: List[Path], raw_root: Path
+) -> List[Path]:
+    """Apply DEMO newest-``20xx/`` filter with fallback when it would remove everything."""
+    if not resolve_demo_year_folder_scope():
+        return candidates
+    allowed_years = discover_most_recent_year_folder_per_jurisdiction(raw_root)
+    if not allowed_years:
+        return candidates
+    before_year = len(candidates)
+    year_filtered = [
+        p for p in candidates if path_matches_year_folder_scope(p, raw_root, allowed_years)
+    ]
+    if before_year > 0 and len(year_filtered) == 0:
+        logger.warning(
+            "Year folder scope removed all %d media file(s) — keeping all media candidates "
+            "for Gatekeeper (common after organize moves files under meetings/).",
+            before_year,
+        )
+        return candidates
+    logger.info(
+        "Year folder scope | %d → %d media file(s) | newest calendar folder per jurisdiction",
+        before_year,
+        len(year_filtered),
+    )
+    for jur, year in sorted(allowed_years.items()):
+        logger.info("  %s → %s/", jur, year)
+    return year_filtered
 
 
 def file_media_role(path: Path, raw_root: Path) -> Optional[str]:
@@ -410,9 +526,18 @@ def file_media_role(path: Path, raw_root: Path) -> Optional[str]:
             doc_type = (row.doc_type or "").lower()
 
     stem = path.stem.lower()
+    parts_lower = [p.lower() for p in rel.parts]
     if doc_type in ("agenda", "minutes"):
         return "pdf"
     if "agenda" in stem or "minutes" in stem:
+        return "pdf"
+    if path.suffix.lower() == ".pdf" and _pdf_excerpt_suggests_meeting_agenda(path):
+        return "pdf"
+    if "meetings" in parts_lower and (
+        "agenda" in parts_lower or "minutes" in parts_lower or "audio" in parts_lower
+    ):
+        return "pdf"
+    if any(is_calendar_year_folder(p) for p in rel.parts):
         return "pdf"
     if infer_meeting_date_for_file(path, raw_root):
         return "collateral"
@@ -493,36 +618,7 @@ def filter_paths_by_recent_meeting_dates(
     cap = resolve_demo_meeting_dates_limit(max_dates)
     candidates = [p for p in paths if file_media_role(p, raw_root) is not None]
 
-    if resolve_demo_year_folder_scope():
-        allowed_years = discover_most_recent_year_folder_per_jurisdiction(raw_root)
-        if allowed_years:
-            before_year = len(candidates)
-            year_filtered = [
-                p
-                for p in candidates
-                if path_matches_year_folder_scope(p, raw_root, allowed_years)
-            ]
-            if before_year > 0 and len(year_filtered) == 0:
-                logger.warning(
-                    "Year folder scope removed all %d media file(s) "
-                    "(common when PDFs live only under meetings/ without inferable dates). "
-                    "Keeping all media candidates for Gatekeeper.",
-                    before_year,
-                )
-            else:
-                candidates = year_filtered
-            logger.info(
-                "Year folder scope | %d → %d media file(s) | newest calendar folder per jurisdiction",
-                before_year,
-                len(candidates),
-            )
-            for jur, year in sorted(allowed_years.items()):
-                logger.info("  %s → %s/", jur, year)
-        else:
-            logger.warning(
-                "Year folder scope enabled but no 20xx/ folders found under %s",
-                raw_root,
-            )
+    candidates = apply_year_folder_scope_to_candidates(candidates, raw_root)
 
     total = len(candidates)
     if cap is None:

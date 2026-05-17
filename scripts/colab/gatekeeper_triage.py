@@ -1089,8 +1089,14 @@ def _verdict_from_json_full(
     return is_meeting, doc_type, confidence, reasoning, meeting_date, meeting_title, instance_slug
 
 
-def _apply_meeting_metadata(verdict: TriageVerdict, path: Path, payload: Optional[dict]) -> None:
-    """Fill meeting_* fields from model JSON with filename/path fallbacks."""
+def _apply_meeting_metadata(
+    verdict: TriageVerdict,
+    path: Path,
+    payload: Optional[dict],
+    *,
+    raw_root: Optional[Path] = None,
+) -> None:
+    """Fill meeting_* fields from model JSON with filename/path/PDF fallbacks."""
     (
         _is_m,
         _doc,
@@ -1108,6 +1114,13 @@ def _apply_meeting_metadata(verdict: TriageVerdict, path: Path, payload: Optiona
         )
     except ImportError:
         return
+    if not meeting_date and raw_root is not None:
+        try:
+            from meeting_date_scope import infer_meeting_date_for_file
+
+            meeting_date = infer_meeting_date_for_file(path, raw_root)
+        except ImportError:
+            pass
     if not meeting_date:
         meeting_date = infer_meeting_date_from_path(path)
     if not instance_slug:
@@ -1200,7 +1213,13 @@ PDF_TEXT_USER = (
 
 
 def _fill_verdict_from_triage_call(
-    verdict: TriageVerdict, pdf_path: Path, parsed: Optional[dict], raw: Optional[str], t0: float
+    verdict: TriageVerdict,
+    pdf_path: Path,
+    parsed: Optional[dict],
+    raw: Optional[str],
+    t0: float,
+    *,
+    raw_root: Optional[Path] = None,
 ) -> TriageVerdict:
     is_m, doc_type, conf, reason = _verdict_from_json(parsed)
     verdict.is_governance_meeting = is_m
@@ -1208,7 +1227,7 @@ def _fill_verdict_from_triage_call(
     verdict.confidence_score = conf
     verdict.reasoning = reason
     verdict.raw_model_text = raw[:4000] if raw else None
-    _apply_meeting_metadata(verdict, pdf_path, parsed)
+    _apply_meeting_metadata(verdict, pdf_path, parsed, raw_root=raw_root)
     verdict.elapsed_seconds = round(time.time() - t0, 2)
     return verdict
 
@@ -1297,7 +1316,9 @@ def triage_pdf(
             time.time() - t0,
         )
         flush_gatekeeper_logs()
-        return _fill_verdict_from_triage_call(verdict, pdf_path, parsed, raw, t0)
+        return _fill_verdict_from_triage_call(
+            verdict, pdf_path, parsed, raw, t0, raw_root=raw_root
+        )
 
     try:
         pdf_subset = extract_first_pages_pdf_bytes(pdf_path, pages=pages)
@@ -1344,7 +1365,9 @@ def triage_pdf(
         time.time() - t0,
     )
     flush_gatekeeper_logs()
-    return _fill_verdict_from_triage_call(verdict, pdf_path, parsed, raw, t0)
+    return _fill_verdict_from_triage_call(
+        verdict, pdf_path, parsed, raw, t0, raw_root=raw_root
+    )
 
 
 def triage_audio(
@@ -1588,18 +1611,27 @@ def select_triageable_files(
     )
     total = len(paths)
 
+    # Gatekeeper must see agenda/minutes candidates *before* dates are known.
+    # Demo meeting-date caps apply to post-triage demos (filter_inventory_media), not here.
     try:
         from meeting_date_scope import (
-            filter_paths_by_recent_meeting_dates,
-            resolve_demo_meeting_dates_limit,
+            apply_year_folder_scope_to_candidates,
+            file_media_role,
         )
 
-        date_cap = resolve_demo_meeting_dates_limit(max_meeting_dates)
-        if date_cap is not None:
-            selected, _media_total, allowed = filter_paths_by_recent_meeting_dates(
-                paths, raw_root, max_dates=date_cap
+        candidates = [p for p in paths if file_media_role(p, raw_root) is not None]
+        if not candidates and paths:
+            logger.warning(
+                "Gatekeeper: %d pdf/audio path(s) on disk but 0 meeting-media roles "
+                "(agenda/minutes/2026/ or meetings/…). Check Drive sync.",
+                len(paths),
             )
-            return selected, total, allowed, allowed_year_folders
+        candidates = apply_year_folder_scope_to_candidates(candidates, raw_root)
+        candidates.sort(key=_triage_recency_key)
+        cap = resolve_gatekeeper_max_files(max_files)
+        if cap is not None and len(candidates) > cap:
+            candidates = candidates[-cap:]
+        return candidates, total, None, allowed_year_folders
     except ImportError:
         pass
 
@@ -1827,6 +1859,25 @@ def run_triage(
         for p in triage_paths:
             rel, _ = relative_geography(p, raw_root)
             logger.info("  selected (newest): %s", rel)
+
+    if not triage_paths:
+        jur_hint = ""
+        if jurisdiction_root is not None:
+            try:
+                jur_hint = jurisdiction_root.resolve().relative_to(raw_root.resolve()).as_posix()
+            except ValueError:
+                jur_hint = str(jurisdiction_root)
+        report.selection_note = (
+            f"No files selected for triage (walked {total_candidates} pdf/audio path(s) on disk"
+            + (f" under {jur_hint}" if jur_hint else "")
+            + "). DEMO year/date filters removed every candidate before any Gemma call — "
+            "this is not an API failure. Fixes: pull latest open-navigator; set "
+            "GOVERNANCE_DEMO_YEAR_SCOPE=0 in §3; or GOVERNANCE_GATEKEEPER_ENABLED=0 to skip Gatekeeper."
+        )
+        report.skipped.append(report.selection_note)
+        logger.error(report.selection_note)
+        flush_gatekeeper_logs(fsync=_fsync_logs)
+        return report
 
     processed = 0
     for path in triage_paths:
