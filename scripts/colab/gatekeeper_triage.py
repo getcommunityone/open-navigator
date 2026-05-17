@@ -1838,7 +1838,11 @@ def run_triage(
             from meeting_grouping import organize_proceed_into_meeting_folders
 
             moves = organize_proceed_into_meeting_folders(
-                raw_root, report.proceed, dry_run=False
+                raw_root,
+                report.proceed,
+                dry_run=False,
+                client=client,
+                model=model,
             )
             logger.info("Organized %d file(s) into meetings/ folders", len(moves))
         except Exception as exc:

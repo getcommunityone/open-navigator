@@ -104,7 +104,7 @@ The triage layer:
 The same triage layer is exposed as **Step 0** inside `02_run_meeting_llm.ipynb`; set `GOVERNANCE_GATEKEEPER_ENABLED=0` to skip when running the notebook end-to-end.
 
 With `GOVERNANCE_ORGANIZE_MEETINGS=1` (default), kept/scoped files move under  
-`…/meetings/YYYY_MM_DD_meeting/` (or `…_meeting_2` for a second session that day) with  
+`…/meetings/YYYY_MM_DD/{instance_slug}/` (e.g. `2026_04_01/city-council/`) with  
 `agenda/`, `minutes/`, `collateral/`, and `audio/` subfolders. Demo 4 builds a text brief from agenda+minutes PDFs (names, topics, title) and prepends it to the audio policy prompt.
 
 ### 6) Run Gemma / LLM structured analysis — notebook **`02_run_meeting_llm.ipynb`**
@@ -163,6 +163,8 @@ Scraped meetings mirror is **step 1** above ([`01_copy_scraped_meetings_cache_to
 | `GOVERNANCE_GATEKEEPER_ENABLED` | `0` to skip the triage step inside the notebook. |
 | `GOVERNANCE_GATEKEEPER_DRY_RUN` | `1` to log triage verdicts without moving files. |
 | `GOVERNANCE_GATEKEEPER_MOVE_EXCLUDED` | `1` to create `excluded_inputs/` and move rejects (default `0` — leave files in place). |
+| `GOVERNANCE_MEETING_AI_IDENTITY` | `1` (default): same-day clustering via AI (PDF pages 1–2 + audio triage); ≤1 agenda + ≤1 minutes → one meeting. |
+| `GOVERNANCE_MEETING_IDENTITY_TIMEOUT_SECONDS` | Per jurisdiction-day identity call (default `90`). |
 | `GOVERNANCE_GATEKEEPER_KINDS` | Comma-separated kinds — `pdf`, `audio`, or both (default both). |
 | `GOVERNANCE_GATEKEEPER_PDF_PAGES` | First **1–2** pages sent as PDF bytes to the model (default `2`). |
 | `GOVERNANCE_GATEKEEPER_PDF_DIRECT` | `1` (default): AI Studio gets `application/pdf` subset — no PNG render. `0` = text-only. |

@@ -32,6 +32,7 @@ _YYYYMMDD = re.compile(
 _MEETINGS_FOLDER_DATE = re.compile(
     r"^(?:(\d{4}-\d{2}-\d{2})|(\d{4})_(\d{2})_(\d{2})_meeting)"
 )
+_MEETINGS_DATE_DIR = re.compile(r"^(20\d{2})_(\d{2})_(\d{2})$")
 
 _CALENDAR_YEAR_FOLDER = re.compile(r"^20\d{2}$")
 
@@ -233,6 +234,9 @@ def _date_from_meetings_folder(path: Path, raw_root: Path) -> Optional[str]:
     if idx + 1 >= len(rel.parts):
         return None
     folder = rel.parts[idx + 1]
+    m_date = _MEETINGS_DATE_DIR.match(folder)
+    if m_date:
+        return f"{m_date.group(1)}-{m_date.group(2)}-{m_date.group(3)}"
     m = _MEETINGS_FOLDER_DATE.match(folder)
     if not m:
         return None

@@ -3,12 +3,14 @@ Group meeting media into per-session folders and build agenda+minutes briefs for
 
 Layout under each jurisdiction::
 
-    meetings/{YYYY_MM_DD_meeting}/          # first session that calendar day
-    meetings/{YYYY_MM_DD_meeting_2}/        # second session same day, etc.
-        agenda/
-        minutes/
-        collateral/
-        audio/
+    meetings/{YYYY_MM_DD}/                   # calendar day
+        {instance_slug}/                    # e.g. city-council, planning-commission
+            agenda/
+            minutes/
+            collateral/
+            audio/
+
+Legacy flat folders ``{YYYY_MM_DD}_meeting`` / ``_meeting_2`` are still recognized when reading paths.
 
 Demo 4 prepends :func:`build_meeting_collateral_brief` (names, topics, title) to the
 audio analysis prompt via :func:`format_audio_analysis_prompt`.
@@ -29,10 +31,20 @@ logger = logging.getLogger(__name__)
 
 MEETINGS_DIRNAME = "meetings"
 
-# ``2026_05_06_meeting`` or ``2026_05_06_meeting_2``
+# Legacy: ``2026_05_06_meeting`` or ``2026_05_06_meeting_2``
 _MEETING_FOLDER_RE = re.compile(
     r"^(20\d{2})_(\d{2})_(\d{2})_meeting(?:_(\d+))?$"
 )
+# New: ``2026_05_06`` date folder under ``meetings/``
+_MEETING_DATE_DIR_RE = re.compile(r"^(20\d{2})_(\d{2})_(\d{2})$")
+
+_GENERIC_INSTANCE_SLUGS = frozenset({
+    "meeting",
+    "session",
+    "agenda-session",
+    "board-meeting",
+    "undated",
+})
 
 _DOC_SUBDIR: Dict[str, str] = {
     "meeting_agenda": "agenda",
@@ -104,11 +116,25 @@ class MeetingInstanceGroup:
     def folder_name(self) -> str:
         if self.folder_basename:
             return self.folder_basename
-        return meeting_folder_basename(self.meeting_date, 1)
+        return meeting_session_folder_relpath(self.meeting_date, self.instance_slug)
+
+
+def meeting_date_dir_name(meeting_date: str) -> str:
+    """``2026-05-06`` → ``2026_05_06`` (parent folder under ``meetings/``)."""
+    d = (meeting_date or "undated").strip()
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", d):
+        return d.replace("-", "_")
+    return "undated"
+
+
+def meeting_session_folder_relpath(meeting_date: str, instance_slug: str) -> str:
+    """Relative path under ``meetings/``: ``2026_05_06/city-council``."""
+    slug = slugify_meeting_label(instance_slug or "session")
+    return f"{meeting_date_dir_name(meeting_date)}/{slug}"
 
 
 def meeting_folder_basename(meeting_date: str, sequence: int = 1) -> str:
-    """``2026_05_06_meeting`` or ``2026_05_06_meeting_2`` when ``sequence`` > 1."""
+    """Legacy flat name — prefer :func:`meeting_session_folder_relpath`."""
     d = (meeting_date or "undated").strip()
     if d == "undated" or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", d):
         slug = "undated_meeting" if sequence <= 1 else f"undated_meeting_{sequence}"
@@ -120,14 +146,22 @@ def meeting_folder_basename(meeting_date: str, sequence: int = 1) -> str:
 
 
 def assign_meeting_folder_basenames(groups: List[MeetingInstanceGroup]) -> None:
-    """Same calendar day + jurisdiction → ``_meeting``, ``_meeting_2``, …"""
+    """``{YYYY_MM_DD}/{instance_slug}``; duplicate slugs same day get ``-2``, ``-3``, …"""
     buckets: Dict[Tuple[str, str], List[MeetingInstanceGroup]] = {}
     for g in groups:
         buckets.setdefault((g.jurisdiction_prefix, g.meeting_date), []).append(g)
     for items in buckets.values():
+        used: Dict[str, int] = {}
         items.sort(key=lambda g: (g.instance_slug, g.meeting_title))
-        for seq, g in enumerate(items, start=1):
-            g.folder_basename = meeting_folder_basename(g.meeting_date, seq)
+        for g in items:
+            slug = slugify_meeting_label(g.instance_slug or "session")
+            if slug in used:
+                used[slug] += 1
+                slug = f"{slug}-{used[slug]}"
+            else:
+                used[slug] = 1
+            g.folder_basename = meeting_session_folder_relpath(g.meeting_date, slug)
+            g.instance_slug = slug
 
 
 def jurisdiction_prefix_from_relative(rel: str) -> str:
@@ -152,11 +186,417 @@ def meeting_instance_key(
     slug = (instance_slug or "").strip() or slugify_meeting_label(title)
     if slug in ("meeting", "undated") or len(slug) < 3:
         slug = infer_instance_slug_from_path(path, doc_type)
+    if not (instance_slug or "").strip():
+        if doc_type in ("meeting_agenda", "meeting_minutes", "meeting_audio"):
+            inferred = slugify_meeting_label(slug)
+            if inferred in _GENERIC_INSTANCE_SLUGS or "agenda" in inferred:
+                slug = "session"
+    slug = slugify_meeting_label(slug)
     key = f"{jur}|{date_s}|{slug}"
     return key, date_s, slug, title
 
 
-def group_proceed_verdicts(verdicts: Sequence[Any]) -> List[MeetingInstanceGroup]:
+def meeting_ai_identity_enabled() -> bool:
+    """Use AI (PDF page 1–2 text + audio triage cues) to cluster same-day files."""
+    return os.environ.get("GOVERNANCE_MEETING_AI_IDENTITY", "1").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+    )
+
+
+def _doc_type_is_agenda(doc_type: str) -> bool:
+    return (doc_type or "").lower() in ("meeting_agenda",)
+
+
+def _doc_type_is_minutes(doc_type: str) -> bool:
+    return (doc_type or "").lower() in ("meeting_minutes",)
+
+
+def _doc_type_is_audio(doc_type: str) -> bool:
+    return (doc_type or "").lower() in (
+        "meeting_audio",
+        "meeting_video",
+        "audio_recording",
+        "audio_transcript",
+    )
+
+
+@dataclass
+class _FileMeetingEvidence:
+    path: Path
+    doc_type: str
+    rel_path: str
+    excerpt: str
+    meeting_title: Optional[str] = None
+    instance_slug: Optional[str] = None
+    verdict: Any = None
+
+
+def _gather_file_evidence(
+    path: Path,
+    raw_root: Path,
+    verdict: Any = None,
+) -> _FileMeetingEvidence:
+    """First pages of PDFs or Gatekeeper audio/PDF triage text for same-day identity."""
+    rel = ""
+    try:
+        rel = path.resolve().relative_to(raw_root.resolve()).as_posix()
+    except ValueError:
+        rel = path.name
+
+    doc_type = (
+        getattr(verdict, "document_or_audio_type", None) if verdict else None
+    ) or doc_type_for_path(path, raw_root)
+    title = getattr(verdict, "meeting_title", None) if verdict else None
+    slug = getattr(verdict, "meeting_instance_slug", None) if verdict else None
+    excerpt = ""
+
+    if verdict and (getattr(verdict, "reasoning", None) or "").strip():
+        excerpt = str(verdict.reasoning).strip()[:2000]
+    if path.suffix.lower() == ".pdf":
+        try:
+            from gatekeeper_triage import extract_first_pages_text
+
+            page_text = extract_first_pages_text(path, pages=2).strip()
+            if page_text:
+                excerpt = (excerpt + "\n\n" + page_text).strip() if excerpt else page_text[:2500]
+        except Exception as exc:
+            logger.debug("PDF excerpt for identity failed (%s): %s", path.name, exc)
+    elif _doc_type_is_audio(doc_type):
+        if not excerpt:
+            excerpt = f"(audio file {path.name}; use structural meeting cues if triaged)"
+
+    return _FileMeetingEvidence(
+        path=path,
+        doc_type=doc_type,
+        rel_path=rel,
+        excerpt=excerpt or f"({doc_type}, {path.name})",
+        meeting_title=title,
+        instance_slug=slug,
+        verdict=verdict,
+    )
+
+
+_SAME_DAY_IDENTITY_SYSTEM = (
+    "You cluster local-government meeting files from the SAME jurisdiction and calendar day. "
+    "Return strict JSON only.\n\n"
+    "Default rule: at most one agenda and one minutes on the same day is almost always "
+    "ONE meeting session — put agenda, minutes, and any audio in the same cluster.\n"
+    "Only create multiple clusters when excerpts clearly show different governing bodies "
+    "or distinct official sessions (e.g. City Council vs Planning Commission)."
+)
+
+_SAME_DAY_IDENTITY_USER = """Calendar day: {meeting_date}
+Jurisdiction path prefix: {jurisdiction}
+
+Numbered files (type + excerpt from page 1–2 or audio triage):
+
+{file_block}
+
+Return JSON:
+{{
+  "meetings": [
+    {{
+      "instance_slug": "city-council",
+      "meeting_title": "City Council Regular Meeting",
+      "file_indexes": [1, 2, 3]
+    }}
+  ]
+}}
+
+Use snake_case instance_slug. Every file index must appear in exactly one cluster.
+"""
+
+
+def _default_same_day_clusters(evidence: Sequence[_FileMeetingEvidence]) -> List[List[int]]:
+    """One meeting when ≤1 agenda and ≤1 minutes (general assumption)."""
+    if not evidence:
+        return []
+    agenda_idx = [i for i, e in enumerate(evidence) if _doc_type_is_agenda(e.doc_type)]
+    minutes_idx = [i for i, e in enumerate(evidence) if _doc_type_is_minutes(e.doc_type)]
+    if len(agenda_idx) <= 1 and len(minutes_idx) <= 1:
+        return [list(range(len(evidence)))]
+    return []
+
+
+def _ai_same_day_clusters(
+    evidence: Sequence[_FileMeetingEvidence],
+    *,
+    client: Any,
+    model: str,
+    meeting_date: str,
+    jurisdiction_prefix: str,
+) -> List[List[int]]:
+    lines: List[str] = []
+    for i, ev in enumerate(evidence, start=1):
+        lines.append(
+            f"{i}. [{ev.doc_type}] {ev.rel_path}\n"
+            f"   gatekeeper_slug={ev.instance_slug or '—'} title={ev.meeting_title or '—'}\n"
+            f"   excerpt: {ev.excerpt[:1200]}"
+        )
+    user = _SAME_DAY_IDENTITY_USER.format(
+        meeting_date=meeting_date,
+        jurisdiction=jurisdiction_prefix or "(root)",
+        file_block="\n\n".join(lines),
+    )
+    try:
+        from gatekeeper_triage import call_gemma_triage
+
+        parsed, _raw = call_gemma_triage(
+            client=client,
+            model=model,
+            system_instruction=_SAME_DAY_IDENTITY_SYSTEM,
+            user_text=user,
+            media=[],
+            media_resolution_high=False,
+            thinking_budget=0,
+            timeout_seconds=int(os.environ.get("GOVERNANCE_MEETING_IDENTITY_TIMEOUT_SECONDS", "90")),
+        )
+    except Exception as exc:
+        logger.warning("same-day meeting identity AI failed: %s", exc)
+        return []
+
+    if not isinstance(parsed, dict):
+        return []
+    meetings = parsed.get("meetings")
+    if not isinstance(meetings, list):
+        return []
+
+    n = len(evidence)
+    clusters: List[List[int]] = []
+    assigned: set[int] = set()
+    for m in meetings:
+        if not isinstance(m, dict):
+            continue
+        raw_indexes = m.get("file_indexes") or m.get("files") or []
+        if not isinstance(raw_indexes, list):
+            continue
+        idxs: List[int] = []
+        for x in raw_indexes:
+            try:
+                j = int(x) - 1
+            except (TypeError, ValueError):
+                continue
+            if 0 <= j < n and j not in assigned:
+                idxs.append(j)
+                assigned.add(j)
+        if idxs:
+            clusters.append(idxs)
+    for j in range(n):
+        if j not in assigned:
+            clusters.append([j])
+    return clusters
+
+
+def _groups_from_clusters(
+    *,
+    clusters: List[List[int]],
+    evidence: Sequence[_FileMeetingEvidence],
+    jurisdiction_prefix: str,
+    meeting_date: str,
+    source_groups: Sequence[MeetingInstanceGroup],
+) -> List[MeetingInstanceGroup]:
+    verdict_by_path: Dict[Path, Any] = {}
+    for g in source_groups:
+        for v in g.verdicts:
+            p = Path(getattr(v, "file_path", ""))
+            if p.is_file():
+                verdict_by_path[p.resolve()] = v
+
+    out: List[MeetingInstanceGroup] = []
+    for cluster in clusters:
+        if not cluster:
+            continue
+        slug = "session"
+        title = "Meeting"
+        for j in cluster:
+            ev = evidence[j]
+            if ev.instance_slug and slugify_meeting_label(ev.instance_slug) not in _GENERIC_INSTANCE_SLUGS:
+                slug = slugify_meeting_label(ev.instance_slug)
+            if ev.meeting_title:
+                title = ev.meeting_title
+        g = MeetingInstanceGroup(
+            key=f"{jurisdiction_prefix}|{meeting_date}|{slug}",
+            meeting_date=meeting_date,
+            instance_slug=slug,
+            meeting_title=title,
+            jurisdiction_prefix=jurisdiction_prefix,
+        )
+        for j in cluster:
+            ev = evidence[j]
+            g.files.append(ev.path)
+            v = ev.verdict or verdict_by_path.get(ev.path.resolve())
+            if v is not None:
+                g.verdicts.append(v)
+        out.append(g)
+    return out
+
+
+def resolve_same_day_meeting_groups(
+    groups: List[MeetingInstanceGroup],
+    raw_root: Path,
+    *,
+    client: Any = None,
+    model: Optional[str] = None,
+) -> List[MeetingInstanceGroup]:
+    """
+    Cluster files on the same calendar day using AI excerpts + default 1 agenda / 1 minutes rule.
+    """
+    if not groups:
+        return groups
+
+    if client is None or not model:
+        client, model = _optional_identity_client_and_model()
+
+    by_day: Dict[Tuple[str, str], List[MeetingInstanceGroup]] = {}
+    for g in groups:
+        by_day.setdefault((g.jurisdiction_prefix, g.meeting_date), []).append(g)
+
+    resolved: List[MeetingInstanceGroup] = []
+    for (jur, date_s), day_groups in sorted(by_day.items()):
+        evidence: List[_FileMeetingEvidence] = []
+        seen: set[Path] = set()
+        for g in day_groups:
+            for p in g.files:
+                rp = p.resolve()
+                if rp in seen:
+                    continue
+                seen.add(rp)
+                v = None
+                for ver in g.verdicts:
+                    if Path(getattr(ver, "file_path", "")).resolve() == rp:
+                        v = ver
+                        break
+                evidence.append(_gather_file_evidence(p, raw_root, v))
+
+        if len(evidence) <= 1:
+            resolved.extend(day_groups if len(day_groups) == 1 else _groups_from_clusters(
+                [[0]], evidence, jur, date_s, day_groups
+            ))
+            continue
+
+        clusters: List[List[int]] = []
+        if meeting_ai_identity_enabled() and client and model:
+            clusters = _ai_same_day_clusters(
+                evidence,
+                client=client,
+                model=model,
+                meeting_date=date_s,
+                jurisdiction_prefix=jur,
+            )
+        if not clusters:
+            clusters = _default_same_day_clusters(evidence)
+        if not clusters:
+            resolved.extend(consolidate_same_day_groups(day_groups, raw_root))
+            continue
+
+        logger.info(
+            "same-day identity | %s | %s | %d file(s) → %d meeting cluster(s)",
+            jur or "(root)",
+            date_s,
+            len(evidence),
+            len(clusters),
+        )
+        resolved.extend(
+            _groups_from_clusters(
+                clusters=clusters,
+                evidence=evidence,
+                jurisdiction_prefix=jur,
+                meeting_date=date_s,
+                source_groups=day_groups,
+            )
+        )
+
+    return sorted(
+        resolved,
+        key=lambda g: (g.jurisdiction_prefix, g.meeting_date, g.instance_slug),
+    )
+
+
+def _optional_identity_client_and_model() -> Tuple[Any, Optional[str]]:
+    key = (
+        os.environ.get("GEMINI_API_KEY", "").strip()
+        or os.environ.get("GOOGLE_API_KEY", "").strip()
+    )
+    if not key:
+        return None, None
+    try:
+        from gatekeeper_triage import (
+            _GEMMA_GATEKEEPER_AI_FALLBACKS,
+            _build_genai_client,
+            resolve_model_id,
+        )
+
+        client = _build_genai_client(key)
+        requested = os.environ.get("GOVERNANCE_GATEKEEPER_MODEL", "gemma-3n-e2b-it").strip()
+        model = resolve_model_id(
+            client,
+            requested,
+            fallbacks=_GEMMA_GATEKEEPER_AI_FALLBACKS,
+            role="Meeting identity",
+        )
+        return client, model
+    except Exception as exc:
+        logger.warning("Could not build client for meeting identity: %s", exc)
+        return None, None
+
+
+def consolidate_same_day_groups(
+    groups: List[MeetingInstanceGroup], raw_root: Path
+) -> List[MeetingInstanceGroup]:
+    """
+    Merge same-day groups that were split only because filenames lacked a body slug
+    (e.g. agenda PDF vs minutes PDF → one ``session`` folder).
+    """
+    del raw_root  # reserved for future manifest-aware merges
+    buckets: Dict[Tuple[str, str], List[MeetingInstanceGroup]] = {}
+    for g in groups:
+        buckets.setdefault((g.jurisdiction_prefix, g.meeting_date), []).append(g)
+    out: List[MeetingInstanceGroup] = []
+    for _key, items in buckets.items():
+        if len(items) <= 1:
+            out.extend(items)
+            continue
+        specific = [
+            g
+            for g in items
+            if slugify_meeting_label(g.instance_slug) not in _GENERIC_INSTANCE_SLUGS
+        ]
+        generic = [g for g in items if g not in specific]
+        if len(specific) >= 2:
+            out.extend(items)
+            continue
+        if len(specific) == 1 and generic:
+            target = specific[0]
+            for g in generic:
+                target.files.extend(g.files)
+                target.verdicts.extend(g.verdicts)
+            out.append(target)
+            continue
+        if len(items) >= 2 and not specific:
+            merged = items[0]
+            for g in items[1:]:
+                merged.files.extend(g.files)
+                merged.verdicts.extend(g.verdicts)
+            merged.instance_slug = slugify_meeting_label(
+                merged.meeting_title or merged.instance_slug or "session"
+            )
+            if merged.instance_slug in _GENERIC_INSTANCE_SLUGS:
+                merged.instance_slug = "session"
+            out.append(merged)
+            continue
+        out.extend(items)
+    return out
+
+
+def group_proceed_verdicts(
+    verdicts: Sequence[Any],
+    raw_root: Path,
+    *,
+    client: Any = None,
+    model: Optional[str] = None,
+) -> List[MeetingInstanceGroup]:
     buckets: Dict[str, MeetingInstanceGroup] = {}
     for v in verdicts:
         rel = getattr(v, "relative_path", "") or ""
@@ -183,6 +623,9 @@ def group_proceed_verdicts(verdicts: Sequence[Any]) -> List[MeetingInstanceGroup
     groups = sorted(
         buckets.values(),
         key=lambda g: (g.jurisdiction_prefix, g.meeting_date, g.instance_slug),
+    )
+    groups = resolve_same_day_meeting_groups(
+        groups, raw_root, client=client, model=model
     )
     assign_meeting_folder_basenames(groups)
     return groups
@@ -238,8 +681,11 @@ def group_paths_for_organization(
             rel = path.resolve().relative_to(raw_root)
         except ValueError:
             continue
-        if MEETINGS_DIRNAME in rel.parts and rel.parts.index(MEETINGS_DIRNAME) + 2 < len(rel.parts):
-            continue
+        if MEETINGS_DIRNAME in rel.parts:
+            midx = rel.parts.index(MEETINGS_DIRNAME)
+            # Already organized under meetings/{date}/{slug}/…
+            if len(rel.parts) > midx + 2:
+                continue
         doc_type = doc_type_for_path(path, raw_root)
         inferred_date: Optional[str] = None
         try:
@@ -268,6 +714,9 @@ def group_paths_for_organization(
     groups = sorted(
         buckets.values(),
         key=lambda g: (g.jurisdiction_prefix, g.meeting_date, g.instance_slug),
+    )
+    groups = resolve_same_day_meeting_groups(
+        groups, raw_root, client=client, model=model
     )
     assign_meeting_folder_basenames(groups)
     return groups
@@ -330,11 +779,15 @@ def organize_proceed_into_meeting_folders(
     verdicts: Sequence[Any],
     *,
     dry_run: bool = False,
+    client: Any = None,
+    model: Optional[str] = None,
 ) -> List[Tuple[Path, Path]]:
     """
-    Move Gatekeeper **proceed** files under ``…/meetings/{YYYY_MM_DD_meeting}/…``.
+    Move Gatekeeper **proceed** files under ``…/meetings/{YYYY_MM_DD}/{slug}/…``.
     """
-    groups = group_proceed_verdicts(verdicts)
+    groups = group_proceed_verdicts(
+        verdicts, raw_root, client=client, model=model
+    )
     return _move_into_meeting_groups(raw_root, groups, dry_run=dry_run)
 
 
@@ -344,7 +797,7 @@ def organize_paths_into_meeting_folders(
     *,
     dry_run: bool = False,
 ) -> List[Tuple[Path, Path]]:
-    """Organize flat inventory files (PDF + audio) into ``meetings/{date}_meeting/…``."""
+    """Organize flat inventory files into ``meetings/{YYYY_MM_DD}/{slug}/…``."""
     groups = group_paths_for_organization(paths, raw_root)
     return _move_into_meeting_groups(raw_root, groups, dry_run=dry_run)
 
@@ -384,7 +837,7 @@ def organize_inventory_into_meeting_folders(
 
 
 def meeting_dir_for_media_file(media_path: Path, raw_root: Path) -> Optional[Path]:
-    """If ``media_path`` lives under ``…/meetings/{folder}/…``, return that meeting folder."""
+    """If under ``meetings/{date}/{slug}/…`` or legacy ``meetings/{date}_meeting/…``, return session dir."""
     try:
         rel = media_path.resolve().relative_to(raw_root.resolve())
     except ValueError:
@@ -394,12 +847,12 @@ def meeting_dir_for_media_file(media_path: Path, raw_root: Path) -> Optional[Pat
     idx = rel.parts.index(MEETINGS_DIRNAME)
     if len(rel.parts) < idx + 2:
         return None
-    folder = rel.parts[idx + 1]
-    if not _MEETING_FOLDER_RE.match(folder) and not re.match(
-        r"^\d{4}-\d{2}-\d{2}_", folder
-    ):
-        return None
-    return raw_root.joinpath(*rel.parts[: idx + 2])
+    first = rel.parts[idx + 1]
+    if _MEETING_DATE_DIR_RE.match(first) and len(rel.parts) >= idx + 3:
+        return raw_root.joinpath(*rel.parts[: idx + 3])
+    if _MEETING_FOLDER_RE.match(first) or first.startswith("20"):
+        return raw_root.joinpath(*rel.parts[: idx + 2])
+    return None
 
 
 def resolve_meeting_dir(media_path: Path, raw_root: Path) -> Optional[Path]:
@@ -426,11 +879,18 @@ def resolve_meeting_dir(media_path: Path, raw_root: Path) -> Optional[Path]:
     jur = jurisdiction_prefix_from_path(media_path, raw_root)
     if not jur:
         return None
-    prefix = date_s.replace("-", "_") + "_meeting"
+    date_dir = meeting_date_dir_name(date_s)
     base = raw_root / Path(*jur.split("/")) / MEETINGS_DIRNAME
     if not base.is_dir():
         return None
-    candidates = [p for p in base.iterdir() if p.is_dir() and p.name.startswith(prefix)]
+    candidates: List[Path] = []
+    nested = base / date_dir
+    if nested.is_dir():
+        candidates.extend(p for p in nested.iterdir() if p.is_dir())
+    legacy_prefix = date_s.replace("-", "_") + "_meeting"
+    candidates.extend(
+        p for p in base.iterdir() if p.is_dir() and p.name.startswith(legacy_prefix)
+    )
     if not candidates:
         return None
 
@@ -443,11 +903,18 @@ def resolve_meeting_dir(media_path: Path, raw_root: Path) -> Optional[Path]:
 
 
 def iter_meeting_dirs(raw_root: Path, jurisdiction_prefix: str) -> Iterable[Path]:
+    """Yield session folders (``meetings/{date}/{slug}`` or legacy flat names)."""
     base = raw_root / jurisdiction_prefix / MEETINGS_DIRNAME
     if not base.is_dir():
         return
     for p in sorted(base.iterdir()):
-        if p.is_dir():
+        if not p.is_dir():
+            continue
+        if _MEETING_DATE_DIR_RE.match(p.name):
+            for session in sorted(p.iterdir()):
+                if session.is_dir():
+                    yield session
+        elif _MEETING_FOLDER_RE.match(p.name) or p.name.startswith("20"):
             yield p
 
 
