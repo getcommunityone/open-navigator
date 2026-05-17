@@ -583,6 +583,18 @@ Short talks, product stories, and case studies that show how **data + maps + hum
 - **Subline:** axe + Pa11y scan · violation count by jurisdiction
 - **CTA:** Run `./scripts/accessibility/run_accessibility_scan.sh --state AL`
 
+**Interactive annual report**
+
+- **Headline:** Open your county’s **living annual report**
+- **Subline:** Auto chapters from meetings + budget · updates each run
+- **CTA:** `_meeting_summary.md` · Colab §6 · Gapminder chart embed
+
+**Gapminder / peer compare**
+
+- **Headline:** See **every county** on one chart
+- **Subline:** Fines % · accessibility · or street spend — your dot highlighted
+- **CTA:** Export bronze CSV · Flourish / Looker Studio template
+
 ### Recording checklist
 
 - [ ] CTA slide is the **last frame** (no terminal scroll, no credits over UI)
@@ -605,9 +617,13 @@ Short talks, product stories, and case studies that show how **data + maps + hum
 | **TikTok beat** | One **vertical** clip: hook stat → 20s plain English → **source URL + timestamp** on the last frame. |
 | **Reasoning vs. narrative** | Side-by-side: `arguments_against` **rationale** vs. `dominant_narrative` for one decision—then a national “100k gaps” slide. |
 | **CTA slide (required)** | Final **3–5s** full-screen slide: one headline + one link/QR—see [Call to action slide](#call-to-action-slide-required-closing-beat). |
+| **Gapminder reveal** | One **animated scatter** (play button)—jurisdictions or years in motion—not a static screenshot. |
+| **Interactive annual report** | **Scroll** one auto-generated chapter; KPI → **source timestamp**; mention “refreshes when we re-run the pipeline.” |
 
 ## Applying this to Open Navigator / CommunityOne
 
+- **Gapminder beat:** At least one animated chart (Flourish/Observable) with **jurisdiction_id** on X/Y and **year** slider—tie to fines % or peer accessibility; script it like [Rosling](https://www.youtube.com/watch?v=jbkSRLYSojo).
+- **Living annual report:** Publish `_meeting_summary.md` + 2–3 KPI cards + `policy_drift.mmd` as a scroll page; position as **PAFR-style** companion to the official PDF.
 - **One jurisdiction, one story:** Default Gemma run: **Tuscaloosa County, AL** (`county_01125`) with **`SCOPE=fast`** (**2 meetings**, **6 PDFs**)—fines %, Feb+May meetings, and Shield review in one pass.
 - **Killer scale story:** Pilot on county_01125 → slide to **100k meetings** safety scrub (Shield + Gemma) as the national vision.
 - **Research scale story:** Same `decisions[]` JSON → score **arguments** vs. **LLM dominant narrative** → join **decision-maker / proponent** profiles → report **systemic** skew (themes, ZIPs, repeat champions)—not single-villain framing.
