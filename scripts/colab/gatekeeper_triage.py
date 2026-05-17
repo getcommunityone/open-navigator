@@ -9,9 +9,9 @@ triage call, and routes the file based on the model's verdict:
 * **PROCEED** (``is_governance_meeting=True`` and confidence ≥ threshold) — leave the
   file in place so downstream pipelines (notebook ``02_run_meeting_llm.ipynb`` / Gatekeeper
   step 2) pick it up.
-* **EXCLUDE** — replicate the file's geography subtree under
-  ``<raw_root>/excluded_inputs/<STATE>/<scope>/<jurisdiction>/...`` and ``shutil.move()`` the
-  original there. The exclusion subtree is itself skipped on subsequent runs (idempotent).
+* **EXCLUDE** — by default files **stay in place** (logged in the triage report only).
+  Set ``GOVERNANCE_GATEKEEPER_MOVE_EXCLUDED=1`` to mirror rejects under
+  ``<raw_root>/excluded_inputs/…`` via ``shutil.move()`` (legacy).
 
 The triage layer is intentionally cheap:
 
@@ -19,10 +19,8 @@ The triage layer is intentionally cheap:
   ``ffmpeg`` and sends the bytes directly to Gemma. The prompt forces the model to
   listen for *structural audio cues* (gavel, roll call, public comment cadence) and
   return strict JSON only.
-* **Visual PDF Gatekeeper** — renders the first ``--pdf-pages`` pages with
-  ``pdf2image`` at 200 DPI, sends them at **HIGH** ``media_resolution`` (~1,120 image
-  tokens) so layout / OCR fidelity is preserved, and asks the model to label the
-  document as ``"meeting_agenda" | "meeting_minutes" | "other"``.
+* **PDF Gatekeeper** — extracts the first 1–2 pages as a small PDF (PyMuPDF) plus any
+  digital text layer, sends both to Gemma on AI Studio (no PNG / pdf2image render).
 
 Every API call and every move is wrapped in ``try / except`` so a single bad file or
 API timeout never aborts a batch sweep. Every action prints the file's geographic
@@ -101,10 +99,11 @@ DEFAULT_MODEL = _default_gatekeeper_model()
 # Triage cost / latency caps.
 DEFAULT_AUDIO_WINDOW_SECONDS = 120          # send only the first N seconds for triage
 MAX_GATEKEEPER_PDF_PAGES = 2                # triage never reads more than 2 pages
-DEFAULT_PDF_PAGES = 1                       # fast default; set env to 2 if needed
-DEFAULT_PDF_DPI = 120                       # gatekeeper only (demos use 200)
-DEFAULT_LARGE_PDF_BYTES = 1_500_000          # above this: 1 page @ 120 DPI on /tmp copy
-DEFAULT_TEXT_TRIAGE_MIN_CHARS = 80           # page-1 text layer ≥ this → skip image render
+DEFAULT_PDF_PAGES = 2                       # first N pages sent as PDF bytes to the model
+DEFAULT_PDF_DPI = 120                       # legacy CLI flag (PNG path removed; unused)
+DEFAULT_LARGE_PDF_BYTES = 1_500_000          # above this: triage first page only
+DEFAULT_TEXT_TRIAGE_MIN_CHARS = 80           # legacy; text excerpt always included when present
+DEFAULT_PDF_SUBSET_MAX_BYTES = 4_000_000     # cap inlined PDF payload for the API
 DEFAULT_TEXT_TRIAGE_MAX_CHARS = 12_000       # cap excerpt sent to the model
 
 DEFAULT_TRIAGE_MAX_OUTPUT_TOKENS = 512      # strict JSON only — keep cheap
@@ -170,11 +169,30 @@ def gatekeeper_socket_freeze_guard(api_timeout_seconds: int):
 
 
 def gatekeeper_text_first_enabled() -> bool:
-    """When true (default), use digital text from page 1 before rendering images."""
+    """When true (default), include digital text from pages 1–N alongside the PDF subset."""
     return os.environ.get("GOVERNANCE_GATEKEEPER_TEXT_FIRST", "1").strip().lower() not in (
         "0",
         "false",
         "no",
+    )
+
+
+def gatekeeper_pdf_direct_enabled() -> bool:
+    """When true (default on AI Studio), send first pages as ``application/pdf`` (no PNG render)."""
+    raw = os.environ.get("GOVERNANCE_GATEKEEPER_PDF_DIRECT", "").strip().lower()
+    if raw in ("0", "false", "no"):
+        return False
+    if raw in ("1", "true", "yes"):
+        return True
+    return True
+
+
+def gatekeeper_move_excluded_enabled() -> bool:
+    """When true, move rejects under ``raw_root/excluded_inputs/`` (off by default)."""
+    return os.environ.get("GOVERNANCE_GATEKEEPER_MOVE_EXCLUDED", "0").strip().lower() in (
+        "1",
+        "true",
+        "yes",
     )
 
 
@@ -183,34 +201,34 @@ def clamp_gatekeeper_pdf_pages(pages: int) -> int:
     return max(1, min(int(pages), MAX_GATEKEEPER_PDF_PAGES))
 
 
-def resolve_gatekeeper_render_opts(
-    pdf_path: Path, pages: int, dpi: int
-) -> tuple[int, int]:
-    """
-    Triage render settings. Large files on Drive get **1 page @ 120 DPI** by default.
-    """
+def resolve_gatekeeper_page_count(pdf_path: Path, pages: int) -> int:
+    """Large Drive PDFs default to page 1 only so the API payload stays small."""
     pages = clamp_gatekeeper_pdf_pages(pages)
-    dpi = max(72, int(dpi))
     threshold = int(
         os.environ.get("GOVERNANCE_GATEKEEPER_LARGE_PDF_BYTES", str(DEFAULT_LARGE_PDF_BYTES))
     )
     try:
         size = pdf_path.stat().st_size
     except OSError:
-        return pages, dpi
+        return pages
     if size < threshold:
-        return pages, dpi
+        return pages
     large_pages = clamp_gatekeeper_pdf_pages(
         int(os.environ.get("GOVERNANCE_GATEKEEPER_LARGE_PDF_PAGES", "1"))
     )
-    large_dpi = int(os.environ.get("GOVERNANCE_GATEKEEPER_LARGE_PDF_DPI", str(DEFAULT_PDF_DPI)))
     logger.info(
-        "  large PDF %.1f MB → triage page 1-%d @ %d DPI (not full document)",
+        "  large PDF %.1f MB → triage pages 1-%d only (not full document)",
         size / (1024 * 1024),
         large_pages,
-        large_dpi,
     )
-    return min(pages, large_pages), min(dpi, large_dpi)
+    return min(pages, large_pages)
+
+
+def resolve_gatekeeper_render_opts(
+    pdf_path: Path, pages: int, dpi: int
+) -> tuple[int, int]:
+    """Legacy tuple API — DPI is ignored (no pixmap render)."""
+    return resolve_gatekeeper_page_count(pdf_path, pages), max(72, int(dpi))
 DEFAULT_CONFIDENCE_THRESHOLD = 0.6
 
 # Triage JSON schema (also enforced via response_schema where the SDK supports it).
@@ -492,7 +510,7 @@ def _local_pdf_copy(pdf_path: Path):
         yield pdf_path
         return
     size_mb = pdf_path.stat().st_size / (1024 * 1024)
-    logger.info("  copying %.1f MB to /tmp for fast page-1 render …", size_mb)
+    logger.info("  copying %.1f MB to /tmp for fast PDF read …", size_mb)
     flush_gatekeeper_logs()
     fd, tmp_name = tempfile.mkstemp(suffix=pdf_path.suffix or ".pdf")
     os.close(fd)
@@ -506,58 +524,49 @@ def _local_pdf_copy(pdf_path: Path):
         tmp_path.unlink(missing_ok=True)
 
 
-def pdf_first_pages_to_png_bytes(
-    pdf_path: Path, *, pages: int = DEFAULT_PDF_PAGES, dpi: int = DEFAULT_PDF_DPI
-) -> List[bytes]:
+def extract_first_pages_pdf_bytes(
+    pdf_path: Path, *, pages: int = DEFAULT_PDF_PAGES
+) -> bytes:
     """
-    Convert **only** the first 1–2 pages of ``pdf_path`` to PNG bytes.
+    Build a small PDF containing only the first ``pages`` (for API ``application/pdf``).
 
-    Uses PyMuPDF when available; copies to ``/tmp`` first on Colab Drive paths.
+    Uses PyMuPDF; copies to ``/tmp`` first on Colab Drive paths.
     """
-    import io
-
-    pages, dpi = resolve_gatekeeper_render_opts(pdf_path, pages, dpi)
-    n_pages = pages
+    n_pages = resolve_gatekeeper_page_count(pdf_path, pages)
+    max_bytes = int(
+        os.environ.get(
+            "GOVERNANCE_GATEKEEPER_PDF_SUBSET_MAX_BYTES",
+            str(DEFAULT_PDF_SUBSET_MAX_BYTES),
+        )
+    )
 
     with _local_pdf_copy(pdf_path) as local_pdf:
         try:
-            import fitz  # PyMuPDF — Colab notebook installs this
-
-            out: List[bytes] = []
-            zoom = dpi / 72.0
-            matrix = fitz.Matrix(zoom, zoom)
-            with fitz.open(local_pdf) as doc:
-                for i in range(min(n_pages, doc.page_count)):
-                    pix = doc.load_page(i).get_pixmap(matrix=matrix, alpha=False)
-                    out.append(pix.tobytes("png"))
-            if out:
-                return out
-        except ImportError:
-            pass
-        except Exception as exc:
-            logger.warning("PyMuPDF first-pages render failed (%s); trying pdf2image", exc)
-
-        try:
-            from pdf2image import convert_from_path  # type: ignore
+            import fitz
         except ImportError as exc:
             raise RuntimeError(
-                "PDF triage needs pymupdf or pdf2image+poppler. "
-                "`pip install pymupdf pdf2image` and apt-get install -y poppler-utils."
+                "PDF triage needs PyMuPDF — `pip install pymupdf`."
             ) from exc
 
-        imgs = convert_from_path(
-            str(local_pdf),
-            dpi=dpi,
-            first_page=1,
-            last_page=n_pages,
-            fmt="png",
-        )
-        out = []
-        for im in imgs[:n_pages]:
-            buf = io.BytesIO()
-            im.save(buf, format="PNG")
-            out.append(buf.getvalue())
-        return out
+        with fitz.open(local_pdf) as doc:
+            total = doc.page_count
+            if total <= 0:
+                raise RuntimeError("PDF has no pages")
+            end = min(n_pages, total) - 1
+            if end >= total - 1 and local_pdf.stat().st_size <= max_bytes:
+                return local_pdf.read_bytes()
+            subset = fitz.open()
+            try:
+                subset.insert_pdf(doc, from_page=0, to_page=end)
+                data = subset.tobytes(garbage=4, deflate=True)
+            finally:
+                subset.close()
+            if len(data) > max_bytes:
+                raise RuntimeError(
+                    f"First {n_pages} page(s) PDF subset is {len(data)} bytes "
+                    f"(max {max_bytes}); try GOVERNANCE_GATEKEEPER_PDF_PAGES=1."
+                )
+            return data
 
 
 def extract_first_pages_text(
@@ -1092,32 +1101,27 @@ def audio_user_prompt(window_seconds: int) -> str:
     )
 
 
-PDF_SYSTEM = (
-    "You are a visual-layout triage gatekeeper for a local-government open-data pipeline. "
-    "You judge whether the attached page images depict an official meeting Agenda or "
-    "official meeting Minutes for a local government body. You return strict JSON only."
+PDF_DIRECT_SYSTEM = (
+    "You are a document triage gatekeeper for a local-government open-data pipeline. "
+    "You inspect the attached PDF (first pages only) and classify whether it is an "
+    "official meeting Agenda or official meeting Minutes. You return strict JSON only."
 )
 
-PDF_USER = (
-    "Look at the attached page image(s). Use layout analysis and visual OCR to classify "
-    "the document as one of:\n"
-    "  • meeting_agenda — itemized agenda with body name, date, location, list of agenda "
-    "    items, often a Pledge / Roll Call / Adjournment frame;\n"
-    "  • meeting_minutes — narrative or itemized minutes that record votes, motions, members "
-    "    present/absent, and decisions;\n"
+PDF_DIRECT_USER = (
+    "The attached PDF contains the first {pages} page(s) of a document.\n"
+    "Digital text from those pages (empty if scanned):\n\n"
+    "{excerpt}\n\n"
+    "Classify the PDF as one of:\n"
+    "  • meeting_agenda — itemized agenda with body name, date, location, agenda items, "
+    "    often Pledge / Roll Call / Adjournment;\n"
+    "  • meeting_minutes — minutes header, motions, votes, members present/absent;\n"
     "  • other — invoices, brochures, reference packets, slide decks, correspondence, "
-    "    architectural drawings, financial statements without meeting context, etc.\n\n"
-    "Only 'meeting_agenda' and 'meeting_minutes' count as a governance meeting document. "
-    "A loose financial table, bid packet, or staff memo embedded inside a larger meeting "
-    "packet does NOT by itself qualify — the first 1-2 pages must clearly show meeting "
-    "framing (body name + date + agenda structure or minutes header).\n\n"
-    "Return ONLY a JSON object with these keys: is_governance_meeting (bool — true iff "
-    "type is meeting_agenda or meeting_minutes), document_or_audio_type (string — one of "
-    "meeting_agenda, meeting_minutes, reference_packet, invoice, brochure, correspondence, "
-    "other), confidence_score (0.0-1.0), reasoning (short Smart-Brevity sentence citing "
-    "the visual evidence — body name, date, layout pattern), "
-    "meeting_date (YYYY-MM-DD or null), meeting_title (string or null), "
-    "meeting_instance_slug (snake_case slug distinguishing multiple meetings on the same date)."
+    "    financial tables without meeting framing, etc.\n\n"
+    "Only meeting_agenda and meeting_minutes count as governance meetings. "
+    "The first pages must show meeting framing (body + date + agenda or minutes structure).\n\n"
+    "Return ONLY JSON with keys: is_governance_meeting, document_or_audio_type, "
+    "confidence_score, reasoning, meeting_date (YYYY-MM-DD or null), meeting_title, "
+    "meeting_instance_slug."
 )
 
 PDF_TEXT_SYSTEM = (
@@ -1169,7 +1173,8 @@ def triage_pdf(
     pages: int = DEFAULT_PDF_PAGES,
     dpi: int = DEFAULT_PDF_DPI,
 ) -> TriageVerdict:
-    """Run the visual gatekeeper on the first ``pages`` pages of ``pdf_path``."""
+    """Run gatekeeper on the first ``pages`` of ``pdf_path`` (PDF bytes or text; no PNG)."""
+    del dpi  # legacy CLI / notebook arg — pixmap render removed
     rel_str, geo = relative_geography(pdf_path, raw_root)
     verdict = TriageVerdict(
         is_governance_meeting=False,
@@ -1181,86 +1186,84 @@ def triage_pdf(
         relative_path=rel_str,
         geography_label=geo,
     )
-    pages, dpi = resolve_gatekeeper_render_opts(pdf_path, pages, dpi)
+    pages = resolve_gatekeeper_page_count(pdf_path, pages)
     t0 = time.time()
+    _timeout = int(os.environ.get("GOVERNANCE_GATEKEEPER_API_TIMEOUT_SECONDS", "120"))
 
+    excerpt = ""
     if gatekeeper_text_first_enabled():
-        min_chars = int(
-            os.environ.get("GOVERNANCE_GATEKEEPER_TEXT_MIN_CHARS", str(DEFAULT_TEXT_TRIAGE_MIN_CHARS))
-        )
         excerpt = extract_first_pages_text(pdf_path, pages=pages)
-        if len(excerpt) >= min_chars:
-            logger.info(
-                "  text-only triage | %s | %d chars from page 1-%d (no image render)",
-                pdf_path.name,
-                len(excerpt),
-                pages,
+
+    try:
+        from gemma_hf_backend import use_huggingface_for_model
+
+        use_hf = use_huggingface_for_model(model, gatekeeper=True)
+    except ImportError:
+        use_hf = False
+
+    if use_hf or not gatekeeper_pdf_direct_enabled():
+        if not excerpt.strip():
+            verdict.error = (
+                "HF Gatekeeper needs a digital text layer on pages 1–2 "
+                "(use AI Studio / GOVERNANCE_GATEKEEPER_PDF_DIRECT=1 for scanned PDFs)."
             )
-            _timeout = int(
-                os.environ.get("GOVERNANCE_GATEKEEPER_API_TIMEOUT_SECONDS", "120")
-            )
-            logger.info(
-                "  gemma START (text-only) | backend=%s | model=%s | timeout=%ds",
-                _triage_backend_label(model),
-                model,
-                _timeout,
-            )
-            flush_gatekeeper_logs()
-            try:
-                parsed, raw = call_gemma_triage(
-                    client=client,
-                    model=model,
-                    system_instruction=PDF_TEXT_SYSTEM,
-                    user_text=PDF_TEXT_USER.format(excerpt=excerpt),
-                    media=[],
-                    media_resolution_high=False,
-                    thinking_budget=0,
-                    timeout_seconds=_timeout,
-                )
-            except Exception as e:
-                verdict.error = f"Gemma text triage failed: {e}"
-                verdict.elapsed_seconds = round(time.time() - t0, 2)
-                return verdict
-            logger.info(
-                "  gemma DONE (text-only) | %s | %.1fs",
-                pdf_path.name,
-                time.time() - t0,
-            )
-            flush_gatekeeper_logs()
-            return _fill_verdict_from_triage_call(verdict, pdf_path, parsed, raw, t0)
+            verdict.elapsed_seconds = round(time.time() - t0, 2)
+            return verdict
         logger.info(
-            "  page text too short (%d chars) → visual render | %s",
-            len(excerpt),
+            "  text-only triage | %s | %d chars from pages 1-%d",
             pdf_path.name,
+            len(excerpt),
+            pages,
+        )
+        logger.info(
+            "  gemma START (text-only) | backend=%s | model=%s | timeout=%ds",
+            _triage_backend_label(model),
+            model,
+            _timeout,
         )
         flush_gatekeeper_logs()
+        try:
+            parsed, raw = call_gemma_triage(
+                client=client,
+                model=model,
+                system_instruction=PDF_TEXT_SYSTEM,
+                user_text=PDF_TEXT_USER.format(excerpt=excerpt),
+                media=[],
+                media_resolution_high=False,
+                thinking_budget=0,
+                timeout_seconds=_timeout,
+            )
+        except Exception as e:
+            verdict.error = f"Gemma text triage failed: {e}"
+            verdict.elapsed_seconds = round(time.time() - t0, 2)
+            return verdict
+        logger.info(
+            "  gemma DONE (text-only) | %s | %.1fs",
+            pdf_path.name,
+            time.time() - t0,
+        )
+        flush_gatekeeper_logs()
+        return _fill_verdict_from_triage_call(verdict, pdf_path, parsed, raw, t0)
 
+    try:
+        pdf_subset = extract_first_pages_pdf_bytes(pdf_path, pages=pages)
+    except Exception as e:
+        verdict.error = f"PDF subset extract failed: {e}"
+        verdict.elapsed_seconds = round(time.time() - t0, 2)
+        return verdict
+
+    excerpt_block = excerpt.strip() if excerpt.strip() else "(no digital text layer on these pages)"
     logger.info(
-        "  render START | %s | pages 1-%d only | dpi=%d",
+        "  pdf-direct triage | %s | pages 1-%d | subset=%.1f KB | excerpt=%d chars",
         pdf_path.name,
         pages,
-        dpi,
+        len(pdf_subset) / 1024,
+        len(excerpt),
     )
-    flush_gatekeeper_logs()
-    try:
-        page_bytes = pdf_first_pages_to_png_bytes(pdf_path, pages=pages, dpi=dpi)
-    except Exception as e:
-        verdict.error = f"PDF render failed: {e}"
-        verdict.elapsed_seconds = round(time.time() - t0, 2)
-        return verdict
-
-    if not page_bytes:
-        verdict.error = "PDF render returned no pages"
-        verdict.elapsed_seconds = round(time.time() - t0, 2)
-        return verdict
-
-    media = [(b, "image/png") for b in page_bytes]
-    _timeout = int(os.environ.get("GOVERNANCE_GATEKEEPER_API_TIMEOUT_SECONDS", "120"))
     logger.info(
-        "  gemma START (visual) | backend=%s | %s | %d page image(s) | model=%s | timeout=%ds",
+        "  gemma START (pdf) | backend=%s | %s | model=%s | timeout=%ds",
         _triage_backend_label(model),
         pdf_path.name,
-        len(page_bytes),
         model,
         _timeout,
     )
@@ -1269,20 +1272,20 @@ def triage_pdf(
         parsed, raw = call_gemma_triage(
             client=client,
             model=model,
-            system_instruction=PDF_SYSTEM,
-            user_text=PDF_USER,
-            media=media,
-            media_resolution_high=True,
+            system_instruction=PDF_DIRECT_SYSTEM,
+            user_text=PDF_DIRECT_USER.format(pages=pages, excerpt=excerpt_block),
+            media=[(pdf_subset, "application/pdf")],
+            media_resolution_high=False,
             thinking_budget=0,
             timeout_seconds=_timeout,
         )
     except Exception as e:
-        verdict.error = f"Gemma triage call failed: {e}"
+        verdict.error = f"Gemma PDF triage failed: {e}"
         verdict.elapsed_seconds = round(time.time() - t0, 2)
         return verdict
 
     logger.info(
-        "  gemma DONE (visual) | %s | %.1fs",
+        "  gemma DONE (pdf) | %s | %.1fs",
         pdf_path.name,
         time.time() - t0,
     )
@@ -1599,7 +1602,7 @@ def run_triage(
     flush_log_each_file: bool = True,
     organize_meetings: bool = False,
 ) -> TriageReport:
-    """Walk ``raw_root``, triage every PDF / audio, move failures under ``excluded_inputs/``."""
+    """Walk ``raw_root``, triage every PDF / audio; optionally move rejects (see env)."""
     if not raw_root.is_dir():
         raise FileNotFoundError(f"Raw inputs root not found: {raw_root}")
 
@@ -1612,21 +1615,28 @@ def run_triage(
         "yes",
     )
 
-    excluded_root = raw_root / EXCLUDED_DIRNAME
-    if not dry_run:
+    move_excluded = gatekeeper_move_excluded_enabled()
+    excluded_root = (raw_root / EXCLUDED_DIRNAME) if move_excluded else None
+    if move_excluded and excluded_root is not None and not dry_run:
         excluded_root.mkdir(parents=True, exist_ok=True)
 
-    logger.info("Gatekeeper start | raw_root=%s | excluded_root=%s | model=%s",
-                raw_root, excluded_root, model)
+    excluded_label = str(excluded_root) if excluded_root else "(none — rejects stay in place)"
+    logger.info(
+        "Gatekeeper start | raw_root=%s | excluded_root=%s | model=%s",
+        raw_root,
+        excluded_label,
+        model,
+    )
     if dry_run:
         logger.info("(dry-run: no files will be moved)")
+    elif not move_excluded:
+        logger.info("(rejects are not moved; triage report records EXCLUDE verdicts)")
 
     kinds_tuple = tuple(k.strip().lower() for k in kinds if str(k).strip())
     pdf_pages = clamp_gatekeeper_pdf_pages(pdf_pages)
     logger.info(
-        "Gatekeeper PDF triage | first %d page(s) per file at %d DPI (max %d)",
+        "Gatekeeper PDF triage | first %d page(s) per file as PDF subset (max %d)",
         pdf_pages,
-        pdf_dpi,
         MAX_GATEKEEPER_PDF_PAGES,
     )
 
@@ -1672,7 +1682,7 @@ def run_triage(
         )
     logger.info("Gatekeeper resolved model | model=%s", model)
 
-    report = TriageReport(raw_root=str(raw_root), excluded_root=str(excluded_root))
+    report = TriageReport(raw_root=str(raw_root), excluded_root=excluded_label)
 
     try:
         from meeting_date_scope import resolve_demo_meeting_dates_limit
@@ -1784,25 +1794,33 @@ def run_triage(
             report.add(verdict)
             continue
 
-        # EXCLUDE: mirror geography under excluded_inputs/ and move.
-        try:
-            dest = move_to_excluded(
-                file_path=path,
-                raw_root=raw_root,
-                excluded_root=excluded_root,
-                dry_run=dry_run,
-            )
+        # EXCLUDE: optional move under excluded_inputs/ (off by default).
+        if move_excluded and excluded_root is not None:
+            try:
+                dest = move_to_excluded(
+                    file_path=path,
+                    raw_root=raw_root,
+                    excluded_root=excluded_root,
+                    dry_run=dry_run,
+                )
+                logger.info(
+                    "EXCLUDE | %s | %s | type=%s conf=%.2f | moved %s→ %s | %s",
+                    geo or "(root)", path.name,
+                    verdict.document_or_audio_type, verdict.confidence_score,
+                    "(dry-run) " if dry_run else "",
+                    dest.relative_to(raw_root).as_posix(),
+                    verdict.reasoning[:160],
+                )
+            except Exception as e:
+                verdict.error = f"move_to_excluded failed: {e}"
+                logger.error("MOVE-FAIL | %s | %s | %s", geo or "(root)", path.name, verdict.error)
+        else:
             logger.info(
-                "EXCLUDE | %s | %s | type=%s conf=%.2f | moved %s→ %s | %s",
+                "EXCLUDE | %s | %s | type=%s conf=%.2f | left in place | %s",
                 geo or "(root)", path.name,
                 verdict.document_or_audio_type, verdict.confidence_score,
-                "(dry-run) " if dry_run else "",
-                dest.relative_to(raw_root).as_posix(),
                 verdict.reasoning[:160],
             )
-        except Exception as e:
-            verdict.error = f"move_to_excluded failed: {e}"
-            logger.error("MOVE-FAIL | %s | %s | %s", geo or "(root)", path.name, verdict.error)
 
         report.add(verdict)
 

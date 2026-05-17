@@ -12,7 +12,7 @@ Pipeline folder layout under that root: [`scripts/utils/gdrive_paths.py`](../uti
 |---|------|------|----------------|
 | 1 | [`01_copy_scraped_meetings_cache_to_gdrive.py`](01_copy_scraped_meetings_cache_to_gdrive.py) | **Sync** | WSL / Linux: by default copies **only** four inventory folders under ``data/cache/scraped_meetings`` (Tuscaloosa county/city + Big Timber county/city) → ``My Drive/CommunityOne/hackathons/2026_Gemma_4_Good/01_raw_inputs``. Use ``--all-cache`` for the full tree. |
 | 2 | [`01_init_drive_layout.ipynb`](01_init_drive_layout.ipynb) | **Init** | Create `01_raw_inputs`, `02_reference_data/orbis_files`, `03_processed_outputs/…` → zone README stubs. **Colab or local** via `colab_paths.py`. |
-| 3 | [`gatekeeper_triage.py`](gatekeeper_triage.py) | **Triage** | Walks `01_raw_inputs/` with `os.walk`, sends each PDF / audio to Gemma 4 for a strict-JSON verdict, and moves rejects under `01_raw_inputs/excluded_inputs/<STATE>/<scope>/<jurisdiction>/…` preserving geography. Runs standalone as a CLI or as **Demo step 0** inside the run notebook. |
+| 3 | [`gatekeeper_triage.py`](gatekeeper_triage.py) | **Triage** | Walks `01_raw_inputs/` with `os.walk`, sends each PDF / audio to Gemma 4 for a strict-JSON verdict. Rejects stay in place by default (optional `excluded_inputs/` move). Runs standalone as a CLI or as **Demo step 0** inside the run notebook. |
 | 4 | [`02_run_meeting_llm.ipynb`](02_run_meeting_llm.ipynb) | **Run** | Five labeled Gemma 4 demo cells over every PDF / audio / contact image discovered under `01_raw_inputs`, mirroring outputs to `03_processed_outputs/02_gemma_json/<STATE>/<scope>/<jurisdiction>/…`. **Colab or local**; API key from Colab Secrets or env `GEMINI_API_KEY` / `GOOGLE_API_KEY`. |
 
 Legacy notebook names (old Colab links): [`02_init_drive_layout.ipynb`](02_init_drive_layout.ipynb) matches step **2** but use **`01_init_…`** for new work; [`03_run_meeting_llm.ipynb`](03_run_meeting_llm.ipynb) matches step **4** but prefer **`02_run_…`** — both are kept in sync by the builder so old Colab bookmarks still work.
@@ -98,7 +98,7 @@ The triage layer:
 - Visual PDF gate: first **1–2 pages** rendered with `pdf2image` at 200 DPI, sent to Gemma 4 at HIGH `media_resolution` (~1,120 image tokens) to decide `meeting_agenda` / `meeting_minutes` / `other`.
 - Multimodal audio gate: first **120 seconds** (`--audio-window-seconds`) clipped via `ffmpeg`, sent to Gemma 4 to listen for gavel / roll call / motion-vote cadence / public-comment turns.
 - Strict-JSON output: `{is_governance_meeting, document_or_audio_type, confidence_score, reasoning}` (uses `response_schema` when the SDK supports it).
-- **Geographic mirror on reject:** files that fail are moved under `01_raw_inputs/excluded_inputs/<STATE>/<scope>/<jurisdiction>/...` — the original geo subtree is replicated with `os.makedirs(..., exist_ok=True)` + `shutil.move()`. Re-runs are idempotent: the walker skips the exclusion bucket on subsequent sweeps.
+- **Rejects (default):** failed triage is logged in the JSON report; files stay in `01_raw_inputs/`. Set `GOVERNANCE_GATEKEEPER_MOVE_EXCLUDED=1` to move rejects under `excluded_inputs/` (legacy).
 - **Robust:** every API call, ffmpeg clip, pdf2image render, and `shutil.move` is wrapped in `try/except`; a single bad file never aborts a batch sweep. Each line logs `KEEP | <STATE>/<scope>/<jurisdiction>/... | <file> | type=... conf=...` so the geographic origin is always visible.
 
 The same triage layer is exposed as **Step 0** inside `02_run_meeting_llm.ipynb`; set `GOVERNANCE_GATEKEEPER_ENABLED=0` to skip when running the notebook end-to-end.
@@ -139,7 +139,7 @@ Scraped meetings mirror is **step 1** above ([`01_copy_scraped_meetings_cache_to
 | File | Purpose |
 |------|---------|
 | [`governance_meeting_llm.py`](governance_meeting_llm.py) | Tree walker (`walk_raw_inputs`, `JurisdictionDir.jurisdiction_id`, `mirror_output_path`), Gemma client wrapper with `media_resolution` + `thinking_config`, PDF page rendering + per-page token-budget classifier, `ffmpeg` audio chunking, policy drift detector, Orbis merge by `jurisdiction_id`, `---DOCUMENT_BREAK---` parser. Imported by **`02_run_meeting_llm.ipynb`**. |
-| [`gatekeeper_triage.py`](gatekeeper_triage.py) | "Ledger of Influence" data gate. `os.walk` over `01_raw_inputs/`, multimodal Gemma triage on every PDF (first 1–2 pages at HIGH `media_resolution`) and audio (first 120 s clipped via `ffmpeg`). Rejects mirror geography under `01_raw_inputs/excluded_inputs/<STATE>/<scope>/<jurisdiction>/…` via `os.makedirs(..., exist_ok=True)` + `shutil.move()`. Standalone CLI or imported by the run notebook as Step 0. |
+| [`gatekeeper_triage.py`](gatekeeper_triage.py) | "Ledger of Influence" data gate. `os.walk` over `01_raw_inputs/`, multimodal Gemma triage on every PDF (first 1–2 pages) and audio (first 120 s via `ffmpeg`). Rejects stay in place unless `GOVERNANCE_GATEKEEPER_MOVE_EXCLUDED=1`. Standalone CLI or imported by the run notebook as Step 0. |
 | [`colab_paths.py`](colab_paths.py) | `in_colab`, `maybe_mount_google_drive`, `setup_notebook_paths` for init/run notebooks. |
 
 ---
@@ -162,13 +162,13 @@ Scraped meetings mirror is **step 1** above ([`01_copy_scraped_meetings_cache_to
 | `GOVERNANCE_GATEKEEPER_SOCKET_ALARM_BUFFER_SECONDS` | Added to API timeout for wall clock (default `30` → 150s when timeout is 120). |
 | `GOVERNANCE_GATEKEEPER_ENABLED` | `0` to skip the triage step inside the notebook. |
 | `GOVERNANCE_GATEKEEPER_DRY_RUN` | `1` to log triage verdicts without moving files. |
+| `GOVERNANCE_GATEKEEPER_MOVE_EXCLUDED` | `1` to create `excluded_inputs/` and move rejects (default `0` — leave files in place). |
 | `GOVERNANCE_GATEKEEPER_KINDS` | Comma-separated kinds — `pdf`, `audio`, or both (default both). |
-| `GOVERNANCE_GATEKEEPER_PDF_PAGES` | First **1–2** pages only for PDF triage (hard cap `2`; default `1`). |
-| `GOVERNANCE_GATEKEEPER_PDF_DPI` | Render DPI when visual path is used (default `120`). |
+| `GOVERNANCE_GATEKEEPER_PDF_PAGES` | First **1–2** pages sent as PDF bytes to the model (default `2`). |
+| `GOVERNANCE_GATEKEEPER_PDF_DIRECT` | `1` (default): AI Studio gets `application/pdf` subset — no PNG render. `0` = text-only. |
 | `GOVERNANCE_GATEKEEPER_COPY_TO_TMP` | Copy Drive PDFs to `/tmp` before read (default `1`). |
-| `GOVERNANCE_GATEKEEPER_TEXT_FIRST` | If page-1 has enough digital text, triage via **text-only** Gemma call — no image render (default `1`). |
-| `GOVERNANCE_GATEKEEPER_TEXT_MIN_CHARS` | Min chars on page 1 to use text-only path (default `80`). |
-| `GOVERNANCE_GATEKEEPER_LARGE_PDF_BYTES` | Files ≥ this size force 1 page @ 120 DPI on visual fallback (default `1500000`). |
+| `GOVERNANCE_GATEKEEPER_TEXT_FIRST` | Include digital text from pages 1–N in the prompt (default `1`). |
+| `GOVERNANCE_GATEKEEPER_LARGE_PDF_BYTES` | Files ≥ this size triage page 1 only (default `1500000`). |
 | `GOVERNANCE_GATEKEEPER_AUDIO_WINDOW` | Seconds of audio sent to triage (default `120`). |
 | `GOVERNANCE_GATEKEEPER_CONFIDENCE` | Minimum confidence to keep a file (default `0.6`). |
 | `GOVERNANCE_DEMO_YEAR_SCOPE` | In DEMO mode, only descend into each jurisdiction's **newest** `20xx/` folder (default **on**). Skips older year trees during Gatekeeper walk. |
