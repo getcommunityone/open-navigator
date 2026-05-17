@@ -75,6 +75,40 @@ def call_with_genai_quota_retry(fn: Callable[[], T], *, label: str = "Gemma") ->
     raise RuntimeError(f"{label}: quota retry loop exited without result")
 
 
+def demo3_api_timeout_seconds() -> int:
+    """Wall-clock cap per Demo 3 PDF (full document + thinking). 0 = no limit."""
+    raw = os.environ.get("GOVERNANCE_DEMO3_API_TIMEOUT_SECONDS", "900").strip()
+    try:
+        return max(0, int(raw))
+    except ValueError:
+        return 900
+
+
+def call_with_wall_clock_timeout(
+    fn: Callable[[], T],
+    *,
+    timeout_seconds: int,
+    label: str = "Gemma",
+) -> T:
+    """Run ``fn`` in a worker thread; raise ``TimeoutError`` if it exceeds the cap."""
+    if timeout_seconds <= 0:
+        return fn()
+    from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(fn)
+        try:
+            return future.result(timeout=timeout_seconds)
+        except FuturesTimeoutError as exc:
+            raise TimeoutError(
+                f"{label} timed out after {timeout_seconds}s. "
+                "Interrupt the cell if needed; reuse partial outputs or set "
+                "GOVERNANCE_DEMO3_API_TIMEOUT_SECONDS higher. "
+                "Faster: GOVERNANCE_THINKING_MODEL=gemma-4-26b-a4b-it or "
+                "GOVERNANCE_DEMO_THINKING_BUDGET=0."
+            ) from exc
+
+
 def genai_inter_call_pause(token_budget: str | None = None) -> None:
     """Pace successive generate_content calls to stay under per-model TPM."""
     budget = (token_budget or "").upper()

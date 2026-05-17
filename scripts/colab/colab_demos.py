@@ -20,7 +20,11 @@ from media_playback_links import (
     resolve_media_for_input_file,
 )
 from colab_timed_steps import format_elapsed, format_file_size, log_line, log_phase, timed_step
-from genai_quota_retry import genai_inter_call_pause
+from genai_quota_retry import (
+    call_with_wall_clock_timeout,
+    demo3_api_timeout_seconds,
+    genai_inter_call_pause,
+)
 from pipeline_logging import (
     PipelineProgress,
     build_work_plan,
@@ -52,6 +56,7 @@ except ImportError:
 from governance_meeting_llm import (
     TOKEN_BUDGET_HIGH,
     TOKEN_BUDGET_LOW,
+    TOKEN_BUDGET_MEDIUM,
     VIDEO_EXTS,
     MeetingInventory,
     call_google_genai_multimodal,
@@ -626,14 +631,24 @@ def _run_demo3_one_pdf(
         "The attached PDF contains the meeting record. Apply the full deconstruction "
         "prompt to it. Stick to what is actually in the document."
     )
+    demo3_res = os.environ.get("GOVERNANCE_DEMO3_MEDIA_RESOLUTION", "HIGH").strip().upper()
+    if demo3_res not in ("HIGH", "MEDIUM", "LOW"):
+        demo3_res = "HIGH"
+    media_res = {
+        "HIGH": TOKEN_BUDGET_HIGH,
+        "MEDIUM": TOKEN_BUDGET_MEDIUM,
+        "LOW": TOKEN_BUDGET_LOW,
+    }.get(demo3_res, TOKEN_BUDGET_HIGH)
+    timeout_s = demo3_api_timeout_seconds()
+    timeout_note = f", timeout {timeout_s // 60}m" if timeout_s else ""
     log_line(
-        f"⏳ Calling {thinking_model} — full PDF policy analysis "
-        f"(often 3–8 min per file; 429 retries add time)…",
+        f"Calling {thinking_model} — full PDF ({demo3_res} vision{timeout_note}); "
+        f"heartbeats every ~45s; 429 retries can add minutes",
         prefix="    ",
     )
-    t0 = time.perf_counter()
-    try:
-        result = call_google_genai_multimodal(
+
+    def _demo3_call():
+        return call_google_genai_multimodal(
             api_key=ctx.api_key,
             model=thinking_model,
             system_instruction=DEMO3_SYSTEM,
@@ -641,17 +656,32 @@ def _run_demo3_one_pdf(
             media=[(pdf, "application/pdf")],
             temperature=0.1,
             max_output_tokens=8192,
-            media_resolution=TOKEN_BUDGET_HIGH,
+            media_resolution=media_res,
             include_thoughts=True,
             thinking_budget=ctx.thinking_budget,
         )
+
+    t0 = time.perf_counter()
+    try:
+        with log_phase(
+            f"Demo 3 {pdf.name}",
+            prefix="      ",
+            detail=f"{thinking_model} {format_file_size(pdf)}",
+        ):
+            if timeout_s:
+                result = call_with_wall_clock_timeout(
+                    _demo3_call,
+                    timeout_seconds=timeout_s,
+                    label=f"Demo 3 {pdf.name}",
+                )
+            else:
+                result = _demo3_call()
     except Exception as e:
         log_line(f"! Gemma call failed: {e}", prefix="    ")
-        genai_inter_call_pause(TOKEN_BUDGET_HIGH)
+        genai_inter_call_pause(demo3_res)
         return
     elapsed = time.perf_counter() - t0
-    log_line(f"✓ Gemma returned in {format_elapsed(elapsed)}", prefix="    ")
-    genai_inter_call_pause(TOKEN_BUDGET_HIGH)
+    genai_inter_call_pause(demo3_res)
     parsed = parse_policy_analysis_response(result.text or "")
     if isinstance(parsed.get("json_analysis"), dict):
         parsed["json_analysis"] = enrich_policy_analysis_media_links(
