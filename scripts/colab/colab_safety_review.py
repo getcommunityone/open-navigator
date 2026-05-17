@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
@@ -31,11 +32,37 @@ def _max_review_files() -> int:
         return 40
 
 
+# Stable step ids (glob keys) → judge-facing descriptions for _summary.json.
+REVIEW_STEP_DESCRIPTIONS: Dict[str, str] = {
+    "demo1_ocr": "Demo 1 — visual OCR on scanned PDF (dark-data recovery)",
+    "demo2_page": "Demo 2 — per-page extract with visual token budget (HIGH/LOW)",
+    "demo3_thinking": "Demo 3 — policy analysis JSON (thinking mode)",
+    "demo3_thinking_raw": "Demo 3 — policy analysis raw model output",
+    "demo3_summary": "Demo 3 — human-readable thinking summary (markdown)",
+    "demo4_chunk": "Demo 4 — long-meeting audio chunk policy JSON",
+    "demo4_drift": "Demo 4 — policy drift detector across chunks",
+    "demo5_image": "Demo 5 — contact / collateral image triage JSON",
+}
+
+
 @dataclass(frozen=True)
 class _ReviewTarget:
+    step_id: str
     label: str
     path: Path
     text: str
+
+
+def describe_review_step(step_id: str, path: Path) -> str:
+    """Human-readable label; adds page number for Demo 2 page artifacts."""
+    base = REVIEW_STEP_DESCRIPTIONS.get(
+        step_id, f"Pipeline output ({step_id.replace('_', ' ')})"
+    )
+    if step_id == "demo2_page":
+        m = re.search(r"page_(\d+)", path.name, re.IGNORECASE)
+        if m:
+            return f"{base} — page {int(m.group(1))}"
+    return base
 
 
 def _load_json_text(path: Path) -> str:
@@ -81,7 +108,7 @@ def collect_review_targets(
     targets: List[_ReviewTarget] = []
     seen: set[str] = set()
 
-    for label, pattern, kind in specs:
+    for step_id, pattern, kind in specs:
         for path in sorted(root.rglob(pattern)):
             key = str(path.resolve())
             if key in seen:
@@ -95,7 +122,14 @@ def collect_review_targets(
             if not text.strip():
                 continue
             seen.add(key)
-            targets.append(_ReviewTarget(label=label, path=path, text=text))
+            targets.append(
+                _ReviewTarget(
+                    step_id=step_id,
+                    label=describe_review_step(step_id, path),
+                    path=path,
+                    text=text,
+                )
+            )
             if len(targets) >= cap:
                 return targets
 
@@ -110,7 +144,14 @@ def collect_review_targets(
                 if not text.strip():
                     continue
                 seen.add(key)
-                targets.append(_ReviewTarget(label="demo3_summary", path=path, text=text))
+                targets.append(
+                    _ReviewTarget(
+                        step_id="demo3_summary",
+                        label=describe_review_step("demo3_summary", path),
+                        path=path,
+                        text=text,
+                    )
+                )
                 if len(targets) >= cap:
                     break
 
@@ -195,6 +236,7 @@ def run_safety_review(
 
         entry = {
             "source": str(rel),
+            "step_id": target.step_id,
             "label": target.label,
             "flagged": result["flagged"],
             "categories": result["categories"],

@@ -46,6 +46,10 @@ _GENERIC_INSTANCE_SLUGS = frozenset({
     "undated",
 })
 
+# Gatekeeper / filenames sometimes yield a calendar date as the instance slug →
+# ``meetings/2026_05_06/2026-05-06/agenda/`` (duplicate date folders).
+_DATE_INSTANCE_SLUG_RE = re.compile(r"^(20\d{2})[-_](\d{2})[-_](\d{2})$")
+
 _DOC_SUBDIR: Dict[str, str] = {
     "meeting_agenda": "agenda",
     "meeting_minutes": "minutes",
@@ -56,6 +60,25 @@ _DOC_SUBDIR: Dict[str, str] = {
     "reference_packet": "collateral",
     "other_governance_document": "collateral",
 }
+
+
+def _instance_slug_looks_like_date(slug: str) -> bool:
+    return bool(_DATE_INSTANCE_SLUG_RE.match((slug or "").strip()))
+
+
+def normalize_meeting_instance_slug(
+    slug: str, path: Path, doc_type: str, *, meeting_date: str = ""
+) -> str:
+    """Avoid ``2026-05-06`` as a session folder name; prefer council/board hints."""
+    s = slugify_meeting_label(slug or "")
+    if not _instance_slug_looks_like_date(s):
+        return s
+    inferred = slugify_meeting_label(infer_instance_slug_from_path(path, doc_type))
+    if inferred and not _instance_slug_looks_like_date(inferred):
+        return inferred
+    if meeting_date and _instance_slug_looks_like_date(meeting_date.replace("_", "-")):
+        return "session"
+    return "session"
 
 
 def slugify_meeting_label(text: str, *, max_len: int = 48) -> str:
@@ -208,7 +231,7 @@ def meeting_instance_key(
             inferred = slugify_meeting_label(slug)
             if inferred in _GENERIC_INSTANCE_SLUGS or "agenda" in inferred:
                 slug = "session"
-    slug = slugify_meeting_label(slug)
+    slug = normalize_meeting_instance_slug(slug, path, doc_type, meeting_date=date_s)
     key = f"{jur}|{date_s}|{slug}"
     return key, date_s, slug, title
 

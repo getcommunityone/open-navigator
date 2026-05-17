@@ -1019,6 +1019,8 @@ def call_gemma_triage(
                 # Older SDKs accept only include_thoughts; safe to omit.
                 pass
 
+    from genai_quota_retry import call_with_genai_quota_retry
+
     def _generate() -> Any:
         request_options: dict = {}
         if timeout_seconds:
@@ -1038,12 +1040,15 @@ def call_gemma_triage(
                 config=types.GenerateContentConfig(**config_kwargs),
             )
 
+    def _generate_with_quota_retry() -> Any:
+        return call_with_genai_quota_retry(_generate, label=f"gatekeeper {model}")
+
     from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
     try:
         with gatekeeper_socket_freeze_guard(timeout_seconds):
             with ThreadPoolExecutor(max_workers=1) as pool:
-                future = pool.submit(_generate)
+                future = pool.submit(_generate_with_quota_retry)
                 try:
                     response = future.result(timeout=timeout_seconds or None)
                 except FuturesTimeoutError as exc:

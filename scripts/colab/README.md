@@ -179,7 +179,7 @@ Scraped meetings mirror is **step 1** above ([`01_copy_scraped_meetings_cache_to
 | `GOVERNANCE_GATEKEEPER_MAX_FILES` | Legacy count cap (newest N by mtime) when date scope is off. |
 | `GOVERNANCE_DEMO_MAX_PDFS_PER_JUR` | PDFs processed per jurisdiction in Demo 1 + 2 (default `3`). |
 | `GOVERNANCE_DEMO_MAX_PAGES_PER_PDF` | Pages processed per PDF in Demo 2 (default `8`). |
-| `GOVERNANCE_DEMO_MAX_AUDIO_PER_JUR` | Audio files processed per jurisdiction in Demo 4 (default `1`). |
+| `GOVERNANCE_DEMO_MAX_AUDIO_PER_JUR` | Recordings processed per jurisdiction in Demo 4 (`fast` preset: **2**, one per meeting date). |
 | `GOVERNANCE_DEMO_MAX_AUDIO_CHUNKS` | 15-minute audio chunks processed per file in Demo 4 (default `4`). |
 | `GOVERNANCE_DEMO_MAX_IMAGES_PER_JUR` | Images processed per jurisdiction in Demo 5 (default `12`). |
 | `GOVERNANCE_DEMO_THINKING_BUDGET` | Thinking-token budget for Demo 3 (`-1` = unlimited). |

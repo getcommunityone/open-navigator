@@ -18,6 +18,7 @@ from media_playback_links import (
     list_media_sources,
     resolve_media_for_input_file,
 )
+from genai_quota_retry import genai_inter_call_pause
 from governance_meeting_llm import (
     TOKEN_BUDGET_HIGH,
     TOKEN_BUDGET_LOW,
@@ -40,6 +41,7 @@ from governance_meeting_llm import (
     policy_drift_summarize,
     read_json_file,
     render_pdf_pages,
+    select_demo4_media,
     text_output_complete,
 )
 
@@ -150,6 +152,29 @@ def pick_representative_pdf(pdfs: List[Path]) -> Optional[Path]:
     return scored[0][1]
 
 
+def pick_demo3_pdfs(pdfs: List[Path], *, max_pdfs: int = 2) -> List[Path]:
+    """Prefer agenda then minutes so both get policy analysis when present."""
+    import os
+
+    cap = max(1, int(os.environ.get("GOVERNANCE_DEMO3_MAX_PDFS", str(max_pdfs))))
+    if not pdfs:
+        return []
+    agenda = [p for p in pdfs if "agenda" in p.name.lower()]
+    minutes = [p for p in pdfs if "minute" in p.name.lower() and p not in agenda]
+    rest = [p for p in pdfs if p not in agenda and p not in minutes]
+    ordered: List[Path] = []
+    for group in (agenda, minutes, sorted(rest, key=lambda x: x.name)):
+        for p in group:
+            if p not in ordered:
+                ordered.append(p)
+            if len(ordered) >= cap:
+                return ordered
+    if ordered:
+        return ordered
+    one = pick_representative_pdf(pdfs)
+    return [one] if one else []
+
+
 def run_demo1(inv: MeetingInventory, ctx: DemoContext) -> List[Dict[str, Any]]:
     j = inv.jurisdiction
     pdfs = inv.pdfs[: ctx.max_pdfs_per_jur]
@@ -201,7 +226,9 @@ def run_demo1(inv: MeetingInventory, ctx: DemoContext) -> List[Dict[str, Any]]:
             )
         except Exception as e:
             print(f"    ! Gemma call failed: {e}")
+            genai_inter_call_pause(TOKEN_BUDGET_HIGH if scanned else TOKEN_BUDGET_LOW)
             continue
+        genai_inter_call_pause(TOKEN_BUDGET_HIGH if scanned else TOKEN_BUDGET_LOW)
         out_txt.write_text(result.text or "(empty response)", encoding="utf-8")
         report.append(
             {
@@ -293,7 +320,9 @@ def run_demo2(inv: MeetingInventory, ctx: DemoContext) -> List[Dict[str, Any]]:
                 )
             except Exception as e:
                 print(f"  ! page {page.page_index + 1}: Gemma call failed — {e}")
+                genai_inter_call_pause(budget)
                 continue
+            genai_inter_call_pause(budget)
             elapsed = time.time() - t0
             try:
                 page_json = json.loads(result.text.strip().lstrip("`"))
@@ -334,13 +363,35 @@ def run_demo2(inv: MeetingInventory, ctx: DemoContext) -> List[Dict[str, Any]]:
 
 
 def run_demo3(inv: MeetingInventory, ctx: DemoContext) -> List[Dict[str, Any]]:
+    from theme_audit import audit_decision_themes
+
     j = inv.jurisdiction
-    pdf = pick_representative_pdf(inv.pdfs)
+    pdfs = pick_demo3_pdfs(inv.pdfs[: ctx.max_pdfs_per_jur])
     report: List[Dict[str, Any]] = []
-    if pdf is None:
+    if not pdfs:
         return report
     thinking_model = (ctx.thinking_model or ctx.genai_model).strip()
-    print(f"\n— Demo 3 | {j.relative_label}: {pdf.name}  (model: {thinking_model})")
+    print(
+        f"\n— Demo 3 | {j.relative_label}: {len(pdfs)} PDF(s)  (model: {thinking_model})"
+    )
+    for pdf in pdfs:
+        _run_demo3_one_pdf(
+            inv, ctx, pdf, thinking_model, report, audit_fn=audit_decision_themes
+        )
+    return report
+
+
+def _run_demo3_one_pdf(
+    inv: MeetingInventory,
+    ctx: DemoContext,
+    pdf: Path,
+    thinking_model: str,
+    report: List[Dict[str, Any]],
+    *,
+    audit_fn,
+) -> None:
+    j = inv.jurisdiction
+    print(f"  • {pdf.name}")
     json_out = mirror_output_path(
         input_path=pdf,
         raw_root=ctx.raw_root,
@@ -348,7 +399,7 @@ def run_demo3(inv: MeetingInventory, ctx: DemoContext) -> List[Dict[str, Any]]:
         suffix=".thinking.json",
     )
     if not force_reprocess_outputs() and demo3_thinking_json_complete(json_out):
-        print(f"  reuse existing → {json_out.relative_to(ctx.processed_root)}")
+        print(f"    reuse existing → {json_out.relative_to(ctx.processed_root)}")
         report.append(
             {
                 "jurisdiction": j.relative_label,
@@ -357,7 +408,7 @@ def run_demo3(inv: MeetingInventory, ctx: DemoContext) -> List[Dict[str, Any]]:
                 "reused": True,
             }
         )
-        return report
+        return
     geo_hint = (
         f"Geography hint from folder layout: state_code={j.state_code}, "
         f"scope={j.scope}, fips_or_place_id={j.fips or 'unknown'}. "
@@ -389,8 +440,10 @@ def run_demo3(inv: MeetingInventory, ctx: DemoContext) -> List[Dict[str, Any]]:
             thinking_budget=ctx.thinking_budget,
         )
     except Exception as e:
-        print(f"  ! Gemma call failed: {e}")
-        return report
+        print(f"    ! Gemma call failed: {e}")
+        genai_inter_call_pause(TOKEN_BUDGET_HIGH)
+        return
+    genai_inter_call_pause(TOKEN_BUDGET_HIGH)
     parsed = parse_policy_analysis_response(result.text or "")
     if isinstance(parsed.get("json_analysis"), dict):
         parsed["json_analysis"] = enrich_policy_analysis_media_links(
@@ -405,12 +458,29 @@ def run_demo3(inv: MeetingInventory, ctx: DemoContext) -> List[Dict[str, Any]]:
         suffix=".thinking.raw.txt",
     )
     raw_out.write_text(result.text or "", encoding="utf-8")
-    if parsed.get("json_analysis") is not None:
+    analysis = parsed.get("json_analysis")
+    if isinstance(analysis, dict):
         json_out.write_text(
-            json.dumps(parsed["json_analysis"], indent=2, ensure_ascii=False),
+            json.dumps(analysis, indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
-        print(f"  → {json_out.relative_to(ctx.processed_root)}")
+        print(f"    → {json_out.relative_to(ctx.processed_root)}")
+        decisions = analysis.get("decisions") or []
+        if isinstance(decisions, list):
+            audit_path = mirror_output_path(
+                input_path=pdf,
+                raw_root=ctx.raw_root,
+                processed_root=ctx.gemma_json_root,
+                suffix=".thinking.theme_audit.json",
+            )
+            audit_rows = audit_fn(decisions)
+            audit_path.write_text(
+                json.dumps({"decisions": audit_rows}, indent=2, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            flagged = [r for r in audit_rows if r.get("flags")]
+            if flagged:
+                print(f"    ⚠ theme audit: {len(flagged)} decision(s) flagged — see {audit_path.name}")
     if parsed.get("summary"):
         summary_out = mirror_output_path(
             input_path=pdf,
@@ -419,7 +489,7 @@ def run_demo3(inv: MeetingInventory, ctx: DemoContext) -> List[Dict[str, Any]]:
             suffix=".thinking.summary.md",
         )
         summary_out.write_text(parsed["summary"], encoding="utf-8")
-        print(f"  → {summary_out.relative_to(ctx.processed_root)}")
+        print(f"    → {summary_out.relative_to(ctx.processed_root)}")
     if result.thoughts:
         thoughts_out = mirror_output_path(
             input_path=pdf,
@@ -428,7 +498,10 @@ def run_demo3(inv: MeetingInventory, ctx: DemoContext) -> List[Dict[str, Any]]:
             suffix=".thinking.thoughts.md",
         )
         thoughts_out.write_text(result.thoughts, encoding="utf-8")
-        print(f"  → {thoughts_out.relative_to(ctx.processed_root)} (trace: {len(result.thoughts)} chars)")
+        print(
+            f"    → {thoughts_out.relative_to(ctx.processed_root)} "
+            f"(trace: {len(result.thoughts)} chars)"
+        )
     report.append(
         {
             "jurisdiction": j.relative_label,
@@ -439,7 +512,6 @@ def run_demo3(inv: MeetingInventory, ctx: DemoContext) -> List[Dict[str, Any]]:
             "parse_error": parsed.get("parse_error"),
         }
     )
-    return report
 
 
 def run_demo4(
@@ -463,7 +535,11 @@ def run_demo4(
         brief_cache = {}
 
     j = inv.jurisdiction
-    audios = inv.audio[: ctx.max_audio_per_jur]
+    audios = select_demo4_media(
+        inv.audio,
+        ctx.raw_root,
+        max_files=ctx.max_audio_per_jur,
+    )
     report: List[Dict[str, Any]] = []
     if not audios:
         return report
@@ -566,7 +642,9 @@ def run_demo4(
                 )
             except Exception as e:
                 print(f"    ! chunk {idx} failed: {e}")
+                genai_inter_call_pause(None)
                 continue
+            genai_inter_call_pause(None)
             parsed = parse_policy_analysis_response(result.text or "")
             chunk_analysis = parsed.get("json_analysis")
             if isinstance(chunk_analysis, dict):
@@ -656,4 +734,15 @@ def run_demos_for_jurisdiction(
     reports.demo2 = run_demo2(inv, ctx)
     reports.demo3 = run_demo3(inv, ctx)
     reports.demo4 = run_demo4(inv, ctx, brief_cache=brief_cache)
+    try:
+        from meeting_consolidated_summary import run_consolidated_summaries_for_jurisdiction
+
+        run_consolidated_summaries_for_jurisdiction(
+            jurisdiction_root=inv.jurisdiction.root,
+            raw_root=ctx.raw_root,
+            gemma_json_root=ctx.gemma_json_root,
+            summaries_root=ctx.summaries_root,
+        )
+    except ImportError:
+        pass
     return reports

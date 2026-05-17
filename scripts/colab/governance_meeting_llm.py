@@ -51,6 +51,9 @@ IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"}
 SKIP_DIR_PREFIXES: tuple[str, ...] = ()
 SKIP_DIR_NAMES = {"__pycache__", ".ipynb_checkpoints", "_crawl_html", "_sitemaps", "excluded_inputs"}
 
+# Scrape SuiteOne downloads write ``_video_assets/<hash>_suiteone.{opus,mp4}`` plus ``*.asset.json``.
+VIDEO_ASSETS_DIRNAME = "_video_assets"
+
 # Token-budget tiers we expose to judges. Names match Gemma 4 media-resolution levels.
 TOKEN_BUDGET_HIGH = "HIGH"   # ~1,120 tokens per image — financial tables, ledgers, bids
 TOKEN_BUDGET_MEDIUM = "MEDIUM"
@@ -286,7 +289,149 @@ def walk_raw_inputs(raw_root: Path) -> Iterator[MeetingInventory]:
                         inv.audio.append(f)
                     elif ext in IMAGE_EXTS:
                         inv.images.append(f)
+                enrich_inventory_video_assets(inv)
                 yield inv
+
+
+def inventory_video_assets_enabled() -> bool:
+    """When true, register on-disk ``_video_assets`` paths from ``*.asset.json`` sidecars."""
+    return os.environ.get("GOVERNANCE_INVENTORY_VIDEO_ASSETS", "1").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+        "off",
+    )
+
+
+def discover_media_from_video_asset_manifests(jurisdiction_root: Path) -> List[Path]:
+    """
+    Paths listed in scrape ``_video_assets/*.asset.json`` when the file exists.
+
+    Reads ``opus_relative_path`` and ``mp4_relative_path`` (relative to the
+    jurisdiction root). Skips missing bytes — JSON alone is not enough.
+    """
+    root = jurisdiction_root.resolve()
+    video_dir = root / VIDEO_ASSETS_DIRNAME
+    if not video_dir.is_dir():
+        return []
+    found: List[Path] = []
+    seen: set[str] = set()
+    for meta_path in sorted(video_dir.glob("*.asset.json")):
+        try:
+            data = json.loads(meta_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(data, dict):
+            continue
+        for rel_key in ("opus_relative_path", "mp4_relative_path"):
+            rel = (data.get(rel_key) or "").strip()
+            if not rel:
+                continue
+            path = (root / rel).resolve()
+            try:
+                path.relative_to(root)
+            except ValueError:
+                continue
+            if not path.is_file():
+                continue
+            key = str(path)
+            if key in seen:
+                continue
+            seen.add(key)
+            found.append(path)
+    return found
+
+
+def select_demo4_media(
+    audio_paths: List[Path],
+    raw_root: Path,
+    *,
+    max_files: int,
+) -> List[Path]:
+    """
+    Choose up to ``max_files`` recordings for Demo 4.
+
+  Prefer **one file per distinct meeting date** (newest dates first) so
+    ``SCOPE=fast`` with two dates processes two videos (e.g. ``2026_02_18.mp4``
+    and ``2026_05_06.mp4``), not two copies from the same session.
+    """
+    if max_files <= 0 or not audio_paths:
+        return []
+    if len(audio_paths) <= max_files:
+        return list(audio_paths)
+
+    try:
+        from meeting_date_scope import infer_meeting_date_for_file
+    except ImportError:
+        return sorted(audio_paths, key=lambda p: p.name)[:max_files]
+
+    by_date: Dict[str, List[Path]] = {}
+    undated: List[Path] = []
+    for path in audio_paths:
+        date_s = infer_meeting_date_for_file(path, raw_root) or ""
+        if date_s:
+            by_date.setdefault(date_s, []).append(path)
+        else:
+            undated.append(path)
+
+    selected: List[Path] = []
+    seen: set[str] = set()
+
+    def _pick_one(group: List[Path]) -> Path:
+        videos = [p for p in group if p.suffix.lower() in VIDEO_EXTS]
+        pool = videos or group
+        return sorted(pool, key=lambda p: p.name)[0]
+
+    for date_s in sorted(by_date.keys(), reverse=True):
+        if len(selected) >= max_files:
+            break
+        pick = _pick_one(by_date[date_s])
+        key = str(pick.resolve())
+        if key not in seen:
+            seen.add(key)
+            selected.append(pick)
+
+    remainder = sorted(
+        undated + [p for group in by_date.values() for p in group],
+        key=lambda p: p.name,
+    )
+    for path in remainder:
+        if len(selected) >= max_files:
+            break
+        key = str(path.resolve())
+        if key in seen:
+            continue
+        seen.add(key)
+        selected.append(path)
+
+    return selected[:max_files]
+
+
+def enrich_inventory_video_assets(inv: MeetingInventory) -> int:
+    """
+    Append scrape-sidecar media not already in ``inv.audio``.
+
+    Flat jurisdiction MP4s (e.g. ``2026_05_06.mp4`` at the county root) are
+    already discovered by the normal walk; this hook only adds ``_video_assets``
+    paths referenced in ``*.asset.json``.
+
+    Returns the number of paths newly added.
+    """
+    if not inventory_video_assets_enabled():
+        return 0
+    extra = discover_media_from_video_asset_manifests(inv.jurisdiction.root)
+    if not extra:
+        return 0
+    existing = {p.resolve() for p in inv.audio}
+    added = 0
+    for path in extra:
+        resolved = path.resolve()
+        if resolved in existing:
+            continue
+        inv.audio.append(path)
+        existing.add(resolved)
+        added += 1
+    return added
 
 
 def inventory_for_jurisdiction(
@@ -296,6 +441,17 @@ def inventory_for_jurisdiction(
     target = jurisdiction_root.resolve()
     for inv in walk_raw_inputs(raw_root):
         if inv.jurisdiction.root.resolve() == target:
+            return inv
+    # Jurisdiction dir exists but had no walk match — still try sidecars only.
+    if target.is_dir():
+        jur = parse_jurisdiction_dir(
+            target,
+            target.parent.parent.name if len(target.parents) >= 2 else "",
+            target.parent.name if target.parent else "",
+        )
+        inv = MeetingInventory(jurisdiction=jur)
+        enrich_inventory_video_assets(inv)
+        if inv.has_media:
             return inv
     return None
 
@@ -878,11 +1034,16 @@ def call_google_genai_multimodal(
             "`GOVERNANCE_FORCE_THINKING=1` for other Gemma ids."
         )
 
-    response = client.models.generate_content(
-        model=model,
-        contents=[types.Content(role="user", parts=parts)],
-        config=types.GenerateContentConfig(**config_kwargs),
-    )
+    from genai_quota_retry import call_with_genai_quota_retry
+
+    def _generate():
+        return client.models.generate_content(
+            model=model,
+            contents=[types.Content(role="user", parts=parts)],
+            config=types.GenerateContentConfig(**config_kwargs),
+        )
+
+    response = call_with_genai_quota_retry(_generate, label=f"genai {model}")
 
     answer_bits: List[str] = []
     thought_bits: List[str] = []
@@ -1109,15 +1270,20 @@ def shield_review_text(
         'Return JSON: {"verdicts": {"<category>": "Yes" | "No"}, "rationale": "<one short sentence>"}'
     )
 
-    response = client.models.generate_content(
-        model=model,
-        contents=[types.Content(role="user", parts=[types.Part.from_text(text=policy_prompt)])],
-        config=types.GenerateContentConfig(
-            temperature=0.0,
-            max_output_tokens=512,
-            response_mime_type="application/json",
-        ),
-    )
+    from genai_quota_retry import call_with_genai_quota_retry
+
+    def _generate():
+        return client.models.generate_content(
+            model=model,
+            contents=[types.Content(role="user", parts=[types.Part.from_text(text=policy_prompt)])],
+            config=types.GenerateContentConfig(
+                temperature=0.0,
+                max_output_tokens=512,
+                response_mime_type="application/json",
+            ),
+        )
+
+    response = call_with_genai_quota_retry(_generate, label=f"shield {model}")
 
     raw = ""
     for cand in getattr(response, "candidates", None) or []:
@@ -1573,6 +1739,11 @@ __all__ = [
     "load_text_file", "chunk_text",
     "parse_policy_analysis_response",
     "parse_jurisdiction_dir", "walk_raw_inputs", "mirror_output_path",
+    "VIDEO_ASSETS_DIRNAME",
+    "inventory_video_assets_enabled",
+    "discover_media_from_video_asset_manifests",
+    "enrich_inventory_video_assets",
+    "select_demo4_media",
     "classify_pdf_page_heuristic", "render_pdf_pages",
     "extract_pdf_digital_text", "is_scanned_pdf",
     "transcode_video_to_opus",

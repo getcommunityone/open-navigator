@@ -220,7 +220,7 @@ Output the JSON object defined in the schema below and **nothing else** until yo
 - No preamble, apology, explanation, section headings, or markdown outside the JSON.
 - No ` ```json ` fences around Document 1.
 - The JSON must be parseable by `JSON.parse()` with no modification.
-- Every decision must include `primary_theme`, `primary_theme_cofog`, and (when applicable) `secondary_theme` / `secondary_theme_cofog` derived from the COFOG table above.
+- Every decision must include `primary_theme`, `primary_theme_rationale`, `primary_theme_cofog`, and (when applicable) `secondary_theme` / `secondary_theme_cofog` derived from the COFOG table above.
 
 **CRITICAL:** For each decision in the `decisions` array, populate both `diagram_timeline` and `diagram_mindmap` fields with valid Mermaid syntax strings following the rules above. These strings must be escaped for JSON (use `\n` for newlines, escape quotes).
 
@@ -241,7 +241,7 @@ After the first break token, output a human-readable markdown document that **re
 For each decision provide:
 - **Decision ID:** [decision_id]
 - **Topic headline** (from decision.headline field)
-- **Themes:** Primary: [primary_theme] ([primary_theme_cofog]); Secondary: [secondary_theme] ([secondary_theme_cofog]) or none
+- **Themes:** Primary: [primary_theme] ([primary_theme_cofog]) — [primary_theme_rationale]; Secondary: [secondary_theme] ([secondary_theme_cofog]) or none
 - **Watch / listen:** [playback_url at timestamp_start, or "recording not linked"] — include `timestamp_start`–`timestamp_end` when known
 - **Location:** [city name, county name if present, postal_code if present, or "jurisdiction-wide"]
 - **Outcome:** [APPROVED/DENIED/etc] via [decision method]
@@ -429,6 +429,7 @@ This is the final output — no additional document breaks or timeline sections 
       "lineage_note": "string or null",
       "primary_theme": "string",
       "primary_theme_cofog": "string",
+      "primary_theme_rationale": "string — one sentence: cite agenda/minutes wording that justifies this primary_theme (required for audit)",
       "secondary_theme": "string or null",
       "secondary_theme_cofog": "string or null",
       "ntee_code": "string or null — primary cause area based on topic content analysis",
@@ -761,6 +762,7 @@ Assign `lineage_type` as:
 
 ### Theme and COFOG Rules
 - Classify themes **per decision** in `decisions[]` only — not at meeting root
+- `primary_theme_rationale` must explain why the primary_theme fits (not why the COFOG digit is what it is — COFOG follows mechanically from the theme)
 - `primary_theme_cofog` must be the COFOG code from the table for that decision's `primary_theme`
 - `secondary_theme_cofog` must be the COFOG code for `secondary_theme`, or null when `secondary_theme` is null
 - Do not emit COFOG codes in Document 2 that are absent from or inconsistent with Document 1

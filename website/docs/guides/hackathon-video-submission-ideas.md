@@ -1,6 +1,6 @@
 ---
 displayed_sidebar: developersSidebar
-description: Reference patterns and a checklist for strong “Google for Good”–style hackathon demo videos (CommunityOne / Open Navigator), including flagship pitch hooks (speed-trap revenue, potholes & street repair, TikTok-style issue summaries, required CTA slide, 100k-meeting safety scrub, jurisdiction website accessibility), plus inspirational civic data talks and case studies.
+description: Reference patterns and a checklist for strong “Google for Good”–style hackathon demo videos (CommunityOne / Open Navigator), including flagship pitch hooks (speed-trap revenue, potholes & street repair, TikTok-style issue summaries, required CTA slide, 100k-meeting safety scrub, 100k-decision reasoning & bias audit, jurisdiction website accessibility), plus inspirational civic data talks and case studies.
 ---
 
 # Hackathon video submission ideas (reference library)
@@ -81,6 +81,56 @@ Pairs the same pipeline with **Infrastructure and Capital Projects** / **Transpo
 **Scrape → Gatekeeper → Gemma analysis → ShieldGemma review → aggregate trust scores** — same Colab notebook, wider `SCOPE` and warehouse export.
 
 **Caveats:** Automated “hate speech” labels are **screening**, not legal findings; cite Shield categories, human appeal, and that government **source** text is public record being **reviewed for downstream AI safety**, not censored at source.
+
+---
+
+## Killer idea: 100k decisions — reasoning scores vs. LLM narrative, and systemic bias in who wins
+
+**Pitch hook:** *Across 100,000 local government decisions, does the “official story” in the minutes match how strong the arguments actually were—and who keeps benefiting when you follow the people, not just the votes?*
+
+### Why this lands
+
+- **Scale with a number:** “100k **decisions**” (not just meetings) is a research-grade civic dataset—each row is a vote, allocation, or directive with structured **arguments** and **narrative** fields.
+- **“For good” fit:** Transparency is not only *what* passed but *whose reasoning dominated* and whether the same commissioners, industries, or neighborhoods show up again and again in **winning** interpretations.
+- **Pairs with Open Navigator:** `prompts/policy_analysis_v1.md` already emits per-decision `arguments_for` / `arguments_against` (with `rationale`), `narrative_analysis` (dominant vs. dissenting diagnoses, `value_conflicts`, `tradeoff_analysis`), `power_map`, and stable `person_id` / `org_id` slugs—Gemma Demo 3 + Demo 4 drift at pilot scale; warehouse at national scale.
+
+### Research questions (demo → national)
+
+| Question | Pilot (Tuscaloosa `county_01125`, 2 dates, agenda + minutes + video) | At ~100k decisions |
+| --- | --- | --- |
+| **Reasoning quality vs. outcome** | For 5–10 decisions, score each `arguments_for` / `arguments_against` `rationale` on a simple rubric (evidence cited, specificity, logical structure). Compare to the **prevailing** `narrative_analysis.dominant_narrative` and `outcome`. | Distribution: when dissent scores *higher* on the rubric but loses the vote, flag as “narrative override.” |
+| **LLM consistency** | Re-run or hold out one meeting; compare Gemma’s `dominant_narrative` + `primary_theme` to a second pass or human coder. | Aggregate **theme_audit** / COFOG flags (`*.thinking.theme_audit.json`) and disagreement rate by jurisdiction. |
+| **Who champions what** | Join `narrative_champions`, `arguments_for.person_id`, `power_map`, and scraped `structured_contacts` / `_contact_images` metadata. | Graph: persons/orgs → themes won → `$` in `financial_items`; test concentration (Gini, repeat sponsors). |
+| **Systemic bias (careful framing)** | One slice—e.g. **Parks and Recreation** mis-tagged as **Civil Rights and Equity** (COFOG-01)—show audit table + correction. | Stratify outcomes by `postal_code`, `county_fips`, `primary_theme`, `stakeholder_role`, `is_lobbyist`; report **disparities** with confidence intervals, not individual accusations. |
+
+### Suggested metrics (all exportable from JSON)
+
+1. **Argument strength score** — automated or human-on-sample: length + presence of `evidence_cited`, `underlying_causes.contested`, explicit tradeoffs in `rationale`.
+2. **Narrative–argument gap** — `dominant_narrative.problem_diagnosis` vs. highest-scoring `arguments_against` when `outcome` is APPROVED (measure “winning story vs. best counterargument”).
+3. **Champion recurrence** — count decisions where the same `person_id` appears in `narrative_champions` across meetings/months.
+4. **Proponent profile skew** — cross-tab `arguments_for.stakeholder_role` and `is_lobbyist` against `interests_advanced` in `tradeoff_analysis` (who gains when safety, housing, or fines themes dominate).
+5. **Theme–geography mismatch** — decisions where `primary_theme` disagrees with keyword audit (parks language + non-parks theme); ties to consolidated `_meeting_summary.md` theme table.
+
+### What the pipeline does today (demo scale)
+
+| Step | Hackathon demo | National vision |
+| --- | --- | --- |
+| Deconstruct | Demo 3 `.thinking.json` per PDF; Demo 4 chunks + `policy_drift.json` on video | Batch Gemma / warehouse `decisions[]` |
+| Explain themes | `*.thinking.theme_audit.json` + COFOG table in `_meeting_summary.md` | Dashboard: misclassification rate by theme |
+| People | `person_id`, contacts bronze, optional Demo 5 image triage | Entity graph across jurisdictions |
+| Compare reasoning | Manual rubric on 10 rationales vs. `dominant_narrative` in notebook or Sheet | Sample 1k → model calibration; full 100k → aggregate gaps only |
+| Bias (systemic) | One chart: champion concentration or theme×ZIP for county pilot | Public report: disparity metrics + methodology appendix |
+
+### How to say it on camera (15s + reveal)
+
+- **Problem:** “Minutes tell you the vote—not whether the **strongest argument** won, or whether the same players and neighborhoods keep winning the **story**.”
+- **Reveal:** Open one decision’s JSON: read `arguments_against[0].rationale` (strong) next to `narrative_analysis.dominant_narrative` (what locked in)—then a slide: “Pilot: **N** decisions → path to **100k** with reasoning scores + champion profiles.”
+
+### Architecture one-liner
+
+**Scrape → Gemma policy JSON (`decisions[]`, `arguments_*`, `narrative_analysis`) → optional second-pass reasoning scorer → entity join on `person_id` / contacts → aggregate bias & gap statistics** — same schema at pilot and warehouse scale.
+
+**Caveats for judges:** This is **research and accountability tooling**, not proof of individual bad faith. Report **systemic patterns** with transparent rubrics; keep humans in the loop for any public naming; distinguish **LLM extraction error** (theme audit flags) from **governance bias** (repeat champions, geographic skew in outcomes).
 
 ---
 
@@ -425,6 +475,12 @@ Short talks, product stories, and case studies that show how **data + maps + hum
 - **Subline:** Shield-reviewed summaries · pilot → national scale
 - **CTA:** Star the repo · Request your **state** in the pilot
 
+**100k decisions / reasoning & bias**
+
+- **Headline:** Did the **strongest argument** win the vote?
+- **Subline:** 100k decisions · champion profiles · systemic patterns
+- **CTA:** Open `*.thinking.json` · Read the methodology appendix
+
 **Accessibility**
 
 - **Headline:** Test **your** city’s `.gov` homepage
@@ -451,12 +507,14 @@ Short talks, product stories, and case studies that show how **data + maps + hum
 | **Data action** | Explicitly say what became **actionable** (find, compare, contact, plan) that wasn’t before. |
 | **Accessibility reveal** | Show a **scanner result** next to the live `.gov` page (axe/Pa11y violation → same element on screen). |
 | **TikTok beat** | One **vertical** clip: hook stat → 20s plain English → **source URL + timestamp** on the last frame. |
+| **Reasoning vs. narrative** | Side-by-side: `arguments_against` **rationale** vs. `dominant_narrative` for one decision—then a national “100k gaps” slide. |
 | **CTA slide (required)** | Final **3–5s** full-screen slide: one headline + one link/QR—see [Call to action slide](#call-to-action-slide-required-closing-beat). |
 
 ## Applying this to Open Navigator / CommunityOne
 
 - **One jurisdiction, one story:** Default Gemma run: **Tuscaloosa County, AL** (`county_01125`) with **`SCOPE=fast`** (**2 meetings**, **6 PDFs**)—fines %, Feb+May meetings, and Shield review in one pass.
 - **Killer scale story:** Pilot on county_01125 → slide to **100k meetings** safety scrub (Shield + Gemma) as the national vision.
+- **Research scale story:** Same `decisions[]` JSON → score **arguments** vs. **LLM dominant narrative** → join **decision-maker / proponent** profiles → report **systemic** skew (themes, ZIPs, repeat champions)—not single-villain framing.
 - **Short-form branch:** Same JSON → one **issue-focused 45s script** (speed trap / fine % or **potholes / street $** hook) + optional clip at `media_citation.playback_url`.
 - **Combine tracks (advanced):** Fines % + accessibility score + safety `_summary.json` for the same `jurisdiction_id`.
 - **Other goals still work:** Officials lookup, nonprofit + government spend context, meeting drift—but keep **one** primary hook per video.

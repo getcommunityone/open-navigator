@@ -11,7 +11,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
-from governance_meeting_llm import MeetingInventory
+from governance_meeting_llm import MeetingInventory, VIDEO_EXTS
 
 ENV_KEY = "GOVERNANCE_DEMO_SCOPE"
 
@@ -43,7 +43,7 @@ PRESETS: Dict[str, DemoScopePreset] = {
         meeting_dates=2,
         max_pdfs_per_jur=6,
         max_pages_per_pdf=4,
-        max_audio_per_jur=1,
+        max_audio_per_jur=2,  # one recording per meeting date (meeting_dates=2)
         max_audio_chunks=2,
         parallel_states=1,
         max_images_per_jur=0,
@@ -58,7 +58,7 @@ PRESETS: Dict[str, DemoScopePreset] = {
         meeting_dates=2,
         max_pdfs_per_jur=2,
         max_pages_per_pdf=6,
-        max_audio_per_jur=1,
+        max_audio_per_jur=2,
         max_audio_chunks=3,
         parallel_states=2,
         max_images_per_jur=6,
@@ -72,7 +72,7 @@ PRESETS: Dict[str, DemoScopePreset] = {
         meeting_dates=3,
         max_pdfs_per_jur=3,
         max_pages_per_pdf=8,
-        max_audio_per_jur=1,
+        max_audio_per_jur=3,
         max_audio_chunks=4,
         parallel_states=4,
         max_images_per_jur=12,
@@ -203,7 +203,9 @@ def print_scope_plan(
     print(
         f"  Caps: {preset.max_states} state(s), {preset.max_jurisdictions} jurisdiction(s), "
         f"{preset.meeting_dates} meeting date(s), "
-        f"{preset.max_pdfs_per_jur} PDF(s)/jur, {preset.max_audio_chunks} audio chunk(s)"
+        f"{preset.max_pdfs_per_jur} PDF(s)/jur, "
+        f"{preset.max_audio_per_jur} recording(s)/jur, "
+        f"{preset.max_audio_chunks} chunk(s) each"
     )
     print(f"  On disk: {len(all_inventories)} jurisdiction(s) with media")
     pref = _preferred_jurisdiction_slug(preset)
@@ -212,7 +214,11 @@ def print_scope_plan(
     print(f"  This run: {len(selected)} jurisdiction(s)")
     for inv in selected:
         j = inv.jurisdiction
-        print(f"    • {j.relative_label}  (pdfs={len(inv.pdfs)} audio={len(inv.audio)})")
+        n_video = sum(1 for p in inv.audio if p.suffix.lower() in VIDEO_EXTS)
+        audio_note = f"audio={len(inv.audio)}"
+        if n_video:
+            audio_note += f" ({n_video} mp4/webm — Demo 4 video chunks)"
+        print(f"    • {j.relative_label}  (pdfs={len(inv.pdfs)} {audio_note})")
     if len(all_inventories) > len(selected):
         print(
             f"  Skipped: {len(all_inventories) - len(selected)} "
