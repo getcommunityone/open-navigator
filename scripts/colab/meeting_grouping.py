@@ -704,7 +704,11 @@ def doc_type_for_path(path: Path, raw_root: Path) -> str:
 
 
 def group_paths_for_organization(
-    paths: Sequence[Path], raw_root: Path
+    paths: Sequence[Path],
+    raw_root: Path,
+    *,
+    client: Any = None,
+    model: Optional[str] = None,
 ) -> List[MeetingInstanceGroup]:
     """Group loose files (post–date-scope inventory) into meeting instances."""
     buckets: Dict[str, MeetingInstanceGroup] = {}
@@ -828,9 +832,13 @@ def organize_paths_into_meeting_folders(
     paths: Sequence[Path],
     *,
     dry_run: bool = False,
+    client: Any = None,
+    model: Optional[str] = None,
 ) -> List[Tuple[Path, Path]]:
     """Organize flat inventory files into ``meetings/{YYYY_MM_DD}/{slug}/…``."""
-    groups = group_paths_for_organization(paths, raw_root)
+    groups = group_paths_for_organization(
+        paths, raw_root, client=client, model=model
+    )
     return _move_into_meeting_groups(raw_root, groups, dry_run=dry_run)
 
 
@@ -856,13 +864,17 @@ def organize_inventory_into_meeting_folders(
     inventories: Sequence[Any],
     *,
     dry_run: bool = False,
+    client: Any = None,
+    model: Optional[str] = None,
 ) -> List[Tuple[Path, Path]]:
     """Organize all inventoried PDFs/audio; refresh inventory paths in place."""
     paths: List[Path] = []
     for inv in inventories:
         paths.extend(inv.pdfs)
         paths.extend(inv.audio)
-    moves = organize_paths_into_meeting_folders(raw_root, paths, dry_run=dry_run)
+    moves = organize_paths_into_meeting_folders(
+        raw_root, paths, dry_run=dry_run, client=client, model=model
+    )
     if not dry_run:
         apply_path_moves_to_inventories(inventories, moves)
     return moves
