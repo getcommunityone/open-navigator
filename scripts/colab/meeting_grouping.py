@@ -68,16 +68,23 @@ def slugify_meeting_label(text: str, *, max_len: int = 48) -> str:
 
 
 def infer_meeting_date_from_path(path: Path) -> Optional[str]:
-    """Best-effort ``YYYY-MM-DD`` from filename stem (shared naming heuristics)."""
+    """Best-effort ``YYYY-MM-DD`` from filename (``2026-04-06_…``, ``20260406``, etc.)."""
+    stem = path.stem
+    iso = re.match(r"^(20\d{2})-(\d{2})-(\d{2})(?:\b|_)", stem)
+    if iso:
+        return f"{iso.group(1)}-{iso.group(2)}-{iso.group(3)}"
+    m = re.search(r"(20\d{2})[-_](\d{2})[-_](\d{2})", stem)
+    if m:
+        return f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
+    compact = re.search(r"(20\d{2})(\d{2})(\d{2})", stem.replace("_", "").replace("-", ""))
+    if compact:
+        return f"{compact.group(1)}-{compact.group(2)}-{compact.group(3)}"
     try:
         from scripts.discovery.meeting_document_naming import pick_meeting_date
 
-        d, _ = pick_meeting_date(url="", anchor=path.stem.replace("_", " "))
+        d, _ = pick_meeting_date(url="", anchor=stem.replace("_", " "))
         return d.isoformat() if d else None
     except Exception:
-        m = re.search(r"(20\d{2})[-_]?(\d{2})[-_]?(\d{2})", path.stem)
-        if m:
-            return f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
         return None
 
 
@@ -181,7 +188,17 @@ def meeting_instance_key(
 ) -> Tuple[str, str, str, str]:
     path = Path(rel_path)
     jur = jurisdiction_prefix_from_relative(rel_path)
-    date_s = (meeting_date or "").strip() or infer_meeting_date_from_path(path) or "undated"
+    date_s = (meeting_date or "").strip() or infer_meeting_date_from_path(path) or ""
+    date_s = date_s if re.fullmatch(r"\d{4}-\d{2}-\d{2}", date_s) else ""
+    if not date_s:
+        try:
+            from meeting_date_scope import normalize_meeting_date, parse_yyyymmdd_from_blob
+
+            date_s = normalize_meeting_date(parse_yyyymmdd_from_blob(path.name)) or ""
+        except ImportError:
+            pass
+    if not date_s:
+        date_s = "undated"
     title = (meeting_title or "").strip() or infer_instance_slug_from_path(path, doc_type).replace("-", " ").title()
     slug = (instance_slug or "").strip() or slugify_meeting_label(title)
     if slug in ("meeting", "undated") or len(slug) < 3:
@@ -631,6 +648,23 @@ def group_proceed_verdicts(
     return groups
 
 
+def _path_already_in_session_folder(rel: Path) -> bool:
+    """True when file is already under ``meetings/{date}/{slug}/…`` (not ``undated_meeting``)."""
+    if MEETINGS_DIRNAME not in rel.parts:
+        return False
+    midx = rel.parts.index(MEETINGS_DIRNAME)
+    rest = rel.parts[midx + 1 :]
+    if not rest:
+        return False
+    if rest[0].startswith("undated"):
+        return False
+    if _MEETING_DATE_DIR_RE.match(rest[0]) and len(rest) >= 3:
+        return True
+    if _MEETING_FOLDER_RE.match(rest[0]) and len(rest) >= 2:
+        return True
+    return False
+
+
 def doc_type_for_path(path: Path, raw_root: Path) -> str:
     """Map a filesystem path to Gatekeeper-style document types for subfolders."""
     try:
@@ -681,11 +715,8 @@ def group_paths_for_organization(
             rel = path.resolve().relative_to(raw_root)
         except ValueError:
             continue
-        if MEETINGS_DIRNAME in rel.parts:
-            midx = rel.parts.index(MEETINGS_DIRNAME)
-            # Already organized under meetings/{date}/{slug}/…
-            if len(rel.parts) > midx + 2:
-                continue
+        if _path_already_in_session_folder(rel):
+            continue
         doc_type = doc_type_for_path(path, raw_root)
         inferred_date: Optional[str] = None
         try:

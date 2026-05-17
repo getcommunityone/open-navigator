@@ -58,7 +58,12 @@ def normalize_meeting_date(value: Optional[str]) -> Optional[str]:
 
 
 def parse_yyyymmdd_from_blob(blob: str) -> Optional[str]:
-    m = _YYYYMMDD.search((blob or "").replace("_", ""))
+    """``YYYY-MM-DD`` from ``2026-04-06_…``, ``20260406``, or similar."""
+    text = blob or ""
+    iso = re.search(r"(20\d{2})-(\d{2})-(\d{2})", text)
+    if iso:
+        return f"{iso.group(1)}-{iso.group(2)}-{iso.group(3)}"
+    m = _YYYYMMDD.search(text.replace("_", "").replace("-", ""))
     if not m:
         return None
     return f"{m.group(1)}-{m.group(2)}-{m.group(3)}"

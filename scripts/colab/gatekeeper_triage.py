@@ -1428,11 +1428,34 @@ def move_to_excluded(
 # ─────────────────────────────────────────────────────────────
 
 
+def _path_under_jurisdiction(
+    path: Path,
+    *,
+    jurisdiction_root: Optional[Path],
+) -> bool:
+    """True when ``jurisdiction_root`` is unset or ``path`` lies under it."""
+    if jurisdiction_root is None:
+        return True
+    try:
+        path.resolve().relative_to(jurisdiction_root.resolve())
+        return True
+    except ValueError:
+        return False
+
+
 def count_triageable_files(
-    raw_root: Path, *, kinds: Iterable[str] = ("pdf", "audio")
+    raw_root: Path,
+    *,
+    kinds: Iterable[str] = ("pdf", "audio"),
+    jurisdiction_root: Optional[Path] = None,
 ) -> int:
     """Count PDF/audio files Gatekeeper would walk (for scope banners before a long run)."""
-    return sum(1 for _ in iter_triageable_files(raw_root, kinds=kinds))
+    return sum(
+        1
+        for _ in iter_triageable_files(
+            raw_root, kinds=kinds, jurisdiction_root=jurisdiction_root
+        )
+    )
 
 
 def _triage_recency_key(path: Path) -> tuple[float, int, str]:
@@ -1469,6 +1492,7 @@ def select_triageable_files(
     kinds: Iterable[str] = ("pdf", "audio"),
     max_files: Optional[int] = None,
     max_meeting_dates: Optional[int] = None,
+    jurisdiction_root: Optional[Path] = None,
 ) -> tuple[list[Path], int, Optional[dict], Optional[dict]]:
     """
     Choose Gatekeeper inputs.
@@ -1502,7 +1526,10 @@ def select_triageable_files(
 
     paths = list(
         iter_triageable_files(
-            raw_root, kinds=kinds, allowed_year_folders=allowed_year_folders
+            raw_root,
+            kinds=kinds,
+            allowed_year_folders=allowed_year_folders,
+            jurisdiction_root=jurisdiction_root,
         )
     )
     total = len(paths)
@@ -1534,6 +1561,7 @@ def iter_triageable_files(
     *,
     kinds: Iterable[str] = ("pdf", "audio"),
     allowed_year_folders: Optional[dict] = None,
+    jurisdiction_root: Optional[Path] = None,
 ) -> Iterable[Path]:
     """
     Yield candidate files via :func:`os.walk`. Skips any directory under the
@@ -1572,6 +1600,8 @@ def iter_triageable_files(
 
         for fn in sorted(filenames):
             path = Path(dirpath) / fn
+            if not _path_under_jurisdiction(path, jurisdiction_root=jurisdiction_root):
+                continue
             ext = path.suffix.lower()
             if ext in PDF_EXTS and "pdf" in kinds_set:
                 yield path
@@ -1601,8 +1631,13 @@ def run_triage(
     log_path: Optional[Path | str] = None,
     flush_log_each_file: bool = True,
     organize_meetings: bool = False,
+    jurisdiction_root: Optional[Path] = None,
 ) -> TriageReport:
-    """Walk ``raw_root``, triage every PDF / audio; optionally move rejects (see env)."""
+    """Walk ``raw_root``, triage every PDF / audio; optionally move rejects (see env).
+
+    When ``jurisdiction_root`` is set, only files under that directory are triaged
+    (paths still use ``raw_root`` for geography / excluded_inputs layout).
+    """
     if not raw_root.is_dir():
         raise FileNotFoundError(f"Raw inputs root not found: {raw_root}")
 
@@ -1698,8 +1733,17 @@ def run_triage(
     flush_gatekeeper_logs(fsync=_fsync_logs)
 
     triage_paths, total_candidates, allowed_dates, allowed_years = select_triageable_files(
-        raw_root, kinds=kinds, max_files=max_files
+        raw_root,
+        kinds=kinds,
+        max_files=max_files,
+        jurisdiction_root=jurisdiction_root,
     )
+    if jurisdiction_root is not None:
+        try:
+            jur_label = jurisdiction_root.resolve().relative_to(raw_root.resolve()).as_posix()
+        except ValueError:
+            jur_label = str(jurisdiction_root)
+        logger.info("Gatekeeper jurisdiction scope | %s", jur_label)
     if allowed_years:
         logger.info(
             "Gatekeeper year scope | walked %d pdf/audio path(s) under newest 20xx/ only",

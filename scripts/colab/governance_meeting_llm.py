@@ -278,6 +278,17 @@ def walk_raw_inputs(raw_root: Path) -> Iterator[MeetingInventory]:
                 yield inv
 
 
+def inventory_for_jurisdiction(
+    raw_root: Path, jurisdiction_root: Path
+) -> Optional[MeetingInventory]:
+    """Return a fresh :class:`MeetingInventory` for one jurisdiction directory."""
+    target = jurisdiction_root.resolve()
+    for inv in walk_raw_inputs(raw_root):
+        if inv.jurisdiction.root.resolve() == target:
+            return inv
+    return None
+
+
 def mirror_output_path(
     *,
     input_path: Path,
