@@ -61,18 +61,18 @@ def model_supports_thinking(model: str) -> bool:
     """Whether the model accepts ``thinking_config`` (``thinking_budget`` /
     ``include_thoughts``).
 
-    The ``gemma-4-26b-a4b-it`` alias has been observed to return ``400
-    INVALID_ARGUMENT: Thinking budget is not supported for this model``,
-    so by default we skip ``thinking_config`` for any model whose id starts
-    with ``gemma``. Gemini 2.5+ accepts it.
-
-    Override with env ``GOVERNANCE_FORCE_THINKING=1`` if you've picked a Gemma 4
-    variant (e.g. 31B Dense) that supports thinking via the SDK config.
+    The ``gemma-4-26b-a4b-it`` MoE alias often returns ``400`` for thinking.
+    ``gemma-4-31b-it`` (dense 31B) is enabled when its id contains ``31b``.
+    Other ``gemma*`` ids are skipped unless ``GOVERNANCE_FORCE_THINKING=1``.
+    Non-Gemma models (Gemini 2.5+) accept it.
     """
     import os
     if os.environ.get("GOVERNANCE_FORCE_THINKING", "0") == "1":
         return True
-    return not (model or "").lower().startswith("gemma")
+    mid = (model or "").lower()
+    if mid.startswith("gemma"):
+        return "31b" in mid
+    return True
 
 
 # ─────────────────────────────────────────────────────────────
@@ -420,6 +420,93 @@ def find_existing_audio_chunks(scratch_dir: Path) -> List[Path]:
     if not scratch_dir.is_dir():
         return []
     return sorted(scratch_dir.glob("*_chunk_*.mp3"))
+
+
+def demo4_use_video_chunks() -> bool:
+    """When true, ``.mp4`` / video containers are segmented and sent as ``video/mp4``."""
+    return os.environ.get("GOVERNANCE_DEMO4_VIDEO_CHUNKS", "1").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+        "audio",
+    )
+
+
+def find_existing_demo4_chunks(scratch_dir: Path, *, video: bool) -> List[Path]:
+    """Reuse ffmpeg segment files (``.mp4`` or ``.mp3``) under a scratch dir."""
+    if not scratch_dir.is_dir():
+        return []
+    ext = "mp4" if video else "mp3"
+    return sorted(scratch_dir.glob(f"*_chunk_*.{ext}"))
+
+
+def _chunk_video_ffmpeg(
+    video_path: Path,
+    *,
+    out_dir: Path,
+    chunk_minutes: int = 15,
+) -> List[Path]:
+    """Split a video container into ``.mp4`` segments (video+audio) for multimodal API."""
+    if not _ffmpeg_available():
+        raise RuntimeError(
+            "ffmpeg not found on PATH. On Colab it ships by default; locally run "
+            "`apt-get install -y ffmpeg` or `brew install ffmpeg`."
+        )
+    out_dir.mkdir(parents=True, exist_ok=True)
+    video_path = video_path.resolve()
+    stem = video_path.stem
+    pattern = out_dir / f"{stem}_chunk_%03d.mp4"
+    seconds = max(60, int(chunk_minutes * 60))
+    base_cmd = [
+        "ffmpeg",
+        "-y",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-i",
+        str(video_path),
+        "-f",
+        "segment",
+        "-segment_time",
+        str(seconds),
+        "-reset_timestamps",
+        "1",
+    ]
+    for extra in (["-c", "copy"], ["-c:v", "libx264", "-preset", "veryfast", "-c:a", "aac"]):
+        cmd = base_cmd + extra + [str(pattern)]
+        try:
+            subprocess.run(cmd, check=True, timeout=7200)
+            chunks = sorted(out_dir.glob(f"{stem}_chunk_*.mp4"))
+            if chunks:
+                return chunks
+        except subprocess.CalledProcessError:
+            continue
+    raise RuntimeError(f"ffmpeg could not segment video: {video_path.name}")
+
+
+def chunk_meeting_media_for_demo4(
+    source_path: Path,
+    *,
+    out_dir: Path,
+    chunk_minutes: int = 15,
+) -> List[Tuple[Path, str]]:
+    """
+    Return ``(path, mime_type)`` segments for Demo 4.
+
+    Video containers (``.mp4``, …) default to ``video/mp4`` chunks when
+    :func:`demo4_use_video_chunks` is true; otherwise audio is extracted and
+    chunked as MP3 (legacy path).
+    """
+    source_path = source_path.resolve()
+    if source_path.suffix.lower() in VIDEO_EXTS and demo4_use_video_chunks():
+        paths = _chunk_video_ffmpeg(
+            source_path, out_dir=out_dir, chunk_minutes=chunk_minutes
+        )
+        return [(p, "video/mp4") for p in paths]
+    paths = chunk_audio_ffmpeg(
+        source_path, out_dir=out_dir, chunk_minutes=chunk_minutes, fmt="mp3"
+    )
+    return [(p, mime_for(p)) for p in paths]
 
 
 # ─────────────────────────────────────────────────────────────
@@ -776,9 +863,9 @@ def call_google_genai_multimodal(
         # Run the prompt as a normal generation; thoughts will come back empty.
         print(
             f"   ℹ️  Skipping thinking_config: {model!r} does not support it. "
-            "Demo 3's `.thoughts.md` may be empty on this Gemma id — try "
-            "`GOVERNANCE_GENAI_MODEL=gemma-4-31b-it` or `GOVERNANCE_FORCE_THINKING=1` "
-            "if your AI Studio project exposes thinking on a Gemma 4 variant."
+            "Demo 3's `.thoughts.md` may be empty — set "
+            "`GOVERNANCE_THINKING_MODEL=gemma-4-31b-it` (default) or "
+            "`GOVERNANCE_FORCE_THINKING=1` for other Gemma ids."
         )
 
     response = client.models.generate_content(
@@ -1500,5 +1587,8 @@ __all__ = [
     "demo4_drift_output_complete",
     "load_demo4_chunk_analyses",
     "find_existing_audio_chunks",
+    "demo4_use_video_chunks",
+    "find_existing_demo4_chunks",
+    "chunk_meeting_media_for_demo4",
     "OpenAICompatibleConfig", "call_openai_compatible_chat",
 ]

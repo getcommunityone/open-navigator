@@ -1,6 +1,6 @@
 ---
 displayed_sidebar: developersSidebar
-description: Reference patterns and a checklist for strong “Google for Good”–style hackathon demo videos (CommunityOne / Open Navigator), including flagship pitch hooks (speed-trap revenue, jurisdiction website accessibility), plus inspirational civic data talks and case studies.
+description: Reference patterns and a checklist for strong “Google for Good”–style hackathon demo videos (CommunityOne / Open Navigator), including flagship pitch hooks (speed-trap revenue, 100k-meeting safety scrub, jurisdiction website accessibility), plus inspirational civic data talks and case studies.
 ---
 
 # Hackathon video submission ideas (reference library)
@@ -36,9 +36,41 @@ Additional context from the same project:
 2. **Meeting context:** Use **county commission / city council** agendas and minutes (e.g. Tuscaloosa County `county_01125`) so Gemma can tie **enforcement, courts, or revenue** discussion to the budget line—not just a static percentage.
 3. **Reveal beat:** Map or one chart—**% of general fund from fines** for *this* place vs. the national “>10% / >20%” bands above.
 
-**Demo path:** Colab `02_run_meeting_llm.ipynb` with `SCOPE = "fast"` (defaults to `AL/county/county_01125`) → Gatekeeper → budget PDF OCR / drift on any audio → flash **source + year** on screen.
+**Demo path:** Colab `02_run_meeting_llm.ipynb` with `SCOPE = "fast"` (defaults to `AL/county/county_01125`, **2 meeting dates**, up to **6 PDFs**/jurisdiction) → Gatekeeper → budget PDF OCR / drift on any audio → flash **source + year** on screen.
 
 **Caveats for judges:** “Speed trap” is colloquial; audits use **fines and forfeitures** (sometimes bundled with fees). Always cite **fiscal year** and **fund** (general vs. special). Extreme towns are outliers—lead with *your* jurisdiction’s number, then national context.
+
+---
+
+## Killer idea: Scrub 100k public meetings for hate speech and safety concerns
+
+**Pitch hook:** *What if we ran every scraped city council and county commission record—100,000 meetings—through the same safety layer we use on chatbots, and published a public “trust index” by jurisdiction?*
+
+### Why this lands
+
+- **Scale with a number:** “100k meetings” is concrete; judges remember it.
+- **“For good” fit:** Hate speech, harassment, and dangerous content in **official** minutes/audio is a civic-trust problem—not just social media moderation.
+- **Pairs with Open Navigator:** You already scrape agendas/minutes/video, run Gemma policy deconstruction (Demo 3), and **ShieldGemma-style review** (`05_safety_review/`, on by default at end of §6).
+
+### What the pipeline does today (demo scale)
+
+| Step | At hackathon demo | At national scale |
+| --- | --- | --- |
+| Ingest | Tuscaloosa County `county_01125`, **2 recent meeting dates**, **6 PDFs** (`SCOPE=fast`) | ~22k jurisdictions × N meetings/year |
+| Understand | Gemma 4 OCR, token budget, policy JSON + thinking trace | Batch on AI Studio / Colab workers |
+| Safety pass | `shieldgemma-9b` on LLM outputs → `*.shield.json` + `_summary.json` | Same pattern, one review row per artifact |
+| Publish | Drive folder + optional bronze tables | Map: flagged rate by county, trend by year |
+
+### How to say it on camera (15s + reveal)
+
+- **Problem:** “Residents assume official meeting records are neutral—but nobody systematically checks whether **model-generated summaries** or **raw public comment** in minutes cross safety lines at scale.”
+- **Reveal:** Show `_summary.json` with `reviewed_count > 0`, one **flagged** category (or a clean bill of health), then zoom out to a slide: “Pilot: 2 meetings, 6 PDFs → path to **100k meetings** with the same Shield + Gemma stack.”
+
+### Architecture one-liner
+
+**Scrape → Gatekeeper → Gemma analysis → ShieldGemma review → aggregate trust scores** — same Colab notebook, wider `SCOPE` and warehouse export.
+
+**Caveats:** Automated “hate speech” labels are **screening**, not legal findings; cite Shield categories, human appeal, and that government **source** text is public record being **reviewed for downstream AI safety**, not censored at source.
 
 ---
 
@@ -291,8 +323,9 @@ Short talks, product stories, and case studies that show how **data + maps + hum
 
 ## Applying this to Open Navigator / CommunityOne
 
-- **One jurisdiction, one story:** Default Gemma run: **Tuscaloosa County, AL** (`county_01125`) and **“what share of revenue is fines?”**—or a parallel video using **`run_accessibility_scan.sh --state AL`** to ask **“can residents actually use that county’s website?”**
-- **Combine tracks (advanced):** Fines % from audits + accessibility score for the same `jurisdiction_id` → “revenue from tickets, barriers to paying online.”
+- **One jurisdiction, one story:** Default Gemma run: **Tuscaloosa County, AL** (`county_01125`) with **`SCOPE=fast`** (**2 meetings**, **6 PDFs**)—fines %, Feb+May meetings, and Shield review in one pass.
+- **Killer scale story:** Pilot on county_01125 → slide to **100k meetings** safety scrub (Shield + Gemma) as the national vision.
+- **Combine tracks (advanced):** Fines % + accessibility score + safety `_summary.json` for the same `jurisdiction_id`.
 - **Other goals still work:** Officials lookup, nonprofit + government spend context, meeting drift—but keep **one** primary hook per video.
 - **Source credibility:** Flash **audit year**, **fund name**, and **Governing / state comptroller** on screen for a second—reinforces “real data,” not a mockup.
 - **End on a CTA:** What should a viewer **do tomorrow**—open their county’s folder, run the Colab notebook, or look up their town’s fine-revenue %?

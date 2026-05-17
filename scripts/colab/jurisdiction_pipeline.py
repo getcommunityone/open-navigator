@@ -99,9 +99,11 @@ class JurisdictionRunContext:
     api_key: str
     gatekeeper_model: str
     demo_ctx: DemoContext
+    shield_model: str = ""
     demo_date_cap: Optional[int] = None
     gatekeeper_max_files: Optional[int] = None
     organize_meetings: bool = True
+    run_safety_review: bool = True
 
 
 def scope_inventory(
@@ -392,6 +394,23 @@ def run_governance_pipeline(
         f"\n{'=' * 72}\nAll jurisdictions complete ({global_total}).\n{'=' * 72}",
         flush=True,
     )
+
+    if ctx.run_safety_review:
+        try:
+            from colab_safety_review import run_safety_review, safety_review_enabled
+        except ImportError:
+            safety_review_enabled = lambda: False  # type: ignore[assignment,misc]
+            run_safety_review = None  # type: ignore[assignment,misc]
+        if safety_review_enabled() and run_safety_review and ctx.shield_model:
+            safety_root = ctx.pipe_root / "03_processed_outputs" / "05_safety_review"
+            run_safety_review(
+                api_key=ctx.api_key,
+                shield_model=ctx.shield_model,
+                gemma_json_root=ctx.demo_ctx.gemma_json_root,
+                safety_root=safety_root,
+                summaries_root=ctx.demo_ctx.summaries_root,
+            )
+
     return all_reports
 
 

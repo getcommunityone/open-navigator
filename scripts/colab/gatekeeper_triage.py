@@ -733,6 +733,12 @@ _GEMMA_HEAVY_FALLBACKS = (
     "gemma-3-27b-it",
     "gemma-3-12b-it",
 )
+# Demo 3 policy deconstruction + thinking trace (prefer 31B dense).
+_GEMMA_THINKING_FALLBACKS = (
+    "gemma-4-31b-it",
+    "gemma-4-26b-a4b-it",
+    "gemma-3-27b-it",
+)
 
 
 def _model_short_id(m: Any) -> str:

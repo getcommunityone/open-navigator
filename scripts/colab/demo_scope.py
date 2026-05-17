@@ -37,11 +37,11 @@ PRESETS: Dict[str, DemoScopePreset] = {
     "fast": DemoScopePreset(
         key="fast",
         label="Fast (1 state, 1 jurisdiction — Tuscaloosa County)",
-        eta="~15–25 min",
+        eta="~25–40 min",
         max_states=1,
         max_jurisdictions=1,
-        meeting_dates=1,
-        max_pdfs_per_jur=1,
+        meeting_dates=2,
+        max_pdfs_per_jur=6,
         max_pages_per_pdf=4,
         max_audio_per_jur=1,
         max_audio_chunks=2,
@@ -128,6 +128,8 @@ def apply_preset_to_environ(preset: DemoScopePreset) -> None:
         os.environ["GOVERNANCE_DEMO_JURISDICTION_SLUG"] = preset.preferred_jurisdiction_slug
     else:
         os.environ.pop("GOVERNANCE_DEMO_JURISDICTION_SLUG", None)
+    if not os.environ.get("GOVERNANCE_SAFETY_REVIEW", "").strip():
+        os.environ["GOVERNANCE_SAFETY_REVIEW"] = "1"
 
 
 def apply_scope(scope: str) -> DemoScopePreset:

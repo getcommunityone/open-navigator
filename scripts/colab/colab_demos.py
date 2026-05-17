@@ -15,15 +15,17 @@ from typing import Any, Dict, List, Optional
 from governance_meeting_llm import (
     TOKEN_BUDGET_HIGH,
     TOKEN_BUDGET_LOW,
+    VIDEO_EXTS,
     MeetingInventory,
     call_google_genai_multimodal,
-    chunk_audio_ffmpeg,
+    chunk_meeting_media_for_demo4,
     demo2_page_output_complete,
     demo2_pdf_outputs_complete,
     demo3_thinking_json_complete,
     demo4_drift_output_complete,
     extract_pdf_digital_text,
-    find_existing_audio_chunks,
+    demo4_use_video_chunks,
+    find_existing_demo4_chunks,
     force_reprocess_outputs,
     mime_for,
     mirror_output_path,
@@ -46,6 +48,7 @@ class DemoContext:
     summaries_root: Path
     scratch_audio_root: Path
     policy_prompt: str
+    thinking_model: str = ""
     max_pdfs_per_jur: int = 3
     max_pages_per_pdf: int = 8
     max_audio_per_jur: int = 1
@@ -323,7 +326,8 @@ def run_demo3(inv: MeetingInventory, ctx: DemoContext) -> List[Dict[str, Any]]:
     report: List[Dict[str, Any]] = []
     if pdf is None:
         return report
-    print(f"\n— Demo 3 | {j.relative_label}: {pdf.name}")
+    thinking_model = (ctx.thinking_model or ctx.genai_model).strip()
+    print(f"\n— Demo 3 | {j.relative_label}: {pdf.name}  (model: {thinking_model})")
     json_out = mirror_output_path(
         input_path=pdf,
         raw_root=ctx.raw_root,
@@ -354,7 +358,7 @@ def run_demo3(inv: MeetingInventory, ctx: DemoContext) -> List[Dict[str, Any]]:
     try:
         result = call_google_genai_multimodal(
             api_key=ctx.api_key,
-            model=ctx.genai_model,
+            model=thinking_model,
             system_instruction=DEMO3_SYSTEM,
             user_text=user_text,
             media=[(pdf, "application/pdf")],
@@ -437,10 +441,12 @@ def run_demo4(
     report: List[Dict[str, Any]] = []
     if not audios:
         return report
-    print(f"\n— Demo 4 | {j.relative_label}: {len(audios)} audio file(s)")
+    print(f"\n— Demo 4 | {j.relative_label}: {len(audios)} media file(s)")
     force = force_reprocess_outputs()
     for audio in audios:
-        print(f"  • {audio.name}")
+        use_video = audio.suffix.lower() in VIDEO_EXTS and demo4_use_video_chunks()
+        kind = "video/mp4 chunks" if use_video else "audio chunks"
+        print(f"  • {audio.name}  ({kind})")
         per_audio_dir = mirror_output_path(
             input_path=audio,
             raw_root=ctx.raw_root,
@@ -452,21 +458,23 @@ def run_demo4(
         scratch = ctx.scratch_audio_root / rel.with_suffix("")
         scratch.mkdir(parents=True, exist_ok=True)
         drift_out = per_audio_dir / "policy_drift.json"
-        existing_chunks = find_existing_audio_chunks(scratch)
+        existing_chunks = find_existing_demo4_chunks(scratch, video=use_video)
         if existing_chunks and not force:
-            chunks = existing_chunks
-            print(f"    reuse {len(chunks)} ffmpeg chunk(s) from scratch")
+            chunk_media = [(p, "video/mp4" if use_video else mime_for(p)) for p in existing_chunks]
+            print(f"    reuse {len(chunk_media)} ffmpeg chunk(s) from scratch")
         else:
             try:
-                chunks = chunk_audio_ffmpeg(audio, out_dir=scratch, chunk_minutes=15, fmt="mp3")
+                chunk_media = chunk_meeting_media_for_demo4(
+                    audio, out_dir=scratch, chunk_minutes=15
+                )
             except Exception as e:
                 print(f"    ! ffmpeg chunking failed: {e}")
                 continue
-        chunks = chunks[: ctx.max_audio_chunks]
-        print(f"    {len(chunks)} chunk(s) (cap {ctx.max_audio_chunks})")
+        chunk_media = chunk_media[: ctx.max_audio_chunks]
+        print(f"    {len(chunk_media)} chunk(s) (cap {ctx.max_audio_chunks})")
         chunk_jsons: List[Dict[str, Any]] = []
         chunks_regenerated = False
-        for idx, chunk_path in enumerate(chunks):
+        for idx, (chunk_path, chunk_mime) in enumerate(chunk_media):
             chunk_out = per_audio_dir / f"chunk_{idx:03d}.json"
             if not force and policy_chunk_output_complete(chunk_out):
                 data = read_json_file(chunk_out) or {}
@@ -514,7 +522,7 @@ def run_demo4(
                     model=ctx.genai_model,
                     system_instruction=DEMO4_SYSTEM,
                     user_text=user_text,
-                    media=[(chunk_path, mime_for(chunk_path))],
+                    media=[(chunk_path, chunk_mime)],
                     temperature=0.1,
                     max_output_tokens=8192,
                 )
