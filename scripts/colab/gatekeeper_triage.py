@@ -651,15 +651,9 @@ _GEMMA_TRIAGE_FALLBACKS = (
     "gemma-3-4b-it",
     "gemma-3-12b-it",
 )
-# Gatekeeper on AI Studio: do not fall back to 26B/31B MoE (slow for yes/no triage).
-_GEMMA_GATEKEEPER_AI_FALLBACKS = (
-    "gemma-3n-e2b-it",
-    "gemma-4-e2b-it",
-    "gemma-4-e4b-it",
-    "gemma-3n-e4b-it",
-    "gemma-3-4b-it",
-    "gemma-3-12b-it",
-)
+# Gatekeeper on AI Studio: prefer small/fast ids; include 26B/31B when that is all
+# the API key lists (common on Gemma-4-only AI Studio projects).
+_GEMMA_GATEKEEPER_AI_FALLBACKS = _GEMMA_TRIAGE_FALLBACKS
 _GEMMA_HEAVY_FALLBACKS = (
     "gemma-4-26b-a4b-it",
     "gemma-4-31b-it",
@@ -822,6 +816,23 @@ def resolve_model_id(
             return candidate
 
     gemma_ids = sorted(i for i in available if "gemma" in i.lower())
+    # Last resort: any listed Gemma id matching our preference order (handles alias drift).
+    preference = list(fallbacks) + [g for g in gemma_ids if g not in fallbacks]
+    for candidate in preference:
+        if candidate in available_set:
+            logger.info(
+                "%s: %r not on this API key — using %r (first listed Gemma id).",
+                role, requested, candidate,
+            )
+            return candidate
+    for candidate in gemma_ids:
+        if candidate in available_set:
+            logger.info(
+                "%s: using %r (only Gemma id on this key).",
+                role, candidate,
+            )
+            return candidate
+
     raise RuntimeError(
         f"{role} id {requested!r} is not available on this API project, and none "
         f"of the fallbacks {list(fallbacks)} are listed either. "
