@@ -168,9 +168,28 @@ def path_matches_year_folder_scope(
     yfolder = calendar_year_folder_in_path(path, raw_root)
     if yfolder:
         return yfolder == need
+    # Organized layout: ``meetings/2026_05_06/…`` (not a bare ``2026/`` segment).
+    folder_date = _date_from_meetings_folder(path, raw_root)
+    if folder_date:
+        return folder_date[:4] == need
     meeting_date = infer_meeting_date_for_file(path, raw_root)
     if meeting_date:
         return meeting_date[:4] == need
+    # Agenda/minutes under ``meetings/`` (incl. ``undated_meeting``) still belong to
+    # the active scrape year — do not drop everything after organize moves files.
+    try:
+        rel = path.resolve().relative_to(raw_root.resolve())
+        if "meetings" in rel.parts and file_media_role(path, raw_root) in (
+            "pdf",
+            "audio",
+            "collateral",
+        ):
+            return True
+    except ValueError:
+        pass
+    stem = path.stem.lower()
+    if yfolder is None and ("agenda" in stem or "minutes" in stem):
+        return True
     return False
 
 
@@ -275,6 +294,7 @@ def _manifest_indexes(jurisdiction_root: str) -> Tuple[Dict[str, ManifestRow], D
         return {}, {}
     by_path: Dict[str, ManifestRow] = {}
     by_hash: Dict[str, ManifestRow] = {}
+    jur_root_path = Path(jurisdiction_root)
     for key in ("pdfs", "recordings", "videos", "audio"):
         for entry in data.get(key) or []:
             if not isinstance(entry, dict):
@@ -287,9 +307,16 @@ def _manifest_indexes(jurisdiction_root: str) -> Tuple[Dict[str, ManifestRow], D
                 anchor_text=str(entry.get("anchor_text") or ""),
                 doc_type=str(entry.get("doc_type") or "unknown"),
             )
-            resolved = str(Path(p).resolve())
+            p_path = Path(p)
+            resolved = str(p_path.resolve())
             by_path[resolved] = row
-            hm = _HASH_TOKEN_RE.search(Path(p).stem)
+            try:
+                rel_under_jur = p_path.resolve().relative_to(jur_root_path.resolve())
+                by_path[str(jur_root_path / rel_under_jur)] = row
+                by_path[rel_under_jur.as_posix()] = row
+            except ValueError:
+                pass
+            hm = _HASH_TOKEN_RE.search(p_path.stem)
             if hm:
                 by_hash[hm.group(1).lower()] = row
     return by_path, by_hash
@@ -300,6 +327,13 @@ def _lookup_manifest_row(path: Path, jur_root: Path) -> Optional[ManifestRow]:
     resolved = str(path.resolve())
     if resolved in by_path:
         return by_path[resolved]
+    try:
+        rel = path.resolve().relative_to(jur_root.resolve())
+        for key in (str(jur_root / rel), rel.as_posix(), str(rel)):
+            if key in by_path:
+                return by_path[key]
+    except ValueError:
+        pass
     hm = _HASH_TOKEN_RE.search(path.stem)
     if hm:
         return by_hash.get(hm.group(1).lower())
@@ -463,11 +497,20 @@ def filter_paths_by_recent_meeting_dates(
         allowed_years = discover_most_recent_year_folder_per_jurisdiction(raw_root)
         if allowed_years:
             before_year = len(candidates)
-            candidates = [
+            year_filtered = [
                 p
                 for p in candidates
                 if path_matches_year_folder_scope(p, raw_root, allowed_years)
             ]
+            if before_year > 0 and len(year_filtered) == 0:
+                logger.warning(
+                    "Year folder scope removed all %d media file(s) "
+                    "(common when PDFs live only under meetings/ without inferable dates). "
+                    "Keeping all media candidates for Gatekeeper.",
+                    before_year,
+                )
+            else:
+                candidates = year_filtered
             logger.info(
                 "Year folder scope | %d → %d media file(s) | newest calendar folder per jurisdiction",
                 before_year,

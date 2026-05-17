@@ -259,6 +259,11 @@ def resolve_gatekeeper_render_opts(
     return resolve_gatekeeper_page_count(pdf_path, pages), max(72, int(dpi))
 DEFAULT_CONFIDENCE_THRESHOLD = 0.6
 
+# Model JSON sometimes sets document_or_audio_type correctly but is_governance_meeting=false.
+_MEETING_DOC_TYPES = frozenset(
+    {"meeting_agenda", "meeting_minutes", "meeting_audio", "meeting_video"}
+)
+
 # Triage JSON schema (also enforced via response_schema where the SDK supports it).
 TRIAGE_JSON_FIELDS = {
     "is_governance_meeting": "boolean — true iff this is the audio/document of an official local government public meeting",
@@ -433,6 +438,7 @@ class TriageReport:
     excluded: List[TriageVerdict] = field(default_factory=list)
     errors: List[TriageVerdict] = field(default_factory=list)
     skipped: List[str] = field(default_factory=list)
+    selection_note: str = ""
 
     def add(self, v: TriageVerdict) -> None:
         if v.error:
@@ -446,6 +452,7 @@ class TriageReport:
         return {
             "raw_root": self.raw_root,
             "excluded_root": self.excluded_root,
+            "selection_note": self.selection_note,
             "counts": {
                 "proceed": len(self.proceed),
                 "excluded": len(self.excluded),
@@ -1062,6 +1069,8 @@ def _verdict_from_json_full(
         return False, "other", 0.0, "Model did not return parseable JSON.", None, None, None
     is_meeting = bool(payload.get("is_governance_meeting", False))
     doc_type = str(payload.get("document_or_audio_type", "other"))[:64].strip() or "other"
+    if doc_type in _MEETING_DOC_TYPES:
+        is_meeting = True
     try:
         confidence = float(payload.get("confidence_score", 0.0))
     except (TypeError, ValueError):
@@ -1867,9 +1876,13 @@ def run_triage(
             report.add(verdict)
             continue
 
-        # PROCEED rule: model says it's a meeting AND confidence ≥ threshold.
+        # PROCEED rule: governance meeting AND confidence ≥ threshold.
+        # ``document_or_audio_type`` in meeting_* counts even when the bool was omitted/wrong.
         verdict.proceed = (
-            verdict.is_governance_meeting
+            (
+                verdict.is_governance_meeting
+                or verdict.document_or_audio_type in _MEETING_DOC_TYPES
+            )
             and verdict.confidence_score >= confidence_threshold
         )
 
