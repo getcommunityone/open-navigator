@@ -175,6 +175,36 @@ def resolve_governance_pipeline_data_root() -> Path:
     return default_hackathon_pipeline_root_in_repo()
 
 
+def resolve_governance_raw_inputs_root(pipeline_root: Path | None = None) -> Path:
+    """
+    Folder walked by Gatekeeper / §5 inventory (``AL/county/county_…`` layout).
+
+    1. ``GOVERNANCE_RAW_INPUTS_ROOT`` if set
+    2. ``<pipeline_root>/01_raw_inputs`` when it exists
+    3. ``<repo>/data/cache/scraped_meetings`` only when ``GOVERNANCE_PIPELINE_DATA_ROOT`` is
+       **not** set and ``GOVERNANCE_USE_SCRAPED_CACHE_FALLBACK=1`` (opt-in; full cache is huge).
+    4. else ``<pipeline_root>/01_raw_inputs`` (caller may raise if missing)
+    """
+    explicit = (os.getenv("GOVERNANCE_RAW_INPUTS_ROOT") or "").strip()
+    if explicit:
+        return Path(explicit).expanduser()
+    root = Path(pipeline_root) if pipeline_root else resolve_governance_pipeline_data_root()
+    raw = root / "01_raw_inputs"
+    if raw.is_dir():
+        return raw
+    pipeline_explicit = (os.getenv("GOVERNANCE_PIPELINE_DATA_ROOT") or "").strip()
+    allow_cache = os.environ.get("GOVERNANCE_USE_SCRAPED_CACHE_FALLBACK", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+    if not pipeline_explicit and allow_cache:
+        cache = default_scraped_meetings_data_cache()
+        if cache.is_dir():
+            return cache
+    return raw
+
+
 @dataclass(frozen=True)
 class GovernancePipelinePaths:
     """Mirror ``scripts/colab/02_init_drive_layout.ipynb`` directory tree."""

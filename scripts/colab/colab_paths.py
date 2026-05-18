@@ -93,9 +93,11 @@ def setup_notebook_paths(mount_point: str = "/content/drive") -> NotebookLayoutP
         )
     if explicit:
         return NotebookLayoutPaths(False, repo, Path(explicit).expanduser().resolve())
-    return NotebookLayoutPaths(
-        False, repo, default_hackathon_pipeline_root_in_repo()
-    )
+    # Local/WSL: prefer mounted Google Drive (same folder as Colab) when present.
+    from scripts.utils.gdrive_paths import resolve_governance_pipeline_data_root
+
+    pipeline_root = resolve_governance_pipeline_data_root()
+    return NotebookLayoutPaths(False, repo, pipeline_root.resolve())
 
 
 def maybe_mount_google_drive(mount_point: str = "/content/drive") -> None:

@@ -173,6 +173,14 @@ def complete_section1_bootstrap(
     for entry in (str(repo_path), str(repo_path / "scripts" / "colab")):
         if entry not in sys.path:
             sys.path.insert(0, entry)
+    _dotenv = repo_path / ".env"
+    if _dotenv.is_file():
+        try:
+            from dotenv import load_dotenv
+
+            load_dotenv(_dotenv, override=False)
+        except ImportError:
+            pass
     _git_refresh(repo_path, run_git_update=run_git_update)
     _clear_stale_imports()
     _remove_ephemeral_colab_shell()
