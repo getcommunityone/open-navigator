@@ -75,6 +75,28 @@ These mirror Census gazetteer rows for a state and add Wikidata entity metadata 
 - Database URL: `NEON_DATABASE_URL_DEV` or `NEON_DATABASE_URL` (see `.env.example`).
 - Optional tuning: `WIKIDATA_CACHE_DIR`, `WIKIDATA_CITY_IDENTIFIER_BATCH`, `WIKIDATA_SCHOOL_IDENTIFIER_BATCH` (see `.env.example`).
 
+## `fips_gnis_map.parquet` (dump extract) → bronze enrichment
+
+If you built **`data/cache/wikidata/fips_gnis_map.parquet`** from `wikidata_fips_gnis_extract_local.py`, use it **before** re-running heavy WDQS:
+
+```bash
+# One-time: warm JSON cache + Postgres lookup table (fast SQL joins)
+.venv/bin/python scripts/datasources/wikidata/warm_geography_cache_from_parquet.py \
+  --warm-cache --postgres
+
+# Per state: stamp wikidata_id from parquet (still no official_website)
+.venv/bin/python scripts/datasources/wikidata/warm_geography_cache_from_parquet.py \
+  --apply-bronze --states AL --types city
+
+# Hydrate websites via wbgetentities only (skips bulk WDQS — avoids ReadError/429)
+WIKIDATA_WARM_FROM_PARQUET=1 WIKIDATA_SKIP_BULK_WDQS=1 WIKIDATA_HYDRATE_MISSING_WEBSITES=1 \
+  ./scripts/datasources/wikidata/run_wikidata_happy_path.sh --states AL --types city --force
+```
+
+With `--happy-path`, if `fips_gnis_map.parquet` exists, those three env vars default **on** automatically.
+
+Parquet has **Q-ids only**; `official_website` still comes from the loader’s Wikibase API step.
+
 ## Main entrypoint (jurisdictions)
 
 Seven **priority development states** in code: **`AL`, `GA`, `IN`, `MA`, `MT`, `WA`, `WI`** (`PRIORITY_STATES` in `load_jurisdictions_wikidata.py`).

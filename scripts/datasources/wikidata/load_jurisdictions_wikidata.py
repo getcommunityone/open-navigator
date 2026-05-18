@@ -172,6 +172,79 @@ def _wikidata_mapping_cache_warm_db() -> bool:
     return raw not in ("0", "false", "no", "off")
 
 
+def _wikidata_fips_gnis_parquet_path() -> Path:
+    from scripts.datasources.wikidata.parquet_qid_lookup import resolve_fips_gnis_parquet_path
+
+    return resolve_fips_gnis_parquet_path()
+
+
+def _wikidata_warm_from_parquet_enabled() -> bool:
+    raw = (os.getenv("WIKIDATA_WARM_FROM_PARQUET") or "").strip().lower()
+    if raw in ("0", "false", "no", "off"):
+        return False
+    if raw in ("1", "true", "yes", "on"):
+        return True
+    return _wikidata_fips_gnis_parquet_path().is_file()
+
+
+def _wikidata_skip_bulk_wdqs() -> bool:
+    """When parquet/cache supplies id→Q, skip the heavy per-state WDQS bulk query."""
+    return _env_truthy("WIKIDATA_SKIP_BULK_WDQS", default=False)
+
+
+def _postgres_fips_gnis_map_has_rows(conn) -> bool:
+    from scripts.datasources.wikidata.parquet_qid_lookup import _postgres_lookup_table_ready
+
+    if not _postgres_lookup_table_ready(conn):
+        return False
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT 1 FROM wikidata_fips_gnis_map LIMIT 1")
+        return cur.fetchone() is not None
+    except Exception:
+        return False
+    finally:
+        cur.close()
+
+
+def _wikidata_skip_municipality_bulk_wdqs(
+    loader: Optional["JurisdictionsWikiDataLoader"] = None,
+    state_code: Optional[str] = None,
+    pairs: Optional[List[Tuple[str, Optional[str]]]] = None,
+) -> bool:
+    """
+    Skip the per-state municipality bulk WDQS query when id→Q is already available
+    (env flag, parquet file, ``wikidata_fips_gnis_map``, or most bronze rows have Q-ids).
+    """
+    if _wikidata_skip_bulk_wdqs():
+        return True
+    if _wikidata_fips_gnis_parquet_path().is_file():
+        return True
+    if loader is not None and loader.conn is not None and _postgres_fips_gnis_map_has_rows(loader.conn):
+        return True
+    if loader is not None and state_code and pairs:
+        geos = {str(g).strip().replace("-", "") for g, _ in pairs if str(g).strip()}
+        if geos:
+            existing = loader._fetch_bronze_wikidata_ids_for_geoids(
+                state_code,
+                "bronze.bronze_jurisdictions_municipalities_wikidata",
+                geos,
+            )
+            if len(existing) >= max(1, int(0.85 * len(geos))):
+                return True
+    return False
+
+
+def _wikidata_hydrate_missing_websites() -> bool:
+    """Re-run wbgetentities for rows that have wikidata_id but NULL official_website."""
+    raw = (os.getenv("WIKIDATA_HYDRATE_MISSING_WEBSITES") or "").strip().lower()
+    if raw in ("0", "false", "no", "off"):
+        return False
+    if raw in ("1", "true", "yes", "on"):
+        return True
+    return _wikidata_warm_from_parquet_enabled() and _wikidata_fips_gnis_parquet_path().is_file()
+
+
 def _wikidata_hybrid_enrich_enabled() -> bool:
     """Light WDQS map (id→Q) + Wikibase wbgetentities / optional Pywikibot for claims."""
     return _env_truthy("WIKIDATA_HYBRID_ENRICH", default=False)
@@ -284,6 +357,13 @@ def _apply_wikidata_happy_path_env_defaults() -> None:
         "WIKIDATA_SCHOOL_POST_BULK_WDQS_GAP_SECONDS": "12",
         "WIKIDATA_SCHOOL_FILTER_WDQS_GAP_SECONDS": "8",
     }
+    if _wikidata_fips_gnis_parquet_path().is_file():
+        if (os.getenv("WIKIDATA_WARM_FROM_PARQUET") or "").strip() == "":
+            defaults["WIKIDATA_WARM_FROM_PARQUET"] = "1"
+        if (os.getenv("WIKIDATA_SKIP_BULK_WDQS") or "").strip() == "":
+            defaults["WIKIDATA_SKIP_BULK_WDQS"] = "1"
+        if (os.getenv("WIKIDATA_HYDRATE_MISSING_WEBSITES") or "").strip() == "":
+            defaults["WIKIDATA_HYDRATE_MISSING_WEBSITES"] = "1"
     applied = []
     for key, val in defaults.items():
         raw = (os.getenv(key) or "").strip()
@@ -940,14 +1020,12 @@ class JurisdictionsWikiDataLoader:
 
     def _any_missing_wikidata_id_for_task(self, state_code: str, task: str) -> bool:
         """
-        True if this USPS still has at least one row in the *_wikidata table with NULL wikidata_id.
+        True if this USPS still needs Wikidata enrichment (NULL Q-id, or hydrate-only for websites).
 
         With ``WIKIDATA_INCREMENTAL_MERGE=1`` (default), if this returns False after seeding,
-        WDQS is skipped for that task. With merge off, the table is re-seeded empty of Q IDs,
-        so this is typically True until Wikidata is fetched again.
+        WDQS/API is skipped for that task.
         """
         if self._json_cache_dir:
-            # In JSON mode, always proceed — no enrichment has been applied yet.
             return True
         tbl = {
             "state": "bronze.bronze_jurisdictions_states_wikidata",
@@ -957,25 +1035,67 @@ class JurisdictionsWikiDataLoader:
         }.get(task)
         if not tbl:
             return True
-        us = state_code.upper()
+        return bool(self._fetch_geoids_needing_enrichment(state_code, tbl))
+
+    def _fetch_geoids_with_qid_missing_website(self, state_code: str, wikidata_table: str) -> Set[str]:
+        """GEOIDs that have a Q-id but no official_website (hydrate-only pass)."""
+        if self._json_cache_dir or not _wikidata_hydrate_missing_websites():
+            return set()
         cur = self.conn.cursor()
         try:
             cur.execute(
                 f"""
-                SELECT 1
-                FROM {tbl}
+                SELECT geoid::text
+                FROM {wikidata_table}
                 WHERE usps = %s
-                  AND (wikidata_id IS NULL OR BTRIM(wikidata_id::text) = '')
-                LIMIT 1
+                  AND wikidata_id IS NOT NULL AND BTRIM(wikidata_id::text) <> ''
+                  AND wikidata_id::text LIKE 'Q%%'
+                  AND (official_website IS NULL OR BTRIM(official_website::text) = '')
                 """,
-                (us,),
+                (state_code.upper(),),
             )
-            return cur.fetchone() is not None
+            return {str(r[0]).strip().replace("-", "") for r in cur.fetchall() if r and r[0]}
         except Exception as exc:
-            logger.warning(
-                f"Could not check NULL wikidata_id on {tbl} for {us}: {exc}; assuming work remains."
+            logger.warning(f"Could not list GEOIDs missing website on {wikidata_table}: {exc}")
+            return set()
+        finally:
+            cur.close()
+
+    def _fetch_geoids_needing_enrichment(self, state_code: str, wikidata_table: str) -> Set[str]:
+        """GEOIDs still needing Q-id and/or official_website (when hydrate mode is on)."""
+        need = self._fetch_geoids_missing_wikidata_qid(state_code, wikidata_table)
+        need |= self._fetch_geoids_with_qid_missing_website(state_code, wikidata_table)
+        return need
+
+    def _fetch_bronze_wikidata_ids_for_geoids(
+        self, state_code: str, wikidata_table: str, geoids: Set[str]
+    ) -> Dict[str, str]:
+        if self._json_cache_dir or not geoids:
+            return {}
+        geos = [str(g).strip().replace("-", "") for g in geoids if str(g).strip()]
+        if not geos:
+            return {}
+        cur = self.conn.cursor()
+        try:
+            cur.execute(
+                f"""
+                SELECT geoid::text, wikidata_id::text
+                FROM {wikidata_table}
+                WHERE usps = %s
+                  AND REPLACE(geoid::text, '-', '') = ANY(%s)
+                  AND wikidata_id IS NOT NULL AND BTRIM(wikidata_id::text) <> ''
+                  AND wikidata_id::text LIKE 'Q%%'
+                """,
+                (state_code.upper(), geos),
             )
-            return True
+            return {
+                str(r[0]).strip().replace("-", ""): str(r[1]).strip()
+                for r in cur.fetchall()
+                if r and r[0] and r[1]
+            }
+        except Exception as exc:
+            logger.warning(f"Could not read existing wikidata_id from {wikidata_table}: {exc}")
+            return {}
         finally:
             cur.close()
 
@@ -1335,7 +1455,12 @@ class JurisdictionsWikiDataLoader:
         bulk_rows: Optional[List[Dict]] = None
         use_bulk = False
         sq = (state_q_code or "").strip()
-        if map_mode == "bulk_state" and sq:
+        if _wikidata_skip_municipality_bulk_wdqs(self, state_code, pairs):
+            logger.info(
+                "Skipping municipality bulk WDQS — id→Q from parquet table/cache + existing bronze Q-ids "
+                "(set WIKIDATA_SKIP_BULK_WDQS=0 to force bulk WDQS)"
+            )
+        elif map_mode == "bulk_state" and sq:
             blim = _positive_int_env("WIKIDATA_MUNICIPALITY_BULK_STATE_LIMIT", 8000, 200, 12000)
             mq = _wikidata_hybrid_sql.municipality_bulk_by_state_sparql(state_q_code, blim)
             try:
@@ -1372,7 +1497,12 @@ class JurisdictionsWikiDataLoader:
 
         inner_mode = map_mode
         if map_mode == "bulk_state" and not use_bulk:
-            if not _wikidata_municipality_sparql_when_bulk_empty():
+            if _wikidata_skip_municipality_bulk_wdqs(self, state_code, pairs):
+                logger.warning(
+                    "Bulk municipality WDQS returned no rows or failed; continuing without WDQS — "
+                    "using geography cache + bronze wikidata_id + wbgetentities only."
+                )
+            elif not _wikidata_municipality_sparql_when_bulk_empty():
                 logger.error(
                     "Hybrid municipalities: bulk WDQS returned **no rows** or **failed** for this state. "
                     "Not falling back to per-chunk FILTER IN queries "
@@ -1382,10 +1512,11 @@ class JurisdictionsWikiDataLoader:
                     "WIKIDATA_MUNICIPALITY_SPARQL_WHEN_BULK_EMPTY=1 to allow the heavy fallback."
                 )
                 return []
-            inner_mode = "sparql"
-            logger.warning(
-                "bulk_state returned no data — municipality mapping uses FILTER batches per chunk"
-            )
+            else:
+                inner_mode = "sparql"
+                logger.warning(
+                    "bulk_state returned no data — municipality mapping uses FILTER batches per chunk"
+                )
 
         if (
             use_bulk
@@ -1412,12 +1543,25 @@ class JurisdictionsWikiDataLoader:
             geo_to_q: Dict[str, str] = {}
             n_map_cache = 0
             n_map_bulk = 0
+            n_map_db = 0
+
+            chunk_geos = {str(g).strip().replace("-", "") for g, _ in chunk if str(g).strip()}
+            existing_q = self._fetch_bronze_wikidata_ids_for_geoids(
+                state_code,
+                "bronze.bronze_jurisdictions_municipalities_wikidata",
+                chunk_geos,
+            )
 
             need_fips: Set[str] = set()
             need_gnis: Set[str] = set()
 
             for geo, ansi in chunk:
                 gid = str(geo).strip()
+                gid_norm = gid.replace("-", "")
+                if gid_norm in existing_q:
+                    geo_to_q[gid] = existing_q[gid_norm]
+                    n_map_db += 1
+                    continue
                 ff, gg = _municipality_wd_literal_sets(geo, ansi)
                 cq = qcache.lookup_q_for_municipality(ff, gg)
                 if cq:
@@ -1491,8 +1635,9 @@ class JurisdictionsWikiDataLoader:
                         else " (run backfill / wider matching later)"
                     )
                 logger.info(
-                    f"  chunk {chi}/{n_chunks}: id→Q pass-1 — geography cache={n_map_cache}, "
-                    f"bulk WDQS row match={n_map_bulk}, GEOIDs_with_Q={n_after_pass1}/{len(chunk)}"
+                    f"  chunk {chi}/{n_chunks}: id→Q pass-1 — bronze Q-id={n_map_db}, "
+                    f"geography cache={n_map_cache}, bulk WDQS row match={n_map_bulk}, "
+                    f"GEOIDs_with_Q={n_after_pass1}/{len(chunk)}"
                     f"{hint}"
                 )
 
@@ -1613,7 +1758,7 @@ class JurisdictionsWikiDataLoader:
             )
 
         if _wikidata_incremental_merge():
-            miss = self._fetch_geoids_missing_wikidata_qid(
+            miss = self._fetch_geoids_needing_enrichment(
                 state_code, "bronze.bronze_jurisdictions_counties_wikidata"
             )
             geoids = [g for g in geoids if g in miss]
@@ -1872,7 +2017,7 @@ class JurisdictionsWikiDataLoader:
             return await self._query_schools_in_state_wide(state_code, state_q_code, state_name)
 
         if _wikidata_incremental_merge():
-            miss = self._fetch_geoids_missing_wikidata_qid(
+            miss = self._fetch_geoids_needing_enrichment(
                 state_code, "bronze.bronze_jurisdictions_school_districts_wikidata"
             )
             geoids = [g for g in geoids if g in miss]
@@ -2062,13 +2207,13 @@ class JurisdictionsWikiDataLoader:
             return await self._query_cities_in_state_wide(state_code, state_q_code, state_name)
 
         if _wikidata_incremental_merge():
-            miss = self._fetch_geoids_missing_wikidata_qid(
+            miss = self._fetch_geoids_needing_enrichment(
                 state_code, "bronze.bronze_jurisdictions_municipalities_wikidata"
             )
             pairs = [p for p in pairs if p[0] in miss]
             if not pairs:
                 logger.info(
-                    f"Incremental merge: no municipalities with NULL wikidata_id for {state_name} — skipping WDQS"
+                    f"Incremental merge: no municipalities needing enrichment for {state_name} — skipping"
                 )
                 return []
 
@@ -2506,7 +2651,7 @@ class JurisdictionsWikiDataLoader:
             )
 
         if _wikidata_incremental_merge():
-            miss = self._fetch_geoids_missing_wikidata_qid(
+            miss = self._fetch_geoids_needing_enrichment(
                 state_code, "bronze.bronze_jurisdictions_counties_wikidata"
             )
             geoids = [g for g in geoids if g in miss]
@@ -2704,7 +2849,7 @@ class JurisdictionsWikiDataLoader:
             return await self._query_schools_in_state_wide(state_code, state_q_code, state_name)
 
         if _wikidata_incremental_merge():
-            miss = self._fetch_geoids_missing_wikidata_qid(
+            miss = self._fetch_geoids_needing_enrichment(
                 state_code, "bronze.bronze_jurisdictions_school_districts_wikidata"
             )
             geoids = [g for g in geoids if g in miss]
@@ -3778,6 +3923,21 @@ async def main():
 
     # Load data
     loader = JurisdictionsWikiDataLoader(DATABASE_URL, json_cache_dir=args.json_cache_dir)
+
+    if (
+        not args.json_cache_dir
+        and _wikidata_warm_from_parquet_enabled()
+        and _wikidata_fips_gnis_parquet_path().is_file()
+    ):
+        from scripts.datasources.wikidata.parquet_qid_lookup import warm_geography_qid_cache_from_parquet
+
+        pq = _wikidata_fips_gnis_parquet_path()
+        logger.info(f"Warming geography Q-id cache from parquet: {pq}")
+        stats = warm_geography_qid_cache_from_parquet(loader.geography_qid_cache(), pq)
+        logger.success(
+            f"Parquet cache warm: {stats['parquet_rows']:,} rows, "
+            f"+{stats['cache_keys_added']:,} keys in geography_qid_mapping_v1.json"
+        )
 
     try:
         for state in states:
