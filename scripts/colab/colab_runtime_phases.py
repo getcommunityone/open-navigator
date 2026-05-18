@@ -77,7 +77,7 @@ def confirm_gpu_for_demo4(*, interactive: bool = True) -> None:
         msg = (
             "\nNo GPU detected.\n\n"
             "1. Finish **§6 Phase 1** on CPU (PDF outputs saved to Drive).\n"
-            "2. Runtime → Change runtime type → **L4 GPU** (or T4)\n"
+            "2. Runtime → Change runtime type → **L4 GPU** (or T4), **High RAM** if offered\n"
             "3. Runtime → **Restart session**\n"
             "4. Re-run **§1 → §5**, then **§6 Phase 2** (confirm + run)\n"
         )
@@ -94,7 +94,7 @@ def confirm_gpu_for_demo4(*, interactive: bool = True) -> None:
             "\n**Phase 2 — video / Demo 4 (Hugging Face E2B on GPU)**\n\n"
             "Confirm:\n"
             "  • Phase 1 finished (PDF / Demo 3 on Drive), and\n"
-            "  • You switched to **GPU** and restarted (Runtime → Change runtime type → L4 GPU).\n"
+            "  • You switched to **GPU + High RAM** and restarted (Runtime → Change runtime type).\n"
             "  • You re-ran **§1 → §5** after the restart.\n\n"
             "Type YES to run Phase 2: "
         )
