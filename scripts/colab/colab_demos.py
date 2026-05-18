@@ -67,6 +67,13 @@ from governance_meeting_llm import (
     demo3_thinking_json_complete,
     demo4_drift_output_complete,
     extract_pdf_digital_text,
+    demo3_input_mode,
+    demo3_min_digital_chars,
+    demo3_text_first_enabled,
+    demo1_skip_when_digital,
+    demo2_skip_when_digital,
+    is_scanned_pdf,
+    truncate_demo3_document_text,
     demo4_use_video_chunks,
     find_existing_demo4_chunks,
     force_reprocess_outputs,
@@ -325,9 +332,31 @@ def run_demo1(inv: MeetingInventory, ctx: DemoContext) -> List[Dict[str, Any]]:
         except Exception as e:
             print(f"  ! {pdf.name}: PDF probe failed — {e}")
             continue
-        scanned = digital_chars < 200
+        scanned = digital_chars < demo3_min_digital_chars()
         tag = "SCANNED (dark data)" if scanned else f"digital ({digital_chars} chars)"
         log_line(f"• {pdf.name}: {tag}")
+        if not scanned and demo1_skip_when_digital():
+            digital_text = extract_pdf_digital_text(pdf)
+            out_txt.parent.mkdir(parents=True, exist_ok=True)
+            out_txt.write_text(digital_text, encoding="utf-8")
+            log_line(
+                f"digital text layer — skip vision OCR → "
+                f"{out_txt.relative_to(ctx.processed_root)} ({len(digital_text)} chars)",
+                prefix="    ",
+            )
+            report.append(
+                {
+                    "jurisdiction": j.relative_label,
+                    "fips": j.fips,
+                    "pdf": str(pdf.relative_to(ctx.raw_root)),
+                    "scanned": False,
+                    "digital_chars": digital_chars,
+                    "output": str(out_txt.relative_to(ctx.processed_root)),
+                    "model_chars": len(digital_text),
+                    "skipped_vision": True,
+                }
+            )
+            continue
         log_line(
             f"⏳ Calling {ctx.genai_model} — visual OCR (often 1–3 min)…",
             prefix="    ",
@@ -385,6 +414,17 @@ def run_demo2(inv: MeetingInventory, ctx: DemoContext) -> List[Dict[str, Any]]:
             print(f"  • {Path(pdf).name}: skip — file not on disk (stale path; re-run §6 after reload)")
             continue
         print(f"  • {pdf.name}")
+        if demo2_skip_when_digital():
+            try:
+                if not is_scanned_pdf(pdf, min_chars=demo3_min_digital_chars()):
+                    print(
+                        f"    digital PDF — skip Demo 2 page vision "
+                        f"(GOVERNANCE_DEMO2_SKIP_WHEN_DIGITAL=1)"
+                    )
+                    continue
+            except Exception as e:
+                print(f"  ! PDF probe failed — {e}")
+                continue
         try:
             pages = render_pdf_pages(pdf, dpi=200)
         except Exception as e:
@@ -509,6 +549,97 @@ def run_demo2(inv: MeetingInventory, ctx: DemoContext) -> List[Dict[str, Any]]:
     return report
 
 
+def _demo3_ocr_media_resolution() -> str:
+    res = os.environ.get("GOVERNANCE_DEMO3_OCR_RESOLUTION", "LOW").strip().upper()
+    if res not in ("HIGH", "MEDIUM", "LOW"):
+        res = "LOW"
+    return {
+        "HIGH": TOKEN_BUDGET_HIGH,
+        "MEDIUM": TOKEN_BUDGET_MEDIUM,
+        "LOW": TOKEN_BUDGET_LOW,
+    }[res]
+
+
+def _demo3_ocr_model(ctx: DemoContext) -> str:
+    return (
+        os.environ.get("GOVERNANCE_DEMO3_OCR_MODEL", "").strip()
+        or ctx.genai_model
+    ).strip()
+
+
+def _ensure_pdf_text_for_demo3(pdf: Path, ctx: DemoContext) -> Tuple[str, str]:
+    """
+    Meeting document as plain text for Demo 3.
+
+    1. Digital text layer (PyMuPDF) when >= ``GOVERNANCE_DEMO3_MIN_DIGITAL_CHARS``.
+    2. Cached ``.visual_ocr.txt`` from Demo 1 or a prior run.
+    3. One light OCR call (LOW/MEDIUM vision, transcription-only prompt) → cache OCR file.
+    """
+    min_chars = demo3_min_digital_chars()
+    try:
+        digital = extract_pdf_digital_text(pdf)
+    except Exception as e:
+        raise RuntimeError(f"PDF text probe failed for {pdf.name}: {e}") from e
+    if len(digital) >= min_chars:
+        return (
+            truncate_demo3_document_text(digital),
+            f"digital text ({len(digital):,} chars)",
+        )
+
+    ocr_out = mirror_output_path(
+        input_path=pdf,
+        raw_root=ctx.raw_root,
+        processed_root=ctx.gemma_json_root,
+        suffix=".visual_ocr.txt",
+    )
+    if not force_reprocess_outputs() and text_output_complete(ocr_out):
+        cached = ocr_out.read_text(encoding="utf-8").strip()
+        if len(cached) >= min_chars:
+            return (
+                truncate_demo3_document_text(cached),
+                f"cached OCR → {ocr_out.name} ({len(cached):,} chars)",
+            )
+
+    ocr_model = _demo3_ocr_model(ctx)
+    ocr_res = _demo3_ocr_media_resolution()
+    log_line(
+        f"scanned PDF (<{min_chars} digital chars) — light OCR via {ocr_model} "
+        f"({ocr_res} vision, transcription only)…",
+        prefix="    ",
+    )
+    t0 = time.perf_counter()
+    try:
+        ocr_result = call_google_genai_multimodal(
+            api_key=ctx.api_key,
+            model=ocr_model,
+            system_instruction=DEMO1_SYSTEM,
+            user_text=DEMO1_USER,
+            media=[(pdf, "application/pdf")],
+            temperature=0.0,
+            max_output_tokens=8192,
+            media_resolution=ocr_res,
+        )
+    except Exception as e:
+        raise RuntimeError(f"light OCR failed for {pdf.name}: {e}") from e
+    log_line(
+        f"✓ OCR in {format_elapsed(time.perf_counter() - t0)}",
+        prefix="    ",
+    )
+    genai_inter_call_pause(ocr_res)
+    ocr_text = (ocr_result.text or "").strip()
+    ocr_out.parent.mkdir(parents=True, exist_ok=True)
+    ocr_out.write_text(ocr_text or "(empty OCR response)", encoding="utf-8")
+    if len(ocr_text) < min_chars:
+        raise RuntimeError(
+            f"OCR returned only {len(ocr_text)} chars for {pdf.name} — "
+            "try GOVERNANCE_DEMO3_OCR_RESOLUTION=MEDIUM or GOVERNANCE_DEMO3_INPUT=vision"
+        )
+    return (
+        truncate_demo3_document_text(ocr_text),
+        f"light OCR ({len(ocr_text):,} chars) → {ocr_out.name}",
+    )
+
+
 def supplemental_demo3_with_video_enabled() -> bool:
     """When media scope is video/audio-only, still analyze agenda+minutes PDFs on disk."""
     return os.environ.get("GOVERNANCE_RUN_DEMO3_WITH_VIDEO", "1").strip().lower() not in (
@@ -626,26 +757,58 @@ def _run_demo3_one_pdf(
         input_modality="pdf_minutes",
         local_file=pdf,
     )
-    user_text = (
-        f"{media_hint}\n{ctx.policy_prompt}\n\n---\n{geo_hint}\n\n"
-        "The attached PDF contains the meeting record. Apply the full deconstruction "
-        "prompt to it. Stick to what is actually in the document."
-    )
-    demo3_res = os.environ.get("GOVERNANCE_DEMO3_MEDIA_RESOLUTION", "HIGH").strip().upper()
-    if demo3_res not in ("HIGH", "MEDIUM", "LOW"):
-        demo3_res = "HIGH"
-    media_res = {
-        "HIGH": TOKEN_BUDGET_HIGH,
-        "MEDIUM": TOKEN_BUDGET_MEDIUM,
-        "LOW": TOKEN_BUDGET_LOW,
-    }.get(demo3_res, TOKEN_BUDGET_HIGH)
+    use_text_input = demo3_text_first_enabled()
+    doc_source = ""
     timeout_s = demo3_api_timeout_seconds()
     timeout_note = f", timeout {timeout_s // 60}m" if timeout_s else ""
-    log_line(
-        f"Calling {thinking_model} — full PDF ({demo3_res} vision{timeout_note}); "
-        f"heartbeats every ~45s; 429 retries can add minutes",
-        prefix="    ",
-    )
+    demo3_media: List[Tuple[Any, str]] = []
+    media_res: Optional[str] = None
+    include_thoughts = False
+    thinking_budget: Optional[int] = None
+
+    if use_text_input:
+        try:
+            doc_body, doc_source = _ensure_pdf_text_for_demo3(pdf, ctx)
+        except Exception as e:
+            log_line(f"! {e}", prefix="    ")
+            return
+        user_text = (
+            f"{media_hint}\n{ctx.policy_prompt}\n\n---\n{geo_hint}\n\n"
+            "## Meeting document (plain text)\n\n"
+            f"{doc_body}\n\n---\n\n"
+            "Apply the full deconstruction prompt to the meeting document above. "
+            "Stick to what is actually in the text. Tables may be imperfect — "
+            "do not invent content."
+        )
+        if ctx.thinking_budget is not None and ctx.thinking_budget > 0:
+            thinking_budget = ctx.thinking_budget
+            include_thoughts = True
+        log_line(
+            f"Calling {thinking_model} — text-only policy ({doc_source}{timeout_note})",
+            prefix="    ",
+        )
+    else:
+        user_text = (
+            f"{media_hint}\n{ctx.policy_prompt}\n\n---\n{geo_hint}\n\n"
+            "The attached PDF contains the meeting record. Apply the full deconstruction "
+            "prompt to it. Stick to what is actually in the document."
+        )
+        demo3_res = os.environ.get("GOVERNANCE_DEMO3_MEDIA_RESOLUTION", "HIGH").strip().upper()
+        if demo3_res not in ("HIGH", "MEDIUM", "LOW"):
+            demo3_res = "HIGH"
+        media_res = {
+            "HIGH": TOKEN_BUDGET_HIGH,
+            "MEDIUM": TOKEN_BUDGET_MEDIUM,
+            "LOW": TOKEN_BUDGET_LOW,
+        }.get(demo3_res, TOKEN_BUDGET_HIGH)
+        demo3_media = [(pdf, "application/pdf")]
+        include_thoughts = True
+        thinking_budget = ctx.thinking_budget
+        log_line(
+            f"Calling {thinking_model} — full PDF ({demo3_res} vision{timeout_note}); "
+            f"heartbeats every ~45s; 429 retries can add minutes",
+            prefix="    ",
+        )
 
     def _demo3_call():
         return call_google_genai_multimodal(
@@ -653,12 +816,12 @@ def _run_demo3_one_pdf(
             model=thinking_model,
             system_instruction=DEMO3_SYSTEM,
             user_text=user_text,
-            media=[(pdf, "application/pdf")],
+            media=demo3_media,
             temperature=0.1,
             max_output_tokens=8192,
             media_resolution=media_res,
-            include_thoughts=True,
-            thinking_budget=ctx.thinking_budget,
+            include_thoughts=include_thoughts,
+            thinking_budget=thinking_budget,
         )
 
     t0 = time.perf_counter()
@@ -678,10 +841,10 @@ def _run_demo3_one_pdf(
                 result = _demo3_call()
     except Exception as e:
         log_line(f"! Gemma call failed: {e}", prefix="    ")
-        genai_inter_call_pause(demo3_res)
+        genai_inter_call_pause(media_res or TOKEN_BUDGET_LOW)
         return
     elapsed = time.perf_counter() - t0
-    genai_inter_call_pause(demo3_res)
+    genai_inter_call_pause(media_res or TOKEN_BUDGET_LOW)
     parsed = parse_policy_analysis_response(result.text or "")
     if isinstance(parsed.get("json_analysis"), dict):
         parsed["json_analysis"] = enrich_policy_analysis_media_links(
@@ -745,6 +908,8 @@ def _run_demo3_one_pdf(
         {
             "jurisdiction": j.relative_label,
             "pdf": str(pdf.relative_to(ctx.raw_root)),
+            "demo3_input": demo3_input_mode(),
+            "document_source": doc_source or "pdf attachment",
             "thoughts_chars": len(result.thoughts or ""),
             "json_ok": parsed.get("json_analysis") is not None
             and "_error" not in (parsed.get("json_analysis") or {}),

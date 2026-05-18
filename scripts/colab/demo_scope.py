@@ -39,7 +39,7 @@ PRESETS: Dict[str, DemoScopePreset] = {
     "fast": DemoScopePreset(
         key="fast",
         label="Tuscaloosa county — 2026-02-18 end-to-end (PDF + video)",
-        eta="~60–90 min",
+        eta="~45–75 min",
         max_states=1,
         max_jurisdictions=1,
         meeting_dates=1,
@@ -150,6 +150,15 @@ def apply_preset_to_environ(preset: DemoScopePreset) -> None:
             os.environ["GOVERNANCE_PIPELINE_MEDIA_SCOPE"] = preset.default_media_scope
     if not os.environ.get("GOVERNANCE_SAFETY_REVIEW", "").strip():
         os.environ["GOVERNANCE_SAFETY_REVIEW"] = "1"
+    if preset.key == "fast":
+        os.environ.setdefault("GOVERNANCE_DEMO3_INPUT", "auto")
+        os.environ.setdefault("GOVERNANCE_DEMO_THINKING_BUDGET", "0")
+        os.environ.setdefault("GOVERNANCE_THINKING_MODEL", "gemma-4-26b-a4b-it")
+        os.environ.setdefault("GOVERNANCE_DEMO3_OCR_RESOLUTION", "LOW")
+        os.environ.setdefault("GOVERNANCE_DEMO3_MAX_DOCUMENT_CHARS", "60000")
+        os.environ.setdefault("GOVERNANCE_DEMO3_MIN_DIGITAL_CHARS", "200")
+        os.environ.setdefault("GOVERNANCE_DEMO1_SKIP_WHEN_DIGITAL", "1")
+        os.environ.setdefault("GOVERNANCE_DEMO2_SKIP_WHEN_DIGITAL", "1")
 
 
 def apply_scope(scope: str) -> DemoScopePreset:

@@ -1273,6 +1273,80 @@ def is_scanned_pdf(pdf_path: Path, min_chars: int = 200) -> bool:
     return len(extract_pdf_digital_text(pdf_path)) < min_chars
 
 
+def demo3_input_mode() -> str:
+    """
+    How Demo 3 supplies meeting document content to the policy model.
+
+    - ``auto`` / ``text``: PyMuPDF digital text when present; otherwise one light OCR
+      pass (LOW vision, Demo 1-style transcription) then **text-only** policy call.
+    - ``vision``: legacy full-PDF multimodal + ``GOVERNANCE_DEMO3_MEDIA_RESOLUTION``.
+    """
+    raw = os.environ.get("GOVERNANCE_DEMO3_INPUT", "auto").strip().lower()
+    aliases = {
+        "text_only": "text",
+        "text-only": "text",
+        "multimodal": "vision",
+        "pdf": "vision",
+        "full_pdf": "vision",
+    }
+    key = aliases.get(raw, raw)
+    if key in ("vision", "text"):
+        return key
+    return "auto"
+
+
+def demo3_text_first_enabled() -> bool:
+    """True when Demo 3 should prefer extracted/OCR text over attaching the PDF."""
+    return demo3_input_mode() in ("auto", "text")
+
+
+def demo1_skip_when_digital() -> bool:
+    """When True, Demo 1 writes PyMuPDF text and skips sending the PDF to the API."""
+    return os.environ.get("GOVERNANCE_DEMO1_SKIP_WHEN_DIGITAL", "1").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+    )
+
+
+def demo2_skip_when_digital() -> bool:
+    """When True, Demo 2 skips per-page PNG vision for PDFs with a text layer."""
+    return os.environ.get("GOVERNANCE_DEMO2_SKIP_WHEN_DIGITAL", "1").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+    )
+
+
+def demo3_min_digital_chars() -> int:
+    try:
+        return max(0, int(os.environ.get("GOVERNANCE_DEMO3_MIN_DIGITAL_CHARS", "200")))
+    except ValueError:
+        return 200
+
+
+def demo3_max_document_chars() -> int:
+    try:
+        return max(1000, int(os.environ.get("GOVERNANCE_DEMO3_MAX_DOCUMENT_CHARS", "60000")))
+    except ValueError:
+        return 60000
+
+
+def truncate_demo3_document_text(
+    text: str,
+    *,
+    max_chars: Optional[int] = None,
+) -> str:
+    """Cap meeting-document text embedded in the Demo 3 user prompt."""
+    cap = demo3_max_document_chars() if max_chars is None else max(1, int(max_chars))
+    t = (text or "").strip()
+    if len(t) <= cap:
+        return t
+    note = "\n\n[… document truncated for demo input cap …]"
+    keep = max(0, cap - len(note))
+    return t[:keep] + note
+
+
 # ─────────────────────────────────────────────────────────────
 # Audio chunking (long-meeting attention demo)
 # ─────────────────────────────────────────────────────────────
@@ -2521,6 +2595,10 @@ __all__ = [
     "select_demo4_media",
     "classify_pdf_page_heuristic", "render_pdf_pages",
     "extract_pdf_digital_text", "is_scanned_pdf",
+    "demo3_input_mode", "demo3_text_first_enabled",
+    "demo1_skip_when_digital", "demo2_skip_when_digital",
+    "demo3_min_digital_chars", "demo3_max_document_chars",
+    "truncate_demo3_document_text",
     "transcode_video_to_opus",
     "prepare_meeting_audio_for_processing",
     "chunk_audio_ffmpeg",
