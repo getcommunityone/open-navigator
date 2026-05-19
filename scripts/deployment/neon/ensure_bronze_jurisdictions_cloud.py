@@ -69,6 +69,7 @@ _COMMON_EXTRA_COLS = [
     ("longitude", "DOUBLE PRECISION"),
     ("wikidata_fetched_at", "TIMESTAMP"),
     ("wikidata_last_updated", "TIMESTAMP"),
+    ("official_website_updated_at", "TIMESTAMP"),
     ("wikidata_fips_code", "TEXT"),
     ("wikidata_geoid", "TEXT"),
     ("wikidata_gnis_id", "TEXT"),

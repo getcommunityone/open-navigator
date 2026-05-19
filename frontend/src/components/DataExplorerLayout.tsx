@@ -73,7 +73,7 @@ export default function DataExplorerLayout() {
                   ? 'Trend windows follow the vintage list in the published bundle (1-, 3-, and 5-year lookbacks when years exist).'
                   : onLighthouseReport
                     ? 'Scores and warnings are read from the latest `bronze.bronze_jurisdiction_website_lighthouse` row for the URL you enter (after accessibility lighthouse ingest).'
-                    : 'Mapping rates use NACo, USCM, NCES directory, GSA .gov, and overrides — snapshot from `frontend/public/data/jurisdiction_mapping_quality.json`.'}
+                    : 'Mapping rates use NACo, USCM, NCES directory, GSA .gov, Wikidata, and overrides — snapshot from `frontend/public/data/jurisdiction_mapping_quality.json`.'}
             </p>
           )}
         </header>

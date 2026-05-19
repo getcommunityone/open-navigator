@@ -1,0 +1,6 @@
+# Optional extras for local Ollama + LangChain structured scraping.
+# Install after base requirements:
+#   .venv/bin/pip install -r requirements.txt -r requirements-ollama-scraping.txt
+#
+langchain-ollama>=0.2.0
+markdownify>=0.13.0

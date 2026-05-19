@@ -37,6 +37,9 @@ Usage (repo root):
   .venv/bin/python scripts/datasources/census/download_census_acs_data.py --geography state --state '*' --year 2022
 
   .venv/bin/python scripts/datasources/jurisdictions/export_jurisdiction_mapping_quality_json.py
+
+Full unmapped drill-down lists (no JSON cap): ``GET /api/jurisdiction-mapping/unmapped`` (see
+``api/routes/jurisdiction_mapping.py``).
 """
 
 from __future__ import annotations
@@ -57,6 +60,11 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 OUT = ROOT / "frontend" / "public" / "data" / "jurisdiction_mapping_quality.json"
 
+from scripts.datasources.jurisdictions.jurisdiction_mapping_queries import (
+    ENTITY_SLICE_WHERE,
+    UNMAPPED_ROW_SELECT,
+    build_unmapped_where_psycopg,
+)
 from scripts.datasources.jurisdictions.state_acs_mapping_quality import build_states_payload
 
 # Capped lists for dashboard drill-down (keep JSON size reasonable; raise via env if needed).
@@ -64,45 +72,14 @@ _UNMAPPED_CAP = int(os.environ.get("JURIS_MAPPING_QUALITY_UNMAPPED_CAP", "2500")
 _MAPPED_ISSUES_CAP = int(os.environ.get("JURIS_MAPPING_QUALITY_MAPPED_ISSUES_CAP", "800"))
 _BUCKET_DRILL_CAP = int(os.environ.get("JURIS_MAPPING_QUALITY_BUCKET_DRILL_CAP", "500"))
 
-_UNMAPPED_ROW_SELECT = """
-    SELECT jurisdiction_id::text AS jurisdiction_id,
-           name::text AS name,
-           state_code::text AS state_code,
-           jurisdiction_type::text AS jurisdiction_type,
-           geoid::text AS geoid,
-           municipality_place_kind::text AS municipality_place_kind,
-           COALESCE(n_website_candidate_rows, 0)::bigint AS n_website_candidate_rows,
-           COALESCE(has_naco_source, FALSE) AS has_naco_source,
-           COALESCE(has_uscm_source, FALSE) AS has_uscm_source,
-           COALESCE(has_nces_directory_source, FALSE) AS has_nces_directory_source,
-           COALESCE(has_gsa_source, FALSE) AS has_gsa_source,
-           COALESCE(has_league_source, FALSE) AS has_league_source,
-           COALESCE(has_override_source, FALSE) AS has_override_source,
-           acs_population_tier::text AS acs_population_tier,
-           acs_income_level::text AS acs_income_level
-"""
-
 _SUMMARY_PRIMARY_FROM_COLS = """
                        primary_from_naco,
                        primary_from_uscm,
                        primary_from_nces_directory,
                        primary_from_gsa,
                        primary_from_league,
+                       primary_from_wikidata,
                        primary_from_override"""
-
-_ENTITY_ACS_WHERE: dict[str, str] = {
-    "cities": (
-        "jurisdiction_type = 'municipality' AND municipality_place_kind = 'incorporated_city'"
-    ),
-    "towns": (
-        "jurisdiction_type = 'municipality' AND municipality_place_kind IN ("
-        "'incorporated_other', 'unknown', 'census_designated_place'"
-        ")"
-    ),
-    "counties": "jurisdiction_type = 'county'",
-    "schools": "jurisdiction_type = 'school_district'",
-}
-
 
 def _row_dicts(cur) -> list[dict[str, object]]:
     return [{k: _jsonify_value(v) for k, v in dict(r).items()} for r in cur.fetchall()]
@@ -111,22 +88,26 @@ def _row_dicts(cur) -> list[dict[str, object]]:
 def _fetch_unmapped_bucket_rows(
     cur,
     *,
-    where_clause: str,
+    entity: str,
     tier_col: str,
     bucket: str,
     limit: int,
 ) -> list[dict[str, object]]:
+    tier_kw = (
+        {"acs_population_tier": bucket}
+        if tier_col == "acs_population_tier"
+        else {"acs_income_level": bucket}
+    )
+    where_sql, params = build_unmapped_where_psycopg(entity, **tier_kw)
     cur.execute(
         f"""
-        {_UNMAPPED_ROW_SELECT}
+        {UNMAPPED_ROW_SELECT}
         FROM public.jurisdiction_mapping_analysis
-        WHERE NOT COALESCE(has_primary_website, FALSE)
-          AND ({where_clause})
-          AND {tier_col}::text = %s
+        WHERE {where_sql}
         ORDER BY state_code, name
         LIMIT %s
         """,
-        (bucket, limit),
+        (*params, limit),
     )
     return _row_dicts(cur)
 
@@ -136,7 +117,7 @@ def _build_entity_acs_unmapped_drill(
 ) -> dict[str, dict[str, dict[str, list[dict[str, object]]]]]:
     """Per-entity ACS bucket lists — matches table missing counts (capped per bucket)."""
     out: dict[str, dict[str, dict[str, list[dict[str, object]]]]] = {}
-    for slice_key, where in _ENTITY_ACS_WHERE.items():
+    for slice_key in ENTITY_SLICE_WHERE:
         slice_data = entity_acs_by_slice.get(slice_key) or {}
         out[slice_key] = {"by_population_tier": {}, "by_income_level": {}}
         for list_key, tier_col in (
@@ -155,7 +136,7 @@ def _build_entity_acs_unmapped_drill(
                 limit = min(_BUCKET_DRILL_CAP, missing)
                 out[slice_key][list_key][bucket] = _fetch_unmapped_bucket_rows(
                     cur,
-                    where_clause=where,
+                    entity=slice_key,
                     tier_col=tier_col,
                     bucket=bucket,
                     limit=limit,
@@ -215,6 +196,7 @@ def main() -> int:
                        jurisdictions_touching_nces,
                        jurisdictions_touching_gsa,
                        jurisdictions_touching_league,
+                       jurisdictions_touching_wikidata,
                        jurisdictions_touching_override,
                        {_SUMMARY_PRIMARY_FROM_COLS},
                        summary_generated_at::text AS summary_generated_at
@@ -244,6 +226,7 @@ def main() -> int:
                        jurisdictions_touching_nces,
                        jurisdictions_touching_gsa,
                        jurisdictions_touching_league,
+                       jurisdictions_touching_wikidata,
                        jurisdictions_touching_override,
                        {_SUMMARY_PRIMARY_FROM_COLS},
                        summary_generated_at::text AS summary_generated_at
@@ -281,6 +264,7 @@ def main() -> int:
                        jurisdictions_touching_nces,
                        jurisdictions_touching_gsa,
                        jurisdictions_touching_league,
+                       jurisdictions_touching_wikidata,
                        jurisdictions_touching_override,
                        {_SUMMARY_PRIMARY_FROM_COLS},
                        summary_generated_at::text AS summary_generated_at
@@ -320,6 +304,7 @@ def main() -> int:
                        jurisdictions_touching_nces,
                        jurisdictions_touching_gsa,
                        jurisdictions_touching_league,
+                       jurisdictions_touching_wikidata,
                        jurisdictions_touching_override,
                        {_SUMMARY_PRIMARY_FROM_COLS},
                        summary_generated_at::text AS summary_generated_at
@@ -382,7 +367,7 @@ def main() -> int:
 
             cur.execute(
                 f"""
-                {_UNMAPPED_ROW_SELECT}
+                {UNMAPPED_ROW_SELECT}
                 FROM public.jurisdiction_mapping_analysis
                 WHERE NOT COALESCE(has_primary_website, FALSE)
                 ORDER BY jurisdiction_type, state_code, name
@@ -559,6 +544,7 @@ def main() -> int:
                                COUNT(*) FILTER (WHERE COALESCE(has_primary_website, FALSE) AND primary_website_source = 'nces_directory')::bigint AS primary_from_nces_directory,
                                COUNT(*) FILTER (WHERE COALESCE(has_primary_website, FALSE) AND primary_website_source = 'gsa')::bigint AS primary_from_gsa,
                                COUNT(*) FILTER (WHERE COALESCE(has_primary_website, FALSE) AND primary_website_source = 'league')::bigint AS primary_from_league,
+                               COUNT(*) FILTER (WHERE COALESCE(has_primary_website, FALSE) AND primary_website_source = 'wikidata')::bigint AS primary_from_wikidata,
                                COUNT(*) FILTER (WHERE COALESCE(has_primary_website, FALSE) AND primary_website_source = 'override')::bigint AS primary_from_override
                         FROM public.jurisdiction_mapping_analysis
                         WHERE ({where_clause}) AND {tier_col} IS NOT NULL
@@ -574,10 +560,10 @@ def main() -> int:
                 }
 
             entity_acs_by_slice = {
-                "cities": _acs_buckets_for_where(_ENTITY_ACS_WHERE["cities"]),
-                "towns": _acs_buckets_for_where(_ENTITY_ACS_WHERE["towns"]),
-                "counties": _acs_buckets_for_where(_ENTITY_ACS_WHERE["counties"]),
-                "schools": _acs_buckets_for_where(_ENTITY_ACS_WHERE["schools"]),
+                "cities": _acs_buckets_for_where(ENTITY_SLICE_WHERE["cities"]),
+                "towns": _acs_buckets_for_where(ENTITY_SLICE_WHERE["towns"]),
+                "counties": _acs_buckets_for_where(ENTITY_SLICE_WHERE["counties"]),
+                "schools": _acs_buckets_for_where(ENTITY_SLICE_WHERE["schools"]),
             }
             entity_acs_unmapped_drill = _build_entity_acs_unmapped_drill(cur, entity_acs_by_slice)
 
@@ -601,6 +587,7 @@ def main() -> int:
             "nces_directory": "NCES Common Core of Data school district directory",
             "gsa": "GSA .gov domain registry (local agencies)",
             "league": "State municipal league city directories (League of Cities cache)",
+            "wikidata": "Wikidata P856 official website from bronze_jurisdictions_{municipalities,counties}_wikidata",
             "override": "Curated seed jurisdiction_website_url_overrides",
         },
         "entity_state_rollup": entity_state_rollup,

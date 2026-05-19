@@ -2807,6 +2807,19 @@ class ComprehensiveDiscoveryPipelineJurisdiction:
                         result.errors.append(f"snapshot_readable_write:{txt_path}:{exc}")
                     except Exception as exc:
                         result.errors.append(f"snapshot_readable_build:{txt_path}:{exc!r}")
+                    else:
+                        try:
+                            from scripts.scraping.crawl_llm_sidecar import (
+                                maybe_extract_after_readable_txt,
+                            )
+
+                            maybe_extract_after_readable_txt(
+                                txt_path,
+                                page_url=page_ctx,
+                                crawl_root=base_dir,
+                            )
+                        except Exception as exc:
+                            result.errors.append(f"ollama_sidecar:{txt_path}:{exc!r}")
 
                 if pdf_count < self.max_pdfs:
                     pdf_jobs = [

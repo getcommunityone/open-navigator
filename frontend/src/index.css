@@ -472,6 +472,10 @@ body {
   background: rgba(130, 80, 223, 0.12);
   color: #8250df;
 }
+.jmq-src-badge--wikidata {
+  background: rgba(153, 0, 85, 0.12);
+  color: #990055;
+}
 .jmq-src-badge--override {
   background: var(--jmq-amber-dim);
   color: var(--jmq-amber);

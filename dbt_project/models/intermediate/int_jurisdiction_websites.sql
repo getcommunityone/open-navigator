@@ -225,7 +225,7 @@ uscm_ranked AS (
        )
 ),
 
-uscm_rows AS (
+uscm_rows_raw AS (
     SELECT
         'uscm|' || u.state_code || '|' || LOWER(REGEXP_REPLACE(TRIM(u.municipality_name), '\\s+', ' ', 'g'))
                                                           AS website_record_key,
@@ -260,6 +260,12 @@ uscm_rows AS (
     FROM uscm_ranked u
     LEFT JOIN state_ref s ON u.state_code = s.state_code
     WHERE u.match_rank = 1
+),
+
+uscm_rows AS (
+    SELECT *
+    FROM uscm_rows_raw u
+    WHERE NOT {{ uscm_league_county_portal_blocked('u.organization_name', 'u.domain_name') }}
 ),
 
 league_base AS (
@@ -321,7 +327,7 @@ league_ranked AS (
        )
 ),
 
-league_rows AS (
+league_rows_raw AS (
     SELECT
         'league|' || l.row_key                                  AS website_record_key,
         'league'                                                AS website_source,
@@ -355,6 +361,12 @@ league_rows AS (
     FROM league_ranked l
     LEFT JOIN state_ref s ON l.state_code = s.state_code
     WHERE l.match_rank = 1
+),
+
+league_rows AS (
+    SELECT *
+    FROM league_rows_raw l
+    WHERE NOT {{ uscm_league_county_portal_blocked('l.organization_name', 'l.domain_name') }}
 ),
 
 nces_base AS (
@@ -708,6 +720,120 @@ gsa_rows AS (
        AND gdh.match_rank = 1
 ),
 
+wikidata_municipality_base AS (
+    SELECT
+        TRIM(w.geoid)                                     AS geoid,
+        UPPER(TRIM(w.usps))                               AS state_code,
+        TRIM(w.official_website)                          AS raw_website,
+        NULLIF(TRIM(w.wikidata_id), '')                   AS wikidata_id,
+        TRIM(w.name)                                      AS place_name,
+        COALESCE(
+            w.official_website_updated_at,
+            w.wikidata_last_updated,
+            w.wikidata_fetched_at
+        )                                                 AS ingestion_ts,
+        j.jurisdiction_id
+    FROM {{ source('bronze', 'bronze_jurisdictions_municipalities_wikidata') }} w
+    LEFT JOIN {{ ref('int_jurisdictions') }} j
+        ON j.jurisdiction_type = 'municipality'
+       AND j.state_code = UPPER(TRIM(w.usps))
+       AND j.geoid = TRIM(w.geoid)
+    WHERE w.official_website IS NOT NULL
+      AND BTRIM(w.official_website) <> ''
+),
+
+wikidata_county_base AS (
+    SELECT
+        TRIM(w.geoid)                                     AS geoid,
+        UPPER(TRIM(w.usps))                               AS state_code,
+        TRIM(w.official_website)                          AS raw_website,
+        NULLIF(TRIM(w.wikidata_id), '')                   AS wikidata_id,
+        TRIM(w.name)                                      AS county_name,
+        COALESCE(
+            w.official_website_updated_at,
+            w.wikidata_last_updated,
+            w.wikidata_fetched_at
+        )                                                 AS ingestion_ts,
+        j.jurisdiction_id
+    FROM {{ source('bronze', 'bronze_jurisdictions_counties_wikidata') }} w
+    LEFT JOIN {{ ref('int_jurisdictions') }} j
+        ON j.jurisdiction_type = 'county'
+       AND j.state_code = UPPER(TRIM(w.usps))
+       AND j.geoid = TRIM(w.geoid)
+    WHERE w.official_website IS NOT NULL
+      AND BTRIM(w.official_website) <> ''
+),
+
+wikidata_rows AS (
+    SELECT
+        'wikidata|' || COALESCE(w.wikidata_id, w.geoid)   AS website_record_key,
+        'wikidata'                                        AS website_source,
+        NULLIF(
+          LOWER(TRIM((regexp_match(
+            regexp_replace(
+              CASE
+                WHEN w.raw_website ~* '^https?://' THEN TRIM(w.raw_website)
+                ELSE 'https://' || TRIM(REGEXP_REPLACE(w.raw_website, '^/+', ''))
+              END,
+              '^https?://', '', 'i'
+            ),
+            '^([^/?#]+)'
+          ))[1])),
+          ''
+        )                                                 AS domain_name,
+        CASE
+            WHEN w.raw_website ~* '^https?://' THEN TRIM(w.raw_website)
+            ELSE 'https://' || TRIM(REGEXP_REPLACE(w.raw_website, '^/+', ''))
+        END                                               AS website_url,
+        CAST(NULL AS VARCHAR)                             AS domain_type,
+        'municipality'                                    AS jurisdiction_category,
+        w.place_name                                      AS organization_name,
+        CAST(NULL AS VARCHAR)                             AS agency,
+        CAST(NULL AS VARCHAR)                             AS city,
+        w.state_code,
+        s.state_name                                      AS state,
+        w.jurisdiction_id,
+        w.ingestion_ts                                    AS ingestion_date,
+        CURRENT_TIMESTAMP                                 AS transformed_at
+    FROM wikidata_municipality_base w
+    LEFT JOIN state_ref s ON w.state_code = s.state_code
+
+    UNION ALL
+
+    SELECT
+        'wikidata|' || COALESCE(w.wikidata_id, w.geoid)   AS website_record_key,
+        'wikidata'                                        AS website_source,
+        NULLIF(
+          LOWER(TRIM((regexp_match(
+            regexp_replace(
+              CASE
+                WHEN w.raw_website ~* '^https?://' THEN TRIM(w.raw_website)
+                ELSE 'https://' || TRIM(REGEXP_REPLACE(w.raw_website, '^/+', ''))
+              END,
+              '^https?://', '', 'i'
+            ),
+            '^([^/?#]+)'
+          ))[1])),
+          ''
+        )                                                 AS domain_name,
+        CASE
+            WHEN w.raw_website ~* '^https?://' THEN TRIM(w.raw_website)
+            ELSE 'https://' || TRIM(REGEXP_REPLACE(w.raw_website, '^/+', ''))
+        END                                               AS website_url,
+        CAST(NULL AS VARCHAR)                             AS domain_type,
+        'county'                                          AS jurisdiction_category,
+        w.county_name                                     AS organization_name,
+        CAST(NULL AS VARCHAR)                             AS agency,
+        CAST(NULL AS VARCHAR)                             AS city,
+        w.state_code,
+        s.state_name                                      AS state,
+        w.jurisdiction_id,
+        w.ingestion_ts                                    AS ingestion_date,
+        CURRENT_TIMESTAMP                                 AS transformed_at
+    FROM wikidata_county_base w
+    LEFT JOIN state_ref s ON w.state_code = s.state_code
+),
+
 naco_rows AS (
     SELECT
         'naco|' || n.county_geoid                           AS website_record_key,
@@ -839,6 +965,8 @@ combined AS (
     SELECT * FROM nces_rows
     UNION ALL
     SELECT * FROM naco_rows
+    UNION ALL
+    SELECT * FROM wikidata_rows
     UNION ALL
     SELECT * FROM override_rows
 ),

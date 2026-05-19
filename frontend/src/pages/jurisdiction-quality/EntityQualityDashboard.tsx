@@ -22,6 +22,11 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
+import { useQuery } from '@tanstack/react-query'
+import {
+  fetchUnmappedJurisdictions,
+  type UnmappedDrillParams,
+} from '../../api/jurisdictionMappingUnmapped'
 import { DATA_EXPLORER_MAP_BASE } from '../../utils/dataExplorerPaths'
 
 const US_STATE_NAMES: Record<string, string> = {
@@ -89,12 +94,14 @@ type SummaryRow = {
   jurisdictions_touching_nces: number
   jurisdictions_touching_gsa: number
   jurisdictions_touching_league: number
+  jurisdictions_touching_wikidata: number
   jurisdictions_touching_override: number
   primary_from_naco?: number
   primary_from_uscm?: number
   primary_from_nces_directory?: number
   primary_from_gsa?: number
   primary_from_league?: number
+  primary_from_wikidata?: number
   primary_from_override?: number
 }
 
@@ -109,12 +116,14 @@ type MunicipalityPlaceSummaryRow = {
   jurisdictions_touching_nces: number
   jurisdictions_touching_gsa: number
   jurisdictions_touching_league: number
+  jurisdictions_touching_wikidata: number
   jurisdictions_touching_override: number
   primary_from_naco?: number
   primary_from_uscm?: number
   primary_from_nces_directory?: number
   primary_from_gsa?: number
   primary_from_league?: number
+  primary_from_wikidata?: number
   primary_from_override?: number
 }
 
@@ -182,6 +191,7 @@ type UnmappedDrillRow = {
   has_nces_directory_source?: boolean | null
   has_gsa_source?: boolean | null
   has_league_source?: boolean | null
+  has_wikidata_source?: boolean | null
   has_override_source?: boolean | null
   acs_population_tier?: string | null
   acs_income_level?: string | null
@@ -251,6 +261,7 @@ export type QualityPayload = {
           primary_from_nces_directory?: number
           primary_from_gsa?: number
           primary_from_league?: number
+          primary_from_wikidata?: number
           primary_from_override?: number
         }[]
         by_income_level: {
@@ -263,6 +274,7 @@ export type QualityPayload = {
           primary_from_nces_directory?: number
           primary_from_gsa?: number
           primary_from_league?: number
+          primary_from_wikidata?: number
           primary_from_override?: number
         }[]
       }
@@ -361,19 +373,19 @@ const ENTITY_META: Record<
     label: 'Cities',
     icon: '🏙',
     accentVar: '--jmq-amber',
-    sourceKeys: ['uscm', 'league', 'gsa', 'override'],
+    sourceKeys: ['uscm', 'league', 'gsa', 'wikidata', 'override'],
   },
   towns: {
     label: 'Towns & Villages',
     icon: '🏘',
     accentVar: '--jmq-red',
-    sourceKeys: ['gsa', 'override'],
+    sourceKeys: ['gsa', 'wikidata', 'override'],
   },
   counties: {
     label: 'Counties',
     icon: '🗺',
     accentVar: '--jmq-teal',
-    sourceKeys: ['naco', 'gsa', 'override'],
+    sourceKeys: ['naco', 'gsa', 'wikidata', 'override'],
   },
   schools: {
     label: 'School Districts',
@@ -412,13 +424,14 @@ function aggregateMuniKinds(
     | 'jurisdictions_touching_nces'
     | 'jurisdictions_touching_gsa'
     | 'jurisdictions_touching_league'
+    | 'jurisdictions_touching_wikidata'
     | 'jurisdictions_touching_override'
   >
 } {
   let total = 0
   let withUrl = 0
   let syntaxOk = 0
-  const touch = { naco: 0, uscm: 0, nces: 0, gsa: 0, league: 0, override: 0 }
+  const touch = { naco: 0, uscm: 0, nces: 0, gsa: 0, league: 0, wikidata: 0, override: 0 }
   for (const r of rows ?? []) {
     if (!kinds.includes(r.municipality_place_kind)) continue
     total += Number(r.total_jurisdictions)
@@ -429,6 +442,7 @@ function aggregateMuniKinds(
     touch.nces += Number(r.jurisdictions_touching_nces)
     touch.gsa += Number(r.jurisdictions_touching_gsa)
     touch.league += Number(r.jurisdictions_touching_league)
+    touch.wikidata += Number(r.jurisdictions_touching_wikidata ?? 0)
     touch.override += Number(r.jurisdictions_touching_override)
   }
   const pct = total > 0 ? (100 * withUrl) / total : 0
@@ -443,6 +457,7 @@ function aggregateMuniKinds(
       jurisdictions_touching_nces: touch.nces,
       jurisdictions_touching_gsa: touch.gsa,
       jurisdictions_touching_league: touch.league,
+      jurisdictions_touching_wikidata: touch.wikidata,
       jurisdictions_touching_override: touch.override,
     },
   }
@@ -459,6 +474,7 @@ function aggregateMuniPrimaryFrom(
     primary_from_nces_directory: 0,
     primary_from_gsa: 0,
     primary_from_league: 0,
+    primary_from_wikidata: 0,
     primary_from_override: 0,
   }
   for (const r of rows ?? []) {
@@ -469,6 +485,7 @@ function aggregateMuniPrimaryFrom(
     sums.primary_from_nces_directory += Number(r.primary_from_nces_directory ?? 0)
     sums.primary_from_gsa += Number(r.primary_from_gsa ?? 0)
     sums.primary_from_league += Number(r.primary_from_league ?? 0)
+    sums.primary_from_wikidata += Number(r.primary_from_wikidata ?? 0)
     sums.primary_from_override += Number(r.primary_from_override ?? 0)
   }
   if (total === 0) return null
@@ -482,6 +499,7 @@ function aggregateMuniPrimaryFrom(
     jurisdictions_touching_nces: 0,
     jurisdictions_touching_gsa: 0,
     jurisdictions_touching_league: 0,
+    jurisdictions_touching_wikidata: 0,
     jurisdictions_touching_override: 0,
     ...sums,
   }
@@ -581,6 +599,7 @@ const PRIMARY_SOURCE_DEFS: {
     | 'primary_from_nces_directory'
     | 'primary_from_gsa'
     | 'primary_from_league'
+    | 'primary_from_wikidata'
     | 'primary_from_override'
   >
   label: string
@@ -591,6 +610,7 @@ const PRIMARY_SOURCE_DEFS: {
   { sourceKey: 'nces_directory', field: 'primary_from_nces_directory', label: 'NCES', fill: '#117a72' },
   { sourceKey: 'gsa', field: 'primary_from_gsa', label: 'GSA', fill: '#9a6700' },
   { sourceKey: 'league', field: 'primary_from_league', label: 'League', fill: '#8250df' },
+  { sourceKey: 'wikidata', field: 'primary_from_wikidata', label: 'Wikidata', fill: '#990055' },
   { sourceKey: 'override', field: 'primary_from_override', label: 'Override', fill: '#116329' },
 ]
 
@@ -830,6 +850,7 @@ type EntityAcsBucketRow = {
   primary_from_nces_directory?: number
   primary_from_gsa?: number
   primary_from_league?: number
+  primary_from_wikidata?: number
   primary_from_override?: number
 }
 
@@ -952,16 +973,6 @@ function StateTierDrillPanel({
   return createPortal(modal, document.body)
 }
 
-function matchesEntityUnmapped(entity: EntityKey, r: UnmappedDrillRow): boolean {
-  if (entity === 'state') return r.jurisdiction_type === 'state'
-  if (entity === 'counties') return r.jurisdiction_type === 'county'
-  if (entity === 'schools') return r.jurisdiction_type === 'school_district'
-  if (r.jurisdiction_type !== 'municipality') return false
-  const k = r.municipality_place_kind ?? 'unknown'
-  if (entity === 'cities') return k === 'incorporated_city'
-  return k === 'incorporated_other' || k === 'unknown' || k === 'census_designated_place'
-}
-
 function statePortalDetailLines(s: StateQualityRow): string[] {
   const lines: string[] = []
   if (s.primary_website_url) {
@@ -1042,6 +1053,7 @@ function sourceBadgeClass(src: string): string {
     nces_directory: 'jmq-src-badge--nces_directory',
     gsa: 'jmq-src-badge--gsa',
     league: 'jmq-src-badge--league',
+    wikidata: 'jmq-src-badge--wikidata',
     override: 'jmq-src-badge--override',
   }
   return `${base} ${m[src] ?? ''}`.trim()
@@ -1066,22 +1078,44 @@ function CovBarLite({ pct, width = 100 }: { pct: number; width?: number }) {
 }
 
 function DrillPanel({
-  rows,
+  query,
   title,
   subtitle,
   onClose,
   bannerExtra,
-  useBucketDrill = false,
+  expectedMissing,
 }: {
-  rows: UnmappedDrillRow[]
+  query: UnmappedDrillParams
   title: string
   subtitle: string
   onClose: () => void
-  /** Optional second line in the amber banner (e.g. fallback sample explanation). */
+  /** Optional second line in the amber banner. */
   bannerExtra?: string | null
-  /** True when rows come from entity_acs_unmapped_drill (matches table counts). */
-  useBucketDrill?: boolean
+  /** Rollup missing count from JSON summary (for mismatch hint). */
+  expectedMissing?: number
 }) {
+  const { data, isPending, isError, error } = useQuery({
+    queryKey: ['jurisdiction-mapping-unmapped', query],
+    queryFn: ({ signal }) =>
+      fetchUnmappedJurisdictions({ ...query, limit: 50_000, offset: 0 }, signal),
+    staleTime: 60_000,
+  })
+  const rows = data?.rows ?? []
+  const total = data?.total ?? 0
+
+  let loadBanner = bannerExtra ?? null
+  if (!isPending && !isError && data) {
+    loadBanner = [
+      loadBanner,
+      `Showing ${fmt(rows.length)} of ${fmt(total)} unmapped jurisdictions (live API).`,
+      expectedMissing != null && expectedMissing > 0 && total !== expectedMissing
+        ? `Summary rollup reports ${fmt(expectedMissing)} missing in this slice — counts can differ if the snapshot JSON is stale.`
+        : null,
+    ]
+      .filter(Boolean)
+      .join(' ')
+  }
+
   const modal = (
     <div
       className="jmq-modal-portal-root jmq-modal-scrim fixed inset-0 z-[300] flex items-start justify-end p-4"
@@ -1114,15 +1148,19 @@ function DrillPanel({
         </div>
         <div className="border-b border-[var(--jmq-border)] bg-[var(--jmq-amber-dim)] px-4 py-2 text-[11px] text-[#4d2d00]">
           <div>
-            {useBucketDrill
-              ? 'Unmapped list for this ACS bucket (from Postgres export).'
-              : 'Sample from global JSON export (capped). Re-export for per-bucket lists or query Postgres.'}
+            Loaded from <code className="text-[10px]">GET /api/jurisdiction-mapping/unmapped</code>
           </div>
-          {bannerExtra ? <div className="mt-1 font-medium">{bannerExtra}</div> : null}
+          {loadBanner ? <div className="mt-1 font-medium">{loadBanner}</div> : null}
         </div>
         <div className="flex-1 overflow-y-auto">
-          {rows.length === 0 ? (
-            <div className="p-10 text-center text-sm text-[var(--jmq-green)]">No matching rows in this sample.</div>
+          {isPending ? (
+            <div className="p-10 text-center text-sm text-[var(--jmq-text-muted)]">Loading unmapped list…</div>
+          ) : isError ? (
+            <div className="p-10 text-center text-sm text-[var(--jmq-red)]">
+              Could not load drill-down: {(error as Error)?.message ?? 'unknown error'}. Is the API running on port 8000?
+            </div>
+          ) : rows.length === 0 ? (
+            <div className="p-10 text-center text-sm text-[var(--jmq-green)]">No matching unmapped rows in the warehouse.</div>
           ) : (
             <table className="w-full border-collapse text-xs">
               <thead className="sticky top-0 bg-[var(--jmq-surface2)]">
@@ -1146,7 +1184,7 @@ function DrillPanel({
                     <td className="px-3 py-2 font-mono text-[10px]">{r.acs_population_tier ?? '—'}</td>
                     <td className="px-3 py-2 font-mono text-[10px]">{r.acs_income_level ?? '—'}</td>
                     <td className="px-3 py-2 font-mono text-[10px] text-[var(--jmq-text-muted)]">
-                      {[r.has_naco_source && 'NACo', r.has_uscm_source && 'USCM', r.has_nces_directory_source && 'NCES', r.has_gsa_source && 'GSA', r.has_league_source && 'League', r.has_override_source && 'ovr']
+                      {[r.has_naco_source && 'NACo', r.has_uscm_source && 'USCM', r.has_nces_directory_source && 'NCES', r.has_gsa_source && 'GSA', r.has_league_source && 'League', r.has_wikidata_source && 'WD', r.has_override_source && 'ovr']
                         .filter(Boolean)
                         .join(', ') || '—'}
                     </td>
@@ -1199,12 +1237,10 @@ function enrichStateRollup(
 function EntityStateRollupSection({
   entity,
   rollup,
-  unmapped,
   stateQuality,
 }: {
   entity: Exclude<EntityKey, 'state'>
   rollup: StateRollupRow[]
-  unmapped: UnmappedDrillRow[]
   stateQuality?: StateQualityRow[]
 }) {
   const label = ENTITY_META[entity].label
@@ -1239,11 +1275,6 @@ function EntityStateRollupSection({
     return withGaps.slice(0, 20)
   }, [enriched, view])
 
-  const drillRows = useMemo(() => {
-    if (!drill) return []
-    return unmapped.filter((r) => r.state_code === drill.state_code && matchesEntityUnmapped(entity, r)).slice(0, 80)
-  }, [drill, entity, unmapped])
-
   const totalMissing = useMemo(() => enriched.reduce((s, r) => s + r.missing, 0), [enriched])
 
   const setDrillFromBar = (barData: unknown) => {
@@ -1263,14 +1294,10 @@ function EntityStateRollupSection({
     <div id="jmq-missing-by-state" className="scroll-mt-24">
       {drill ? (
         <DrillPanel
-          rows={drillRows}
+          query={{ entity, state_code: drill.state_code }}
+          expectedMissing={drill.missing}
           title="Missing primary URL"
-          subtitle={`${drill.name} (${drill.state_code}) · ${label} · sample`}
-          bannerExtra={
-            drillRows.length === 0
-              ? `The summary shows ${fmt(drill.missing)} missing ${label.toLowerCase()} in ${drill.state_code}, but none appear in the capped export sample. Re-export with a higher JURIS_MAPPING_QUALITY_UNMAPPED_CAP or query Postgres.`
-              : `Showing up to 80 unmapped ${label.toLowerCase()} from the export sample (${fmt(drill.missing)} missing in this state per rollup).`
-          }
+          subtitle={`${drill.name} (${drill.state_code}) · ${label}`}
           onClose={() => setDrill(null)}
         />
       ) : null}
@@ -1372,7 +1399,7 @@ function EntityStateRollupSection({
           {search ? `Search: “${search}”` : view === 'worst' ? 'States with the most missing URLs' : view === 'best' ? 'Highest coverage by state' : 'All states'}
         </div>
         <p className="jmq-card-sub">
-          Per-state rollup for {label.toLowerCase()}. Use <strong>↗ Missing</strong> to open the unmapped sample for that state.
+          Per-state rollup for {label.toLowerCase()}. Use <strong>↗ Missing</strong> to load the full unmapped list for that state (API).
         </p>
         <div className="jmq-tbl-wrap mt-2">
           <table className="jmq-dt text-xs">
@@ -1447,11 +1474,9 @@ function EntityStateRollupSection({
 
 function StateAnalysisSection({
   rollup,
-  unmapped,
   stateQuality,
 }: {
   rollup: StateRollupRow[]
-  unmapped: UnmappedDrillRow[]
   stateQuality?: StateQualityRow[]
 }) {
   const qualityByCode = useMemo(() => {
@@ -1518,11 +1543,6 @@ function StateAnalysisSection({
     return base.slice(0, 20)
   }, [enriched, view])
 
-  const drillRows = useMemo(() => {
-    if (!drill) return []
-    return unmapped.filter((r) => r.state_code === drill.state_code && r.jurisdiction_type === 'state').slice(0, 80)
-  }, [drill, unmapped])
-
   const setDrillFromBar = (barData: unknown) => {
     const p = (barData as { payload?: EnrichedState } | null)?.payload
     if (p?.state_code) setDrill(p)
@@ -1540,16 +1560,11 @@ function StateAnalysisSection({
     <div>
       {drill ? (
         <DrillPanel
-          rows={drillRows}
+          query={{ entity: 'state', state_code: drill.state_code }}
+          expectedMissing={drill.missing}
           title="State without portal"
           subtitle={`${drill.name} (${drill.state_code}) · state government row`}
-          bannerExtra={
-            drill?.portal
-              ? statePortalDetailLines(drill.portal).join(' · ')
-              : drillRows.length === 0
-                ? 'No state-government row in the unmapped export sample (capped list). Re-export or query jurisdiction_mapping_analysis where jurisdiction_type = state.'
-                : null
-          }
+          bannerExtra={drill?.portal ? statePortalDetailLines(drill.portal).join(' · ') : null}
           onClose={() => setDrill(null)}
         />
       ) : null}
@@ -1889,7 +1904,6 @@ export default function EntityQualityDashboard({
   const popRowsAll = data.summary_by_acs_population_tier ?? []
   const incRowsAll = data.summary_by_acs_income_level ?? []
   const drill = data.drilldown
-  const unmapped = drill?.unmapped ?? []
   const mappedIssues = drill?.mapped_url_issues ?? []
 
   const stateQualityRows = data.states ?? []
@@ -1972,74 +1986,32 @@ export default function EntityQualityDashboard({
   const insight = useMemo(() => {
     const { total, withUrl, pct } = metrics
     const miss = total - withUrl
+    const fromWikidata = Number(sourceRateRow?.primary_from_wikidata ?? 0)
+    const fromGsa = Number(sourceRateRow?.primary_from_gsa ?? 0)
+    const fromLeague = Number(sourceRateRow?.primary_from_league ?? 0)
+    const fromUscm = Number(sourceRateRow?.primary_from_uscm ?? 0)
     if (entity === 'towns')
-      return `${fmt(miss)} incorporated towns/CDPs/unknown-LSAD rows still lack a primary URL (${(100 - pct).toFixed(1)}% gap). GSA seeds only part of the long tail — new municipal sources are the lever.`
+      return `${fmt(miss)} incorporated towns/CDPs/unknown-LSAD rows still lack a primary URL (${(100 - pct).toFixed(1)}% gap). GSA and Wikidata (P856) cover part of the long tail; gaps are usually no official website in any source.`
     if (entity === 'cities')
-      return `Incorporated cities sit near ${pct.toFixed(1)}% coverage. USCM + GSA still miss ${fmt(miss)} cities — mostly smaller places outside directory coverage.`
+      return `Incorporated cities sit near ${pct.toFixed(1)}% coverage (${fmt(withUrl)} of ${fmt(total)}). Primaries come from GSA (${fmt(fromGsa)}), Wikidata official sites (${fmt(fromWikidata)}), League (${fmt(fromLeague)}), and USCM (${fmt(fromUscm)}). ${fmt(miss)} cities still have no URL — often no Wikidata P856 and no directory match (Wikipedia articles are not used).`
     if (entity === 'counties')
-      return `Counties are the best-covered class in most snapshots (~${pct.toFixed(1)}%). Remaining ${fmt(miss)} gaps skew rural / edge cases.`
+      return `Counties are the best-covered class in most snapshots (~${pct.toFixed(1)}%). NACO, GSA, and Wikidata (P856) supply most primaries; remaining ${fmt(miss)} gaps skew rural / no official website.`
     if (entity === 'state')
       return `${fmt(withUrl)} of ${fmt(total)} state governments have a primary portal URL in the warehouse (${pct.toFixed(1)}%). ${fmt(miss)} states lack one. Population / income tabs group states by ACS tiers.`
     const stateNote = stateFilter ? ` · ${US_STATE_NAMES[stateFilter] ?? stateFilter} (${stateFilter})` : ''
     return `${ENTITY_META[entity].label}${stateNote}: ~${pct.toFixed(1)}% with a primary URL; ${fmt(miss)} still missing. Use the state filter to scope drills to one state.`
-  }, [entity, metrics, stateFilter])
+  }, [entity, metrics, stateFilter, sourceRateRow])
 
-  const entityAcsDrillResult = useMemo(() => {
-    if (!bucketDrill || bucketDrill.mode !== 'entity_acs') {
-      return {
-        rows: [] as UnmappedDrillRow[],
-        bannerExtra: null as string | null,
-        useBucketDrill: false,
-      }
+  const acsBucketDrillQuery = useMemo((): UnmappedDrillParams | null => {
+    if (!bucketDrill || bucketDrill.mode !== 'entity_acs') return null
+    return {
+      entity: bucketDrill.entityKey,
+      ...(stateFilter ? { state_code: stateFilter } : {}),
+      ...(bucketDrill.field === 'acs_population_tier'
+        ? { acs_population_tier: bucketDrill.value }
+        : { acs_income_level: bucketDrill.value }),
     }
-    const ek = bucketDrill.entityKey
-    const val = bucketDrill.value
-    const tierListKey = bucketDrill.field === 'acs_population_tier' ? 'by_population_tier' : 'by_income_level'
-    let bucketRows =
-      data.entity_acs_unmapped_drill?.[ek]?.[tierListKey]?.[val]?.slice() ?? []
-    if (stateFilter) bucketRows = bucketRows.filter((r) => r.state_code === stateFilter)
-
-    if (bucketRows.length > 0) {
-      const expected = bucketDrill.expectedMissing
-      const cap = data.entity_acs_bucket_drill_cap
-      let bannerExtra: string | null = null
-      if (expected > 0 && bucketRows.length < expected) {
-        bannerExtra = `Showing ${fmt(bucketRows.length)} of ${fmt(expected)} missing in this bucket${
-          cap != null ? ` (export cap ${fmt(cap)} per bucket; re-export with JURIS_MAPPING_QUALITY_BUCKET_DRILL_CAP)` : ''
-        }.`
-      }
-      return { rows: bucketRows.slice(0, 80), bannerExtra, useBucketDrill: true }
-    }
-
-    let base = unmapped.filter((r) => matchesEntityUnmapped(ek, r))
-    if (stateFilter) base = base.filter((r) => r.state_code === stateFilter)
-    const strict = base.filter((r) => String(r[bucketDrill.field] ?? '') === val)
-    if (strict.length > 0) {
-      const expected = bucketDrill.expectedMissing
-      const bannerExtra =
-        expected > 0 && strict.length < expected
-          ? `Showing ${fmt(strict.length)} of ${fmt(expected)} missing from the global capped sample — re-export to populate entity_acs_unmapped_drill.`
-          : 'Legacy global sample only; re-run export_jurisdiction_mapping_quality_json.py for per-bucket drill lists.'
-      return { rows: strict.slice(0, 80), bannerExtra, useBucketDrill: false }
-    }
-    const parts: string[] = []
-    if (bucketDrill.expectedMissing > 0) {
-      parts.push(
-        `The summary shows ${fmt(bucketDrill.expectedMissing)} missing ${ENTITY_META[ek].label.toLowerCase()} in “${val}”.`,
-      )
-      parts.push('Re-run export_jurisdiction_mapping_quality_json.py (entity_acs_unmapped_drill) or query Postgres.')
-    } else {
-      parts.push(`No unmapped ${ENTITY_META[ek].label.toLowerCase()} in this bucket.`)
-    }
-    return { rows: [], bannerExtra: parts.join(' '), useBucketDrill: false }
-  }, [bucketDrill, data.entity_acs_bucket_drill_cap, data.entity_acs_unmapped_drill, stateFilter, unmapped])
-
-  const stateJurisDrillRows = useMemo(() => {
-    if (!stateJurisDrill) return []
-    return unmapped
-      .filter((r) => r.state_code === stateJurisDrill.state_code && r.jurisdiction_type === 'state')
-      .slice(0, 80)
-  }, [stateJurisDrill, unmapped])
+  }, [bucketDrill, stateFilter])
 
   const syntaxIssueRows = useMemo(() => {
     if (entity !== 'schools') return []
@@ -2082,7 +2054,7 @@ export default function EntityQualityDashboard({
           <div className="min-w-0">
             <div className="jmq-hdr-title">Open Navigator — Data Quality</div>
             <div className="font-mono text-[11px] text-[var(--jmq-text-muted)]">
-              jurisdiction_mapping_quality.json · NACo / USCM / NCES / GSA
+              jurisdiction_mapping_quality.json · NACo / USCM / NCES / GSA / Wikidata
             </div>
           </div>
           <div className="jmq-hdr-sub hidden flex-wrap justify-end gap-2 lg:flex">
@@ -2117,20 +2089,20 @@ export default function EntityQualityDashboard({
       ) : null}
       {stateJurisDrill ? (
         <DrillPanel
-          rows={stateJurisDrillRows}
+          query={{ entity: 'state', state_code: stateJurisDrill.state_code }}
+          expectedMissing={1}
           title="State without portal"
           subtitle={`${stateJurisDrill.state_name} (${stateJurisDrill.state_code}) · state government`}
           bannerExtra={statePortalDetailLines(stateJurisDrill).join(' · ')}
           onClose={() => setStateJurisDrill(null)}
         />
       ) : null}
-      {bucketDrill?.mode === 'entity_acs' ? (
+      {acsBucketDrillQuery && bucketDrill?.mode === 'entity_acs' ? (
         <DrillPanel
-          rows={entityAcsDrillResult.rows}
-          title="Unmapped sample"
+          query={acsBucketDrillQuery}
+          expectedMissing={bucketDrill.expectedMissing}
+          title="Missing primary URL"
           subtitle={`${ENTITY_META[bucketDrill.entityKey].label} · ${bucketDrill.value}`}
-          bannerExtra={entityAcsDrillResult.bannerExtra}
-          useBucketDrill={entityAcsDrillResult.useBucketDrill}
           onClose={() => setBucketDrill(null)}
         />
       ) : null}
@@ -2387,7 +2359,7 @@ export default function EntityQualityDashboard({
               Re-run <code>export_jurisdiction_mapping_quality_json.py</code> after updating the repo.
             </div>
           ) : (
-            <StateAnalysisSection rollup={rollup} unmapped={unmapped} stateQuality={stateQualityRows} />
+            <StateAnalysisSection rollup={rollup} stateQuality={stateQualityRows} />
           )}
         </div>
       ) : null}
@@ -2560,7 +2532,6 @@ export default function EntityQualityDashboard({
             <EntityStateRollupSection
               entity={entity}
               rollup={rollup}
-              unmapped={unmapped}
               stateQuality={stateQualityRows}
             />
           )}

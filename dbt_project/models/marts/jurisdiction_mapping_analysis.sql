@@ -8,7 +8,8 @@ Mart: one row per jurisdiction (county, municipality, school district) with the
 **primary** website chosen using the same source priority as
 ``scripts/discovery/jurisdiction_discovery_pipeline.py`` (NACO before GSA for counties;
 GSA before NACO for other types). USCM = municipal / Conference of Mayors–style directory;
-NCES = school district directory; NACO = county association directory.
+NCES = school district directory; NACO = county association directory; Wikidata = P856 from
+``bronze_jurisdictions_{municipalities,counties}_wikidata`` (fallback after curated directories).
 
 ``primary_url_syntax_ok`` / ``primary_url_likely_wrong_host`` / ``primary_url_passes_basic_checks`` are
 **static** SQL checks (scheme + hostname shape + simple deny patterns), not HTTP reachability. For live
@@ -31,14 +32,19 @@ WITH base AS (
         s.website_record_key,
         s.domain_name,
         CASE
+            WHEN j.jurisdiction_type = 'municipality'
+                 AND s.website_source IN ('uscm', 'league')
+                 AND {{ uscm_league_county_portal_blocked('j.name', 's.domain_name') }}
+                THEN 99
             WHEN j.jurisdiction_id LIKE 'county_%' THEN
                 CASE s.website_source
                     WHEN 'override' THEN 0
                     WHEN 'naco' THEN 1
                     WHEN 'gsa' THEN 2
-                    WHEN 'league' THEN 3
-                    WHEN 'uscm' THEN 4
-                    WHEN 'nces_directory' THEN 5
+                    WHEN 'wikidata' THEN 3
+                    WHEN 'league' THEN 4
+                    WHEN 'uscm' THEN 5
+                    WHEN 'nces_directory' THEN 6
                     ELSE 9
                 END
             ELSE
@@ -46,9 +52,10 @@ WITH base AS (
                     WHEN 'override' THEN 0
                     WHEN 'gsa' THEN 1
                     WHEN 'league' THEN 2
-                    WHEN 'uscm' THEN 3
-                    WHEN 'nces_directory' THEN 4
-                    WHEN 'naco' THEN 5
+                    WHEN 'wikidata' THEN 3
+                    WHEN 'uscm' THEN 4
+                    WHEN 'nces_directory' THEN 5
+                    WHEN 'naco' THEN 6
                     ELSE 9
                 END
         END AS source_priority
@@ -66,6 +73,7 @@ flags AS (
         BOOL_OR(website_source = 'nces_directory') AS has_nces_row,
         BOOL_OR(website_source = 'gsa') AS has_gsa_row,
         BOOL_OR(website_source = 'league') AS has_league_row,
+        BOOL_OR(website_source = 'wikidata') AS has_wikidata_row,
         BOOL_OR(website_source = 'override') AS has_override_row,
         COUNT(*) FILTER (WHERE website_url IS NOT NULL AND BTRIM(website_url) <> '') AS n_url_rows
     FROM {{ ref('int_jurisdiction_websites') }}
@@ -118,6 +126,7 @@ picked AS (
         COALESCE(f.has_nces_row, FALSE) AS has_nces_directory_source,
         COALESCE(f.has_gsa_row, FALSE) AS has_gsa_source,
         COALESCE(f.has_league_row, FALSE) AS has_league_source,
+        COALESCE(f.has_wikidata_row, FALSE) AS has_wikidata_source,
         COALESCE(f.has_override_row, FALSE) AS has_override_source,
         COALESCE(f.n_url_rows, 0)::BIGINT AS n_website_candidate_rows,
         (p.primary_website_url IS NOT NULL AND BTRIM(p.primary_website_url) <> '') AS has_primary_website,
@@ -191,6 +200,7 @@ SELECT
     picked.has_nces_directory_source,
     picked.has_gsa_source,
     picked.has_league_source,
+    picked.has_wikidata_source,
     picked.has_override_source,
     picked.n_website_candidate_rows,
     picked.has_primary_website,
@@ -206,6 +216,11 @@ SELECT
         WHEN NOT picked.has_primary_website THEN NULL::BOOLEAN
         ELSE
             SUBSTRING(picked.primary_url_lc FROM '^https?://([^/?#]+)') ~* '(wikipedia|wikidata|facebook|fb\\.com|instagram|twitter|t\\.co|youtube|youtu\\.be|linkedin)\\.|[./](facebook|instagram|twitter|youtube|linkedin|wikipedia|wikidata)\\.'
+            OR (
+                picked.jurisdiction_type = 'municipality'
+                AND picked.primary_website_source IN ('uscm', 'league')
+                AND {{ uscm_league_county_portal_blocked('picked.name', 'picked.primary_domain_name') }}
+            )
     END AS primary_url_likely_wrong_host,
     CASE
         WHEN NOT picked.has_primary_website THEN NULL::BOOLEAN
@@ -217,6 +232,11 @@ SELECT
             AND NOT (
                 SUBSTRING(picked.primary_url_lc FROM '^https?://([^/?#]+)')
                 ~* '(wikipedia|wikidata|facebook|fb\\.com|instagram|twitter|t\\.co|youtube|youtu\\.be|linkedin)\\.|[./](facebook|instagram|twitter|youtube|linkedin|wikipedia|wikidata)\\.'
+            )
+            AND NOT (
+                picked.jurisdiction_type = 'municipality'
+                AND picked.primary_website_source IN ('uscm', 'league')
+                AND {{ uscm_league_county_portal_blocked('picked.name', 'picked.primary_domain_name') }}
             )
             THEN TRUE
         ELSE FALSE

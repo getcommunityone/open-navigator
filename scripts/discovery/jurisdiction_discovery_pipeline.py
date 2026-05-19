@@ -96,10 +96,10 @@ WEBSITE_SOURCE_PRIORITY_ORDER_SQL = (
     # ``%%`` so psycopg2 does not treat ``county_%`` as a printf-style placeholder when this
     # fragment is embedded next to ``%s`` parameters (e.g. meetings ``--from-db`` queries).
     "CASE WHEN jurisdiction_id LIKE 'county_%%' THEN "
-    "CASE website_source WHEN 'override' THEN 0 WHEN 'naco' THEN 1 WHEN 'gsa' THEN 2 WHEN 'league' THEN 3 "
-    "WHEN 'uscm' THEN 4 WHEN 'nces_directory' THEN 5 ELSE 6 END ELSE "
-    "CASE website_source WHEN 'override' THEN 0 WHEN 'gsa' THEN 1 WHEN 'league' THEN 2 WHEN 'uscm' THEN 3 "
-    "WHEN 'nces_directory' THEN 4 WHEN 'naco' THEN 5 ELSE 6 END END"
+    "CASE website_source WHEN 'override' THEN 0 WHEN 'naco' THEN 1 WHEN 'gsa' THEN 2 WHEN 'wikidata' THEN 3 "
+    "WHEN 'league' THEN 4 WHEN 'uscm' THEN 5 WHEN 'nces_directory' THEN 6 ELSE 7 END ELSE "
+    "CASE website_source WHEN 'override' THEN 0 WHEN 'gsa' THEN 1 WHEN 'league' THEN 2 WHEN 'wikidata' THEN 3 "
+    "WHEN 'uscm' THEN 4 WHEN 'nces_directory' THEN 5 WHEN 'naco' THEN 6 ELSE 7 END END"
 )
 
 _SCRAPED_DDL_PATH = Path(__file__).resolve().parent / "sql" / "bronze_jurisdictions_scraped.sql"

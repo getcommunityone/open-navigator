@@ -97,6 +97,139 @@ With `--happy-path`, if `fips_gnis_map.parquet` exists, those three env vars def
 
 Parquet has **Q-ids only**; `official_website` still comes from the loader’s Wikibase API step.
 
+## County websites only (`official_website`)
+
+Same pattern as municipalities, on `bronze.bronze_jurisdictions_counties_wikidata`.
+
+Optional: stamp Q-ids from parquet first:
+
+```bash
+.venv/bin/python scripts/datasources/wikidata/warm_geography_cache_from_parquet.py \
+  --apply-bronze --states AL --types county
+```
+
+Run hydration (summary log: `data/logs/county_website_hydrate_<timestamp>.json`):
+
+```bash
+./scripts/datasources/wikidata/run_hydrate_county_websites.sh --states AL
+./scripts/datasources/wikidata/run_hydrate_county_websites.sh --priority-states
+./scripts/datasources/wikidata/run_hydrate_county_websites.sh --all-us-states --force
+```
+
+Check progress:
+
+```sql
+SELECT usps,
+       COUNT(*) AS total,
+       COUNT(*) FILTER (WHERE official_website IS NOT NULL AND BTRIM(official_website) <> '') AS with_url,
+       MAX(official_website_updated_at) AS last_website_update
+FROM bronze.bronze_jurisdictions_counties_wikidata
+GROUP BY usps
+ORDER BY usps;
+```
+
+## Municipality websites only (`official_website`)
+
+After rows have a `wikidata_id`, hydrate **P856 official website** via Wikibase `wbgetentities` (no bulk WDQS). Timestamps on the bronze table:
+
+| Column | Meaning |
+|--------|---------|
+| `official_website_updated_at` | Set when `official_website` is newly written or changed |
+| `wikidata_last_updated` | Any Wikidata enrichment field updated on that row |
+| `wikidata_fetched_at` | Same pass as `wikidata_last_updated` |
+
+One-time DDL (idempotent):
+
+```bash
+.venv/bin/python scripts/deployment/neon/ensure_bronze_jurisdictions_cloud.py --schema-only
+# or migration 036_add_official_website_updated_at_bronze_wikidata.sql on Neon
+```
+
+Re-run states with **zero** municipality `*_wikidata` rows (e.g. VT, WA, WV, WY — seeds from Census, parquet Q-ids, then websites):
+
+```bash
+./scripts/datasources/wikidata/run_municipality_websites_gap_states.sh
+# or auto-detect from Postgres:
+./scripts/datasources/wikidata/run_municipality_websites_gap_states.sh --discover
+```
+
+Run hydration (writes `data/logs/municipality_website_hydrate_<timestamp>.json`):
+
+```bash
+./scripts/datasources/wikidata/run_hydrate_municipality_websites.sh --states AL
+./scripts/datasources/wikidata/run_hydrate_municipality_websites.sh --priority-states
+./scripts/datasources/wikidata/run_hydrate_municipality_websites.sh --all-us-states --force
+```
+
+Check progress in SQL:
+
+```sql
+SELECT usps,
+       COUNT(*) AS total,
+       COUNT(*) FILTER (WHERE official_website IS NOT NULL AND BTRIM(official_website) <> '') AS with_url,
+       ROUND(
+         100.0 * COUNT(*) FILTER (WHERE official_website IS NOT NULL AND BTRIM(official_website) <> '')
+         / NULLIF(COUNT(*), 0),
+         1
+       ) AS pct_with_url,
+       MAX(official_website_updated_at) AS last_website_update
+FROM bronze.bronze_jurisdictions_municipalities_wikidata
+GROUP BY usps
+ORDER BY usps;
+```
+
+Municipalities **and** counties — **percent of all Census jurisdictions** (denominator = gazetteer base, not `*_wikidata` row count):
+
+```sql
+SELECT
+  usps,
+  jurisdiction_type,
+  total_jurisdictions,
+  in_wikidata,
+  with_url,
+  ROUND(100.0 * in_wikidata / NULLIF(total_jurisdictions, 0), 1) AS pct_in_wikidata,
+  ROUND(100.0 * with_url / NULLIF(total_jurisdictions, 0), 1) AS pct_with_url,
+  last_website_update
+FROM (
+  SELECT
+    b.usps,
+    b.jurisdiction_type::text AS jurisdiction_type,
+    COUNT(*)::int AS total_jurisdictions,
+    COUNT(w.geoid)::int AS in_wikidata,
+    COUNT(*) FILTER (
+      WHERE w.official_website IS NOT NULL AND BTRIM(w.official_website::text) <> ''
+    )::int AS with_url,
+    MAX(w.official_website_updated_at) AS last_website_update
+  FROM (
+    SELECT usps, geoid, jurisdiction_type
+    FROM bronze.bronze_jurisdictions_municipalities
+    UNION ALL
+    SELECT usps, geoid, jurisdiction_type
+    FROM bronze.bronze_jurisdictions_counties
+  ) b
+  LEFT JOIN (
+    SELECT usps, geoid, official_website, official_website_updated_at, jurisdiction_type
+    FROM bronze.bronze_jurisdictions_municipalities_wikidata
+    UNION ALL
+    SELECT usps, geoid, official_website, official_website_updated_at, jurisdiction_type
+    FROM bronze.bronze_jurisdictions_counties_wikidata
+  ) w
+    ON w.usps = b.usps
+   AND w.geoid::text = b.geoid::text
+   AND w.jurisdiction_type::text = b.jurisdiction_type::text
+  GROUP BY b.usps, b.jurisdiction_type
+) stats
+ORDER BY usps, jurisdiction_type;
+```
+
+| Column | Meaning |
+|--------|---------|
+| `total_jurisdictions` | Rows in Census gazetteer (`bronze_jurisdictions_municipalities` / `_counties`) |
+| `in_wikidata` | Base rows with a matching `*_wikidata` shell |
+| `with_url` | Base rows whose Wikidata row has `official_website` |
+| `pct_in_wikidata` | `in_wikidata / total_jurisdictions × 100` |
+| `pct_with_url` | `with_url / total_jurisdictions × 100` (not “% of wikidata rows only”) |
+
 ## Main entrypoint (jurisdictions)
 
 Seven **priority development states** in code: **`AL`, `GA`, `IN`, `MA`, `MT`, `WA`, `WI`** (`PRIORITY_STATES` in `load_jurisdictions_wikidata.py`).

@@ -1061,6 +1061,88 @@ class JurisdictionsWikiDataLoader:
         finally:
             cur.close()
 
+    def _municipality_website_stats(self, state_code: str) -> Dict[str, int]:
+        """Bronze municipality counts for logging (Q-id, website, timestamps)."""
+        if self._json_cache_dir:
+            return {}
+        us = state_code.upper()
+        cur = self.conn.cursor()
+        try:
+            cur.execute(
+                """
+                SELECT
+                    COUNT(*)::int AS total,
+                    COUNT(*) FILTER (
+                        WHERE wikidata_id IS NOT NULL AND BTRIM(wikidata_id::text) <> ''
+                    )::int AS with_qid,
+                    COUNT(*) FILTER (
+                        WHERE official_website IS NOT NULL
+                          AND BTRIM(official_website::text) <> ''
+                    )::int AS with_website,
+                    COUNT(*) FILTER (
+                        WHERE official_website_updated_at IS NOT NULL
+                    )::int AS with_website_ts
+                FROM bronze.bronze_jurisdictions_municipalities_wikidata
+                WHERE usps = %s
+                """,
+                (us,),
+            )
+            row = cur.fetchone()
+            if not row:
+                return {}
+            return {
+                "total": row[0],
+                "with_qid": row[1],
+                "with_website": row[2],
+                "with_official_website_updated_at": row[3],
+            }
+        except Exception as exc:
+            logger.warning(f"Could not read municipality website stats for {us}: {exc}")
+            return {}
+        finally:
+            cur.close()
+
+    def _county_website_stats(self, state_code: str) -> Dict[str, int]:
+        """Bronze county counts for logging (Q-id, website, timestamps)."""
+        if self._json_cache_dir:
+            return {}
+        us = state_code.upper()
+        cur = self.conn.cursor()
+        try:
+            cur.execute(
+                """
+                SELECT
+                    COUNT(*)::int AS total,
+                    COUNT(*) FILTER (
+                        WHERE wikidata_id IS NOT NULL AND BTRIM(wikidata_id::text) <> ''
+                    )::int AS with_qid,
+                    COUNT(*) FILTER (
+                        WHERE official_website IS NOT NULL
+                          AND BTRIM(official_website::text) <> ''
+                    )::int AS with_website,
+                    COUNT(*) FILTER (
+                        WHERE official_website_updated_at IS NOT NULL
+                    )::int AS with_website_ts
+                FROM bronze.bronze_jurisdictions_counties_wikidata
+                WHERE usps = %s
+                """,
+                (us,),
+            )
+            row = cur.fetchone()
+            if not row:
+                return {}
+            return {
+                "total": row[0],
+                "with_qid": row[1],
+                "with_website": row[2],
+                "with_official_website_updated_at": row[3],
+            }
+        except Exception as exc:
+            logger.warning(f"Could not read county website stats for {us}: {exc}")
+            return {}
+        finally:
+            cur.close()
+
     def _fetch_geoids_needing_enrichment(self, state_code: str, wikidata_table: str) -> Set[str]:
         """GEOIDs still needing Q-id and/or official_website (when hydrate mode is on)."""
         need = self._fetch_geoids_missing_wikidata_qid(state_code, wikidata_table)
@@ -1217,6 +1299,14 @@ class JurisdictionsWikiDataLoader:
             "longitude = %(longitude)s",
             "wikidata_fetched_at = CURRENT_TIMESTAMP",
             "wikidata_last_updated = CURRENT_TIMESTAMP",
+            (
+                "official_website_updated_at = CASE "
+                "WHEN %(official_website)s IS NOT NULL "
+                "  AND BTRIM(%(official_website)s::text) <> '' "
+                "  AND COALESCE(official_website, '') IS DISTINCT FROM COALESCE(%(official_website)s, '') "
+                "THEN CURRENT_TIMESTAMP "
+                "ELSE official_website_updated_at END"
+            ),
         ]
 
         # State table has additional descriptive metadata columns
@@ -3631,7 +3721,8 @@ class JurisdictionsWikiDataLoader:
             ):
                 incremental_tasks_skipped_entirely += 1
                 logger.success(
-                    f"  Incremental merge: all {task} rows for {state_code} already have wikidata_id — skipping WDQS"
+                    f"  Incremental merge: all {task} rows for {state_code} already enriched "
+                    f"(wikidata_id + official_website when hydrate mode is on) — skipping Wikidata API"
                 )
                 if checkpoint:
                     checkpoint.mark_done(state_code, task)
@@ -3644,9 +3735,43 @@ class JurisdictionsWikiDataLoader:
                 results = await self.query_state_info(state_code)
             elif task == 'city':
                 self._municipality_chunk_db_flush_used = False
+                muni_before = self._municipality_website_stats(state_code)
                 results = await self._query_cities_in_state(state_code, state_q_code, state_name)
+                muni_after = self._municipality_website_stats(state_code)
+                if muni_after:
+                    logger.info(
+                        f"  {state_code} municipalities bronze: "
+                        f"official_website {muni_after.get('with_website', 0)}/{muni_after.get('total', 0)}, "
+                        f"wikidata_id {muni_after.get('with_qid', 0)}/{muni_after.get('total', 0)}, "
+                        f"official_website_updated_at set on "
+                        f"{muni_after.get('with_official_website_updated_at', 0)} row(s)"
+                    )
+                    if muni_before and muni_after.get("with_website", 0) > muni_before.get(
+                        "with_website", 0
+                    ):
+                        logger.success(
+                            f"  +{muni_after['with_website'] - muni_before['with_website']} "
+                            f"new official_website value(s) for {state_code}"
+                        )
             elif task == 'county':
+                county_before = self._county_website_stats(state_code)
                 results = await self._query_counties_in_state(state_code, state_q_code, state_name)
+                county_after = self._county_website_stats(state_code)
+                if county_after:
+                    logger.info(
+                        f"  {state_code} counties bronze: "
+                        f"official_website {county_after.get('with_website', 0)}/{county_after.get('total', 0)}, "
+                        f"wikidata_id {county_after.get('with_qid', 0)}/{county_after.get('total', 0)}, "
+                        f"official_website_updated_at set on "
+                        f"{county_after.get('with_official_website_updated_at', 0)} row(s)"
+                    )
+                    if county_before and county_after.get("with_website", 0) > county_before.get(
+                        "with_website", 0
+                    ):
+                        logger.success(
+                            f"  +{county_after['with_website'] - county_before['with_website']} "
+                            f"new official_website value(s) for {state_code} counties"
+                        )
             elif task == 'school_district':
                 results = await self._query_schools_in_state(state_code, state_q_code, state_name)
             else:

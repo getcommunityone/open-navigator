@@ -531,6 +531,10 @@ sources:
             description: "Wikidata Q-item id (when resolved)"
           - name: wikidata_fetched_at
             description: "When Wikidata fields were last fetched"
+          - name: wikidata_last_updated
+            description: "When any Wikidata enrichment column was last updated"
+          - name: official_website_updated_at
+            description: "When official_website (P856) was last set or changed from Wikidata"
 
       - name: bronze_jurisdictions_school_districts_wikidata
         description: |

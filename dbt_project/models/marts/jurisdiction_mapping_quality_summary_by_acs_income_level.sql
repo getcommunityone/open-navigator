@@ -51,6 +51,7 @@ SELECT
     COUNT(*) FILTER (WHERE has_nces_directory_source)::BIGINT AS jurisdictions_touching_nces,
     COUNT(*) FILTER (WHERE has_gsa_source)::BIGINT AS jurisdictions_touching_gsa,
     COUNT(*) FILTER (WHERE has_league_source)::BIGINT AS jurisdictions_touching_league,
+    COUNT(*) FILTER (WHERE has_wikidata_source)::BIGINT AS jurisdictions_touching_wikidata,
     COUNT(*) FILTER (WHERE has_override_source)::BIGINT AS jurisdictions_touching_override,
     {{ jurisdiction_mapping_primary_from_source_columns() }},
     CURRENT_TIMESTAMP AS summary_generated_at

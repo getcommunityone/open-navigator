@@ -101,6 +101,32 @@ def hackathon_scraped_meetings_inventory_dirs(
 # Hackathon pipeline root on Drive (``01_raw_inputs``, ``03_processed_outputs``, …).
 HACKATHON_PIPELINE_ROOT_REL = Path("CommunityOne") / "hackathons" / "2026_Gemma_4_Good"
 
+# Colab judges: public Drive folder (Anyone with the link → Viewer). No personal mount.
+# Set the folder id after publishing ``2026_Gemma_4_Good`` (or override via env).
+_DEFAULT_PUBLIC_HACKATHON_DRIVE_FOLDER_ID = ""
+_DEFAULT_PUBLIC_HACKATHON_DRIVE_ZIP_FILE_ID = ""
+
+# Writable Colab runtime root (outputs + downloaded inputs survive the session).
+DEFAULT_COLAB_HACKATHON_PIPELINE_ROOT = Path("/content/hackathon_pipeline")
+
+
+def default_colab_hackathon_pipeline_root() -> Path:
+    return DEFAULT_COLAB_HACKATHON_PIPELINE_ROOT
+
+
+def public_hackathon_drive_folder_id() -> str:
+    return (
+        os.getenv("GOVERNANCE_PUBLIC_DRIVE_FOLDER_ID", _DEFAULT_PUBLIC_HACKATHON_DRIVE_FOLDER_ID)
+        or ""
+    ).strip()
+
+
+def public_hackathon_drive_zip_file_id() -> str:
+    return (
+        os.getenv("GOVERNANCE_PUBLIC_DRIVE_ZIP_FILE_ID", _DEFAULT_PUBLIC_HACKATHON_DRIVE_ZIP_FILE_ID)
+        or ""
+    ).strip()
+
 # Default mirror location under ``My Drive`` when ``SCRAPED_MEETINGS_GDRIVE_MIRROR`` is unset.
 SCRAPED_MEETINGS_GDRIVE_REL = HACKATHON_PIPELINE_ROOT_REL / "01_raw_inputs"
 
