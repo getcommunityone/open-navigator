@@ -1,58 +1,66 @@
 # Governance Meeting Transcript Deconstruction Prompt
-
+ 
 ## Objective
 Your objective is to deconstruct a governance meeting transcript to expose the underlying logic of its outcomes. Do not provide a chronological summary; instead, pinpoint the specific drivers behind each decision, identify the key actors who steered the debate, and articulate the specific risks or resources at play.
 
-**Frame Analysis Requirements:**
-For each decision, extract and contrast competing problem frames—the different ways stakeholders diagnose the cause, assign responsibility, propose solutions, and rank moral values. Frame analysis must explicitly capture:
+## Complete decision coverage (CRITICAL)
+
+Capture every vote, but **split arrays** so routine items do not bloat `decisions[]`:
+
+| Array | Contents |
+|-------|----------|
+| **`decisions[]`** (`D001`, …) | **Contested / debated only** — hearings with tension, disagreement, or major resident stakes |
+| **`uncontested_items[]`** (`U001`, …) | **Unanimous, consent, or no debate** — one lite row per action (headline, outcome, vote, one-line summary) |
+
+**Do not merge** unrelated items. **Do not duplicate** across arrays. Skip pure housekeeping (minutes, roll call).
+
+A typical council night: **many** `uncontested_items`, **few** `decisions` (often 1–3 debated).
+
+**Competing Views Requirements:**
+For each decision, extract and contrast competing views - the different ways stakeholders diagnose the cause, assign responsibility, propose solutions, and rank moral values. Competing views analysis must explicitly capture:
 - **Competing causal interpretations** (individual behavior vs system capacity, biology vs policy failure, etc.)
 - **Moral value conflicts** (collective safety vs individual liberty, equity vs efficiency, etc.)
 - **Normative tradeoffs** (whose interests are advanced, whose are constrained, which harms are accepted)
-- **Counter-frame structure** (how opponents diagnose the problem, cause, and remedy)
-- **Frame stability** (is this a new frame or extension of prior ones, does it lock in a dominant narrative)
-
+- **Counter-view structure** (how opponents diagnose the problem, cause, and remedy)
+- **View stability** (is this a new view or extension of prior ones, does it lock in a dominant narrative)
 **Human texture (required per decision):**
 - **Personal stories:** Specific anecdotes tied to this decision (who, what happened, why it mattered). Empty array if none.
 - **Humor and jokes:** Humor, sarcasm, tension-breaking laughter, or light moments — with accurate tone; empty array if none.
 - **Emotional intensity by side:** For supporters, opponents, and decision-makers: intensity (`Low` → `Very high`), named emotions (fear, anger, hope, frustration, grief, pride, distrust, relief, etc.), and how it showed up in the room.
-
 **Plain-language layer (required per decision):**
-Populate `how_people_saw_it` in everyday language a curious resident could follow — same ideas as `frame_analysis`, but **no jargon** (avoid "dominant frame," "counter-frame," "normative tradeoff"). Keep `frame_analysis` for structured import.
-
+Populate `how_people_saw_it` in everyday language a curious resident could follow — same ideas as `competing_views`, but **no jargon** (avoid "dominant view," "counter-view," "normative tradeoff"). Keep `competing_views` for structured import.
+ 
 ## Writing Style
 Apply Smart Brevity discipline to structured fields (headlines, JSON): open with a headline that front-loads the so-what, follow with a colon and the essential detail, cut everything else.
-
-**Document 2** is a separate plain-language summary (see STEP 2) — conversational prose. Use Smart Brevity tags for the lead (`Bottom line`, `Why it matters`); keep plain labels for sides, tension, and human moments (`Who was for it and why`, `Who was against it and why`, `The tension underneath`, `One moment worth remembering`). **`how_people_saw_it`** and **`human_element`** in Document 1 JSON still capture structured facts; Document 2 must **not** expose schema field names or codes.
-
+ 
+**Document 2** is a separate plain-language summary (see STEP 2) — conversational prose. `how_people_saw_it` and `human_element` in Document 1 JSON still capture structured facts; Document 2 must **not** expose schema field names or codes.
+ 
 ## Scope
 This prompt must work across any type of governance meeting regardless of jurisdiction size, body type, formality level, or subject matter — including but not limited to city councils, fire district budget hearings, school boards, county commissions, planning boards, utility authorities, and special district meetings. Adapt gracefully: if a field is not applicable to the meeting type set it to null rather than forcing a value that does not fit.
-
+ 
 ## Entity Identification and Cross-Query Linking
 For every person, organization, legislation, financial item, and decision subject extracted from the transcript, generate stable cross-query identifiers so that entities can be linked across multiple meeting analyses without ambiguity.
-
+ 
 - **Person slug rule:** normalize to `person_firstname_lastname_role_jurisdiction` all lowercase underscores no punctuation e.g. `person_jane_doe_council_member_college_place_wa`
 - **Organization slug rule:** normalize to `org_shortname_jurisdiction` e.g. `org_goshen_fire_department_ny`
 - **Legislation slug rule:** normalize to `leg_type_number_year_jurisdiction` e.g. `leg_ordinance_1042_2022_college_place_wa` — if no official number exists use a short descriptive label e.g. `leg_proposed_budget_fy2012_goshen_fire_ny`
 - **Subject slug rule:** a subject is the specific real-world asset, policy, position, parcel, contract, or matter being acted on — distinct from the decision itself. Normalize to `subject_descriptive_name_jurisdiction` all lowercase underscores no punctuation e.g. `subject_fy2012_fire_department_budget_goshen_ny`. The subject slug must represent the underlying matter not the meeting action — the same subject must produce the same slug whether it surfaces in part one or part three of a multi-session meeting or across separate meetings entirely. If a legislation reference anchors the subject bind it via `canonical_leg_id`.
-
 ## Location and Postal Code Extraction
 For each decision, extract the 5-digit ZIP code (postal_code), county FIPS code (county_fips), and county name (county) of the city or location associated with that decision. Determine these based on:
 - The meeting location if the decision applies to that specific area
 - The subject location if the decision pertains to a specific address, facility, parcel, or geographic area
 - The jurisdiction's primary location if the decision is jurisdiction-wide
 - Set to null if the location cannot be determined or if the decision applies to multiple locations
-
 Priority order: specific subject location > meeting location > jurisdiction primary location. If a decision involves multiple distinct locations, use the primary location where the decision has the greatest impact.
-
+ 
 **County extraction:** Based on the city name associated with the decision, determine:
 - `county_fips`: The 5-digit FIPS code for the county (state FIPS + county FIPS, e.g., "01097" for Mobile County, Alabama)
 - `county`: The full county name (e.g., "Mobile County", "Suffolk County", "Cook County")
 - Use standard U.S. county naming conventions with "County" suffix (exceptions: Louisiana parishes use "Parish", Alaska boroughs use "Borough")
 - Set to null only if the county cannot be determined from the city name or jurisdiction
-
 ## Theme Classification
 Classify each agenda item under a primary theme and at most one secondary theme from this fixed list:
-
+ 
 - Fiscal and Budget Management
 - Infrastructure and Capital Projects
 - Zoning and Land Use
@@ -71,10 +79,9 @@ Classify each agenda item under a primary theme and at most one secondary theme 
 - Legal and Compliance
 - Intergovernmental Relations
 - Public Engagement and Communications
-
 ## COFOG Mappings (per decision only)
 For each decision, set `primary_theme_cofog` / `secondary_theme_cofog` from this table. Use **exact** theme labels from Theme Classification above.
-
+ 
 | Theme | COFOG | Plain-language description (Document 1 metadata only — do not use in Document 2) |
 |---|---|---|
 | Fiscal and Budget Management | COFOG-01 | Taxes, budgets, and how public money is raised and spent |
@@ -95,10 +102,10 @@ For each decision, set `primary_theme_cofog` / `secondary_theme_cofog` from this
 | Legal and Compliance | COFOG-01 | Legal compliance, contracts, and liability |
 | Intergovernmental Relations | COFOG-01 | Coordination with state, federal, or other governments |
 | Public Engagement and Communications | COFOG-01 | Public meetings, outreach, and communications |
-
+ 
 ## NTEE Major Group Codes
 Assign the most specific NTEE code determinable from context for organizations. NTEE codes will also be extracted to decision topics based on the primary organizations involved.
-
+ 
 | Code | Category |
 |---|---|
 | A | Arts Culture and Humanities |
@@ -127,45 +134,61 @@ Assign the most specific NTEE code determinable from context for organizations. 
 | X | Religion |
 | Y | Mutual Benefit |
 | Z | Unknown |
-
+ 
 ## Financial Items
 Extract every dollar value mentioned in the transcript into `financial_items` regardless of whether it is tied to a formal vote — include estimates, bids, appropriations, contract values, grants, fees, levy amounts, tax rates, and bond amounts.
-
+ 
 ## Multi-Session Meetings
 If a meeting is one session of a multi-part series record that in `session_info` and use consistent subject slugs across all parts so that items can be joined later.
-
+ 
 ## Organization Classification
 Assign an `org_type` to every organization without exception — do not default to Unknown if context permits a more specific classification. Flag lobbyists explicitly at both the person and organization level where applicable — set `is_lobbyist` to false and `lobbyist_clients` to empty array for all others. Record party affiliation for elected officials and political organizations where stated or publicly determinable — set to Nonpartisan or Unknown where not applicable.
-
+ 
 ## Voting
 Formal votes may not exist in all meeting types — if a decision is made by consensus, acclamation, or directive rather than recorded vote set `vote_tally` fields to null and note the decision method in `decision_statement`.
-
+ 
 ---
-
+ 
 ## Mermaid Diagram Generation Rules
-
+ 
 ### Decision Timeline (diagram_timeline)
-For each decision, generate a Mermaid timeline showing the chronological progression of that specific decision across meetings. Format as a valid Mermaid timeline string:
-- Include `timeline` keyword at start
-- Use timeline sections if the decision spans multiple meetings
-- Quote all timestamps: `"09:00"`, `"14:30"`
-- Use exactly one colon per entry
+For each decision, generate a Mermaid timeline showing the chronological progression of that specific decision across meetings. Format as a valid Mermaid timeline string that **renders in Mermaid Live Editor** without modification.
+ 
+**Mermaid syntax (must follow exactly):**
+- Start with `timeline` on its own line, then `title …` on the next line
+- Group with `section …` (e.g. `Prior Meetings`, `This Meeting`, `Next Steps`)
+- Each event is **one line**: `{time label} : {event}` — **exactly one colon** on the line (the colon separates time from event)
+- **Never** use clock times with colons in the time label (`09:00`, `00:06:44`) — extra colons break the parser
+- **Never** wrap the time label in double quotes (`"00:06:44"` is invalid for both Mermaid and JSON)
+- **Time label formats (pick one, no quotes):**
+  - Meeting clock: `19h30` (HHhMM)
+  - Video offset: `00h06m44` (HHhMMss from recording)
+  - Calendar: `2024-06-11` or `Jun 11`
+  - No exact time: plain words (`Prior meeting`, `Future`, `Unknown`)
+- Keep event text concise (10 words or fewer); avoid colons in event text when possible
 - Show: prior context → this meeting's action → next steps
-- Keep entries concise (10 words or fewer per entry)
-- Example format:
+**JSON encoding (separate from Mermaid):** store the diagram as one string in `diagram_timeline`; use `\n` for newlines; escape `"` only inside event text if unavoidable — do **not** add decorative quotes around time labels.
+ 
+**Valid example:**
 ```
 timeline
     title Budget Proposal FY2012
     section Prior Meetings
-        "2011-09-15" : Initial budget draft presented
-        "2011-10-05" : Public hearing held
+        2011-09-15 : Initial budget draft presented
+        2011-10-05 : Public hearing held
     section This Meeting
-        "09:00" : Final budget vote
-        "09:45" : Amendments approved
+        09h00 : Final budget vote
+        09h45 : Amendments approved
     section Next Steps
-        "2011-11-01" : Implementation begins
+        2011-11-01 : Implementation begins
 ```
-
+ 
+**Invalid (do not output):**
+```
+        "00:06:44" : Public hearing opens
+        00:06:44 : Public hearing opens
+```
+ 
 ### Decision Mindmap (diagram_mindmap)
 For each decision, generate a Mermaid mindmap showing the decision structure, stakeholders, and key relationships. Format as a valid Mermaid mindmap string:
 - Include `mindmap` keyword at start
@@ -200,59 +223,52 @@ mindmap
       $2.1M appropriation
       $50K contingency
 ```
-
+ 
 ## Output Instructions
-
+ 
 Produce two documents in sequence. Follow the step instructions exactly.
-
+ 
 ### STEP 1 — JSON
-Output the JSON object below and nothing else until you have closed the final curly brace of the root object. Do not include any text, labels, comments, or markdown outside the JSON structure itself. The JSON must be parseable by `JSON.parse()` with no modification. 
+Output the JSON object below and nothing else until you have closed the final curly brace of the root object. Do not include any text, labels, comments, or markdown outside the JSON structure itself. The JSON must be parseable by `JSON.parse()` with no modification.
 
-**CRITICAL:** For each decision in the `decisions` array, populate both `diagram_timeline` and `diagram_mindmap` fields with valid Mermaid syntax strings following the rules above. These strings must be escaped for JSON (use `\n` for newlines, escape quotes). After the closing curly brace output exactly this token on its own line with no surrounding text:
+**Before you finish JSON:** Move every non-debated vote to `uncontested_items[]`; keep only debated items in `decisions[]` with full fields and diagrams.
 
+**CRITICAL:** `diagram_timeline` and `diagram_mindmap` on **`decisions[]` only** (valid Mermaid; time labels like `00h06m44`, not `"00:06:44"`). **No** diagrams on `uncontested_items[]`. After the closing curly brace output exactly this token on its own line with no surrounding text:
+ 
 `---DOCUMENT_BREAK---`
+ 
+### STEP 2 — Plain-Language Summary (Markdown)
+ 
+**Who this is for:** Someone who knows nothing about city government, didn't attend, and is reading this on their phone between tasks. Write like a sharp friend who went to the meeting so you didn't have to — someone who knows what actually matters, isn't afraid to say it plainly, and makes you feel like you missed something worth knowing about.
+ 
+**Rules (all non-negotiable):**
+- Plain conversational prose. No jargon, no codes, no field names from the JSON.
+- Never mention NTEE, COFOG, decision_id, org_id, person_id, primary_theme, view labels, lineage type, or any schema terminology.
+- Every decision block must open with a sentence that gives the reader a reason to keep reading — the conflict, the stakes, or the surprise. Do not open with "The council voted to..." That is the least interesting sentence you could write.
+- Somewhere in each block, answer the unspoken question every reader has: *so what does this mean for me or my neighborhood?* Make it specific — not "this affects residents" but what actually changes, who feels it, and when.
+- You are allowed to have a point of view about what was surprising, unresolved, or worth watching. Don't editorialize about whether the council was right — but you can tell readers when something was genuinely tense, unexpected, or not settled.
+- Do not repeat the same point in multiple sentences. Every sentence must add something new.
+- Use real names and everyday labels (e.g., "the pastor," "the business owner," "council member Howard") — not slugs or formal titles.
+- **`## Contested decisions`:** one prose block per `decisions[]` row (3–5 sentences; debate, stakes, quotes).
+- **`## Uncontested actions`:** one `-` bullet per `uncontested_items[]` row (~one line each). Omit section if array is empty.
+- Optional one-line opener (body, date, city), then the two sections above.
+**What good looks like:**
+> A new tapas bar is coming to one of Tuscaloosa's roughest blocks — and the city is betting that's actually a good thing. The council approved the liquor license 5–0 Tuesday, even after the pastor next door told them he's been nearly robbed mowing his own lawn and doesn't need a bar adding to the chaos. Council members heard him out, then voted yes anyway, arguing that dark empty industrial buildings are what's attracting crime — not businesses. It's a real gamble, and the church is the one absorbing most of the risk if they're wrong. The owners have promised to stay in dialogue with the congregation. Whether that holds will be the thing to watch.
+ 
+**What bad looks like (do not produce this):**
+> **Bottom line:** License approved unanimously.
+> **Why it matters:** This relates to Economic Development themes. The dominant view is Economic Revitalization. Supporters cited economic growth. Opponents raised public safety concerns.
+ 
+**Structure:**
 
-### STEP 2 — Plain-Language Summary (Markdown) (required; not a substitute for JSON)
+`## Contested decisions` — #### headline per `decisions[]` row; 3–5 sentences of prose (no bullets).
 
-After the first break token, output **Document 2 only**: a short markdown summary derived from Document 1.
-
-**Audience:** Someone who knows nothing about city government and did not attend the meeting.
-
-**Voice and rules:**
-- Plain, conversational prose — write like you're explaining to a curious friend.
-- **Do not** use jargon, classification codes, or schema terminology.
-- **Do not** mention NTEE, COFOG, `person_id`, `org_id`, `decision_id`, `primary_theme`, frame labels, or any JSON field names.
-- **Do not** repeat the same point in multiple sections. Each section must add **new** information.
-- **Hard limit:** The **entire** Document 2 must be **under 400 words total**, no matter how many decisions you cover. Prioritize the most important decisions if needed; omit minor procedural items.
-- Optional **one sentence** at the very top naming the body, date, and city (no more than that before decisions).
-- Use people's **real names** and everyday role labels (e.g., "the pastor," "the council member") — not slug IDs.
-- This is the **final** output — no third document, no Mermaid diagrams, no tables, no financial annexes in Document 2 (diagrams stay in Document 1 JSON only).
-
-**Structure — repeat this block for each substantive decision** (use `decision.headline` as the section title):
-
-#### [Decision Headline]
-
-**Bottom line:** What was decided and whether it passed.
-
-**Why it matters:**  
-Two to three sentences max: what this was about, why it mattered, and what happens next.
-
-**Who was for it and why**  
-One short paragraph.
-
-**Who was against it and why**  
-One short paragraph. **Omit this entire subsection** if no one opposed.
-
-**The tension underneath**  
-One sentence naming the real value conflict — what two things were competing (e.g., "economic growth vs. neighborhood safety"). Do **not** restate the for/against arguments.
-
-**One moment worth remembering**  
-A single specific quote, story, or exchange that made it human (draw from `human_element`, `direct_quotes`, or public comment). **Omit this subsection** if none exists.
-
+`## Uncontested actions` — bulleted list: `**[headline]** — [outcome] ([vote]). [one_line_summary]`
+ 
 ---
-
+ 
 ## JSON Schema
-
+ 
 ```json
 {
   "meeting": {
@@ -367,9 +383,9 @@ A single specific quote, story, or exchange that made it human (draw from `human
       "timestamp_start": "HH:MM or null",
       "timestamp_end": "HH:MM or null",
       "decision_date": "YYYY-MM-DD",
-      "postal_code": "string or null — 5-digit ZIP code of the city/location associated with this decision, derived from meeting location or subject location",
-      "county_fips": "string or null — 5-digit FIPS code for the county associated with the city/location of this decision",
-      "county": "string or null — Full county name associated with the city/location of this decision (e.g., 'Mobile County', 'Suffolk County')",
+      "postal_code": "string or null — 5-digit ZIP code of the city/location associated with this decision",
+      "county_fips": "string or null — 5-digit FIPS code for the county associated with this decision",
+      "county": "string or null — Full county name (e.g., 'Mobile County', 'Suffolk County')",
       "topic": "string — 6 words or fewer",
       "headline": "string — Smart Brevity lead",
       "decision_statement": "string",
@@ -519,32 +535,32 @@ A single specific quote, story, or exchange that made it human (draw from `human
         "what_was_really_at_stake": "string",
         "who_gains_who_loses": "string"
       },
-      "diagram_timeline": "string — valid Mermaid timeline syntax showing decision chronology across meetings, newlines escaped as \\n for JSON",
-      "diagram_mindmap": "string — valid Mermaid mindmap syntax showing decision structure and relationships, newlines escaped as \\n for JSON",
-      "frame_analysis": {
-        "dominant_frame": {
-          "frame_label": "string — 4-6 words identifying the frame",
+      "diagram_timeline": "string — decisions[] only; valid Mermaid timeline, newlines as \\n for JSON",
+      "diagram_mindmap": "string — decisions[] only; valid Mermaid mindmap, newlines as \\n for JSON",
+      "competing_views": {
+        "dominant_view": {
+          "view_label": "string — 4-6 words identifying the view",
           "problem_diagnosis": "string — Smart Brevity: how is the problem defined",
           "causal_story": "string — Smart Brevity: what caused this problem",
           "blame_assignment": "string — who or what is blamed",
           "moral_foundation": "string — underlying value (safety, liberty, fairness, etc.)",
-          "proposed_remedy": "string — what solution follows from this frame",
+          "proposed_remedy": "string — what solution follows from this view",
           "whose_interests_advanced": ["string"],
-          "frame_sponsors": ["string — person_id or org_id"]
+          "view_sponsors": ["string — person_id or org_id"]
         },
-        "counter_frames": [
+        "counter_views": [
           {
-            "frame_label": "string — 4-6 words identifying the frame",
+            "view_label": "string — 4-6 words identifying the view",
             "problem_diagnosis": "string — Smart Brevity: how opponents define the problem",
             "causal_story": "string — Smart Brevity: opponents' causal explanation",
             "blame_assignment": "string — who or what opponents blame",
             "moral_foundation": "string — underlying value (liberty, autonomy, efficiency, etc.)",
             "proposed_remedy": "string or null — alternative solution if articulated",
             "whose_interests_constrained": ["string"],
-            "frame_sponsors": ["string — person_id or org_id"]
+            "view_sponsors": ["string — person_id or org_id"]
           }
         ],
-        "causal_frames": [
+        "causal_views": [
           {
             "causal_interpretation": "string — headline format: X caused Y",
             "evidence_cited": "string or null",
@@ -552,7 +568,7 @@ A single specific quote, story, or exchange that made it human (draw from `human
             "accepted_or_rejected": "one of: Accepted by majority, Rejected by majority, Contested without resolution"
           }
         ],
-        "moral_frames": [
+        "value_conflicts": [
           {
             "value_tension": "string — format: X vs Y (e.g., collective safety vs individual liberty)",
             "proponent_priority": "string — which value proponents prioritize",
@@ -560,7 +576,7 @@ A single specific quote, story, or exchange that made it human (draw from `human
             "resolution_method": "string — how was the value conflict resolved or deferred"
           }
         ],
-        "tradeoff_frames": [
+        "tradeoff_views": [
           {
             "tradeoff_statement": "string — format: Advancing X by constraining Y",
             "interests_advanced": ["string — person_id, org_id, or stakeholder group"],
@@ -569,13 +585,25 @@ A single specific quote, story, or exchange that made it human (draw from `human
             "mitigation_proposed": "string or null"
           }
         ],
-        "frame_stability": {
-          "frame_novelty": "one of: New frame introduced, Extension of prior frame, Continuation of established frame, Frame reversal, Unknown",
-          "prior_frame_reference": "string or null — reference to earlier meeting or decision if applicable",
-          "narrative_durability": "string — does this decision lock in a dominant frame for future policy",
-          "frame_evolution_note": "string or null — how the frame has shifted over time if multi-session"
+        "view_stability": {
+          "view_novelty": "one of: New view introduced, Extension of prior view, Continuation of established view, View reversal, Unknown",
+          "prior_view_reference": "string or null — reference to earlier meeting or decision if applicable",
+          "narrative_durability": "string — does this decision lock in a dominant view for future policy",
+          "view_evolution_note": "string or null — how the view has shifted over time if multi-session"
         }
       }
+    }
+  ],
+  "uncontested_items": [
+    {
+      "item_id": "string — U001, U002, …",
+      "headline": "string — short label",
+      "outcome": "string",
+      "vote": "string — e.g. 7-0, unanimous",
+      "one_line_summary": "string — max ~25 words",
+      "subject_id": "string or null",
+      "legislation_refs": ["string"],
+      "primary_theme": "string or null"
     }
   ]
 }
@@ -584,18 +612,16 @@ A single specific quote, story, or exchange that made it human (draw from `human
 ---
 
 ## Enforcement Rules
-
+ 
 ### Field Requirements
 - Every field must be populated or explicitly set to null — do not omit fields
 - Do not flatten disagreements — preserve conflict in `arguments_against` and `unresolved`
 - Each `decision_id` must be unique within the document
-
 ### Cross-Reference and Linking Rules
 - Every decision must carry a `subject_id` as its primary cross-meeting and cross-session link
 - For multi-part meetings use the same subject slug in every session so items can be joined across parts
 - All cross-references must resolve — `person_id`, `org_id`, `leg_id`, `subject_id`, `financial_item_id`, and `decision_id` must each match a real entry in their respective arrays
 - Normalized slugs must be deterministic — the same real-world entity must always yield the same slug regardless of how it is referenced in the transcript or across sessions
-
 ### Lineage Type Assignment
 Assign `lineage_type` as:
 - **ORIGINATION** for first appearance of a subject
@@ -603,15 +629,12 @@ Assign `lineage_type` as:
 - **AMENDMENT** if modifying a prior decision
 - **REVERSAL** if overturning a prior decision
 - **CLOSURE** if resolving the matter
-
 ### Voting Rules
 - If no formal vote occurred set all `vote_tally` fields to null and record `decision_method` accurately
 - All `vote_tally` member arrays must use `person_id` values not display names
-
 ### Lobbyist and Organization Classification
 - `is_lobbyist` in `arguments_for` and `arguments_against` must be true only if the person is registered as a lobbyist or appearing on behalf of a paying client — default to false otherwise
 - `org_type` must reflect the most specific classification context permits — do not default to Unknown if context permits a more specific classification
-
 ### NTEE Classification Rules
 - For every organization in the `organizations` array, populate all three NTEE fields (`ntee_major_group`, `ntee_category_label`, `ntee_code`) when context permits — do not leave these null if the organization's cause area is determinable
 - For subcategories, use hierarchical notation with greater-than separator (e.g., "Health > Dental & Oral Health", "Food Agriculture and Nutrition > Food Banks, Food Pantries")
@@ -637,46 +660,38 @@ Assign `lineage_type` as:
 - When a decision involves multiple organizations with different NTEE codes, select the primary NTEE based on the most central organization and optionally assign secondary from other involved organizations
 - Set decision-level NTEE fields to null only when the cause area is genuinely indeterminate from context
 - **Always prioritize substantive cause areas (A-V, X-Y) over Public Policy (W)** — W should be the exception, not the default
-
 ### Underlying Causes Rules
 - Make `underlying_causes` headlines specific and contextual — avoid generic abstractions like "Aging infrastructure" or "Statutory requirement"
 - Root causes must explain WHY the decision was necessary not merely describe the category — e.g., prefer "Fire station roof leaking after 40 years" over "Aging infrastructure" or "State audit found gaps in payment records" over "Statutory requirement"
 - Each underlying cause should be independently verifiable from the transcript — do not infer causes that were not discussed
-- Capture competing diagnoses of causality in `frame_analysis.causal_frames` when stakeholders disagree on root causes
-
+- Capture competing diagnoses of causality in `competing_views.causal_views` when stakeholders disagree on root causes
 ### Human Element Rules
 - Every decision must include `human_element` and `how_people_saw_it` — empty arrays / `Not applicable` when the transcript offers none
 - Personal stories must be specific and tied to the decision — not generic concern
 - Do not classify anger or sarcasm as humor unless treated as a joke in the room
-- `how_people_saw_it` must align with `frame_analysis` but use plain language only
-
-### Frame Analysis Rules
-- Every decision must include a `frame_analysis` object — do not omit this field
-- Extract at minimum one dominant frame and one counter-frame where opposition exists
-- `causal_frames` must capture competing diagnoses of causality not just outcomes
-- `moral_frames` must surface value tensions even when not explicitly named
-- `tradeoff_frames` must identify whose interests are advanced and constrained as normative choices
-- Counter-frames must extract problem/cause/remedy from opponents' perspective not merely record opposition
-- `frame_stability` must assess whether this decision establishes or extends a narrative arc
-- When no counter-frame is articulated (unanimous consent, no debate) set `counter_frames` to empty array and note in `frame_stability.narrative_durability`
-
+- `how_people_saw_it` must align with `competing_views` but use plain language only
+### Competing Views Rules
+- Every decision must include a `competing_views` object — do not omit this field
+- Extract at minimum one dominant view and one counter-view where opposition exists
+- `causal_views` must capture competing diagnoses of causality not just outcomes
+- `value_conflicts` must surface value tensions even when not explicitly named
+- `tradeoff_views` must identify whose interests are advanced and constrained as normative choices
+- Counter-views must extract problem/cause/remedy from opponents' perspective not merely record opposition
+- `view_stability` must assess whether this decision establishes or extends a narrative arc
+- When no counter-view is articulated (unanimous consent, no debate) set `counter_views` to empty array and note in `view_stability.narrative_durability`
 ### URL and External References
 - Where an official legislation or municipal code URL is determinable from context include it in the `url` field
-
 ### Diagram Requirements
-- Every decision must include both `diagram_timeline` and `diagram_mindmap` fields
-- Timeline must show decision chronology: prior context → this meeting → next steps
-- Mindmap must show decision structure: outcome, arguments, stakeholders, financial impacts
-- Both diagrams must use valid Mermaid syntax escaped for JSON (newlines as `\n`, quotes escaped)
-- Always quote timestamps in timeline diagrams: `"09:00"`, `"14:30"`
+- **`decisions[]` only:** include both `diagram_timeline` and `diagram_mindmap` with valid Mermaid (newlines as `\n` in JSON)
+- **`uncontested_items[]`:** no diagram fields — lite rows only
+- Timeline (when used): prior context → this meeting → next steps; not a meeting-minute log
+- Mindmap (when used): outcome, arguments, stakeholders, financial impacts as relevant
+- Timeline time labels: `HHhMM` / `00h06m44` / dates / plain words — **no** `"HH:MM"` quoted timestamps
 - Keep diagram node text concise: 10 words or fewer per entry
-- Test that diagram strings are valid JSON by ensuring proper escaping
-
 ### Theme and COFOG Rules
 - Classify themes per decision in `decisions[]` only
 - `primary_theme` / `secondary_theme` must match Theme Classification labels exactly
-- Document 2 must stay under **400 words** total and must **not** mention COFOG, NTEE, or schema terms (themes belong in Document 1 JSON only)
-
+- Document 2: contested prose for `decisions[]`, bulleted list for `uncontested_items[]`; must **not** mention COFOG, NTEE, or schema terms
 ### Output Format Requirements
 - **Document 1 (JSON)** must be parseable by `JSON.parse()` with no modification
 - Output **two** documents separated by `---DOCUMENT_BREAK---` (JSON, then human-readable markdown)

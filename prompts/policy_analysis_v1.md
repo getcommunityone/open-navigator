@@ -164,25 +164,42 @@ Formal votes may not exist in all meeting types — if a decision is made by con
 ## Mermaid Diagram Generation Rules
 
 ### Decision Timeline (diagram_timeline)
-For each decision, generate a Mermaid timeline showing the chronological progression of that specific decision across meetings. Format as a valid Mermaid timeline string:
-- Include `timeline` keyword at start
-- Use timeline sections if the decision spans multiple meetings
-- Quote all timestamps: `"09:00"`, `"14:30"`
-- Use exactly one colon per entry
+For each decision, generate a Mermaid timeline showing the chronological progression of that specific decision across meetings. Format as a valid Mermaid timeline string that **renders in Mermaid Live Editor** without modification.
+
+**Mermaid syntax (must follow exactly):**
+- Start with `timeline` on its own line, then `title …` on the next line
+- Group with `section …` (e.g. `Prior Meetings`, `This Meeting`, `Next Steps`)
+- Each event is **one line**: `{time label} : {event}` — **exactly one colon** on the line (the colon separates time from event)
+- **Never** use clock times with colons in the time label (`09:00`, `00:06:44`) — extra colons break the parser
+- **Never** wrap the time label in double quotes (`"00:06:44"` is invalid for both Mermaid and JSON)
+- **Time label formats (pick one, no quotes):**
+  - Meeting clock: `19h30` (HHhMM)
+  - Video offset: `00h06m44` (HHhMMss from recording)
+  - Calendar: `2024-06-11` or `Jun 11`
+  - No exact time: plain words (`Prior meeting`, `Future`, `Unknown`)
+- Keep event text concise (10 words or fewer); avoid colons in event text when possible
 - Show: prior context → this meeting's action → next steps
-- Keep entries concise (10 words or fewer per entry)
-- Example format:
+
+**JSON encoding (separate from Mermaid):** store the diagram as one string in `diagram_timeline`; use `\n` for newlines; escape `"` only inside event text if unavoidable — do **not** add decorative quotes around time labels.
+
+**Valid example:**
 ```
 timeline
     title Budget Proposal FY2012
     section Prior Meetings
-        "2011-09-15" : Initial budget draft presented
-        "2011-10-05" : Public hearing held
+        2011-09-15 : Initial budget draft presented
+        2011-10-05 : Public hearing held
     section This Meeting
-        "09:00" : Final budget vote
-        "09:45" : Amendments approved
+        09h00 : Final budget vote
+        09h45 : Amendments approved
     section Next Steps
-        "2011-11-01" : Implementation begins
+        2011-11-01 : Implementation begins
+```
+
+**Invalid (do not output):**
+```
+        "00:06:44" : Public hearing opens
+        00:06:44 : Public hearing opens
 ```
 
 ### Decision Mindmap (diagram_mindmap)
@@ -233,7 +250,7 @@ Output the JSON object defined in the schema below and **nothing else** until yo
 - The JSON must be parseable by `JSON.parse()` with no modification.
 - Every decision must include `primary_theme`, `primary_theme_rationale`, `primary_theme_cofog`, and (when applicable) `secondary_theme` / `secondary_theme_cofog` derived from the COFOG table above.
 
-**CRITICAL:** For each decision in the `decisions` array, populate both `diagram_timeline` and `diagram_mindmap` fields with valid Mermaid syntax strings following the rules above. These strings must be escaped for JSON (use `\n` for newlines, escape quotes).
+**CRITICAL:** For each decision in the `decisions` array, populate both `diagram_timeline` and `diagram_mindmap` fields with valid Mermaid syntax per the rules above (time labels like `00h06m44`, not `"00:06:44"`). JSON-encode as strings (`\n` for newlines; escape `"` only inside event text if needed).
 
 After the closing curly brace of the root object, output exactly this token on its own line with no surrounding text:
 
@@ -826,8 +843,8 @@ Assign `lineage_type` as:
 - Every decision must include both `diagram_timeline` and `diagram_mindmap` fields
 - Timeline must show decision chronology: prior context → this meeting → next steps
 - Mindmap must show decision structure: outcome, arguments, stakeholders, financial impacts
-- Both diagrams must use valid Mermaid syntax escaped for JSON (newlines as `\n`, quotes escaped)
-- Always quote timestamps in timeline diagrams: `"09:00"`, `"14:30"`
+- Both diagrams must use valid Mermaid syntax escaped for JSON (newlines as `\n`; escape `"` only inside event text when needed)
+- Timeline time labels must use `HHhMM` / `00h06m44` / dates / plain words — **no** `"HH:MM"` quoted timestamps (breaks Mermaid and JSON)
 - Keep diagram node text concise: 10 words or fewer per entry
 
 ### Theme and COFOG Rules

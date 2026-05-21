@@ -42,8 +42,10 @@ Examples::
     export GEMINI_CHROME_PROFILE_NAME='Default'
     python scripts/gemini/browser_policy_analysis.py --limit 3
 
-    # Same meeting, two prompts — each run gets its own timestamped .json/.md (compare via _manifest.jsonl)
-    python scripts/gemini/browser_policy_analysis.py --fresh-profile --video-id ajsME66iXbY --prompt-file prompts/policy_analysis_v1.md
+    # Default: two-part prompts (JSON in part 1, Smart Brevity report in part 2, same chat)
+    python scripts/gemini/browser_policy_analysis.py --fresh-profile --video-id ajsME66iXbY --select-model "3.1 Pro"
+
+    # Legacy single combined prompt
     python scripts/gemini/browser_policy_analysis.py --fresh-profile --video-id ajsME66iXbY --prompt-file prompts/policy_analysis.md
 
     # Use Gemini 3.1 Pro (requires Pro/Ultra in your Google account; pick in UI or automate)
@@ -72,6 +74,9 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 DEFAULT_PROMPT_PATH = _REPO_ROOT / "prompts" / "policy_analysis_v1.md"
+DEFAULT_PROMPT_PART_1 = _REPO_ROOT / "prompts" / "policy_analysis_part_1.md"
+DEFAULT_PROMPT_PART_2 = _REPO_ROOT / "prompts" / "policy_analysis_part_2.md"
+PART2_USER_MARKER = "JSON from Step 1"
 DEFAULT_JURISDICTION_ID = "municipality_0177256"
 DEFAULT_GEMINI_URL = "https://gemini.google.com/app"
 DEFAULT_OUTPUT_DIR = _REPO_ROOT / "data" / "cache" / "gemini_browser_policy"
@@ -118,6 +123,12 @@ RESPONSE_COMPLETE_MARKERS = (
     "Financial Summary",
     "People and Organizations",
     "Governing and Administrative Entities",
+    '"decisions"',
+    "Bottom line:",
+    "---DOCUMENT_BREAK---",
+    "**Who won:**",
+    "Who won:",
+    "#### Timeline",
 )
 
 
@@ -356,11 +367,132 @@ def load_policy_prompt(prompt_path: Path) -> str:
     return prompt_path.read_text(encoding="utf-8").strip()
 
 
+def _prepare_part1_prompt(prompt_text: str) -> str:
+    """Part 1 uses YouTube via MEDIA CONTEXT — drop placeholder transcript block."""
+    return re.sub(
+        r"<transcript>.*?</transcript>",
+        "Use the YouTube recording in MEDIA CONTEXT as the transcript source.",
+        prompt_text,
+        flags=re.DOTALL | re.IGNORECASE,
+    ).strip()
+
+
+def _diagram_lines_to_mermaid(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, list):
+        if not value:
+            return ""
+        return "\n".join(str(line) for line in value).strip()
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    return text.replace("\\n", "\n").replace('\\"', '"').strip()
+
+
+def _decision_has_diagrams(decision: dict[str, Any]) -> bool:
+    if decision.get("decision_profile") == "procedural_light":
+        return False
+    timeline, mindmap = _decision_diagram_fields(decision)
+    return bool(timeline or mindmap)
+
+
+def _format_vote_label(tally: Any) -> str:
+    if not isinstance(tally, dict):
+        return "unanimous"
+    yes, no = tally.get("yes"), tally.get("no")
+    if yes is not None and no is not None:
+        return f"{yes}-{no}"
+    if yes is not None:
+        return str(yes)
+    return "unanimous"
+
+
+def _legacy_procedural_to_uncontested(d: dict[str, Any], seq: int) -> dict[str, Any]:
+    """Move pre-split `procedural_light` rows from decisions[] into lite uncontested_items[]."""
+    raw_id = str(d.get("decision_id") or f"U{seq:03d}")
+    item_id = raw_id if raw_id.startswith("U") else f"U{seq:03d}"
+    summary = (d.get("decision_statement") or d.get("headline") or "").strip()
+    if len(summary) > 200:
+        summary = summary[:197] + "..."
+    return {
+        "item_id": item_id,
+        "headline": (d.get("headline") or summary[:80] or "Council action").strip(),
+        "outcome": d.get("outcome") or "Approved",
+        "vote": _format_vote_label(d.get("vote_tally")),
+        "one_line_summary": summary or (d.get("headline") or ""),
+        "subject_id": d.get("subject_id"),
+        "legislation_refs": d.get("legislation_refs") or [],
+        "primary_theme": d.get("primary_theme"),
+    }
+
+
+def _part1_json_ok(obj: Any) -> bool:
+    if not isinstance(obj, dict) or "meeting" not in obj:
+        return False
+    decisions = obj.get("decisions")
+    if not isinstance(decisions, list):
+        return False
+    uncontested = obj.get("uncontested_items")
+    if uncontested is not None and not isinstance(uncontested, list):
+        return False
+    n_unc = len(uncontested or [])
+    return len(decisions) + n_unc > 0
+
+
+def _normalize_part1_analysis(parsed: dict[str, Any]) -> dict[str, Any]:
+    """Split legacy procedural rows; add diagram strings for contested decisions only."""
+    out = json.loads(json.dumps(parsed, ensure_ascii=False))
+    raw_decisions = out.get("decisions")
+    if not isinstance(raw_decisions, list):
+        raw_decisions = []
+    uncontested: list[dict[str, Any]] = [
+        x for x in (out.get("uncontested_items") or []) if isinstance(x, dict)
+    ]
+    kept: list[dict[str, Any]] = []
+    u_seq = len(uncontested) + 1
+    for d in raw_decisions:
+        if not isinstance(d, dict):
+            continue
+        if d.get("decision_profile") == "procedural_light":
+            uncontested.append(_legacy_procedural_to_uncontested(d, u_seq))
+            u_seq += 1
+            continue
+        d.pop("decision_profile", None)
+        if not d.get("diagram_timeline") and d.get("diagram_timeline_lines"):
+            d["diagram_timeline"] = _diagram_lines_to_mermaid(d["diagram_timeline_lines"])
+        if not d.get("diagram_mindmap") and d.get("diagram_mindmap_lines"):
+            d["diagram_mindmap"] = _diagram_lines_to_mermaid(d["diagram_mindmap_lines"])
+        kept.append(d)
+    out["decisions"] = kept
+    out["uncontested_items"] = uncontested
+    return out
+
+
+def build_part2_message(part2_prompt: str, analysis: dict[str, Any]) -> str:
+    """Second turn: Smart Brevity report from normalized Step 1 JSON."""
+    payload = _normalize_part1_analysis(analysis)
+    n_contested = len(payload.get("decisions") or [])
+    n_uncontested = len(payload.get("uncontested_items") or [])
+    json_block = json.dumps(payload, indent=2, ensure_ascii=False)
+    return (
+        f"{part2_prompt.strip()}\n\n---\n\n"
+        f"## {PART2_USER_MARKER}\n\n"
+        f"**Contested** (`decisions[]`): **{n_contested}** — write that many full blocks under "
+        f"`## Contested decisions`.\n"
+        f"**Uncontested** (`uncontested_items[]`): **{n_uncontested}** — write one `## Uncontested "
+        f"actions` section with exactly **{n_uncontested}** bullet(s) (one line each). "
+        f"Omit that section if zero.\n\n"
+        f"```json\n{json_block}\n```\n"
+    )
+
+
 def build_user_message(
     policy_prompt: str,
     video: VideoRow,
     *,
     media_source_id: str = "MS001",
+    task_line: Optional[str] = None,
 ) -> str:
     """Full Gemini user turn: policy instructions + MEDIA CONTEXT for one recording."""
     title = (video.title or "Untitled meeting recording").strip()
@@ -395,7 +527,7 @@ Populate `meeting.media_sources[]` from this block exactly — do not invent URL
 
 **Jurisdiction:** City of Tuscaloosa, Alabama (incorporated municipality).
 
-**Task:** Apply the policy analysis instructions below to this recording. If you cannot access the video directly, state that limitation in Document 1 under a top-level `"_error"` field, then still emit valid minimal JSON and Document 2 per the schema rules.
+**Task:** {task_line or "Apply the policy analysis instructions below to this recording."} If you cannot access the video directly, state that limitation in JSON under a top-level `"_error"` field with a short explanation.
 
 ---
 """.strip()
@@ -444,6 +576,25 @@ def _looks_like_user_prompt(text: str) -> bool:
     return any(marker in head for marker in USER_PROMPT_MARKERS)
 
 
+def _looks_like_attachment_chrome(text: str) -> bool:
+    """YouTube attachment card mistaken for a finished model reply."""
+    if len(text) > 1_000:
+        return False
+    if "{" in text and any(k in text for k in ('"meeting"', '"decisions"', '"meeting_id"')):
+        return False
+    if re.search(r"\d+\s*views?\)", text, re.I):
+        return True
+    if re.match(r"^Gemini said\s*\n", text, re.I) and "{" not in text:
+        return True
+    return False
+
+
+def _looks_like_policy_json_blob(text: str) -> bool:
+    return len(text) >= 800 and "{" in text and any(
+        k in text for k in ('"meeting"', '"decisions"', '"meeting_id"')
+    )
+
+
 def _model_response_count(page: Any) -> int:
     try:
         n = page.locator('[data-message-author-role="model"]').count()
@@ -454,11 +605,47 @@ def _model_response_count(page: Any) -> int:
         return 0
 
 
-def _response_looks_complete(text: str) -> bool:
-    if not text or len(text) < 400:
+def _model_reply_slice(text: str) -> str:
+    """Score completeness on model output only — not echoed user prompt."""
+    if not text:
+        return ""
+    for needle in ("Gemini said\n", "Gemini said\r\n"):
+        i = text.rfind(needle)
+        if i >= 0:
+            return text[i + len(needle) :].lstrip()
+    mj = re.search(r'\{\s*"meeting"', text)
+    if mj:
+        return text[mj.start() :]
+    if PART2_USER_MARKER in text:
+        fence = text.rfind("```")
+        if fence >= 0:
+            tail = text[fence + 3 :].lstrip()
+            if tail.startswith("json"):
+                tail = tail[4:].lstrip()
+            if len(tail) > 200:
+                return tail
+    for marker in ("### ", "* **Who won", "**Who won:"):
+        i = text.find(marker)
+        if i >= 0 and i > len(text) * 0.25:
+            return text[i:]
+    return text
+
+
+def _decision_id_count(blob: str) -> int:
+    return len(re.findall(r'"decision_id"\s*:\s*"D\d+"', blob, re.I))
+
+
+def _response_looks_complete(text: str, *, response_phase: str = "json") -> bool:
+    slice_ = _model_reply_slice(text)
+    if not slice_ or len(slice_) < 400:
         return False
-    hits = sum(1 for m in RESPONSE_COMPLETE_MARKERS if m in text)
-    return hits >= 2
+    if response_phase == "json":
+        span = _extract_document1_json(text)
+        return span is not None and _document1_json_score(span[0]) > 0
+    hits = sum(1 for m in RESPONSE_COMPLETE_MARKERS if m in slice_)
+    if hits >= 2:
+        return True
+    return _part2_looks_done(slice_)
 
 
 def _chat_root(page: Any) -> Any:
@@ -473,6 +660,7 @@ def _chat_root(page: Any) -> Any:
 
 
 def _is_generating(page: Any) -> bool:
+    """True only when a stop/thinking control is visible inside the chat panel."""
     root = _chat_root(page)
     for sel in GENERATING_SELECTORS:
         try:
@@ -482,6 +670,60 @@ def _is_generating(page: Any) -> bool:
         except Exception:
             continue
     return False
+
+
+def _extract_broad_model_reply_js(page: Any, *, min_chars: int = 80) -> Optional[str]:
+    """Longest visible model reply in the chat (fallback when narrow selectors capture ~100 chars)."""
+    try:
+        text = page.evaluate(
+            """(minChars) => {
+              const textOf = (el) => (el.innerText || el.textContent || '').trim();
+              const isUser = (el) => {
+                if (!el) return false;
+                if (el.closest('[data-message-author-role="user"]')) return true;
+                const r = el.getAttribute?.('data-message-author-role');
+                return r === 'user';
+              };
+              let best = '';
+              const sels = [
+                'model-response',
+                '[data-message-author-role="model"]',
+                '[data-message-author-role="assistant"]',
+                'message-content',
+                '.presented-response-container',
+              ];
+              for (const sel of sels) {
+                for (const el of document.querySelectorAll(sel)) {
+                  if (isUser(el)) continue;
+                  const t = textOf(el);
+                  if (t.length > best.length) best = t;
+                }
+              }
+              return best.length >= minChars ? best : null;
+            }""",
+            min_chars,
+        )
+        return (text or "").strip() or None
+    except Exception:
+        return None
+
+
+def _part2_looks_done(text: str) -> bool:
+    if len(text) < 250:
+        return False
+    hits = sum(
+        1
+        for m in (
+            "Who won",
+            "**Who won",
+            "### ",
+            "```mermaid",
+            "What's next",
+            "The tension",
+        )
+        if m in text
+    )
+    return hits >= 2
 
 
 def _extract_conversation_fallback_js(page: Any) -> Optional[str]:
@@ -610,18 +852,33 @@ def _locate_latest_model_response(page: Any) -> Optional[Any]:
     return None
 
 
-def _accept_candidate(text: str, *, baseline_model_count: int, page: Any) -> bool:
+def _accept_candidate(
+    text: str,
+    *,
+    baseline_model_count: int,
+    page: Any,
+    response_phase: str = "json",
+) -> bool:
     if not text or len(text) < 80:
         return False
     if _looks_like_user_prompt(text):
         return False
-    if _response_looks_complete(text):
+    if _looks_like_attachment_chrome(text):
+        return False
+    if _response_looks_complete(text, response_phase=response_phase):
         return True
-    if _model_response_count(page) > baseline_model_count:
+    if _looks_like_policy_json_blob(text):
         return True
-    if baseline_model_count == 0 and len(text) >= 500:
+    if response_phase == "markdown":
+        if _part2_looks_done(text):
+            return True
+        if len(text) >= 600 and ("Who won" in text or "### " in text):
+            return True
+    if _model_response_count(page) > baseline_model_count and len(text) >= 500:
         return True
-    return len(text) >= 200
+    if baseline_model_count == 0 and len(text) >= 2_000:
+        return True
+    return False
 
 
 def _wait_for_model_response(
@@ -631,20 +888,26 @@ def _wait_for_model_response(
     timeout_seconds: float = 600.0,
     poll_interval: float = 2.0,
     min_chars: int = 80,
+    response_phase: str = "json",
 ) -> str:
     """Poll until Gemini finishes streaming a model reply (prompt can take several minutes)."""
     deadline = time.time() + timeout_seconds
     logger.info(
-        "Waiting for model response (up to {:.0f} min, baseline model messages={}) …",
+        "Waiting for model response (up to {:.0f} min, baseline={}, phase={}) …",
         timeout_seconds / 60,
         baseline_model_count,
+        response_phase,
     )
     last_logged = 0.0
+    idle_polls = 0
     while time.time() < deadline:
         candidates: list[str] = []
         js_text = _extract_model_response_js(page, min_chars=min_chars)
         if js_text:
             candidates.append(js_text)
+        broad = _extract_broad_model_reply_js(page, min_chars=min_chars)
+        if broad:
+            candidates.append(broad)
         fb_text = _extract_conversation_fallback_js(page)
         if fb_text:
             candidates.append(fb_text)
@@ -657,26 +920,85 @@ def _wait_for_model_response(
                 pass
 
         generating = _is_generating(page)
+        best = max(candidates, key=len) if candidates else ""
+        if not generating:
+            idle_polls += 1
+        else:
+            idle_polls = 0
+
         for text in candidates:
-            if not _accept_candidate(text, baseline_model_count=baseline_model_count, page=page):
+            if not _accept_candidate(
+                text,
+                baseline_model_count=baseline_model_count,
+                page=page,
+                response_phase=response_phase,
+            ):
                 continue
-            if _response_looks_complete(text):
+            if _response_looks_complete(text, response_phase=response_phase):
                 logger.info(
                     "Detected complete policy analysis ({} chars) — accepting response",
                     len(text),
                 )
                 return text
-            if not generating:
+            if (
+                response_phase == "json"
+                and not generating
+                and _extract_document1_json(text) is not None
+            ):
+                logger.info(
+                    "Detected parseable Document 1 JSON ({} chars) — accepting",
+                    len(text),
+                )
                 return text
+            if response_phase != "json" and _looks_like_policy_json_blob(text) and not generating:
+                logger.info(
+                    "Detected policy JSON in response ({} chars) — accepting",
+                    len(text),
+                )
+                return text
+            if response_phase == "markdown" and _part2_looks_done(text) and not generating:
+                logger.info("Detected part 2 report ({} chars) — accepting", len(text))
+                return text
+            if not generating and len(text) >= 2_000:
+                return text
+            if (
+                response_phase == "markdown"
+                and not generating
+                and len(text) >= 500
+                and ("Who won" in text or "### " in text)
+            ):
+                logger.info("Accepting part 2 markdown ({} chars)", len(text))
+                return text
+
+        # UI shows a reply but narrow scrape stuck on YouTube card / short snippet
+        if idle_polls >= 4 and best and not _looks_like_attachment_chrome(best):
+            if _looks_like_policy_json_blob(best) or _part2_looks_done(best):
+                logger.info(
+                    "Accepting after idle scrape ({} chars, phase={})",
+                    len(best),
+                    response_phase,
+                )
+                return best
+            if response_phase == "markdown" and len(best) >= 400:
+                logger.info("Accepting idle part 2 text ({} chars)", len(best))
+                return best
 
         now = time.time()
         if now - last_logged >= 30:
-            best_len = max((len(c) for c in candidates), default=0)
+            best_len = len(best)
             logger.info(
-                "Still waiting for Gemini response … (generating={}, best_candidate_chars={})",
+                "Still waiting … (generating={}, best_chars={}, idle_polls={}, phase={})",
                 generating,
                 best_len,
+                idle_polls,
+                response_phase,
             )
+            if best_len < 500 and idle_polls >= 2:
+                logger.warning(
+                    "Browser may show a full reply but scrape only sees {} chars — "
+                    "check Gemini tab; will keep polling or use broad extract.",
+                    best_len,
+                )
             last_logged = now
         time.sleep(poll_interval)
 
@@ -695,6 +1017,7 @@ def _scrape_latest_response(
     poll_interval: float = 1.5,
     response_timeout_seconds: float = 600.0,
     min_chars: int = 80,
+    response_phase: str = "json",
 ) -> str:
     text = _wait_for_model_response(
         page,
@@ -702,9 +1025,10 @@ def _scrape_latest_response(
         timeout_seconds=response_timeout_seconds,
         poll_interval=2.0,
         min_chars=min_chars,
+        response_phase=response_phase,
     )
 
-    if _response_looks_complete(text):
+    if _response_looks_complete(text, response_phase=response_phase):
         logger.info("Skipping stability poll — response already has policy analysis sections")
         return text
 
@@ -720,9 +1044,11 @@ def _scrape_latest_response(
                 current = loc.inner_text(timeout=5_000).strip() or current
             except Exception:
                 pass
-        if _response_looks_complete(current):
+        if _response_looks_complete(current, response_phase=response_phase):
             return current
-        if _is_generating(page) and not _response_looks_complete(current):
+        if _is_generating(page) and not _response_looks_complete(
+            current, response_phase=response_phase
+        ):
             stable = 0
             previous = current
             time.sleep(poll_interval)
@@ -742,11 +1068,59 @@ def _scrape_latest_response(
         raise RuntimeError(
             "Scrape ended on the user prompt, not a model reply — Gemini may not have responded."
         )
+    if _looks_like_attachment_chrome(previous) or len(previous) < 500:
+        raise RuntimeError(
+            "Scrape captured only UI chrome or a truncated reply ({} chars). "
+            "Gemini may still be loading, blocked the video, or the chat DOM changed. "
+            "Re-run with --save-raw-response and watch the browser window.".format(
+                len(previous)
+            )
+        )
     return previous
 
 
 def _fresh_profile_dir() -> Path:
     return _REPO_ROOT / "data" / "cache" / "gemini_browser_chrome_profile"
+
+
+def _prepare_fresh_profile_dir(*, reset: bool) -> Path:
+    """Ensure Playwright Chromium profile dir exists; optionally archive a broken profile."""
+    path = _fresh_profile_dir()
+    if reset and path.exists():
+        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        backup = path.with_name(f"{path.name}.bak.{ts}")
+        logger.warning("Archiving fresh profile → {}", backup.name)
+        path.rename(backup)
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _clear_stale_chrome_profile_locks(user_data_dir: Path) -> None:
+    """Remove singleton files left when Chromium crashes (common on WSL)."""
+    for name in ("SingletonLock", "SingletonCookie", "SingletonSocket"):
+        path = user_data_dir / name
+        try:
+            if path.exists() or path.is_symlink():
+                path.unlink()
+        except OSError as exc:
+            logger.debug("Could not remove {}: {}", path, exc)
+
+
+def _playwright_chromium_args(*, wsl_safe: bool) -> List[str]:
+    args = [
+        "--disable-blink-features=AutomationControlled",
+        "--no-first-run",
+        "--no-default-browser-check",
+    ]
+    if wsl_safe:
+        args.extend(
+            [
+                "--disable-gpu",
+                "--disable-dev-shm-usage",
+                "--disable-software-rasterizer",
+            ]
+        )
+    return args
 
 
 def _open_page(
@@ -757,6 +1131,7 @@ def _open_page(
     headless: bool,
     cdp_url: Optional[str],
     fresh_profile: bool,
+    reset_fresh_profile: bool = False,
 ) -> tuple[Any, Any, str, bool]:
     """
     Returns (page, context_or_browser, mode, should_close_context).
@@ -772,8 +1147,7 @@ def _open_page(
         return page, browser, "cdp", False
 
     if fresh_profile:
-        profile_path = _fresh_profile_dir()
-        profile_path.mkdir(parents=True, exist_ok=True)
+        profile_path = _prepare_fresh_profile_dir(reset=reset_fresh_profile)
         logger.info("Using isolated Playwright Chromium profile: {}", profile_path)
         logger.info("First run: sign into Google in the window that opens.")
         chrome_data_dir = profile_path
@@ -791,19 +1165,42 @@ def _open_page(
         logger.warning("Quit all Chrome windows using this profile before continuing.")
         channel = "chrome"
 
-    context = p.chromium.launch_persistent_context(
-        user_data_dir=str(chrome_data_dir),
-        channel=channel,
-        headless=headless,
-        viewport={"width": 1280, "height": 800},
-        ignore_default_args=["--enable-automation"],
-        args=[
-            "--disable-blink-features=AutomationControlled",
-            *chrome_args,
-            "--no-first-run",
-            "--no-default-browser-check",
-        ],
-    )
+    launch_args = _playwright_chromium_args(wsl_safe=fresh_profile or platform.system() == "Linux")
+    launch_args.extend(chrome_args)
+
+    last_error: Optional[BaseException] = None
+    context = None
+    for attempt in range(1, 4):
+        _clear_stale_chrome_profile_locks(chrome_data_dir)
+        try:
+            context = p.chromium.launch_persistent_context(
+                user_data_dir=str(chrome_data_dir),
+                channel=channel,
+                headless=headless,
+                viewport={"width": 1280, "height": 800},
+                ignore_default_args=["--enable-automation"],
+                args=launch_args,
+            )
+            break
+        except Exception as exc:
+            last_error = exc
+            logger.warning(
+                "Browser launch attempt {}/3 failed: {}",
+                attempt,
+                exc,
+            )
+            time.sleep(1.5)
+    if context is None:
+        hint = (
+            "Close any Chrome using this profile, then retry. "
+            "If the profile is corrupted (TargetClosedError on WSL), run with "
+            "--fresh-profile --reset-fresh-profile once to start a clean sign-in. "
+            "Or use --cdp-url to attach to your desktop Chrome."
+        )
+        raise RuntimeError(
+            f"Could not launch Chromium (profile: {chrome_data_dir}). {hint}"
+        ) from last_error
+
     page = context.pages[0] if context.pages else context.new_page()
     return page, context, "persistent", True
 
@@ -940,6 +1337,7 @@ def _send_prompt_on_page(
     *,
     debug_dir: Optional[Path] = None,
     gemini_model_override: Optional[str] = None,
+    response_phase: str = "json",
 ) -> GeminiRunCapture:
     logger.info("Waiting for chat input at {} …", page.url)
     try:
@@ -973,7 +1371,11 @@ def _send_prompt_on_page(
         logger.info("Gemini model: {}", gemini_model)
     else:
         logger.warning("Could not detect Gemini model from UI — set --gemini-model to record it")
-    response_text = _scrape_latest_response(page, baseline_model_count=baseline_model_count)
+    response_text = _scrape_latest_response(
+        page,
+        baseline_model_count=baseline_model_count,
+        response_phase=response_phase,
+    )
     return GeminiRunCapture(response_text=response_text, gemini_model=gemini_model)
 
 
@@ -1000,16 +1402,21 @@ def _document1_json_score(obj: Any) -> int:
     if not isinstance(obj, dict) or _is_placeholder_policy_json(obj):
         return -1
     decisions = obj.get("decisions")
-    if not isinstance(decisions, list) or not decisions:
+    uncontested = obj.get("uncontested_items")
+    n_d = len(decisions) if isinstance(decisions, list) else 0
+    n_u = len(uncontested) if isinstance(uncontested, list) else 0
+    if n_d + n_u == 0:
         return -1
-    if isinstance(decisions[0], dict) and str(decisions[0].get("decision_id", "")).startswith(
-        "string"
+    if (
+        n_d
+        and isinstance(decisions[0], dict)
+        and str(decisions[0].get("decision_id", "")).startswith("string")
     ):
         return -1
     score = len(json.dumps(obj, ensure_ascii=False))
     if "meeting" in obj:
         score += 500_000
-    score += 2_000_000 + len(decisions) * 10_000
+    score += 2_000_000 + n_d * 10_000 + n_u * 1_000
     if "people" in obj or "organizations" in obj:
         score += 50_000
     return score
@@ -1049,39 +1456,165 @@ def _json_decode_at(text: str, start: int) -> Optional[tuple[Any, int]]:
         return None
 
 
-def _extract_document1_json(text: str) -> Optional[Any]:
-    """Pick the best full meeting JSON object in the scraped response."""
-    # Prefer JSON after the model reply (skip echoed prompt schema).
+def _balanced_json_object_end(text: str, start: int) -> Optional[int]:
+    """Index of closing `}` for object starting at `start`, or None if incomplete."""
+    if start < 0 or start >= len(text) or text[start] != "{":
+        return None
+    depth = 0
+    in_string = False
+    escape = False
+    for i in range(start, len(text)):
+        ch = text[i]
+        if in_string:
+            if escape:
+                escape = False
+            elif ch == "\\":
+                escape = True
+            elif ch == '"':
+                in_string = False
+            continue
+        if ch == '"':
+            in_string = True
+        elif ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return i
+    return None
+
+
+def _strip_json_label_prefix(text: str) -> str:
+    """Remove Gemini UI labels before the root `{`."""
+    t = text.strip()
+    for prefix in ("JSON\n", "JSON\r\n", "json\n", "Json\n"):
+        if t.startswith(prefix):
+            return t[len(prefix) :].lstrip()
+    return t
+
+
+def _repair_json_blob(blob: str) -> Optional[str]:
+    """Best-effort fix for invalid JSON from Gemini (e.g. unescaped quotes in diagrams)."""
+    blob = _strip_json_label_prefix(blob.strip())
+    if not blob:
+        return None
+    try:
+        from json_repair import repair_json
+
+        fixed = repair_json(blob)
+        if isinstance(fixed, str) and fixed.strip():
+            return fixed.strip()
+    except ImportError:
+        pass
+    except Exception:
+        pass
+    return blob
+
+
+def _json_decode_repaired(text: str, start: int) -> Optional[tuple[Any, int]]:
+    decoded = _json_decode_at(text, start)
+    if decoded:
+        return decoded
+    end = _balanced_json_object_end(text, start)
+    if end is None:
+        return None
+    blob = text[start : end + 1]
+    repaired = _repair_json_blob(blob)
+    if not repaired or repaired == blob:
+        repaired = _repair_json_blob(text[start:])
+    if not repaired:
+        return None
+    try:
+        obj = json.loads(repaired)
+        return obj, end
+    except json.JSONDecodeError:
+        return None
+
+
+def _iter_json_object_starts(text: str) -> list[int]:
+    """Candidate `{` positions for Document 1 roots (prefer after model reply)."""
+    starts: list[int] = []
     gs = text.rfind("Gemini said")
-    if gs >= 0:
-        start = text.find("{", gs)
-        if start >= 0:
-            decoded = _json_decode_at(text, start)
-            if decoded:
-                obj, _ = decoded
-                if _document1_json_score(obj) > 0:
-                    return obj
+    search_from = gs if gs >= 0 else 0
+    for pat in (r'\{\s*"meeting"', r'\{\s*\n\s*"meeting"'):
+        for m in re.finditer(pat, text[search_from:]):
+            starts.append(search_from + m.start())
+    for m in re.finditer(r"```(?:json)?\s*\n\s*\{", text, re.I):
+        i = m.end() - 1
+        if i not in starts:
+            starts.append(i)
+    if not starts:
+        i = text.find("{", search_from)
+        if i >= 0:
+            starts.append(i)
+    # de-dupe preserving order
+    seen: set[int] = set()
+    out: list[int] = []
+    for s in starts:
+        if s not in seen:
+            seen.add(s)
+            out.append(s)
+    return out
+
+
+def _extract_document1_json(text: str) -> Optional[tuple[Any, int, int]]:
+    """Pick the best full meeting JSON object and its (start, end) span in the scrape."""
+    raw = _strip_json_label_prefix(text)
+    best: Optional[tuple[Any, int, int]] = None
+    best_score = -1
+
+    for start in _iter_json_object_starts(raw):
+        decoded = _json_decode_repaired(raw, start)
+        if not decoded:
+            continue
+        obj, end = decoded
+        if not isinstance(obj, dict):
+            continue
+        score = _document1_json_score(obj)
+        if score > best_score:
+            best_score = score
+            best = (obj, start, end)
 
     decoder = json.JSONDecoder()
-    best: Optional[Any] = None
-    best_score = -1
     i = 0
-    while i < len(text):
-        if text[i] != "{":
+    while i < len(raw):
+        if raw[i] != "{":
             i += 1
             continue
-        try:
-            obj, end = decoder.raw_decode(text, i)
+        decoded = _json_decode_repaired(raw, i)
+        if decoded:
+            obj, end = decoded
             if isinstance(obj, dict):
                 score = _document1_json_score(obj)
                 if score > best_score:
                     best_score = score
-                    best = obj
-            i = max(end, i + 1)
-        except json.JSONDecodeError:
+                    best = (obj, i, end)
+            i = max(decoded[1], i + 1)
+        else:
             i += 1
     return best
 
+
+def _looks_like_json_fragment(text: str) -> bool:
+    """True when scraped 'markdown' is clearly a JSON tail, not Document 2."""
+    head = text.lstrip()[:400]
+    if not head:
+        return False
+    if head.startswith(",") or head.startswith('{"') or head.startswith("{"):
+        return True
+    return bool(
+        re.search(r'^"?(meeting|people|decisions|organizations)"?\s*:', head, re.MULTILINE)
+        or '"person_id"' in head
+    )
+
+
+PART2_REPORT_MARKERS = (
+    "**Who won:**",
+    "* **Who won:**",
+    "Who won:",
+    "### ",
+    "#### Timeline",
+)
 
 READABLE_START_MARKERS = (
     "**Bottom line:**",
@@ -1109,16 +1642,16 @@ READABLE_START_MARKERS = (
 )
 
 
-def _extract_readable_markdown(raw: str) -> str:
+def _extract_readable_markdown(raw: str, *, after_index: int = 0) -> str:
     """Human-readable Document 2 only — skip echoed prompt rules and embedded JSON."""
-    search_from = 0
+    search_from = max(0, after_index)
     break_pos = raw.rfind(DOCUMENT_BREAK_TOKEN)
     if break_pos >= 0:
-        search_from = break_pos + len(DOCUMENT_BREAK_TOKEN)
+        search_from = max(search_from, break_pos + len(DOCUMENT_BREAK_TOKEN))
     else:
         gs = raw.rfind("Gemini said")
         if gs >= 0:
-            search_from = gs + len("Gemini said")
+            search_from = max(search_from, gs + len("Gemini said"))
     best_idx = -1
     for marker in READABLE_START_MARKERS:
         idx = raw.rfind(marker, search_from)
@@ -1136,8 +1669,142 @@ def _extract_readable_markdown(raw: str) -> str:
             break
         if stripped == "{" and len(clean) > 20:
             break
+        if re.match(r'^"?(people|decisions|organizations|meeting|legislation)"?\s*:', stripped):
+            break
+        if stripped in ("{", "},", "]", "},"):
+            break
         clean.append(line)
     return "\n".join(clean).strip()
+
+
+def _part2_response_start(raw: str) -> int:
+    """Start of the model's part-2 reply (not the echoed JSON user turn)."""
+    search_from = 0
+    marker_pos = raw.rfind(PART2_USER_MARKER)
+    if marker_pos >= 0:
+        search_from = marker_pos + len(PART2_USER_MARKER)
+    gemini_said = [m.start() for m in re.finditer(r"Gemini said", raw, re.IGNORECASE)]
+    if len(gemini_said) >= 2:
+        return max(search_from, gemini_said[-1] + len("Gemini said"))
+    if gemini_said:
+        return max(search_from, gemini_said[-1] + len("Gemini said"))
+    return search_from
+
+
+def _first_part2_report_start(slice_text: str) -> int:
+    """First decision block in part 2 — never rfind (that kept only the last decision)."""
+    patterns = (
+        r"^###\s+",
+        r"^\* \*\*Who won:\*\*",
+        r"^\*\*Who won:\*\*",
+        r"^Who won:",
+    )
+    starts = []
+    for pat in patterns:
+        m = re.search(pat, slice_text, re.MULTILINE)
+        if m:
+            starts.append(m.start())
+    return min(starts) if starts else 0
+
+
+def _normalize_gemini_report_markdown(text: str) -> str:
+    """Repair Gemini web UI scrape: Code snippet → mermaid fences, plain labels → headings."""
+    lines = text.splitlines()
+    out: list[str] = []
+    i = 0
+    section_stops = frozenset(
+        {"Timeline", "Decision Map", "Code snippet", "Who won:", "Who was for it"}
+    )
+
+    def _bulletize(label: str, line: str) -> str:
+        rest = line.split(":", 1)[1].strip() if ":" in line else ""
+        return f"* **{label}:** {rest}".rstrip()
+
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.strip()
+
+        if stripped == "Code snippet" and i + 1 < len(lines):
+            next_s = lines[i + 1].strip()
+            if next_s.startswith("timeline") or next_s.startswith("mindmap"):
+                out.append("```mermaid")
+                i += 1
+                while i < len(lines):
+                    s = lines[i].strip()
+                    if s in section_stops or s.startswith("Who won"):
+                        break
+                    if s == "Code snippet":
+                        break
+                    out.append(lines[i])
+                    i += 1
+                out.append("```")
+                continue
+
+        if stripped == "Timeline":
+            out.append("#### Timeline")
+            i += 1
+            continue
+        if stripped == "Decision Map":
+            out.append("#### Decision Map")
+            i += 1
+            continue
+        if stripped.startswith("Who won:") and not stripped.startswith("*"):
+            out.append(_bulletize("Who won", line))
+            i += 1
+            continue
+        if stripped.startswith("Who was for it") and not stripped.startswith("*"):
+            out.append(_bulletize("Who was for it (and why)", line))
+            i += 1
+            continue
+        if stripped.startswith("Who was against it") and not stripped.startswith("*"):
+            out.append(_bulletize("Who was against it (and why)", line))
+            i += 1
+            continue
+        if stripped.startswith("The tension:") and not stripped.startswith("*"):
+            out.append(_bulletize("The tension", line))
+            i += 1
+            continue
+        if stripped.startswith("What's next:") and not stripped.startswith("*"):
+            out.append(_bulletize("What's next", line))
+            i += 1
+            continue
+
+        out.append(line)
+        i += 1
+
+    return "\n".join(out).strip()
+
+
+def _extract_part2_report(raw: str) -> str:
+    """Plain-language part 2 markdown only (no JSON tail)."""
+    search_from = _part2_response_start(raw)
+    slice_text = raw[search_from:]
+    start = _first_part2_report_start(slice_text)
+    text = _strip_gemini_ui_chrome(slice_text[start:])
+    lines = text.splitlines()
+    clean: list[str] = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith('{"') or stripped.startswith('"meeting_id":'):
+            break
+        if stripped == "{" and len(clean) > 20:
+            break
+        if re.match(r'^"?(people|decisions|organizations|meeting)"?\s*:', stripped):
+            break
+        clean.append(line)
+    body = "\n".join(clean).strip()
+    return _normalize_gemini_report_markdown(body)
+
+
+def _decision_diagram_fields(decision: dict[str, Any]) -> tuple[str, str]:
+    timeline = _diagram_lines_to_mermaid(
+        decision.get("diagram_timeline")
+        or decision.get("diagram_timeline_lines")
+    )
+    mindmap = _diagram_lines_to_mermaid(
+        decision.get("diagram_mindmap") or decision.get("diagram_mindmap_lines")
+    )
+    return timeline, mindmap
 
 
 def _unescape_mermaid_field(value: str) -> str:
@@ -1190,10 +1857,9 @@ def _write_diagrams_md(parsed: dict[str, Any], path: Path) -> bool:
             continue
         did = d.get("decision_id") or "?"
         title = d.get("headline") or d.get("topic") or did
-        timeline = _unescape_mermaid_field(str(d.get("diagram_timeline") or ""))
-        mindmap = _unescape_mermaid_field(str(d.get("diagram_mindmap") or ""))
-        if not timeline and not mindmap:
+        if not _decision_has_diagrams(d):
             continue
+        timeline, mindmap = _decision_diagram_fields(d)
         chunks.append(f"\n## {did} — {title}\n")
         if timeline:
             chunks.append(f"\n### Timeline\n\n```mermaid\n{timeline}\n```\n")
@@ -1255,32 +1921,29 @@ def _split_gemini_documents(text: str) -> tuple[Optional[Any], list[str]]:
     echoed prompt before the model reply; Document 2 may also be truncated in scrape.
     """
     raw = text.strip()
-    parsed = _extract_document1_json(raw)
+    span = _extract_document1_json(raw)
+    parsed: Optional[Any] = span[0] if span else None
+    json_end = span[2] if span else 0
     markdown_docs: list[str] = []
 
-    if parsed is not None:
-        meeting_id = str(parsed.get("meeting", {}).get("meeting_id", ""))
-        start = raw.find("{")
-        if meeting_id:
-            pos = raw.find(meeting_id)
-            if pos > 0:
-                start = raw.rfind("{", 0, pos)
-        try:
-            _, json_end = json.JSONDecoder().raw_decode(raw, start)
-            md = _markdown_after_json(raw, json_end)
-            if md:
-                markdown_docs.append(md)
-        except json.JSONDecodeError:
-            logger.warning("Found meeting JSON but could not locate its end offset in raw text")
+    if parsed is not None and json_end > 0:
+        md = _markdown_after_json(raw, json_end)
+        if md:
+            markdown_docs.append(md)
 
     if parsed is None:
         parsed = _try_parse_json_from_response(raw)
         if parsed is not None and _is_placeholder_policy_json(parsed):
             parsed = None
 
-    readable = _extract_readable_markdown(raw)
-    if readable and len(readable) >= 500:
-        markdown_docs = [readable]
+    readable = _extract_readable_markdown(raw, after_index=json_end)
+    if readable and (
+        not markdown_docs
+        or _looks_like_json_fragment(markdown_docs[0])
+        or len(readable) >= 500
+    ):
+        if len(readable) >= 200:
+            markdown_docs = [readable]
     elif not markdown_docs and DOCUMENT_BREAK_TOKEN in raw:
         parts = [p.strip() for p in raw.split(DOCUMENT_BREAK_TOKEN) if p.strip()]
         for part in parts:
@@ -1300,6 +1963,30 @@ def _split_gemini_documents(text: str) -> tuple[Optional[Any], list[str]]:
     return parsed, markdown_docs
 
 
+_RUN_SORT_SCALE = 10_000_000_000  # inverted unix prefix: ascending names ≈ newest first
+
+
+def _run_sort_key(record: dict[str, Any]) -> tuple[str, str]:
+    """Sort key for runs: newest ``generated_at`` first, then ``video_id``."""
+    return (str(record.get("generated_at") or ""), str(record.get("video_id") or ""))
+
+
+def _sort_run_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return sorted(records, key=_run_sort_key, reverse=True)
+
+
+def _run_filename_prefix(ts: str) -> str:
+    """Leading token so default A→Z file sort lists newest run at the top."""
+    dt = datetime.strptime(ts, "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
+    inverted = _RUN_SORT_SCALE - int(dt.timestamp())
+    return f"{inverted:010d}_{ts}"
+
+
+def _output_stem(video: VideoRow, *, prompt_tag: str, model_tag: str, ts: str) -> str:
+    prefix = _run_filename_prefix(ts)
+    return f"{prefix}_{video.video_id}_{_safe_stem(video)}_{prompt_tag}_{model_tag}"
+
+
 def _load_manifest_records(folder: Path) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     json_path = folder / "_manifest.json"
@@ -1308,10 +1995,10 @@ def _load_manifest_records(folder: Path) -> list[dict[str, Any]]:
         try:
             data = json.loads(json_path.read_text(encoding="utf-8"))
             if isinstance(data, list):
-                return data
+                records = data
         except json.JSONDecodeError:
             logger.warning("Could not parse {}; rebuilding manifest", json_path)
-    if jsonl_path.is_file():
+    if not records and jsonl_path.is_file():
         for line in jsonl_path.read_text(encoding="utf-8").splitlines():
             line = line.strip()
             if line:
@@ -1319,16 +2006,17 @@ def _load_manifest_records(folder: Path) -> list[dict[str, Any]]:
                     records.append(json.loads(line))
                 except json.JSONDecodeError:
                     continue
-    return records
+    return _sort_run_records(records)
 
 
 def _render_manifest_md(records: list[dict[str, Any]]) -> str:
     lines = [
         "# Gemini browser policy runs\n",
+        "Newest runs first (per meeting and overall).\n",
         "| generated_at | video_id | prompt | model | analysis | document 2 |",
         "| --- | --- | --- | --- | --- | --- |",
     ]
-    for r in sorted(records, key=lambda x: x.get("generated_at", ""), reverse=True):
+    for r in _sort_run_records(records):
         files = r.get("files") or {}
         lines.append(
             "| {generated_at} | `{video_id}` | {prompt_name} | {gemini_model} | "
@@ -1344,31 +2032,55 @@ def _render_manifest_md(records: list[dict[str, Any]]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _write_video_run_index(folder: Path, video_id: str) -> None:
+    """Per-meeting index: links to all runs for one ``video_id``, newest first."""
+    records = [
+        r for r in _load_manifest_records(folder) if str(r.get("video_id") or "") == video_id
+    ]
+    lines = [
+        f"# Runs for `{video_id}`\n",
+        "Newest downloads first.\n",
+        "| generated_at | prompt | model | analysis | report | diagrams |",
+        "| --- | --- | --- | --- | --- | --- |",
+    ]
+    for r in records:
+        files = r.get("files") or {}
+        lines.append(
+            "| {generated_at} | {prompt_name} | {gemini_model} | "
+            "[json]({analysis}) | [report]({report}) | {diagrams} |".format(
+                generated_at=r.get("generated_at", ""),
+                prompt_name=r.get("prompt_name", r.get("prompt_file", "")),
+                gemini_model=r.get("gemini_model") or "unknown",
+                analysis=files.get("analysis_json", "—"),
+                report=files.get("report_md", "—"),
+                diagrams=(
+                    f"[diagrams]({files['diagrams_md']})"
+                    if files.get("diagrams_md")
+                    else "—"
+                ),
+            )
+        )
+    index_path = folder / f"_index_{video_id}.md"
+    index_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def _write_manifest(folder: Path, record: dict[str, Any]) -> None:
-    records = _load_manifest_records(folder)
-    records.append(record)
+    records = _sort_run_records(_load_manifest_records(folder) + [record])
     json_path = folder / "_manifest.json"
     json_path.write_text(json.dumps(records, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     (folder / "_manifest.md").write_text(_render_manifest_md(records), encoding="utf-8")
+    video_id = str(record.get("video_id") or "")
+    if video_id:
+        _write_video_run_index(folder, video_id)
 
 
 def _try_parse_json_from_response(text: str) -> Optional[Any]:
     """Best-effort extract of JSON from Gemini markdown (fenced blocks or bare object)."""
-    if not text.strip():
-        return None
-    fence = re.search(r"```(?:json)?\s*\n(.*?)```", text, re.DOTALL | re.IGNORECASE)
-    if fence:
-        try:
-            return json.loads(fence.group(1).strip())
-        except json.JSONDecodeError:
-            pass
-    start = text.find("{")
-    end = text.rfind("}")
-    if start != -1 and end > start:
-        try:
-            return json.loads(text[start : end + 1])
-        except json.JSONDecodeError:
-            pass
+    span = _extract_document1_json(text)
+    if span:
+        obj = span[0]
+        if isinstance(obj, dict) and not _is_placeholder_policy_json(obj):
+            return obj
     return None
 
 
@@ -1389,12 +2101,18 @@ def run_video_batch(
     pause_after_open: bool = False,
     cdp_url: Optional[str] = None,
     fresh_profile: bool = False,
+    reset_fresh_profile: bool = False,
     new_tab_per_video: bool = False,
     gemini_model_override: Optional[str] = None,
     select_model: Optional[str] = None,
     save_raw_response: bool = False,
+    two_part: bool = False,
+    part1_prompt: str = "",
+    part2_prompt: str = "",
+    prompt_part1_path: Optional[Path] = None,
+    prompt_part2_path: Optional[Path] = None,
 ) -> int:
-    """One browser session; loop URLs → prompt → save response for each video."""
+    """One browser session; loop URLs → prompt(s) → save response for each video."""
     from playwright.sync_api import sync_playwright
 
     saved = 0
@@ -1406,6 +2124,7 @@ def run_video_batch(
             headless=headless,
             cdp_url=cdp_url,
             fresh_profile=fresh_profile,
+            reset_fresh_profile=reset_fresh_profile,
         )
         ctx = _playwright_context(handle, mode)
         try:
@@ -1440,37 +2159,114 @@ def run_video_batch(
                     if delay_between_videos > 0:
                         time.sleep(delay_between_videos)
 
-                user_message = build_user_message(
-                    policy_prompt, video, media_source_id=f"MS{i:03d}"
-                )
                 try:
-                    capture = _send_prompt_on_page(
-                        page,
-                        user_message,
-                        debug_dir=debug_dir,
-                        gemini_model_override=gemini_model_override,
-                    )
-                    time.sleep(hold_open_seconds)
+                    if two_part:
+                        if not prompt_part1_path or not prompt_part2_path:
+                            raise RuntimeError("two_part mode requires prompt_part1_path and prompt_part2_path")
+                        part1_message = build_user_message(
+                            part1_prompt,
+                            video,
+                            media_source_id=f"MS{i:03d}",
+                            task_line=(
+                                "Apply **Step 1** (part 1) instructions below. "
+                                "Output **only** the JSON object — no markdown summary. "
+                                "Put **debated** items in `decisions[]` (full schema + diagrams). "
+                                "Put **unanimous / no-debate** items in `uncontested_items[]` "
+                                "(lite one-line rows only). Do not merge unrelated actions."
+                            ),
+                        )
+                        logger.info("Sending part 1 ({} chars) …", len(part1_message))
+                        part1_capture = _send_prompt_on_page(
+                            page,
+                            part1_message,
+                            debug_dir=debug_dir,
+                            gemini_model_override=gemini_model_override,
+                            response_phase="json",
+                        )
+                        time.sleep(hold_open_seconds)
+                        span = _extract_document1_json(part1_capture.response_text)
+                        parsed_part1 = span[0] if span else None
+                        if not _part1_json_ok(parsed_part1):
+                            logger.error(
+                                "Part 1 JSON parse failed for {} — skipping part 2",
+                                video.video_id,
+                            )
+                            save_two_part_run_output(
+                                output_dir,
+                                video,
+                                part1_capture,
+                                GeminiRunCapture(response_text="", gemini_model=part1_capture.gemini_model),
+                                prompt_part1_path=prompt_part1_path,
+                                prompt_part2_path=prompt_part2_path,
+                                parsed_part1=parsed_part1,
+                                save_raw_response=save_raw_response,
+                            )
+                            continue
+                        parsed_part1 = _normalize_part1_analysis(parsed_part1)
+                        part2_message = build_part2_message(part2_prompt, parsed_part1)
+                        logger.info("Sending part 2 ({} chars) …", len(part2_message))
+                        part2_capture = _send_prompt_on_page(
+                            page,
+                            part2_message,
+                            debug_dir=debug_dir,
+                            gemini_model_override=gemini_model_override,
+                            response_phase="markdown",
+                        )
+                        time.sleep(hold_open_seconds)
+                        out_path = save_two_part_run_output(
+                            output_dir,
+                            video,
+                            part1_capture,
+                            part2_capture,
+                            prompt_part1_path=prompt_part1_path,
+                            prompt_part2_path=prompt_part2_path,
+                            parsed_part1=parsed_part1,
+                            save_raw_response=save_raw_response,
+                        )
+                        logger.success(
+                            "Saved {} (part1={} chars, part2={} chars, model={})",
+                            out_path,
+                            len(part1_capture.response_text),
+                            len(part2_capture.response_text),
+                            part2_capture.gemini_model or "unknown",
+                        )
+                    else:
+                        user_message = build_user_message(
+                            policy_prompt,
+                            video,
+                            media_source_id=f"MS{i:03d}",
+                            task_line=(
+                                "Apply the policy analysis instructions below. "
+                                "Document 1: debated votes in `decisions[]`, routine votes in "
+                                "`uncontested_items[]`. Document 2: contested prose + uncontested bullets."
+                            ),
+                        )
+                        capture = _send_prompt_on_page(
+                            page,
+                            user_message,
+                            debug_dir=debug_dir,
+                            gemini_model_override=gemini_model_override,
+                        )
+                        time.sleep(hold_open_seconds)
+                        out_path = save_run_output(
+                            output_dir,
+                            video,
+                            capture,
+                            prompt_path=prompt_path,
+                            save_raw_response=save_raw_response,
+                        )
+                        logger.success(
+                            "Saved {} ({} chars, model={})",
+                            out_path,
+                            len(capture.response_text),
+                            capture.gemini_model or "unknown",
+                        )
+                    saved += 1
                 except Exception as exc:
                     logger.error("Failed for {}: {}", video.video_id, exc)
                     if debug_dir:
                         _debug_screenshot(page, debug_dir, f"error_{video.video_id}")
                     continue
-
-                out_path = save_run_output(
-                    output_dir,
-                    video,
-                    capture,
-                    prompt_path=prompt_path,
-                    save_raw_response=save_raw_response,
-                )
-                logger.success(
-                    "Saved {} ({} chars, model={})",
-                    out_path,
-                    len(capture.response_text),
-                    capture.gemini_model or "unknown",
-                )
-                saved += 1
         finally:
             if should_close and mode == "persistent":
                 handle.close()
@@ -1496,6 +2292,7 @@ def ask_gemini_in_browser(
     open_only: bool = False,
     cdp_url: Optional[str] = None,
     fresh_profile: bool = False,
+    reset_fresh_profile: bool = False,
 ) -> str:
     from playwright.sync_api import sync_playwright
 
@@ -1512,6 +2309,7 @@ def ask_gemini_in_browser(
             headless=headless,
             cdp_url=cdp_url,
             fresh_profile=fresh_profile,
+            reset_fresh_profile=reset_fresh_profile,
         )
         try:
             if new_chat_per_prompt and mode == "persistent":
@@ -1547,6 +2345,36 @@ def ask_gemini_in_browser(
                 logger.info("CDP: left your Chrome running (disconnect only)")
 
 
+def _warn_if_sparse_decisions(
+    analysis: dict[str, Any], *, video_id: str, prompt_name: str
+) -> None:
+    analysis = _normalize_part1_analysis(analysis)
+    decisions = analysis.get("decisions")
+    uncontested = analysis.get("uncontested_items")
+    if not isinstance(decisions, list):
+        return
+    n_d = len(decisions)
+    n_u = len(uncontested) if isinstance(uncontested, list) else 0
+    total = n_d + n_u
+    if total < 2:
+        logger.warning(
+            "Only {} total action(s) ({} contested, {} uncontested) for {} — "
+            "re-run if the meeting had more votes",
+            total,
+            n_d,
+            n_u,
+            video_id,
+        )
+    if n_d >= 5 and n_u == 0:
+        logger.warning(
+            "{} contested decision(s) and no uncontested_items for {} (prompt={}) — "
+            "routine votes may be bloating decisions[]; use uncontested_items[] on re-run",
+            n_d,
+            video_id,
+            prompt_name,
+        )
+
+
 def _safe_stem(video: VideoRow) -> str:
     base = re.sub(r"[^a-zA-Z0-9_-]+", "_", (video.title or video.video_id)[:80]).strip("_")
     return base or video.video_id
@@ -1567,7 +2395,7 @@ def save_run_output(
     prompt_name = prompt_path.stem
     prompt_tag = _sanitize_tag(prompt_name)
     model_tag = _sanitize_tag(capture.gemini_model or "unknown_model")
-    stem = f"{video.video_id}_{_safe_stem(video)}_{prompt_tag}_{model_tag}_{ts}"
+    stem = _output_stem(video, prompt_tag=prompt_tag, model_tag=model_tag, ts=ts)
 
     parsed, markdown_docs = _split_gemini_documents(response_text)
     rel = lambda p: str(p.relative_to(_REPO_ROOT))
@@ -1577,20 +2405,26 @@ def save_run_output(
     report_md_path = folder / f"{stem}_report.md"
     diagrams_md_path = folder / f"{stem}_diagrams.md"
 
-    if parsed is None or not isinstance(parsed, dict) or "decisions" not in parsed:
+    raw_path = folder / f"{stem}_response_raw.md"
+    if not _part1_json_ok(parsed):
         logger.warning(
             "Could not parse full Document 1 JSON for {} — analysis.json will contain an error stub",
             video.video_id,
         )
+        raw_path.write_text(response_text + "\n", encoding="utf-8")
         analysis_payload: Any = {
-            "_error": "Could not parse full meeting JSON (expected meeting + decisions[])",
+            "_error": "Could not parse full meeting JSON (expected meeting + decisions[] + uncontested_items[])",
             "document1_excerpt": response_text[:2000],
             "parsed_fragment": parsed,
+            "response_raw_md": str(raw_path.relative_to(_REPO_ROOT)),
         }
         json_parsed = False
     else:
-        analysis_payload = parsed
+        analysis_payload = _normalize_part1_analysis(parsed)
         json_parsed = True
+        _warn_if_sparse_decisions(
+            analysis_payload, video_id=video.video_id, prompt_name=prompt_name
+        )
 
     analysis_path.write_text(
         json.dumps(analysis_payload, indent=2, ensure_ascii=False) + "\n",
@@ -1619,9 +2453,9 @@ def save_run_output(
     }
     if has_diagrams:
         files["diagrams_md"] = rel(diagrams_md_path)
-    if save_raw_response:
-        raw_path = folder / f"{stem}_response_raw.md"
-        raw_path.write_text(response_text + "\n", encoding="utf-8")
+    if save_raw_response or not json_parsed:
+        if not raw_path.is_file():
+            raw_path.write_text(response_text + "\n", encoding="utf-8")
         files["response_raw_md"] = rel(raw_path)
 
     meta_payload: dict[str, Any] = {
@@ -1673,6 +2507,142 @@ def save_run_output(
     return analysis_path
 
 
+def save_two_part_run_output(
+    output_dir: Path,
+    video: VideoRow,
+    part1_capture: GeminiRunCapture,
+    part2_capture: GeminiRunCapture,
+    *,
+    prompt_part1_path: Path,
+    prompt_part2_path: Path,
+    parsed_part1: Optional[dict[str, Any]] = None,
+    save_raw_response: bool = False,
+) -> Path:
+    """Persist analysis.json from part 1 and report.md from part 2."""
+    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    folder = output_dir / video.jurisdiction_id
+    folder.mkdir(parents=True, exist_ok=True)
+    prompt_tag = "policy_analysis_2part"
+    model_tag = _sanitize_tag(
+        part2_capture.gemini_model or part1_capture.gemini_model or "unknown_model"
+    )
+    stem = _output_stem(video, prompt_tag=prompt_tag, model_tag=model_tag, ts=ts)
+    rel = lambda p: str(p.relative_to(_REPO_ROOT))
+
+    span = _extract_document1_json(part1_capture.response_text)
+    parsed = parsed_part1
+    if parsed is None and span:
+        parsed = span[0]
+    if _part1_json_ok(parsed):
+        analysis_payload = _normalize_part1_analysis(parsed)
+        json_parsed = True
+        _warn_if_sparse_decisions(
+            analysis_payload,
+            video_id=video.video_id,
+            prompt_name=prompt_part1_path.stem,
+        )
+    else:
+        analysis_payload = {
+            "_error": "Could not parse part 1 JSON (expected meeting + decisions[] + uncontested_items[])",
+            "document1_excerpt": part1_capture.response_text[:2000],
+            "parsed_fragment": parsed,
+        }
+        json_parsed = False
+
+    report_body = _extract_part2_report(part2_capture.response_text)
+    if not report_body:
+        _, markdown_docs = _split_gemini_documents(part2_capture.response_text)
+        report_body = markdown_docs[0] if markdown_docs else ""
+
+    analysis_path = folder / f"{stem}_analysis.json"
+    report_md_path = folder / f"{stem}_report.md"
+    diagrams_md_path = folder / f"{stem}_diagrams.md"
+    meta_path = folder / f"{stem}_meta.json"
+
+    analysis_path.write_text(
+        json.dumps(analysis_payload, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    if report_body and not _looks_like_json_fragment(report_body):
+        report_md_path.write_text(report_body + "\n", encoding="utf-8")
+    else:
+        report_md_path.write_text(
+            "# Report unavailable\n\n"
+            "Part 2 did not return readable markdown (check browser or re-run).\n",
+            encoding="utf-8",
+        )
+
+    has_diagrams = False
+    if json_parsed and isinstance(analysis_payload, dict):
+        has_diagrams = _write_diagrams_md(analysis_payload, diagrams_md_path)
+
+    files: dict[str, str] = {
+        "meta_json": rel(meta_path),
+        "analysis_json": rel(analysis_path),
+        "report_md": rel(report_md_path),
+    }
+    if has_diagrams:
+        files["diagrams_md"] = rel(diagrams_md_path)
+    if save_raw_response:
+        p1_raw = folder / f"{stem}_part1_response_raw.md"
+        p2_raw = folder / f"{stem}_part2_response_raw.md"
+        p1_raw.write_text(part1_capture.response_text + "\n", encoding="utf-8")
+        p2_raw.write_text(part2_capture.response_text + "\n", encoding="utf-8")
+        files["part1_response_raw_md"] = rel(p1_raw)
+        files["part2_response_raw_md"] = rel(p2_raw)
+
+    meta_payload: dict[str, Any] = {
+        "video_id": video.video_id,
+        "video_url": video.video_url,
+        "title": video.title,
+        "jurisdiction_id": video.jurisdiction_id,
+        "last_updated": (
+            video.last_updated.isoformat() if video.last_updated is not None else None
+        ),
+        "prompt_mode": "two_part",
+        "prompt_name": prompt_tag,
+        "prompt_part_1": str(prompt_part1_path.relative_to(_REPO_ROOT)),
+        "prompt_part_2": str(prompt_part2_path.relative_to(_REPO_ROOT)),
+        "gemini_model": part2_capture.gemini_model or part1_capture.gemini_model,
+        "generation_source": "gemini_web_ui",
+        "generated_at": ts,
+        "part1_response_chars": len(part1_capture.response_text),
+        "part2_response_chars": len(part2_capture.response_text),
+        "json_parsed": json_parsed,
+        "has_diagrams_md": has_diagrams,
+        "report_chars": len(report_body),
+        "files": files,
+    }
+    meta_path.write_text(
+        json.dumps(meta_payload, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    _write_manifest(
+        folder,
+        {
+            "video_id": video.video_id,
+            "video_url": video.video_url,
+            "title": video.title,
+            "prompt_name": prompt_tag,
+            "prompt_file": meta_payload["prompt_part_1"],
+            "gemini_model": meta_payload["gemini_model"],
+            "generation_source": "gemini_web_ui",
+            "generated_at": ts,
+            "response_chars": len(part1_capture.response_text) + len(part2_capture.response_text),
+            "json_parsed": json_parsed,
+            "has_diagrams_md": has_diagrams,
+            "files": files,
+        },
+    )
+    logger.info(
+        "Wrote: {} (JSON), {} (report){}",
+        analysis_path.name,
+        report_md_path.name,
+        f", {diagrams_md_path.name}" if has_diagrams else "",
+    )
+    return analysis_path
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     load_dotenv(_REPO_ROOT / ".env")
     parser = argparse.ArgumentParser(
@@ -1681,8 +2651,20 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument(
         "--prompt-file",
         type=Path,
-        default=DEFAULT_PROMPT_PATH,
-        help=f"Policy prompt markdown (default: {DEFAULT_PROMPT_PATH})",
+        default=None,
+        help="Single combined prompt file (legacy). If omitted, uses two-part prompts.",
+    )
+    parser.add_argument(
+        "--prompt-part-1",
+        type=Path,
+        default=DEFAULT_PROMPT_PART_1,
+        help=f"Step 1 JSON prompt (default: {DEFAULT_PROMPT_PART_1})",
+    )
+    parser.add_argument(
+        "--prompt-part-2",
+        type=Path,
+        default=DEFAULT_PROMPT_PART_2,
+        help=f"Step 2 report prompt (default: {DEFAULT_PROMPT_PART_2})",
     )
     parser.add_argument(
         "--jurisdiction-id",
@@ -1732,6 +2714,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         help="Use data/cache/gemini_browser_chrome_profile (Playwright Chromium; sign in once)",
     )
     parser.add_argument(
+        "--reset-fresh-profile",
+        action="store_true",
+        help="With --fresh-profile: archive the existing profile dir and create a clean one (fixes TargetClosedError / corrupt WSL profile)",
+    )
+    parser.add_argument(
         "--delay-between",
         type=float,
         default=5.0,
@@ -1779,10 +2766,21 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     profile = args.chrome_profile or default_chrome_profile()
     debug_dir = args.output_dir.resolve() / "_debug"
 
+    two_part = args.prompt_file is None
     if args.dry_run:
-        policy = load_policy_prompt(args.prompt_file.resolve())
-        logger.info("Policy prompt: {} chars from {}", len(policy), args.prompt_file)
-        logger.info("[dry-run] Would open Gemini and send {} prompt(s)", len(videos))
+        if two_part:
+            p1 = _prepare_part1_prompt(load_policy_prompt(args.prompt_part_1.resolve()))
+            p2 = load_policy_prompt(args.prompt_part_2.resolve())
+            logger.info("Part 1 prompt: {} chars from {}", len(p1), args.prompt_part_1)
+            logger.info("Part 2 prompt: {} chars from {}", len(p2), args.prompt_part_2)
+            logger.info(
+                "[dry-run] Would send {} video(s) × 2 prompts each (JSON then report)",
+                len(videos),
+            )
+        else:
+            policy = load_policy_prompt(args.prompt_file.resolve())
+            logger.info("Policy prompt: {} chars from {}", len(policy), args.prompt_file)
+            logger.info("[dry-run] Would open Gemini and send {} prompt(s)", len(videos))
         return 0
 
     if args.open_only:
@@ -1797,30 +2795,64 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             open_only=True,
             cdp_url=args.cdp_url,
             fresh_profile=args.fresh_profile,
+            reset_fresh_profile=args.reset_fresh_profile,
         )
         return 0
 
-    policy_prompt = load_policy_prompt(args.prompt_file.resolve())
-
-    run_video_batch(
-        videos,
-        policy_prompt,
-        user_data_dir=user_data,
-        profile_name=profile,
-        headless=args.headless,
-        hold_open_seconds=args.hold_open,
-        delay_between_videos=args.delay_between,
-        output_dir=args.output_dir.resolve(),
-        prompt_path=args.prompt_file.resolve(),
-        debug_dir=debug_dir,
-        pause_after_open=args.pause_after_open,
-        cdp_url=args.cdp_url,
-        fresh_profile=args.fresh_profile,
-        new_tab_per_video=args.new_tab_per_video,
-        gemini_model_override=args.gemini_model,
-        select_model=args.select_model,
-        save_raw_response=args.save_raw_response,
-    )
+    if two_part:
+        part1_path = args.prompt_part_1.resolve()
+        part2_path = args.prompt_part_2.resolve()
+        part1_prompt = _prepare_part1_prompt(load_policy_prompt(part1_path))
+        part2_prompt = load_policy_prompt(part2_path)
+        logger.info("Two-part mode: {} + {}", part1_path.name, part2_path.name)
+        run_video_batch(
+            videos,
+            "",
+            user_data_dir=user_data,
+            profile_name=profile,
+            headless=args.headless,
+            hold_open_seconds=args.hold_open,
+            delay_between_videos=args.delay_between,
+            output_dir=args.output_dir.resolve(),
+            prompt_path=part1_path,
+            debug_dir=debug_dir,
+            pause_after_open=args.pause_after_open,
+            cdp_url=args.cdp_url,
+            fresh_profile=args.fresh_profile,
+            reset_fresh_profile=args.reset_fresh_profile,
+            new_tab_per_video=args.new_tab_per_video,
+            gemini_model_override=args.gemini_model,
+            select_model=args.select_model,
+            save_raw_response=args.save_raw_response,
+            two_part=True,
+            part1_prompt=part1_prompt,
+            part2_prompt=part2_prompt,
+            prompt_part1_path=part1_path,
+            prompt_part2_path=part2_path,
+        )
+    else:
+        prompt_path = args.prompt_file.resolve()
+        policy_prompt = load_policy_prompt(prompt_path)
+        run_video_batch(
+            videos,
+            policy_prompt,
+            user_data_dir=user_data,
+            profile_name=profile,
+            headless=args.headless,
+            hold_open_seconds=args.hold_open,
+            delay_between_videos=args.delay_between,
+            output_dir=args.output_dir.resolve(),
+            prompt_path=prompt_path,
+            debug_dir=debug_dir,
+            pause_after_open=args.pause_after_open,
+            cdp_url=args.cdp_url,
+            fresh_profile=args.fresh_profile,
+            reset_fresh_profile=args.reset_fresh_profile,
+            new_tab_per_video=args.new_tab_per_video,
+            gemini_model_override=args.gemini_model,
+            select_model=args.select_model,
+            save_raw_response=args.save_raw_response,
+        )
     return 0
 
 

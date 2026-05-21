@@ -14,7 +14,7 @@ import json
 import re
 from html import unescape
 from typing import Any, Dict, List, Set, Tuple
-from urllib.parse import unquote
+from urllib.parse import unquote, urljoin
 
 _MAILTO_RE = re.compile(r"mailto:([^?#\"'>\s\\]+)", re.I)
 _TEL_RE = re.compile(r"tel:([^?#\"'>\s\\]+)", re.I)
@@ -278,8 +278,785 @@ def extract_structured_contacts_from_html(
         if len(rows) >= max_rows:
             break
 
-    rows.extend(extract_directory_cards_contacts_from_html(html, page_url, max_rows=max(0, max_rows - len(rows))))
+    for cr in extract_caboose_directory_contacts_from_html(
+        html, page_url, max_rows=max(0, max_rows - len(rows))
+    ):
+        k = _structured_contact_row_key(cr)
+        if k in existing_keys:
+            continue
+        existing_keys.add(k)
+        em = str(cr.get("email") or "").lower()
+        if em:
+            emails_seen.add(em)
+        rows.append(cr)
+        if len(rows) >= max_rows:
+            break
+
+    rows.extend(
+        extract_directory_cards_contacts_from_html(html, page_url, max_rows=max(0, max_rows - len(rows)))
+    )
+
+    dept_keys: Set[Tuple[str, str, str]] = set()
+    for dr in extract_department_office_contacts_from_html(
+        html, page_url, max_rows=max(0, max_rows - len(rows))
+    ):
+        k = (
+            str(dr.get("department") or ""),
+            str(dr.get("phone") or ""),
+            str(dr.get("mailing_address") or ""),
+        )
+        if k in dept_keys:
+            continue
+        dept_keys.add(k)
+        rows.append(dr)
+        if len(rows) >= max_rows:
+            break
+
+    for row in rows:
+        normalize_structured_contact_row(row)
+    rows = dedupe_structured_contact_rows(rows)
     return rows[:max_rows]
+
+
+_BG_IMAGE_URL_RE = re.compile(
+    r"background-image\s*:\s*url\(\s*['\"]?([^'\")]+)['\"]?\s*\)",
+    re.I,
+)
+_COUNCILOR_PREFIX_RE = re.compile(r"^councilor\s+", re.I)
+_DISTRICT_LABEL_RE = re.compile(r"^district\s*\d+\s*$", re.I)
+_SEND_EMAIL_LABEL_RE = re.compile(r"^send\s+an\s+email$", re.I)
+_MENU_OR_CHROME_ALT_RE = re.compile(r"^(menu|logo|city of tuscaloosa)$", re.I)
+_OFFICE_HONORIFIC_LINE_RE = re.compile(
+    r"^(councilor|mayor|vice\s*mayor|commissioner|commission\s+chair(?:man)?|"
+    r"trustee|alderman|supervisor|senator|representative|director)\s+(.+)$",
+    re.I,
+)
+_MORE_INFO_BUTTON_RE = re.compile(r"more\s+info", re.I)
+
+
+def _abs_background_image_url(raw: str, page_url: str) -> str:
+    u = (raw or "").strip()
+    if not u or u.lower().startswith("data:"):
+        return ""
+    if u.startswith("//"):
+        u = "https:" + u
+    return urljoin(page_url, u)
+
+
+def profile_image_url_from_style(style: str, page_url: str) -> str:
+    """Parse ``background-image:url(...)`` from an inline style attribute."""
+    m = _BG_IMAGE_URL_RE.search(style or "")
+    if not m:
+        return ""
+    return _abs_background_image_url(m.group(1), page_url)
+
+
+def is_decorative_profile_image_url(url: str) -> bool:
+    """Site chrome (menu arrows, seals, logos) — not official headshots."""
+    if not url:
+        return True
+    low = url.lower()
+    if any(
+        tok in low
+        for tok in (
+            "white_arrows",
+            "dark_logo",
+            "/images/seal",
+            "seal.png",
+            "favicon",
+            "apple-touch-icon",
+            "facebook.com/tr",
+            "pixel.gif",
+            "1x1",
+        )
+    ):
+        return True
+    if re.search(r"/assets/[^/]+/images/(white_|dark_|logo)", low):
+        return True
+    return False
+
+
+def is_generic_district_label(text: Optional[str]) -> bool:
+    return bool(_DISTRICT_LABEL_RE.match((text or "").strip()))
+
+
+_GENERIC_MAILBOX_LOCAL_PARTS = frozenset(
+    {
+        "cityclerk",
+        "clerk",
+        "info",
+        "contact",
+        "contacts",
+        "admin",
+        "webmaster",
+        "noreply",
+        "no-reply",
+        "support",
+        "help",
+        "meetings",
+        "council",
+        "office",
+        "staff",
+        "hr",
+        "media",
+        "press",
+    }
+)
+_EMAIL_NAME_SUFFIX_DISPLAY = {
+    "jr": "Jr.",
+    "sr": "Sr.",
+    "ii": "II",
+    "iii": "III",
+    "iv": "IV",
+}
+_DEPARTMENT_OFFICE_HEADING_RE = re.compile(
+    r"(?:contact\s+the\s+.+?\s+office|city\s+council\s+office)",
+    re.I,
+)
+_CITY_COUNCIL_CONTEXT_RE = re.compile(r"city\s*council|councilor", re.I)
+
+
+def is_generic_mailbox_email(email: Optional[str]) -> bool:
+    em = (email or "").strip().lower()
+    if "@" not in em:
+        return False
+    local = em.split("@", 1)[0].strip()
+    return local in _GENERIC_MAILBOX_LOCAL_PARTS or any(
+        x in local for x in ("noreply", "no-reply", "donotreply")
+    )
+
+
+def derive_person_name_from_email(email: Optional[str]) -> Optional[str]:
+    """
+    Best-effort name from ``first.last@domain`` (e.g. ``joseph.eatmon@tuscaloosa.com`` → Joseph Eatmon).
+
+    Skips generic mailboxes (``cityclerk``, ``info``, …) and locals without at least two name parts.
+    """
+    em = (email or "").strip().lower()
+    if "@" not in em:
+        return None
+    local, _domain = em.split("@", 1)
+    local = local.strip()
+    if not local or local in _GENERIC_MAILBOX_LOCAL_PARTS:
+        return None
+    if any(tok in local for tok in ("noreply", "no-reply", "donotreply")):
+        return None
+
+    parts = [p for p in re.split(r"[._\-+]+", local) if p and p.isalpha()]
+    if len(parts) < 2:
+        return None
+
+    suffixes: List[str] = []
+    while parts and parts[-1].lower() in _EMAIL_NAME_SUFFIX_DISPLAY:
+        suffixes.insert(0, _EMAIL_NAME_SUFFIX_DISPLAY[parts.pop().lower()])
+
+    if len(parts) < 2:
+        return None
+
+    name = " ".join(p[:1].upper() + p[1:].lower() for p in parts if len(p) >= 2)
+    if not name:
+        return None
+    if suffixes:
+        name = f"{name}, {' '.join(suffixes)}"
+    return name[:512]
+
+
+def _normalize_department_office_label(heading: str) -> str:
+    """Map page heading to a stable department label."""
+    h = re.sub(r"\s+", " ", (heading or "").strip())
+    if not h:
+        return "Department Office"
+    if _CITY_COUNCIL_CONTEXT_RE.search(h):
+        return "City Council Office"
+    m = re.search(r"contact\s+the\s+(.+?)\s+office", h, re.I)
+    if m:
+        return re.sub(r"\s+", " ", m.group(1).strip().title()) + " Office"
+    return h[:512]
+
+
+def extract_department_office_contacts_from_html(
+    html: str,
+    page_url: str,
+    *,
+    max_rows: int = 8,
+) -> List[Dict[str, Any]]:
+    """
+    Caboose ``div.contact-block`` sections under headings like ``Contact the City Council Office``.
+
+    Emits ``contact_scope=department`` rows (no ``person_name``) with shared mailing address / phone.
+    """
+    from bs4 import BeautifulSoup
+
+    out: List[Dict[str, Any]] = []
+    if not html or max_rows <= 0:
+        return out
+    soup = BeautifulSoup(html, "html.parser")
+    seen: Set[str] = set()
+
+    for h in soup.find_all(["h2", "h3", "h4"]):
+        if len(out) >= max_rows:
+            break
+        heading = re.sub(r"\s+", " ", h.get_text(" ", strip=True) or "").strip()
+        if not heading or not _DEPARTMENT_OFFICE_HEADING_RE.search(heading):
+            continue
+        block = h.find_next("div", class_=lambda c: c and "contact-block" in str(c))
+        if block is None:
+            continue
+
+        phone: Optional[str] = None
+        mailing_address: Optional[str] = None
+        email_pri: Optional[str] = None
+
+        for unit in block.select("div.c-unit"):
+            h4 = unit.select_one("h4")
+            label = re.sub(r"\s+", " ", (h4.get_text(" ", strip=True) if h4 else "")).strip().lower()
+            if "mailing" in label:
+                rich = unit.select_one(".richtext, .text-holder .richtext")
+                if rich:
+                    for br in rich.find_all("br"):
+                        br.replace_with(", ")
+                    mailing_address = re.sub(
+                        r"\s*,\s*",
+                        ", ",
+                        re.sub(r"\s+", " ", rich.get_text(" ", strip=True) or ""),
+                    ).strip()[:500] or None
+            elif "phone" in label:
+                tel_a = unit.select_one('a[href^="tel:"]')
+                if tel_a:
+                    m = _TEL_RE.search(tel_a.get("href") or "")
+                    if m:
+                        phone = _normalize_phone_display(m.group(1))
+                if not phone:
+                    raw = unit.get_text(" ", strip=True)
+                    for pm in _PHONE_RE.finditer(raw):
+                        digits = re.sub(r"\D", "", pm.group(0))
+                        if len(digits) >= 10:
+                            phone = _normalize_phone_display(pm.group(0))
+                            break
+            elif "email" in label:
+                for a in unit.select('a[href^="mailto:"]'):
+                    email_pri = _clean_mailto((a.get("href") or "").replace("mailto:", "", 1))
+                    if email_pri:
+                        break
+
+        dept_label = _normalize_department_office_label(heading)
+        dedupe_key = f"{dept_label}|{phone or ''}|{mailing_address or ''}"
+        if dedupe_key in seen:
+            continue
+        seen.add(dedupe_key)
+        if not phone and not mailing_address and not email_pri:
+            continue
+
+        out.append(
+            {
+                "person_name": None,
+                "title_or_role": None,
+                "department": dept_label,
+                "office_heading": heading[:512],
+                "contact_scope": "department",
+                "email": email_pri,
+                "phone": phone,
+                "mailing_address": mailing_address,
+                "profile_url": _strip_fragment_for_url(page_url) if _CITY_COUNCIL_CONTEXT_RE.search(
+                    page_url
+                ) or _CITY_COUNCIL_CONTEXT_RE.search(heading)
+                else None,
+                "profile_image_url": None,
+                "extraction_method": "caboose_department_contact_block",
+                "raw_row": {"page_url": page_url, "heading": heading[:200]},
+            }
+        )
+
+    return out
+
+
+def is_city_council_person_row(row: Dict[str, Any]) -> bool:
+    """True when row looks like an individual council member (not the shared office)."""
+    if str(row.get("contact_scope") or "").strip().lower() == "department":
+        return False
+    blob = " ".join(
+        str(row.get(k) or "")
+        for k in ("title_or_role", "department", "page_classification", "source_page_url", "profile_url")
+    )
+    if _CITY_COUNCIL_CONTEXT_RE.search(blob):
+        return True
+    if row.get("title_or_role") and str(row.get("title_or_role")).lower() == "councilor":
+        return True
+    if is_generic_district_label(str(row.get("department") or "")):
+        return True
+    return False
+
+
+def _normalize_honorific_token(token: str) -> str:
+    t = (token or "").strip().lower()
+    if t == "vice mayor":
+        return "Vice Mayor"
+    if t.startswith("commission chair"):
+        return "Commission Chair" if "chairman" not in t else "Commission Chairman"
+    return (token or "").strip().title()
+
+
+def split_office_holder_fields(
+    combined_line: Optional[str],
+    district_or_subtitle: Optional[str] = None,
+) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+    """
+    Split a combined heading like ``Councilor Joseph Eatmon, Sr.`` into:
+
+    - ``person_name`` — bare name (``Joseph Eatmon, Sr.``)
+    - ``title_or_role`` — honorific (``Councilor``)
+    - ``department`` — district label (``District 1``) when provided separately
+    """
+    line = (combined_line or "").strip()
+    sub = (district_or_subtitle or "").strip()
+
+    if line and _SEND_EMAIL_LABEL_RE.match(line):
+        line = ""
+
+    district: Optional[str] = None
+    if sub and is_generic_district_label(sub):
+        district = sub
+    elif line and is_generic_district_label(line) and not sub:
+        return None, None, line
+
+    if not line:
+        return None, None, district
+
+    m = _OFFICE_HONORIFIC_LINE_RE.match(line)
+    if m:
+        honor = _normalize_honorific_token(m.group(1))
+        person = (m.group(2) or "").strip() or None
+        return person, honor, district
+
+    if is_generic_district_label(line):
+        return None, None, line
+
+    extra_dept = district
+    if sub and is_generic_district_label(sub):
+        extra_dept = sub
+    elif sub and not extra_dept:
+        return line, sub, None
+    return line, None, extra_dept
+
+
+def normalize_structured_contact_row(row: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Caboose / council layouts: honorific → ``title_or_role``, district → ``department``,
+    bare name → ``person_name``. Fixes legacy swaps and button labels.
+    """
+    raw_name = (row.get("person_name") or "").strip()
+    raw_title = (row.get("title_or_role") or "").strip()
+    raw_dept = (row.get("department") or "").strip()
+
+    if raw_name and _SEND_EMAIL_LABEL_RE.match(raw_name):
+        raw_name = ""
+
+    combined = raw_name
+    district_hint = raw_dept or None
+
+    # Legacy: person_name was District N, title_or_role was Councilor Name
+    if is_generic_district_label(raw_name) and raw_title and _OFFICE_HONORIFIC_LINE_RE.match(raw_title):
+        combined = raw_title
+        district_hint = raw_name
+    elif raw_title and is_generic_district_label(raw_title) and not district_hint:
+        district_hint = raw_title
+        if raw_title == raw_name:
+            raw_title = ""
+    elif raw_dept and is_generic_district_label(raw_dept):
+        district_hint = raw_dept
+
+    person, honor, dept = split_office_holder_fields(combined or None, district_hint)
+
+    if person:
+        row["person_name"] = person
+    elif combined and not is_generic_district_label(combined):
+        row["person_name"] = combined
+    else:
+        row["person_name"] = None
+
+    if honor:
+        row["title_or_role"] = honor
+    elif raw_title and not is_generic_district_label(raw_title) and not _OFFICE_HONORIFIC_LINE_RE.match(
+        raw_title
+    ):
+        row["title_or_role"] = raw_title
+    else:
+        row["title_or_role"] = None
+
+    if dept:
+        row["department"] = dept
+    elif raw_dept and not is_generic_district_label(raw_dept):
+        row["department"] = raw_dept
+    elif raw_title and is_generic_district_label(raw_title):
+        row["department"] = raw_title
+    else:
+        row["department"] = None
+
+    if not (row.get("person_name") or "").strip():
+        em = (row.get("email") or "").strip()
+        if em and str(row.get("contact_scope") or "") != "department":
+            derived = derive_person_name_from_email(em)
+            if derived:
+                row["person_name"] = derived
+                raw = row.get("raw_row")
+                if isinstance(raw, dict):
+                    raw["person_name_derived_from_email"] = True
+
+    return row
+
+
+def _merge_supplemental_contact_fields(dst: Dict[str, Any], src: Dict[str, Any]) -> None:
+    """Keep the higher-quality row but fill gaps (e.g. index ``profile_url`` + detail email)."""
+    for field in ("profile_url", "profile_image_url", "phone", "mailing_address"):
+        if not (dst.get(field) or "").strip() and (src.get(field) or "").strip():
+            dst[field] = src[field]
+
+
+def infer_profile_url_from_source_page(row: Dict[str, Any]) -> None:
+    """When detail crawl set ``source_page_url`` but not ``profile_url``, use that page."""
+    if (row.get("profile_url") or "").strip():
+        return
+    sp = (row.get("source_page_url") or row.get("raw_row", {}).get("page_url") or "").strip()
+    if not sp:
+        return
+    if re.search(r"/district-\d|/citycouncil/district|/commissioner|/official/", sp, re.I):
+        row["profile_url"] = _strip_fragment_for_url(sp)
+
+
+def dedupe_structured_contact_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Prefer rows with a real person name over mailto / heading noise for the same email."""
+    department_rows: List[Dict[str, Any]] = []
+    person_rows: List[Dict[str, Any]] = []
+    for row in rows:
+        if str(row.get("contact_scope") or "").strip().lower() == "department":
+            department_rows.append(row)
+        else:
+            person_rows.append(row)
+
+    by_email: Dict[str, Dict[str, Any]] = {}
+    no_email: List[Dict[str, Any]] = []
+
+    def _name_quality(r: Dict[str, Any]) -> int:
+        n = str(r.get("person_name") or "").strip()
+        if not n or _SEND_EMAIL_LABEL_RE.match(n):
+            return 0
+        if is_generic_district_label(n):
+            return 1
+        if _OFFICE_HONORIFIC_LINE_RE.match(n):
+            return 2
+        score = 4
+        if r.get("department"):
+            score += 1
+        if r.get("email"):
+            score += 2
+        if r.get("profile_url"):
+            score += 1
+        if str(r.get("extraction_method") or "").startswith("caboose_staff_block"):
+            score += 1
+        return score
+
+    for row in person_rows:
+        normalize_structured_contact_row(row)
+        em = str(row.get("email") or "").strip().lower()
+        if not em:
+            no_email.append(row)
+            continue
+        prev = by_email.get(em)
+        if prev is None:
+            by_email[em] = row
+        elif _name_quality(row) > _name_quality(prev):
+            _merge_supplemental_contact_fields(row, prev)
+            by_email[em] = row
+        else:
+            _merge_supplemental_contact_fields(prev, row)
+
+    out = list(by_email.values()) + no_email
+    seen: Set[Tuple[str, str, str, str]] = set()
+    deduped: List[Dict[str, Any]] = []
+    for row in out:
+        infer_profile_url_from_source_page(row)
+        k = _structured_contact_row_key(row)
+        if k in seen:
+            continue
+        seen.add(k)
+        deduped.append(row)
+
+    dept_seen: Set[Tuple[str, str, str]] = set()
+    for row in department_rows:
+        normalize_structured_contact_row(row)
+        infer_profile_url_from_source_page(row)
+        dk = (
+            str(row.get("department") or "").lower(),
+            str(row.get("phone") or ""),
+            str(row.get("mailing_address") or ""),
+        )
+        if dk in dept_seen:
+            continue
+        dept_seen.add(dk)
+        deduped.append(row)
+
+    return deduped
+
+
+def _caboose_person_detail_url(container: Any, page_url: str) -> str:
+    """``More Info`` / district detail link on a Caboose councilor card (consistent ``a.btn`` placement)."""
+    from bs4 import Tag
+
+    if not isinstance(container, Tag):
+        return ""
+    for a in container.select("a.btn, a.transparent, a[href]"):
+        href = (a.get("href") or "").strip()
+        if not href or href.startswith("#") or href.lower().startswith("mailto:"):
+            continue
+        label = re.sub(r"\s+", " ", a.get_text(" ", strip=True) or "").strip()
+        if _MORE_INFO_BUTTON_RE.search(label) or re.search(
+            r"/district-\d", href, re.I
+        ):
+            abs_u = urljoin(page_url, href)
+            if abs_u.lower().startswith(("http://", "https://")):
+                return abs_u
+    return ""
+
+
+def _caboose_headshot_url(container: Any, page_url: str, *, photo_sel: str) -> str:
+    from bs4 import Tag
+
+    if not isinstance(container, Tag):
+        return ""
+    photo = container.select_one(photo_sel)
+    if not photo:
+        return ""
+    bg = profile_image_url_from_style(photo.get("style") or "", page_url)
+    if bg and is_decorative_profile_image_url(bg):
+        return ""
+    return bg
+
+
+def _parse_caboose_official_block(
+    container: Any,
+    page_url: str,
+    *,
+    name_sel: str,
+    district_sel: str,
+    photo_sel: str,
+    extraction_method: str,
+) -> Optional[Dict[str, Any]]:
+    """Parse one Caboose councilor card or staff-block (photo + name + district + optional mailto)."""
+    from bs4 import Tag
+
+    if not isinstance(container, Tag):
+        return None
+    name_el = container.select_one(name_sel)
+    district_el = container.select_one(district_sel)
+    raw_name = re.sub(r"\s+", " ", (name_el.get_text(" ", strip=True) if name_el else "")).strip()
+    raw_district = re.sub(r"\s+", " ", (district_el.get_text(" ", strip=True) if district_el else "")).strip()
+    person, honor, dept = split_office_holder_fields(raw_name or None, raw_district or None)
+    if not person and not honor:
+        return None
+    email_pri = None
+    for a in container.select('a[href^="mailto:"]'):
+        email_pri = _clean_mailto((a.get("href") or "").replace("mailto:", "", 1))
+        if email_pri:
+            break
+    bg_url = _caboose_headshot_url(container, page_url, photo_sel=photo_sel)
+    profile_url = _caboose_person_detail_url(container, page_url)
+    # Index cards: More Info → district URL. Detail ``staff-block`` pages: this page is the profile.
+    if not profile_url and extraction_method == "caboose_staff_block":
+        profile_url = _strip_fragment_for_url(page_url)
+    return {
+        "person_name": person,
+        "title_or_role": honor,
+        "department": dept,
+        "email": email_pri,
+        "phone": None,
+        "mailing_address": None,
+        "profile_url": profile_url or None,
+        "profile_image_url": bg_url or None,
+        "extraction_method": extraction_method,
+        "raw_row": {"page_url": page_url},
+    }
+
+
+def extract_caboose_person_detail_urls_from_html(
+    html: str,
+    page_url: str,
+    *,
+    max_urls: int = 40,
+) -> List[str]:
+    """
+    Enqueue targets from council index cards: ``a.btn`` / ``More Info`` → district detail pages.
+    """
+    from bs4 import BeautifulSoup
+
+    out: List[str] = []
+    seen: Set[str] = set()
+    if not html:
+        return out
+    soup = BeautifulSoup(html, "html.parser")
+    for card in soup.select("div.city-council-index div.councilor"):
+        if len(out) >= max_urls:
+            break
+        abs_u = _caboose_person_detail_url(card, page_url)
+        if not abs_u:
+            continue
+        key = _strip_fragment_for_url(abs_u)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(abs_u)
+    return out
+
+
+def _strip_fragment_for_url(url: str) -> str:
+    u = (url or "").strip()
+    if "#" in u:
+        u = u.split("#", 1)[0]
+    return u
+
+
+def extract_caboose_directory_contacts_from_html(
+    html: str,
+    page_url: str,
+    *,
+    max_rows: int = 40,
+) -> List[Dict[str, Any]]:
+    """
+    Caboose CMS council / staff layouts (City of Tuscaloosa and similar).
+
+    - ``div.staff-block`` district bios (detail pages with email + bio)
+    - ``div.city-council-index div.councilor`` listing cards (photo + More Info link)
+    """
+    from bs4 import BeautifulSoup
+
+    out: List[Dict[str, Any]] = []
+    if not html or max_rows <= 0:
+        return out
+    soup = BeautifulSoup(html, "html.parser")
+    seen_emails: Set[str] = set()
+    seen_no_email: Set[Tuple[str, str]] = set()
+
+    def _append_parsed(row: Optional[Dict[str, Any]]) -> None:
+        if not row or len(out) >= max_rows:
+            return
+        normalize_structured_contact_row(row)
+        em = str(row.get("email") or "").strip().lower()
+        if em:
+            if em in seen_emails:
+                return
+            seen_emails.add(em)
+        else:
+            nk = (
+                str(row.get("person_name") or "").lower(),
+                str(row.get("profile_url") or "").lower(),
+            )
+            if nk in seen_no_email:
+                return
+            seen_no_email.add(nk)
+        if not row.get("person_name") and not em:
+            return
+        out.append(row)
+
+    for block in soup.select("div.staff-block"):
+        if len(out) >= max_rows:
+            break
+        _append_parsed(
+            _parse_caboose_official_block(
+                block,
+                page_url,
+                name_sel="h2.name, h2.rtedit.name",
+                district_sel="h4.title, h4.rtedit.title",
+                photo_sel=".image-holder .img, div.img[style*='background-image']",
+                extraction_method="caboose_staff_block",
+            )
+        )
+
+    for card in soup.select("div.city-council-index div.councilor"):
+        if len(out) >= max_rows:
+            break
+        _append_parsed(
+            _parse_caboose_official_block(
+                card,
+                page_url,
+                name_sel="h5.name",
+                district_sel="p.title",
+                photo_sel="div.photo[style*='background-image']",
+                extraction_method="caboose_council_index_card",
+            )
+        )
+
+    return out
+
+
+def extract_caboose_background_profile_jobs(
+    html: str,
+    page_url: str,
+    *,
+    max_jobs: int = 40,
+) -> List[Dict[str, Any]]:
+    """Download jobs for Caboose ``background-image`` headshots (not ``<img>`` tags)."""
+    from bs4 import BeautifulSoup
+
+    out: List[Dict[str, Any]] = []
+    seen: Set[str] = set()
+    soup = BeautifulSoup(html or "", "html.parser")
+
+    def _job_from_block(
+        container: Any,
+        *,
+        name_sel: str,
+        district_sel: str,
+        photo_sel: str,
+        match_method: str,
+    ) -> None:
+        if len(out) >= max_jobs:
+            return
+        parsed = _parse_caboose_official_block(
+            container,
+            page_url,
+            name_sel=name_sel,
+            district_sel=district_sel,
+            photo_sel=photo_sel,
+            extraction_method=match_method,
+        )
+        if not parsed or not parsed.get("profile_image_url"):
+            return
+        person = parsed.get("person_name")
+        if not person or _SEND_EMAIL_LABEL_RE.match(str(person)):
+            return
+        bg = str(parsed["profile_image_url"])
+        if bg in seen:
+            return
+        seen.add(bg)
+        out.append(
+            {
+                "person_name": person,
+                "title_or_role": parsed.get("title_or_role"),
+                "department": parsed.get("department"),
+                "email": parsed.get("email"),
+                "image_url": bg,
+                "match_method": match_method,
+            }
+        )
+
+    for block in soup.select("div.staff-block"):
+        _job_from_block(
+            block,
+            name_sel="h2.name, h2.rtedit.name",
+            district_sel="h4.title, h4.rtedit.title",
+            photo_sel=".image-holder .img, div.img[style*='background-image']",
+            match_method="caboose_staff_block_bg",
+        )
+
+    for card in soup.select("div.city-council-index div.councilor"):
+        _job_from_block(
+            card,
+            name_sel="h5.name",
+            district_sel="p.title",
+            photo_sel="div.photo[style*='background-image']",
+            match_method="caboose_council_index_bg",
+        )
+
+    return out[:max_jobs]
 
 
 def _structured_contact_row_key(r: Dict[str, Any]) -> Tuple[str, str, str, str]:

@@ -58,6 +58,7 @@ def contact_profile_image_stem_from_name(person_name: Optional[str]) -> Optional
     Returns ``None`` when there is no usable person name (caller saves as ``unknown``, ``unknown_2``, …).
     """
     raw = (person_name or "").strip()
+    raw = re.sub(r"^councilor\s+", "", raw, flags=re.I).strip()
     if len(raw) < 2 or not _NAMEISH.search(raw):
         return None
     nfkd = unicodedata.normalize("NFKD", raw)
@@ -129,6 +130,10 @@ def img_best_abs_url(img: Any, page_url: str) -> str:
 
 def _profile_image_url_is_brand_or_chrome(url: str) -> bool:
     """Sitewide logos, favicons, and header marks — not official portrait photos."""
+    from scripts.discovery.contact_extract_from_html import is_decorative_profile_image_url
+
+    if is_decorative_profile_image_url(url):
+        return True
     if not url or not url.lower().startswith(("http://", "https://")):
         return True
     path = (urlparse(url).path or "").lower()
@@ -293,10 +298,21 @@ def extract_profile_image_jobs(html: str, page_url: str, *, max_jobs: int = 80) 
     Sources: JSON-LD ``Person`` ``image``; ``<img>`` near headings / portrait-ish classes.
     """
     from bs4 import BeautifulSoup
+    from scripts.discovery.contact_extract_from_html import (
+        extract_caboose_background_profile_jobs,
+        is_generic_district_label,
+        split_office_holder_fields,
+    )
 
     out: List[Dict[str, Any]] = []
     seen_url: Set[str] = set()
     soup = BeautifulSoup(html or "", "html.parser")
+
+    for job in extract_caboose_background_profile_jobs(html, page_url, max_jobs=max_jobs):
+        u = str(job.get("image_url") or "")
+        if u and u not in seen_url:
+            seen_url.add(u)
+            out.append(job)
 
     for script in soup.find_all("script", attrs={"type": re.compile(r"ld\+json", re.I)}):
         raw = (script.string or script.get_text() or "").strip()
@@ -362,6 +378,10 @@ def extract_profile_image_jobs(html: str, page_url: str, *, max_jobs: int = 80) 
             continue
         cls = " ".join(img.get("class") or [])
         alt = (img.get("alt") or "").strip()
+        if alt and re.match(r"^(menu|logo)$", alt, re.I):
+            continue
+        if "logo" in cls.lower():
+            continue
         wpish = "wp-image-" in cls or "wp-block-image" in cls
         portrait_hint = bool(
             _IMG_CLASS_HINT.search(cls)
@@ -387,13 +407,19 @@ def extract_profile_image_jobs(html: str, page_url: str, *, max_jobs: int = 80) 
             name_guess = alt[:200]
         if not name_guess and not title_guess:
             continue
-        if _label_is_non_person_photo_subject(name_guess, title_guess):
+        if is_generic_district_label(name_guess) and not title_guess:
+            continue
+        person, honor, dept = split_office_holder_fields(name_guess, title_guess)
+        if not person:
+            continue
+        if _label_is_non_person_photo_subject(person, honor or dept):
             continue
         seen_url.add(abs_u)
         out.append(
             {
-                "person_name": name_guess or None,
-                "title_or_role": title_guess or None,
+                "person_name": person,
+                "title_or_role": honor,
+                "department": dept,
                 "image_url": abs_u,
                 "match_method": "html_img_context",
             }
@@ -724,6 +750,8 @@ async def download_profile_images(
                 "image_url": url,
                 "person_name": job.get("person_name"),
                 "title_or_role": job.get("title_or_role"),
+                "email": job.get("email"),
+                "department": job.get("department"),
                 "person_stem": stem,
                 "saved_filename": rel,
                 "match_method": job.get("match_method"),

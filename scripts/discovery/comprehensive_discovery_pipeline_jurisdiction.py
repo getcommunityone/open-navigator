@@ -139,18 +139,26 @@ County ``county-officials`` and ``commission-agenda-minutes`` on ``tuscco.com``)
 as directory-like (URL/title/body heuristics) or listed in ``--contact-seed-urls`` are parsed for
 schema.org ``Person`` JSON-LD, ``mailto:`` anchors, Bootstrap-style ``div.card`` grids, and
 **heading-block** sections (WordPress ``h2``–``h6`` bios with plain-text ``Email:`` / phones). Rows are written to ``_manifest.json`` under
-``structured_contacts`` and ``contact_directory_pages``. With ``--persist-contacts-db`` and a
+``structured_contacts`` and ``contact_directory_pages``. A deduplicated ``_contact_images/contacts.json``
+(bundle schema v2: ``contacts`` + ``department_offices``) is written when structured rows or profile
+images exist. Blank ``person_name`` values may be derived from ``first.last@`` emails; Caboose
+``contact-block`` sections (e.g. Contact the City Council Office) populate ``department_offices``.
+With ``--persist-contacts-db`` and a
 database URL, rows are inserted into ``bronze.bronze_contacts_scraped`` (migration ``035``).
 
 **Profile images:** when ``SCRAPED_CONTACT_PROFILE_IMAGES`` is true (default), directory-flagged pages
 also download person photos into ``_contact_images/`` as **PNG** (WebP/JPEG/GIF sources are
 converted after download; disable with ``SCRAPED_CONTACT_PROFILE_IMAGES_PNG=false``). Each file is
-named from the contact’s **name** in snake_case (see ``contact_profile_images.contact_profile_image_stem_from_name`` and
-``download_profile_images``). Rows with no usable name get ``unknown``, then ``unknown_2``, ``unknown_3``, …
-Jobs come from JSON-LD ``Person`` ``image``,
-portrait-ish ``<img>`` tags (including ``data-src`` / ``srcset``), and WordPress ``figure`` blocks
-placed above an official ``h2``–``h6`` title. Nav links from high ``person_adjacent_image_score``
-pages are boosted when paths look board/council/officials-like (``SCRAPED_CONTACT_PHOTO_NAV_BOOST_MIN``).
+named from the contact’s **bare person name** in snake_case (honorifics like ``Councilor`` are stripped;
+see ``contact_profile_images.contact_profile_image_stem_from_name``). Rows with no usable name get
+``unknown``, then ``unknown_2``, … Jobs come from JSON-LD ``Person`` ``image``, Caboose
+``background-image`` headshots on council cards, portrait-ish ``<img>`` tags, and WordPress ``figure`` blocks.
+
+**Caboose council index:** listing cards with a consistent ``More Info`` ``a.btn`` are parsed for
+councilor name / district / photo; those detail URLs are enqueued **ahead of** generic nav so each
+district page (email + bio) is fetched within ``--max-pages``. Structured rows use
+``title_or_role`` for honorifics (``Councilor``), ``department`` for ``District N``, and
+``person_name`` for the bare name.
 
 Resume / deeper archives: each run writes ``_crawl_state.json`` (visited URLs, frontier queue,
 dedupe sets). Use ``--resume`` with a **larger** ``--max-pages`` — ``max_pages`` is a **total** cap on
@@ -237,12 +245,15 @@ from scripts.utils.gdrive_paths import (
 )
 from scripts.utils.http_url_normalize import normalize_http_url_path_encoding as _normalize_http_url_path_encoding
 from scripts.discovery.contact_extract_from_html import (
+    extract_caboose_person_detail_urls_from_html,
     extract_contacts_from_page,
     extract_structured_contacts_from_html,
+    infer_profile_url_from_source_page,
     merge_contact_manifest_rows,
 )
 from scripts.discovery.contact_directory_heuristics import classify_contact_directory_page
 from scripts.discovery.bronze_contacts_scraped_persist import insert_bronze_contacts_scraped
+from scripts.discovery.contacts_bundle import build_contacts_bundle, write_contacts_bundle_json
 from scripts.discovery.contact_profile_images import (
     download_profile_images,
     extract_profile_image_jobs,
@@ -2690,6 +2701,21 @@ class ComprehensiveDiscoveryPipelineJurisdiction:
 
                 page_structured: List[Dict[str, Any]] = []
                 if _structured_contact_extract_enabled() and flagged:
+                    more_info_urls = extract_caboose_person_detail_urls_from_html(html, page_ctx)
+                    if more_info_urls:
+                        front_detail = [
+                            u
+                            for u in more_info_urls
+                            if _strip_fragment(u) not in visited
+                        ]
+                        if front_detail:
+                            _enqueue_many_front(front_detail)
+                            logger.info(
+                                "caboose_more_info_enqueued jurisdiction={} from={} n={}",
+                                jid,
+                                _meetings_log_url(page_ctx),
+                                len(front_detail),
+                            )
                     page_structured = extract_structured_contacts_from_html(html, page_ctx)
                     for prow in page_structured:
                         prow["source_page_url"] = page_ctx
@@ -2697,6 +2723,7 @@ class ComprehensiveDiscoveryPipelineJurisdiction:
                             cdir.get("directory_kind") or ("seed_url" if seed_hit else "unknown")
                         )
                         prow["directory_score"] = int(cdir.get("score") or 0)
+                        infer_profile_url_from_source_page(prow)
                         structured_contact_rows_accum.append(prow)
 
                 if _contact_profile_images_enabled() and flagged:
@@ -2717,6 +2744,7 @@ class ComprehensiveDiscoveryPipelineJurisdiction:
                             {
                                 "person_name": prow.get("person_name"),
                                 "title_or_role": prow.get("title_or_role"),
+                                "email": prow.get("email"),
                                 "image_url": pu,
                                 "match_method": "json_ld_person_row",
                             }
@@ -3238,6 +3266,28 @@ class ComprehensiveDiscoveryPipelineJurisdiction:
             )
         except OSError as exc:
             result.errors.append(f"manifest:{exc}")
+
+        if result.structured_contact_rows or result.contact_profile_images:
+            try:
+                bundle = build_contacts_bundle(
+                    jurisdiction_id=jid,
+                    state=st,
+                    homepage_url=hp,
+                    scraped_at=datetime.now(timezone.utc).isoformat(),
+                    scrape_batch_id=scrape_batch_id,
+                    structured_contacts=result.structured_contact_rows,
+                    contact_profile_images=result.contact_profile_images,
+                    extracted_contacts=result.extracted_contacts,
+                )
+                contacts_json_path = write_contacts_bundle_json(base_dir, bundle)
+                logger.info(
+                    "contacts_bundle_written jurisdiction={} path={} n_contacts={}",
+                    jid,
+                    contacts_json_path,
+                    bundle.get("contact_count"),
+                )
+            except OSError as exc:
+                result.errors.append(f"contacts_bundle:{exc!r}")
 
         if persist_contacts_db and result.structured_contact_rows:
             dbu = (resolve_database_url() or "").strip()
