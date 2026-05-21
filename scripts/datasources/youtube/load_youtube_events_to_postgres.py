@@ -941,8 +941,11 @@ class YouTubeEventsLoader:
         
         # Try youtube_transcript_api first (faster and cleaner)
         try:
-            # Create API instance and fetch transcript
-            api = YouTubeTranscriptApi()
+            from scripts.datasources.youtube.transcript_api_client import (
+                build_youtube_transcript_api,
+            )
+
+            api = build_youtube_transcript_api(self.proxy_url)
             
             # Try to get English transcript first
             try:

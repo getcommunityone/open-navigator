@@ -205,7 +205,11 @@ def run(args: argparse.Namespace) -> int:
     if cookies:
         logger.info("Using cookies file: {}", cookies)
     if proxy:
-        logger.info("Using proxy for transcript fetches")
+        logger.info("Using proxy for transcript fetches: {}", proxy)
+    else:
+        logger.warning(
+            "No YOUTUBE_TRANSCRIPT_PROXY — requests use raw egress (WSL may bypass host VPN)"
+        )
 
     loader = YouTubeEventsLoader(
         database_url=db_url,

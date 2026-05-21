@@ -13,15 +13,16 @@ def fetch_youtube_transcript(video_id: str, *, languages: Optional[List[str]] = 
 
     ``segments`` items: ``{text, start, duration}`` (seconds).
     """
-    from youtube_transcript_api import YouTubeTranscriptApi
     from youtube_transcript_api._errors import NoTranscriptFound, TranscriptsDisabled, VideoUnavailable
 
     vid = (video_id or "").strip()
     if not vid:
         raise ValueError("video_id required")
 
+    from scripts.datasources.youtube.transcript_api_client import build_youtube_transcript_api
+
     langs = languages or ["en"]
-    api = YouTubeTranscriptApi()
+    api = build_youtube_transcript_api()
     try:
         fetched = api.fetch(vid, languages=langs)
         language = getattr(fetched, "language", "en") or "en"
