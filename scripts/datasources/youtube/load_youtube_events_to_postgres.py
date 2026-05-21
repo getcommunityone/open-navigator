@@ -775,6 +775,29 @@ class YouTubeEventsLoader:
             'last_updated': datetime.now()
         }
     
+    @staticmethod
+    def _youtube_block_signal(message: str) -> bool:
+        """True when YouTube/yt-dlp errors indicate IP or bot blocking."""
+        u = (message or "").upper()
+        return any(
+            token in u
+            for token in (
+                "IP BLOCKED",
+                "IPBLOCKED",
+                "REQUEST BLOCKED",
+                "REQUESTBLOCKED",
+                "NOT A BOT",
+                "SIGN IN TO CONFIRM",
+                "429",
+                "TOO MANY REQUESTS",
+                "RESOURCE_EXHAUSTED",
+            )
+        )
+
+    @staticmethod
+    def _raise_rate_limited(video_id: str, reason: str) -> None:
+        raise Exception(f"RATE_LIMITED: {reason} (video_id={video_id})")
+
     def _ytdlp_transcript_opts(self, *, use_cookies: bool) -> Dict[str, Any]:
         """yt-dlp options for subtitle-only extraction (no video download)."""
         from scripts.datasources.youtube.download_audio_to_drive import _yt_dlp_youtube_ejs_opts
@@ -964,13 +987,10 @@ class YouTubeEventsLoader:
                 
         except Exception as e:
             error_msg = str(e)
-            # Check for rate limiting
-            if '429' in error_msg or 'Too Many Requests' in error_msg:
-                logger.warning(f"    ⚠️ Rate limited (yt-dlp) for {video_id}")
-                # Signal rate limit to caller
-                raise Exception(f"RATE_LIMITED: {error_msg}")
-            else:
-                logger.debug(f"    yt-dlp transcript error for {video_id}: {error_msg[:200]}")
+            if self._youtube_block_signal(error_msg):
+                logger.warning(f"    ⚠️ yt-dlp blocked/rate-limited for {video_id}")
+                self._raise_rate_limited(video_id, error_msg[:200])
+            logger.debug(f"    yt-dlp transcript error for {video_id}: {error_msg[:200]}")
             return None
     
     def fetch_transcript(self, video_id: str) -> Optional[Dict[str, Any]]:
@@ -1029,22 +1049,43 @@ class YouTubeEventsLoader:
             }
             
         except TranscriptsDisabled:
-            logger.debug(f"    Transcripts disabled for video {video_id}")
-            # Don't try yt-dlp fallback for disabled transcripts
+            logger.warning(f"    Captions disabled by uploader for {video_id}")
             return None
         except VideoUnavailable:
-            logger.debug(f"    Video {video_id} unavailable")
+            logger.warning(f"    Video unavailable (private/deleted) for {video_id}")
             return None
         except IpBlocked:
-            if self.use_ytdlp_fallback and (self.cookies_file or self.proxy_url):
+            if self.use_ytdlp_fallback:
                 logger.warning(
-                    f"    ⚠️ IP blocked on transcript API for {video_id} — trying yt-dlp "
-                    "(cookies/proxy)"
+                    f"    ⚠️ IP blocked on transcript API for {video_id} — trying yt-dlp fallback"
                 )
-                return self.fetch_transcript_ytdlp(video_id)
-            logger.warning(f"    ⚠️ IP blocked by YouTube for {video_id}")
-            raise Exception(f"RATE_LIMITED: IP blocked by YouTube")
+                ytdlp_result = self.fetch_transcript_ytdlp(video_id)
+                if ytdlp_result is None:
+                    self._raise_rate_limited(
+                        video_id,
+                        "IP blocked on caption API and yt-dlp fallback returned no transcript",
+                    )
+                return ytdlp_result
+            self._raise_rate_limited(video_id, "IP blocked by YouTube (caption API)")
         except (NoTranscriptFound, Exception) as e:
+            if type(e).__name__ in ("RequestBlocked", "IpBlocked"):
+                if self.use_ytdlp_fallback:
+                    logger.warning(
+                        f"    ⚠️ Request blocked for {video_id} — trying yt-dlp fallback"
+                    )
+                    try:
+                        ytdlp_result = self.fetch_transcript_ytdlp(video_id)
+                    except Exception as ytdlp_exc:
+                        if self._youtube_block_signal(str(ytdlp_exc)):
+                            self._raise_rate_limited(video_id, str(ytdlp_exc)[:200])
+                        raise
+                    if ytdlp_result is None:
+                        self._raise_rate_limited(
+                            video_id,
+                            "Request blocked on caption API and yt-dlp fallback failed",
+                        )
+                    return ytdlp_result
+                self._raise_rate_limited(video_id, str(e)[:200])
             # Fall back to yt-dlp ONLY if enabled and not rate limited
             error_msg = str(e)
             # Check for rate limiting
@@ -1054,9 +1095,17 @@ class YouTubeEventsLoader:
                 raise Exception(f"RATE_LIMITED: {error_msg}")
             elif self.use_ytdlp_fallback:
                 logger.debug(f"    youtube_transcript_api failed for {video_id}, trying yt-dlp fallback...")
-                return self.fetch_transcript_ytdlp(video_id)
+                result = self.fetch_transcript_ytdlp(video_id)
+                if result is None:
+                    logger.warning(
+                        f"    No transcript for {video_id} after API + yt-dlp "
+                        f"({type(e).__name__}: {error_msg[:120]})"
+                    )
+                return result
             else:
-                logger.debug(f"    youtube_transcript_api failed for {video_id}, yt-dlp fallback disabled")
+                logger.warning(
+                    f"    No transcript for {video_id} ({type(e).__name__}: {error_msg[:120]})"
+                )
                 return None
     
     def insert_events(self, events: List[Dict[str, Any]], batch_size: int = 500) -> int:

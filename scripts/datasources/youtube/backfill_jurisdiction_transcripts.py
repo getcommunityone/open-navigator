@@ -142,8 +142,19 @@ def is_rate_limited(exc: BaseException) -> bool:
         or "TOO MANY REQUESTS" in msg
         or "IPBLOCKED" in msg
         or "IP BLOCKED" in msg
+        or "REQUEST BLOCKED" in msg
+        or "REQUESTBLOCKED" in msg
         or "RESOURCE_EXHAUSTED" in msg
     )
+
+
+def probe_transcript_access(loader: YouTubeEventsLoader, video_id: str) -> bool:
+    """Return False when the first fetch looks IP-blocked (triggers backoff)."""
+    try:
+        loader.fetch_transcript(video_id)
+        return True
+    except Exception as exc:
+        return not is_rate_limited(exc)
 
 
 def resolve_cookies_path(explicit: Optional[str]) -> Optional[str]:
@@ -224,6 +235,20 @@ def run(args: argparse.Namespace) -> int:
     consecutive_rl = 0
     max_rl = args.max_consecutive_rate_limits
 
+    probe_id = (args.probe_video_id or "").strip() or "ajsME66iXbY"
+    if args.skip_probe:
+        probe_id = ""
+    if probe_id and not probe_transcript_access(loader, probe_id):
+        wait = min(args.delay * (2**consecutive_rl), args.max_backoff)
+        logger.error(
+            "Probe video {} looks IP-blocked — sleeping {:.0f}s before batch "
+            "(fix VPN/proxy or set YOUTUBE_TRANSCRIPT_PROXY)",
+            probe_id,
+            wait,
+        )
+        time.sleep(wait)
+        consecutive_rl += 1
+
     for i, row in enumerate(pending, 1):
         video_id = row["video_id"]
         if i > 1:
@@ -238,15 +263,29 @@ def run(args: argparse.Namespace) -> int:
             yt = loader.fetch_transcript(video_id)
             if yt is None:
                 stats["fail"] += 1
-                logger.warning("No transcript for {} (disabled or unavailable)", video_id)
+                logger.warning(
+                    "No transcript for {} — captions disabled, yt-dlp failed, or IP blocked "
+                    "(re-run IP test; not always 'disabled')",
+                    video_id,
+                )
                 continue
         except Exception as exc:
             if is_rate_limited(exc):
                 stats["rate_limit"] += 1
                 consecutive_rl += 1
-                logger.warning("Rate limited on {} ({}/{})", video_id, consecutive_rl, max_rl)
+                wait = min(args.delay * (2**consecutive_rl), args.max_backoff)
+                logger.warning(
+                    "IP blocked / rate limited on {} ({}/{}) — next sleep {:.0f}s",
+                    video_id,
+                    consecutive_rl,
+                    max_rl,
+                    wait,
+                )
                 if consecutive_rl >= max_rl:
-                    logger.error("Stopping after {} consecutive rate limits", max_rl)
+                    logger.error(
+                        "Stopping after {} consecutive blocks — fix VPN/proxy, wait, then re-run",
+                        max_rl,
+                    )
                     break
                 continue
             stats["fail"] += 1
@@ -328,6 +367,12 @@ def main() -> None:
     parser.add_argument("--database-url", default="")
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--delay", type=float, default=3.0, help="Seconds between YouTube fetches")
+    parser.add_argument(
+        "--probe-video-id",
+        default="ajsME66iXbY",
+        help="Probe this video before batch; backs off if IP-blocked",
+    )
+    parser.add_argument("--skip-probe", action="store_true", help="Skip pre-batch IP probe")
     parser.add_argument(
         "--cookies",
         default="",
