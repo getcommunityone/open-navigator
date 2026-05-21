@@ -393,14 +393,41 @@ def report_path_for_analysis(analysis_path: Path) -> Path:
     return analysis_path.with_suffix(".report.md")
 
 
+def _recording_title_for_analysis(analysis_path: Optional[Path]) -> str:
+    if analysis_path is None:
+        return ""
+    meta_path = analysis_path.with_name(
+        analysis_path.name.replace("_analysis.json", "_meta.json")
+    )
+    if not meta_path.is_file():
+        return ""
+    try:
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return ""
+    title = meta.get("title")
+    if title:
+        return str(title).strip()
+    transcript = meta.get("transcript")
+    if isinstance(transcript, dict) and transcript.get("title"):
+        return str(transcript["title"]).strip()
+    return ""
+
+
 def generate_part2_markdown(
     analysis: Dict[str, Any],
     args: argparse.Namespace,
     api_key: str,
+    *,
+    analysis_path: Optional[Path] = None,
 ) -> str:
     """Resident-facing Markdown via ``policy_analysis_part_2.md`` + Part 1 JSON."""
     prompt_path = Path(args.prompt_part_2).resolve()
-    user_message = build_part2_message(prompt_path.read_text(encoding="utf-8"), analysis)
+    user_message = build_part2_message(
+        prompt_path.read_text(encoding="utf-8"),
+        analysis,
+        recording_title=_recording_title_for_analysis(analysis_path),
+    )
     model = (args.part_2_model or args.model or default_flash_lite_model()).strip()
     logger.info("Part 2: calling {} ({} chars in)", model, len(user_message))
     result = call_gemini_text(
@@ -434,7 +461,7 @@ def run_part2_for_analysis_file(
     if data.get("_error") or not _part1_json_ok(data):
         logger.error("Skipping {} — not valid Part 1 JSON", analysis_path.name)
         return None
-    markdown = generate_part2_markdown(data, args, api_key)
+    markdown = generate_part2_markdown(data, args, api_key, analysis_path=analysis_path)
     return write_part2_report(analysis_path, markdown)
 
 
@@ -659,7 +686,9 @@ def process_one_video(
         if not analysis.get("_error") and _part1_json_ok(analysis):
             write_part2_report(
                 analysis_path,
-                generate_part2_markdown(analysis, args, api_key),
+                generate_part2_markdown(
+                    analysis, args, api_key, analysis_path=analysis_path
+                ),
             )
         else:
             logger.error("Skipping Part 2 for {} — Part 1 JSON invalid", video_id)

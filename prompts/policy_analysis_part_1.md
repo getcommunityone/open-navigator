@@ -57,10 +57,30 @@ For **each** `uncontested_items[]` row, link people and timestamps when the tran
 
 Keep `human_element` / diagrams **off** `uncontested_items[]` — only IDs, motion, and timestamps.
 
-**Diagram rules (`decisions[]` only):** Output `diagram_timeline_lines` and `diagram_mindmap_lines` as string arrays (one line per item). **Never** on `uncontested_items[]`.
-* **Issue Lifecycle, Not Meeting Clock:** Timelines track the subject/event lifecycle (origins → today's action → next steps), not a minute-by-minute meeting log.
-* Time labels must not use quotes (e.g., use `2023-05` or `Next Month`, not `"2023-05"`).
-* Preserve indentation using spaces in the string items.
+**Diagram rules (`decisions[]` only):** Populate **`diagram_timeline`** and **`diagram_mindmap`** as single strings with **valid Mermaid** (renders in Mermaid Live Editor). Also set `diagram_timeline_lines` / `diagram_mindmap_lines` as optional plain-text helpers. **Never** on `uncontested_items[]`.
+
+* **`diagram_timeline`:** Must start with `timeline` on line 1, then `title …`, then `section …` groups, then events as `{time label} : {event}` (one colon per line). No `graph TD`. No clock times with colons in labels (`09:00` → use `09h00` or `2026-05-19`). Issue lifecycle (origins → this meeting → next steps), not a minute-by-minute log.
+* **`diagram_mindmap`:** Must start with `mindmap` on line 1, then `root((Topic))`, then 2-space indented branches. No `graph TD`.
+* Example timeline:
+  ```
+  timeline
+      title Property repair extension
+      section Prior
+          Earlier : Council tabled case
+      section This meeting
+          2026-05-19 : 90-day extension granted
+      section Next
+          Next : Complete repairs and permit
+  ```
+* Example mindmap:
+  ```
+  mindmap
+    root((3620 23rd Street))
+      Repairs
+        Exterior work ongoing
+      Council
+        90-day extension
+  ```
 
 ## JSON Schema
 {
@@ -199,8 +219,10 @@ Keep `human_element` / diagrams **off** `uncontested_items[]` — only IDs, moti
           }
         ]
       },
-      "diagram_timeline_lines": "array of strings — required on every decisions[] row",
-      "diagram_mindmap_lines": "array of strings — required on every decisions[] row"
+      "diagram_timeline": "string — valid Mermaid timeline (required on every decisions[] row)",
+      "diagram_mindmap": "string — valid Mermaid mindmap (required on every decisions[] row)",
+      "diagram_timeline_lines": "array of strings — optional helper lines",
+      "diagram_mindmap_lines": "array of strings — optional helper lines"
     }
   ]
 }

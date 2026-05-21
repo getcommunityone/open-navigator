@@ -465,25 +465,45 @@ def _normalize_part1_analysis(parsed: dict[str, Any]) -> dict[str, Any]:
             u_seq += 1
             continue
         d.pop("decision_profile", None)
-        if not d.get("diagram_timeline") and d.get("diagram_timeline_lines"):
-            d["diagram_timeline"] = _diagram_lines_to_mermaid(d["diagram_timeline_lines"])
-        if not d.get("diagram_mindmap") and d.get("diagram_mindmap_lines"):
-            d["diagram_mindmap"] = _diagram_lines_to_mermaid(d["diagram_mindmap_lines"])
+        from scripts.gemini.mermaid_diagrams import normalize_decision_diagrams
+
+        normalize_decision_diagrams(d)
         kept.append(d)
     out["decisions"] = kept
     out["uncontested_items"] = uncontested
     return out
 
 
-def build_part2_message(part2_prompt: str, analysis: dict[str, Any]) -> str:
+def build_part2_message(
+    part2_prompt: str,
+    analysis: dict[str, Any],
+    *,
+    recording_title: str = "",
+) -> str:
     """Second turn: Smart Brevity report from normalized Step 1 JSON."""
     payload = _normalize_part1_analysis(analysis)
+    meeting = payload.get("meeting") if isinstance(payload.get("meeting"), dict) else {}
+    body = str(meeting.get("body_name") or "").strip()
+    date = str(meeting.get("meeting_date") or "").strip()
+    title_hint = (recording_title or "").strip()
     n_contested = len(payload.get("decisions") or [])
     n_uncontested = len(payload.get("uncontested_items") or [])
     json_block = json.dumps(payload, indent=2, ensure_ascii=False)
+    opener_note = (
+        f"**Report H1 (required):** `# {body or 'Meeting'} — {date or 'date'}`"
+        + (f"  \nIf `recording_title` disagrees with `body_name`, prefer the recording title for the H1: **{title_hint}**." if title_hint else "")
+        + "\n"
+    )
+    mermaid_note = (
+        "**Mermaid (required for contested items with diagrams):** Copy `diagram_timeline` and "
+        "`diagram_mindmap` from JSON **verbatim** into fenced blocks. They already start with "
+        "`timeline` and `mindmap`. **Never** use `graph TD`, `flowchart`, or `graph LR`.\n"
+    )
     return (
         f"{part2_prompt.strip()}\n\n---\n\n"
         f"## {PART2_USER_MARKER}\n\n"
+        f"{opener_note}"
+        f"{mermaid_note}"
         f"**Contested** (`decisions[]`): **{n_contested}** — write that many full blocks under "
         f"`## Contested decisions`.\n"
         f"**Uncontested** (`uncontested_items[]`): **{n_uncontested}** — write one `## Uncontested "
