@@ -7,8 +7,20 @@ Pipeline:
 2. Fetch YouTube captions (free) via ``youtube_transcript_api``.
 3. Optional **diarization post-processing** on local Opus/audio (WhisperX + pyannote).
 4. Call ``gemini-2.5-flash-lite`` (or ``GEMINI_FLASH_LITE_MODEL``) with ``policy_analysis_part_1.md``.
+5. Optional ``--run-part-2``: same API with ``policy_analysis_part_2.md`` → ``*_report.md``.
 
 This does **not** open gemini.google.com or send video to the browser UI.
+
+Full pipeline (local captions → JSON + Markdown)::
+
+    python scripts/gemini/meeting_transcript_policy.py \\
+        --from-bronze --jurisdiction-id municipality_0177256 --state AL \\
+        --use-local-transcript --run-part-2 --limit 5
+
+Markdown only from existing analysis JSON::
+
+    python scripts/gemini/meeting_transcript_policy.py \\
+        --part-2-only --jurisdiction-id municipality_0177256 --limit 5
 
 Examples::
 
@@ -56,6 +68,7 @@ if str(_REPO_ROOT) not in sys.path:
 from scripts.gemini.browser_policy_analysis import (  # noqa: E402
     DEFAULT_JURISDICTION_ID,
     DEFAULT_PROMPT_PART_1,
+    DEFAULT_PROMPT_PART_2,
     GeminiRunCapture,
     VideoRow,
     _database_url,
@@ -66,6 +79,7 @@ from scripts.gemini.browser_policy_analysis import (  # noqa: E402
     _split_gemini_documents,
     _write_diagrams_md,
     _write_manifest,
+    build_part2_message,
     build_user_message,
     fetch_videos,
 )
@@ -372,6 +386,90 @@ def save_transcript_policy_output(
     return analysis_path
 
 
+def report_path_for_analysis(analysis_path: Path) -> Path:
+    name = analysis_path.name
+    if name.endswith("_analysis.json"):
+        return analysis_path.with_name(name.replace("_analysis.json", "_report.md"))
+    return analysis_path.with_suffix(".report.md")
+
+
+def generate_part2_markdown(
+    analysis: Dict[str, Any],
+    args: argparse.Namespace,
+    api_key: str,
+) -> str:
+    """Resident-facing Markdown via ``policy_analysis_part_2.md`` + Part 1 JSON."""
+    prompt_path = Path(args.prompt_part_2).resolve()
+    user_message = build_part2_message(prompt_path.read_text(encoding="utf-8"), analysis)
+    model = (args.part_2_model or args.model or default_flash_lite_model()).strip()
+    logger.info("Part 2: calling {} ({} chars in)", model, len(user_message))
+    result = call_gemini_text(
+        api_key=api_key,
+        model=model,
+        user_text=user_message,
+        system_instruction=args.system_instruction,
+        temperature=args.temperature,
+        max_output_tokens=args.max_output_tokens,
+    )
+    return result.text.strip()
+
+
+def write_part2_report(analysis_path: Path, markdown: str) -> Path:
+    report_path = report_path_for_analysis(analysis_path)
+    report_path.write_text(markdown + "\n", encoding="utf-8")
+    logger.info("Wrote {}", report_path)
+    return report_path
+
+
+def run_part2_for_analysis_file(
+    analysis_path: Path,
+    args: argparse.Namespace,
+    api_key: str,
+) -> Optional[Path]:
+    try:
+        data = json.loads(analysis_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        logger.error("Skipping {} — unreadable: {}", analysis_path.name, exc)
+        return None
+    if data.get("_error") or not _part1_json_ok(data):
+        logger.error("Skipping {} — not valid Part 1 JSON", analysis_path.name)
+        return None
+    markdown = generate_part2_markdown(data, args, api_key)
+    return write_part2_report(analysis_path, markdown)
+
+
+def run_part2_only_batch(args: argparse.Namespace, api_key: str) -> None:
+    """Generate ``*_report.md`` from existing ``*_analysis.json`` files."""
+    jurisdiction_id = (args.jurisdiction_id or DEFAULT_JURISDICTION_ID).strip()
+    folder = Path(args.output_dir).resolve() / jurisdiction_id
+    if not folder.is_dir():
+        raise SystemExit(f"No output folder: {folder}")
+
+    paths = sorted(
+        folder.glob("*_analysis.json"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    video_filter = (args.video_id or "").strip()
+    if video_filter:
+        paths = [p for p in paths if video_filter in p.name]
+    if args.limit is not None:
+        paths = paths[: int(args.limit)]
+
+    if not paths:
+        raise SystemExit(f"No *_analysis.json under {folder}")
+
+    logger.info("Part 2 only: {} analysis file(s)", len(paths))
+    for i, path in enumerate(paths, 1):
+        logger.info("[{}/{}] {}", i, len(paths), path.name)
+        try:
+            run_part2_for_analysis_file(path, args, api_key)
+        except Exception as exc:
+            logger.exception("Part 2 failed for {}: {}", path.name, exc)
+            if args.stop_on_error:
+                raise
+
+
 def process_one_video(
     video: VideoRow,
     args: argparse.Namespace,
@@ -545,7 +643,7 @@ def process_one_video(
 
     capture = GeminiRunCapture(response_text=result.text, gemini_model=model)
     transcript_meta["formatted_transcript"] = transcript_block
-    return save_transcript_policy_output(
+    analysis_path = save_transcript_policy_output(
         out_dir,
         video,
         model=model,
@@ -553,17 +651,38 @@ def process_one_video(
         prompt_path=prompt_path,
         transcript_meta=transcript_meta,
     )
+    if args.run_part_2 and analysis_path is not None:
+        try:
+            analysis = json.loads(analysis_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            analysis = {}
+        if not analysis.get("_error") and _part1_json_ok(analysis):
+            write_part2_report(
+                analysis_path,
+                generate_part2_markdown(analysis, args, api_key),
+            )
+        else:
+            logger.error("Skipping Part 2 for {} — Part 1 JSON invalid", video_id)
+    return analysis_path
 
 
 def run_pipeline(args: argparse.Namespace) -> None:
     load_dotenv(_REPO_ROOT / ".env")
     api_key = (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "").strip()
-    if not args.transcript_only and not api_key:
+    needs_api = not args.transcript_only
+    if needs_api and not api_key:
         raise SystemExit(
             "Set GEMINI_API_KEY (https://aistudio.google.com/apikey) or use --transcript-only"
         )
+    if args.transcript_only and args.run_part_2:
+        raise SystemExit("--transcript-only cannot be combined with --run-part-2")
 
     jurisdiction_id = (args.jurisdiction_id or DEFAULT_JURISDICTION_ID).strip()
+
+    if args.part_2_only:
+        run_part2_only_batch(args, api_key)
+        return
+
     speaker_hints, known = load_speaker_context(args, jurisdiction_id)
 
     if args.from_bronze:
@@ -704,6 +823,27 @@ def main() -> None:
         action="store_true",
         help="Use existing gemini_transcript_policy JSON (no YouTube fetch). "
         "If unset, still auto-fallback to local cache on IpBlocked.",
+    )
+    parser.add_argument(
+        "--run-part-2",
+        action="store_true",
+        help="After Part 1, call API with policy_analysis_part_2.md and write *_report.md",
+    )
+    parser.add_argument(
+        "--part-2-only",
+        action="store_true",
+        help="Skip Part 1; generate *_report.md from existing *_analysis.json in output dir",
+    )
+    parser.add_argument(
+        "--prompt-part-2",
+        type=Path,
+        default=DEFAULT_PROMPT_PART_2,
+        help="Smart Brevity markdown prompt (default: policy_analysis_part_2.md)",
+    )
+    parser.add_argument(
+        "--part-2-model",
+        default="",
+        help="Model for Part 2 (default: same as --model / GEMINI_FLASH_LITE_MODEL)",
     )
     parser.add_argument(
         "--no-speaker-hints",
