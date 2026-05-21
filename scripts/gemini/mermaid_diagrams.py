@@ -80,21 +80,22 @@ def lines_to_timeline_mermaid(
     return "\n".join(out)
 
 
-def _mindmap_depth(line: str) -> int:
-    stripped = line.lstrip()
-    if not stripped:
-        return 0
-    leading = len(line) - len(stripped)
-    if stripped.startswith("->"):
-        return max(1, leading // 2 + 1)
-    return max(0, leading // 2)
-
-
 def _mindmap_node_text(line: str) -> str:
     text = line.strip()
     if text.startswith("->"):
         text = text[2:].strip()
     return _clean_event_text(text)[:50]
+
+
+def _mindmap_branch_depth(line: str) -> int:
+    """Depth from leading spaces before ``->`` (2 spaces per level)."""
+    stripped = line.lstrip()
+    if not stripped:
+        return 0
+    leading = len(line) - len(stripped)
+    if stripped.startswith("->"):
+        return max(1, leading // 2)
+    return 0
 
 
 def lines_to_mindmap_mermaid(value: MindmapInput) -> str:
@@ -109,10 +110,11 @@ def lines_to_mindmap_mermaid(value: MindmapInput) -> str:
     root = _mindmap_node_text(lines[0])
     out = ["mindmap", f"  root(({root}))"]
     for line in lines[1:]:
-        depth = _mindmap_depth(line)
+        depth = _mindmap_branch_depth(line)
         node = _mindmap_node_text(line)
         if not node:
             continue
+        # mindmap: 2 spaces under root, +2 per branch level
         indent = "  " * (depth + 1)
         out.append(f"{indent}{node}")
     return "\n".join(out)
