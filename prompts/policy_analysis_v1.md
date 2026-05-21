@@ -11,8 +11,19 @@ For each decision, extract and contrast the rival ways stakeholders defined the 
 - **Dissenting diagnosis** (how opponents defined the problem, its cause, and what they proposed instead)
 - **Staying power of the prevailing interpretation** (is this a new way of seeing the problem or an extension of prior ones, does it lock in a dominant narrative)
 
+**Human texture (required per decision):**
+Capture the meeting as people actually experienced it — not only policy logic.
+- **Personal stories:** Specific lived experiences, neighborhoods, families, or anecdotes tied to *this* decision (who told it, why it mattered to their position). Do not invent stories; use null/empty arrays when none were offered.
+- **Humor and jokes:** Any deliberate humor, sarcasm, tension-breaking laughter, or light moments during debate on this item — quote or paraphrase briefly; set tone accurately; use an empty array if none.
+- **Emotional intensity by side:** For supporters, opponents, and decision-makers (as groups), rate intensity (`Low` → `Very high`) and name **concrete emotions** (e.g., fear, anger, pride, frustration, grief, hope, distrust, relief). Describe *how* emotion showed up (raised voice, personal appeal, silence, walkout threat, etc.).
+
+**Plain-language layer (required per decision):**
+Populate `how_people_saw_it` using everyday language a curious resident could follow — same concepts as `narrative_analysis`, but **no jargon** (avoid "dominant narrative," "causal frame," "normative tradeoff"). Short sentences. Say what each side believed, felt, and wanted in plain English.
+
 ## Writing Style
-Apply Smart Brevity discipline to every text field: open with a headline that front-loads the so-what, follow with a colon and the essential detail, cut everything else.
+Apply Smart Brevity discipline to structured fields (headlines, JSON labels): open with a headline that front-loads the so-what, follow with a colon and the essential detail, cut everything else.
+
+**Document 2** is a separate plain-language summary (see STEP 2) — conversational prose. Use Smart Brevity tags for the lead (`Bottom line`, `Why it matters`); keep plain labels for sides, tension, and human moments (`Who was for it and why`, `Who was against it and why`, `The tension underneath`, `One moment worth remembering`). **`how_people_saw_it`** and **`human_element`** in Document 1 JSON still capture structured facts for import; Document 2 must **not** expose schema field names or codes.
 
 ## Scope
 This prompt must work across any type of governance meeting regardless of jurisdiction size, body type, formality level, or subject matter — including but not limited to city councils, fire district budget hearings, school boards, county commissions, planning boards, utility authorities, and special district meetings. Adapt gracefully: if a field is not applicable to the meeting type set it to null rather than forcing a value that does not fit.
@@ -83,26 +94,26 @@ Classify each agenda item under a primary theme and at most one secondary theme 
 ## COFOG Mappings (per decision only)
 COFOG codes are **never** meeting-level labels. For **each** row in `decisions`, set `primary_theme_cofog` from that decision's `primary_theme` and `secondary_theme_cofog` from `secondary_theme` (or null) using this table only — do not invent codes or attach COFOG to people, organizations, or agenda items without a matching decision.
 
-| Theme | COFOG |
-|---|---|
-| Fiscal and Budget Management | COFOG-01 |
-| Infrastructure and Capital Projects | COFOG-04 |
-| Zoning and Land Use | COFOG-06 |
-| Public Safety and Emergency Services | COFOG-03 |
-| Environmental and Natural Resources | COFOG-05 |
-| Housing and Community Development | COFOG-06 |
-| Economic Development and Business | COFOG-04 |
-| Transportation and Mobility | COFOG-04 |
-| Education and Workforce | COFOG-09 |
-| Health and Human Services | COFOG-07 |
-| Civil Rights and Equity | COFOG-01 |
-| Governance and Administrative Policy | COFOG-01 |
-| Parks and Recreation | COFOG-08 |
-| Utilities and Public Works | COFOG-06 |
-| Technology and Innovation | COFOG-04 |
-| Legal and Compliance | COFOG-01 |
-| Intergovernmental Relations | COFOG-01 |
-| Public Engagement and Communications | COFOG-01 |
+| Theme (use exact label in `primary_theme` / `secondary_theme`) | COFOG code | Plain-language theme description (Document 1 metadata only — do not use in Document 2) |
+|---|---|---|
+| Fiscal and Budget Management | COFOG-01 | Taxes, budgets, and how public money is raised and spent |
+| Infrastructure and Capital Projects | COFOG-04 | Roads, buildings, and major construction projects |
+| Zoning and Land Use | COFOG-06 | What can be built where and how land is used |
+| Public Safety and Emergency Services | COFOG-03 | Police, fire, EMS, and emergency response |
+| Environmental and Natural Resources | COFOG-05 | Environment, conservation, and natural resources |
+| Housing and Community Development | COFOG-06 | Housing, neighborhoods, and community development |
+| Economic Development and Business | COFOG-04 | Jobs, business growth, and economic development |
+| Transportation and Mobility | COFOG-04 | Transit, traffic, and getting around |
+| Education and Workforce | COFOG-09 | Schools, training, and workforce programs |
+| Health and Human Services | COFOG-07 | Health care and social / human services |
+| Civil Rights and Equity | COFOG-01 | Civil rights, equity, and fair treatment |
+| Governance and Administrative Policy | COFOG-01 | How government runs: rules, process, and administration |
+| Parks and Recreation | COFOG-08 | Parks, recreation, and leisure facilities |
+| Utilities and Public Works | COFOG-06 | Water, sewer, power, and public works |
+| Technology and Innovation | COFOG-04 | Technology, data, and innovation in government |
+| Legal and Compliance | COFOG-01 | Legal compliance, contracts, and liability |
+| Intergovernmental Relations | COFOG-01 | Coordination with state, federal, or other governments |
+| Public Engagement and Communications | COFOG-01 | Public meetings, outreach, and communications |
 
 ## NTEE Major Group Codes
 Assign the most specific NTEE code determinable from context for organizations. NTEE codes will also be extracted to decision topics based on the primary organizations involved.
@@ -228,55 +239,42 @@ After the closing curly brace of the root object, output exactly this token on i
 
 `---DOCUMENT_BREAK---`
 
-### STEP 2 — Human-Readable Summary (required; not a substitute for JSON)
-After the first break token, output a human-readable markdown document that **reflects the same facts** as Document 1. Apply Smart Brevity principles throughout. Structure the document as follows:
+### STEP 2 — Plain-Language Summary (Markdown) (required; not a substitute for JSON)
 
-**Meeting Overview**
-- Meeting identification (body name, type, date, location)
-- Input modality (video, audio, PDF, mixed) and primary recording link if present
-- Attendance summary
-- Session context if multi-part
+After the first break token, output **Document 2 only**: a short markdown summary derived from Document 1.
 
-**Key Decisions** (one section per decision; use `decision_id` as the section anchor)
-For each decision provide:
-- **Decision ID:** [decision_id]
-- **Topic headline** (from decision.headline field)
-- **Themes:** Primary: [primary_theme] ([primary_theme_cofog]) — [primary_theme_rationale]; Secondary: [secondary_theme] ([secondary_theme_cofog]) or none
-- **Watch / listen:** [playback_url at timestamp_start, or "recording not linked"] — include `timestamp_start`–`timestamp_end` when known
-- **Location:** [city name, county name if present, postal_code if present, or "jurisdiction-wide"]
-- **Outcome:** [APPROVED/DENIED/etc] via [decision method]
-- **Vote:** [if formal vote, summarize tally and note dissenting members]
-- **What happened:** [synthesis of decision_statement and timeline.this_meeting]
-- **Why it matters:** [synthesis of underlying_causes and tradeoffs]
-- **Who influenced it:** [synthesis of power_map and arguments_for/against, explicitly noting lobbyist involvement where present]
-- **How the problem was defined:**
-  - **Prevailing interpretation:** [synthesis of narrative_analysis.dominant_narrative]
-  - **Dissenting interpretations:** [synthesis of narrative_analysis.dissenting_interpretations]
-  - **Competing explanations:** [synthesis of narrative_analysis.causal_interpretations showing rival diagnoses]
-  - **Value conflict:** [synthesis of narrative_analysis.value_conflicts showing underlying tensions]
-  - **Winners and losers:** [synthesis of narrative_analysis.tradeoff_analysis showing who gains/loses]
-- **What was considered but rejected:** [from alternatives_considered if any]
-- **Downstream effects:** [from consequences — immediate, medium, long-term]
-- **Prior decisions this builds on:** [from precedents if any]
-- **What must happen next for this to work:** [from dependencies if any]
-- **What's unresolved:** [list unresolved items if any]
-- **Financial impact:** [summarize linked financial_items if any]
-- **Next steps:** [from timeline.next_steps if present]
+**Audience:** Someone who knows nothing about city government and did not attend the meeting.
 
-**Financial Summary**
-Table or list of all financial items with amount, type, and context
+**Voice and rules:**
+- Plain, conversational prose — write like you're explaining to a curious friend.
+- **Do not** use jargon, classification codes, or schema terminology.
+- **Do not** mention NTEE, COFOG, `person_id`, `org_id`, `decision_id`, `primary_theme`, frame labels, or any JSON field names.
+- **Do not** repeat the same point in multiple sections. Each section must add **new** information.
+- **Hard limit:** The **entire** Document 2 must be **under 400 words total**, no matter how many decisions you cover. Prioritize the most important decisions if needed; omit minor procedural items.
+- Optional **one sentence** at the very top naming the body, date, and city (no more than that before decisions).
+- Use people's **real names** and everyday role labels (e.g., "the pastor," "the council member") — not slug IDs.
+- This is the **final** output — no third document, no Mermaid diagrams, no tables, no financial annexes in Document 2 (diagrams stay in Document 1 JSON only).
 
-**People and Organizations**
-Bullet list of key actors grouped by role with party affiliation and lobbyist status clearly marked
+**Structure — repeat this block for each substantive decision** (use `decision.headline` as the section title):
 
-**Decision themes index** (optional quick reference — must match Document 1)
-Markdown table with one row per decision: `decision_id` | `topic` | `primary_theme` | `primary_theme_cofog` | `secondary_theme` | `secondary_theme_cofog`
+#### [Decision Headline]
 
-Do **not** add a separate meeting-level COFOG or theme summary that is not keyed by `decision_id`.
+**Bottom line:** What was decided and whether it passed.
 
-Format all dollar amounts with commas and currency symbols. Use bold for section headers and key terms. Keep each section concise — front-load the most important information.
+**Why it matters:**  
+Two to three sentences max: what this was about, why it mattered, and what happens next.
 
-This is the final output — no additional document breaks or timeline sections follow.
+**Who was for it and why**  
+One short paragraph.
+
+**Who was against it and why**  
+One short paragraph. **Omit this entire subsection** if no one opposed.
+
+**The tension underneath**  
+One sentence naming the real value conflict — what two things were competing (e.g., "economic growth vs. neighborhood safety"). Do **not** restate the for/against arguments.
+
+**One moment worth remembering**  
+A single specific quote, story, or exchange that made it human (draw from `human_element`, `direct_quotes`, or public comment). **Omit this subsection** if none exists.
 
 ---
 
@@ -578,6 +576,72 @@ This is the final output — no additional document breaks or timeline sections 
           "quote": "string"
         }
       ],
+      "human_element": {
+        "personal_stories": [
+          {
+            "person_id": "string or null",
+            "org_id": "string or null",
+            "story_headline": "string — Smart Brevity headline",
+            "story_detail": "string — the personal story in plain language",
+            "why_it_mattered_to_the_decision": "string — how this anecdote connected to the vote or debate",
+            "timestamp_start": "HH:MM or null",
+            "evidence_quote": "string or null — short verbatim quote if available"
+          }
+        ],
+        "humor_and_light_moments": [
+          {
+            "speaker_id": "string or null — person_id",
+            "summary": "string — what was said or what happened",
+            "tone": "one of: Humor, Sarcasm, Self-deprecating, Tension-breaking, Procedural joke, Other",
+            "timestamp_start": "HH:MM or null",
+            "quote": "string or null"
+          }
+        ],
+        "emotional_tone": {
+          "supporters": {
+            "intensity": "one of: Low, Moderate, High, Very high, Not applicable",
+            "primary_emotions": ["string — e.g. fear, anger, hope, frustration, grief, pride, distrust, relief"],
+            "plain_summary": "string — how supporters felt and expressed it"
+          },
+          "opponents": {
+            "intensity": "one of: Low, Moderate, High, Very high, Not applicable",
+            "primary_emotions": ["string"],
+            "plain_summary": "string"
+          },
+          "decision_makers": {
+            "intensity": "one of: Low, Moderate, High, Very high, Not applicable",
+            "primary_emotions": ["string"],
+            "plain_summary": "string"
+          }
+        }
+      },
+      "how_people_saw_it": {
+        "winning_view": {
+          "in_plain_language": "string — 2-4 sentences: how the winning side saw the issue",
+          "they_said_the_problem_was": "string",
+          "they_blamed": "string or null",
+          "they_wanted": "string",
+          "values_they_prioritized": "string — plain words, e.g. safety, growth, fairness"
+        },
+        "other_views": [
+          {
+            "who": "string — short label e.g. church neighbors, business owners",
+            "in_plain_language": "string — 2-4 sentences",
+            "they_said_the_problem_was": "string",
+            "they_wanted_instead": "string or null",
+            "values_they_prioritized": "string"
+          }
+        ],
+        "competing_explanations_in_plain_words": [
+          {
+            "explanation": "string — headline: X caused Y",
+            "who_pushed_it": "string",
+            "did_the_body_accept_it": "one of: Yes, No, Still contested"
+          }
+        ],
+        "what_was_really_at_stake": "string — one paragraph, no jargon",
+        "who_gains_who_loses": "string — plain-language winners and losers"
+      },
       "diagram_timeline": "string — valid Mermaid timeline syntax, newlines escaped as \\n for JSON",
       "diagram_mindmap": "string — valid Mermaid mindmap syntax, newlines escaped as \\n for JSON",
       "narrative_analysis": {
@@ -733,6 +797,12 @@ Assign `lineage_type` as:
 - **Marginal**: this actor participated but did not materially affect the outcome
 - `affected_not_present` remains a flat array — these parties had no voice, so influence intensity is not applicable
 
+### Human Element Rules
+- Every decision must include `human_element` and `how_people_saw_it` — use empty arrays and `"Not applicable"` intensities when the transcript offers no stories, humor, or visible emotion for that item
+- Personal stories must be **specific** (names, places, events) and tied to the decision — not generic "residents were concerned"
+- Do not treat anger or sarcasm as humor unless the room treated it as a joke; use `emotional_tone` for hostility or frustration
+- `how_people_saw_it` must stay consistent with `narrative_analysis` but **must not** copy academic phrasing — rewrite for a general audience
+
 ### Competing Interpretations Rules
 - Every decision must include a `narrative_analysis` object — do not omit this field
 - Extract at minimum one dominant narrative and one dissenting interpretation where opposition exists
@@ -762,10 +832,11 @@ Assign `lineage_type` as:
 
 ### Theme and COFOG Rules
 - Classify themes **per decision** in `decisions[]` only — not at meeting root
+- `primary_theme` and `secondary_theme` must use **exact** theme labels from the Theme Classification list
 - `primary_theme_rationale` must explain why the primary_theme fits (not why the COFOG digit is what it is — COFOG follows mechanically from the theme)
 - `primary_theme_cofog` must be the COFOG code from the table for that decision's `primary_theme`
 - `secondary_theme_cofog` must be the COFOG code for `secondary_theme`, or null when `secondary_theme` is null
-- Do not emit COFOG codes in Document 2 that are absent from or inconsistent with Document 1
+- Document 2 must stay under **400 words** total and must **not** mention COFOG, NTEE, or schema terms (themes belong in Document 1 JSON only)
 
 ### Output Format Requirements
 - **Document 1 (JSON)** is mandatory and is the canonical structured record for downstream import
@@ -773,4 +844,4 @@ Assign `lineage_type` as:
 - **Markdown-only output is invalid** — if you cannot produce valid JSON, still output a minimal valid JSON object with `"_error"` describing the failure, then the break token, then Document 2
 - Output the two documents separated by `---DOCUMENT_BREAK---` with no other text outside the documents
 - No markdown code fences around the JSON in Document 1
-- Document 2 must not replace or omit fields present in Document 1 (especially per-decision themes and COFOG)
+- Document 2 must reflect the same facts as Document 1 but is **not** a field-by-field dump — follow the STEP 2 plain-language template only

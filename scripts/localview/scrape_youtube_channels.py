@@ -8,6 +8,9 @@ Updates LocalView dataset with 2025/2026 data.
 FALLBACK METHOD: If YouTube API quota is exceeded, automatically switches to yt-dlp
 which scrapes the public site directly instead of using the restricted API key system.
 
+Channel listing merges **Videos** and **Streams** tabs (deduped by ``video_id``). The YouTube
+Data API path also merges completed live broadcasts from ``search.list`` (``eventType=completed``).
+
 Usage:
     # Scrape all known channels
     python scripts/localview/scrape_youtube_channels.py --update
@@ -22,7 +25,7 @@ Usage:
 import argparse
 import sys
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import Any, List, Dict, Optional, Tuple
 from datetime import datetime, timedelta
 import re
 import time
@@ -50,6 +53,54 @@ load_dotenv()
 
 # Configure logger
 logger.add(sys.stderr, format="{time} {level} {message}", level="INFO")
+
+
+def _parse_published_at(value: Any) -> Optional[datetime]:
+    """Parse published_at from API ISO strings or yt-dlp upload_date."""
+    if value is None or value == "":
+        return None
+    if isinstance(value, datetime):
+        return value.replace(tzinfo=None) if value.tzinfo else value
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        if text.endswith("Z"):
+            text = text.replace("Z", "+00:00")
+        try:
+            dt = datetime.fromisoformat(text)
+            return dt.replace(tzinfo=None) if dt.tzinfo else dt
+        except ValueError:
+            pass
+        if len(text) == 8 and text.isdigit():
+            try:
+                return datetime.strptime(text, "%Y%m%d")
+            except ValueError:
+                return None
+    return None
+
+
+def dedupe_videos_by_id(videos: List[Dict], max_results: int) -> List[Dict]:
+    """Merge video dicts; on duplicate ``video_id`` keep the newer row, then cap."""
+    by_id: Dict[str, Dict] = {}
+    for video in videos:
+        video_id = (video.get("video_id") or "").strip()
+        if not video_id:
+            continue
+        existing = by_id.get(video_id)
+        if existing is None:
+            by_id[video_id] = video
+            continue
+        new_dt = _parse_published_at(video.get("published_at")) or datetime.min
+        old_dt = _parse_published_at(existing.get("published_at")) or datetime.min
+        if new_dt >= old_dt:
+            by_id[video_id] = video
+    deduped = list(by_id.values())
+    deduped.sort(
+        key=lambda v: _parse_published_at(v.get("published_at")) or datetime.min,
+        reverse=True,
+    )
+    return deduped[:max_results]
 
 
 class MunicipalYouTubeScraper:
@@ -134,10 +185,11 @@ class MunicipalYouTubeScraper:
         if self.use_ytdlp_fallback or not self.youtube:
             return self.get_channel_videos_ytdlp(channel_id, max_results, published_after)
         
-        videos = []
+        videos: List[Dict] = []
+        seen_ids: set[str] = set()
         
         try:
-            # Get channel's uploads playlist
+            # Get channel's uploads playlist (Videos tab equivalent)
             channel_response = self.youtube.channels().list(
                 id=channel_id,
                 part='contentDetails'
@@ -152,11 +204,11 @@ class MunicipalYouTubeScraper:
             # Get videos from uploads playlist
             next_page_token = None
             
-            while len(videos) < max_results:
+            while len(seen_ids) < max_results:
                 playlist_request = self.youtube.playlistItems().list(
                     playlistId=uploads_playlist_id,
                     part='snippet,contentDetails',
-                    maxResults=min(50, max_results - len(videos)),
+                    maxResults=min(50, max_results - len(seen_ids)),
                     pageToken=next_page_token
                 )
                 
@@ -173,11 +225,14 @@ class MunicipalYouTubeScraper:
                         continue
                     
                     video_id = snippet['resourceId']['videoId']
+                    if video_id in seen_ids:
+                        continue
                     
                     # Get additional video details
                     video_details = self.get_video_details(video_id)
                     
                     if video_details:
+                        seen_ids.add(video_id)
                         videos.append(video_details)
                 
                 next_page_token = playlist_response.get('nextPageToken')
@@ -186,6 +241,17 @@ class MunicipalYouTubeScraper:
                 
                 # Rate limiting
                 time.sleep(0.5)
+
+            # Streams tab equivalent: completed live broadcasts not always in uploads order
+            streams_added = self._append_api_completed_live_videos(
+                channel_id=channel_id,
+                videos=videos,
+                seen_ids=seen_ids,
+                max_results=max_results,
+                published_after=published_after,
+            )
+            if streams_added:
+                logger.info(f"  + {streams_added} video(s) from completed live streams (API)")
         
         except HttpError as e:
             # Check if it's a quota error
@@ -200,7 +266,52 @@ class MunicipalYouTubeScraper:
             else:
                 logger.error(f"YouTube API error for channel {channel_id}: {e}")
         
-        return videos
+        return dedupe_videos_by_id(videos, max_results)
+    
+    def _append_api_completed_live_videos(
+        self,
+        channel_id: str,
+        videos: List[Dict],
+        seen_ids: set[str],
+        max_results: int,
+        published_after: Optional[datetime],
+    ) -> int:
+        """Add completed live streams via search API (deduped against uploads)."""
+        if len(seen_ids) >= max_results:
+            return 0
+        added = 0
+        try:
+            search_response = self.youtube.search().list(
+                channelId=channel_id,
+                part='id,snippet',
+                type='video',
+                eventType='completed',
+                order='date',
+                maxResults=min(50, max_results - len(seen_ids)),
+            ).execute()
+            for item in search_response.get('items', []):
+                video_id = (item.get('id') or {}).get('videoId')
+                if not video_id or video_id in seen_ids:
+                    continue
+                snippet = item.get('snippet') or {}
+                if published_after and snippet.get('publishedAt'):
+                    published_at = datetime.fromisoformat(
+                        snippet['publishedAt'].replace('Z', '+00:00')
+                    )
+                    if published_at < published_after:
+                        continue
+                video_details = self.get_video_details(video_id)
+                if not video_details:
+                    continue
+                seen_ids.add(video_id)
+                videos.append(video_details)
+                added += 1
+                if len(seen_ids) >= max_results:
+                    break
+                time.sleep(0.2)
+        except HttpError as e:
+            logger.debug(f"Completed live stream search skipped for {channel_id}: {e}")
+        return added
     
     def get_video_details(self, video_id: str) -> Optional[Dict]:
         """Get detailed information about a video"""
@@ -291,6 +402,73 @@ class MunicipalYouTubeScraper:
         else:
             return 'Other'
     
+    def _ytdlp_base_opts(self, max_results: int) -> Dict[str, Any]:
+        opts: Dict[str, Any] = {
+            'quiet': True,
+            'no_warnings': True,
+            'extract_flat': True,
+            'playlistend': max_results,
+            'ignoreerrors': True,
+            'nocheckcertificate': True,
+        }
+        if self.cookies_file:
+            opts['cookiefile'] = self.cookies_file
+        if self.proxy_url:
+            opts['proxy'] = self.proxy_url
+        return opts
+
+    def _ytdlp_extract_tab_entries(
+        self, channel_url: str, max_results: int
+    ) -> Tuple[List[Dict[str, Any]], str]:
+        """Extract flat playlist entries from a channel tab URL."""
+        import os
+
+        if not YT_DLP_AVAILABLE:
+            return [], channel_url
+
+        original_stderr = sys.stderr
+        try:
+            sys.stderr = open(os.devnull, 'w')
+            with yt_dlp.YoutubeDL(self._ytdlp_base_opts(max_results)) as ydl:
+                info = ydl.extract_info(channel_url, download=False)
+        except Exception:
+            return [], channel_url
+        finally:
+            if sys.stderr != original_stderr:
+                sys.stderr.close()
+                sys.stderr = original_stderr
+
+        if not info or 'entries' not in info:
+            return [], channel_url
+        entries = [e for e in (info.get('entries') or []) if e]
+        return entries, channel_url
+
+    def _video_dict_from_ytdlp_entry(
+        self, entry: Dict[str, Any], channel_id: str
+    ) -> Optional[Dict]:
+        video_id = (entry.get('id') or '').strip()
+        if not video_id:
+            return None
+        published_at = _parse_published_at(entry.get('upload_date'))
+        duration_minutes = 0
+        if entry.get('duration'):
+            duration_minutes = int(entry['duration']) // 60
+        title = entry.get('title', '') or ''
+        return {
+            'video_id': video_id,
+            'title': title,
+            'description': entry.get('description', '') or '',
+            'published_at': published_at.isoformat() if published_at else '',
+            'channel_id': channel_id,
+            'channel_title': entry.get('channel', '') or '',
+            'duration_minutes': duration_minutes,
+            'has_captions': False,
+            'view_count': entry.get('view_count', 0) or 0,
+            'like_count': entry.get('like_count', 0) or 0,
+            'meeting_type': self.detect_meeting_type(title),
+            'video_url': entry.get('url') or f"https://www.youtube.com/watch?v={video_id}",
+        }
+
     def get_channel_videos_ytdlp(
         self,
         channel_id: str,
@@ -298,156 +476,74 @@ class MunicipalYouTubeScraper:
         published_after: Optional[datetime] = None
     ) -> List[Dict]:
         """
-        Fallback method using yt-dlp when YouTube API quota is exceeded.
-        
-        Why it works: yt-dlp scrapes the public YouTube site directly 
-        instead of using the restricted API key system.
-        
-        Args:
-            channel_id: YouTube channel ID
-            max_results: Maximum number of videos to return
-            published_after: Only get videos after this date
-        
-        Returns:
-            List of video dictionaries with metadata
+        Fallback using yt-dlp: always merge **Videos** and **Streams** tabs, dedupe by video_id.
+        Falls back to channel homepage only when both tabs are empty.
         """
         if not YT_DLP_AVAILABLE:
             logger.error("yt-dlp not available. Install with: pip install yt-dlp")
             return []
-        
-        videos = []
-        
-        # Try multiple URL patterns for channels that may not have a videos tab
-        url_patterns = [
-            f"https://www.youtube.com/channel/{channel_id}/videos",  # Standard videos tab
-            f"https://www.youtube.com/channel/{channel_id}/streams",  # Live streams tab
-            f"https://www.youtube.com/channel/{channel_id}",  # Channel homepage (all content)
+
+        base = f"https://www.youtube.com/channel/{channel_id}"
+        tab_urls = [
+            (f"{base}/videos", "videos"),
+            (f"{base}/streams", "streams"),
         ]
-        
-        ydl_opts = {
-            'quiet': True,
-            'no_warnings': True,
-            'extract_flat': True,  # Don't download, just get metadata
-            'playlistend': max_results,
-            'ignoreerrors': True,  # Continue on download errors
-            'nocheckcertificate': True,  # Avoid SSL issues
-        }
-        
-        # Add cookies if provided (helps bypass IP blocks)
-        if self.cookies_file:
-            ydl_opts['cookiefile'] = self.cookies_file
-        
-        # Add proxy if provided (helps bypass IP blocks)
-        if self.proxy_url:
-            ydl_opts['proxy'] = self.proxy_url
-        
-        info = None
-        successful_url = None
-        
+
+        merged_entries: List[Dict[str, Any]] = []
+        tab_counts: Dict[str, int] = {}
+
         try:
-            logger.info(f"Using yt-dlp fallback for channel {channel_id}")
-            
-            # Suppress yt-dlp error output to stderr
-            import sys
-            import os
-            
-            # Save original stderr
-            original_stderr = sys.stderr
-            
-            try:
-                # Redirect stderr to devnull to suppress yt-dlp ERROR messages
-                sys.stderr = open(os.devnull, 'w')
-                
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    # Try each URL pattern until one works
-                    for channel_url in url_patterns:
-                        try:
-                            info = ydl.extract_info(channel_url, download=False)
-                            if info and 'entries' in info:
-                                successful_url = channel_url
-                                # Restore stderr before logging
-                                sys.stderr.close()
-                                sys.stderr = original_stderr
-                                
-                                # Log which pattern worked
-                                if '/videos' in channel_url:
-                                    logger.success(f"  ✓ Extracted from videos tab")
-                                elif '/streams' in channel_url:
-                                    logger.success(f"  ✓ Extracted from streams tab (no videos tab)")
-                                else:
-                                    logger.success(f"  ✓ Extracted from channel homepage (no videos/streams tabs)")
-                                break
-                        except Exception as url_error:
-                            # These are expected errors as we try different patterns
-                            continue
-                
-            finally:
-                # Always restore stderr
-                if sys.stderr != original_stderr:
-                    sys.stderr.close()
-                    sys.stderr = original_stderr
-            
-            # Check if we successfully found content
-            if not info or 'entries' not in info:
-                logger.warning(f"No videos found for channel {channel_id} after trying all URL patterns")
+            logger.info(f"Using yt-dlp for channel {channel_id} (videos + streams tabs)")
+
+            for channel_url, tab_label in tab_urls:
+                entries, _ = self._ytdlp_extract_tab_entries(channel_url, max_results)
+                if entries:
+                    tab_counts[tab_label] = len(entries)
+                    merged_entries.extend(entries)
+                    logger.success(f"  ✓ {len(entries)} entries from {tab_label} tab")
+
+            if not merged_entries:
+                homepage_url = base
+                entries, _ = self._ytdlp_extract_tab_entries(homepage_url, max_results)
+                if entries:
+                    tab_counts['homepage'] = len(entries)
+                    merged_entries.extend(entries)
+                    logger.success(f"  ✓ {len(entries)} entries from channel homepage (no videos/streams)")
+
+            if not merged_entries:
+                logger.warning(f"No videos found for channel {channel_id} (videos, streams, homepage)")
                 return []
-            
-            # Process video entries
-            for entry in info['entries']:
-                    if not entry:
-                        continue
-                    
-                    # Parse published date
-                    published_at = None
-                    if 'upload_date' in entry:
-                        try:
-                            date_str = entry['upload_date']  # Format: YYYYMMDD
-                            published_at = datetime.strptime(date_str, '%Y%m%d')
-                        except:
-                            pass
-                    
-                    # Filter by date if specified
-                    if published_after and published_at and published_at < published_after:
-                        continue
-                    
-                    # Parse duration
-                    duration_minutes = 0
-                    if 'duration' in entry and entry['duration']:
-                        duration_minutes = entry['duration'] // 60
-                    
-                    # Detect meeting type
-                    title = entry.get('title', '')
-                    meeting_type = self.detect_meeting_type(title)
-                    
-                    video_data = {
-                        'video_id': entry.get('id', ''),
-                        'title': title,
-                        'description': entry.get('description', ''),
-                        'published_at': published_at.isoformat() if published_at else '',
-                        'channel_id': channel_id,
-                        'channel_title': entry.get('channel', ''),
-                        'duration_minutes': duration_minutes,
-                        'has_captions': False,  # yt-dlp doesn't provide this easily
-                        'view_count': entry.get('view_count', 0),
-                        'like_count': entry.get('like_count', 0),  # May be 0 if not available from yt-dlp
-                        'meeting_type': meeting_type,
-                        'video_url': entry.get('url', f"https://www.youtube.com/watch?v={entry.get('id')}")
-                    }
-                    
-                    videos.append(video_data)
-                    
-                    if len(videos) >= max_results:
-                        break
-            
-            # Log final count
-            if videos:
-                logger.info(f"  → Found {len(videos)} videos")
+
+            videos: List[Dict] = []
+            cutoff = (
+                published_after.replace(tzinfo=None)
+                if published_after and published_after.tzinfo
+                else published_after
+            )
+
+            for entry in merged_entries:
+                video = self._video_dict_from_ytdlp_entry(entry, channel_id)
+                if not video:
+                    continue
+                published_at = _parse_published_at(video.get('published_at'))
+                if cutoff and published_at and published_at < cutoff:
+                    continue
+                videos.append(video)
+
+            videos = dedupe_videos_by_id(videos, max_results)
+            if tab_counts.get('streams'):
+                logger.info(
+                    f"  → {len(videos)} unique videos "
+                    f"(videos tab: {tab_counts.get('videos', 0)}, "
+                    f"streams tab: {tab_counts.get('streams', 0)})"
+                )
             else:
-                logger.warning(f"  → No videos found (channel may be empty)")
-            
+                logger.info(f"  → {len(videos)} unique videos")
+
         except Exception as e:
             logger.error(f"yt-dlp error for channel {channel_id}: {e}")
-        
+            return []
+
         return videos
     
     def scrape_channels(

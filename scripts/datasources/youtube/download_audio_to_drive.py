@@ -318,6 +318,8 @@ class YouTubeAudioDownloader:
         skip_flagged_channels: Optional[bool] = None,
         opus_bitrate_kbps: int = 64,
         allow_null_upload_date: bool = False,
+        title_keywords: Optional[List[str]] = None,
+        jurisdiction_ids: Optional[List[str]] = None,
     ):
         # Sanitize database URL (fix common issues with Neon/cloud connections)
         self.database_url = self._sanitize_database_url(database_url)
@@ -339,6 +341,10 @@ class YouTubeAudioDownloader:
         self.years_back = years_back
         self.allow_null_upload_date = allow_null_upload_date
         self.not_yet_downloaded = not_yet_downloaded
+        self.title_keywords = [k.strip() for k in (title_keywords or []) if k and k.strip()]
+        self.jurisdiction_ids = [
+            j.strip() for j in (jurisdiction_ids or []) if j and j.strip()
+        ]
         if skip_flagged_channels is None:
             self.skip_flagged_channels = bool(bronze_channels_only or government_channel_types_only)
         else:
@@ -660,6 +666,17 @@ class YouTubeAudioDownloader:
                 )
                 params.extend([pat, pat, pat])
             conditions.append("(" + " OR ".join(or_parts) + ")")
+
+        if self.title_keywords:
+            kw_parts = []
+            for kw in self.title_keywords:
+                kw_parts.append("y.title ILIKE %s")
+                params.append(f"%{kw}%")
+            conditions.append("(" + " OR ".join(kw_parts) + ")")
+
+        if self.jurisdiction_ids:
+            conditions.append("y.jurisdiction_id = ANY(%s)")
+            params.append(self.jurisdiction_ids)
 
         if self.states_filter:
             states_list = "','".join(s.replace("'", "''") for s in self.states_filter)
@@ -1236,6 +1253,10 @@ class YouTubeAudioDownloader:
             logger.info("Excluding TV-style news titles and known broadcast channel names")
         if self.not_yet_downloaded:
             logger.info("Only rows with audio_downloaded_at IS NULL")
+        if self.title_keywords:
+            logger.info("Title keywords (any match): {}", ", ".join(self.title_keywords))
+        if self.jurisdiction_ids:
+            logger.info("Jurisdiction IDs: {}", ", ".join(self.jurisdiction_ids))
         if self.skip_flagged_channels and (self.bronze_channels_only or self.government_channel_types_only):
             logger.info("Skipping channels flagged_as_junk in bronze_events_channels")
         
@@ -1395,6 +1416,19 @@ def main():
     parser.add_argument(
         '--channels',
         help='Comma-separated list of channel names to filter (partial match)'
+    )
+
+    parser.add_argument(
+        '--title-keywords',
+        help='Comma-separated substrings; title must match at least one (e.g. committee,meeting)',
+    )
+
+    parser.add_argument(
+        '--jurisdiction-id',
+        action='append',
+        dest='jurisdiction_ids',
+        default=[],
+        help='Restrict to jurisdiction_id (repeatable or comma-separated in one value)',
     )
     
     parser.add_argument(
@@ -1607,6 +1641,14 @@ def main():
     # Parse filters
     channels_filter = args.channels.split(',') if args.channels else None
     states_filter = args.states.split(',') if args.states else None
+    title_keywords = (
+        [k.strip() for k in args.title_keywords.split(',') if k.strip()]
+        if args.title_keywords
+        else None
+    )
+    jurisdiction_ids: List[str] = []
+    for raw in args.jurisdiction_ids or []:
+        jurisdiction_ids.extend(k.strip() for k in raw.split(',') if k.strip())
 
     if args.include_flagged_channels:
         skip_flagged_channels = False
@@ -1638,6 +1680,8 @@ def main():
             not_yet_downloaded=args.not_yet_downloaded,
             skip_flagged_channels=skip_flagged_channels,
             opus_bitrate_kbps=args.opus_bitrate,
+            title_keywords=title_keywords,
+            jurisdiction_ids=jurisdiction_ids or None,
         )
     except ValueError as exc:
         logger.error(str(exc))

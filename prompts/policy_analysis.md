@@ -11,8 +11,18 @@ For each decision, extract and contrast competing problem frames—the different
 - **Counter-frame structure** (how opponents diagnose the problem, cause, and remedy)
 - **Frame stability** (is this a new frame or extension of prior ones, does it lock in a dominant narrative)
 
+**Human texture (required per decision):**
+- **Personal stories:** Specific anecdotes tied to this decision (who, what happened, why it mattered). Empty array if none.
+- **Humor and jokes:** Humor, sarcasm, tension-breaking laughter, or light moments — with accurate tone; empty array if none.
+- **Emotional intensity by side:** For supporters, opponents, and decision-makers: intensity (`Low` → `Very high`), named emotions (fear, anger, hope, frustration, grief, pride, distrust, relief, etc.), and how it showed up in the room.
+
+**Plain-language layer (required per decision):**
+Populate `how_people_saw_it` in everyday language a curious resident could follow — same ideas as `frame_analysis`, but **no jargon** (avoid "dominant frame," "counter-frame," "normative tradeoff"). Keep `frame_analysis` for structured import.
+
 ## Writing Style
-Apply Smart Brevity discipline to every text field: open with a headline that front-loads the so-what, follow with a colon and the essential detail, cut everything else.
+Apply Smart Brevity discipline to structured fields (headlines, JSON): open with a headline that front-loads the so-what, follow with a colon and the essential detail, cut everything else.
+
+**Document 2** is a separate plain-language summary (see STEP 2) — conversational prose. Use Smart Brevity tags for the lead (`Bottom line`, `Why it matters`); keep plain labels for sides, tension, and human moments (`Who was for it and why`, `Who was against it and why`, `The tension underneath`, `One moment worth remembering`). **`how_people_saw_it`** and **`human_element`** in Document 1 JSON still capture structured facts; Document 2 must **not** expose schema field names or codes.
 
 ## Scope
 This prompt must work across any type of governance meeting regardless of jurisdiction size, body type, formality level, or subject matter — including but not limited to city councils, fire district budget hearings, school boards, county commissions, planning boards, utility authorities, and special district meetings. Adapt gracefully: if a field is not applicable to the meeting type set it to null rather than forcing a value that does not fit.
@@ -62,29 +72,29 @@ Classify each agenda item under a primary theme and at most one secondary theme 
 - Intergovernmental Relations
 - Public Engagement and Communications
 
-## COFOG Mappings
-Map each primary theme to its COFOG code:
+## COFOG Mappings (per decision only)
+For each decision, set `primary_theme_cofog` / `secondary_theme_cofog` from this table. Use **exact** theme labels from Theme Classification above.
 
-| Theme | COFOG |
-|---|---|
-| Fiscal and Budget Management | COFOG-01 |
-| Infrastructure and Capital Projects | COFOG-04 |
-| Zoning and Land Use | COFOG-06 |
-| Public Safety and Emergency Services | COFOG-03 |
-| Environmental and Natural Resources | COFOG-05 |
-| Housing and Community Development | COFOG-06 |
-| Economic Development and Business | COFOG-04 |
-| Transportation and Mobility | COFOG-04 |
-| Education and Workforce | COFOG-09 |
-| Health and Human Services | COFOG-07 |
-| Civil Rights and Equity | COFOG-01 |
-| Governance and Administrative Policy | COFOG-01 |
-| Parks and Recreation | COFOG-08 |
-| Utilities and Public Works | COFOG-06 |
-| Technology and Innovation | COFOG-04 |
-| Legal and Compliance | COFOG-01 |
-| Intergovernmental Relations | COFOG-01 |
-| Public Engagement and Communications | COFOG-01 |
+| Theme | COFOG | Plain-language description (Document 1 metadata only — do not use in Document 2) |
+|---|---|---|
+| Fiscal and Budget Management | COFOG-01 | Taxes, budgets, and how public money is raised and spent |
+| Infrastructure and Capital Projects | COFOG-04 | Roads, buildings, and major construction projects |
+| Zoning and Land Use | COFOG-06 | What can be built where and how land is used |
+| Public Safety and Emergency Services | COFOG-03 | Police, fire, EMS, and emergency response |
+| Environmental and Natural Resources | COFOG-05 | Environment, conservation, and natural resources |
+| Housing and Community Development | COFOG-06 | Housing, neighborhoods, and community development |
+| Economic Development and Business | COFOG-04 | Jobs, business growth, and economic development |
+| Transportation and Mobility | COFOG-04 | Transit, traffic, and getting around |
+| Education and Workforce | COFOG-09 | Schools, training, and workforce programs |
+| Health and Human Services | COFOG-07 | Health care and social / human services |
+| Civil Rights and Equity | COFOG-01 | Civil rights, equity, and fair treatment |
+| Governance and Administrative Policy | COFOG-01 | How government runs: rules, process, and administration |
+| Parks and Recreation | COFOG-08 | Parks, recreation, and leisure facilities |
+| Utilities and Public Works | COFOG-06 | Water, sewer, power, and public works |
+| Technology and Innovation | COFOG-04 | Technology, data, and innovation in government |
+| Legal and Compliance | COFOG-01 | Legal compliance, contracts, and liability |
+| Intergovernmental Relations | COFOG-01 | Coordination with state, federal, or other governments |
+| Public Engagement and Communications | COFOG-01 | Public meetings, outreach, and communications |
 
 ## NTEE Major Group Codes
 Assign the most specific NTEE code determinable from context for organizations. NTEE codes will also be extracted to decision topics based on the primary organizations involved.
@@ -202,45 +212,42 @@ Output the JSON object below and nothing else until you have closed the final cu
 
 `---DOCUMENT_BREAK---`
 
-### STEP 2 — Human-Readable Summary
-After the first break token output a human-readable document that transforms the JSON into a narrative format optimized for human comprehension. Apply Smart Brevity principles throughout. Structure the document as follows:
+### STEP 2 — Plain-Language Summary (Markdown) (required; not a substitute for JSON)
 
-**Meeting Overview**
-- Meeting identification (body name, type, date, location)
-- Attendance summary
-- Session context if multi-part
+After the first break token, output **Document 2 only**: a short markdown summary derived from Document 1.
 
-**Key Decisions** (one section per decision)
-For each decision provide:
-- **Topic headline** (from decision.headline field)
-- **Location:** [city name, county name if present, postal_code if present, or "jurisdiction-wide"]
-- **Outcome:** [APPROVED/DENIED/etc] via [decision method]
-- **Vote:** [if formal vote, summarize tally and note dissenting members]
-- **What happened:** [synthesis of decision_statement and timeline.this_meeting]
-- **Why it matters:** [synthesis of underlying_causes and tradeoffs]
-- **Who influenced it:** [synthesis of power_map and arguments_for/against, explicitly noting lobbyist involvement where present]
-- **Frame analysis:**
-  - **Dominant frame:** [synthesis of frame_analysis.dominant_frame]
-  - **Counter-frames:** [synthesis of frame_analysis.counter_frames]
-  - **Causal contest:** [synthesis of frame_analysis.causal_frames showing competing diagnoses]
-  - **Value conflict:** [synthesis of frame_analysis.moral_frames showing underlying tensions]
-  - **Winners and losers:** [synthesis of frame_analysis.tradeoff_frames showing who gains/loses]
-- **What's unresolved:** [list unresolved items if any]
-- **Financial impact:** [summarize linked financial_items if any]
-- **Next steps:** [from timeline.next_steps if present]
+**Audience:** Someone who knows nothing about city government and did not attend the meeting.
 
-**Financial Summary**
-Table or list of all financial items with amount, type, and context
+**Voice and rules:**
+- Plain, conversational prose — write like you're explaining to a curious friend.
+- **Do not** use jargon, classification codes, or schema terminology.
+- **Do not** mention NTEE, COFOG, `person_id`, `org_id`, `decision_id`, `primary_theme`, frame labels, or any JSON field names.
+- **Do not** repeat the same point in multiple sections. Each section must add **new** information.
+- **Hard limit:** The **entire** Document 2 must be **under 400 words total**, no matter how many decisions you cover. Prioritize the most important decisions if needed; omit minor procedural items.
+- Optional **one sentence** at the very top naming the body, date, and city (no more than that before decisions).
+- Use people's **real names** and everyday role labels (e.g., "the pastor," "the council member") — not slug IDs.
+- This is the **final** output — no third document, no Mermaid diagrams, no tables, no financial annexes in Document 2 (diagrams stay in Document 1 JSON only).
 
-**People and Organizations**
-Bullet list of key actors grouped by role with party affiliation and lobbyist status clearly marked
+**Structure — repeat this block for each substantive decision** (use `decision.headline` as the section title):
 
-**Themes**
-Summary of primary themes addressed with COFOG codes
+#### [Decision Headline]
 
-Format all dollar amounts with commas and currency symbols. Use bold for section headers and key terms. Keep each section concise — front-load the most important information. 
+**Bottom line:** What was decided and whether it passed.
 
-This is the final output — no additional document breaks or timeline sections follow.
+**Why it matters:**  
+Two to three sentences max: what this was about, why it mattered, and what happens next.
+
+**Who was for it and why**  
+One short paragraph.
+
+**Who was against it and why**  
+One short paragraph. **Omit this entire subsection** if no one opposed.
+
+**The tension underneath**  
+One sentence naming the real value conflict — what two things were competing (e.g., "economic growth vs. neighborhood safety"). Do **not** restate the for/against arguments.
+
+**One moment worth remembering**  
+A single specific quote, story, or exchange that made it human (draw from `human_element`, `direct_quotes`, or public comment). **Omit this subsection** if none exists.
 
 ---
 
@@ -446,6 +453,72 @@ This is the final output — no additional document breaks or timeline sections 
           "quote": "string"
         }
       ],
+      "human_element": {
+        "personal_stories": [
+          {
+            "person_id": "string or null",
+            "org_id": "string or null",
+            "story_headline": "string — Smart Brevity headline",
+            "story_detail": "string — the personal story in plain language",
+            "why_it_mattered_to_the_decision": "string",
+            "timestamp_start": "HH:MM or null",
+            "evidence_quote": "string or null"
+          }
+        ],
+        "humor_and_light_moments": [
+          {
+            "speaker_id": "string or null — person_id",
+            "summary": "string",
+            "tone": "one of: Humor, Sarcasm, Self-deprecating, Tension-breaking, Procedural joke, Other",
+            "timestamp_start": "HH:MM or null",
+            "quote": "string or null"
+          }
+        ],
+        "emotional_tone": {
+          "supporters": {
+            "intensity": "one of: Low, Moderate, High, Very high, Not applicable",
+            "primary_emotions": ["string"],
+            "plain_summary": "string"
+          },
+          "opponents": {
+            "intensity": "one of: Low, Moderate, High, Very high, Not applicable",
+            "primary_emotions": ["string"],
+            "plain_summary": "string"
+          },
+          "decision_makers": {
+            "intensity": "one of: Low, Moderate, High, Very high, Not applicable",
+            "primary_emotions": ["string"],
+            "plain_summary": "string"
+          }
+        }
+      },
+      "how_people_saw_it": {
+        "winning_view": {
+          "in_plain_language": "string — 2-4 sentences",
+          "they_said_the_problem_was": "string",
+          "they_blamed": "string or null",
+          "they_wanted": "string",
+          "values_they_prioritized": "string — plain words"
+        },
+        "other_views": [
+          {
+            "who": "string — short label",
+            "in_plain_language": "string",
+            "they_said_the_problem_was": "string",
+            "they_wanted_instead": "string or null",
+            "values_they_prioritized": "string"
+          }
+        ],
+        "competing_explanations_in_plain_words": [
+          {
+            "explanation": "string",
+            "who_pushed_it": "string",
+            "did_the_body_accept_it": "one of: Yes, No, Still contested"
+          }
+        ],
+        "what_was_really_at_stake": "string",
+        "who_gains_who_loses": "string"
+      },
       "diagram_timeline": "string — valid Mermaid timeline syntax showing decision chronology across meetings, newlines escaped as \\n for JSON",
       "diagram_mindmap": "string — valid Mermaid mindmap syntax showing decision structure and relationships, newlines escaped as \\n for JSON",
       "frame_analysis": {
@@ -571,6 +644,12 @@ Assign `lineage_type` as:
 - Each underlying cause should be independently verifiable from the transcript — do not infer causes that were not discussed
 - Capture competing diagnoses of causality in `frame_analysis.causal_frames` when stakeholders disagree on root causes
 
+### Human Element Rules
+- Every decision must include `human_element` and `how_people_saw_it` — empty arrays / `Not applicable` when the transcript offers none
+- Personal stories must be specific and tied to the decision — not generic concern
+- Do not classify anger or sarcasm as humor unless treated as a joke in the room
+- `how_people_saw_it` must align with `frame_analysis` but use plain language only
+
 ### Frame Analysis Rules
 - Every decision must include a `frame_analysis` object — do not omit this field
 - Extract at minimum one dominant frame and one counter-frame where opposition exists
@@ -593,8 +672,13 @@ Assign `lineage_type` as:
 - Keep diagram node text concise: 10 words or fewer per entry
 - Test that diagram strings are valid JSON by ensuring proper escaping
 
+### Theme and COFOG Rules
+- Classify themes per decision in `decisions[]` only
+- `primary_theme` / `secondary_theme` must match Theme Classification labels exactly
+- Document 2 must stay under **400 words** total and must **not** mention COFOG, NTEE, or schema terms (themes belong in Document 1 JSON only)
+
 ### Output Format Requirements
 - **Document 1 (JSON)** must be parseable by `JSON.parse()` with no modification
-- Output the three documents separated by `---DOCUMENT_BREAK---` with no other text outside the documents
+- Output **two** documents separated by `---DOCUMENT_BREAK---` (JSON, then human-readable markdown)
 - No markdown code fences around the JSON in Document 1
-- No markdown code fences around the Mermaid timeline in Document 3
+- Mermaid diagrams live inside JSON fields (`diagram_timeline`, `diagram_mindmap`), not as a third document

@@ -3,16 +3,18 @@
 ## Objective
 Your objective is to deconstruct a governance meeting transcript to expose the underlying logic of its outcomes. Do not provide a chronological summary; instead, pinpoint the specific drivers behind each decision, identify the key actors who steered the debate, and articulate the specific risks or resources at play.
 
-**Frame Analysis Requirements:**
-Extract competing problem frames: how stakeholders diagnose cause, assign blame, and rank values.
-- **Causal contest:** Who/what caused this problem—individual failure, system capacity, biology, policy gap?
-- **Value conflict:** Collective safety vs individual liberty, equity vs efficiency, harm reduction vs harm tolerance
-- **Winners and losers:** Whose interests advance, whose get constrained, which harms get accepted
-- **Counter-frames:** How opponents diagnose problem, assign blame, propose remedy
-- **Frame durability:** New frame or extension of prior narrative, does it lock in dominance
+**What to capture for each decision:**
+- **How people saw the issue** — in plain language (no "dominant frame" jargon): what each side thought the problem was, what they wanted, who wins and loses
+- **Competing explanations** — who said what caused the problem and whether the body accepted it
+- **Personal stories** — specific human anecdotes tied to this vote (who, what happened, why it mattered)
+- **Humor and tone** — jokes, sarcasm, or tension-breaking moments; do not label hostility as humor
+- **Emotion by side** — how intense supporters, opponents, and officials were; name emotions (fear, anger, hope, frustration, grief, pride, distrust, relief) and how it showed up
+- **Themes** — primary and secondary theme labels with **COFOG code** and a **plain-language description** from the table below
 
 ## Writing Style
-Apply Smart Brevity discipline to every text field: open with a headline that front-loads the so-what, follow with a colon and the essential detail, cut everything else.
+Use Smart Brevity for headlines and bullets: so-what first, then detail.
+
+For **How people saw it**, **Stories and emotion**, and narrative paragraphs, write in **everyday language** a resident could read aloud — still concise, but warm and clear.
 
 ## Scope
 This prompt must work across any type of governance meeting regardless of jurisdiction size, body type, formality level, or subject matter — including but not limited to city councils, fire district budget hearings, school boards, county commissions, planning boards, utility authorities, and special district meetings. Adapt gracefully: if a field is not applicable to the meeting type set it to null rather than forcing a value that does not fit.
@@ -48,28 +50,28 @@ Classify each agenda item under a primary theme and at most one secondary theme 
 - Public Engagement and Communications
 
 ## COFOG Mappings
-Map each primary theme to its COFOG code:
+For each decision, state **theme label**, **plain-language description**, and **COFOG code**:
 
-| Theme | COFOG |
-|---|---|
-| Fiscal and Budget Management | COFOG-01 |
-| Infrastructure and Capital Projects | COFOG-04 |
-| Zoning and Land Use | COFOG-06 |
-| Public Safety and Emergency Services | COFOG-03 |
-| Environmental and Natural Resources | COFOG-05 |
-| Housing and Community Development | COFOG-06 |
-| Economic Development and Business | COFOG-04 |
-| Transportation and Mobility | COFOG-04 |
-| Education and Workforce | COFOG-09 |
-| Health and Human Services | COFOG-07 |
-| Civil Rights and Equity | COFOG-01 |
-| Governance and Administrative Policy | COFOG-01 |
-| Parks and Recreation | COFOG-08 |
-| Utilities and Public Works | COFOG-06 |
-| Technology and Innovation | COFOG-04 |
-| Legal and Compliance | COFOG-01 |
-| Intergovernmental Relations | COFOG-01 |
-| Public Engagement and Communications | COFOG-01 |
+| Theme | COFOG | Plain-language description |
+|---|---|---|
+| Fiscal and Budget Management | COFOG-01 | Taxes, budgets, and how public money is raised and spent |
+| Infrastructure and Capital Projects | COFOG-04 | Roads, buildings, and major construction projects |
+| Zoning and Land Use | COFOG-06 | What can be built where and how land is used |
+| Public Safety and Emergency Services | COFOG-03 | Police, fire, EMS, and emergency response |
+| Environmental and Natural Resources | COFOG-05 | Environment, conservation, and natural resources |
+| Housing and Community Development | COFOG-06 | Housing, neighborhoods, and community development |
+| Economic Development and Business | COFOG-04 | Jobs, business growth, and economic development |
+| Transportation and Mobility | COFOG-04 | Transit, traffic, and getting around |
+| Education and Workforce | COFOG-09 | Schools, training, and workforce programs |
+| Health and Human Services | COFOG-07 | Health care and social / human services |
+| Civil Rights and Equity | COFOG-01 | Civil rights, equity, and fair treatment |
+| Governance and Administrative Policy | COFOG-01 | How government runs: rules, process, and administration |
+| Parks and Recreation | COFOG-08 | Parks, recreation, and leisure facilities |
+| Utilities and Public Works | COFOG-06 | Water, sewer, power, and public works |
+| Technology and Innovation | COFOG-04 | Technology, data, and innovation in government |
+| Legal and Compliance | COFOG-01 | Legal compliance, contracts, and liability |
+| Intergovernmental Relations | COFOG-01 | Coordination with state, federal, or other governments |
+| Public Engagement and Communications | COFOG-01 | Public meetings, outreach, and communications |
 
 ## NTEE Major Group Codes
 Assign the most specific NTEE code determinable from context.
@@ -128,18 +130,22 @@ Output a single human-readable document optimized for human comprehension. Apply
 
 **Key Decisions** (one section per decision)
 For each decision provide:
-- **Topic headline** (from decision.headline field)
+- **Topic headline**
+- **Themes:** Primary: **[theme]** — [plain description] — **COFOG:** [code]; Secondary: [theme or none] — [description] — **COFOG:** [code or n/a]
 - **Outcome:** [APPROVED/DENIED/etc] via [decision method]
 - **Vote:** [if formal vote, summarize tally and note dissenting members]
-- **What happened:** [synthesis of decision_statement and timeline.this_meeting]
-- **Why it matters:** [synthesis of underlying_causes and tradeoffs]
-- **Who influenced it:** [synthesis of power_map and arguments_for/against, explicitly noting lobbyist involvement where present]
-- **Frame analysis:**
-  - **Dominant frame:** [Problem diagnosis + causal story + moral foundation + whose interests it advances]
-  - **Counter-frames:** [Opposition's problem/cause/remedy + moral foundation + whose interests it protects]
-  - **Causal contest:** [Competing explanations—what caused this, evidence cited, which won]
-  - **Value conflict:** [X vs Y tension, which value won, how conflict was resolved or deferred]
-  - **Winners and losers:** [Who gains, who loses, tradeoff acknowledged or hidden, mitigation offered]
+- **What happened:** [what the body did this meeting]
+- **Why it matters:** [stakes in plain language]
+- **Who influenced it:** [key actors; note lobbyists if any]
+- **Personal stories:** [specific anecdotes — or "None shared"]
+- **Humor / light moments:** [quotes or summaries — or "None"]
+- **How heated it was:** Supporters / Opponents / Officials: [intensity, emotions named, how it showed up]
+- **How people saw it:**
+  - **Most supporting view:** [2-4 sentences, plain language]
+  - **Other views:** [bullets for each side]
+  - **Competing explanations:** [who said what caused the problem; what the body accepted]
+  - **What was really at stake:** [one short paragraph]
+  - **Who gains / who loses:** [plain language]
 - **What's unresolved:** [list unresolved items if any]
 - **Financial impact:** [summarize linked financial_items if any]
 - **Next steps:** [from timeline.next_steps if present]
@@ -150,8 +156,8 @@ Table or list of all financial items with amount, type, and context
 **People and Organizations**
 Bullet list of key actors grouped by role with party affiliation and lobbyist status clearly marked
 
-**Themes**
-Summary of primary themes addressed with COFOG codes
+**Decision themes index**
+Table: decision label | topic | primary theme | COFOG | plain description | secondary theme | COFOG
 
 Format all dollar amounts with commas and currency symbols. Use bold for section headers and key terms. Keep each section concise — front-load the most important information.
 
@@ -188,9 +194,9 @@ timeline
 
 ```
 
-**Frame Analysis Mindmap**
+**How people saw it — mindmap (most contested decision)**
 
-After the timeline, output a Mermaid mindmap visualizing the competing frames for the most contested decision. Wrap it in markdown code fences with the mermaid language identifier.
+After the timeline, output a Mermaid **mindmap** for the **most contested** decision using **plain-language branch labels** (e.g. "What supporters believed", "What opponents feared", "Who wins", "Who loses") — not academic frame jargon. Wrap it in markdown code fences with the `mermaid` language identifier.
 
 **Critical Mermaid mindmap syntax rules:**
 - Start with `mindmap` on its own line

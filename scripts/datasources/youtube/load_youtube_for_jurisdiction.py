@@ -1,0 +1,116 @@
+#!/usr/bin/env python3
+"""
+Load YouTube catalog (videos + streams tabs) for a single jurisdiction into bronze.
+
+Examples::
+
+    # City of Tuscaloosa, AL (channel from meetings manifest / @TuscaloosaCityAL)
+    python scripts/datasources/youtube/load_youtube_for_jurisdiction.py \\
+        --jurisdiction-id municipality_0177256 \\
+        --jurisdiction-name Tuscaloosa \\
+        --state AL \\
+        --channel-id UC74dczS0B3MhDhUHp2ZGRPA \\
+        --max-videos 100 \\
+        --force
+
+    # Then download meeting audio for that city only
+    python scripts/datasources/youtube/download_audio_to_drive.py \\
+        --channels Tuscaloosa --meetings-only --years-back 5 --limit 100
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import sys
+from pathlib import Path
+
+from dotenv import load_dotenv
+from loguru import logger
+
+_root = Path(__file__).resolve().parents[3]
+if str(_root) not in sys.path:
+    sys.path.insert(0, str(_root))
+
+from scripts.datasources.youtube.load_youtube_events_to_postgres import (  # noqa: E402
+    YouTubeEventsLoader,
+)
+
+
+def main() -> None:
+    load_dotenv()
+    parser = argparse.ArgumentParser(
+        description="Load YouTube events for one jurisdiction (Videos + Streams tabs)"
+    )
+    parser.add_argument("--jurisdiction-id", required=True)
+    parser.add_argument("--jurisdiction-name", required=True)
+    parser.add_argument("--state", required=True, help="USPS state code, e.g. AL")
+    parser.add_argument("--channel-id", required=True, help="YouTube channel ID (UC…)")
+    parser.add_argument("--channel-title", default=None)
+    parser.add_argument(
+        "--channel-url",
+        default=None,
+        help="Defaults to https://www.youtube.com/channel/{channel_id}",
+    )
+    parser.add_argument("--jurisdiction-type", default="municipality")
+    parser.add_argument("--max-videos", type=int, default=100)
+    parser.add_argument("--days", type=int, default=None, help="Only videos newer than N days")
+    parser.add_argument("--skip-transcripts", action="store_true")
+    parser.add_argument("--force", action="store_true", help="Ignore incremental cursor")
+    parser.add_argument(
+        "--database-url",
+        default=None,
+        help="Postgres URL (default NEON_DATABASE_URL_DEV / NEON_DATABASE_URL)",
+    )
+    args = parser.parse_args()
+
+    db_url = (
+        args.database_url
+        or os.getenv("NEON_DATABASE_URL_DEV")
+        or os.getenv("NEON_DATABASE_URL")
+        or "postgresql://postgres:password@localhost:5433/open_navigator"
+    )
+    channel_id = args.channel_id.strip()
+    channel_title = (args.channel_title or args.jurisdiction_name).strip()
+    channel_url = (
+        args.channel_url or f"https://www.youtube.com/channel/{channel_id}"
+    ).strip()
+
+    loader = YouTubeEventsLoader(
+        database_url=db_url,
+        youtube_api_key=os.getenv("YOUTUBE_API_KEY"),
+        max_videos_per_channel=args.max_videos,
+        days_lookback=args.days,
+        fetch_transcripts=not args.skip_transcripts,
+        force_full_fetch=args.force,
+    )
+
+    jurisdiction = {
+        "jurisdiction_id": args.jurisdiction_id.strip(),
+        "jurisdiction_name": args.jurisdiction_name.strip(),
+        "state_code": args.state.strip().upper(),
+        "state": args.state.strip().upper(),
+        "jurisdiction_type": args.jurisdiction_type.strip(),
+        "youtube_channels": [
+            {
+                "channel_id": channel_id,
+                "channel_url": channel_url,
+                "channel_title": channel_title,
+                "channel_type": "municipal",
+            }
+        ],
+    }
+
+    logger.info(
+        "Loading YouTube for {} ({}) channel {} [videos+streams]",
+        jurisdiction["jurisdiction_name"],
+        jurisdiction["jurisdiction_id"],
+        channel_id,
+    )
+    inserted = loader.process_jurisdiction(jurisdiction)
+    logger.success("Done — {} new/updated event row(s)", inserted)
+    loader.conn.close()
+
+
+if __name__ == "__main__":
+    main()
