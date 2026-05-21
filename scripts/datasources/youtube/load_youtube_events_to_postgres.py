@@ -775,30 +775,69 @@ class YouTubeEventsLoader:
             'last_updated': datetime.now()
         }
     
+    def _ytdlp_transcript_opts(self, *, use_cookies: bool) -> Dict[str, Any]:
+        """yt-dlp options for subtitle-only extraction (no video download)."""
+        from scripts.datasources.youtube.download_audio_to_drive import _yt_dlp_youtube_ejs_opts
+
+        opts: Dict[str, Any] = {
+            "skip_download": True,
+            "writesubtitles": True,
+            "writeautomaticsub": True,
+            "subtitleslangs": ["en"],
+            "subtitlesformat": "vtt/best",
+            "ignore_no_formats_error": True,
+            "quiet": True,
+            "no_warnings": True,
+            "extractor_args": {"youtube": {"player_client": ["android", "web"]}},
+            "user_agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            ),
+            "referer": "https://www.youtube.com/",
+        }
+        ejs = _yt_dlp_youtube_ejs_opts()
+        if ejs:
+            opts.update(ejs)
+        if use_cookies and self.cookies_file:
+            cookie_path = Path(self.cookies_file)
+            if cookie_path.is_file():
+                opts["cookiefile"] = str(cookie_path.resolve())
+        if self.proxy_url:
+            opts["proxy"] = self.proxy_url
+        return opts
+
     def fetch_transcript_ytdlp(self, video_id: str) -> Optional[Dict[str, Any]]:
         """Fetch transcript using yt-dlp as fallback."""
         try:
             url = f'https://www.youtube.com/watch?v={video_id}'
-            
-            ydl_opts = {
-                'skip_download': True,
-                'writesubtitles': True,
-                'writeautomaticsub': True,
-                'subtitleslangs': ['en'],
-                'quiet': True,
-                'no_warnings': True
-            }
-            
-            # Add cookies if provided (helps bypass IP blocks)
-            if self.cookies_file:
-                ydl_opts['cookiefile'] = self.cookies_file
-            
-            # Add proxy if provided (helps bypass IP blocks)
-            if self.proxy_url:
-                ydl_opts['proxy'] = self.proxy_url
-            
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=False)
+            info = None
+            last_err: Optional[Exception] = None
+            # Android client works best without cookies; cookiefile often causes
+            # "Requested format is not available" unless EJS + Node/Deno are installed.
+            attempts = (False, True) if self.cookies_file else (False,)
+            for use_cookies in attempts:
+                try:
+                    with yt_dlp.YoutubeDL(self._ytdlp_transcript_opts(use_cookies=use_cookies)) as ydl:
+                        info = ydl.extract_info(url, download=False)
+                    break
+                except Exception as exc:
+                    last_err = exc
+                    err = str(exc)
+                    if (
+                        use_cookies
+                        and self.cookies_file
+                        and ("Requested format is not available" in err or "not a bot" in err.lower())
+                    ):
+                        logger.debug(
+                            f"    yt-dlp retry without cookies for {video_id} "
+                            f"(cookies often need EJS: https://github.com/yt-dlp/yt-dlp/wiki/EJS)"
+                        )
+                        continue
+                    raise
+            if info is None:
+                if last_err:
+                    raise last_err
+                return None
                 
                 # Try manual subtitles first, then auto-generated
                 subtitles = info.get('subtitles', {})
