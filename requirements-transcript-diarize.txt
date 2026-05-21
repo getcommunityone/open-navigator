@@ -1,0 +1,6 @@
+# Optional WhisperX diarization for meeting_transcript_policy.py --diarize.
+# Requires HF_TOKEN for pyannote diarization models.
+# Install: pip install -r requirements-transcript-diarize.txt
+whisperx>=3.1.0
+torch>=2.0.0
+torchaudio>=2.0.0

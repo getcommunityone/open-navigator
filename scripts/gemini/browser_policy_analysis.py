@@ -310,6 +310,7 @@ def fetch_videos(
     *,
     limit: Optional[int] = None,
     video_id: Optional[str] = None,
+    order_by: str = "last_updated",
 ) -> List[VideoRow]:
     import psycopg2
     from psycopg2.extras import RealDictCursor
@@ -333,8 +334,12 @@ def fetch_videos(
         sql += " AND video_id = %s"
         params.append(video_id)
     sql += " ORDER BY video_url, last_updated DESC NULLS LAST"
+    if order_by == "meeting_date":
+        sub_order = "event_date::date DESC NULLS LAST, last_updated DESC NULLS LAST"
+    else:
+        sub_order = "last_updated DESC NULLS LAST"
     if limit is not None:
-        sql = f"SELECT * FROM ({sql}) sub ORDER BY last_updated DESC NULLS LAST LIMIT %s"
+        sql = f"SELECT * FROM ({sql}) sub ORDER BY {sub_order} LIMIT %s"
         params.append(int(limit))
 
     conn = psycopg2.connect(database_url)

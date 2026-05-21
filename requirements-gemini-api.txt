@@ -1,0 +1,3 @@
+# AI Studio API for transcript policy analysis (meeting_transcript_policy.py).
+# Install: pip install -r requirements-gemini-api.txt
+google-genai>=1.0
