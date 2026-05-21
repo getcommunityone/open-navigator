@@ -4,7 +4,7 @@ Backfill YouTube captions for all videos in a jurisdiction (bronze + optional lo
 
 Writes:
 - ``bronze.bronze_events_text_ai`` (canonical)
-- ``data/cache/gemini_transcript_policy/<jurisdiction_id>/{video_id}_transcript.json`` (optional)
+- ``data/cache/gemini_transcript_policy/<jurisdiction_id>/YYYY-MM-DD_<title>.json`` (optional; matches Opus basename)
 
 Examples::
 
@@ -43,6 +43,11 @@ from scripts.datasources.youtube.download_audio_to_drive import (  # noqa: E402
 )
 from scripts.datasources.youtube.load_youtube_events_to_postgres import (  # noqa: E402
     YouTubeEventsLoader,
+)
+from scripts.gemini.transcript_cache_paths import (  # noqa: E402
+    legacy_transcript_cache_path,
+    resolve_transcript_cache_path,
+    transcript_cache_path,
 )
 
 DEFAULT_LOCAL_CACHE = _REPO_ROOT / "data" / "cache" / "gemini_transcript_policy"
@@ -106,8 +111,29 @@ def fetch_pending_videos(
         conn.close()
 
 
-def local_transcript_path(cache_dir: Path, jurisdiction_id: str, video_id: str) -> Path:
-    return cache_dir / jurisdiction_id / f"{video_id}_transcript.json"
+def local_transcript_path(cache_dir: Path, jurisdiction_id: str, row: Dict[str, Any]) -> Path:
+    """Audio-aligned basename: ``YYYY-MM-DD_<sanitized title>.json``."""
+    return transcript_cache_path(
+        cache_dir,
+        jurisdiction_id,
+        title=str(row.get("title") or ""),
+        event_date=row.get("event_date"),
+    )
+
+
+def local_transcript_exists(cache_dir: Path, jurisdiction_id: str, row: Dict[str, Any]) -> bool:
+    folder = cache_dir / jurisdiction_id
+    if local_transcript_path(cache_dir, jurisdiction_id, row).is_file():
+        return True
+    legacy = legacy_transcript_cache_path(cache_dir, jurisdiction_id, str(row["video_id"]))
+    if legacy.is_file():
+        return True
+    return resolve_transcript_cache_path(
+        folder,
+        video_id=str(row["video_id"]),
+        title=str(row.get("title") or ""),
+        event_date=row.get("event_date"),
+    ) is not None
 
 
 def write_local_transcript(
@@ -184,8 +210,7 @@ def run(args: argparse.Namespace) -> int:
     if args.skip_local_existing:
         filtered: List[Dict[str, Any]] = []
         for row in pending:
-            p = local_transcript_path(cache_dir, jurisdiction_id, row["video_id"])
-            if p.is_file():
+            if local_transcript_exists(cache_dir, jurisdiction_id, row):
                 continue
             filtered.append(row)
         skipped_local = len(pending) - len(filtered)
@@ -300,7 +325,7 @@ def run(args: argparse.Namespace) -> int:
 
         if not args.no_local_cache:
             write_local_transcript(
-                local_transcript_path(cache_dir, jurisdiction_id, video_id),
+                local_transcript_path(cache_dir, jurisdiction_id, row),
                 row=row,
                 yt=yt,
             )
@@ -397,7 +422,7 @@ def main() -> None:
         "--skip-local-existing",
         action="store_true",
         default=True,
-        help="Skip videos that already have {video_id}_transcript.json (default: true)",
+        help="Skip videos that already have a local transcript JSON (default: true)",
     )
     parser.add_argument(
         "--no-skip-local-existing",

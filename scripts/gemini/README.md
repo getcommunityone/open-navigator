@@ -70,6 +70,30 @@ Or the Tuscaloosa-specific helper (title filter `committee` / `meeting`):
   --limit 3 --diarize
 ```
 
+### Uncontested items → who presented (re-run policy after prompt update)
+
+Part 1 now asks for `presenter_person_ids`, `motion`, and `media_anchor` on each `uncontested_items[]` row.
+The pipeline injects `=== AGENDA SEGMENT HINTS ===` from caption cues (`Mike.`, `Agenda item …`).
+
+```bash
+.venv/bin/python scripts/gemini/meeting_transcript_policy.py \
+  --video-id zpaawfaNsQM --jurisdiction-id municipality_0177256 --state AL \
+  --use-local-transcript
+
+.venv/bin/python scripts/gemini/print_uncontested_speakers.py \
+  data/cache/gemini_transcript_policy/municipality_0177256/*zpaawfaNsQM*analysis.json
+```
+
+When YouTube returns **IpBlocked**, use the caption JSON you already backfilled:
+
+```bash
+.venv/bin/python scripts/gemini/meeting_transcript_policy.py \
+  --video-id zpaawfaNsQM \
+  --jurisdiction-id municipality_0177256 \
+  --state AL \
+  --use-local-transcript
+```
+
 Single video:
 
 ```bash
@@ -79,7 +103,45 @@ Single video:
   --state AL
 ```
 
-Outputs: `data/cache/gemini_transcript_policy/<jurisdiction_id>/` (`*_analysis.json`, `*_transcript.json`, `*_meta.json`, `_manifest.json`).
+### Speaker labels from `contacts.json` (after backfill)
+
+**Heuristic** (no audio, uses names in caption text — good for Tuscaloosa committee meetings):
+
+```bash
+.venv/bin/python scripts/gemini/enrich_transcript_diarization.py \
+  --jurisdiction-id municipality_0177256 --state AL
+```
+
+**WhisperX** (`HF_TOKEN` + `.venv/bin/pip install -r requirements-transcript-diarize.txt`):
+
+If enrich skips with `numpy.core.multiarray failed to import`, WhisperX pulled NumPy 2.x into `.venv`. Pin 1.x:
+
+```bash
+.venv/bin/pip install 'numpy>=1.26.0,<2.0.0'
+```
+
+Tuscaloosa meeting Opus is usually already under:
+
+`data/cache/youtube_audio/al/city_of_tuscaloosa_uc74dczs0b3mhdhuhp2zgrpa/`
+
+Files are named `YYYY-MM-DD_<title>.opus` (not `video_id.opus`). The enrich script matches by **title** from the transcript JSON.
+
+```bash
+export HF_TOKEN=...
+
+.venv/bin/python scripts/gemini/enrich_transcript_diarization.py \
+  --video-id zpaawfaNsQM --whisperx
+
+# More meetings (only where a matching Opus exists on disk)
+.venv/bin/python scripts/gemini/enrich_transcript_diarization.py \
+  --jurisdiction-id municipality_0177256 --whisperx --limit 5
+```
+
+If the folder is empty, run `download_tuscaloosa_city_meeting_audio.py --download-only`.
+
+Updates each caption-cache JSON in place (`YYYY-MM-DD_<title>.json`, same basename as Opus).
+
+Outputs: `data/cache/gemini_transcript_policy/<jurisdiction_id>/` (caption cache `*.json`; policy runs also emit `*_analysis.json`, `*_meta.json`).
 
 ### Expensive path (avoid for bulk)
 

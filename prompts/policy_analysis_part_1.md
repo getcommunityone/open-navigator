@@ -45,6 +45,18 @@ Output the JSON object matching the schema below and NOTHING ELSE.
 
 **Before you close the root JSON:** Re-scan all votes. Debated → `decisions[]`; routine/unanimous → `uncontested_items[]`.
 
+## Uncontested item attribution (required when transcript allows)
+
+For **each** `uncontested_items[]` row, link people and timestamps when the transcript or `=== AGENDA SEGMENT HINTS ===` block supports it:
+
+- **`presenter_person_ids`**: `people[].person_id` for staff who presented the item (e.g. Mike on sewer acceptance). Use `[]` only if truly unknown.
+- **`council_question_person_ids`**: councilors who asked questions before the vote (often one ID).
+- **`motion`**: `{ "moved_by_person_id", "seconded_by_person_id" }` when the transcript says who moved/seconded; else `null`.
+- **`media_anchor`**: `{ "timestamp_start_seconds", "timestamp_end_seconds" }` for the discussion/vote span (from agenda hints or transcript timestamps). Do not invent times.
+- **`financial_item_refs`**: match `financial_items[]` when dollars are discussed (same as contested decisions).
+
+Keep `human_element` / diagrams **off** `uncontested_items[]` — only IDs, motion, and timestamps.
+
 **Diagram rules (`decisions[]` only):** Output `diagram_timeline_lines` and `diagram_mindmap_lines` as string arrays (one line per item). **Never** on `uncontested_items[]`.
 * **Issue Lifecycle, Not Meeting Clock:** Timelines track the subject/event lifecycle (origins → today's action → next steps), not a minute-by-minute meeting log.
 * Time labels must not use quotes (e.g., use `2023-05` or `Next Month`, not `"2023-05"`).
@@ -115,7 +127,18 @@ Output the JSON object matching the schema below and NOTHING ELSE.
       "one_line_summary": "string — one sentence, max ~25 words; what happened and why it matters briefly",
       "subject_id": "string or null — match subjects[] when applicable",
       "legislation_refs": ["string — leg_id slugs, often empty"],
-      "primary_theme": "string or null — short theme label only"
+      "financial_item_refs": ["string — financial_item_id slugs, often empty"],
+      "primary_theme": "string or null — short theme label only",
+      "presenter_person_ids": ["string — people[].person_id who presented; [] if unknown"],
+      "council_question_person_ids": ["string — councilors who asked questions; often []"],
+      "motion": {
+        "moved_by_person_id": "string or null",
+        "seconded_by_person_id": "string or null"
+      },
+      "media_anchor": {
+        "timestamp_start_seconds": "number or null",
+        "timestamp_end_seconds": "number or null"
+      }
     }
   ],
   "decisions": [

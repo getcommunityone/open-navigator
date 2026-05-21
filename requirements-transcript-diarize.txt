@@ -1,6 +1,10 @@
 # Optional WhisperX diarization for meeting_transcript_policy.py --diarize.
 # Requires HF_TOKEN for pyannote diarization models.
-# Install: pip install -r requirements-transcript-diarize.txt
+# Install: .venv/bin/pip install -r requirements-transcript-diarize.txt
+#
+# Pin numpy<2: torch/transformers stack in this venv still loads extensions built for NumPy 1.x
+# ("numpy.core.multiarray failed to import" on NumPy 2.4+).
+numpy>=1.26.0,<2.0.0
 whisperx>=3.1.0
 torch>=2.0.0
 torchaudio>=2.0.0

@@ -158,7 +158,45 @@ export default function Hackathons() {
               </div>
             </div>
           </div>
+
+          {/* Track 4 */}
+          <div className="bg-white rounded-xl shadow-md p-6 border border-gray-200">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-amber-100 rounded-lg">
+                <LightBulbIcon className="h-8 w-8 text-amber-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Voice, Face & Rhetoric Profiles</h3>
+                <p className="text-gray-600 mb-3">
+                  Link official headshots and contact data to diarized meeting audio and cited rhetoric traits—multimodal
+                  accountability for elected officials (public record only).
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <span className="px-3 py-1 bg-amber-50 text-amber-800 text-xs font-semibold rounded-full">
+                    Diarization
+                  </span>
+                  <span className="px-3 py-1 bg-amber-50 text-amber-800 text-xs font-semibold rounded-full">
+                    contacts.json
+                  </span>
+                  <span className="px-3 py-1 bg-amber-50 text-amber-800 text-xs font-semibold rounded-full">
+                    Policy JSON
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
+        <p className="text-sm text-gray-500 mt-4">
+          More pitch ideas (TikTok summaries, accessibility checker, interactive annual reports, voice profiles):{' '}
+          <a
+            href="https://github.com/getcommunityone/open-navigator-for-engagement/blob/main/website/docs/guides/hackathon-video-submission-ideas.md"
+            className="text-primary-600 hover:underline"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            hackathon idea library (docs)
+          </a>
+        </p>
       </div>
 
       {/* Resources */}

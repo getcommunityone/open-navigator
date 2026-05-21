@@ -69,6 +69,11 @@ from scripts.gemini.browser_policy_analysis import (  # noqa: E402
     build_user_message,
     fetch_videos,
 )
+from scripts.gemini.agenda_presenter_hints import (  # noqa: E402
+    enrich_uncontested_media_anchors,
+    format_agenda_presenter_hints_block,
+    segment_agenda_blocks,
+)
 from scripts.gemini.diarize_postprocess import (  # noqa: E402
     diarize_audio_whisperx,
     format_diarized_transcript,
@@ -82,12 +87,33 @@ from scripts.gemini.genai_text_client import (  # noqa: E402
 from scripts.gemini.speaker_hints import (  # noqa: E402
     format_speaker_hints_block,
     known_speaker_names,
+    label_segments_from_contacts,
     load_contacts_bundle,
+)
+from scripts.gemini.transcript_cache_paths import (  # noqa: E402
+    _sanitize_audio_title,
+    load_local_transcript_payload,
+    transcript_cache_path,
 )
 from scripts.gemini.transcript_fetch import fetch_youtube_transcript  # noqa: E402
 
 DEFAULT_OUTPUT_DIR = _REPO_ROOT / "data" / "cache" / "gemini_transcript_policy"
 DEFAULT_YOUTUBE_AUDIO_ROOT = _REPO_ROOT / "data" / "cache" / "youtube_audio"
+
+# City of Tuscaloosa @TuscaloosaCityAL — matches download_tuscaloosa_city_meeting_audio.py
+TUSCALOOSA_CHANNEL_ID = "UC74dczS0B3MhDhUHp2ZGRPA"
+TUSCALOOSA_CHANNEL_TITLE = "City of Tuscaloosa"
+TUSCALOOSA_STATE = "AL"
+
+
+def tuscaloosa_youtube_audio_dir(
+    audio_root: Path = DEFAULT_YOUTUBE_AUDIO_ROOT,
+) -> Path:
+    """``…/youtube_audio/al/city_of_tuscaloosa_uc74dczs0b3mhdhuhp2zgrpa`` (117+ Opus files)."""
+    from scripts.datasources.youtube.download_audio_to_drive import channel_cache_dir_name
+
+    dir_name = channel_cache_dir_name(TUSCALOOSA_CHANNEL_TITLE, TUSCALOOSA_CHANNEL_ID)
+    return audio_root / TUSCALOOSA_STATE.lower() / dir_name
 
 
 def resolve_scrape_cache_dir(
@@ -107,14 +133,58 @@ def resolve_scrape_cache_dir(
     return root / "data/cache/scraped_meetings" / jid
 
 
-def find_local_audio(video_id: str, *, audio_root: Path) -> Optional[Path]:
+def find_local_audio(
+    video_id: str,
+    *,
+    audio_root: Path,
+    title: Optional[str] = None,
+    event_date: Optional[str] = None,
+    search_dirs: Optional[List[Path]] = None,
+) -> Optional[Path]:
+    """
+    Resolve local Opus/MP3 for a YouTube row.
+
+    Tuscaloosa downloads use ``YYYY-MM-DD_<sanitized title>.opus`` under the channel
+    folder (not ``<video_id>.opus``). Pass ``title`` / ``event_date`` from transcript JSON
+    or bronze, or set ``search_dirs`` to ``tuscaloosa_youtube_audio_dir()``.
+    """
     vid = (video_id or "").strip()
+    roots: List[Path] = []
+    for d in search_dirs or []:
+        p = Path(d)
+        if p.is_dir():
+            roots.append(p)
+    if not roots:
+        roots = [audio_root]
+
+    def _glob(root: Path, pattern: str) -> List[Path]:
+        if root == audio_root:
+            return [p for p in root.rglob(pattern) if p.is_file()]
+        return [p for p in root.glob(pattern) if p.is_file()]
+
+    safe_title = _sanitize_audio_title(title or "")
+    ed = (event_date or "").strip()[:10] if event_date else ""
+
+    for root in roots:
+        if safe_title and ed:
+            exact = root / f"{ed}_{safe_title}.opus"
+            if exact.is_file():
+                return exact
+        if safe_title:
+            hits = _glob(root, f"*{safe_title}.opus")
+            if hits:
+                if ed:
+                    dated = [h for h in hits if ed in h.name]
+                    if dated:
+                        return sorted(dated, key=lambda p: len(p.name))[0]
+                return sorted(hits, key=lambda p: len(p.name))[0]
+
     if not vid:
         return None
     patterns = (f"{vid}.opus", f"{vid}.mp3", f"{vid}.m4a", f"{vid}.webm", f"*{vid}*.opus")
-    for pat in patterns:
-        for hit in audio_root.rglob(pat):
-            if hit.is_file():
+    for root in roots:
+        for pat in patterns:
+            for hit in _glob(root, pat):
                 return hit
     return None
 
@@ -132,7 +202,12 @@ def resolve_audio_path(
         candidate = audio_root / rel
         if candidate.is_file():
             return candidate
-    return find_local_audio(video.video_id, audio_root=audio_root)
+    return find_local_audio(
+        video.video_id,
+        audio_root=audio_root,
+        title=video.title,
+        event_date=str(video.event_date) if video.event_date else None,
+    )
 
 
 def load_speaker_context(
@@ -173,13 +248,14 @@ def build_transcript_block(
     speaker_hints: str,
     segments: List[Dict[str, Any]],
     source_note: str,
+    agenda_hints: str = "",
 ) -> str:
     body = format_diarized_transcript(segments)
-    return (
-        f"{speaker_hints}\n"
-        f"=== TRANSCRIPT SOURCE ===\n{source_note}\n\n"
-        f"=== TRANSCRIPT ===\n{body}\n"
-    )
+    parts = [speaker_hints]
+    if agenda_hints.strip():
+        parts.append(agenda_hints.strip())
+    parts.append(f"=== TRANSCRIPT SOURCE ===\n{source_note}\n\n=== TRANSCRIPT ===\n{body}\n")
+    return "\n".join(parts)
 
 
 def save_transcript_policy_output(
@@ -223,7 +299,10 @@ def save_transcript_policy_output(
         }
         json_parsed = False
     else:
-        analysis_payload = _normalize_part1_analysis(parsed)
+        analysis_payload = enrich_uncontested_media_anchors(
+            _normalize_part1_analysis(parsed),
+            video_url=video.video_url or "",
+        )
         json_parsed = True
 
     analysis_path.write_text(
@@ -305,10 +384,68 @@ def process_one_video(
     video_id = video.video_id.strip()
     jurisdiction_id = video.jurisdiction_id
     explicit_audio = Path(args.audio_path).expanduser().resolve() if args.audio_path else None
+    out_dir = Path(args.output_dir).resolve()
+    cache_folder = out_dir / jurisdiction_id
 
-    yt = fetch_youtube_transcript(video_id, languages=args.transcript_languages)
-    segments: List[Dict[str, Any]] = list(yt["segments"])
-    source_parts = [f"youtube_captions ({yt.get('language')}, auto={yt.get('is_auto_generated')})"]
+    yt: Dict[str, Any]
+    source_parts: List[str]
+    local_hit = load_local_transcript_payload(
+        out_dir,
+        jurisdiction_id,
+        video_id=video_id,
+        title=video.title or "",
+        event_date=video.event_date,
+    )
+    if args.use_local_transcript:
+        if local_hit is None:
+            logger.error(
+                "Skipping {} — --use-local-transcript but no cache JSON in {}",
+                video_id,
+                cache_folder,
+            )
+            return None
+        local_path, local_payload = local_hit
+        yt = dict(local_payload.get("youtube") or {})
+        if not yt.get("segments"):
+            logger.error("Skipping {} — local cache has no youtube.segments: {}", video_id, local_path)
+            return None
+        source_parts = [f"local_transcript_cache ({local_path.name})"]
+        logger.info("Using local transcript {}", local_path)
+        if video.title is None and local_payload.get("title"):
+            video = VideoRow(
+                video_id=video.video_id,
+                video_url=video.video_url or local_payload.get("video_url") or "",
+                title=local_payload.get("title"),
+                last_updated=video.last_updated,
+                event_date=local_payload.get("event_date") or video.event_date,
+                audio_file_path=video.audio_file_path,
+                jurisdiction_id=video.jurisdiction_id,
+            )
+    else:
+        try:
+            yt = fetch_youtube_transcript(video_id, languages=args.transcript_languages)
+            source_parts = [
+                f"youtube_captions ({yt.get('language')}, auto={yt.get('is_auto_generated')})"
+            ]
+        except Exception as exc:
+            if local_hit is not None and "IpBlocked" in type(exc).__name__:
+                local_path, local_payload = local_hit
+                yt = dict(local_payload.get("youtube") or {})
+                if yt.get("segments"):
+                    source_parts = [f"local_transcript_cache ({local_path.name}; youtube IpBlocked)"]
+                    logger.warning(
+                        "YouTube IpBlocked for {}; using local cache {}",
+                        video_id,
+                        local_path.name,
+                    )
+                else:
+                    raise
+            else:
+                raise
+
+    segments: List[Dict[str, Any]] = list(yt.get("segments") or [])
+    if known and not args.diarize:
+        label_segments_from_contacts(segments, known)
 
     diarize_meta: Optional[Dict[str, Any]] = None
     if args.diarize:
@@ -334,13 +471,24 @@ def process_one_video(
     elif any(s.get("speaker") for s in segments):
         pass
     else:
-        segments = [{**s, "speaker": None, "speaker_guess": None} for s in segments]
+        for seg in segments:
+            seg.setdefault("speaker", None)
+            if not seg.get("speaker_guess"):
+                seg.setdefault("speaker_guess", None)
 
     source_note = "; ".join(source_parts)
+    agenda_blocks = segment_agenda_blocks(segments, known)
+    agenda_hints = format_agenda_presenter_hints_block(
+        agenda_blocks,
+        jurisdiction_id=jurisdiction_id,
+    )
+    if agenda_blocks:
+        logger.info("Built {} agenda segment hint(s) for presenter linking", len(agenda_blocks))
     transcript_block = build_transcript_block(
         speaker_hints=speaker_hints,
         segments=segments,
         source_note=source_note,
+        agenda_hints=agenda_hints,
     )
 
     transcript_meta: Dict[str, Any] = {
@@ -356,11 +504,16 @@ def process_one_video(
         "formatted_preview": transcript_block[:2000],
     }
 
-    out_dir = Path(args.output_dir).resolve()
     if args.transcript_only:
+        out_dir = Path(args.output_dir).resolve()
         folder = out_dir / jurisdiction_id
         folder.mkdir(parents=True, exist_ok=True)
-        path = folder / f"{video_id}_transcript.json"
+        path = transcript_cache_path(
+            out_dir,
+            jurisdiction_id,
+            title=video.title or "",
+            event_date=video.event_date,
+        )
         transcript_meta["formatted_transcript"] = transcript_block
         path.write_text(json.dumps(transcript_meta, indent=2) + "\n", encoding="utf-8")
         logger.info("Wrote transcript {}", path)
@@ -545,6 +698,12 @@ def main() -> None:
         "--transcript-only",
         action="store_true",
         help="Fetch/format transcript only; no API call",
+    )
+    parser.add_argument(
+        "--use-local-transcript",
+        action="store_true",
+        help="Use existing gemini_transcript_policy JSON (no YouTube fetch). "
+        "If unset, still auto-fallback to local cache on IpBlocked.",
     )
     parser.add_argument(
         "--no-speaker-hints",

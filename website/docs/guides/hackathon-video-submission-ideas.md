@@ -1,6 +1,6 @@
 ---
 displayed_sidebar: developersSidebar
-description: Reference patterns and a checklist for strong “Google for Good”–style hackathon demo videos (CommunityOne / Open Navigator), including flagship pitch hooks (speed-trap revenue, potholes & street repair, Gapminder-style animated charts, automated interactive annual reports, TikTok-style issue summaries, required CTA slide, 100k-meeting safety scrub, 100k-decision reasoning & bias audit, jurisdiction website accessibility), plus inspirational civic data talks and case studies.
+description: Reference patterns and a checklist for strong “Google for Good”–style hackathon demo videos (CommunityOne / Open Navigator), including flagship pitch hooks (speed-trap revenue, potholes & street repair, Gapminder-style animated charts, automated interactive annual reports, TikTok-style issue summaries, circular seasonal data storytelling inspired by Searching for Birds, required CTA slide, 100k-meeting safety scrub, 100k-decision reasoning & bias audit, jurisdiction website accessibility), plus inspirational civic data talks and case studies.
 ---
 
 # Hackathon video submission ideas (reference library)
@@ -272,6 +272,165 @@ Scrape → Gatekeeper → Gemma policy_analysis_v1 (JSON + media_citation)
 
 ---
 
+## Hackathon idea: Voice signatures, contact graph, and political personality analysis
+
+**Pitch hook:** *You know their face from the council photo and their vote from the minutes—but do you know how they **sound**, how they **sign** documents, and whether their rhetoric is consistent meeting to meeting?*
+
+Build a **multimodal official profile** that links **scraped headshots**, **diarized meeting audio**, and **LLM-readable personality signals**—always framed as **public-record accountability**, not pop psychology or endorsement.
+
+**“Signature” here means three things:** (1) **identity card**—face + role from the official directory; (2) **voice signature**—diarized clips and optional speaker embeddings so the same official is recognizable across meetings; (3) **rhetorical signature**—recurring phrases, stance, and tone extracted from what they actually said (cited to timestamps). Optional stretch: match **handwritten signatures** on scanned agenda PDFs to `person_id` when packets include sign-in sheets.
+
+### What to capture (three layers)
+
+| Layer | Source | Output |
+| --- | --- | --- |
+| **Identity signature** | `_contact_images/` from jurisdiction crawl (`contacts.json` + headshots) | Stable `person_id`, role, district, photo URL for UI and video overlays |
+| **Voice signature** | YouTube meeting audio → WhisperX diarization + `speaker_guess` mapped to contacts | Per-official audio clips, speaking-time share, optional embedding for “same voice?” checks across meetings |
+| **Personality / rhetoric** | Policy JSON (`decisions[]`, `narrative_analysis`) + labeled transcripts | Rolling traits: formality, conflict style, fiscal hawk/dove cues, repeat phrases—**with citations** to timestamped lines |
+
+### What’s already in Open Navigator (Tuscaloosa pilot)
+
+| Piece | Path / script |
+| --- | --- |
+| Council directory | `data/cache/scraped_meetings/.../municipality_0177256/_contact_images/contacts.json` |
+| Transcripts | `data/cache/gemini_transcript_policy/.../YYYY-MM-DD_<title>.json` (basename matches Opus in `youtube_audio/al/city_of_tuscaloosa_…/`) |
+| Speaker hints (heuristic) | `scripts/gemini/enrich_transcript_diarization.py` — names from contacts on caption segments |
+| Full diarization (optional) | Same script with `--whisperx` + `HF_TOKEN`; Tuscaloosa Opus already at `data/cache/youtube_audio/al/city_of_tuscaloosa_uc74dczs0b3mhdhuhp2zgrpa/` (~117 meetings, `YYYY-MM-DD_<title>.opus`) |
+| Policy + narrative | `policy_analysis_part_1.md` → `*_analysis.json` via Flash-Lite or Gemma Colab pipeline |
+
+### Hackathon MVP (one weekend)
+
+1. **Enroll voices** — For 5–10 officials, cut 30–60s diarized clips where `speaker_guess` matches `contacts.json`; store `voice_clip_path` + `video_id` + `start`/`end`.
+2. **Personality pass** — Second LLM prompt over last *N* labeled transcripts per `person_id`: output **structured** `rhetoric_profile` (themes, tone, stance on fines/capital/trust) with `evidence_quotes[]` tied to timestamps—not free-form horoscope text.
+3. **Reveal UI** — One card per councilor: photo, 10s audio waveform, three trait chips, “receipt” link to meeting clip (`playback_url` + offset).
+
+```text
+Scrape contacts → meeting transcripts (diarized) → policy JSON
+       ↓                    ↓                      ↓
+  face + role         voice segments +        rhetoric_profile
+                      speaking stats          (cited, per meeting)
+```
+
+### How to say it on camera (15s + reveal)
+
+- **Problem:** “Residents see a **headshot** and a **vote**—not whether the same person sounds confident on fines but evasive on housing.”
+- **Reveal:** Play two clips of the **same** `person_id` from different meetings; flash `rhetoric_profile.consistency_note`; open citations in transcript JSON.
+- **Scale:** “Pilot: **14** councilors in Tuscaloosa → schema scales to **100k** officials when transcripts + contacts exist nationally.”
+
+### Why judges like this track
+
+- **Multimodal** (vision + audio + text) without requiring new surveillance—only **public meetings** and **public directories**.
+- Complements **Gemma policy analysis** and **TikTok summaries** (face + voice + issue hook in one package).
+- **Measurable:** speaking time %, citation count per trait, cross-meeting phrase overlap—not “the AI thinks they’re an extrovert.”
+
+### Ethics & caveats (say these out loud)
+
+- **Not personality disorder diagnosis** or campaign opposition research—**rhetoric and participation** descriptors with sources.
+- **Diarization errors** mis-attribute speech; show confidence and allow “unknown speaker” buckets.
+- **Demographics / perceived traits** from photos (Demo 5 in Colab) are optional and must be labeled **model-inferred**, not ground truth.
+- Obtain **consent** only where required; public-meeting audio and official portraits are generally public record—still avoid harassing or deceptive use (deepfake voice, impersonation).
+
+**Repo commands (pilot):**
+
+```bash
+# Label transcripts with council names (fast)
+python scripts/gemini/enrich_transcript_diarization.py \
+  --jurisdiction-id municipality_0177256 --state AL
+
+# WhisperX: auto-finds Opus by title in the Tuscaloosa channel folder (no video_id in filename)
+python scripts/gemini/enrich_transcript_diarization.py \
+  --video-id zpaawfaNsQM --whisperx
+# → …/city_of_tuscaloosa_uc74dczs0b3mhdhuhp2zgrpa/2026-03-31_Tuscaloosa Projects Committee Meeting - Mar 31, 2026.opus
+```
+
+---
+
+## Hackathon idea: Circular seasonal storytelling (Searching for Birds pattern)
+
+**Reference:** [Searching for Birds](https://searchingforbirds.visualcinnamon.com/) — Nadieh Bremer (Visual Cinnamon) × Google Trends, February 2026. Sponsored data story; **D3.js** bespoke interactives; analysis in **R**; built with **Gemini 2.5 Flash Lite** for the in-page “spark bird” helper.
+
+**Pitch hook:** *Council attention and resident curiosity don’t move in straight lines—they pulse through the year like migration. Can we see those rhythms the way birders see spring surges?*
+
+### The concept (what to steal)
+
+A **masterclass in complex time-series storytelling**: how **birding popularity shifts across America throughout the year**, told without default line charts.
+
+| Layer | What Bremer built | Why it works |
+| --- | --- | --- |
+| **Macro rhythm** | 10-year **seasonal search curves** — April/May peaks, pandemic amplification | One glance shows **annual cycles** + anomalies |
+| **Taxonomy nest** | Circular **“egg nest”** — general types (hawk, duck, owl) sized by search share | Hierarchy + beauty; drill from vague to specific |
+| **Spark drill-down** | Zoomable **egg** subdividing 700 species → 76 types → 98 “search-popular” species | Scroll = discovery, not dashboard fatigue |
+| **Reality check** | **Google search rank** vs **eBird observations** vs **population** (bar + connectors) | Surfaces **curiosity ≠ abundance** (Snowy Owl spike vs rare sightings) |
+| **Geography** | **Top bird per state** hex map + localized surges (e.g. Sandhill Crane in NE) | Regional **seasonal surges** without 50 small multiples |
+| **Hero moment** | Snowy Owl in Central Park → **NYC search spike** Jan 2021 | Event-driven **attention** as narrative hook |
+
+### The signature visualization (your demo should name this)
+
+Bremer mapped **hundreds of species’ weekly Google Trends** onto an **elegant, flowing circular design**—part interactive field guide, part abstract art. **Organic, color-coded wave patterns** follow the ring like **flock migrations**, so massive temporal trends are **intuitive** without reading axes on 589 small multiples.
+
+**Why it stands out:** Judges remember **motion and metaphor**—not another grid of line charts. The form *is* the explanation (seasonality = orbit; species = lanes; surge = wave crest).
+
+### Civic translation for Open Navigator
+
+Same mechanics, **public-governance** subjects:
+
+| Birds (reference) | CommunityOne mapping |
+| --- | --- |
+| Species search interest (weekly, 10y) | **Issue/theme** search or meeting signal by month: fines, potholes, zoning, water, sheriff contract |
+| 76 “types” / nest eggs | **COFOG themes** or `primary_theme` buckets from Gemma `decisions[]` |
+| eBird observations | **Meeting mentions** — transcript segment counts, `financial_items` hits, bronze event volume |
+| State top species | **Top issue per state** among scraped jurisdictions (AL pilot → 67 counties + cities) |
+| Snowy Owl spike | Local **spark event** — one viral agenda item (special election, owl-equivalent scandal, rate hike vote) |
+| Circular waves | **Radial stream / polar heatmap**: month × theme, arc length = share of discourse |
+
+**Data you already have (Tuscaloosa / warehouse path):**
+
+- `bronze.bronze_events_youtube` — `event_date`, title, jurisdiction
+- Caption cache — `YYYY-MM-DD_<title>.json` aligned with Opus basenames
+- Policy JSON — `decisions[].primary_theme`, `narrative_analysis`, timestamps
+- Optional external layer — **Google Trends** (`pytrends`) for resident search vs official record (mirror the story’s “search vs sightings” gap)
+
+### Hackathon MVP (one state, one ring)
+
+1. **Aggregate** — SQL or Python: count meetings / decisions / transcript mentions by **calendar month** and **theme** for `municipality_0177256` + one county peer set.
+2. **Export** — CSV: `month`, `theme`, `meeting_count`, `search_index` (if Trends API used).
+3. **Visualize** — D3 polar stack or [Observable](https://observablehq.com/) radial area; **color = theme**, **radius = month**, **wave height = intensity**.
+4. **Reveal** — Click March peak → jump to **Pre-Council / Projects Committee** `playback_url` at peak week (same receipt pattern as TikTok track).
+5. **Compare panel** — Side mini-chart: **Google Trends “property tax”** vs **mentions in minutes** (the civic “eBird vs search” slide).
+
+```text
+Bronze meetings + policy themes → monthly rollups → polar/wave D3 viz
+         ↓                              ↓
+   optional Google Trends          spark-event callout + deep link
+```
+
+### How to say it on camera (15s + reveal)
+
+- **Problem:** “Residents only show up when something **explodes**—we never see the **season** of how councils and neighbors actually obsess over fines, streets, or water.”
+- **Reveal:** Spin the ring—**April surge** in infrastructure talk; tap wave → **2026-03-31 Projects Committee** clip; flash “search interest vs agenda mentions don’t match.”
+- **Scale:** “Pilot: **one city channel** → same schema for **100k meetings** nationally.”
+
+### Why judges like this track
+
+- **Data viz craft** rubric winner—shows you can ship **breathing** UI, not tables.
+- Pairs with [**Gapminder-style reveal**](#gapminder-style-reveal-use-this-chart-pattern) (motion) and [**TikTok summaries**](#hackathon-idea-tiktok-style-meeting-summaries-issue-first-everyday-user) (distribution).
+- **Google for Good** fit if you use **Trends + public meetings** with clear methodology footnotes.
+
+### Tech notes (from the reference project)
+
+- Trends pulled via **`pytrends`** (5 terms per request; normalized to a base species—plan the same for civic keywords).
+- Interactives: **custom D3** (not off-the-shelf chart library defaults).
+- On-page AI: **Gemini 2.5 Flash Lite** identification helper—analogous to your **`meeting_transcript_policy.py`** stack.
+
+### Caveats
+
+- **Google Trends** is relative index, not volume; label axes “search interest,” not “searches.”
+- Meeting scrape coverage is **biased to what was recorded**—like eBird vs casual search.
+- Circular layouts are hard on **screen readers**—provide a **table download** and keyboard-focusable legend.
+- Do not imply Cornell/Google endorsement; cite [Searching for Birds](https://searchingforbirds.visualcinnamon.com/) as **design inspiration**.
+
+---
+
 ## Hackathon idea: Automated interactive annual report (resident edition)
 
 **Pitch hook:** *Your city publishes a 200-page PDF every year—what if residents got the same story LVMH gives shareholders: scrollable chapters, live charts, and one click to the source vote?*
@@ -472,7 +631,21 @@ Short talks, product stories, and case studies that show how **data + maps + hum
 
 ---
 
-### 7. Safe water access — mapping and field data (mWater)
+### 7. Searching for Birds — circular seasonal data storytelling (Google Trends × civic analogy)
+
+**Site:** [Searching for Birds — Visual Cinnamon](https://searchingforbirds.visualcinnamon.com/) (Feb 2026; Google Trends–sponsored)
+
+**The problem:** Seasonal shifts in what people care about are buried in **hundreds of parallel time series**—easy to drown in line charts.
+
+**The tech:** **~589 bird species** × weekly Google Trends mapped to a **flowing circular layout** with **color-coded waves** (migration metaphor); nested **egg** visual for taxonomy; **search vs eBird vs population** triptych; state hex map for top species; **Gemini Flash Lite** spark-bird chat.
+
+**Why it’s inspirational:** Proves **complex temporal data** can feel **organic and immediate**—a direct antidote to “dashboard of 50 sparklines.”
+
+**Reuse in CommunityOne:** See [Circular seasonal storytelling](#hackathon-idea-circular-seasonal-storytelling-searching-for-birds-pattern)—map **meeting themes × month** on the ring, **resident Trends** vs **minutes/transcripts**, Tuscaloosa committee calendar as pilot.
+
+---
+
+### 8. Safe water access — mapping and field data (mWater)
 
 **Video (overview):** [mWater — *Overview / key concepts*](https://www.youtube.com/watch?v=ah6yX1fNM9w) · Hub: [mWater — Learn with video](https://www.mwater.co/learn-with-video)
 
@@ -484,7 +657,7 @@ Short talks, product stories, and case studies that show how **data + maps + hum
 
 ---
 
-### 8. Streetmix — civic design for everyone
+### 9. Streetmix — civic design for everyone
 
 **Video (community redesign using Streetmix):** [Shifter — *Help redesign this street so it’s better for all users*](https://www.youtube.com/watch?v=7G3hw4IJdmc) · Tool: [streetmix.net](https://streetmix.net) · Docs: [Streetmix documentation](https://docs.streetmix.net/)
 
@@ -496,7 +669,7 @@ Short talks, product stories, and case studies that show how **data + maps + hum
 
 ---
 
-### 9. Data against modern slavery (supply-chain awareness)
+### 10. Data against modern slavery (supply-chain awareness)
 
 **Video (≈2:30):** [Slavery Footprint — *How Many Slaves Work For You?*](https://www.youtube.com/watch?v=x8K-tMog1f4) · Experience: [slaveryfootprint.org](https://slaveryfootprint.org/)
 
@@ -508,7 +681,7 @@ Short talks, product stories, and case studies that show how **data + maps + hum
 
 ---
 
-### 10. “No-blame” civic problem solving (Power Civics)
+### 11. “No-blame” civic problem solving (Power Civics)
 
 **Videos (short course — pick modules that fit your pitch):** [The Citizens Campaign — *Power Civics* video library](https://thecitizenscampaign.org/power-civics-videos/watch/) · Broader search: [YouTube — “Power Civics” + Citizens Campaign](https://www.youtube.com/results?search_query=Power+Civics+Citizens+Campaign)
 
@@ -520,7 +693,7 @@ Short talks, product stories, and case studies that show how **data + maps + hum
 
 ---
 
-### 11. Township garage sale — from paper maps to live vendor layout (Maine Township, Illinois)
+### 12. Township garage sale — from paper maps to live vendor layout (Maine Township, Illinois)
 
 **Case study:** [CivicPlus — *Modernizing Tradition: Maine Township’s Garage Sale Goes Digital*](https://www.civicplus.com/case-studies/pr/maine-township-goes-digital-successfully/)
 
