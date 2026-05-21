@@ -13,7 +13,8 @@
     "serve": "docusaurus serve",
     "write-translations": "docusaurus write-translations",
     "write-heading-ids": "docusaurus write-heading-ids",
-    "typecheck": "tsc"
+    "typecheck": "tsc",
+    "check-mermaid": "node --import ./scripts/register-dompurify.mjs scripts/check-mermaid.mjs"
   },
   "dependencies": {
     "@docusaurus/core": "3.10.0",
@@ -32,6 +33,7 @@
     "@docusaurus/tsconfig": "3.10.0",
     "@docusaurus/types": "3.10.0",
     "@types/react": "^19.0.0",
+    "jsdom": "^26.1.0",
     "typescript": "~6.0.2"
   },
   "browserslist": {

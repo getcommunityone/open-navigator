@@ -141,6 +141,8 @@ class VideoRow:
     event_date: Optional[str]
     audio_file_path: Optional[str]
     jurisdiction_id: str
+    duration_minutes: Optional[int] = None
+    has_transcript: bool = False
 
 
 @dataclass
@@ -311,30 +313,42 @@ def fetch_videos(
     limit: Optional[int] = None,
     video_id: Optional[str] = None,
     order_by: str = "last_updated",
+    dedupe_duplicate_meetings: bool = True,
+    only_has_transcript: bool = False,
 ) -> List[VideoRow]:
     import psycopg2
     from psycopg2.extras import RealDictCursor
 
     sql = """
-        SELECT DISTINCT ON (video_url)
-            video_id,
-            video_url,
-            title,
-            last_updated,
-            event_date::text AS event_date,
-            audio_file_path,
-            jurisdiction_id
-        FROM bronze.bronze_events_youtube
-        WHERE jurisdiction_id = %s
-          AND video_url IS NOT NULL
-          AND BTRIM(video_url) <> ''
+        SELECT DISTINCT ON (y.video_url)
+            y.video_id,
+            y.video_url,
+            y.title,
+            y.last_updated,
+            y.event_date::text AS event_date,
+            y.audio_file_path,
+            y.jurisdiction_id,
+            y.duration_minutes,
+            y.published_at,
+            COALESCE(t.has_transcript, false) AS has_transcript
+        FROM bronze.bronze_events_youtube y
+        LEFT JOIN bronze.bronze_events_text_ai t ON t.video_id = y.video_id
+        WHERE y.jurisdiction_id = %s
+          AND y.video_url IS NOT NULL
+          AND BTRIM(y.video_url) <> ''
     """
     params: list[Any] = [jurisdiction_id]
     if video_id:
-        sql += " AND video_id = %s"
+        sql += " AND y.video_id = %s"
         params.append(video_id)
-    sql += " ORDER BY video_url, last_updated DESC NULLS LAST"
-    if order_by == "meeting_date":
+    if only_has_transcript:
+        sql += " AND t.has_transcript IS TRUE"
+    sql += " ORDER BY y.video_url, y.last_updated DESC NULLS LAST"
+    if order_by == "published_at":
+        sub_order = (
+            "COALESCE(sub.published_at, sub.event_date::timestamp) DESC NULLS LAST, sub.video_id"
+        )
+    elif order_by == "meeting_date":
         sub_order = "event_date::date DESC NULLS LAST, last_updated DESC NULLS LAST"
     else:
         sub_order = "last_updated DESC NULLS LAST"
@@ -351,19 +365,50 @@ def fetch_videos(
     finally:
         conn.close()
 
+    from scripts.gemini.transcript_cache_paths import resolve_meeting_event_date
+
     out: List[VideoRow] = []
     for r in rows:
+        title = r.get("title") or None
         out.append(
             VideoRow(
                 video_id=str(r["video_id"] or ""),
                 video_url=str(r["video_url"] or "").strip(),
-                title=(r.get("title") or None),
+                title=title,
                 last_updated=r.get("last_updated"),
-                event_date=r.get("event_date"),
+                event_date=resolve_meeting_event_date(
+                    str(title or ""),
+                    event_date=r.get("event_date"),
+                    published_at=r.get("published_at"),
+                ),
                 audio_file_path=r.get("audio_file_path"),
                 jurisdiction_id=str(r.get("jurisdiction_id") or jurisdiction_id),
+                duration_minutes=r.get("duration_minutes"),
+                has_transcript=bool(r.get("has_transcript")),
             )
         )
+
+    if dedupe_duplicate_meetings and not video_id and len(out) > 1:
+        from scripts.datasources.youtube.dedupe_meeting_videos import (
+            dedupe_meeting_rows,
+            log_duplicate_skips,
+        )
+
+        row_maps = [
+            {
+                "video_id": v.video_id,
+                "title": v.title,
+                "event_date": v.event_date,
+                "duration_minutes": v.duration_minutes,
+                "has_transcript": v.has_transcript,
+            }
+            for v in out
+        ]
+        kept_maps, dedupe = dedupe_meeting_rows(row_maps)
+        log_duplicate_skips(dedupe)
+        kept_ids = {m["video_id"] for m in kept_maps}
+        out = [v for v in out if v.video_id in kept_ids]
+
     return out
 
 
@@ -474,6 +519,137 @@ def _normalize_part1_analysis(parsed: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+def _places_digest_for_part2(payload: dict[str, Any]) -> str:
+    """Short location index so Part 2 names sites, not only ``place_id`` slugs."""
+    places = {
+        p["place_id"]: p
+        for p in (payload.get("places") or [])
+        if isinstance(p, dict) and p.get("place_id")
+    }
+    if not places:
+        return (
+            "**Places:** Part 1 JSON has no `places[]` — name street addresses from "
+            "`subjects[]` / `decision_statement` in **Why it matters** or **The big picture**.\n"
+        )
+    people = {
+        p["person_id"]: p.get("full_name") or p.get("person_id")
+        for p in (payload.get("people") or [])
+        if isinstance(p, dict) and p.get("person_id")
+    }
+    lines: list[str] = ["**Places (use in contested blocks — plain language, not slugs):**"]
+    for decision in payload.get("decisions") or []:
+        if not isinstance(decision, dict):
+            continue
+        pid = decision.get("primary_place_id") or ""
+        refs = decision.get("place_refs") or []
+        if not pid and refs:
+            pid = refs[0]
+        place = places.get(pid) if pid else None
+        if not place:
+            continue
+        addr = (
+            place.get("normalized_address")
+            or place.get("street_address")
+            or place.get("label")
+            or pid
+        )
+        extras: list[str] = []
+        if place.get("place_type") and place.get("place_type") != "street_address":
+            extras.append(str(place["place_type"]))
+        if place.get("geocode_status") == "ok":
+            extras.append("geocoded")
+        sid = decision.get("subject_id") or ""
+        for person in (payload.get("people") or []):
+            if not isinstance(person, dict):
+                continue
+            if sid and sid.replace("subject_", "") in str(person.get("person_id") or ""):
+                name = people.get(person["person_id"])
+                if name:
+                    extras.append(f"applicant/contact: {name}")
+                break
+        extra = f" ({'; '.join(extras)})" if extras else ""
+        lines.append(f"- **{decision.get('headline', 'Decision')}:** {addr}{extra}")
+    return "\n".join(lines) + "\n"
+
+
+_APPEARED_AS_GROUP_ORDER: tuple[tuple[str, str], ...] = (
+    ("commissioner", "Commissioners"),
+    ("councilwoman", "Commissioners"),
+    ("councilor", "Commissioners"),
+    ("staff", "Staff"),
+    ("applicant", "Applicants"),
+    ("public", "Public"),
+)
+
+
+def _meeting_at_a_glance_digest(payload: dict[str, Any]) -> str:
+    """Instructions + data for Part 2 ``## At a glance`` (attendees + summary)."""
+    meeting = payload.get("meeting") if isinstance(payload.get("meeting"), dict) else {}
+    summary = str(meeting.get("meeting_summary") or "").strip()
+    agenda = str(meeting.get("agenda_summary") or "").strip()
+
+    grouped: dict[str, list[str]] = {}
+    for person in payload.get("people") or []:
+        if not isinstance(person, dict):
+            continue
+        name = str(person.get("full_name") or "").strip()
+        if not name:
+            continue
+        appeared = str(person.get("appeared_as") or person.get("role") or "Other").strip()
+        key = appeared.lower()
+        label = appeared
+        for prefix, group_label in _APPEARED_AS_GROUP_ORDER:
+            if key.startswith(prefix):
+                label = group_label
+                key = group_label
+                break
+        grouped.setdefault(key, [])
+        if name not in grouped[key]:
+            grouped[key].append(name)
+
+    attendee_parts: list[str] = []
+    seen_groups: set[str] = set()
+    for _prefix, group_label in _APPEARED_AS_GROUP_ORDER:
+        names = grouped.get(group_label)
+        if not names:
+            continue
+        seen_groups.add(group_label)
+        cap = names[:12]
+        suffix = " (and others)" if len(names) > 12 else ""
+        attendee_parts.append(f"{group_label}: {', '.join(cap)}{suffix}")
+    for key, names in sorted(grouped.items()):
+        if key in seen_groups:
+            continue
+        cap = names[:8]
+        suffix = " (and others)" if len(names) > 8 else ""
+        attendee_parts.append(f"{key}: {', '.join(cap)}{suffix}")
+
+    lines = [
+        "**At a glance (required — `## At a glance` immediately after the H1):**",
+        "",
+        "- **Attendees:** Use this list from `people[]` (group by role; you may shorten but keep names accurate):",
+    ]
+    if attendee_parts:
+        for part in attendee_parts:
+            lines.append(f"  - {part}")
+    else:
+        lines.append("  - (No `people[]` in JSON — infer attendees only if named in decisions/transcript fields.)")
+    lines.append("")
+    if summary:
+        lines.append(f"- **Summary (use verbatim or tighten slightly):** {summary}")
+    else:
+        lines.append(
+            "- **Summary:** Write 1–2 sentences from `decisions[]` headlines + "
+            "`uncontested_items[]` themes"
+            + (f"; agenda hint: {agenda}" if agenda else "")
+            + "."
+        )
+    if agenda and summary:
+        lines.append(f"- **Agenda topics (reference):** {agenda}")
+    lines.append("")
+    return "\n".join(lines)
+
+
 def build_part2_message(
     part2_prompt: str,
     analysis: dict[str, Any],
@@ -495,14 +671,22 @@ def build_part2_message(
         + "\n"
     )
     mermaid_note = (
-        "**Mermaid (required for contested items with diagrams):** Copy `diagram_timeline` and "
-        "`diagram_mindmap` from JSON **verbatim** into fenced blocks. They already start with "
-        "`timeline` and `mindmap`. **Never** use `graph TD`, `flowchart`, or `graph LR`.\n"
+        "**Mermaid (contested items with diagrams):** Copy `diagram_timeline` and `diagram_mindmap` "
+        "verbatim into fences. **Never** `graph TD` / `flowchart`.\n"
+        "**Smart Brevity:** Per contested item merge `smart_brevity.one_big_thing` + `why_it_matters` "
+        "into a single **Why it matters** bullet. **Never** label **The One Big Thing**. "
+        "**Never** use `Who won` or `The tension`. "
+        "Other axiom labels: **The big picture**, **By the numbers** (omit if none), "
+        "**Who was for it (and why)**, **Who was against it (and why)** (omit if none), **What's next**.\n"
     )
+    places_note = _places_digest_for_part2(payload)
+    at_a_glance_note = _meeting_at_a_glance_digest(payload)
     return (
         f"{part2_prompt.strip()}\n\n---\n\n"
         f"## {PART2_USER_MARKER}\n\n"
         f"{opener_note}"
+        f"{at_a_glance_note}"
+        f"{places_note}"
         f"{mermaid_note}"
         f"**Contested** (`decisions[]`): **{n_contested}** — write that many full blocks under "
         f"`## Contested decisions`.\n"
@@ -2009,8 +2193,17 @@ def _run_filename_prefix(ts: str) -> str:
 
 
 def _output_stem(video: VideoRow, *, prompt_tag: str, model_tag: str, ts: str) -> str:
-    prefix = _run_filename_prefix(ts)
-    return f"{prefix}_{video.video_id}_{_safe_stem(video)}_{prompt_tag}_{model_tag}"
+    """Audio-aligned basename + video_id + prompt/model tags (see ``policy_output_stem``)."""
+    from scripts.gemini.transcript_cache_paths import policy_output_stem
+
+    _ = ts  # run time lives in ``*_meta.json`` ``generated_at``, not the filename
+    return policy_output_stem(
+        title=video.title or "",
+        event_date=video.event_date,
+        video_id=video.video_id,
+        prompt_tag=prompt_tag,
+        model_tag=model_tag,
+    )
 
 
 def _load_manifest_records(folder: Path) -> list[dict[str, Any]]:

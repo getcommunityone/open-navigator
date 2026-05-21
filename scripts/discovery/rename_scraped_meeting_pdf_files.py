@@ -11,6 +11,9 @@ Examples::
 
     .venv/bin/python scripts/discovery/rename_scraped_meeting_pdf_files.py --dry-run
     .venv/bin/python scripts/discovery/rename_scraped_meeting_pdf_files.py --state AL
+    .venv/bin/python scripts/discovery/rename_scraped_meeting_pdf_files.py --state AL \\
+        --jurisdiction-id municipality_0177256 --calendar-year 2026 \\
+        --backfill-manifest-from-crawl-html
     .venv/bin/python scripts/discovery/rename_scraped_meeting_pdf_files.py --no-cleanup-legacy-hash-pdfs
     SCRAPED_MEETINGS_ROOT=/mnt/g/cache .venv/bin/python scripts/discovery/rename_scraped_meeting_pdf_files.py
 """
@@ -35,17 +38,73 @@ from scripts.discovery.meeting_document_naming import (
     legacy_sha14_pdf_candidate,
     pick_meeting_date,
 )
+from scripts.discovery.scraped_meetings_crawl_html_pdfs import build_pdf_rows_from_disk_and_crawl_html
 from scripts.utils.gdrive_paths import resolve_scraped_meetings_output_root
 
 
-def _iter_manifests(cache_root: Path, state: Optional[str]) -> List[Path]:
+def _iter_manifests(
+    cache_root: Path,
+    state: Optional[str],
+    *,
+    jurisdiction_id: Optional[str] = None,
+) -> List[Path]:
     cache_root = cache_root.expanduser().resolve()
+    if jurisdiction_id:
+        jid = jurisdiction_id.strip()
+        if state:
+            cand = cache_root / state.strip().upper()
+            if cand.is_dir():
+                hits = sorted(cand.rglob(f"*/{jid}/_manifest.json"))
+                if hits:
+                    return hits
+        hits = sorted(cache_root.rglob(f"*/{jid}/_manifest.json"))
+        return hits
     if state:
         sub = cache_root / state.strip().upper()
         if not sub.is_dir():
             return []
         return sorted(sub.rglob("_manifest.json"))
     return sorted(cache_root.rglob("_manifest.json"))
+
+
+def _backfill_manifest_pdfs_from_crawl_html(
+    manifest_path: Path,
+    *,
+    calendar_year_dirs: Optional[List[str]],
+    dry_run: bool,
+) -> int:
+    """Populate empty ``pdfs[]`` from ``_crawl_html`` + on-disk hash filenames; return rows added."""
+    base = manifest_path.parent.resolve()
+    crawl_html = base / "_crawl_html"
+    if not crawl_html.is_dir():
+        return 0
+
+    try:
+        data: Dict[str, Any] = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return 0
+
+    existing = data.get("pdfs")
+    if isinstance(existing, list) and existing:
+        return 0
+
+    seed = [str(u) for u in data.get("pages_fetched") or [] if isinstance(u, str)]
+    rows = build_pdf_rows_from_disk_and_crawl_html(
+        base,
+        calendar_year_dirs=calendar_year_dirs,
+        seed_urls=seed,
+    )
+    if not rows:
+        return 0
+
+    if dry_run:
+        print(f"{manifest_path}: Would backfill {len(rows)} pdf row(s) from _crawl_html")
+        return len(rows)
+
+    data["pdfs"] = rows
+    manifest_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    print(f"{manifest_path}: Backfilled {len(rows)} pdf row(s) from _crawl_html")
+    return len(rows)
 
 
 _LEGACY_HASH_NAME = re.compile(r"^filedownload_([a-f0-9]{14})\.pdf$", re.I)
@@ -148,11 +207,19 @@ def _cleanup_superseded_legacy_hash_pdfs(
     return n_done, n_unmapped, n_unmapped_done
 
 
-def _process_manifest(manifest_path: Path, *, dry_run: bool) -> int:
-    try:
-        data: Dict[str, Any] = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return 0
+def _process_manifest(
+    manifest_path: Path,
+    *,
+    dry_run: bool,
+    manifest_data: Optional[Dict[str, Any]] = None,
+) -> int:
+    if manifest_data is not None:
+        data = manifest_data
+    else:
+        try:
+            data = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return 0
 
     pdfs = data.get("pdfs")
     if not isinstance(pdfs, list) or not pdfs:
@@ -282,6 +349,23 @@ def main() -> None:
         help="Scrape root (default: SCRAPED_MEETINGS_ROOT or repo data/cache/scraped_meetings)",
     )
     ap.add_argument("--state", default="", help="Only manifests under this USPS state folder (e.g. AL)")
+    ap.add_argument(
+        "--jurisdiction-id",
+        default="",
+        help="Only this jurisdiction folder (e.g. municipality_0177256); use with --state for faster lookup",
+    )
+    ap.add_argument(
+        "--calendar-year",
+        action="append",
+        default=[],
+        metavar="YYYY",
+        help="Limit disk scan / backfill to these calendar-year subfolders (repeatable)",
+    )
+    ap.add_argument(
+        "--backfill-manifest-from-crawl-html",
+        action="store_true",
+        help="When pdfs[] is empty, rebuild rows from _crawl_html SuiteOne tables + URL hash filenames",
+    )
     ap.add_argument("--dry-run", action="store_true", help="Print planned renames without touching disk")
     ap.add_argument(
         "--no-cleanup-legacy-hash-pdfs",
@@ -301,13 +385,43 @@ def main() -> None:
         else resolve_scraped_meetings_output_root().resolve()
     )
     st = args.state.strip().upper() if args.state.strip() else None
-    manifests = _iter_manifests(root, st)
+    jid = args.jurisdiction_id.strip() or None
+    year_dirs = [y.strip() for y in args.calendar_year if y.strip()] or None
+    manifests = _iter_manifests(root, st, jurisdiction_id=jid)
     total = 0
     cleaned = 0
     unmapped = 0
     unmapped_deleted = 0
     for mf in manifests:
-        total += _process_manifest(mf, dry_run=args.dry_run)
+        manifest_data: Optional[Dict[str, Any]] = None
+        if args.backfill_manifest_from_crawl_html:
+            if args.dry_run:
+                try:
+                    manifest_data = json.loads(mf.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    manifest_data = None
+                if manifest_data is not None and not (manifest_data.get("pdfs") or []):
+                    base = mf.parent.resolve()
+                    seed = [
+                        str(u) for u in manifest_data.get("pages_fetched") or [] if isinstance(u, str)
+                    ]
+                    rows = build_pdf_rows_from_disk_and_crawl_html(
+                        base,
+                        calendar_year_dirs=year_dirs,
+                        seed_urls=seed,
+                    )
+                    if rows:
+                        print(f"{mf}: Would backfill {len(rows)} pdf row(s) from _crawl_html")
+                        manifest_data = {**manifest_data, "pdfs": rows}
+            else:
+                _backfill_manifest_pdfs_from_crawl_html(
+                    mf,
+                    calendar_year_dirs=year_dirs,
+                    dry_run=False,
+                )
+        total += _process_manifest(
+            mf, dry_run=args.dry_run, manifest_data=manifest_data
+        )
         if not args.no_cleanup_legacy_hash_pdfs:
             d, u, ud = _cleanup_superseded_legacy_hash_pdfs(
                 mf,

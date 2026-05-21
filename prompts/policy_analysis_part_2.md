@@ -1,55 +1,71 @@
 ## Objective
-Write a resident-facing summary from the provided JSON. Spend depth on **contested** items; batch **uncontested** items into one short bulleted section.
+Write a **Smart Brevity** resident-facing summary from the provided JSON. Spend depth on **contested** items; batch **uncontested** items into one short list.
 
-**Who this is for:** A busy resident on their phone who needs the fights and surprises first, with routine votes acknowledged in one skim.
+**Who this is for:** A busy resident on their phone. They should grasp **what happened and why it matters** in seconds — not a court transcript or a generic “the council voted” recap.
 
-## Rules (All Non-Negotiable)
+## Smart Brevity method (contested items)
+
+For each contested item, lead with **Why it matters** — one bullet that states the thesis (what happened / what’s at stake) and why residents should care. Do **not** use a separate “One Big Thing” line or label.
+
+**Do not use** these labels or frames: `Who won`, `The tension`, `The lede`, `The One Big Thing`, or “The council voted…” openings.
 
 ### Document structure
-- **Line 1 must be an H1:** `# {body or recording title} — {meeting_date}` (e.g. `# Tuscaloosa Pre-Council Briefing — 2026-05-19`). If JSON `meeting.body_name` disagrees with the canonical recording title in the user message, **use the recording title** in the H1.
-- **Then exactly two sections** (no other `##` headings):
-  1. `## Contested decisions` — full Smart Brevity blocks for **each** row in `decisions[]` (in order). If zero contested items, write one sentence under this heading (e.g. "There were no contested decisions at this meeting.") and do not invent items.
-  2. `## Uncontested actions` — **one** bulleted list covering **every** row in `uncontested_items[]` (in order). If the array is empty, **omit** this entire section.
-- **Do not** write a full Smart Brevity block per uncontested item — one bullet per `item_id` only.
-- Use consistent Markdown bullets: `-` for uncontested; `*` for contested sub-bullets (`* **Who won:**` …).
-- Plain conversational prose. No NTEE, COFOG, `decision_id`, `item_id`, or schema jargon.
-- **Contested blocks:** max **150–200 words** each (excluding diagrams). Punchy bullets.
-- **Uncontested bullets:** max **one line each** (~25 words). Format: `**[headline]** — [outcome] ([vote]). [one_line_summary]`
+- **Line 1 must be an H1:** `# {body or recording title} — {meeting_date}`. If JSON `meeting.body_name` disagrees with the canonical recording title in the user message, **use the recording title** in the H1.
+- **Then exactly three sections** (no other `##` headings):
+  1. `## At a glance` — meeting-level context (see template below). **Required on every report.**
+  2. `## Contested decisions` — one Smart Brevity block per `decisions[]` row (in order). If zero contested items, one short sentence only (e.g. “There were no contested decisions at this meeting.”).
+  3. `## Uncontested actions` — one `-` bullet per `uncontested_items[]` row (in order). If empty, omit this section entirely.
+- Plain conversational prose. No NTEE, COFOG, `decision_id`, `item_id`, or schema field names.
+- **Contested blocks:** max **180–220 words** each (excluding Mermaid). Tight, not thorough for its own sake.
+- **Uncontested bullets:** max **one line** (~25 words): `**[headline]** — [outcome] ([vote]). [one_line_summary]`
 
-### Mermaid (contested items only)
-- Include diagrams **only** when JSON has non-empty `diagram_timeline` and/or `diagram_mindmap` on that decision.
-- **Copy the JSON strings verbatim** into fenced blocks. They already use valid syntax.
-- **Timeline block** — heading `#### Timeline`, then:
-  ```mermaid
-  {paste diagram_timeline exactly}
-  ```
-- **Decision Map block** — heading `#### Decision Map`, then:
-  ```mermaid
-  {paste diagram_mindmap exactly}
-  ```
-- **Forbidden:** `graph TD`, `graph LR`, `flowchart`, or any diagram type other than `timeline` / `mindmap`.
-- If a diagram field is missing or empty, **omit** that subsection (do not substitute a flowchart).
+### Meeting header (`## At a glance`)
 
-## Contested decision block (`decisions[]` only)
+Write **before** contested decisions:
 
-### [Punchy, Action-Oriented Headline]
-[The Lede: one sharp sentence — conflict, stakes, or surprise. Do not start with "The council voted..."]
+```markdown
+## At a glance
 
-* **Who won:** [outcome + vote]
-* **Who was for it (and why):** [1–2 sentences]
-* **Who was against it (and why):** [1–2 sentences; omit if no opposition]
-* **The tension:** [personal stories or emotional beats from JSON; omit if none]
-* **What's next:** [1 sentence]
+**Attendees:** [Comma-separated names grouped by role — e.g. Commissioners: A, B, C; Staff: X, Y. Use `people[]` with `appeared_as` / `role`. Omit empty groups.]
+
+**Summary:** [1–2 sentences: what bodies met, major topics, and overall outcome. Prefer `meeting.meeting_summary` when present; otherwise synthesize from `decisions[]` + `uncontested_items[]` + `meeting.agenda_summary`.]
+```
+
+### Mermaid (contested only)
+- Include **only** when JSON has non-empty `diagram_timeline` / `diagram_mindmap`.
+- Paste those strings **verbatim** into fences (they start with `timeline` / `mindmap`). **Never** `graph TD`, `flowchart`, or bullet lines inside mindmap.
+- Omit a diagram subsection if that field is empty.
+
+---
+
+## Contested decision block template (`decisions[]` only)
+
+Use this **exact structure** for each contested item:
+
+### [Strong headline — informative summary, not clickbait]
+The headline alone must tell a reader **exactly what happened** (who did what, on what issue, with what result). No vague teases (“Council clash,” “Heated debate”). No question headlines.
+
+* **Why it matters:** [Combine `smart_brevity.one_big_thing` and `smart_brevity.why_it_matters` into **one** bullet — opening thesis sentence, then resident stakes. **Name the site** when `places[]` / `place_refs` apply. **Never** add a separate “The One Big Thing” line.]
+* **Where:** [One sentence: full street address, neighborhood or historic district if known, and what is being altered on the parcel. **Required** when JSON lists a `places[]` row or address for this item. **Omit** if no location applies.]
+* **The big picture:** [Broader context, trend, or “how we got here” — 1–2 sentences.]
+* **By the numbers:** [Vote count, dollars, dates, counts — one tight line; **omit this axiom** if JSON has no numbers for this item.]
+* **Who was for it (and why):** [1–2 sentences; names from JSON when available.]
+* **Who was against it (and why):** [1–2 sentences; **omit entire bullet** if no opposition spoke or voted no.]
+* **What's next:** [Deadlines, next vote, implementation — 1 sentence.]
+
+Weave in personal stories or emotional beats from `human_element` inside the axioms above (especially **Why it matters** or **The big picture**) — do **not** use a separate “tension” or “human moment” bullet.
 
 #### Timeline
 ```mermaid
-[diagram_timeline from JSON — must start with `timeline`]
+[diagram_timeline from JSON]
 ```
 
 #### Decision Map
 ```mermaid
-[diagram_mindmap from JSON — must start with `mindmap`]
+[diagram_mindmap from JSON]
 ```
+
+---
 
 ## Uncontested actions (`uncontested_items[]` only)
 
@@ -57,7 +73,17 @@ Write a resident-facing summary from the provided JSON. Spend depth on **contest
 ## Uncontested actions
 
 - **[headline]** — [outcome] ([vote]). [one_line_summary]
-- **[headline]** — …
 ```
 
-No sub-headings per item. No Mermaid. No "Who was for/against" bullets.
+No per-item sub-headings. No Mermaid. No axioms. No for/against bullets.
+
+---
+
+## Quality checks
+- Headline = complete mini-summary of the outcome.
+- **No** `The One Big Thing` label anywhere.
+- **Why it matters** appears once per contested item (bold label exactly as shown).
+- **At a glance** appears once with **Attendees** and **Summary**.
+- Axiom labels are **bold** and match the list above (spelling and capitalization).
+- Outcome and vote appear inside **Why it matters** or **By the numbers**, not under a “Who won” label.
+- When `place_refs` / `places[]` tie a decision to an address or site, use the **Where** axiom and repeat the address in **Why it matters** (plain language, not `place_id` slugs). Include applicant name from `people[]` when linked in JSON.

@@ -29,6 +29,10 @@ _BUILTIN: Dict[str, Tuple[str, ...]] = {
         "https://www.tuscco.com/county-officials/",
         "https://www.tuscco.com/commission-agenda-minutes/",
     ),
+    # City of Northport, AL — CivicPlus council directory (northportal.gov)
+    "municipality_0155200": (
+        "https://www.northportal.gov/220/City-Council",
+    ),
 }
 
 

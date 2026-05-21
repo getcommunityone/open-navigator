@@ -16,6 +16,10 @@ Usage:
     
     # Process specific states only
     python scripts/datasources/youtube/load_youtube_events_to_postgres.py --states AL,MA,WI
+
+    # One jurisdiction (Northport) — refresh 2026 live streams into bronze
+    python scripts/datasources/youtube/load_youtube_events_to_postgres.py \\
+        --jurisdiction-id municipality_0155200 --days 200 --max-videos 80 --skip-transcripts
     
     # Process only new videos (published in last N days)
     python scripts/datasources/youtube/load_youtube_events_to_postgres.py --days 30
@@ -63,6 +67,7 @@ from scrape_youtube_channels import MunicipalYouTubeScraper
 from scripts.datasources.youtube.channel_about_links import (
     ensure_bronze_events_channels_link_columns,
 )
+from scripts.gemini.transcript_cache_paths import resolve_meeting_event_date
 
 # Load environment variables
 load_dotenv()
@@ -500,8 +505,12 @@ class YouTubeEventsLoader:
         finally:
             cursor.close()
     
-    def get_jurisdictions_with_youtube(self, states_filter: Optional[List[str]] = None) -> List[Dict]:
-        """Get all jurisdictions that have YouTube channels from bronze.bronze_events_youtube."""
+    def get_jurisdictions_with_youtube(
+        self,
+        states_filter: Optional[List[str]] = None,
+        jurisdiction_id: Optional[str] = None,
+    ) -> List[Dict]:
+        """Get jurisdictions that have YouTube channels from bronze.bronze_events_youtube."""
         cursor = self.conn.cursor(cursor_factory=RealDictCursor)
         
         # Aggregate YouTube channels from existing bronze_events_youtube table
@@ -531,7 +540,10 @@ class YouTubeEventsLoader:
         if states_filter:
             query += " AND state_code = ANY(%s)"
             params.append(states_filter)
-        
+        if jurisdiction_id:
+            query += " AND jurisdiction_id = %s"
+            params.append(jurisdiction_id.strip())
+
         query += """
             GROUP BY jurisdiction_id, jurisdiction_name, state_code, state, jurisdiction_type
             HAVING COUNT(DISTINCT channel_id) > 0
@@ -573,7 +585,12 @@ class YouTubeEventsLoader:
         finally:
             cursor.close()
     
-    def extract_channel_ids(self, youtube_channels_json: Any) -> List[Dict[str, str]]:
+    def extract_channel_ids(
+        self,
+        youtube_channels_json: Any,
+        *,
+        trust_catalog: bool = False,
+    ) -> List[Dict[str, str]]:
         """Extract channel IDs and metadata from youtube_channels JSONB field.
         
         Filters to ONLY include government/official channels using:
@@ -641,6 +658,22 @@ class YouTubeEventsLoader:
                     is_flagged, flag_reason = self.is_channel_flagged(channel_id)
                     if is_flagged:
                         logger.debug(f"  Skipping flagged channel: {channel_title} - {flag_reason}")
+                        continue
+
+                    # Channels already linked in bronze.bronze_events_youtube (catalog refresh)
+                    if trust_catalog:
+                        channel_url = item.get('channel_url') or f"https://www.youtube.com/channel/{channel_id}"
+                        channels.append({
+                            'channel_id': channel_id,
+                            'channel_title': channel_title or channel_id,
+                            'channel_type': item.get('channel_type', 'municipal'),
+                            'channel_url': channel_url,
+                        })
+                        logger.debug(
+                            "  ✓ Including catalog channel: {} ({})",
+                            channel_title or channel_id,
+                            channel_id,
+                        )
                         continue
                     
                     # FIRST: Check exclusion patterns (hard block)
@@ -716,17 +749,26 @@ class YouTubeEventsLoader:
     ) -> Dict[str, Any]:
         """Convert YouTube video metadata to bronze_events_youtube record format."""
         
-        # Parse published date
+        # Parse published date; meeting date may come from title (e.g. 9/23/2024 council meeting)
         event_date = None
         event_time = None
         published_at = None
         if video.get('published_at'):
             try:
                 dt = pd.to_datetime(video['published_at'])
-                event_date = dt.date()
                 event_time = dt.time()
                 published_at = dt  # Keep full timestamp for bronze layer
-            except:
+            except Exception:
+                pass
+        title = video.get('title', 'Meeting Video')[:500]
+        resolved = resolve_meeting_event_date(
+            title,
+            published_at=published_at,
+        )
+        if resolved:
+            try:
+                event_date = pd.to_datetime(resolved).date()
+            except Exception:
                 pass
         
         # Extract city from jurisdiction name if it's a city
@@ -751,7 +793,7 @@ class YouTubeEventsLoader:
             'jurisdiction_id': jurisdiction_id,
             'channel_id': channel_id,
             'channel_url': channel_url,
-            'title': video.get('title', 'Meeting Video')[:500],  # Limit length
+            'title': title,
             'description': description,
             'event_date': event_date,
             'event_time': event_time,
@@ -861,130 +903,120 @@ class YouTubeEventsLoader:
                 if last_err:
                     raise last_err
                 return None
-                
-                # Try manual subtitles first, then auto-generated
-                subtitles = info.get('subtitles', {})
-                auto_captions = info.get('automatic_captions', {})
-                
-                transcript_data = None
+
+            # Try manual subtitles first, then auto-generated
+            subtitles = info.get('subtitles', {})
+            auto_captions = info.get('automatic_captions', {})
+
+            transcript_data = None
+            is_auto = False
+            language = 'en'
+
+            if 'en' in subtitles:
+                transcript_data = subtitles['en']
                 is_auto = False
-                language = 'en'
-                
-                if 'en' in subtitles:
-                    # Use manual English subtitles
-                    transcript_data = subtitles['en']
+            elif 'en' in auto_captions:
+                transcript_data = auto_captions['en']
+                is_auto = True
+            else:
+                if subtitles:
+                    lang = list(subtitles.keys())[0]
+                    transcript_data = subtitles[lang]
+                    language = lang
                     is_auto = False
-                elif 'en' in auto_captions:
-                    # Fall back to auto-generated English captions
-                    transcript_data = auto_captions['en']
+                elif auto_captions:
+                    lang = list(auto_captions.keys())[0]
+                    transcript_data = auto_captions[lang]
+                    language = lang
                     is_auto = True
-                else:
-                    # Try first available language
-                    if subtitles:
-                        lang = list(subtitles.keys())[0]
-                        transcript_data = subtitles[lang]
-                        language = lang
-                        is_auto = False
-                    elif auto_captions:
-                        lang = list(auto_captions.keys())[0]
-                        transcript_data = auto_captions[lang]
-                        language = lang
-                        is_auto = True
-                
-                if not transcript_data:
-                    return None
-                
-                # Download the subtitle file content
-                # yt-dlp returns a list of subtitle formats, prefer 'vtt' or 'srv3'
-                subtitle_url = None
-                for fmt in transcript_data:
-                    if fmt.get('ext') in ['vtt', 'srv3', 'json3']:
-                        subtitle_url = fmt.get('url')
-                        break
-                
-                if not subtitle_url and transcript_data:
-                    subtitle_url = transcript_data[0].get('url')
-                
-                if not subtitle_url:
-                    return None
-                
-                # Fetch subtitle content
-                import requests
-                import re
-                response = requests.get(subtitle_url, timeout=10)
-                response.raise_for_status()
-                
-                # Parse VTT/SRT format to extract text AND timing
-                raw_content = response.text
-                
-                # Parse VTT format with timestamps
-                segments = []
-                lines = raw_content.split('\n')
-                i = 0
-                
-                while i < len(lines):
-                    line = lines[i].strip()
-                    
-                    # Look for timestamp lines (format: 00:00:00.000 --> 00:00:02.500)
-                    if '-->' in line:
-                        timestamp_match = re.match(
-                            r'(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})',
-                            line
-                        )
-                        
-                        if timestamp_match:
-                            start_str = timestamp_match.group(1)
-                            end_str = timestamp_match.group(2)
-                            
-                            # Convert timestamp to seconds
-                            def timestamp_to_seconds(ts):
-                                h, m, s = ts.split(':')
-                                return int(h) * 3600 + int(m) * 60 + float(s)
-                            
-                            start = timestamp_to_seconds(start_str)
-                            end = timestamp_to_seconds(end_str)
-                            duration = end - start
-                            
-                            # Get the text lines (next non-empty lines until we hit another timestamp or end)
+
+            if not transcript_data:
+                return None
+
+            subtitle_url = None
+            for fmt in transcript_data:
+                if fmt.get('ext') in ['vtt', 'srv3', 'json3']:
+                    subtitle_url = fmt.get('url')
+                    break
+
+            if not subtitle_url and transcript_data:
+                subtitle_url = transcript_data[0].get('url')
+
+            if not subtitle_url:
+                return None
+
+            import re
+
+            import requests
+
+            response = requests.get(subtitle_url, timeout=10)
+            response.raise_for_status()
+
+            raw_content = response.text
+            segments = []
+            lines = raw_content.split('\n')
+            i = 0
+
+            while i < len(lines):
+                line = lines[i].strip()
+
+                if '-->' in line:
+                    timestamp_match = re.match(
+                        r'(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})',
+                        line,
+                    )
+
+                    if timestamp_match:
+                        start_str = timestamp_match.group(1)
+                        end_str = timestamp_match.group(2)
+
+                        def timestamp_to_seconds(ts: str) -> float:
+                            h, m, s = ts.split(':')
+                            return int(h) * 3600 + int(m) * 60 + float(s)
+
+                        start = timestamp_to_seconds(start_str)
+                        end = timestamp_to_seconds(end_str)
+                        duration = end - start
+
+                        i += 1
+                        text_lines = []
+                        while i < len(lines):
+                            text_line = lines[i].strip()
+                            if (
+                                not text_line
+                                or '-->' in text_line
+                                or text_line.startswith('WEBVTT')
+                            ):
+                                break
+                            if not text_line.isdigit():
+                                clean_text = re.sub(r'<[^>]+>', '', text_line)
+                                if clean_text:
+                                    text_lines.append(clean_text)
                             i += 1
-                            text_lines = []
-                            while i < len(lines):
-                                text_line = lines[i].strip()
-                                # Stop at empty line, next timestamp, or WEBVTT header
-                                if not text_line or '-->' in text_line or text_line.startswith('WEBVTT'):
-                                    break
-                                # Skip numeric IDs
-                                if not text_line.isdigit():
-                                    # Remove HTML tags
-                                    clean_text = re.sub(r'<[^>]+>', '', text_line)
-                                    if clean_text:
-                                        text_lines.append(clean_text)
-                                i += 1
-                            
-                            if text_lines:
-                                segments.append({
-                                    'text': ' '.join(text_lines),
-                                    'start': start,
-                                    'duration': duration
-                                })
-                    
-                    i += 1
-                
-                # Combine all text for raw_text field
-                raw_text = ' '.join([seg['text'] for seg in segments])
-                
-                if not raw_text:
-                    return None
-                
-                return {
-                    'video_id': video_id,
-                    'raw_text': raw_text,
-                    'segments': segments,
-                    'language': language,
-                    'is_auto_generated': is_auto,
-                    'transcript_source': 'yt-dlp'
-                }
-                
+
+                        if text_lines:
+                            segments.append({
+                                'text': ' '.join(text_lines),
+                                'start': start,
+                                'duration': duration,
+                            })
+
+                i += 1
+
+            raw_text = ' '.join([seg['text'] for seg in segments])
+
+            if not raw_text:
+                return None
+
+            return {
+                'video_id': video_id,
+                'raw_text': raw_text,
+                'segments': segments,
+                'language': language,
+                'is_auto_generated': is_auto,
+                'transcript_source': 'yt-dlp',
+            }
+
         except Exception as e:
             error_msg = str(e)
             if self._youtube_block_signal(error_msg):
@@ -1049,6 +1081,13 @@ class YouTubeEventsLoader:
             }
             
         except TranscriptsDisabled:
+            if self.use_ytdlp_fallback:
+                logger.debug(
+                    f"    Caption API reports disabled for {video_id} — trying yt-dlp"
+                )
+                result = self.fetch_transcript_ytdlp(video_id)
+                if result:
+                    return result
             logger.warning(f"    Captions disabled by uploader for {video_id}")
             return None
         except VideoUnavailable:
@@ -1130,6 +1169,16 @@ class YouTubeEventsLoader:
                 %(language)s, %(channel_type)s, %(datasource)s, %(datasource_id)s, %(last_updated)s
             )
             ON CONFLICT (video_id) DO UPDATE SET
+                jurisdiction_id = EXCLUDED.jurisdiction_id,
+                jurisdiction_name = EXCLUDED.jurisdiction_name,
+                jurisdiction_type = EXCLUDED.jurisdiction_type,
+                state_code = EXCLUDED.state_code,
+                state = EXCLUDED.state,
+                city = EXCLUDED.city,
+                channel_id = EXCLUDED.channel_id,
+                channel_url = EXCLUDED.channel_url,
+                title = EXCLUDED.title,
+                description = EXCLUDED.description,
                 event_date = COALESCE(EXCLUDED.event_date, y.event_date),
                 event_time = COALESCE(EXCLUDED.event_time, y.event_time),
                 published_at = COALESCE(EXCLUDED.published_at, y.published_at),
@@ -1158,8 +1207,11 @@ class YouTubeEventsLoader:
             
             # Fetch and insert transcripts if enabled
             if self.fetch_transcripts and event_ids:
+                jurisdiction_id = (events[0].get("jurisdiction_id") or "").strip() if events else ""
                 logger.info(f"  📝 Fetching transcripts for {len(event_ids)} videos (delay: {self.transcript_delay}s each)...")
-                transcripts_inserted = self.insert_transcripts(event_ids)
+                transcripts_inserted = self.insert_transcripts(
+                    event_ids, jurisdiction_id=jurisdiction_id or None
+                )
                 logger.info(f"  ✓ Inserted {transcripts_inserted} transcripts")
             elif not self.fetch_transcripts and event_ids:
                 logger.info(f"  ⏭️  Skipped fetching transcripts for {len(event_ids)} videos (use --skip-transcripts=false to enable)")
@@ -1173,9 +1225,32 @@ class YouTubeEventsLoader:
         finally:
             cursor.close()
     
-    def insert_transcripts(self, event_ids: Dict[str, int]) -> int:
+    def insert_transcripts(
+        self,
+        event_ids: Dict[str, int],
+        *,
+        jurisdiction_id: Optional[str] = None,
+    ) -> int:
         """Fetch and insert transcripts for events with exponential backoff on rate limits."""
         import time
+
+        if jurisdiction_id and len(event_ids) > 1:
+            from scripts.datasources.youtube.dedupe_meeting_videos import (
+                dedupe_video_id_map,
+                fetch_youtube_rows_for_dedupe,
+                log_duplicate_skips,
+            )
+
+            meta = fetch_youtube_rows_for_dedupe(
+                self.database_url,
+                jurisdiction_id,
+            )
+            event_ids, dedupe = dedupe_video_id_map(event_ids, meta)
+            title_by_id = {r["video_id"]: str(r.get("title") or "") for r in meta}
+            log_duplicate_skips(dedupe, title_by_id=title_by_id)
+            if not event_ids:
+                return 0
+
         cursor = self.conn.cursor()
         inserted = 0
         rate_limit_count = 0
@@ -1316,8 +1391,11 @@ class YouTubeEventsLoader:
         
         logger.info(f"Processing: {jurisdiction_name}, {state_code}")
         
-        # Extract channel IDs from JSONB
-        channels = self.extract_channel_ids(jurisdiction['youtube_channels'])
+        # Extract channel IDs from JSONB (trust bronze catalog — skip policy_score gate on refresh)
+        channels = self.extract_channel_ids(
+            jurisdiction['youtube_channels'],
+            trust_catalog=True,
+        )
         
         if not channels:
             logger.warning(f"  No valid channels found in youtube_channels field")
@@ -1414,7 +1492,11 @@ class YouTubeEventsLoader:
         
         return 0
     
-    def run(self, states_filter: Optional[List[str]] = None):
+    def run(
+        self,
+        states_filter: Optional[List[str]] = None,
+        jurisdiction_id: Optional[str] = None,
+    ):
         """Run the full loading process."""
         logger.info("=" * 80)
         logger.info("YOUTUBE EVENTS LOADER")
@@ -1434,12 +1516,16 @@ class YouTubeEventsLoader:
             logger.info(f"Only videos from last {self.days_lookback} days")
         if states_filter:
             logger.info(f"States filter: {', '.join(states_filter)}")
+        if jurisdiction_id:
+            logger.info(f"Jurisdiction filter: {jurisdiction_id}")
         logger.info("")
         
         start_time = datetime.now()
         
         # Get jurisdictions with YouTube channels
-        jurisdictions = self.get_jurisdictions_with_youtube(states_filter)
+        jurisdictions = self.get_jurisdictions_with_youtube(
+            states_filter, jurisdiction_id=jurisdiction_id
+        )
         
         if not jurisdictions:
             logger.warning("No jurisdictions found with YouTube channels")
@@ -1529,6 +1615,13 @@ def main():
         type=str,
         help='Comma-separated list of state codes to process (e.g., AL,MA,WI)'
     )
+
+    parser.add_argument(
+        '--jurisdiction-id',
+        type=str,
+        default='',
+        help='Process only this jurisdiction (e.g. municipality_0155200 for Northport, AL)',
+    )
     
     parser.add_argument(
         '--days',
@@ -1608,8 +1701,10 @@ def main():
         proxy_url=args.proxy
     )
     
+    jurisdiction_id = (args.jurisdiction_id or '').strip() or None
+
     try:
-        loader.run(states_filter=states_filter)
+        loader.run(states_filter=states_filter, jurisdiction_id=jurisdiction_id)
         return 0
     except Exception as e:
         logger.error(f"✗ Loading failed: {e}")

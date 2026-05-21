@@ -32,9 +32,23 @@ _root = Path(__file__).resolve().parents[3]
 if str(_root) not in sys.path:
     sys.path.insert(0, str(_root))
 
+from scripts.datasources.youtube.download_audio_to_drive import (  # noqa: E402
+    DEFAULT_YOUTUBE_COOKIES_FILE,
+)
 from scripts.datasources.youtube.load_youtube_events_to_postgres import (  # noqa: E402
     YouTubeEventsLoader,
 )
+
+
+def _resolve_cookies_path(explicit: str | None) -> str | None:
+    if explicit and Path(explicit).is_file():
+        return explicit
+    env = (os.getenv("YOUTUBE_COOKIES") or "").strip()
+    if env and Path(env).is_file():
+        return env
+    if DEFAULT_YOUTUBE_COOKIES_FILE.is_file():
+        return str(DEFAULT_YOUTUBE_COOKIES_FILE.resolve())
+    return None
 
 
 def main() -> None:
@@ -56,6 +70,22 @@ def main() -> None:
     parser.add_argument("--max-videos", type=int, default=100)
     parser.add_argument("--days", type=int, default=None, help="Only videos newer than N days")
     parser.add_argument("--skip-transcripts", action="store_true")
+    parser.add_argument(
+        "--transcript-delay",
+        type=float,
+        default=5.0,
+        help="Seconds between caption fetches (default 5; use 8+ if rate limited)",
+    )
+    parser.add_argument(
+        "--cookies",
+        default="",
+        help="Netscape cookies.txt (or set YOUTUBE_COOKIES / repo youtube_cookies.txt)",
+    )
+    parser.add_argument(
+        "--proxy",
+        default="",
+        help="Proxy for caption API (or set YOUTUBE_TRANSCRIPT_PROXY)",
+    )
     parser.add_argument("--force", action="store_true", help="Ignore incremental cursor")
     parser.add_argument(
         "--database-url",
@@ -76,6 +106,18 @@ def main() -> None:
         args.channel_url or f"https://www.youtube.com/channel/{channel_id}"
     ).strip()
 
+    cookies = _resolve_cookies_path((args.cookies or "").strip() or None)
+    proxy = (args.proxy or os.getenv("YOUTUBE_TRANSCRIPT_PROXY") or "").strip() or None
+    if cookies:
+        logger.info("Using cookies for transcript fetches: {}", cookies)
+    if proxy:
+        logger.info("Using proxy for transcript fetches: {}", proxy)
+    if not args.skip_transcripts and not cookies:
+        logger.warning(
+            "No cookies file — anonymous caption fetches often hit IP blocks in WSL. "
+            "Use --skip-transcripts or export youtube_cookies.txt (see BYPASS_IP_BLOCK.md)"
+        )
+
     loader = YouTubeEventsLoader(
         database_url=db_url,
         youtube_api_key=os.getenv("YOUTUBE_API_KEY"),
@@ -83,6 +125,9 @@ def main() -> None:
         days_lookback=args.days,
         fetch_transcripts=not args.skip_transcripts,
         force_full_fetch=args.force,
+        transcript_delay=args.transcript_delay,
+        cookies_file=cookies,
+        proxy_url=proxy,
     )
 
     jurisdiction = {

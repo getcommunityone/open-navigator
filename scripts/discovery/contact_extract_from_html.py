@@ -215,6 +215,20 @@ def extract_structured_contacts_from_html(
     existing_keys = {_structured_contact_row_key(r) for r in rows}
     emails_seen = {str(r.get("email") or "").lower() for r in rows if r.get("email")}
 
+    for cpr in extract_civicplus_staff_directory_hcard_contacts_from_html(
+        html, page_url, max_rows=max(0, max_rows - len(rows))
+    ):
+        k = _structured_contact_row_key(cpr)
+        if k in existing_keys:
+            continue
+        existing_keys.add(k)
+        em = str(cpr.get("email") or "").lower()
+        if em:
+            emails_seen.add(em)
+        rows.append(cpr)
+        if len(rows) >= max_rows:
+            break
+
     for er in extract_elementor_directory_contacts_from_html(
         html, page_url, max_rows=max(0, max_rows - len(rows))
     ):
@@ -293,7 +307,9 @@ def extract_structured_contacts_from_html(
             break
 
     rows.extend(
-        extract_directory_cards_contacts_from_html(html, page_url, max_rows=max(0, max_rows - len(rows)))
+        extract_directory_cards_contacts_from_html(
+            html, page_url, max_rows=max(0, max_rows - len(rows))
+        )
     )
 
     dept_keys: Set[Tuple[str, str, str]] = set()
@@ -753,6 +769,10 @@ def dedupe_structured_contact_rows(rows: List[Dict[str, Any]]) -> List[Dict[str,
             score += 1
         if str(r.get("extraction_method") or "").startswith("caboose_staff_block"):
             score += 1
+        if str(r.get("extraction_method") or "").startswith("civicplus_staff_directory"):
+            score += 3
+        if str(r.get("extraction_method") or "") == "mailto_anchor":
+            score -= 2
         return score
 
     for row in person_rows:
@@ -912,6 +932,139 @@ def _strip_fragment_for_url(url: str) -> str:
     if "#" in u:
         u = u.split("#", 1)[0]
     return u
+
+
+_DISTRICT_IN_TITLE_RE = re.compile(r"district\s*(\d+)\b", re.I)
+
+
+def _split_civicplus_job_title(job: str) -> Tuple[Optional[str], Optional[str]]:
+    """``Council Member - District 1`` → role + department label."""
+    raw = re.sub(r"\s+", " ", (job or "").strip())
+    if not raw:
+        return None, None
+    m = _DISTRICT_IN_TITLE_RE.search(raw)
+    if m:
+        dept = f"District {m.group(1)}"
+        role = _DISTRICT_IN_TITLE_RE.sub("", raw).strip(" -/|")
+        role = re.sub(r"\s+", " ", role).strip() or None
+        return role[:500] if role else None, dept
+    return raw[:500], None
+
+
+def extract_civicplus_staff_directory_hcard_contacts_from_html(
+    html: str,
+    page_url: str,
+    *,
+    max_rows: int = 120,
+) -> List[Dict[str, Any]]:
+    """
+    CivicPlus ``widgetStaffDirectory`` cards (microformats ``h-card`` on Northport and similar).
+
+    Parses ``p-name``, ``p-job-title``, ``u-email``, ``p-tel``, and ``p-link`` detail URLs.
+    """
+    from bs4 import BeautifulSoup
+
+    out: List[Dict[str, Any]] = []
+    if not html or max_rows <= 0:
+        return out
+    soup = BeautifulSoup(html, "html.parser")
+    seen_emails: Set[str] = set()
+    seen_no_email: Set[Tuple[str, str]] = set()
+
+    for card in soup.select("li.widgetItem.h-card, li.h-card"):
+        if len(out) >= max_rows:
+            break
+        name_el = card.select_one("h4.widgetTitle.p-name, h4.p-name, .p-name")
+        name = re.sub(r"\s+", " ", (name_el.get_text(" ", strip=True) if name_el else "")).strip()
+        if not name:
+            img = card.select_one("img.u-photo, img[alt]")
+            name = (img.get("alt") or img.get("title") or "").strip() if img else ""
+        job_el = card.select_one(".p-job-title, .field.p-job-title")
+        job_raw = re.sub(r"\s+", " ", (job_el.get_text(" ", strip=True) if job_el else "")).strip()
+        title_or_role, department = _split_civicplus_job_title(job_raw)
+
+        email = None
+        for a in card.select('a[href^="mailto:"]'):
+            email = _clean_mailto((a.get("href") or "").replace("mailto:", "", 1))
+            if email:
+                break
+
+        phone = None
+        tel_a = card.select_one(".p-tel a[href^='tel:'], a[href^='tel:']")
+        if tel_a:
+            phone = _normalize_phone_display(
+                re.sub(r"^tel:", "", (tel_a.get("href") or ""), flags=re.I)
+            )
+
+        profile_url = None
+        plink = card.select_one(".p-link a[href], a[href*='directory.aspx']")
+        if plink and plink.get("href"):
+            profile_url = urljoin(page_url, str(plink.get("href")).strip())
+
+        profile_image_url = None
+        photo = card.select_one("img.u-photo, img.field")
+        if photo and photo.get("src"):
+            profile_image_url = urljoin(page_url, str(photo.get("src")).strip())
+
+        if not name and not email:
+            continue
+        if email:
+            if email in seen_emails:
+                continue
+            seen_emails.add(email)
+        else:
+            nk = (name.lower(), (profile_url or "").lower())
+            if nk in seen_no_email:
+                continue
+            seen_no_email.add(nk)
+
+        out.append(
+            {
+                "person_name": name[:512] or None,
+                "title_or_role": title_or_role,
+                "department": department,
+                "email": email[:512] if email else None,
+                "phone": phone,
+                "mailing_address": None,
+                "profile_url": profile_url,
+                "profile_image_url": profile_image_url,
+                "extraction_method": "civicplus_staff_directory_hcard",
+                "raw_row": {"page_url": page_url, "job_title": job_raw[:300]},
+            }
+        )
+
+    for row in out:
+        normalize_structured_contact_row(row)
+    return out
+
+
+def extract_civicplus_directory_detail_urls_from_html(
+    html: str,
+    page_url: str,
+    *,
+    max_urls: int = 40,
+) -> List[str]:
+    """``More Information`` links on CivicPlus staff directory index cards."""
+    from bs4 import BeautifulSoup
+
+    out: List[str] = []
+    seen: Set[str] = set()
+    soup = BeautifulSoup(html or "", "html.parser")
+    for a in soup.select("li.h-card .p-link a[href], li.widgetItem.h-card a[href*='directory']"):
+        href = (a.get("href") or "").strip()
+        if not href:
+            continue
+        label = a.get_text(" ", strip=True) or ""
+        if "directory.aspx" not in href.lower() and not _MORE_INFO_BUTTON_RE.search(label):
+            continue
+        abs_u = urljoin(page_url, href)
+        if abs_u in seen:
+            continue
+        seen.add(abs_u)
+        out.append(abs_u)
+        if len(out) >= max_urls:
+            break
+    return out
 
 
 def extract_caboose_directory_contacts_from_html(

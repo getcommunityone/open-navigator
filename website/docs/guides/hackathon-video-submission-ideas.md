@@ -1,6 +1,6 @@
 ---
 displayed_sidebar: developersSidebar
-description: Reference patterns and a checklist for strong “Google for Good”–style hackathon demo videos (CommunityOne / Open Navigator), including flagship pitch hooks (speed-trap revenue, potholes & street repair, Gapminder-style animated charts, automated interactive annual reports, TikTok-style issue summaries, circular seasonal data storytelling inspired by Searching for Birds, required CTA slide, 100k-meeting safety scrub, 100k-decision reasoning & bias audit, jurisdiction website accessibility), plus inspirational civic data talks and case studies.
+description: Reference patterns and a checklist for strong “Google for Good”–style hackathon demo videos (CommunityOne / Open Navigator), including flagship pitch hooks (speed-trap revenue, potholes & street repair, Gapminder-style animated charts, automated interactive annual reports, TikTok-style issue summaries, circular seasonal data storytelling inspired by Searching for Birds, integrated timeline / entity / map views (KronoGraph pattern), required CTA slide, 100k-meeting safety scrub, 100k-decision reasoning & bias audit, jurisdiction website accessibility), plus inspirational civic data talks and case studies.
 ---
 
 # Hackathon video submission ideas (reference library)
@@ -149,6 +149,107 @@ Pairs the same pipeline with **Infrastructure and Capital Projects** / **Transpo
 **Scrape → Gemma policy JSON (`decisions[]`, `arguments_*`, `narrative_analysis`) → optional second-pass reasoning scorer → entity join on `person_id` / contacts → aggregate bias & gap statistics** — same schema at pilot and warehouse scale.
 
 **Caveats for judges:** This is **research and accountability tooling**, not proof of individual bad faith. Report **systemic patterns** with transparent rubrics; keep humans in the loop for any public naming; distinguish **LLM extraction error** (theme audit flags) from **governance bias** (repeat champions, geographic skew in outcomes).
+
+---
+
+## Hackathon idea: Integrated timeline, entities, and maps ([KronoGraph](https://kronograph.cambridge-intelligence.com/))
+
+**Pitch hook:** *When did your council debate 711 Queen City Avenue—and who spoke, what changed, and where on the map does that decision actually land?*
+
+Today Open Navigator already extracts **decisions**, **people**, **places**, and **timestamped media anchors** from meetings. A hackathon “wow” is not another PDF summary—it is one **interactive** surface where **time**, **entities**, and **geography** stay linked while a resident investigates.
+
+### Why this lands
+
+- **Familiar investigative pattern:** Judges recognize “timeline + network + map” from crime, fraud, and OSINT demos—your twist is **public meetings** and **budget lines**, not private chat logs.
+- **Uses data you already ship:** `decisions[]`, `people[]`, `places[]`, `media_anchor.playback_url`, and Mermaid `diagram_timeline` / `diagram_mindmap` from `policy_analysis_part_1` + Smart Brevity reports in `03_reports/`.
+- **Clear upgrade story:** Static Mermaid in Markdown is the **MVP**; [KronoGraph](https://kronograph.cambridge-intelligence.com/) is the **scalable UI** when you need zoom, filter, and cross-highlight across hundreds of events.
+
+### Reference product — [KronoGraph](https://kronograph.cambridge-intelligence.com/)
+
+Cambridge Intelligence’s **[KronoGraph](https://kronograph.cambridge-intelligence.com/)** is a JavaScript timeline SDK for **interactive, scalable** views of evolving relationships between events ([introduction demo](https://kronograph.cambridge-intelligence.com/), [Playground](https://kronograph.cambridge-intelligence.com/), [docs](https://kronograph.cambridge-intelligence.com/), [examples](https://kronograph.cambridge-intelligence.com/)). Relevant showcase patterns for civic data:
+
+| KronoGraph showcase | Open Navigator mapping |
+| --- | --- |
+| [**Who, Where, When?**](https://kronograph.cambridge-intelligence.com/) — data fusion investigations | Join `person_id` + `places[]` + `media_anchor.timestamp_start_seconds` on one decision |
+| [**Track movements over time**](https://kronograph.cambridge-intelligence.com/) — geospatial timelines | `places[].latitude` / `longitude` (Nominatim via `enrich_analysis_places.py`) + meeting `calendar_year` |
+| [**Tell the story of a network**](https://kronograph.cambridge-intelligence.com/) | `arguments_for` / `arguments_against` → `person_id` / `org_id`; `narrative_champions` |
+| [**See alerts in context**](https://kronograph.cambridge-intelligence.com/) | Shield flags or theme-audit anomalies pinned on the same timeline as the vote |
+
+Request a trial from the site if you embed KronoGraph in a React/JS demo page; the **Playground** is enough for a hackathon storyboard without a full integration.
+
+### Three-pane “integrated” layout (hackathon storyboard)
+
+```text
+┌─────────────────────┬──────────────────────────────────────┐
+│  ENTITY LIST        │  KronoGraph TIMELINE (events)        │
+│  people[]           │  • agenda item opened              │
+│  orgs[]             │  • public comment (timestamp)      │
+│  places[]           │  • vote / COA approval (decision)    │
+│  (filter by theme)  │  scrubber ↔ YouTube playback_url   │
+├─────────────────────┴──────────────────────────────────────┤
+│  MAP (Leaflet / Google Maps / Mapbox)                     │
+│  pins from places[] · highlight active place_refs         │
+└──────────────────────────────────────────────────────────┘
+```
+
+**Event feed (export from JSON):**
+
+| Field | Source in Open Navigator |
+| --- | --- |
+| `event_id` | `decision_id` or `item_id` |
+| `start` / `end` | `media_anchor.timestamp_start_seconds` (video) or meeting date for PDF-only |
+| `label` | `headline` or `one_line_summary` |
+| `entity_ids` | `presenter_person_ids`, `place_refs`, `legislation_refs` |
+| `link` | `media_anchor.playback_url` |
+
+**Entity graph (parallel to timeline):** Use `subject_id`, `primary_place_id`, and `power_map` / champion fields from Part 1 JSON—the same slugs you already join to `structured_contacts` and `_contact_images`.
+
+### What you have today vs. hackathon stretch
+
+| Layer | Today (repo) | Hackathon stretch |
+| --- | --- | --- |
+| **Timeline** | Mermaid `diagram_timeline` in `03_reports/`; `diagram_timeline_lines` in `02_analysis/` | CSV/JSON event list → KronoGraph or [Observable Plot](https://observablehq.com/plot/) |
+| **Entities** | `people[]`, `organizations[]`, `subjects[]`, stable `person_id` | Click person → filter timeline + map |
+| **Maps** | `places[]` + optional geocode (`scripts/gemini/enrich_analysis_places.py`) | Pin **711 Queen City Avenue** when user selects COA patio decision |
+| **Playback** | `media_anchor` on uncontested + contested rows | Click event → seek YouTube at `t=` seconds |
+
+**Pilot meeting for the video:** Tuscaloosa Historic Preservation Commission (May 13, 2026)—multiple **street-address** COAs (`711 Queen City Avenue`, `1100 Queen City Avenue`, …) after `infer-missing` + `--geocode` on analysis JSON.
+
+### Hackathon MVP (one weekend)
+
+1. **Export** one `02_analysis/*.json` to `events.jsonl` (10–30 rows: decisions + key uncontested items with anchors).
+2. **Prototype timeline** — either embed [KronoGraph](https://kronograph.cambridge-intelligence.com/) in a small React page **or** animate the existing Mermaid lifecycle in the report while narrating the KronoGraph-shaped UX.
+3. **Map panel** — plot `places[]` with lat/lon; selecting a timeline event highlights `place_refs`.
+4. **Entity sidebar** — list `people[]` for that meeting; selecting “Julia Cherry” filters events where `presenter_person_ids` or argument slugs match.
+
+**Demo path (no new models):**
+
+```bash
+# Places + geocode on existing Part 1 JSON
+.venv/bin/python scripts/gemini/enrich_analysis_places.py \
+  "data/cache/gemini_transcript_policy/municipality_0177256/02_analysis/2026-05-14_Tuscaloosa Historic Preservation Commission Meeting - May 13, 2026.json" \
+  --jurisdiction-id municipality_0177256 --infer-missing --geocode
+
+# Optional: regenerate report with Where / place context
+.venv/bin/python scripts/gemini/meeting_transcript_policy.py \
+  --part-2-only --jurisdiction-id municipality_0177256 --video-id _N25jQdQ4jQ
+```
+
+Then screen-record: click **711 Queen City Avenue** on the map → timeline zooms to patio COA → open `playback_url` at the cited second.
+
+### How to say it on camera (15s + reveal)
+
+- **Problem (15s):** “Minutes give you paragraphs—not **when** each address was debated, **who** spoke, and **where** it is on the block.”
+- **Reveal (45s):** Drag the timeline scrubber; watch the map pin and the entity list update; jump to the **YouTube** moment for that vote.
+- **Scale (10s):** “Same JSON schema for **one** HPC night or **100k** decisions—KronoGraph-class UI when static diagrams aren’t enough.”
+
+### Complements other tracks in this doc
+
+- [**Gapminder-style reveal**](#gapminder-style-reveal-use-this-chart-pattern) — peer **motion** across jurisdictions; KronoGraph — **depth** on one jurisdiction’s night.
+- [**100k decisions — reasoning & bias**](#killer-idea-100k-decisions--reasoning-scores-vs-llm-narrative-and-systemic-bias-in-who-wins) — entity graph + timeline makes **champion recurrence** visible.
+- [**TikTok-style summaries**](#hackathon-idea-tiktok-style-meeting-summaries-issue-first-everyday-user) — export one timeline event as the script’s **hook timestamp**.
+
+**Caveats:** KronoGraph is a **commercial SDK** (trial/license for production); cite [kronograph.cambridge-intelligence.com](https://kronograph.cambridge-intelligence.com/) and show Mermaid/report output as the open fallback. Geocodes are approximate (Nominatim); say “parcel-level” only when you have verified GIS, not LLM-extracted addresses alone.
 
 ---
 
@@ -792,6 +893,7 @@ Short talks, product stories, and case studies that show how **data + maps + hum
 | **CTA slide (required)** | Final **3–5s** full-screen slide: one headline + one link/QR—see [Call to action slide](#call-to-action-slide-required-closing-beat). |
 | **Gapminder reveal** | One **animated scatter** (play button)—jurisdictions or years in motion—not a static screenshot. |
 | **Interactive annual report** | **Scroll** one auto-generated chapter; KPI → **source timestamp**; mention “refreshes when we re-run the pipeline.” |
+| **Timeline + entities + map** | One scrub: timeline event → **map pin** (`places[]`) → **person** filter; cite [KronoGraph](https://kronograph.cambridge-intelligence.com/) or show Mermaid + map side-by-side. |
 
 ## Applying this to Open Navigator / CommunityOne
 
@@ -801,6 +903,7 @@ Short talks, product stories, and case studies that show how **data + maps + hum
 - **Killer scale story:** Pilot on county_01125 → slide to **100k meetings** safety scrub (Shield + Gemma) as the national vision.
 - **Research scale story:** Same `decisions[]` JSON → score **arguments** vs. **LLM dominant narrative** → join **decision-maker / proponent** profiles → report **systemic** skew (themes, ZIPs, repeat champions)—not single-villain framing.
 - **Short-form branch:** Same JSON → one **issue-focused 45s script** (speed trap / fine % or **potholes / street $** hook) + optional clip at `media_citation.playback_url`.
+- **Integrated investigation UI:** Export `decisions[]` + `places[]` + `media_anchor` to a timeline ([KronoGraph](https://kronograph.cambridge-intelligence.com/) or map + playback)—pilot on Tuscaloosa HPC **711 Queen City Avenue** COA; see [Integrated timeline, entities, and maps](#hackathon-idea-integrated-timeline-entities-and-maps-kronographcambridge-intelligencecom).
 - **Combine tracks (advanced):** Fines % + accessibility score + safety `_summary.json` for the same `jurisdiction_id`.
 - **Other goals still work:** Officials lookup, nonprofit + government spend context, meeting drift—but keep **one** primary hook per video.
 - **Source credibility:** Flash **audit year**, **fund name**, and **Governing / state comptroller** on screen for a second—reinforces “real data,” not a mockup.

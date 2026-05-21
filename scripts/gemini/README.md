@@ -82,7 +82,19 @@ Or the Tuscaloosa-specific helper (title filter `committee` / `meeting`):
 
 ### Uncontested items → who presented (re-run policy after prompt update)
 
-Part 1 now asks for `presenter_person_ids`, `motion`, and `media_anchor` on each `uncontested_items[]` row.
+Part 1 now asks for `presenter_person_ids`, `motion`, and `media_anchor` on each `uncontested_items[]` row, plus **`places[]`** (addresses/sites) cross-linked via `place_refs` on decisions and uncontested items. Part 1 also fills `meeting.meeting_summary` / `agenda_summary` for the report header. Part 2 opens with **`## At a glance`** (attendees + 1–2 line summary), then contested axioms (**Why it matters** merges the old “one big thing” + stakes — no separate One Big Thing line).
+
+**Geocode places after Part 1:**
+
+```bash
+.venv/bin/python scripts/gemini/meeting_transcript_policy.py \
+  --video-id zpaawfaNsQM --use-local-transcript --geocode-places
+
+# Or enrich an existing analysis JSON:
+.venv/bin/python scripts/gemini/enrich_analysis_places.py \
+  data/cache/gemini_transcript_policy/municipality_0177256/*8220621518*analysis.json \
+  --geocode
+```
 The pipeline injects `=== AGENDA SEGMENT HINTS ===` from caption cues (`Mike.`, `Agenda item …`).
 
 ```bash
@@ -151,7 +163,45 @@ If the folder is empty, run `download_tuscaloosa_city_meeting_audio.py --downloa
 
 Updates each caption-cache JSON in place (`YYYY-MM-DD_<title>.json`, same basename as Opus).
 
-Outputs: `data/cache/gemini_transcript_policy/<jurisdiction_id>/` (caption cache `*.json`; policy runs also emit `*_analysis.json`, `*_meta.json`).
+Outputs: `data/cache/gemini_transcript_policy/<jurisdiction_id>/` with step subfolders (see `README.md` in that folder):
+
+| Folder | Step |
+|--------|------|
+| `01_transcripts/` | YouTube captions (`YYYY-MM-DD_<title>.json`) |
+| `02_analysis/` | Part 1 JSON |
+| `03_reports/` | Part 2 Markdown |
+| `04_runs/` | `.meta.json`, `.diagrams.md` |
+
+### Mermaid validation (automated)
+
+Part 2 **sanitizes** diagram fences on save and **parses** them with the same Mermaid 11 used by the docs site. Failures log to the console and write a sidecar `03_reports/<report>.mermaid-errors.json` (message + line number).
+
+One-time: `cd website && npm install`
+
+```bash
+# All Tuscaloosa reports: repair sanitizer, then show syntax errors
+.venv/bin/python scripts/gemini/validate_mermaid_reports.py \
+  --jurisdiction-id municipality_0177256 --repair --write-sidecars
+
+# CI gate (exit 1 if any diagram fails)
+.venv/bin/python scripts/gemini/validate_mermaid_reports.py \
+  --jurisdiction-id municipality_0177256 --strict
+
+# Skip auto-check when generating reports
+.venv/bin/python scripts/gemini/meeting_transcript_policy.py \
+  --part-2-only --jurisdiction-id municipality_0177256 --no-validate-mermaid
+```
+
+Interactive debugging: paste a fence into [mermaid.live](https://mermaid.live).
+
+Mindmaps from Gemini are often a **flat list** (every node connects to the center). The sanitizer re-indents so labels like `Arguments For`, `Arguments Against`, `Stakeholders`, and `Proposal` become **parents** and the following lines nest underneath.
+
+One basename per meeting (matches Opus audio). Reorganize a flat folder:
+
+```bash
+.venv/bin/python scripts/gemini/migrate_policy_cache_layout.py \
+  --jurisdiction-id municipality_0177256
+```
 
 ### Expensive path (avoid for bulk)
 

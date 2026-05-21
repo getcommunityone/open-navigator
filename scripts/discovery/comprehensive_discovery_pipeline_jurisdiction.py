@@ -260,6 +260,7 @@ from scripts.discovery.contact_profile_images import (
     partition_nav_for_photo_priority,
 )
 from scripts.discovery.jurisdiction_contact_seed_urls import merged_contact_seed_urls
+from scripts.discovery.jurisdiction_meeting_seed_urls import merged_meeting_seed_urls
 from scripts.discovery.meeting_document_naming import (
     allocate_unique_pdf_path,
     infer_calendar_folder_year,
@@ -1763,6 +1764,8 @@ class MeetingsScrapeResult:
     structured_contact_rows: List[Dict[str, Any]] = field(default_factory=list)
     scrape_batch_id: str = ""
     contact_profile_images: List[Dict[str, Any]] = field(default_factory=list)
+    civicclerk_events: List[Dict[str, Any]] = field(default_factory=list)
+    civicclerk_tenant: str = ""
 
 
 _DEFAULT_UA = (
@@ -2374,6 +2377,8 @@ class ComprehensiveDiscoveryPipelineJurisdiction:
         skip_output_root_mkdir: bool = False,
         resume: bool = False,
         contact_seed_urls: Optional[List[str]] = None,
+        meeting_seed_urls: Optional[List[str]] = None,
+        civicclerk_tenant: Optional[str] = None,
         persist_contacts_db: bool = False,
     ) -> MeetingsScrapeResult:
         st = (state or "").strip().upper()
@@ -2632,18 +2637,22 @@ class ComprehensiveDiscoveryPipelineJurisdiction:
                 result.errors.append("no_usable_homepage_url")
 
             contact_seed_list = merged_contact_seed_urls(jid, contact_seed_urls)
+            meeting_seed_list = merged_meeting_seed_urls(jid, meeting_seed_urls)
             contact_seed_norm: Set[str] = set()
             front_seeds: List[str] = []
-            for su in contact_seed_list:
+            for su in list(meeting_seed_list) + list(contact_seed_list):
                 au = _expand_contact_seed_url((hp or initial_hp or "").strip(), su)
                 if au:
                     contact_seed_norm.add(_strip_fragment(au))
-                    front_seeds.append(au)
+                    if au not in front_seeds:
+                        front_seeds.append(au)
             if front_seeds:
                 _enqueue_many_front(front_seeds)
                 logger.info(
-                    "jurisdiction_contact_seed_urls jurisdiction={} n={}",
+                    "jurisdiction_seed_urls jurisdiction={} meeting={} contact={} total={}",
                     jid,
+                    len(meeting_seed_list),
+                    len(contact_seed_list),
                     len(front_seeds),
                 )
 
@@ -3120,6 +3129,69 @@ class ComprehensiveDiscoveryPipelineJurisdiction:
 
             await self._enrich_youtube_rows(client, result.youtube, homepage_url=hp)
 
+            from scripts.discovery.civicclerk_meetings_sync import sync_civicclerk_meetings_async
+            from scripts.discovery.civicclerk_public_api import detect_civicclerk_tenant
+
+            def _civicclerk_sync_on() -> bool:
+                v = (os.getenv("SCRAPED_MEETINGS_CIVICCLERK_SYNC") or "true").strip().lower()
+                return v not in ("0", "false", "no", "off")
+
+            tenant_cc = (civicclerk_tenant or os.getenv("SCRAPED_MEETINGS_CIVICCLERK_TENANT") or "").strip().lower()
+            if not tenant_cc:
+                cc_html = ""
+                snap_agendas = base_dir / "_crawl_html" / "page__129_Agendas-Minutes.html"
+                if snap_agendas.is_file():
+                    try:
+                        cc_html = snap_agendas.read_text(encoding="utf-8", errors="replace")
+                    except OSError:
+                        pass
+                tenant_cc = (
+                    detect_civicclerk_tenant(
+                        homepage_url=hp or initial_hp,
+                        html=cc_html,
+                        extra_urls=list(result.pages_fetched or []),
+                    )
+                    or ""
+                )
+            if tenant_cc and _civicclerk_sync_on():
+                remaining_pdfs = max(0, self.max_pdfs - pdf_count)
+                if remaining_pdfs > 0:
+                    logger.info(
+                        "civicclerk_sync_start jurisdiction={} tenant={} pdf_budget={}",
+                        jid,
+                        tenant_cc,
+                        remaining_pdfs,
+                    )
+                    ce_rows, cc_pdf_rows, cc_errors, pdf_count = await sync_civicclerk_meetings_async(
+                        output_root=self.output_root,
+                        state=st,
+                        jurisdiction_id=jid,
+                        tenant=tenant_cc,
+                        homepage_url=hp or initial_hp,
+                        max_pdfs=remaining_pdfs,
+                        existing_pdfs=result.pdfs_downloaded,
+                        pdf_count_start=pdf_count,
+                        timeout_s=self.timeout_s,
+                    )
+                    result.civicclerk_events = ce_rows
+                    result.civicclerk_tenant = tenant_cc
+                    for row in cc_pdf_rows:
+                        u = str(row.get("url") or "").strip()
+                        if u:
+                            pdfs_seen.add(_normalize_http_url_path_encoding(u))
+                        result.pdfs_downloaded.append(row)
+                    for err in cc_errors[:40]:
+                        result.errors.append(err)
+                    if "civicclerk" not in (result.detected_stacks or []):
+                        result.detected_stacks.append("civicclerk")
+                    logger.info(
+                        "civicclerk_sync_done jurisdiction={} events={} new_pdfs={} errors={}",
+                        jid,
+                        len(ce_rows),
+                        len(cc_pdf_rows),
+                        len(cc_errors),
+                    )
+
             if _meetings_download_suiteone_video_assets() and self.max_video_downloads > 0:
                 n_elig = sum(
                     1
@@ -3258,6 +3330,8 @@ class ComprehensiveDiscoveryPipelineJurisdiction:
                         "contact_directory_pages": result.contact_directory_pages,
                         "structured_contacts": result.structured_contact_rows,
                         "contact_profile_images": result.contact_profile_images,
+                        "civicclerk_events": result.civicclerk_events,
+                        "civicclerk_tenant": result.civicclerk_tenant or None,
                         "sitemaps": sitemap_summary,
                     },
                     indent=2,
@@ -3330,6 +3404,19 @@ def _job_contact_seed_urls(job: Dict[str, Any]) -> Optional[List[str]]:
     return None
 
 
+def _job_meeting_seed_urls(job: Dict[str, Any]) -> Optional[List[str]]:
+    raw = job.get("meeting_seed_urls")
+    if raw is None:
+        return None
+    if isinstance(raw, str):
+        out = [s.strip() for s in raw.split(",") if s.strip()]
+        return out or None
+    if isinstance(raw, list):
+        out = [str(s).strip() for s in raw if str(s).strip()]
+        return out or None
+    return None
+
+
 async def run_meetings_batch(
     pipe: ComprehensiveDiscoveryPipelineMeetings,
     jobs: List[Dict[str, Any]],
@@ -3366,6 +3453,8 @@ async def run_meetings_batch(
                     skip_output_root_mkdir=True,
                     resume=resume,
                     contact_seed_urls=_job_contact_seed_urls(job),
+                    meeting_seed_urls=_job_meeting_seed_urls(job),
+                    civicclerk_tenant=str(job.get("civicclerk_tenant") or ""),
                     persist_contacts_db=bool(job.get("persist_contacts_db")),
                 )
                 logger.info(
@@ -3503,6 +3592,19 @@ def main() -> None:
         ),
     )
     parser.add_argument(
+        "--meeting-seed-urls",
+        default="",
+        help=(
+            "Comma-separated meeting archive URLs (e.g. /129/Agendas-Minutes). "
+            "See jurisdiction_meeting_seed_urls for built-in pilot seeds."
+        ),
+    )
+    parser.add_argument(
+        "--civicclerk-tenant",
+        default="",
+        help="CivicClerk API tenant slug (northportal). Syncs events/PDFs via OData after crawl.",
+    )
+    parser.add_argument(
         "--persist-contacts-db",
         action="store_true",
         help="INSERT structured contact rows into bronze.bronze_contacts_scraped (requires DATABASE_URL / Neon).",
@@ -3586,9 +3688,15 @@ def main() -> None:
         raise SystemExit("No scrape jobs to run (empty list).")
 
     contact_seeds = [u.strip() for u in (args.contact_seed_urls or "").split(",") if u.strip()]
+    meeting_seeds = [u.strip() for u in (args.meeting_seed_urls or "").split(",") if u.strip()]
+    civicclerk_tenant_cli = (args.civicclerk_tenant or "").strip().lower()
     if len(jobs) == 1:
         if contact_seeds:
             jobs[0]["contact_seed_urls"] = contact_seeds
+        if meeting_seeds:
+            jobs[0]["meeting_seed_urls"] = meeting_seeds
+        if civicclerk_tenant_cli:
+            jobs[0]["civicclerk_tenant"] = civicclerk_tenant_cli
         jobs[0]["persist_contacts_db"] = bool(args.persist_contacts_db)
 
     logger.info(
@@ -3639,6 +3747,8 @@ def main() -> None:
                 homepage_url=j0["url"],
                 resume=args.resume,
                 contact_seed_urls=_job_contact_seed_urls(j0),
+                meeting_seed_urls=_job_meeting_seed_urls(j0),
+                civicclerk_tenant=str(j0.get("civicclerk_tenant") or civicclerk_tenant_cli or ""),
                 persist_contacts_db=bool(j0.get("persist_contacts_db")),
             )
         )

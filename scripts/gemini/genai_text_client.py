@@ -11,6 +11,8 @@ import time
 from dataclasses import dataclass
 from typing import Any, Callable, Optional, TypeVar
 
+from loguru import logger
+
 T = TypeVar("T")
 
 _RETRY_IN_RE = re.compile(r"retry in\s+([\d.]+)\s*s", re.IGNORECASE)
@@ -51,6 +53,52 @@ def is_genai_quota_exhausted(exc: BaseException) -> bool:
     return is_genai_retryable(exc)
 
 
+def _genai_http_code(exc: BaseException) -> Optional[int]:
+    for attr in ("code", "status_code", "status"):
+        val = getattr(exc, attr, None)
+        if val is None:
+            continue
+        if isinstance(val, int):
+            return val
+        s = str(val).strip()
+        if s.isdigit():
+            return int(s)
+    msg = str(exc)
+    for token in ("429", "502", "503"):
+        if token in msg:
+            return int(token)
+    return None
+
+
+def classify_genai_error(exc: BaseException) -> str:
+    """Short category for logs (quota vs overload vs gateway)."""
+    code = _genai_http_code(exc)
+    msg = str(exc).upper()
+    if code == 429 or "RESOURCE_EXHAUSTED" in msg or "QUOTA" in msg:
+        return "rate limit / quota (429)"
+    if code == 503 or "UNAVAILABLE" in msg or "OVERLOADED" in msg or "HIGH DEMAND" in msg:
+        return "service overloaded (503)"
+    if code == 502 or "BAD_GATEWAY" in msg:
+        return "upstream bad gateway (502)"
+    if code:
+        return f"HTTP {code}"
+    return "transient API error"
+
+
+def describe_genai_error(exc: BaseException, *, max_len: int = 220) -> str:
+    """One-line detail for operators (type, code, API message)."""
+    parts = [type(exc).__name__]
+    code = _genai_http_code(exc)
+    if code is not None:
+        parts.append(f"HTTP {code}")
+    msg = re.sub(r"\s+", " ", str(exc).strip())
+    if msg:
+        if len(msg) > max_len:
+            msg = msg[: max_len - 1] + "…"
+        parts.append(msg)
+    return " — ".join(parts)
+
+
 def genai_quota_retry_delay_seconds(exc: BaseException, attempt: int) -> float:
     msg = str(exc)
     m = _RETRY_IN_RE.search(msg)
@@ -71,13 +119,30 @@ def call_with_genai_quota_retry(fn: Callable[[], T], *, label: str = "Gemini") -
         try:
             return fn()
         except Exception as exc:
-            if not is_genai_retryable(exc) or attempt >= max_retries - 1:
-                raise
             last_exc = exc
+            if not is_genai_retryable(exc):
+                logger.error("{}: non-retryable API failure — {}", label, describe_genai_error(exc))
+                raise
+            if attempt >= max_retries - 1:
+                logger.error(
+                    "{}: gave up after {} attempt(s) — {}",
+                    label,
+                    max_retries,
+                    describe_genai_error(exc),
+                )
+                raise RuntimeError(
+                    f"{label}: failed after {max_retries} attempt(s) ({classify_genai_error(exc)}). "
+                    f"{describe_genai_error(exc)}"
+                ) from exc
             delay = genai_quota_retry_delay_seconds(exc, attempt) + buffer
-            print(
-                f"⚠️  {label}: transient API error — sleeping {delay:.0f}s "
-                f"then retry {attempt + 2}/{max_retries}…"
+            logger.warning(
+                "{}: {} — sleeping {:.0f}s, retry {}/{} ({})",
+                label,
+                classify_genai_error(exc),
+                delay,
+                attempt + 2,
+                max_retries,
+                describe_genai_error(exc, max_len=160),
             )
             time.sleep(delay)
     if last_exc is not None:

@@ -13,6 +13,11 @@ _REPO = Path(__file__).resolve().parents[2]
 if str(_REPO) not in sys.path:
     sys.path.insert(0, str(_REPO))
 
+from scripts.gemini.transcript_cache_paths import (  # noqa: E402
+    iter_analysis_files,
+    resolve_analysis_path,
+)
+
 DEFAULT_CACHE = _REPO / "data" / "cache" / "gemini_transcript_policy"
 
 
@@ -23,7 +28,7 @@ def resolve_analysis_paths(
     jurisdiction_id: str = "",
     cache_dir: Path = DEFAULT_CACHE,
 ) -> List[Path]:
-    """Resolve explicit paths, or newest ``*video_id*analysis.json`` under cache."""
+    """Resolve explicit paths, or newest analysis JSON under cache."""
     resolved: List[Path] = []
     for p in paths:
         if p.is_file():
@@ -34,11 +39,10 @@ def resolve_analysis_paths(
         return resolved
     jid = (jurisdiction_id or "municipality_0177256").strip()
     vid = (video_id or "").strip()
-    folder = cache_dir / jid
-    if not folder.is_dir():
-        return []
-    pattern = f"*{vid}*analysis.json" if vid else "*analysis.json"
-    return sorted(folder.glob(pattern), key=lambda p: p.stat().st_mtime, reverse=True)
+    if vid:
+        one = resolve_analysis_path(cache_dir, jid, video_id=vid)
+        return [one] if one else []
+    return iter_analysis_files(cache_dir, jid)
 
 
 def print_report(path: Path, *, show_people: bool) -> None:

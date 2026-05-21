@@ -36,6 +36,31 @@ Apply only to **`decisions[]`** (contested items). Do **not** add `human_element
 - Organization slug rule: `org_shortname_jurisdiction`
 - Legislation slug rule: `leg_type_number_year_jurisdiction`
 - Subject slug rule: `subject_descriptive_name_jurisdiction`
+- **Place slug rule:** `place_{normalized_location}_{jurisdiction}` — lowercase, underscores, no punctuation. Same street address → same `place_id` across items.
+
+## Places & addresses (CRITICAL)
+
+Extract **every distinct real-world location** mentioned in the transcript: street addresses, intersections, subdivisions, facilities, bridges, campuses, and named neighborhoods **when tied to an agenda item**.
+
+1. Build canonical rows in top-level **`places[]`** (dedupe by address/site).
+2. Cross-link each **`decisions[]`** and **`uncontested_items[]`** row with **`place_refs`** (array of `place_id`).
+3. Set **`primary_place_id`** on the row when one site is clearly primary.
+4. Set **`subjects[].primary_place_id`** when the subject is a parcel, property, or facility.
+
+**Per `places[]` row:**
+- **`raw_text`**: verbatim cue from transcript (e.g. "3620 23rd Street", "Southern Gardens", "Ed Love water treatment plant").
+- **`normalized_address`**: best-effort single line for geocoding (e.g. `3620 23rd St, Tuscaloosa, AL`). Use meeting city/state when spoken but omitted.
+- **`place_type`**: one of `street_address`, `intersection`, `subdivision`, `facility`, `bridge`, `campus`, `neighborhood`, `corridor`, `jurisdiction_wide`, `other`.
+- **`street_address`**, **`city`**, **`state`**: parsed components when known; `state` as 2-letter USPS if US.
+- **`geocode_query`**: same as `normalized_address` unless a facility needs a name qualifier (e.g. `Ed Love Water Treatment Plant, Tuscaloosa, AL`).
+- **`latitude`**, **`longitude`**: null in model output (filled by pipeline geocoder).
+- **`geocode_status`**: `pending` | `ok` | `not_found` | `skipped` — default `pending`.
+- **`linked_decision_ids`**, **`linked_item_ids`**: every `D00*` / `U00*` that references this place.
+- **`mention_count`**: approximate times discussed.
+
+**Do not** invent addresses. **Do** include approximate addresses ("3209 97th Street") and well-known local sites ("Woolsey Fenel bridge", "River Market") when the transcript supports them.
+
+**Priority for geocoding:** street number + street > named facility in city > subdivision name in city.
 
 ## NTEE & COFOG Classification
 Assign the most specific NTEE major group code determinable from context for organizations. For decisions, extract NTEE codes based on the primary cause area (e.g., E for Health Care, O for Youth Development). Prioritize substantive cause areas over W (Public Policy) unless it is strictly administrative. Set `primary_theme_cofog` based on the exact Theme labels.
@@ -57,10 +82,14 @@ For **each** `uncontested_items[]` row, link people and timestamps when the tran
 
 Keep `human_element` / diagrams **off** `uncontested_items[]` — only IDs, motion, and timestamps.
 
+**Meeting summary (`meeting` object):** Fill `meeting_summary` (1–2 sentences: what was on the agenda and what the body did overall) and `agenda_summary` (optional short phrase listing major topics, e.g. “rezoning, capital contracts, budget amendment”).
+
+**Smart Brevity capture (`decisions[]` only):** Fill `smart_brevity` on every contested row for Document 2. `one_big_thing` = thesis sentence (merged into Part 2 **Why it matters** — not a separate label). `why_it_matters` = resident stakes; `big_picture`, `by_the_numbers` (or null), `whats_next`, `for_it_summary`, `against_it_summary` (or null) in plain language — no “Who won” framing.
+
 **Diagram rules (`decisions[]` only):** Populate **`diagram_timeline`** and **`diagram_mindmap`** as single strings with **valid Mermaid** (renders in Mermaid Live Editor). Also set `diagram_timeline_lines` / `diagram_mindmap_lines` as optional plain-text helpers. **Never** on `uncontested_items[]`.
 
 * **`diagram_timeline`:** Must start with `timeline` on line 1, then `title …`, then `section …` groups, then events as `{time label} : {event}` (one colon per line). No `graph TD`. No clock times with colons in labels (`09:00` → use `09h00` or `2026-05-19`). Issue lifecycle (origins → this meeting → next steps), not a minute-by-minute log.
-* **`diagram_mindmap`:** Must start with `mindmap` on line 1, then `root((Topic))`, then 2-space indented branches. No `graph TD`.
+* **`diagram_mindmap`:** Must start with `mindmap` on line 1, then `root((Topic))`, then **indented** branches (2 spaces per level). **Section labels** (`Proposal`, `Problem`, `Solution`, `Funding`, `Timeline`, `Arguments For`, `Arguments Against`, `Stakeholders`, `Outcome`, etc.) are parents; put specific points **indented under** them (4 spaces under root, 6 spaces under a section). A flat list of siblings is wrong. No `graph TD`.
 * Example timeline:
   ```
   timeline
@@ -75,11 +104,20 @@ Keep `human_element` / diagrams **off** `uncontested_items[]` — only IDs, moti
 * Example mindmap:
   ```
   mindmap
-    root((3620 23rd Street))
-      Repairs
-        Exterior work ongoing
-      Council
-        90-day extension
+    root((2842 18th Street rezoning))
+      Proposal
+        Duplex construction
+        MR1 to SFR5
+      Arguments For
+        Affordable housing
+        Redevelopment
+      Arguments Against
+        Front yard parking concerns
+      Stakeholders
+        Applicant
+        Neighbors
+      Outcome
+        Recommended approval 7-0
   ```
 
 ## JSON Schema
@@ -93,7 +131,9 @@ Keep `human_element` / diagrams **off** `uncontested_items[]` — only IDs, moti
       "is_multi_session": "boolean",
       "session_number": "integer or null",
       "total_sessions": "integer or null"
-    }
+    },
+    "meeting_summary": "string — 1-2 sentences for Part 2 At a glance (overall meeting outcome)",
+    "agenda_summary": "string — optional short list of major agenda topics (~25 words max)"
   },
   "people": [
     {
@@ -130,12 +170,31 @@ Keep `human_element` / diagrams **off** `uncontested_items[]` — only IDs, moti
       "funding_source": "string or null"
     }
   ],
+  "places": [
+    {
+      "place_id": "string — place_{slug}_{jurisdiction}",
+      "raw_text": "string — verbatim transcript mention",
+      "normalized_address": "string — one-line geocode-friendly address",
+      "place_type": "street_address | intersection | subdivision | facility | bridge | campus | neighborhood | corridor | jurisdiction_wide | other",
+      "street_address": "string or null",
+      "city": "string or null",
+      "state": "string or null — 2-letter if US",
+      "geocode_query": "string",
+      "latitude": "number or null",
+      "longitude": "number or null",
+      "geocode_status": "pending | ok | not_found | skipped",
+      "linked_decision_ids": ["D001"],
+      "linked_item_ids": ["U002"],
+      "mention_count": "integer or null"
+    }
+  ],
   "subjects": [
     {
       "subject_id": "string — normalized slug",
       "subject_label": "string",
       "subject_description": "string",
-      "canonical_leg_id": "string or null"
+      "canonical_leg_id": "string or null",
+      "primary_place_id": "string or null — match places[] when subject is a site/parcel"
     }
   ],
   "uncontested_items": [
@@ -146,6 +205,8 @@ Keep `human_element` / diagrams **off** `uncontested_items[]` — only IDs, moti
       "vote": "string — e.g. 7-0, unanimous, voice vote",
       "one_line_summary": "string — one sentence, max ~25 words; what happened and why it matters briefly",
       "subject_id": "string or null — match subjects[] when applicable",
+      "primary_place_id": "string or null — main site for this vote",
+      "place_refs": ["string — place_id slugs; include all locations discussed for this item"],
       "legislation_refs": ["string — leg_id slugs, often empty"],
       "financial_item_refs": ["string — financial_item_id slugs, often empty"],
       "primary_theme": "string or null — short theme label only",
@@ -165,6 +226,8 @@ Keep `human_element` / diagrams **off** `uncontested_items[]` — only IDs, moti
     {
       "decision_id": "string — sequential e.g. D001 (contested items only)",
       "subject_id": "string — must match a subject_id",
+      "primary_place_id": "string or null — main site for this decision",
+      "place_refs": ["string — place_id slugs for every address/site tied to this decision"],
       "legislation_refs": ["string — must match a leg_id"],
       "financial_item_refs": ["string — must match a financial_item_id"],
       "headline": "string — Smart Brevity lead",
@@ -218,6 +281,15 @@ Keep `human_element` / diagrams **off** `uncontested_items[]` — only IDs, moti
             "causal_story": "string"
           }
         ]
+      },
+      "smart_brevity": {
+        "one_big_thing": "string — thesis sentence (Part 2 merges into **Why it matters**; no separate label)",
+        "why_it_matters": "string — immediate resident impact (paired with one_big_thing in Part 2)",
+        "big_picture": "string — context or trend",
+        "by_the_numbers": "string or null — vote, dollars, dates; null if none",
+        "whats_next": "string — next step or deadline",
+        "for_it_summary": "string — who supported and why (plain language)",
+        "against_it_summary": "string or null — who opposed and why; null if none"
       },
       "diagram_timeline": "string — valid Mermaid timeline (required on every decisions[] row)",
       "diagram_mindmap": "string — valid Mermaid mindmap (required on every decisions[] row)",

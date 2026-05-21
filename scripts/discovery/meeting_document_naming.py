@@ -367,9 +367,6 @@ def strip_redundant_meeting_date_from_title(raw_title: str, d: date) -> str:
     if not t:
         return ""
 
-    def _subs(pat: str, flags: int = 0) -> str:
-        return re.sub(pat, " ", t, flags=flags).strip()
-
     mo_long = (
         "January",
         "February",
@@ -385,23 +382,96 @@ def strip_redundant_meeting_date_from_title(raw_title: str, d: date) -> str:
         "December",
     )[d.month - 1]
     mo_short = mo_long[:3]
+    if d.month == 9:
+        mo_short_alt = "sept"
+    else:
+        mo_short_alt = mo_short
     y = d.year
     day = d.day
+    day2 = f"{day:02d}"
+
+    def _subs(pat: str, flags: int = 0) -> str:
+        nonlocal t
+        t = re.sub(pat, " ", t, flags=flags).strip()
+        return t
+
+    # SuiteOne listing cells: ``Jan 06, 2026 | 03:00 PM`` (zero-padded day is common).
+    month_words = "|".join(re.escape(x) for x in (mo_long, mo_short, mo_short_alt))
+    for dd in (str(day), day2):
+        _subs(
+            rf"\b(?:{month_words})\s+{dd}(?:st|nd|rd|th)?,?\s+{y}\s*\|\s*\d{{1,2}}:\d{{2}}\s*[AP]M\b",
+            flags=re.I,
+        )
+        _subs(rf"\b(?:{month_words})\s+{dd}(?:st|nd|rd|th)?,?\s+{y}\b", flags=re.I)
 
     patterns = [
         rf"{mo_long}\s+{day},?\s+{y}",
         rf"{mo_short}\s+{day},?\s+{y}",
+        rf"{mo_short_alt}\s+{day},?\s+{y}",
+        rf"{mo_long}\s+{day2},?\s+{y}",
+        rf"{mo_short}\s+{day2},?\s+{y}",
+        rf"{mo_short_alt}\s+{day2},?\s+{y}",
         rf"{mo_long}\s+{day}\s+{y}",
         rf"{mo_short}\s+{day}\s+{y}",
+        rf"{mo_long}\s+{day2}\s+{y}",
+        rf"{mo_short}\s+{day2}\s+{y}",
         rf"{y}-{d.month:02d}-{d.day:02d}",
         rf"{d.month:02d}/{d.day:02d}/{y}",
         rf"{d.month:02d}-{d.day:02d}-{y}",
     ]
     for pat in patterns:
-        t = _subs(pat, flags=re.I)
+        _subs(pat, flags=re.I)
+
+    # Trailing pipe time when the committee name already includes a clock time.
+    _subs(r"\s*\|\s*\d{1,2}:\d{2}\s*[AP]M\s*$", flags=re.I)
     t = re.sub(r"\s+", " ", t).strip()
     t = re.sub(r"\s*[—\-]\s*$", "", t).strip()
     return t
+
+
+def strip_redundant_date_slug_suffix(slug: str, d: date) -> str:
+    """
+    Drop a trailing ``_jan_06_2026`` (and optional ``_03_00_pm``) when the ISO date is already the prefix.
+    """
+    s = (slug or "").strip().strip("_")
+    if not s or not d:
+        return slug
+
+    mo_long = (
+        "january",
+        "february",
+        "march",
+        "april",
+        "may",
+        "june",
+        "july",
+        "august",
+        "september",
+        "october",
+        "november",
+        "december",
+    )[d.month - 1]
+    mo_short = mo_long[:3]
+    mo_alt = "sept" if d.month == 9 else mo_short
+    y = d.year
+    day = d.day
+    day2 = f"{day:02d}"
+    time_tail = r"(?:_\d{1,2}_\d{2}_(?:am|pm))?"
+
+    tails: List[str] = []
+    for mon in (mo_short, mo_alt, mo_long):
+        for dd in (str(day), day2):
+            tails.append(rf"_{mon}_{dd}_{y}")
+    tails.append(rf"_{d.month:02d}_{d.day:02d}_{y}")
+    tails.append(rf"_{d.month}_{day}_{y}")
+    tails.append(rf"_{d.month}_{day2}_{y}")
+
+    out = s
+    for pat in tails:
+        nxt = re.sub(pat + time_tail + r"$", "", out, flags=re.I)
+        if nxt != out:
+            out = nxt.rstrip("_")
+    return out or slug
 
 
 _STORE_EXTS_LONGEST_FIRST: Tuple[str, ...] = (
@@ -488,6 +558,8 @@ def build_meeting_pdf_disk_filename(
         raw_title = strip_redundant_meeting_date_from_title(raw_title, d)
         raw_title = raw_title or "meeting_document"
     slug = slugify_meeting_filename(raw_title)
+    if d:
+        slug = strip_redundant_date_slug_suffix(slug, d)
     if slug in _GENERIC_TITLE_SLUGS or len(slug) < 4:
         h = hashlib.sha256(url.encode("utf-8", errors="replace")).hexdigest()[:8]
         slug = f"{slug}_{h}"

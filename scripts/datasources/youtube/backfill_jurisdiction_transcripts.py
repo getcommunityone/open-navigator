@@ -6,6 +6,13 @@ Writes:
 - ``bronze.bronze_events_text_ai`` (canonical)
 - ``data/cache/gemini_transcript_policy/<jurisdiction_id>/YYYY-MM-DD_<title>.json`` (optional; matches Opus basename)
 
+Permanent caption failures (no subs / disabled / unavailable) may be **tombstoned** in bronze
+(``transcript_source`` = ``tombstone:<reason>``, ``has_transcript`` = false).
+
+Each run **clears tombstones** for the jurisdiction (use ``--no-clear-tombstones`` to keep them) and
+retries with **cookies** (``youtube_cookies.txt``) plus **yt-dlp** fallback after the caption API.
+IP blocks are **not** tombstoned (transient).
+
 Examples::
 
     # Tuscaloosa — all 400+ bronze videos, skip already on disk or in bronze
@@ -15,6 +22,10 @@ Examples::
     # Dry rundev
     python scripts/datasources/youtube/backfill_jurisdiction_transcripts.py \\
         --jurisdiction-id municipality_0177256 --dry-run
+
+    # Northport — retries tombstoned videos; cookies + yt-dlp fallback (default)
+    python scripts/datasources/youtube/backfill_jurisdiction_transcripts.py \\
+        --jurisdiction-id municipality_0155200 --cookies youtube_cookies.txt --delay 10
 
     # First 50 only, slower pacing
     python scripts/datasources/youtube/backfill_jurisdiction_transcripts.py \\
@@ -28,7 +39,9 @@ import json
 import os
 import sys
 import time
+from datetime import date, datetime
 from pathlib import Path
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
@@ -46,12 +59,16 @@ from scripts.datasources.youtube.load_youtube_events_to_postgres import (  # noq
 )
 from scripts.gemini.transcript_cache_paths import (  # noqa: E402
     legacy_transcript_cache_path,
+    resolve_meeting_event_date,
     resolve_transcript_cache_path,
     transcript_cache_path,
 )
 
 DEFAULT_LOCAL_CACHE = _REPO_ROOT / "data" / "cache" / "gemini_transcript_policy"
 TUSCALOOSA_JURISDICTION_ID = "municipality_0177256"
+
+# Bronze rows with transcript_source like tombstone:% are skipped on future backfills.
+TOMBSTONE_SOURCE_PREFIX = "tombstone:"
 
 
 def _database_url(explicit: Optional[str]) -> str:
@@ -63,12 +80,87 @@ def _database_url(explicit: Optional[str]) -> str:
     )
 
 
+_PENDING_ORDER_CLAUSES = {
+    # YouTube upload / stream time (matches channel "Latest")
+    "published_at": "COALESCE(sub.published_at, sub.event_date::timestamp) DESC NULLS LAST, sub.video_id",
+    # Meeting date from title (5/18/2026 in title) then upload time
+    "meeting_date": (
+        "COALESCE(sub.event_date::timestamp, sub.published_at, sub.last_updated) "
+        "DESC NULLS LAST, sub.video_id"
+    ),
+    "event_date": "sub.event_date DESC NULLS LAST, sub.video_id",
+    "last_updated": "sub.last_updated DESC NULLS LAST, sub.video_id",
+}
+
+
+def _sort_timestamp(value: Any) -> float:
+    if value is None:
+        return 0.0
+    if isinstance(value, datetime):
+        return value.timestamp()
+    if isinstance(value, date):
+        return datetime.combine(value, datetime.min.time()).timestamp()
+    raw = str(value).strip()
+    if not raw:
+        return 0.0
+    try:
+        return datetime.fromisoformat(raw.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        pass
+    for fmt in ("%Y-%m-%d", "%Y-%m-%d %H:%M:%S"):
+        try:
+            return datetime.strptime(raw[:19], fmt).timestamp()
+        except ValueError:
+            continue
+    return 0.0
+
+
+def sort_backfill_rows(rows: List[Dict[str, Any]], order_by: str) -> List[Dict[str, Any]]:
+    """Restore newest-first order after dedupe (dedupe clusters scramble SQL order)."""
+    key_name = (order_by or "published_at").strip().lower()
+
+    def sort_key(row: Dict[str, Any]) -> float:
+        if key_name == "meeting_date":
+            return _sort_timestamp(row.get("event_date") or row.get("published_at"))
+        if key_name == "last_updated":
+            return _sort_timestamp(row.get("last_updated"))
+        if key_name == "event_date":
+            return _sort_timestamp(row.get("event_date"))
+        return _sort_timestamp(row.get("published_at") or row.get("event_date"))
+
+    return sorted(rows, key=sort_key, reverse=True)
+
+
+def row_needs_backfill(
+    row: Dict[str, Any],
+    cache_dir: Path,
+    jurisdiction_id: str,
+    *,
+    skip_local_existing: bool,
+    include_bronze_existing: bool,
+) -> bool:
+    """True if this row still needs YouTube fetch and/or local cache sync."""
+    if not row.get("bronze_has_transcript"):
+        return True
+    if include_bronze_existing:
+        return True
+    if skip_local_existing and local_transcript_exists(cache_dir, jurisdiction_id, row):
+        return False
+    if row.get("bronze_has_transcript") and not local_transcript_exists(
+        cache_dir, jurisdiction_id, row
+    ):
+        return True
+    return False
+
+
 def fetch_pending_videos(
     database_url: str,
     jurisdiction_id: str,
     *,
     limit: Optional[int] = None,
     skip_bronze: bool = True,
+    order_by: str = "published_at",
+    video_id: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     import psycopg2
     from psycopg2.extras import RealDictCursor
@@ -81,6 +173,9 @@ def fetch_pending_videos(
             y.event_id,
             y.event_date::text AS event_date,
             y.jurisdiction_id,
+            y.duration_minutes,
+            y.published_at,
+            y.last_updated,
             t.has_transcript AS bronze_has_transcript
         FROM bronze.bronze_events_youtube y
         LEFT JOIN bronze.bronze_events_text_ai t ON t.video_id = y.video_id
@@ -89,14 +184,27 @@ def fetch_pending_videos(
           AND BTRIM(y.video_url) <> ''
     """
     params: list[Any] = [jurisdiction_id]
+    if video_id:
+        sql += " AND y.video_id = %s"
+        params.append(video_id.strip())
     if skip_bronze:
-        sql += " AND (t.has_transcript IS NOT TRUE OR t.has_transcript IS NULL)"
+        sql += """
+          AND (
+            t.video_id IS NULL
+            OR COALESCE(t.has_transcript, false) IS NOT TRUE
+          )
+        """
     sql += """
         ORDER BY y.video_url, y.last_updated DESC NULLS LAST
     """
+    order_key = (order_by or "published_at").strip().lower()
+    if order_key not in _PENDING_ORDER_CLAUSES:
+        raise ValueError(
+            f"order_by must be one of: {', '.join(_PENDING_ORDER_CLAUSES)}"
+        )
     sql = f"""
         SELECT * FROM ({sql}) sub
-        ORDER BY event_date DESC NULLS LAST, video_id
+        ORDER BY {_PENDING_ORDER_CLAUSES[order_key]}
     """
     if limit is not None:
         sql += " LIMIT %s"
@@ -106,13 +214,172 @@ def fetch_pending_videos(
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(sql, params)
-            return [dict(r) for r in cur.fetchall()]
+            return [apply_resolved_event_date(dict(r)) for r in cur.fetchall()]
     finally:
         conn.close()
 
 
+def fetch_video_row(
+    database_url: str,
+    jurisdiction_id: str,
+    video_id: str,
+) -> Optional[Dict[str, Any]]:
+    """Load one catalog row (ignores pending/tombstone filters)."""
+    import psycopg2
+    from psycopg2.extras import RealDictCursor
+
+    conn = psycopg2.connect(database_url)
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT
+                    y.video_id,
+                    y.video_url,
+                    y.title,
+                    y.event_id,
+                    y.event_date::text AS event_date,
+                    y.jurisdiction_id,
+                    y.duration_minutes,
+                    y.published_at,
+                    y.last_updated,
+                    t.has_transcript AS bronze_has_transcript,
+                    t.transcript_source AS bronze_transcript_source
+                FROM bronze.bronze_events_youtube y
+                LEFT JOIN bronze.bronze_events_text_ai t ON t.video_id = y.video_id
+                WHERE y.jurisdiction_id = %s AND y.video_id = %s
+                """,
+                (jurisdiction_id, video_id.strip()),
+            )
+            row = cur.fetchone()
+            if row:
+                return apply_resolved_event_date(dict(row))
+            return None
+    finally:
+        conn.close()
+
+
+def apply_resolved_event_date(row: Dict[str, Any]) -> Dict[str, Any]:
+    """Set ``event_date`` from title when the title contains a meeting date."""
+    resolved = resolve_meeting_event_date(
+        str(row.get("title") or ""),
+        event_date=row.get("event_date"),
+        published_at=row.get("published_at"),
+    )
+    if resolved:
+        row["event_date"] = resolved
+    return row
+
+
+def fix_bronze_event_dates_from_titles(
+    database_url: str,
+    jurisdiction_id: str,
+    *,
+    dry_run: bool = False,
+) -> int:
+    """UPDATE bronze ``event_date`` where title embeds a different calendar date."""
+    import psycopg2
+    from psycopg2.extras import RealDictCursor
+
+    conn = psycopg2.connect(database_url)
+    updated = 0
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT video_id, title, event_date::text AS event_date, published_at
+                FROM bronze.bronze_events_youtube
+                WHERE jurisdiction_id = %s AND title IS NOT NULL
+                """,
+                (jurisdiction_id,),
+            )
+            rows = cur.fetchall()
+        for row in rows:
+            resolved = resolve_meeting_event_date(
+                str(row["title"] or ""),
+                event_date=row.get("event_date"),
+                published_at=row.get("published_at"),
+            )
+            if not resolved or resolved == (row.get("event_date") or "")[:10]:
+                continue
+            updated += 1
+            logger.info(
+                "{}  {} -> {}  {}",
+                row["video_id"],
+                row.get("event_date") or "?",
+                resolved,
+                (row["title"] or "")[:60],
+            )
+            if dry_run:
+                continue
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE bronze.bronze_events_youtube
+                    SET event_date = %s::date, last_updated = NOW()
+                    WHERE video_id = %s
+                    """,
+                    (resolved, row["video_id"]),
+                )
+        if not dry_run:
+            conn.commit()
+    finally:
+        conn.close()
+    return updated
+
+
+def write_local_from_bronze(
+    database_url: str,
+    cache_dir: Path,
+    jurisdiction_id: str,
+    row: Dict[str, Any],
+) -> bool:
+    """Copy bronze transcript to local cache without calling YouTube."""
+    import json as _json
+    import psycopg2
+    from psycopg2.extras import RealDictCursor
+
+    video_id = str(row["video_id"])
+    conn = psycopg2.connect(database_url)
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT raw_text, segments, language, is_auto_generated, transcript_source
+                FROM bronze.bronze_events_text_ai
+                WHERE video_id = %s AND has_transcript IS TRUE
+                """,
+                (video_id,),
+            )
+            t = cur.fetchone()
+    finally:
+        conn.close()
+
+    if not t or not (t.get("raw_text") or "").strip():
+        return False
+
+    segments = t.get("segments")
+    if isinstance(segments, str):
+        segments = _json.loads(segments)
+
+    write_local_transcript(
+        local_transcript_path(cache_dir, jurisdiction_id, row),
+        row=row,
+        yt={
+            "video_id": video_id,
+            "raw_text": t["raw_text"],
+            "segments": segments or [],
+            "language": t.get("language"),
+            "is_auto_generated": t.get("is_auto_generated"),
+            "transcript_source": t.get("transcript_source") or "bronze",
+        },
+    )
+    return True
+
+
 def local_transcript_path(cache_dir: Path, jurisdiction_id: str, row: Dict[str, Any]) -> Path:
     """Audio-aligned basename: ``YYYY-MM-DD_<sanitized title>.json``."""
+    row = apply_resolved_event_date(dict(row))
     return transcript_cache_path(
         cache_dir,
         jurisdiction_id,
@@ -143,6 +410,7 @@ def write_local_transcript(
     yt: Dict[str, Any],
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    row = apply_resolved_event_date(dict(row))
     payload = {
         "video_id": row["video_id"],
         "video_url": row["video_url"],
@@ -155,6 +423,129 @@ def write_local_transcript(
         "transcript_source": yt.get("transcript_source"),
     }
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def clear_transcript_tombstones(
+    database_url: str,
+    jurisdiction_id: str,
+    *,
+    video_id: Optional[str] = None,
+    dry_run: bool = False,
+) -> int:
+    """Delete bronze rows marked ``tombstone:*`` so the next fetch retries YouTube captions."""
+    import psycopg2
+
+    sql = """
+        DELETE FROM bronze.bronze_events_text_ai t
+        USING bronze.bronze_events_youtube y
+        WHERE t.video_id = y.video_id
+          AND y.jurisdiction_id = %s
+          AND COALESCE(t.transcript_source, '') LIKE 'tombstone:%%'
+    """
+    params: list[Any] = [jurisdiction_id]
+    if video_id:
+        sql += " AND y.video_id = %s"
+        params.append(video_id.strip())
+
+    count_sql = """
+        SELECT COUNT(*)
+        FROM bronze.bronze_events_text_ai t
+        JOIN bronze.bronze_events_youtube y ON t.video_id = y.video_id
+        WHERE y.jurisdiction_id = %s
+          AND COALESCE(t.transcript_source, '') LIKE 'tombstone:%%'
+    """
+    if video_id:
+        count_sql += " AND y.video_id = %s"
+
+    conn = psycopg2.connect(database_url)
+    try:
+        with conn.cursor() as cur:
+            if dry_run:
+                cur.execute(count_sql, params)
+                return int(cur.fetchone()[0])
+            cur.execute(sql, params)
+            deleted = cur.rowcount
+        conn.commit()
+        return deleted
+    finally:
+        conn.close()
+
+
+def tombstone_source(reason: str) -> str:
+    return f"{TOMBSTONE_SOURCE_PREFIX}{reason}"
+
+
+def permanent_failure_reason(
+    exc: Optional[BaseException] = None,
+    *,
+    via_proxy: bool = False,
+) -> Optional[str]:
+    """
+    Return a tombstone reason for permanent caption absence, or None to allow retry.
+
+    Never tombstone rate limits / IP blocks (transient).
+    """
+    if via_proxy:
+        return None
+    if exc is not None:
+        if is_rate_limited(exc):
+            return None
+        name = type(exc).__name__.upper()
+        msg = str(exc).upper()
+        if "TRANSCRIPTSDISABLED" in name or (
+            "DISABLED" in msg and ("CAPTION" in msg or "TRANSCRIPT" in msg)
+        ):
+            return "captions_unavailable"
+        if "VIDEOUNAVAILABLE" in name or any(
+            k in msg for k in ("UNAVAILABLE", "PRIVATE", "DELETED", "REMOVED")
+        ):
+            return "video_unavailable"
+        if "NOTRANSCRIPT" in name or "NO TRANSCRIPT" in msg:
+            return "captions_unavailable"
+        return None
+    return "captions_unavailable"
+
+
+def write_transcript_tombstone(
+    loader: YouTubeEventsLoader,
+    *,
+    event_id: int,
+    video_id: str,
+    reason: str,
+) -> None:
+    """Record has_transcript=false so pending queries skip this video."""
+    source = tombstone_source(reason)
+    cur = loader.conn.cursor()
+    try:
+        cur.execute(
+            """
+            INSERT INTO bronze.bronze_events_text_ai (
+                event_id, video_id, raw_text, segments, language,
+                is_auto_generated, transcript_source, has_transcript, transcript_quality
+            ) VALUES (
+                %(event_id)s, %(video_id)s, NULL, NULL, NULL,
+                false, %(transcript_source)s, false, 'none'
+            )
+            ON CONFLICT (video_id) DO UPDATE SET
+                event_id = COALESCE(EXCLUDED.event_id, bronze.bronze_events_text_ai.event_id),
+                raw_text = NULL,
+                segments = NULL,
+                language = NULL,
+                is_auto_generated = false,
+                transcript_source = EXCLUDED.transcript_source,
+                has_transcript = false,
+                transcript_quality = 'none',
+                last_updated = CURRENT_TIMESTAMP
+            """,
+            {
+                "event_id": event_id,
+                "video_id": video_id,
+                "transcript_source": source,
+            },
+        )
+        loader.conn.commit()
+    finally:
+        cur.close()
 
 
 def is_rate_limited(exc: BaseException) -> bool:
@@ -174,13 +565,70 @@ def is_rate_limited(exc: BaseException) -> bool:
     )
 
 
-def probe_transcript_access(loader: YouTubeEventsLoader, video_id: str) -> bool:
-    """Return False when the first fetch looks IP-blocked (triggers backoff)."""
+@dataclass
+class TranscriptProbeResult:
+    ok: bool
+    video_id: str
+    reason: str  # ok | blocked | no_transcript | error
+    detail: str = ""
+
+
+def probe_transcript_access(loader: YouTubeEventsLoader, video_id: str) -> TranscriptProbeResult:
+    """Quick health check before a long backfill batch."""
     try:
-        loader.fetch_transcript(video_id)
-        return True
+        data = loader.fetch_transcript(video_id)
+        if data and (data.get("raw_text") or "").strip():
+            return TranscriptProbeResult(True, video_id, "ok")
+        return TranscriptProbeResult(
+            False,
+            video_id,
+            "no_transcript",
+            "Caption API and yt-dlp returned no text (may be disabled on this video, not always IP block)",
+        )
     except Exception as exc:
-        return not is_rate_limited(exc)
+        if is_rate_limited(exc):
+            return TranscriptProbeResult(
+                False,
+                video_id,
+                "blocked",
+                f"{type(exc).__name__}: {str(exc)[:240]}",
+            )
+        return TranscriptProbeResult(
+            False,
+            video_id,
+            "error",
+            f"{type(exc).__name__}: {str(exc)[:240]}",
+        )
+
+
+def format_transcript_block_help(
+    *,
+    cookies_path: Optional[str],
+    proxy_url: Optional[str],
+    probe: TranscriptProbeResult,
+) -> str:
+    """Actionable multi-line message for IP / request blocks."""
+    lines = [
+        f"YouTube blocked transcript access on probe video {probe.video_id}.",
+        f"  Reason: {probe.detail or probe.reason}",
+        "",
+        "What is configured:",
+        f"  cookies: {cookies_path or '(none — export youtube_cookies.txt while logged into YouTube)'}",
+        f"  proxy:   {proxy_url or '(none — direct egress; OK if WSL and Windows show the same VPN IP)'}",
+        "",
+        "This is usually YouTube blocking your current VPN/public IP (from earlier retries), not WSL routing.",
+        "",
+        "Fix (try in order):",
+        "  1. In Surfshark: switch country/server (new IP), then re-export youtube_cookies.txt from Chrome",
+        "  2. Wait 24–48h without caption fetches, then retry with --delay 15+ and --limit 5",
+        "  3. Confirm browser can open youtube.com/watch?v=ajsME66iXbY and show captions — if yes, cookies may be stale",
+        "  4. Do not use 9091/Tor for YouTube (connection reset); Surfshark has no local SOCKS port",
+        "  5. If WSL and Windows IPs differ: enable mirrored mode in C:\\Users\\<you>\\.wslconfig (see BYPASS_IP_BLOCK.md)",
+        "  6. See scripts/datasources/youtube/BYPASS_IP_BLOCK.md",
+        "",
+        "Flags: --skip-probe | --abort-on-probe-fail",
+    ]
+    return "\n".join(lines)
 
 
 def resolve_cookies_path(explicit: Optional[str]) -> Optional[str]:
@@ -200,35 +648,173 @@ def run(args: argparse.Namespace) -> int:
     jurisdiction_id = args.jurisdiction_id.strip()
     cache_dir = Path(args.local_cache_dir).resolve()
 
-    pending = fetch_pending_videos(
-        db_url,
-        jurisdiction_id,
-        limit=args.limit,
-        skip_bronze=not args.include_bronze_existing,
-    )
+    if getattr(args, "fix_event_dates_from_title", False):
+        count = fix_bronze_event_dates_from_titles(
+            db_url, jurisdiction_id, dry_run=args.dry_run
+        )
+        if args.dry_run:
+            logger.info(
+                "Dry run: {} video(s) would get event_date from title for {}",
+                count,
+                jurisdiction_id,
+            )
+        else:
+            logger.success(
+                "Updated event_date from title for {} video(s) in {}",
+                count,
+                jurisdiction_id,
+            )
+        return 0
 
-    if args.skip_local_existing:
-        filtered: List[Dict[str, Any]] = []
+    video_filter = (getattr(args, "video_id", None) or "").strip()
+
+    if not getattr(args, "no_clear_tombstones", False):
+        cleared = clear_transcript_tombstones(
+            db_url,
+            jurisdiction_id,
+            video_id=video_filter or None,
+            dry_run=args.dry_run,
+        )
+        if args.dry_run:
+            logger.info(
+                "Dry run: would clear {} tombstone row(s) for {}{}",
+                cleared,
+                jurisdiction_id,
+                f" video {video_filter}" if video_filter else "",
+            )
+        elif cleared:
+            logger.info(
+                "Cleared {} tombstone row(s) for {} — will retry caption fetch",
+                cleared,
+                jurisdiction_id,
+            )
+
+    if getattr(args, "bronze_to_local", False):
+        if not video_filter:
+            raise SystemExit("--bronze-to-local requires --video-id")
+        row = fetch_video_row(db_url, jurisdiction_id, video_filter)
+        if not row:
+            raise SystemExit(f"Video {video_filter} not in bronze for {jurisdiction_id}")
+        if write_local_from_bronze(db_url, cache_dir, jurisdiction_id, row):
+            path = local_transcript_path(cache_dir, jurisdiction_id, row)
+            logger.success("Wrote local transcript from bronze: {}", path)
+            return 0
+        raise SystemExit(
+            f"No bronze transcript for {video_filter} (has_transcript=false or empty)"
+        )
+
+    if video_filter:
+        row = fetch_video_row(db_url, jurisdiction_id, video_filter)
+        if not row:
+            raise SystemExit(f"Video {video_filter} not in bronze for {jurisdiction_id}")
+        src = str(row.get("bronze_transcript_source") or "")
+        if src.startswith(TOMBSTONE_SOURCE_PREFIX):
+            logger.info(
+                "Retrying {} after tombstone clear (was {})",
+                video_filter,
+                src,
+            )
+        if row.get("bronze_has_transcript") and not args.include_bronze_existing:
+            if args.skip_local_existing and local_transcript_exists(
+                cache_dir, jurisdiction_id, row
+            ):
+                logger.success(
+                    "{} already has bronze + local transcript — nothing to do",
+                    video_filter,
+                )
+                return 0
+            if write_local_from_bronze(db_url, cache_dir, jurisdiction_id, row):
+                logger.success(
+                    "Bronze transcript exists; wrote local cache (no YouTube fetch). "
+                    "Use --include-bronze-existing to re-download from YouTube.",
+                )
+                return 0
+            logger.info(
+                "{} has bronze.has_transcript=true — use --include-bronze-existing to re-fetch from YouTube",
+                video_filter,
+            )
+            return 0
+        pending = [row]
+    else:
+        newest_n = int(getattr(args, "newest", 0) or 0)
+        if newest_n > 0:
+            catalog = fetch_pending_videos(
+                db_url,
+                jurisdiction_id,
+                limit=newest_n,
+                skip_bronze=False,
+                order_by=args.order_by,
+            )
+            pending = [
+                r
+                for r in catalog
+                if row_needs_backfill(
+                    r,
+                    cache_dir,
+                    jurisdiction_id,
+                    skip_local_existing=args.skip_local_existing,
+                    include_bronze_existing=args.include_bronze_existing,
+                )
+            ]
+            logger.info(
+                "Newest mode: {} catalog row(s) → {} need fetch/sync",
+                len(catalog),
+                len(pending),
+            )
+        else:
+            pending = fetch_pending_videos(
+                db_url,
+                jurisdiction_id,
+                limit=args.limit,
+                skip_bronze=not args.include_bronze_existing,
+                order_by=args.order_by,
+            )
+            if args.skip_local_existing:
+                filtered: List[Dict[str, Any]] = []
+                for row in pending:
+                    if local_transcript_exists(cache_dir, jurisdiction_id, row):
+                        continue
+                    filtered.append(row)
+                skipped_local = len(pending) - len(filtered)
+                pending = filtered
+                if skipped_local:
+                    logger.info("Skipped {} already in local cache", skipped_local)
+
+    if pending and not video_filter and not getattr(args, "no_dedupe_duplicates", False):
+        from scripts.datasources.youtube.dedupe_meeting_videos import (
+            dedupe_meeting_rows,
+            log_duplicate_skips,
+        )
+
+        title_by_id = {r["video_id"]: str(r.get("title") or "") for r in pending}
+        row_by_id = {r["video_id"]: r for r in pending}
         for row in pending:
-            if local_transcript_exists(cache_dir, jurisdiction_id, row):
-                continue
-            filtered.append(row)
-        skipped_local = len(pending) - len(filtered)
-        pending = filtered
-        if skipped_local:
-            logger.info("Skipped {} already in local cache", skipped_local)
+            row["local_has_transcript"] = local_transcript_exists(
+                cache_dir, jurisdiction_id, row
+            )
+            row["has_transcript"] = (
+                row.get("bronze_has_transcript") is True
+                or row.get("local_has_transcript") is True
+            )
+        pending, dedupe = dedupe_meeting_rows(pending)
+        log_duplicate_skips(dedupe, title_by_id=title_by_id, row_by_id=row_by_id)
+
+    pending = sort_backfill_rows(pending, args.order_by)
 
     logger.info(
-        "Jurisdiction {} — {} video(s) to fetch",
+        "Jurisdiction {} — {} video(s) to fetch (order: {} desc)",
         jurisdiction_id,
         len(pending),
+        args.order_by,
     )
 
     if args.dry_run:
         for i, row in enumerate(pending, 1):
+            pub = row.get("published_at")
+            pub_s = pub.strftime("%Y-%m-%d") if hasattr(pub, "strftime") else str(pub or "?")[:10]
             print(
-                f"{i:4}. {row['video_id']}  {row.get('event_date') or '?'}  "
-                f"{(row.get('title') or '')[:70]}"
+                f"{i:4}. {row['video_id']}  pub={pub_s}  meeting={row.get('event_date') or '?'}  "
+                f"tx={row.get('bronze_has_transcript')}  {(row.get('title') or '')[:55]}"
             )
         return 0
 
@@ -240,8 +826,30 @@ def run(args: argparse.Namespace) -> int:
     proxy = (args.proxy or os.getenv("YOUTUBE_TRANSCRIPT_PROXY") or "").strip() or None
     if cookies:
         logger.info("Using cookies file: {}", cookies)
+    else:
+        logger.warning(
+            "No cookies file — export youtube_cookies.txt while logged into YouTube "
+            "(reduces IP blocks; same as a successful single-video run)"
+        )
+    if not args.no_ytdlp_fallback:
+        logger.info(
+            "Caption fetch: youtube_transcript_api, then yt-dlp if API fails or captions "
+            "look disabled"
+        )
     if proxy:
         logger.info("Using proxy for transcript fetches: {}", proxy)
+        from scripts.datasources.youtube.transcript_api_client import check_proxy_reachable
+
+        ok, msg = check_proxy_reachable(proxy)
+        if not ok:
+            logger.error(
+                "Proxy not reachable from this shell: {}. "
+                "Fix YOUTUBE_TRANSCRIPT_PROXY (VPN local port) or unset it and use cookies only. "
+                "On WSL, 127.0.0.1 is Linux — use the Windows host IP if the VPN runs on Windows.",
+                msg,
+            )
+            return 2
+        logger.info("Proxy check: {}", msg)
     else:
         logger.warning(
             "No YOUTUBE_TRANSCRIPT_PROXY — requests use raw egress (WSL may bypass host VPN)"
@@ -256,23 +864,37 @@ def run(args: argparse.Namespace) -> int:
         proxy_url=proxy,
     )
 
-    stats = {"ok": 0, "fail": 0, "rate_limit": 0, "empty": 0}
+    stats = {"ok": 0, "fail": 0, "rate_limit": 0, "empty": 0, "tombstoned": 0}
+    use_tombstones = args.write_bronze and not getattr(args, "no_tombstones", False)
     consecutive_rl = 0
     max_rl = args.max_consecutive_rate_limits
 
     probe_id = (args.probe_video_id or "").strip() or "ajsME66iXbY"
-    if args.skip_probe:
+    if args.skip_probe or video_filter:
         probe_id = ""
-    if probe_id and not probe_transcript_access(loader, probe_id):
-        wait = min(args.delay * (2**consecutive_rl), args.max_backoff)
-        logger.error(
-            "Probe video {} looks IP-blocked — sleeping {:.0f}s before batch "
-            "(fix VPN/proxy or set YOUTUBE_TRANSCRIPT_PROXY)",
-            probe_id,
-            wait,
-        )
-        time.sleep(wait)
-        consecutive_rl += 1
+    if probe_id:
+        logger.info("Probing transcript access for {} (may take 10–30s)…", probe_id)
+        probe = probe_transcript_access(loader, probe_id)
+        if not probe.ok and probe.reason == "blocked":
+            help_text = format_transcript_block_help(
+                cookies_path=cookies,
+                proxy_url=proxy,
+                probe=probe,
+            )
+            if getattr(args, "abort_on_probe_fail", False):
+                logger.error("{}\n", help_text)
+                return 2
+            wait = min(args.delay * (2**consecutive_rl), args.max_backoff)
+            logger.error("{}\n  Continuing anyway after {:.0f}s (use --abort-on-probe-fail to stop).", help_text, wait)
+            time.sleep(wait)
+            consecutive_rl += 1
+        elif not probe.ok:
+            logger.warning(
+                "Probe {}: {} — {}",
+                probe_id,
+                probe.reason,
+                probe.detail or "(no detail)",
+            )
 
     for i, row in enumerate(pending, 1):
         video_id = row["video_id"]
@@ -284,15 +906,52 @@ def run(args: argparse.Namespace) -> int:
             time.sleep(delay)
 
         logger.info("[{}/{}] {}", i, len(pending), video_id)
+        event_id = row.get("event_id")
+        via_socks = bool(proxy and "socks" in proxy.lower())
+
+        if (
+            row.get("bronze_has_transcript")
+            and not args.include_bronze_existing
+            and not args.no_local_cache
+        ):
+            if write_local_from_bronze(db_url, cache_dir, jurisdiction_id, row):
+                stats["ok"] += 1
+                logger.success("Synced bronze → local for {} (skip YouTube)", video_id)
+                continue
+
         try:
             yt = loader.fetch_transcript(video_id)
             if yt is None:
-                stats["fail"] += 1
-                logger.warning(
-                    "No transcript for {} — captions disabled, yt-dlp failed, or IP blocked "
-                    "(re-run IP test; not always 'disabled')",
-                    video_id,
-                )
+                reason = permanent_failure_reason(None, via_proxy=via_socks)
+                if reason and use_tombstones and event_id:
+                    write_transcript_tombstone(
+                        loader,
+                        event_id=int(event_id),
+                        video_id=video_id,
+                        reason=reason,
+                    )
+                    stats["tombstoned"] += 1
+                    logger.info(
+                        "Tombstoned {} ({}) — will not retry on future backfills",
+                        video_id,
+                        reason,
+                    )
+                else:
+                    stats["fail"] += 1
+                    if via_socks:
+                        logger.warning(
+                            "No transcript for {} — SOCKS proxy {} cannot reach YouTube "
+                            "(Connection reset by peer). Unset YOUTUBE_TRANSCRIPT_PROXY or use a "
+                            "residential/VPN egress that supports youtube.com; 9091/Tor often fails here.",
+                            video_id,
+                            proxy,
+                        )
+                    else:
+                        logger.warning(
+                            "No transcript for {} — this upload has no captions (API + yt-dlp); "
+                            "skip or use audio/Whisper. Not an IP block if you see 'Captions disabled by uploader' above.",
+                            video_id,
+                        )
                 continue
         except Exception as exc:
             if is_rate_limited(exc):
@@ -300,7 +959,7 @@ def run(args: argparse.Namespace) -> int:
                 consecutive_rl += 1
                 wait = min(args.delay * (2**consecutive_rl), args.max_backoff)
                 logger.warning(
-                    "IP blocked / rate limited on {} ({}/{}) — next sleep {:.0f}s",
+                    "IP blocked / rate limited on {} ({}/{}) — next sleep {:.0f}s (not tombstoned)",
                     video_id,
                     consecutive_rl,
                     max_rl,
@@ -313,14 +972,41 @@ def run(args: argparse.Namespace) -> int:
                     )
                     break
                 continue
-            stats["fail"] += 1
+            reason = permanent_failure_reason(exc, via_proxy=via_socks)
+            if reason and use_tombstones and event_id:
+                write_transcript_tombstone(
+                    loader,
+                    event_id=int(event_id),
+                    video_id=video_id,
+                    reason=reason,
+                )
+                stats["tombstoned"] += 1
+                logger.info(
+                    "Tombstoned {} ({}) — will not retry on future backfills",
+                    video_id,
+                    reason,
+                )
+            else:
+                stats["fail"] += 1
+                logger.warning("No transcript for {} (will retry): {}", video_id, exc)
             consecutive_rl = 0
-            logger.warning("No transcript for {}: {}", video_id, exc)
             continue
 
         consecutive_rl = 0
         if not (yt.get("raw_text") or "").strip():
             stats["empty"] += 1
+            if use_tombstones and event_id:
+                write_transcript_tombstone(
+                    loader,
+                    event_id=int(event_id),
+                    video_id=video_id,
+                    reason="empty_transcript",
+                )
+                stats["tombstoned"] += 1
+                logger.info(
+                    "Tombstoned {} (empty_transcript) — will not retry on future backfills",
+                    video_id,
+                )
             continue
 
         if not args.no_local_cache:
@@ -333,7 +1019,6 @@ def run(args: argparse.Namespace) -> int:
         if args.write_bronze:
             import json as _json
 
-            event_id = row.get("event_id")
             if event_id:
                 segments = yt.get("segments")
                 seg_json = _json.dumps(segments) if segments else None
@@ -391,6 +1076,22 @@ def main() -> None:
     )
     parser.add_argument("--database-url", default="")
     parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument(
+        "--order-by",
+        choices=tuple(_PENDING_ORDER_CLAUSES.keys()),
+        default="published_at",
+        help="Sort key: published_at = YouTube Latest; meeting_date = date in title",
+    )
+    parser.add_argument(
+        "--newest",
+        type=int,
+        default=0,
+        metavar="N",
+        help=(
+            "Process like channel Latest: N newest catalog uploads that still need "
+            "captions and/or local cache (not only oldest pending backlog)"
+        ),
+    )
     parser.add_argument("--delay", type=float, default=3.0, help="Seconds between YouTube fetches")
     parser.add_argument(
         "--probe-video-id",
@@ -398,6 +1099,11 @@ def main() -> None:
         help="Probe this video before batch; backs off if IP-blocked",
     )
     parser.add_argument("--skip-probe", action="store_true", help="Skip pre-batch IP probe")
+    parser.add_argument(
+        "--abort-on-probe-fail",
+        action="store_true",
+        help="Exit immediately when probe hits IP/request block (default: sleep and continue)",
+    )
     parser.add_argument(
         "--cookies",
         default="",
@@ -430,9 +1136,29 @@ def main() -> None:
         dest="skip_local_existing",
     )
     parser.add_argument(
+        "--video-id",
+        default="",
+        help="Process only this YouTube video ID (e.g. ZEUtD3gLRF4)",
+    )
+    parser.add_argument(
         "--include-bronze-existing",
         action="store_true",
         help="Re-fetch even when bronze.has_transcript is true",
+    )
+    parser.add_argument(
+        "--bronze-to-local",
+        action="store_true",
+        help="With --video-id: copy bronze transcript to local cache only (no YouTube)",
+    )
+    parser.add_argument(
+        "--fix-event-dates-from-title",
+        action="store_true",
+        help="Update bronze event_date from meeting date in title (use --dry-run to preview)",
+    )
+    parser.add_argument(
+        "--no-dedupe-duplicates",
+        action="store_true",
+        help="Fetch every bronze row even when same meeting title/duration duplicates exist",
     )
     parser.add_argument(
         "--no-local-cache",
@@ -444,6 +1170,16 @@ def main() -> None:
         action="store_true",
         default=True,
         help="Upsert bronze.bronze_events_text_ai (default: true)",
+    )
+    parser.add_argument(
+        "--no-tombstones",
+        action="store_true",
+        help="Do not write tombstone rows for permanent caption failures (will retry those videos)",
+    )
+    parser.add_argument(
+        "--no-clear-tombstones",
+        action="store_true",
+        help="Do not delete existing tombstone:* rows before fetching (default: clear and retry)",
     )
     parser.add_argument("--no-write-bronze", action="store_false", dest="write_bronze")
     parser.add_argument(

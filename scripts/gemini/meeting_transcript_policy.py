@@ -41,10 +41,9 @@ Examples::
     # Transcript only (no API call)
     python scripts/gemini/meeting_transcript_policy.py --video-id ajsME66iXbY --transcript-only
 
-    # Tuscaloosa: newest bronze rows first (transcripts only)
+    # Northport: N newest meetings that already have bronze captions → analyze (Part 1 + 2)
     python scripts/gemini/meeting_transcript_policy.py \\
-        --from-bronze --jurisdiction-id municipality_0177256 --state AL \\
-        --limit 10 --transcript-only
+        --newest 5 --jurisdiction-id municipality_0155200 --state AL
 """
 
 from __future__ import annotations
@@ -106,7 +105,17 @@ from scripts.gemini.speaker_hints import (  # noqa: E402
 )
 from scripts.gemini.transcript_cache_paths import (  # noqa: E402
     _sanitize_audio_title,
+    analysis_cache_path,
+    ensure_jurisdiction_layout,
+    jurisdiction_root,
     load_local_transcript_payload,
+    meta_path_for_analysis,
+    report_cache_path,
+    report_path_for_analysis,
+    resolve_analysis_path,
+    resolve_transcript_cache_path,
+    run_diagrams_path,
+    run_meta_path,
     transcript_cache_path,
 )
 from scripts.gemini.transcript_fetch import fetch_youtube_transcript  # noqa: E402
@@ -263,11 +272,14 @@ def build_transcript_block(
     segments: List[Dict[str, Any]],
     source_note: str,
     agenda_hints: str = "",
+    agenda_legislation_hints: str = "",
 ) -> str:
     body = format_diarized_transcript(segments)
     parts = [speaker_hints]
     if agenda_hints.strip():
         parts.append(agenda_hints.strip())
+    if agenda_legislation_hints.strip():
+        parts.append(agenda_legislation_hints.strip())
     parts.append(f"=== TRANSCRIPT SOURCE ===\n{source_note}\n\n=== TRANSCRIPT ===\n{body}\n")
     return "\n".join(parts)
 
@@ -280,30 +292,29 @@ def save_transcript_policy_output(
     response_text: str,
     prompt_path: Path,
     transcript_meta: Dict[str, Any],
+    geocode_places: bool = False,
+    agenda_blocks: Optional[List[Dict[str, Any]]] = None,
+    enrich_legislation: bool = True,
+    persist_bronze: bool = False,
+    database_url: Optional[str] = None,
 ) -> Path:
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    folder = output_dir / video.jurisdiction_id
-    folder.mkdir(parents=True, exist_ok=True)
+    jid = video.jurisdiction_id
+    jid_root = jurisdiction_root(output_dir, jid)
+    ensure_jurisdiction_layout(jid_root)
+    title = video.title or ""
+    event_date = video.event_date
     prompt_name = prompt_path.stem
-    prompt_tag = _sanitize_tag(prompt_name)
-    model_tag = _sanitize_tag(model.replace(".", "_"))
-    stem = _output_stem(video, prompt_tag=prompt_tag, model_tag=model_tag, ts=ts)
     rel = lambda p: str(p.relative_to(_REPO_ROOT))
+
+    analysis_path = analysis_cache_path(output_dir, jid, title=title, event_date=event_date)
+    report_md_path = report_cache_path(output_dir, jid, title=title, event_date=event_date)
+    meta_path = run_meta_path(output_dir, jid, title=title, event_date=event_date)
+    diagrams_md_path = run_diagrams_path(output_dir, jid, title=title, event_date=event_date)
 
     parsed, markdown_docs = _split_gemini_documents(response_text)
     if parsed is None:
         parsed = extract_json_from_model_text(response_text)
-
-    meta_path = folder / f"{stem}_meta.json"
-    analysis_path = folder / f"{stem}_analysis.json"
-    report_md_path = folder / f"{stem}_report.md"
-    diagrams_md_path = folder / f"{stem}_diagrams.md"
-    transcript_path = folder / f"{stem}_transcript.json"
-
-    transcript_path.write_text(
-        json.dumps(transcript_meta, indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
 
     if not _part1_json_ok(parsed):
         analysis_payload: Any = {
@@ -317,12 +328,49 @@ def save_transcript_policy_output(
             _normalize_part1_analysis(parsed),
             video_url=video.video_url or "",
         )
+        if enrich_legislation:
+            from scripts.gemini.legislation_analysis import enrich_part1_legislation
+
+            analysis_payload = enrich_part1_legislation(
+                analysis_payload, agenda_blocks=agenda_blocks
+            )
+        if geocode_places:
+            from scripts.gemini.enrich_analysis_places import enrich_places_in_analysis
+
+            analysis_payload = enrich_places_in_analysis(
+                analysis_payload,
+                jurisdiction_id=jid,
+                geocode=True,
+            )
         json_parsed = True
 
     analysis_path.write_text(
         json.dumps(analysis_payload, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
+
+    if persist_bronze and json_parsed and not analysis_payload.get("_error"):
+        from scripts.gemini.persist_policy_analysis_bronze import (
+            persist_policy_analysis_bronze,
+            resolve_event_id_for_video,
+        )
+
+        db_url = database_url or _database_url(None)
+        event_id = resolve_event_id_for_video(db_url, video.video_id)
+        if event_id:
+            persist_policy_analysis_bronze(
+                analysis_payload,
+                video_id=video.video_id,
+                source_event_id=event_id,
+                source_ai_model=model,
+                database_url_override=db_url,
+                analysis_cache_path=str(analysis_path.resolve()),
+            )
+        else:
+            logger.warning(
+                "persist-bronze skipped for {} — no bronze.bronze_events_youtube row",
+                video.video_id,
+            )
 
     report_body = markdown_docs[0] if markdown_docs else ""
     if report_body:
@@ -338,11 +386,17 @@ def save_transcript_policy_output(
     if json_parsed and isinstance(analysis_payload, dict):
         has_diagrams = _write_diagrams_md(analysis_payload, diagrams_md_path)
 
+    tx_path = resolve_transcript_cache_path(
+        jid_root,
+        video_id=video.video_id,
+        title=title,
+        event_date=event_date,
+    )
     files: Dict[str, str] = {
         "meta_json": rel(meta_path),
         "analysis_json": rel(analysis_path),
         "report_md": rel(report_md_path),
-        "transcript_json": rel(transcript_path),
+        "transcript_json": rel(tx_path) if tx_path else "",
     }
     if has_diagrams:
         files["diagrams_md"] = rel(diagrams_md_path)
@@ -381,24 +435,15 @@ def save_transcript_policy_output(
         "json_parsed": json_parsed,
         "files": files,
     }
-    _write_manifest(folder, manifest_record)
+    _write_manifest(jid_root, manifest_record)
     logger.info("Wrote {}", analysis_path)
     return analysis_path
-
-
-def report_path_for_analysis(analysis_path: Path) -> Path:
-    name = analysis_path.name
-    if name.endswith("_analysis.json"):
-        return analysis_path.with_name(name.replace("_analysis.json", "_report.md"))
-    return analysis_path.with_suffix(".report.md")
 
 
 def _recording_title_for_analysis(analysis_path: Optional[Path]) -> str:
     if analysis_path is None:
         return ""
-    meta_path = analysis_path.with_name(
-        analysis_path.name.replace("_analysis.json", "_meta.json")
-    )
+    meta_path = meta_path_for_analysis(analysis_path)
     if not meta_path.is_file():
         return ""
     try:
@@ -441,11 +486,47 @@ def generate_part2_markdown(
     return result.text.strip()
 
 
-def write_part2_report(analysis_path: Path, markdown: str) -> Path:
+def write_part2_report(
+    analysis_path: Path,
+    markdown: str,
+    *,
+    validate_mermaid: bool = True,
+) -> Path:
+    from scripts.gemini.mermaid_diagrams import repair_mermaid_fences_in_markdown
+    from scripts.gemini.part2_report_normalize import strip_one_big_thing_lines
+
     report_path = report_path_for_analysis(analysis_path)
-    report_path.write_text(markdown + "\n", encoding="utf-8")
+    body = strip_one_big_thing_lines(repair_mermaid_fences_in_markdown(markdown))
+    report_path.write_text(body + "\n", encoding="utf-8")
     logger.info("Wrote {}", report_path)
+    if validate_mermaid:
+        _log_mermaid_validation(report_path, body)
     return report_path
+
+
+def _log_mermaid_validation(report_path: Path, body: str) -> None:
+    try:
+        from scripts.gemini.mermaid_validate import (
+            format_report,
+            validate_markdown_text,
+            write_errors_sidecar,
+        )
+    except ImportError:
+        return
+    try:
+        report = validate_markdown_text(body, path=report_path)
+    except RuntimeError as exc:
+        logger.warning("Mermaid validation skipped for {}: {}", report_path.name, exc)
+        return
+    sidecar = report_path.with_name(report_path.stem + ".mermaid-errors.json")
+    if report.ok:
+        if sidecar.is_file():
+            sidecar.unlink()
+        logger.info("Mermaid OK ({} diagram(s)) {}", report.fence_count, report_path.name)
+        return
+    logger.warning("Mermaid validation failed for {}:\n{}", report_path.name, format_report(report))
+    write_errors_sidecar(report, sidecar)
+    logger.info("Wrote {}", sidecar)
 
 
 def run_part2_for_analysis_file(
@@ -458,33 +539,76 @@ def run_part2_for_analysis_file(
     except (json.JSONDecodeError, OSError) as exc:
         logger.error("Skipping {} — unreadable: {}", analysis_path.name, exc)
         return None
-    if data.get("_error") or not _part1_json_ok(data):
+    if not _part1_json_ok(data):
         logger.error("Skipping {} — not valid Part 1 JSON", analysis_path.name)
         return None
+    if data.get("_error"):
+        logger.warning(
+            "Part 1 {} has _error (continuing Part 2): {}",
+            analysis_path.name,
+            str(data["_error"])[:240],
+        )
     markdown = generate_part2_markdown(data, args, api_key, analysis_path=analysis_path)
-    return write_part2_report(analysis_path, markdown)
+    return write_part2_report(
+        analysis_path,
+        markdown,
+        validate_mermaid=not getattr(args, "no_validate_mermaid", False),
+    )
+
+
+def _video_id_from_analysis_path(path: Path) -> str:
+    """Best-effort YouTube id from filename or Part 1 JSON."""
+    from scripts.gemini.transcript_cache_paths import video_id_from_analysis
+
+    m = re.search(r"_([A-Za-z0-9_-]{11})_", path.name)
+    if m:
+        return m.group(1)
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return video_id_from_analysis(data) if isinstance(data, dict) else ""
+    except (json.JSONDecodeError, OSError):
+        return ""
+
+
+def _dedupe_latest_analysis_per_video(paths: List[Path]) -> List[Path]:
+    """Keep newest file per video id (paths should be sorted newest-first)."""
+    seen: set[str] = set()
+    out: List[Path] = []
+    for path in paths:
+        vid = _video_id_from_analysis_path(path)
+        key = vid or path.name
+        if key in seen:
+            logger.info("Skipping older duplicate analysis for {}: {}", vid or "?", path.name)
+            continue
+        seen.add(key)
+        out.append(path)
+    return out
 
 
 def run_part2_only_batch(args: argparse.Namespace, api_key: str) -> None:
-    """Generate ``*_report.md`` from existing ``*_analysis.json`` files."""
+    """Generate Part 2 reports from existing Part 1 analysis JSON."""
+    from scripts.gemini.transcript_cache_paths import iter_analysis_files
+
     jurisdiction_id = (args.jurisdiction_id or DEFAULT_JURISDICTION_ID).strip()
-    folder = Path(args.output_dir).resolve() / jurisdiction_id
+    cache_dir = Path(args.output_dir).resolve()
+    folder = cache_dir / jurisdiction_id
     if not folder.is_dir():
         raise SystemExit(f"No output folder: {folder}")
 
-    paths = sorted(
-        folder.glob("*_analysis.json"),
-        key=lambda p: p.stat().st_mtime,
-        reverse=True,
-    )
+    paths = iter_analysis_files(cache_dir, jurisdiction_id)
     video_filter = (args.video_id or "").strip()
     if video_filter:
-        paths = [p for p in paths if video_filter in p.name]
+        from scripts.gemini.transcript_cache_paths import resolve_analysis_path
+
+        one = resolve_analysis_path(cache_dir, jurisdiction_id, video_id=video_filter)
+        paths = [one] if one else [p for p in paths if _video_id_from_analysis_path(p) == video_filter]
+    if getattr(args, "latest_only", True):
+        paths = _dedupe_latest_analysis_per_video(paths)
     if args.limit is not None:
         paths = paths[: int(args.limit)]
 
     if not paths:
-        raise SystemExit(f"No *_analysis.json under {folder}")
+        raise SystemExit(f"No analysis JSON under {folder} (check 02_analysis/ or legacy flat files)")
 
     logger.info("Part 2 only: {} analysis file(s)", len(paths))
     for i, path in enumerate(paths, 1):
@@ -607,6 +731,11 @@ def process_one_video(
         agenda_blocks,
         jurisdiction_id=jurisdiction_id,
     )
+    from scripts.gemini.legislation_analysis import format_pre_gemini_agenda_legislation_hints
+
+    agenda_leg_hints = format_pre_gemini_agenda_legislation_hints(
+        agenda_blocks, jurisdiction_id=jurisdiction_id
+    )
     if agenda_blocks:
         logger.info("Built {} agenda segment hint(s) for presenter linking", len(agenda_blocks))
     transcript_block = build_transcript_block(
@@ -614,6 +743,7 @@ def process_one_video(
         segments=segments,
         source_note=source_note,
         agenda_hints=agenda_hints,
+        agenda_legislation_hints=agenda_leg_hints,
     )
 
     transcript_meta: Dict[str, Any] = {
@@ -653,7 +783,9 @@ def process_one_video(
         video,
         task_line=(
             "Analyze the meeting from the <transcript> block only. "
-            "Do not assume you can watch video; use MEDIA CONTEXT for metadata only."
+            "Do not assume you can watch video; use MEDIA CONTEXT for metadata only. "
+            "Extract all addresses and named sites into places[] and cross-link place_refs "
+            "on every decisions[] and uncontested_items[] row."
         ),
     )
 
@@ -677,18 +809,30 @@ def process_one_video(
         response_text=capture.response_text,
         prompt_path=prompt_path,
         transcript_meta=transcript_meta,
+        geocode_places=getattr(args, "geocode_places", False),
+        agenda_blocks=agenda_blocks,
+        enrich_legislation=not getattr(args, "skip_legislation_enrich", False),
+        persist_bronze=getattr(args, "persist_bronze", False),
+        database_url=_database_url(getattr(args, "database_url", None) or None),
     )
     if args.run_part_2 and analysis_path is not None:
         try:
             analysis = json.loads(analysis_path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
             analysis = {}
-        if not analysis.get("_error") and _part1_json_ok(analysis):
+        if _part1_json_ok(analysis):
+            if analysis.get("_error"):
+                logger.warning(
+                    "Part 1 _error for {} (continuing Part 2): {}",
+                    video_id,
+                    str(analysis["_error"])[:240],
+                )
             write_part2_report(
                 analysis_path,
                 generate_part2_markdown(
                     analysis, args, api_key, analysis_path=analysis_path
                 ),
+                validate_mermaid=not getattr(args, "no_validate_mermaid", False),
             )
         else:
             logger.error("Skipping Part 2 for {} — Part 1 JSON invalid", video_id)
@@ -697,6 +841,17 @@ def process_one_video(
 
 def run_pipeline(args: argparse.Namespace) -> None:
     load_dotenv(_REPO_ROOT / ".env")
+    newest_n = int(getattr(args, "newest", 0) or 0)
+    if newest_n > 0:
+        args.from_bronze = True
+        args.limit = newest_n
+        args.order_by = "published_at"
+        args.use_local_transcript = True
+        args.run_part_2 = True
+        args.only_has_transcript = True
+        args.ensure_local_from_bronze = True
+        args.skip_analyzed = True
+
     api_key = (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "").strip()
     needs_api = not args.transcript_only
     if needs_api and not api_key:
@@ -722,6 +877,8 @@ def run_pipeline(args: argparse.Namespace) -> None:
             limit=args.limit,
             video_id=(args.video_id or "").strip() or None,
             order_by=args.order_by,
+            only_has_transcript=getattr(args, "only_has_transcript", False),
+            dedupe_duplicate_meetings=not newest_n,
         )
         if not videos:
             raise SystemExit(f"No bronze videos for {jurisdiction_id}")
@@ -733,7 +890,52 @@ def run_pipeline(args: argparse.Namespace) -> None:
                     f"{i:3}. {v.video_id}  event_date={ed}  last_updated={lu}  {v.title or ''}"
                 )
             return
+
+        from scripts.datasources.youtube.backfill_jurisdiction_transcripts import (
+            fetch_video_row,
+            write_local_from_bronze,
+        )
+
+        out_dir = Path(args.output_dir).resolve()
         for i, video in enumerate(videos, 1):
+            if getattr(args, "skip_analyzed", False):
+                existing = resolve_analysis_path(
+                    out_dir,
+                    jurisdiction_id,
+                    video_id=video.video_id,
+                    title=video.title or "",
+                    event_date=video.event_date,
+                )
+                if existing is not None:
+                    logger.info(
+                        "[{}/{}] Skip {} — analysis exists ({})",
+                        i,
+                        len(videos),
+                        video.video_id,
+                        existing.name,
+                    )
+                    continue
+
+            if getattr(args, "ensure_local_from_bronze", False):
+                from scripts.gemini.transcript_cache_paths import load_local_transcript_payload
+
+                if load_local_transcript_payload(
+                    out_dir,
+                    jurisdiction_id,
+                    video_id=video.video_id,
+                    title=video.title or "",
+                    event_date=video.event_date,
+                ) is None:
+                    row = fetch_video_row(db_url, jurisdiction_id, video.video_id)
+                    if row and write_local_from_bronze(db_url, out_dir, jurisdiction_id, row):
+                        logger.info("Synced bronze transcript to local cache for {}", video.video_id)
+                    else:
+                        logger.warning(
+                            "Skipping {} — no local cache and bronze sync failed",
+                            video.video_id,
+                        )
+                        continue
+
             logger.info(
                 "[{}/{}] {} — {}",
                 i,
@@ -779,9 +981,31 @@ def main() -> None:
     )
     parser.add_argument(
         "--order-by",
-        choices=("meeting_date", "last_updated"),
+        choices=("meeting_date", "last_updated", "published_at"),
         default="meeting_date",
-        help="Batch sort: meeting_date = newest event/published first (default); last_updated = catalog touch time",
+        help="Batch sort: published_at / meeting_date = newest first; last_updated = catalog touch time",
+    )
+    parser.add_argument(
+        "--newest",
+        type=int,
+        default=0,
+        metavar="N",
+        help="Analyze N newest meetings with bronze captions (sets --from-bronze, local cache, Part 1+2)",
+    )
+    parser.add_argument(
+        "--only-has-transcript",
+        action="store_true",
+        help="With --from-bronze: only rows where bronze.has_transcript is true",
+    )
+    parser.add_argument(
+        "--ensure-local-from-bronze",
+        action="store_true",
+        help="Copy bronze transcript JSON to local cache before analysis if missing",
+    )
+    parser.add_argument(
+        "--skip-analyzed",
+        action="store_true",
+        help="Skip videos that already have 02_analysis/*_analysis.json",
     )
     parser.add_argument(
         "--limit",
@@ -864,6 +1088,23 @@ def main() -> None:
         help="Skip Part 1; generate *_report.md from existing *_analysis.json in output dir",
     )
     parser.add_argument(
+        "--latest-only",
+        action="store_true",
+        default=True,
+        help="With --part-2-only: one analysis per video_id (newest mtime). Default: true.",
+    )
+    parser.add_argument(
+        "--all-analysis-runs",
+        action="store_false",
+        dest="latest_only",
+        help="With --part-2-only: process every *_analysis.json (including older duplicates).",
+    )
+    parser.add_argument(
+        "--geocode-places",
+        action="store_true",
+        help="After Part 1, geocode places[] via Nominatim (~1 req/s; Tuscaloosa bias for municipality_0177256)",
+    )
+    parser.add_argument(
         "--prompt-part-2",
         type=Path,
         default=DEFAULT_PROMPT_PART_2,
@@ -873,6 +1114,11 @@ def main() -> None:
         "--part-2-model",
         default="",
         help="Model for Part 2 (default: same as --model / GEMINI_FLASH_LITE_MODEL)",
+    )
+    parser.add_argument(
+        "--no-validate-mermaid",
+        action="store_true",
+        help="Skip Mermaid parse check after writing Part 2 reports",
     )
     parser.add_argument(
         "--no-speaker-hints",
@@ -897,6 +1143,17 @@ def main() -> None:
         default=os.environ.get("WHISPER_DEVICE", "cpu"),
         choices=("cpu", "cuda"),
     )
+    parser.add_argument(
+        "--skip-legislation-enrich",
+        action="store_true",
+        help="Skip post-Part-1 legislation ref validation and agenda→leg_id mapping",
+    )
+    parser.add_argument(
+        "--persist-bronze",
+        action="store_true",
+        help="Upsert bronze.bronze_bills / item legislation links after Part 1 (needs migration 018)",
+    )
+    parser.add_argument("--database-url", default="", help="Override Postgres URL for --persist-bronze")
     args = parser.parse_args()
     run_pipeline(args)
 
