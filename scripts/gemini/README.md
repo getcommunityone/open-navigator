@@ -64,6 +64,16 @@ Or the Tuscaloosa-specific helper (title filter `committee` / `meeting`):
 .venv/bin/python scripts/gemini/meeting_transcript_policy.py \
   --from-bronze --jurisdiction-id municipality_0177256 --state AL --limit 3
 
+# Local captions → Part 1 JSON + Part 2 Markdown (fully automated; needs GEMINI_API_KEY)
+.venv/bin/python scripts/gemini/meeting_transcript_policy.py \
+  --from-bronze --jurisdiction-id municipality_0177256 --state AL \
+  --use-local-transcript --run-part-2 --limit 5
+
+# Markdown only (you already have *_analysis.json)
+.venv/bin/python scripts/gemini/meeting_transcript_policy.py \
+  --part-2-only --jurisdiction-id municipality_0177256 \
+  --video-id zpaawfaNsQM
+
 # Same batch + WhisperX when Opus exists on disk
 .venv/bin/python scripts/gemini/meeting_transcript_policy.py \
   --from-bronze --jurisdiction-id municipality_0177256 --state AL \

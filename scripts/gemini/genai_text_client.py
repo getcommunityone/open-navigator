@@ -20,18 +20,35 @@ _RETRY_DELAY_RE = re.compile(
 )
 
 
-def is_genai_quota_exhausted(exc: BaseException) -> bool:
+def is_genai_retryable(exc: BaseException) -> bool:
+    """429 quota and transient 503/502 overload — retry with backoff."""
     msg = str(exc).upper()
-    if "429" in msg or "RESOURCE_EXHAUSTED" in msg:
+    if any(
+        token in msg
+        for token in (
+            "429",
+            "RESOURCE_EXHAUSTED",
+            "503",
+            "UNAVAILABLE",
+            "502",
+            "BAD_GATEWAY",
+            "OVERLOADED",
+            "HIGH DEMAND",
+        )
+    ):
         return True
     for attr in ("code", "status_code", "status"):
         val = getattr(exc, attr, None)
         if val is None:
             continue
         s = str(val).upper()
-        if val == 429 or s in ("429", "RESOURCE_EXHAUSTED"):
+        if val in (429, 502, 503) or s in ("429", "502", "503", "RESOURCE_EXHAUSTED", "UNAVAILABLE"):
             return True
     return False
+
+
+def is_genai_quota_exhausted(exc: BaseException) -> bool:
+    return is_genai_retryable(exc)
 
 
 def genai_quota_retry_delay_seconds(exc: BaseException, attempt: int) -> float:
@@ -54,12 +71,12 @@ def call_with_genai_quota_retry(fn: Callable[[], T], *, label: str = "Gemini") -
         try:
             return fn()
         except Exception as exc:
-            if not is_genai_quota_exhausted(exc) or attempt >= max_retries - 1:
+            if not is_genai_retryable(exc) or attempt >= max_retries - 1:
                 raise
             last_exc = exc
             delay = genai_quota_retry_delay_seconds(exc, attempt) + buffer
             print(
-                f"⚠️  {label}: quota/rate limit (429) — sleeping {delay:.0f}s "
+                f"⚠️  {label}: transient API error — sleeping {delay:.0f}s "
                 f"then retry {attempt + 2}/{max_retries}…"
             )
             time.sleep(delay)
