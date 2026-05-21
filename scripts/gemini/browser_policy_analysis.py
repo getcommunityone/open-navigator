@@ -338,8 +338,9 @@ def fetch_videos(
         sub_order = "event_date::date DESC NULLS LAST, last_updated DESC NULLS LAST"
     else:
         sub_order = "last_updated DESC NULLS LAST"
+    sql = f"SELECT * FROM ({sql}) sub ORDER BY {sub_order}"
     if limit is not None:
-        sql = f"SELECT * FROM ({sql}) sub ORDER BY {sub_order} LIMIT %s"
+        sql += " LIMIT %s"
         params.append(int(limit))
 
     conn = psycopg2.connect(database_url)

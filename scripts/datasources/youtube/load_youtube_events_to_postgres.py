@@ -994,7 +994,12 @@ class YouTubeEventsLoader:
             logger.debug(f"    Video {video_id} unavailable")
             return None
         except IpBlocked:
-            # IP is blocked - don't make more requests with yt-dlp!
+            if self.use_ytdlp_fallback and (self.cookies_file or self.proxy_url):
+                logger.warning(
+                    f"    ⚠️ IP blocked on transcript API for {video_id} — trying yt-dlp "
+                    "(cookies/proxy)"
+                )
+                return self.fetch_transcript_ytdlp(video_id)
             logger.warning(f"    ⚠️ IP blocked by YouTube for {video_id}")
             raise Exception(f"RATE_LIMITED: IP blocked by YouTube")
         except (NoTranscriptFound, Exception) as e:
