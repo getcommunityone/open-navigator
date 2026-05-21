@@ -12,7 +12,7 @@ Examples::
     python scripts/datasources/youtube/backfill_jurisdiction_transcripts.py \\
         --jurisdiction-id municipality_0177256
 
-    # Dry run
+    # Dry rundev
     python scripts/datasources/youtube/backfill_jurisdiction_transcripts.py \\
         --jurisdiction-id municipality_0177256 --dry-run
 
