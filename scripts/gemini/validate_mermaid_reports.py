@@ -38,8 +38,16 @@ from scripts.gemini.transcript_cache_paths import DIR_REPORTS, jurisdiction_root
 _DEFAULT_CACHE = _REPO / "data/cache/gemini_transcript_policy"
 
 
-def _report_paths(cache_dir: Path, jurisdiction_id: str) -> list[Path]:
-    reports_dir = jurisdiction_root(cache_dir, jurisdiction_id) / DIR_REPORTS
+def _report_paths(
+    cache_dir: Path,
+    jurisdiction_id: str,
+    *,
+    state_code: str = "",
+) -> list[Path]:
+    st = (state_code or "").strip().upper() or None
+    reports_dir = jurisdiction_root(
+        cache_dir, jurisdiction_id, state_code=st
+    ) / DIR_REPORTS
     if not reports_dir.is_dir():
         return []
     return sorted(
@@ -61,6 +69,11 @@ def main() -> int:
         "--jurisdiction-id",
         default="",
         help=f"Validate all 03_reports/*.md under cache (default folder: {_DEFAULT_CACHE})",
+    )
+    parser.add_argument(
+        "--state",
+        default="",
+        help="Two-letter state for geographic cache layout (e.g. AL)",
     )
     parser.add_argument(
         "--cache-dir",
@@ -93,7 +106,11 @@ def main() -> int:
     if args.markdown:
         paths = [args.markdown.resolve()]
     elif args.jurisdiction_id.strip():
-        paths = _report_paths(args.cache_dir.resolve(), args.jurisdiction_id.strip())
+        paths = _report_paths(
+            args.cache_dir.resolve(),
+            args.jurisdiction_id.strip(),
+            state_code=(args.state or "").strip(),
+        )
     else:
         parser.error("Pass a report .md path or --jurisdiction-id")
 

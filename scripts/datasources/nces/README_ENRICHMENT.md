@@ -2,11 +2,11 @@
 
 ## Overview
 
-Update `jurisdictions_search` and `jurisdictions_details_search` with NCES school district data including websites, phone numbers, district types, and school counts.
+Update `jurisdiction` and `jurisdictions_details_search` with NCES school district data including websites, phone numbers, district types, and school counts.
 
 ## The Problem We Solved
 
-- **jurisdictions_search** had 13,326 school districts with **NULL `state_code`**
+- **jurisdiction** had 13,326 school districts with **NULL `state_code`**
 - NCES has 19,630 school districts with **websites, phones, district metadata**
 - Couldn't match them without state information
 
@@ -29,7 +29,7 @@ python scripts/datasources/nces/fix_and_enrich_school_districts.py --skip-fix
 ```
 
 **What it does:**
-1. Fixes NULL state_code in jurisdictions_search (extracts from geoid FIPS code)
+1. Fixes NULL state_code in jurisdiction (extracts from geoid FIPS code)
 2. Matches NCES districts to jurisdictions by name + state
 3. Updates jurisdictions_details_search with:
    - `website_url` - District website from NCES
@@ -56,7 +56,7 @@ Full-featured version with jurisdiction creation. Use fix_and_enrich_school_dist
 
 ### Massachusetts Example (419 NCES districts with websites)
 
-- ✅ **Matched: 287 (68%)** - Found in jurisdictions_search
+- ✅ **Matched: 287 (68%)** - Found in jurisdiction
 - ⚠️  **Unmatched: 132 (32%)** - Mostly charter schools with different names
 - ✅ **Updated: 287** - jurisdictions_details_search records enriched
 
@@ -83,7 +83,7 @@ LIMIT 5;
 
 ## Data Structure
 
-### jurisdictions_search (Basic Info)
+### jurisdiction (Basic Info)
 
 - Fixed `state_code` for all 13,326 school districts
 - State codes extracted from `geoid` (first 2 digits = state FIPS code)
@@ -145,7 +145,7 @@ python scripts/datasources/nces/fix_and_enrich_school_districts.py
 SELECT 
     state_code, 
     COUNT(*) 
-FROM jurisdictions_search 
+FROM jurisdiction 
 WHERE type = 'school_district' 
 GROUP BY state_code 
 ORDER BY count DESC 
@@ -184,7 +184,7 @@ LIMIT 20;
 **Q: No matches found?**  
 A: Make sure you ran the state code fix first. Check:
 ```sql
-SELECT COUNT(*) FROM jurisdictions_search 
+SELECT COUNT(*) FROM jurisdiction 
 WHERE type = 'school_district' AND state_code IS NOT NULL;
 ```
 

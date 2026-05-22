@@ -15,8 +15,8 @@ DROP TABLE IF EXISTS organizations_meetings CASCADE;
 DROP TABLE IF EXISTS contacts_meeting_attendance CASCADE;
 DROP TABLE IF EXISTS bills_meetings CASCADE;
 
--- Remove columns from contacts_search
-ALTER TABLE contacts_search 
+-- Remove columns from contact
+ALTER TABLE contact 
   DROP COLUMN IF EXISTS datasource,
   DROP COLUMN IF EXISTS datasource_id,
   DROP COLUMN IF EXISTS confidence_score,
@@ -46,8 +46,8 @@ ALTER TABLE bills_search
   DROP COLUMN IF EXISTS review_notes,
   DROP COLUMN IF EXISTS is_local_ordinance;
 
--- Remove columns from events_search
-ALTER TABLE events_search
+-- Remove columns from event
+ALTER TABLE event
   DROP COLUMN IF EXISTS datasource,
   DROP COLUMN IF EXISTS datasource_id,
   DROP COLUMN IF EXISTS confidence_score;

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Enrich jurisdictions_details_search with LocalView YouTube channel data
+Enrich jurisdiction with LocalView YouTube channel data
 
 This script:
 1. Extracts YouTube channel data from all LocalView meeting parquet files
-2. Matches LocalView jurisdictions to jurisdictions_details_search
+2. Matches LocalView jurisdictions to jurisdiction
 3. Adds in_localview flag
 4. Enriches YouTube channel data with video counts and other metadata from LocalView
 """
@@ -121,21 +121,20 @@ def extract_localview_channels():
 def add_localview_columns(conn):
     """Add in_localview flag and ensure proper schema."""
     
-    logger.info("Adding/verifying LocalView columns in jurisdictions_details_search...")
+    logger.info("Adding/verifying LocalView columns in jurisdiction...")
     
     cursor = conn.cursor()
     
     try:
         # Add in_localview column if it doesn't exist
         cursor.execute("""
-            ALTER TABLE jurisdictions_details_search 
+            ALTER TABLE jurisdiction 
             ADD COLUMN IF NOT EXISTS in_localview BOOLEAN DEFAULT FALSE
         """)
         
-        # Create index on in_localview
         cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_jurisdictions_localview 
-            ON jurisdictions_details_search(in_localview) 
+            CREATE INDEX IF NOT EXISTS idx_jurisdiction_in_localview 
+            ON jurisdiction(in_localview) 
             WHERE in_localview = TRUE
         """)
         
@@ -151,9 +150,9 @@ def add_localview_columns(conn):
 
 
 def match_and_enrich(conn, localview_df):
-    """Match LocalView data to jurisdictions_details_search and enrich."""
+    """Match LocalView data to jurisdiction and enrich."""
     
-    logger.info("Matching LocalView data to jurisdictions_details_search...")
+    logger.info("Matching LocalView data to jurisdiction...")
     
     cursor = conn.cursor()
     
@@ -162,12 +161,12 @@ def match_and_enrich(conn, localview_df):
         SELECT 
             id,
             jurisdiction_id,
-            jurisdiction_name,
-            state,
+            name AS jurisdiction_name,
+            state_code,
             website_url,
             youtube_channels
-        FROM jurisdictions_details_search
-        WHERE state IN ('AL', 'GA', 'IN', 'MA', 'WA', 'WI')
+        FROM jurisdiction
+        WHERE state_code IN ('AL', 'GA', 'IN', 'MA', 'WA', 'WI')
     """)
     
     db_jurisdictions = cursor.fetchall()
@@ -175,7 +174,7 @@ def match_and_enrich(conn, localview_df):
     
     # Create matching dataframe
     db_df = pd.DataFrame(db_jurisdictions, columns=[
-        'id', 'jurisdiction_id', 'jurisdiction_name', 'state', 'website_url', 'youtube_channels'
+        'id', 'jurisdiction_id', 'jurisdiction_name', 'state_code', 'website_url', 'youtube_channels'
     ])
     
     # Clean jurisdiction names for matching (same logic as LocalView cleaning)
@@ -201,7 +200,7 @@ def match_and_enrich(conn, localview_df):
         localview_df,
         db_df,
         left_on=['name_clean', 'state'],
-        right_on=['name_clean', 'state'],
+        right_on=['name_clean', 'state_code'],
         how='inner'
     )
     
@@ -252,7 +251,7 @@ def match_and_enrich(conn, localview_df):
     logger.info(f"Updating {len(updates)} jurisdictions...")
     
     update_query = """
-        UPDATE jurisdictions_details_search
+        UPDATE jurisdiction
         SET 
             youtube_channels = %(youtube_channels)s::jsonb,
             youtube_channel_count = %(youtube_channel_count)s,
@@ -310,7 +309,7 @@ def main():
                 COUNT(*) as total_in_localview,
                 COUNT(DISTINCT state) as states,
                 SUM(youtube_channel_count) as total_channels
-            FROM jurisdictions_details_search
+            FROM jurisdiction
             WHERE in_localview = TRUE
         """)
         stats = cursor.fetchone()
@@ -329,8 +328,8 @@ def main():
         logger.success(f"Duration: {duration:.1f} seconds")
         logger.info("")
         logger.info("Next steps:")
-        logger.info("1. Query: SELECT * FROM jurisdictions_details_search WHERE in_localview = TRUE LIMIT 10")
-        logger.info("2. Check enriched data: SELECT jurisdiction_name, state, youtube_channels FROM jurisdictions_details_search WHERE in_localview = TRUE")
+        logger.info("1. Query: SELECT * FROM jurisdiction WHERE in_localview = TRUE LIMIT 10")
+        logger.info("2. Check enriched data: SELECT jurisdiction_name, state, youtube_channels FROM jurisdiction WHERE in_localview = TRUE")
         
         return 0
         

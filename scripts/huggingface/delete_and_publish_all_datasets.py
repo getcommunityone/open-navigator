@@ -55,7 +55,7 @@ def get_dataset_name(file_path: Path, gold_dir: Path) -> str:
     
     Examples:
         data/gold/national/events_events.parquet -> national-events-events
-        data/gold/reference/causes_ntee_codes.parquet -> reference-causes-ntee-codes
+        data/gold/reference/causes_ntee_codes -> reference-causes-ntee-codes
         data/gold/states/AL/events_events.parquet -> states-al-events-events
     """
     # Get relative path from gold directory
@@ -72,7 +72,7 @@ def get_dataset_name(file_path: Path, gold_dir: Path) -> str:
         # national/events_events.parquet -> national-events-events
         name = f"national-{filename}"
     elif parts[0] == 'reference':
-        # reference/causes_ntee_codes.parquet -> reference-causes-ntee-codes
+        # reference/causes_ntee_codes -> reference-causes-ntee-codes
         # Replace underscores with dashes for consistency
         name = f"reference-{filename.replace('_', '-')}"
     elif parts[0] == 'states':

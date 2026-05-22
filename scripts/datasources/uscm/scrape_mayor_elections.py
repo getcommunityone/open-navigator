@@ -3,7 +3,7 @@
 Scraper for U.S. Conference of Mayors election results.
 
 Extracts mayor election data from https://www.usmayors.org/elections/election-results-2/
-and updates jurisdictions_details_search with current/incoming mayor information.
+and updates jurisdiction with current/incoming mayor information.
 
 Usage:
     python scrape_mayor_elections.py --states AL,GA,IN,MA,MT,WA,WI
@@ -175,7 +175,7 @@ def update_jurisdictions_with_mayor_data(
     dry_run: bool = False
 ) -> None:
     """
-    Update jurisdictions_details_search with mayor election data.
+    Update jurisdiction with mayor election data.
     
     Args:
         elections: List of election records
@@ -212,26 +212,25 @@ def update_jurisdictions_with_mayor_data(
             # Try to match jurisdiction by city name and state
             # USCM uses full state names, we need to match by name similarity
             query = """
-                SELECT d.id, s.name, s.state_code, s.state
-                FROM jurisdictions_details_search d
-                JOIN jurisdictions_search s ON d.jurisdiction_id = s.id
-                WHERE s.type = 'city'
+                SELECT j.id, j.name, j.state_code, j.state
+                FROM jurisdiction j
+                WHERE j.type = 'city'
                   AND (
-                    LOWER(s.name) = LOWER(%s)
-                    OR LOWER(REPLACE(s.name, ' city', '')) = LOWER(%s)
-                    OR LOWER(REPLACE(s.name, ' town', '')) = LOWER(%s)
+                    LOWER(j.name) = LOWER(%s)
+                    OR LOWER(REPLACE(j.name, ' city', '')) = LOWER(%s)
+                    OR LOWER(REPLACE(j.name, ' town', '')) = LOWER(%s)
                   )
-                  AND LOWER(s.state) = LOWER(%s)
+                  AND LOWER(j.state) = LOWER(%s)
                 {state_filter}
                 LIMIT 1
-            """.format(state_filter=state_filter)
+            """.format(state_filter=state_filter.replace("s.state_code", "j.state_code"))
             
             cur.execute(query, (norm_city, norm_city, norm_city, state))
             result = cur.fetchone()
             
             if result:
                 matched += 1
-                jurisdiction_id = result['id']
+                row_id = result['id']
                 
                 logger.info(
                     f"✅ Matched: {city}, {state} -> {result['name']}, {result['state_code']} "
@@ -239,16 +238,15 @@ def update_jurisdictions_with_mayor_data(
                 )
                 
                 if not dry_run:
-                    # Update jurisdictions_details_search with mayor info
                     update_query = """
-                        UPDATE jurisdictions_details_search
+                        UPDATE jurisdiction
                         SET 
                             current_mayor = %s,
                             mayor_election_date = %s,
                             usmayors_last_updated = CURRENT_TIMESTAMP
                         WHERE id = %s
                     """
-                    cur.execute(update_query, (mayor_name, election_date, jurisdiction_id))
+                    cur.execute(update_query, (mayor_name, election_date, row_id))
             else:
                 unmatched.append(f"{city}, {state}")
                 logger.debug(f"❌ No match: {city}, {state}")

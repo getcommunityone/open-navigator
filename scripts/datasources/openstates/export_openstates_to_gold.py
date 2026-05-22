@@ -3,7 +3,7 @@
 Export OpenStates data from PostgreSQL to Gold Parquet datasets
 
 Exports data for dev states (WA, MA, AL, GA, WI) with new naming conventions:
-- contacts_officials
+- contact_official
 - bills_bills
 - bills_bill_actions
 - bills_bill_sponsorships
@@ -142,9 +142,9 @@ def extract_contact_info(source_data_json: str) -> Dict[str, Any]:
     }
 
 
-def export_contacts_officials(conn, state: str, state_dir: Path):
+def export_contact_official(conn, state: str, state_dir: Path):
     """Export officials/legislators (people) from openstates_people table."""
-    logger.info(f"  Exporting contacts_officials for {state}...")
+    logger.info(f"  Exporting contact_official for {state}...")
     
     query = """
         SELECT 
@@ -187,7 +187,7 @@ def export_contacts_officials(conn, state: str, state_dir: Path):
     # Clean up address formatting (remove semicolons)
     df['address'] = df['address'].apply(lambda x: x.replace(';', ', ') if x and isinstance(x, str) else x)
     
-    output_path = state_dir / "contacts_officials.parquet"
+    output_path = state_dir / "contact_official.parquet"
     df.to_parquet(output_path, index=False, engine='pyarrow', compression='snappy')
     
     logger.info(f"  ✅ Exported {len(df):,} officials")
@@ -491,7 +491,7 @@ def main():
                 continue
             
             # Export all datasets for this state
-            export_contacts_officials(conn, state, state_dir)
+            export_contact_official(conn, state, state_dir)
             export_bills_bills(conn, state, jurisdiction_id, state_dir)
             export_bills_versions(conn, state, jurisdiction_id, state_dir)
             export_bills_bill_actions(conn, state, jurisdiction_id, state_dir)

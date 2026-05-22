@@ -52,7 +52,7 @@ def get_dataset_name(file_stem: str) -> str:
         'bills_bills': 'bills',
         'bills_bill_actions': 'bill-actions',
         'bills_bill_sponsorships': 'bill-sponsorships',
-        'contacts_officials': 'officials',
+        'contact_official': 'officials',
         'contacts_local_officials': 'local-officials',
         'events_participants': 'event-participants',
         'events_documents': 'event-documents',

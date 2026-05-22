@@ -36,17 +36,17 @@ CREATE FOREIGN TABLE bronze_nonprofits_fdw (
 SERVER bronze_server
 OPTIONS (schema_name 'public', table_name 'bronze_organizations_nonprofits');
 
-\echo 'Adding columns to organizations_nonprofit_search...'
+\echo 'Adding columns to organization_nonprofit...'
 
 -- Add columns if they don't exist
-ALTER TABLE organizations_nonprofit_search 
+ALTER TABLE organization_nonprofit 
 ADD COLUMN IF NOT EXISTS place_geoid VARCHAR(7),
 ADD COLUMN IF NOT EXISTS county_fips VARCHAR(5);
 
 \echo 'Updating from bronze database (this will take ~30 seconds)...'
 
 -- Single UPDATE statement using foreign table
-UPDATE organizations_nonprofit_search AS o
+UPDATE organization_nonprofit AS o
 SET 
     place_geoid = b.place_geoid,
     county_fips = b.county_fips
@@ -59,11 +59,11 @@ WHERE o.ein = b.ein
 
 -- Create indexes for fast filtering
 CREATE INDEX IF NOT EXISTS idx_org_search_place_geoid 
-ON organizations_nonprofit_search(place_geoid) 
+ON organization_nonprofit(place_geoid) 
 WHERE place_geoid IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_org_search_county_fips 
-ON organizations_nonprofit_search(county_fips) 
+ON organization_nonprofit(county_fips) 
 WHERE county_fips IS NOT NULL;
 
 \echo ''
@@ -78,11 +78,11 @@ SELECT
     COUNT(county_fips) as with_county_fips,
     ROUND(100.0 * COUNT(place_geoid) / COUNT(*), 1) || '%' as pct_place,
     ROUND(100.0 * COUNT(county_fips) / COUNT(*), 1) || '%' as pct_county
-FROM organizations_nonprofit_search;
+FROM organization_nonprofit;
 
 \echo ''
 \echo 'Tuscaloosa city nonprofits:'
-SELECT COUNT(*) FROM organizations_nonprofit_search WHERE place_geoid = '0177256';
+SELECT COUNT(*) FROM organization_nonprofit WHERE place_geoid = '0177256';
 
 \echo ''
 \echo '✅ Done! City filtering should now work.'

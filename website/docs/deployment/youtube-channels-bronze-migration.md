@@ -328,7 +328,7 @@ LIMIT 20;
 
 Once this pattern works well:
 
-1. Migrate `events_search` to bronze pattern
+1. Migrate `event` to bronze pattern
 2. Migrate `jurisdictions_details_search` to bronze pattern  
 3. Create unified dbt documentation
 4. Add more data quality tests

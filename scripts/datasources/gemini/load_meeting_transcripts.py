@@ -3,7 +3,7 @@
 Gemini Meeting Video Analysis - Policy Frame Extraction
 
 This script:
-1. Fetches recent meeting videos from events_search (most recent N per channel)
+1. Fetches recent meeting videos from event (most recent N per channel)
 2. Filters for channels with known channel_type OR in localview
 3. Passes YouTube video URLs directly to Gemini (no transcript needed)
 4. Analyzes using Gemini AI with policy_analysis.md prompt
@@ -115,7 +115,7 @@ class MeetingTranscriptAnalyzer:
         create_table_sql = """
         CREATE TABLE IF NOT EXISTS bronze.bronze_events_analysis_ai (
             id SERIAL PRIMARY KEY,
-            event_id INTEGER NOT NULL REFERENCES events_search(id) ON DELETE CASCADE,
+            event_id INTEGER NOT NULL REFERENCES event(event_id) ON DELETE CASCADE,
             video_id VARCHAR(20) NOT NULL,
             analysis_type VARCHAR(50) DEFAULT 'policy_frame_analysis',
             ai_model VARCHAR(100) DEFAULT 'gemini-1.5-flash',
@@ -180,7 +180,7 @@ class MeetingTranscriptAnalyzer:
         limit_per_channel: int = 5
     ) -> List[Dict[str, Any]]:
         """
-        Get recent meetings to analyze from events_search.
+        Get recent meetings to analyze from event.
         
         Returns the most recent N meetings per channel (no transcripts needed).
         Filters for channels with:
@@ -194,9 +194,9 @@ class MeetingTranscriptAnalyzer:
         query = """
         WITH ranked_meetings AS (
             SELECT 
-                e.id as event_id,
-                e.title,
-                e.description,
+                e.event_id,
+                e.event_title,
+                e.event_description,
                 e.event_date,
                 e.event_time,
                 e.video_url,
@@ -214,7 +214,7 @@ class MeetingTranscriptAnalyzer:
                     PARTITION BY e.channel_id 
                     ORDER BY e.event_date DESC, e.event_time DESC NULLS LAST
                 ) as rn
-            FROM events_search e
+            FROM event e
             INNER JOIN events_channels_search c ON e.channel_id = c.channel_id
             WHERE e.video_url IS NOT NULL
               AND e.video_url LIKE 'https://www.youtube.com/watch%%'

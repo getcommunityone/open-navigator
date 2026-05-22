@@ -2,8 +2,8 @@
 """
 FEC Bulk Data Unzipper (High-Performance Edition)
 
-Unzips all FEC bulk data files downloaded by bulk_download_fec.py
-from D:/fec_data/bulk-downloads/ to D:/fec_data/unzipped/
+Unzips all FEC bulk data files downloaded by load_fec_bulk.py
+from data/cache/fec_data/bulk-downloads/ to data/cache/fec_data/unzipped/
 
 Supports multiple extraction methods for maximum speed:
 - Python zipfile (default, portable)
@@ -11,7 +11,7 @@ Supports multiple extraction methods for maximum speed:
 - Parallel processing (4-8x faster with multiple workers)
 
 Directory Structure:
-    D:/fec_data/
+    data/cache/fec_data/
     ├── bulk-downloads/          # Original ZIP files (source)
     │   ├── candidate-master/
     │   │   ├── 1980/cn80.zip
@@ -37,17 +37,13 @@ Directory Structure:
 
 Usage:
     # Quick start: Unzip only the latest 2 years with 8 workers (RECOMMENDED)
-    python unzip_fec_data.py --latest 2 --workers 8 --base-dir /mnt/d/fec_data
-
+    python unzip_fec_data.py --latest 2 --workers 8 
     # Fast: Use 8 parallel workers (4-8x faster)
-    python unzip_fec_data.py --workers 8 --base-dir /mnt/d/fec_data
-
+    python unzip_fec_data.py --workers 8 
     # Fastest: Use 7-Zip with 8 workers (10-15x faster if 7z installed)
-    python unzip_fec_data.py --method 7z --workers 8 --base-dir /mnt/d/fec_data
-
+    python unzip_fec_data.py --method 7z --workers 8 
     # Default (single-threaded Python)
-    python unzip_fec_data.py --base-dir /mnt/d/fec_data
-
+    python unzip_fec_data.py 
     # Specific category only
     python unzip_fec_data.py --category candidate-master --workers 4
 
@@ -146,7 +142,7 @@ class FECBulkUnzipper:
         Initialize FEC bulk unzipper
         
         Args:
-            base_dir: Base directory containing bulk-downloads/ (e.g., D:/fec_data/)
+            base_dir: Base directory containing bulk-downloads/ (default: data/cache/fec_data/)
             resume: Skip already unzipped files
             remove_zips: Remove ZIP files after successful extraction
             method: Extraction method ('python', '7z', or 'auto')
@@ -164,7 +160,7 @@ class FECBulkUnzipper:
         # Validate source directory exists
         if not self.bulk_dir.exists():
             logger.error(f"❌ Source directory not found: {self.bulk_dir}")
-            logger.info(f"💡 Run bulk_download_fec.py first to download FEC data")
+            logger.info("💡 Run load_fec_bulk.py first to download FEC data")
             sys.exit(1)
         
         # Create destination directory
@@ -547,11 +543,13 @@ def main():
         epilog=__doc__
     )
     
+    from fec_paths import default_fec_data_dir
+
     parser.add_argument(
         '--base-dir',
         type=Path,
-        default=Path('D:/fec_data'),
-        help='Base directory containing bulk-downloads/ (default: D:/fec_data)'
+        default=None,
+        help=f'Base directory containing bulk-downloads/ (default: {default_fec_data_dir()})'
     )
     
     parser.add_argument(
@@ -606,7 +604,9 @@ def main():
     )
     
     args = parser.parse_args()
-    
+    if args.base_dir is None:
+        args.base_dir = default_fec_data_dir()
+
     # Parse categories and years
     categories = {args.category} if args.category else None
     years = set(args.years.split(',')) if args.years else None

@@ -1,12 +1,12 @@
 -- =============================================================================
--- GA gap audit (minimal DB): jurisdictions_search + bronze only.
+-- GA gap audit (minimal DB): jurisdiction + bronze only.
 -- Use full audit_ga_jurisdiction_youtube_gaps.sql when jurisdictions_details_search exists.
 -- =============================================================================
 \pset pager off
 
-\echo '========== 1) SCALE: jurisdictions_search (GA) =========='
+\echo '========== 1) SCALE: jurisdiction (GA) =========='
 SELECT js.type, COUNT(*) AS n
-FROM jurisdictions_search js
+FROM jurisdiction js
 WHERE (
     upper(trim(COALESCE(to_jsonb(js)->>'state_code', ''))) = 'GA'
     OR upper(trim(COALESCE(to_jsonb(js)->>'state', ''))) IN ('GA', 'GEORGIA')

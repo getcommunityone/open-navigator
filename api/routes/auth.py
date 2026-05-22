@@ -70,7 +70,7 @@ class TokenResponse(BaseModel):
 
 
 class UserResponse(BaseModel):
-    id: int
+    user_id: int
     email: str
     username: Optional[str]
     full_name: Optional[str]
@@ -380,7 +380,7 @@ async def oauth_callback(
     db.commit()
     
     # Create JWT token (sub must be string, not int)
-    jwt_token = create_access_token(data={"sub": str(user.id)})
+    jwt_token = create_access_token(data={"sub": str(user.user_id)})
     
     # Redirect to frontend with token
     # On HuggingFace/production, frontend and backend are same domain - use relative path
@@ -549,7 +549,7 @@ def get_current_user_info(
     payload = decode_access_token(token)
     user_id = int(payload.get('sub'))  # Convert back to int for DB query
     
-    user = db.query(User).filter(User.id == user_id).first()
+    user = db.query(User).filter(User.user_id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
@@ -576,7 +576,7 @@ def update_user_profile(
     payload = decode_access_token(token)
     user_id = int(payload.get('sub'))
     
-    user = db.query(User).filter(User.id == user_id).first()
+    user = db.query(User).filter(User.user_id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     

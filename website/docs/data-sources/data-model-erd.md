@@ -235,7 +235,7 @@ social_twitter.parquet
 social_facebook.parquet
 videos_youtube_channels.parquet
 events_events.parquet
-contacts_officials.parquet
+contact_official.parquet
 bills_bills.parquet
 nonprofits_organizations.parquet
 nonprofits_financials.parquet
@@ -255,7 +255,7 @@ nonprofits_volunteer_activities.parquet
 nonprofits_program_delivery.parquet
 nonprofits_program_outcomes.parquet
 grants_federal_grants.parquet
-contacts_officials.parquet
+contact_official.parquet
 contacts_official_roles.parquet
 contacts_official_contacts.parquet
 contacts_official_identifiers.parquet

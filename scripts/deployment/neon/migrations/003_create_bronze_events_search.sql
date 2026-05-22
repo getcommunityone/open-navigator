@@ -6,9 +6,9 @@
 -- Date: 2026-05-06
 
 -- Run with:
--- psql -h localhost -p 5433 -U postgres -d open_navigator -f 003_create_bronze_events_search.sql
+-- psql -h localhost -p 5433 -U postgres -d open_navigator -f 003_create_bronze_event.sql
 
--- NOTE: Table has been renamed from bronze_events_search to bronze_events_cdp
+-- NOTE: Table has been renamed from bronze_event to bronze_events_cdp
 --       to better reflect its purpose (CDP data only, not general events search)
 
 -- ============================================================================
@@ -72,7 +72,7 @@ CREATE TABLE IF NOT EXISTS bronze.bronze_events_cdp (
 -- Add new columns if table already exists (for migration from old schema)
 -- ============================================================================
 
-ALTER TABLE bronze.bronze_events_search 
+ALTER TABLE bronze.bronze_event 
     ADD COLUMN IF NOT EXISTS event_datetime TIMESTAMP,
     ADD COLUMN IF NOT EXISTS body_name VARCHAR(200),
     ADD COLUMN IF NOT EXISTS body_description TEXT,
@@ -85,25 +85,25 @@ ALTER TABLE bronze.bronze_events_search
 -- Indexes for performance
 -- ============================================================================
 
-CREATE INDEX IF NOT EXISTS idx_bronze_events_search_date ON bronze.bronze_events_search(event_date DESC);
-CREATE INDEX IF NOT EXISTS idx_bronze_events_search_state ON bronze.bronze_events_search(state_code, state);
-CREATE INDEX IF NOT EXISTS idx_bronze_events_search_jurisdiction ON bronze.bronze_events_search(jurisdiction_name, state_code);
-CREATE INDEX IF NOT EXISTS idx_bronze_events_search_channel ON bronze.bronze_events_search(channel_id);
-CREATE INDEX IF NOT EXISTS idx_bronze_events_search_source ON bronze.bronze_events_search(source);
-CREATE INDEX IF NOT EXISTS idx_bronze_events_search_video_url ON bronze.bronze_events_search(video_url);
-CREATE INDEX IF NOT EXISTS idx_bronze_events_search_datasource_id ON bronze.bronze_events_search(datasource_id);
+CREATE INDEX IF NOT EXISTS idx_bronze_event_date ON bronze.bronze_event(event_date DESC);
+CREATE INDEX IF NOT EXISTS idx_bronze_event_state ON bronze.bronze_event(state_code, state);
+CREATE INDEX IF NOT EXISTS idx_bronze_event_jurisdiction ON bronze.bronze_event(jurisdiction_name, state_code);
+CREATE INDEX IF NOT EXISTS idx_bronze_event_channel ON bronze.bronze_event(channel_id);
+CREATE INDEX IF NOT EXISTS idx_bronze_event_source ON bronze.bronze_event(source);
+CREATE INDEX IF NOT EXISTS idx_bronze_event_video_url ON bronze.bronze_event(video_url);
+CREATE INDEX IF NOT EXISTS idx_bronze_event_datasource_id ON bronze.bronze_event(datasource_id);
 
 -- ============================================================================
 -- Comments
 -- ============================================================================
 
-COMMENT ON TABLE bronze.bronze_events_search IS 'Bronze table for meeting events from LocalView, YouTube, Legistar and other sources. Raw data before deduplication and quality checks. Schema compatible with Council Data Project (CDP) backend: https://councildataproject.org/';
-COMMENT ON COLUMN bronze.bronze_events_search.source IS 'Data source: localview, youtube, legistar, granicus, etc.';
-COMMENT ON COLUMN bronze.bronze_events_search.datasource_id IS 'Original ID from source system (video_id for YouTube, event_id for Legistar, etc.)';
-COMMENT ON COLUMN bronze.bronze_events_search.external_source_id IS 'CDP external_source_id field for cross-system tracking';
-COMMENT ON COLUMN bronze.bronze_events_search.event_datetime IS 'CDP event_datetime field (combined date+time)';
-COMMENT ON COLUMN bronze.bronze_events_search.body_name IS 'CDP body.name: meeting body like "City Council" or "Planning Commission"';
-COMMENT ON COLUMN bronze.bronze_events_search.video_url IS 'Video URL - will be deduplicated when loading to production events_search';
+COMMENT ON TABLE bronze.bronze_event IS 'Bronze table for meeting events from LocalView, YouTube, Legistar and other sources. Raw data before deduplication and quality checks. Schema compatible with Council Data Project (CDP) backend: https://councildataproject.org/';
+COMMENT ON COLUMN bronze.bronze_event.source IS 'Data source: localview, youtube, legistar, granicus, etc.';
+COMMENT ON COLUMN bronze.bronze_event.datasource_id IS 'Original ID from source system (video_id for YouTube, event_id for Legistar, etc.)';
+COMMENT ON COLUMN bronze.bronze_event.external_source_id IS 'CDP external_source_id field for cross-system tracking';
+COMMENT ON COLUMN bronze.bronze_event.event_datetime IS 'CDP event_datetime field (combined date+time)';
+COMMENT ON COLUMN bronze.bronze_event.body_name IS 'CDP body.name: meeting body like "City Council" or "Planning Commission"';
+COMMENT ON COLUMN bronze.bronze_event.video_url IS 'Video URL - will be deduplicated when loading to production event';
 
 -- ============================================================================
 -- Import as Foreign Table in Production Database
@@ -111,5 +111,5 @@ COMMENT ON COLUMN bronze.bronze_events_search.video_url IS 'Video URL - will be 
 -- Run this in the open_navigator database to access bronze data via Foreign Data Wrapper:
 --
 -- IMPORT FOREIGN SCHEMA public
---     LIMIT TO (bronze_events_search)
+--     LIMIT TO (bronze_event)
 --     FROM SERVER bronze_server INTO bronze;

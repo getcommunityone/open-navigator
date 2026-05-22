@@ -442,8 +442,8 @@ class DuckDBLegislativeAnalyzer:
         
         # Adapt query based on available columns
         if 'state' in col_names and 'topic' in col_names and 'total_bills' in col_names:
-            # This is bills_map_aggregates format (aggregated data)
-            logger.info("   Using aggregated bills format (bills_map_aggregates)")
+            # This is bill_map_aggregate format (aggregated data)
+            logger.info("   Using aggregated bills format (bill_map_aggregate)")
             
             # Bills by state
             result = self.conn.execute("""

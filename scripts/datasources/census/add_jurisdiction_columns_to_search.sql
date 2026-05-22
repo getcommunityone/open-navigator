@@ -1,5 +1,5 @@
 /*
-Add jurisdiction linking columns to organizations_nonprofit_search table
+Add jurisdiction linking columns to organization_nonprofit table
 
 This adds place_geoid and county_fips to the production search table so nonprofits
 can be filtered by city/county jurisdictions.
@@ -14,14 +14,14 @@ Run with:
 \echo '========================================='
 \echo ''
 
--- Step 1: Add columns to organizations_nonprofit_search
-ALTER TABLE organizations_nonprofit_search 
+-- Step 1: Add columns to organization_nonprofit
+ALTER TABLE organization_nonprofit 
 ADD COLUMN IF NOT EXISTS place_geoid VARCHAR(7),
 ADD COLUMN IF NOT EXISTS county_fips VARCHAR(5);
 
 -- Step 2: Create index on EIN for joining
 CREATE INDEX IF NOT EXISTS idx_org_search_ein 
-ON organizations_nonprofit_search(ein);
+ON organization_nonprofit(ein);
 
 \echo 'Columns added. Ready to populate from bronze database.'
 \echo ''

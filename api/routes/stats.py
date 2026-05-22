@@ -49,10 +49,10 @@ def calculate_stats_from_db(state: Optional[str] = None,
     Calculate statistics from database tables (faster than parquet files)
     
     Queries:
-    - jurisdictions_search for jurisdiction counts
-    - contacts_search for official/legislator counts  
-    - organizations_nonprofit_search for nonprofit counts
-    - stats_aggregates for trending causes
+    - jurisdiction for jurisdiction counts
+    - contact for official/legislator counts  
+    - organization_nonprofit for nonprofit counts
+    - jurisdiction_state_aggregate for trending causes
     
     Args:
         state: State name (e.g., 'Massachusetts') or code (e.g., 'MA')
@@ -77,7 +77,7 @@ def calculate_stats_from_db(state: Optional[str] = None,
             level = 'national'
             location_display = 'United States'
         
-        # Get all stats from stats_aggregates table
+        # Get all stats from jurisdiction_state_aggregate table
         stats_where = ["level = %s"]
         stats_params = [level]
         
@@ -104,7 +104,7 @@ def calculate_stats_from_db(state: Optional[str] = None,
                 trending_causes,
                 jurisdictions_count,
                 contacts_count
-            FROM stats_aggregates
+            FROM jurisdiction_state_aggregate
             WHERE {' AND '.join(stats_where)}
             LIMIT 1
         """
@@ -137,7 +137,7 @@ def calculate_stats_from_db(state: Optional[str] = None,
             'county': county,
             'city': city,
             'jurisdictions': jurisdictions,
-            'school_districts': 0,  # TODO: Add to stats_aggregates
+            'school_districts': 0,  # TODO: Add to jurisdiction_state_aggregate
             'nonprofits': nonprofits,
             'events': events,
             'bills': 0,  # TODO: Add bills_search table
@@ -281,7 +281,7 @@ def calculate_stats(state: Optional[str] = None,
     
     # Count contacts - read from consolidated contacts files
     contacts = 0
-    for contact_table in ['contacts_local_officials', 'contacts_officials']:
+    for contact_table in ['contacts_local_officials', 'contact_official']:
         contact_file = Path(f'data/gold/{contact_table}.parquet')
         if contact_file.exists():
             try:

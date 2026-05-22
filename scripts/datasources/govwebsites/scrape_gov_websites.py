@@ -9,7 +9,7 @@ Scrapes official .gov domains from GSA registry to extract:
 - YouTube channels
 - Social media accounts
 
-Data Source: GSA .gov domains in jurisdictions_details_search (status='gsa_only' or has gov_domains)
+Data Source: GSA .gov domains in jurisdiction (discovery_status='gsa_only' or has gov_domains)
 
 Type: ENRICHMENT LOAD (adds meeting/video data to existing jurisdictions)
 """
@@ -219,10 +219,10 @@ async def main(states: Optional[str] = None, limit: int = 100, dry_run: bool = F
     query = f"""
         SELECT 
             jurisdiction_id,
-            jurisdiction_name,
+            name AS jurisdiction_name,
             state_code,
             gov_domains->0 as primary_domain
-        FROM jurisdictions_details_search
+        FROM jurisdiction
         WHERE gov_domains IS NOT NULL 
           AND jsonb_array_length(gov_domains) > 0
           {state_filter}

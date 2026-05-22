@@ -7,7 +7,7 @@ sidebar_position: 8
 ## Issue Identified
 
 County search filtering is not working because:
-1. ❌ The `county` field in `jurisdictions_search` table is NULL for most records
+1. ❌ The `county` field in `jurisdiction` table is NULL for most records
 2. ❌ Cities don't have county data (Census gazetteer files don't include it)
 3. ⚠️  Townships have county data but database update failed due to transaction errors
 

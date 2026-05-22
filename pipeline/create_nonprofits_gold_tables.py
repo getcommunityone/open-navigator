@@ -35,7 +35,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from config.settings import settings
-from calendar_year_util import calendar_year_label
+from scripts.utils.calendar_year_util import calendar_year_label
 from scripts.datasources.irs.nonprofit_discovery import NonprofitDiscovery
 from scripts.discovery.irs_bmf_ingestion import IRSBMFIngestion
 

@@ -28,7 +28,7 @@ dbt run --target bronze --select bronze_organizations_nonprofits
 
 **Output:** `open_navigator.bronze.bronze_organizations_nonprofits` (756 MB, 70 columns)
 
-### 2. `stats_aggregates` (Marts)
+### 2. `jurisdiction_state_aggregate` (Marts)
 
 **Multi-level jurisdiction statistics with trending causes**
 
@@ -39,7 +39,7 @@ dbt run --target bronze --select bronze_organizations_nonprofits
 
 **Build and sync to production - see workflow below.**
 
-**Output:** `open_navigator.bronze.stats_aggregates` (8,779 records)
+**Output:** `open_navigator.bronze.jurisdiction_state_aggregate` (8,779 records)
 
 ## Pipeline Architecture
 
@@ -79,9 +79,9 @@ dbt run --target bronze --select stg_bronze_decisions+
 **What this does:**
 - `stg_bronze_decisions`: Cleans and filters recent decisions (last 90 days)
 - `int_trending_causes_by_jurisdiction`: Aggregates decisions by NTEE cause category
-- `stats_aggregates`: Final stats table with trending causes JSON
+- `jurisdiction_state_aggregate`: Final stats table with trending causes JSON
 
-**Output:** `open_navigator.bronze.stats_aggregates`
+**Output:** `open_navigator.bronze.jurisdiction_state_aggregate`
 
 ### 2. Export to production database
 
@@ -94,12 +94,12 @@ python scripts/dbt/export_stats_to_open_navigator.py
 ```
 
 **What this does:**
-- Reads from `open_navigator.bronze.stats_aggregates`
-- Deletes old data from `open_navigator.stats_aggregates`
+- Reads from `open_navigator.bronze.jurisdiction_state_aggregate`
+- Deletes old data from `open_navigator.jurisdiction_state_aggregate`
 - Inserts updated stats (3 records: national, state, jurisdiction levels)
 - Handles JSONB serialization for trending_causes column
 
-**Output:** `open_navigator.stats_aggregates` (ready for API queries)
+**Output:** `open_navigator.jurisdiction_state_aggregate` (ready for API queries)
 
 ### 3. Deploy to Neon Cloud (optional)
 
@@ -111,7 +111,7 @@ python scripts/deployment/neon/migrate.py
 
 ## Data Schema
 
-### stats_aggregates Table
+### jurisdiction_state_aggregate Table
 
 **8,779 records across 5 aggregation levels**
 
@@ -240,7 +240,7 @@ cursor = conn.cursor()
 # Get trending causes for a state
 cursor.execute("""
     SELECT trending_causes 
-    FROM stats_aggregates 
+    FROM jurisdiction_state_aggregate 
     WHERE level = 'state' AND state_code = %s
 """, ('AL',))
 
@@ -253,7 +253,7 @@ cursor.execute("""
         nonprofits_count,
         total_revenue,
         total_assets
-    FROM stats_aggregates 
+    FROM jurisdiction_state_aggregate 
     WHERE level = 'county' 
       AND state_code = %s
     ORDER BY nonprofits_count DESC
@@ -269,7 +269,7 @@ cursor.execute("""
         events_count,
         total_revenue,
         total_assets
-    FROM stats_aggregates 
+    FROM jurisdiction_state_aggregate 
     WHERE level = 'national'
 """)
 
@@ -303,7 +303,7 @@ cd .. && python scripts/dbt/export_stats_to_open_navigator.py
 
 # 3. Verify
 psql -h localhost -p 5433 -U postgres -d open_navigator -c \
-  "SELECT level, jsonb_array_length(trending_causes) FROM stats_aggregates WHERE trending_causes IS NOT NULL;"
+  "SELECT level, jsonb_array_length(trending_causes) FROM jurisdiction_state_aggregate WHERE trending_causes IS NOT NULL;"
 ```
 
 ### Add new dbt models

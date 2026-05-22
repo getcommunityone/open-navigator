@@ -63,9 +63,13 @@ gcp-*.json
 bigquery-*.json
 .gcp/
 
-# Logs
+# Logs (runtime; keep under repo logs/ or data/logs/)
 logs/
+**/logs/
 *.log
+*.log.*
+wget-log
+nohup.out
 
 # Wikidata loaders — runtime resume state (historical root default); prefer data/cache/wikidata/
 .wikidata_checkpoint.json

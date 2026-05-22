@@ -7,7 +7,7 @@ used to classify nonprofit organizations by their mission and activities.
 
 Data source: IRS Publication 557 + NCCS (National Center for Charitable Statistics)
 Input: data/gold/causes_ntee_codes.parquet (196 codes)
-Output: causes_ntee table in PostgreSQL (cause_type='ntee')
+Output: cause_ntee table in PostgreSQL (cause_type='ntee')
 
 Usage:
     # Load to local database
@@ -53,13 +53,13 @@ NTEE_FILE = GOLD_DIR / "causes_ntee_codes.parquet"
 
 
 def create_table(conn):
-    """Create causes_ntee table if it doesn't exist"""
+    """Create cause_ntee table if it doesn't exist"""
     
-    logger.info("Creating causes_ntee table if needed...")
+    logger.info("Creating cause_ntee table if needed...")
     
     with conn.cursor() as cursor:
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS causes_ntee (
+            CREATE TABLE IF NOT EXISTS cause_ntee (
                 code VARCHAR(100) PRIMARY KEY,
                 name TEXT NOT NULL,
                 description TEXT,
@@ -75,18 +75,18 @@ def create_table(conn):
         
         # Create indexes
         cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_causes_ntee_type 
-            ON causes_ntee(cause_type)
+            CREATE INDEX IF NOT EXISTS idx_cause_ntee_type 
+            ON cause_ntee(cause_type)
         """)
         
         cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_causes_ntee_name_search 
-            ON causes_ntee USING gin(to_tsvector('english', name))
+            CREATE INDEX IF NOT EXISTS idx_cause_ntee_name_search 
+            ON cause_ntee USING gin(to_tsvector('english', name))
         """)
         
         cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_causes_ntee_description_search 
-            ON causes_ntee USING gin(to_tsvector('english', description))
+            CREATE INDEX IF NOT EXISTS idx_cause_ntee_description_search 
+            ON cause_ntee USING gin(to_tsvector('english', description))
         """)
     
     conn.commit()
@@ -168,7 +168,7 @@ def load_ntee_codes(cursor, dry_run=False):
     logger.info(f"Loading {len(records)} NTEE codes into database...")
     
     execute_values(cursor, """
-        INSERT INTO causes_ntee (code, name, description, cause_type, parent_code, category, subcategory, cause_breadcrumb, source, last_updated)
+        INSERT INTO cause_ntee (code, name, description, cause_type, parent_code, category, subcategory, cause_breadcrumb, source, last_updated)
         VALUES %s
         ON CONFLICT (code) DO UPDATE SET 
             name = EXCLUDED.name,
@@ -187,11 +187,11 @@ def verify_data(conn):
     cursor = conn.cursor()
     
     # Count total records
-    cursor.execute("SELECT COUNT(*) FROM causes_ntee WHERE cause_type = 'ntee'")
+    cursor.execute("SELECT COUNT(*) FROM cause_ntee WHERE cause_type = 'ntee'")
     total = cursor.fetchone()[0]
     
     # Get sample records
-    cursor.execute("SELECT code, name FROM causes_ntee WHERE cause_type = 'ntee' ORDER BY code LIMIT 5")
+    cursor.execute("SELECT code, name FROM cause_ntee WHERE cause_type = 'ntee' ORDER BY code LIMIT 5")
     samples = cursor.fetchall()
     
     logger.info("\n" + "=" * 70)

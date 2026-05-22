@@ -10,10 +10,10 @@ DO $$
 BEGIN
   IF EXISTS (
     SELECT 1 FROM information_schema.columns
-    WHERE table_schema = 'public' AND table_name = 'contacts_search'
+    WHERE table_schema = 'public' AND table_name = 'contact'
       AND column_name = 'tax_year' AND data_type = 'integer'
   ) THEN
-    ALTER TABLE public.contacts_search
+    ALTER TABLE public.contact
       ALTER COLUMN tax_year TYPE VARCHAR(4)
       USING (CASE WHEN tax_year IS NULL THEN NULL ELSE tax_year::text END);
   END IF;

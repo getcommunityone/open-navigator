@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Export stats_aggregates from bronze DB to open_navigator DB
+Export jurisdiction_state_aggregate from bronze DB to open_navigator DB
 
 This syncs the dbt-generated stats from open_navigator (bronze schema) to the
 production-ready open_navigator database for fast queries.
@@ -21,7 +21,7 @@ PROD_DB = "postgresql://postgres:password@localhost:5433/open_navigator"
 
 
 def sync_stats():
-    """Copy stats_aggregates from bronze to production database"""
+    """Copy jurisdiction_state_aggregate from bronze to production database"""
     
     logger.info("🔄 Starting stats sync: bronze → open_navigator")
     
@@ -52,7 +52,7 @@ def sync_stats():
                 total_assets,
                 trending_causes,
                 last_updated
-            FROM bronze.stats_aggregates
+            FROM bronze.jurisdiction_state_aggregate
             ORDER BY level, state_code, county, city
         """)
         
@@ -65,7 +65,7 @@ def sync_stats():
         
         # Step 2: Clear existing stats in production
         logger.info("🗑️  Clearing existing stats in open_navigator...")
-        prod_cursor.execute("DELETE FROM stats_aggregates")
+        prod_cursor.execute("DELETE FROM jurisdiction_state_aggregate")
         deleted_count = prod_cursor.rowcount
         logger.info(f"  Deleted {deleted_count} old records")
         
@@ -82,7 +82,7 @@ def sync_stats():
             processed_rows.append(tuple(row_list))
         
         insert_query = """
-            INSERT INTO stats_aggregates (
+            INSERT INTO jurisdiction_state_aggregate (
                 level,
                 state_code,
                 state,
@@ -105,14 +105,14 @@ def sync_stats():
         prod_conn.commit()
         
         # Step 4: Verify the sync
-        prod_cursor.execute("SELECT COUNT(*) FROM stats_aggregates")
+        prod_cursor.execute("SELECT COUNT(*) FROM jurisdiction_state_aggregate")
         final_count = prod_cursor.fetchone()[0]
         
         # Show sample of trending causes
         prod_cursor.execute("""
             SELECT level, state_code, 
                    jsonb_array_length(trending_causes) as cause_count
-            FROM stats_aggregates 
+            FROM jurisdiction_state_aggregate 
             WHERE trending_causes IS NOT NULL
             LIMIT 5
         """)

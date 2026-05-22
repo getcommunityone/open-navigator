@@ -7,7 +7,7 @@ NTEE codes are used by the IRS and nonprofit sector to classify tax-exempt organ
 **Data Source:** IRS Publication 557 + NCCS (National Center for Charitable Statistics)  
 **Records:** 196 classification codes  
 **Update Frequency:** Annually (taxonomy is relatively stable)
-**Database Table:** `causes_ntee` (with `cause_type = 'ntee'`)
+**Database Table:** `cause_ntee` (with `cause_type = 'ntee'`)
 
 ## NTEE Code Structure
 
@@ -31,14 +31,14 @@ NTEE codes are hierarchical:
 ### Scripts
 
 - **`load_to_postgres.py`** - Load NTEE codes from parquet into PostgreSQL
-  - Loads into `causes_ntee` table (with `cause_type = 'ntee'`)
+  - Loads into `cause_ntee` table (with `cause_type = 'ntee'`)
   - Supports local and Neon cloud databases
   - Creates full-text search indexes
 
 ### Data Files
 
-- **Input:** `data/gold/causes_ntee_codes.parquet`
-- **Output:** `causes_ntee` table in PostgreSQL (196 NTEE codes with `cause_type = 'ntee'`)
+- **Input:** `data/gold/causes_ntee_codes`
+- **Output:** `cause_ntee` table in PostgreSQL (196 NTEE codes with `cause_type = 'ntee'`)
 
 ## Usage
 
@@ -63,38 +63,38 @@ python scripts/datasources/ntee/load_to_postgres.py --db-url postgresql://user:p
 ```sql
 -- Get all NTEE codes
 SELECT code, name, category 
-FROM causes_ntee 
+FROM cause_ntee 
 WHERE cause_type = 'ntee'
 ORDER BY code;
 
 -- Get all major groups (single letter codes)
 SELECT code, name 
-FROM causes_ntee 
+FROM cause_ntee 
 WHERE cause_type = 'ntee' AND length(code) = 1 
 ORDER BY code;
 
 -- Find health-related codes
 SELECT code, name 
-FROM causes_ntee 
+FROM cause_ntee 
 WHERE cause_type = 'ntee' AND code LIKE 'E%' 
 ORDER BY code;
 
 -- Full-text search for education
 SELECT code, name 
-FROM causes_ntee 
+FROM cause_ntee 
 WHERE cause_type = 'ntee' AND to_tsvector('english', name) @@ to_tsquery('education')
 ORDER BY code;
 
 -- Count codes by major group
 SELECT substring(code, 1, 1) as major_group, COUNT(*) 
-FROM causes_ntee 
+FROM cause_ntee 
 WHERE cause_type = 'ntee'
 GROUP BY major_group 
 ORDER BY major_group;
 
 -- Get both NTEE and EveryOrg causes
 SELECT code, name, cause_type, category
-FROM causes_ntee
+FROM cause_ntee
 ORDER BY cause_type, code
 LIMIT 20;
 ```
@@ -102,7 +102,7 @@ LIMIT 20;
 ## Database Schema
 
 ```sql
-CREATE TABLE causes_ntee (
+CREATE TABLE cause_ntee (
     code VARCHAR(100) PRIMARY KEY,              -- NTEE code (e.g., 'A', 'E20') or cause slug (e.g., 'animals', 'climate')
     name TEXT NOT NULL,                         -- Human-readable name
     description TEXT,                           -- Detailed description
@@ -115,21 +115,21 @@ CREATE TABLE causes_ntee (
 );
 
 -- Indexes
-CREATE INDEX idx_causes_ntee_type ON causes_ntee(cause_type);
-CREATE INDEX idx_causes_ntee_parent ON causes_ntee(parent_code);
-CREATE INDEX idx_causes_ntee_name_search ON causes_ntee USING GIN (to_tsvector('english', name));
-CREATE INDEX idx_causes_ntee_description_search ON causes_ntee USING GIN (to_tsvector('english', description));
+CREATE INDEX idx_cause_ntee_type ON cause_ntee(cause_type);
+CREATE INDEX idx_cause_ntee_parent ON cause_ntee(parent_code);
+CREATE INDEX idx_cause_ntee_name_search ON cause_ntee USING GIN (to_tsvector('english', name));
+CREATE INDEX idx_cause_ntee_description_search ON cause_ntee USING GIN (to_tsvector('english', description));
 ```
 
 ## Related Tables
 
 NTEE codes are used to classify organizations in:
 
-- **`organizations_nonprofit_search`** - Main nonprofit search table
-  - Column: `ntee_code` (references `causes_ntee.code` WHERE `cause_type = 'ntee'`)
+- **`organization_nonprofit`** - Main nonprofit search table
+  - Column: `ntee_code` (references `cause_ntee.code` WHERE `cause_type = 'ntee'`)
   - Column: `ntee_major_group` (first letter of NTEE code)
 
-- **`causes_ntee`** - Combined reference table
+- **`cause_ntee`** - Combined reference table
   - Contains both NTEE codes (`cause_type = 'ntee'`) and EveryOrg causes (`cause_type = 'everyorg'`)
   - Use `WHERE cause_type = 'ntee'` to get only NTEE codes
 
@@ -169,13 +169,13 @@ NTEE codes are used to classify organizations in:
 ```
 IRS Publication 557 + NCCS
          ↓
-data/gold/causes_ntee_codes.parquet (196 codes)
+data/gold/causes_ntee_codes (196 codes)
          ↓
 scripts/datasources/ntee/load_to_postgres.py
          ↓
-causes_ntee table (PostgreSQL, cause_type='ntee')
+cause_ntee table (PostgreSQL, cause_type='ntee')
          ↓
-Used by organizations_nonprofit_search table
+Used by organization_nonprofit table
 ```
 
 ## References
@@ -198,7 +198,7 @@ NTEE taxonomy is relatively stable but may be updated annually:
 
 **File not found error:**
 ```
-❌ NTEE codes file not found: data/gold/causes_ntee_codes.parquet
+❌ NTEE codes file not found: data/gold/causes_ntee_codes
 ```
 
 Solution: The parquet file should already exist in your data/gold directory. If missing, it may have been excluded from git or needs to be regenerated.

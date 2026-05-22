@@ -36,7 +36,7 @@ WHERE mj.canonical_name ILIKE '%anchorage%'
 -- 2. REVERSE LOOKUP: Find master record from any source ID
 -- ============================================================================
 
--- Given an organizations_locations ID, find master record
+-- Given an organization_location ID, find master record
 SELECT 
     mj.*,
     jc.match_method,
@@ -45,7 +45,7 @@ FROM master_jurisdictions mj
 JOIN jurisdiction_crosswalk jc ON mj.id = jc.master_jurisdiction_id
 WHERE jc.org_location_id = 12345;  -- Replace with actual ID
 
--- Given a jurisdictions_details_search ID, find all linked sources
+-- Given a jurisdiction ID, find all linked sources
 SELECT 
     mj.canonical_name,
     ol.name as org_name,
@@ -54,7 +54,7 @@ SELECT
     jc.match_method
 FROM jurisdiction_crosswalk jc
 JOIN master_jurisdictions mj ON jc.master_jurisdiction_id = mj.id
-LEFT JOIN organizations_locations ol ON jc.org_location_id = ol.id
+LEFT JOIN organization_location ol ON jc.org_location_id = ol.id
 LEFT JOIN jurisdictions_wikidata jw ON jc.wikidata_id = jw.id
 WHERE jc.details_search_id = 67890;  -- Replace with actual ID
 
@@ -95,7 +95,7 @@ LIMIT 50;
 -- 4. UNMATCH DETECTION: Find records that couldn't be matched
 -- ============================================================================
 
--- Unmatched school districts from organizations_locations
+-- Unmatched school districts from organization_location
 SELECT 
     ol.id,
     ol.name,
@@ -103,13 +103,13 @@ SELECT
     ol.state,
     ol.website,
     ol.source_id as nces_id
-FROM organizations_locations ol
+FROM organization_location ol
 LEFT JOIN jurisdiction_crosswalk jc ON ol.id = jc.org_location_id
 WHERE jc.id IS NULL
   AND ol.organization_type = 'school_district'
 ORDER BY ol.state, ol.city;
 
--- Unmatched jurisdictions from jurisdictions_search
+-- Unmatched jurisdictions from jurisdiction
 SELECT 
     js.id,
     js.name,
@@ -118,7 +118,7 @@ SELECT
     js.county,
     js.geoid,
     js.fips_code
-FROM jurisdictions_search js
+FROM jurisdiction js
 LEFT JOIN jurisdiction_crosswalk jc ON js.id = jc.search_id
 WHERE jc.id IS NULL
   AND js.type IN ('city', 'county')
@@ -202,7 +202,7 @@ SELECT
     COUNT(jc.id) as matched,
     ROUND(100.0 * COUNT(jc.id) / COUNT(*), 2) as match_rate_pct,
     COUNT(DISTINCT jc.match_method) as match_methods_used
-FROM organizations_locations ol
+FROM organization_location ol
 LEFT JOIN jurisdiction_crosswalk jc ON ol.id = jc.org_location_id
 WHERE ol.organization_type = 'school_district'
 GROUP BY ol.state
@@ -262,7 +262,7 @@ SELECT
     ol.website,
     ol.source_id as nces_id,
     jc.wikidata_id
-FROM organizations_locations ol
+FROM organization_location ol
 LEFT JOIN jurisdiction_crosswalk jc ON ol.id = jc.org_location_id
 WHERE ol.organization_type = 'school_district'
   AND ol.website IS NOT NULL
@@ -334,9 +334,9 @@ SELECT
 
 FROM master_jurisdictions mj
 JOIN jurisdiction_crosswalk jc ON mj.id = jc.master_jurisdiction_id
-LEFT JOIN organizations_locations ol ON jc.org_location_id = ol.id
+LEFT JOIN organization_location ol ON jc.org_location_id = ol.id
 LEFT JOIN jurisdictions_wikidata jw ON jc.wikidata_id = jw.id
-LEFT JOIN jurisdictions_details_search jd ON jc.details_search_id = jd.id;
+LEFT JOIN jurisdiction jd ON jc.details_search_id = jd.id;
 
 -- Create indexes on materialized view
 CREATE INDEX IF NOT EXISTS idx_mjf_master_id ON master_jurisdictions_full(master_id);
@@ -375,7 +375,7 @@ WHERE id = 123;
 SELECT 
     'Total Organizations' as metric,
     COUNT(*)::TEXT as value
-FROM organizations_locations
+FROM organization_location
 UNION ALL
 SELECT 
     'Total Master Jurisdictions',

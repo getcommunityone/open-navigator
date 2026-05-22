@@ -56,7 +56,7 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from calendar_year_util import calendar_year_label
+from scripts.utils.calendar_year_util import calendar_year_label
 
 SHAPEFILE_CACHE = PROJECT_ROOT / "data" / "cache" / "census" / "shapefiles"
 RELATIONSHIPS_CACHE = PROJECT_ROOT / "data" / "cache" / "census_relationships"

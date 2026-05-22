@@ -7,10 +7,10 @@ This script migrates ALL tables to use the standard naming convention:
 - state: Full state name (e.g., 'Alabama', 'Massachusetts')
 
 Tables to migrate:
-- stats_aggregates
-- organizations_nonprofit_search
-- contacts_search
-- events_search
+- jurisdiction_state_aggregate
+- organization_nonprofit
+- contact
+- event
 - bills_search
 """
 import os
@@ -37,10 +37,10 @@ STATE_NAMES = {
 }
 
 TABLES_TO_MIGRATE = [
-    'stats_aggregates',
-    'organizations_nonprofit_search',
-    'contacts_search',
-    'events_search',
+    'jurisdiction_state_aggregate',
+    'organization_nonprofit',
+    'contact',
+    'event',
     'bills_search'
 ]
 
@@ -109,13 +109,13 @@ def migrate_table(conn, table_name):
         conn.commit()
         
         # Update unique constraints if needed
-        if table_name == 'stats_aggregates':
+        if table_name == 'jurisdiction_state_aggregate':
             logger.info(f"  Updating unique constraint...")
             conn.execute(text(f"""
-                ALTER TABLE {table_name} DROP CONSTRAINT IF EXISTS stats_aggregates_level_state_county_city_key
+                ALTER TABLE {table_name} DROP CONSTRAINT IF EXISTS jurisdiction_state_aggregate_level_state_county_city_key
             """))
             conn.execute(text(f"""
-                ALTER TABLE {table_name} ADD CONSTRAINT stats_aggregates_level_state_code_county_city_key 
+                ALTER TABLE {table_name} ADD CONSTRAINT jurisdiction_state_aggregate_level_state_code_county_city_key 
                 UNIQUE (level, state_code, county, city)
             """))
             conn.commit()

@@ -16,7 +16,7 @@ BEGIN;
 -- CONTACTS_SEARCH
 -- ============================================================================
 
-ALTER TABLE contacts_search 
+ALTER TABLE contact 
   ADD COLUMN IF NOT EXISTS datasource VARCHAR(100) DEFAULT 'unknown',
   ADD COLUMN IF NOT EXISTS datasource_id VARCHAR(255),  -- ID in source system (Wikidata QID, OpenStates ID, etc.)
   ADD COLUMN IF NOT EXISTS confidence_score FLOAT DEFAULT 0.50,  -- 0.0-1.0
@@ -26,7 +26,7 @@ ALTER TABLE contacts_search
   ADD COLUMN IF NOT EXISTS review_notes TEXT;
 
 -- Update existing records to have appropriate datasource
-UPDATE contacts_search 
+UPDATE contact 
 SET datasource = CASE
   WHEN source = 'openstates' THEN 'openstates_api'
   WHEN source = 'irs_form990' THEN 'irs_990'
@@ -42,15 +42,15 @@ END
 WHERE datasource = 'unknown';
 
 -- Indexes for datasource queries
-CREATE INDEX IF NOT EXISTS idx_contacts_datasource ON contacts_search(datasource);
-CREATE INDEX IF NOT EXISTS idx_contacts_datasource_id ON contacts_search(datasource_id) WHERE datasource_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_contacts_verified ON contacts_search(verified);
-CREATE INDEX IF NOT EXISTS idx_contacts_needs_review ON contacts_search(needs_review) WHERE needs_review = TRUE;
+CREATE INDEX IF NOT EXISTS idx_contacts_datasource ON contact(datasource);
+CREATE INDEX IF NOT EXISTS idx_contacts_datasource_id ON contact(datasource_id) WHERE datasource_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_contacts_verified ON contact(verified);
+CREATE INDEX IF NOT EXISTS idx_contacts_needs_review ON contact(needs_review) WHERE needs_review = TRUE;
 
-COMMENT ON COLUMN contacts_search.datasource IS 'Source system: openstates_api, irs_990, gemini_ai_extraction, localview, manual_entry';
-COMMENT ON COLUMN contacts_search.datasource_id IS 'ID in source system (Wikidata QID, OpenStates person_id, etc.)';
-COMMENT ON COLUMN contacts_search.confidence_score IS 'Data quality score: 1.0=authoritative, 0.6=AI extracted, 0.0=uncertain';
-COMMENT ON COLUMN contacts_search.verified IS 'Has this record been human-verified?';
+COMMENT ON COLUMN contact.datasource IS 'Source system: openstates_api, irs_990, gemini_ai_extraction, localview, manual_entry';
+COMMENT ON COLUMN contact.datasource_id IS 'ID in source system (Wikidata QID, OpenStates person_id, etc.)';
+COMMENT ON COLUMN contact.confidence_score IS 'Data quality score: 1.0=authoritative, 0.6=AI extracted, 0.0=uncertain';
+COMMENT ON COLUMN contact.verified IS 'Has this record been human-verified?';
 
 
 -- ============================================================================
@@ -118,13 +118,13 @@ COMMENT ON COLUMN bills_search.is_local_ordinance IS 'True for local ordinances/
 -- EVENTS_SEARCH
 -- ============================================================================
 
-ALTER TABLE events_search
+ALTER TABLE event
   ADD COLUMN IF NOT EXISTS datasource VARCHAR(100) DEFAULT 'localview',
   ADD COLUMN IF NOT EXISTS datasource_id VARCHAR(255),  -- YouTube video ID, Legistar ID, etc.
   ADD COLUMN IF NOT EXISTS confidence_score FLOAT DEFAULT 0.90;
 
 -- Update existing records
-UPDATE events_search
+UPDATE event
 SET datasource = CASE
   WHEN source = 'localview' THEN 'localview'
   WHEN source = 'youtube' THEN 'youtube_api'
@@ -140,10 +140,10 @@ END
 WHERE datasource IS NULL OR datasource = 'localview';
 
 -- Indexes
-CREATE INDEX IF NOT EXISTS idx_events_datasource ON events_search(datasource);
-CREATE INDEX IF NOT EXISTS idx_events_datasource_id ON events_search(datasource_id) WHERE datasource_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_events_datasource ON event(datasource);
+CREATE INDEX IF NOT EXISTS idx_events_datasource_id ON event(datasource_id) WHERE datasource_id IS NOT NULL;
 
-COMMENT ON COLUMN events_search.datasource IS 'Source: localview, youtube_api, legistar_api, granicus';
+COMMENT ON COLUMN event.datasource IS 'Source: localview, youtube_api, legistar_api, granicus';
 
 
 -- ============================================================================
@@ -154,7 +154,7 @@ COMMENT ON COLUMN events_search.datasource IS 'Source: localview, youtube_api, l
 CREATE TABLE IF NOT EXISTS bills_meetings (
     id SERIAL PRIMARY KEY,
     bill_id INTEGER REFERENCES bills_search(id) ON DELETE CASCADE,
-    event_id INTEGER REFERENCES events_search(id) ON DELETE CASCADE,
+    event_id INTEGER REFERENCES event(id) ON DELETE CASCADE,
     
     -- Context from AI analysis
     relevance TEXT,
@@ -180,8 +180,8 @@ COMMENT ON TABLE bills_meetings IS 'Many-to-many: bills discussed in meetings';
 -- Track which contacts attended which meetings
 CREATE TABLE IF NOT EXISTS contacts_meeting_attendance (
     id SERIAL PRIMARY KEY,
-    contact_id INTEGER REFERENCES contacts_search(id) ON DELETE CASCADE,
-    event_id INTEGER REFERENCES events_search(id) ON DELETE CASCADE,
+    contact_id INTEGER REFERENCES contact(id) ON DELETE CASCADE,
+    event_id INTEGER REFERENCES event(id) ON DELETE CASCADE,
     
     -- Role in this specific meeting
     appeared_as VARCHAR(100),  -- 'speaker', 'council_member', 'witness', 'lobbyist'
@@ -208,7 +208,7 @@ COMMENT ON TABLE contacts_meeting_attendance IS 'Many-to-many: contacts attendin
 CREATE TABLE IF NOT EXISTS organizations_meetings (
     id SERIAL PRIMARY KEY,
     organization_ein VARCHAR(20) REFERENCES organizations_nonprofit_search(ein) ON DELETE CASCADE,
-    event_id INTEGER REFERENCES events_search(id) ON DELETE CASCADE,
+    event_id INTEGER REFERENCES event(id) ON DELETE CASCADE,
     
     -- Context
     role_in_meeting TEXT,
@@ -275,7 +275,7 @@ SELECT
     SUM(CASE WHEN datasource = 'irs_990' THEN 1 ELSE 0 END) as irs_990,
     SUM(CASE WHEN datasource = 'localview' THEN 1 ELSE 0 END) as localview,
     SUM(CASE WHEN datasource = 'unknown' THEN 1 ELSE 0 END) as unknown
-FROM contacts_search;
+FROM contact;
 
 \echo ''
 \echo '✅ Datasource tracking fields added to all tables'

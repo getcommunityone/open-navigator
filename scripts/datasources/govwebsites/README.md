@@ -104,6 +104,6 @@ The scraper recognizes these government website platforms:
 
 After scraping, the data can be used to:
 1. Populate `youtube_channels` in `jurisdictions_details_search`
-2. Create events in `events_search` from meeting calendars
+2. Create events in `event` from meeting calendars
 3. Update contact information
 4. Validate existing data sources

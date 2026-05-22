@@ -2,7 +2,7 @@
 """
 Validate YouTube Channels against WikiData
 
-Uses existing jurisdictions from jurisdictions_details_search and validates
+Uses existing jurisdictions from public.jurisdiction and validates
 their YouTube channels against WikiData. Updates events_channels_search with
 in_wikidata flags.
 
@@ -49,12 +49,12 @@ class WikiDataChannelValidator:
         query = """
             SELECT 
                 jurisdiction_id,
-                jurisdiction_name,
+                name AS jurisdiction_name,
                 state_code,
                 state,
-                jurisdiction_type,
+                type AS jurisdiction_type,
                 youtube_channels
-            FROM jurisdictions_details_search
+            FROM jurisdiction
             WHERE youtube_channel_count > 0
                 AND youtube_channels IS NOT NULL
         """

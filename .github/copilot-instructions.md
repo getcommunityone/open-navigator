@@ -140,7 +140,7 @@ External Data → Python (Ingest) → Bronze Tables → dbt (Transform) → Mart
 import psycopg2
 conn = psycopg2.connect(...)
 cursor.execute("""
-    INSERT INTO events_search
+    INSERT INTO event
     SELECT * FROM bronze.bronze_events_youtube
     WHERE event_date >= '2026-01-01'
 """)
@@ -148,7 +148,7 @@ cursor.execute("""
 
 ✅ **CORRECT - dbt for transformation:**
 ```sql
--- dbt_project/models/marts/events_search.sql
+-- dbt_project/models/marts/event.sql
 {{ config(materialized='incremental') }}
 
 SELECT *
@@ -292,7 +292,7 @@ fix(bronze): handle missing state_code in census gazetteer loader
 chore(deps): upgrade loguru to 0.7.3
 docs(website): add FastAPI OpenTelemetry instrumentation guide
 refactor(dbt): consolidate bronze staging models into single source
-test(api): add integration tests for contacts_search endpoint
+test(api): add integration tests for contact endpoint
 perf(frontend): lazy-load jurisdiction map tiles
 ci(github-actions): add dbt test step to bronze pipeline workflow
 ```
@@ -620,7 +620,7 @@ homepage_url VARCHAR(500)  -- Use website_url instead
    - Connection: `postgresql://postgres:password@localhost:5433/open_navigator`
 
 3. **Neon PostgreSQL** (cloud - for production deployment)
-   - Used for `contacts_search`, `jurisdictions_search`, `organizations_nonprofit_search`, `stats_aggregates`
+   - Used for `contact`, `jurisdiction`, `organization_nonprofit`, `jurisdiction_state_aggregate`
    - Connection via `NEON_DATABASE_URL` or `NEON_DATABASE_URL_DEV`
    - Managed via `scripts/deployment/neon/migrate.py` script
 
@@ -628,7 +628,7 @@ homepage_url VARCHAR(500)  -- Use website_url instead
 
 **✅ API SHOULD USE:**
 - `open_navigator` database, `public` schema (or marts from dbt)
-- Tables: `stats_aggregates`, `jurisdictions_search`, `contacts_search`, `organizations_nonprofit_search`
+- Tables: `jurisdiction_state_aggregate`, `jurisdiction`, `contact`, `organization_nonprofit`
 - Connection string: `NEON_DATABASE_URL_DEV` or `postgresql://postgres:password@localhost:5433/open_navigator`
 
 **❌ API SHOULD AVOID (use marts instead):**
@@ -653,13 +653,13 @@ homepage_url VARCHAR(500)  -- Use website_url instead
 The legislators data flow is:
 1. Source: `opencivicdata_person` table in OpenStates DB (port 5433)
 2. Optional intermediate: `openstates_people` table (simplified schema)
-3. Gold tables: `data/gold/states/{STATE}/contacts_officials.parquet`
-4. Search index: `contacts_search` table in Neon DB
+3. Gold tables: `data/gold/states/{STATE}/contact_official.parquet`
+4. Search index: `contact` table in Neon DB
 
 Use these scripts:
 - `scripts/datasources/openstates/load_openstates_people.py` - Load from GitHub repo to `openstates_people` table
 - `scripts/datasources/openstates/export_openstates_to_gold.py` - Export to gold parquet files
-- `scripts/deployment/neon/migrate.py` - Load gold files into Neon `contacts_search` table
+- `scripts/deployment/neon/migrate.py` - Load gold files into Neon `contact` table
 
 ### ⚠️ CRITICAL: dbt Schema References
 
@@ -679,7 +679,7 @@ sources:
   - name: bronze
     schema: bronze  -- Direct schema reference in same database
     tables:
-      - name: bronze_events_search
+      - name: bronze_event
       - name: bronze_decisions
 ```
 
@@ -690,8 +690,8 @@ SELECT * FROM {{ source('bronze', 'bronze_decisions') }}
 -- Resolves to: open_navigator.bronze.bronze_decisions
 
 -- ✅ CORRECT - Model references
-SELECT * FROM {{ ref('stg_bronze_events_search') }}
--- Resolves to: open_navigator.staging.stg_bronze_events_search (or public, depending on target_schema)
+SELECT * FROM {{ ref('stg_bronze_event') }}
+-- Resolves to: open_navigator.staging.stg_bronze_event (or public, depending on target_schema)
 ```
 
 **Key Points:**

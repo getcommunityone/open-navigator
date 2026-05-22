@@ -476,7 +476,7 @@ async def get_bill_map_data(
     """
     try:
         # Use pre-aggregated national dataset
-        agg_file = GOLD_DIR / "national" / "bills_map_aggregates.parquet"
+        agg_file = GOLD_DIR / "national" / "bill_map_aggregate.parquet"
         
         # Fallback to on-demand aggregation if pre-computed file doesn't exist
         if not agg_file.exists():
@@ -740,7 +740,7 @@ async def get_bill_details(bill_id: str):
         bills_file = GOLD_DIR / "bills_bills.parquet"
         actions_file = GOLD_DIR / "bills_bill_actions.parquet"
         sponsors_file = GOLD_DIR / "bills_bill_sponsorships.parquet"
-        map_file = GOLD_DIR / "bills_map_aggregates.parquet"
+        map_file = GOLD_DIR / "bill_map_aggregate.parquet"
         
         # Get data sources (local or remote HuggingFace URL)
         bills_source = get_data_source(bills_file, use_remote=IS_HF_SPACES)

@@ -8,7 +8,7 @@
 # - USGS and state mirrors
 #
 # This script downloads HIFLD infrastructure data and loads it into
-# the organizations_locations table in PostgreSQL.
+# the organization_location table in PostgreSQL.
 #
 # Usage: ./download_and_load_hifld.sh
 
@@ -51,7 +51,7 @@ echo ""
 echo "Step 2: Loading data to PostgreSQL..."
 echo ""
 
-# Load all downloaded parquet files into organizations_locations table
+# Load all downloaded parquet files into organization_location table
 python scripts/datasources/hifld/load_hifld_to_postgres.py
 
 echo ""

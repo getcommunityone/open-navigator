@@ -23,7 +23,7 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from calendar_year_util import calendar_year_label
+from scripts.utils.calendar_year_util import calendar_year_label
 
 # Import PostgreSQL search functions (primary)
 from api.routes import search_postgres
@@ -372,10 +372,10 @@ def search_contacts_duckdb(query: str, state: Optional[str] = None, limit: int =
         
         # Search 1: State Officials (OpenStates - state legislators, mayors, etc.)
         if state:
-            officials_file_path = GOLD_DIR / "states" / state / "contacts_officials.parquet"
+            officials_file_path = GOLD_DIR / "states" / state / "contact_official.parquet"
             officials_file_paths = [officials_file_path]
         else:
-            officials_file_paths = list(GOLD_DIR.glob("states/*/contacts_officials.parquet"))[:5]
+            officials_file_paths = list(GOLD_DIR.glob("states/*/contact_official.parquet"))[:5]
         
         logger.info(f"Searching {len(officials_file_paths)} state official contact files (OpenStates) - browse_mode={is_browse_mode}")
         

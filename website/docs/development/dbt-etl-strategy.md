@@ -46,10 +46,10 @@ This combines the flexibility of Python with the testing, documentation, and dep
 ┌─────────────────────────────────────────────────────────────┐
 │ PRODUCTION TABLES (Neon PostgreSQL - API-ready)             │
 ├─────────────────────────────────────────────────────────────┤
-│ • contacts_search, bills_search, events_search              │
-│ • organizations_nonprofit_search                            │
+│ • contact, bills_search, event              │
+│ • organization_nonprofit                            │
 │ • Junction tables (bills_meetings, attendance)              │
-│ • stats_aggregates                                          │
+│ • jurisdiction_state_aggregate                                          │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -123,11 +123,11 @@ dbt_project/
 │   │
 │   └── marts/                    # Production-ready tables
 │       ├── _marts.yml
-│       ├── contacts_search.sql
+│       ├── contact.sql
 │       ├── bills_search.sql
 │       ├── bills_meetings.sql        # Junction table
 │       ├── contacts_meeting_attendance.sql
-│       └── stats_aggregates.sql
+│       └── jurisdiction_state_aggregate.sql
 │
 ├── tests/                        # Custom tests
 │   ├── assert_no_duplicate_contacts.sql
@@ -201,7 +201,7 @@ WHERE rn = 1
 ### Marts: Production Table
 
 ```sql
--- models/marts/contacts_search.sql
+-- models/marts/contact.sql
 {{ config(
     materialized='incremental',
     unique_key='id',
@@ -220,7 +220,7 @@ existing_contacts AS (
         datasource_id,
         confidence_score,
         last_updated
-    FROM {{ ref('contacts_search') }}
+    FROM {{ ref('contact') }}
     WHERE datasource != 'gemini_ai_extraction'  -- Keep authoritative sources
 ),
 
@@ -274,7 +274,7 @@ SELECT * FROM new_ai_contacts
 version: 2
 
 models:
-  - name: contacts_search
+  - name: contact
     description: "Searchable contacts from all data sources"
     columns:
       - name: id
@@ -321,8 +321,8 @@ WITH ai_duplicates AS (
         c2.id as auth_id,
         c2.name as auth_name,
         c2.datasource as auth_source
-    FROM {{ ref('contacts_search') }} c1
-    JOIN {{ ref('contacts_search') }} c2
+    FROM {{ ref('contact') }} c1
+    JOIN {{ ref('contact') }} c2
         ON LOWER(TRIM(c1.name)) = LOWER(TRIM(c2.name))
         AND c1.datasource = 'gemini_ai_extraction'
         AND c2.datasource IN ('openstates_api', 'irs_990')
@@ -372,7 +372,7 @@ dbt debug
 dbt run
 
 # Run specific model
-dbt run --select contacts_search
+dbt run --select contact
 
 # Run tests
 dbt test
@@ -437,7 +437,7 @@ echo "✅ ETL pipeline complete!"
 ### Phase 1: Core Transformations (Week 1)
 - [ ] Set up dbt project
 - [ ] Create staging models for bronze tables
-- [ ] Implement contacts_search transformation
+- [ ] Implement contact transformation
 - [ ] Add basic tests
 
 ### Phase 2: Entity Resolution (Week 2)
@@ -512,7 +512,7 @@ description: |
 SELECT 
     'AI extraction has low confidence records' as issue,
     COUNT(*) as affected_rows
-FROM {{ ref('contacts_search') }}
+FROM {{ ref('contact') }}
 WHERE datasource = 'gemini_ai_extraction'
   AND confidence_score < 0.50
 HAVING COUNT(*) > 100

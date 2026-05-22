@@ -76,7 +76,7 @@ data/gold/
 ├── jurisdictions_townships/           # Partitioned dataset (3.3 MB)
 ├── domains_gsa_domains/               # Partitioned dataset (1.4 MB)
 ├── causes_everyorg_causes.parquet     # Lookup table (no partitioning)
-└── causes_ntee_codes.parquet          # Lookup table (no partitioning)
+└── causes_ntee_codes          # Lookup table (no partitioning)
 ```
 
 **Note**: All datasets with state information are now partitioned. Lookup tables and non-state data remain as single files.

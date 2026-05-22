@@ -31,16 +31,16 @@ async def update_national_stats():
         
         # Count jurisdictions by type
         jurisdictions_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM jurisdictions_search WHERE type IN ('city', 'county', 'town', 'village')"
+            "SELECT COUNT(*) FROM jurisdiction WHERE type IN ('city', 'county', 'town', 'village')"
         )
         
         school_districts_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM jurisdictions_search WHERE type = 'school_district'"
+            "SELECT COUNT(*) FROM jurisdiction WHERE type = 'school_district'"
         )
         
         # Count nonprofits
         nonprofits_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM organizations_nonprofit_search"
+            "SELECT COUNT(*) FROM organization_nonprofit"
         )
         
         # Sum financials (handle NULL values)
@@ -48,18 +48,18 @@ async def update_national_stats():
             SELECT 
                 COALESCE(SUM(revenue), 0) as total_revenue,
                 COALESCE(SUM(assets), 0) as total_assets
-            FROM organizations_nonprofit_search
+            FROM organization_nonprofit
             WHERE revenue IS NOT NULL OR assets IS NOT NULL
         """)
         
         # Count events
         events_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM events_search"
+            "SELECT COUNT(*) FROM event"
         )
         
         # Count contacts
         contacts_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM contacts_search"
+            "SELECT COUNT(*) FROM contact"
         )
         
         logger.info(f"  Jurisdictions: {jurisdictions_count:,}")
@@ -72,12 +72,12 @@ async def update_national_stats():
         
         # Delete existing national stats and insert new
         await conn.execute("""
-            DELETE FROM stats_aggregates 
+            DELETE FROM jurisdiction_state_aggregate 
             WHERE level = 'national' AND state IS NULL
         """)
         
         await conn.execute("""
-            INSERT INTO stats_aggregates 
+            INSERT INTO jurisdiction_state_aggregate 
             (level, state, county, city, jurisdictions_count, school_districts_count,
              nonprofits_count, events_count, bills_count, contacts_count, 
              total_revenue, total_assets, last_updated)
@@ -104,7 +104,7 @@ async def update_state_stats(conn):
     # Get all states with data
     states = await conn.fetch("""
         SELECT DISTINCT state 
-        FROM organizations_nonprofit_search 
+        FROM organization_nonprofit 
         WHERE state IS NOT NULL 
         ORDER BY state
     """)
@@ -115,18 +115,18 @@ async def update_state_stats(conn):
         
         # Count jurisdictions
         jurisdictions_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM jurisdictions_search WHERE state = $1 AND type IN ('city', 'county', 'town', 'village')",
+            "SELECT COUNT(*) FROM jurisdiction WHERE state = $1 AND type IN ('city', 'county', 'town', 'village')",
             state
         )
         
         school_districts_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM jurisdictions_search WHERE state = $1 AND type = 'school_district'",
+            "SELECT COUNT(*) FROM jurisdiction WHERE state = $1 AND type = 'school_district'",
             state
         )
         
         # Count nonprofits
         nonprofits_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM organizations_nonprofit_search WHERE state = $1",
+            "SELECT COUNT(*) FROM organization_nonprofit WHERE state = $1",
             state
         )
         
@@ -135,30 +135,30 @@ async def update_state_stats(conn):
             SELECT 
                 COALESCE(SUM(revenue), 0) as total_revenue,
                 COALESCE(SUM(assets), 0) as total_assets
-            FROM organizations_nonprofit_search
+            FROM organization_nonprofit
             WHERE state = $1
         """, state)
         
         # Count events
         events_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM events_search WHERE state = $1",
+            "SELECT COUNT(*) FROM event WHERE state = $1",
             state
         )
         
         # Count contacts
         contacts_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM contacts_search WHERE state = $1",
+            "SELECT COUNT(*) FROM contact WHERE state = $1",
             state
         )
         
         # Insert/update state stats
         await conn.execute("""
-            DELETE FROM stats_aggregates 
+            DELETE FROM jurisdiction_state_aggregate 
             WHERE level = 'state' AND state = $1
         """, state)
         
         await conn.execute("""
-            INSERT INTO stats_aggregates 
+            INSERT INTO jurisdiction_state_aggregate 
             (level, state, county, city, jurisdictions_count, school_districts_count,
              nonprofits_count, events_count, bills_count, contacts_count, 
              total_revenue, total_assets, last_updated)
@@ -191,7 +191,7 @@ async def main():
     # Show final stats
     conn = await asyncpg.connect(DATABASE_URL)
     try:
-        stats = await conn.fetch("SELECT * FROM stats_aggregates ORDER BY level, state")
+        stats = await conn.fetch("SELECT * FROM jurisdiction_state_aggregate ORDER BY level, state")
         logger.info("\n📊 Final Statistics:")
         logger.info("=" * 80)
         for stat in stats:

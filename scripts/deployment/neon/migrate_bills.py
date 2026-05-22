@@ -158,7 +158,7 @@ def load_bills_from_state(state_code: str, conn):
     with conn.cursor() as cur:
         cur.execute(
             """
-            INSERT INTO bills_map_aggregates (
+            INSERT INTO bill_map_aggregate (
                 state_code, topic, total_bills,
                 type_bill, type_resolution, type_concurrent_resolution,
                 type_joint_resolution, type_constitutional_amendment,
@@ -218,7 +218,7 @@ def record_sync(conn, table_name: str, rows: int, status: str = "success", error
     with conn.cursor() as cur:
         cur.execute(
             """
-            INSERT INTO neon_sync_log (table_name, rows_inserted, status, error_message)
+            INSERT INTO log_neon_sync (table_name, rows_inserted, status, error_message)
             VALUES (%s, %s, %s, %s)
             """,
             (table_name, rows, status, error)
@@ -249,7 +249,7 @@ def main():
                     total_aggregates += agg_count
             
             conn.commit()
-            record_sync(conn, "bills_map_aggregates", total_aggregates, "success")
+            record_sync(conn, "bill_map_aggregate", total_aggregates, "success")
             conn.commit()
         
         logger.success("🎉 Migration completed successfully!")

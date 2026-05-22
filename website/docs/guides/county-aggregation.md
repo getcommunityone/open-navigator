@@ -51,13 +51,13 @@ County-level aggregation allows you to:
 ```sql
 -- Find all jurisdictions in a county
 SELECT name, type, state, county, population
-FROM jurisdictions_search
+FROM jurisdiction
 WHERE county = 'Los Angeles County'
   AND state = 'CA';
 
 -- Find all townships in a county
 SELECT name, type, county, area_sq_miles
-FROM jurisdictions_search
+FROM jurisdiction
 WHERE type = 'township'
   AND county = 'Cook County'
   AND state = 'IL';
@@ -100,7 +100,7 @@ print(f"ZIP {zip_code} is in {county}")
 ```sql
 -- Count jurisdictions per county
 SELECT county, state, COUNT(*) as jurisdiction_count
-FROM jurisdictions_search
+FROM jurisdiction
 WHERE county IS NOT NULL
 GROUP BY county, state
 ORDER BY jurisdiction_count DESC
@@ -113,7 +113,7 @@ SELECT
   z.state_fips,
   COUNT(DISTINCT n.ein) as nonprofit_count,
   SUM(n.revenue) as total_revenue
-FROM organizations_nonprofit_search n
+FROM organization_nonprofit n
 JOIN zip_county_mapping z ON n.zip_code = z.zcta
 GROUP BY z.county_name, z.state_fips
 ORDER BY nonprofit_count DESC;
@@ -186,7 +186,7 @@ SELECT
 FROM bills b
 JOIN sponsors sp ON b.id = sp.bill_id
 JOIN legislators l ON sp.person_id = l.id
-JOIN jurisdictions_search s ON l.district_id = s.geoid
+JOIN jurisdiction s ON l.district_id = s.geoid
 WHERE s.county IS NOT NULL
 GROUP BY s.county, s.state
 ORDER BY bill_count DESC
@@ -206,11 +206,11 @@ SELECT
     z.county_name,
     COUNT(DISTINCT n.ein) as nonprofit_count,
     ROUND(COUNT(DISTINCT n.ein)::numeric / c.population * 100000, 2) as nonprofits_per_100k
-FROM organizations_nonprofit_search n
+FROM organization_nonprofit n
 JOIN zip_county_mapping z ON n.zip_code = z.zcta
 JOIN (
     SELECT county, state, SUM(population) as population
-    FROM jurisdictions_search
+    FROM jurisdiction
     WHERE type = 'county'
     GROUP BY county, state
 ) c ON z.county_name = c.county
@@ -261,7 +261,7 @@ This script:
 ### Update Database
 
 ```bash
-# Update jurisdictions_search table with county data
+# Update jurisdiction table with county data
 python scripts/data/update_jurisdiction_counties.py
 ```
 
@@ -279,7 +279,7 @@ If the `county` field is NULL for jurisdictions:
 1. **Check if data exists**: 
    ```sql
    SELECT type, COUNT(*), COUNT(county) 
-   FROM jurisdictions_search 
+   FROM jurisdiction 
    GROUP BY type;
    ```
 

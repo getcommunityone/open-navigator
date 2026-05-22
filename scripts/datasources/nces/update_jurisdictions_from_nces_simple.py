@@ -2,7 +2,7 @@
 Simple NCES to Jurisdictions Website Update
 
 This script shows the core concept of how to:
-1. Match NCES school districts to jurisdictions_search by name and state
+1. Match NCES school districts to jurisdiction by name and state
 2. Update jurisdictions_details_search with NCES website URLs
 
 Usage:
@@ -47,7 +47,7 @@ def update_jurisdictions_from_nces(states: list = None, dry_run: bool = False):
     
     Strategy:
     1. For each NCES district with a website
-    2. Try to find matching jurisdiction in jurisdictions_search
+    2. Try to find matching jurisdiction in jurisdiction
     3. If found, update/create jurisdictions_details_search record
     4. Store NCES metadata (district type, num schools, phone) in social_media JSON
     """
@@ -85,7 +85,7 @@ def update_jurisdictions_from_nces(states: list = None, dry_run: bool = False):
             js.id as jurisdiction_id,
             js.name as jurisdiction_name
         FROM jurisdictions_details_schools nces
-        LEFT JOIN jurisdictions_search js ON (
+        LEFT JOIN jurisdiction js ON (
             -- Try exact name match first
             LOWER(nces.district_name) = LOWER(js.name)
             AND nces.state_code = js.state_code
@@ -165,14 +165,14 @@ def update_jurisdictions_from_nces(states: list = None, dry_run: bool = False):
         # Perform the updates
         for update in updates:
             upsert_query = """
-                INSERT INTO jurisdictions_details_search (
+                INSERT INTO jurisdiction (
                     jurisdiction_id,
-                    jurisdiction_name,
-                    jurisdiction_type,
+                    name,
+                    type,
                     state_code,
                     website_url,
                     social_media,
-                    status,
+                    discovery_status,
                     last_updated
                 ) VALUES (
                     %s, %s, 'school_district', %s, %s, 
@@ -181,13 +181,13 @@ def update_jurisdictions_from_nces(states: list = None, dry_run: bool = False):
                     %s
                 )
                 ON CONFLICT (jurisdiction_id) DO UPDATE SET
-                    website_url = COALESCE(jurisdictions_details_search.website_url, EXCLUDED.website_url),
-                    social_media = COALESCE(jurisdictions_details_search.social_media, '{}'::jsonb) 
+                    website_url = COALESCE(jurisdiction.website_url, EXCLUDED.website_url),
+                    social_media = COALESCE(jurisdiction.social_media, '{}'::jsonb) 
                                    || EXCLUDED.social_media,
-                    status = CASE 
-                        WHEN jurisdictions_details_search.status IS NULL 
-                        THEN EXCLUDED.status 
-                        ELSE jurisdictions_details_search.status 
+                    discovery_status = CASE 
+                        WHEN jurisdiction.discovery_status IS NULL 
+                        THEN EXCLUDED.discovery_status 
+                        ELSE jurisdiction.discovery_status 
                     END,
                     last_updated = EXCLUDED.last_updated
             """
@@ -209,12 +209,12 @@ def update_jurisdictions_from_nces(states: list = None, dry_run: bool = False):
         logger.info("\nSample enriched jurisdictions:")
         cur.execute("""
             SELECT 
-                jurisdiction_name,
+                name,
                 state_code,
                 website_url,
                 social_media->'nces_metadata'->>'nces_id' as nces_id,
                 social_media->'nces_metadata'->>'num_schools' as num_schools
-            FROM jurisdictions_details_search
+            FROM jurisdiction
             WHERE social_media ? 'nces_metadata'
             LIMIT 5
         """)
@@ -256,7 +256,7 @@ def main():
     logger.info("SUMMARY")
     logger.info("=" * 60)
     logger.info(f"Total NCES districts with websites: {stats['total']:,}")
-    logger.info(f"Matched to jurisdictions_search: {stats['matched']:,}")
+    logger.info(f"Matched to jurisdiction: {stats['matched']:,}")
     logger.info(f"Unmatched (would need new records): {stats['unmatched']:,}")
     if not args.dry_run:
         logger.info(f"Updated in jurisdictions_details_search: {stats['updated']:,}")

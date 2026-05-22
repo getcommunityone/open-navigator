@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Migrate school districts from jurisdictions_details_schools to organizations_locations
+Migrate school districts from jurisdictions_details_schools to organization_location
 
-This ensures all NCES school districts are searchable in the unified organizations_locations table.
+This ensures all NCES school districts are searchable in the unified organization_location table.
 """
 import psycopg2
 from psycopg2.extras import execute_values
@@ -25,9 +25,9 @@ def get_connection():
 
 
 def migrate_schools_to_organizations():
-    """Migrate all school districts to organizations_locations."""
+    """Migrate all school districts to organization_location."""
     logger.info("=" * 80)
-    logger.info("Migrating School Districts to organizations_locations")
+    logger.info("Migrating School Districts to organization_location")
     logger.info("=" * 80)
     
     conn = get_connection()
@@ -39,18 +39,18 @@ def migrate_schools_to_organizations():
             total_schools = cur.fetchone()[0]
             logger.info(f"Found {total_schools:,} school districts in jurisdictions_details_schools")
             
-            # Check if any already exist in organizations_locations
+            # Check if any already exist in organization_location
             cur.execute("""
                 SELECT COUNT(*) 
-                FROM organizations_locations 
+                FROM organization_location 
                 WHERE organization_type = 'school_district'
             """)
             existing = cur.fetchone()[0]
-            logger.info(f"Found {existing:,} existing school districts in organizations_locations")
+            logger.info(f"Found {existing:,} existing school districts in organization_location")
             
             if existing > 0:
                 logger.warning("School districts already exist. Clearing them first...")
-                cur.execute("DELETE FROM organizations_locations WHERE organization_type = 'school_district'")
+                cur.execute("DELETE FROM organization_location WHERE organization_type = 'school_district'")
                 conn.commit()
                 logger.info("Cleared existing school districts")
             
@@ -113,11 +113,11 @@ def migrate_schools_to_organizations():
                 records.append(record)
             
             # Insert in batches
-            logger.info("Inserting school districts into organizations_locations...")
+            logger.info("Inserting school districts into organization_location...")
             batch_size = 1000
             
             insert_query = """
-                INSERT INTO organizations_locations (
+                INSERT INTO organization_location (
                     source_id, name, organization_type, address, city, state, zip,
                     county, latitude, longitude, telephone, website,
                     data_source, source_dataset, additional_info
@@ -135,17 +135,17 @@ def migrate_schools_to_organizations():
             # Verify
             cur.execute("""
                 SELECT COUNT(*) 
-                FROM organizations_locations 
+                FROM organization_location 
                 WHERE organization_type = 'school_district'
             """)
             final_count = cur.fetchone()[0]
             
-            logger.info(f"\nVerification: {final_count:,} school districts now in organizations_locations")
+            logger.info(f"\nVerification: {final_count:,} school districts now in organization_location")
             
             # Show breakdown by state
             cur.execute("""
                 SELECT state, COUNT(*) as count
-                FROM organizations_locations
+                FROM organization_location
                 WHERE organization_type = 'school_district'
                 GROUP BY state
                 ORDER BY count DESC

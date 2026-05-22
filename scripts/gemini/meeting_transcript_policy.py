@@ -95,6 +95,7 @@ from scripts.gemini.diarize_postprocess import (  # noqa: E402
 from scripts.gemini.genai_text_client import (  # noqa: E402
     call_gemini_text,
     default_flash_lite_model,
+    ensure_valid_gemini_api_key,
     extract_json_from_model_text,
 )
 from scripts.gemini.speaker_hints import (  # noqa: E402
@@ -123,6 +124,44 @@ from scripts.gemini.transcript_fetch import fetch_youtube_transcript  # noqa: E4
 DEFAULT_OUTPUT_DIR = _REPO_ROOT / "data" / "cache" / "gemini_transcript_policy"
 DEFAULT_YOUTUBE_AUDIO_ROOT = _REPO_ROOT / "data" / "cache" / "youtube_audio"
 
+
+def coalesce_part1_analysis(data: Any) -> Dict[str, Any]:
+    """
+    Use top-level Part 1 JSON, or hoist ``parsed_fragment`` from a parse-error stub.
+
+    Gemini often wraps JSON in markdown fences; the model may also return ``meeting`` with
+    empty ``decisions[]`` for promos or bad captions (still usable for a thin Part 2 report).
+    """
+    if not isinstance(data, dict):
+        return {}
+    if isinstance(data.get("meeting"), dict):
+        return data
+    frag = data.get("parsed_fragment")
+    if isinstance(frag, dict) and isinstance(frag.get("meeting"), dict):
+        out = dict(frag)
+        for key in ("_error", "document1_excerpt"):
+            if data.get(key) and not out.get(key):
+                out[key] = data[key]
+        return out
+    excerpt = data.get("document1_excerpt")
+    if isinstance(excerpt, str) and excerpt.strip():
+        from scripts.gemini.genai_text_client import extract_json_from_model_text
+
+        recovered = extract_json_from_model_text(excerpt)
+        if isinstance(recovered, dict) and isinstance(recovered.get("meeting"), dict):
+            return recovered
+    return data
+
+
+def analysis_ready_for_part2(data: Any) -> bool:
+    """True when Part 2 can run (needs ``meeting``; decisions may be empty)."""
+    co = coalesce_part1_analysis(data)
+    return isinstance(co, dict) and isinstance(co.get("meeting"), dict)
+
+
+def _policy_state_code(args: argparse.Namespace) -> Optional[str]:
+    return (getattr(args, "state", None) or "").strip().upper() or None
+
 # City of Tuscaloosa @TuscaloosaCityAL — matches download_tuscaloosa_city_meeting_audio.py
 TUSCALOOSA_CHANNEL_ID = "UC74dczS0B3MhDhUHp2ZGRPA"
 TUSCALOOSA_CHANNEL_TITLE = "City of Tuscaloosa"
@@ -148,12 +187,13 @@ def resolve_scrape_cache_dir(
 ) -> Path:
     if explicit is not None:
         return Path(explicit).expanduser().resolve()
+    from scripts.gemini.transcript_cache_paths import cache_type_segment
+
     root = repo_root or _REPO_ROOT
     st = (state or "AL").strip().upper()
     jid = (jurisdiction_id or "").strip()
-    if re.match(r"^municipality_\d+$", jid):
-        return root / "data/cache/scraped_meetings" / st / "municipality" / jid
-    return root / "data/cache/scraped_meetings" / jid
+    segment = cache_type_segment(jid)
+    return root / "data/cache/scraped_meetings" / st / segment / jid
 
 
 def find_local_audio(
@@ -297,32 +337,52 @@ def save_transcript_policy_output(
     enrich_legislation: bool = True,
     persist_bronze: bool = False,
     database_url: Optional[str] = None,
+    state_code: Optional[str] = None,
 ) -> Path:
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     jid = video.jurisdiction_id
-    jid_root = jurisdiction_root(output_dir, jid)
+    geo = {
+        "state_code": state_code,
+        "channel_id": getattr(video, "channel_id", None),
+        "video_id": video.video_id,
+    }
+    jid_root = jurisdiction_root(output_dir, jid, **geo)
     ensure_jurisdiction_layout(jid_root)
     title = video.title or ""
     event_date = video.event_date
     prompt_name = prompt_path.stem
     rel = lambda p: str(p.relative_to(_REPO_ROOT))
 
-    analysis_path = analysis_cache_path(output_dir, jid, title=title, event_date=event_date)
-    report_md_path = report_cache_path(output_dir, jid, title=title, event_date=event_date)
-    meta_path = run_meta_path(output_dir, jid, title=title, event_date=event_date)
-    diagrams_md_path = run_diagrams_path(output_dir, jid, title=title, event_date=event_date)
+    analysis_path = analysis_cache_path(
+        output_dir, jid, title=title, event_date=event_date, **geo
+    )
+    report_md_path = report_cache_path(
+        output_dir, jid, title=title, event_date=event_date, **geo
+    )
+    meta_path = run_meta_path(output_dir, jid, title=title, event_date=event_date, **geo)
+    diagrams_md_path = run_diagrams_path(
+        output_dir, jid, title=title, event_date=event_date, **geo
+    )
 
     parsed, markdown_docs = _split_gemini_documents(response_text)
     if parsed is None:
         parsed = extract_json_from_model_text(response_text)
 
     if not _part1_json_ok(parsed):
-        analysis_payload: Any = {
-            "_error": "Could not parse meeting JSON (expected meeting + decisions[])",
-            "document1_excerpt": response_text[:4000],
-            "parsed_fragment": parsed,
-        }
-        json_parsed = False
+        if isinstance(parsed, dict) and isinstance(parsed.get("meeting"), dict):
+            analysis_payload = _normalize_part1_analysis(parsed)
+            analysis_payload["_error"] = str(
+                parsed.get("_error")
+                or "No decisions or uncontested items extracted from transcript."
+            )[:2000]
+            json_parsed = False
+        else:
+            analysis_payload = {
+                "_error": "Could not parse meeting JSON (expected meeting + decisions[])",
+                "document1_excerpt": response_text[:4000],
+                "parsed_fragment": parsed,
+            }
+            json_parsed = False
     else:
         analysis_payload = enrich_uncontested_media_anchors(
             _normalize_part1_analysis(parsed),
@@ -539,14 +599,15 @@ def run_part2_for_analysis_file(
     except (json.JSONDecodeError, OSError) as exc:
         logger.error("Skipping {} — unreadable: {}", analysis_path.name, exc)
         return None
-    if not _part1_json_ok(data):
+    if not analysis_ready_for_part2(data):
         logger.error("Skipping {} — not valid Part 1 JSON", analysis_path.name)
         return None
-    if data.get("_error"):
+    data = coalesce_part1_analysis(data)
+    if data.get("_error") or not _part1_json_ok(data):
         logger.warning(
-            "Part 1 {} has _error (continuing Part 2): {}",
+            "Part 1 {} sparse or _error (continuing Part 2): {}",
             analysis_path.name,
-            str(data["_error"])[:240],
+            str(data.get("_error") or "no decisions[]")[:240],
         )
     markdown = generate_part2_markdown(data, args, api_key, analysis_path=analysis_path)
     return write_part2_report(
@@ -591,16 +652,19 @@ def run_part2_only_batch(args: argparse.Namespace, api_key: str) -> None:
 
     jurisdiction_id = (args.jurisdiction_id or DEFAULT_JURISDICTION_ID).strip()
     cache_dir = Path(args.output_dir).resolve()
-    folder = cache_dir / jurisdiction_id
+    state_code = _policy_state_code(args)
+    folder = jurisdiction_root(cache_dir, jurisdiction_id, state_code=state_code)
     if not folder.is_dir():
         raise SystemExit(f"No output folder: {folder}")
 
-    paths = iter_analysis_files(cache_dir, jurisdiction_id)
+    paths = iter_analysis_files(cache_dir, jurisdiction_id, state_code=state_code)
     video_filter = (args.video_id or "").strip()
     if video_filter:
         from scripts.gemini.transcript_cache_paths import resolve_analysis_path
 
-        one = resolve_analysis_path(cache_dir, jurisdiction_id, video_id=video_filter)
+        one = resolve_analysis_path(
+            cache_dir, jurisdiction_id, video_id=video_filter, state_code=state_code
+        )
         paths = [one] if one else [p for p in paths if _video_id_from_analysis_path(p) == video_filter]
     if getattr(args, "latest_only", True):
         paths = _dedupe_latest_analysis_per_video(paths)
@@ -632,36 +696,27 @@ def process_one_video(
     """Fetch transcript (and optional policy JSON) for one video. Returns analysis path if any."""
     video_id = video.video_id.strip()
     jurisdiction_id = video.jurisdiction_id
+    state_code = _policy_state_code(args)
     explicit_audio = Path(args.audio_path).expanduser().resolve() if args.audio_path else None
     out_dir = Path(args.output_dir).resolve()
-    cache_folder = out_dir / jurisdiction_id
+    cache_folder = jurisdiction_root(out_dir, jurisdiction_id, state_code=state_code)
 
-    yt: Dict[str, Any]
-    source_parts: List[str]
-    local_hit = load_local_transcript_payload(
-        out_dir,
-        jurisdiction_id,
-        video_id=video_id,
-        title=video.title or "",
-        event_date=video.event_date,
-    )
-    if args.use_local_transcript:
-        if local_hit is None:
-            logger.error(
-                "Skipping {} — --use-local-transcript but no cache JSON in {}",
-                video_id,
-                cache_folder,
-            )
+    yt: Dict[str, Any] = {}
+    source_parts: List[str] = []
+
+    def _load_local_transcript(
+        local_path: Path, local_payload: Dict[str, Any]
+    ) -> Optional[tuple[Dict[str, Any], List[str]]]:
+        local_yt = dict(local_payload.get("youtube") or local_payload)
+        if not local_yt.get("segments"):
             return None
-        local_path, local_payload = local_hit
-        yt = dict(local_payload.get("youtube") or {})
-        if not yt.get("segments"):
-            logger.error("Skipping {} — local cache has no youtube.segments: {}", video_id, local_path)
-            return None
-        source_parts = [f"local_transcript_cache ({local_path.name})"]
         logger.info("Using local transcript {}", local_path)
+        return local_yt, [f"local_transcript_cache ({local_path.name})"]
+
+    def _merge_video_metadata(local_payload: Dict[str, Any]) -> VideoRow:
+        nonlocal video
         if video.title is None and local_payload.get("title"):
-            video = VideoRow(
+            return VideoRow(
                 video_id=video.video_id,
                 video_url=video.video_url or local_payload.get("video_url") or "",
                 title=local_payload.get("title"),
@@ -670,25 +725,68 @@ def process_one_video(
                 audio_file_path=video.audio_file_path,
                 jurisdiction_id=video.jurisdiction_id,
             )
-    else:
+        return video
+
+    cached_local = load_local_transcript_payload(
+        out_dir,
+        jurisdiction_id,
+        video_id=video_id,
+        title=video.title or "",
+        event_date=video.event_date,
+        state_code=state_code,
+        channel_id=getattr(video, "channel_id", None),
+    )
+    if cached_local is not None:
+        local_path, local_payload = cached_local
+        loaded = _load_local_transcript(local_path, local_payload)
+        if loaded is not None:
+            yt, source_parts = loaded
+            video = _merge_video_metadata(local_payload)
+        else:
+            logger.warning(
+                "Local cache for {} has no segments ({}); trying YouTube captions",
+                video_id,
+                local_path.name,
+            )
+
+    if not source_parts:
         try:
             yt = fetch_youtube_transcript(video_id, languages=args.transcript_languages)
             source_parts = [
                 f"youtube_captions ({yt.get('language')}, auto={yt.get('is_auto_generated')})"
             ]
+            if args.use_local_transcript:
+                logger.info(
+                    "Fetched YouTube captions for {} (no usable file in {})",
+                    video_id,
+                    cache_folder,
+                )
         except Exception as exc:
-            if local_hit is not None and "IpBlocked" in type(exc).__name__:
-                local_path, local_payload = local_hit
-                yt = dict(local_payload.get("youtube") or {})
-                if yt.get("segments"):
-                    source_parts = [f"local_transcript_cache ({local_path.name}; youtube IpBlocked)"]
-                    logger.warning(
-                        "YouTube IpBlocked for {}; using local cache {}",
+            if cached_local is not None and "IpBlocked" in type(exc).__name__:
+                local_path, local_payload = cached_local
+                loaded = _load_local_transcript(local_path, local_payload)
+                if loaded is None:
+                    logger.error(
+                        "Skipping {} — YouTube IpBlocked and local cache has no segments: {}",
                         video_id,
                         local_path.name,
                     )
-                else:
-                    raise
+                    return None
+                yt, source_parts = loaded
+                video = _merge_video_metadata(local_payload)
+                logger.warning(
+                    "YouTube IpBlocked for {}; using local cache {}",
+                    video_id,
+                    local_path.name,
+                )
+            elif args.use_local_transcript and not source_parts:
+                logger.error(
+                    "Skipping {} — no local transcript in {} and YouTube fetch failed: {}",
+                    video_id,
+                    cache_folder,
+                    exc,
+                )
+                return None
             else:
                 raise
 
@@ -761,13 +859,14 @@ def process_one_video(
 
     if args.transcript_only:
         out_dir = Path(args.output_dir).resolve()
-        folder = out_dir / jurisdiction_id
-        folder.mkdir(parents=True, exist_ok=True)
         path = transcript_cache_path(
             out_dir,
             jurisdiction_id,
             title=video.title or "",
             event_date=video.event_date,
+            state_code=state_code,
+            channel_id=getattr(video, "channel_id", None),
+            video_id=video_id,
         )
         transcript_meta["formatted_transcript"] = transcript_block
         path.write_text(json.dumps(transcript_meta, indent=2) + "\n", encoding="utf-8")
@@ -814,18 +913,20 @@ def process_one_video(
         enrich_legislation=not getattr(args, "skip_legislation_enrich", False),
         persist_bronze=getattr(args, "persist_bronze", False),
         database_url=_database_url(getattr(args, "database_url", None) or None),
+        state_code=state_code,
     )
     if args.run_part_2 and analysis_path is not None:
         try:
-            analysis = json.loads(analysis_path.read_text(encoding="utf-8"))
+            raw_analysis = json.loads(analysis_path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
-            analysis = {}
-        if _part1_json_ok(analysis):
-            if analysis.get("_error"):
+            raw_analysis = {}
+        if analysis_ready_for_part2(raw_analysis):
+            analysis = coalesce_part1_analysis(raw_analysis)
+            if analysis.get("_error") or not _part1_json_ok(analysis):
                 logger.warning(
-                    "Part 1 _error for {} (continuing Part 2): {}",
+                    "Part 1 sparse for {} (continuing Part 2): {}",
                     video_id,
-                    str(analysis["_error"])[:240],
+                    str(analysis.get("_error") or "no decisions[]")[:240],
                 )
             write_part2_report(
                 analysis_path,
@@ -835,7 +936,10 @@ def process_one_video(
                 validate_mermaid=not getattr(args, "no_validate_mermaid", False),
             )
         else:
-            logger.error("Skipping Part 2 for {} — Part 1 JSON invalid", video_id)
+            logger.error(
+                "Skipping Part 2 for {} — Part 1 JSON invalid (re-run Part 1 or check 02_analysis/)",
+                video_id,
+            )
     return analysis_path
 
 
@@ -852,16 +956,26 @@ def run_pipeline(args: argparse.Namespace) -> None:
         args.ensure_local_from_bronze = True
         args.skip_analyzed = True
 
-    api_key = (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "").strip()
+    # Prefer disk captions when batching from bronze; sync bronze → 01_transcripts/ first.
+    if args.from_bronze and args.use_local_transcript:
+        args.ensure_local_from_bronze = True
+
     needs_api = not args.transcript_only
-    if needs_api and not api_key:
-        raise SystemExit(
-            "Set GEMINI_API_KEY (https://aistudio.google.com/apikey) or use --transcript-only"
+    api_key = ""
+    if needs_api:
+        api_key = ensure_valid_gemini_api_key(
+            env_path=_REPO_ROOT / ".env",
+            model=(args.model or args.part_2_model or default_flash_lite_model()).strip(),
         )
     if args.transcript_only and args.run_part_2:
         raise SystemExit("--transcript-only cannot be combined with --run-part-2")
 
-    jurisdiction_id = (args.jurisdiction_id or DEFAULT_JURISDICTION_ID).strip()
+    from scripts.gemini.transcript_cache_paths import resolve_canonical_jurisdiction_id
+
+    jurisdiction_id = resolve_canonical_jurisdiction_id(
+        (args.jurisdiction_id or DEFAULT_JURISDICTION_ID).strip()
+    )
+    state_code = _policy_state_code(args)
 
     if args.part_2_only:
         run_part2_only_batch(args, api_key)
@@ -903,7 +1017,23 @@ def run_pipeline(args: argparse.Namespace) -> None:
         )
 
         out_dir = Path(args.output_dir).resolve()
+        from scripts.gemini.policy_exclusions import is_policy_video_excluded
+
         for i, video in enumerate(videos, 1):
+            if is_policy_video_excluded(
+                out_dir,
+                jurisdiction_id,
+                video.video_id,
+                state_code=state_code,
+                channel_id=getattr(video, "channel_id", None),
+            ):
+                logger.info(
+                    "[{}/{}] Skip {} — excluded non-meeting (05_exceptions/)",
+                    i,
+                    len(videos),
+                    video.video_id,
+                )
+                continue
             if getattr(args, "skip_analyzed", False):
                 existing = resolve_analysis_path(
                     out_dir,
@@ -911,6 +1041,8 @@ def run_pipeline(args: argparse.Namespace) -> None:
                     video_id=video.video_id,
                     title=video.title or "",
                     event_date=video.event_date,
+                    state_code=state_code,
+                    channel_id=getattr(video, "channel_id", None),
                 )
                 if existing is not None:
                     logger.info(
@@ -931,16 +1063,19 @@ def run_pipeline(args: argparse.Namespace) -> None:
                     video_id=video.video_id,
                     title=video.title or "",
                     event_date=video.event_date,
+                    state_code=state_code,
+                    channel_id=getattr(video, "channel_id", None),
                 ) is None:
                     row = fetch_video_row(db_url, jurisdiction_id, video.video_id)
-                    if row and write_local_from_bronze(db_url, out_dir, jurisdiction_id, row):
+                    if row and write_local_from_bronze(
+                        db_url, out_dir, jurisdiction_id, row, state_code=state_code
+                    ):
                         logger.info("Synced bronze transcript to local cache for {}", video.video_id)
                     else:
                         logger.warning(
-                            "Skipping {} — no local cache and bronze sync failed",
+                            "No local cache for {} (bronze sync missed); process will try YouTube captions",
                             video.video_id,
                         )
-                        continue
 
             logger.info(
                 "[{}/{}] {} — {}",
@@ -1039,7 +1174,11 @@ def main() -> None:
         default=DEFAULT_JURISDICTION_ID,
         help="e.g. municipality_0177256",
     )
-    parser.add_argument("--state", default="AL", help="State folder under scraped_meetings")
+    parser.add_argument(
+        "--state",
+        default="AL",
+        help="Two-letter state for policy cache and scraped_meetings paths (e.g. GA/municipality/5583)",
+    )
     parser.add_argument(
         "--scraped-cache-dir",
         default="",
@@ -1080,8 +1219,8 @@ def main() -> None:
     parser.add_argument(
         "--use-local-transcript",
         action="store_true",
-        help="Use existing gemini_transcript_policy JSON (no YouTube fetch). "
-        "If unset, still auto-fallback to local cache on IpBlocked.",
+        help="Prefer existing gemini_transcript_policy JSON; with --from-bronze also sync "
+        "bronze → 01_transcripts/ first. Falls back to YouTube captions when missing on disk.",
     )
     parser.add_argument(
         "--run-part-2",

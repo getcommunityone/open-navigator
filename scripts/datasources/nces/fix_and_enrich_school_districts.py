@@ -1,12 +1,12 @@
 """
 Fix School District State Codes and Enrich with NCES Data
 
-PROBLEM: The jurisdictions_search table has 13,326 school districts with NULL state_code
+PROBLEM: The jurisdiction table has 13,326 school districts with NULL state_code
 SOLUTION: Extract state from geoid (first 2 digits = state FIPS code) then match to NCES
 
 This script:
-1. Updates jurisdictions_search.state_code from geoid for school districts
-2. Matches NCES districts to jurisdictions_search by name + state
+1. Updates jurisdiction.state_code from geoid for school districts
+2. Matches NCES districts to jurisdiction by name + state
 3. Updates jurisdictions_details_search with NCES website + metadata
 
 Usage:
@@ -51,7 +51,7 @@ STATE_TO_NAME = {
 
 def fix_school_district_state_codes(conn, dry_run=False):
     """
-    Fix NULL state_code in jurisdictions_search for school districts.
+    Fix NULL state_code in jurisdiction for school districts.
     Extract state from geoid (first 2 digits = state FIPS code).
     """
     logger.info("=" * 80)
@@ -63,7 +63,7 @@ def fix_school_district_state_codes(conn, dry_run=False):
     # Get school districts with NULL state_code but valid geoid
     cur.execute("""
         SELECT id, name, geoid
-        FROM jurisdictions_search
+        FROM jurisdiction
         WHERE type = 'school_district'
         AND (state_code IS NULL OR state_code = '')
         AND geoid IS NOT NULL
@@ -95,7 +95,7 @@ def fix_school_district_state_codes(conn, dry_run=False):
     if updates:
         cur.execute("BEGIN")
         cur.executemany("""
-            UPDATE jurisdictions_search
+            UPDATE jurisdiction
             SET state_code = %s, state = %s
             WHERE id = %s
         """, updates)
@@ -106,7 +106,7 @@ def fix_school_district_state_codes(conn, dry_run=False):
         # Show breakdown by state
         cur.execute("""
             SELECT state_code, COUNT(*) as count
-            FROM jurisdictions_search
+            FROM jurisdiction
             WHERE type = 'school_district'
             AND state_code IS NOT NULL
             GROUP BY state_code
@@ -161,7 +161,7 @@ def match_and_enrich_nces(conn, states=None, dry_run=False):
             js.id as jurisdiction_id,
             js.name as jurisdiction_name
         FROM nces_data n
-        LEFT JOIN jurisdictions_search js ON (
+        LEFT JOIN jurisdiction js ON (
             js.type = 'school_district'
             AND js.state_code = n.state_code
             AND (
@@ -228,16 +228,15 @@ def match_and_enrich_nces(conn, states=None, dry_run=False):
         # Remove None values
         nces_metadata = {k: v for k, v in nces_metadata.items() if v is not None}
         
-        # Upsert into jurisdictions_details_search
         cur.execute("""
-            INSERT INTO jurisdictions_details_search (
+            INSERT INTO jurisdiction (
                 jurisdiction_id,
-                jurisdiction_name,
-                jurisdiction_type,
+                name,
+                type,
                 state_code,
                 website_url,
                 social_media,
-                status,
+                discovery_status,
                 last_updated
             ) VALUES (
                 %s, %s, 'school_district', %s, %s,
@@ -246,8 +245,8 @@ def match_and_enrich_nces(conn, states=None, dry_run=False):
                 %s
             )
             ON CONFLICT (jurisdiction_id) DO UPDATE SET
-                website_url = COALESCE(jurisdictions_details_search.website_url, EXCLUDED.website_url),
-                social_media = COALESCE(jurisdictions_details_search.social_media, '{}'::jsonb) || EXCLUDED.social_media,
+                website_url = COALESCE(jurisdiction.website_url, EXCLUDED.website_url),
+                social_media = COALESCE(jurisdiction.social_media, '{}'::jsonb) || EXCLUDED.social_media,
                 last_updated = EXCLUDED.last_updated
         """, (
             str(row['jurisdiction_id']),
@@ -261,7 +260,7 @@ def match_and_enrich_nces(conn, states=None, dry_run=False):
         updated_count += 1
     
     conn.commit()
-    logger.success(f"✅ Updated {updated_count:,} jurisdiction_details_search records")
+    logger.success(f"✅ Updated {updated_count:,} jurisdiction records")
     
     return {'matched': matched, 'unmatched': unmatched, 'updated': updated_count}
 

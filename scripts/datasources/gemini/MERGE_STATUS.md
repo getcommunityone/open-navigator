@@ -131,7 +131,7 @@ python scripts/datasources/gemini/merge_bronze_to_production.py --entity contact
 # 4. Check results
 PGPASSWORD=password psql -h localhost -p 5433 -U postgres -d open_navigator -c "
   SELECT datasource, COUNT(*), AVG(confidence_score)::NUMERIC(3,2)
-  FROM contacts_search
+  FROM contact
   GROUP BY datasource
   ORDER BY COUNT(*) DESC;
 "
@@ -171,7 +171,7 @@ SELECT
     COUNT(*) as contact_count,
     AVG(confidence_score)::NUMERIC(3,2) as avg_confidence,
     SUM(CASE WHEN needs_review THEN 1 ELSE 0 END) as needs_review_count
-FROM contacts_search
+FROM contact
 GROUP BY datasource
 ORDER BY contact_count DESC;
 
@@ -230,7 +230,7 @@ After successful merge:
 
 1. **Review flagged duplicates:**
    ```sql
-   SELECT * FROM contacts_search WHERE needs_review = TRUE;
+   SELECT * FROM contact WHERE needs_review = TRUE;
    ```
 
 2. **Check merge audit log:**

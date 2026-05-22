@@ -18,7 +18,7 @@ TABLES=(
     "bronze_contacts"
     "bronze_decisions"
     "bronze_events"
-    "bronze_events_search"
+    "bronze_event"
     "bronze_events_text_ai"
     "bronze_financial_items"
     "bronze_jurisdictions"

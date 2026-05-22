@@ -40,7 +40,7 @@ _ROOT = Path(__file__).resolve().parent.parent.parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from calendar_year_util import calendar_year_label
+from scripts.utils.calendar_year_util import calendar_year_label
 from loguru import logger
 import pandas as pd
 import psycopg2

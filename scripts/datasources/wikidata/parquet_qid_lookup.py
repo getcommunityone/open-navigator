@@ -82,7 +82,7 @@ def warm_geography_qid_cache_from_parquet(
 
 
 def load_parquet_to_postgres(parquet_path: Path, database_url: str) -> int:
-    """Create/replace ``wikidata_fips_gnis_map`` from parquet (fast SQL joins)."""
+    """Create/replace ``jurisdiction_wikidata_fips_gnis_map`` from parquet (fast SQL joins)."""
     import pandas as pd
     import psycopg2
     from psycopg2.extras import execute_values
@@ -108,15 +108,15 @@ def load_parquet_to_postgres(parquet_path: Path, database_url: str) -> int:
             )
         )
 
-    logger.info(f"Writing {len(records):,} rows to wikidata_fips_gnis_map…")
+    logger.info(f"Writing {len(records):,} rows to jurisdiction_wikidata_fips_gnis_map…")
     conn = psycopg2.connect(database_url)
     try:
         with conn:
             with conn.cursor() as cur:
-                cur.execute("DROP TABLE IF EXISTS wikidata_fips_gnis_map")
+                cur.execute("DROP TABLE IF EXISTS jurisdiction_wikidata_fips_gnis_map")
                 cur.execute(
                     """
-                    CREATE TABLE wikidata_fips_gnis_map (
+                    CREATE TABLE jurisdiction_wikidata_fips_gnis_map (
                         qid      TEXT NOT NULL,
                         label    TEXT,
                         fips     TEXT,
@@ -127,15 +127,15 @@ def load_parquet_to_postgres(parquet_path: Path, database_url: str) -> int:
                     """
                 )
                 cur.execute(
-                    "CREATE INDEX idx_wikidata_fips_gnis_fips ON wikidata_fips_gnis_map (fips) WHERE fips IS NOT NULL"
+                    "CREATE INDEX idx_jurisdiction_wikidata_fips_gnis_fips ON jurisdiction_wikidata_fips_gnis_map (fips) WHERE fips IS NOT NULL"
                 )
                 cur.execute(
-                    "CREATE INDEX idx_wikidata_fips_gnis_gnis ON wikidata_fips_gnis_map (gnis) WHERE gnis IS NOT NULL"
+                    "CREATE INDEX idx_jurisdiction_wikidata_fips_gnis_gnis ON jurisdiction_wikidata_fips_gnis_map (gnis) WHERE gnis IS NOT NULL"
                 )
                 execute_values(
                     cur,
                     """
-                    INSERT INTO wikidata_fips_gnis_map (qid, label, fips, gnis, modified, source)
+                    INSERT INTO jurisdiction_wikidata_fips_gnis_map (qid, label, fips, gnis, modified, source)
                     VALUES %s
                     """,
                     records,
@@ -181,7 +181,7 @@ def _postgres_lookup_table_ready(conn) -> bool:
         cur.execute(
             """
             SELECT 1 FROM information_schema.tables
-            WHERE table_schema = 'public' AND table_name = 'wikidata_fips_gnis_map'
+            WHERE table_schema = 'public' AND table_name = 'jurisdiction_wikidata_fips_gnis_map'
             """
         )
         return cur.fetchone() is not None
@@ -200,7 +200,7 @@ def apply_parquet_qids_to_bronze_municipalities(conn, state_code: str, parquet_p
                 UPDATE bronze.bronze_jurisdictions_municipalities_wikidata w
                 SET wikidata_id = p.qid
                 FROM bronze.bronze_jurisdictions_municipalities m
-                JOIN wikidata_fips_gnis_map p
+                JOIN jurisdiction_wikidata_fips_gnis_map p
                   ON REPLACE(m.geoid::text, '-', '') = REPLACE(BTRIM(p.fips), '-', '')
                 WHERE m.usps = %s AND w.usps = m.usps AND w.geoid::text = m.geoid::text
                   AND p.fips IS NOT NULL AND BTRIM(p.fips) <> ''
@@ -214,7 +214,7 @@ def apply_parquet_qids_to_bronze_municipalities(conn, state_code: str, parquet_p
                 UPDATE bronze.bronze_jurisdictions_municipalities_wikidata w
                 SET wikidata_id = p.qid
                 FROM bronze.bronze_jurisdictions_municipalities m
-                JOIN wikidata_fips_gnis_map p
+                JOIN jurisdiction_wikidata_fips_gnis_map p
                   ON REPLACE(BTRIM(m.ansicode::text), '-', '') = REPLACE(BTRIM(p.gnis), '-', '')
                 WHERE m.usps = %s AND w.usps = m.usps AND w.geoid::text = m.geoid::text
                   AND m.ansicode IS NOT NULL AND BTRIM(m.ansicode::text) <> ''
@@ -274,7 +274,7 @@ def apply_parquet_qids_to_bronze_counties(conn, state_code: str, parquet_path: P
                 UPDATE bronze.bronze_jurisdictions_counties_wikidata w
                 SET wikidata_id = p.qid
                 FROM bronze.bronze_jurisdictions_counties m
-                JOIN wikidata_fips_gnis_map p
+                JOIN jurisdiction_wikidata_fips_gnis_map p
                   ON REPLACE(m.geoid::text, '-', '') = REPLACE(BTRIM(p.fips), '-', '')
                 WHERE m.usps = %s AND w.usps = m.usps AND w.geoid::text = m.geoid::text
                   AND p.fips IS NOT NULL AND BTRIM(p.fips) <> ''

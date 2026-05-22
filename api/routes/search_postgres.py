@@ -314,7 +314,7 @@ async def search_contacts_pg(
                 role_type,
                 compensation,
                 source
-            FROM contacts_search
+            FROM contact
             WHERE {where_sql}
             ORDER BY {order_by}
             LIMIT ${param_idx}
@@ -465,7 +465,7 @@ async def search_organizations_pg(
                 assets,
                 income,
                 tax_period
-            FROM organizations_nonprofit_search
+            FROM organization_nonprofit
             WHERE {where_sql}
             ORDER BY {order_by}
             LIMIT ${param_idx}
@@ -557,14 +557,14 @@ async def search_events_pg(
         # Text search
         if query and query.strip():
             where_clauses.append(f"""(
-                to_tsvector('english', title) @@ plainto_tsquery('english', ${param_idx})
+                to_tsvector('english', event_title) @@ plainto_tsquery('english', ${param_idx})
                 OR LOWER(jurisdiction_name) LIKE LOWER(${param_idx + 1})
             )""")
             params.append(query)
             params.append(f"%{query}%")
             param_idx += 2
             
-            order_by = f"ts_rank(to_tsvector('english', title), plainto_tsquery('english', ${param_idx - 2})) DESC, event_date DESC"
+            order_by = f"ts_rank(to_tsvector('english', event_title), plainto_tsquery('english', ${param_idx - 2})) DESC, event_date DESC"
         else:
             order_by = "event_date DESC"
         
@@ -572,9 +572,9 @@ async def search_events_pg(
         
         sql = f"""
             SELECT 
-                id,
-                title,
-                description,
+                event_id,
+                event_title,
+                event_description,
                 event_date,
                 jurisdiction_name,
                 jurisdiction_type,
@@ -583,7 +583,7 @@ async def search_events_pg(
                 city,
                 video_url,
                 agenda_url
-            FROM events_search
+            FROM event
             WHERE {where_sql}
             ORDER BY {order_by}
             LIMIT ${param_idx}
@@ -598,16 +598,16 @@ async def search_events_pg(
                 location = f"{row['jurisdiction_name']}, {row['state']}" if row['jurisdiction_name'] and row['state'] else ''
                 date_str = row['event_date'].strftime('%Y-%m-%d') if row['event_date'] else ''
                 
-                description = (row['description'] or '')[:200]
+                description = (row['event_description'] or '')[:200]
                 if len(description) == 200:
                     description += "..."
                 
                 results.append(SearchResult(
                     result_type='meeting',
-                    title=row['title'],
+                    title=row['event_title'],
                     subtitle=f"{location} - {date_str}",
                     description=description,
-                    url=f"/documents?meeting_id={row['id']}",
+                    url=f"/documents?meeting_id={row['event_id']}",
                     score=1.0,
                     metadata={
                         'jurisdiction': row['jurisdiction_name'],
@@ -616,7 +616,7 @@ async def search_events_pg(
                         'state_code': row['state_code'],
                         'city': row['city'],
                         'date': date_str,
-                        'meeting_id': row['id'],
+                        'meeting_id': row['event_id'],
                         'video_url': row['video_url'],
                         'agenda_url': row['agenda_url']
                     }

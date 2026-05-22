@@ -2,14 +2,14 @@
 Enrich Jurisdictions with NCES School District Data
 
 This script:
-1. Matches NCES school districts to existing jurisdictions_search records
+1. Matches NCES school districts to existing jurisdiction records
 2. Updates jurisdictions_details_search with NCES data (website, phone, district type)
 3. Creates new jurisdiction_details_search records for unmatched NCES districts
 4. Classifies jurisdictions by adding district_type and num_schools metadata
 
 Data Flow:
 - Source: jurisdictions_details_schools (NCES data with 19,630 districts)
-- Target 1: jurisdictions_search (basic jurisdiction records)
+- Target 1: jurisdiction (basic jurisdiction records)
 - Target 2: jurisdictions_details_search (enriched metadata)
 """
 import argparse
@@ -122,7 +122,7 @@ class NCESJurisdictionEnricher:
     
     def find_matching_jurisdiction(self, nces_district: Dict) -> Tuple[str, str]:
         """
-        Find matching jurisdiction in jurisdictions_search.
+        Find matching jurisdiction in jurisdiction.
         
         Returns: (jurisdiction_id, match_method)
         """
@@ -136,7 +136,7 @@ class NCESJurisdictionEnricher:
         # Strategy 1: Exact name match in same state
         cur.execute("""
             SELECT id::text as jurisdiction_id
-            FROM jurisdictions_search
+            FROM jurisdiction
             WHERE LOWER(name) = %s
             AND state_code = %s
             AND type = 'school_district'
@@ -150,7 +150,7 @@ class NCESJurisdictionEnricher:
         # Strategy 2: Normalized name match
         cur.execute("""
             SELECT id::text as jurisdiction_id
-            FROM jurisdictions_search
+            FROM jurisdiction
             WHERE type = 'school_district'
             AND state_code = %s
             LIMIT 1
@@ -158,10 +158,11 @@ class NCESJurisdictionEnricher:
         
         # Check each result for normalized match
         cur.execute("""
-            SELECT id::text as jurisdiction_id, name
-            FROM jurisdictions_search
+            SELECT jurisdiction_id, name
+            FROM jurisdiction
             WHERE type = 'school_district'
             AND state_code = %s
+              AND jurisdiction_id IS NOT NULL
         """, (state_code,))
         
         for row in cur.fetchall():
@@ -173,7 +174,7 @@ class NCESJurisdictionEnricher:
     
     def create_jurisdiction_in_search(self, nces_district: Dict) -> str:
         """
-        Create new jurisdiction record in jurisdictions_search.
+        Create new jurisdiction record in jurisdiction.
         
         Returns: jurisdiction_id
         """
@@ -186,8 +187,10 @@ class NCESJurisdictionEnricher:
         # Get state name from state_code (would need a lookup table, for now use state_code)
         state_name = nces_district.get('state_code', '')
         
+        typed_jid = f"school_district_{str(geoid).zfill(7)}"
         insert_query = """
-            INSERT INTO jurisdictions_search (
+            INSERT INTO jurisdiction (
+                jurisdiction_id,
                 name,
                 type,
                 state_code,
@@ -196,16 +199,16 @@ class NCESJurisdictionEnricher:
                 fips_code,
                 source
             ) VALUES (
-                %s, %s, %s, %s, %s, %s, %s
+                %s, %s, %s, %s, %s, %s, %s, %s
             )
-            ON CONFLICT (name, type, state_code, county) DO UPDATE
+            ON CONFLICT (jurisdiction_id) DO UPDATE
             SET geoid = EXCLUDED.geoid,
                 fips_code = EXCLUDED.fips_code,
                 source = EXCLUDED.source
-            RETURNING id::text
+            RETURNING jurisdiction_id
         """
-        
         cur.execute(insert_query, (
+            typed_jid,
             nces_district['district_name'],
             'school_district',
             nces_district['state_code'],
@@ -214,7 +217,6 @@ class NCESJurisdictionEnricher:
             nces_district.get('state_fips'),
             'nces'
         ))
-        
         jurisdiction_id = cur.fetchone()[0]
         conn.commit()
         
@@ -250,22 +252,22 @@ class NCESJurisdictionEnricher:
                 del school_metadata['address']
         
         upsert_query = """
-            INSERT INTO jurisdictions_details_search (
+            INSERT INTO jurisdiction (
                 jurisdiction_id,
-                jurisdiction_name,
-                jurisdiction_type,
+                name,
+                type,
                 state_code,
                 state,
                 website_url,
                 social_media,
-                status,
+                discovery_status,
                 last_updated
             ) VALUES (
                 %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s
             )
             ON CONFLICT (jurisdiction_id) DO UPDATE SET
-                website_url = COALESCE(jurisdictions_details_search.website_url, EXCLUDED.website_url),
-                social_media = COALESCE(jurisdictions_details_search.social_media, '{}')::jsonb || EXCLUDED.social_media,
+                website_url = COALESCE(jurisdiction.website_url, EXCLUDED.website_url),
+                social_media = COALESCE(jurisdiction.social_media, '{}')::jsonb || EXCLUDED.social_media,
                 last_updated = EXCLUDED.last_updated
         """
         
@@ -346,12 +348,12 @@ class NCESJurisdictionEnricher:
         
         query = """
             SELECT 
-                d.jurisdiction_name,
+                d.name,
                 d.state_code,
                 d.website_url,
                 d.social_media->>'nces_metadata' as nces_data,
-                d.status
-            FROM jurisdictions_details_search d
+                d.discovery_status
+            FROM jurisdiction d
             WHERE d.social_media ? 'nces_metadata'
             AND d.state_code = 'MA'
             ORDER BY d.jurisdiction_name

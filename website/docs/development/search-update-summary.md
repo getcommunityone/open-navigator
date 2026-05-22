@@ -129,9 +129,9 @@ Use the filter checkboxes to show only specific types:
 | Topics | `open_navigator_bronze` | `bronze_topics` | 312 | AI extraction (Gemini) |
 | Decisions | `open_navigator_bronze` | `bronze_decisions` | 157 | AI extraction (Gemini) |
 | Bills | `open_navigator` | `bills_search` | 75,000+ | OpenStates API |
-| Contacts | `open_navigator` | `contacts_search` | 550+ | OpenStates + AI |
-| Organizations | `open_navigator` | `organizations_nonprofit_search` | 1.8M | IRS 990 data |
-| Meetings | `open_navigator` | `events_search` | 2,000+ | Multiple sources |
+| Contacts | `open_navigator` | `contact` | 550+ | OpenStates + AI |
+| Organizations | `open_navigator` | `organization_nonprofit` | 1.8M | IRS 990 data |
+| Meetings | `open_navigator` | `event` | 2,000+ | Multiple sources |
 | Causes | In-memory | NTEE taxonomy | 26 | IRS NTEE codes |
 
 ## 🔗 API Endpoints

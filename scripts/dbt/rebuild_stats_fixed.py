@@ -1,5 +1,5 @@
 """
-Rebuild stats_aggregates with correct city and county counts
+Rebuild jurisdiction_state_aggregate with correct city and county counts
 
 FIXES:
 1. City nonprofit counts - use actual city count, not state total
@@ -12,9 +12,9 @@ BRONZE_DB = "postgresql://postgres:password@localhost:5433/open_navigator"
 PROD_DB = "postgresql://postgres:password@localhost:5433/open_navigator"
 
 def rebuild_stats():
-    """Rebuild stats_aggregates with corrected aggregations"""
+    """Rebuild jurisdiction_state_aggregate with corrected aggregations"""
     
-    logger.info("🔄 Rebuilding stats_aggregates with fixed counts...")
+    logger.info("🔄 Rebuilding jurisdiction_state_aggregate with fixed counts...")
     
     bronze_conn = psycopg2.connect(BRONZE_DB)
     prod_conn = psycopg2.connect(PROD_DB)
@@ -26,10 +26,10 @@ def rebuild_stats():
         # Keep all "bronze" tables in the bronze schema of open_navigator.
         bronze_cur.execute("SET search_path TO bronze, public")
         
-        logger.info("📊 Step 1: Drop and recreate stats_aggregates in bronze...")
-        bronze_cur.execute("DROP TABLE IF EXISTS stats_aggregates CASCADE")
+        logger.info("📊 Step 1: Drop and recreate jurisdiction_state_aggregate in bronze...")
+        bronze_cur.execute("DROP TABLE IF EXISTS jurisdiction_state_aggregate CASCADE")
         bronze_cur.execute("""
-            CREATE TABLE stats_aggregates (
+            CREATE TABLE jurisdiction_state_aggregate (
                 id SERIAL PRIMARY KEY,
                 level VARCHAR(20) NOT NULL,
                 state_code VARCHAR(2),
@@ -53,7 +53,7 @@ def rebuild_stats():
         
         logger.info("📊 Step 2: Insert NATIONAL stats...")
         bronze_cur.execute("""
-            INSERT INTO stats_aggregates (
+            INSERT INTO jurisdiction_state_aggregate (
                 level, state_code, state, county, city,
                 nonprofits_count, events_count,
                 total_revenue, total_assets
@@ -72,7 +72,7 @@ def rebuild_stats():
         
         logger.info("📊 Step 3: Insert STATE stats...")
         bronze_cur.execute("""
-            INSERT INTO stats_aggregates (
+            INSERT INTO jurisdiction_state_aggregate (
                 level, state_code, state, county, city,
                 nonprofits_count, events_count,
                 total_revenue, total_assets
@@ -96,7 +96,7 @@ def rebuild_stats():
         
         logger.info("📊 Step 4: Insert COUNTY stats...")
         bronze_cur.execute("""
-            INSERT INTO stats_aggregates (
+            INSERT INTO jurisdiction_state_aggregate (
                 level, state_code, state, county, city,
                 nonprofits_count, events_count,
                 total_revenue, total_assets
@@ -132,7 +132,7 @@ def rebuild_stats():
         
         logger.info("📊 Step 5: Insert CITY stats...")
         bronze_cur.execute("""
-            INSERT INTO stats_aggregates (
+            INSERT INTO jurisdiction_state_aggregate (
                 level, state_code, state, county, city,
                 nonprofits_count, events_count,
                 total_revenue, total_assets
@@ -169,7 +169,7 @@ def rebuild_stats():
         logger.info(f"   ✅ City level inserted")
         
         # Get counts
-        bronze_cur.execute("SELECT COUNT(*), COUNT(DISTINCT level) FROM stats_aggregates")
+        bronze_cur.execute("SELECT COUNT(*), COUNT(DISTINCT level) FROM jurisdiction_state_aggregate")
         total, levels = bronze_cur.fetchone()
         logger.info(f"   📊 Total rows: {total:,}, Levels: {levels}")
         
@@ -184,7 +184,7 @@ def rebuild_stats():
             [
                 "bash",
                 "-c",
-                "PGPASSWORD=password pg_dump -h localhost -p 5433 -U postgres -d open_navigator -t bronze.stats_aggregates --no-owner --no-acl "
+                "PGPASSWORD=password pg_dump -h localhost -p 5433 -U postgres -d open_navigator -t bronze.jurisdiction_state_aggregate --no-owner --no-acl "
                 "| PGPASSWORD=password psql -h localhost -p 5433 -U postgres -d open_navigator 2>&1",
             ],
             capture_output=True,
@@ -206,21 +206,21 @@ def rebuild_stats():
                 'Boston city' as location,
                 nonprofits_count,
                 events_count
-            FROM stats_aggregates
+            FROM jurisdiction_state_aggregate
             WHERE level = 'city' AND city = 'Boston' AND state_code = 'MA'
             UNION ALL
             SELECT 
                 'Suffolk County',
                 nonprofits_count,
                 events_count
-            FROM stats_aggregates
+            FROM jurisdiction_state_aggregate
             WHERE level = 'county' AND county = 'Suffolk County' AND state_code = 'MA'
             UNION ALL
             SELECT 
                 'Massachusetts state',
                 nonprofits_count,
                 events_count
-            FROM stats_aggregates
+            FROM jurisdiction_state_aggregate
             WHERE level = 'state' AND state_code = 'MA'
         """)
         

@@ -117,7 +117,7 @@ class StateFieldMigrator:
         logger.info(f"   Current columns: {columns}")
         
         # Skip system tables
-        if table_name in ['oauth_states', 'users', 'zip_county_mapping']:
+        if table_name in ['contact_oauth_state', 'user', 'zip_county_mapping']:
             logger.info(f"   ⏭️  Skipping system table")
             return
         

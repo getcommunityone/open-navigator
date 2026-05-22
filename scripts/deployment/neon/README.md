@@ -83,36 +83,37 @@ neon/
 
 ### Tables:
 
-1. **`stats_aggregates`** - Pre-computed statistics
+1. **`jurisdiction_state_aggregate`** - Pre-computed statistics
    - National, state, county, city levels
    - Counts: jurisdictions, nonprofits, events, contacts
    - Financials: total revenue, total assets
    - **Primary use**: Dashboard `/api/stats` endpoint
 
-2. **`organizations_nonprofit_search`** - Searchable nonprofit data
+2. **`organization_nonprofit`** - Searchable nonprofit data
    - Full-text search on name
    - Geographic filters (state, city, county)
    - Financial data (revenue, assets)
    - **Primary use**: Search `/api/search` endpoint
 
-3. **`jurisdictions_search`** - Cities, counties, townships
+3. **`jurisdiction`** - Cities, counties, townships
    - Full-text search on name
    - Type filters (city, county, etc.)
    - **Primary use**: Location search
 
-4. **`contacts_search`** - Officers, legislators, board members
+4. **`contact`** - Officers, legislators, board members
    - Full-text search on name and organization
    - Role classification
    - **Primary use**: People search
 
-5. **`events_search`** - Meetings, hearings, events
+5. **`event`** - Meetings, hearings, events
    - Full-text search on title/description
    - Date ranges
    - **Primary use**: Event calendar
 
 6. **`reference_causes`** - Nonprofit cause categories
-7. **`reference_ntee_codes`** - IRS NTEE classification codes
-8. **`last_sync`** - Track data sync status
+7. **`cause_ntee`** - IRS NTEE classification codes
+8. **`log_last_sync`** - Track data sync status (parquet → Neon migrate)
+9. **`log_neon_sync`** - Bills/map sync log (`migrate_bills.py`)
 
 ### Indexes:
 
@@ -173,9 +174,9 @@ python scripts/deployment/neon/migrate.py
 
 📊 Migration Summary:
 ============================================================
-  stats_aggregates               2 records  (2026-04-30 ...)
-  organizations_nonprofit_search         45,123 records  (2026-04-30 ...)
-  reference_ntee_codes          32 records  (2026-04-30 ...)
+  jurisdiction_state_aggregate               2 records  (2026-04-30 ...)
+  organization_nonprofit         45,123 records  (2026-04-30 ...)
+  cause_ntee          32 records  (2026-04-30 ...)
   reference_causes             450 records  (2026-04-30 ...)
 ============================================================
 
@@ -189,10 +190,10 @@ python scripts/deployment/neon/migrate.py
 psql "postgresql://neondb_owner:npg_6WMcFKpIgj3T@ep-noisy-fire-anrnmxxy-pooler.c-6.us-east-1.aws.neon.tech/neondb?sslmode=require"
 
 # Test queries:
-SELECT * FROM stats_aggregates WHERE level = 'national';
-SELECT * FROM stats_aggregates WHERE state = 'MA';
-SELECT name, city, revenue FROM organizations_nonprofit_search WHERE state = 'MA' LIMIT 5;
-SELECT * FROM reference_ntee_codes LIMIT 5;
+SELECT * FROM jurisdiction_state_aggregate WHERE level = 'national';
+SELECT * FROM jurisdiction_state_aggregate WHERE state = 'MA';
+SELECT name, city, revenue FROM organization_nonprofit WHERE state = 'MA' LIMIT 5;
+SELECT * FROM cause_ntee LIMIT 5;
 ```
 
 ### Step 5: Update API Routes
@@ -283,7 +284,7 @@ python scripts/deployment/neon/migrate.py
 # neon/sync.py (TODO)
 # - Run daily via GitHub Actions or cron
 # - Incremental updates only (faster)
-# - Track changes with last_sync table
+# - Track changes with log_last_sync table
 ```
 
 **Best Practice**:

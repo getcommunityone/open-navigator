@@ -2,7 +2,7 @@
 """
 Sync place_geoid and county_fips from bronze to production search table
 
-This script updates organizations_nonprofit_search in the production database
+This script updates organization_nonprofit in the production database
 with jurisdiction linking fields from bronze_organizations_nonprofits.
 
 Usage:
@@ -41,9 +41,9 @@ def sync_jurisdictions():
     
     try:
         # Step 1: Add columns to production table if they don't exist
-        logger.info("Adding place_geoid and county_fips columns to organizations_nonprofit_search...")
+        logger.info("Adding place_geoid and county_fips columns to organization_nonprofit...")
         prod_cur.execute("""
-            ALTER TABLE organizations_nonprofit_search 
+            ALTER TABLE organization_nonprofit 
             ADD COLUMN IF NOT EXISTS place_geoid VARCHAR(7),
             ADD COLUMN IF NOT EXISTS county_fips VARCHAR(5);
         """)
@@ -66,7 +66,7 @@ def sync_jurisdictions():
         logger.info(f"Found {len(records):,} nonprofits with jurisdiction data")
         
         # Step 3: Update production table in batches
-        logger.info("Updating organizations_nonprofit_search...")
+        logger.info("Updating organization_nonprofit...")
         batch_size = 10000
         updated = 0
         
@@ -90,7 +90,7 @@ def sync_jurisdictions():
             
             # Update from temp table
             prod_cur.execute("""
-                UPDATE organizations_nonprofit_search AS o
+                UPDATE organization_nonprofit AS o
                 SET place_geoid = t.place_geoid,
                     county_fips = t.county_fips
                 FROM temp_jurisdictions AS t
@@ -109,12 +109,12 @@ def sync_jurisdictions():
         logger.info("Creating indexes...")
         prod_cur.execute("""
             CREATE INDEX IF NOT EXISTS idx_org_search_place_geoid 
-            ON organizations_nonprofit_search(place_geoid) 
+            ON organization_nonprofit(place_geoid) 
             WHERE place_geoid IS NOT NULL
         """)
         prod_cur.execute("""
             CREATE INDEX IF NOT EXISTS idx_org_search_county_fips 
-            ON organizations_nonprofit_search(county_fips) 
+            ON organization_nonprofit(county_fips) 
             WHERE county_fips IS NOT NULL
         """)
         prod_conn.commit()
@@ -128,7 +128,7 @@ def sync_jurisdictions():
                 COUNT(county_fips) as with_county,
                 ROUND(100.0 * COUNT(place_geoid) / COUNT(*), 1) as pct_place,
                 ROUND(100.0 * COUNT(county_fips) / COUNT(*), 1) as pct_county
-            FROM organizations_nonprofit_search
+            FROM organization_nonprofit
         """)
         
         stats = prod_cur.fetchone()
@@ -142,7 +142,7 @@ def sync_jurisdictions():
         # Verify Tuscaloosa
         prod_cur.execute("""
             SELECT COUNT(*) 
-            FROM organizations_nonprofit_search 
+            FROM organization_nonprofit 
             WHERE place_geoid = '0177256'
         """)
         tuscaloosa_count = prod_cur.fetchone()[0]

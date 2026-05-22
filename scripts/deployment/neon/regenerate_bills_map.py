@@ -1,7 +1,7 @@
 """
-Regenerate bills_map_aggregates from OpenStates PostgreSQL database.
+Regenerate bill_map_aggregate from OpenStates PostgreSQL database.
 
-This populates the bills_map_aggregates table with data for ALL 50 states
+This populates the bill_map_aggregate table with data for ALL 50 states
 from the local OpenStates PostgreSQL database.
 """
 import asyncio
@@ -18,7 +18,7 @@ OPEN_NAVIGATOR_DB = os.getenv("NEON_DATABASE_URL_DEV", "postgresql://postgres:pa
 async def regenerate_map_aggregates():
     """Generate bills map aggregates for all 50 states from PostgreSQL."""
     
-    logger.info("🔄 Regenerating bills_map_aggregates from OpenStates PostgreSQL...")
+    logger.info("🔄 Regenerating bill_map_aggregate from OpenStates PostgreSQL...")
     
     # Connect to both databases
     openstates_conn = await asyncpg.connect(OPENSTATES_DB)
@@ -51,12 +51,12 @@ async def regenerate_map_aggregates():
         logger.info(f"✅ Found {len(states_data)} states")
         
         # Clear existing aggregates
-        await navigator_conn.execute("TRUNCATE TABLE bills_map_aggregates")
+        await navigator_conn.execute("TRUNCATE TABLE bill_map_aggregate")
         logger.info("🗑️  Cleared existing aggregates")
         
         # Insert new aggregates
         insert_query = """
-            INSERT INTO bills_map_aggregates (
+            INSERT INTO bill_map_aggregate (
                 state_code, topic, total_bills,
                 type_bill, type_resolution, type_concurrent_resolution,
                 type_joint_resolution, type_constitutional_amendment,
@@ -92,7 +92,7 @@ async def regenerate_map_aggregates():
             
             logger.info(f"  ✅ {state}: {total:,} bills ({category})")
         
-        logger.info(f"\n✅ Successfully populated bills_map_aggregates with {len(states_data)} states!")
+        logger.info(f"\n✅ Successfully populated bill_map_aggregate with {len(states_data)} states!")
         
     finally:
         await openstates_conn.close()

@@ -8,7 +8,7 @@ by state and topic. Improves upon file-based aggregation by:
 - Better classification logic that considers sentiment/context
 - Direct database queries for accurate status tracking
 
-Output: data/gold/national/bills_map_aggregates.parquet
+Output: data/gold/national/bill_map_aggregate.parquet
 - Topic (fluoride, dental, medicaid, etc.)
 - State
 - Bill counts, type distribution, status breakdown
@@ -33,7 +33,7 @@ load_dotenv()
 # Setup
 project_root = Path(__file__).parent.parent
 GOLD_DIR = project_root / "data" / "gold"
-OUTPUT_FILE = GOLD_DIR / "national" / "bills_map_aggregates.parquet"
+OUTPUT_FILE = GOLD_DIR / "national" / "bill_map_aggregate.parquet"
 
 # Topics to pre-aggregate
 TOPICS = ['fluoride', 'dental', 'oral health', 'medicaid', 'education', 'health']

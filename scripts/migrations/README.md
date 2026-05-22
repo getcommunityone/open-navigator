@@ -37,12 +37,12 @@ python scripts/migrations/migrate_state_naming.py --all
 - Can be run multiple times safely (idempotent)
 
 **Affected Tables:**
-- `jurisdictions_search`
-- `contacts_search`
-- `events_search`
-- `organizations_nonprofit_search`
+- `jurisdiction`
+- `contact`
+- `event`
+- `organization_nonprofit`
 - `bills_search`
-- `bills_map_aggregates`
+- `bill_map_aggregate`
 - `jurisdictions_details_search`
 - `zip_county_mapping`
 - + 8 more tables with state columns
@@ -75,11 +75,11 @@ python scripts/migrations/migrate_state_naming.py --all
 1. **Verify the migration:**
    ```sql
    -- Check table structure
-   \d+ jurisdictions_search
+   \d+ jurisdiction
    
    -- Verify data
    SELECT state_code, state, COUNT(*) 
-   FROM jurisdictions_search 
+   FROM jurisdiction 
    GROUP BY state_code, state 
    LIMIT 10;
    ```
@@ -87,7 +87,7 @@ python scripts/migrations/migrate_state_naming.py --all
 2. **Test parquet files:**
    ```python
    import pandas as pd
-   df = pd.read_parquet('data/gold/states/AL/contacts_officials.parquet')
+   df = pd.read_parquet('data/gold/states/AL/contact_official.parquet')
    print(df.columns.tolist())
    print(df[['state_code', 'state']].drop_duplicates())
    ```

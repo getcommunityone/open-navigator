@@ -82,7 +82,7 @@ Both have deprecation warnings pointing to dbt models.
 
 ```python
 # BEFORE (old table)
-query = "SELECT * FROM jurisdictions_search WHERE ..."
+query = "SELECT * FROM jurisdiction WHERE ..."
 
 # AFTER (new gold table)
 query = """

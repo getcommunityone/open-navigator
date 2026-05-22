@@ -23,7 +23,7 @@ This directory contains scripts that use Google's Gemini AI (FREE TIER) to perfo
 Main script for analyzing meeting transcripts with Gemini AI.
 
 **What it does:**
-1. Fetches recent meetings from `events_search` (priority states: AL, GA, IN, MA, WA, WI)
+1. Fetches recent meetings from `event` (priority states: AL, GA, IN, MA, WA, WI)
 2. Filters for known channel types (municipal, county, school) OR channels in localview
 3. Gets transcripts from `events_text_search`
 4. Analyzes using Gemini 1.5 Flash (FREE tier) with policy_analysis.md prompt
@@ -167,7 +167,7 @@ Stores AI analysis results:
 ```sql
 CREATE TABLE events_text_ai (
     id SERIAL PRIMARY KEY,
-    event_id INTEGER REFERENCES events_search(id),
+    event_id INTEGER REFERENCES event(event_id),
     video_id VARCHAR(20),
     analysis_type VARCHAR(50) DEFAULT 'policy_frame_analysis',
     ai_model VARCHAR(100) DEFAULT 'gemini-1.5-flash',
@@ -225,7 +225,7 @@ CREATE TABLE bronze_decisions (
 ```sql
 -- View recent analyses
 SELECT 
-    e.title,
+    e.event_title,
     e.jurisdiction_name,
     e.state_code,
     e.event_date,
@@ -233,28 +233,28 @@ SELECT
     ai.processing_time_seconds,
     ai.created_at
 FROM events_text_ai ai
-JOIN events_search e ON ai.event_id = e.id
+JOIN event e ON ai.event_id = e.event_id
 ORDER BY ai.created_at DESC
 LIMIT 10;
 
 -- Get structured JSON analysis
 SELECT 
-    e.title,
+    e.event_title,
     ai.structured_analysis->'meeting'->'body_name' as body,
     jsonb_array_length(ai.structured_analysis->'decisions') as decision_count,
     ai.summary_text
 FROM events_text_ai ai
-JOIN events_search e ON ai.event_id = e.id
+JOIN event e ON ai.event_id = e.event_id
 WHERE ai.error_message IS NULL;
 
 -- Extract frame analysis from JSON
 SELECT 
-    e.title,
+    e.event_title,
     decision->>'topic' as topic,
     decision->'frame_analysis'->'dominant_frame'->>'frame_label' as dominant_frame,
     decision->'frame_analysis'->'counter_frames'->0->>'frame_label' as counter_frame
 FROM events_text_ai ai
-JOIN events_search e ON ai.event_id = e.id,
+JOIN event e ON ai.event_id = e.event_id,
 LATERAL jsonb_array_elements(ai.structured_analysis->'decisions') as decision
 WHERE ai.error_message IS NULL;
 ```
@@ -476,7 +476,7 @@ python scripts/datasources/gemini/analyze_meeting_transcripts.py --delay 5.0
 
 **Issue: No meetings found**
 - Check that meetings have transcripts: `SELECT COUNT(*) FROM events_text_search;`
-- Verify state codes: `SELECT DISTINCT state_code FROM events_search;`
+- Verify state codes: `SELECT DISTINCT state_code FROM event;`
 - Try `--force` to re-analyze existing meetings
 
 ## Next Steps

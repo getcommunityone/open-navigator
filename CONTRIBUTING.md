@@ -1,7 +1,7 @@
 # Contributing to Oral Health Policy Pulse
 
-Thank you for your interest in contributing to the Oral Health Policy Pulse project!
-
+Thank you for your interest in contributing to the Oral Health Policy Pulse project!!
+ 
 ## How to Contribute
 
 ### Reporting Bugs

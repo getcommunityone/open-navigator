@@ -150,79 +150,79 @@ class YouTubeEventsLoader:
         return url
     
     def _add_jurisdiction_id_column(self):
-        """Add jurisdiction_id and channel_id columns to events_search if they don't exist."""
+        """Add jurisdiction_id and channel_id columns to event if they don't exist."""
         cursor = self.conn.cursor()
         
         try:
             # Add jurisdiction_id column
             cursor.execute("""
-                ALTER TABLE events_search 
+                ALTER TABLE event 
                 ADD COLUMN IF NOT EXISTS jurisdiction_id VARCHAR(50);
             """)
             
             # Add channel_id column for per-channel tracking
             cursor.execute("""
-                ALTER TABLE events_search 
+                ALTER TABLE event 
                 ADD COLUMN IF NOT EXISTS channel_id VARCHAR(50);
             """)
             
             # Add YouTube metrics columns
             cursor.execute("""
-                ALTER TABLE events_search
+                ALTER TABLE event
                 ADD COLUMN IF NOT EXISTS view_count INTEGER;
             """)
             
             cursor.execute("""
-                ALTER TABLE events_search
+                ALTER TABLE event
                 ADD COLUMN IF NOT EXISTS duration_minutes INTEGER;
             """)
             
             cursor.execute("""
-                ALTER TABLE events_search
+                ALTER TABLE event
                 ADD COLUMN IF NOT EXISTS like_count INTEGER;
             """)
             
             # Add language column
             cursor.execute("""
-                ALTER TABLE events_search
+                ALTER TABLE event
                 ADD COLUMN IF NOT EXISTS language VARCHAR(10);
             """)
             
             # Add channel_type column
             cursor.execute("""
-                ALTER TABLE events_search
+                ALTER TABLE event
                 ADD COLUMN IF NOT EXISTS channel_type VARCHAR(50);
             """)
             
             # Add location_description column
             cursor.execute("""
-                ALTER TABLE events_search
+                ALTER TABLE event
                 ADD COLUMN IF NOT EXISTS location_description TEXT;
             """)
             
             # Add channel_url column
             cursor.execute("""
-                ALTER TABLE events_search
+                ALTER TABLE event
                 ADD COLUMN IF NOT EXISTS channel_url TEXT;
             """)
             
             # Create index for jurisdiction_id
             cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_events_jurisdiction_id 
-                ON events_search(jurisdiction_id);
+                ON event(jurisdiction_id);
             """)
             
             # Create index for channel_id
             cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_events_channel_id 
-                ON events_search(channel_id);
+                ON event(channel_id);
             """)
             
             # Add unique constraint on video_url to prevent duplicates
             cursor.execute("""
                 DO $$ 
                 BEGIN
-                    ALTER TABLE events_search 
+                    ALTER TABLE event 
                     ADD CONSTRAINT unique_video_url 
                     UNIQUE (video_url);
                 EXCEPTION
@@ -234,10 +234,10 @@ class YouTubeEventsLoader:
             cursor.execute("""
                 DO $$ 
                 BEGIN
-                    ALTER TABLE events_search 
+                    ALTER TABLE event 
                     ADD CONSTRAINT fk_events_jurisdiction
                     FOREIGN KEY (jurisdiction_id) 
-                    REFERENCES jurisdictions_details_search(jurisdiction_id)
+                    REFERENCES jurisdiction(jurisdiction_id)
                     ON DELETE SET NULL;
                 EXCEPTION
                     WHEN duplicate_object THEN NULL;
@@ -1608,7 +1608,7 @@ class YouTubeEventsLoader:
 
 def main():
     """Main entry point."""
-    parser = argparse.ArgumentParser(description='Load YouTube events from jurisdictions into events_search')
+    parser = argparse.ArgumentParser(description='Load YouTube events from jurisdictions into event')
     
     parser.add_argument(
         '--states',

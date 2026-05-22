@@ -25,7 +25,7 @@ stg_bronze_decisions (cleaned, filtered to last 90 days)
     ↓ (dbt intermediate)
 int_trending_causes_by_jurisdiction (aggregated by cause & jurisdiction)
     ↓ (dbt marts)
-stats_aggregates.trending_causes (JSONB column)
+jurisdiction_state_aggregate.trending_causes (JSONB column)
     ↓ (API)
 GET /api/stats?state=AL&city=Mobile
     ↓ (Frontend)
@@ -43,10 +43,10 @@ Home.tsx displays location-specific trending causes
 
 ### Database Schema
 
-The `stats_aggregates` table contains pre-computed statistics at multiple levels:
+The `jurisdiction_state_aggregate` table contains pre-computed statistics at multiple levels:
 
 ```sql
-CREATE TABLE stats_aggregates (
+CREATE TABLE jurisdiction_state_aggregate (
     level VARCHAR(20),              -- 'national', 'state', 'county', 'city'
     state_code VARCHAR(2),
     county VARCHAR(100),
@@ -159,7 +159,7 @@ Run the dbt models to recompute trending causes:
 cd dbt_project
 dbt run --select stg_bronze_decisions
 dbt run --select int_trending_causes_by_jurisdiction
-dbt run --select stats_aggregates
+dbt run --select jurisdiction_state_aggregate
 ```
 
 ### Verification
@@ -172,7 +172,7 @@ SELECT
   level,
   COUNT(*) as total,
   COUNT(CASE WHEN trending_causes IS NOT NULL THEN 1 END) as with_causes
-FROM stats_aggregates
+FROM jurisdiction_state_aggregate
 GROUP BY level;
 
 -- View sample trending causes
@@ -180,7 +180,7 @@ SELECT
   city,
   state_code,
   jsonb_pretty(trending_causes) as causes
-FROM stats_aggregates
+FROM jurisdiction_state_aggregate
 WHERE level = 'city' 
   AND trending_causes IS NOT NULL
 LIMIT 5;
@@ -235,7 +235,7 @@ Check if data exists:
 
 ```sql
 SELECT COUNT(*) 
-FROM stats_aggregates 
+FROM jurisdiction_state_aggregate 
 WHERE trending_causes IS NOT NULL;
 ```
 

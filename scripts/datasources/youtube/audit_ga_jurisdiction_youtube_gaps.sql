@@ -4,13 +4,13 @@
 -- Your disk layout (e.g. data/cache/youtube_audio/ga/*) mirrors **bronze rows
 -- that were actually downloaded**, not every Census place. "Missing" usually
 -- means one of:
---   A) Place not in `jurisdictions_details_search` (gold parquet never scraped it)
+--   A) Place not in `jurisdiction` (gold parquet never scraped it)
 --   B) In details but `youtube_channel_count` = 0 (discovery found no channel URL)
 --   C) Details has `youtube_channels` JSON but `bronze_events_channels` missing row
 --      (load_youtube_channels_bronze not run / failed for that channel_id)
 --   D) Bronze has channel but no / few `bronze_events_youtube` rows
 --      (load_youtube_events_to_postgres not run / filters / API limits)
---   E) Name mismatch: `jurisdictions_search.name` ≠ `jurisdictions_details_search.jurisdiction_name`
+--   E) Name mismatch: `jurisdiction.name` ≠ `jurisdiction.jurisdiction_name`
 --      (join below is exact trimmed lower match — tune for school district spelling)
 --
 -- Run:
@@ -19,10 +19,10 @@
 
 \pset pager off
 
--- jurisdictions_search: tolerate legacy tables without state_code (use to_jsonb row).
-\echo '========== 1) SCALE: jurisdictions_search (Census / app universe) =========='
+-- jurisdiction: tolerate legacy tables without state_code (use to_jsonb row).
+\echo '========== 1) SCALE: jurisdiction (Census / app universe) =========='
 SELECT js.type, COUNT(*) AS n
-FROM jurisdictions_search js
+FROM jurisdiction js
 WHERE (
     upper(trim(COALESCE(to_jsonb(js)->>'state_code', ''))) = 'GA'
     OR upper(trim(COALESCE(to_jsonb(js)->>'state', ''))) IN ('GA', 'GEORGIA')
@@ -32,7 +32,7 @@ GROUP BY js.type
 ORDER BY n DESC;
 
 \echo ''
-\echo '========== 2) SCALE: jurisdictions_details_search (gold / discovery universe) =========='
+\echo '========== 2) SCALE: jurisdiction (gold / discovery universe) =========='
 SELECT
   COUNT(*) AS total_ga_rows,
   COUNT(*) FILTER (WHERE COALESCE(youtube_channel_count, 0) > 0) AS rows_with_youtube_count_gt_0,
@@ -42,7 +42,7 @@ SELECT
       AND jsonb_typeof(youtube_channels) = 'array'
       AND jsonb_array_length(youtube_channels) > 0
   ) AS rows_with_nonempty_youtube_json
-FROM jurisdictions_details_search
+FROM jurisdiction
 WHERE state_code = 'GA';
 
 \echo ''
@@ -63,7 +63,7 @@ SELECT
   population,
   youtube_channel_count,
   youtube_channels
-FROM jurisdictions_details_search
+FROM jurisdiction
 WHERE state_code = 'GA'
   AND (
     COALESCE(youtube_channel_count, 0) = 0
@@ -78,12 +78,12 @@ LIMIT 150;
 WITH d AS (
   SELECT
     jd.jurisdiction_id,
-    jd.jurisdiction_name,
+    jd.name,
     jd.jurisdiction_type,
     NULLIF(btrim(ch->>'channel_id'), '') AS channel_id,
     ch->>'channel_url' AS channel_url,
     ch->>'channel_title' AS channel_title
-  FROM jurisdictions_details_search jd
+  FROM jurisdiction jd
   CROSS JOIN LATERAL jsonb_array_elements(
     CASE
       WHEN jd.youtube_channels IS NULL THEN '[]'::jsonb
@@ -103,12 +103,12 @@ ORDER BY d.jurisdiction_name
 LIMIT 150;
 
 \echo ''
-\echo '========== 6) jurisdictions_search with NO details row (exact name match; GA details only) (reason A/E) =========='
+\echo '========== 6) jurisdiction with NO details row (exact name match; GA details only) (reason A/E) =========='
 SELECT js.id, js.name, js.type, js.county, js.geoid, js.population
-FROM jurisdictions_search js
-LEFT JOIN jurisdictions_details_search jd
+FROM jurisdiction js
+LEFT JOIN jurisdiction jd
   ON jd.state_code = 'GA'
- AND lower(btrim(jd.jurisdiction_name)) = lower(btrim(js.name))
+ AND lower(btrim(jd.name)) = lower(btrim(js.name))
 WHERE (
     upper(trim(COALESCE(to_jsonb(js)->>'state_code', ''))) = 'GA'
     OR upper(trim(COALESCE(to_jsonb(js)->>'state', ''))) IN ('GA', 'GEORGIA')

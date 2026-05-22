@@ -11,6 +11,18 @@
 | Optional WhisperX diarization | Local GPU/CPU + `HF_TOKEN` |
 | Policy JSON | API tokens on transcript text |
 
+### Processing status (markdown dashboard)
+
+Per-state counts: jurisdictions, YouTube catalog, bronze transcripts, on-disk
+`01_transcripts` / `02_analysis` / `03_reports`:
+
+```bash
+.venv/bin/python scripts/gemini/policy_processing_status_report.py
+# → data/reports/policy_processing_status.md
+# Includes last updated, in-progress elapsed time, and ETA (default: 2 reports per jurisdiction)
+.venv/bin/python scripts/gemini/policy_processing_status_report.py --target-videos 2 --stale-minutes 30
+```
+
 ### Setup
 
 ```bash

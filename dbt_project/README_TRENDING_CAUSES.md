@@ -2,7 +2,7 @@
 
 ## Overview
 
-The dbt project includes models to load `stats_aggregates` table with **location-specific trending causes** based on decisions from the last 90 days.
+The dbt project includes models to load `jurisdiction_state_aggregate` table with **location-specific trending causes** based on decisions from the last 90 days.
 
 ✨ **NEW:** The frontend now displays trending causes dynamically based on the selected geography (national, state, county, or city level).
 
@@ -14,7 +14,7 @@ The dbt project includes models to load `stats_aggregates` table with **location
 
 # Or manually:
 cd dbt_project
-dbt run --select stg_bronze_decisions int_trending_causes_by_jurisdiction stats_aggregates
+dbt run --select stg_bronze_decisions int_trending_causes_by_jurisdiction jurisdiction_state_aggregate
 ```
 
 ## How It Works
@@ -49,18 +49,18 @@ dbt run --select stg_bronze_decisions int_trending_causes_by_jurisdiction stats_
 
 ### 3. Marts Layer
 
-**`stats_aggregates.sql`**
-- Builds the final stats_aggregates table
+**`jurisdiction_state_aggregate.sql`**
+- Builds the final jurisdiction_state_aggregate table
 - Supports multiple levels: national, state, county, city, jurisdiction
 - Includes `trending_causes` as JSONB column
 - Joins trending causes data from intermediate model
 
 ## Schema Changes
 
-Added `trending_causes` JSONB column to `stats_aggregates` table:
+Added `trending_causes` JSONB column to `jurisdiction_state_aggregate` table:
 
 ```sql
-ALTER TABLE stats_aggregates ADD COLUMN IF NOT EXISTS trending_causes JSONB;
+ALTER TABLE jurisdiction_state_aggregate ADD COLUMN IF NOT EXISTS trending_causes JSONB;
 ```
 
 ## Trending Causes JSON Structure
@@ -144,8 +144,8 @@ dbt deps
 # Run staging and intermediate models
 dbt run --select stg_bronze_decisions int_trending_causes_by_jurisdiction
 
-# Run marts layer (stats_aggregates)
-dbt run --select stats_aggregates
+# Run marts layer (jurisdiction_state_aggregate)
+dbt run --select jurisdiction_state_aggregate
 
 # Run all models
 dbt run
@@ -165,7 +165,7 @@ SELECT
   state_code,
   jsonb_array_length(trending_causes) as cause_count,
   trending_causes
-FROM stats_aggregates
+FROM jurisdiction_state_aggregate
 WHERE level = 'city' 
   AND trending_causes IS NOT NULL
   AND city ILIKE '%Mobile%'
@@ -175,13 +175,13 @@ LIMIT 1;
 SELECT 
   state_code,
   jsonb_pretty(trending_causes) as causes
-FROM stats_aggregates
+FROM jurisdiction_state_aggregate
 WHERE level = 'state' 
   AND state_code = 'AL';
 
 -- National trending causes
 SELECT jsonb_pretty(trending_causes) 
-FROM stats_aggregates 
+FROM jurisdiction_state_aggregate 
 WHERE level = 'national';
 ```
 
@@ -203,7 +203,7 @@ WHERE level = 'national';
 ## Integration with Python Scripts
 
 The existing Python migration scripts in `scripts/deployment/neon/` can now:
-1. Use dbt to generate stats_aggregates
+1. Use dbt to generate jurisdiction_state_aggregate
 2. OR continue using Python aggregation
 3. Merge both approaches (Python for counts, dbt for trending causes)
 
@@ -214,7 +214,7 @@ The existing Python migration scripts in `scripts/deployment/neon/` can now:
 import subprocess
 
 # Run dbt models first to calculate trending causes
-subprocess.run(['dbt', 'run', '--select', 'stats_aggregates'], 
+subprocess.run(['dbt', 'run', '--select', 'jurisdiction_state_aggregate'], 
                cwd='/path/to/dbt_project')
 
 # Then update counts using Python (jurisdictions, nonprofits, etc.)
@@ -248,7 +248,7 @@ The models include data quality tests:
 - cause_category: not_null
 - decision_count: not_null
 
-# stats_aggregates
+# jurisdiction_state_aggregate
 - level: not_null, accepted_values
 - last_updated: not_null
 ```
@@ -280,7 +280,7 @@ Trending causes should be refreshed daily:
 
 ```bash
 # Cron job example
-0 2 * * * cd /path/to/dbt_project && dbt run --select stats_aggregates
+0 2 * * * cd /path/to/dbt_project && dbt run --select jurisdiction_state_aggregate
 ```
 
 ## Next Steps

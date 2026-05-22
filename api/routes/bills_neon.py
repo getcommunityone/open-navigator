@@ -455,7 +455,7 @@ async def fetch_map_data_from_neon(
                 map_category,
                 sample_bills,
                 last_updated
-            FROM bills_map_aggregates
+            FROM bill_map_aggregate
             WHERE topic = $1
         """
         
@@ -988,7 +988,7 @@ async def get_bill_details(bill_id: str):
         bills_file = GOLD_DIR / "bills_bills.parquet"
         actions_file = GOLD_DIR / "bills_bill_actions.parquet"
         sponsors_file = GOLD_DIR / "bills_bill_sponsorships.parquet"
-        map_file = GOLD_DIR / "bills_map_aggregates.parquet"
+        map_file = GOLD_DIR / "bill_map_aggregate.parquet"
         
         # Get data sources (local or remote HuggingFace URL)
         bills_source = get_data_source(bills_file, use_remote=IS_HF_SPACES)

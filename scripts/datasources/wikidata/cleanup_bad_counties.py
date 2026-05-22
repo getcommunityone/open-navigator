@@ -8,7 +8,7 @@ WikiData queries returned counties from wrong states:
 - Massachusetts (MA) has 1 phantom county (York County)
 - Indiana (IN) has 1 phantom county (Swanson County)
 
-This script deletes WikiData counties that don't exist in jurisdictions_search
+This script deletes WikiData counties that don't exist in jurisdiction
 (the authoritative Census Bureau source).
 
 Usage:
@@ -41,7 +41,7 @@ def cleanup_bad_counties():
                 w.geoid as wiki_geoid,
                 w.fips_code as wiki_fips
             FROM jurisdictions_wikidata w
-            LEFT JOIN jurisdictions_search s 
+            LEFT JOIN jurisdiction s 
                 ON (
                     (w.geoid = s.geoid AND w.geoid IS NOT NULL)
                     OR (UPPER(TRIM(w.jurisdiction_name)) = UPPER(TRIM(s.name)) AND w.state_code = s.state_code)
@@ -86,7 +86,7 @@ def cleanup_bad_counties():
         WHERE w.jurisdiction_type = 'county'
           AND w.state_code IN ('AL', 'GA', 'IN', 'MA', 'WA', 'WI')
           AND NOT EXISTS (
-              SELECT 1 FROM jurisdictions_search s
+              SELECT 1 FROM jurisdiction s
               WHERE (
                   (w.geoid = s.geoid AND w.geoid IS NOT NULL)
                   OR (UPPER(TRIM(w.jurisdiction_name)) = UPPER(TRIM(s.name)) AND w.state_code = s.state_code)
@@ -107,7 +107,7 @@ def cleanup_bad_counties():
             COUNT(DISTINCT s.id) as search_counties,
             COUNT(DISTINCT w.wikidata_id) as wiki_counties,
             COUNT(DISTINCT CASE WHEN s.id IS NOT NULL AND w.wikidata_id IS NOT NULL THEN w.wikidata_id END) as matched
-        FROM jurisdictions_search s
+        FROM jurisdiction s
         FULL OUTER JOIN jurisdictions_wikidata w 
             ON s.geoid = w.geoid
             AND s.type = 'county'
@@ -133,7 +133,7 @@ def cleanup_bad_counties():
             ROUND(COUNT(DISTINCT CASE WHEN s.id IS NOT NULL THEN w.wikidata_id END) * 100.0 / 
                   COUNT(DISTINCT w.wikidata_id), 1) as match_pct
         FROM jurisdictions_wikidata w
-        LEFT JOIN jurisdictions_search s ON w.geoid = s.geoid AND s.type = 'county'
+        LEFT JOIN jurisdiction s ON w.geoid = s.geoid AND s.type = 'county'
         WHERE w.jurisdiction_type = 'county'
           AND w.state_code IN ('AL', 'GA', 'IN', 'MA', 'WA', 'WI')
     """)

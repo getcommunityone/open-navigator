@@ -8,7 +8,7 @@
     Intermediate model: Trending Causes by Jurisdiction
     
     Aggregates decision counts by cause (NTEE major group) and jurisdiction
-    for the last 90 days. Used to populate trending_causes JSON in stats_aggregates.
+    for the last 90 days. Used to populate trending_causes JSON in jurisdiction_state_aggregate.
 */
 
 WITH recent_decisions AS (

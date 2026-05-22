@@ -156,11 +156,11 @@ data/gold/
 │   │   ├── events_events.parquet          # OpenStates legislative events
 │   │   ├── events_participants.parquet
 │   │   ├── meetings_local.parquet         # LocalView municipal meetings
-│   │   └── contacts_officials.parquet     # Legislators + local officials
+│   │   └── contact_official.parquet     # Legislators + local officials
 │   ├── GA/
 │   │   ├── events_events.parquet
 │   │   ├── meetings_local.parquet
-│   │   └── contacts_officials.parquet
+│   │   └── contact_official.parquet
 │   └── ... (IN, MA, WA, WI)
 │
 └── meetings/                              # Cross-state meeting data

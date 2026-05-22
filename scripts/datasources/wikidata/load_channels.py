@@ -2,11 +2,11 @@
 """
 Load and Validate YouTube Channels
 
-This script loads channels from jurisdictions_details_search into events_channels_search,
+This script loads channels from jurisdiction into events_channels_search,
 validates them against multiple sources, and flags junk channels.
 
 Features:
-1. Enriches jurisdictions_details_search with Wikidata population and metadata
+1. Enriches jurisdiction with Wikidata population and metadata
 2. Matches LocalView events to YouTube channels
 3. Validates channels against WikiData
 4. Auto-flags junk channels (news, entertainment, etc.)
@@ -132,18 +132,18 @@ class ChannelLoader:
             cursor.close()
     
     def get_jurisdictions_channels(self, states_filter: Optional[List[str]] = None) -> List[Dict]:
-        """Get all channels from jurisdictions_details_search."""
+        """Get all channels from jurisdiction."""
         cursor = self.conn.cursor(cursor_factory=RealDictCursor)
         
         query = """
             SELECT 
                 jurisdiction_id,
-                jurisdiction_name,
+                name AS jurisdiction_name,
                 state_code,
                 state,
-                jurisdiction_type,
+                type AS jurisdiction_type,
                 youtube_channels
-            FROM jurisdictions_details_search
+            FROM jurisdiction
             WHERE youtube_channel_count > 0
                 AND youtube_channels IS NOT NULL
         """
@@ -240,7 +240,7 @@ class ChannelLoader:
         
         cursor.execute("""
             SELECT EXISTS(
-                SELECT 1 FROM events_search 
+                SELECT 1 FROM event 
                 WHERE channel_id = %s AND source = 'localview'
             )
         """, (channel_id,))
@@ -251,7 +251,7 @@ class ChannelLoader:
         return exists
     
     def enrich_from_wikidata(self, states_filter: Optional[List[str]] = None):
-        """Enrich jurisdictions_details_search with population and metadata from jurisdictions_wikidata.
+        """Enrich jurisdiction with population and metadata from jurisdictions_wikidata.
         
         Handles naming variations:
         - Exact match first
@@ -271,7 +271,7 @@ class ChannelLoader:
         cursor = self.conn.cursor()
         
         try:
-            logger.info("  Enriching jurisdictions_details_search from Wikidata...")
+            logger.info("  Enriching jurisdiction from Wikidata...")
             
             # Build state filter
             state_filter_sql = ""
@@ -282,7 +282,7 @@ class ChannelLoader:
             
             # Strategy 1: Exact match
             query1 = f"""
-                UPDATE jurisdictions_details_search d
+                UPDATE jurisdiction d
                 SET 
                     population = w.population,
                     per_capita_income = w.per_capita_income,
@@ -295,7 +295,7 @@ class ChannelLoader:
                     head_of_government = w.head_of_government,
                     last_updated = CURRENT_TIMESTAMP
                 FROM jurisdictions_wikidata w
-                WHERE d.jurisdiction_name = w.jurisdiction_name
+                WHERE d.name = w.jurisdiction_name
                   AND d.state_code = w.state_code
                   {state_filter_sql}
                   AND w.population IS NOT NULL;
@@ -308,7 +308,7 @@ class ChannelLoader:
             
             # Strategy 2: Match with county suffix (wikidata has "King County", details has "King")
             query2 = f"""
-                UPDATE jurisdictions_details_search d
+                UPDATE jurisdiction d
                 SET 
                     population = COALESCE(d.population, w.population),
                     per_capita_income = COALESCE(d.per_capita_income, w.per_capita_income),
@@ -321,9 +321,9 @@ class ChannelLoader:
                     head_of_government = COALESCE(d.head_of_government, w.head_of_government),
                     last_updated = CURRENT_TIMESTAMP
                 FROM jurisdictions_wikidata w
-                WHERE d.jurisdiction_name || ' County' = w.jurisdiction_name
+                WHERE d.name || ' County' = w.jurisdiction_name
                   AND d.state_code = w.state_code
-                  AND d.jurisdiction_type = 'county'
+                  AND d.type = 'county'
                   {state_filter_sql}
                   AND w.population IS NOT NULL;
             """
@@ -335,7 +335,7 @@ class ChannelLoader:
             
             # Strategy 3: Match cities with variations (less common but handle "City of X" vs "X")
             query3 = f"""
-                UPDATE jurisdictions_details_search d
+                UPDATE jurisdiction d
                 SET 
                     population = COALESCE(d.population, w.population),
                     per_capita_income = COALESCE(d.per_capita_income, w.per_capita_income),
@@ -349,11 +349,11 @@ class ChannelLoader:
                     last_updated = CURRENT_TIMESTAMP
                 FROM jurisdictions_wikidata w
                 WHERE (
-                    ('City of ' || d.jurisdiction_name = w.jurisdiction_name) OR
-                    (d.jurisdiction_name = REPLACE(w.jurisdiction_name, 'City of ', ''))
+                    ('City of ' || d.name = w.jurisdiction_name) OR
+                    (d.name = REPLACE(w.jurisdiction_name, 'City of ', ''))
                   )
                   AND d.state_code = w.state_code
-                  AND d.jurisdiction_type = 'city'
+                  AND d.type = 'city'
                   {state_filter_sql}
                   AND w.population IS NOT NULL;
             """
@@ -373,7 +373,7 @@ class ChannelLoader:
                     COUNT(*) FILTER (WHERE population IS NOT NULL AND population > 0) as has_population,
                     COUNT(*) FILTER (WHERE per_capita_income IS NOT NULL) as has_income,
                     COUNT(*) FILTER (WHERE ballotpedia_id IS NOT NULL) as has_ballotpedia
-                FROM jurisdictions_details_search
+                FROM jurisdiction
                 WHERE state_code = ANY(%s);
             """, (states_filter,) if states_filter else (None,))
             
@@ -391,7 +391,7 @@ class ChannelLoader:
             cursor.close()
     
     def update_localview_from_events(self):
-        """Update in_localview flag for all channels based on events_search.
+        """Update in_localview flag for all channels based on event.
         
         Any channel that has at least one event with source='localview' will be
         marked as in_localview=TRUE.
@@ -408,10 +408,10 @@ class ChannelLoader:
             logger.info("  Step 1: Matching localview events to YouTube channels...")
             
             cursor.execute("""
-                UPDATE events_search e1
+                UPDATE event e1
                 SET channel_id = e2.channel_id,
                     last_updated = CURRENT_TIMESTAMP
-                FROM events_search e2
+                FROM event e2
                 WHERE e1.source = 'localview'
                   AND e1.channel_id IS NULL
                   AND e1.video_url IS NOT NULL
@@ -433,7 +433,7 @@ class ChannelLoader:
                     last_updated = CURRENT_TIMESTAMP
                 WHERE channel_id IN (
                     SELECT DISTINCT channel_id
-                    FROM events_search
+                    FROM event
                     WHERE source = 'localview'
                       AND channel_id IS NOT NULL
                 )
@@ -449,9 +449,9 @@ class ChannelLoader:
             cursor.execute("""
                 SELECT 
                     COUNT(DISTINCT c.channel_id) as total_localview_channels,
-                    COUNT(DISTINCT e.id) as localview_events_linked
+                    COUNT(DISTINCT e.event_id) as localview_events_linked
                 FROM events_channels_search c
-                INNER JOIN events_search e ON c.channel_id = e.channel_id
+                INNER JOIN event e ON c.channel_id = e.channel_id
                 WHERE c.in_localview = TRUE
                   AND e.source = 'localview';
             """)
@@ -540,7 +540,7 @@ class ChannelLoader:
         validate: bool = False,
         auto_flag: bool = False
     ):
-        """Load channels from jurisdictions_details_search."""
+        """Load channels from jurisdiction."""
         
         logger.info("")
         logger.info("=" * 80)
@@ -551,13 +551,13 @@ class ChannelLoader:
         logger.info(f"Auto-flag junk: {auto_flag}")
         logger.info("")
         
-        # First, enrich jurisdictions_details_search with Wikidata
-        logger.info("Enriching jurisdictions_details_search from Wikidata...")
+        # First, enrich jurisdiction with Wikidata
+        logger.info("Enriching jurisdiction from Wikidata...")
         self.enrich_from_wikidata(states_filter)
         logger.info("")
         
         # Update in_localview based on existing events
-        logger.info("Updating in_localview flags from events_search...")
+        logger.info("Updating in_localview flags from event...")
         self.update_localview_from_events()
         logger.info("")
         

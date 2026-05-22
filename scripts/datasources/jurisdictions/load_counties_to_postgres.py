@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Load Counties into PostgreSQL jurisdictions_details_search table
+Load Counties into PostgreSQL jurisdiction table
 
 This script loads county data from data/gold/jurisdictions_counties.parquet
-and adds them to the jurisdictions_details_search table alongside cities.
+and adds them to the jurisdiction table alongside cities.
 
 Usage:
     python scripts/datasources/jurisdictions/load_counties_to_postgres.py
@@ -54,6 +54,7 @@ def load_counties(conn, counties_file: Path, states_filter: list = None, batch_s
         record = {
             'jurisdiction_id': jurisdiction_id,
             'jurisdiction_name': jurisdiction_name,
+            'state_code': row['USPS'],
             'state': row['USPS'],
             'jurisdiction_type': 'county',
             'population': 0,  # Counties file doesn't have population
@@ -73,24 +74,26 @@ def load_counties(conn, counties_file: Path, states_filter: list = None, batch_s
     
     # Insert into database
     insert_query = """
-        INSERT INTO jurisdictions_details_search (
-            jurisdiction_id, jurisdiction_name, state, jurisdiction_type,
+        INSERT INTO jurisdiction (
+            jurisdiction_id, name, state_code, state, type,
             population, discovery_timestamp, website_url,
             youtube_channel_count, youtube_channels,
             meeting_platform_count, meeting_platforms,
-            social_media, agenda_portal_count, status
+            social_media, agenda_portal_count, discovery_status,
+            source
         ) VALUES (
-            %(jurisdiction_id)s, %(jurisdiction_name)s, %(state)s, %(jurisdiction_type)s,
+            %(jurisdiction_id)s, %(jurisdiction_name)s, %(state_code)s, %(state)s, %(jurisdiction_type)s,
             %(population)s, %(discovery_timestamp)s, %(website_url)s,
             %(youtube_channel_count)s, %(youtube_channels)s::jsonb,
             %(meeting_platform_count)s, %(meeting_platforms)s::jsonb,
-            %(social_media)s::jsonb, %(agenda_portal_count)s, %(status)s
+            %(social_media)s::jsonb, %(agenda_portal_count)s, %(status)s,
+            'discovery'
         )
         ON CONFLICT (jurisdiction_id) 
         DO UPDATE SET
-            jurisdiction_name = EXCLUDED.jurisdiction_name,
+            name = EXCLUDED.name,
             state = EXCLUDED.state,
-            jurisdiction_type = EXCLUDED.jurisdiction_type,
+            type = EXCLUDED.type,
             last_updated = CURRENT_TIMESTAMP
     """
     
@@ -120,7 +123,7 @@ def load_counties(conn, counties_file: Path, states_filter: list = None, batch_s
 
 def main():
     """Main loading function."""
-    parser = argparse.ArgumentParser(description='Load counties into jurisdictions_details_search')
+    parser = argparse.ArgumentParser(description='Load counties into jurisdiction')
     parser.add_argument(
         '--states',
         type=str,
@@ -173,7 +176,7 @@ def main():
                 COUNT(*) FILTER (WHERE jurisdiction_type = 'city') as cities,
                 COUNT(*) FILTER (WHERE jurisdiction_type = 'county') as counties,
                 COUNT(DISTINCT state) as states
-            FROM jurisdictions_details_search
+            FROM jurisdiction
         """)
         stats = cursor.fetchone()
         cursor.close()
@@ -197,7 +200,7 @@ def main():
         logger.info("Next steps:")
         logger.info("1. Re-run LocalView enrichment to match counties:")
         logger.info("   python scripts/datasources/localview/enrich_from_localview.py")
-        logger.info("2. Query counties: SELECT * FROM jurisdictions_details_search WHERE jurisdiction_type='county' AND state='AL'")
+        logger.info("2. Query counties: SELECT * FROM jurisdiction WHERE jurisdiction_type='county' AND state='AL'")
         
         return 0
         

@@ -27,12 +27,12 @@ sidebar_position: 5
 
 ### 1. Database Schema (scripts/deployment/neon/schema.sql)
 All 7 search tables updated with `state_code` + `state` columns:
-- ✅ `stats_aggregates`
-- ✅ `organizations_nonprofit_search`
-- ✅ `jurisdictions_search`
+- ✅ `jurisdiction_state_aggregate`
+- ✅ `organization_nonprofit`
+- ✅ `jurisdiction`
 - ✅ `jurisdictions_details_search`
-- ✅ `contacts_search`
-- ✅ `events_search`
+- ✅ `contact`
+- ✅ `event`
 - ✅ `bills_search`
 
 **Indexes Created:**
@@ -59,10 +59,10 @@ All existing database tables migrated using `scripts/migrate_all_state_naming.py
 - ✅ `bills_bill_sponsorships.parquet`
 - ✅ `bills_bill_text.parquet`
 - ✅ `bills_bills.parquet`
-- ✅ `bills_map_aggregates.parquet`
+- ✅ `bill_map_aggregate.parquet`
 - ✅ `bills_versions.parquet`
 - ✅ `contacts_local_officials.parquet`
-- ✅ `contacts_officials.parquet`
+- ✅ `contact_official.parquet`
 - ✅ `events_documents.parquet`
 - ✅ `events_participants.parquet`
 - ✅ `jurisdictions_cities.parquet` (was using 'USPS')
@@ -77,12 +77,12 @@ All existing database tables migrated using `scripts/migrate_all_state_naming.py
 - ✅ `nonprofits_programs.parquet`
 
 **State-Specific Files:**
-- ✅ `states/AL/contacts_officials.parquet`
-- ✅ `states/GA/contacts_officials.parquet`
-- ✅ `states/IN/contacts_officials.parquet`
-- ✅ `states/MA/contacts_officials.parquet`
-- ✅ `states/WA/contacts_officials.parquet`
-- ✅ `states/WI/contacts_officials.parquet`
+- ✅ `states/AL/contact_official.parquet`
+- ✅ `states/GA/contact_official.parquet`
+- ✅ `states/IN/contact_official.parquet`
+- ✅ `states/MA/contact_official.parquet`
+- ✅ `states/WA/contact_official.parquet`
+- ✅ `states/WI/contact_official.parquet`
 
 **Backups Created:**
 All original files backed up with `_backup` suffix (e.g., `bills_bills_backup.parquet`)
@@ -91,11 +91,11 @@ All original files backed up with `_backup` suffix (e.g., `bills_bills_backup.pa
 All load functions updated to use new column names:
 
 **Updated Functions:**
-- ✅ `load_organizations_nonprofit_search()` - Uses `state_code` column from parquet, inserts both `state_code` and `state` to database
-- ✅ `load_contacts_search()` - All three contact sources (state legislators, local officials, nonprofit officers) updated
-- ✅ `load_events_search()` - Inserts both `state_code` and `state`
+- ✅ `load_organization_nonprofit()` - Uses `state_code` column from parquet, inserts both `state_code` and `state` to database
+- ✅ `load_contact()` - All three contact sources (state legislators, local officials, nonprofit officers) updated
+- ✅ `load_event()` - Inserts both `state_code` and `state`
 - ✅ `load_bills_search()` - Inserts both `state_code` and `state`
-- ✅ `compute_stats_aggregates()` - Uses `state_code` when filtering parquet files
+- ✅ `compute_jurisdiction_state_aggregate()` - Uses `state_code` when filtering parquet files
 
 **State Mapping:**
 All functions now use the `STATE_NAMES` dictionary to map 2-letter codes to full names:
@@ -145,7 +145,7 @@ Both scripts are **idempotent** and can be run multiple times safely.
 -- Verify columns exist
 SELECT column_name, data_type 
 FROM information_schema.columns 
-WHERE table_name = 'organizations_nonprofit_search' 
+WHERE table_name = 'organization_nonprofit' 
 AND column_name IN ('state_code', 'state');
 
 -- Should return:

@@ -1,5 +1,5 @@
 """
-Link Cities and Counties to jurisdictions_search
+Link Cities and Counties to jurisdiction
 
 ⚠️ DEPRECATION NOTICE:
 This enrichment script should be migrated to dbt as a transformation model.
@@ -12,15 +12,15 @@ TODO: Create dbt model: dbt_project/models/silver/silver_jurisdictions.sql
 
 CURRENT FUNCTIONALITY (to be migrated):
 - Matches cities/counties by name + state_code
-- Updates jurisdiction_id in jurisdictions_details_search 
+- Updates jurisdiction_id in jurisdiction 
 - Enables proper linkage between tables
 
-PROBLEM: jurisdictions_details_search uses Census place codes (2500135) 
-         but jurisdictions_search uses integer IDs (11714)
+PROBLEM: jurisdiction uses Census place codes (2500135) 
+         but jurisdiction uses integer IDs (11714)
          Result: 0% mapping between tables
 
-SOLUTION: Update jurisdictions_details_search.jurisdiction_id to use 
-          jurisdictions_search.id::text (same approach as school districts)
+SOLUTION: Update jurisdiction.jurisdiction_id to use 
+          jurisdiction.id::text (same approach as school districts)
 
 Usage:
     python link_cities_counties_to_search.py --dry-run
@@ -71,9 +71,9 @@ def normalize_name(name: str) -> str:
 
 def link_jurisdictions(states=None, jurisdiction_types=None, dry_run=False):
     """
-    Link jurisdictions_details_search to jurisdictions_search.
+    Link jurisdiction to jurisdiction.
     
-    Updates jurisdiction_id to use jurisdictions_search.id::text for proper linking.
+    Updates jurisdiction_id to use jurisdiction.id::text for proper linking.
     """
     conn = psycopg2.connect(
         host="localhost",
@@ -93,38 +93,36 @@ def link_jurisdictions(states=None, jurisdiction_types=None, dry_run=False):
     type_filter = ""
     if jurisdiction_types:
         type_list = "','".join(jurisdiction_types)
-        type_filter = f"AND jd.jurisdiction_type IN ('{type_list}')"
+        type_filter = f"AND jd.type IN ('{type_list}')"
     
-    # Match jurisdictions_details_search to jurisdictions_search
+    # Match jurisdiction to jurisdiction
     # Try multiple matching strategies
     match_query = f"""
         SELECT 
             jd.id as details_id,
             jd.jurisdiction_id as old_id,
-            jd.jurisdiction_name,
-            jd.jurisdiction_type,
+            jd.name AS jurisdiction_name,
+            jd.type AS jurisdiction_type,
             jd.state_code,
             js.id as search_id,
             js.name as search_name,
             CASE 
-                WHEN LOWER(TRIM(jd.jurisdiction_name)) = LOWER(TRIM(js.name)) THEN 'exact'
-                WHEN LOWER(TRIM(REGEXP_REPLACE(jd.jurisdiction_name, ' (county|city|town|CDP|village|borough|township)$', '', 'i'))) 
+                WHEN LOWER(TRIM(jd.name)) = LOWER(TRIM(js.name)) THEN 'exact'
+                WHEN LOWER(TRIM(REGEXP_REPLACE(jd.name, ' (county|city|town|CDP|village|borough|township)$', '', 'i'))) 
                      = LOWER(TRIM(REGEXP_REPLACE(js.name, ' (county|city|town|CDP|village|borough|township)$', '', 'i'))) THEN 'normalized'
                 ELSE 'no_match'
             END as match_type
-        FROM jurisdictions_details_search jd
-        LEFT JOIN jurisdictions_search js ON (
+        FROM jurisdiction jd
+        LEFT JOIN jurisdiction js ON (
             js.state_code = jd.state_code
-            AND js.type = jd.jurisdiction_type
+            AND js.type = jd.type
             AND (
-                -- Strategy 1: Exact match
-                LOWER(TRIM(jd.jurisdiction_name)) = LOWER(TRIM(js.name))
-                -- Strategy 2: Normalized (remove city/town/CDP/county suffixes)
-                OR LOWER(TRIM(REGEXP_REPLACE(jd.jurisdiction_name, ' (county|city|town|CDP|village|borough|township)$', '', 'i'))) 
+                LOWER(TRIM(jd.name)) = LOWER(TRIM(js.name))
+                OR LOWER(TRIM(REGEXP_REPLACE(jd.name, ' (county|city|town|CDP|village|borough|township)$', '', 'i'))) 
                    = LOWER(TRIM(REGEXP_REPLACE(js.name, ' (county|city|town|CDP|village|borough|township)$', '', 'i')))
             )
         )
-        WHERE jd.jurisdiction_type IN ('city', 'county')
+        WHERE jd.type IN ('city', 'county')
         {state_filter}
         {type_filter}
         ORDER BY jd.state_code, jd.jurisdiction_type, jd.jurisdiction_name
@@ -141,7 +139,7 @@ def link_jurisdictions(states=None, jurisdiction_types=None, dry_run=False):
     unmatched = [r for r in results if r['search_id'] is None]
     
     logger.info(f"Total jurisdictions in details table: {len(results):,}")
-    logger.info(f"✅ Matched to jurisdictions_search: {len(matched):,} ({100*len(matched)/len(results):.1f}%)")
+    logger.info(f"✅ Matched to jurisdiction: {len(matched):,} ({100*len(matched)/len(results):.1f}%)")
     logger.info(f"⚠️  Unmatched: {len(unmatched):,} ({100*len(unmatched)/len(results):.1f}%)")
     
     # Show match type breakdown
@@ -171,8 +169,8 @@ def link_jurisdictions(states=None, jurisdiction_types=None, dry_run=False):
                 jd.jurisdiction_type,
                 COUNT(*) as total,
                 COUNT(js.id) as matched
-            FROM jurisdictions_details_search jd
-            LEFT JOIN jurisdictions_search js ON (
+            FROM jurisdiction jd
+            LEFT JOIN jurisdiction js ON (
                 js.state_code = jd.state_code
                 AND js.type = jd.jurisdiction_type
                 AND (
@@ -181,7 +179,7 @@ def link_jurisdictions(states=None, jurisdiction_types=None, dry_run=False):
                        = LOWER(TRIM(REGEXP_REPLACE(js.name, ' (county|city|town|CDP|village|borough|township)$', '', 'i')))
                 )
             )
-            WHERE jd.jurisdiction_type IN ('city', 'county')
+            WHERE jd.type IN ('city', 'county')
             {state_filter}
             {type_filter}
             GROUP BY jd.state_code, jd.jurisdiction_type
@@ -207,7 +205,7 @@ def link_jurisdictions(states=None, jurisdiction_types=None, dry_run=False):
     # Temporarily drop FK constraint to allow updates
     logger.info("Temporarily dropping FK constraint...")
     cur.execute("""
-        ALTER TABLE events_search 
+        ALTER TABLE event 
         DROP CONSTRAINT IF EXISTS fk_events_jurisdiction
     """)
     
@@ -227,16 +225,16 @@ def link_jurisdictions(states=None, jurisdiction_types=None, dry_run=False):
         
         seen_ids.add(new_id)
         
-        # Update the jurisdiction_id in jurisdictions_details_search
+        # Update the jurisdiction_id in jurisdiction
         cur.execute("""
-            UPDATE jurisdictions_details_search
+            UPDATE jurisdiction
             SET jurisdiction_id = %s
             WHERE id = %s
         """, (new_id, row['details_id']))
         
-        # Update events_search that reference this jurisdiction  
+        # Update event that reference this jurisdiction  
         cur.execute("""
-            UPDATE events_search
+            UPDATE event
             SET jurisdiction_id = %s
             WHERE jurisdiction_id = %s
         """, (new_id, old_id))
@@ -250,10 +248,10 @@ def link_jurisdictions(states=None, jurisdiction_types=None, dry_run=False):
     # Recreate FK constraint
     logger.info("Recreating FK constraint...")
     cur.execute("""
-        ALTER TABLE events_search 
+        ALTER TABLE event 
         ADD CONSTRAINT fk_events_jurisdiction 
         FOREIGN KEY (jurisdiction_id) 
-        REFERENCES jurisdictions_details_search(jurisdiction_id) 
+        REFERENCES jurisdiction(jurisdiction_id) 
         ON DELETE SET NULL
     """)
     
@@ -276,8 +274,8 @@ def link_jurisdictions(states=None, jurisdiction_types=None, dry_run=False):
             COUNT(js.id) as in_search,
             COUNT(jd.id) as in_details,
             ROUND(100.0 * COUNT(jd.id) / COUNT(js.id), 1) as mapping_pct
-        FROM jurisdictions_search js
-        LEFT JOIN jurisdictions_details_search jd ON jd.jurisdiction_id = js.id::text
+        FROM jurisdiction js
+        LEFT JOIN jurisdiction jd ON jd.jurisdiction_id = js.id::text
         WHERE js.type IN ('city', 'county')
         {state_filter.replace('jd.state_code', 'js.state_code')}
         GROUP BY js.state_code, js.type
@@ -301,7 +299,7 @@ def link_jurisdictions(states=None, jurisdiction_types=None, dry_run=False):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Link cities/counties to jurisdictions_search by updating jurisdiction_id"
+        description="Link cities/counties to jurisdiction by updating jurisdiction_id"
     )
     parser.add_argument(
         '--states',

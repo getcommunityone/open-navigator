@@ -3,7 +3,7 @@
 Backfill transcripts for YouTube events that don't have them yet.
 
 This script:
-1. Finds all YouTube events in events_search that don't have transcripts
+1. Finds all YouTube events in event that don't have transcripts
 2. Fetches transcripts (with timing data) for those videos
 3. Inserts them into events_text_search table
 
@@ -233,13 +233,13 @@ def get_events_missing_transcripts(conn, states: Optional[List[str]] = None, lim
         # Build query to find events without transcripts
         query = """
             SELECT 
-                e.id,
+                e.event_id,
                 e.video_url,
-                e.title,
+                e.event_title,
                 e.jurisdiction_name,
                 e.state_code
-            FROM events_search e
-            LEFT JOIN events_text_search t ON e.id = t.event_id
+            FROM event e
+            LEFT JOIN events_text_search t ON e.event_id = t.event_id
             WHERE e.source = 'youtube'
               AND e.video_url IS NOT NULL
               AND t.id IS NULL  -- No transcript exists
@@ -252,7 +252,7 @@ def get_events_missing_transcripts(conn, states: Optional[List[str]] = None, lim
             query += f" AND e.state_code IN ({placeholders})"
             params.extend(states)
         
-        query += " ORDER BY e.id DESC"
+        query += " ORDER BY e.event_id DESC"
         
         if limit:
             query += " LIMIT %s"
@@ -315,9 +315,9 @@ def backfill_transcripts(
                 time.sleep(backoff_delay)
             elif i > 1:
                 time.sleep(base_delay)  # Normal delay between requests
-            event_id = event['id']
+            event_id = event['event_id']
             video_url = event['video_url']
-            title = event['title']
+            title = event['event_title']
             jurisdiction = event['jurisdiction_name']
             state = event['state_code']
             

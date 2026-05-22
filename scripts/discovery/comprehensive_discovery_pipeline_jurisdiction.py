@@ -2020,12 +2020,18 @@ class ComprehensiveDiscoveryPipelineJurisdiction:
         self.timeout_s = timeout_s
 
     def _jurisdiction_base_dir(self, state: str, jurisdiction_id: str) -> Path:
-        jt = _jurisdiction_type_from_id(jurisdiction_id)
+        from scripts.gemini.transcript_cache_paths import (
+            cache_type_segment,
+            jurisdiction_cache_folder_name,
+        )
+
+        segment = cache_type_segment(jurisdiction_id)
+        folder = jurisdiction_cache_folder_name(jurisdiction_id)
         return (
             self.output_root
             / _fs_safe_segment(state.upper())
-            / _fs_safe_segment(jt)
-            / _fs_safe_segment(jurisdiction_id)
+            / _fs_safe_segment(segment)
+            / _fs_safe_segment(folder)
         )
 
     def _target_dir(self, state: str, jurisdiction_id: str, year: int) -> Path:

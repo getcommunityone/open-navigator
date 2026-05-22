@@ -28,7 +28,7 @@ dbt_project/
 │   │   └── int_contacts_deduped.sql
 │   └── marts/               # Production tables
 │       ├── _marts.yml
-│       └── contacts_search_ai.sql
+│       └── contact_ai.sql
 ├── macros/                  # Reusable SQL functions
 │   ├── calculate_confidence.sql
 │   ├── normalize_bill_number.sql
@@ -121,7 +121,7 @@ dbt docs serve  # Opens in browser
 
 **Purpose:** Production-ready tables for API
 
-- `contacts_search_ai.sql` - AI-extracted contacts (incremental)
+- `contact_ai.sql` - AI-extracted contacts (incremental)
 
 **Materialization:** `incremental` (only processes new records)
 
@@ -134,7 +134,7 @@ dbt docs serve  # Opens in browser
 dbt test
 
 # Run tests for specific model
-dbt test --select contacts_search_ai
+dbt test --select contact_ai
 
 # Run specific test type
 dbt test --select test_type:unique
@@ -167,7 +167,7 @@ WHERE extracted_at > (SELECT MAX(last_updated) FROM {{ this }})
 To rebuild everything from scratch:
 
 ```bash
-dbt run --full-refresh --select contacts_search_ai
+dbt run --full-refresh --select contact_ai
 ```
 
 ## 🎨 Macros
@@ -251,7 +251,7 @@ dbt deps
 **Solution:** Check timestamp logic
 ```bash
 # Full refresh to rebuild
-dbt run --full-refresh --select contacts_search_ai
+dbt run --full-refresh --select contact_ai
 ```
 
 ## 📚 Resources

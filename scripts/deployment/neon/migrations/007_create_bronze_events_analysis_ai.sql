@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS bronze.bronze_events_analysis_ai (
     id SERIAL PRIMARY KEY,
-    event_id INTEGER NOT NULL REFERENCES events_search(id) ON DELETE CASCADE,
+    event_id INTEGER NOT NULL REFERENCES event(event_id) ON DELETE CASCADE,
     video_id VARCHAR(20) NOT NULL,
     analysis_type VARCHAR(50) DEFAULT 'policy_frame_analysis',
     ai_model VARCHAR(100) DEFAULT 'gemini-1.5-flash',

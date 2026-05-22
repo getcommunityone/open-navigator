@@ -236,14 +236,14 @@ async def fetch_stats_from_neon(
         pool = await get_db_pool()
         
         async with pool.acquire() as conn:
-            stats_cols = await _get_table_columns(conn, "stats_aggregates")
+            stats_cols = await _get_table_columns(conn, "jurisdiction_state_aggregate")
             state_pred_stats = _state_usps_match_sql(stats_cols, "$1")
             state_val = state.upper() if state and len(state) == 2 else state
 
             # Build query based on level
             if level == 'national':
                 query = """
-                    SELECT * FROM stats_aggregates 
+                    SELECT * FROM jurisdiction_state_aggregate 
                     WHERE level = 'national'
                     LIMIT 1
                 """
@@ -251,7 +251,7 @@ async def fetch_stats_from_neon(
                 
             elif level == 'state':
                 query = f"""
-                    SELECT * FROM stats_aggregates 
+                    SELECT * FROM jurisdiction_state_aggregate 
                     WHERE level = 'state' AND ({state_pred_stats})
                     LIMIT 1
                 """
@@ -262,7 +262,7 @@ async def fetch_stats_from_neon(
                 # Normalize county name (remove 'County' suffix)
                 county_name = county.replace(' County', '').strip() if county else county
                 query = f"""
-                    SELECT * FROM stats_aggregates 
+                    SELECT * FROM jurisdiction_state_aggregate 
                     WHERE level = 'county' 
                       AND ({state_pred_stats})
                       AND county ILIKE $2
@@ -274,16 +274,16 @@ async def fetch_stats_from_neon(
                 if not result and state:
                     logger.info(f"County '{county}' not found in stats, falling back to state '{state}'")
                     query = f"""
-                        SELECT * FROM stats_aggregates 
+                        SELECT * FROM jurisdiction_state_aggregate 
                         WHERE level = 'state' AND ({state_pred_stats})
                         LIMIT 1
                     """
                     result = await conn.fetchrow(query, state_val)
                 
             elif level == 'city':
-                # Try city-level stats first from stats_aggregates
+                # Try city-level stats first from jurisdiction_state_aggregate
                 query = f"""
-                    SELECT * FROM stats_aggregates 
+                    SELECT * FROM jurisdiction_state_aggregate 
                     WHERE level = 'city' 
                       AND ({state_pred_stats})
                       AND city ILIKE $2
@@ -291,17 +291,17 @@ async def fetch_stats_from_neon(
                 """
                 result = await conn.fetchrow(query, state_val, f"%{city}%")
                 
-                # If not in stats_aggregates, query jurisdictions_search directly
+                # If not in jurisdiction_state_aggregate, query jurisdiction directly
                 if not result:
-                    logger.info(f"City '{city}' not in stats_aggregates, querying jurisdictions_search directly")
+                    logger.info(f"City '{city}' not in jurisdiction_state_aggregate, querying jurisdiction directly")
                     
-                    jur_cols = await _get_table_columns(conn, "jurisdictions_search")
+                    jur_cols = await _get_table_columns(conn, "jurisdiction")
                     jur_state_pred = _state_usps_match_sql(jur_cols, "$1")
                     
                     # Count jurisdictions for this city
                     jurisdiction_query = f"""
                         SELECT COUNT(DISTINCT id) as count
-                        FROM jurisdictions_search
+                        FROM jurisdiction
                         WHERE ({jur_state_pred})
                           AND name ILIKE $2
                     """
@@ -315,7 +315,7 @@ async def fetch_stats_from_neon(
                     # Count school districts
                     school_query = f"""
                         SELECT COUNT(*) as count
-                        FROM jurisdictions_search
+                        FROM jurisdiction
                         WHERE type = 'school_district'
                           AND ({jur_state_pred})
                           AND name ILIKE $2
@@ -328,11 +328,11 @@ async def fetch_stats_from_neon(
                     school_districts = school_result['count'] if school_result else 0
                     
                     # Count contacts
-                    contact_cols = await _get_table_columns(conn, "contacts_search")
+                    contact_cols = await _get_table_columns(conn, "contact")
                     contact_state_pred = _state_usps_match_sql(contact_cols, "$1")
                     contact_query = f"""
                         SELECT COUNT(*) as count
-                        FROM contacts_search
+                        FROM contact
                         WHERE ({contact_state_pred})
                     """
                     contact_result = await conn.fetchrow(contact_query, state_val)
@@ -361,7 +361,7 @@ async def fetch_stats_from_neon(
                 if not result and state:
                     logger.info(f"City '{city}' not found in database, falling back to state '{state}'")
                     query = f"""
-                        SELECT * FROM stats_aggregates 
+                        SELECT * FROM jurisdiction_state_aggregate 
                         WHERE level = 'state' AND ({state_pred_stats})
                         LIMIT 1
                     """
@@ -411,7 +411,7 @@ async def search_stats(
                     nonprofits_count,
                     events_count,
                     total_revenue
-                FROM stats_aggregates
+                FROM jurisdiction_state_aggregate
                 WHERE 
                     (city ILIKE $1 OR county ILIKE $1 OR state ILIKE $1)
                     AND level != 'national'

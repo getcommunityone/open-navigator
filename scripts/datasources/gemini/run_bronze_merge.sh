@@ -131,7 +131,7 @@ cur.execute("""
         datasource,
         COUNT(*) as count,
         AVG(confidence_score)::NUMERIC(3,2) as avg_confidence
-    FROM contacts_search
+    FROM contact
     GROUP BY datasource
     ORDER BY count DESC
 """)
@@ -144,7 +144,7 @@ for row in cur.fetchall():
 print("\n📊 Records Needing Review:")
 cur.execute("""
     SELECT COUNT(*) as count
-    FROM contacts_search
+    FROM contact
     WHERE needs_review = TRUE
 """)
 needs_review = cur.fetchone()[0]

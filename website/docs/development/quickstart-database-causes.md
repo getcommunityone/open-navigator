@@ -162,7 +162,7 @@ curl http://localhost:8000/api/trending/stats
 ```
 Parquet Files (data/gold/)
   ├─ causes_everyorg_causes.parquet (39 rows)
-  └─ causes_ntee_codes.parquet (196 rows)
+  └─ causes_ntee_codes (196 rows)
               ↓
 API (/api/trending)
   ├─ Reads parquet files

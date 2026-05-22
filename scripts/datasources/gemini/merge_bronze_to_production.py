@@ -13,8 +13,8 @@ Bronze Tables (Source):
 - bronze_financial_items
 
 Production Tables (Target):
-- contacts_search
-- organizations_nonprofit_search
+- contact
+- organization_nonprofit
 - bills_search
 - bills_meetings (junction)
 - contacts_meeting_attendance (junction)
@@ -87,7 +87,7 @@ class BronzeToProductionMerger:
         }
     
     def merge_contacts(self):
-        """Merge bronze_contacts → contacts_search"""
+        """Merge bronze_contacts → contact"""
         logger.info("=" * 70)
         logger.info("MERGING CONTACTS")
         logger.info("=" * 70)
@@ -131,7 +131,7 @@ class BronzeToProductionMerger:
             # Get state from bronze contact's jurisdiction or org
             # This is a simplification - you might need more sophisticated state extraction
             cur.execute("""
-                SELECT * FROM contacts_search
+                SELECT * FROM contact
                 WHERE name ILIKE %s
                 LIMIT 100
             """, (f"%{bronze_contact['full_name']}%",))
@@ -264,7 +264,7 @@ class BronzeToProductionMerger:
         
         with prod_conn.cursor() as cur:
             cur.execute("""
-                UPDATE contacts_search
+                UPDATE contact
                 SET 
                     title = COALESCE(%s, title),
                     organization_name = COALESCE(%s, organization_name),
@@ -295,7 +295,7 @@ class BronzeToProductionMerger:
         
         with prod_conn.cursor() as cur:
             cur.execute("""
-                INSERT INTO contacts_search (
+                INSERT INTO contact (
                     name, title, organization_name, organization_ein,
                     email, phone, street_address, city, state_code, state, zip_code,
                     role_type, compensation, hours_per_week,
@@ -365,7 +365,7 @@ class BronzeToProductionMerger:
             conn.commit()
     
     def merge_organizations(self):
-        """Merge bronze_organizations_meetings → organizations_nonprofit_search"""
+        """Merge bronze_organizations_meetings → organization_nonprofit"""
         logger.info("=" * 70)
         logger.info("MERGING ORGANIZATIONS")
         logger.info("=" * 70)
@@ -408,7 +408,7 @@ class BronzeToProductionMerger:
         if bronze_org.get('ein'):
             with prod_conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute("""
-                    SELECT * FROM organizations_nonprofit_search
+                    SELECT * FROM organization_nonprofit
                     WHERE ein = %s
                     LIMIT 1
                 """, (bronze_org['ein'].replace('-', ''),))
@@ -429,7 +429,7 @@ class BronzeToProductionMerger:
         if bronze_org.get('wikidata_qid'):
             with prod_conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute("""
-                    SELECT * FROM organizations_nonprofit_search
+                    SELECT * FROM organization_nonprofit
                     WHERE datasource_id = %s
                     LIMIT 1
                 """, (bronze_org['wikidata_qid'],))
@@ -448,7 +448,7 @@ class BronzeToProductionMerger:
         # Step 3: Try fuzzy name match (limited candidates)
         with prod_conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute("""
-                SELECT * FROM organizations_nonprofit_search
+                SELECT * FROM organization_nonprofit
                 WHERE name ILIKE %s
                 LIMIT 50
             """, (f"%{bronze_org['org_name']}%",))
@@ -711,7 +711,7 @@ class BronzeToProductionMerger:
                         id, name, title, organization_name,
                         datasource, confidence_score, needs_review, review_notes,
                         last_updated
-                    FROM contacts_search
+                    FROM contact
                     WHERE needs_review = TRUE
                     ORDER BY last_updated DESC
                     LIMIT 100

@@ -2,6 +2,28 @@
 
 Scripts for working with [Federal Election Commission](https://www.fec.gov/) campaign finance data.
 
+## Local cache (this repo)
+
+Bulk ZIPs and extracted files live under:
+
+```text
+data/cache/fec_data/
+├── bulk-downloads/     # ZIPs from fec.gov (source)
+├── unzipped/           # extracted CSV/TXT (after unzip_fec_data.py)
+├── download_log.json
+└── unzip_log.json
+```
+
+Override the base path with env `FEC_DATA_DIR` or `--base-dir`.
+
+**Download (resume-safe):**
+
+```bash
+./scripts/datasources/fec/run_bulk_download.sh
+# or
+.venv/bin/python scripts/datasources/fec/load_fec_bulk.py --resume
+```
+
 ## Data Source
 
 - **Website**: https://www.fec.gov/
@@ -12,7 +34,7 @@ Scripts for working with [Federal Election Commission](https://www.fec.gov/) cam
 
 ## Scripts
 
-### `bulk_download_fec.py`
+### `load_fec_bulk.py`
 Download all FEC bulk data files and organize them by year and type.
 
 **Features:**
@@ -24,23 +46,14 @@ Download all FEC bulk data files and organize them by year and type.
 
 **Usage:**
 ```bash
-# Download everything to D:/fec_data/
-python bulk_download_fec.py
+# Download everything to data/cache/fec_data/
+./scripts/datasources/fec/run_bulk_download.sh
 
-# Download to custom directory
-python bulk_download_fec.py --base-dir /mnt/d/fec_data
-
-# Download specific years only
-python bulk_download_fec.py --years 2020,2022,2024
-
-# Download specific file types only
-python bulk_download_fec.py --types indiv,cn,cm
-
-# Resume interrupted download
-python bulk_download_fec.py --resume
+# Download specific years / types
+.venv/bin/python scripts/datasources/fec/load_fec_bulk.py --resume --years 2022,2024 --types indiv,cn,cm
 
 # Dry run (show what would be downloaded)
-python bulk_download_fec.py --dry-run
+.venv/bin/python scripts/datasources/fec/load_fec_bulk.py --dry-run
 ```
 
 **File Types:**
@@ -56,7 +69,7 @@ python bulk_download_fec.py --dry-run
 
 **Output Structure:**
 ```
-/mnt/d/fec_data/
+data/cache/fec_data/
 └── bulk-downloads/
     ├── candidate-master/          (Candidate master files)
     │   ├── 1980/cn80.zip
@@ -114,23 +127,17 @@ Unzip all FEC bulk data files with parallel processing and 7-Zip support for max
 **Usage:**
 ```bash
 # RECOMMENDED: Unzip latest 2 years only with 8 workers (FAST & QUICK)
-python unzip_fec_data.py --latest 2 --workers 8 --base-dir /mnt/d/fec_data
-
+python unzip_fec_data.py --latest 2 --workers 8 
 # FASTEST: Use 7-Zip with 8 parallel workers (10-15x faster, all years)
-python unzip_fec_data.py --method 7z --workers 8 --base-dir /mnt/d/fec_data
-
+python unzip_fec_data.py --method 7z --workers 8 
 # Fast: Use parallel workers only (4-8x faster)
-python unzip_fec_data.py --workers 8 --base-dir /mnt/d/fec_data
-
+python unzip_fec_data.py --workers 8 
 # Moderate: Use 7-Zip single-threaded (2-3x faster)
-python unzip_fec_data.py --method 7z --base-dir /mnt/d/fec_data
-
+python unzip_fec_data.py --method 7z 
 # Default: Python zipfile single-threaded (portable but slow)
-python unzip_fec_data.py --base-dir /mnt/d/fec_data
-
+python unzip_fec_data.py 
 # Auto-detect best method and optimal workers
-python unzip_fec_data.py --method auto --workers 0 --base-dir /mnt/d/fec_data
-
+python unzip_fec_data.py --method auto --workers 0 
 # Unzip specific category with parallel workers
 python unzip_fec_data.py --category candidate-master --workers 4
 
@@ -164,7 +171,7 @@ brew install p7zip
 
 **Output Structure:**
 ```
-/mnt/d/fec_data/
+data/cache/fec_data/
 ├── bulk-downloads/          # Original ZIP files (source)
 │   ├── candidate-master/
 │   │   ├── 1980/cn80.zip
@@ -191,9 +198,9 @@ brew install p7zip
 ```
 
 **Workflow:**
-1. Download FEC bulk data: `python bulk_download_fec.py --base-dir /mnt/d/fec_data`
-2. **QUICK START** - Unzip latest 2 years only: `python unzip_fec_data.py --latest 2 --workers 8 --base-dir /mnt/d/fec_data`
-   - OR **FULL** - Unzip all files (FAST): `python unzip_fec_data.py --method 7z --workers 8 --base-dir /mnt/d/fec_data`
+1. Download FEC bulk data: `./scripts/datasources/fec/run_bulk_download.sh`
+2. **QUICK START** - Unzip latest 2 years: `python scripts/datasources/fec/unzip_fec_data.py --latest 2 --workers 8 --resume`
+   - OR **FULL** - Unzip all (FAST): `python scripts/datasources/fec/unzip_fec_data.py --method 7z --workers 8 --resume`
 3. (Optional) Remove ZIPs to save space: Add `--remove-zips` flag to step 2
 
 **Performance Comparison:**

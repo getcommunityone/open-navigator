@@ -62,7 +62,7 @@ Our data model maps to CDP's core models while maintaining flexibility for addit
 Our bronze tables include all CDP fields plus additional fields for YouTube and other sources:
 
 ```sql
-CREATE TABLE bronze_events_search (
+CREATE TABLE bronze_event (
     -- CDP-compatible core fields
     event_datetime TIMESTAMP,
     body_name VARCHAR(200),
@@ -81,15 +81,15 @@ CREATE TABLE bronze_events_search (
 );
 ```
 
-### Production Layer (events_search)
+### Production Layer (event)
 
-The production `events_search` table (built via dbt) maintains CDP compatibility while providing a unified view across all data sources.
+The production `event` table (built via dbt) maintains CDP compatibility while providing a unified view across all data sources.
 
 ## 🔄 Data Flow
 
 ```
 CDP Instance (e.g., Seattle) ──┐
-YouTube (Municipal Channels) ──┼──► Bronze Layer ──► dbt Staging ──► dbt Marts ──► events_search (CDP-compatible)
+YouTube (Municipal Channels) ──┼──► Bronze Layer ──► dbt Staging ──► dbt Marts ──► event (CDP-compatible)
 LocalView Dataset ─────────────┤
 Legistar API ──────────────────┘
 ```
@@ -164,7 +164,7 @@ SELECT
     agenda_url,
     minutes_url,
     video_url
-FROM events_search
+FROM event
 WHERE body_name = 'City Council'
   AND event_datetime BETWEEN '2024-01-01' AND '2024-12-31'
 ORDER BY event_datetime DESC;
@@ -179,7 +179,7 @@ SELECT
     e.title,
     t.transcript_quality,
     t.ai_model
-FROM events_search e
+FROM event e
 JOIN events_text_search t ON e.id = t.event_id
 WHERE t.has_transcript = true
 ORDER BY e.event_datetime DESC;

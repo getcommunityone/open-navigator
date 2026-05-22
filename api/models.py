@@ -11,9 +11,9 @@ Base = declarative_base()
 
 class User(Base):
     """User account model"""
-    __tablename__ = "users"
+    __tablename__ = "user"
 
-    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, primary_key=True, index=True)
     email = Column(String(255), unique=True, index=True, nullable=False)
     username = Column(String(100), unique=True, index=True, nullable=True)
     full_name = Column(String(255), nullable=True)
@@ -51,7 +51,7 @@ class User(Base):
 
 class OAuthState(Base):
     """Temporary storage for OAuth state tokens (CSRF protection)"""
-    __tablename__ = "oauth_states"
+    __tablename__ = "contact_oauth_state"
     
     id = Column(Integer, primary_key=True, index=True)
     state_token = Column(String(255), unique=True, index=True, nullable=False)
@@ -70,7 +70,7 @@ class OAuthState(Base):
 
 class Organization(Base):
     """Organizations (nonprofits, charities, government agencies, advocacy groups)"""
-    __tablename__ = "organizations"
+    __tablename__ = "organization"
     
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False, index=True)
@@ -114,7 +114,7 @@ class Organization(Base):
 
 class Cause(Base):
     """Causes/Topics/Issues (oral health, housing, education, climate, etc.)"""
-    __tablename__ = "causes"
+    __tablename__ = "cause"
     
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False, index=True)
@@ -139,7 +139,7 @@ class Cause(Base):
 
 class Official(Base):
     """Public officials (elected, appointed) - renamed from Leader to match OpenStates"""
-    __tablename__ = "contacts_officials"
+    __tablename__ = "contact_official"
     
     id = Column(Integer, primary_key=True, index=True)
     ocd_person_id = Column(String(255), unique=True, index=True, nullable=True)  # OpenCivicData ID
@@ -211,8 +211,8 @@ class UserFollow(Base):
     )
     
     id = Column(Integer, primary_key=True, index=True)
-    follower_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
-    following_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    follower_id = Column(Integer, ForeignKey('user.user_id', ondelete='CASCADE'), nullable=False, index=True)
+    following_id = Column(Integer, ForeignKey('user.user_id', ondelete='CASCADE'), nullable=False, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     
     def __repr__(self):
@@ -227,8 +227,8 @@ class OfficialFollow(Base):
     )
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
-    official_id = Column(Integer, ForeignKey('contacts_officials.id', ondelete='CASCADE'), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey('user.user_id', ondelete='CASCADE'), nullable=False, index=True)
+    official_id = Column(Integer, ForeignKey('contact_official.id', ondelete='CASCADE'), nullable=False, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     
     def __repr__(self):
@@ -243,8 +243,8 @@ class OrganizationFollow(Base):
     )
     
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
-    organization_id = Column(Integer, ForeignKey('organizations.id', ondelete='CASCADE'), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey('user.user_id', ondelete='CASCADE'), nullable=False, index=True)
+    organization_id = Column(Integer, ForeignKey('organization.id', ondelete='CASCADE'), nullable=False, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     
     def __repr__(self):
@@ -259,8 +259,8 @@ class CauseFollow(Base):
     )
     
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
-    cause_id = Column(Integer, ForeignKey('causes.id', ondelete='CASCADE'), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey('user.user_id', ondelete='CASCADE'), nullable=False, index=True)
+    cause_id = Column(Integer, ForeignKey('cause.id', ondelete='CASCADE'), nullable=False, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     
     def __repr__(self):

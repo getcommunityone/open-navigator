@@ -58,7 +58,7 @@ df_wrong = pd.DataFrame({
 
 ```sql
 -- ✅ CORRECT
-CREATE TABLE jurisdictions_search (
+CREATE TABLE jurisdiction (
     id SERIAL PRIMARY KEY,
     jurisdiction_name VARCHAR(200) NOT NULL,
     state_code VARCHAR(2) NOT NULL,
@@ -85,7 +85,7 @@ async def get_jurisdictions(
     state_code: Optional[str] = Query(None, regex="^[A-Z]{2}$", description="Two-letter state code"),
     state: Optional[str] = Query(None, description="Full state name")
 ):
-    query = "SELECT * FROM jurisdictions_search WHERE 1=1"
+    query = "SELECT * FROM jurisdiction WHERE 1=1"
     params = []
     
     if state_code:
@@ -117,22 +117,22 @@ Many existing tables and parquet files use the **legacy convention**:
 
 1. Add new `state_code` column:
    ```sql
-   ALTER TABLE jurisdictions_search ADD COLUMN state_code VARCHAR(2);
-   UPDATE jurisdictions_search SET state_code = state;
-   ALTER TABLE jurisdictions_search ALTER COLUMN state_code SET NOT NULL;
+   ALTER TABLE jurisdiction ADD COLUMN state_code VARCHAR(2);
+   UPDATE jurisdiction SET state_code = state;
+   ALTER TABLE jurisdiction ALTER COLUMN state_code SET NOT NULL;
    ```
 
 2. Add/rename state name column:
    ```sql
    -- If state_name exists:
-   ALTER TABLE jurisdictions_search RENAME COLUMN state_name TO state_temp;
-   ALTER TABLE jurisdictions_search ADD COLUMN state VARCHAR(50);
-   UPDATE jurisdictions_search SET state = state_temp;
-   ALTER TABLE jurisdictions_search DROP COLUMN state_temp;
+   ALTER TABLE jurisdiction RENAME COLUMN state_name TO state_temp;
+   ALTER TABLE jurisdiction ADD COLUMN state VARCHAR(50);
+   UPDATE jurisdiction SET state = state_temp;
+   ALTER TABLE jurisdiction DROP COLUMN state_temp;
    
    -- If state_name doesn't exist:
-   ALTER TABLE jurisdictions_search ADD COLUMN state VARCHAR(50);
-   UPDATE jurisdictions_search SET state = (
+   ALTER TABLE jurisdiction ADD COLUMN state VARCHAR(50);
+   UPDATE jurisdiction SET state = (
        CASE state_code
            WHEN 'AL' THEN 'Alabama'
            WHEN 'AK' THEN 'Alaska'
@@ -143,7 +143,7 @@ Many existing tables and parquet files use the **legacy convention**:
 
 3. Drop old `state` column and rename:
    ```sql
-   ALTER TABLE jurisdictions_search DROP COLUMN state_old;
+   ALTER TABLE jurisdiction DROP COLUMN state_old;
    ```
 
 **For Parquet Files:**
@@ -182,12 +182,12 @@ Based on current schema audit (2026-05-03):
 
 | Table Name | Current | Needs Migration |
 |------------|---------|----------------|
-| `jurisdictions_search` | `state` (2-char) | ✅ Yes |
-| `contacts_search` | `state` (2-char) | ✅ Yes |
-| `events_search` | `state` (2-char) | ✅ Yes |
-| `organizations_nonprofit_search` | `state` (2-char) | ✅ Yes |
+| `jurisdiction` | `state` (2-char) | ✅ Yes |
+| `contact` | `state` (2-char) | ✅ Yes |
+| `event` | `state` (2-char) | ✅ Yes |
+| `organization_nonprofit` | `state` (2-char) | ✅ Yes |
 | `bills_search` | `state` (2-char) | ✅ Yes |
-| `bills_map_aggregates` | `state_code` (2-char) | ✅ Needs `state` added |
+| `bill_map_aggregate` | `state_code` (2-char) | ✅ Needs `state` added |
 | `zip_county_mapping` | `state_abbr` (2-char) | ✅ Rename to `state_code` |
 | `jurisdictions_details_search` | `state` (2-char) | ✅ Yes |
 
@@ -195,7 +195,7 @@ Based on current schema audit (2026-05-03):
 
 ```
 data/gold/states/{STATE}/
-├── contacts_officials.parquet         (✅ needs migration)
+├── contact_official.parquet         (✅ needs migration)
 ├── contacts_local_officials.parquet   (✅ needs migration)
 ├── events.parquet                     (✅ needs migration)
 ├── jurisdictions_details.parquet      (✅ needs migration)

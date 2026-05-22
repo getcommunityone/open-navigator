@@ -3,10 +3,10 @@
 Master Data Management: Jurisdiction Consolidation Strategy
 
 This script creates a unified master jurisdiction table that links:
-- organizations_locations (schools, hospitals, etc.)
+- organization_location (schools, hospitals, etc.)
 - jurisdictions_wikidata
-- jurisdictions_search
-- jurisdictions_details_search
+- jurisdiction
+- jurisdiction
 
 Matching strategies:
 1. Domain-based matching (extract and normalize domains from URLs)
@@ -260,9 +260,9 @@ def populate_domain_registry(conn):
     Populate domain registry from all sources.
     
     Sources:
-    1. organizations_locations (schools, hospitals, etc.)
+    1. organization_location (schools, hospitals, etc.)
     2. jurisdictions_wikidata (official_website)
-    3. jurisdictions_details_search (website_url)
+    3. jurisdiction (website_url)
     """
     logger.info("Populating domain_registry...")
     
@@ -270,11 +270,11 @@ def populate_domain_registry(conn):
         # Clear existing data
         cur.execute("TRUNCATE domain_registry RESTART IDENTITY CASCADE")
         
-        # 1. Extract from organizations_locations
-        logger.info("Extracting domains from organizations_locations...")
+        # 1. Extract from organization_location
+        logger.info("Extracting domains from organization_location...")
         cur.execute("""
             SELECT id, name, city, state, website, organization_type
-            FROM organizations_locations
+            FROM organization_location
             WHERE website IS NOT NULL
         """)
         
@@ -286,7 +286,7 @@ def populate_domain_registry(conn):
             if domain:
                 org_domains.append((
                     domain,
-                    'organizations_locations',
+                    'organization_location',
                     org_id,
                     website,
                     name,
@@ -304,7 +304,7 @@ def populate_domain_registry(conn):
                 VALUES %s
                 ON CONFLICT (domain) DO NOTHING
             """, org_domains)
-            logger.info(f"Inserted {len(org_domains)} domains from organizations_locations")
+            logger.info(f"Inserted {len(org_domains)} domains from organization_location")
         
         # 2. Extract from jurisdictions_wikidata
         logger.info("Extracting domains from jurisdictions_wikidata...")
@@ -342,11 +342,11 @@ def populate_domain_registry(conn):
             """, wiki_domains)
             logger.info(f"Inserted {len(wiki_domains)} domains from jurisdictions_wikidata")
         
-        # 3. Extract from jurisdictions_details_search
-        logger.info("Extracting domains from jurisdictions_details_search...")
+        # 3. Extract from jurisdiction
+        logger.info("Extracting domains from jurisdiction...")
         cur.execute("""
-            SELECT id, jurisdiction_name, state_code, website_url, jurisdiction_type
-            FROM jurisdictions_details_search
+            SELECT id, name AS jurisdiction_name, state_code, website_url, type AS jurisdiction_type
+            FROM jurisdiction
             WHERE website_url IS NOT NULL
         """)
         
@@ -358,7 +358,7 @@ def populate_domain_registry(conn):
             if domain:
                 details_domains.append((
                     domain,
-                    'jurisdictions_details_search',
+                    'jurisdiction',
                     details_id,
                     website,
                     name,
@@ -376,7 +376,7 @@ def populate_domain_registry(conn):
                 VALUES %s
                 ON CONFLICT (domain) DO NOTHING
             """, details_domains)
-            logger.info(f"Inserted {len(details_domains)} domains from jurisdictions_details_search")
+            logger.info(f"Inserted {len(details_domains)} domains from jurisdiction")
         
         conn.commit()
         
@@ -391,9 +391,9 @@ def build_crosswalk_by_nces(conn):
     Build crosswalk using NCES ID matching.
     
     Match school districts across:
-    - organizations_locations (source_id = nces_id for school_district)
+    - organization_location (source_id = nces_id for school_district)
     - jurisdictions_wikidata (nces_id)
-    - jurisdictions_details_search (may have nces_id in future)
+    - jurisdiction (may have nces_id in future)
     """
     logger.info("Building crosswalk by NCES ID...")
     
@@ -414,7 +414,7 @@ def build_crosswalk_by_nces(conn):
                 ol.organization_type,
                 'nces_id_exact' as match_method,
                 1.0 as match_confidence
-            FROM organizations_locations ol
+            FROM organization_location ol
             LEFT JOIN jurisdictions_wikidata jw 
                 ON ol.source_id = jw.nces_id 
                 AND ol.state = jw.state_code
@@ -434,7 +434,7 @@ def build_crosswalk_by_geoid(conn):
     Build crosswalk using GEOID matching.
     
     Match jurisdictions using Census GEOID across:
-    - jurisdictions_search (geoid)
+    - jurisdiction (geoid)
     - jurisdictions_wikidata (geoid)
     """
     logger.info("Building crosswalk by GEOID...")
@@ -456,7 +456,7 @@ def build_crosswalk_by_geoid(conn):
                 js.type as jurisdiction_type,
                 'geoid_exact' as match_method,
                 1.0 as match_confidence
-            FROM jurisdictions_search js
+            FROM jurisdiction js
             LEFT JOIN jurisdictions_wikidata jw 
                 ON js.geoid = jw.geoid
                 AND js.state_code = jw.state_code
@@ -492,7 +492,7 @@ def build_crosswalk_by_normalized_name(conn):
                 js.type as jurisdiction_type,
                 'name_normalized' as match_method,
                 0.90 as match_confidence
-            FROM jurisdictions_search js
+            FROM jurisdiction js
             JOIN jurisdictions_wikidata jw ON
                 REGEXP_REPLACE(LOWER(TRIM(js.name)), 
                     ' (historic district|cdp|town|city|village|borough|municipality)$', 
@@ -519,13 +519,13 @@ def build_crosswalk_by_phone(conn):
     """
     Build crosswalk using phone number matching.
     
-    Match organizations_locations phone to jurisdictions_details_search phone.
+    Match organization_location phone to jurisdiction phone.
     Normalizes phone numbers by removing non-digit characters.
     """
     logger.info("Building crosswalk by phone number...")
     
     with conn.cursor() as cur:
-        # Match organizations_locations to jurisdictions_details_search by phone
+        # Match organization_location to jurisdiction by phone
         cur.execute("""
             INSERT INTO jurisdiction_crosswalk 
             (org_location_id, details_search_id, primary_name, state_code, 
@@ -539,8 +539,8 @@ def build_crosswalk_by_phone(conn):
                 jd.jurisdiction_type,
                 'phone_exact' as match_method,
                 0.85 as match_confidence
-            FROM organizations_locations ol
-            JOIN jurisdictions_details_search jd ON
+            FROM organization_location ol
+            JOIN jurisdiction jd ON
                 -- Normalize phone by removing all non-digits
                 REGEXP_REPLACE(ol.telephone, '[^0-9]', '', 'g') = 
                 REGEXP_REPLACE(jd.phone, '[^0-9]', '', 'g')
@@ -560,7 +560,7 @@ def build_crosswalk_by_phone(conn):
 
 def build_crosswalk_wikidata_to_details_by_city(conn):
     """
-    Match jurisdictions_wikidata to jurisdictions_details_search by city+state.
+    Match jurisdictions_wikidata to jurisdiction by city+state.
     
     Handles cases where details has extra "Town" or "City" suffix.
     Example: "North Attleborough" matches "North Attleborough Town"
@@ -581,16 +581,16 @@ def build_crosswalk_wikidata_to_details_by_city(conn):
                 'city_state_normalized' as match_method,
                 0.85 as match_confidence
             FROM jurisdictions_wikidata jw
-            JOIN jurisdictions_details_search jd ON jw.state_code = jd.state_code
+            JOIN jurisdiction jd ON jw.state_code = jd.state_code
             WHERE jw.jurisdiction_type = jd.jurisdiction_type
               AND (
                   -- Exact match after removing Town/City suffix
                   LOWER(TRIM(jw.jurisdiction_name)) = 
-                  LOWER(TRIM(REGEXP_REPLACE(jd.jurisdiction_name, ' (Town|City)$', '', 'i')))
+                  LOWER(TRIM(REGEXP_REPLACE(jd.name, ' (Town|City)$', '', 'i')))
                   OR
                   -- Match after removing all non-letter characters (handles hyphens, spaces)
                   REGEXP_REPLACE(LOWER(TRIM(jw.jurisdiction_name)), '[^a-z]', '', 'g') = 
-                  REGEXP_REPLACE(LOWER(TRIM(jd.jurisdiction_name)), '[^a-z]', '', 'g')
+                  REGEXP_REPLACE(LOWER(TRIM(jd.name)), '[^a-z]', '', 'g')
               )
             ON CONFLICT DO NOTHING
         """)
@@ -602,7 +602,7 @@ def build_crosswalk_wikidata_to_details_by_city(conn):
 
 def build_crosswalk_by_city_proximity(conn):
     """
-    Match organizations_locations to jurisdictions by city name + state.
+    Match organization_location to jurisdictions by city name + state.
     
     Uses normalized city names to handle variations like:
     - "N Attleborough" vs "North Attleborough"
@@ -626,7 +626,7 @@ def build_crosswalk_by_city_proximity(conn):
                 jw.jurisdiction_type,
                 'city_geographic' as match_method,
                 0.75 as match_confidence
-            FROM organizations_locations ol
+            FROM organization_location ol
             JOIN jurisdictions_wikidata jw ON ol.state = jw.state_code
             WHERE jw.jurisdiction_type = 'city'
               AND (
@@ -656,13 +656,13 @@ def build_crosswalk_by_city_proximity(conn):
                 jd.jurisdiction_type,
                 'city_geographic_details' as match_method,
                 0.75 as match_confidence
-            FROM organizations_locations ol
-            JOIN jurisdictions_details_search jd ON ol.state = jd.state_code
+            FROM organization_location ol
+            JOIN jurisdiction jd ON ol.state = jd.state_code
             WHERE jd.jurisdiction_type = 'city'
               AND (
                   -- Normalize city names
                   REGEXP_REPLACE(LOWER(TRIM(ol.city)), '[^a-z]', '', 'g') = 
-                  REGEXP_REPLACE(LOWER(TRIM(REGEXP_REPLACE(jd.jurisdiction_name, ' (Town|City)$', '', 'i'))), '[^a-z]', '', 'g')
+                  REGEXP_REPLACE(LOWER(TRIM(REGEXP_REPLACE(jd.name, ' (Town|City)$', '', 'i'))), '[^a-z]', '', 'g')
               )
               AND ol.city IS NOT NULL
               AND ol.city != ''
@@ -700,7 +700,7 @@ def build_crosswalk_by_proximity(conn):
                 jw.jurisdiction_type,
                 'proximity_1mile' as match_method,
                 0.70 as match_confidence
-            FROM organizations_locations ol
+            FROM organization_location ol
             CROSS JOIN LATERAL (
                 SELECT 
                     jw.id,
@@ -752,9 +752,9 @@ def build_crosswalk_by_domain(conn):
             WITH domain_matches AS (
                 SELECT 
                     domain,
-                    MAX(CASE WHEN source_table = 'organizations_locations' THEN source_id END) as org_id,
+                    MAX(CASE WHEN source_table = 'organization_location' THEN source_id END) as org_id,
                     MAX(CASE WHEN source_table = 'jurisdictions_wikidata' THEN source_id END) as wiki_id,
-                    MAX(CASE WHEN source_table = 'jurisdictions_details_search' THEN source_id END) as details_id,
+                    MAX(CASE WHEN source_table = 'jurisdiction' THEN source_id END) as details_id,
                     MAX(jurisdiction_name) as name,
                     MAX(state_code) as state_code,
                     MAX(city) as city,
@@ -786,12 +786,12 @@ def build_crosswalk_by_domain(conn):
 
 def build_crosswalk_orgloc_to_search(conn):
     """
-    Match organizations_locations to jurisdictions_search by name+state+type.
+    Match organization_location to jurisdiction by name+state+type.
     
-    Uses organizations_locations as a bridge since it has rich data (websites, addresses)
-    that jurisdictions_search lacks.
+    Uses organization_location as a bridge since it has rich data (websites, addresses)
+    that jurisdiction lacks.
     """
-    logger.info("Matching organizations_locations to jurisdictions_search...")
+    logger.info("Matching organization_location to jurisdiction...")
     
     with conn.cursor() as cur:
         # Map organization_type to jurisdiction type
@@ -808,8 +808,8 @@ def build_crosswalk_orgloc_to_search(conn):
                 js.type,
                 'name_state_type' as match_method,
                 0.85 as match_confidence
-            FROM organizations_locations ol
-            JOIN jurisdictions_search js ON 
+            FROM organization_location ol
+            JOIN jurisdiction js ON 
                 LOWER(TRIM(ol.name)) = LOWER(TRIM(js.name))
                 AND ol.state = js.state_code
                 AND (
@@ -824,16 +824,16 @@ def build_crosswalk_orgloc_to_search(conn):
         
         count = cur.rowcount
         conn.commit()
-        logger.info(f"Matched {count:,} organizations to jurisdictions_search")
+        logger.info(f"Matched {count:,} organizations to jurisdiction")
 
 
 def build_crosswalk_orgloc_to_wikidata_by_domain(conn):
     """
-    Match organizations_locations to jurisdictions_wikidata by domain.
+    Match organization_location to jurisdictions_wikidata by domain.
     
     Uses website URLs to link organizations to their jurisdiction records.
     """
-    logger.info("Matching organizations_locations to jurisdictions_wikidata by domain...")
+    logger.info("Matching organization_location to jurisdictions_wikidata by domain...")
     
     with conn.cursor() as cur:
         cur.execute("""
@@ -847,7 +847,7 @@ def build_crosswalk_orgloc_to_wikidata_by_domain(conn):
                         REGEXP_REPLACE(website, '^https?://(www\.)?', ''),
                         '/.*$', ''
                     ))) as domain
-                FROM organizations_locations
+                FROM organization_location
                 WHERE website IS NOT NULL 
                     AND website != ''
                     AND website NOT ILIKE '%not available%'
@@ -880,7 +880,7 @@ def build_crosswalk_orgloc_to_wikidata_by_domain(conn):
                 0.90 as match_confidence
             FROM org_domains od
             JOIN wiki_domains wd ON od.domain = wd.domain
-            JOIN organizations_locations ol ON od.org_id = ol.id
+            JOIN organization_location ol ON od.org_id = ol.id
             JOIN jurisdictions_wikidata jw ON wd.wiki_id = jw.id
             WHERE od.domain IS NOT NULL AND od.domain != ''
             ON CONFLICT DO NOTHING
@@ -893,19 +893,19 @@ def build_crosswalk_orgloc_to_wikidata_by_domain(conn):
 
 def build_crosswalk_orgloc_to_details_by_domain(conn):
     """
-    Match organizations_locations to jurisdictions_details_search by domain.
+    Match organization_location to jurisdiction by domain.
     
     Links organizations to detailed jurisdiction records through website matching.
     """
-    logger.info("Matching organizations_locations to jurisdictions_details_search by domain...")
+    logger.info("Matching organization_location to jurisdiction by domain...")
     
     with conn.cursor() as cur:
-        # First, check if jurisdictions_details_search has websites
+        # First, check if jurisdiction has websites
         cur.execute("""
             SELECT EXISTS (
                 SELECT 1 
                 FROM information_schema.columns 
-                WHERE table_name = 'jurisdictions_details_search' 
+                WHERE table_name = 'jurisdiction' 
                 AND column_name IN ('website', 'gov_url', 'official_website')
             )
         """)
@@ -913,7 +913,7 @@ def build_crosswalk_orgloc_to_details_by_domain(conn):
         has_website = cur.fetchone()[0]
         
         if not has_website:
-            logger.warning("jurisdictions_details_search has no website column - checking gov_domains JSONB...")
+            logger.warning("jurisdiction has no website column - checking gov_domains JSONB...")
             
             # Try matching via gov_domains JSONB field
             cur.execute("""
@@ -927,7 +927,7 @@ def build_crosswalk_orgloc_to_details_by_domain(conn):
                             REGEXP_REPLACE(website, '^https?://(www\.)?', ''),
                             '/.*$', ''
                         ))) as domain
-                    FROM organizations_locations
+                    FROM organization_location
                     WHERE website IS NOT NULL 
                         AND website != ''
                         AND website NOT ILIKE '%not available%'
@@ -946,9 +946,9 @@ def build_crosswalk_orgloc_to_details_by_domain(conn):
                     'domain_orgloc_details_jsonb' as match_method,
                     0.80 as match_confidence
                 FROM org_domains od
-                JOIN jurisdictions_details_search jd ON 
+                JOIN jurisdiction jd ON 
                     jd.gov_domains ? od.domain
-                JOIN organizations_locations ol ON od.org_id = ol.id
+                JOIN organization_location ol ON od.org_id = ol.id
                 WHERE od.domain IS NOT NULL AND od.domain != ''
                 ON CONFLICT DO NOTHING
             """)
@@ -965,7 +965,7 @@ def build_crosswalk_orgloc_to_details_by_domain(conn):
                             REGEXP_REPLACE(website, '^https?://(www\.)?', ''),
                             '/.*$', ''
                         ))) as domain
-                    FROM organizations_locations
+                    FROM organization_location
                     WHERE website IS NOT NULL 
                         AND website != ''
                         AND website NOT ILIKE '%not available%'
@@ -977,7 +977,7 @@ def build_crosswalk_orgloc_to_details_by_domain(conn):
                             REGEXP_REPLACE(website, '^https?://(www\.)?', ''),
                             '/.*$', ''
                         ))) as domain
-                    FROM jurisdictions_details_search
+                    FROM jurisdiction
                     WHERE website IS NOT NULL AND website != ''
                 )
                 INSERT INTO jurisdiction_crosswalk 
@@ -995,15 +995,15 @@ def build_crosswalk_orgloc_to_details_by_domain(conn):
                     0.90 as match_confidence
                 FROM org_domains od
                 JOIN details_domains dd ON od.domain = dd.domain
-                JOIN organizations_locations ol ON od.org_id = ol.id
-                JOIN jurisdictions_details_search jd ON dd.details_id = jd.id
+                JOIN organization_location ol ON od.org_id = ol.id
+                JOIN jurisdiction jd ON dd.details_id = jd.id
                 WHERE od.domain IS NOT NULL AND od.domain != ''
                 ON CONFLICT DO NOTHING
             """)
         
         count = cur.rowcount
         conn.commit()
-        logger.info(f"Matched {count:,} organizations to jurisdictions_details_search")
+        logger.info(f"Matched {count:,} organizations to jurisdiction")
 
 
 def build_crosswalk_by_fuzzy_name(conn, threshold: float = 0.85):
@@ -1016,10 +1016,10 @@ def build_crosswalk_by_fuzzy_name(conn, threshold: float = 0.85):
     logger.info(f"Building crosswalk by fuzzy name matching (threshold={threshold})...")
     
     with conn.cursor() as cur:
-        # Get unmatched organizations_locations
+        # Get unmatched organization_location
         cur.execute("""
             SELECT id, name, state, city, organization_type
-            FROM organizations_locations
+            FROM organization_location
             WHERE id NOT IN (
                 SELECT org_location_id FROM jurisdiction_crosswalk 
                 WHERE org_location_id IS NOT NULL
@@ -1033,10 +1033,10 @@ def build_crosswalk_by_fuzzy_name(conn, threshold: float = 0.85):
         
         matches = []
         for org_id, org_name, state, city, org_type in unmatched_orgs:
-            # Find potential matches in jurisdictions_details_search
+            # Find potential matches in jurisdiction
             cur.execute("""
-                SELECT id, jurisdiction_name, state_code
-                FROM jurisdictions_details_search
+                SELECT id, name AS jurisdiction_name, state_code
+                FROM jurisdiction
                 WHERE state_code = %s
                 LIMIT 100
             """, (state,))
@@ -1085,7 +1085,7 @@ def consolidate_to_master(conn):
             WITH enriched_crosswalk AS (
                 SELECT 
                     jc.*,
-                    -- Get full state name from jurisdictions_search or use lookup
+                    -- Get full state name from jurisdiction or use lookup
                     COALESCE(
                         js.state,
                         -- State code to name mapping
@@ -1146,7 +1146,7 @@ def consolidate_to_master(conn):
                         END
                     ) as full_state_name
                 FROM jurisdiction_crosswalk jc
-                LEFT JOIN jurisdictions_search js ON jc.search_id = js.id
+                LEFT JOIN jurisdiction js ON jc.search_id = js.id
             )
             INSERT INTO master_jurisdictions 
             (nces_id, fips_code, geoid, canonical_name, state_code, state, 
@@ -1207,16 +1207,16 @@ def generate_match_report(conn):
     
     with conn.cursor() as cur:
         # Total counts
-        cur.execute("SELECT COUNT(*) FROM organizations_locations")
+        cur.execute("SELECT COUNT(*) FROM organization_location")
         org_count = cur.fetchone()[0]
         
         cur.execute("SELECT COUNT(*) FROM jurisdictions_wikidata")
         wiki_count = cur.fetchone()[0]
         
-        cur.execute("SELECT COUNT(*) FROM jurisdictions_search")
+        cur.execute("SELECT COUNT(*) FROM jurisdiction")
         search_count = cur.fetchone()[0]
         
-        cur.execute("SELECT COUNT(*) FROM jurisdictions_details_search")
+        cur.execute("SELECT COUNT(*) FROM jurisdiction")
         details_count = cur.fetchone()[0]
         
         cur.execute("SELECT COUNT(*) FROM domain_registry")
@@ -1229,10 +1229,10 @@ def generate_match_report(conn):
         master_count = cur.fetchone()[0]
         
         logger.info(f"\nSource Counts:")
-        logger.info(f"  organizations_locations: {org_count:,}")
+        logger.info(f"  organization_location: {org_count:,}")
         logger.info(f"  jurisdictions_wikidata: {wiki_count:,}")
-        logger.info(f"  jurisdictions_search: {search_count:,}")
-        logger.info(f"  jurisdictions_details_search: {details_count:,}")
+        logger.info(f"  jurisdiction: {search_count:,}")
+        logger.info(f"  jurisdiction: {details_count:,}")
         
         logger.info(f"\nMatching Results:")
         logger.info(f"  Unique domains: {domain_count:,}")
@@ -1259,7 +1259,7 @@ def generate_match_report(conn):
                 COUNT(*) as total,
                 COUNT(jc.id) as matched,
                 ROUND(100.0 * COUNT(jc.id) / COUNT(*), 2) as match_rate
-            FROM organizations_locations ol
+            FROM organization_location ol
             LEFT JOIN jurisdiction_crosswalk jc ON ol.id = jc.org_location_id
             GROUP BY ol.organization_type
             ORDER BY total DESC

@@ -9,6 +9,7 @@ import os
 import re
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Callable, Optional, TypeVar
 
 from loguru import logger
@@ -163,6 +164,80 @@ def default_flash_lite_model() -> str:
         or os.environ.get("GOVERNANCE_GENAI_MODEL")
         or "gemini-2.5-flash-lite"
     ).strip()
+
+
+def _strip_api_key(value: str) -> str:
+    return value.strip().strip('"').strip("'")
+
+
+def resolve_gemini_api_key(*, env_path: Optional[os.PathLike[str]] = None) -> str:
+    """Read AI Studio key from env; fall back to ``.env`` when unset or blank."""
+    from dotenv import load_dotenv
+
+    key = _strip_api_key(os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "")
+    if key:
+        return key
+    path = Path(env_path) if env_path is not None else Path(__file__).resolve().parents[2] / ".env"
+    if path.is_file():
+        load_dotenv(path, override=True)
+        key = _strip_api_key(os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "")
+    return key
+
+
+def is_gemini_api_key_invalid(exc: BaseException) -> bool:
+    msg = str(exc).upper()
+    return "API_KEY_INVALID" in msg or (
+        "API KEY NOT VALID" in msg and "INVALID_ARGUMENT" in msg
+    )
+
+
+def check_gemini_api_key(api_key: str, *, model: Optional[str] = None) -> None:
+    """Fail fast with a clear message when the key is missing or rejected."""
+    if not api_key:
+        raise SystemExit(
+            "Set GEMINI_API_KEY in .env (https://aistudio.google.com/apikey) "
+            "or use --transcript-only"
+        )
+    from google import genai
+
+    probe_model = (model or default_flash_lite_model()).strip()
+    try:
+        client = genai.Client(api_key=api_key)
+        client.models.generate_content(model=probe_model, contents="ok")
+    except Exception as exc:
+        if is_gemini_api_key_invalid(exc):
+            raise SystemExit(
+                "GEMINI_API_KEY was rejected by Google AI Studio (API_KEY_INVALID). "
+                "Create a new key at https://aistudio.google.com/apikey (AI Studio, not Vertex) "
+                "and set GEMINI_API_KEY in .env. If your shell exports GEMINI_API_KEY or "
+                "GOOGLE_API_KEY, that value overrides .env — run: unset GEMINI_API_KEY GOOGLE_API_KEY"
+            ) from exc
+        raise
+
+
+def ensure_valid_gemini_api_key(
+    *, env_path: Optional[os.PathLike[str]] = None, model: Optional[str] = None
+) -> str:
+    """Resolve key, probe API once, and retry ``.env`` if shell env had a stale invalid key."""
+    path = Path(env_path) if env_path is not None else Path(__file__).resolve().parents[2] / ".env"
+    key = resolve_gemini_api_key(env_path=path)
+    try:
+        check_gemini_api_key(key, model=model)
+        return key
+    except SystemExit:
+        if not path.is_file():
+            raise
+        from dotenv import load_dotenv
+
+        load_dotenv(path, override=True)
+        key_from_file = _strip_api_key(
+            os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or ""
+        )
+        if key_from_file and key_from_file != key:
+            check_gemini_api_key(key_from_file, model=model)
+            logger.info("Using GEMINI_API_KEY from {} (shell env had invalid key)", path)
+            return key_from_file
+        raise
 
 
 def call_gemini_text(

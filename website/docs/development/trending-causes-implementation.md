@@ -22,7 +22,7 @@ This update implements **dynamic, geography-specific trending causes** that show
 ## Files Changed
 
 ### 1. Database Layer (dbt)
-- **`dbt_project/models/marts/stats_aggregates.sql`**
+- **`dbt_project/models/marts/jurisdiction_state_aggregate.sql`**
   - Added CTEs to aggregate trending causes by jurisdiction
   - Joins `int_trending_causes_by_jurisdiction` data
   - Populates `trending_causes` JSONB column at all levels (national, state, county, city)
@@ -61,7 +61,7 @@ First, run the dbt models to compute trending causes:
 This will:
 1. Clean and filter decisions to last 90 days
 2. Aggregate causes by jurisdiction
-3. Update `stats_aggregates` table with trending_causes
+3. Update `jurisdiction_state_aggregate` table with trending_causes
 
 ### 2. Verify Database
 
@@ -76,14 +76,14 @@ SELECT
   city,
   state_code,
   jsonb_array_length(trending_causes) as num_causes
-FROM stats_aggregates
+FROM jurisdiction_state_aggregate
 WHERE level = 'city' 
   AND trending_causes IS NOT NULL
 LIMIT 10;
 
 -- View a sample
 SELECT jsonb_pretty(trending_causes) 
-FROM stats_aggregates 
+FROM jurisdiction_state_aggregate 
 WHERE city ILIKE '%Mobile%' 
   AND level = 'city'
 LIMIT 1;
@@ -195,7 +195,7 @@ Ensure `profiles.yml` points to correct database.
 
 ## Performance
 
-- **Database query**: ~10-50ms (indexed queries on stats_aggregates)
+- **Database query**: ~10-50ms (indexed queries on jurisdiction_state_aggregate)
 - **Frontend render**: Instant (uses React.useMemo)
 - **Cache duration**: 5 minutes (both API and frontend)
 - **Update frequency**: Daily (via cron) or on-demand

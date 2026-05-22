@@ -105,7 +105,7 @@ http://localhost:5173
 │ 1. CAUSES DATA (Parquet Files)                             │
 ├─────────────────────────────────────────────────────────────┤
 │ data/gold/causes_everyorg_causes.parquet (39 rows)         │
-│ data/gold/causes_ntee_codes.parquet (196 rows)             │
+│ data/gold/causes_ntee_codes (196 rows)             │
 └─────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────┐
@@ -284,7 +284,7 @@ df.write_parquet('data/gold/causes_everyorg_causes.parquet')
 ```
 
 **Option 2: Add to NTEE codes**
-(Similar process with causes_ntee_codes.parquet)
+(Similar process with causes_ntee_codes)
 
 ### Skip Existing Images
 
@@ -437,7 +437,7 @@ Verify parquet files exist:
 ls -lh data/gold/causes*.parquet
 # Should show:
 # causes_everyorg_causes.parquet (39 rows)
-# causes_ntee_codes.parquet (196 rows)
+# causes_ntee_codes (196 rows)
 ```
 
 ### Frontend Shows "(0 from database)"

@@ -1,6 +1,6 @@
 """
 Calculate aggregate statistics WITHOUT loading individual records
-Only stores summary stats in stats_aggregates table
+Only stores summary stats in jurisdiction_state_aggregate table
 """
 import os
 import asyncio
@@ -134,11 +134,11 @@ async def main():
         
         # Store national stats
         await conn.execute("""
-            DELETE FROM stats_aggregates WHERE level = 'national'
+            DELETE FROM jurisdiction_state_aggregate WHERE level = 'national'
         """)
         
         await conn.execute("""
-            INSERT INTO stats_aggregates 
+            INSERT INTO jurisdiction_state_aggregate 
             (level, state, county, city, jurisdictions_count, school_districts_count,
              nonprofits_count, events_count, bills_count, contacts_count, 
              total_revenue, total_assets, last_updated)
@@ -164,11 +164,11 @@ async def main():
                 # Only store if has data
                 if state_stats['nonprofits_count'] > 0:
                     await conn.execute("""
-                        DELETE FROM stats_aggregates WHERE level = 'state' AND state = $1
+                        DELETE FROM jurisdiction_state_aggregate WHERE level = 'state' AND state = $1
                     """, state)
                     
                     await conn.execute("""
-                        INSERT INTO stats_aggregates 
+                        INSERT INTO jurisdiction_state_aggregate 
                         (level, state, county, city, jurisdictions_count, school_districts_count,
                          nonprofits_count, events_count, bills_count, contacts_count, 
                          total_revenue, total_assets, last_updated)
@@ -181,7 +181,7 @@ async def main():
         
         logger.success("\n🎉 Statistics calculation completed!")
         logger.info("\n💡 Note: Individual nonprofit records NOT loaded to database")
-        logger.info("   Only aggregate statistics are stored in stats_aggregates table")
+        logger.info("   Only aggregate statistics are stored in jurisdiction_state_aggregate table")
         
     finally:
         await conn.close()

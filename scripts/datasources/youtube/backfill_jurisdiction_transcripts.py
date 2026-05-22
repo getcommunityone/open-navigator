@@ -4,7 +4,7 @@ Backfill YouTube captions for all videos in a jurisdiction (bronze + optional lo
 
 Writes:
 - ``bronze.bronze_events_text_ai`` (canonical)
-- ``data/cache/gemini_transcript_policy/<jurisdiction_id>/YYYY-MM-DD_<title>.json`` (optional; matches Opus basename)
+- ``data/cache/gemini_transcript_policy/{state}/{type}/{jurisdiction_id}/01_transcripts/…`` (matches Opus basename)
 
 Permanent caption failures (no subs / disabled / unavailable) may be **tombstoned** in bronze
 (``transcript_source`` = ``tombstone:<reason>``, ``has_transcript`` = false).
@@ -58,11 +58,30 @@ from scripts.datasources.youtube.load_youtube_events_to_postgres import (  # noq
     YouTubeEventsLoader,
 )
 from scripts.gemini.transcript_cache_paths import (  # noqa: E402
+    jurisdiction_root,
     legacy_transcript_cache_path,
+    lookup_jurisdiction_geo_from_db,
     resolve_meeting_event_date,
     resolve_transcript_cache_path,
     transcript_cache_path,
 )
+
+
+def _effective_state_code(
+    jurisdiction_id: str,
+    row: Optional[Dict[str, Any]] = None,
+    *,
+    explicit: Optional[str] = None,
+) -> Optional[str]:
+    st = (explicit or "").strip().upper()
+    if st:
+        return st
+    if row:
+        st = str(row.get("state_code") or "").strip().upper()
+        if st:
+            return st
+    db_st, _ = lookup_jurisdiction_geo_from_db(jurisdiction_id)
+    return db_st
 
 DEFAULT_LOCAL_CACHE = _REPO_ROOT / "data" / "cache" / "gemini_transcript_policy"
 TUSCALOOSA_JURISDICTION_ID = "municipality_0177256"
@@ -138,16 +157,19 @@ def row_needs_backfill(
     *,
     skip_local_existing: bool,
     include_bronze_existing: bool,
+    state_code: Optional[str] = None,
 ) -> bool:
     """True if this row still needs YouTube fetch and/or local cache sync."""
     if not row.get("bronze_has_transcript"):
         return True
     if include_bronze_existing:
         return True
-    if skip_local_existing and local_transcript_exists(cache_dir, jurisdiction_id, row):
+    if skip_local_existing and local_transcript_exists(
+        cache_dir, jurisdiction_id, row, state_code=state_code
+    ):
         return False
     if row.get("bronze_has_transcript") and not local_transcript_exists(
-        cache_dir, jurisdiction_id, row
+        cache_dir, jurisdiction_id, row, state_code=state_code
     ):
         return True
     return False
@@ -173,6 +195,7 @@ def fetch_pending_videos(
             y.event_id,
             y.event_date::text AS event_date,
             y.jurisdiction_id,
+            y.channel_id,
             y.duration_minutes,
             y.published_at,
             y.last_updated,
@@ -240,6 +263,7 @@ def fetch_video_row(
                     y.event_id,
                     y.event_date::text AS event_date,
                     y.jurisdiction_id,
+                    y.channel_id,
                     y.duration_minutes,
                     y.published_at,
                     y.last_updated,
@@ -333,6 +357,8 @@ def write_local_from_bronze(
     cache_dir: Path,
     jurisdiction_id: str,
     row: Dict[str, Any],
+    *,
+    state_code: Optional[str] = None,
 ) -> bool:
     """Copy bronze transcript to local cache without calling YouTube."""
     import json as _json
@@ -362,8 +388,9 @@ def write_local_from_bronze(
     if isinstance(segments, str):
         segments = _json.loads(segments)
 
+    st = _effective_state_code(jurisdiction_id, row, explicit=state_code)
     write_local_transcript(
-        local_transcript_path(cache_dir, jurisdiction_id, row),
+        local_transcript_path(cache_dir, jurisdiction_id, row, state_code=st),
         row=row,
         yt={
             "video_id": video_id,
@@ -377,22 +404,45 @@ def write_local_from_bronze(
     return True
 
 
-def local_transcript_path(cache_dir: Path, jurisdiction_id: str, row: Dict[str, Any]) -> Path:
+def local_transcript_path(
+    cache_dir: Path,
+    jurisdiction_id: str,
+    row: Dict[str, Any],
+    *,
+    state_code: Optional[str] = None,
+) -> Path:
     """Audio-aligned basename: ``YYYY-MM-DD_<sanitized title>.json``."""
     row = apply_resolved_event_date(dict(row))
+    st = _effective_state_code(jurisdiction_id, row, explicit=state_code)
     return transcript_cache_path(
         cache_dir,
         jurisdiction_id,
         title=str(row.get("title") or ""),
         event_date=row.get("event_date"),
+        state_code=st,
+        channel_id=str(row.get("channel_id") or "").strip() or None,
+        video_id=str(row.get("video_id") or "").strip() or None,
     )
 
 
-def local_transcript_exists(cache_dir: Path, jurisdiction_id: str, row: Dict[str, Any]) -> bool:
-    folder = cache_dir / jurisdiction_id
-    if local_transcript_path(cache_dir, jurisdiction_id, row).is_file():
+def local_transcript_exists(
+    cache_dir: Path,
+    jurisdiction_id: str,
+    row: Dict[str, Any],
+    *,
+    state_code: Optional[str] = None,
+) -> bool:
+    st = _effective_state_code(jurisdiction_id, row, explicit=state_code)
+    folder = jurisdiction_root(cache_dir, jurisdiction_id, state_code=st)
+    if local_transcript_path(cache_dir, jurisdiction_id, row, state_code=st).is_file():
         return True
-    legacy = legacy_transcript_cache_path(cache_dir, jurisdiction_id, str(row["video_id"]))
+    legacy = legacy_transcript_cache_path(
+        cache_dir,
+        jurisdiction_id,
+        str(row["video_id"]),
+        state_code=st,
+        channel_id=str(row.get("channel_id") or "").strip() or None,
+    )
     if legacy.is_file():
         return True
     return resolve_transcript_cache_path(
@@ -645,8 +695,13 @@ def resolve_cookies_path(explicit: Optional[str]) -> Optional[str]:
 def run(args: argparse.Namespace) -> int:
     load_dotenv(_REPO_ROOT / ".env")
     db_url = _database_url(args.database_url or None)
-    jurisdiction_id = args.jurisdiction_id.strip()
+    from scripts.gemini.transcript_cache_paths import resolve_canonical_jurisdiction_id
+
+    jurisdiction_id = resolve_canonical_jurisdiction_id(args.jurisdiction_id.strip())
     cache_dir = Path(args.local_cache_dir).resolve()
+    state_code = _effective_state_code(
+        jurisdiction_id, explicit=(getattr(args, "state", None) or "").strip() or None
+    )
 
     if getattr(args, "fix_event_dates_from_title", False):
         count = fix_bronze_event_dates_from_titles(
@@ -695,8 +750,12 @@ def run(args: argparse.Namespace) -> int:
         row = fetch_video_row(db_url, jurisdiction_id, video_filter)
         if not row:
             raise SystemExit(f"Video {video_filter} not in bronze for {jurisdiction_id}")
-        if write_local_from_bronze(db_url, cache_dir, jurisdiction_id, row):
-            path = local_transcript_path(cache_dir, jurisdiction_id, row)
+        if write_local_from_bronze(
+            db_url, cache_dir, jurisdiction_id, row, state_code=state_code
+        ):
+            path = local_transcript_path(
+                cache_dir, jurisdiction_id, row, state_code=state_code
+            )
             logger.success("Wrote local transcript from bronze: {}", path)
             return 0
         raise SystemExit(
@@ -716,14 +775,16 @@ def run(args: argparse.Namespace) -> int:
             )
         if row.get("bronze_has_transcript") and not args.include_bronze_existing:
             if args.skip_local_existing and local_transcript_exists(
-                cache_dir, jurisdiction_id, row
+                cache_dir, jurisdiction_id, row, state_code=state_code
             ):
                 logger.success(
                     "{} already has bronze + local transcript — nothing to do",
                     video_filter,
                 )
                 return 0
-            if write_local_from_bronze(db_url, cache_dir, jurisdiction_id, row):
+            if write_local_from_bronze(
+                db_url, cache_dir, jurisdiction_id, row, state_code=state_code
+            ):
                 logger.success(
                     "Bronze transcript exists; wrote local cache (no YouTube fetch). "
                     "Use --include-bronze-existing to re-download from YouTube.",
@@ -754,6 +815,7 @@ def run(args: argparse.Namespace) -> int:
                     jurisdiction_id,
                     skip_local_existing=args.skip_local_existing,
                     include_bronze_existing=args.include_bronze_existing,
+                    state_code=state_code,
                 )
             ]
             logger.info(
@@ -772,7 +834,9 @@ def run(args: argparse.Namespace) -> int:
             if args.skip_local_existing:
                 filtered: List[Dict[str, Any]] = []
                 for row in pending:
-                    if local_transcript_exists(cache_dir, jurisdiction_id, row):
+                    if local_transcript_exists(
+                        cache_dir, jurisdiction_id, row, state_code=state_code
+                    ):
                         continue
                     filtered.append(row)
                 skipped_local = len(pending) - len(filtered)
@@ -790,7 +854,7 @@ def run(args: argparse.Namespace) -> int:
         row_by_id = {r["video_id"]: r for r in pending}
         for row in pending:
             row["local_has_transcript"] = local_transcript_exists(
-                cache_dir, jurisdiction_id, row
+                cache_dir, jurisdiction_id, row, state_code=state_code
             )
             row["has_transcript"] = (
                 row.get("bronze_has_transcript") is True
@@ -800,6 +864,11 @@ def run(args: argparse.Namespace) -> int:
         log_duplicate_skips(dedupe, title_by_id=title_by_id, row_by_id=row_by_id)
 
     pending = sort_backfill_rows(pending, args.order_by)
+    from scripts.gemini.policy_exclusions import filter_rows_not_excluded
+
+    pending = filter_rows_not_excluded(
+        pending, cache_dir, jurisdiction_id, state_code=state_code
+    )
 
     logger.info(
         "Jurisdiction {} — {} video(s) to fetch (order: {} desc)",
@@ -1011,7 +1080,9 @@ def run(args: argparse.Namespace) -> int:
 
         if not args.no_local_cache:
             write_local_transcript(
-                local_transcript_path(cache_dir, jurisdiction_id, row),
+                local_transcript_path(
+                    cache_dir, jurisdiction_id, row, state_code=state_code
+                ),
                 row=row,
                 yt=yt,
             )
@@ -1073,6 +1144,11 @@ def main() -> None:
     parser.add_argument(
         "--jurisdiction-id",
         default=TUSCALOOSA_JURISDICTION_ID,
+    )
+    parser.add_argument(
+        "--state",
+        default="",
+        help="Two-letter state for policy cache path (default: bronze lookup)",
     )
     parser.add_argument("--database-url", default="")
     parser.add_argument("--limit", type=int, default=None)

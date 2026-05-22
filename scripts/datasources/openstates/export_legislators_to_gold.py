@@ -5,7 +5,7 @@ Export Legislators from OpenCivicData to Gold Parquet files
 Exports legislators directly from opencivicdata_person, opencivicdata_membership,
 and opencivicdata_post tables (no need for openstates_people table).
 
-Files are saved to: data/gold/states/{STATE}/contacts_officials.parquet
+Files are saved to: data/gold/states/{STATE}/contact_official.parquet
 
 Usage:
     python scripts/datasources/openstates/export_legislators_to_gold.py
@@ -114,7 +114,7 @@ def export_legislators_for_state(conn, state: str) -> Optional[pd.DataFrame]:
     state_dir.mkdir(parents=True, exist_ok=True)
     
     # Save to parquet
-    output_path = state_dir / "contacts_officials.parquet"
+    output_path = state_dir / "contact_official.parquet"
     df.to_parquet(output_path, index=False, engine='pyarrow', compression='snappy')
     
     logger.info(f"  ✅ Exported {len(df):,} legislators to {output_path}")

@@ -2,7 +2,7 @@
 
 ## Overview
 
-This migration creates bronze tables for `events_search` and `events_text_search` (renamed to `events_text_ai`), following the bronze → staging → marts dbt architecture pattern.
+This migration creates bronze tables for `event` and `events_text_search` (renamed to `events_text_ai`), following the bronze → staging → marts dbt architecture pattern.
 
 ## Architecture
 
@@ -18,10 +18,10 @@ Marts Layer (dbt tables - production-ready)
 
 ### Database Migrations
 
-1. **003_create_bronze_events_search.sql**
-   - Creates `bronze_events_search` table in `open_navigator_bronze` database
+1. **003_create_bronze_event.sql**
+   - Creates `bronze_event` table in `open_navigator_bronze` database
    - Stores raw meeting events from LocalView, YouTube, Legistar, etc.
-   - Includes all fields from current production `events_search`
+   - Includes all fields from current production `event`
    - Tracks data source (`source`, `datasource_id` columns)
 
 2. **004_create_bronze_events_text_ai.sql**
@@ -32,7 +32,7 @@ Marts Layer (dbt tables - production-ready)
 
 ### dbt Staging Models
 
-3. **stg_bronze_events_search.sql**
+3. **stg_bronze_event.sql**
    - Staging view applying basic cleaning to bronze events
    - Normalizes state codes (UPPER), cities (INITCAP)
    - Adds quality flags: `missing_title`, `missing_date`, `missing_state`, `video_missing_channel`
@@ -46,28 +46,28 @@ Marts Layer (dbt tables - production-ready)
 
 ### dbt Mart Models (Production)
 
-5. **events_search.sql**
-   - Production-ready events table (replaces current `events_search`)
+5. **event.sql**
+   - Production-ready events table (replaces current `event`)
    - **Deduplicates by video_url** (keeps most recent)
    - Applies quality filters
    - Compatible with current API schema
 
 6. **events_text_search.sql**
    - Production-ready transcripts table (replaces current `events_text_search`)
-   - Joins to `events_search` to get `event_id`
+   - Joins to `event` to get `event_id`
    - **Deduplicates by video_id** (keeps highest quality)
    - Quality scoring: prefers manual transcripts, then by word count
 
 ### Configuration Files
 
 7. **dbt_project/models/staging/_staging.yml**
-   - Added `bronze_events_search` source definition
+   - Added `bronze_event` source definition
    - Added `bronze_events_text_ai` source definition
-   - Added `stg_bronze_events_search` model documentation
+   - Added `stg_bronze_event` model documentation
    - Added `stg_bronze_events_text_ai` model documentation
 
 8. **dbt_project/models/marts/_marts.yml**
-   - Added `events_search` model documentation
+   - Added `event` model documentation
    - Added `events_text_search` model documentation
 
 ## Migration Steps
@@ -75,9 +75,9 @@ Marts Layer (dbt tables - production-ready)
 ### Step 1: Create Bronze Tables
 
 ```bash
-# Create bronze_events_search table
+# Create bronze_event table
 psql -h localhost -p 5433 -U postgres -d open_navigator_bronze \
-  -f scripts/deployment/neon/migrations/003_create_bronze_events_search.sql
+  -f scripts/deployment/neon/migrations/003_create_bronze_event.sql
 
 # Create bronze_events_text_ai table
 psql -h localhost -p 5433 -U postgres -d open_navigator_bronze \
@@ -90,7 +90,7 @@ psql -h localhost -p 5433 -U postgres -d open_navigator_bronze \
 # In open_navigator database, import bronze tables via FDW
 psql -h localhost -p 5433 -U postgres -d open_navigator -c "
 IMPORT FOREIGN SCHEMA public
-    LIMIT TO (bronze_events_search, bronze_events_text_ai)
+    LIMIT TO (bronze_event, bronze_events_text_ai)
     FROM SERVER bronze_server INTO bronze;
 "
 ```
@@ -100,7 +100,7 @@ IMPORT FOREIGN SCHEMA public
 ```bash
 # Copy 100 sample events from production to bronze for testing
 psql -h localhost -p 5433 -U postgres -d open_navigator_bronze -c "
-INSERT INTO bronze_events_search (
+INSERT INTO bronze_event (
     title, description, event_date, event_time,
     jurisdiction_id, jurisdiction_name, jurisdiction_type,
     state_code, state, city, location, meeting_type, status,
@@ -110,15 +110,15 @@ INSERT INTO bronze_events_search (
     source, datasource_id
 )
 SELECT 
-    title, description, event_date, event_time,
+    event_title, event_description, event_date, event_time,
     jurisdiction_id, jurisdiction_name, jurisdiction_type,
     state_code, state, city, location, meeting_type, status,
     agenda_url, minutes_url, video_url,
     channel_id, channel_url, channel_type,
     view_count, duration_minutes, like_count, language,
     COALESCE(source, 'unknown') AS source,
-    CAST(id AS VARCHAR) AS datasource_id
-FROM open_navigator.public.events_search
+    CAST(event_id AS VARCHAR) AS datasource_id
+FROM open_navigator.public.event
 ORDER BY event_date DESC
 LIMIT 100;
 "
@@ -145,13 +145,13 @@ LIMIT 100;
 cd dbt_project
 
 # Test staging models
-dbt run --select stg_bronze_events_search stg_bronze_events_text_ai
+dbt run --select stg_bronze_event stg_bronze_events_text_ai
 
 # Build production marts
-dbt run --select events_search events_text_search
+dbt run --select event events_text_search
 
 # Run tests
-dbt test --select events_search events_text_search
+dbt test --select event events_text_search
 ```
 
 ### Step 5: Verify Results
@@ -159,14 +159,14 @@ dbt test --select events_search events_text_search
 ```sql
 -- Check events count
 SELECT 
-    'bronze_events_search' AS table_name, 
+    'bronze_event' AS table_name, 
     COUNT(*) 
-FROM bronze.bronze_events_search
+FROM bronze.bronze_event
 UNION ALL
 SELECT 
-    'events_search (dbt mart)', 
+    'event (dbt mart)', 
     COUNT(*) 
-FROM events_search;
+FROM event;
 
 -- Check transcripts count
 SELECT 
@@ -183,7 +183,7 @@ FROM events_text_search;
 SELECT 
     COUNT(*) AS total_bronze_events,
     COUNT(DISTINCT video_url) AS unique_video_urls
-FROM bronze.bronze_events_search
+FROM bronze.bronze_event
 WHERE video_url IS NOT NULL;
 ```
 
@@ -200,7 +200,7 @@ WHERE video_url IS NOT NULL;
 ┌──────────────────────────────────────────────────────────────────┐
 │             BRONZE LAYER (open_navigator_bronze)                 │
 ├──────────────────────────────┬───────────────────────────────────┤
-│  bronze_events_search        │  bronze_events_text_ai            │
+│  bronze_event        │  bronze_events_text_ai            │
 │  - Raw events from all       │  - Raw transcripts                │
 │    sources                   │  - AI extraction metadata         │
 │  - May contain duplicates    │  - Quality flags                  │
@@ -211,7 +211,7 @@ WHERE video_url IS NOT NULL;
 ┌──────────────────────────────────────────────────────────────────┐
 │           STAGING LAYER (dbt views - open_navigator)             │
 ├──────────────────────────────┬───────────────────────────────────┤
-│  stg_bronze_events_search    │  stg_bronze_events_text_ai        │
+│  stg_bronze_event    │  stg_bronze_events_text_ai        │
 │  - Clean & normalize         │  - Calculate word count           │
 │  - Quality flags             │  - Filter &lt;100 chars              │
 │  - No deduplication          │  - Quality scoring                │
@@ -221,7 +221,7 @@ WHERE video_url IS NOT NULL;
 ┌──────────────────────────────────────────────────────────────────┐
 │           MARTS LAYER (dbt tables - open_navigator)              │
 ├──────────────────────────────┬───────────────────────────────────┤
-│  events_search               │  events_text_search               │
+│  event               │  events_text_search               │
 │  - Deduplicate by video_url  │  - Join to get event_id           │
 │  - Production-ready          │  - Deduplicate by video_id        │
 │  - API-compatible schema     │  - Production-ready               │
@@ -265,15 +265,15 @@ WHERE video_url IS NOT NULL;
 ### Current Scripts to Update
 
 1. **scripts/datasources/youtube/load_youtube_events_to_postgres.py**
-   - Change: Insert to `bronze_events_search` instead of `events_search`
+   - Change: Insert to `bronze_event` instead of `event`
    - Change: Insert to `bronze_events_text_ai` instead of `events_text_search`
 
 2. **scripts/datasources/localview/load_to_postgres.py**
-   - Change: Insert to `bronze_events_search` instead of `events_search`
+   - Change: Insert to `bronze_event` instead of `event`
 
-3. **Any other scripts inserting to events_search**
-   - Search: `grep -r "INSERT INTO events_search" scripts/`
-   - Update to insert to `bronze_events_search`
+3. **Any other scripts inserting to event**
+   - Search: `grep -r "INSERT INTO event" scripts/`
+   - Update to insert to `bronze_event`
 
 ### After Updating Scripts
 
@@ -283,7 +283,7 @@ python scripts/datasources/youtube/load_youtube_events_to_postgres.py --states A
 
 # Run dbt to update production tables
 cd dbt_project
-dbt run --select events_search events_text_search
+dbt run --select event events_text_search
 
 # Production tables are now up to date!
 ```

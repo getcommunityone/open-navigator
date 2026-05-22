@@ -62,7 +62,7 @@ def main() -> int:
         help="Path to fips_gnis_map.parquet (default: WIKIDATA_FIPS_GNIS_PARQUET or data/cache/wikidata/…)",
     )
     ap.add_argument("--warm-cache", action="store_true", help="Merge parquet into geography_qid_mapping_v1.json")
-    ap.add_argument("--postgres", action="store_true", help="Load parquet into wikidata_fips_gnis_map table")
+    ap.add_argument("--postgres", action="store_true", help="Load parquet into jurisdiction_wikidata_fips_gnis_map table")
     ap.add_argument(
         "--apply-bronze",
         action="store_true",
@@ -97,7 +97,7 @@ def main() -> int:
 
     if args.postgres:
         n = load_parquet_to_postgres(parquet, db_url)
-        logger.success(f"Loaded {n:,} rows into wikidata_fips_gnis_map")
+        logger.success(f"Loaded {n:,} rows into jurisdiction_wikidata_fips_gnis_map")
 
     if args.apply_bronze:
         import psycopg2

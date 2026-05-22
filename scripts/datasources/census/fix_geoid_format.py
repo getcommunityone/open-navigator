@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Fix GEOID Format in jurisdictions_search
+Fix GEOID Format in jurisdiction
 
 ⚠️ DEPRECATION NOTICE:
 This data cleanup script should be migrated to dbt as a transformation model.
@@ -62,7 +62,7 @@ def fix_geoid_format():
         
         # Update GEOID to have leading zeros
         cursor.execute(f"""
-            UPDATE jurisdictions_search
+            UPDATE jurisdiction
             SET geoid = LPAD(geoid, {expected_length}, '0')
             WHERE type = %s
               AND geoid IS NOT NULL
@@ -75,7 +75,7 @@ def fix_geoid_format():
     # For counties, populate fips_code from GEOID (they're the same)
     logger.info("Populating fips_code for counties...")
     cursor.execute("""
-        UPDATE jurisdictions_search
+        UPDATE jurisdiction
         SET fips_code = geoid
         WHERE type = 'county'
           AND geoid IS NOT NULL
@@ -97,7 +97,7 @@ def fix_geoid_format():
             MIN(LENGTH(geoid)) as min_len,
             MAX(LENGTH(geoid)) as max_len,
             COUNT(fips_code) as with_fips
-        FROM jurisdictions_search
+        FROM jurisdiction
         GROUP BY type
         ORDER BY type
     """)

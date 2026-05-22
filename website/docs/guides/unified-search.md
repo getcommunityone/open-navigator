@@ -131,7 +131,7 @@ Search queries across:
 **Causes** (NTEE Categories):
 - 196 nonprofit categories
 - Codes, descriptions, categories
-- File: `data/gold/reference/causes_ntee_codes.parquet`
+- File: `data/gold/reference/causes_ntee_codes`
 
 ## 🎨 UI Components
 

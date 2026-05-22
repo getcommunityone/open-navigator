@@ -305,7 +305,7 @@ pop AS (
                         THEN BTRIM(COALESCE(to_jsonb(js)->>'population', ''))::bigint
                     ELSE NULL::bigint
                 END AS pop
-                FROM jurisdictions_search js
+                FROM jurisdiction js
                 WHERE BTRIM(COALESCE(to_jsonb(js)->>'geoid', '')) = BTRIM(r.geoid)
             ) z
         ) AS population_estimate

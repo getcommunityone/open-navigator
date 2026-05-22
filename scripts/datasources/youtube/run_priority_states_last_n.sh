@@ -8,6 +8,8 @@
 #   N=2 ./scripts/datasources/youtube/run_priority_states_last_n.sh captions
 #   N=2 ./scripts/datasources/youtube/run_priority_states_last_n.sh analyze
 #   DAYS=7 N=2 ./scripts/datasources/youtube/run_priority_states_last_n.sh all
+#   N=2 ./scripts/datasources/youtube/run_priority_states_last_n.sh each
+#     — round-robin jurisdictions: captions then analyze per place, then next
 #
 # Optional env:
 #   STATES=AL,GA,IN,MA,MT,WA,WI
@@ -15,6 +17,8 @@
 #   DELAY=10
 #   DRY_RUN=1          — print jurisdictions / dry-run loaders only
 #   SKIP_CATALOG=1     — skip step 1
+#   CATALOG_FORCE=1    — pass --force (last N videos, not incremental-only-after-last insert)
+#   CATALOG_YTDLP=1    — unset YOUTUBE_API_KEY for catalog (avoid googleapis.com hangs; use yt-dlp)
 #   ROUND_ROBIN=0      — process state-by-state (default: interleave states for diversity)
 #   DATABASE_URL=...   — override .env
 
@@ -131,11 +135,15 @@ run_catalog() {
   local st jid name
   while IFS=$'\t' read -r st jid name; do
     echo "--- Catalog: $st — $name ($jid) ---"
-    "$PYTHON" scripts/datasources/youtube/load_youtube_events_to_postgres.py \
-      --jurisdiction-id "$jid" \
-      --max-videos "$N" \
-      --skip-transcripts \
-      "${extra[@]}" || echo "WARN: catalog failed for $jid" >&2
+    local -a cat_argv=(--jurisdiction-id "$jid" --max-videos "$N" --skip-transcripts)
+    [[ -n "${CATALOG_FORCE:-}" ]] && cat_argv+=(--force)
+    if [[ -n "${CATALOG_YTDLP:-}" ]]; then
+      env -u YOUTUBE_API_KEY "$PYTHON" scripts/datasources/youtube/load_youtube_events_to_postgres.py \
+        "${cat_argv[@]}" "${extra[@]}" || echo "WARN: catalog failed for $jid" >&2
+    else
+      "$PYTHON" scripts/datasources/youtube/load_youtube_events_to_postgres.py \
+        "${cat_argv[@]}" "${extra[@]}" || echo "WARN: catalog failed for $jid" >&2
+    fi
   done < <(export STATES DATABASE_URL="${DATABASE_URL:-}" ROUND_ROBIN=1; list_jurisdictions)
 }
 
@@ -145,6 +153,7 @@ run_captions() {
     echo "=== Captions ($N newest): $st — $name ($jid) ==="
     local -a cap_args=(
       --jurisdiction-id "$jid"
+      --state "$st"
       --newest "$N"
       --order-by published_at
       --delay "$DELAY"
@@ -184,10 +193,75 @@ run_analyze() {
   done < <(export STATES DATABASE_URL="${DATABASE_URL:-}" ROUND_ROBIN="${ROUND_ROBIN:-1}"; list_jurisdictions)
 }
 
+# One jurisdiction at a time (round-robin list order): catalog (optional) → captions → analyze.
+run_each_jurisdiction() {
+  local -a cat_extra=()
+  if [[ -n "$DAYS" ]]; then
+    cat_extra+=(--days "$DAYS")
+  fi
+  local st jid name
+  while IFS=$'\t' read -r st jid name; do
+    echo "=== Pipeline ($N newest): $st — $name ($jid) ==="
+    if [[ -z "${SKIP_CATALOG:-}" ]]; then
+      if [[ -n "${DRY_RUN:-}" ]]; then
+        echo "  [dry-run] catalog --max-videos $N ${cat_extra[*]}"
+      else
+        echo "--- Catalog: $st — $name ($jid) ---"
+        local -a cat_argv=(
+          --jurisdiction-id "$jid"
+          --max-videos "$N"
+          --skip-transcripts
+        )
+        [[ -n "${CATALOG_FORCE:-}" ]] && cat_argv+=(--force)
+        if [[ -n "${CATALOG_YTDLP:-}" ]]; then
+          env -u YOUTUBE_API_KEY "$PYTHON" scripts/datasources/youtube/load_youtube_events_to_postgres.py \
+            "${cat_argv[@]}" "${cat_extra[@]}" || echo "WARN: catalog failed for $jid" >&2
+        else
+          "$PYTHON" scripts/datasources/youtube/load_youtube_events_to_postgres.py \
+            "${cat_argv[@]}" "${cat_extra[@]}" || echo "WARN: catalog failed for $jid" >&2
+        fi
+      fi
+    fi
+    echo "--- Captions: $st — $name ($jid) ---"
+    local -a cap_args=(
+      --jurisdiction-id "$jid"
+      --state "$st"
+      --newest "$N"
+      --order-by published_at
+      --delay "$DELAY"
+    )
+    if [[ -f "$COOKIES" ]]; then
+      cap_args+=(--cookies "$COOKIES")
+    fi
+    if [[ -n "${DRY_RUN:-}" ]]; then
+      cap_args+=(--dry-run)
+    elif ! "$PYTHON" scripts/datasources/youtube/backfill_jurisdiction_transcripts.py "${cap_args[@]}"; then
+      echo "WARN: captions failed for $jid" >&2
+    fi
+    echo "--- Analyze: $st — $name ($jid) ---"
+    local -a ana_args=(
+      --newest "$N"
+      --jurisdiction-id "$jid"
+      --state "$st"
+    )
+    if [[ -n "${DRY_RUN:-}" ]]; then
+      ana_args+=(--dry-run)
+    elif ! "$PYTHON" scripts/gemini/meeting_transcript_policy.py "${ana_args[@]}"; then
+      ec=$?
+      if [[ $ec -eq 1 ]]; then
+        echo "WARN: analyze skipped for $jid (usually no captions yet)" >&2
+      else
+        echo "WARN: analyze failed for $jid (exit $ec)" >&2
+      fi
+    fi
+  done < <(export STATES DATABASE_URL="${DATABASE_URL:-}" ROUND_ROBIN="${ROUND_ROBIN:-1}"; list_jurisdictions)
+}
+
 case "$STEP" in
   catalog) run_catalog ;;
   captions) run_captions ;;
   analyze) run_analyze ;;
+  each) run_each_jurisdiction ;;
   all)
     [[ -z "${SKIP_CATALOG:-}" ]] && run_catalog
     run_captions
@@ -198,7 +272,8 @@ case "$STEP" in
     list_jurisdictions
     ;;
   *)
-    echo "Usage: $0 [catalog|captions|analyze|all|list]" >&2
+    echo "Usage: $0 [catalog|captions|analyze|each|all|list]" >&2
+    echo "  each — round-robin: per jurisdiction, captions then analyze, then next" >&2
     exit 1
     ;;
 esac

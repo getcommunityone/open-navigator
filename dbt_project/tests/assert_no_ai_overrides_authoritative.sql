@@ -16,7 +16,7 @@ WITH ai_contacts AS (
         LOWER(TRIM(name)) as name_normalized,
         datasource,
         last_updated
-    FROM {{ ref('contacts_search_ai') }}
+    FROM {{ ref('contact_ai') }}
     WHERE datasource = 'gemini_ai_extraction'
 ),
 
@@ -27,7 +27,7 @@ authoritative_contacts AS (
         LOWER(TRIM(name)) as name_normalized,
         datasource,
         last_updated
-    FROM contacts_search
+    FROM contact
     WHERE datasource IN ('openstates_api', 'irs_990', 'irs_bmf')
 ),
 

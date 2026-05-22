@@ -141,6 +141,7 @@ class VideoRow:
     event_date: Optional[str]
     audio_file_path: Optional[str]
     jurisdiction_id: str
+    channel_id: Optional[str] = None
     duration_minutes: Optional[int] = None
     has_transcript: bool = False
 
@@ -328,6 +329,7 @@ def fetch_videos(
             y.event_date::text AS event_date,
             y.audio_file_path,
             y.jurisdiction_id,
+            y.channel_id,
             y.duration_minutes,
             y.published_at,
             COALESCE(t.has_transcript, false) AS has_transcript
@@ -343,6 +345,12 @@ def fetch_videos(
         params.append(video_id)
     if only_has_transcript:
         sql += " AND t.has_transcript IS TRUE"
+    sql += """
+          AND (
+            t.video_id IS NULL
+            OR COALESCE(t.transcript_source, '') NOT LIKE 'excluded:%%'
+          )
+    """
     sql += " ORDER BY y.video_url, y.last_updated DESC NULLS LAST"
     if order_by == "published_at":
         sub_order = (
@@ -383,6 +391,7 @@ def fetch_videos(
                 ),
                 audio_file_path=r.get("audio_file_path"),
                 jurisdiction_id=str(r.get("jurisdiction_id") or jurisdiction_id),
+                channel_id=str(r.get("channel_id") or "").strip() or None,
                 duration_minutes=r.get("duration_minutes"),
                 has_transcript=bool(r.get("has_transcript")),
             )

@@ -199,7 +199,7 @@ def _postgres_fips_gnis_map_has_rows(conn) -> bool:
         return False
     cur = conn.cursor()
     try:
-        cur.execute("SELECT 1 FROM wikidata_fips_gnis_map LIMIT 1")
+        cur.execute("SELECT 1 FROM jurisdiction_wikidata_fips_gnis_map LIMIT 1")
         return cur.fetchone() is not None
     except Exception:
         return False
@@ -214,7 +214,7 @@ def _wikidata_skip_municipality_bulk_wdqs(
 ) -> bool:
     """
     Skip the per-state municipality bulk WDQS query when id→Q is already available
-    (env flag, parquet file, ``wikidata_fips_gnis_map``, or most bronze rows have Q-ids).
+    (env flag, parquet file, ``jurisdiction_wikidata_fips_gnis_map``, or most bronze rows have Q-ids).
     """
     if _wikidata_skip_bulk_wdqs():
         return True

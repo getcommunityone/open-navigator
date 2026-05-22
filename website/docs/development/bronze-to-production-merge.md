@@ -18,10 +18,10 @@ This guide explains how to merge AI-extracted data from Bronze tables (meeting t
 - `bronze_financial_items` - Budget items, grants, contracts
 
 **Production tables** contain curated data from authoritative sources:
-- `contacts_search` - State legislators (OpenStates), nonprofit officers (IRS 990s), local officials
-- `organizations_nonprofit_search` - IRS Business Master File nonprofits
+- `contact` - State legislators (OpenStates), nonprofit officers (IRS 990s), local officials
+- `organization_nonprofit` - IRS Business Master File nonprofits
 - `bills_search` - State legislation from OpenStates API
-- `events_search` - Meeting metadata from LocalView/YouTube
+- `event` - Meeting metadata from LocalView/YouTube
 
 **Challenge**: How to merge AI-extracted data (noisy, unverified) with production data (authoritative, clean) without:
 - Creating duplicates
@@ -36,14 +36,14 @@ This guide explains how to merge AI-extracted data from Bronze tables (meeting t
 
 ```sql
 -- Add datasource column to track data origin
-ALTER TABLE contacts_search 
+ALTER TABLE contact 
   ADD COLUMN IF NOT EXISTS datasource VARCHAR(100) DEFAULT 'unknown',
   ADD COLUMN IF NOT EXISTS datasource_id VARCHAR(255),  -- ID in source system
   ADD COLUMN IF NOT EXISTS confidence_score FLOAT,      -- AI confidence (0.0-1.0)
   ADD COLUMN IF NOT EXISTS verified BOOLEAN DEFAULT FALSE,  -- Human-verified?
   ADD COLUMN IF NOT EXISTS verification_date TIMESTAMP;
 
-ALTER TABLE organizations_nonprofit_search
+ALTER TABLE organization_nonprofit
   ADD COLUMN IF NOT EXISTS datasource VARCHAR(100) DEFAULT 'irs_bmf',
   ADD COLUMN IF NOT EXISTS datasource_id VARCHAR(255),
   ADD COLUMN IF NOT EXISTS confidence_score FLOAT,
@@ -57,7 +57,7 @@ ALTER TABLE bills_search
   ADD COLUMN IF NOT EXISTS verified BOOLEAN DEFAULT FALSE,
   ADD COLUMN IF NOT EXISTS verification_date TIMESTAMP;
 
-ALTER TABLE events_search
+ALTER TABLE event
   ADD COLUMN IF NOT EXISTS datasource VARCHAR(100) DEFAULT 'localview',
   ADD COLUMN IF NOT EXISTS datasource_id VARCHAR(255),
   ADD COLUMN IF NOT EXISTS confidence_score FLOAT;
@@ -100,7 +100,7 @@ ALTER TABLE events_search
 ```python
 def merge_contact_from_bronze(bronze_contact, production_db):
     """
-    Merge a bronze_contact record into contacts_search table
+    Merge a bronze_contact record into contact table
     
     Args:
         bronze_contact: Row from bronze_contacts table
@@ -241,7 +241,7 @@ Some entities benefit from many-to-many relationships to preserve provenance:
 CREATE TABLE IF NOT EXISTS bills_meetings (
     id SERIAL PRIMARY KEY,
     bill_id INTEGER REFERENCES bills_search(id) ON DELETE CASCADE,
-    event_id INTEGER REFERENCES events_search(id) ON DELETE CASCADE,
+    event_id INTEGER REFERENCES event(event_id) ON DELETE CASCADE,
     
     -- Context from AI analysis
     relevance TEXT,
@@ -258,8 +258,8 @@ CREATE TABLE IF NOT EXISTS bills_meetings (
 -- Track which contacts attended which meetings
 CREATE TABLE IF NOT EXISTS contacts_meeting_attendance (
     id SERIAL PRIMARY KEY,
-    contact_id INTEGER REFERENCES contacts_search(id) ON DELETE CASCADE,
-    event_id INTEGER REFERENCES events_search(id) ON DELETE CASCADE,
+    contact_id INTEGER REFERENCES contact(id) ON DELETE CASCADE,
+    event_id INTEGER REFERENCES event(event_id) ON DELETE CASCADE,
     
     -- Role in this specific meeting
     appeared_as VARCHAR(100),  -- 'speaker', 'council_member', 'witness', 'lobbyist'
@@ -275,8 +275,8 @@ CREATE TABLE IF NOT EXISTS contacts_meeting_attendance (
 -- Track which organizations were mentioned in which meetings
 CREATE TABLE IF NOT EXISTS organizations_meetings (
     id SERIAL PRIMARY KEY,
-    organization_id INTEGER REFERENCES organizations_nonprofit_search(ein) ON DELETE CASCADE,
-    event_id INTEGER REFERENCES events_search(id) ON DELETE CASCADE,
+    organization_id INTEGER REFERENCES organization_nonprofit(ein) ON DELETE CASCADE,
+    event_id INTEGER REFERENCES event(event_id) ON DELETE CASCADE,
     
     -- Context
     role_in_meeting TEXT,
@@ -374,7 +374,7 @@ def reload_datasource(datasource_name):
         datasource_name: 'openstates_api', 'irs_bmf', 'gemini_ai_extraction', etc.
     """
     # Step 1: Mark all existing records from this source for review
-    UPDATE contacts_search 
+    UPDATE contact 
     SET verified = FALSE, last_updated = NOW()
     WHERE datasource = datasource_name
     
@@ -386,7 +386,7 @@ def reload_datasource(datasource_name):
         run_bronze_merge()
     
     # Step 3: Any records not touched in reload are marked as stale
-    UPDATE contacts_search
+    UPDATE contact
     SET verified = FALSE
     WHERE datasource = datasource_name 
       AND last_updated < (NOW() - INTERVAL '1 hour')

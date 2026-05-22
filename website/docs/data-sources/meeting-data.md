@@ -153,7 +153,7 @@ data/gold/
 │   │   ├── events_events.parquet               # OpenStates legislative events ✅
 │   │   ├── events_participants.parquet   # Event participants ✅
 │   │   ├── meetings_local.parquet              # LocalView/YouTube meetings ⏳
-│   │   └── contacts_officials.parquet          # All contacts (state + local) ⏳
+│   │   └── contact_official.parquet          # All contacts (state + local) ⏳
 │   ├── GA/
 │   │   └── ... (same structure)
 │   └── ... (IN, MA, WA, WI)

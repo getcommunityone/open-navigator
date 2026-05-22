@@ -2,7 +2,7 @@
   config(
     materialized='table',
     tags=['marts', 'events', 'production', 'cdp-compatible'],
-    unique_key='id',
+    unique_key='event_id',
     indexes=[
       {'columns': ['event_date'], 'type': 'btree'},
       {'columns': ['event_datetime'], 'type': 'btree'},
@@ -17,7 +17,7 @@
 }}
 
 /*
-Production events_search table - API-ready meeting events
+Production event table - API-ready meeting events
 
 CDP-Compatible: Follows Council Data Project (CDP) backend schema
 See: https://councildataproject.org/cdp-backend/database_models.html
@@ -31,7 +31,7 @@ This model:
 Used by: api/routes/search_postgres.py, frontend event search
 
 Data Flow:
-bronze_events_cdp → stg_bronze_events_cdp → events_search (this model)
+bronze_events_cdp → stg_bronze_events_cdp → event (this model)
 */
 
 WITH deduplicated_events AS (
@@ -102,11 +102,11 @@ quality_filtered AS (
 SELECT
     -- Use bronze_event_id as primary key for now
     -- In production, this will be id SERIAL
-    ROW_NUMBER() OVER (ORDER BY event_date DESC, bronze_event_id) AS id,
+    ROW_NUMBER() OVER (ORDER BY event_date DESC, bronze_event_id) AS event_id,
     
     -- Event basics (CDP-compatible)
-    title,
-    description,
+    title AS event_title,
+    description AS event_description,
     event_date,
     event_time,
     event_datetime,              -- CDP: event_datetime
@@ -151,4 +151,4 @@ SELECT
     CURRENT_TIMESTAMP AS last_updated
 
 FROM quality_filtered
-ORDER BY event_date DESC, id
+ORDER BY event_date DESC, event_id

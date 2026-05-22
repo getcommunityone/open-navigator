@@ -15,7 +15,7 @@
 Production events_text_search table - Video transcripts for full-text search
 
 This model:
-- Joins transcripts to events_search to get event_id
+- Joins transcripts to event to get event_id
 - Deduplicates by video_id (keeps highest quality)
 - Filters for useful transcripts (>100 chars)
 
@@ -39,7 +39,7 @@ WITH events_with_datasource AS (
             )
             ELSE NULL
         END AS extracted_video_id
-    FROM {{ ref('events_search') }}
+    FROM {{ ref('event') }}
     WHERE video_url IS NOT NULL
 ),
 
@@ -79,7 +79,7 @@ transcripts_with_quality AS (
 transcripts_joined AS (
     SELECT
         t.bronze_transcript_id,
-        -- Try to match event_id from events_search
+        -- Try to match event_id from event
         COALESCE(
             e.event_id,
             t.event_id  -- Use event_id from bronze if already set

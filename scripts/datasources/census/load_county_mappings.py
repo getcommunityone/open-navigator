@@ -253,7 +253,7 @@ async def main():
     logger.info("")
     logger.info("Next steps:")
     logger.info("1. Run: python scripts/data/update_jurisdiction_counties.py")
-    logger.info("2. This will update the jurisdictions_search table with county data")
+    logger.info("2. This will update the jurisdiction table with county data")
 
 
 if __name__ == "__main__":

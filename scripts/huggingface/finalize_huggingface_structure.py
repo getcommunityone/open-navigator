@@ -49,7 +49,7 @@ def organize_files():
     
     reference_files = [
         "causes_everyorg_causes.parquet",
-        "causes_ntee_codes.parquet",
+        "causes_ntee_codes",
         "domains_gsa_domains.parquet",
         "jurisdictions_cities.parquet",
         "jurisdictions_counties.parquet",
@@ -126,7 +126,7 @@ Lookup tables and reference datasets for nonprofit analysis.
 ## Files
 
 ### Cause Codes
-- **causes_ntee_codes.parquet** - National Taxonomy of Exempt Entities (NTEE) codes
+- **causes_ntee_codes** - National Taxonomy of Exempt Entities (NTEE) codes
 - **causes_everyorg_causes.parquet** - Every.org cause categories
 
 ### Jurisdictions
@@ -193,7 +193,7 @@ Looking for **all states in one file**? See the [`national/`](../national/) dire
     logger.info("   │   ├── ... (62 states)")
     logger.info("   │   └── README.md")
     logger.info("   └── reference/          # Lookup tables (6 MB)")
-    logger.info("       ├── causes_ntee_codes.parquet")
+    logger.info("       ├── causes_ntee_codes")
     logger.info("       ├── jurisdictions_cities.parquet")
     logger.info("       ├── ... (7 files)")
     logger.info("       └── README.md")

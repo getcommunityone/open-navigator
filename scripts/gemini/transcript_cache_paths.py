@@ -1,7 +1,10 @@
 """
-Local policy cache layout — mirrors YouTube Opus naming under typed subfolders.
+Local policy cache layout — mirrors scraped meetings geography + Opus basenames.
 
-``data/cache/gemini_transcript_policy/<jurisdiction_id>/``
+``data/cache/gemini_transcript_policy/{state}/{type}/{place_slug}_{geoid}/{channel_id}/``
+
+Jurisdiction folders use a place slug + GEOID (e.g. ``anniston_0101852``), not ``municipality_`` / ``county_`` / ``school_district_`` prefixes.
+Bronze ``jurisdiction_id`` values stay typed (``municipality_0101852``).
 
 - ``01_transcripts/`` — YouTube captions (``YYYY-MM-DD_<title>.json``)
 - ``02_analysis/`` — Part 1 structured JSON (same basename)
@@ -9,12 +12,15 @@ Local policy cache layout — mirrors YouTube Opus naming under typed subfolders
 - ``04_runs/`` — run metadata (``.meta.json``), optional diagrams (``.diagrams.md``)
 - ``README.md`` — what each folder is
 
-Legacy flat files at the jurisdiction root are still read; use ``migrate_policy_cache_layout.py``.
+Legacy flat ``<jurisdiction_id>/`` at the cache root is still read. Reorganize with
+``migrate_policy_cache_geography.py``; flatten step folders with ``migrate_policy_cache_layout.py``.
 """
 
 from __future__ import annotations
 
+import functools
 import json
+import os
 import re
 import shutil
 from collections import defaultdict
@@ -26,9 +32,553 @@ DIR_TRANSCRIPTS = "01_transcripts"
 DIR_ANALYSIS = "02_analysis"
 DIR_REPORTS = "03_reports"
 DIR_RUNS = "04_runs"
+DIR_EXCEPTIONS = "05_exceptions"
+EXCLUDED_MANIFEST = "_excluded_videos.json"
 README_NAME = "README.md"
 
 _POLICY_SUBDIRS = (DIR_TRANSCRIPTS, DIR_ANALYSIS, DIR_REPORTS, DIR_RUNS)
+_POLICY_PIPELINE_SUBDIRS = _POLICY_SUBDIRS
+
+# Same folder names as ``data/cache/scraped_meetings`` (see CACHE_TYPE_DIRS in load_scraped_meetings_manifests_to_bronze).
+_CACHE_TYPE_FROM_TYPED_ID = {
+    "county": "county",
+    "municipality": "municipality",
+    "state": "state",
+    "township": "township",
+    "school_district": "school",
+}
+
+_BRONZE_JURISDICTION_TYPE_TO_CACHE = {
+    "county": "county",
+    "municipality": "municipality",
+    "city": "municipality",
+    "town": "municipality",
+    "village": "municipality",
+    "school_district": "school",
+    "school": "school",
+    "state": "state",
+    "township": "township",
+}
+
+_JID_TYPED_RE = re.compile(
+    r"^(?P<jtype>county|municipality|state|township|school_district)_(?P<geoid>.+)$"
+)
+_STATE_CODE_RE = re.compile(r"^[A-Za-z]{2}$")
+_YOUTUBE_CHANNEL_ID_RE = re.compile(r"^UC[\w-]{11,}$")
+_NUMERIC_JID_RE = re.compile(r"^[0-9]+$")
+_UNKNOWN_CHANNEL_SEGMENT = "_unknown"
+
+
+def _normalize_place_name_for_match(name: str) -> str:
+    n = (name or "").strip().lower()
+    for suffix in (" city", " town", " village", " county", " ccd"):
+        if n.endswith(suffix):
+            n = n[: -len(suffix)].strip()
+    return re.sub(r"\s+", " ", n).strip()
+
+
+def _place_names_compatible(youtube_name: str, search_name: str) -> bool:
+    a = _normalize_place_name_for_match(youtube_name)
+    b = _normalize_place_name_for_match(search_name)
+    if not a or not b:
+        return False
+    if a == b or a in b or b in a:
+        return True
+    a_tokens = set(a.split())
+    b_tokens = set(b.split())
+    return len(a_tokens & b_tokens) >= max(1, min(len(a_tokens), len(b_tokens)) // 2)
+
+
+def resolve_canonical_jurisdiction_id(jurisdiction_id: str) -> str:
+    """
+    Map legacy ``jurisdiction.id`` (numeric) to ``municipality_{geoid}`` etc.
+
+    Returns the input unchanged when already typed or not numeric.
+    """
+    jid = (jurisdiction_id or "").strip()
+    if not jid or not _NUMERIC_JID_RE.fullmatch(jid):
+        return jid
+    url = _database_url()
+    if not url:
+        return jid
+    try:
+        import psycopg2
+    except ImportError:
+        return jid
+    try:
+        with psycopg2.connect(url) as conn, conn.cursor() as cur:
+            cur.execute(
+                "SELECT COUNT(*) FROM bronze.bronze_events_youtube WHERE jurisdiction_id = %s",
+                (jid,),
+            )
+            legacy_rows = int(cur.fetchone()[0] or 0)
+            cur.execute(
+                """
+                SELECT jurisdiction_name, state_code
+                FROM bronze.bronze_events_youtube
+                WHERE jurisdiction_id = %s
+                  AND jurisdiction_name IS NOT NULL
+                LIMIT 1
+                """,
+                (jid,),
+            )
+            yt = cur.fetchone()
+            cur.execute(
+                """
+                SELECT geoid, type, name, state
+                FROM public.jurisdiction
+                WHERE id::text = %s
+                  AND geoid IS NOT NULL AND BTRIM(geoid) <> ''
+                LIMIT 1
+                """,
+                (jid,),
+            )
+            row = cur.fetchone()
+    except Exception:
+        return jid
+    if not row:
+        return jid
+    from scripts.discovery.jurisdiction_discovery_pipeline import (
+        jurisdiction_pk_from_geoid,
+    )
+
+    geoid, stype, search_name, search_state = (
+        str(row[0] or ""),
+        str(row[1] or ""),
+        str(row[2] or ""),
+        str(row[3] or ""),
+    )
+    yt_name = str(yt[0] or "") if yt else ""
+    yt_state = str(yt[1] or "").strip().upper() if yt and yt[1] else ""
+    if legacy_rows > 0:
+        if not search_name or not yt_name or not _place_names_compatible(yt_name, search_name):
+            return jid
+        if search_state and yt_state and search_state.strip().upper() != yt_state:
+            return jid
+    jt = (stype or "city").lower()
+    if jt == "school":
+        jt = "school_district"
+    if "county" in yt_name.lower():
+        jt = "county"
+    canonical = jurisdiction_pk_from_geoid(geoid, jt)
+    return canonical or jid
+
+
+@functools.lru_cache(maxsize=4096)
+def lookup_jurisdiction_place_name(jurisdiction_id: str) -> Optional[str]:
+    """Display name from ``int_jurisdictions`` (fallback: bronze YouTube label)."""
+    jid = resolve_canonical_jurisdiction_id(jurisdiction_id)
+    if not jid:
+        return None
+    url = _database_url()
+    if not url:
+        return None
+    try:
+        import psycopg2
+    except ImportError:
+        return None
+    try:
+        with psycopg2.connect(url) as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT name FROM intermediate.int_jurisdictions
+                WHERE jurisdiction_id = %s
+                LIMIT 1
+                """,
+                (jid,),
+            )
+            row = cur.fetchone()
+            if row and row[0]:
+                return str(row[0]).strip()
+            cur.execute(
+                """
+                SELECT jurisdiction_name FROM bronze.bronze_events_youtube
+                WHERE jurisdiction_id = %s
+                  AND jurisdiction_name IS NOT NULL
+                  AND BTRIM(jurisdiction_name) <> ''
+                LIMIT 1
+                """,
+                (jid,),
+            )
+            row = cur.fetchone()
+            if row and row[0]:
+                return str(row[0]).strip()
+    except Exception:
+        return None
+    return None
+
+
+def _place_slug_for_folder(name: str) -> str:
+    from scripts.datasources.youtube.download_audio_to_drive import slug_snake_case
+
+    label = _normalize_place_name_for_match(name) or (name or "").strip()
+    return slug_snake_case(label, max_length=56)
+
+
+def jurisdiction_cache_folder_name(jurisdiction_id: str) -> str:
+    """
+    Filesystem folder under ``{state}/{type}/`` — ``{place_slug}_{geoid}``.
+
+    Example: ``municipality_0101852`` → ``anniston_0101852``.
+    """
+    jid = resolve_canonical_jurisdiction_id(jurisdiction_id)
+    match = _JID_TYPED_RE.match(jid)
+    if not match:
+        safe = re.sub(r"[^A-Za-z0-9._-]+", "_", jid).strip("_")
+        return safe[:200] or "unknown"
+    geoid = match.group("geoid")
+    place = lookup_jurisdiction_place_name(jid) or geoid
+    return f"{_place_slug_for_folder(place)}_{geoid}"
+
+
+def jurisdiction_cache_folder_aliases(jurisdiction_id: str) -> List[str]:
+    """On-disk folder basenames that may exist for one logical jurisdiction."""
+    jid = resolve_canonical_jurisdiction_id(jurisdiction_id)
+    names: List[str] = []
+    for candidate in (
+        jurisdiction_cache_folder_name(jid),
+        jid,
+        (jurisdiction_id or "").strip(),
+    ):
+        if candidate and candidate not in names:
+            names.append(candidate)
+    return names
+
+
+def cache_type_segment(
+    jurisdiction_id: str,
+    *,
+    jurisdiction_type: Optional[str] = None,
+) -> str:
+    """Filesystem segment under ``{state}/`` (e.g. ``municipality``, ``school``)."""
+    jid = (jurisdiction_id or "").strip()
+    match = _JID_TYPED_RE.match(jid)
+    if match:
+        return _CACHE_TYPE_FROM_TYPED_ID.get(match.group("jtype"), match.group("jtype"))
+    raw = (jurisdiction_type or "").strip().lower()
+    if raw:
+        return _BRONZE_JURISDICTION_TYPE_TO_CACHE.get(raw, raw)
+    return "municipality"
+
+
+def _database_url() -> Optional[str]:
+    return (
+        os.getenv("NEON_DATABASE_URL_DEV")
+        or os.getenv("NEON_DATABASE_URL")
+        or os.getenv("DATABASE_URL")
+    )
+
+
+@functools.lru_cache(maxsize=2048)
+def lookup_jurisdiction_geo_from_db(jurisdiction_id: str) -> Tuple[Optional[str], Optional[str]]:
+    """``(state_code, bronze jurisdiction_type)`` from ``bronze.bronze_events_youtube``."""
+    jid = (jurisdiction_id or "").strip()
+    if not jid:
+        return None, None
+    url = _database_url()
+    if not url:
+        return None, None
+    try:
+        import psycopg2
+    except ImportError:
+        return None, None
+    try:
+        with psycopg2.connect(url) as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT state_code, jurisdiction_type
+                FROM bronze.bronze_events_youtube
+                WHERE jurisdiction_id = %s
+                  AND state_code IS NOT NULL
+                  AND BTRIM(state_code) <> ''
+                LIMIT 1
+                """,
+                (jid,),
+            )
+            row = cur.fetchone()
+    except Exception:
+        return None, None
+    if not row:
+        return None, None
+    state = str(row[0] or "").strip().upper() or None
+    jtype = str(row[1] or "").strip().lower() or None
+    return state, jtype
+
+
+def resolve_jurisdiction_geo(
+    jurisdiction_id: str,
+    *,
+    state_code: Optional[str] = None,
+    jurisdiction_type: Optional[str] = None,
+) -> Tuple[str, str]:
+    """Return ``(state_code, cache_type_segment)`` for policy cache paths."""
+    jurisdiction_id = resolve_canonical_jurisdiction_id(jurisdiction_id)
+    st = (state_code or "").strip().upper()
+    jtype = (jurisdiction_type or "").strip().lower()
+    if not st or not jtype:
+        db_st, db_type = lookup_jurisdiction_geo_from_db(jurisdiction_id)
+        st = st or (db_st or "")
+        jtype = jtype or (db_type or "")
+    segment = cache_type_segment(jurisdiction_id, jurisdiction_type=jtype or None)
+    return st, segment
+
+
+def normalize_channel_segment(channel_id: Optional[str]) -> str:
+    """Filesystem-safe YouTube channel id folder (``UC…`` or ``_unknown``)."""
+    cid = (channel_id or "").strip()
+    if _YOUTUBE_CHANNEL_ID_RE.fullmatch(cid):
+        return cid
+    return _UNKNOWN_CHANNEL_SEGMENT
+
+
+@functools.lru_cache(maxsize=8192)
+def lookup_channel_id_from_db(
+    jurisdiction_id: str,
+    video_id: str = "",
+) -> Optional[str]:
+    """``channel_id`` from ``bronze.bronze_events_youtube`` for a jurisdiction or video."""
+    jid = (jurisdiction_id or "").strip()
+    if not jid:
+        return None
+    url = _database_url()
+    if not url:
+        return None
+    try:
+        import psycopg2
+    except ImportError:
+        return None
+    vid = (video_id or "").strip()
+    try:
+        with psycopg2.connect(url) as conn, conn.cursor() as cur:
+            if vid:
+                cur.execute(
+                    """
+                    SELECT channel_id
+                    FROM bronze.bronze_events_youtube
+                    WHERE jurisdiction_id = %s AND video_id = %s
+                      AND channel_id IS NOT NULL AND BTRIM(channel_id) <> ''
+                    LIMIT 1
+                    """,
+                    (jid, vid),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT channel_id
+                    FROM bronze.bronze_events_youtube
+                    WHERE jurisdiction_id = %s
+                      AND channel_id IS NOT NULL AND BTRIM(channel_id) <> ''
+                    GROUP BY channel_id
+                    ORDER BY COUNT(*) DESC
+                    LIMIT 1
+                    """,
+                    (jid,),
+                )
+            row = cur.fetchone()
+    except Exception:
+        return None
+    if not row or not row[0]:
+        return None
+    cid = str(row[0]).strip()
+    return cid if _YOUTUBE_CHANNEL_ID_RE.fullmatch(cid) else None
+
+
+def jurisdiction_geo_dir(
+    cache_dir: Path,
+    jurisdiction_id: str,
+    *,
+    state_code: Optional[str] = None,
+    jurisdiction_type: Optional[str] = None,
+) -> Path:
+    """``{cache_dir}/{ST}/{type}/{place_slug}_{geoid}/`` (no channel segment)."""
+    st, segment = resolve_jurisdiction_geo(
+        jurisdiction_id,
+        state_code=state_code,
+        jurisdiction_type=jurisdiction_type,
+    )
+    folder = jurisdiction_cache_folder_name(jurisdiction_id)
+    if not st:
+        return cache_dir / folder
+    return cache_dir / st / segment / folder
+
+
+def canonical_jurisdiction_root(
+    cache_dir: Path,
+    jurisdiction_id: str,
+    *,
+    state_code: Optional[str] = None,
+    jurisdiction_type: Optional[str] = None,
+    channel_id: Optional[str] = None,
+    video_id: Optional[str] = None,
+) -> Path:
+    """Write path: ``…/{place_slug}_{geoid}/{channel_id}/``."""
+    cid = (channel_id or "").strip()
+    if not cid and video_id:
+        cid = lookup_channel_id_from_db(jurisdiction_id, video_id) or ""
+    if not cid:
+        cid = lookup_channel_id_from_db(jurisdiction_id) or ""
+    segment = normalize_channel_segment(cid)
+    return jurisdiction_geo_dir(
+        cache_dir,
+        jurisdiction_id,
+        state_code=state_code,
+        jurisdiction_type=jurisdiction_type,
+    ) / segment
+
+
+def _is_state_cache_dir(path: Path) -> bool:
+    return path.is_dir() and bool(_STATE_CODE_RE.fullmatch(path.name))
+
+
+def _is_policy_channel_dir(path: Path) -> bool:
+    """Leaf cache folder: holds ``01_transcripts`` / ``02_analysis`` or is a ``UC…`` dir."""
+    if not path.is_dir():
+        return False
+    if (path / DIR_TRANSCRIPTS).is_dir() or (path / DIR_ANALYSIS).is_dir():
+        return True
+    name = path.name
+    return bool(_YOUTUBE_CHANNEL_ID_RE.fullmatch(name)) or name == _UNKNOWN_CHANNEL_SEGMENT
+
+
+def list_policy_channel_roots(
+    cache_dir: Path,
+    jurisdiction_id: str,
+    *,
+    state_code: Optional[str] = None,
+    jurisdiction_type: Optional[str] = None,
+    channel_id: Optional[str] = None,
+) -> List[Path]:
+    """All on-disk channel folders for a jurisdiction (or canonical target for writes)."""
+    cache_dir = cache_dir.resolve()
+    jid = (jurisdiction_id or "").strip()
+    cid = (channel_id or "").strip()
+    seen: set[Path] = set()
+    out: List[Path] = []
+
+    def add(p: Path) -> None:
+        key = p.resolve()
+        if key not in seen:
+            seen.add(key)
+            out.append(p)
+
+    if cid:
+        add(
+            canonical_jurisdiction_root(
+                cache_dir,
+                jid,
+                state_code=state_code,
+                jurisdiction_type=jurisdiction_type,
+                channel_id=cid,
+            )
+        )
+
+    for geo in jurisdiction_geo_candidates(
+        cache_dir, jid, state_code=state_code, jurisdiction_type=jurisdiction_type
+    ):
+        if not geo.is_dir():
+            continue
+        if _is_policy_channel_dir(geo):
+            add(geo)
+            continue
+        for child in sorted(geo.iterdir()):
+            if _is_policy_channel_dir(child):
+                add(child)
+
+    if not out:
+        add(
+            canonical_jurisdiction_root(
+                cache_dir,
+                jid,
+                state_code=state_code,
+                jurisdiction_type=jurisdiction_type,
+                channel_id=cid or None,
+            )
+        )
+    return out
+
+
+def jurisdiction_geo_candidates(
+    cache_dir: Path,
+    jurisdiction_id: str,
+    *,
+    state_code: Optional[str] = None,
+    jurisdiction_type: Optional[str] = None,
+) -> List[Path]:
+    """Geographic jurisdiction dirs (channel segment not included)."""
+    cache_dir = cache_dir.resolve()
+    jid = (jurisdiction_id or "").strip()
+    st, segment = resolve_jurisdiction_geo(
+        jurisdiction_id,
+        state_code=state_code,
+        jurisdiction_type=jurisdiction_type,
+    )
+    seen: set[Path] = set()
+    out: List[Path] = []
+
+    def add(p: Path) -> None:
+        key = p.resolve()
+        if key not in seen:
+            seen.add(key)
+            out.append(p)
+
+    for folder_name in jurisdiction_cache_folder_aliases(jid):
+        if st:
+            add(cache_dir / st / segment / folder_name)
+        if segment:
+            for state_dir in sorted(cache_dir.iterdir()):
+                if not _is_state_cache_dir(state_dir):
+                    continue
+                add(state_dir / segment / folder_name)
+    add(cache_dir / jid)
+    return out
+
+
+def jurisdiction_root_candidates(
+    cache_dir: Path,
+    jurisdiction_id: str,
+    *,
+    state_code: Optional[str] = None,
+    jurisdiction_type: Optional[str] = None,
+    channel_id: Optional[str] = None,
+) -> List[Path]:
+    """Search order for channel-level policy folders (newest layout first)."""
+    return list_policy_channel_roots(
+        cache_dir,
+        jurisdiction_id,
+        state_code=state_code,
+        jurisdiction_type=jurisdiction_type,
+        channel_id=channel_id,
+    )
+
+
+def find_jurisdiction_root(
+    cache_dir: Path,
+    jurisdiction_id: str,
+    *,
+    state_code: Optional[str] = None,
+    jurisdiction_type: Optional[str] = None,
+    channel_id: Optional[str] = None,
+    video_id: Optional[str] = None,
+) -> Optional[Path]:
+    """First existing channel folder, or canonical write path."""
+    for candidate in jurisdiction_root_candidates(
+        cache_dir,
+        jurisdiction_id,
+        state_code=state_code,
+        jurisdiction_type=jurisdiction_type,
+        channel_id=channel_id or lookup_channel_id_from_db(jurisdiction_id, video_id or ""),
+    ):
+        if candidate.is_dir() and _is_policy_channel_dir(candidate):
+            return candidate
+    return canonical_jurisdiction_root(
+        cache_dir,
+        jurisdiction_id,
+        state_code=state_code,
+        jurisdiction_type=jurisdiction_type,
+        channel_id=channel_id,
+        video_id=video_id,
+    )
+
 
 _JURISDICTION_README = """# Meeting policy cache — {jurisdiction_id}
 
@@ -40,6 +590,7 @@ Files are grouped by pipeline step. Within each folder, names sort **newest-firs
 | **{dir_analysis}** | Part 1 policy JSON (`decisions[]`, `uncontested_items[]`, `places[]`) |
 | **{dir_reports}** | Part 2 resident-facing Markdown summaries |
 | **{dir_runs}** | Run metadata (`.meta.json`) and optional Mermaid sidecars (`.diagrams.md`) |
+| **{dir_exceptions}** | Non-meeting uploads excluded from the pipeline (see `exclude_policy_video.py`) |
 
 Basenames match Opus audio under `data/cache/youtube_audio/…/city_of_tuscaloosa_…/`.
 
@@ -218,8 +769,45 @@ def media_filename(
     return f"{meeting_media_basename(title, event_date)}{suffix}"
 
 
-def jurisdiction_root(cache_dir: Path, jurisdiction_id: str) -> Path:
-    return cache_dir / jurisdiction_id
+def jurisdiction_root(
+    cache_dir: Path,
+    jurisdiction_id: str,
+    *,
+    state_code: Optional[str] = None,
+    jurisdiction_type: Optional[str] = None,
+    channel_id: Optional[str] = None,
+    video_id: Optional[str] = None,
+) -> Path:
+    """Prefer an existing channel folder; else canonical write path."""
+    found = find_jurisdiction_root(
+        cache_dir,
+        jurisdiction_id,
+        state_code=state_code,
+        jurisdiction_type=jurisdiction_type,
+        channel_id=channel_id,
+        video_id=video_id,
+    )
+    return found if found is not None else canonical_jurisdiction_root(
+        cache_dir,
+        jurisdiction_id,
+        state_code=state_code,
+        jurisdiction_type=jurisdiction_type,
+        channel_id=channel_id,
+        video_id=video_id,
+    )
+
+
+def channel_root_from_policy_path(path: Path) -> Path:
+    """Resolve the ``UC…/`` channel folder containing a policy cache file."""
+    p = path.expanduser().resolve()
+    if p.parent.name in _POLICY_PIPELINE_SUBDIRS:
+        return p.parent.parent
+    if p.parent.parent.name == DIR_EXCEPTIONS:
+        return p.parent.parent.parent
+    for parent in p.parents:
+        if _is_policy_channel_dir(parent):
+            return parent
+    raise ValueError(f"Not under a policy channel folder: {path}")
 
 
 def ensure_jurisdiction_layout(jid_root: Path) -> None:
@@ -227,7 +815,13 @@ def ensure_jurisdiction_layout(jid_root: Path) -> None:
         (jid_root / name).mkdir(parents=True, exist_ok=True)
     readme = jid_root / README_NAME
     if not readme.is_file():
-        jid = jid_root.name
+        if _is_policy_channel_dir(jid_root) and (
+            _YOUTUBE_CHANNEL_ID_RE.fullmatch(jid_root.name)
+            or jid_root.name == _UNKNOWN_CHANNEL_SEGMENT
+        ):
+            jid = jid_root.parent.name
+        else:
+            jid = jid_root.name
         readme.write_text(
             _JURISDICTION_README.format(
                 jurisdiction_id=jid,
@@ -235,25 +829,86 @@ def ensure_jurisdiction_layout(jid_root: Path) -> None:
                 dir_analysis=DIR_ANALYSIS,
                 dir_reports=DIR_REPORTS,
                 dir_runs=DIR_RUNS,
+                dir_exceptions=DIR_EXCEPTIONS,
             ),
             encoding="utf-8",
         )
 
 
-def transcripts_dir(cache_dir: Path, jurisdiction_id: str) -> Path:
-    return jurisdiction_root(cache_dir, jurisdiction_id) / DIR_TRANSCRIPTS
+def transcripts_dir(
+    cache_dir: Path,
+    jurisdiction_id: str,
+    *,
+    state_code: Optional[str] = None,
+    jurisdiction_type: Optional[str] = None,
+    channel_id: Optional[str] = None,
+    video_id: Optional[str] = None,
+) -> Path:
+    return jurisdiction_root(
+        cache_dir,
+        jurisdiction_id,
+        state_code=state_code,
+        jurisdiction_type=jurisdiction_type,
+        channel_id=channel_id,
+        video_id=video_id,
+    ) / DIR_TRANSCRIPTS
 
 
-def analysis_dir(cache_dir: Path, jurisdiction_id: str) -> Path:
-    return jurisdiction_root(cache_dir, jurisdiction_id) / DIR_ANALYSIS
+def analysis_dir(
+    cache_dir: Path,
+    jurisdiction_id: str,
+    *,
+    state_code: Optional[str] = None,
+    jurisdiction_type: Optional[str] = None,
+    channel_id: Optional[str] = None,
+    video_id: Optional[str] = None,
+) -> Path:
+    return jurisdiction_root(
+        cache_dir,
+        jurisdiction_id,
+        state_code=state_code,
+        jurisdiction_type=jurisdiction_type,
+        channel_id=channel_id,
+        video_id=video_id,
+    ) / DIR_ANALYSIS
 
 
-def reports_dir(cache_dir: Path, jurisdiction_id: str) -> Path:
-    return jurisdiction_root(cache_dir, jurisdiction_id) / DIR_REPORTS
+def reports_dir(
+    cache_dir: Path,
+    jurisdiction_id: str,
+    *,
+    state_code: Optional[str] = None,
+    jurisdiction_type: Optional[str] = None,
+    channel_id: Optional[str] = None,
+    video_id: Optional[str] = None,
+) -> Path:
+    return jurisdiction_root(
+        cache_dir,
+        jurisdiction_id,
+        state_code=state_code,
+        jurisdiction_type=jurisdiction_type,
+        channel_id=channel_id,
+        video_id=video_id,
+    ) / DIR_REPORTS
 
 
-def runs_dir(cache_dir: Path, jurisdiction_id: str) -> Path:
-    return jurisdiction_root(cache_dir, jurisdiction_id) / DIR_RUNS
+def runs_dir(
+    cache_dir: Path,
+    jurisdiction_id: str,
+    *,
+    state_code: Optional[str] = None,
+    jurisdiction_type: Optional[str] = None,
+    channel_id: Optional[str] = None,
+    video_id: Optional[str] = None,
+) -> Path:
+    return jurisdiction_root(
+        cache_dir,
+        jurisdiction_id,
+        state_code=state_code,
+        jurisdiction_type=jurisdiction_type,
+        channel_id=channel_id,
+        video_id=video_id,
+    ) / DIR_RUNS
 
 
 def transcript_cache_filename(
@@ -270,13 +925,41 @@ def transcript_cache_path(
     title: str,
     event_date: Optional[Union[str, datetime]] = None,
     video_id: Optional[str] = None,
+    state_code: Optional[str] = None,
+    jurisdiction_type: Optional[str] = None,
+    channel_id: Optional[str] = None,
 ) -> Path:
-    root = jurisdiction_root(cache_dir, jurisdiction_id)
+    vid = (video_id or "").strip()
+    root = canonical_jurisdiction_root(
+        cache_dir,
+        jurisdiction_id,
+        state_code=state_code,
+        jurisdiction_type=jurisdiction_type,
+        channel_id=channel_id,
+        video_id=vid or None,
+    )
     ensure_jurisdiction_layout(root)
     if title:
-        return transcripts_dir(cache_dir, jurisdiction_id) / transcript_cache_filename(title, event_date)
-    if video_id:
-        return legacy_transcript_cache_path(cache_dir, jurisdiction_id, video_id)
+        return (
+            transcripts_dir(
+                cache_dir,
+                jurisdiction_id,
+                state_code=state_code,
+                jurisdiction_type=jurisdiction_type,
+                channel_id=channel_id,
+                video_id=vid or None,
+            )
+            / transcript_cache_filename(title, event_date)
+        )
+    if vid:
+        return legacy_transcript_cache_path(
+            cache_dir,
+            jurisdiction_id,
+            vid,
+            state_code=state_code,
+            jurisdiction_type=jurisdiction_type,
+            channel_id=channel_id,
+        )
     raise ValueError("transcript_cache_path requires title or video_id")
 
 
@@ -286,10 +969,28 @@ def analysis_cache_path(
     *,
     title: str,
     event_date: Optional[Union[str, datetime]] = None,
+    state_code: Optional[str] = None,
+    jurisdiction_type: Optional[str] = None,
+    channel_id: Optional[str] = None,
+    video_id: Optional[str] = None,
 ) -> Path:
-    root = jurisdiction_root(cache_dir, jurisdiction_id)
+    root = canonical_jurisdiction_root(
+        cache_dir,
+        jurisdiction_id,
+        state_code=state_code,
+        jurisdiction_type=jurisdiction_type,
+        channel_id=channel_id,
+        video_id=video_id,
+    )
     ensure_jurisdiction_layout(root)
-    return analysis_dir(cache_dir, jurisdiction_id) / media_filename(title, event_date, suffix=".json")
+    return analysis_dir(
+        cache_dir,
+        jurisdiction_id,
+        state_code=state_code,
+        jurisdiction_type=jurisdiction_type,
+        channel_id=channel_id,
+        video_id=video_id,
+    ) / media_filename(title, event_date, suffix=".json")
 
 
 def report_cache_path(
@@ -298,10 +999,28 @@ def report_cache_path(
     *,
     title: str,
     event_date: Optional[Union[str, datetime]] = None,
+    state_code: Optional[str] = None,
+    jurisdiction_type: Optional[str] = None,
+    channel_id: Optional[str] = None,
+    video_id: Optional[str] = None,
 ) -> Path:
-    root = jurisdiction_root(cache_dir, jurisdiction_id)
+    root = canonical_jurisdiction_root(
+        cache_dir,
+        jurisdiction_id,
+        state_code=state_code,
+        jurisdiction_type=jurisdiction_type,
+        channel_id=channel_id,
+        video_id=video_id,
+    )
     ensure_jurisdiction_layout(root)
-    return reports_dir(cache_dir, jurisdiction_id) / media_filename(title, event_date, suffix=".md")
+    return reports_dir(
+        cache_dir,
+        jurisdiction_id,
+        state_code=state_code,
+        jurisdiction_type=jurisdiction_type,
+        channel_id=channel_id,
+        video_id=video_id,
+    ) / media_filename(title, event_date, suffix=".md")
 
 
 def run_meta_path(
@@ -310,10 +1029,28 @@ def run_meta_path(
     *,
     title: str,
     event_date: Optional[Union[str, datetime]] = None,
+    state_code: Optional[str] = None,
+    jurisdiction_type: Optional[str] = None,
+    channel_id: Optional[str] = None,
+    video_id: Optional[str] = None,
 ) -> Path:
-    root = jurisdiction_root(cache_dir, jurisdiction_id)
+    root = canonical_jurisdiction_root(
+        cache_dir,
+        jurisdiction_id,
+        state_code=state_code,
+        jurisdiction_type=jurisdiction_type,
+        channel_id=channel_id,
+        video_id=video_id,
+    )
     ensure_jurisdiction_layout(root)
-    return runs_dir(cache_dir, jurisdiction_id) / media_filename(title, event_date, suffix=".meta.json")
+    return runs_dir(
+        cache_dir,
+        jurisdiction_id,
+        state_code=state_code,
+        jurisdiction_type=jurisdiction_type,
+        channel_id=channel_id,
+        video_id=video_id,
+    ) / media_filename(title, event_date, suffix=".meta.json")
 
 
 def run_diagrams_path(
@@ -322,10 +1059,28 @@ def run_diagrams_path(
     *,
     title: str,
     event_date: Optional[Union[str, datetime]] = None,
+    state_code: Optional[str] = None,
+    jurisdiction_type: Optional[str] = None,
+    channel_id: Optional[str] = None,
+    video_id: Optional[str] = None,
 ) -> Path:
-    root = jurisdiction_root(cache_dir, jurisdiction_id)
+    root = canonical_jurisdiction_root(
+        cache_dir,
+        jurisdiction_id,
+        state_code=state_code,
+        jurisdiction_type=jurisdiction_type,
+        channel_id=channel_id,
+        video_id=video_id,
+    )
     ensure_jurisdiction_layout(root)
-    return runs_dir(cache_dir, jurisdiction_id) / media_filename(title, event_date, suffix=".diagrams.md")
+    return runs_dir(
+        cache_dir,
+        jurisdiction_id,
+        state_code=state_code,
+        jurisdiction_type=jurisdiction_type,
+        channel_id=channel_id,
+        video_id=video_id,
+    ) / media_filename(title, event_date, suffix=".diagrams.md")
 
 
 def report_path_for_analysis(analysis_path: Path) -> Path:
@@ -713,8 +1468,20 @@ def legacy_transcript_cache_path(
     cache_dir: Path,
     jurisdiction_id: str,
     video_id: str,
+    *,
+    state_code: Optional[str] = None,
+    jurisdiction_type: Optional[str] = None,
+    channel_id: Optional[str] = None,
 ) -> Path:
-    return jurisdiction_root(cache_dir, jurisdiction_id) / f"{video_id.strip()}_transcript.json"
+    vid = video_id.strip()
+    return jurisdiction_root(
+        cache_dir,
+        jurisdiction_id,
+        state_code=state_code,
+        jurisdiction_type=jurisdiction_type,
+        channel_id=channel_id,
+        video_id=vid,
+    ) / f"{vid}_transcript.json"
 
 
 def _is_flat_caption_json(path: Path) -> bool:
@@ -745,43 +1512,84 @@ def _iter_dir_sorted(folder: Path) -> List[Path]:
     )
 
 
-def iter_transcript_cache_files(cache_dir: Path, jurisdiction_id: str) -> List[Path]:
-    root = jurisdiction_root(cache_dir, jurisdiction_id)
+def iter_transcript_cache_files(
+    cache_dir: Path,
+    jurisdiction_id: str,
+    *,
+    state_code: Optional[str] = None,
+    jurisdiction_type: Optional[str] = None,
+    channel_id: Optional[str] = None,
+) -> List[Path]:
     out: List[Path] = []
-    td = root / DIR_TRANSCRIPTS
-    if td.is_dir():
-        out.extend(p for p in _iter_dir_sorted(td) if _is_flat_caption_json(p))
-    if not out:
-        out.extend(p for p in _iter_dir_sorted(root) if _is_flat_caption_json(p))
+    seen: set[str] = set()
+    for root in list_policy_channel_roots(
+        cache_dir,
+        jurisdiction_id,
+        state_code=state_code,
+        jurisdiction_type=jurisdiction_type,
+        channel_id=channel_id,
+    ):
+        td = root / DIR_TRANSCRIPTS
+        if td.is_dir():
+            for p in _iter_dir_sorted(td):
+                if _is_flat_caption_json(p) and p.name not in seen:
+                    seen.add(p.name)
+                    out.append(p)
+        for p in _iter_dir_sorted(root):
+            if _is_flat_caption_json(p) and p.name not in seen:
+                seen.add(p.name)
+                out.append(p)
     return out
 
 
-def iter_analysis_files(cache_dir: Path, jurisdiction_id: str) -> List[Path]:
-    root = jurisdiction_root(cache_dir, jurisdiction_id)
-    ad = root / DIR_ANALYSIS
-    if ad.is_dir():
-        return [
-            p
-            for p in _iter_dir_sorted(ad)
-            if p.suffix == ".json" and p.is_file()
-        ]
-    return sorted(
-        (p for p in root.glob("*_analysis.json") if p.is_file()),
-        key=lambda p: p.name,
-        reverse=True,
-    )
+def iter_analysis_files(
+    cache_dir: Path,
+    jurisdiction_id: str,
+    *,
+    state_code: Optional[str] = None,
+    jurisdiction_type: Optional[str] = None,
+    channel_id: Optional[str] = None,
+) -> List[Path]:
+    out: List[Path] = []
+    for root in list_policy_channel_roots(
+        cache_dir,
+        jurisdiction_id,
+        state_code=state_code,
+        jurisdiction_type=jurisdiction_type,
+        channel_id=channel_id,
+    ):
+        ad = root / DIR_ANALYSIS
+        if ad.is_dir():
+            out.extend(
+                p for p in _iter_dir_sorted(ad) if p.suffix == ".json" and p.is_file()
+            )
+        else:
+            out.extend(p for p in root.glob("*_analysis.json") if p.is_file())
+    return sorted(out, key=lambda p: p.name, reverse=True)
 
 
-def iter_report_files(cache_dir: Path, jurisdiction_id: str) -> List[Path]:
-    root = jurisdiction_root(cache_dir, jurisdiction_id)
-    rd = root / DIR_REPORTS
-    if rd.is_dir():
-        return [p for p in _iter_dir_sorted(rd) if p.suffix == ".md" and p.is_file()]
-    return sorted(
-        (p for p in root.glob("*_report.md") if p.is_file()),
-        key=lambda p: p.name,
-        reverse=True,
-    )
+def iter_report_files(
+    cache_dir: Path,
+    jurisdiction_id: str,
+    *,
+    state_code: Optional[str] = None,
+    jurisdiction_type: Optional[str] = None,
+    channel_id: Optional[str] = None,
+) -> List[Path]:
+    out: List[Path] = []
+    for root in list_policy_channel_roots(
+        cache_dir,
+        jurisdiction_id,
+        state_code=state_code,
+        jurisdiction_type=jurisdiction_type,
+        channel_id=channel_id,
+    ):
+        rd = root / DIR_REPORTS
+        if rd.is_dir():
+            out.extend(p for p in _iter_dir_sorted(rd) if p.suffix == ".md" and p.is_file())
+        else:
+            out.extend(p for p in root.glob("*_report.md") if p.is_file())
+    return sorted(out, key=lambda p: p.name, reverse=True)
 
 
 def resolve_transcript_cache_path(
@@ -805,13 +1613,16 @@ def resolve_transcript_cache_path(
         legacy = jid_root / f"{vid}_transcript.json"
         if legacy.is_file():
             return legacy
-        for path in iter_transcript_cache_files(jid_root.parent, jid_root.name):
-            try:
-                data = json.loads(path.read_text(encoding="utf-8"))
-            except (json.JSONDecodeError, OSError):
-                continue
-            if (data.get("video_id") or "").strip() == vid:
-                return path
+        for sub in (jid_root / DIR_TRANSCRIPTS, jid_root):
+            for path in _iter_dir_sorted(sub):
+                if not _is_flat_caption_json(path):
+                    continue
+                try:
+                    data = json.loads(path.read_text(encoding="utf-8"))
+                except (json.JSONDecodeError, OSError):
+                    continue
+                if (data.get("video_id") or "").strip() == vid:
+                    return path
     return None
 
 
@@ -848,14 +1659,29 @@ def resolve_analysis_path(
     video_id: str = "",
     title: str = "",
     event_date: Optional[Union[str, datetime]] = None,
+    state_code: Optional[str] = None,
+    jurisdiction_type: Optional[str] = None,
+    channel_id: Optional[str] = None,
 ) -> Optional[Path]:
-    root = jurisdiction_root(cache_dir, jurisdiction_id)
     if title:
-        p = root / DIR_ANALYSIS / media_filename(title, event_date, suffix=".json")
-        if p.is_file():
-            return p
+        for root in list_policy_channel_roots(
+            cache_dir,
+            jurisdiction_id,
+            state_code=state_code,
+            jurisdiction_type=jurisdiction_type,
+            channel_id=channel_id,
+        ):
+            p = root / DIR_ANALYSIS / media_filename(title, event_date, suffix=".json")
+            if p.is_file():
+                return p
     vid = (video_id or "").strip()
-    for path in iter_analysis_files(cache_dir, jurisdiction_id):
+    for path in iter_analysis_files(
+        cache_dir,
+        jurisdiction_id,
+        state_code=state_code,
+        jurisdiction_type=jurisdiction_type,
+        channel_id=channel_id,
+    ):
         if vid:
             if vid in path.name:
                 return path
@@ -1026,8 +1852,18 @@ def load_local_transcript_payload(
     video_id: str,
     title: Optional[str] = None,
     event_date: Optional[Union[str, datetime]] = None,
+    state_code: Optional[str] = None,
+    jurisdiction_type: Optional[str] = None,
+    channel_id: Optional[str] = None,
 ) -> Optional[tuple[Path, Dict[str, Any]]]:
-    folder = jurisdiction_root(cache_dir, jurisdiction_id)
+    folder = find_jurisdiction_root(
+        cache_dir,
+        jurisdiction_id,
+        state_code=state_code,
+        jurisdiction_type=jurisdiction_type,
+        channel_id=channel_id,
+        video_id=video_id,
+    )
     path = resolve_transcript_cache_path(
         folder,
         video_id=video_id,
@@ -1058,3 +1894,220 @@ def payload_from_row_or_path(
             str(data.get("video_id") or path.stem.replace("_transcript", "")),
         )
     raise ValueError("payload_from_row_or_path requires row or path")
+
+
+_POLICY_SKIP_ROOT_DIRS = frozenset({"logs"})
+
+
+def is_legacy_policy_jurisdiction_dir(path: Path, cache_dir: Path) -> bool:
+    """Jurisdiction folder sitting directly under the policy cache root (pre-geography layout)."""
+    if not path.is_dir():
+        return False
+    cache_dir = cache_dir.resolve()
+    if path.resolve() == cache_dir or path.name in _POLICY_SKIP_ROOT_DIRS:
+        return False
+    if _is_state_cache_dir(path):
+        return False
+    return path.parent.resolve() == cache_dir
+
+
+def list_legacy_policy_jurisdiction_dirs(cache_dir: Path) -> List[Path]:
+    cache_dir = cache_dir.resolve()
+    return [
+        child
+        for child in sorted(cache_dir.iterdir())
+        if is_legacy_policy_jurisdiction_dir(child, cache_dir)
+    ]
+
+
+def migrate_policy_cache_geography(
+    cache_dir: Path,
+    *,
+    dry_run: bool = False,
+    jurisdiction_id: str = "",
+) -> Dict[str, int]:
+    """Move flat ``{cache_dir}/{jurisdiction_id}/`` trees into ``{state}/{type}/{jid}/``."""
+    cache_dir = cache_dir.resolve()
+    stats: Dict[str, int] = defaultdict(int)
+    targets = list_legacy_policy_jurisdiction_dirs(cache_dir)
+    want = (jurisdiction_id or "").strip()
+    if want:
+        targets = [p for p in targets if p.name == want]
+    for src in targets:
+        jid = src.name
+        st, jtype = resolve_jurisdiction_geo(jid)
+        if not st:
+            stats["skipped_no_state"] += 1
+            continue
+        dest = jurisdiction_geo_dir(
+            cache_dir,
+            jid,
+            state_code=st,
+            jurisdiction_type=jtype,
+        )
+        if dest.resolve() == src.resolve():
+            stats["already_placed"] += 1
+            continue
+        if dest.exists():
+            stats["skipped_dest_exists"] += 1
+            continue
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if dry_run:
+            stats["would_move"] += 1
+        else:
+            shutil.move(str(src), str(dest))
+            stats["moved"] += 1
+    return dict(stats)
+
+
+def _video_id_from_policy_file(path: Path) -> str:
+    if path.suffix == ".json":
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            vid = str(data.get("video_id") or "").strip()
+            if vid:
+                return vid
+        except (json.JSONDecodeError, OSError):
+            pass
+    vid = _video_id_from_name(path.name)
+    return vid or ""
+
+
+def list_jurisdiction_geo_dirs_needing_channel_split(cache_dir: Path) -> List[Path]:
+    """Geographic jurisdiction dirs with step folders directly underneath (no ``UC…`` child)."""
+    cache_dir = cache_dir.resolve()
+    out: List[Path] = []
+    for geo in cache_dir.iterdir():
+        if not _is_state_cache_dir(geo):
+            continue
+        for jtype_dir in geo.iterdir():
+            if not jtype_dir.is_dir():
+                continue
+            for jid_dir in jtype_dir.iterdir():
+                if not jid_dir.is_dir():
+                    continue
+                if (jid_dir / DIR_TRANSCRIPTS).is_dir() or (jid_dir / DIR_ANALYSIS).is_dir():
+                    out.append(jid_dir)
+    return sorted(out)
+
+
+def migrate_policy_cache_channels(
+    cache_dir: Path,
+    *,
+    dry_run: bool = False,
+    jurisdiction_id: str = "",
+) -> Dict[str, int]:
+    """
+    Move ``{geo}/{jid}/01_transcripts/…`` into ``{geo}/{jid}/{channel_id}/01_transcripts/…``.
+
+    Channel is resolved per file from bronze (by ``video_id`` in JSON).
+    """
+    cache_dir = cache_dir.resolve()
+    stats: Dict[str, int] = defaultdict(int)
+    targets = list_jurisdiction_geo_dirs_needing_channel_split(cache_dir)
+    want = (jurisdiction_id or "").strip()
+    if want:
+        targets = [p for p in targets if p.name == want]
+
+    for geo_dir in targets:
+        jid = geo_dir.name
+        st = geo_dir.parent.parent.name if _is_state_cache_dir(geo_dir.parent.parent) else ""
+        jtype = geo_dir.parent.name
+        for sub in _POLICY_SUBDIRS:
+            subdir = geo_dir / sub
+            if not subdir.is_dir():
+                continue
+            for path in sorted(subdir.iterdir()):
+                if not path.is_file():
+                    continue
+                vid = _video_id_from_policy_file(path)
+                channel = (
+                    lookup_channel_id_from_db(jid, vid)
+                    if vid
+                    else lookup_channel_id_from_db(jid)
+                )
+                dest_root = canonical_jurisdiction_root(
+                    cache_dir,
+                    jid,
+                    state_code=st or None,
+                    jurisdiction_type=jtype,
+                    channel_id=channel,
+                )
+                dest = dest_root / sub / path.name
+                if dest.resolve() == path.resolve():
+                    stats["already_placed"] += 1
+                    continue
+                if dest.is_file():
+                    stats["skipped_dest_exists"] += 1
+                    continue
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                if dry_run:
+                    stats["would_move"] += 1
+                else:
+                    shutil.move(str(path), str(dest))
+                    stats["moved"] += 1
+
+        if not dry_run:
+            for sub in _POLICY_SUBDIRS:
+                leftover = geo_dir / sub
+                if leftover.is_dir() and not any(leftover.iterdir()):
+                    leftover.rmdir()
+            readme = geo_dir / README_NAME
+            if readme.is_file() and not any(
+                (geo_dir / s).is_dir() for s in _POLICY_SUBDIRS
+            ):
+                readme.unlink(missing_ok=True)
+            if geo_dir.is_dir() and not any(geo_dir.iterdir()):
+                geo_dir.rmdir()
+                stats["removed_empty_geo"] += 1
+
+    return dict(stats)
+
+
+def _is_typed_prefix_folder_name(name: str) -> bool:
+    return bool(_JID_TYPED_RE.match((name or "").strip()))
+
+
+def migrate_policy_cache_folder_names(
+    cache_dir: Path,
+    *,
+    dry_run: bool = False,
+    jurisdiction_id: str = "",
+) -> Dict[str, int]:
+    """
+    Rename ``municipality_0101852/`` → ``anniston_0101852/`` under each ``{state}/{type}/``.
+    """
+    cache_dir = cache_dir.resolve()
+    stats: Dict[str, int] = defaultdict(int)
+    want = (jurisdiction_id or "").strip()
+    want_aliases = set(jurisdiction_cache_folder_aliases(want)) if want else set()
+
+    for state_dir in sorted(cache_dir.iterdir()):
+        if not _is_state_cache_dir(state_dir):
+            continue
+        for type_dir in sorted(state_dir.iterdir()):
+            if not type_dir.is_dir():
+                continue
+            for geo_dir in sorted(type_dir.iterdir()):
+                if not geo_dir.is_dir():
+                    continue
+                old_name = geo_dir.name
+                if not _is_typed_prefix_folder_name(old_name):
+                    continue
+                if want_aliases and old_name not in want_aliases:
+                    if jurisdiction_cache_folder_name(old_name) not in want_aliases:
+                        continue
+                new_name = jurisdiction_cache_folder_name(old_name)
+                if new_name == old_name:
+                    stats["already_named"] += 1
+                    continue
+                dest = geo_dir.parent / new_name
+                if dest.exists():
+                    stats["skipped_dest_exists"] += 1
+                    continue
+                if dry_run:
+                    stats["would_rename"] += 1
+                else:
+                    shutil.move(str(geo_dir), str(dest))
+                    stats["renamed"] += 1
+    return dict(stats)

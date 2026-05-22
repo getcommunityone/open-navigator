@@ -8,7 +8,7 @@
 /*
     Stats Aggregates - Multi-level statistics with trending causes
     
-    Builds stats_aggregates table with:
+    Builds jurisdiction_state_aggregate table with:
     - Nonprofit counts and financials by geography
     - Event counts, contact counts, bill counts
     - Trending causes (JSON) based on decisions in last 90 days

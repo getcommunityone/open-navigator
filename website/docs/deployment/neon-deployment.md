@@ -103,8 +103,8 @@ open https://communityone-open-navigator.hf.space
    psql "postgresql://neondb_owner:...@ep-noisy-fire-anrnmxxy-pooler.c-6.us-east-1.aws.neon.tech/neondb"
    
    # Verify data exists
-   SELECT COUNT(*) FROM organizations_nonprofit_search;
-   SELECT COUNT(*) FROM stats_aggregates;
+   SELECT COUNT(*) FROM organization_nonprofit;
+   SELECT COUNT(*) FROM jurisdiction_state_aggregate;
    ```
 
 4. **Rebuild Space:**
@@ -128,8 +128,8 @@ open https://communityone-open-navigator.hf.space
 
 3. **Run ANALYZE to update statistics:**
    ```sql
-   ANALYZE organizations_nonprofit_search;
-   ANALYZE stats_aggregates;
+   ANALYZE organization_nonprofit;
+   ANALYZE jurisdiction_state_aggregate;
    ```
 
 ## 📊 Performance Validation

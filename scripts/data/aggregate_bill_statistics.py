@@ -8,7 +8,7 @@ Creates a national aggregated dataset with pre-computed counts by:
 - Bill type (mandate, removal, funding, protection, etc.)
 - Bill status (enacted, failed, pending)
 
-Output: data/gold/national/bills_map_aggregates.parquet
+Output: data/gold/national/bill_map_aggregate.parquet
 
 This eliminates the need to load 50 state files on every map request.
 """
@@ -26,7 +26,7 @@ sys.path.insert(0, str(project_root))
 from api.routes.bills import classify_bill_type, determine_bill_status, get_legend_for_topic
 
 GOLD_DIR = project_root / "data" / "gold"
-OUTPUT_FILE = GOLD_DIR / "national" / "bills_map_aggregates.parquet"
+OUTPUT_FILE = GOLD_DIR / "national" / "bill_map_aggregate.parquet"
 
 # Topics to pre-aggregate
 TOPICS = ['fluoride', 'dental', 'oral health', 'medicaid', 'education', 'health']

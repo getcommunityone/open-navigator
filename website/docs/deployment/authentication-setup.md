@@ -294,12 +294,12 @@ Check that user was created in Neon:
 
 ```bash
 # Option 1: Neon SQL Editor (in dashboard)
-SELECT * FROM users;
+SELECT * FROM "user";
 
 # Option 2: psql client
 psql "postgresql://user:password@ep-xxx.neon.tech/neondb?sslmode=require"
 \dt  # List tables
-SELECT * FROM users;
+SELECT * FROM "user";
 ```
 
 ---
@@ -308,11 +308,11 @@ SELECT * FROM users;
 
 The authentication system creates these tables automatically:
 
-### `users` table
+### `user` table (quoted in SQL: `"user"`)
 
 | Column | Type | Description |
 |--------|------|-------------|
-| `id` | Integer | Primary key |
+| `user_id` | Integer | Primary key |
 | `email` | String(255) | User email (unique) |
 | `username` | String(100) | Optional username |
 | `full_name` | String(255) | Display name |
@@ -327,7 +327,7 @@ The authentication system creates these tables automatically:
 | `last_login` | DateTime | Last login timestamp |
 | `preferences` | Text | User settings (JSON) |
 
-### `oauth_states` table
+### `contact_oauth_state` table
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -412,7 +412,7 @@ After deploying, update all OAuth apps with production callback URLs:
 ### Tables not created
 
 ```
-❌ relation "users" does not exist
+❌ relation "users" does not exist (table renamed to `"user"`)
 ```
 
 **Fix:**
@@ -439,7 +439,7 @@ Before going live, ensure:
 - [ ] All 4 OAuth apps configured with production redirect URIs
 - [ ] JWT secret generated (32+ characters)
 - [ ] Environment variables added to HuggingFace Spaces secrets
-- [ ] Database tables created (`users`, `oauth_states`)
+- [ ] Database tables created (`"user"`, `contact_oauth_state`)
 - [ ] OAuth flows tested with all 4 providers
 - [ ] HTTPS enabled on custom domain
 - [ ] Neon IP allowlist configured (optional, for extra security)

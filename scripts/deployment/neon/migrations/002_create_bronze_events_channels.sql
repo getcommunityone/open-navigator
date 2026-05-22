@@ -54,6 +54,6 @@ CREATE INDEX IF NOT EXISTS idx_bronze_channels_discovery_method ON bronze.bronze
 CREATE INDEX IF NOT EXISTS idx_bronze_channels_channel_type ON bronze.bronze_events_channels(channel_type);
 
 -- Add comment
-COMMENT ON TABLE bronze.bronze_events_channels IS 'Bronze table for YouTube channels from government jurisdictions - loaded from jurisdictions_details_search and enriched with LocalView, WikiData validation';
+COMMENT ON TABLE bronze.bronze_events_channels IS 'Bronze table for YouTube channels from government jurisdictions - loaded from public.jurisdiction and enriched with LocalView, WikiData validation';
 
 COMMIT;

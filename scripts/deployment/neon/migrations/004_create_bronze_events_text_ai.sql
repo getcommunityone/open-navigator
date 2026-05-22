@@ -13,8 +13,8 @@
 CREATE TABLE IF NOT EXISTS bronze.bronze_events_text_ai (
     id SERIAL PRIMARY KEY,
     
-    -- Link to event (will join to bronze_events_search.datasource_id or production events_search.id)
-    event_id INTEGER,             -- Foreign key to production events_search (if loaded)
+    -- Link to event (will join to bronze_event.datasource_id or production event.id)
+    event_id INTEGER,             -- Foreign key to production event (if loaded)
     video_id VARCHAR(20) NOT NULL,  -- YouTube video ID (unique identifier)
     
     -- Transcript data

@@ -32,7 +32,7 @@ PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent  # Up from neon/ → deployment/ 
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from calendar_year_util import calendar_year_label
+from scripts.utils.calendar_year_util import calendar_year_label
 
 GOLD_DIR = PROJECT_ROOT / "data" / "gold"
 SCHEMA_PATH = SCRIPT_DIR / "schema.sql"
@@ -109,7 +109,7 @@ def execute_schema(conn):
         return False
 
 
-def load_stats_aggregates(conn):
+def load_jurisdiction_state_aggregate(conn):
     """
     Load pre-computed statistics aggregates
     This is the most critical table for fast dashboard loading
@@ -137,11 +137,11 @@ def load_stats_aggregates(conn):
         conn.commit()
         
         # Get count
-        cursor.execute("SELECT COUNT(*) FROM stats_aggregates")
+        cursor.execute("SELECT COUNT(*) FROM jurisdiction_state_aggregate")
         count = cursor.fetchone()[0]
         logger.success(f"✅ Loaded {count} statistics aggregates")
         
-        record_sync(conn, 'stats_aggregates', count)
+        record_sync(conn, 'jurisdiction_state_aggregate', count)
         return True
         
     except Exception as e:
@@ -209,7 +209,7 @@ def calculate_national_stats():
                     df = pd.read_parquet(contacts_file)
                     stats['contacts_count'] += len(df)
                 
-                officials_file = state_dir / "contacts_officials.parquet"
+                officials_file = state_dir / "contact_official.parquet"
                 if officials_file.exists():
                     df = pd.read_parquet(officials_file)
                     stats['contacts_count'] += len(df)
@@ -286,7 +286,7 @@ def calculate_state_stats(state: str):
         df = pd.read_parquet(contacts_file)
         stats['contacts_count'] = len(df)
     
-    officials_file = state_dir / "contacts_officials.parquet"
+    officials_file = state_dir / "contact_official.parquet"
     if officials_file.exists():
         df = pd.read_parquet(officials_file)
         stats['contacts_count'] += len(df)
@@ -303,7 +303,7 @@ def calculate_state_stats(state: str):
 def insert_stat(cursor, level, state, county, city, **metrics):
     """Insert statistics record"""
     cursor.execute("""
-        INSERT INTO stats_aggregates 
+        INSERT INTO jurisdiction_state_aggregate 
         (level, state, county, city, jurisdictions_count, school_districts_count,
          nonprofits_count, events_count, bills_count, contacts_count,
          total_revenue, total_assets, last_updated)
@@ -333,7 +333,7 @@ def insert_stat(cursor, level, state, county, city, **metrics):
     ))
 
 
-def load_organizations_nonprofit_search(conn, limit_states: Optional[list] = None):
+def load_organization_nonprofit(conn, limit_states: Optional[list] = None):
     """
     Load nonprofits into search table
     Args:
@@ -382,7 +382,7 @@ def load_organizations_nonprofit_search(conn, limit_states: Optional[list] = Non
         total_loaded = 0
     
     logger.success(f"✅ Loaded {total_loaded:,} nonprofits into search table")
-    record_sync(conn, 'organizations_nonprofit_search', total_loaded)
+    record_sync(conn, 'organization_nonprofit', total_loaded)
     return True
 
 
@@ -440,7 +440,7 @@ def load_nonprofits_from_df(conn, df, state_override=None):
     # Batch insert
     if records:
         execute_values(cursor, """
-            INSERT INTO organizations_nonprofit_search 
+            INSERT INTO organization_nonprofit 
             (ein, name, street_address, city, state_code, state, zip_code, county,
              ntee_code, ntee_description, subsection_code, affiliation_code, classification_code,
              revenue, assets, income, ruling_date, foundation_code, pf_filing_requirement_code,
@@ -478,7 +478,7 @@ def load_reference_data(conn):
     cursor = conn.cursor()
     total = 0
     
-    # Load NTEE codes into causes_ntee table
+    # Load NTEE codes into cause_ntee table
     ntee_file = GOLD_DIR / "causes_ntee_codes.parquet"
     if ntee_file.exists():
         df = pd.read_parquet(ntee_file)
@@ -527,7 +527,7 @@ def load_reference_data(conn):
         ]
         
         execute_values(cursor, """
-            INSERT INTO causes_ntee (code, name, description, cause_type, parent_code, category, subcategory, cause_breadcrumb, source, last_updated)
+            INSERT INTO cause_ntee (code, name, description, cause_type, parent_code, category, subcategory, cause_breadcrumb, source, last_updated)
             VALUES %s
             ON CONFLICT (code) DO UPDATE SET 
                 name = EXCLUDED.name,
@@ -542,7 +542,7 @@ def load_reference_data(conn):
         logger.warning(f"  NTEE codes file not found: {ntee_file}")
         logger.info(f"  To generate NTEE data, see: scripts/datasources/ntee/")
     
-    # Load EveryOrg causes into causes_ntee table
+    # Load EveryOrg causes into cause_ntee table
     causes_file = GOLD_DIR / "causes_everyorg_causes.parquet"
     if causes_file.exists():
         df = pd.read_parquet(causes_file)
@@ -591,7 +591,7 @@ def load_reference_data(conn):
         ]
         
         execute_values(cursor, """
-            INSERT INTO causes_ntee (code, name, description, cause_type, parent_code, category, subcategory, cause_breadcrumb, source, last_updated)
+            INSERT INTO cause_ntee (code, name, description, cause_type, parent_code, category, subcategory, cause_breadcrumb, source, last_updated)
             VALUES %s
             ON CONFLICT (code) DO UPDATE SET 
                 name = EXCLUDED.name,
@@ -606,11 +606,11 @@ def load_reference_data(conn):
         logger.warning(f"  Causes file not found: {causes_file}")
     
     conn.commit()
-    logger.success(f"✅ Loaded {total} reference records into causes_ntee table")
+    logger.success(f"✅ Loaded {total} reference records into cause_ntee table")
     return True
 
 
-def load_jurisdictions_search(conn):
+def load_jurisdiction(conn):
     """Load jurisdictions (cities, counties, townships, school districts)"""
     logger.info("🏛️  Loading jurisdictions search data...")
     
@@ -634,7 +634,7 @@ def load_jurisdictions_search(conn):
         ]
         
         execute_values(cursor, """
-            INSERT INTO jurisdictions_search 
+            INSERT INTO jurisdiction 
             (name, type, state_code, state, county, geoid, fips_code, population, area_sq_miles, source, last_updated)
             VALUES %s
             ON CONFLICT (name, type, state_code, county) DO UPDATE SET
@@ -663,7 +663,7 @@ def load_jurisdictions_search(conn):
         ]
         
         execute_values(cursor, """
-            INSERT INTO jurisdictions_search 
+            INSERT INTO jurisdiction 
             (name, type, state_code, state, county, geoid, fips_code, population, area_sq_miles, source, last_updated)
             VALUES %s
             ON CONFLICT (name, type, state_code, county) DO UPDATE SET
@@ -693,7 +693,7 @@ def load_jurisdictions_search(conn):
         ]
         
         execute_values(cursor, """
-            INSERT INTO jurisdictions_search 
+            INSERT INTO jurisdiction 
             (name, type, state_code, state, county, geoid, fips_code, population, area_sq_miles, source, last_updated)
             VALUES %s
             ON CONFLICT (name, type, state_code, county) DO UPDATE SET
@@ -722,7 +722,7 @@ def load_jurisdictions_search(conn):
         ]
         
         execute_values(cursor, """
-            INSERT INTO jurisdictions_search 
+            INSERT INTO jurisdiction 
             (name, type, state_code, state, county, geoid, fips_code, population, area_sq_miles, source, last_updated)
             VALUES %s
             ON CONFLICT (name, type, state_code, county) DO UPDATE SET
@@ -736,11 +736,11 @@ def load_jurisdictions_search(conn):
     
     conn.commit()
     logger.success(f"✅ Loaded {total_loaded:,} jurisdictions into search table")
-    record_sync(conn, 'jurisdictions_search', total_loaded)
+    record_sync(conn, 'jurisdiction', total_loaded)
     return True
 
 
-def load_events_search(conn, limit_states=None):
+def load_event(conn, limit_states=None):
     """Load events from states"""
     logger.info("📅 Loading events search data...")
     
@@ -808,8 +808,8 @@ def load_events_search(conn, limit_states=None):
         
         if records:
             execute_values(cursor, """
-                INSERT INTO events_search 
-                (title, description, event_date, event_time, jurisdiction_name, jurisdiction_type,
+                INSERT INTO event 
+                (event_title, event_description, event_date, event_time, jurisdiction_name, jurisdiction_type,
                  state_code, state, city, location, meeting_type, status, agenda_url, minutes_url, video_url,
                  source, last_updated)
                 VALUES %s
@@ -820,11 +820,11 @@ def load_events_search(conn, limit_states=None):
     
     conn.commit()
     logger.success(f"✅ Loaded {total_loaded:,} events into search table")
-    record_sync(conn, 'events_search', total_loaded)
+    record_sync(conn, 'event', total_loaded)
     return True
 
 
-def load_contacts_search(conn, limit_states=None):
+def load_contact(conn, limit_states=None):
     """Load contacts (officials, nonprofit officers) from states"""
     logger.info("👥 Loading contacts search data...")
     
@@ -841,7 +841,7 @@ def load_contacts_search(conn, limit_states=None):
     
     for state in states_to_load:
         # Load state legislators (from OpenStates)
-        state_legislators_file = GOLD_DIR / "states" / state / "contacts_officials.parquet"
+        state_legislators_file = GOLD_DIR / "states" / state / "contact_official.parquet"
         if state_legislators_file.exists():
             df = pd.read_parquet(state_legislators_file)
             
@@ -878,7 +878,7 @@ def load_contacts_search(conn, limit_states=None):
             
             if records:
                 execute_values(cursor, """
-                    INSERT INTO contacts_search 
+                    INSERT INTO contact 
                     (name, title, organization_name, organization_ein, email, phone,
                      street_address, city, state_code, state, zip_code, role_type, compensation,
                      hours_per_week, source, tax_year, last_updated)
@@ -921,7 +921,7 @@ def load_contacts_search(conn, limit_states=None):
             
             if records:
                 execute_values(cursor, """
-                    INSERT INTO contacts_search 
+                    INSERT INTO contact 
                     (name, title, organization_name, organization_ein, email, phone,
                      street_address, city, state_code, state, zip_code, role_type, compensation,
                      hours_per_week, source, tax_year, last_updated)
@@ -964,7 +964,7 @@ def load_contacts_search(conn, limit_states=None):
             
             if records:
                 execute_values(cursor, """
-                    INSERT INTO contacts_search 
+                    INSERT INTO contact 
                     (name, title, organization_name, organization_ein, email, phone,
                      street_address, city, state_code, state, zip_code, role_type, compensation,
                      hours_per_week, source, tax_year, last_updated)
@@ -976,7 +976,7 @@ def load_contacts_search(conn, limit_states=None):
     
     conn.commit()
     logger.success(f"✅ Loaded {total_loaded:,} contacts into search table")
-    record_sync(conn, 'contacts_search', total_loaded)
+    record_sync(conn, 'contact', total_loaded)
     return True
 
 
@@ -1096,7 +1096,7 @@ def record_sync(conn, table_name: str, records_synced: int, status: str = 'succe
     """Record sync status"""
     cursor = conn.cursor()
     cursor.execute("""
-        INSERT INTO last_sync (table_name, last_sync_time, records_synced, sync_status, error_message)
+        INSERT INTO log_last_sync (table_name, last_sync_time, records_synced, sync_status, error_message)
         VALUES (%s, %s, %s, %s, %s)
         ON CONFLICT (table_name) DO UPDATE SET
             last_sync_time = EXCLUDED.last_sync_time,
@@ -1121,7 +1121,7 @@ def main():
             return 1
         
         # Step 2: Load aggregates (critical for dashboard)
-        if not load_stats_aggregates(conn):
+        if not load_jurisdiction_state_aggregate(conn):
             return 1
         
         # Step 3: Load reference data
@@ -1131,19 +1131,19 @@ def main():
         # Step 4: Load nonprofit search data (start with MA as example)
         logger.info("⚠️  Loading only MA nonprofits (full load would be 3M+ records)")
         logger.info("   To load all states, modify limit_states parameter")
-        if not load_organizations_nonprofit_search(conn, limit_states=['MA']):
+        if not load_organization_nonprofit(conn, limit_states=['MA']):
             return 1
         
         # Step 5: Load jurisdictions (all jurisdictions - reference data)
-        if not load_jurisdictions_search(conn):
+        if not load_jurisdiction(conn):
             return 1
         
         # Step 6: Load events (MA only, same as nonprofits)
-        if not load_events_search(conn, limit_states=['MA']):
+        if not load_event(conn, limit_states=['MA']):
             return 1
         
         # Step 7: Load contacts (MA only, same as nonprofits)
-        if not load_contacts_search(conn, limit_states=['MA']):
+        if not load_contact(conn, limit_states=['MA']):
             return 1
         
         # Step 8: Load bills (MA only to start)
@@ -1154,7 +1154,7 @@ def main():
         
         # Show summary
         cursor = conn.cursor()
-        cursor.execute("SELECT table_name, records_synced, last_sync_time FROM last_sync ORDER BY table_name")
+        cursor.execute("SELECT table_name, records_synced, last_sync_time FROM log_last_sync ORDER BY table_name")
         logger.info("\n📊 Migration Summary:")
         logger.info("=" * 60)
         for row in cursor.fetchall():
@@ -1164,7 +1164,7 @@ def main():
         conn.close()
         logger.success("\n🎉 Migration completed successfully!")
         logger.info("\n💡 Next steps:")
-        logger.info("  1. Test queries: SELECT * FROM stats_aggregates LIMIT 5;")
+        logger.info("  1. Test queries: SELECT * FROM jurisdiction_state_aggregate LIMIT 5;")
         logger.info("  2. Update API routes to use Neon")
         logger.info("  3. Add NEON_DATABASE_URL to HuggingFace Secrets")
         

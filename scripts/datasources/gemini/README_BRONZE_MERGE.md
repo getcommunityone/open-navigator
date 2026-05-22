@@ -97,35 +97,35 @@ python scripts/datasources/gemini/merge_bronze_to_production.py --report-duplica
 ```sql
 -- View all AI-extracted contacts
 SELECT name, title, organization_name, datasource, confidence_score
-FROM contacts_search
+FROM contact
 WHERE datasource = 'gemini_ai_extraction'
 ORDER BY confidence_score DESC;
 
 -- View contacts needing review
 SELECT name, title, organization_name, review_notes
-FROM contacts_search
+FROM contact
 WHERE needs_review = TRUE;
 
 -- View which bills were discussed in which meetings
 SELECT 
     b.bill_number, b.title,
-    e.title as meeting_title, e.event_date,
+    e.event_title as meeting_title, e.event_date,
     bm.action_taken, bm.vote_result
 FROM bills_meetings bm
 JOIN bills_search b ON bm.bill_id = b.id
-JOIN events_search e ON bm.event_id = e.id
+JOIN event e ON bm.event_id = e.event_id
 WHERE bm.datasource = 'gemini_ai_extraction'
 ORDER BY e.event_date DESC;
 
 -- View lobbyist activity in meetings
 SELECT 
     c.name, c.title,
-    e.title as meeting,
+    e.event_title as meeting,
     cma.appeared_as,
     cma.lobbyist_registration_number
 FROM contacts_meeting_attendance cma
-JOIN contacts_search c ON cma.contact_id = c.id
-JOIN events_search e ON cma.event_id = e.id
+JOIN contact c ON cma.contact_id = c.id
+JOIN event e ON cma.event_id = e.event_id
 WHERE cma.is_lobbyist = TRUE
 ORDER BY e.event_date DESC;
 ```
@@ -146,7 +146,7 @@ To reload data from a specific source:
 
 ```python
 # Reload all contacts from OpenStates
-UPDATE contacts_search 
+UPDATE contact 
 SET verified = FALSE 
 WHERE datasource = 'openstates_api';
 
@@ -181,7 +181,7 @@ fuzzy_matches = ContactMatcher.fuzzy_match(
 SELECT * FROM bronze_merge_log
 WHERE action_taken = 'updated'
   AND production_record_id IN (
-    SELECT id FROM contacts_search 
+    SELECT id FROM contact 
     WHERE datasource IN ('openstates_api', 'irs_990')
   );
 ```

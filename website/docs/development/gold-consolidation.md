@@ -14,7 +14,7 @@ The gold data directory has been consolidated from **86 files to 21 files** (75%
 ```
 data/gold/
 ├── national/
-│   ├── bills_map_aggregates.parquet
+│   ├── bill_map_aggregate.parquet
 │   ├── events.parquet
 │   ├── nonprofits_financials.parquet
 │   ├── nonprofits_locations.parquet
@@ -22,7 +22,7 @@ data/gold/
 │   └── nonprofits_programs.parquet
 ├── reference/
 │   ├── causes_everyorg_causes.parquet
-│   ├── causes_ntee_codes.parquet
+│   ├── causes_ntee_codes
 │   ├── domains_gsa_domains.parquet
 │   ├── jurisdictions_cities.parquet
 │   ├── jurisdictions_counties.parquet
@@ -44,11 +44,11 @@ data/gold/
 ├── bills_bill_actions.parquet          (52 MB)
 ├── bills_bill_sponsorships.parquet     (39 MB)
 ├── bills_bills.parquet                 (15 MB)
-├── bills_map_aggregates.parquet        (142 KB)
+├── bill_map_aggregate.parquet        (142 KB)
 ├── causes_everyorg_causes.parquet      (11 KB)
-├── causes_ntee_codes.parquet           (11 KB)
+├── causes_ntee_codes           (11 KB)
 ├── contacts_local_officials.parquet    (15 KB)
-├── contacts_officials.parquet          (461 KB)
+├── contact_official.parquet          (461 KB)
 ├── domains_gsa_domains.parquet         (596 KB)
 ├── events_documents.parquet             (366 MB)
 ├── events_participants.parquet          (808 KB)

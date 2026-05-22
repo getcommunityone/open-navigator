@@ -6,7 +6,7 @@ Downloads all bulk data files from https://www.fec.gov/data/browse-data/?tab=bul
 and organizes them in a directory structure matching the FEC website.
 
 Directory Structure (organized by FEC page categories):
-    D:/fec_data/  (or configurable base path)
+    data/cache/fec_data/  (or ``FEC_DATA_DIR`` / ``--base-dir``)
     ├── bulk-downloads/
     │   ├── candidate-master/
     │   │   ├── 1980/cn80.zip
@@ -56,23 +56,23 @@ File Types:
     - webl: Current House/Senate Campaigns
 
 Usage:
-    # Download everything (default: D:/fec_data/)
-    python bulk_download_fec.py
+    # Download everything (default: data/cache/fec_data/)
+    python load_fec_bulk.py
 
     # Custom base directory
-    python bulk_download_fec.py --base-dir /mnt/d/fec_data
+    python load_fec_bulk.py --base-dir /path/to/fec_data
 
     # Specific years only
-    python bulk_download_fec.py --years 2020,2022,2024
+    python load_fec_bulk.py --years 2020,2022,2024
 
     # Specific file types only
-    python bulk_download_fec.py --types indiv,cn,cm
+    python load_fec_bulk.py --types indiv,cn,cm
 
     # Resume interrupted download
-    python bulk_download_fec.py --resume
+    python load_fec_bulk.py --resume
 
     # Dry run (show what would be downloaded)
-    python bulk_download_fec.py --dry-run
+    python load_fec_bulk.py --dry-run
 """
 
 import argparse
@@ -145,7 +145,7 @@ class FECBulkDownloader:
         Initialize FEC bulk downloader
         
         Args:
-            base_dir: Base directory for downloads (e.g., D:/fec_data/)
+            base_dir: Base directory for downloads (default: data/cache/fec_data/)
             resume: Resume interrupted downloads
         """
         self.base_dir = Path(base_dir)
@@ -430,31 +430,33 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Download everything to D:/fec_data/
-  python bulk_download_fec.py
+  # Download everything (default: data/cache/fec_data/)
+  python load_fec_bulk.py
 
   # Download to custom directory
-  python bulk_download_fec.py --base-dir /mnt/d/fec_data
+  python load_fec_bulk.py --base-dir /path/to/fec_data
 
   # Download specific years only
-  python bulk_download_fec.py --years 2020,2022,2024
+  python load_fec_bulk.py --years 2020,2022,2024
 
   # Download specific file types only
-  python bulk_download_fec.py --types indiv,cn,cm
+  python load_fec_bulk.py --types indiv,cn,cm
 
   # Resume interrupted download
-  python bulk_download_fec.py --resume
+  python load_fec_bulk.py --resume
 
   # Dry run (show what would be downloaded)
-  python bulk_download_fec.py --dry-run
+  python load_fec_bulk.py --dry-run
         """
     )
     
+    from fec_paths import default_fec_data_dir
+
     parser.add_argument(
         '--base-dir',
         type=str,
-        default='D:/fec_data',
-        help='Base directory for downloads (default: D:/fec_data)'
+        default=None,
+        help=f'Base directory for downloads (default: {default_fec_data_dir()})'
     )
     
     parser.add_argument(
@@ -495,9 +497,11 @@ Examples:
         level="INFO"
     )
     
+    base_dir = Path(args.base_dir) if args.base_dir else default_fec_data_dir()
+
     # Create downloader and run
     downloader = FECBulkDownloader(
-        base_dir=Path(args.base_dir),
+        base_dir=base_dir,
         resume=args.resume
     )
     

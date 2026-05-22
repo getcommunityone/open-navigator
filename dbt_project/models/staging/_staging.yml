@@ -87,7 +87,7 @@ sources:
         columns:
           - name: id
           - name: event_id
-            description: "Original event ID from events_search"
+            description: "Original event ID from event"
           - name: event_date
           - name: jurisdiction_name
           - name: jurisdiction_type
@@ -798,7 +798,7 @@ sources:
           - name: id
             description: "Primary key"
           - name: event_id
-            description: "Foreign key to events_search"
+            description: "Foreign key to event"
           - name: video_id
             description: "YouTube video ID (unique)"
           - name: raw_text
@@ -826,7 +826,7 @@ sources:
           - name: id
             description: "Primary key"
           - name: event_id
-            description: "Foreign key to events_search"
+            description: "Foreign key to event"
           - name: video_id
             description: "YouTube video ID"
           - name: analysis_type

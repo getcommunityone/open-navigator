@@ -77,7 +77,7 @@ Log File: logs/oral-health-policy-pulse.log
 --------------------------------------------------------------------------------
   ✅ reference/jurisdictions_cities.parquet: 19,502 records (2.45 MB)
   ✅ reference/jurisdictions_counties.parquet: 3,143 records (0.34 MB)
-  ✅ reference/causes_ntee_codes.parquet: 645 records (0.02 MB)
+  ✅ reference/causes_ntee_codes: 645 records (0.02 MB)
 
 📍 STATE DATA AVAILABILITY:
   ✅ AL: nonprofits, officials, events

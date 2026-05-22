@@ -1324,7 +1324,7 @@ async def startup_event():
             # Check for key files
             key_files = [
                 "nonprofits_organizations.parquet",
-                "contacts_officials.parquet",
+                "contact_official.parquet",
                 "events.parquet",
             ]
             

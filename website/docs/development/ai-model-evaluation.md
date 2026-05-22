@@ -179,13 +179,13 @@ If your extraction is based on source text (meeting transcript), check if the AI
 from deepeval.metrics import FaithfulnessMetric
 from deepeval.test_case import LLMTestCase
 
-# Get original transcript from events_search
+# Get original transcript from event
 cur.execute("""
-    SELECT es.description, et.decision_statement
-    FROM events_search es
-    JOIN events_text_ai et ON et.event_id = es.id
-    JOIN bronze_decisions bd ON bd.source_event_id = es.id
-    WHERE es.id = %s
+    SELECT es.event_description, et.decision_statement
+    FROM event es
+    JOIN events_text_ai et ON et.event_id = es.event_id
+    JOIN bronze_decisions bd ON bd.source_event_id = es.event_id
+    WHERE es.event_id = %s
 """, (event_id,))
 
 transcript, extracted_decision = cur.fetchone()
@@ -300,7 +300,7 @@ def evaluate_decision_extraction(event_id: int, decision_id: str):
             bd.headline,
             es.description as transcript
         FROM bronze_decisions bd
-        JOIN events_search es ON es.id = bd.source_event_id
+        JOIN event es ON es.event_id = bd.source_event_id
         WHERE bd.source_event_id = %s 
           AND bd.decision_id = %s
     """, (event_id, decision_id))

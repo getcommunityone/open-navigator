@@ -5,10 +5,11 @@
 -- Full bills remain in parquet files for drill-down queries
 
 -- Drop table if exists
-DROP TABLE IF EXISTS bills_map_aggregates CASCADE;
+DROP TABLE IF EXISTS log_neon_sync CASCADE;
+DROP TABLE IF EXISTS bill_map_aggregate CASCADE;
 
 -- Map aggregates for fast choropleth visualization
-CREATE TABLE bills_map_aggregates (
+CREATE TABLE bill_map_aggregate (
     id SERIAL PRIMARY KEY,
     state_code VARCHAR(2) NOT NULL,
     topic VARCHAR(100) DEFAULT 'all',
@@ -39,11 +40,11 @@ CREATE TABLE bills_map_aggregates (
     UNIQUE(state_code, topic)
 );
 
-CREATE INDEX idx_map_agg_state ON bills_map_aggregates(state_code);
-CREATE INDEX idx_map_agg_topic ON bills_map_aggregates(topic);
+CREATE INDEX idx_map_agg_state ON bill_map_aggregate(state_code);
+CREATE INDEX idx_map_agg_topic ON bill_map_aggregate(topic);
 
 -- Sync metadata (shared with other tables)
-CREATE TABLE IF NOT EXISTS neon_sync_log (
+CREATE TABLE IF NOT EXISTS log_neon_sync (
     id SERIAL PRIMARY KEY,
     table_name VARCHAR(100) NOT NULL,
     rows_inserted INTEGER,
@@ -54,6 +55,6 @@ CREATE TABLE IF NOT EXISTS neon_sync_log (
 );
 
 -- Comments for documentation
-COMMENT ON TABLE bills_map_aggregates IS 'Pre-aggregated state-level data for policy map (detailed bills in parquet)';
-COMMENT ON COLUMN bills_map_aggregates.sample_bills IS 'JSON array of 3 sample bills per state for tooltips';
-COMMENT ON COLUMN bills_map_aggregates.topic IS 'Bill topic filter (all, dental, health, etc.)';
+COMMENT ON TABLE bill_map_aggregate IS 'Pre-aggregated state-level data for policy map (detailed bills in parquet)';
+COMMENT ON COLUMN bill_map_aggregate.sample_bills IS 'JSON array of 3 sample bills per state for tooltips';
+COMMENT ON COLUMN bill_map_aggregate.topic IS 'Bill topic filter (all, dental, health, etc.)';

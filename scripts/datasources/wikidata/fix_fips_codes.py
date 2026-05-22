@@ -114,8 +114,8 @@ def fix_fips_codes():
         status = "✅" if wrong == 0 else "❌"
         logger.info(f"  {status} {state}: {correct}/{total} correct, {wrong} wrong (expected prefix: {expected})")
     
-    # Test matching with jurisdictions_search
-    logger.info("\n🔗 Testing match with jurisdictions_search:")
+    # Test matching with jurisdiction
+    logger.info("\n🔗 Testing match with jurisdiction:")
     cursor.execute("""
         WITH wiki_counties AS (
             SELECT wikidata_id, jurisdiction_name, state_code, geoid, fips_code
@@ -126,7 +126,7 @@ def fix_fips_codes():
         ),
         search_counties AS (
             SELECT id, name, state_code, geoid, fips_code
-            FROM jurisdictions_search
+            FROM jurisdiction
             WHERE type = 'county' 
               AND state_code IN ('AL', 'GA', 'IN', 'MA', 'WA', 'WI')
               AND geoid IS NOT NULL

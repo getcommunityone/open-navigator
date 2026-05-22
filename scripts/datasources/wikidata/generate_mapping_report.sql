@@ -1,5 +1,5 @@
 -- ============================================================================
--- JURISDICTION MAPPING REPORT: jurisdictions_wikidata → jurisdictions_search
+-- JURISDICTION MAPPING REPORT: jurisdictions_wikidata → jurisdiction
 -- ============================================================================
 -- This report shows how WikiData jurisdictions map to Census Bureau data
 -- 
@@ -8,7 +8,7 @@
 --   -f scripts/datasources/wikidata/generate_mapping_report.sql
 
 \echo '╔══════════════════════════════════════════════════════════════════════════╗'
-\echo '║  JURISDICTION MAPPING REPORT: jurisdictions_wikidata → jurisdictions_search ║'
+\echo '║  JURISDICTION MAPPING REPORT: jurisdictions_wikidata → jurisdiction ║'
 \echo '╚══════════════════════════════════════════════════════════════════════════╝'
 \echo ''
 \echo '📊 OVERALL SUMMARY (6 Dev States: AL, GA, IN, MA, WA, WI)'
@@ -32,7 +32,7 @@ FROM (
         COUNT(DISTINCT CASE WHEN w.wikidata_id IS NULL AND s.id IS NOT NULL THEN s.id END) as census_only,
         'COUNTIES' as jurisdiction_type,
         1 as sort_order
-    FROM jurisdictions_search s
+    FROM jurisdiction s
     FULL OUTER JOIN jurisdictions_wikidata w 
         ON s.geoid = w.geoid AND s.type = 'county' AND w.jurisdiction_type = 'county'
     WHERE (s.state_code IN ('AL', 'GA', 'IN', 'MA', 'WA', 'WI') AND s.type = 'county')
@@ -48,7 +48,7 @@ FROM (
         COUNT(DISTINCT CASE WHEN w.wikidata_id IS NULL AND s.id IS NOT NULL THEN s.id END) as census_only,
         'CITIES' as jurisdiction_type,
         2 as sort_order
-    FROM jurisdictions_search s
+    FROM jurisdiction s
     FULL OUTER JOIN jurisdictions_wikidata w 
         ON (UPPER(TRIM(w.jurisdiction_name)) = UPPER(TRIM(REPLACE(REPLACE(s.name, ' city', ''), ' town', ''))))
         AND w.state_code = s.state_code AND s.type = 'city' AND w.jurisdiction_type = 'city'
@@ -74,7 +74,7 @@ SELECT
     COUNT(DISTINCT CASE WHEN w.wikidata_id IS NULL AND s.id IS NOT NULL THEN s.id END) as "Missing",
     ROUND(COUNT(DISTINCT CASE WHEN s.id IS NOT NULL AND w.wikidata_id IS NOT NULL THEN w.wikidata_id END) * 100.0 / 
           NULLIF(COUNT(DISTINCT s.id), 0), 1) || '%' as "Coverage"
-FROM jurisdictions_search s
+FROM jurisdiction s
 FULL OUTER JOIN jurisdictions_wikidata w 
     ON s.geoid = w.geoid 
     AND s.type = 'county'
@@ -100,7 +100,7 @@ SELECT
     COUNT(DISTINCT CASE WHEN w.wikidata_id IS NULL AND s.id IS NOT NULL THEN s.id END) as "Missing",
     ROUND(COUNT(DISTINCT CASE WHEN s.id IS NOT NULL AND w.wikidata_id IS NOT NULL THEN w.wikidata_id END) * 100.0 / 
           NULLIF(COUNT(DISTINCT s.id), 0), 1) || '%' as "Coverage"
-FROM jurisdictions_search s
+FROM jurisdiction s
 FULL OUTER JOIN jurisdictions_wikidata w 
     ON (
         UPPER(TRIM(w.jurisdiction_name)) = UPPER(TRIM(s.name))
@@ -126,5 +126,5 @@ ORDER BY "State";
 \echo ''
 \echo '  Cities:   0.3% coverage - NOT VIABLE for enrichment'
 \echo '            WikiData has only 32 cities vs 3,940 in Census'
-\echo '            Use jurisdictions_search as primary source'
+\echo '            Use jurisdiction as primary source'
 \echo ''

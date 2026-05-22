@@ -10,9 +10,9 @@ Open Navigator has multiple jurisdiction/organization tables with overlapping da
 
 | Table | Records | Key Fields | Primary Use |
 |-------|---------|------------|-------------|
-| **organizations_locations** | 328,840 | website, state, city, name | Schools, hospitals, law enforcement |
+| **organization_location** | 328,840 | website, state, city, name | Schools, hospitals, law enforcement |
 | **jurisdictions_wikidata** | 431 | official_website, nces_id, geoid, fips_code | Wikidata enrichment |
-| **jurisdictions_search** | 85,302 | geoid, fips_code, name, type, state | Census data |
+| **jurisdiction** | 85,302 | geoid, fips_code, name, type, state | Census data |
 | **jurisdictions_details_search** | 17,219 | website_url, gov_domains, jurisdiction_name | Enriched jurisdiction data |
 
 **Current Issues:**
@@ -45,7 +45,7 @@ CREATE TABLE domain_registry (
 **Example:**
 ```
 domain: "asdk12.org"
-source_table: "organizations_locations"
+source_table: "organization_location"
 source_id: 12345
 source_url: "http://www.asdk12.org"
 jurisdiction_name: "Anchorage School District"
@@ -61,9 +61,9 @@ CREATE TABLE jurisdiction_crosswalk (
     master_jurisdiction_id INTEGER,       -- Link to master record
     
     -- Source IDs
-    org_location_id INTEGER,              -- organizations_locations.id
+    org_location_id INTEGER,              -- organization_location.id
     wikidata_id INTEGER,                  -- jurisdictions_wikidata.id
-    search_id INTEGER,                    -- jurisdictions_search.id
+    search_id INTEGER,                    -- jurisdiction.id
     details_search_id INTEGER,            -- jurisdictions_details_search.id
     
     -- Identifiers
@@ -155,7 +155,7 @@ SELECT
     jw.jurisdiction_name as wiki_name,
     ol.website,
     jw.official_website
-FROM organizations_locations ol
+FROM organization_location ol
 JOIN jurisdictions_wikidata jw ON ol.source_id = jw.nces_id
 WHERE ol.organization_type = 'school_district';
 ```
@@ -181,8 +181,8 @@ SELECT
     ol.state,
     js.name as jurisdiction_name,
     js.type as jurisdiction_type
-FROM organizations_locations ol
-JOIN jurisdictions_search js 
+FROM organization_location ol
+JOIN jurisdiction js 
     ON ol.state = js.state_code
     AND ol.city = js.name
     AND js.type = 'city';
@@ -275,7 +275,7 @@ SELECT
     ol.state,
     ol.organization_type,
     ol.website
-FROM organizations_locations ol
+FROM organization_location ol
 LEFT JOIN jurisdiction_crosswalk jc ON ol.id = jc.org_location_id
 WHERE jc.id IS NULL
   AND ol.organization_type = 'school_district'
@@ -320,7 +320,7 @@ SELECT * FROM master_jurisdictions WHERE canonical_name = 'Anchorage' AND state_
 SELECT mj.* 
 FROM master_jurisdictions mj
 JOIN jurisdiction_crosswalk jc ON mj.id = jc.master_jurisdiction_id
-WHERE jc.org_location_id = 12345;  -- organizations_locations.id
+WHERE jc.org_location_id = 12345;  -- organization_location.id
 ```
 
 ### 5. **Domain-Based Linking**

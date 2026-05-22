@@ -104,7 +104,7 @@ Open Navigator's bronze schema is **fully compatible** with CDP's data model:
 ### Database Tables
 
 Data from CDP should be loaded to:
-- **bronze.bronze_events_search** - Event metadata
+- **bronze.bronze_event** - Event metadata
 - **bronze.bronze_events_text_ai** - Transcripts (if available)
 
 ## 💡 Quick Start Example
@@ -196,7 +196,7 @@ Default: `postgresql://postgres:password@localhost:5433/open_navigator`
 
 Data loaded to:
 - **Schema:** `bronze`
-- **Tables:** `bronze_events_search`, `bronze_events_text_ai`
+- **Tables:** `bronze_event`, `bronze_events_text_ai`
 
 ## 📈 Processing Transcripts
 
@@ -229,13 +229,13 @@ After loading CDP data to bronze:
 1. **Run dbt models** to transform to staging/marts:
    ```bash
    cd dbt_project
-   dbt run --select stg_bronze_events_search events_search
+   dbt run --select stg_bronze_event event
    ```
 
 2. **Verify data**:
    ```sql
    SELECT COUNT(*), source 
-   FROM bronze.bronze_events_search 
+   FROM bronze.bronze_event 
    WHERE source = 'cdp'
    GROUP BY source;
    ```

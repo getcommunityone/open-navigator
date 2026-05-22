@@ -15,7 +15,7 @@ dbt run --select stg_bronze_contacts
 dbt run --select stg_bronze_contacts+
 
 # Run model and all upstream dependencies
-dbt run --select +contacts_search_ai
+dbt run --select +contact_ai
 
 # Full refresh (rebuild from scratch)
 dbt run --full-refresh
@@ -32,7 +32,7 @@ dbt run --select marts
 dbt test
 
 # Test specific model
-dbt test --select contacts_search_ai
+dbt test --select contact_ai
 
 # Test specific type
 dbt test --select test_type:unique
@@ -62,7 +62,7 @@ dbt debug
 dbt compile
 
 # Show SQL for specific model
-dbt compile --select contacts_search_ai
+dbt compile --select contact_ai
 # Then check target/compiled/...
 
 # Preview model results

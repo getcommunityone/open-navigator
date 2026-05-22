@@ -214,9 +214,9 @@ FROM events_channels_search;
 SELECT 
     c.channel_type,
     COUNT(DISTINCT c.channel_id) as channels,
-    COUNT(e.id) as events
+    COUNT(e.event_id) as events
 FROM events_channels_search c
-LEFT JOIN events_search e ON e.channel_id = c.channel_id
+LEFT JOIN event e ON e.channel_id = c.channel_id
 WHERE c.flagged_as_junk = FALSE
 GROUP BY c.channel_type
 ORDER BY events DESC;
