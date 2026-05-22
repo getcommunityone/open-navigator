@@ -46,6 +46,17 @@ if [[ ! -x "$PYTHON" ]]; then
   exit 1
 fi
 
+format_duration() {
+  local total_sec="${1:-0}"
+  if [[ "$total_sec" -lt 0 ]]; then
+    total_sec=0
+  fi
+  local h=$(( total_sec / 3600 ))
+  local m=$(( (total_sec % 3600) / 60 ))
+  local s=$(( total_sec % 60 ))
+  printf '%02d:%02d:%02d' "$h" "$m" "$s"
+}
+
 list_jurisdictions() {
   "$PYTHON" - <<'PY'
 import os
@@ -160,12 +171,33 @@ run_catalog() {
 run_captions() {
   local jid st name
   local processed=0
-  while IFS=$'\t' read -r st jid name; do
+  local success=0
+  local failed=0
+  local -a rows=()
+  mapfile -t rows < <(export STATES DATABASE_URL="${DATABASE_URL:-}" ROUND_ROBIN="${ROUND_ROBIN:-1}"; list_jurisdictions)
+
+  if (( ${#rows[@]} == 0 )); then
+    echo "No jurisdictions found for captions step."
+    return 0
+  fi
+
+  local target_total="${#rows[@]}"
+  if [[ -n "$MAX_JURISDICTIONS" ]] && (( MAX_JURISDICTIONS < target_total )); then
+    target_total="$MAX_JURISDICTIONS"
+  fi
+
+  local start_ts
+  start_ts="$(date +%s)"
+  echo "=== Captions batch: target jurisdictions=$target_total (states=$STATES, N=$N) ==="
+
+  for row in "${rows[@]}"; do
+    IFS=$'\t' read -r st jid name <<< "$row"
     if [[ -n "$MAX_JURISDICTIONS" ]] && (( processed >= MAX_JURISDICTIONS )); then
       echo "Reached MAX_JURISDICTIONS=$MAX_JURISDICTIONS; stopping captions step early."
       break
     fi
-    echo "=== Captions ($N newest): $st — $name ($jid) ==="
+    local idx=$((processed + 1))
+    echo "=== Captions ($N newest) [$idx/$target_total]: $st — $name ($jid) ==="
     local -a cap_args=(
       --jurisdiction-id "$jid"
       --state "$st"
@@ -189,10 +221,30 @@ run_captions() {
       cap_args+=(--dry-run)
     fi
     if ! "$PYTHON" scripts/datasources/youtube/backfill_jurisdiction_transcripts.py "${cap_args[@]}"; then
+      ((failed+=1))
       echo "WARN: captions failed for $jid" >&2
+    else
+      ((success+=1))
     fi
     ((processed+=1))
-  done < <(export STATES DATABASE_URL="${DATABASE_URL:-}" ROUND_ROBIN="${ROUND_ROBIN:-1}"; list_jurisdictions)
+
+    local now elapsed remaining avg_per eta
+    now="$(date +%s)"
+    elapsed=$((now - start_ts))
+    remaining=$((target_total - processed))
+    if (( remaining < 0 )); then
+      remaining=0
+    fi
+    avg_per=0
+    eta=0
+    if (( processed > 0 )); then
+      avg_per=$((elapsed / processed))
+      eta=$((avg_per * remaining))
+    fi
+    echo "--- Progress: done=$processed/$target_total success=$success failed=$failed remaining=$remaining elapsed=$(format_duration "$elapsed") eta=$(format_duration "$eta")"
+  done
+
+  echo "=== Captions complete: processed=$processed success=$success failed=$failed target=$target_total ==="
 }
 
 run_analyze() {

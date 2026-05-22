@@ -91,7 +91,8 @@ class YouTubeEventsLoader:
         transcript_delay: float = 2.0,
         use_ytdlp_fallback: bool = True,
         cookies_file: Optional[str] = None,
-        proxy_url: Optional[str] = None
+        proxy_url: Optional[str] = None,
+        ensure_schema_setup: bool = True,
     ):
         # Sanitize database URL to fix common connection issues (Neon channel_binding)
         self.database_url = self._sanitize_database_url(database_url)
@@ -115,11 +116,12 @@ class YouTubeEventsLoader:
         # Connect to database
         self.conn = psycopg2.connect(self.database_url)
         
-        # Ensure tables and columns exist
-        self._add_jurisdiction_id_column()
-        self._create_bronze_events_text_ai_table()
-        self._create_events_channels_search_table()
-        ensure_bronze_events_channels_link_columns(self.conn)
+        # Ensure tables and columns exist (optional for tight backfill loops).
+        if ensure_schema_setup:
+            self._add_jurisdiction_id_column()
+            self._create_bronze_events_text_ai_table()
+            self._create_events_channels_search_table()
+            ensure_bronze_events_channels_link_columns(self.conn)
     
     def _sanitize_database_url(self, url: str) -> str:
         """Sanitize database URL to fix common connection issues.
@@ -226,7 +228,7 @@ class YouTubeEventsLoader:
                     ADD CONSTRAINT unique_video_url 
                     UNIQUE (video_url);
                 EXCEPTION
-                    WHEN duplicate_object THEN NULL;
+                    WHEN duplicate_object OR duplicate_table THEN NULL;
                 END $$;
             """)
             
@@ -257,7 +259,7 @@ class YouTubeEventsLoader:
                               AND t.relname = 'jurisdiction'
                               AND c.contype IN ('p', 'u')
                             GROUP BY c.oid
-                            HAVING array_agg(a.attname ORDER BY cols.ord) = ARRAY['jurisdiction_id']
+                                                        HAVING array_agg(a.attname::text ORDER BY cols.ord) = ARRAY['jurisdiction_id']
                         ) THEN
                             ALTER TABLE event 
                             ADD CONSTRAINT fk_events_jurisdiction
@@ -267,7 +269,7 @@ class YouTubeEventsLoader:
                         END IF;
                     END IF;
                 EXCEPTION
-                    WHEN duplicate_object THEN NULL;
+                    WHEN duplicate_object OR duplicate_table THEN NULL;
                 END $$;
             """)
             
@@ -537,19 +539,78 @@ class YouTubeEventsLoader:
         states_filter: Optional[List[str]] = None,
         jurisdiction_id: Optional[str] = None,
     ) -> List[Dict]:
-        """Get jurisdictions that have YouTube channels from bronze.bronze_events_youtube."""
+        """Get jurisdictions that have YouTube channels.
+
+        Primary source: ``intermediate.int_events_channels`` joined to
+        ``intermediate.int_jurisdictions`` (broader channel coverage).
+        Fallback: ``bronze.bronze_events_youtube`` when intermediate models are
+        unavailable or empty.
+        """
         cursor = self.conn.cursor(cursor_factory=RealDictCursor)
         
-        # Aggregate YouTube channels from existing bronze_events_youtube table
-        # This gives us all jurisdictions that have YouTube videos
+        try:
+            # Preferred source for full reruns: channel registry resolved by dbt.
+            query_int = """
+                SELECT
+                    j.jurisdiction_id,
+                    j.name AS jurisdiction_name,
+                    j.state_code,
+                    j.state,
+                    j.jurisdiction_type,
+                    jsonb_agg(
+                        DISTINCT jsonb_build_object(
+                            'channel_id', ec.channel_id,
+                            'channel_url', COALESCE(NULLIF(BTRIM(ec.channel_url), ''), 'https://www.youtube.com/channel/' || ec.channel_id),
+                            'channel_title', COALESCE(NULLIF(BTRIM(ec.channel_title), ''), j.name),
+                            'channel_type', COALESCE(NULLIF(BTRIM(ec.channel_type), ''), 'unknown')
+                        )
+                    ) AS youtube_channels,
+                    COUNT(DISTINCT ec.channel_id) AS youtube_channel_count
+                FROM intermediate.int_events_channels ec
+                INNER JOIN intermediate.int_jurisdictions j
+                    ON j.jurisdiction_id = ec.jurisdiction_id
+                WHERE ec.channel_id IS NOT NULL
+                  AND BTRIM(ec.channel_id) <> ''
+                  AND ec.jurisdiction_id IS NOT NULL
+                  AND BTRIM(ec.jurisdiction_id::text) <> ''
+                  AND COALESCE(ec.flagged_as_junk, FALSE) = FALSE
+                  AND COALESCE(ec.is_government, TRUE) = TRUE
+            """
+
+            params_int: list[Any] = []
+            if states_filter:
+                query_int += " AND j.state_code = ANY(%s)"
+                params_int.append(states_filter)
+            if jurisdiction_id:
+                query_int += " AND j.jurisdiction_id = %s"
+                params_int.append(jurisdiction_id.strip())
+
+            query_int += """
+                GROUP BY j.jurisdiction_id, j.name, j.state_code, j.state, j.jurisdiction_type
+                HAVING COUNT(DISTINCT ec.channel_id) > 0
+                ORDER BY youtube_channel_count DESC, jurisdiction_name
+            """
+
+            cursor.execute(query_int, params_int)
+            jurisdictions = cursor.fetchall()
+            if jurisdictions:
+                logger.info(
+                    f"Found {len(jurisdictions)} jurisdictions with YouTube channels (source=intermediate.int_events_channels)"
+                )
+                return jurisdictions
+            logger.warning("No channel mappings in intermediate.int_events_channels; falling back to bronze.bronze_events_youtube")
+
+        except Exception as exc:
+            logger.warning(f"Intermediate channel source unavailable, falling back to bronze: {exc}")
+
+        # Fallback source: existing bronze video rows.
         query = """
-            SELECT 
+            SELECT
                 COALESCE(jurisdiction_id, 'unknown') as jurisdiction_id,
                 jurisdiction_name,
                 state_code,
                 state,
                 jurisdiction_type,
-                -- Aggregate channel data as JSONB array (mimics youtube_channels field)
                 jsonb_agg(
                     DISTINCT jsonb_build_object(
                         'channel_id', channel_id,
@@ -560,9 +621,9 @@ class YouTubeEventsLoader:
                 COUNT(DISTINCT channel_id) as youtube_channel_count
             FROM bronze.bronze_events_youtube
             WHERE channel_id IS NOT NULL
-                AND jurisdiction_name IS NOT NULL
+              AND jurisdiction_name IS NOT NULL
         """
-        
+
         params = []
         if states_filter:
             query += " AND state_code = ANY(%s)"
@@ -576,12 +637,12 @@ class YouTubeEventsLoader:
             HAVING COUNT(DISTINCT channel_id) > 0
             ORDER BY youtube_channel_count DESC, jurisdiction_name
         """
-        
+
         cursor.execute(query, params)
         jurisdictions = cursor.fetchall()
         cursor.close()
-        
-        logger.info(f"Found {len(jurisdictions)} jurisdictions with YouTube channels")
+
+        logger.info(f"Found {len(jurisdictions)} jurisdictions with YouTube channels (source=bronze.bronze_events_youtube)")
         return jurisdictions
     
     def is_channel_flagged(self, channel_id: str) -> tuple[bool, str]:

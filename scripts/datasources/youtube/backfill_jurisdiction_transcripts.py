@@ -920,8 +920,9 @@ def run(args: argparse.Namespace) -> int:
             return 2
         logger.info("Proxy check: {}", msg)
     else:
-        logger.warning(
-            "No YOUTUBE_TRANSCRIPT_PROXY — requests use raw egress (WSL may bypass host VPN)"
+        logger.info(
+            "No explicit YOUTUBE_TRANSCRIPT_PROXY — using default WSL network route. "
+            "If mirrored networking + Surfshark is configured, this is expected."
         )
 
     loader = YouTubeEventsLoader(
@@ -931,6 +932,7 @@ def run(args: argparse.Namespace) -> int:
         use_ytdlp_fallback=not args.no_ytdlp_fallback,
         cookies_file=cookies,
         proxy_url=proxy,
+        ensure_schema_setup=False,
     )
 
     stats = {"ok": 0, "fail": 0, "rate_limit": 0, "empty": 0, "tombstoned": 0}
@@ -967,6 +969,7 @@ def run(args: argparse.Namespace) -> int:
 
     for i, row in enumerate(pending, 1):
         video_id = row["video_id"]
+        test_url = str(row.get("video_url") or "").strip() or f"https://www.youtube.com/watch?v={video_id}"
         if i > 1:
             delay = args.delay
             if consecutive_rl > 0:
@@ -1001,9 +1004,10 @@ def run(args: argparse.Namespace) -> int:
                     )
                     stats["tombstoned"] += 1
                     logger.info(
-                        "Tombstoned {} ({}) — will not retry on future backfills",
+                        "Tombstoned {} ({}) — will not retry on future backfills. Test URL: {}",
                         video_id,
                         reason,
+                        test_url,
                     )
                 else:
                     stats["fail"] += 1
@@ -1051,9 +1055,10 @@ def run(args: argparse.Namespace) -> int:
                 )
                 stats["tombstoned"] += 1
                 logger.info(
-                    "Tombstoned {} ({}) — will not retry on future backfills",
+                    "Tombstoned {} ({}) — will not retry on future backfills. Test URL: {}",
                     video_id,
                     reason,
+                    test_url,
                 )
             else:
                 stats["fail"] += 1
@@ -1073,8 +1078,9 @@ def run(args: argparse.Namespace) -> int:
                 )
                 stats["tombstoned"] += 1
                 logger.info(
-                    "Tombstoned {} (empty_transcript) — will not retry on future backfills",
+                    "Tombstoned {} (empty_transcript) — will not retry on future backfills. Test URL: {}",
                     video_id,
+                    test_url,
                 )
             continue
 
