@@ -230,6 +230,7 @@ models:
     description: >
       YouTube channel registry derived from `int_events_localview` channel_ids,
       enriched with `bronze_events_youtube` URLs (or canonical channel URL),
+      official-homepage YouTube links from `int_jurisdiction_homepage_youtube_channels`,
       `jurisdictions` / `jurisdiction_ids`, and scalar `jurisdiction_id` (first sorted id)
       from `int_localview_channel_geography` joined to `int_jurisdictions`.
       Optional `channel_title`, `channel_description`, `subscriber_count`, `video_count`,
@@ -259,6 +260,25 @@ models:
           `https://www.youtube.com/channel/{channel_id}`.
         tests:
           - not_null
+
+  - name: int_jurisdiction_homepage_youtube_channels
+    description: >
+      Homepage-discovered YouTube channels mapped back to canonical `int_jurisdictions`
+      rows. This table keeps one best jurisdiction candidate per normalized YouTube URL
+      from the scraped jurisdiction homepages and is used as a fallback in
+      `int_events_channels`.
+    columns:
+      - name: channel_url_norm
+        description: "Normalized YouTube URL used as the join key"
+        tests:
+          - unique
+          - not_null
+      - name: jurisdiction_id
+        description: "Canonical jurisdiction id for the homepage-discovered YouTube URL"
+        tests:
+          - not_null
+      - name: discovery_method
+        description: "Always derived_from_homepage_youtube_link for this model"
 
   - name: int_events_channels_enriched
     description: |

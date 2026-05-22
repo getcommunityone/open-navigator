@@ -47,6 +47,40 @@ youtube_meta AS (
     GROUP BY channel_id
 ),
 
+channel_urls AS (
+    SELECT
+        bc.channel_id,
+        COALESCE(
+            NULLIF(BTRIM(ym.channel_url), ''),
+            'https://www.youtube.com/channel/' || bc.channel_id
+        ) AS channel_url,
+        REGEXP_REPLACE(
+            REGEXP_REPLACE(
+                REGEXP_REPLACE(
+                    LOWER(
+                        COALESCE(
+                            NULLIF(BTRIM(ym.channel_url), ''),
+                            'https://www.youtube.com/channel/' || bc.channel_id
+                        )
+                    ),
+                    '^http:',
+                    'https:',
+                    'i'
+                ),
+                '^https://www\.',
+                'https://',
+                'i'
+            ),
+            '/+$',
+            '',
+            'g'
+        ) AS channel_url_norm,
+        ym.channel_type,
+        ym.last_updated
+    FROM base_channels bc
+    LEFT JOIN youtube_meta ym ON bc.channel_id = ym.channel_id
+),
+
 localview_meta AS (
     SELECT
         channel_id,
@@ -163,10 +197,202 @@ jurisdiction_catalog AS (
         state_code,
         state,
         jurisdiction_type,
+        geoid,
         name AS jurisdiction_name,
-        regexp_replace(lower(name), '[^a-z0-9]+', '', 'g') AS jurisdiction_name_compact
+        regexp_replace(lower(name), '[^a-z0-9]+', '', 'g') AS jurisdiction_name_compact,
+        regexp_replace(
+            regexp_replace(
+                lower(name),
+                '\\m(city|town|county|cdp|borough|village|township|municipality|district|school)\\M',
+                ' ',
+                'g'
+            ),
+            '[^a-z0-9]+',
+            '',
+            'g'
+        ) AS jurisdiction_base_compact
     FROM {{ ref('int_jurisdictions') }}
     WHERE jurisdiction_type IN ('municipality', 'county', 'school_district', 'township')
+),
+
+channel_place_counts AS (
+    SELECT
+        channel_id,
+        state_code,
+        jurisdiction_name,
+        COUNT(*) AS event_count
+    FROM {{ ref('int_events_localview') }}
+    WHERE channel_id IS NOT NULL
+      AND channel_id != ''
+      AND state_code IS NOT NULL
+      AND state_code != ''
+      AND jurisdiction_name IS NOT NULL
+      AND BTRIM(jurisdiction_name) != ''
+    GROUP BY channel_id, state_code, jurisdiction_name
+),
+
+channel_place_ranked AS (
+    SELECT
+        cpc.channel_id,
+        cpc.state_code,
+        cpc.jurisdiction_name,
+        cpc.event_count,
+        SUM(cpc.event_count) OVER (PARTITION BY cpc.channel_id) AS total_event_count,
+        ROW_NUMBER() OVER (
+            PARTITION BY cpc.channel_id
+            ORDER BY cpc.event_count DESC, cpc.jurisdiction_name
+        ) AS rn,
+        LEAD(cpc.event_count) OVER (
+            PARTITION BY cpc.channel_id
+            ORDER BY cpc.event_count DESC, cpc.jurisdiction_name
+        ) AS next_event_count
+    FROM channel_place_counts cpc
+),
+
+channel_place_dominant AS (
+    SELECT
+        channel_id,
+        state_code,
+        jurisdiction_name,
+        event_count,
+        total_event_count,
+        COALESCE(event_count::DOUBLE PRECISION / NULLIF(total_event_count, 0), 0.0) AS dominance_ratio,
+        next_event_count,
+        regexp_replace(lower(jurisdiction_name), '[^a-z0-9]+', '', 'g') AS jurisdiction_name_compact,
+        regexp_replace(
+            regexp_replace(
+                lower(jurisdiction_name),
+                '\\m(city|town|county|cdp|borough|village|township|municipality|district|school)\\M',
+                ' ',
+                'g'
+            ),
+            '[^a-z0-9]+',
+            '',
+            'g'
+        ) AS jurisdiction_base_compact,
+        CASE
+            WHEN lower(jurisdiction_name) LIKE '%school%' OR lower(jurisdiction_name) LIKE '%district%'
+                THEN 'school_district'
+            WHEN lower(jurisdiction_name) LIKE '%county%'
+                THEN 'county'
+            WHEN lower(jurisdiction_name) LIKE '%township%'
+                THEN 'township'
+            WHEN lower(jurisdiction_name) LIKE '%city%'
+              OR lower(jurisdiction_name) LIKE '%town%'
+              OR lower(jurisdiction_name) LIKE '%village%'
+              OR lower(jurisdiction_name) LIKE '%borough%'
+              OR lower(jurisdiction_name) LIKE '%municipal%'
+                THEN 'municipality'
+            ELSE 'unknown'
+        END AS dominant_label_type
+    FROM channel_place_ranked
+    WHERE rn = 1
+      AND event_count >= 3
+      AND COALESCE(event_count::DOUBLE PRECISION / NULLIF(total_event_count, 0), 0.0) >= 0.60
+      AND (
+            next_event_count IS NULL
+            OR event_count - next_event_count >= 2
+          )
+),
+
+event_name_match_candidates AS (
+    SELECT
+        cpd.channel_id,
+        jc.jurisdiction_id,
+        jc.state_code,
+        jc.state,
+        jc.jurisdiction_type,
+        jc.jurisdiction_name,
+        jc.geoid,
+        cpd.event_count,
+        cpd.total_event_count,
+        cpd.dominance_ratio,
+        CASE
+            WHEN cpd.jurisdiction_name_compact = jc.jurisdiction_name_compact THEN 0.90
+            WHEN cpd.jurisdiction_base_compact != ''
+             AND cpd.jurisdiction_base_compact = jc.jurisdiction_base_compact THEN 0.92
+            WHEN cpd.jurisdiction_name_compact LIKE '%' || jc.jurisdiction_name_compact || '%' THEN 0.86
+            WHEN jc.jurisdiction_name_compact LIKE '%' || cpd.jurisdiction_name_compact || '%' THEN 0.82
+            ELSE 0.0
+        END
+        + CASE
+            WHEN cpd.dominant_label_type = jc.jurisdiction_type THEN 0.04
+            WHEN cpd.dominant_label_type = 'county' AND jc.jurisdiction_type = 'township' THEN 0.015
+            WHEN cpd.dominant_label_type = 'municipality' AND jc.jurisdiction_type = 'township' THEN 0.01
+            ELSE 0.0
+        END
+        + LEAST(0.10, cpd.dominance_ratio * 0.10)
+        + CASE
+            WHEN cpd.event_count >= 100 THEN 0.04
+            WHEN cpd.event_count >= 25 THEN 0.03
+            WHEN cpd.event_count >= 10 THEN 0.02
+            ELSE 0.0
+        END AS match_score
+    FROM channel_place_dominant cpd
+    INNER JOIN jurisdiction_catalog jc
+        ON jc.state_code = cpd.state_code
+          AND (
+              cpd.dominant_label_type = 'school_district'
+              OR jc.jurisdiction_type != 'school_district'
+          )
+       AND (
+            cpd.jurisdiction_name_compact = jc.jurisdiction_name_compact
+            OR (
+                cpd.jurisdiction_base_compact != ''
+                AND cpd.jurisdiction_base_compact = jc.jurisdiction_base_compact
+            )
+            OR cpd.jurisdiction_name_compact LIKE '%' || jc.jurisdiction_name_compact || '%'
+            OR jc.jurisdiction_name_compact LIKE '%' || cpd.jurisdiction_name_compact || '%'
+       )
+),
+
+event_name_best_match AS (
+    SELECT
+        channel_id,
+        jurisdiction_id,
+        state_code,
+        state,
+        jurisdiction_type,
+        jurisdiction_name,
+        geoid,
+        match_score
+    FROM (
+        SELECT
+            enmc.*,
+            ROW_NUMBER() OVER (
+                PARTITION BY channel_id
+                ORDER BY match_score DESC, jurisdiction_id
+            ) AS rn,
+            LEAD(match_score) OVER (
+                PARTITION BY channel_id
+                ORDER BY match_score DESC, jurisdiction_id
+            ) AS next_score
+        FROM event_name_match_candidates enmc
+        WHERE match_score >= 0.95
+    ) ranked
+    WHERE rn = 1
+      AND (next_score IS NULL OR match_score - next_score >= 0.03)
+),
+
+event_name_jurisdictions AS (
+    SELECT
+        e.channel_id,
+        jsonb_build_array(
+            jsonb_build_object(
+                'jurisdiction_id', e.jurisdiction_id,
+                'jurisdiction_name', e.jurisdiction_name,
+                'state_code', e.state_code,
+                'state', e.state,
+                'jurisdiction_type', e.jurisdiction_type,
+                'geoid', e.geoid
+            )
+        ) AS jurisdictions,
+        ARRAY[e.jurisdiction_id] AS jurisdiction_ids,
+        e.jurisdiction_id,
+        e.state_code,
+        e.state,
+        e.match_score AS confidence_score
+    FROM event_name_best_match e
 ),
 
 title_match_candidates AS (
@@ -250,6 +476,45 @@ title_jurisdictions AS (
         t.state,
         t.match_score AS confidence_score
     FROM title_best_match t
+),
+
+homepage_jurisdictions AS (
+    SELECT
+        h.channel_id,
+        h.channel_url_norm,
+        h.channel_url,
+        jsonb_build_array(
+            jsonb_build_object(
+                'jurisdiction_id', h.jurisdiction_id,
+                'jurisdiction_name', h.jurisdiction_name,
+                'state_code', h.state_code,
+                'state', h.state,
+                'jurisdiction_type', h.jurisdiction_type,
+                'geoid', h.geoid
+            )
+        ) AS jurisdictions,
+        ARRAY[h.jurisdiction_id] AS jurisdiction_ids,
+        h.jurisdiction_id,
+        h.state_code,
+        h.state,
+        h.confidence_score,
+        h.discovery_method
+    FROM (
+        SELECT
+            h.*,
+            ROW_NUMBER() OVER (
+                PARTITION BY h.channel_id
+                ORDER BY
+                    h.confidence_score DESC,
+                    h.video_count DESC,
+                    h.candidate_count ASC,
+                    h.jurisdiction_id
+            ) AS rn
+        FROM {{ ref('int_jurisdiction_homepage_youtube_channels') }} h
+        WHERE h.channel_id IS NOT NULL
+          AND h.channel_id != ''
+    ) h
+    WHERE h.rn = 1
 ),
 
 /*
@@ -352,12 +617,9 @@ jurisdictions_by_channel AS (
 SELECT
     bc.channel_id AS id,
     bc.channel_id,
-    COALESCE(
-        NULLIF(BTRIM(ym.channel_url), ''),
-        'https://www.youtube.com/channel/' || bc.channel_id
-    ) AS channel_url,
+    cu.channel_url,
     bec.channel_title AS channel_title,
-    ym.channel_type,
+    cu.channel_type,
     bec.subscriber_count::BIGINT AS subscriber_count,
     bec.video_count::BIGINT AS video_count,
     bec.view_count::BIGINT AS view_count,
@@ -367,29 +629,33 @@ SELECT
 
     -- Source flags (which datasets validate this channel)
     TRUE          AS in_localview,
-    (jbc.jurisdictions IS NOT NULL OR tj.jurisdictions IS NOT NULL) AS in_jurisdictions_details,
-    FALSE         AS on_public_website,
+    (jbc.jurisdictions IS NOT NULL OR hj.jurisdictions IS NOT NULL OR enj.jurisdictions IS NOT NULL OR tj.jurisdictions IS NOT NULL) AS in_jurisdictions_details,
+    (hj.jurisdictions IS NOT NULL) AS on_public_website,
     FALSE         AS in_wikidata,
 
     -- Discovery information
     CASE
         WHEN jbc.jurisdictions IS NOT NULL THEN 'derived_from_localview'
+        WHEN hj.jurisdictions IS NOT NULL THEN 'derived_from_homepage_youtube_link'
+        WHEN enj.jurisdictions IS NOT NULL THEN 'derived_from_localview_event_name'
         WHEN tj.jurisdictions IS NOT NULL THEN 'derived_from_title_match'
         ELSE 'derived_from_localview'
     END::TEXT AS discovery_method,
     NULL::DATE                    AS discovery_date,
     CASE
         WHEN jbc.jurisdictions IS NOT NULL THEN 0.85::DOUBLE PRECISION
+        WHEN hj.jurisdictions IS NOT NULL THEN hj.confidence_score
+        WHEN enj.jurisdictions IS NOT NULL THEN enj.confidence_score
         WHEN tj.jurisdictions IS NOT NULL THEN tj.confidence_score
         ELSE 0.5::DOUBLE PRECISION
     END AS confidence_score,
 
     -- Jurisdiction associations (JSONB array of resolved int_jurisdictions rows)
-    COALESCE(jbc.jurisdictions, tj.jurisdictions) AS jurisdictions,
-    COALESCE(jbc.jurisdiction_ids, tj.jurisdiction_ids) AS jurisdiction_ids,
-    COALESCE((jbc.jurisdiction_ids)[1], tj.jurisdiction_id)::TEXT AS jurisdiction_id,
-    COALESCE((jbc.state_codes)[1], tj.state_code)::TEXT AS state_code,
-    COALESCE((jbc.states)[1], tj.state)::TEXT AS state,
+    COALESCE(jbc.jurisdictions, hj.jurisdictions, enj.jurisdictions, tj.jurisdictions) AS jurisdictions,
+    COALESCE(jbc.jurisdiction_ids, hj.jurisdiction_ids, enj.jurisdiction_ids, tj.jurisdiction_ids) AS jurisdiction_ids,
+    COALESCE((jbc.jurisdiction_ids)[1], hj.jurisdiction_id, enj.jurisdiction_id, tj.jurisdiction_id)::TEXT AS jurisdiction_id,
+    COALESCE((jbc.state_codes)[1], hj.state_code, enj.state_code, tj.state_code)::TEXT AS state_code,
+    COALESCE((jbc.states)[1], hj.state, enj.state, tj.state)::TEXT AS state,
 
     -- Quality indicators
     NULL::BOOLEAN AS is_verified,
@@ -399,11 +665,13 @@ SELECT
 
     -- Timestamps
     lm.loaded_at,
-    COALESCE(ym.last_updated, lm.loaded_at) AS last_updated
+    COALESCE(cu.last_updated, lm.loaded_at) AS last_updated
 
 FROM base_channels bc
-LEFT JOIN youtube_meta ym ON bc.channel_id = ym.channel_id
+LEFT JOIN channel_urls cu ON bc.channel_id = cu.channel_id
 LEFT JOIN localview_meta lm ON bc.channel_id = lm.channel_id
 LEFT JOIN channels_bronze bec ON bc.channel_id = bec.channel_id
 LEFT JOIN jurisdictions_by_channel jbc ON bc.channel_id = jbc.channel_id
+LEFT JOIN homepage_jurisdictions hj ON bc.channel_id = hj.channel_id
+LEFT JOIN event_name_jurisdictions enj ON bc.channel_id = enj.channel_id
 LEFT JOIN title_jurisdictions tj ON bc.channel_id = tj.channel_id
