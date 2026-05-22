@@ -246,11 +246,25 @@ class YouTubeEventsLoader:
                           AND table_name = 'jurisdiction'
                           AND column_name = 'jurisdiction_id'
                     ) THEN
-                        ALTER TABLE event 
-                        ADD CONSTRAINT fk_events_jurisdiction
-                        FOREIGN KEY (jurisdiction_id) 
-                        REFERENCES jurisdiction(jurisdiction_id)
-                        ON DELETE SET NULL;
+                        IF EXISTS (
+                            SELECT 1
+                            FROM pg_constraint c
+                            JOIN pg_class t ON t.oid = c.conrelid
+                            JOIN pg_namespace n ON n.oid = t.relnamespace
+                            JOIN unnest(c.conkey) WITH ORDINALITY AS cols(attnum, ord) ON TRUE
+                            JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = cols.attnum
+                            WHERE n.nspname = 'public'
+                              AND t.relname = 'jurisdiction'
+                              AND c.contype IN ('p', 'u')
+                            GROUP BY c.oid
+                            HAVING array_agg(a.attname ORDER BY cols.ord) = ARRAY['jurisdiction_id']
+                        ) THEN
+                            ALTER TABLE event 
+                            ADD CONSTRAINT fk_events_jurisdiction
+                            FOREIGN KEY (jurisdiction_id) 
+                            REFERENCES jurisdiction(jurisdiction_id)
+                            ON DELETE SET NULL;
+                        END IF;
                     END IF;
                 EXCEPTION
                     WHEN duplicate_object THEN NULL;

@@ -15,6 +15,9 @@
 #   STATES=AL,GA,IN,MA,MT,WA,WI
 #   COOKIES=youtube_cookies.txt
 #   DELAY=10
+#   MAX_JURISDICTIONS=50   — cap per run (round-robin order preserved)
+#   NO_CLEAR_TOMBSTONES=1  — pass --no-clear-tombstones (avoid retrying old permanent misses)
+#   SKIP_PROBE=1           — pass --skip-probe (faster; fewer per-jurisdiction probe calls)
 #   DRY_RUN=1          — print jurisdictions / dry-run loaders only
 #   SKIP_CATALOG=1     — skip step 1
 #   CATALOG_FORCE=1    — pass --force (last N videos, not incremental-only-after-last insert)
@@ -34,6 +37,7 @@ DAYS="${DAYS:-}"
 COOKIES="${COOKIES:-youtube_cookies.txt}"
 DELAY="${DELAY:-10}"
 STEP="${1:-all}"
+MAX_JURISDICTIONS="${MAX_JURISDICTIONS:-}"
 
 if [[ ! -x "$PYTHON" ]]; then
   echo "Missing $PYTHON — create .venv first." >&2
@@ -149,7 +153,12 @@ run_catalog() {
 
 run_captions() {
   local jid st name
+  local processed=0
   while IFS=$'\t' read -r st jid name; do
+    if [[ -n "$MAX_JURISDICTIONS" ]] && (( processed >= MAX_JURISDICTIONS )); then
+      echo "Reached MAX_JURISDICTIONS=$MAX_JURISDICTIONS; stopping captions step early."
+      break
+    fi
     echo "=== Captions ($N newest): $st — $name ($jid) ==="
     local -a cap_args=(
       --jurisdiction-id "$jid"
@@ -158,6 +167,12 @@ run_captions() {
       --order-by published_at
       --delay "$DELAY"
     )
+    if [[ -n "${NO_CLEAR_TOMBSTONES:-}" ]]; then
+      cap_args+=(--no-clear-tombstones)
+    fi
+    if [[ -n "${SKIP_PROBE:-}" ]]; then
+      cap_args+=(--skip-probe)
+    fi
     if [[ -f "$COOKIES" ]]; then
       cap_args+=(--cookies "$COOKIES")
     fi
@@ -167,6 +182,7 @@ run_captions() {
     if ! "$PYTHON" scripts/datasources/youtube/backfill_jurisdiction_transcripts.py "${cap_args[@]}"; then
       echo "WARN: captions failed for $jid" >&2
     fi
+    ((processed+=1))
   done < <(export STATES DATABASE_URL="${DATABASE_URL:-}" ROUND_ROBIN="${ROUND_ROBIN:-1}"; list_jurisdictions)
 }
 
@@ -196,11 +212,16 @@ run_analyze() {
 # One jurisdiction at a time (round-robin list order): catalog (optional) → captions → analyze.
 run_each_jurisdiction() {
   local -a cat_extra=()
+  local processed=0
   if [[ -n "$DAYS" ]]; then
     cat_extra+=(--days "$DAYS")
   fi
   local st jid name
   while IFS=$'\t' read -r st jid name; do
+    if [[ -n "$MAX_JURISDICTIONS" ]] && (( processed >= MAX_JURISDICTIONS )); then
+      echo "Reached MAX_JURISDICTIONS=$MAX_JURISDICTIONS; stopping each step early."
+      break
+    fi
     echo "=== Pipeline ($N newest): $st — $name ($jid) ==="
     if [[ -z "${SKIP_CATALOG:-}" ]]; then
       if [[ -n "${DRY_RUN:-}" ]]; then
@@ -230,6 +251,12 @@ run_each_jurisdiction() {
       --order-by published_at
       --delay "$DELAY"
     )
+    if [[ -n "${NO_CLEAR_TOMBSTONES:-}" ]]; then
+      cap_args+=(--no-clear-tombstones)
+    fi
+    if [[ -n "${SKIP_PROBE:-}" ]]; then
+      cap_args+=(--skip-probe)
+    fi
     if [[ -f "$COOKIES" ]]; then
       cap_args+=(--cookies "$COOKIES")
     fi
@@ -254,6 +281,7 @@ run_each_jurisdiction() {
         echo "WARN: analyze failed for $jid (exit $ec)" >&2
       fi
     fi
+    ((processed+=1))
   done < <(export STATES DATABASE_URL="${DATABASE_URL:-}" ROUND_ROBIN="${ROUND_ROBIN:-1}"; list_jurisdictions)
 }
 
