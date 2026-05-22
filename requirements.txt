@@ -11,6 +11,8 @@ selenium==4.16.0
 playwright==1.52.0
 playwright-stealth==2.0.3
 httpx>=0.25.0
+crawl4ai>=0.4.0          # AI-friendly crawler (browser + LLM extraction); needs `crawl4ai-setup` once after install
+litellm>=1.40.0          # crawl4ai backend for non-OpenAI providers (Groq, Gemini, Anthropic, ...)
 socksio>=1.0.0  # needed for httpx SOCKS proxies (socks5://...)
 aiohttp==3.9.1
 youtube-transcript-api>=0.6.2

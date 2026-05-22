@@ -36,6 +36,7 @@ from scripts.discovery.contacts_bundle import build_contacts_bundle
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _GA_COUNTY_CACHE = _REPO_ROOT / "data" / "cache" / "scraped_meetings" / "GA" / "county"
+_FIXTURE_DIR = _REPO_ROOT / "tests" / "fixtures" / "contact_extract"
 
 # First 10 GA counties alphabetically by FIPS (5-digit state+county code).
 FIRST_10_GA_COUNTIES: Tuple[str, ...] = (
@@ -178,6 +179,37 @@ def test_contact_scraper_regression_first_10_ga_counties(county: str) -> None:
     shared = actual_map.keys() & golden_map.keys()
     mismatched = {em: (actual_map[em], golden_map[em]) for em in shared if actual_map[em] != golden_map[em]}
     assert not mismatched, f"{county}: email→name mapping drifted: {mismatched}"
+
+
+def test_applingcountyga_commissioners_page_extracts_all_seven() -> None:
+    """Extractor must recover every commissioner named on the Appling County BOC page.
+
+    Fixture: cached snapshot of https://applingcountyga.org/?page_id=1464. The page
+    lists the seven officials in two prose paragraphs ("L – R Standing …" /
+    "L – R Seated …") separated by semicolons. If the extractor stops finding any
+    of them, this test fails — it pins the expected output so prose-style rosters
+    do not silently regress to just the JSON-LD author block.
+    """
+    html = (_FIXTURE_DIR / "applingcountyga_commissioners.html").read_text(encoding="utf-8")
+    page_url = "https://applingcountyga.org/?page_id=1464"
+
+    rows = extract_structured_contacts_from_html(html, page_url)
+    extracted_names = {str(r.get("person_name") or "").strip().lower() for r in rows if r.get("person_name")}
+
+    expected_names = {
+        "reid lovett",
+        "daryl edwards",
+        "jakharis jones",
+        "chad kent",
+        "leslie burch",
+        "randy sellers",
+        "ricky barnes",
+    }
+    missing = expected_names - extracted_names
+    assert not missing, (
+        f"applingcountyga.org/?page_id=1464: extractor missed {sorted(missing)}; "
+        f"got {sorted(extracted_names)}"
+    )
 
 
 def test_qualifying_county_count_does_not_shrink() -> None:
