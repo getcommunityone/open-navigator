@@ -61,7 +61,7 @@ channels_bronze AS (
     SELECT
         channel_id,
         MAX(NULLIF(BTRIM(channel_title), '')) AS channel_title,
-        MAX(channel_external_links) AS channel_external_links,
+        MAX(channel_external_links::text)::jsonb AS channel_external_links,
         MAX(subscriber_count) AS subscriber_count,
         MAX(video_count) AS video_count,
         MAX(view_count) AS view_count,
