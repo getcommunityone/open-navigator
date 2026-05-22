@@ -29,6 +29,12 @@ _NON_PERSON_PROFILE_NAME_RE = re.compile(
     r")\b"
 )
 
+_NON_PERSON_PROFILE_URL_RE = re.compile(
+    r"(?is)(/assets/images/iconshare|/common/images/calendar/closebutton|"
+    r"/common/images/getacro\.gif|homeiconminutes|iconshare(?:facebook|twitter|email)|"
+    r"documentid=161\b|documentid=231\b)"
+)
+
 
 def _is_person_profile_image_record(img: Dict[str, Any]) -> bool:
     if img.get("error"):
@@ -36,7 +42,10 @@ def _is_person_profile_image_record(img: Dict[str, Any]) -> bool:
     if not img.get("saved_filename"):
         return False
     pname = str(img.get("person_name") or "").strip()
+    iurl = str(img.get("image_url") or "").strip().lower()
     if not pname:
+        return False
+    if _NON_PERSON_PROFILE_URL_RE.search(iurl):
         return False
     if _NON_PERSON_PROFILE_NAME_RE.search(pname):
         return False
