@@ -181,20 +181,94 @@ def test_contact_scraper_regression_first_10_ga_counties(county: str) -> None:
     assert not mismatched, f"{county}: email→name mapping drifted: {mismatched}"
 
 
-def test_applingcountyga_commissioners_page_extracts_all_seven() -> None:
-    """Extractor must recover every commissioner named on the Appling County BOC page.
+_APPLING_DIR = _GA_COUNTY_CACHE / "appling_13001"
+_APPLING_TARGET_DOMAIN = "applingcountyga.org"
+_APPLING_TARGET_URL_FRAGMENT = "page_id=1464"
+_APPLING_EXPECTED_NAMES = frozenset({
+    "reid lovett",
+    "daryl edwards",
+    "jakharis jones",
+    "chad kent",
+    "leslie burch",
+    "randy sellers",
+    "ricky barnes",
+})
 
-    Fixture: cached snapshot of https://applingcountyga.org/?page_id=1464. The page
-    lists the seven officials in two prose paragraphs ("L – R Standing …" /
-    "L – R Seated …") separated by semicolons. If the extractor stops finding any
-    of them, this test fails — it pins the expected output so prose-style rosters
-    do not silently regress to just the JSON-LD author block.
+
+def test_appling_cache_proves_commissioners_page_was_crawled_and_extracted() -> None:
+    """Offline regression on appling_13001/: cache must show the BOC page was reached.
+
+    Fails unless Appling County's scraped-meetings cache demonstrates the full chain:
+      1. ``applingcountyga.org`` is listed in ``homepage_url_candidates`` (candidate
+         discovery added the real county domain — not just Baxley / applingcounty.gov).
+      2. A URL containing ``applingcountyga.org`` AND ``page_id=1464`` appears in
+         ``pages_fetched`` (the slow site was crawled deeply enough to reach the BOC
+         roster page at https://applingcountyga.org/?page_id=1464).
+      3. All seven officials named on that page appear in the rebuilt contacts bundle
+         (Reid Lovett, Daryl Edwards, Jakharis Jones, Chad Kent, Leslie Burch,
+         Randy Sellers, Ricky Barnes) — the extractor handled the two prose paragraphs
+         ("L – R Standing …" / "L – R Seated …") separated by semicolons.
+
+    If this test fails, the fix is upstream in the scrape pipeline (extend Appling's
+    homepage candidates, give the crawler enough patience for the slow host, and let
+    the AI extractor at the resulting HTML) — not in this assertion.
     """
-    html = (_FIXTURE_DIR / "applingcountyga_commissioners.html").read_text(encoding="utf-8")
-    page_url = "https://applingcountyga.org/?page_id=1464"
+    manifest_path = _APPLING_DIR / "_manifest.json"
+    assert manifest_path.is_file(), (
+        f"appling_13001: missing _manifest.json at {manifest_path} — crawl never ran"
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 
-    rows = extract_structured_contacts_from_html(html, page_url)
-    extracted_names = {str(r.get("person_name") or "").strip().lower() for r in rows if r.get("person_name")}
+    candidates = [str(c) for c in (manifest.get("homepage_url_candidates") or [])]
+    assert any(_APPLING_TARGET_DOMAIN in c for c in candidates), (
+        f"appling_13001: homepage_url_candidates does not include {_APPLING_TARGET_DOMAIN!r}; "
+        f"got {candidates}. Candidate discovery must add the real county domain."
+    )
+
+    pages_fetched = [str(u) for u in (manifest.get("pages_fetched") or [])]
+    matching = [
+        u for u in pages_fetched
+        if _APPLING_TARGET_DOMAIN in u and _APPLING_TARGET_URL_FRAGMENT in u
+    ]
+    assert matching, (
+        f"appling_13001: no fetched page matches {_APPLING_TARGET_DOMAIN}/?{_APPLING_TARGET_URL_FRAGMENT}. "
+        f"Pages fetched: {pages_fetched}. The crawler must reach the BOC roster page."
+    )
+
+    bundle = _regenerate_contacts_bundle(_APPLING_DIR)
+    extracted_names = {
+        str(r.get("person_name") or "").strip().lower()
+        for r in bundle.get("contacts", [])
+        if r.get("person_name")
+    }
+    missing = _APPLING_EXPECTED_NAMES - extracted_names
+    assert not missing, (
+        f"appling_13001: contacts bundle missing {sorted(missing)} from "
+        f"https://{_APPLING_TARGET_DOMAIN}/?{_APPLING_TARGET_URL_FRAGMENT}; "
+        f"got {sorted(extracted_names)}"
+    )
+
+
+def test_applingcountyga_commissioners_page_extracts_all_seven() -> None:
+    """AI extractor must recover every official named on the Appling County BOC page.
+
+    Live-fetches https://applingcountyga.org/?page_id=1464 via crawl4ai + Groq LLM
+    extraction (``scripts.discovery.contact_extract_crawl4ai``). The page lists the
+    seven officials in two prose paragraphs ("L – R Standing …" / "L – R Seated …")
+    separated by semicolons — a pattern the heuristic HTML extractor cannot follow.
+    Skipped when ``GROQ_API_KEY`` is unset so this stays green in CI without keys.
+    """
+    import os
+
+    if not os.getenv("GROQ_API_KEY"):
+        pytest.skip("GROQ_API_KEY not set; skipping live AI extraction test")
+
+    from scripts.discovery.contact_extract_crawl4ai import extract_contact_directory_sync
+
+    directory = extract_contact_directory_sync("https://applingcountyga.org/?page_id=1464")
+    extracted_names = {
+        (rec.name or "").strip().lower() for rec in directory.contacts if rec.name
+    }
 
     expected_names = {
         "reid lovett",
@@ -207,8 +281,152 @@ def test_applingcountyga_commissioners_page_extracts_all_seven() -> None:
     }
     missing = expected_names - extracted_names
     assert not missing, (
-        f"applingcountyga.org/?page_id=1464: extractor missed {sorted(missing)}; "
+        f"applingcountyga.org/?page_id=1464: AI extractor missed {sorted(missing)}; "
         f"got {sorted(extracted_names)}"
+    )
+
+
+_BAKER_DIR = _GA_COUNTY_CACHE / "baker_13007"
+_BAKER_BOC_PAGE_URL = "https://www.bakercountyga.com/board-of-commissioners-1"
+_BAKER_EXPECTED_NAMES = frozenset({
+    "connie hobbs",
+    "vann irvin",
+    "matt bryan",
+    "tommy rentz",
+    "chris moore",
+})
+_BAKER_EXPECTED_HEADSHOTS = frozenset({
+    "headshot_ConnieHobbs-768x1024_edited.jpg",
+    "headshot_VannIrvin-768x1024_edited.jpg",
+    "headshot_MattBryan-768x1024_edited.jpg",
+    "headshot_TommyRentz-768x1024_edited.jpg",
+})
+
+
+def test_baker_cache_proves_commissioners_page_was_crawled_and_extracted() -> None:
+    """Offline regression on baker_13007/: BOC page must yield all 5 commissioners.
+
+    Baker County's board-of-commissioners-1 page (Wix-built) lists the 5 commissioners
+    as ``<h2>Name, District</h2>`` headings paired with ``<img alt="headshot_<Name>-...
+    _edited.jpg">`` tags. The cached snapshot
+    (``page__board-of-commissioners-1.html``) contains every name and headshot today,
+    but the structured extractor currently recovers none of them.
+
+    This test fails until the rebuilt bundle includes:
+      1. ``board-of-commissioners-1`` in ``pages_fetched`` (proves the crawl reached it),
+      2. ``person_name`` rows for all five commissioners (Connie Hobbs, Vann Irvin,
+         Matt Bryan, Tommy Rentz, Chris Moore), and
+      3. the four named headshot filenames referenced on that page
+         (ConnieHobbs / VannIrvin / MattBryan / TommyRentz).
+
+    If this test fails, the fix is upstream: teach the Wix-style HTML extractor to
+    pair adjacent rich-text headings with their sibling headshot ``<img>`` and to
+    resolve ``srcSet`` URLs against ``static.wixstatic.com`` (the manifest currently
+    records them rooted at the county domain, which 404s).
+    """
+    manifest_path = _BAKER_DIR / "_manifest.json"
+    assert manifest_path.is_file(), (
+        f"baker_13007: missing _manifest.json at {manifest_path} — crawl never ran"
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    pages_fetched = [str(u) for u in (manifest.get("pages_fetched") or [])]
+    assert _BAKER_BOC_PAGE_URL in pages_fetched, (
+        f"baker_13007: {_BAKER_BOC_PAGE_URL} not in pages_fetched; "
+        f"got {pages_fetched}. The crawler must reach the BOC page."
+    )
+
+    bundle = _regenerate_contacts_bundle(_BAKER_DIR)
+    extracted_names = {
+        str(r.get("person_name") or "").strip().lower()
+        for r in bundle.get("contacts", [])
+        if r.get("person_name")
+    }
+    missing_names = _BAKER_EXPECTED_NAMES - extracted_names
+    assert not missing_names, (
+        f"baker_13007: contacts bundle missing {sorted(missing_names)} from "
+        f"{_BAKER_BOC_PAGE_URL}; got {sorted(extracted_names)}"
+    )
+
+    bundle_blob = json.dumps(bundle, ensure_ascii=False)
+    missing_headshots = sorted(
+        h for h in _BAKER_EXPECTED_HEADSHOTS if h not in bundle_blob
+    )
+    assert not missing_headshots, (
+        f"baker_13007: rebuilt bundle does not reference headshot filenames "
+        f"{missing_headshots} from {_BAKER_BOC_PAGE_URL}"
+    )
+
+
+_BERRIEN_DIR = _GA_COUNTY_CACHE / "berrien_13019"
+_BERRIEN_BOC_PAGE_URL = "https://berriencountygeorgia.com/commissioners/"
+_BERRIEN_EXPECTED_COMMISSIONERS: Tuple[Tuple[str, str], ...] = (
+    ("john nugent", "district 1"),
+    ("ronnie gaskins", "district 2"),
+    ("jimmy parker", "district 3"),
+    ("kylon fort", "district 4"),
+    ("david harrod", "district 5"),
+)
+
+
+def test_berrien_cache_proves_commissioners_page_was_crawled_and_extracted() -> None:
+    """Offline regression on berrien_13019/: BOC page must yield exactly 5 commissioners.
+
+    Berrien County's commissioners page (Elementor-built WordPress) lists the 5
+    commissioners as ``elementor-image-box`` blocks pairing
+    ``<h3 class="elementor-image-box-title">Name</h3>`` with
+    ``<p class="elementor-image-box-description">District N</p>``. The cached
+    snapshot (``page__commissioners_.html``) contains every name and district
+    label today, but the structured extractor currently recovers only the staff
+    ``mailto:`` rows (Brenda/Teresa/Jenny/Ashley) and none of the elected officials.
+
+    This test fails until the rebuilt bundle includes person rows for all five
+    commissioners — John Nugent (District 1), Ronnie Gaskins (District 2),
+    Jimmy Parker (District 3), Kylon Fort (District 4), David Harrod (District 5) —
+    each with their district as ``title_or_role``.
+
+    If this test fails, the fix is upstream: teach the Elementor HTML extractor to
+    pair adjacent ``elementor-image-box-title`` headings with their sibling
+    ``elementor-image-box-description`` so name + district are emitted together.
+    """
+    manifest_path = _BERRIEN_DIR / "_manifest.json"
+    assert manifest_path.is_file(), (
+        f"berrien_13019: missing _manifest.json at {manifest_path} — crawl never ran"
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    pages_fetched = [str(u) for u in (manifest.get("pages_fetched") or [])]
+    assert _BERRIEN_BOC_PAGE_URL in pages_fetched, (
+        f"berrien_13019: {_BERRIEN_BOC_PAGE_URL} not in pages_fetched; "
+        f"got {pages_fetched}. The crawler must reach the BOC page."
+    )
+
+    bundle = _regenerate_contacts_bundle(_BERRIEN_DIR)
+    extracted_pairs = {
+        (
+            str(r.get("person_name") or "").strip().lower(),
+            str(r.get("title_or_role") or "").strip().lower(),
+        )
+        for r in bundle.get("contacts", [])
+        if r.get("person_name")
+        and str(r.get("source_page_url") or "") == _BERRIEN_BOC_PAGE_URL
+    }
+    missing_pairs = sorted(set(_BERRIEN_EXPECTED_COMMISSIONERS) - extracted_pairs)
+    assert not missing_pairs, (
+        f"berrien_13019: contacts bundle missing {missing_pairs} from "
+        f"{_BERRIEN_BOC_PAGE_URL}; got {sorted(extracted_pairs)}"
+    )
+
+    commissioner_names = {name for name, _ in _BERRIEN_EXPECTED_COMMISSIONERS}
+    extracted_commissioner_rows = [
+        r for r in bundle.get("contacts", [])
+        if str(r.get("person_name") or "").strip().lower() in commissioner_names
+        and str(r.get("source_page_url") or "") == _BERRIEN_BOC_PAGE_URL
+    ]
+    assert len(extracted_commissioner_rows) == 5, (
+        f"berrien_13019: expected exactly 5 commissioner rows from "
+        f"{_BERRIEN_BOC_PAGE_URL}, got {len(extracted_commissioner_rows)}: "
+        f"{[(r.get('person_name'), r.get('title_or_role')) for r in extracted_commissioner_rows]}"
     )
 
 

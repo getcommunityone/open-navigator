@@ -245,6 +245,17 @@ def extract_structured_contacts_from_html(
         if len(rows) >= max_rows:
             break
 
+    for ibr in extract_elementor_image_box_directory_contacts_from_html(
+        html, page_url, max_rows=max(0, max_rows - len(rows))
+    ):
+        k = _structured_contact_row_key(ibr)
+        if k in existing_keys:
+            continue
+        existing_keys.add(k)
+        rows.append(ibr)
+        if len(rows) >= max_rows:
+            break
+
     for a in soup.select('a[href^="mailto:"]'):
         if len(rows) >= max_rows:
             break
@@ -1242,6 +1253,22 @@ _SCRIPTY_OR_UI_LINE_RE = re.compile(
     r"commissioners:\s*$)"
 )
 
+_COMMISSIONER_SECTION_RE = re.compile(
+    r"\b(board\s+of\s+commissioners|commissioners?)\b",
+    re.I,
+)
+_NAME_DASH_ROLE_RE = re.compile(
+    r"^([A-Za-z][A-Za-z'`.\-\s]{1,90}?)\s*[\u2013\u2014\-]\s*(.+)$",
+    re.I,
+)
+_DASH_ONLY_ROLE_RE = re.compile(r"^[\u2013\u2014\-]\s*(.+)$", re.I)
+_DISTRICT_LINE_RE = re.compile(r"^district\s*\d+\b", re.I)
+_NON_PERSON_ROSTER_LINE_RE = re.compile(
+    r"\b(board\s+of\s+commissioners|to\s+contact\s+all\s+commissioners|"
+    r"for\s+general\s+inquiries|administrator\s+of\s+.+|copyright|all\s+rights\s+reserved)\b",
+    re.I,
+)
+
 
 def _tag_heading_level(tag: Any) -> int:
     from bs4 import Tag
@@ -1432,6 +1459,112 @@ def extract_elementor_directory_contacts_from_html(
     return out
 
 
+_ELEMENTOR_IMAGE_BOX_HONORIFIC_RE = re.compile(
+    r"^(commissioner|mayor|vice\s*mayor|chair(?:man|woman|person)?|trustee|"
+    r"alderman|alderwoman|supervisor|senator|representative|director|councilor|"
+    r"council\s*member)\s+",
+    re.I,
+)
+
+
+def _strip_image_box_honorific(name: str) -> str:
+    """``Commissioner Kylon Fort`` → ``Kylon Fort``; honorific belongs in title, not name."""
+    return _ELEMENTOR_IMAGE_BOX_HONORIFIC_RE.sub("", (name or "").strip(), count=1).strip()
+
+
+def extract_elementor_image_box_directory_contacts_from_html(
+    html: str,
+    page_url: str,
+    *,
+    max_rows: int = 40,
+) -> List[Dict[str, Any]]:
+    """
+    Elementor ``image-box`` widgets used for commissioner / staff rosters.
+
+    Pattern (Berrien County GA and similar WordPress + Elementor sites)::
+
+        <div class="elementor-image-box-wrapper">
+          <figure class="elementor-image-box-img">
+            <img alt="..." src="...headshot.jpg" srcset="..."/>
+          </figure>
+          <div class="elementor-image-box-content">
+            <h3 class="elementor-image-box-title">John Nugent</h3>
+            <p class="elementor-image-box-description">District 1</p>
+          </div>
+        </div>
+
+    Emits one row per box pairing the title (name) with the description (district /
+    role / sub-title) and the headshot URL. Skips boxes whose title is not a
+    plausible person name (chrome like "COUNTY COMMISSIONERS", "TAX ASSESSOR").
+    """
+    from bs4 import BeautifulSoup
+
+    out: List[Dict[str, Any]] = []
+    if not html or max_rows <= 0:
+        return out
+    soup = BeautifulSoup(html, "html.parser")
+    seen: Set[Tuple[str, str]] = set()
+
+    for box in soup.select("div.elementor-image-box-wrapper"):
+        if len(out) >= max_rows:
+            break
+        title_el = box.select_one(
+            "h1.elementor-image-box-title, h2.elementor-image-box-title, "
+            "h3.elementor-image-box-title, h4.elementor-image-box-title, "
+            "h5.elementor-image-box-title, h6.elementor-image-box-title, "
+            ".elementor-image-box-title"
+        )
+        desc_el = box.select_one("p.elementor-image-box-description, .elementor-image-box-description")
+
+        raw_name = re.sub(
+            r"\s+", " ", (title_el.get_text(" ", strip=True) if title_el else "")
+        ).strip()
+        description = re.sub(
+            r"\s+", " ", (desc_el.get_text(" ", strip=True) if desc_el else "")
+        ).strip()
+
+        name = _strip_image_box_honorific(raw_name)
+        if not name or not _looks_like_person_name_line(name):
+            continue
+        if name.isupper() and len(name.split()) < 2:
+            continue
+
+        profile_image_url = None
+        img_el = box.select_one("figure.elementor-image-box-img img[src], img[src]")
+        if img_el is not None:
+            src = str(img_el.get("src") or "").strip()
+            if src and not src.lower().startswith("data:"):
+                candidate = urljoin(page_url, src)
+                if not is_decorative_profile_image_url(candidate):
+                    profile_image_url = candidate
+
+        key = (name.lower(), description.lower())
+        if key in seen:
+            continue
+        seen.add(key)
+
+        out.append(
+            {
+                "person_name": name[:512],
+                "title_or_role": description[:512] or None,
+                "department": None,
+                "email": None,
+                "phone": None,
+                "mailing_address": None,
+                "profile_url": None,
+                "profile_image_url": profile_image_url,
+                "extraction_method": "elementor_image_box",
+                "raw_row": {
+                    "page_url": page_url,
+                    "raw_title": raw_name[:200],
+                    "description": description[:200],
+                },
+            }
+        )
+
+    return out
+
+
 def _heading_section_blob(h: Any) -> str:
     from bs4 import NavigableString, Tag
 
@@ -1493,6 +1626,7 @@ def extract_heading_section_contacts_from_html(
     from bs4 import BeautifulSoup
 
     out: List[Dict[str, Any]] = []
+    roster_seen: Set[Tuple[str, str]] = set()
     if not html or max_rows <= 0:
         return out
     soup = BeautifulSoup(html, "html.parser")
@@ -1526,6 +1660,55 @@ def extract_heading_section_contacts_from_html(
             if len(digits) >= 10:
                 phones.append(_normalize_phone_display(pm.group(0)))
         phone = phones[0] if phones else None
+
+        section_is_commissioners = any(_COMMISSIONER_SECTION_RE.search(ln) for ln in lines_raw[:8])
+        if section_is_commissioners:
+            i = 0
+            while i < len(lines_raw) and len(out) < max_rows:
+                ln = lines_raw[i]
+                if not ln or len(ln) > 170 or _NON_PERSON_ROSTER_LINE_RE.search(ln):
+                    i += 1
+                    continue
+
+                name = ""
+                role = ""
+                m_inline = _NAME_DASH_ROLE_RE.match(ln)
+                if m_inline:
+                    name = re.sub(r"\s+", " ", m_inline.group(1)).strip()
+                    role = re.sub(r"\s+", " ", m_inline.group(2)).strip()
+                elif _looks_like_person_name_line(ln):
+                    name = ln.strip()
+                    if i + 1 < len(lines_raw):
+                        n1 = lines_raw[i + 1].strip()
+                        m_role = _DASH_ONLY_ROLE_RE.match(n1)
+                        if m_role:
+                            role = re.sub(r"\s+", " ", m_role.group(1)).strip()
+                            i += 1
+                            if i + 1 < len(lines_raw):
+                                n2 = lines_raw[i + 1].strip()
+                                if _DISTRICT_LINE_RE.match(n2):
+                                    role = f"{role} {n2}".strip()
+                                    i += 1
+
+                if name and _looks_like_person_name_line(name) and not _NON_PERSON_ROSTER_LINE_RE.search(name):
+                    role_norm = role[:512] or "Commissioner"
+                    rk = (name.lower(), role_norm.lower())
+                    if rk not in roster_seen:
+                        roster_seen.add(rk)
+                        out.append(
+                            {
+                                "person_name": name[:512],
+                                "title_or_role": role_norm,
+                                "department": None,
+                                "email": email_pri,
+                                "phone": phone,
+                                "mailing_address": None,
+                                "profile_url": None,
+                                "extraction_method": "heading_section_commissioner_roster",
+                                "raw_row": {"page_url": page_url, "heading": (title_guess or "")[:200]},
+                            }
+                        )
+                i += 1
 
         if not email_pri and not phone:
             continue

@@ -106,6 +106,8 @@ def refresh_jurisdiction_contacts(
     replace_matching_pages: bool = False,
     download_profile_images_flag: bool = False,
     max_profile_images: int = 48,
+    use_ai: bool = False,
+    ai_provider: Optional[str] = None,
 ) -> Dict[str, Any]:
     jurisdiction_dir = jurisdiction_dir.expanduser().resolve()
     manifest_path = jurisdiction_dir / "_manifest.json"
@@ -152,14 +154,35 @@ def refresh_jurisdiction_contacts(
             rec["matched_signals"] = ms
         fresh_cdir.append(rec)
 
-        for prow in extract_structured_contacts_from_html(html, page_url):
-            prow["source_page_url"] = page_url
-            prow["page_classification"] = str(
-                cdir.get("directory_kind") or ("seed_url" if seed_hit else "unknown")
+        page_classification = str(
+            cdir.get("directory_kind") or ("seed_url" if seed_hit else "unknown")
+        )
+        directory_score = int(cdir.get("score") or 0)
+
+        if use_ai:
+            from scripts.discovery.contact_extract_crawl4ai import (
+                ai_record_to_structured_row,
+                extract_contact_directory_sync,
             )
-            prow["directory_score"] = int(cdir.get("score") or 0)
-            infer_profile_url_from_source_page(prow)
-            fresh_structured.append(prow)
+
+            ai_kwargs = {"provider": ai_provider} if ai_provider else {}
+            directory = extract_contact_directory_sync(page_url, **ai_kwargs)
+            for rec in directory.contacts:
+                prow = ai_record_to_structured_row(
+                    rec,
+                    source_page_url=page_url,
+                    page_classification=page_classification,
+                    directory_score=directory_score,
+                )
+                infer_profile_url_from_source_page(prow)
+                fresh_structured.append(prow)
+        else:
+            for prow in extract_structured_contacts_from_html(html, page_url):
+                prow["source_page_url"] = page_url
+                prow["page_classification"] = page_classification
+                prow["directory_score"] = directory_score
+                infer_profile_url_from_source_page(prow)
+                fresh_structured.append(prow)
 
         contact_page_rows.append(extract_contacts_from_page(html, page_url))
 
@@ -265,6 +288,19 @@ def main() -> None:
         default=48,
         help="Cap when using --download-profile-images (default 48)",
     )
+    ap.add_argument(
+        "--ai",
+        action="store_true",
+        help=(
+            "Use crawl4ai + Groq LLM extraction instead of the heuristic HTML parser. "
+            "Requires GROQ_API_KEY in env and `crawl4ai-setup` to have been run."
+        ),
+    )
+    ap.add_argument(
+        "--ai-provider",
+        default=None,
+        help="LiteLLM provider string (default: groq/llama-3.1-8b-instant). Only used with --ai.",
+    )
     args = ap.parse_args()
     summary = refresh_jurisdiction_contacts(
         Path(args.jurisdiction_dir),
@@ -273,6 +309,8 @@ def main() -> None:
         replace_matching_pages=args.replace_matching_pages,
         download_profile_images_flag=args.download_profile_images,
         max_profile_images=args.max_profile_images,
+        use_ai=args.ai,
+        ai_provider=args.ai_provider,
     )
     print(json.dumps(summary, indent=2))
 

@@ -31,8 +31,10 @@ import argparse
 import asyncio
 import json
 import os
+import re
 import sys
 from typing import List, Optional
+from urllib.parse import urljoin
 
 from pydantic import BaseModel, Field
 
@@ -165,18 +167,19 @@ async def extract_contact_directory(
     llm_config = LLMConfig(provider=provider, api_token=token)
     llm_strategy = LLMExtractionStrategy(
         llm_config=llm_config,
-        schema=ContactDirectory.model_json_schema(),
+        schema=ContactRecord.model_json_schema(),
         extraction_type="schema",
         instruction=instruction,
         input_format="markdown",
         apply_chunking=False,
         extra_args={"temperature": 0.0, "max_tokens": 2000},
     )
-    browser_config = BrowserConfig(headless=True, enable_stealth=True, magic=True)
+    browser_config = BrowserConfig(headless=True, enable_stealth=True)
     run_config = CrawlerRunConfig(
         extraction_strategy=llm_strategy,
         cache_mode=CacheMode.BYPASS,
         process_iframes=True,
+        magic=True,
     )
 
     async with AsyncWebCrawler(config=browser_config) as crawler:
@@ -193,6 +196,206 @@ async def extract_contact_directory(
     if isinstance(payload, list):
         payload = {"contacts": payload}
     return ContactDirectory.model_validate(payload)
+
+
+def ai_record_to_structured_row(
+    rec: ContactRecord,
+    *,
+    source_page_url: str,
+    page_classification: str = "ai_crawl4ai",
+    directory_score: int = 0,
+    extraction_method: str = "crawl4ai_llm",
+) -> dict:
+    """Map a :class:`ContactRecord` to the structured-contacts row shape used by
+    ``scripts.discovery.contacts_bundle`` and the manifest's ``structured_contacts``.
+
+    District goes into ``department`` to stay compatible with
+    ``normalize_structured_contact_row``'s existing district handling.
+    """
+    name = (rec.name or "").strip() or None
+    title = (rec.title or "").strip() or None
+    district = (rec.district or "").strip() or None
+    email = (rec.email or "").strip().lower() or None
+    phone = (rec.phone or "").strip() or None
+    profile_image = (rec.profile_image_url or "").strip() or None
+    if profile_image and not re.match(r"^https?://", profile_image, re.I):
+        profile_image = urljoin(source_page_url, profile_image)
+    return {
+        "person_name": name,
+        "title_or_role": title,
+        "department": district,
+        "email": email,
+        "phone": phone,
+        "mailing_address": None,
+        "profile_url": None,
+        "profile_image_url": profile_image,
+        "source_page_url": source_page_url,
+        "page_classification": page_classification,
+        "directory_score": int(directory_score),
+        "extraction_method": extraction_method,
+        "raw_row": rec.model_dump(mode="json"),
+    }
+
+
+_COMMISSIONER_URL_PATTERNS: tuple = (
+    "board-of-commissioner",
+    "board_of_commissioner",
+    "/commissioners",
+    "/commissioner-",
+    "county-commission",
+    "/boc",
+)
+
+_COMMISSIONER_HEADING_RE = re.compile(
+    r"(?i)\b(board\s+of\s+(?:county\s+)?commissioners?"
+    r"|county\s+commission(?:ers?)?"
+    r"|board\s+of\s+county\s+commissioners?)\b"
+)
+
+
+def looks_like_commissioner_page(url: str, html: Optional[str] = None) -> bool:
+    """Return True when a page is likely a county board-of-commissioners roster.
+
+    Cheap gate so the LLM is only spent on pages the heuristic extractor most
+    often gets wrong (Wix-style ``<h2>Name, District</h2>`` + sibling headshot
+    ``<img>`` layouts in particular). Matches by URL slug or, failing that, by
+    an ``<h1>``/``<h2>``/``<h3>`` heading mentioning "Board of Commissioners" /
+    "County Commission".
+    """
+    u = (url or "").lower()
+    if any(p in u for p in _COMMISSIONER_URL_PATTERNS):
+        return True
+    if html:
+        for m in re.finditer(r"<h[1-3][^>]*>(.*?)</h[1-3]>", html, flags=re.I | re.S):
+            text = re.sub(r"<[^>]+>", " ", m.group(1))
+            if _COMMISSIONER_HEADING_RE.search(text):
+                return True
+    return False
+
+
+def _html_to_markdown(html: str) -> str:
+    """Convert HTML to compact markdown for LLM extraction.
+
+    Strips ``<script>`` / ``<style>`` / ``<nav>`` / ``<footer>`` (junk that
+    inflates the prompt without changing the roster), preserves heading levels
+    and image ``alt`` text (Wix headshots are named ``headshot_<Person>.jpg``
+    in their ``alt`` attribute — that signal carries the roster).
+    """
+    from markdownify import markdownify
+
+    md = markdownify(
+        html,
+        heading_style="ATX",
+        strip=["script", "style", "nav", "footer", "noscript"],
+    )
+    return re.sub(r"\n{3,}", "\n\n", md).strip()
+
+
+def _ensure_litellm() -> "object":
+    try:
+        import litellm  # noqa: F401
+    except ImportError as exc:  # pragma: no cover - import error path
+        raise ImportError(
+            "litellm is not installed. Run `pip install -U litellm`."
+        ) from exc
+    return litellm
+
+
+def _call_llm_for_contacts(
+    markdown: str,
+    *,
+    page_url: str,
+    provider: str,
+    api_token: str,
+    instruction: str,
+    max_chars: int = 60_000,
+) -> ContactDirectory:
+    """Send page markdown to ``provider`` via litellm; parse JSON into ContactDirectory.
+
+    ``max_chars`` caps the markdown length we send (Wix pages can be 600+KB raw;
+    the rendered markdown is ~10% of that, but we trim to keep prompts well
+    under llama-3.1-8b-instant's 131k-token window with headroom).
+    """
+    litellm = _ensure_litellm()
+    if len(markdown) > max_chars:
+        markdown = markdown[:max_chars]
+    schema = ContactRecord.model_json_schema()
+    system_prompt = (
+        f"{instruction}\n\n"
+        "Return a single JSON object of the form "
+        '{"contacts": [ContactRecord, ...]} with no commentary. Each '
+        f"ContactRecord matches this schema: {json.dumps(schema)}"
+    )
+    user_prompt = f"Source URL: {page_url}\n\nPage content (markdown):\n\n{markdown}"
+    resp = litellm.completion(  # type: ignore[attr-defined]
+        model=provider,
+        api_key=api_token,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        temperature=0.0,
+        max_tokens=2000,
+        response_format={"type": "json_object"},
+    )
+    raw = (resp["choices"][0]["message"]["content"] or "").strip()
+    if not raw:
+        return ContactDirectory()
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return ContactDirectory()
+    if isinstance(payload, list):
+        payload = {"contacts": payload}
+    if not isinstance(payload, dict) or "contacts" not in payload:
+        return ContactDirectory()
+    return ContactDirectory.model_validate(payload)
+
+
+def extract_contact_directory_from_html_sync(
+    html: str,
+    page_url: str,
+    *,
+    provider: str = _DEFAULT_PROVIDER,
+    api_token: Optional[str] = None,
+    instruction: str = _DEFAULT_INSTRUCTION,
+) -> ContactDirectory:
+    """Extract a contact roster from already-fetched HTML (no headless browser).
+
+    Companion to :func:`extract_contact_directory_sync`: the same LLM prompt
+    and pydantic schema, but the input is the cached ``_crawl_html/page_*.html``
+    snapshot rather than a live URL. Used by the refresh script to recover
+    rosters from Wix-style pages whose ``<h2>Name, District</h2>`` blocks the
+    heuristic extractor can't pair with their sibling headshot ``<img>`` tags.
+    """
+    token = api_token or os.getenv("GROQ_API_KEY")
+    if not token:
+        raise RuntimeError("GROQ_API_KEY is not set (or pass api_token=...).")
+    md = _html_to_markdown(html or "")
+    if not md:
+        return ContactDirectory()
+    return _call_llm_for_contacts(
+        md,
+        page_url=page_url,
+        provider=provider,
+        api_token=token,
+        instruction=instruction,
+    )
+
+
+def extract_contact_directory_sync(
+    url: str,
+    *,
+    provider: str = _DEFAULT_PROVIDER,
+    api_token: Optional[str] = None,
+    instruction: str = _DEFAULT_INSTRUCTION,
+) -> ContactDirectory:
+    """Blocking wrapper around :func:`extract_contact_directory` for sync callers."""
+    return asyncio.run(
+        extract_contact_directory(
+            url, provider=provider, api_token=api_token, instruction=instruction
+        )
+    )
 
 
 def _parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:

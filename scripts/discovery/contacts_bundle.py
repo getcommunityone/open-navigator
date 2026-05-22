@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -142,15 +143,31 @@ def build_contacts_bundle(
             if not target.get("profile_image_url"):
                 target["profile_image_url"] = img.get("image_url")
 
+    scraped_at_iso = scraped_at or datetime.now(timezone.utc).isoformat()
+    try:
+        _dt_local = datetime.fromisoformat(scraped_at_iso).astimezone()
+        scraped_time_local = _dt_local.strftime("%Y-%m-%d %I:%M:%S %p %Z").strip()
+    except (TypeError, ValueError):
+        scraped_time_local = ""
+
+    extraction_methods = dict(
+        Counter(
+            str(r.get("extraction_method") or "unknown")
+            for r in (person_rows + department_offices)
+        )
+    )
+
     return {
         "schema_version": 2,
         "jurisdiction_id": jurisdiction_id,
         "state": state,
         "homepage_url": homepage_url,
-        "scraped_at": scraped_at or datetime.now(timezone.utc).isoformat(),
+        "scraped_at": scraped_at_iso,
+        "scraped_time_local": scraped_time_local,
         "scrape_batch_id": scrape_batch_id,
         "contact_count": len(person_rows),
         "department_office_count": len(department_offices),
+        "extraction_methods": extraction_methods,
         "contacts": person_rows,
         "department_offices": department_offices,
         "profile_images": [

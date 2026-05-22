@@ -33,6 +33,10 @@ _BUILTIN: Dict[str, Tuple[str, ...]] = {
     "municipality_0155200": (
         "https://www.northportal.gov/220/City-Council",
     ),
+    # Bacon County, GA — commissioners roster lives on Administration page, not the homepage.
+    "county_13005": (
+        "https://baconcounty.org/administration.php",
+    ),
 }
 
 
