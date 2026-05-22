@@ -234,11 +234,24 @@ class YouTubeEventsLoader:
             cursor.execute("""
                 DO $$ 
                 BEGIN
-                    ALTER TABLE event 
-                    ADD CONSTRAINT fk_events_jurisdiction
-                    FOREIGN KEY (jurisdiction_id) 
-                    REFERENCES jurisdiction(jurisdiction_id)
-                    ON DELETE SET NULL;
+                    IF EXISTS (
+                        SELECT 1
+                        FROM information_schema.tables
+                        WHERE table_schema = 'public' AND table_name = 'jurisdiction'
+                    )
+                    AND EXISTS (
+                        SELECT 1
+                        FROM information_schema.columns
+                        WHERE table_schema = 'public'
+                          AND table_name = 'jurisdiction'
+                          AND column_name = 'jurisdiction_id'
+                    ) THEN
+                        ALTER TABLE event 
+                        ADD CONSTRAINT fk_events_jurisdiction
+                        FOREIGN KEY (jurisdiction_id) 
+                        REFERENCES jurisdiction(jurisdiction_id)
+                        ON DELETE SET NULL;
+                    END IF;
                 EXCEPTION
                     WHEN duplicate_object THEN NULL;
                 END $$;

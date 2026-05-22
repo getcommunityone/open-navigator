@@ -472,6 +472,23 @@ async function fetchJurisdictions(stateCode: string) {
 - Add "Prerequisites" section for setup guides
 - Include "Next Steps" at the end of tutorials
 
+## Copilot Response Formatting
+
+### ⚠️ ALWAYS Include Copy-Paste Commands for Script Responses
+
+**MANDATORY RULE:** When providing any script, CLI, terminal, or shell response, ALWAYS include a copy-paste-ready command block.
+
+**✅ DO THIS:**
+- Include at least one fenced `bash` code block with full runnable commands.
+- Prefer complete commands from repo root (or include `cd /path/to/repo` first).
+- Provide exact flags and arguments, not placeholders, when known.
+- When there are common variants (dry-run, state filter, etc.), include separate copy-paste blocks.
+
+**❌ NEVER DO THIS:**
+- ❌ Provide command guidance only as prose without a copy-paste block.
+- ❌ Split one required command across multiple fragments that are hard to copy.
+- ❌ Omit required env vars when they are needed for the command to work.
+
 ## Project Context
 
 This is **Open Navigator** - a civic engagement platform that:
