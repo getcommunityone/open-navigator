@@ -18,6 +18,7 @@
 #   MAX_JURISDICTIONS=50   — cap per run (round-robin order preserved)
 #   NO_CLEAR_TOMBSTONES=1  — pass --no-clear-tombstones (avoid retrying old permanent misses)
 #   SKIP_PROBE=1           — pass --skip-probe (faster; fewer per-jurisdiction probe calls)
+#   PROXY=http://user:pass@host:port  — pass --proxy to caption backfill (or YOUTUBE_TRANSCRIPT_PROXY)
 #   DRY_RUN=1          — print jurisdictions / dry-run loaders only
 #   SKIP_CATALOG=1     — skip step 1
 #   CATALOG_FORCE=1    — pass --force (last N videos, not incremental-only-after-last insert)
@@ -38,6 +39,7 @@ COOKIES="${COOKIES:-youtube_cookies.txt}"
 DELAY="${DELAY:-10}"
 STEP="${1:-all}"
 MAX_JURISDICTIONS="${MAX_JURISDICTIONS:-}"
+PROXY_ARG="${PROXY:-${YOUTUBE_TRANSCRIPT_PROXY:-}}"
 
 if [[ ! -x "$PYTHON" ]]; then
   echo "Missing $PYTHON — create .venv first." >&2
@@ -128,10 +130,14 @@ run_catalog() {
   fi
   echo "=== Catalog: max $N video(s) per channel; states=$STATES ${DAYS:+(last $DAYS days)} ==="
   if [[ "$rr" -eq 0 ]]; then
+    local -a cat_args=(
+      --states "$STATES"
+      --max-videos "$N"
+      --skip-transcripts
+    )
+    [[ -n "${CATALOG_FORCE:-}" ]] && cat_args+=(--force)
     "$PYTHON" scripts/datasources/youtube/load_youtube_events_to_postgres.py \
-      --states "$STATES" \
-      --max-videos "$N" \
-      --skip-transcripts \
+      "${cat_args[@]}" \
       "${extra[@]}"
     return 0
   fi
@@ -175,6 +181,9 @@ run_captions() {
     fi
     if [[ -f "$COOKIES" ]]; then
       cap_args+=(--cookies "$COOKIES")
+    fi
+    if [[ -n "$PROXY_ARG" ]]; then
+      cap_args+=(--proxy "$PROXY_ARG")
     fi
     if [[ -n "${DRY_RUN:-}" ]]; then
       cap_args+=(--dry-run)
@@ -259,6 +268,9 @@ run_each_jurisdiction() {
     fi
     if [[ -f "$COOKIES" ]]; then
       cap_args+=(--cookies "$COOKIES")
+    fi
+    if [[ -n "$PROXY_ARG" ]]; then
+      cap_args+=(--proxy "$PROXY_ARG")
     fi
     if [[ -n "${DRY_RUN:-}" ]]; then
       cap_args+=(--dry-run)
