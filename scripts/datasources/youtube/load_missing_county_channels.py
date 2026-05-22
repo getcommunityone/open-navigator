@@ -41,8 +41,12 @@ def fetch_missing_counties(database_url: str, state_code: str) -> list[dict[str,
     sql = """
         SELECT
             j.jurisdiction_id,
+            j.geoid,
             j.name AS county_name,
-            COALESCE(w.website_url, '') AS website_url
+            COALESCE(w.website_url, '') AS website_url,
+            COALESCE(s.payload->'youtube_channels', '[]'::jsonb) AS scraped_youtube_channels,
+            s.homepage_url AS scraped_homepage_url,
+            s.discovered_at
         FROM intermediate.int_jurisdictions j
         LEFT JOIN LATERAL (
             SELECT iw.website_url
@@ -53,6 +57,9 @@ def fetch_missing_counties(database_url: str, state_code: str) -> list[dict[str,
             ORDER BY iw.website_source NULLS LAST, iw.website_url
             LIMIT 1
         ) w ON true
+                LEFT JOIN bronze.bronze_jurisdictions_counties_scraped s
+                    ON s.usps = j.state_code
+                 AND s.geoid = j.geoid
         WHERE j.state_code = %s
           AND j.jurisdiction_type = 'county'
           AND j.jurisdiction_id NOT IN (
@@ -72,11 +79,34 @@ def fetch_missing_counties(database_url: str, state_code: str) -> list[dict[str,
     return [
         {
             "jurisdiction_id": r[0],
-            "county_name": r[1],
-            "website_url": r[2] or "",
+            "geoid": r[1],
+            "county_name": r[2],
+            "website_url": r[3] or "",
+            "scraped_youtube_channels": r[4] or [],
+            "scraped_homepage_url": r[5] or "",
+            "scraped_discovered_at": r[6].isoformat() if r[6] else "",
         }
         for r in rows
     ]
+
+
+def choose_scraped_channel(channels: Any) -> dict[str, Any]:
+    """Pick the best website-scraped candidate when available."""
+    if not isinstance(channels, list):
+        return {}
+
+    def score(channel: dict[str, Any]) -> tuple[int, int, int]:
+        method = str(channel.get("discovery_method") or "")
+        confidence = float(channel.get("confidence") or 0)
+        videos = int(channel.get("video_count") or 0)
+        method_bonus = 2 if method == "website_scrape" else 1 if method == "pattern_match" else 0
+        return (method_bonus, int(confidence * 1000), videos)
+
+    usable = [c for c in channels if isinstance(c, dict) and (c.get("channel_id") or c.get("channel_url"))]
+    if not usable:
+        return {}
+    usable.sort(key=score, reverse=True)
+    return usable[0]
 
 
 async def discover_channels(
@@ -122,6 +152,32 @@ async def discover_channels(
             if skip_homepage_scrape:
                 website = None
 
+            scraped_top = choose_scraped_channel(row.get("scraped_youtube_channels"))
+            if scraped_top:
+                out.append(
+                    {
+                        "jurisdiction_id": row["jurisdiction_id"],
+                        "county_name": county_name,
+                        "website_url": website or "",
+                        "channel_id": scraped_top.get("channel_id", "") or "",
+                        "channel_url": scraped_top.get("channel_url", "") or "",
+                        "channel_title": title_fallback(scraped_top),
+                        "video_count": scraped_top.get("video_count", "") or "",
+                        "subscriber_count": scraped_top.get("subscriber_count", "") or "",
+                        "view_count": scraped_top.get("view_count", "") or "",
+                        "latest_upload": scraped_top.get("latest_upload", "") or "",
+                        "policy_score": scraped_top.get("policy_score", "") or "",
+                        "discovery_method": scraped_top.get("discovery_method", "website_scrape") or "website_scrape",
+                        "candidate_count": len(row.get("scraped_youtube_channels") or []),
+                        "top_candidates": summarize_candidates(row.get("scraped_youtube_channels") or [scraped_top]),
+                        "source_priority": "scraped_official_website",
+                        "scraped_discovered_at": row.get("scraped_discovered_at", "") or "",
+                    }
+                )
+                if idx % 10 == 0 or idx == total:
+                    logger.info("Progress: {}/{}", idx, total)
+                continue
+
             try:
                 channels = await discovery.discover_channels(
                     city_name=None,
@@ -150,6 +206,8 @@ async def discover_channels(
                     "discovery_method": top.get("discovery_method", "") or "",
                     "candidate_count": len(channels),
                     "top_candidates": summarize_candidates(channels),
+                    "source_priority": "fallback_discovery",
+                    "scraped_discovered_at": row.get("scraped_discovered_at", "") or "",
                 }
             )
             if idx % 10 == 0 or idx == total:
@@ -174,6 +232,8 @@ def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         "discovery_method",
         "candidate_count",
         "top_candidates",
+        "source_priority",
+        "scraped_discovered_at",
     ]
     with path.open("w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=fieldnames)

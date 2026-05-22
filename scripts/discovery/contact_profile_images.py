@@ -50,6 +50,14 @@ _NON_PERSON_PHOTO_SUBJECT_RE = re.compile(
     r")\b",
 )
 
+_NON_PERSON_NAME_LINE_RE = re.compile(
+    r"(?is)\b("
+    r"welcome|promote|growth|progress|hub|industry|shopping|entertainment|"
+    r"connectivity|major\s+thoroughfares|central\s+to|southeast\s+georgia|"
+    r"click\s+here|learn\s+more|visit\s+our|discover|explore|community"
+    r")\b"
+)
+
 
 def contact_profile_image_stem_from_name(person_name: Optional[str]) -> Optional[str]:
     """
@@ -180,6 +188,8 @@ def _name_from_portrait_url(url: str) -> str:
 def _label_is_non_person_photo_subject(name: Optional[str], title: Optional[str]) -> bool:
     blob = f"{name or ''} {title or ''}".strip()
     if not blob:
+        return True
+    if _NON_PERSON_NAME_LINE_RE.search(blob):
         return True
     if _NON_PERSON_PHOTO_SUBJECT_RE.search(blob):
         return True
@@ -412,6 +422,8 @@ def extract_profile_image_jobs(html: str, page_url: str, *, max_jobs: int = 80) 
         person, honor, dept = split_office_holder_fields(name_guess, title_guess)
         if not person:
             continue
+        if not _looks_like_person_name_line(person):
+            continue
         if _label_is_non_person_photo_subject(person, honor or dept):
             continue
         seen_url.add(abs_u)
@@ -537,11 +549,15 @@ def _looks_like_person_name_line(s: str) -> bool:
     s = (s or "").strip()
     if len(s) < 3 or len(s) > 140:
         return False
+    if _NON_PERSON_NAME_LINE_RE.search(s):
+        return False
     if _line_is_contact_label(s):
         return False
     if re.search(r"\d{3}\s*[-.)]\s*\d{3}", s):
         return False
     if "@" in s:
+        return False
+    if len(s.split()) > 8:
         return False
     letters = re.sub(r"[^A-Za-z]", "", s)
     if len(letters) < 4:
