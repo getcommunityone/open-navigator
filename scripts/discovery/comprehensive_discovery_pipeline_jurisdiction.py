@@ -1953,6 +1953,79 @@ def _contact_profile_images_save_png() -> bool:
     return v not in ("0", "false", "no", "off")
 
 
+def _contact_ai_fallback_enabled() -> bool:
+    v = (os.getenv("SCRAPED_CONTACT_AI_FALLBACK") or "true").strip().lower()
+    return v not in ("0", "false", "no", "off")
+
+
+def _contact_ai_provider() -> str:
+    return (os.getenv("SCRAPED_CONTACT_AI_PROVIDER") or "groq/llama-3.1-8b-instant").strip()
+
+
+def _contact_ai_low_confidence_score_max() -> int:
+    try:
+        return max(0, min(30, int((os.getenv("SCRAPED_CONTACT_AI_LOW_CONF_SCORE_MAX") or "6").strip())))
+    except ValueError:
+        return 6
+
+
+def _contact_ai_min_quality() -> float:
+    try:
+        return max(0.0, min(1.0, float((os.getenv("SCRAPED_CONTACT_AI_MIN_QUALITY") or "0.42").strip())))
+    except ValueError:
+        return 0.42
+
+
+def _structured_contact_page_quality(rows: List[Dict[str, Any]]) -> float:
+    """Return a coarse completeness score in [0, 1] for one page's extracted rows."""
+    if not rows:
+        return 0.0
+    total = 0.0
+    max_total = float(len(rows) * 7)
+    for row in rows:
+        if str(row.get("person_name") or "").strip():
+            total += 2
+        if str(row.get("title_or_role") or "").strip():
+            total += 2
+        if str(row.get("email") or "").strip():
+            total += 1
+        if str(row.get("phone") or "").strip():
+            total += 1
+        if str(row.get("profile_image_url") or "").strip():
+            total += 1
+    return total / max_total if max_total > 0 else 0.0
+
+
+def _structured_contact_rows_named_count(rows: List[Dict[str, Any]]) -> int:
+    return sum(1 for r in rows if str(r.get("person_name") or "").strip())
+
+
+def _should_try_contact_ai_fallback(
+    *,
+    page_url: str,
+    html: str,
+    directory_score: int,
+    page_structured: List[Dict[str, Any]],
+) -> bool:
+    if not _contact_ai_fallback_enabled():
+        return False
+    quality = _structured_contact_page_quality(page_structured)
+    named_count = _structured_contact_rows_named_count(page_structured)
+    low_confidence = (
+        not page_structured
+        or quality < _contact_ai_min_quality()
+        or (named_count < 2 and directory_score <= _contact_ai_low_confidence_score_max())
+    )
+    if not low_confidence:
+        return False
+    try:
+        from scripts.discovery.contact_extract_crawl4ai import looks_like_commissioner_page
+
+        return looks_like_commissioner_page(page_url, html)
+    except Exception:
+        return False
+
+
 def _person_photo_nav_boost_min() -> int:
     try:
         return max(0, min(40, int((os.getenv("SCRAPED_CONTACT_PHOTO_NAV_BOOST_MIN") or "4").strip())))
@@ -2732,12 +2805,57 @@ class ComprehensiveDiscoveryPipelineJurisdiction:
                                 len(front_detail),
                             )
                     page_structured = extract_structured_contacts_from_html(html, page_ctx)
+                    directory_score = int(cdir.get("score") or 0)
+                    if _should_try_contact_ai_fallback(
+                        page_url=page_ctx,
+                        html=html,
+                        directory_score=directory_score,
+                        page_structured=page_structured,
+                    ):
+                        try:
+                            from scripts.discovery.contact_extract_crawl4ai import (
+                                ai_record_to_structured_row,
+                                extract_contact_directory_from_html_sync,
+                            )
+
+                            heuristic_count = len(page_structured)
+                            ai_directory = extract_contact_directory_from_html_sync(
+                                html,
+                                page_ctx,
+                                provider=_contact_ai_provider(),
+                            )
+                            ai_rows: List[Dict[str, Any]] = []
+                            for ai_contact in ai_directory.contacts:
+                                ai_rows.append(
+                                    ai_record_to_structured_row(
+                                        ai_contact,
+                                        source_page_url=page_ctx,
+                                        page_classification=str(
+                                            cdir.get("directory_kind")
+                                            or ("seed_url" if seed_hit else "unknown")
+                                        ),
+                                        directory_score=directory_score,
+                                        extraction_method="crawl4ai_llm_fallback",
+                                    )
+                                )
+                            if ai_rows:
+                                page_structured = _merge_structured_contact_rows(page_structured, ai_rows)
+                                logger.info(
+                                    "contact_ai_fallback_applied jurisdiction={} url={} heuristic_rows={} ai_rows={} merged_rows={}",
+                                    jid,
+                                    _meetings_log_url(page_ctx),
+                                    heuristic_count,
+                                    len(ai_rows),
+                                    len(page_structured),
+                                )
+                        except Exception as exc:
+                            result.errors.append(f"structured_contact_ai_fallback:{page_ctx}:{exc!r}")
                     for prow in page_structured:
                         prow["source_page_url"] = page_ctx
                         prow["page_classification"] = str(
                             cdir.get("directory_kind") or ("seed_url" if seed_hit else "unknown")
                         )
-                        prow["directory_score"] = int(cdir.get("score") or 0)
+                        prow["directory_score"] = directory_score
                         infer_profile_url_from_source_page(prow)
                         structured_contact_rows_accum.append(prow)
 

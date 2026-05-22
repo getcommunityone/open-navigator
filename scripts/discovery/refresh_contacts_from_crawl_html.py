@@ -40,6 +40,55 @@ from scripts.discovery.contact_profile_images import download_profile_images
 from scripts.discovery.contacts_bundle import build_contacts_bundle, write_contacts_bundle_json
 
 
+def _structured_contact_page_quality(rows: List[Dict[str, Any]]) -> float:
+    if not rows:
+        return 0.0
+    total = 0.0
+    max_total = float(len(rows) * 7)
+    for row in rows:
+        if str(row.get("person_name") or "").strip():
+            total += 2
+        if str(row.get("title_or_role") or "").strip():
+            total += 2
+        if str(row.get("email") or "").strip():
+            total += 1
+        if str(row.get("phone") or "").strip():
+            total += 1
+        if str(row.get("profile_image_url") or "").strip():
+            total += 1
+    return total / max_total if max_total > 0 else 0.0
+
+
+def _structured_contact_rows_named_count(rows: List[Dict[str, Any]]) -> int:
+    return sum(1 for r in rows if str(r.get("person_name") or "").strip())
+
+
+def _should_try_ai_fallback(
+    *,
+    page_url: str,
+    html: str,
+    directory_score: int,
+    page_structured: List[Dict[str, Any]],
+    low_confidence_score_max: int,
+    min_quality: float,
+) -> bool:
+    quality = _structured_contact_page_quality(page_structured)
+    named_count = _structured_contact_rows_named_count(page_structured)
+    low_confidence = (
+        not page_structured
+        or quality < min_quality
+        or (named_count < 2 and directory_score <= low_confidence_score_max)
+    )
+    if not low_confidence:
+        return False
+    try:
+        from scripts.discovery.contact_extract_crawl4ai import looks_like_commissioner_page
+
+        return looks_like_commissioner_page(page_url, html)
+    except Exception:
+        return False
+
+
 def _snapshot_stem_to_page_url(homepage: str, snap_stem: str) -> str:
     """``page__220_City-Council`` → ``https://host/220/City-Council``."""
     slug = snap_stem[5:] if snap_stem.startswith("page_") else snap_stem
@@ -107,7 +156,10 @@ def refresh_jurisdiction_contacts(
     download_profile_images_flag: bool = False,
     max_profile_images: int = 48,
     use_ai: bool = False,
+    use_ai_fallback: bool = True,
     ai_provider: Optional[str] = None,
+    ai_low_confidence_score_max: int = 6,
+    ai_min_quality: float = 0.42,
 ) -> Dict[str, Any]:
     jurisdiction_dir = jurisdiction_dir.expanduser().resolve()
     manifest_path = jurisdiction_dir / "_manifest.json"
@@ -177,7 +229,48 @@ def refresh_jurisdiction_contacts(
                 infer_profile_url_from_source_page(prow)
                 fresh_structured.append(prow)
         else:
-            for prow in extract_structured_contacts_from_html(html, page_url):
+            page_structured = extract_structured_contacts_from_html(html, page_url)
+            if use_ai_fallback and _should_try_ai_fallback(
+                page_url=page_url,
+                html=html,
+                directory_score=directory_score,
+                page_structured=page_structured,
+                low_confidence_score_max=max(0, ai_low_confidence_score_max),
+                min_quality=max(0.0, min(1.0, ai_min_quality)),
+            ):
+                try:
+                    from scripts.discovery.contact_extract_crawl4ai import (
+                        ai_record_to_structured_row,
+                        extract_contact_directory_from_html_sync,
+                    )
+
+                    ai_kwargs = {"provider": ai_provider} if ai_provider else {}
+                    heuristic_count = len(page_structured)
+                    ai_directory = extract_contact_directory_from_html_sync(
+                        html,
+                        page_url,
+                        **ai_kwargs,
+                    )
+                    ai_rows: List[Dict[str, Any]] = []
+                    for rec in ai_directory.contacts:
+                        ai_rows.append(
+                            ai_record_to_structured_row(
+                                rec,
+                                source_page_url=page_url,
+                                page_classification=page_classification,
+                                directory_score=directory_score,
+                                extraction_method="crawl4ai_llm_fallback",
+                            )
+                        )
+                    if ai_rows:
+                        page_structured = _merge_structured_contact_rows(page_structured, ai_rows)
+                        print(
+                            f"[contact_ai_fallback] page={page_url} heuristic={heuristic_count} ai={len(ai_rows)} merged={len(page_structured)}"
+                        )
+                except Exception as exc:
+                    print(f"[contact_ai_fallback_error] page={page_url} detail={exc!r}")
+
+            for prow in page_structured:
                 prow["source_page_url"] = page_url
                 prow["page_classification"] = page_classification
                 prow["directory_score"] = directory_score
@@ -301,7 +394,33 @@ def main() -> None:
         default=None,
         help="LiteLLM provider string (default: groq/llama-3.1-8b-instant). Only used with --ai.",
     )
+    ap.add_argument(
+        "--ai-fallback",
+        action="store_true",
+        help=(
+            "Use fast heuristic extraction first, then invoke AI only on complex/low-confidence "
+            "directory pages (board/commissioner layouts). Enabled by default unless --no-ai-fallback."
+        ),
+    )
+    ap.add_argument(
+        "--no-ai-fallback",
+        action="store_true",
+        help="Disable heuristic+AI fallback mode.",
+    )
+    ap.add_argument(
+        "--ai-low-confidence-score-max",
+        type=int,
+        default=6,
+        help="Directory heuristic score threshold for AI fallback (default 6).",
+    )
+    ap.add_argument(
+        "--ai-min-quality",
+        type=float,
+        default=0.42,
+        help="Minimum heuristic row quality before AI fallback is skipped (default 0.42).",
+    )
     args = ap.parse_args()
+    use_ai_fallback = False if args.no_ai_fallback else (True if not args.ai else bool(args.ai_fallback))
     summary = refresh_jurisdiction_contacts(
         Path(args.jurisdiction_dir),
         page_url_contains=args.page_url_contains or None,
@@ -310,7 +429,10 @@ def main() -> None:
         download_profile_images_flag=args.download_profile_images,
         max_profile_images=args.max_profile_images,
         use_ai=args.ai,
+        use_ai_fallback=use_ai_fallback,
         ai_provider=args.ai_provider,
+        ai_low_confidence_score_max=args.ai_low_confidence_score_max,
+        ai_min_quality=args.ai_min_quality,
     )
     print(json.dumps(summary, indent=2))
 

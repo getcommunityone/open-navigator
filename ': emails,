@@ -1,0 +1,5 @@
+ website_record_key | website_source |     domain_name     |        website_url         | domain_type | jurisdiction_category | organization_name | agency | city | state_code |  state  | jurisdiction_id |        ingestion_date         |        transformed_at         
+--------------------+----------------+---------------------+----------------------------+-------------+-----------------------+-------------------+--------+------+------------+---------+-----------------+-------------------------------+-------------------------------
+ naco|13003         | naco           | www.atkinson-ga.org | http://www.atkinson-ga.org |             | county                | Atkinson County   |        |      | GA         | Georgia | county_13003    | 2026-05-10 13:40:49.861137-05 | 2026-05-19 14:34:32.387084-05
+(1 row)
+
