@@ -162,7 +162,9 @@ jurisdictions_by_channel AS (
             )
             ORDER BY jurisdiction_id
         ) AS jurisdictions,
-        array_agg(jurisdiction_id ORDER BY jurisdiction_id) AS jurisdiction_ids
+        array_agg(jurisdiction_id ORDER BY jurisdiction_id) AS jurisdiction_ids,
+        array_agg(DISTINCT state_code ORDER BY state_code) AS state_codes,
+        array_agg(DISTINCT state ORDER BY state) AS states
     FROM channel_jurisdictions
     GROUP BY channel_id
 )
@@ -198,6 +200,8 @@ SELECT
     jbc.jurisdictions,
     jbc.jurisdiction_ids,
     (jbc.jurisdiction_ids)[1]::TEXT AS jurisdiction_id,
+    (jbc.state_codes)[1]::TEXT AS state_code,
+    (jbc.states)[1]::TEXT AS state,
 
     -- Quality indicators
     NULL::BOOLEAN AS is_verified,

@@ -245,6 +245,14 @@ models:
         description: >
           Smallest `jurisdiction_id` among resolved matches (same order as
           `jurisdiction_ids`); NULL when geography does not resolve to `int_jurisdictions`.
+      - name: state_code
+        description: >
+          Top-level two-letter state code for convenience in SQL filtering.
+          Derived from resolved jurisdiction matches (same source as `jurisdictions`).
+      - name: state
+        description: >
+          Top-level full state name for convenience in SQL filtering/grouping.
+          Derived from resolved jurisdiction matches (same source as `jurisdictions`).
       - name: channel_url
         description: >
           URL from `bronze_events_youtube` when non-blank; otherwise
