@@ -9,6 +9,7 @@ Updates ``_manifest.json`` ``structured_contacts`` / ``contact_directory_pages``
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import re
 import sys
@@ -16,6 +17,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 from urllib.parse import urljoin, urlparse
+
+import httpx
 
 _root = Path(__file__).resolve().parents[2]
 if str(_root) not in sys.path:
@@ -33,6 +36,7 @@ from scripts.discovery.comprehensive_discovery_pipeline_jurisdiction import (
     _merge_prior_extracted_contacts,
     _merge_structured_contact_rows,
 )
+from scripts.discovery.contact_profile_images import download_profile_images
 from scripts.discovery.contacts_bundle import build_contacts_bundle, write_contacts_bundle_json
 
 
@@ -57,12 +61,51 @@ def _snapshot_stem_to_page_url(homepage: str, snap_stem: str) -> str:
     return urljoin(f"{p.scheme}://{p.netloc}", path)
 
 
+async def _download_structured_profile_images(
+    jurisdiction_dir: Path,
+    structured_contacts: List[Dict[str, Any]],
+    *,
+    homepage_url: str,
+    max_images: int = 48,
+) -> List[Dict[str, Any]]:
+    jobs: List[Dict[str, Any]] = []
+    seen_urls: Set[str] = set()
+    for row in structured_contacts:
+        img = str(row.get("profile_image_url") or "").strip()
+        if not img or img in seen_urls:
+            continue
+        seen_urls.add(img)
+        jobs.append(
+            {
+                "image_url": img,
+                "person_name": str(row.get("person_name") or "").strip(),
+                "title_or_role": str(row.get("title_or_role") or "").strip(),
+                "source_page_url": str(row.get("source_page_url") or "").strip(),
+            }
+        )
+    if not jobs:
+        return []
+    out_dir = jurisdiction_dir / "_contact_images"
+    referer = (homepage_url or "").strip() or str(jobs[0].get("source_page_url") or "")
+    async with httpx.AsyncClient(follow_redirects=True, timeout=60.0) as client:
+        return await download_profile_images(
+            client,
+            jobs,
+            out_dir,
+            referer=referer,
+            max_images=max_images,
+            save_as_png=True,
+        )
+
+
 def refresh_jurisdiction_contacts(
     jurisdiction_dir: Path,
     *,
     page_url_contains: Optional[str] = None,
     seed_urls: Optional[List[str]] = None,
     replace_matching_pages: bool = False,
+    download_profile_images_flag: bool = False,
+    max_profile_images: int = 48,
 ) -> Dict[str, Any]:
     jurisdiction_dir = jurisdiction_dir.expanduser().resolve()
     manifest_path = jurisdiction_dir / "_manifest.json"
@@ -148,6 +191,19 @@ def refresh_jurisdiction_contacts(
     else:
         data["extracted_contacts"] = fresh_flat
 
+    profile_dl: List[Dict[str, Any]] = []
+    if download_profile_images_flag and data["structured_contacts"]:
+        profile_dl = asyncio.run(
+            _download_structured_profile_images(
+                jurisdiction_dir,
+                data["structured_contacts"],
+                homepage_url=homepage,
+                max_images=max_profile_images,
+            )
+        )
+        if profile_dl:
+            data["contact_profile_images"] = profile_dl
+
     data["contacts_refreshed_at"] = datetime.now(timezone.utc).isoformat()
     manifest_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
@@ -165,11 +221,13 @@ def refresh_jurisdiction_contacts(
         )
         bundle_path = write_contacts_bundle_json(jurisdiction_dir, bundle)
 
+    saved_images = sum(1 for r in profile_dl if r.get("saved_filename"))
     return {
         "jurisdiction_id": jid,
         "structured_contacts": len(data["structured_contacts"]),
         "new_from_snapshots": len(fresh_structured),
         "contacts_json": str(bundle_path) if bundle_path else None,
+        "profile_images_saved": saved_images,
     }
 
 
@@ -196,12 +254,25 @@ def main() -> None:
         action="store_true",
         help="Drop prior structured_contacts rows whose source_page_url matches --page-url-contains before merge",
     )
+    ap.add_argument(
+        "--download-profile-images",
+        action="store_true",
+        help="Download profile_image_url from structured contacts into _contact_images/",
+    )
+    ap.add_argument(
+        "--max-profile-images",
+        type=int,
+        default=48,
+        help="Cap when using --download-profile-images (default 48)",
+    )
     args = ap.parse_args()
     summary = refresh_jurisdiction_contacts(
         Path(args.jurisdiction_dir),
         page_url_contains=args.page_url_contains or None,
         seed_urls=args.seed_url or None,
         replace_matching_pages=args.replace_matching_pages,
+        download_profile_images_flag=args.download_profile_images,
+        max_profile_images=args.max_profile_images,
     )
     print(json.dumps(summary, indent=2))
 

@@ -73,13 +73,36 @@ def civicclerk_doc_type(file_type: str, file_name: str = "") -> str:
     name = (file_name or "").strip().lower()
     if "minute" in ft or "minute" in name:
         return "minutes"
+    if "agenda packet" in ft or ("agenda" in ft and "packet" in ft):
+        return "agenda_packet"
     if "agenda" in ft or "agenda" in name:
         return "agenda"
     if "packet" in ft or "packet" in name:
-        return "agenda"
+        return "agenda_packet"
     if "notice" in ft:
         return "packet"
     return "unknown"
+
+
+def civicclerk_portal_file_url(tenant: str, event_id: int, pf: Dict[str, Any]) -> str:
+    """
+    Public portal deep link (e.g. ``…/event/3545/files/agenda/3290``) for a published file row.
+    """
+    t = (tenant or "").strip().lower()
+    eid = int(event_id)
+    fid = int(pf.get("fileId") or 0)
+    if not t or not eid:
+        return ""
+    if not fid:
+        return civicclerk_portal_event_url(t, eid)
+    return f"https://{t}.portal.civicclerk.com/event/{eid}/files/agenda/{fid}"
+
+
+def event_needs_civicclerk_detail(event: Dict[str, Any]) -> bool:
+    """True when the event may have downloadable agenda/minutes (flags or embedded ``publishedFiles``)."""
+    if event.get("hasAgenda") or event.get("hasMedia") or int(event.get("agendaId") or 0) > 0:
+        return True
+    return bool(published_files_from_event(event))
 
 
 def _years_window() -> Tuple[int, int]:
@@ -175,12 +198,25 @@ def published_files_from_event(event: Dict[str, Any]) -> List[Dict[str, Any]]:
     return list(files) if isinstance(files, list) else []
 
 
-def event_anchor_text(event: Dict[str, Any], pf: Dict[str, Any]) -> str:
+def event_anchor_text(
+    event: Dict[str, Any],
+    pf: Dict[str, Any],
+    *,
+    meeting_date: Optional[Any] = None,
+) -> str:
+    """Title for PDF naming; calendar date belongs in the filename prefix, not repeated here."""
+    from datetime import date as _date
+
+    from scripts.discovery.meeting_document_naming import strip_redundant_meeting_date_from_title
+
     name = str(pf.get("name") or "").strip()
+    if meeting_date and isinstance(meeting_date, _date):
+        name = strip_redundant_meeting_date_from_title(name, meeting_date) or name
     en = str(event.get("eventName") or "").strip()
+    if meeting_date and isinstance(meeting_date, _date):
+        en = strip_redundant_meeting_date_from_title(en, meeting_date) or en
     cat = str(event.get("categoryName") or event.get("eventCategoryName") or "").strip()
-    start = str(event.get("startDateTime") or event.get("eventDate") or "")[:10]
-    parts = [p for p in (name, en, cat, start) if p]
+    parts = [p for p in (name, en, cat) if p]
     return " — ".join(parts)[:500]
 
 
@@ -190,11 +226,15 @@ def iter_all_events(
     *,
     years_back: Optional[int] = None,
     years_ahead: Optional[int] = None,
+    newest_calendar_years_first: bool = False,
 ) -> Iterator[Dict[str, Any]]:
     y_min, y_max = _years_window()
     if years_back is not None:
         y_min = datetime.now(timezone.utc).year - int(years_back)
     if years_ahead is not None:
         y_max = datetime.now(timezone.utc).year + int(years_ahead)
-    for year in range(y_min, y_max + 1):
+    years = list(range(y_min, y_max + 1))
+    if newest_calendar_years_first:
+        years = list(reversed(years))
+    for year in years:
         yield from iter_events_for_year(client, tenant, year)

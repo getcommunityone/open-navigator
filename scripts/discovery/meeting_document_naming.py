@@ -63,6 +63,12 @@ _ANCHOR_MDY_SHORTY = re.compile(
     re.I,
 )
 
+# CivicClerk / handler titles: ``Agenda 2020-10-13`` or trailing ``— 2020-10-13``.
+_ANCHOR_ISO_DATE = re.compile(r"\b((?:19|20)\d{2})-(\d{2})-(\d{2})\b")
+
+# CivicClerk anchors and published file names: ``Agenda 2020-10-13``, trailing ``— 2020-10-13``.
+_ANCHOR_ISO_DATE = re.compile(r"\b((?:19|20)\d{2})-(\d{2})-(\d{2})\b")
+
 
 def _two_digit_year_to_four(y2: int) -> int:
     if y2 >= 70:
@@ -203,12 +209,33 @@ def date_from_url_query(url: str) -> Tuple[Optional[date], Optional[str]]:
     return None, None
 
 
+def parse_iso_calendar_date_prefix(raw: str) -> Optional[date]:
+    """Parse ``YYYY-MM-DD`` from the start of an ISO-8601 datetime or date string."""
+    s = (raw or "").strip()
+    if len(s) < 10 or s[4] != "-" or s[7] != "-":
+        return None
+    try:
+        return date.fromisoformat(s[:10])
+    except ValueError:
+        return None
+
+
 def _date_from_anchor(anchor: str) -> Tuple[Optional[date], Optional[str]]:
     if not anchor:
         return None, None
     d, src = _date_from_mdy_short_year_blob(anchor)
     if d:
         return d, src
+    matches = list(_ANCHOR_ISO_DATE.finditer(anchor))
+    if matches:
+        m = matches[-1]
+        try:
+            return (
+                date(int(m.group(1)), int(m.group(2)), int(m.group(3))),
+                "anchor_iso_date",
+            )
+        except ValueError:
+            pass
     m = _ANCHOR_DATE_US.search(anchor)
     if m:
         try:
@@ -422,6 +449,11 @@ def strip_redundant_meeting_date_from_title(raw_title: str, d: date) -> str:
     for pat in patterns:
         _subs(pat, flags=re.I)
 
+    iso_lead = rf"^{y}-{d.month:02d}-{d.day:02d}\b[\s:—\-|]*"
+    _subs(iso_lead, flags=re.I)
+    iso_slug_lead = rf"^{y}_{d.month:02d}_{d.day:02d}_"
+    t = re.sub(iso_slug_lead, "", t, flags=re.I).strip()
+
     # Trailing pipe time when the committee name already includes a clock time.
     _subs(r"\s*\|\s*\d{1,2}:\d{2}\s*[AP]M\s*$", flags=re.I)
     t = re.sub(r"\s+", " ", t).strip()
@@ -429,9 +461,63 @@ def strip_redundant_meeting_date_from_title(raw_title: str, d: date) -> str:
     return t
 
 
+def dedupe_consecutive_slug_tokens(slug: str) -> str:
+    """Collapse directly repeated tokens: ``agenda_agenda`` → ``agenda`` (case-insensitive)."""
+    parts = [p for p in (slug or "").split("_") if p]
+    if not parts:
+        return slug
+    out: List[str] = []
+    for p in parts:
+        if out and p.lower() == out[-1].lower():
+            continue
+        out.append(p)
+    prev = slug
+    joined = "_".join(out)
+    while joined != prev:
+        prev = joined
+        out = []
+        for p in joined.split("_"):
+            if not p:
+                continue
+            if out and p.lower() == out[-1].lower():
+                continue
+            out.append(p)
+        joined = "_".join(out)
+    return joined
+
+
+def dedupe_meeting_disk_basename(base: str) -> str:
+    """Remove consecutive duplicate tokens from the title segment of a meeting filename."""
+    name = (base or "").strip()
+    if not name:
+        return base
+    p = Path(name)
+    stem = p.stem
+    m = re.match(r"^((?:\d{4}-\d{2}-\d{2})|(?:\d{4})|undated)_(.+)$", stem, flags=re.I)
+    if not m:
+        return f"{dedupe_consecutive_slug_tokens(stem)}{p.suffix.lower()}"
+    prefix, slug = m.group(1), m.group(2)
+    return f"{prefix}_{dedupe_consecutive_slug_tokens(slug)}{p.suffix.lower()}"
+
+
+def _iso_date_slug_tokens(d: date) -> List[str]:
+    y, mo, day = d.year, d.month, d.day
+    day2 = f"{day:02d}"
+    return [
+        f"{y}_{mo:02d}_{day2}",
+        f"{y}_{mo}_{day}",
+        f"{y}_{mo}_{day2}",
+        f"{mo:02d}_{day2}_{y}",
+        f"{mo}_{day}_{y}",
+        f"{mo}_{day2}_{y}",
+    ]
+
+
 def strip_redundant_date_slug_suffix(slug: str, d: date) -> str:
     """
-    Drop a trailing ``_jan_06_2026`` (and optional ``_03_00_pm``) when the ISO date is already the prefix.
+    Remove calendar-date tokens from a slug when ``YYYY-MM-DD`` is already the filename prefix.
+
+    Strips leading, trailing, and embedded ``_2020_12_17`` / ``_jan_06_2026`` segments (not only suffix).
     """
     s = (slug or "").strip().strip("_")
     if not s or not d:
@@ -458,19 +544,26 @@ def strip_redundant_date_slug_suffix(slug: str, d: date) -> str:
     day2 = f"{day:02d}"
     time_tail = r"(?:_\d{1,2}_\d{2}_(?:am|pm))?"
 
-    tails: List[str] = []
+    tokens: List[str] = list(_iso_date_slug_tokens(d))
     for mon in (mo_short, mo_alt, mo_long):
         for dd in (str(day), day2):
-            tails.append(rf"_{mon}_{dd}_{y}")
-    tails.append(rf"_{d.month:02d}_{d.day:02d}_{y}")
-    tails.append(rf"_{d.month}_{day}_{y}")
-    tails.append(rf"_{d.month}_{day2}_{y}")
+            tokens.append(f"{mon}_{dd}_{y}")
 
     out = s
-    for pat in tails:
-        nxt = re.sub(pat + time_tail + r"$", "", out, flags=re.I)
-        if nxt != out:
-            out = nxt.rstrip("_")
+    for tok in tokens:
+        esc = re.escape(tok)
+        while out.startswith(tok + "_"):
+            out = out[len(tok) + 1 :]
+        while out.endswith("_" + tok):
+            out = out[: -len(tok) - 1]
+        out = re.sub(rf"_{esc}_", "_", out, flags=re.I)
+        out = re.sub(rf"_{esc}$", "", out, flags=re.I)
+        out = re.sub(rf"^{esc}_", "", out, flags=re.I)
+        out = re.sub(rf"_{esc}{time_tail}$", "", out, flags=re.I)
+
+    out = re.sub(r"(?:_\d{1,2}_\d{2}_(?:am|pm))$", "", out, flags=re.I)
+    out = re.sub(r"_+", "_", out).strip("_")
+    out = dedupe_consecutive_slug_tokens(out)
     return out or slug
 
 
@@ -512,6 +605,7 @@ def slugify_meeting_filename(text: str, *, max_len: int = 110) -> str:
     raw = re.sub(r"_+", "_", raw).strip("_")
     if len(raw) > max_len:
         raw = raw[:max_len].rstrip("_")
+    raw = dedupe_consecutive_slug_tokens(raw)
     return raw or "document"
 
 
@@ -522,6 +616,7 @@ def build_meeting_pdf_disk_filename(
     *,
     year_fallback: Optional[str] = None,
     storage_suffix: Optional[str] = None,
+    meeting_date: Optional[date] = None,
 ) -> str:
     """
     Basename ``YYYY-MM-DD_title_snake.<ext>`` (or ``YYYY_…`` when only calendar year is known).
@@ -532,7 +627,9 @@ def build_meeting_pdf_disk_filename(
     suf = (storage_suffix or meeting_document_storage_suffix(url) or ".pdf").lower()
     if not suf.startswith("."):
         suf = "." + suf
-    d, _ = pick_meeting_date(url=url, anchor=anchor_text, doc_type=doc_type or None)
+    d = meeting_date
+    if d is None:
+        d, _ = pick_meeting_date(url=url, anchor=anchor_text, doc_type=doc_type or None)
     if d:
         date_prefix = d.isoformat()
     else:
@@ -547,11 +644,35 @@ def build_meeting_pdf_disk_filename(
             date_prefix = "undated"
 
     title_src = pdf_meeting_title(anchor_text, url)
+    if d and title_src:
+        title_src = strip_redundant_meeting_date_from_title(title_src, d) or title_src
     dt = (doc_type or "").strip().lower()
     parts: List[str] = []
     if dt and dt != "unknown":
-        parts.append(dt)
-    if title_src:
+        ts = (title_src or "").strip()
+        if d:
+            ts = re.sub(
+                rf"^{d.year}-{d.month:02d}-{d.day:02d}\b[\s:—\-|]*",
+                "",
+                ts,
+                flags=re.I,
+            ).strip()
+            ts = re.sub(
+                rf"^{d.year}_{d.month:02d}_{d.day:02d}_?",
+                "",
+                ts,
+                flags=re.I,
+            ).strip()
+        ts_low = ts.lower()
+        ts_norm = re.sub(r"[^a-z0-9]+", " ", ts_low).strip()
+        if ts and (ts_norm == dt or ts_norm.startswith(f"{dt} ")):
+            if ts:
+                parts.append(ts)
+        else:
+            parts.append(dt)
+            if ts:
+                parts.append(ts)
+    elif title_src:
         parts.append(title_src)
     raw_title = " ".join(parts) if parts else "meeting_document"
     if d:
@@ -560,9 +681,10 @@ def build_meeting_pdf_disk_filename(
     slug = slugify_meeting_filename(raw_title)
     if d:
         slug = strip_redundant_date_slug_suffix(slug, d)
+    slug = dedupe_consecutive_slug_tokens(slug)
     if slug in _GENERIC_TITLE_SLUGS or len(slug) < 4:
         h = hashlib.sha256(url.encode("utf-8", errors="replace")).hexdigest()[:8]
-        slug = f"{slug}_{h}"
+        slug = dedupe_consecutive_slug_tokens(f"{slug}_{h}")
 
     base = f"{date_prefix}_{slug}{suf}"
     base = re.sub(r"[^A-Za-z0-9._-]", "_", base)
@@ -570,7 +692,7 @@ def build_meeting_pdf_disk_filename(
     if len(base) > 200:
         stem = Path(base).stem[:170].rstrip("._")
         base = f"{stem}{suf}"
-    return base
+    return dedupe_meeting_disk_basename(base)
 
 
 def allocate_unique_pdf_path(
@@ -584,6 +706,7 @@ def allocate_unique_pdf_path(
     reserved_paths: Optional[Set[str]] = None,
     ignore_existing_path: Optional[Path] = None,
     storage_suffix: Optional[str] = None,
+    meeting_date: Optional[date] = None,
 ) -> Path:
     """Pick ``dest_dir / <name>.<ext>``; append a URL hash before the extension if the name is taken."""
     blocked = reserved_basenames or set()
@@ -622,6 +745,7 @@ def allocate_unique_pdf_path(
         doc_type,
         year_fallback=year_fallback,
         storage_suffix=suf,
+        meeting_date=meeting_date,
     )
     dest = dest_dir / name
     if not taken(dest):

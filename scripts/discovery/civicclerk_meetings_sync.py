@@ -36,9 +36,11 @@ if str(_root) not in sys.path:
 from scripts.discovery.civicclerk_public_api import (
     civicclerk_doc_type,
     civicclerk_portal_event_url,
+    civicclerk_portal_file_url,
     detect_civicclerk_tenant,
     download_meeting_file_bytes,
     event_anchor_text,
+    event_needs_civicclerk_detail,
     fetch_event_detail,
     iter_all_events,
     published_files_from_event,
@@ -46,6 +48,7 @@ from scripts.discovery.civicclerk_public_api import (
 from scripts.discovery.meeting_document_naming import (
     allocate_unique_pdf_path,
     infer_calendar_folder_year,
+    parse_iso_calendar_date_prefix,
 )
 from scripts.discovery.meetings_platform_heuristics import classify_document
 from scripts.utils.gdrive_paths import resolve_scraped_meetings_output_root
@@ -130,7 +133,9 @@ async def sync_civicclerk_meetings_async(
         follow_redirects=True,
         timeout=timeout_s,
     ) as sync_client:
-        summaries = list(iter_all_events(sync_client, tenant))
+        summaries = list(
+            iter_all_events(sync_client, tenant, newest_calendar_years_first=True)
+        )
         for ev in summaries:
             if ev.get("isDeleted"):
                 continue
@@ -140,7 +145,7 @@ async def sync_civicclerk_meetings_async(
             if not eid:
                 continue
             civicclerk_events.append(_event_summary_row(tenant, ev))
-            if ev.get("hasAgenda") or ev.get("hasMedia") or int(ev.get("agendaId") or 0) > 0:
+            if event_needs_civicclerk_detail(ev):
                 need_detail.append(ev)
 
         sem = asyncio.Semaphore(max(1, detail_concurrency))
@@ -153,6 +158,7 @@ async def sync_civicclerk_meetings_async(
         details: List[Dict[str, Any]] = []
         if need_detail:
             details = await asyncio.gather(*[_fetch_one(ev) for ev in need_detail])
+        details.sort(key=lambda e: str(e.get("startDateTime") or ""), reverse=True)
 
     async with httpx.AsyncClient(
         headers={"User-Agent": _DEFAULT_UA, "Accept": "application/json, application/pdf"},
@@ -193,7 +199,8 @@ async def sync_civicclerk_meetings_async(
                     errors.append(f"civicclerk_download:{eid}:{api_url[:80]}:{why}")
                     continue
 
-                anchor = event_anchor_text(event, pf)
+                meeting_d = parse_iso_calendar_date_prefix(start_raw)
+                anchor = event_anchor_text(event, pf, meeting_date=meeting_d)
                 doc_label = civicclerk_doc_type(ft, str(pf.get("name") or ""))
                 if doc_label == "unknown":
                     doc_label = classify_document(api_url, anchor)
@@ -206,6 +213,7 @@ async def sync_civicclerk_meetings_async(
                     year_fallback=str(y),
                     reserved_basenames=reserved_names,
                     reserved_paths=reserved_paths,
+                    meeting_date=meeting_d,
                 )
                 dest.write_bytes(blob)
                 reserved_names.add(dest.name)
@@ -214,6 +222,7 @@ async def sync_civicclerk_meetings_async(
                 except OSError:
                     reserved_paths.add(str(dest))
 
+                portal_file = civicclerk_portal_file_url(tenant, eid, pf)
                 row: Dict[str, Any] = {
                     "url": api_url,
                     "path": str(dest.resolve()),
@@ -224,9 +233,11 @@ async def sync_civicclerk_meetings_async(
                     "storage_suffix": ".pdf",
                     "source_kind": "civicclerk_api",
                     "civicclerk_event_id": eid,
+                    "civicclerk_file_id": int(pf.get("fileId") or 0) or None,
                     "civicclerk_file_type": ft,
                     "civicclerk_portal_url": civicclerk_portal_event_url(tenant, eid),
-                    "discovered_on": homepage_url or civicclerk_portal_event_url(tenant, eid),
+                    "civicclerk_portal_file_url": portal_file or None,
+                    "discovered_on": homepage_url or portal_file or civicclerk_portal_event_url(tenant, eid),
                 }
                 new_pdf_rows.append(row)
                 pdf_count += 1
