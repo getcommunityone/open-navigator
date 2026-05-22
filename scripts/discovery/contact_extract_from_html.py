@@ -1236,6 +1236,12 @@ _ROLE_HEADING_LINE = re.compile(
     r")\b",
 )
 
+_SCRIPTY_OR_UI_LINE_RE = re.compile(
+    r"(?is)(\$\(document\)|document\.ready\(|loadgooglemapsscript\(|"
+    r"function\s*\(|\{\s*var\s+\w+\s*=|more\s+information\b|"
+    r"commissioners:\s*$)"
+)
+
 
 def _tag_heading_level(tag: Any) -> int:
     from bs4 import Tag
@@ -1248,6 +1254,8 @@ def _tag_heading_level(tag: Any) -> int:
 def _looks_like_person_name_line(s: str) -> bool:
     s = (s or "").strip()
     if len(s) < 3 or len(s) > 140:
+        return False
+    if _SCRIPTY_OR_UI_LINE_RE.search(s):
         return False
     if _line_is_contact_label(s):
         return False
@@ -1552,6 +1560,9 @@ def extract_heading_section_contacts_from_html(
                 if len(letters) >= 4:
                     name_guess = title_guess
                     title_guess = None
+
+        if name_guess and _SCRIPTY_OR_UI_LINE_RE.search(name_guess):
+            name_guess = ""
 
         maddr = None
         mm = re.search(

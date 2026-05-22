@@ -8,6 +8,7 @@ saved profile image paths when available.
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -18,6 +19,32 @@ from scripts.discovery.contact_extract_from_html import (
     is_generic_mailbox_email,
     normalize_structured_contact_row,
 )
+
+
+_NON_PERSON_PROFILE_NAME_RE = re.compile(
+    r"(?is)\b("
+    r"search|facebook|twitter|agenda|calendar|minutes|mission|district\s+map|"
+    r"board\s+of\s+commissioners\s+agenda\s+appearance\s+form|"
+    r"agenda\s+center|government\s+offices\s+closed|development\s+authority"
+    r")\b"
+)
+
+
+def _is_person_profile_image_record(img: Dict[str, Any]) -> bool:
+    if img.get("error"):
+        return False
+    if not img.get("saved_filename"):
+        return False
+    pname = str(img.get("person_name") or "").strip()
+    if not pname:
+        return False
+    if _NON_PERSON_PROFILE_NAME_RE.search(pname):
+        return False
+    if pname.endswith(":"):
+        return False
+    # Require at least one alpha token pair (e.g., first + last) for portrait contacts.
+    toks = [t for t in re.findall(r"[A-Za-z]+", pname) if len(t) >= 2]
+    return len(toks) >= 2
 
 
 def build_contacts_bundle(
@@ -83,7 +110,7 @@ def build_contacts_bundle(
 
     # Link saved headshots by email (from structured row) or person_stem / person_name match.
     for img in contact_profile_images or []:
-        if not img.get("saved_filename"):
+        if not _is_person_profile_image_record(img):
             continue
         rel = str(img.get("saved_relative_path") or "").strip()
         if not rel:
@@ -135,6 +162,7 @@ def build_contacts_bundle(
                 if img.get(k) is not None
             }
             for img in (contact_profile_images or [])
+            if _is_person_profile_image_record(img)
         ],
         "extracted_contacts_summary": extracted_contacts or {},
     }
