@@ -368,6 +368,15 @@ _BERRIEN_EXPECTED_COMMISSIONERS: Tuple[Tuple[str, str], ...] = (
     ("david harrod", "district 5"),
 )
 
+_BANKS_DIR = _GA_COUNTY_CACHE / "banks_13011"
+_BANKS_BOC_PAGE_URL = "https://www.bankscountyga.org/1227/Board-of-Commissioners"
+_BANKS_DANNY_EXPECTED = {
+    "person_name": "danny maxwell",
+    "title_or_role": "vice chairman district 1",
+    "phone": "(706) 654-8326",
+    "email": "djmaxwell@co.banks.ga.us",
+}
+
 
 def test_berrien_cache_proves_commissioners_page_was_crawled_and_extracted() -> None:
     """Offline regression on berrien_13019/: BOC page must yield exactly 5 commissioners.
@@ -427,6 +436,55 @@ def test_berrien_cache_proves_commissioners_page_was_crawled_and_extracted() -> 
         f"berrien_13019: expected exactly 5 commissioner rows from "
         f"{_BERRIEN_BOC_PAGE_URL}, got {len(extracted_commissioner_rows)}: "
         f"{[(r.get('person_name'), r.get('title_or_role')) for r in extracted_commissioner_rows]}"
+    )
+
+
+def test_banks_cache_requires_danny_maxwell_full_contact_fields() -> None:
+    """Banks County BOC page must emit Danny Maxwell with name, role, phone, and email.
+
+    This fails unless the rebuilt bundle includes a contact row from
+    ``/1227/Board-of-Commissioners`` with all of:
+      - person_name = Danny Maxwell
+      - title_or_role = Vice Chairman District 1
+      - phone = (706) 654-8326
+      - email = djmaxwell@co.banks.ga.us
+    """
+    manifest_path = _BANKS_DIR / "_manifest.json"
+    assert manifest_path.is_file(), (
+        f"banks_13011: missing _manifest.json at {manifest_path} — crawl never ran"
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    pages_fetched = [str(u) for u in (manifest.get("pages_fetched") or [])]
+    assert _BANKS_BOC_PAGE_URL in pages_fetched, (
+        f"banks_13011: {_BANKS_BOC_PAGE_URL} not in pages_fetched; got {pages_fetched}"
+    )
+
+    bundle = _regenerate_contacts_bundle(_BANKS_DIR)
+    target_rows = [
+        r
+        for r in bundle.get("contacts", [])
+        if str(r.get("source_page_url") or "") == _BANKS_BOC_PAGE_URL
+        and str(r.get("email") or "").strip().lower() == _BANKS_DANNY_EXPECTED["email"]
+    ]
+    assert target_rows, (
+        "banks_13011: missing Danny Maxwell email row from "
+        f"{_BANKS_BOC_PAGE_URL}; got emails "
+        f"{sorted({str(r.get('email') or '').lower() for r in bundle.get('contacts', []) if r.get('email')})}"
+    )
+
+    row = target_rows[0]
+    assert str(row.get("person_name") or "").strip().lower() == _BANKS_DANNY_EXPECTED["person_name"], (
+        f"banks_13011: expected person_name {_BANKS_DANNY_EXPECTED['person_name']!r} "
+        f"for {_BANKS_DANNY_EXPECTED['email']}, got {row.get('person_name')!r}"
+    )
+    assert str(row.get("title_or_role") or "").strip().lower() == _BANKS_DANNY_EXPECTED["title_or_role"], (
+        f"banks_13011: expected title_or_role {_BANKS_DANNY_EXPECTED['title_or_role']!r} "
+        f"for {_BANKS_DANNY_EXPECTED['email']}, got {row.get('title_or_role')!r}"
+    )
+    assert str(row.get("phone") or "").strip() == _BANKS_DANNY_EXPECTED["phone"], (
+        f"banks_13011: expected phone {_BANKS_DANNY_EXPECTED['phone']!r} "
+        f"for {_BANKS_DANNY_EXPECTED['email']}, got {row.get('phone')!r}"
     )
 
 

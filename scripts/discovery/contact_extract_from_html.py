@@ -256,6 +256,33 @@ def extract_structured_contacts_from_html(
         if len(rows) >= max_rows:
             break
 
+    for wr in extract_wix_commissioner_lines_contacts_from_html(
+        html, page_url, max_rows=max(0, max_rows - len(rows))
+    ):
+        k = _structured_contact_row_key(wr)
+        if k in existing_keys:
+            continue
+        existing_keys.add(k)
+        rows.append(wr)
+        if len(rows) >= max_rows:
+            break
+
+    for rr in extract_commissioner_roster_list_contacts_from_html(
+        html, page_url, max_rows=max(0, max_rows - len(rows))
+    ):
+        em = str(rr.get("email") or "").lower()
+        if em and em in emails_seen:
+            continue
+        if em:
+            emails_seen.add(em)
+        k = _structured_contact_row_key(rr)
+        if k in existing_keys:
+            continue
+        existing_keys.add(k)
+        rows.append(rr)
+        if len(rows) >= max_rows:
+            break
+
     for a in soup.select('a[href^="mailto:"]'):
         if len(rows) >= max_rows:
             break
@@ -359,6 +386,13 @@ _OFFICE_HONORIFIC_LINE_RE = re.compile(
     re.I,
 )
 _MORE_INFO_BUTTON_RE = re.compile(r"more\s+info", re.I)
+_WIX_COMMISSIONER_LINE_RE = re.compile(
+    r"^([A-Z][A-Za-z'`.-]+(?:\s+[A-Z][A-Za-z'`.-]+){1,3})\s*,\s*([A-Za-z][A-Za-z\s'`.-]+District)\s*$"
+)
+_WIX_HEADSHOT_ALT_NAME_RE = re.compile(
+    r"headshot[_-]?([A-Za-z]+(?:[A-Z][a-z]+)+)",
+    re.I,
+)
 
 
 def _abs_background_image_url(raw: str, page_url: str) -> str:
@@ -1268,6 +1302,10 @@ _NON_PERSON_ROSTER_LINE_RE = re.compile(
     r"for\s+general\s+inquiries|administrator\s+of\s+.+|copyright|all\s+rights\s+reserved)\b",
     re.I,
 )
+_NON_PERSON_NAME_TOKEN_RE = re.compile(
+    r"\b(county|code|physical|address|view|map|directions|suite|agenda|minutes|contact\s+us)\b",
+    re.I,
+)
 
 
 def _tag_heading_level(tag: Any) -> int:
@@ -1565,6 +1603,78 @@ def extract_elementor_image_box_directory_contacts_from_html(
     return out
 
 
+def extract_wix_commissioner_lines_contacts_from_html(
+    html: str,
+    page_url: str,
+    *,
+    max_rows: int = 80,
+) -> List[Dict[str, Any]]:
+    """Extract commissioner rows from Wix plain text lines and headshot image alts."""
+    from bs4 import BeautifulSoup
+
+    out: List[Dict[str, Any]] = []
+    if not html or max_rows <= 0:
+        return out
+
+    soup = BeautifulSoup(html, "html.parser")
+    lines = [
+        re.sub(r"\s+", " ", x).strip()
+        for x in soup.get_text("\n").split("\n")
+        if x and x.strip()
+    ]
+
+    headshots: Dict[str, str] = {}
+    for img in soup.find_all("img"):
+        alt = str(img.get("alt") or "").strip()
+        src = str(img.get("src") or "").strip()
+        srcset = str(img.get("srcset") or "").strip()
+        if "headshot" not in alt.lower() and "headshot" not in src.lower() and "headshot" not in srcset.lower():
+            continue
+        m = _WIX_HEADSHOT_ALT_NAME_RE.search(alt)
+        if not m:
+            continue
+        camel = m.group(1)
+        display_name = re.sub(r"([a-z])([A-Z])", r"\1 \2", camel).strip()
+        image_url = src
+        if not image_url and srcset:
+            image_url = srcset.split(",", 1)[0].strip().split(" ")[0]
+        if not image_url:
+            continue
+        headshots[display_name.lower()] = image_url
+
+    seen: Set[Tuple[str, str]] = set()
+    for ln in lines:
+        if len(out) >= max_rows:
+            break
+        m = _WIX_COMMISSIONER_LINE_RE.match(ln)
+        if not m:
+            continue
+        name = m.group(1).strip()
+        district = m.group(2).strip()
+        if not _looks_like_person_name_line(name):
+            continue
+        key = (name.lower(), district.lower())
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(
+            {
+                "person_name": name[:512],
+                "title_or_role": district[:512],
+                "department": None,
+                "email": None,
+                "phone": None,
+                "mailing_address": None,
+                "profile_url": None,
+                "profile_image_url": headshots.get(name.lower()),
+                "extraction_method": "wix_commissioner_lines",
+                "raw_row": {"page_url": page_url, "line": ln[:200]},
+            }
+        )
+
+    return out
+
+
 def _heading_section_blob(h: Any) -> str:
     from bs4 import NavigableString, Tag
 
@@ -1691,6 +1801,12 @@ def extract_heading_section_contacts_from_html(
                                     i += 1
 
                 if name and _looks_like_person_name_line(name) and not _NON_PERSON_ROSTER_LINE_RE.search(name):
+                    if _NON_PERSON_NAME_TOKEN_RE.search(name):
+                        i += 1
+                        continue
+                    if not role:
+                        i += 1
+                        continue
                     role_norm = role[:512] or "Commissioner"
                     rk = (name.lower(), role_norm.lower())
                     if rk not in roster_seen:
@@ -1769,6 +1885,117 @@ def extract_heading_section_contacts_from_html(
                 "raw_row": {"page_url": page_url, "heading": (title_guess or "")[:200]},
             }
         )
+
+    return out
+
+
+def extract_commissioner_roster_list_contacts_from_html(
+    html: str,
+    page_url: str,
+    *,
+    max_rows: int = 80,
+) -> List[Dict[str, Any]]:
+    """Extract commissioners from nested list rosters (CivicPlus-style HTML blocks).
+
+    Pattern example:
+      - <h3>Commissioners:</h3>
+      - <ul>
+          <li><strong>Danny Maxwell, Vice Chairman District 1</strong>
+              <ul><li>phone: ...</li><li>email: ...</li></ul>
+          </li>
+        </ul>
+    """
+    from bs4 import BeautifulSoup, Tag
+
+    out: List[Dict[str, Any]] = []
+    if not html or max_rows <= 0:
+        return out
+
+    soup = BeautifulSoup(html, "html.parser")
+    seen: Set[Tuple[str, str, str]] = set()
+
+    for h in soup.find_all(["h2", "h3", "h4", "h5", "h6"]):
+        htxt = re.sub(r"\s+", " ", h.get_text(" ", strip=True) or "").strip()
+        if not _COMMISSIONER_SECTION_RE.search(htxt):
+            continue
+        ul = h.find_next("ul")
+        if not isinstance(ul, Tag):
+            continue
+
+        for li in ul.find_all("li", recursive=False):
+            if len(out) >= max_rows:
+                break
+
+            name_role = ""
+            strong = li.find(["strong", "b"])
+            if strong is None:
+                continue
+            name_role = re.sub(r"\s+", " ", strong.get_text(" ", strip=True) or "").strip()
+            if not name_role:
+                continue
+
+            name = ""
+            title = ""
+            if "," in name_role:
+                p1, p2 = name_role.split(",", 1)
+                name = p1.strip()
+                title = p2.strip()
+            else:
+                name = name_role.strip()
+
+            if not _looks_like_person_name_line(name):
+                continue
+            if _NON_PERSON_ROSTER_LINE_RE.search(name):
+                continue
+            if _NON_PERSON_NAME_TOKEN_RE.search(name):
+                continue
+
+            li_blob = re.sub(r"\s+", " ", li.get_text(" ", strip=True) or "")
+            phone = None
+            pm = _PHONE_RE.search(li_blob)
+            if pm:
+                digits = re.sub(r"\D", "", pm.group(0))
+                if len(digits) >= 10:
+                    phone = _normalize_phone_display(pm.group(0))
+
+            email = None
+            best_email = ""
+            for a in li.select('a[href^="mailto:"]'):
+                vis = re.sub(r"\s+", " ", a.get_text(" ", strip=True) or "").strip().lower()
+                hm = _MAILTO_RE.search((a.get("href") or "").strip())
+                href_email = _clean_mailto(hm.group(1)) if hm else ""
+                if vis and "@" in vis:
+                    vm = _EMAIL_RE.search(vis)
+                    if vm:
+                        best_email = vm.group(0).strip().lower()
+                        break
+                if href_email and "@" in href_email:
+                    best_email = href_email
+            if not best_email:
+                em = _EMAIL_RE.search(li_blob)
+                if em:
+                    best_email = em.group(0).strip().lower()
+            if best_email and not _BOGUS_EMAIL_SUFFIX.search(best_email):
+                email = best_email
+
+            key = (name.lower(), (email or "").lower(), re.sub(r"\D", "", phone or "")[:15])
+            if key in seen:
+                continue
+            seen.add(key)
+
+            out.append(
+                {
+                    "person_name": name[:512],
+                    "title_or_role": title[:512] or None,
+                    "department": None,
+                    "email": email,
+                    "phone": phone,
+                    "mailing_address": None,
+                    "profile_url": None,
+                    "extraction_method": "commissioner_roster_list",
+                    "raw_row": {"page_url": page_url, "heading": htxt[:200]},
+                }
+            )
 
     return out
 

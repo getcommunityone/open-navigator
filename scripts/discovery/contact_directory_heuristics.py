@@ -112,6 +112,8 @@ def classify_contact_directory_page(page_url: str, html: Optional[str]) -> Dict[
             "county commissioners",
             "commission chairman",
             "commission district",
+            "to contact all commissioners",
+            "vice chair",
             "city council",
             "council president",
             "district representative",
