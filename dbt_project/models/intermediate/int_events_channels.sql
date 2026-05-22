@@ -133,7 +133,24 @@ title_sources AS (
               OR cb.channel_title ILIKE '%commonwealth%'
                 THEN 'state'
             ELSE NULL
-        END AS inferred_jurisdiction_type
+        END AS inferred_jurisdiction_type,
+        (
+            cb.channel_title ILIKE '% city %'
+            OR cb.channel_title ILIKE 'city %'
+            OR cb.channel_title ILIKE '% city'
+            OR cb.channel_title ILIKE '% county %'
+            OR cb.channel_title ILIKE 'county %'
+            OR cb.channel_title ILIKE '% county'
+            OR cb.channel_title ILIKE '% school district%'
+            OR cb.channel_title ILIKE '% public schools%'
+            OR cb.channel_title ILIKE '% board of education%'
+            OR cb.channel_title ILIKE '% school board%'
+            OR cb.channel_title ILIKE '% township %'
+            OR cb.channel_title ILIKE '% township'
+            OR cb.channel_title ILIKE '% municipal %'
+            OR cb.channel_title ILIKE '% government %'
+            OR cb.channel_title ILIKE '% gov %'
+        ) AS has_gov_keyword
     FROM base_channels bc
     LEFT JOIN channels_bronze cb ON bc.channel_id = cb.channel_id
     LEFT JOIN channel_primary_state cps ON bc.channel_id = cps.channel_id
@@ -149,7 +166,7 @@ jurisdiction_catalog AS (
         name AS jurisdiction_name,
         regexp_replace(lower(name), '[^a-z0-9]+', '', 'g') AS jurisdiction_name_compact
     FROM {{ ref('int_jurisdictions') }}
-    WHERE jurisdiction_type IN ('municipality', 'county', 'school_district', 'township', 'state')
+    WHERE jurisdiction_type IN ('municipality', 'county', 'school_district', 'township')
 ),
 
 title_match_candidates AS (
@@ -183,6 +200,7 @@ title_match_candidates AS (
             OR ts.title_compact LIKE '%' || jc.jurisdiction_name_compact || '%'
             OR jc.jurisdiction_name_compact LIKE '%' || ts.title_compact || '%'
        )
+    AND ts.has_gov_keyword
        AND (ts.inferred_jurisdiction_type IS NULL OR ts.inferred_jurisdiction_type = jc.jurisdiction_type)
 ),
 
