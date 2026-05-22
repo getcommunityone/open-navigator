@@ -143,20 +143,19 @@ run_captions() {
   local jid st name
   while IFS=$'\t' read -r st jid name; do
     echo "=== Captions ($N newest): $st — $name ($jid) ==="
-    local -a cmd=(
-      scripts/datasources/youtube/backfill_jurisdiction_transcripts.py
+    local -a cap_args=(
       --jurisdiction-id "$jid"
       --newest "$N"
       --order-by published_at
       --delay "$DELAY"
     )
     if [[ -f "$COOKIES" ]]; then
-      cmd+=(--cookies "$COOKIES")
+      cap_args+=(--cookies "$COOKIES")
     fi
     if [[ -n "${DRY_RUN:-}" ]]; then
-      cmd+=(--dry-run)
+      cap_args+=(--dry-run)
     fi
-    if ! "${cmd[@]/#/$PYTHON }"; then
+    if ! "$PYTHON" scripts/datasources/youtube/backfill_jurisdiction_transcripts.py "${cap_args[@]}"; then
       echo "WARN: captions failed for $jid" >&2
     fi
   done < <(export STATES DATABASE_URL="${DATABASE_URL:-}" ROUND_ROBIN="${ROUND_ROBIN:-1}"; list_jurisdictions)
@@ -166,17 +165,21 @@ run_analyze() {
   local jid st name
   while IFS=$'\t' read -r st jid name; do
     echo "=== Analyze ($N newest): $st — $name ($jid) ==="
-    local -a cmd=(
-      scripts/gemini/meeting_transcript_policy.py
+    local -a ana_args=(
       --newest "$N"
       --jurisdiction-id "$jid"
       --state "$st"
     )
     if [[ -n "${DRY_RUN:-}" ]]; then
-      cmd+=(--dry-run)
+      ana_args+=(--dry-run)
     fi
-    if ! "${cmd[@]/#/$PYTHON }"; then
-      echo "WARN: analyze failed for $jid" >&2
+    if ! "$PYTHON" scripts/gemini/meeting_transcript_policy.py "${ana_args[@]}"; then
+      ec=$?
+      if [[ $ec -eq 1 ]]; then
+        echo "WARN: analyze skipped for $jid (usually no captions yet — run: $0 captions)" >&2
+      else
+        echo "WARN: analyze failed for $jid (exit $ec)" >&2
+      fi
     fi
   done < <(export STATES DATABASE_URL="${DATABASE_URL:-}" ROUND_ROBIN="${ROUND_ROBIN:-1}"; list_jurisdictions)
 }

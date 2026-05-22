@@ -449,6 +449,22 @@ def strip_redundant_meeting_date_from_title(raw_title: str, d: date) -> str:
     for pat in patterns:
         _subs(pat, flags=re.I)
 
+    y2 = y % 100
+    y2p = f"{y2:02d}"
+    for sep in (r"\.", r"/", r"-"):
+        for mo_s in (str(d.month), f"{d.month:02d}"):
+            for day_s in (str(day), day2):
+                _subs(rf"\b{mo_s}{sep}{day_s}{sep}{y2p}\b", flags=re.I)
+                _subs(rf"\b{mo_s}{sep}{day_s}{sep}{y}\b", flags=re.I)
+    _subs(
+        rf"^{d.month}(?:\.|/|-){day}(?:\.|/|-){y2p}\b[\s:—\-|]*",
+        flags=re.I,
+    )
+    _subs(
+        rf"^{d.month:02d}(?:\.|/|-){day2}(?:\.|/|-){y2p}\b[\s:—\-|]*",
+        flags=re.I,
+    )
+
     iso_lead = rf"^{y}-{d.month:02d}-{d.day:02d}\b[\s:—\-|]*"
     _subs(iso_lead, flags=re.I)
     iso_slug_lead = rf"^{y}_{d.month:02d}_{d.day:02d}_"
@@ -503,14 +519,24 @@ def dedupe_meeting_disk_basename(base: str) -> str:
 def _iso_date_slug_tokens(d: date) -> List[str]:
     y, mo, day = d.year, d.month, d.day
     day2 = f"{day:02d}"
-    return [
+    y2 = y % 100
+    y2p = f"{y2:02d}"
+    tokens = [
         f"{y}_{mo:02d}_{day2}",
         f"{y}_{mo}_{day}",
         f"{y}_{mo}_{day2}",
         f"{mo:02d}_{day2}_{y}",
         f"{mo}_{day}_{y}",
         f"{mo}_{day2}_{y}",
+        # CivicClerk / hand-entered titles: ``11.03.25`` → ``11_03_25`` after slugify.
+        f"{mo}_{day}_{y2p}",
+        f"{mo}_{day2}_{y2p}",
+        f"{mo:02d}_{day}_{y2p}",
+        f"{mo:02d}_{day2}_{y2p}",
+        f"{mo}_{day}_{y}",
+        f"{mo:02d}_{day2}_{y}",
     ]
+    return tokens
 
 
 def strip_redundant_date_slug_suffix(slug: str, d: date) -> str:

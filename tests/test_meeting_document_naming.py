@@ -93,6 +93,20 @@ def test_build_filename_no_year_only_prefix_when_iso_in_anchor():
     assert "2020_agenda_" not in name
 
 
+def test_build_filename_strips_mdy_short_slug_when_iso_prefix_set():
+    anchor = (
+        "11.03.25 Organizational Meeting Agenda — City Council Meeting — "
+        "City Council — 2025-11-03"
+    )
+    url = "https://northportal.api.civicclerk.com/v1/Meetings/GetMeetingFile(fileId=1)"
+    name = build_meeting_pdf_disk_filename(
+        url, anchor, "agenda", meeting_date=date(2025, 11, 3)
+    )
+    assert name.startswith("2025-11-03_agenda_")
+    assert "11_03_25" not in name
+    assert "2025_11_03" not in name
+
+
 def test_build_filename_manifest_anchor_with_leading_iso():
     anchor = (
         "2020-12-17 Agenda — Zoning Board of Adjustment Meeting — "

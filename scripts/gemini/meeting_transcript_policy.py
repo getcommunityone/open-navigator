@@ -881,7 +881,13 @@ def run_pipeline(args: argparse.Namespace) -> None:
             dedupe_duplicate_meetings=not newest_n,
         )
         if not videos:
-            raise SystemExit(f"No bronze videos for {jurisdiction_id}")
+            hint = ""
+            if getattr(args, "only_has_transcript", False):
+                hint = (
+                    " (no rows with bronze_events_text_ai.has_transcript — "
+                    "run scripts/datasources/youtube/backfill_jurisdiction_transcripts.py first)"
+                )
+            raise SystemExit(f"No bronze videos for {jurisdiction_id}{hint}")
         if args.dry_run:
             for i, v in enumerate(videos, 1):
                 ed = v.event_date or "?"
@@ -1153,7 +1159,6 @@ def main() -> None:
         action="store_true",
         help="Upsert bronze.bronze_bills / item legislation links after Part 1 (needs migration 018)",
     )
-    parser.add_argument("--database-url", default="", help="Override Postgres URL for --persist-bronze")
     args = parser.parse_args()
     run_pipeline(args)
 
