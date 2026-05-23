@@ -105,6 +105,7 @@ class StateRollup:
     cache: CacheCounts = field(default_factory=CacheCounts)
     videos_by_year: Dict[str, int] = field(default_factory=dict)
     channel_year_rows: List[Dict[str, Any]] = field(default_factory=list)
+    channel_total_rows: List[Dict[str, Any]] = field(default_factory=list)
 
 
 def _database_url() -> Optional[str]:
@@ -449,7 +450,11 @@ def fetch_db_rollups(states: List[str]) -> Dict[str, StateRollup]:
         cur.execute(
             """
             SELECT UPPER(y.state_code) AS state_code,
-                   COALESCE(EXTRACT(YEAR FROM y.published_at)::text, 'unknown') AS yr,
+                   COALESCE(
+                       EXTRACT(YEAR FROM y.published_at),
+                       EXTRACT(YEAR FROM y.event_date),
+                       0
+                   )::int AS yr,
                    COUNT(*)::bigint AS n
             FROM bronze.bronze_events_youtube y
             WHERE UPPER(y.state_code) = ANY(%s)
@@ -461,7 +466,9 @@ def fetch_db_rollups(states: List[str]) -> Dict[str, StateRollup]:
         for row in cur.fetchall():
             st = row["state_code"]
             if st in rollups:
-                rollups[st].videos_by_year[str(row["yr"])] = int(row["n"] or 0)
+                yr_val = int(row["yr"] or 0)
+                yr_key = "unknown" if yr_val == 0 else str(yr_val)
+                rollups[st].videos_by_year[yr_key] = int(row["n"] or 0)
 
         cur.execute(
             """
@@ -469,7 +476,11 @@ def fetch_db_rollups(states: List[str]) -> Dict[str, StateRollup]:
                    y.jurisdiction_name,
                    y.jurisdiction_id,
                    y.channel_id,
-                   COALESCE(EXTRACT(YEAR FROM y.published_at)::int, 0) AS yr,
+                   COALESCE(
+                       EXTRACT(YEAR FROM y.published_at),
+                       EXTRACT(YEAR FROM y.event_date),
+                       0
+                   )::int AS yr,
                    COUNT(*)::bigint AS videos,
                    COUNT(*) FILTER (
                        WHERE COALESCE(t.has_transcript, FALSE)
@@ -488,6 +499,31 @@ def fetch_db_rollups(states: List[str]) -> Dict[str, StateRollup]:
             st = row["state_code"]
             if st in rollups:
                 rollups[st].channel_year_rows.append(dict(row))
+
+        cur.execute(
+            """
+            SELECT UPPER(y.state_code) AS state_code,
+                   y.jurisdiction_name,
+                   y.jurisdiction_id,
+                   y.channel_id,
+                   COUNT(*)::bigint AS videos,
+                   COUNT(*) FILTER (
+                       WHERE COALESCE(t.has_transcript, FALSE)
+                         OR (t.raw_text IS NOT NULL AND BTRIM(t.raw_text) <> '')
+                   )::bigint AS with_transcript
+            FROM bronze.bronze_events_youtube y
+            LEFT JOIN bronze.bronze_events_text_ai t ON t.video_id = y.video_id
+            WHERE UPPER(y.state_code) = ANY(%s)
+              AND y.channel_id IS NOT NULL
+            GROUP BY 1, 2, 3, 4
+            ORDER BY 1, 2, 4
+            """,
+            (states,),
+        )
+        for row in cur.fetchall():
+            st = row["state_code"]
+            if st in rollups:
+                rollups[st].channel_total_rows.append(dict(row))
 
     return rollups
 
@@ -895,7 +931,10 @@ def render_markdown(
     all_years: Set[str] = set()
     for st in states:
         all_years.update((rollups.get(st) or StateRollup(state_code=st)).videos_by_year.keys())
-    year_cols = sorted(all_years, key=lambda y: (y == "unknown", y))
+    year_cols = sorted(
+        all_years,
+        key=lambda y: (y == "unknown", int(y) if y.isdigit() else 9999),
+    )
 
     header = "| State | " + " | ".join(year_cols) + " |"
     sep = "|-------|" + "|".join(["---:" for _ in year_cols]) + "|"
@@ -939,14 +978,46 @@ def render_markdown(
         lines.append("|--------------|---------|-----:|-------:|----------------:|")
         for row in rows:
             jname = (row.get("jurisdiction_name") or row.get("jurisdiction_id") or "")[:40]
-            ch = (row.get("channel_id") or "")[:24]
-            yr = row.get("yr") or ""
+            channel_id = str(row.get("channel_id") or "").strip()
+            ch_display = channel_id[:24]
+            ch = f"[{ch_display}](https://www.youtube.com/channel/{channel_id})" if channel_id else ""
+            yr_raw = int(row.get("yr") or 0)
+            yr = "unknown" if yr_raw == 0 else str(yr_raw)
             lines.append(
-                f"| {jname} | `{ch}` | {yr} | {int(row.get('videos') or 0):,} | "
+                f"| {jname} | {ch} | {yr} | {int(row.get('videos') or 0):,} | "
                 f"{int(row.get('with_transcript') or 0):,} |"
             )
         if len(r.channel_year_rows) > 40:
             lines.append(f"| … | *{len(r.channel_year_rows) - 40} more rows* | | | |")
+        lines.append("")
+
+    lines.append("## Channel totals (all years combined)")
+    lines.append("")
+    lines.append(
+        "One row per channel across all years. Truncated to 40 rows per state; "
+        "re-run with SQL for full export."
+    )
+    lines.append("")
+    for st in states:
+        r = rollups.get(st) or StateRollup(state_code=st)
+        rows = r.channel_total_rows[:40]
+        if not rows:
+            continue
+        lines.append(f"### {st}")
+        lines.append("")
+        lines.append("| Jurisdiction | Channel | Videos | w/ transcript |")
+        lines.append("|--------------|---------|-------:|----------------:|")
+        for row in rows:
+            jname = (row.get("jurisdiction_name") or row.get("jurisdiction_id") or "")[:40]
+            channel_id = str(row.get("channel_id") or "").strip()
+            ch_display = channel_id[:24]
+            ch = f"[{ch_display}](https://www.youtube.com/channel/{channel_id})" if channel_id else ""
+            lines.append(
+                f"| {jname} | {ch} | {int(row.get('videos') or 0):,} | "
+                f"{int(row.get('with_transcript') or 0):,} |"
+            )
+        if len(r.channel_total_rows) > 40:
+            lines.append(f"| … | *{len(r.channel_total_rows) - 40} more rows* | | |")
         lines.append("")
 
     lines.append("## How to refresh")

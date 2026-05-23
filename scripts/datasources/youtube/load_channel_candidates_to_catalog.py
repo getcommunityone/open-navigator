@@ -23,6 +23,12 @@ def main() -> int:
     p.add_argument("--state", default="GA", help="State code for load_youtube_for_jurisdiction")
     p.add_argument("--jurisdiction-type", default="county")
     p.add_argument("--max-videos", type=int, default=100)
+    p.add_argument(
+        "--min-duration-seconds",
+        type=int,
+        default=120,
+        help="Skip videos shorter than this many seconds (default: 120)",
+    )
     p.add_argument("--python", default=".venv/bin/python", help="Python executable")
     p.add_argument(
         "--load-transcripts",
@@ -105,6 +111,8 @@ def main() -> int:
             source_priority,
             "--max-videos",
             str(args.max_videos),
+            "--min-duration-seconds",
+            str(args.min_duration_seconds),
             "--force",
         ] + confidence_args
 

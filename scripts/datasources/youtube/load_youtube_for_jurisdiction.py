@@ -84,6 +84,12 @@ def main() -> None:
         help="Optional source priority tag (e.g. scraped_official_website, fallback_discovery)",
     )
     parser.add_argument("--max-videos", type=int, default=100)
+    parser.add_argument(
+        "--min-duration-seconds",
+        type=int,
+        default=120,
+        help="Skip videos shorter than this many seconds (default: 120)",
+    )
     parser.add_argument("--days", type=int, default=None, help="Only videos newer than N days")
     parser.add_argument("--skip-transcripts", action="store_true")
     parser.add_argument(
@@ -145,6 +151,7 @@ def main() -> None:
         database_url=db_url,
         youtube_api_key=os.getenv("YOUTUBE_API_KEY"),
         max_videos_per_channel=args.max_videos,
+        min_duration_seconds=args.min_duration_seconds,
         days_lookback=args.days,
         fetch_transcripts=not args.skip_transcripts,
         force_full_fetch=args.force,

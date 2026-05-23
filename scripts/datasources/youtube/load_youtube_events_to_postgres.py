@@ -85,6 +85,7 @@ class YouTubeEventsLoader:
         database_url: str,
         youtube_api_key: Optional[str] = None,
         max_videos_per_channel: int = 200,
+        min_duration_seconds: int = 120,
         days_lookback: Optional[int] = None,
         fetch_transcripts: bool = True,
         force_full_fetch: bool = False,
@@ -98,6 +99,7 @@ class YouTubeEventsLoader:
         self.database_url = self._sanitize_database_url(database_url)
         self.youtube_api_key = youtube_api_key
         self.max_videos = max_videos_per_channel
+        self.min_duration_seconds = max(0, int(min_duration_seconds or 0))
         self.days_lookback = days_lookback
         self.fetch_transcripts = fetch_transcripts
         self.force_full_fetch = force_full_fetch
@@ -1611,6 +1613,52 @@ class YouTubeEventsLoader:
                 if not videos:
                     logger.info(f"    No new videos found (already up to date)")
                     continue
+
+                if self.min_duration_seconds > 0:
+                    min_minutes = self.min_duration_seconds / 60.0
+                    eligible_videos: List[Dict[str, Any]] = []
+                    skipped_short = 0
+                    unknown_duration = 0
+                    for video in videos:
+                        raw_duration = video.get('duration_minutes')
+                        if raw_duration in (None, ""):
+                            unknown_duration += 1
+                            eligible_videos.append(video)
+                            continue
+                        try:
+                            duration_minutes = float(raw_duration)
+                        except (TypeError, ValueError):
+                            unknown_duration += 1
+                            eligible_videos.append(video)
+                            continue
+                        if duration_minutes <= 0:
+                            unknown_duration += 1
+                            eligible_videos.append(video)
+                            continue
+                        if duration_minutes < min_minutes:
+                            skipped_short += 1
+                            continue
+                        eligible_videos.append(video)
+
+                    if skipped_short > 0:
+                        logger.info(
+                            "    Filtered out {} short video(s) under {}s",
+                            skipped_short,
+                            self.min_duration_seconds,
+                        )
+                    if unknown_duration > 0:
+                        logger.debug(
+                            "    {} video(s) had unknown duration; kept for safety",
+                            unknown_duration,
+                        )
+                    videos = eligible_videos
+
+                if not videos:
+                    logger.info(
+                        "    No eligible videos after min-duration filter (%ss)",
+                        self.min_duration_seconds,
+                    )
+                    continue
                 
                 logger.info(f"    Retrieved {len(videos)} new videos")
                 
@@ -1656,6 +1704,7 @@ class YouTubeEventsLoader:
         logger.info("=" * 80)
         logger.info(f"Database: {self.database_url.split('@')[1] if '@' in self.database_url else 'localhost'}")
         logger.info(f"Max videos per channel: {self.max_videos}")
+        logger.info(f"Min video duration: {self.min_duration_seconds}s")
         
         if self.fetch_transcripts:
             logger.info(f"Fetch transcripts: YES (delay: {self.transcript_delay}s between fetches)")
@@ -1800,6 +1849,13 @@ def main():
         default=100,
         help='Maximum videos to fetch per channel (default: 100)'
     )
+
+    parser.add_argument(
+        '--min-duration-seconds',
+        type=int,
+        default=120,
+        help='Skip videos shorter than this many seconds (default: 120)'
+    )
     
     parser.add_argument(
         '--skip-transcripts',
@@ -1857,6 +1913,7 @@ def main():
         database_url=DATABASE_URL,
         youtube_api_key=YOUTUBE_API_KEY,
         max_videos_per_channel=args.max_videos,
+        min_duration_seconds=args.min_duration_seconds,
         days_lookback=args.days,
         fetch_transcripts=not args.skip_transcripts,
         force_full_fetch=args.force,

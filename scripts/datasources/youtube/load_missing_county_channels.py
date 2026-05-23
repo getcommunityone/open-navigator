@@ -145,6 +145,36 @@ async def discover_channels(
         return " || ".join(parts)
 
     async with YouTubeChannelDiscovery() as discovery:
+        async def resolve_channel_identity(channel: dict[str, Any], *, fallback_method: str) -> dict[str, Any]:
+            """Resolve missing channel_id from channel_url for resilient downstream loading."""
+            channel_id = str(channel.get("channel_id") or "").strip()
+            if channel_id:
+                return channel
+
+            channel_url = str(channel.get("channel_url") or "").strip()
+            if not channel_url:
+                return channel
+
+            method = str(channel.get("discovery_method") or "").strip() or fallback_method
+            resolved = await discovery._check_channel_exists(channel_url, method)
+            if not resolved:
+                return channel
+
+            merged = dict(channel)
+            merged["channel_id"] = str(resolved.get("channel_id") or "").strip()
+            merged["channel_url"] = str(resolved.get("channel_url") or channel_url).strip()
+            merged["channel_title"] = str(channel.get("channel_title") or "").strip() or str(
+                resolved.get("channel_title") or ""
+            ).strip()
+            for key in ("video_count", "subscriber_count", "view_count", "latest_upload", "policy_score"):
+                if merged.get(key) in (None, ""):
+                    merged[key] = resolved.get(key, "")
+            if not str(merged.get("discovery_method") or "").strip():
+                merged["discovery_method"] = method
+            if merged.get("confidence") in (None, "") and resolved.get("confidence") not in (None, ""):
+                merged["confidence"] = resolved.get("confidence")
+            return merged
+
         total = len(rows)
         for idx, row in enumerate(rows, 1):
             county_name = str(row["county_name"]).strip()
@@ -154,6 +184,10 @@ async def discover_channels(
 
             scraped_top = choose_scraped_channel(row.get("scraped_youtube_channels"))
             if scraped_top:
+                scraped_top = await resolve_channel_identity(
+                    scraped_top,
+                    fallback_method=str(scraped_top.get("discovery_method") or "").strip() or "website_scrape",
+                )
                 out.append(
                     {
                         "jurisdiction_id": row["jurisdiction_id"],
@@ -190,6 +224,11 @@ async def discover_channels(
                 channels = []
 
             top = channels[0] if channels else {}
+            if top:
+                top = await resolve_channel_identity(
+                    top,
+                    fallback_method=str(top.get("discovery_method") or "").strip() or "fallback_discovery",
+                )
             out.append(
                 {
                     "jurisdiction_id": row["jurisdiction_id"],

@@ -12,6 +12,7 @@
 #   STATES=AL,GA,IN,MA,MT,WA,WI
 #   PYTHON=.venv/bin/python
 #   MAX_VIDEOS=100
+#   MIN_DURATION_SECONDS=120
 #   JURISDICTION_TYPE=county
 #   OUTPUT_DIR=/tmp/youtube-channel-candidates
 #   SKIP_HOMEPAGE_SCRAPE=0
@@ -37,6 +38,7 @@ cd "$ROOT"
 PYTHON="${PYTHON:-$ROOT/.venv/bin/python}"
 STATES="${STATES:-AL,GA,IN,MA,MT,WA,WI}"
 MAX_VIDEOS="${MAX_VIDEOS:-100}"
+MIN_DURATION_SECONDS="${MIN_DURATION_SECONDS:-120}"
 JURISDICTION_TYPE="${JURISDICTION_TYPE:-county}"
 OUTPUT_DIR="${OUTPUT_DIR:-/tmp/youtube-channel-candidates}"
 SKIP_HOMEPAGE_SCRAPE="${SKIP_HOMEPAGE_SCRAPE:-0}"
@@ -76,6 +78,7 @@ echo "states: $STATES"
 echo "python: $PYTHON"
 echo "output_dir: $OUTPUT_DIR"
 echo "load_transcripts: $LOAD_TRANSCRIPTS"
+echo "min_duration_seconds: $MIN_DURATION_SECONDS"
 
 for raw_state in "${STATE_LIST[@]}"; do
   state="$(echo "$raw_state" | tr '[:lower:]' '[:upper:]' | xargs)"
@@ -114,6 +117,7 @@ for raw_state in "${STATE_LIST[@]}"; do
       --state "$state"
       --jurisdiction-type "$JURISDICTION_TYPE"
       --max-videos "$MAX_VIDEOS"
+      --min-duration-seconds "$MIN_DURATION_SECONDS"
       --python "$PYTHON"
     )
 
