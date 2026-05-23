@@ -149,6 +149,21 @@ def _map_jurisdiction_type(raw: str) -> str:
     return "other"
 
 
+def _jurisdiction_group_from_id(jurisdiction_id: str) -> str:
+    jid = (jurisdiction_id or "").strip().lower()
+    if jid.startswith("county_"):
+        return "local"
+    if jid.startswith("municipality_"):
+        return "local"
+    if jid.startswith("school_district_"):
+        return "school"
+    if jid.startswith("state_"):
+        return "state"
+    if jid.startswith("township_"):
+        return "township"
+    return "other"
+
+
 def _folder_to_jurisdiction_id(folder_name: str, cache_type: str) -> str:
     name = folder_name.strip()
     if _LEGACY_NUMERIC.fullmatch(name):
@@ -696,7 +711,14 @@ def build_jurisdiction_progress(
             )
         )
 
-    rows.sort(key=lambda r: (r.state_code, r.jurisdiction_name))
+    rows.sort(
+        key=lambda r: (
+            r.state_code,
+            _jurisdiction_group_from_id(r.jurisdiction_id),
+            r.jurisdiction_name,
+            r.jurisdiction_id,
+        )
+    )
     return rows
 
 
@@ -846,24 +868,29 @@ def render_markdown(
         "Sorted by state. **Last updated** is the later of bronze YouTube/text_ai touch "
         "and newest policy-cache file. **Stage** is inferred from on-disk folders."
     )
+    lines.append(
+        f"**Legend:** `T`=transcripts (`01_transcripts`), `A`=analysis JSON (`02_analysis`), "
+        f"`R`=reports (`03_reports`); completion target is **{target_videos}** report(s)."
+    )
     lines.append("")
     lines.append(
-        "| State | Jurisdiction | Last updated | Stage | In progress | Elapsed | Est. remaining | "
-        f"T / A / R ({target_videos} target) |"
+        "| State | Group | Jurisdiction | Jurisdiction ID | Last updated | Stage | In progress | Elapsed | Est. remaining | "
+        f"T(transcripts) / A(analysis) / R(reports) ({target_videos} target) |"
     )
     lines.append(
-        "|-------|--------------|--------------|-------|:-----------:|--------:|---------------:|"
+        "|-------|-------|--------------|-----------------|--------------|-------|:-----------:|--------:|---------------:|"
         "------------------:|"
     )
     for p in progress:
         last = p.cache_last_updated
         if p.db_last_updated and (last is None or p.db_last_updated > last):
             last = p.db_last_updated
+        group = _jurisdiction_group_from_id(p.jurisdiction_id)
         in_prog = "yes" if p.in_progress else ""
         if p.in_progress:
             in_prog = f"**yes**"
         lines.append(
-            f"| {p.state_code} | {p.jurisdiction_name[:36]} | {_format_dt(last)} | "
+            f"| {p.state_code} | {group} | {p.jurisdiction_name[:36]} | {p.jurisdiction_id} | {_format_dt(last)} | "
             f"{p.stage} | {in_prog} | {_format_duration(p.elapsed_seconds)} | "
             f"{_format_duration(p.est_remaining_seconds)} | "
             f"{p.cache_transcripts} / {p.cache_analysis} / {p.cache_reports} |"
@@ -974,17 +1001,19 @@ def render_markdown(
             continue
         lines.append(f"### {st}")
         lines.append("")
-        lines.append("| Jurisdiction | Channel | Year | Videos | w/ transcript |")
-        lines.append("|--------------|---------|-----:|-------:|----------------:|")
+        lines.append("| Group | Jurisdiction | Jurisdiction ID | Channel | Year | Videos | w/ transcript |")
+        lines.append("|-------|--------------|-----------------|---------|-----:|-------:|----------------:|")
         for row in rows:
             jname = (row.get("jurisdiction_name") or row.get("jurisdiction_id") or "")[:40]
+            jid = str(row.get("jurisdiction_id") or "").strip()
+            group = _jurisdiction_group_from_id(jid)
             channel_id = str(row.get("channel_id") or "").strip()
             ch_display = channel_id[:24]
             ch = f"[{ch_display}](https://www.youtube.com/channel/{channel_id})" if channel_id else ""
             yr_raw = int(row.get("yr") or 0)
             yr = "unknown" if yr_raw == 0 else str(yr_raw)
             lines.append(
-                f"| {jname} | {ch} | {yr} | {int(row.get('videos') or 0):,} | "
+                f"| {group} | {jname} | {jid} | {ch} | {yr} | {int(row.get('videos') or 0):,} | "
                 f"{int(row.get('with_transcript') or 0):,} |"
             )
         if len(r.channel_year_rows) > 40:
@@ -1005,15 +1034,17 @@ def render_markdown(
             continue
         lines.append(f"### {st}")
         lines.append("")
-        lines.append("| Jurisdiction | Channel | Videos | w/ transcript |")
-        lines.append("|--------------|---------|-------:|----------------:|")
+        lines.append("| Group | Jurisdiction | Jurisdiction ID | Channel | Videos | w/ transcript |")
+        lines.append("|-------|--------------|-----------------|---------|-------:|----------------:|")
         for row in rows:
             jname = (row.get("jurisdiction_name") or row.get("jurisdiction_id") or "")[:40]
+            jid = str(row.get("jurisdiction_id") or "").strip()
+            group = _jurisdiction_group_from_id(jid)
             channel_id = str(row.get("channel_id") or "").strip()
             ch_display = channel_id[:24]
             ch = f"[{ch_display}](https://www.youtube.com/channel/{channel_id})" if channel_id else ""
             lines.append(
-                f"| {jname} | {ch} | {int(row.get('videos') or 0):,} | "
+                f"| {group} | {jname} | {jid} | {ch} | {int(row.get('videos') or 0):,} | "
                 f"{int(row.get('with_transcript') or 0):,} |"
             )
         if len(r.channel_total_rows) > 40:

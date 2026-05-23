@@ -13,6 +13,7 @@ import asyncio
 import re
 from typing import List, Dict, Optional, Any
 from datetime import datetime, timezone
+from urllib.parse import quote_plus, urljoin, urlparse
 import httpx
 from bs4 import BeautifulSoup
 from loguru import logger
@@ -543,31 +544,86 @@ class YouTubeChannelDiscovery:
             return 0
     
     async def _scrape_website_for_channels(self, url: str) -> List[str]:
-        """Scrape government website for YouTube channel links."""
-        channels = []
-        
+        """Scrape a website for YouTube channel links.
+
+        Behavior: scrape homepage first; only if no YouTube link is found,
+        try common site-search URL patterns for query "youtube".
+        """
+        channels: list[str] = []
+        seen: set[str] = set()
+
+        def add_channels(items: list[str]) -> None:
+            for item in items:
+                if item and item not in seen:
+                    seen.add(item)
+                    channels.append(item)
+
         try:
             response = await self.client.get(url)
-            soup = BeautifulSoup(response.content, 'html.parser')
-            
-            # Find all links
-            links = soup.find_all('a', href=True)
-            
-            for link in links:
-                href = link['href']
-                # Match YouTube channel URLs
-                if re.search(r'youtube\.com/(@[\w-]+|c/[\w-]+|channel/[\w-]+|user/[\w-]+)', href):
-                    # Normalize to @handle format if possible
-                    match = re.search(r'youtube\.com/(@[\w-]+)', href)
-                    if match:
-                        full_url = f"https://www.youtube.com/{match.group(1)}"
-                        if full_url not in channels:
-                            channels.append(full_url)
-        
+            add_channels(self._extract_youtube_links_from_html(response.text, base_url=url))
+
+            # Fallback to site search only when direct-page extraction fails.
+            if not channels:
+                for search_url in self._build_site_search_urls(url, query="youtube"):
+                    try:
+                        search_resp = await self.client.get(search_url)
+                        add_channels(self._extract_youtube_links_from_html(search_resp.text, base_url=search_url))
+                    except Exception as exc:
+                        logger.trace(f"Site search scrape failed for {search_url}: {exc}")
+
         except Exception as e:
             logger.debug(f"Error scraping {url}: {e}")
-        
+
         return channels
+
+    def _build_site_search_urls(self, homepage_url: str, query: str) -> list[str]:
+        parsed = urlparse(homepage_url)
+        if not parsed.scheme or not parsed.netloc:
+            return []
+
+        base = f"{parsed.scheme}://{parsed.netloc}"
+        q = quote_plus(query)
+        return [
+            f"{base}/search?q={q}",
+            f"{base}/search?query={q}",
+            f"{base}/search-results?q={q}",
+            f"{base}/search-results?query={q}",
+            f"{base}/?s={q}",
+        ]
+
+    def _extract_youtube_links_from_html(self, html: str, *, base_url: str) -> list[str]:
+        soup = BeautifulSoup(html, "html.parser")
+        channels: list[str] = []
+        seen: set[str] = set()
+
+        for link in soup.find_all("a", href=True):
+            href = str(link.get("href") or "").strip()
+            absolute = urljoin(base_url, href)
+            normalized = self._normalize_youtube_channel_url(absolute)
+            if normalized and normalized not in seen:
+                seen.add(normalized)
+                channels.append(normalized)
+
+        return channels
+
+    def _normalize_youtube_channel_url(self, url: str) -> Optional[str]:
+        candidate = (url or "").strip()
+        if not candidate:
+            return None
+
+        match = re.search(
+            r"(?:https?://)?(?:www\.)?youtube\.com/("
+            r"@[A-Za-z0-9_-]+|"
+            r"channel/[A-Za-z0-9_-]+|"
+            r"user/[A-Za-z0-9_-]+|"
+            r"c/[A-Za-z0-9_-]+)",
+            candidate,
+            re.IGNORECASE,
+        )
+        if not match:
+            return None
+
+        return f"https://www.youtube.com/{match.group(1)}"
     
     async def _search_youtube_api(
         self,

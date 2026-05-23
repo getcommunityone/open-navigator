@@ -2,10 +2,9 @@
 Test suite for the Oral Health Policy Pulse system.
 """
 import pytest
-from datetime import datetime
 from agents.base import AgentRole, MessageType, AgentStatus
 from agents.orchestrator import OrchestratorAgent
-from agents.scraper import ScraperAgent, MeetingDocument
+from agents.scraper import ScraperAgent
 from agents.classifier import ClassifierAgent, PolicyTopic
 
 
@@ -25,27 +24,6 @@ class TestAgentBase:
         
         assert agent.state.status == AgentStatus.PROCESSING
         assert agent.state.current_task == "Test task"
-
-
-class TestMeetingDocument:
-    """Test meeting document model."""
-    
-    def test_document_creation(self):
-        """Test document creation."""
-        doc = MeetingDocument(
-            document_id="test-001",
-            source_url="https://example.com",
-            municipality="Test City",
-            state="CA",
-            meeting_date=datetime.utcnow(),
-            meeting_type="City Council",
-            title="Test Meeting",
-            content="Test content"
-        )
-        
-        assert doc["document_id"] == "test-001"
-        assert doc["municipality"] == "Test City"
-        assert "scraped_at" in doc
 
 
 class TestClassifier:

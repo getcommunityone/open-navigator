@@ -3,9 +3,9 @@ Core agent base classes and protocols for the multi-agent system.
 """
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Union
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import Enum
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from loguru import logger
 
 
@@ -36,14 +36,11 @@ class AgentMessage(BaseModel):
     sender: AgentRole = Field(..., description="Sending agent role")
     recipient: AgentRole = Field(..., description="Receiving agent role")
     message_type: MessageType = Field(..., description="Type of message")
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
     payload: Dict[str, Any] = Field(default_factory=dict, description="Message payload")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
-    
-    class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
+
+    model_config = ConfigDict(json_encoders={datetime: lambda v: v.isoformat()})
 
 
 class AgentStatus(str, Enum):
@@ -63,7 +60,7 @@ class AgentState(BaseModel):
     current_task: Optional[str] = None
     tasks_completed: int = 0
     tasks_failed: int = 0
-    last_activity: datetime = Field(default_factory=datetime.utcnow)
+    last_activity: datetime = Field(default_factory=lambda: datetime.now(UTC))
     error_message: Optional[str] = None
 
 
@@ -106,7 +103,7 @@ class BaseAgent(ABC):
         """Update the agent's current status."""
         self.state.status = status
         self.state.current_task = task
-        self.state.last_activity = datetime.utcnow()
+        self.state.last_activity = datetime.now(UTC)
         logger.debug(f"{self.role.value} agent {self.agent_id} status: {status.value}")
     
     def log_success(self):
