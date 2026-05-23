@@ -15,7 +15,10 @@ country_csv = ocd_cache / "identifiers" / "country-us.csv"
 if country_csv.exists():
     with open(country_csv, "r", encoding="utf-8") as f:
         reader = csv.reader(f)
-        for ocd_id, name in reader:
+        for row in reader:
+            if len(row) < 2:
+                continue
+            ocd_id, name = row[0], row[1]
             if not ocd_id or not name or "state:" not in ocd_id:
                 continue
 
@@ -41,8 +44,9 @@ if country_csv.exists():
             if not state_code or not jtype:
                 continue
 
-            parent_str = f", '{parent_ocd}'" if parent_ocd else ", NULL"
-            print(f"INSERT INTO bronze.bronze_jurisdiction_ocd (ocd_id, state_code, jurisdiction_type, name, parent_ocd_id) VALUES ('{ocd_id}', '{state_code}', '{jtype}', {repr(name)}, {parent_ocd or 'NULL'}) ON CONFLICT DO NOTHING;")
+            name_escaped = name.replace("'", "''")
+            parent_val = f"'{parent_ocd}'" if parent_ocd else "NULL"
+            print(f"INSERT INTO bronze.bronze_jurisdiction_ocd (ocd_id, state_code, jurisdiction_type, name, parent_ocd_id) VALUES ('{ocd_id}', '{state_code}', '{jtype}', '{name_escaped}', {parent_val}) ON CONFLICT DO NOTHING;")
 
 # Load from state-specific local_gov.csv
 identifiers_dir = ocd_cache / "identifiers" / "country-us"
@@ -51,7 +55,10 @@ if identifiers_dir.exists():
         state_code = state_csv.name.split("-")[1].upper()
         with open(state_csv, "r", encoding="utf-8") as f:
             reader = csv.reader(f)
-            for ocd_id, name in reader:
+            for row in reader:
+                if len(row) < 2:
+                    continue
+                ocd_id, name = row[0], row[1]
                 if not ocd_id or not name:
                     continue
 
@@ -78,7 +85,10 @@ if identifiers_dir.exists():
                 if not jtype:
                     continue
 
-                print(f"INSERT INTO bronze.bronze_jurisdiction_ocd (ocd_id, state_code, jurisdiction_type, name, parent_ocd_id) VALUES ('{ocd_id}', '{state_code}', '{jtype}', {repr(name)}, {parent_ocd or 'NULL'}) ON CONFLICT DO NOTHING;")
+                name_escaped = name.replace("'", "''")
+                parent_val = f"'{parent_ocd}'" if parent_ocd else "NULL"
+                print(f"INSERT INTO bronze.bronze_jurisdiction_ocd (ocd_id, state_code, jurisdiction_type, name, parent_ocd_id) VALUES ('{ocd_id}', '{state_code}', '{jtype}', '{name_escaped}', {parent_val}) ON CONFLICT DO NOTHING;")
 
 print("COMMIT;")
 PYTHON
+
