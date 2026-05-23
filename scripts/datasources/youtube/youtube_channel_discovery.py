@@ -543,11 +543,26 @@ class YouTubeChannelDiscovery:
         except:
             return 0
     
+    # Site-search queries, ordered most-specific first.
+    _SITE_SEARCH_QUERIES = ("youtube meeting", "youtube")
+
     async def _scrape_website_for_channels(self, url: str) -> List[str]:
         """Scrape a website for YouTube channel links.
 
-        Behavior: scrape homepage first; only if no YouTube link is found,
-        try common site-search URL patterns for query "youtube".
+        Layered fallback:
+
+        1. Extract YouTube links directly from the homepage HTML.
+        2. If none: discover the site's real search endpoint from the
+           homepage's ``<form>`` markup and fetch results via httpx for
+           each query in :pyattr:`_SITE_SEARCH_QUERIES`.
+        3. If still none: try guessed common site-search URL patterns
+           via httpx.
+        4. If still none: re-fetch the URLs from steps 2 and 3 through
+           Playwright so JS-rendered result lists are captured.
+
+        Tiers 2 and 3 always try ``"youtube meeting"`` before falling
+        back to the broader ``"youtube"`` query so meeting recordings
+        outrank generic YouTube references on the results page.
         """
         channels: list[str] = []
         seen: set[str] = set()
@@ -558,21 +573,53 @@ class YouTubeChannelDiscovery:
                     seen.add(item)
                     channels.append(item)
 
+        homepage_html: Optional[str] = None
         try:
             response = await self.client.get(url)
-            add_channels(self._extract_youtube_links_from_html(response.text, base_url=url))
-
-            # Fallback to site search only when direct-page extraction fails.
-            if not channels:
-                for search_url in self._build_site_search_urls(url, query="youtube"):
-                    try:
-                        search_resp = await self.client.get(search_url)
-                        add_channels(self._extract_youtube_links_from_html(search_resp.text, base_url=search_url))
-                    except Exception as exc:
-                        logger.trace(f"Site search scrape failed for {search_url}: {exc}")
-
+            homepage_html = response.text
+            add_channels(self._extract_youtube_links_from_html(homepage_html, base_url=url))
         except Exception as e:
             logger.debug(f"Error scraping {url}: {e}")
+
+        if channels:
+            return channels
+
+        # Collect candidate search URLs across queries: discovered first
+        # (more likely to be correct), guessed second. Keeping the full
+        # list lets the Playwright tier re-try anything httpx missed.
+        attempted_search_urls: list[str] = []
+
+        for query in self._SITE_SEARCH_QUERIES:
+            discovered_urls = (
+                self._discover_site_search_urls(homepage_html, base_url=url, query=query)
+                if homepage_html
+                else []
+            )
+            guessed_urls = self._build_site_search_urls(url, query=query)
+            for search_url in (*discovered_urls, *guessed_urls):
+                if search_url in attempted_search_urls:
+                    continue
+                attempted_search_urls.append(search_url)
+                try:
+                    search_resp = await self.client.get(search_url)
+                    add_channels(
+                        self._extract_youtube_links_from_html(search_resp.text, base_url=search_url)
+                    )
+                except Exception as exc:
+                    logger.trace(f"Site search scrape failed for {search_url}: {exc}")
+            if channels:
+                return channels
+
+        # Tier 3: render each attempted search URL with Playwright so
+        # JS-built result lists become visible. Only runs when every
+        # httpx attempt above came back empty.
+        for search_url in attempted_search_urls:
+            html = await self._fetch_search_html_via_playwright(search_url)
+            if not html:
+                continue
+            add_channels(self._extract_youtube_links_from_html(html, base_url=search_url))
+            if channels:
+                break
 
         return channels
 
@@ -590,6 +637,136 @@ class YouTubeChannelDiscovery:
             f"{base}/search-results?query={q}",
             f"{base}/?s={q}",
         ]
+
+    # Heuristic markers used to identify a search <form> on a homepage.
+    _SEARCH_FORM_HINTS = ("search", "find", "query")
+    # Common names/ids for the actual text input within a search form.
+    _SEARCH_INPUT_NAMES = ("q", "query", "s", "search", "searchtext", "keywords", "k")
+
+    def _discover_site_search_urls(
+        self, html: str, *, base_url: str, query: str
+    ) -> list[str]:
+        """Find the site's real search endpoint by inspecting homepage forms.
+
+        Returns absolute GET URLs (form action + query string) for every
+        plausible search form on the page. Returns an empty list when
+        nothing search-like is found.
+        """
+        try:
+            soup = BeautifulSoup(html, "html.parser")
+        except Exception:
+            return []
+
+        urls: list[str] = []
+        seen: set[str] = set()
+
+        for form in soup.find_all("form"):
+            method = (form.get("method") or "get").strip().lower()
+            if method != "get":
+                # POST forms can't be replayed via a simple GET; skip.
+                continue
+
+            action = str(form.get("action") or "").strip()
+            form_blob = " ".join(
+                str(form.get(attr) or "") for attr in ("id", "class", "name", "role", "action")
+            ).lower()
+            if not any(hint in form_blob for hint in self._SEARCH_FORM_HINTS):
+                # Form doesn't self-identify as search-related; skip to
+                # avoid hitting login/newsletter endpoints with our query.
+                if not any(hint in action.lower() for hint in self._SEARCH_FORM_HINTS):
+                    continue
+
+            input_name = self._pick_search_input_name(form)
+            if not input_name:
+                continue
+
+            action_url = urljoin(base_url, action) if action else base_url
+            extras = self._collect_hidden_form_params(form, exclude=input_name)
+            params = [(input_name, query), *extras]
+            qs = "&".join(f"{quote_plus(k)}={quote_plus(v)}" for k, v in params)
+            full_url = f"{action_url}?{qs}" if qs else action_url
+            if full_url not in seen:
+                seen.add(full_url)
+                urls.append(full_url)
+
+        return urls
+
+    def _pick_search_input_name(self, form: Any) -> Optional[str]:
+        """Return the most likely search-input name within ``form``."""
+        text_inputs: list[tuple[int, str]] = []
+        for inp in form.find_all("input"):
+            itype = (inp.get("type") or "text").strip().lower()
+            if itype not in ("text", "search", ""):
+                continue
+            name = (inp.get("name") or "").strip()
+            if not name:
+                continue
+            # Lower score = better match (we sort ascending).
+            lowered = name.lower()
+            try:
+                priority = self._SEARCH_INPUT_NAMES.index(lowered)
+            except ValueError:
+                priority = len(self._SEARCH_INPUT_NAMES)
+            text_inputs.append((priority, name))
+
+        if not text_inputs:
+            return None
+        text_inputs.sort(key=lambda item: item[0])
+        return text_inputs[0][1]
+
+    def _collect_hidden_form_params(
+        self, form: Any, *, exclude: str
+    ) -> list[tuple[str, str]]:
+        """Return hidden ``<input>`` name/value pairs so we replay the form intact."""
+        params: list[tuple[str, str]] = []
+        for inp in form.find_all("input"):
+            itype = (inp.get("type") or "").strip().lower()
+            if itype != "hidden":
+                continue
+            name = (inp.get("name") or "").strip()
+            if not name or name == exclude:
+                continue
+            value = str(inp.get("value") or "")
+            params.append((name, value))
+        return params
+
+    async def _fetch_search_html_via_playwright(self, url: str) -> Optional[str]:
+        """Render ``url`` with Playwright; return HTML or ``None`` on failure.
+
+        Used as the final tier of site-search fallback when the static
+        HTML returned by httpx contained no YouTube channel links — many
+        municipal sites (CivicPlus, Granicus) render search results via
+        JavaScript so the link list is invisible without a browser.
+        """
+        try:
+            from scripts.discovery.meetings_playwright_fetch import (
+                fetch_html_via_playwright,
+                playwright_fallback_enabled,
+            )
+        except ImportError:
+            return None
+
+        if not playwright_fallback_enabled():
+            return None
+
+        user_agent = self.client.headers.get(
+            "User-Agent",
+            "Mozilla/5.0 (compatible; OralHealthPolicyBot/2.0)",
+        )
+        try:
+            html, reason, _final = await fetch_html_via_playwright(
+                url,
+                timeout_ms=20_000,
+                user_agent=user_agent,
+            )
+        except Exception as exc:
+            logger.trace(f"Playwright site-search fetch failed for {url}: {exc}")
+            return None
+
+        if not html:
+            logger.trace(f"Playwright site-search produced no html for {url}: {reason}")
+            return None
+        return html
 
     def _extract_youtube_links_from_html(self, html: str, *, base_url: str) -> list[str]:
         soup = BeautifulSoup(html, "html.parser")
