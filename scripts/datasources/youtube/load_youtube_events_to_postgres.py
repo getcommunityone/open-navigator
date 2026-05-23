@@ -508,6 +508,7 @@ class YouTubeEventsLoader:
                     channel_type = COALESCE(EXCLUDED.channel_type, bronze.bronze_events_channels.channel_type),
                     in_localview = EXCLUDED.in_localview OR bronze.bronze_events_channels.in_localview,
                     in_jurisdictions_details = TRUE,
+                    discovery_method = COALESCE(EXCLUDED.discovery_method, bronze.bronze_events_channels.discovery_method),
                     confidence_score = COALESCE(EXCLUDED.confidence_score, bronze.bronze_events_channels.confidence_score),
                     jurisdictions = CASE
                         WHEN bronze.bronze_events_channels.jurisdictions IS NULL THEN %s::jsonb
@@ -678,7 +679,7 @@ class YouTubeEventsLoader:
         youtube_channels_json: Any,
         *,
         trust_catalog: bool = False,
-    ) -> List[Dict[str, str]]:
+    ) -> List[Dict[str, Any]]:
         """Extract channel IDs and metadata from youtube_channels JSONB field.
         
         Filters to ONLY include government/official channels using:
@@ -756,6 +757,8 @@ class YouTubeEventsLoader:
                             'channel_title': channel_title or channel_id,
                             'channel_type': item.get('channel_type', 'municipal'),
                             'channel_url': channel_url,
+                            'discovery_method': item.get('discovery_method'),
+                            'confidence_score': item.get('confidence') or item.get('confidence_score'),
                         })
                         logger.debug(
                             "  ✓ Including catalog channel: {} ({})",
@@ -819,7 +822,9 @@ class YouTubeEventsLoader:
                         'channel_id': channel_id,
                         'channel_title': channel_title,
                         'channel_type': channel_type,
-                        'channel_url': channel_url
+                        'channel_url': channel_url,
+                        'discovery_method': item.get('discovery_method'),
+                        'confidence_score': item.get('confidence') or item.get('confidence_score'),
                     })
         
         return channels
@@ -928,19 +933,50 @@ class YouTubeEventsLoader:
     def _raise_rate_limited(video_id: str, reason: str) -> None:
         raise Exception(f"RATE_LIMITED: {reason} (video_id={video_id})")
 
-    def _ytdlp_transcript_opts(self, *, use_cookies: bool) -> Dict[str, Any]:
+    @staticmethod
+    def _is_unavailable_format_error(message: str) -> bool:
+        u = (message or "").upper()
+        return (
+            "REQUESTED FORMAT IS NOT AVAILABLE" in u
+            or "FORMAT IS NOT AVAILABLE" in u
+            or "NO VIDEO FORMATS FOUND" in u
+        )
+
+    @staticmethod
+    def _ytdlp_quiet_logger():
+        class _QuietLogger:
+            def debug(self, msg):
+                return None
+
+            def warning(self, msg):
+                return None
+
+            def error(self, msg):
+                return None
+
+        return _QuietLogger()
+
+    def _ytdlp_transcript_opts(
+        self,
+        *,
+        use_cookies: bool,
+        relaxed: bool = False,
+    ) -> Dict[str, Any]:
         """yt-dlp options for subtitle-only extraction (no video download)."""
         from scripts.datasources.youtube.download_audio_to_drive import _yt_dlp_youtube_ejs_opts
 
         opts: Dict[str, Any] = {
             "skip_download": True,
-            "writesubtitles": True,
-            "writeautomaticsub": True,
+            # Preferred mode requests subtitle metadata directly. Relaxed mode falls
+            # back to generic metadata extraction when some videos reject format picks.
+            "writesubtitles": not relaxed,
+            "writeautomaticsub": not relaxed,
             "subtitleslangs": ["en"],
             "subtitlesformat": "vtt/best",
             "ignore_no_formats_error": True,
             "quiet": True,
             "no_warnings": True,
+            "logger": self._ytdlp_quiet_logger(),
             "extractor_args": {"youtube": {"player_client": ["android", "web"]}},
             "user_agent": (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -948,6 +984,10 @@ class YouTubeEventsLoader:
             ),
             "referer": "https://www.youtube.com/",
         }
+        if relaxed:
+            # Avoid strict subtitle/format selectors for hard-to-resolve videos.
+            opts["format"] = "best/bestaudio/bestvideo"
+            opts.pop("subtitlesformat", None)
         ejs = _yt_dlp_youtube_ejs_opts()
         if ejs:
             opts.update(ejs)
@@ -970,12 +1010,29 @@ class YouTubeEventsLoader:
             attempts = (False, True) if self.cookies_file else (False,)
             for use_cookies in attempts:
                 try:
-                    with yt_dlp.YoutubeDL(self._ytdlp_transcript_opts(use_cookies=use_cookies)) as ydl:
+                    with yt_dlp.YoutubeDL(
+                        self._ytdlp_transcript_opts(use_cookies=use_cookies)
+                    ) as ydl:
                         info = ydl.extract_info(url, download=False)
                     break
                 except Exception as exc:
                     last_err = exc
                     err = str(exc)
+                    # Some videos reject the default subtitle extraction path and raise
+                    # "Requested format is not available". Retry with relaxed opts.
+                    if self._is_unavailable_format_error(err):
+                        try:
+                            with yt_dlp.YoutubeDL(
+                                self._ytdlp_transcript_opts(
+                                    use_cookies=use_cookies,
+                                    relaxed=True,
+                                )
+                            ) as ydl:
+                                info = ydl.extract_info(url, download=False)
+                            break
+                        except Exception as exc_relaxed:
+                            last_err = exc_relaxed
+                            err = str(exc_relaxed)
                     if (
                         use_cookies
                         and self.cookies_file
@@ -1499,6 +1556,14 @@ class YouTubeEventsLoader:
             channel_title = channel.get('channel_title', 'Unknown Channel')
             channel_url = channel.get('channel_url', f"https://www.youtube.com/channel/{channel_id}")
             channel_type = channel.get('channel_type', 'unknown')
+            discovery_method = str(channel.get('discovery_method') or 'jurisdictions_details').strip() or 'jurisdictions_details'
+            confidence_score_raw = channel.get('confidence_score')
+            confidence_score = None
+            if confidence_score_raw not in (None, ""):
+                try:
+                    confidence_score = float(confidence_score_raw)
+                except (TypeError, ValueError):
+                    confidence_score = None
             
             # Track this channel in bronze.bronze_events_channels
             self.upsert_channel(
@@ -1509,8 +1574,8 @@ class YouTubeEventsLoader:
                 jurisdiction_id=jurisdiction_id,
                 jurisdiction_name=jurisdiction_name,
                 state_code=state_code,
-                discovery_method='jurisdictions_details',
-                confidence_score=None  # Could extract from jurisdictions_details_search if available
+                discovery_method=discovery_method,
+                confidence_score=confidence_score,
             )
             
             logger.info(f"  Fetching videos from: {channel_title} ({channel_id})")
@@ -1596,7 +1661,7 @@ class YouTubeEventsLoader:
             logger.info(f"Fetch transcripts: YES (delay: {self.transcript_delay}s between fetches)")
             logger.warning("⚠️  Transcript fetching may hit rate limits. Use --skip-transcripts to load events only.")
         else:
-            logger.success("Fetch transcripts: NO (skipped - faster load, no rate limits)")
+            logger.info("Fetch transcripts: NO (skipped - faster load, no rate limits)")
             logger.info("💡 Run backfill_transcripts.py later to add transcripts")
         
         logger.info(f"Incremental mode: {not self.force_full_fetch}")
@@ -1649,16 +1714,28 @@ class YouTubeEventsLoader:
         duration = (datetime.now() - start_time).total_seconds()
         
         logger.info("")
-        logger.success("=" * 80)
-        logger.success("✓ LOADING COMPLETE")
-        logger.success("=" * 80)
-        logger.success(f"New events inserted this run: {total_inserted:,}")
-        logger.success(f"Total YouTube events in database: {stats[0]:,}")
-        logger.success(f"Total transcripts in database: {transcript_count:,}")
-        logger.success(f"Jurisdictions with events: {stats[1]:,}")
-        logger.success(f"States covered: {stats[2]}")
-        logger.success(f"Date range: {stats[3]} to {stats[4]}")
-        logger.success(f"Duration: {duration:.1f} seconds")
+        if total_inserted > 0:
+            logger.success("=" * 80)
+            logger.success("✓ LOADING COMPLETE")
+            logger.success("=" * 80)
+            logger.success(f"New events inserted this run: {total_inserted:,}")
+            logger.success(f"Total YouTube events in database: {stats[0]:,}")
+            logger.success(f"Total transcripts in database: {transcript_count:,}")
+            logger.success(f"Jurisdictions with events: {stats[1]:,}")
+            logger.success(f"States covered: {stats[2]}")
+            logger.success(f"Date range: {stats[3]} to {stats[4]}")
+            logger.success(f"Duration: {duration:.1f} seconds")
+        else:
+            logger.warning("=" * 80)
+            logger.warning("NO NEW EVENT ROWS WRITTEN (NOOP RUN)")
+            logger.warning("=" * 80)
+            logger.info(f"New events inserted this run: {total_inserted:,}")
+            logger.info(f"Total YouTube events in database: {stats[0]:,}")
+            logger.info(f"Total transcripts in database: {transcript_count:,}")
+            logger.info(f"Jurisdictions with events: {stats[1]:,}")
+            logger.info(f"States covered: {stats[2]}")
+            logger.info(f"Date range: {stats[3]} to {stats[4]}")
+            logger.info(f"Duration: {duration:.1f} seconds")
         logger.info("")
         
         if total_inserted == 0:

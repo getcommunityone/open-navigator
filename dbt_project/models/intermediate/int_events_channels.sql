@@ -27,12 +27,42 @@ GEOIDs) or when `int_localview_channel_geography` has no row for the channel.
 `scripts/datasources/youtube/channel_about_links.py` About-tab scrape); otherwise NULL where not joined.
 */
 
-WITH base_channels AS (
+WITH localview_channels AS (
     SELECT DISTINCT
         channel_id
     FROM {{ ref('int_events_localview') }}
     WHERE channel_id IS NOT NULL
       AND channel_id != ''
+),
+
+homepage_channels AS (
+    SELECT DISTINCT
+        channel_id
+    FROM {{ ref('int_jurisdiction_homepage_youtube_channels') }}
+    WHERE channel_id IS NOT NULL
+      AND channel_id != ''
+),
+
+base_channel_sources AS (
+    SELECT
+        channel_id,
+        TRUE AS in_localview
+    FROM localview_channels
+
+    UNION ALL
+
+    SELECT
+        channel_id,
+        FALSE AS in_localview
+    FROM homepage_channels
+),
+
+base_channels AS (
+    SELECT
+        channel_id,
+        BOOL_OR(in_localview) AS in_localview
+    FROM base_channel_sources
+    GROUP BY channel_id
 ),
 
 youtube_meta AS (
@@ -498,13 +528,40 @@ homepage_jurisdictions AS (
         h.state_code,
         h.state,
         h.confidence_score,
-        h.discovery_method
+        h.discovery_method,
+        (
+            COALESCE(LOWER(h.discovery_method), '') IN (
+                'pattern_match',
+                'youtube_api',
+                'fallback_discovery',
+                'handle_pattern',
+                'search_api'
+            )
+            OR COALESCE(LOWER(h.discovery_method), '') LIKE '%pattern%'
+            OR COALESCE(LOWER(h.discovery_method), '') LIKE '%fallback%'
+            OR COALESCE(LOWER(h.discovery_method), '') LIKE '%youtube_api%'
+        ) AS is_fuzzy_match
     FROM (
         SELECT
             h.*,
             ROW_NUMBER() OVER (
                 PARTITION BY h.channel_id
                 ORDER BY
+                    CASE
+                        WHEN (
+                            COALESCE(LOWER(h.discovery_method), '') IN (
+                                'pattern_match',
+                                'youtube_api',
+                                'fallback_discovery',
+                                'handle_pattern',
+                                'search_api'
+                            )
+                            OR COALESCE(LOWER(h.discovery_method), '') LIKE '%pattern%'
+                            OR COALESCE(LOWER(h.discovery_method), '') LIKE '%fallback%'
+                            OR COALESCE(LOWER(h.discovery_method), '') LIKE '%youtube_api%'
+                        ) THEN 1
+                        ELSE 0
+                    END ASC,
                     h.confidence_score DESC,
                     h.video_count DESC,
                     h.candidate_count ASC,
@@ -515,6 +572,18 @@ homepage_jurisdictions AS (
           AND h.channel_id != ''
     ) h
     WHERE h.rn = 1
+),
+
+homepage_jurisdictions_non_fuzzy AS (
+    SELECT *
+    FROM homepage_jurisdictions
+    WHERE is_fuzzy_match IS NOT TRUE
+),
+
+homepage_jurisdictions_fuzzy AS (
+    SELECT *
+    FROM homepage_jurisdictions
+    WHERE is_fuzzy_match IS TRUE
 ),
 
 /*
@@ -628,34 +697,36 @@ SELECT
     bec.channel_external_links,
 
     -- Source flags (which datasets validate this channel)
-    TRUE          AS in_localview,
-    (jbc.jurisdictions IS NOT NULL OR hj.jurisdictions IS NOT NULL OR enj.jurisdictions IS NOT NULL OR tj.jurisdictions IS NOT NULL) AS in_jurisdictions_details,
-    (hj.jurisdictions IS NOT NULL) AS on_public_website,
+    bc.in_localview AS in_localview,
+    (jbc.jurisdictions IS NOT NULL OR hjn.jurisdictions IS NOT NULL OR enj.jurisdictions IS NOT NULL OR tj.jurisdictions IS NOT NULL OR hjf.jurisdictions IS NOT NULL) AS in_jurisdictions_details,
+    (hjn.jurisdictions IS NOT NULL OR hjf.jurisdictions IS NOT NULL) AS on_public_website,
     FALSE         AS in_wikidata,
 
     -- Discovery information
     CASE
         WHEN jbc.jurisdictions IS NOT NULL THEN 'derived_from_localview'
-        WHEN hj.jurisdictions IS NOT NULL THEN 'derived_from_homepage_youtube_link'
+        WHEN hjn.jurisdictions IS NOT NULL THEN 'derived_from_homepage_youtube_link'
         WHEN enj.jurisdictions IS NOT NULL THEN 'derived_from_localview_event_name'
         WHEN tj.jurisdictions IS NOT NULL THEN 'derived_from_title_match'
+        WHEN hjf.jurisdictions IS NOT NULL THEN 'derived_from_fuzzy_homepage_youtube_link'
         ELSE 'derived_from_localview'
     END::TEXT AS discovery_method,
     NULL::DATE                    AS discovery_date,
     CASE
         WHEN jbc.jurisdictions IS NOT NULL THEN 0.85::DOUBLE PRECISION
-        WHEN hj.jurisdictions IS NOT NULL THEN hj.confidence_score
+        WHEN hjn.jurisdictions IS NOT NULL THEN hjn.confidence_score
         WHEN enj.jurisdictions IS NOT NULL THEN enj.confidence_score
         WHEN tj.jurisdictions IS NOT NULL THEN tj.confidence_score
+        WHEN hjf.jurisdictions IS NOT NULL THEN GREATEST(0.0::DOUBLE PRECISION, COALESCE(hjf.confidence_score, 0.0::DOUBLE PRECISION) - 0.25::DOUBLE PRECISION)
         ELSE 0.5::DOUBLE PRECISION
     END AS confidence_score,
 
     -- Jurisdiction associations (JSONB array of resolved int_jurisdictions rows)
-    COALESCE(jbc.jurisdictions, hj.jurisdictions, enj.jurisdictions, tj.jurisdictions) AS jurisdictions,
-    COALESCE(jbc.jurisdiction_ids, hj.jurisdiction_ids, enj.jurisdiction_ids, tj.jurisdiction_ids) AS jurisdiction_ids,
-    COALESCE((jbc.jurisdiction_ids)[1], hj.jurisdiction_id, enj.jurisdiction_id, tj.jurisdiction_id)::TEXT AS jurisdiction_id,
-    COALESCE((jbc.state_codes)[1], hj.state_code, enj.state_code, tj.state_code)::TEXT AS state_code,
-    COALESCE((jbc.states)[1], hj.state, enj.state, tj.state)::TEXT AS state,
+    COALESCE(jbc.jurisdictions, hjn.jurisdictions, enj.jurisdictions, tj.jurisdictions, hjf.jurisdictions) AS jurisdictions,
+    COALESCE(jbc.jurisdiction_ids, hjn.jurisdiction_ids, enj.jurisdiction_ids, tj.jurisdiction_ids, hjf.jurisdiction_ids) AS jurisdiction_ids,
+    COALESCE((jbc.jurisdiction_ids)[1], hjn.jurisdiction_id, enj.jurisdiction_id, tj.jurisdiction_id, hjf.jurisdiction_id)::TEXT AS jurisdiction_id,
+    COALESCE((jbc.state_codes)[1], hjn.state_code, enj.state_code, tj.state_code, hjf.state_code)::TEXT AS state_code,
+    COALESCE((jbc.states)[1], hjn.state, enj.state, tj.state, hjf.state)::TEXT AS state,
 
     -- Quality indicators
     NULL::BOOLEAN AS is_verified,
@@ -672,6 +743,7 @@ LEFT JOIN channel_urls cu ON bc.channel_id = cu.channel_id
 LEFT JOIN localview_meta lm ON bc.channel_id = lm.channel_id
 LEFT JOIN channels_bronze bec ON bc.channel_id = bec.channel_id
 LEFT JOIN jurisdictions_by_channel jbc ON bc.channel_id = jbc.channel_id
-LEFT JOIN homepage_jurisdictions hj ON bc.channel_id = hj.channel_id
+LEFT JOIN homepage_jurisdictions_non_fuzzy hjn ON bc.channel_id = hjn.channel_id
 LEFT JOIN event_name_jurisdictions enj ON bc.channel_id = enj.channel_id
 LEFT JOIN title_jurisdictions tj ON bc.channel_id = tj.channel_id
+LEFT JOIN homepage_jurisdictions_fuzzy hjf ON bc.channel_id = hjf.channel_id

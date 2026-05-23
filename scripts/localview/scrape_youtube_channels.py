@@ -267,6 +267,63 @@ class MunicipalYouTubeScraper:
                 logger.error(f"YouTube API error for channel {channel_id}: {e}")
         
         return dedupe_videos_by_id(videos, max_results)
+
+    def _is_quota_exceeded_error(self, error: Exception) -> bool:
+        """Return True when a YouTube API error indicates daily quota exhaustion."""
+        msg = str(error)
+        return (
+            isinstance(error, HttpError)
+            and getattr(error, "resp", None) is not None
+            and int(getattr(error.resp, "status", 0)) == 403
+            and (
+                "quotaExceeded" in msg
+                or "youtube.quota" in msg
+                or "exceeded your" in msg.lower()
+            )
+        )
+
+    def get_video_details_ytdlp(self, video_id: str) -> Optional[Dict]:
+        """Fallback detail extraction for a single video using yt-dlp metadata only."""
+        if not YT_DLP_AVAILABLE:
+            return None
+
+        watch_url = f"https://www.youtube.com/watch?v={video_id}"
+        try:
+            with yt_dlp.YoutubeDL(self._ytdlp_base_opts(max_results=1)) as ydl:
+                info = ydl.extract_info(watch_url, download=False)
+        except Exception as exc:
+            logger.debug(f"yt-dlp detail fallback failed for {video_id}: {exc}")
+            return None
+
+        if not info:
+            return None
+
+        published_at = _parse_published_at(info.get('upload_date'))
+        duration_minutes = 0
+        if info.get('duration'):
+            try:
+                duration_minutes = int(info['duration']) // 60
+            except Exception:
+                duration_minutes = 0
+
+        title = info.get('title', '') or ''
+        channel_id = info.get('channel_id') or info.get('uploader_id') or ''
+        return {
+            'video_id': video_id,
+            'title': title,
+            'description': info.get('description', '') or '',
+            'published_at': published_at.isoformat() if published_at else '',
+            'channel_id': channel_id,
+            'channel_title': info.get('channel', '') or info.get('uploader', '') or '',
+            'duration_minutes': duration_minutes,
+            'has_captions': False,
+            'view_count': info.get('view_count', 0) or 0,
+            'like_count': info.get('like_count', 0) or 0,
+            'meeting_type': self.detect_meeting_type(title),
+            'language': info.get('language') or 'en',
+            'location_description': None,
+            'video_url': watch_url,
+        }
     
     def _append_api_completed_live_videos(
         self,
@@ -319,7 +376,7 @@ class MunicipalYouTubeScraper:
         if self.quota_exceeded_at:
             time_since_quota_exceeded = (datetime.now() - self.quota_exceeded_at).total_seconds() / 60
             if time_since_quota_exceeded < self.quota_cooldown_minutes:
-                return None  # Will be handled by fallback methods
+                return self.get_video_details_ytdlp(video_id)
         
         try:
             response = self.youtube.videos().list(
@@ -370,6 +427,16 @@ class MunicipalYouTubeScraper:
             }
         
         except HttpError as e:
+            if self._is_quota_exceeded_error(e):
+                first_hit = self.quota_exceeded_at is None
+                self.use_ytdlp_fallback = True
+                self.quota_exceeded_at = datetime.now()
+                if first_hit:
+                    logger.warning(
+                        f"YouTube API quota exceeded while fetching {video_id}; switching to yt-dlp fallback for {self.quota_cooldown_minutes} minutes"
+                    )
+                return self.get_video_details_ytdlp(video_id)
+
             logger.error(f"Error getting details for video {video_id}: {e}")
             return None
     

@@ -228,7 +228,9 @@ models:
   
   - name: int_events_channels
     description: >
-      YouTube channel registry derived from `int_events_localview` channel_ids,
+      YouTube channel registry derived from `int_events_localview` channel_ids
+      plus homepage-discovered channel_ids from
+      `int_jurisdiction_homepage_youtube_channels`,
       enriched with `bronze_events_youtube` URLs (or canonical channel URL),
       official-homepage YouTube links from `int_jurisdiction_homepage_youtube_channels`,
       `jurisdictions` / `jurisdiction_ids`, and scalar `jurisdiction_id` (first sorted id)

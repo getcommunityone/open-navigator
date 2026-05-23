@@ -888,7 +888,7 @@ def run(args: argparse.Namespace) -> int:
         return 0
 
     if not pending:
-        logger.success("Nothing to fetch — all transcripts present")
+        logger.info("Nothing to fetch — all transcripts present (NOOP)")
         return 0
 
     cookies = resolve_cookies_path(args.cookies or None)

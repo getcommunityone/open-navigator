@@ -67,7 +67,88 @@ WITH scraped AS (
     FROM {{ source('bronze', 'bronze_jurisdictions_school_districts_scraped') }}
 ),
 
-exploded AS (
+youtube_catalog AS (
+    SELECT DISTINCT
+        NULLIF(BTRIM(channel_id), '') AS channel_id,
+        REGEXP_REPLACE(
+            REGEXP_REPLACE(
+                REGEXP_REPLACE(
+                    LOWER(NULLIF(BTRIM(channel_url), '')),
+                    '^http:',
+                    'https:',
+                    'i'
+                ),
+                '^https://www\.',
+                'https://',
+                'i'
+            ),
+            '/+$',
+            '',
+            'g'
+        ) AS channel_url_norm,
+        CASE
+            WHEN LOWER(NULLIF(BTRIM(channel_url), '')) LIKE 'http%://%@%'
+              OR LOWER(NULLIF(BTRIM(channel_url), '')) LIKE '%youtube.com/@%'
+                THEN NULLIF(
+                    REGEXP_REPLACE(
+                        SPLIT_PART(
+                            REGEXP_REPLACE(
+                                REGEXP_REPLACE(
+                                    REGEXP_REPLACE(
+                                        LOWER(NULLIF(BTRIM(channel_url), '')),
+                                        '^http:',
+                                        'https:',
+                                        'i'
+                                    ),
+                                    '^https://www\.',
+                                    'https://',
+                                    'i'
+                                ),
+                                '/+$',
+                                '',
+                                'g'
+                            ),
+                            '/@',
+                            2
+                        ),
+                        '[\\?/].*$',
+                        ''
+                    ),
+                    ''
+                )
+            ELSE NULL
+        END AS channel_handle_norm
+    FROM {{ source('bronze', 'bronze_events_youtube') }}
+    WHERE NULLIF(BTRIM(channel_id), '') IS NOT NULL
+),
+
+youtube_lookup_by_url AS (
+    SELECT
+        channel_url_norm,
+        CASE
+            WHEN COUNT(DISTINCT channel_id) = 1 THEN MAX(channel_id)
+            ELSE NULL
+        END AS resolved_channel_id
+    FROM youtube_catalog
+    WHERE channel_url_norm IS NOT NULL
+      AND channel_url_norm != ''
+    GROUP BY channel_url_norm
+),
+
+youtube_lookup_by_handle AS (
+    SELECT
+        channel_handle_norm,
+        CASE
+            WHEN COUNT(DISTINCT channel_id) = 1 THEN MAX(channel_id)
+            ELSE NULL
+        END AS resolved_channel_id
+    FROM youtube_catalog
+    WHERE channel_handle_norm IS NOT NULL
+      AND channel_handle_norm != ''
+    GROUP BY channel_handle_norm
+),
+
+exploded_base AS (
     SELECT
         j.jurisdiction_id,
         j.name AS jurisdiction_name,
@@ -98,7 +179,7 @@ exploded AS (
             '',
             'g'
         ) AS channel_url_norm,
-        NULLIF(BTRIM(yc->>'channel_id'), '') AS channel_id,
+        NULLIF(BTRIM(yc->>'channel_id'), '') AS payload_channel_id,
         NULLIF(BTRIM(yc->>'channel_title'), '') AS channel_title,
         COALESCE((yc->>'confidence')::numeric, 0.0) AS confidence_score,
         COALESCE((yc->>'video_count')::bigint, 0) AS video_count,
@@ -111,6 +192,47 @@ exploded AS (
        AND j.jurisdiction_type::text = s.jurisdiction_class
     CROSS JOIN LATERAL jsonb_array_elements(COALESCE(s.payload->'youtube_channels', '[]'::jsonb)) AS yc
     WHERE NULLIF(BTRIM(yc->>'channel_url'), '') IS NOT NULL
+),
+
+exploded AS (
+    SELECT
+        eb.jurisdiction_id,
+        eb.jurisdiction_name,
+        eb.state_code,
+        eb.state,
+        eb.jurisdiction_type,
+        eb.geoid,
+        eb.jurisdiction_class,
+        eb.homepage_url,
+        eb.homepage_final_url,
+        eb.discovery_source,
+        eb.status,
+        eb.completeness_score,
+        eb.channel_url,
+        eb.channel_url_norm,
+        COALESCE(
+            eb.payload_channel_id,
+            ylu.resolved_channel_id,
+            ylh.resolved_channel_id
+        ) AS channel_id,
+        eb.channel_title,
+        eb.confidence_score,
+        eb.video_count,
+        eb.subscriber_count,
+        eb.view_count,
+        eb.discovery_method
+    FROM exploded_base eb
+    LEFT JOIN youtube_lookup_by_url ylu
+        ON eb.channel_url_norm = ylu.channel_url_norm
+    LEFT JOIN youtube_lookup_by_handle ylh
+        ON NULLIF(
+            REGEXP_REPLACE(
+                SPLIT_PART(eb.channel_url_norm, '/@', 2),
+                '[\\?/].*$',
+                ''
+            ),
+            ''
+        ) = ylh.channel_handle_norm
 ),
 
 ranked AS (
@@ -153,7 +275,7 @@ SELECT
     subscriber_count,
     view_count,
     candidate_count,
-    'derived_from_homepage_youtube_link'::text AS discovery_method,
+    COALESCE(discovery_method, 'derived_from_homepage_youtube_link')::text AS discovery_method,
     CURRENT_TIMESTAMP AS transformed_at
 FROM ranked
 WHERE rn = 1

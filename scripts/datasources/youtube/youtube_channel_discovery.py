@@ -238,10 +238,11 @@ class YouTubeChannelDiscovery:
         seen_ids = set()
         unique_channels = []
         for channel in discovered:
-            if channel.get('channel_id') and channel['channel_id'] not in seen_ids:
-                seen_ids.add(channel['channel_id'])
-                unique_channels.append(channel)
-            elif not channel.get('channel_id'):  # No ID extracted
+            channel_id = (channel.get('channel_id') or '').strip()
+            if not channel_id:
+                continue
+            if channel_id not in seen_ids:
+                seen_ids.add(channel_id)
                 unique_channels.append(channel)
         
         # Add policy relevance score to each channel
@@ -337,6 +338,7 @@ class YouTubeChannelDiscovery:
                 return None
 
             response = await self.client.get(channel_url)
+            final_url = str(response.url)
 
             if response.status_code != 200:
                 self._record_channel_probe(
@@ -354,7 +356,11 @@ class YouTubeChannelDiscovery:
             html = response.text
 
             # Extract channel statistics from page HTML
-            stats = self._extract_channel_stats(html)
+            stats = self._extract_channel_stats(
+                html,
+                final_url=final_url,
+                requested_url=channel_url,
+            )
 
             if not stats:
                 self._record_channel_probe(
@@ -369,6 +375,20 @@ class YouTubeChannelDiscovery:
                 )
                 return None
 
+            channel_id = (stats.get("channel_id") or "").strip()
+            if not channel_id:
+                self._record_channel_probe(
+                    {
+                        "channel_url": channel_url,
+                        "checked_at": datetime.now(timezone.utc).isoformat(),
+                        "discovery_method": discovery_method,
+                        "outcome": "not_found",
+                        "http_status": response.status_code,
+                        "reason": "channel_id_not_resolved",
+                    }
+                )
+                return None
+
             title = stats.get("title", "Unknown") or "Unknown"
             self._record_channel_probe(
                 {
@@ -378,15 +398,15 @@ class YouTubeChannelDiscovery:
                     "outcome": "found",
                     "http_status": response.status_code,
                     "reason": None,
-                    "channel_id": stats.get("channel_id"),
+                    "channel_id": channel_id,
                     "channel_title": title[:500],
                     "video_count": stats.get("video_count", 0),
                 }
             )
 
             return {
-                "channel_url": channel_url,
-                "channel_id": stats.get("channel_id"),
+                "channel_url": final_url or channel_url,
+                "channel_id": channel_id,
                 "channel_title": title,
                 "video_count": stats.get("video_count", 0),
                 "subscriber_count": stats.get("subscriber_count", 0),
@@ -411,43 +431,93 @@ class YouTubeChannelDiscovery:
                 }
             )
             return None
+
+    def _extract_channel_id_from_url(self, url: str) -> Optional[str]:
+        """Extract UC... id from a canonical /channel/<id> URL when present."""
+        raw = (url or "").strip()
+        if not raw:
+            return None
+        m = re.search(r'/channel/((?:UC)[A-Za-z0-9_-]{20,})', raw)
+        if m:
+            return m.group(1)
+        return None
     
-    def _extract_channel_stats(self, html: str) -> Optional[Dict]:
+    def _extract_channel_stats(
+        self,
+        html: str,
+        *,
+        final_url: str = "",
+        requested_url: str = "",
+    ) -> Optional[Dict]:
         """
         Extract channel statistics from YouTube channel page HTML.
         
         YouTube embeds data in JavaScript objects in the page source.
         """
-        stats = {}
+        stats: Dict[str, Any] = {}
         
         try:
+            # YouTube frequently embeds escaped JSON with \/ path separators.
+            normalized = html.replace('\\/', '/')
+
+            # Prefer canonical/redirect URL when it already contains /channel/UC...
+            cid_from_url = self._extract_channel_id_from_url(final_url) or self._extract_channel_id_from_url(requested_url)
+            if cid_from_url:
+                stats['channel_id'] = cid_from_url
+
             # Extract channel ID
-            match = re.search(r'"channelId":"([^"]+)"', html)
+            match = re.search(r'"channelId"\s*:\s*"((?:UC)[A-Za-z0-9_-]{20,})"', normalized)
             if match:
                 stats['channel_id'] = match.group(1)
+
+            # Additional channel-id patterns seen in ytInitialData / metadata payloads
+            if 'channel_id' not in stats:
+                match = re.search(r'"externalId"\s*:\s*"((?:UC)[A-Za-z0-9_-]{20,})"', normalized)
+                if match:
+                    stats['channel_id'] = match.group(1)
+            if 'channel_id' not in stats:
+                match = re.search(r'"browseId"\s*:\s*"((?:UC)[A-Za-z0-9_-]{20,})"', normalized)
+                if match:
+                    stats['channel_id'] = match.group(1)
+            if 'channel_id' not in stats:
+                match = re.search(r'https?://www\.youtube\.com/channel/((?:UC)[A-Za-z0-9_-]{20,})', normalized)
+                if match:
+                    stats['channel_id'] = match.group(1)
+            if 'channel_id' not in stats:
+                match = re.search(r'feeds/videos\.xml\?channel_id=((?:UC)[A-Za-z0-9_-]{20,})', normalized)
+                if match:
+                    stats['channel_id'] = match.group(1)
             
             # Extract channel title
-            match = re.search(r'"channelMetadataRenderer".*?"title":"([^"]+)"', html)
+            match = re.search(r'"channelMetadataRenderer".*?"title":"([^"]+)"', normalized)
             if match:
                 stats['title'] = match.group(1)
+            if 'title' not in stats:
+                match = re.search(r'<meta\s+property="og:title"\s+content="([^"]+)"', normalized, re.IGNORECASE)
+                if match:
+                    stats['title'] = match.group(1)
             
             # Extract subscriber count
             # Pattern: "subscriberCountText":{"simpleText":"1.2K subscribers"}
-            match = re.search(r'"subscriberCountText".*?"(?:simpleText|text)":"([\d.KMB]+)\s*subscribers?"', html)
+            match = re.search(r'"subscriberCountText".*?"(?:simpleText|text)":"([\d.KMB]+)\s*subscribers?"', normalized)
             if match:
                 stats['subscriber_count'] = self._parse_count(match.group(1))
             
             # Extract video count  
             # Pattern: "videosCountText":{"runs":[{"text":"245"},{"text":" videos"}]}
-            match = re.search(r'"videosCountText".*?"text":"([\d,]+)"', html)
+            match = re.search(r'"videosCountText".*?"text":"([\d,]+)"', normalized)
             if match:
                 stats['video_count'] = int(match.group(1).replace(',', ''))
             
             # Alternative video count pattern
             if 'video_count' not in stats:
-                match = re.search(r'(\d+)\s*videos?', html, re.IGNORECASE)
+                match = re.search(r'(\d+)\s*videos?', normalized, re.IGNORECASE)
                 if match:
                     stats['video_count'] = int(match.group(1))
+
+            # Reject generic placeholder pages that don't resolve a real channel id.
+            if not stats.get('channel_id'):
+                return None
             
             return stats if stats else None
         

@@ -67,6 +67,22 @@ def main() -> None:
         help="Defaults to https://www.youtube.com/channel/{channel_id}",
     )
     parser.add_argument("--jurisdiction-type", default="municipality")
+    parser.add_argument(
+        "--discovery-method",
+        default="jurisdictions_details",
+        help="Provenance label for channel mapping (e.g. website_scrape, pattern_match, fallback_discovery)",
+    )
+    parser.add_argument(
+        "--confidence-score",
+        type=float,
+        default=None,
+        help="Optional mapping confidence in [0, 1] when known",
+    )
+    parser.add_argument(
+        "--source-priority",
+        default="",
+        help="Optional source priority tag (e.g. scraped_official_website, fallback_discovery)",
+    )
     parser.add_argument("--max-videos", type=int, default=100)
     parser.add_argument("--days", type=int, default=None, help="Only videos newer than N days")
     parser.add_argument("--skip-transcripts", action="store_true")
@@ -105,6 +121,13 @@ def main() -> None:
     channel_url = (
         args.channel_url or f"https://www.youtube.com/channel/{channel_id}"
     ).strip()
+    discovery_method = (args.discovery_method or "").strip() or "jurisdictions_details"
+    source_priority = (args.source_priority or "").strip()
+
+    fuzzy_loaded = (
+        source_priority == "fallback_discovery"
+        or discovery_method in {"pattern_match", "youtube_api", "fallback_discovery"}
+    )
 
     cookies = _resolve_cookies_path((args.cookies or "").strip() or None)
     proxy = (args.proxy or os.getenv("YOUTUBE_TRANSCRIPT_PROXY") or "").strip() or None
@@ -142,6 +165,10 @@ def main() -> None:
                 "channel_url": channel_url,
                 "channel_title": channel_title,
                 "channel_type": "municipal",
+                "discovery_method": discovery_method,
+                "confidence": args.confidence_score,
+                "source_priority": source_priority,
+                "fuzzy_loaded": fuzzy_loaded,
             }
         ],
     }
@@ -153,7 +180,12 @@ def main() -> None:
         channel_id,
     )
     inserted = loader.process_jurisdiction(jurisdiction)
-    logger.success("Done — {} new/updated event row(s)", inserted)
+    if inserted > 0:
+        logger.success("Done — wrote {} new/updated event row(s)", inserted)
+    else:
+        logger.info(
+            "Done — NOOP (0 new rows written; channel already up to date or no videos found)"
+        )
     loader.conn.close()
 
 
