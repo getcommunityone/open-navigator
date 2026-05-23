@@ -19,7 +19,7 @@ from urllib.parse import urlparse
 
 _MAYOR_URL_RE = re.compile(
     r"(?:^|[/_-])"
-    r"(?:mayors?|mayor[-_]?s?[-_]?office|mayors?office|mayor_s_office)"
+    r"(?:mayors?\d*|mayor[-_]?s?[-_]?office|mayors?office|mayor_s_office)"
     r"(?:[/_.-]|$)",
     re.IGNORECASE,
 )
