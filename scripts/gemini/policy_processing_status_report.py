@@ -152,9 +152,9 @@ def _map_jurisdiction_type(raw: str) -> str:
 def _jurisdiction_group_from_id(jurisdiction_id: str) -> str:
     jid = (jurisdiction_id or "").strip().lower()
     if jid.startswith("county_"):
-        return "local"
+        return "county"
     if jid.startswith("municipality_"):
-        return "local"
+        return "city"
     if jid.startswith("school_district_"):
         return "school"
     if jid.startswith("state_"):
@@ -873,28 +873,47 @@ def render_markdown(
         f"`R`=reports (`03_reports`); completion target is **{target_videos}** report(s)."
     )
     lines.append("")
-    lines.append(
-        "| State | Group | Jurisdiction | Jurisdiction ID | Last updated | Stage | In progress | Elapsed | Est. remaining | "
-        f"T(transcripts) / A(analysis) / R(reports) ({target_videos} target) |"
-    )
-    lines.append(
-        "|-------|-------|--------------|-----------------|--------------|-------|:-----------:|--------:|---------------:|"
-        "------------------:|"
-    )
-    for p in progress:
-        last = p.cache_last_updated
-        if p.db_last_updated and (last is None or p.db_last_updated > last):
-            last = p.db_last_updated
-        group = _jurisdiction_group_from_id(p.jurisdiction_id)
-        in_prog = "yes" if p.in_progress else ""
-        if p.in_progress:
-            in_prog = f"**yes**"
+    def _append_progress_table(title: str, rows: List[JurisdictionProgress]) -> None:
+        lines.append(f"### {title}")
+        lines.append("")
         lines.append(
-            f"| {p.state_code} | {group} | {p.jurisdiction_name[:36]} | {p.jurisdiction_id} | {_format_dt(last)} | "
-            f"{p.stage} | {in_prog} | {_format_duration(p.elapsed_seconds)} | "
-            f"{_format_duration(p.est_remaining_seconds)} | "
-            f"{p.cache_transcripts} / {p.cache_analysis} / {p.cache_reports} |"
+            "| State | Jurisdiction | Jurisdiction ID | Last updated | Stage | In progress | Elapsed | Est. remaining | "
+            f"T(transcripts) / A(analysis) / R(reports) ({target_videos} target) |"
         )
+        lines.append(
+            "|-------|--------------|-----------------|--------------|-------|:-----------:|--------:|---------------:|"
+            "------------------:|"
+        )
+        if not rows:
+            lines.append("| — | — | — | — | — | — | — | — | — |")
+            lines.append("")
+            return
+
+        for p in rows:
+            last = p.cache_last_updated
+            if p.db_last_updated and (last is None or p.db_last_updated > last):
+                last = p.db_last_updated
+            in_prog = "**yes**" if p.in_progress else ""
+            lines.append(
+                f"| {p.state_code} | {p.jurisdiction_name[:36]} | {p.jurisdiction_id} | {_format_dt(last)} | "
+                f"{p.stage} | {in_prog} | {_format_duration(p.elapsed_seconds)} | "
+                f"{_format_duration(p.est_remaining_seconds)} | "
+                f"{p.cache_transcripts} / {p.cache_analysis} / {p.cache_reports} |"
+            )
+        lines.append("")
+
+    city_rows = [p for p in progress if _jurisdiction_group_from_id(p.jurisdiction_id) == "city"]
+    county_rows = [p for p in progress if _jurisdiction_group_from_id(p.jurisdiction_id) == "county"]
+    other_rows = [
+        p
+        for p in progress
+        if _jurisdiction_group_from_id(p.jurisdiction_id) not in ("city", "county")
+    ]
+
+    _append_progress_table("Cities", city_rows)
+    _append_progress_table("Counties", county_rows)
+    if other_rows:
+        _append_progress_table("Other Jurisdiction Types", other_rows)
     lines.append("")
     lines.append("## Legend")
     lines.append("")
