@@ -377,6 +377,20 @@ _BANKS_DANNY_EXPECTED = {
     "email": "djmaxwell@co.banks.ga.us",
 }
 
+_BULLOCH_DIR = _GA_COUNTY_CACHE / "bulloch_13031"
+_BULLOCH_BOC_PAGE_PATH = "/commissioners/"
+_BULLOCH_EXPECTED_EMAILS = frozenset(
+    {
+        "dbennett@bullochcounty.net",
+        "rmosley@bullochcounty.net",
+        "asimmons@bullochcounty.net",
+        "rdavis@bullochcounty.net",
+        "toby.conner@bullochcounty.net",
+        "nnewkirk@bullochcounty.net",
+        "trushing@bullochcounty.net",
+    }
+)
+
 
 def test_berrien_cache_proves_commissioners_page_was_crawled_and_extracted() -> None:
     """Offline regression on berrien_13019/: BOC page must yield exactly 5 commissioners.
@@ -485,6 +499,51 @@ def test_banks_cache_requires_danny_maxwell_full_contact_fields() -> None:
     assert str(row.get("phone") or "").strip() == _BANKS_DANNY_EXPECTED["phone"], (
         f"banks_13011: expected phone {_BANKS_DANNY_EXPECTED['phone']!r} "
         f"for {_BANKS_DANNY_EXPECTED['email']}, got {row.get('phone')!r}"
+    )
+
+
+def test_bulloch_cache_proves_commissioners_page_was_crawled_and_extracted() -> None:
+    """Bulloch commissioners page must be crawled and yield commissioner emails.
+
+    Asserts that the cache includes a fetched ``/commissioners/`` page and that
+    rebuilt contacts contain the seven commissioner emails sourced from that page.
+    """
+    manifest_path = _BULLOCH_DIR / "_manifest.json"
+    assert manifest_path.is_file(), (
+        f"bulloch_13031: missing _manifest.json at {manifest_path} — crawl never ran"
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    pages_fetched = [str(u) for u in (manifest.get("pages_fetched") or [])]
+    commissioners_pages = [u for u in pages_fetched if _BULLOCH_BOC_PAGE_PATH in u]
+    assert commissioners_pages, (
+        f"bulloch_13031: no fetched URL contains {_BULLOCH_BOC_PAGE_PATH!r}; "
+        f"got {pages_fetched}"
+    )
+
+    bundle = _regenerate_contacts_bundle(_BULLOCH_DIR)
+    contacts = list(bundle.get("contacts") or [])
+    by_email = {
+        str(r.get("email") or "").strip().lower(): r
+        for r in contacts
+        if str(r.get("email") or "").strip()
+    }
+    extracted_emails = set(by_email.keys())
+
+    missing = sorted(_BULLOCH_EXPECTED_EMAILS - extracted_emails)
+    assert not missing, (
+        f"bulloch_13031: missing commissioner emails {missing}; "
+        f"got {sorted(extracted_emails)}"
+    )
+
+    wrong_source = []
+    for email in sorted(_BULLOCH_EXPECTED_EMAILS):
+        src = str((by_email.get(email) or {}).get("source_page_url") or "")
+        if _BULLOCH_BOC_PAGE_PATH not in src:
+            wrong_source.append((email, src))
+    assert not wrong_source, (
+        "bulloch_13031: commissioner emails were not attributed to commissioners page: "
+        f"{wrong_source}"
     )
 
 

@@ -37,6 +37,10 @@ _BUILTIN: Dict[str, Tuple[str, ...]] = {
     "county_13005": (
         "https://baconcounty.org/administration.php",
     ),
+    # Bulloch County, GA — commissioners roster page is the top-priority contact target.
+    "county_13031": (
+        "https://bullochcounty.net/commissioners/",
+    ),
 }
 
 
