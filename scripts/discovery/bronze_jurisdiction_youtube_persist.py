@@ -76,9 +76,14 @@ def insert_bronze_jurisdiction_youtube(
                         discovery_method,
                         confidence,
                         raw_row,
-                        scraped_at
+                        scraped_at,
+                        channel_description,
+                        back_links_to_jurisdiction_website,
+                        official_meeting_confidence,
+                        external_links
                     ) VALUES (
-                        %s::uuid, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s
+                        %s::uuid, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s,
+                        %s, %s, %s, %s::jsonb
                     )
                     """,
                     (
@@ -97,6 +102,10 @@ def insert_bronze_jurisdiction_youtube(
                         _as_float(r.get("confidence")),
                         json.dumps(raw, default=str),
                         sa_val,
+                        (r.get("channel_description") or None),
+                        _as_bool(r.get("back_links_to_jurisdiction_website")),
+                        _as_float(r.get("official_meeting_confidence")),
+                        json.dumps(r.get("external_links") or []),
                     ),
                 )
                 inserted += 1
@@ -122,3 +131,16 @@ def _as_float(v: Any) -> float | None:
         return float(v)
     except (TypeError, ValueError):
         return None
+
+
+def _as_bool(v: Any) -> bool | None:
+    if v is None:
+        return None
+    if isinstance(v, bool):
+        return v
+    s = str(v).strip().lower()
+    if s in ("true", "t", "1", "yes", "y"):
+        return True
+    if s in ("false", "f", "0", "no", "n"):
+        return False
+    return None
