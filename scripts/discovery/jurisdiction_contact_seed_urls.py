@@ -41,6 +41,64 @@ _BUILTIN: Dict[str, Tuple[str, ...]] = {
     "county_13031": (
         "https://bullochcounty.net/commissioners/",
     ),
+    # --- Massachusetts pilot (10 jurisdictions) ---
+    # Mayor URLs come first so single-bio mayor pages get crawled before the larger
+    # council roster; council URLs follow. See ``scripts/datasources/ma_pilot``.
+    # Boston, MA — strong-mayor city; mayor's office on a distinct page.
+    "municipality_2507000": (
+        "https://www.boston.gov/departments/mayors-office",
+        "https://www.boston.gov/departments/city-council",
+    ),
+    # Cambridge, MA — council-manager; mayor is elected from council but has own page.
+    "municipality_2511000": (
+        "https://www.cambridgema.gov/Departments/mayorsoffice",
+        "https://www.cambridgema.gov/citycouncil",
+        "https://www.cambridgema.gov/Departments/citycouncil/members",
+    ),
+    # Worcester, MA — council-manager; mayor is council member at-large.
+    "municipality_2582000": (
+        "https://www.worcesterma.gov/mayor",
+        "https://www.worcesterma.gov/city-council",
+        "https://www.worcesterma.gov/city-council/councilors",
+    ),
+    # Springfield, MA — strong-mayor; legacy CMS path.
+    "municipality_2567000": (
+        "https://www.springfield-ma.gov/cos/mayor0/",
+        "https://www.springfield-ma.gov/cos/council",
+    ),
+    # Lowell, MA — Plan E (council-manager); mayor elected from council. CivicPlus
+    # /CivicEngage staff directory uses h-card markup.
+    "municipality_2537000": (
+        "https://www.lowellma.gov/533/Meet-the-City-Council",
+        "https://www.lowellma.gov/directory.aspx?did=16",
+    ),
+    # Somerville, MA — strong-mayor.
+    "municipality_2562535": (
+        "https://www.somervillema.gov/mayor",
+        "https://www.somervillema.gov/departments/city-council",
+    ),
+    # Newton, MA — strong-mayor. Mayor changed Jan 2026 (Fuller -> Laredo); slug may
+    # rotate. Multiple candidates so a single 404 doesn't black-hole the mayor row.
+    "municipality_2545560": (
+        "https://www.newtonma.gov/government/mayor",
+        "https://www.newtonma.gov/government/mayor-laredo",
+        "https://www.newtonma.gov/government/city-council",
+    ),
+    # Quincy, MA — strong-mayor (Plan A). Mayor's office under elected_officials/.
+    "municipality_2555745": (
+        "https://www.quincyma.gov/government/elected_officials/mayor_s_office/index.php",
+        "https://www.quincyma.gov/contact_us/mayors_office.php",
+        "https://www.quincyma.gov/government/elected_officials/city_council/index.php",
+    ),
+    # Plymouth County, MA — one of the few still-functioning MA county governments.
+    "county_25023": (
+        "https://www.plymouthcountyma.gov/222/Commissioners",
+        "https://www.plymouthcountyma.gov/directory.aspx?did=12",
+    ),
+    # Norfolk County, MA — county commissioners site (legacy http, not https).
+    "county_25021": (
+        "http://www.norfolkcounty.org/county_commission/commissioners.php",
+    ),
 }
 
 
