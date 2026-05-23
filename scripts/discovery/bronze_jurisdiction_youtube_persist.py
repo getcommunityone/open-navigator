@@ -23,6 +23,7 @@ def insert_bronze_jurisdiction_youtube(
     scrape_batch_id: str,
     jurisdiction_id: str,
     state_code: str,
+    ocd_id: str | None = None,
     website_url: str | None,
     rows: List[Dict[str, Any]],
 ) -> int:
@@ -65,6 +66,7 @@ def insert_bronze_jurisdiction_youtube(
                         scrape_batch_id,
                         jurisdiction_id,
                         state_code,
+                        ocd_id,
                         website_url,
                         youtube_channel_url,
                         youtube_channel_id,
@@ -82,7 +84,7 @@ def insert_bronze_jurisdiction_youtube(
                         official_meeting_confidence,
                         external_links
                     ) VALUES (
-                        %s::uuid, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s,
+                        %s::uuid, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s,
                         %s, %s, %s, %s::jsonb
                     )
                     """,
@@ -90,6 +92,7 @@ def insert_bronze_jurisdiction_youtube(
                         scrape_batch_id,
                         jurisdiction_id,
                         state_code_norm,
+                        ocd_id,
                         (website_url or "")[:4096] or None,
                         channel_url[:4096],
                         (r.get("youtube_channel_id") or r.get("channel_id") or "")[:128] or None,

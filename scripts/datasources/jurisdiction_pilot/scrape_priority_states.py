@@ -73,6 +73,9 @@ from scripts.datasources.jurisdiction_pilot.mayor_url_discovery import (  # noqa
 from scripts.datasources.jurisdiction_pilot.youtube_channel_enrich import (  # noqa: E402
     enrich_channel,
 )
+from scripts.datasources.jurisdiction_pilot.load_ocd_jurisdictions import (  # noqa: E402
+    find_ocd_match,
+)
 from scripts.datasources.jurisdiction_pilot.google_civic_youtube import (  # noqa: E402
     get_youtube_from_civic_api,
 )
@@ -488,6 +491,9 @@ def _process_one(
     session = requests.Session()
     session.headers["User-Agent"] = _USER_AGENT
 
+    # Find OCD ID for this jurisdiction
+    ocd_id = find_ocd_match(j.name, j.state_code, jurisdiction_type=j.jurisdiction_type)
+
     try:
         seeds = _resolve_seed_urls(j)
         result.seeds_used = [u for u, _ in seeds]
@@ -505,6 +511,7 @@ def _process_one(
                 scrape_batch_id=batch_id,
                 jurisdiction_id=j.jurisdiction_id,
                 state_code=j.state_code,
+                ocd_id=ocd_id,
                 rows=contact_rows,
             )
 
@@ -525,6 +532,7 @@ def _process_one(
                     scrape_batch_id=batch_id,
                     jurisdiction_id=j.jurisdiction_id,
                     state_code=j.state_code,
+                    ocd_id=ocd_id,
                     website_url=j.website_url,
                     rows=keep_rows,
                 )

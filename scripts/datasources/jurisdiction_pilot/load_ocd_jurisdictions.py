@@ -124,10 +124,15 @@ def load_state_ocd_data(state_code: str) -> dict[str, str]:
     return ocd_data
 
 
-def find_ocd_match(jurisdiction_name: str, state_code: str) -> str | None:
+def find_ocd_match(jurisdiction_name: str, state_code: str, jurisdiction_type: str | None = None) -> str | None:
     """
     Find OCD ID for a jurisdiction by name, preferring base jurisdictions (places/counties)
     over districts/wards/school districts.
+
+    Args:
+        jurisdiction_name: The jurisdiction name to match
+        state_code: State code (e.g., "MA", "CA")
+        jurisdiction_type: Optional type hint ("county", "municipality", "place", etc.)
 
     Returns the OCD ID if found, None otherwise.
     """
@@ -137,7 +142,19 @@ def find_ocd_match(jurisdiction_name: str, state_code: str) -> str | None:
 
     name_lower = jurisdiction_name.lower().strip()
 
-    # First pass: look for exact matches that are base jurisdictions (no districts/wards)
+    # First pass: try adding "County" suffix if jurisdiction_type hints it's a county
+    if jurisdiction_type == "county" or jurisdiction_type == "county":
+        county_name = f"{jurisdiction_name} County"
+        for key, ocd_id in ocd_data.items():
+            if key.lower() == county_name.lower():
+                parsed = _parse_ocd_id(ocd_id)
+                has_subdivision = any(
+                    k in parsed for k in ("council_district", "ward", "school_district", "precinct")
+                )
+                if not has_subdivision:
+                    return ocd_id
+
+    # Second pass: exact match (base jurisdictions only)
     for key, ocd_id in ocd_data.items():
         if key.lower() == name_lower:
             parsed = _parse_ocd_id(ocd_id)
@@ -148,7 +165,7 @@ def find_ocd_match(jurisdiction_name: str, state_code: str) -> str | None:
             if not has_subdivision:
                 return ocd_id
 
-    # Second pass: try normalized name match (remove "City of", "County", etc.)
+    # Third pass: try normalized name match (remove "City of", "County", etc.)
     normalized_name = re.sub(
         r"^(?:city|town|county|village|borough|municipality|cdp)\s+(?:of\s+)?",
         "",
@@ -170,7 +187,7 @@ def find_ocd_match(jurisdiction_name: str, state_code: str) -> str | None:
         if key.lower() == name_lower:
             return ocd_id
 
-    logger.debug("No OCD match for %s %s", state_code, jurisdiction_name)
+    logger.debug("No OCD match for %s %s (type: %s)", state_code, jurisdiction_name, jurisdiction_type)
     return None
 
 
