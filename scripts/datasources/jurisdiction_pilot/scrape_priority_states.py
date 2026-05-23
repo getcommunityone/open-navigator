@@ -73,8 +73,11 @@ from scripts.datasources.jurisdiction_pilot.mayor_url_discovery import (  # noqa
 from scripts.datasources.jurisdiction_pilot.youtube_channel_enrich import (  # noqa: E402
     enrich_channel,
 )
-from scripts.datasources.jurisdiction_pilot.load_ocd_jurisdictions import (  # noqa: E402
-    find_ocd_match,
+from scripts.datasources.jurisdiction_pilot.vendor_detection import (  # noqa: E402
+    detect_vendor,
+)
+from scripts.datasources.jurisdiction_pilot.legistar_scraper import (  # noqa: E402
+    get_legistar_council_members,
 )
 from scripts.datasources.jurisdiction_pilot.google_civic_youtube import (  # noqa: E402
     get_youtube_from_civic_api,
@@ -494,25 +497,41 @@ def _process_one(
     # Find OCD ID for this jurisdiction
     ocd_id = find_ocd_match(j.name, j.state_code, jurisdiction_type=j.jurisdiction_type)
 
+    # Detect vendor platform (Legistar, Granicus, etc.) for vendor-specific optimizations
+    vendor_type, vendor_info = detect_vendor(j.website_url, session=session)
+    logger.debug("Detected vendor: %s for %s", vendor_type, j.name)
+
     try:
         seeds = _resolve_seed_urls(j)
         result.seeds_used = [u for u, _ in seeds]
         result.seed_urls_attempted = len(seeds)
 
+        # Priority 1: Try Legistar for council members (high-confidence official contacts)
+        legistar_contacts = []
+        if vendor_type == "legistar" and vendor_info.get("api_endpoint"):
+            legistar_contacts = get_legistar_council_members(vendor_info.get("api_endpoint", ""))
+            if legistar_contacts:
+                logger.debug("Found %d council members via Legistar", len(legistar_contacts))
+
+        # Priority 2: Scrape website contacts
         contact_rows, ok = _scrape_contacts(j, seeds, session, batch_id)
         result.seed_urls_succeeded = ok
+
+        # Merge Legistar + scraped contacts (Legistar has priority)
+        all_contacts = legistar_contacts + contact_rows
+
         result.mayor_rows_inserted = sum(
-            1 for r in contact_rows if r.get("raw_row", {}).get("is_mayor")
+            1 for r in all_contacts if r.get("raw_row", {}).get("is_mayor")
         )
 
-        if contact_rows:
+        if all_contacts:
             result.contacts_inserted = insert_bronze_contacts_scraped(
                 database_url,
                 scrape_batch_id=batch_id,
                 jurisdiction_id=j.jurisdiction_id,
                 state_code=j.state_code,
                 ocd_id=ocd_id,
-                rows=contact_rows,
+                rows=all_contacts,
             )
 
         if not skip_youtube and not _STOP.is_set():
