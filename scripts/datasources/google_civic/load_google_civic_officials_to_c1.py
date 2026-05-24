@@ -26,6 +26,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import uuid
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -87,17 +88,21 @@ def _load_targets(conn, states: tuple[str, ...], include_types: tuple[str, ...],
     type_placeholders = ",".join(["%s"] * len(include_types))
     sql = f"""
         WITH ranked AS (
-            SELECT DISTINCT ON (jurisdiction_id)
-                jurisdiction_id,
-                state_code,
-                jurisdiction_category AS jurisdiction_type,
-                COALESCE(NULLIF(BTRIM(organization_name), ''), NULLIF(BTRIM(city), ''), jurisdiction_id) AS name
-            FROM intermediate.int_jurisdiction_websites
-            WHERE state_code IN ({state_placeholders})
-              AND jurisdiction_category IN ({type_placeholders})
-              AND website_url IS NOT NULL
-              AND BTRIM(website_url) <> ''
-            ORDER BY jurisdiction_id, website_record_key
+            SELECT
+                j.jurisdiction_id,
+                j.state_code,
+                j.jurisdiction_type,
+                COALESCE(NULLIF(BTRIM(j.name), ''), j.jurisdiction_id) AS name
+            FROM intermediate.int_jurisdictions j
+            WHERE j.state_code IN ({state_placeholders})
+              AND j.jurisdiction_type IN ({type_placeholders})
+              AND EXISTS (
+                  SELECT 1
+                  FROM intermediate.int_jurisdiction_websites w
+                  WHERE w.jurisdiction_id = j.jurisdiction_id
+                    AND w.website_url IS NOT NULL
+                    AND BTRIM(w.website_url) <> ''
+              )
         ),
         numbered AS (
             SELECT *, ROW_NUMBER() OVER (
@@ -129,6 +134,12 @@ def _load_targets(conn, states: tuple[str, ...], include_types: tuple[str, ...],
         ]
 
 
+def _normalize_ballotpedia_city_name(name: str) -> str:
+    cleaned = re.sub(r"\s+", " ", (name or "").strip())
+    cleaned = re.sub(r"\b(city|town|village|borough|township|cdp|municipality)\b\s*$", "", cleaned, flags=re.IGNORECASE)
+    return cleaned.strip(" ,") or name
+
+
 def _cache_write(base_dir: Path, relative_name: str, payload: dict[str, Any] | list[dict[str, Any]]) -> Path:
     base_dir.mkdir(parents=True, exist_ok=True)
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
@@ -136,6 +147,26 @@ def _cache_write(base_dir: Path, relative_name: str, payload: dict[str, Any] | l
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
     return path
+
+
+def _prune_old_cache_artifacts(base_dir: Path, jurisdiction_id: str) -> int:
+    if not base_dir.exists():
+        return 0
+    patterns = (
+        f"{jurisdiction_id}_officials_empty_*.json",
+        f"{jurisdiction_id}_officials_error_*.json",
+        f"{jurisdiction_id}_division_error_*.json",
+        f"{jurisdiction_id}_address_error_*.json",
+    )
+    deleted = 0
+    for pattern in patterns:
+        for path in base_dir.glob(pattern):
+            try:
+                path.unlink(missing_ok=True)
+                deleted += 1
+            except OSError:
+                continue
+    return deleted
 
 
 def _insert_bronze_row(
@@ -215,8 +246,12 @@ async def _ingest_target(
     offices: list[dict[str, Any]] = []
     officials: list[dict[str, Any]] = []
     payload: dict[str, Any] = {}
+    _prune_old_cache_artifacts(GOOGLE_CACHE_DIR / state_code / jurisdiction_type, jurisdiction_id)
+    _prune_old_cache_artifacts(BALLOTPEDIA_CACHE_DIR / state_code / jurisdiction_type, jurisdiction_id)
 
     try:
+        if not str(division_id).startswith("ocd-division/"):
+            raise ValueError(f"Non-OCD division id: {division_id}")
         payload = await api.get_representatives_by_division(division_id)
         offices = payload.get("offices", []) if isinstance(payload, dict) else []
         officials = payload.get("officials", []) if isinstance(payload, dict) else []
@@ -267,8 +302,9 @@ async def _ingest_target(
             )
             if jurisdiction_type != "municipality":
                 return 0, 0, 0
+            query_name = _normalize_ballotpedia_city_name(name)
             try:
-                bp_officials = await ballotpedia.get_city_officials(name, state_code)
+                bp_officials = await ballotpedia.get_city_officials(query_name, state_code)
             except Exception as bp_exc:
                 logger.warning("Ballotpedia fallback failed for %s: %s", name, bp_exc)
                 _cache_write(
@@ -277,6 +313,7 @@ async def _ingest_target(
                     {
                         "error": str(bp_exc),
                         "source": "ballotpedia",
+                        "query_name": query_name,
                         "jurisdiction_id": jurisdiction_id,
                         "state_code": state_code,
                     },
@@ -289,6 +326,7 @@ async def _ingest_target(
                     {
                         "error": "No officials returned",
                         "source": "ballotpedia",
+                        "query_name": query_name,
                         "jurisdiction_id": jurisdiction_id,
                         "state_code": state_code,
                     },
@@ -296,7 +334,7 @@ async def _ingest_target(
                 return 0, 0, 0
 
             source_name = BALLOTPEDIA_SOURCE_NAME
-            source_url = f"https://ballotpedia.org/{name.replace(' ', '_')},{state_code}"
+            source_url = f"https://ballotpedia.org/{query_name.replace(' ', '_')},{state_code}"
             officials = [
                 {
                     "name": item.get("name"),
@@ -474,9 +512,11 @@ def main(argv: list[str] | None = None) -> int:
                     bronze_google_elections += 1
             conn.commit()
 
-        for target in targets:
-            delta_elections, delta_snapshot, delta_candidacies = asyncio.run(
-                _ingest_target(
+        async def _run_all_targets() -> tuple[int, int]:
+            total_snapshot_elections = 0
+            total_snapshot_candidacies = 0
+            for target in targets:
+                delta_elections, _delta_snapshot, delta_candidacies = await _ingest_target(
                     conn=conn,
                     api=api,
                     ballotpedia=ballotpedia,
@@ -485,9 +525,11 @@ def main(argv: list[str] | None = None) -> int:
                     scrape_batch_id=scrape_batch_id,
                     dry_run=args.dry_run,
                 )
-            )
-            bronze_snapshot_elections += delta_elections
-            bronze_snapshot_candidacies += delta_candidacies
+                total_snapshot_elections += delta_elections
+                total_snapshot_candidacies += delta_candidacies
+            return total_snapshot_elections, total_snapshot_candidacies
+
+        bronze_snapshot_elections, bronze_snapshot_candidacies = asyncio.run(_run_all_targets())
 
         if not args.dry_run:
             with conn.cursor() as cur:

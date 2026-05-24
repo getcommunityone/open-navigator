@@ -52,12 +52,26 @@ NOTES:
 """
 import asyncio
 import re
+import random
+import os
 from typing import List, Dict, Optional
 from datetime import datetime
 from pathlib import Path
 import httpx
 from bs4 import BeautifulSoup
 from loguru import logger
+
+try:
+    from playwright.async_api import async_playwright
+    PLAYWRIGHT_AVAILABLE = True
+except ImportError:
+    PLAYWRIGHT_AVAILABLE = False
+
+try:
+    from playwright_stealth import stealth_async
+    PLAYWRIGHT_STEALTH_AVAILABLE = True
+except ImportError:
+    PLAYWRIGHT_STEALTH_AVAILABLE = False
 
 try:
     from pyspark.sql import SparkSession, DataFrame
@@ -248,11 +262,24 @@ class BallotpediaDiscovery:
     """
     
     BASE_URL = "https://ballotpedia.org"
+    STATE_NAME_BY_CODE = {
+        "AL": "Alabama", "AK": "Alaska", "AZ": "Arizona", "AR": "Arkansas", "CA": "California",
+        "CO": "Colorado", "CT": "Connecticut", "DE": "Delaware", "FL": "Florida", "GA": "Georgia",
+        "HI": "Hawaii", "ID": "Idaho", "IL": "Illinois", "IN": "Indiana", "IA": "Iowa",
+        "KS": "Kansas", "KY": "Kentucky", "LA": "Louisiana", "ME": "Maine", "MD": "Maryland",
+        "MA": "Massachusetts", "MI": "Michigan", "MN": "Minnesota", "MS": "Mississippi", "MO": "Missouri",
+        "MT": "Montana", "NE": "Nebraska", "NV": "Nevada", "NH": "New Hampshire", "NJ": "New Jersey",
+        "NM": "New Mexico", "NY": "New York", "NC": "North Carolina", "ND": "North Dakota", "OH": "Ohio",
+        "OK": "Oklahoma", "OR": "Oregon", "PA": "Pennsylvania", "RI": "Rhode Island", "SC": "South Carolina",
+        "SD": "South Dakota", "TN": "Tennessee", "TX": "Texas", "UT": "Utah", "VT": "Vermont",
+        "VA": "Virginia", "WA": "Washington", "WV": "West Virginia", "WI": "Wisconsin", "WY": "Wyoming",
+        "DC": "District of Columbia",
+    }
     
     def __init__(
         self,
         cache_dir: str = "data/cache/ballotpedia",
-        user_agent: str = "CivicEngagementBot/1.0 (Educational Research)"
+        user_agent: str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
     ):
         """
         Initialize Ballotpedia discovery.
@@ -265,6 +292,16 @@ class BallotpediaDiscovery:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.user_agent = user_agent
         self.session = None
+        self.max_retries = 4
+        self.base_backoff_seconds = 2.0
+        self.use_playwright_fallback = os.getenv("BALLOTPEDIA_USE_PLAYWRIGHT", "1").strip().lower() not in {"0", "false", "no"}
+        self.playwright_timeout_ms = int(os.getenv("BALLOTPEDIA_PLAYWRIGHT_TIMEOUT_MS", "45000"))
+        self.playwright_headless = os.getenv("BALLOTPEDIA_PLAYWRIGHT_HEADLESS", "1").strip().lower() not in {"0", "false", "no"}
+        self._pw = None
+        self._browser = None
+        self._context = None
+        self._page = None
+        self._playwright_lock = asyncio.Lock()
         
     async def _get_session(self) -> httpx.AsyncClient:
         """Get or create HTTP session with rate limiting."""
@@ -274,8 +311,18 @@ class BallotpediaDiscovery:
                 headers={
                     "User-Agent": self.user_agent,
                     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                    "Accept-Language": "en-US,en;q=0.9",
+                    "Cache-Control": "no-cache",
+                    "Pragma": "no-cache",
+                    "Upgrade-Insecure-Requests": "1",
+                    "Sec-Fetch-Dest": "document",
+                    "Sec-Fetch-Mode": "navigate",
+                    "Sec-Fetch-Site": "none",
+                    "Sec-Fetch-User": "?1",
+                    "Referer": "https://ballotpedia.org/",
                 },
-                follow_redirects=True
+                follow_redirects=True,
+                http2=True,
             )
         return self.session
     
@@ -289,22 +336,105 @@ class BallotpediaDiscovery:
         Returns:
             HTML content or None if failed
         """
-        try:
-            # Rate limiting - be respectful!
-            await asyncio.sleep(2.0)  # 2 seconds between requests
-            
-            session = await self._get_session()
-            response = await session.get(url)
-            
-            if response.status_code == 200:
-                return response.text
-            else:
+        session = await self._get_session()
+        saw_challenge_status = False
+        for attempt in range(1, self.max_retries + 1):
+            try:
+                # Rate limiting - be respectful and add light jitter.
+                await asyncio.sleep(1.5 + random.random())
+                response = await session.get(url)
+
+                if response.status_code == 200:
+                    return response.text
+
+                if response.status_code in (202, 429, 503):
+                    saw_challenge_status = True
+                    retry_after_raw = response.headers.get("Retry-After")
+                    retry_after = float(retry_after_raw) if retry_after_raw and retry_after_raw.isdigit() else 0.0
+                    backoff = max(retry_after, self.base_backoff_seconds * (2 ** (attempt - 1)))
+                    logger.warning(
+                        f"Retryable fetch status {response.status_code} for {url} "
+                        f"(attempt {attempt}/{self.max_retries}); sleeping {backoff:.1f}s"
+                    )
+                    if attempt < self.max_retries:
+                        await asyncio.sleep(backoff)
+                        continue
+                    # Final retryable response: let the function fall through to Playwright fallback.
+                    break
+
                 logger.warning(f"Failed to fetch {url}: {response.status_code}")
                 return None
-                
-        except Exception as e:
-            logger.error(f"Error fetching {url}: {e}")
+
+            except Exception as e:
+                logger.error(f"Error fetching {url} (attempt {attempt}/{self.max_retries}): {e}")
+                if attempt < self.max_retries:
+                    await asyncio.sleep(self.base_backoff_seconds * (2 ** (attempt - 1)))
+                    continue
+                return None
+
+        if saw_challenge_status and self.use_playwright_fallback:
+            html = await self._fetch_page_with_playwright(url)
+            if html:
+                return html
+
+        return None
+
+    async def _fetch_page_with_playwright(self, url: str) -> Optional[str]:
+        if not PLAYWRIGHT_AVAILABLE:
+            logger.warning("Playwright fallback requested but playwright is not installed")
             return None
+
+        logger.info(f"Trying Playwright fallback for {url}")
+        try:
+            page = await self._get_playwright_page()
+            await page.goto(url, wait_until="domcontentloaded", timeout=self.playwright_timeout_ms)
+            # Challenges often resolve after scripts and redirects complete.
+            await page.wait_for_load_state("networkidle", timeout=self.playwright_timeout_ms)
+            await page.wait_for_selector("body", timeout=self.playwright_timeout_ms)
+            await page.wait_for_timeout(2500)
+            content = await page.content()
+            final_url = page.url
+            title = await page.title()
+
+            # Basic challenge detection heuristics.
+            page_text = (content or "").lower()
+            challenge_markers = [
+                "checking your browser",
+                "enable javascript",
+                "ad blocker",
+                "access denied",
+                "captcha",
+            ]
+            if any(marker in page_text for marker in challenge_markers):
+                logger.warning(
+                    f"Playwright fetched challenge page for {url} (final_url={final_url}, title={title})"
+                )
+                return None
+
+            logger.info(f"Playwright fallback succeeded for {url} (final_url={final_url})")
+            return content
+        except Exception as exc:
+            logger.warning(f"Playwright fallback failed for {url}: {exc}")
+            return None
+
+    async def _get_playwright_page(self):
+        async with self._playwright_lock:
+            if self._page:
+                return self._page
+
+            self._pw = await async_playwright().start()
+            self._browser = await self._pw.chromium.launch(headless=self.playwright_headless)
+            self._context = await self._browser.new_context(
+                user_agent=self.user_agent,
+                viewport={"width": 1366, "height": 768},
+                locale="en-US",
+            )
+            self._page = await self._context.new_page()
+            if PLAYWRIGHT_STEALTH_AVAILABLE:
+                await stealth_async(self._page)
+            else:
+                logger.warning("playwright-stealth is not installed; running Playwright fallback without stealth patches")
+            return self._page
     
     async def search_leader(self, name: str, state: Optional[str] = None) -> Optional[Dict]:
         """
@@ -381,7 +511,9 @@ class BallotpediaDiscovery:
             List of official dicts
         """
         # Ballotpedia city pages: https://ballotpedia.org/Tuscaloosa,_Alabama
-        city_page = f"{city},_{state}".replace(" ", "_")
+        state_clean = (state or "").strip()
+        state_name = self.STATE_NAME_BY_CODE.get(state_clean.upper(), state_clean)
+        city_page = f"{city},_{state_name}".replace(" ", "_")
         url = f"{self.BASE_URL}/{city_page}"
         
         logger.info(f"Fetching officials for {city}, {state} from {url}")
@@ -496,6 +628,19 @@ class BallotpediaDiscovery:
         """Close HTTP session."""
         if self.session:
             await self.session.aclose()
+        async with self._playwright_lock:
+            if self._page:
+                await self._page.close()
+                self._page = None
+            if self._context:
+                await self._context.close()
+                self._context = None
+            if self._browser:
+                await self._browser.close()
+                self._browser = None
+            if self._pw:
+                await self._pw.stop()
+                self._pw = None
     
     def save_to_json(self, data: List[Dict], filename: str):
         """Save data to JSON cache."""

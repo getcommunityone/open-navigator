@@ -203,7 +203,12 @@ def refresh_jurisdiction_contacts(
     manifest_path = jurisdiction_dir / "_manifest.json"
     crawl_html = jurisdiction_dir / "_crawl_html"
     if not manifest_path.is_file():
-        raise FileNotFoundError(manifest_path)
+        parent = jurisdiction_dir.parent
+        hint_dirs: List[str] = []
+        if parent.is_dir():
+            hint_dirs = [p.name for p in sorted(parent.iterdir()) if p.is_dir() and (p / "_manifest.json").is_file()][:8]
+        hint = f" Available siblings with _manifest.json: {', '.join(hint_dirs)}" if hint_dirs else ""
+        raise FileNotFoundError(f"{manifest_path}.{hint}")
     if not crawl_html.is_dir():
         raise FileNotFoundError(crawl_html)
 
