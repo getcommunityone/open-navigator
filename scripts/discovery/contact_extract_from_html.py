@@ -261,6 +261,36 @@ def extract_structured_contacts_from_html(
         if len(rows) >= max_rows:
             break
 
+    for bcr in extract_brochure_card_contacts_from_html(
+        html, page_url, max_rows=max(0, max_rows - len(rows))
+    ):
+        em = str(bcr.get("email") or "").lower()
+        if em and em in emails_seen:
+            continue
+        if em:
+            emails_seen.add(em)
+        k = _structured_contact_row_key(bcr)
+        if k in existing_keys:
+            continue
+        existing_keys.add(k)
+        rows.append(bcr)
+        if len(rows) >= max_rows:
+            break
+
+    for bsr in extract_brochure_staff_section_contacts_from_html(
+        html, page_url, max_rows=max(0, max_rows - len(rows))
+    ):
+        em = str(bsr.get("email") or "").lower()
+        k = _structured_contact_row_key(bsr)
+        if k in existing_keys:
+            continue
+        existing_keys.add(k)
+        rows.append(bsr)
+        if em:
+            emails_seen.add(em)
+        if len(rows) >= max_rows:
+            break
+
     for er in extract_elementor_directory_contacts_from_html(
         html, page_url, max_rows=max(0, max_rows - len(rows))
     ):
@@ -744,6 +774,17 @@ def normalize_structured_contact_row(row: Dict[str, Any]) -> Dict[str, Any]:
     if raw_name and _SEND_EMAIL_LABEL_RE.match(raw_name):
         raw_name = ""
 
+    title_looks_like_honorific_person = False
+    title_match = _OFFICE_HONORIFIC_LINE_RE.match(raw_title)
+    title_tail = (title_match.group(2) or "").strip() if title_match else ""
+    if (
+        title_match
+        and title_tail
+        and not title_tail.lower().startswith("of ")
+        and _looks_like_person_name_line(title_tail)
+    ):
+        title_looks_like_honorific_person = True
+
     if (
         raw_name
         and _looks_like_person_name_line(raw_name)
@@ -751,11 +792,24 @@ def normalize_structured_contact_row(row: Dict[str, Any]) -> Dict[str, Any]:
         and raw_dept
         and not is_generic_district_label(raw_title)
         and not is_generic_district_label(raw_dept)
-        and not _OFFICE_HONORIFIC_LINE_RE.match(raw_title)
+        and not title_looks_like_honorific_person
     ):
         row["person_name"] = raw_name
         row["title_or_role"] = raw_title
         row["department"] = raw_dept
+        return row
+
+    if (
+        raw_name
+        and _looks_like_person_name_line(raw_name)
+        and raw_title
+        and not raw_dept
+        and not is_generic_district_label(raw_title)
+        and not title_looks_like_honorific_person
+    ):
+        row["person_name"] = raw_name
+        row["title_or_role"] = raw_title
+        row["department"] = None
         return row
 
     combined = raw_name
@@ -814,7 +868,14 @@ def normalize_structured_contact_row(row: Dict[str, Any]) -> Dict[str, Any]:
 
 def _merge_supplemental_contact_fields(dst: Dict[str, Any], src: Dict[str, Any]) -> None:
     """Keep the higher-quality row but fill gaps (e.g. index ``profile_url`` + detail email)."""
-    for field in ("profile_url", "profile_image_url", "phone", "mailing_address"):
+    for field in (
+        "title_or_role",
+        "department",
+        "profile_url",
+        "profile_image_url",
+        "phone",
+        "mailing_address",
+    ):
         if not (dst.get(field) or "").strip() and (src.get(field) or "").strip():
             dst[field] = src[field]
 
@@ -1579,6 +1640,309 @@ def extract_duda_gallery_staff_contacts_from_html(
                 "raw_row": {"page_url": page_url, "source": "div.photoGalleryThumbs"},
             }
         )
+
+    return out
+
+
+_BROCHURE_PLACEHOLDER_ALT_RE = re.compile(r"^(?:photo\s+coming\s+soon|placeholder)$", re.I)
+_BROCHURE_STREET_RE = re.compile(
+    r"\b(?:street|st\.?|road|rd\.?|avenue|ave\.?|highway|hwy\.?|route|suite|county\s+road|court|ct\.?)\b",
+    re.I,
+)
+_BROCHURE_CITY_STATE_RE = re.compile(r"\b[A-Za-z .'-]+,\s*[A-Z][a-z]?\.?\s+\d{5}(?:-\d{4})?\b")
+
+
+def _is_brochure_addressish_line(line: str) -> bool:
+    s = re.sub(r"\s+", " ", (line or "")).strip()
+    if not s:
+        return False
+    if _BROCHURE_CITY_STATE_RE.search(s):
+        return True
+    if re.search(r"\b(?:po\s+box|box)\b", s, re.I):
+        return True
+    if re.search(r"\d", s) and _BROCHURE_STREET_RE.search(s):
+        return True
+    return False
+
+
+def extract_brochure_card_contacts_from_html(
+    html: str,
+    page_url: str,
+    *,
+    max_rows: int = 120,
+) -> List[Dict[str, Any]]:
+    """Extract single-person brochure cards from compact ``div`` blocks with one image and one email."""
+    from bs4 import BeautifulSoup, Tag
+
+    out: List[Dict[str, Any]] = []
+    if not html or max_rows <= 0:
+        return out
+
+    soup = BeautifulSoup(html, "html.parser")
+    seen: Set[Tuple[str, str]] = set()
+    candidates: List[Tag] = []
+
+    for div in soup.find_all("div"):
+        if not isinstance(div, Tag):
+            continue
+        imgs = div.find_all("img")
+        if len(imgs) != 1:
+            continue
+        text = re.sub(r"\s+", " ", div.get_text(" ", strip=True) or "").strip()
+        if not text or len(text) < 12 or len(text) > 800:
+            continue
+
+        emails: Set[str] = set()
+        for a in div.select('a[href^="mailto:"]'):
+            hm = _MAILTO_RE.search((a.get("href") or "").strip())
+            if hm:
+                em = _clean_mailto(hm.group(1))
+                if em and "@" in em and not _BOGUS_EMAIL_SUFFIX.search(em):
+                    emails.add(em)
+        if not emails:
+            for m in _EMAIL_RE.finditer(text):
+                em = m.group(0).strip().lower()
+                if em and not _BOGUS_EMAIL_SUFFIX.search(em):
+                    emails.add(em)
+        if len(emails) != 1:
+            continue
+        candidates.append(div)
+
+    candidates.sort(key=lambda d: len(re.sub(r"\s+", " ", d.get_text(" ", strip=True) or "")))
+
+    for div in candidates:
+        if len(out) >= max_rows:
+            break
+
+        text = div.get_text("\n", strip=True) or ""
+        lines_raw = [re.sub(r"\s+", " ", x).strip() for x in text.split("\n") if x.strip()]
+        lines: List[str] = []
+        seen_lines: Set[str] = set()
+        for line in lines_raw:
+            key = line.lower()
+            if key in seen_lines:
+                continue
+            seen_lines.add(key)
+            lines.append(line)
+        if not lines:
+            continue
+
+        emails: List[str] = []
+        for a in div.select('a[href^="mailto:"]'):
+            hm = _MAILTO_RE.search((a.get("href") or "").strip())
+            if hm:
+                em = _clean_mailto(hm.group(1))
+                if em and "@" in em and not _BOGUS_EMAIL_SUFFIX.search(em):
+                    emails.append(em)
+        if not emails:
+            for m in _EMAIL_RE.finditer(" ".join(lines)):
+                em = m.group(0).strip().lower()
+                if em and not _BOGUS_EMAIL_SUFFIX.search(em):
+                    emails.append(em)
+        emails = sorted(set(emails))
+        if len(emails) != 1:
+            continue
+        email = emails[0]
+
+        img = div.find("img")
+        img_alt = re.sub(r"\s+", " ", (img.get("alt") or "")).strip() if img else ""
+        name = ""
+        title = None
+        department = None
+
+        if img_alt and not _BROCHURE_PLACEHOLDER_ALT_RE.match(img_alt) and _looks_like_person_name_line(img_alt):
+            name = img_alt
+
+        filtered_lines: List[str] = []
+        for line in lines:
+            low = line.lower()
+            if any(em in low for em in emails):
+                continue
+            if low == "commission office staff":
+                continue
+            filtered_lines.append(line)
+
+        if filtered_lines and is_generic_district_label(filtered_lines[0]):
+            department = filtered_lines[0][:512]
+            filtered_lines = filtered_lines[1:]
+
+        if filtered_lines:
+            first = filtered_lines[0]
+            if not name and _looks_like_person_name_line(first):
+                name = first
+                filtered_lines = filtered_lines[1:]
+            elif not name and len(filtered_lines) > 1 and _looks_like_person_name_line(filtered_lines[1]):
+                title = first[:512]
+                name = filtered_lines[1]
+                filtered_lines = filtered_lines[2:]
+
+        if name and filtered_lines:
+            for index, line in enumerate(filtered_lines):
+                if line.lower() == name.lower():
+                    if index > 0:
+                        prev = filtered_lines[index - 1]
+                        if not _is_brochure_addressish_line(prev) and not _PHONE_RE.search(prev):
+                            title = prev[:512]
+                    filtered_lines = filtered_lines[index + 1 :]
+                    break
+
+        if name and " - " in name:
+            maybe_name, maybe_role = [x.strip() for x in name.split(" - ", 1)]
+            if _looks_like_person_name_line(maybe_name) and maybe_role:
+                name = maybe_name
+                title = maybe_role[:512]
+
+        if not name:
+            derived = derive_person_name_from_email(email)
+            if derived:
+                name = derived
+
+        if not name or not _looks_like_person_name_line(name):
+            continue
+
+        phone = None
+        joined = " \n ".join(lines)
+        pm = _PHONE_RE.search(joined)
+        if pm:
+            phone = _normalize_phone_display(pm.group(0))
+
+        address_lines: List[str] = []
+        for line in filtered_lines:
+            if _PHONE_RE.search(line):
+                break
+            if _is_brochure_addressish_line(line):
+                address_lines.append(line)
+        mailing_address = ", ".join(address_lines)[:500] if address_lines else None
+
+        profile_image_url = None
+        if img is not None:
+            src = (img.get("src") or "").strip()
+            if src and not _BROCHURE_PLACEHOLDER_ALT_RE.match(img_alt or ""):
+                profile_image_url = urljoin(page_url, src)
+
+        key = (name.lower(), email.lower())
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(
+            {
+                "person_name": name[:512],
+                "title_or_role": title,
+                "department": department,
+                "email": email[:512],
+                "phone": phone,
+                "mailing_address": mailing_address,
+                "profile_url": None,
+                "profile_image_url": profile_image_url,
+                "extraction_method": "brochure_contact_card",
+                "raw_row": {"page_url": page_url, "source": "div_brochure_card"},
+            }
+        )
+
+    return out
+
+
+def extract_brochure_staff_section_contacts_from_html(
+    html: str,
+    page_url: str,
+    *,
+    max_rows: int = 120,
+) -> List[Dict[str, Any]]:
+    """Extract role/name/email sequences from grouped brochure office staff sections."""
+    from bs4 import BeautifulSoup, NavigableString, Tag
+
+    out: List[Dict[str, Any]] = []
+    if not html or max_rows <= 0:
+        return out
+
+    soup = BeautifulSoup(html, "html.parser")
+    seen: Set[Tuple[str, str]] = set()
+
+    for marker in soup.find_all(string=re.compile(r"commission\s+office\s+staff", re.I)):
+        if len(out) >= max_rows:
+            break
+        if not isinstance(marker, NavigableString):
+            continue
+
+        chosen: Optional[Tag] = None
+        node = marker.parent
+        while isinstance(node, Tag):
+            mailtos = node.select('a[href^="mailto:"]')
+            text = re.sub(r"\s+", " ", node.get_text(" ", strip=True) or "").strip()
+            if len(mailtos) >= 3 and len(text) <= 2500:
+                chosen = node
+                break
+            node = node.parent
+        if chosen is None:
+            continue
+
+        lines_all = [re.sub(r"\s+", " ", x).strip() for x in chosen.get_text("\n", strip=True).split("\n") if x.strip()]
+        if not lines_all:
+            continue
+
+        start = 0
+        for i, line in enumerate(lines_all):
+            if re.search(r"commission\s+office\s+staff", line, re.I):
+                start = i
+                break
+        end = len(lines_all)
+        for i in range(start + 1, len(lines_all)):
+            if re.search(r"county\s+commissioner'?s\s+contact\s+information", lines_all[i], re.I):
+                end = i
+                break
+        lines = lines_all[start:end]
+        if len(lines) < 5:
+            continue
+
+        emails: List[str] = []
+        for a in chosen.select('a[href^="mailto:"]'):
+            hm = _MAILTO_RE.search((a.get("href") or "").strip())
+            if not hm:
+                continue
+            em = _clean_mailto(hm.group(1))
+            if em and "@" in em and not _BOGUS_EMAIL_SUFFIX.search(em):
+                emails.append(em)
+        if not emails:
+            continue
+
+        email_index = 0
+        i = 1
+        while i + 1 < len(lines) and len(out) < max_rows and email_index < len(emails):
+            role = lines[i]
+            name = lines[i + 1]
+            if re.search(r"^\d{3}[-.\s/]?\d{3}[-.\s/]?\d{4}$", role) or _is_brochure_addressish_line(role):
+                i += 1
+                continue
+            if not _looks_like_person_name_line(name):
+                i += 1
+                continue
+
+            phone = None
+            j = i + 2
+            if j < len(lines) and _PHONE_RE.search(lines[j]):
+                phone = _normalize_phone_display(_PHONE_RE.search(lines[j]).group(0))
+                j += 1
+
+            email = emails[email_index]
+            email_index += 1
+            key = (name.lower(), email.lower())
+            if key not in seen:
+                seen.add(key)
+                out.append(
+                    {
+                        "person_name": name[:512],
+                        "title_or_role": role[:512],
+                        "department": None,
+                        "email": email[:512],
+                        "phone": phone,
+                        "mailing_address": None,
+                        "profile_url": None,
+                        "profile_image_url": None,
+                        "extraction_method": "brochure_staff_section",
+                        "raw_row": {"page_url": page_url, "source": "commission_office_staff_section"},
+                    }
+                )
+                i = j + 1
 
     return out
 

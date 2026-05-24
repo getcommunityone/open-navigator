@@ -34,6 +34,7 @@ import os
 import re
 import sys
 import time
+import threading
 from typing import List, Optional
 from urllib.parse import urljoin
 
@@ -391,6 +392,42 @@ def _extract_retry_after_seconds(exc: Exception) -> float:
         return 0.0
 
 
+_GROQ_CALL_THROTTLE_LOCK = threading.Lock()
+_GROQ_CALL_NEXT_ALLOWED_AT = 0.0
+
+
+def _contact_ai_min_call_interval_s(provider: str) -> float:
+    """Global pacing gate between LLM calls.
+
+    Groq on-demand is token-per-minute constrained, so we default to a conservative
+    one-minute spacing for Groq-backed calls unless the caller overrides it.
+    """
+    raw = (os.getenv("SCRAPED_CONTACT_AI_MIN_CALL_INTERVAL_S") or "").strip()
+    if raw:
+        try:
+            return max(0.0, min(300.0, float(raw)))
+        except ValueError:
+            pass
+    prov = (provider or "").lower()
+    if "groq" in prov:
+        return 60.0
+    return 0.0
+
+
+def _throttle_before_llm_call(provider: str) -> None:
+    """Sleep before a request so we don't burst past provider TPM limits."""
+    interval_s = _contact_ai_min_call_interval_s(provider)
+    if interval_s <= 0:
+        return
+    global _GROQ_CALL_NEXT_ALLOWED_AT
+    with _GROQ_CALL_THROTTLE_LOCK:
+        now = time.monotonic()
+        wait_s = max(0.0, _GROQ_CALL_NEXT_ALLOWED_AT - now)
+        _GROQ_CALL_NEXT_ALLOWED_AT = max(_GROQ_CALL_NEXT_ALLOWED_AT, now) + interval_s
+        if wait_s > 0:
+            time.sleep(wait_s)
+
+
 def _call_llm_for_contacts(
     markdown: str,
     *,
@@ -447,6 +484,7 @@ def _call_llm_for_contacts(
     last_exc: Optional[Exception] = None
     for attempt in range(1, retry_attempts + 1):
         try:
+            _throttle_before_llm_call(provider)
             resp = litellm.completion(  # type: ignore[attr-defined]
                 model=provider,
                 api_key=api_token,
