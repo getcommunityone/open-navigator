@@ -86,6 +86,13 @@ SCRAPED_TABLE: Dict[str, str] = {
     "school_district": "bronze.bronze_jurisdictions_school_districts_scraped",
 }
 
+_YOUTUBE_PRIMARY_SCRAPED_TABLES = frozenset(
+    {
+        SCRAPED_TABLE["municipality"],
+        SCRAPED_TABLE["county"],
+    }
+)
+
 # dbt intermediate model (``dbt run --select int_jurisdiction_websites``)
 INT_JURISDICTION_WEBSITES_TABLE = "intermediate.int_jurisdiction_websites"
 
@@ -514,7 +521,66 @@ def _scraped_table_for(jtype: str) -> str:
     return SCRAPED_TABLE.get(key, SCRAPED_TABLE["city"])
 
 
-def _result_to_scraped_row(r: Dict[str, Any]) -> Tuple[str, str, str, Optional[str], Optional[str], Optional[str], str, str, float, Dict[str, Any]]:
+def _scraped_upsert_sql(tbl: str) -> str:
+    """INSERT/upsert for one ``bronze.*_scraped`` table."""
+    if tbl in _YOUTUBE_PRIMARY_SCRAPED_TABLES:
+        return """
+            INSERT INTO {tbl} (
+                geoid, usps, homepage_url, homepage_final_url, gsa_matched_domain,
+                discovery_source, status, completeness_score,
+                youtube_channel_url, youtube_channel_selection_method,
+                youtube_channel_selection_confidence,
+                payload
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (geoid) DO UPDATE SET
+                usps = EXCLUDED.usps,
+                discovered_at = NOW(),
+                homepage_url = EXCLUDED.homepage_url,
+                homepage_final_url = EXCLUDED.homepage_final_url,
+                gsa_matched_domain = EXCLUDED.gsa_matched_domain,
+                discovery_source = EXCLUDED.discovery_source,
+                status = EXCLUDED.status,
+                completeness_score = EXCLUDED.completeness_score,
+                youtube_channel_url = EXCLUDED.youtube_channel_url,
+                youtube_channel_selection_method = EXCLUDED.youtube_channel_selection_method,
+                youtube_channel_selection_confidence = EXCLUDED.youtube_channel_selection_confidence,
+                payload = EXCLUDED.payload
+        """
+    return """
+            INSERT INTO {tbl} (
+                geoid, usps, homepage_url, homepage_final_url, gsa_matched_domain,
+                discovery_source, status, completeness_score, payload
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (geoid) DO UPDATE SET
+                usps = EXCLUDED.usps,
+                discovered_at = NOW(),
+                homepage_url = EXCLUDED.homepage_url,
+                homepage_final_url = EXCLUDED.homepage_final_url,
+                gsa_matched_domain = EXCLUDED.gsa_matched_domain,
+                discovery_source = EXCLUDED.discovery_source,
+                status = EXCLUDED.status,
+                completeness_score = EXCLUDED.completeness_score,
+                payload = EXCLUDED.payload
+        """
+
+
+def _result_to_scraped_row(
+    r: Dict[str, Any],
+) -> Tuple[
+    str,
+    str,
+    str,
+    Optional[str],
+    Optional[str],
+    Optional[str],
+    str,
+    str,
+    float,
+    Optional[str],
+    Optional[str],
+    Optional[float],
+    Dict[str, Any],
+]:
     j = r.get("jurisdiction") or {}
     geoid = str(
         r.get("jurisdiction_id")
@@ -528,9 +594,13 @@ def _result_to_scraped_row(r: Dict[str, Any]) -> Tuple[str, str, str, Optional[s
     websites = r.get("websites") or []
     homepage_url = websites[0]["url"] if websites else None
     homepage_final = websites[0].get("final_url") if websites else None
+    from scripts.discovery.youtube_primary_channel import pick_primary_youtube_channel
+
+    youtube_channels = r.get("youtube_channels") or []
+    yt_url, yt_method, yt_conf = pick_primary_youtube_channel(youtube_channels)
     payload = {
         "websites": r.get("websites"),
-        "youtube_channels": r.get("youtube_channels"),
+        "youtube_channels": youtube_channels,
         # Per-URL probe audit: outcome not_found | found | error | skipped_invalid_url | timeout; checked_at UTC ISO
         "youtube_channel_checks": r.get("youtube_channel_checks"),
         "other_video": r.get("other_video"),
@@ -557,6 +627,9 @@ def _result_to_scraped_row(r: Dict[str, Any]) -> Tuple[str, str, str, Optional[s
         "deep_scrape",
         str(r.get("status") or "unknown"),
         float(r.get("completeness_score") or 0.0),
+        yt_url,
+        yt_method,
+        yt_conf,
         payload,
     )
 
@@ -772,35 +845,50 @@ class JurisdictionDiscoveryPipeline(ComprehensiveDiscoveryPipeline):
             jtype = (j.get("type") or "city").lower()
             tbl = _scraped_table_for(jtype)
             row = _result_to_scraped_row(r)
-            geoid, usps, _jt, hp, hpf, gsa, dsrc, status, score, payload = row
+            (
+                geoid,
+                usps,
+                _jt,
+                hp,
+                hpf,
+                gsa,
+                dsrc,
+                status,
+                score,
+                yt_url,
+                yt_method,
+                yt_conf,
+                payload,
+            ) = row
             if not geoid:
                 continue
-            rows_by_table.setdefault(tbl, []).append(
-                (geoid, usps, hp, hpf, gsa, dsrc, status, score, Json(payload))
-            )
+            if tbl in _YOUTUBE_PRIMARY_SCRAPED_TABLES:
+                tup = (
+                    geoid,
+                    usps,
+                    hp,
+                    hpf,
+                    gsa,
+                    dsrc,
+                    status,
+                    score,
+                    yt_url,
+                    yt_method,
+                    yt_conf,
+                    Json(payload),
+                )
+            else:
+                tup = (geoid, usps, hp, hpf, gsa, dsrc, status, score, Json(payload))
+            rows_by_table.setdefault(tbl, []).append(tup)
 
-        sql = """
-            INSERT INTO {tbl} (
-                geoid, usps, homepage_url, homepage_final_url, gsa_matched_domain,
-                discovery_source, status, completeness_score, payload
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (geoid) DO UPDATE SET
-                usps = EXCLUDED.usps,
-                discovered_at = NOW(),
-                homepage_url = EXCLUDED.homepage_url,
-                homepage_final_url = EXCLUDED.homepage_final_url,
-                gsa_matched_domain = EXCLUDED.gsa_matched_domain,
-                discovery_source = EXCLUDED.discovery_source,
-                status = EXCLUDED.status,
-                completeness_score = EXCLUDED.completeness_score,
-                payload = EXCLUDED.payload
-        """
         try:
             with conn.cursor() as cur:
                 for tbl, rows in rows_by_table.items():
                     if not rows:
                         continue
-                    execute_batch(cur, sql.format(tbl=tbl), rows, page_size=500)
+                    execute_batch(
+                        cur, _scraped_upsert_sql(tbl).format(tbl=tbl), rows, page_size=500
+                    )
             conn.commit()
         except Exception as exc:
             conn.rollback()
@@ -887,8 +975,23 @@ class JurisdictionDiscoveryPipeline(ComprehensiveDiscoveryPipeline):
                 "jurisdiction": j,
                 "discovery_timestamp": now,
             }
-            batch.setdefault(tbl, []).append(
-                (
+            if tbl in _YOUTUBE_PRIMARY_SCRAPED_TABLES:
+                row_tup = (
+                    geoid,
+                    st.upper(),
+                    u,
+                    u,
+                    dom,
+                    "int_jurisdiction_websites_bulk",
+                    "success",
+                    0.25,
+                    None,
+                    None,
+                    None,
+                    Json(payload),
+                )
+            else:
+                row_tup = (
                     geoid,
                     st.upper(),
                     u,
@@ -899,27 +1002,13 @@ class JurisdictionDiscoveryPipeline(ComprehensiveDiscoveryPipeline):
                     0.25,
                     Json(payload),
                 )
-            )
+            batch.setdefault(tbl, []).append(row_tup)
 
-        sql = """
-            INSERT INTO {tbl} (
-                geoid, usps, homepage_url, homepage_final_url, gsa_matched_domain,
-                discovery_source, status, completeness_score, payload
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (geoid) DO UPDATE SET
-                usps = EXCLUDED.usps,
-                discovered_at = NOW(),
-                homepage_url = EXCLUDED.homepage_url,
-                homepage_final_url = EXCLUDED.homepage_final_url,
-                gsa_matched_domain = EXCLUDED.gsa_matched_domain,
-                discovery_source = EXCLUDED.discovery_source,
-                status = EXCLUDED.status,
-                completeness_score = EXCLUDED.completeness_score,
-                payload = EXCLUDED.payload
-        """
         with conn.cursor() as cur:
             for tbl, rows in batch.items():
-                execute_batch(cur, sql.format(tbl=tbl), rows, page_size=500)
+                execute_batch(
+                    cur, _scraped_upsert_sql(tbl).format(tbl=tbl), rows, page_size=500
+                )
         conn.commit()
         logger.success(
             "int_jurisdiction_websites bulk: matched {:,} jurisdiction(s) across {:,} candidates",

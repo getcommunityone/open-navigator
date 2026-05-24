@@ -21,6 +21,9 @@ WITH scraped AS (
         discovery_source,
         status,
         completeness_score,
+        NULL::text AS youtube_channel_url,
+        NULL::text AS youtube_channel_selection_method,
+        NULL::numeric AS youtube_channel_selection_confidence,
         payload
     FROM {{ source('bronze', 'bronze_jurisdictions_states_scraped') }}
 
@@ -35,6 +38,9 @@ WITH scraped AS (
         discovery_source,
         status,
         completeness_score,
+        youtube_channel_url,
+        youtube_channel_selection_method,
+        youtube_channel_selection_confidence,
         payload
     FROM {{ source('bronze', 'bronze_jurisdictions_municipalities_scraped') }}
 
@@ -49,6 +55,9 @@ WITH scraped AS (
         discovery_source,
         status,
         completeness_score,
+        youtube_channel_url,
+        youtube_channel_selection_method,
+        youtube_channel_selection_confidence,
         payload
     FROM {{ source('bronze', 'bronze_jurisdictions_counties_scraped') }}
 
@@ -63,8 +72,56 @@ WITH scraped AS (
         discovery_source,
         status,
         completeness_score,
+        NULL::text AS youtube_channel_url,
+        NULL::text AS youtube_channel_selection_method,
+        NULL::numeric AS youtube_channel_selection_confidence,
         payload
     FROM {{ source('bronze', 'bronze_jurisdictions_school_districts_scraped') }}
+),
+
+primary_from_columns AS (
+    SELECT
+        j.jurisdiction_id,
+        j.name AS jurisdiction_name,
+        j.state_code,
+        j.state,
+        j.jurisdiction_type,
+        j.geoid,
+        s.jurisdiction_class,
+        s.homepage_url,
+        s.homepage_final_url,
+        s.discovery_source,
+        s.status,
+        s.completeness_score,
+        s.youtube_channel_url AS channel_url,
+        REGEXP_REPLACE(
+            REGEXP_REPLACE(
+                REGEXP_REPLACE(
+                    LOWER(NULLIF(BTRIM(s.youtube_channel_url), '')),
+                    '^http:',
+                    'https:',
+                    'i'
+                ),
+                '^https://www\.',
+                'https://',
+                'i'
+            ),
+            '/+$',
+            '',
+            'g'
+        ) AS channel_url_norm,
+        NULL::text AS payload_channel_id,
+        NULL::text AS channel_title,
+        COALESCE(s.youtube_channel_selection_confidence, 0.0) AS confidence_score,
+        0::bigint AS video_count,
+        0::bigint AS subscriber_count,
+        0::bigint AS view_count,
+        NULLIF(BTRIM(s.youtube_channel_selection_method), '') AS discovery_method
+    FROM scraped s
+    INNER JOIN {{ ref('int_jurisdictions') }} j
+        ON j.geoid = s.geoid
+       AND j.jurisdiction_type::text = s.jurisdiction_class
+    WHERE NULLIF(BTRIM(s.youtube_channel_url), '') IS NOT NULL
 ),
 
 youtube_catalog AS (
@@ -192,6 +249,10 @@ exploded_base AS (
        AND j.jurisdiction_type::text = s.jurisdiction_class
     CROSS JOIN LATERAL jsonb_array_elements(COALESCE(s.payload->'youtube_channels', '[]'::jsonb)) AS yc
     WHERE NULLIF(BTRIM(yc->>'channel_url'), '') IS NOT NULL
+
+    UNION ALL
+
+    SELECT * FROM primary_from_columns
 ),
 
 exploded AS (

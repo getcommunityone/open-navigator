@@ -582,6 +582,9 @@ sources:
           - name: discovery_source
           - name: status
           - name: completeness_score
+          - name: youtube_channel_url
+          - name: youtube_channel_selection_method
+          - name: youtube_channel_selection_confidence
           - name: payload
 
       - name: bronze_jurisdictions_counties_scraped
@@ -596,6 +599,9 @@ sources:
           - name: discovery_source
           - name: status
           - name: completeness_score
+          - name: youtube_channel_url
+          - name: youtube_channel_selection_method
+          - name: youtube_channel_selection_confidence
           - name: payload
 
       - name: bronze_jurisdictions_school_districts_scraped
