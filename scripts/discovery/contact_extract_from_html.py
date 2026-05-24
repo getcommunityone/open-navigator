@@ -455,6 +455,20 @@ def extract_structured_contacts_from_html(
         if len(rows) >= max_rows:
             break
 
+    for ipr in extract_infomedia_official_paragraph_contacts_from_html(
+        html, page_url, max_rows=max(0, max_rows - len(rows))
+    ):
+        k = _structured_contact_row_key(ipr)
+        if k in existing_keys:
+            continue
+        existing_keys.add(k)
+        em = str(ipr.get("email") or "").lower()
+        if em:
+            emails_seen.add(em)
+        rows.append(ipr)
+        if len(rows) >= max_rows:
+            break
+
     rows.extend(
         extract_directory_cards_contacts_from_html(
             html, page_url, max_rows=max(0, max_rows - len(rows))
