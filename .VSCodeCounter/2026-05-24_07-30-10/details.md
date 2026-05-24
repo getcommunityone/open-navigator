@@ -1,10 +1,10 @@
 # Details
 
-Date : 2026-05-22 15:09:44
+Date : 2026-05-24 07:30:10
 
 Directory /home/developer/projects/open-navigator
 
-Total : 1163 files,  297658 codes, 38716 comments, 49726 blanks, all 386100 lines
+Total : 1206 files,  303279 codes, 40606 comments, 50622 blanks, all 394507 lines
 
 [Summary](results.md) / Details / [Diff Summary](diff.md) / [Diff Details](diff-details.md)
 
@@ -19,7 +19,7 @@ Total : 1163 files,  297658 codes, 38716 comments, 49726 blanks, all 386100 line
 | [.huggingface/nginx.conf](/.huggingface/nginx.conf) | Properties | 103 | 18 | 22 | 143 |
 | [.huggingface/start.sh](/.huggingface/start.sh) | Shell Script | 44 | 8 | 10 | 62 |
 | [.huggingface/supervisord.conf](/.huggingface/supervisord.conf) | Properties | 26 | 0 | 3 | 29 |
-| [CITATIONS.md](/CITATIONS.md) | Markdown | 1,765 | 0 | 354 | 2,119 |
+| [CITATIONS.md](/CITATIONS.md) | Markdown | 1,774 | 0 | 355 | 2,129 |
 | [CODE\_OF\_CONDUCT.md](/CODE_OF_CONDUCT.md) | Markdown | 28 | 0 | 20 | 48 |
 | [CONTRIBUTING.md](/CONTRIBUTING.md) | Markdown | 72 | 0 | 28 | 100 |
 | [Dockerfile](/Dockerfile) | Docker | 49 | 21 | 21 | 91 |
@@ -29,7 +29,7 @@ Total : 1163 files,  297658 codes, 38716 comments, 49726 blanks, all 386100 line
 | [\_\_init\_\_.py](/__init__.py) | Python | 17 | 1 | 4 | 22 |
 | [agents/\_\_init\_\_.py](/agents/__init__.py) | Python | 14 | 1 | 2 | 17 |
 | [agents/advocacy.py](/agents/advocacy.py) | Python | 298 | 58 | 53 | 409 |
-| [agents/base.py](/agents/base.py) | Python | 100 | 47 | 25 | 172 |
+| [agents/base.py](/agents/base.py) | Python | 97 | 47 | 25 | 169 |
 | [agents/classifier.py](/agents/classifier.py) | Python | 189 | 67 | 40 | 296 |
 | [agents/debate\_grader.py](/agents/debate_grader.py) | Python | 305 | 64 | 56 | 425 |
 | [agents/mlflow\_base.py](/agents/mlflow_base.py) | Python | 162 | 108 | 38 | 308 |
@@ -113,10 +113,11 @@ Total : 1163 files,  297658 codes, 38716 comments, 49726 blanks, all 386100 line
 | [dbt\_project/models/bronze/bronze\_financial\_items\_from\_ai.sql](/dbt_project/models/bronze/bronze_financial_items_from_ai.sql) | MS SQL | 75 | 14 | 8 | 97 |
 | [dbt\_project/models/bronze/bronze\_organizations\_from\_ai.sql](/dbt_project/models/bronze/bronze_organizations_from_ai.sql) | MS SQL | 109 | 19 | 9 | 137 |
 | [dbt\_project/models/bronze/bronze\_topics\_from\_ai.sql](/dbt_project/models/bronze/bronze_topics_from_ai.sql) | MS SQL | 71 | 14 | 8 | 93 |
-| [dbt\_project/models/intermediate/\_intermediate.yml](/dbt_project/models/intermediate/_intermediate.yml) | YAML | 502 | 0 | 27 | 529 |
-| [dbt\_project/models/intermediate/int\_events\_channels.sql](/dbt_project/models/intermediate/int_events_channels.sql) | MS SQL | 164 | 32 | 25 | 221 |
+| [dbt\_project/models/intermediate/\_intermediate.yml](/dbt_project/models/intermediate/_intermediate.yml) | YAML | 523 | 0 | 28 | 551 |
+| [dbt\_project/models/intermediate/int\_events\_channels.sql](/dbt_project/models/intermediate/int_events_channels.sql) | MS SQL | 671 | 32 | 47 | 750 |
 | [dbt\_project/models/intermediate/int\_events\_channels\_enriched.sql](/dbt_project/models/intermediate/int_events_channels_enriched.sql) | MS SQL | 61 | 19 | 12 | 92 |
 | [dbt\_project/models/intermediate/int\_events\_localview.sql](/dbt_project/models/intermediate/int_events_localview.sql) | MS SQL | 24 | 8 | 3 | 35 |
+| [dbt\_project/models/intermediate/int\_jurisdiction\_homepage\_youtube\_channels.sql](/dbt_project/models/intermediate/int_jurisdiction_homepage_youtube_channels.sql) | MS SQL | 259 | 7 | 15 | 281 |
 | [dbt\_project/models/intermediate/int\_jurisdiction\_websites.sql](/dbt_project/models/intermediate/int_jurisdiction_websites.sql) | MS SQL | 922 | 36 | 45 | 1,003 |
 | [dbt\_project/models/intermediate/int\_jurisdictions.sql](/dbt_project/models/intermediate/int_jurisdictions.sql) | MS SQL | 376 | 26 | 15 | 417 |
 | [dbt\_project/models/intermediate/int\_jurisdictions\_clean.sql](/dbt_project/models/intermediate/int_jurisdictions_clean.sql) | MS SQL | 74 | 27 | 21 | 122 |
@@ -356,6 +357,7 @@ Total : 1163 files,  297658 codes, 38716 comments, 49726 blanks, all 386100 line
 | [prompts/policy\_analysis\_part\_2.md](/prompts/policy_analysis_part_2.md) | Markdown | 63 | 0 | 27 | 90 |
 | [prompts/policy\_analysis\_sample\_inputs.md](/prompts/policy_analysis_sample_inputs.md) | Markdown | 10 | 0 | 0 | 10 |
 | [prompts/policy\_analysis\_v1.md](/prompts/policy_analysis_v1.md) | Markdown | 788 | 0 | 76 | 864 |
+| [pytest.ini](/pytest.ini) | Ini | 5 | 0 | 1 | 6 |
 | [requirements.txt](/requirements.txt) | pip requirements | 79 | 25 | 16 | 120 |
 | [scripts/README.md](/scripts/README.md) | Markdown | 157 | 0 | 46 | 203 |
 | [scripts/\_\_init\_\_.py](/scripts/__init__.py) | Python | 0 | 0 | 1 | 1 |
@@ -453,6 +455,8 @@ Total : 1163 files,  297658 codes, 38716 comments, 49726 blanks, all 386100 line
 | [scripts/datasources/census/verify\_bronze\_migration.py](/scripts/datasources/census/verify_bronze_migration.py) | Python | 129 | 17 | 33 | 179 |
 | [scripts/datasources/cityscrapers/README.md](/scripts/datasources/cityscrapers/README.md) | Markdown | 169 | 0 | 61 | 230 |
 | [scripts/datasources/cityscrapers/city\_scrapers\_urls.py](/scripts/datasources/cityscrapers/city_scrapers_urls.py) | Python | 170 | 85 | 59 | 314 |
+| [scripts/datasources/data\_gov/\_\_init\_\_.py](/scripts/datasources/data_gov/__init__.py) | Python | 0 | 0 | 1 | 1 |
+| [scripts/datasources/data\_gov/download\_data\_gov\_organizations.py](/scripts/datasources/data_gov/download_data_gov_organizations.py) | Python | 262 | 31 | 47 | 340 |
 | [scripts/datasources/dbpedia/README.md](/scripts/datasources/dbpedia/README.md) | Markdown | 4 | 0 | 4 | 8 |
 | [scripts/datasources/dbpedia/dbpedia\_integration.py](/scripts/datasources/dbpedia/dbpedia_integration.py) | Python | 226 | 167 | 24 | 417 |
 | [scripts/datasources/dot/build\_dot\_unified\_events.py](/scripts/datasources/dot/build_dot_unified_events.py) | Python | 248 | 23 | 31 | 302 |
@@ -515,6 +519,17 @@ Total : 1163 files,  297658 codes, 38716 comments, 49726 blanks, all 386100 line
 | [scripts/datasources/irs/load\_irs\_bmf.py](/scripts/datasources/irs/load_irs_bmf.py) | Python | 339 | 142 | 88 | 569 |
 | [scripts/datasources/irs/manage\_nonprofits.py](/scripts/datasources/irs/manage_nonprofits.py) | Python | 189 | 46 | 69 | 304 |
 | [scripts/datasources/irs/nonprofit\_discovery.py](/scripts/datasources/irs/nonprofit_discovery.py) | Python | 410 | 164 | 119 | 693 |
+| [scripts/datasources/jurisdiction\_pilot/\_\_init\_\_.py](/scripts/datasources/jurisdiction_pilot/__init__.py) | Python | 0 | 0 | 1 | 1 |
+| [scripts/datasources/jurisdiction\_pilot/google\_civic\_youtube.py](/scripts/datasources/jurisdiction_pilot/google_civic_youtube.py) | Python | 69 | 27 | 25 | 121 |
+| [scripts/datasources/jurisdiction\_pilot/legistar\_scraper.py](/scripts/datasources/jurisdiction_pilot/legistar_scraper.py) | Python | 69 | 35 | 24 | 128 |
+| [scripts/datasources/jurisdiction\_pilot/load\_ocd\_into\_postgres.py](/scripts/datasources/jurisdiction_pilot/load_ocd_into_postgres.py) | Python | 136 | 31 | 33 | 200 |
+| [scripts/datasources/jurisdiction\_pilot/load\_ocd\_jurisdictions.py](/scripts/datasources/jurisdiction_pilot/load_ocd_jurisdictions.py) | Python | 141 | 57 | 35 | 233 |
+| [scripts/datasources/jurisdiction\_pilot/mayor\_url\_discovery.py](/scripts/datasources/jurisdiction_pilot/mayor_url_discovery.py) | Python | 138 | 43 | 24 | 205 |
+| [scripts/datasources/jurisdiction\_pilot/scrape\_priority\_states.py](/scripts/datasources/jurisdiction_pilot/scrape_priority_states.py) | Python | 491 | 373 | 33 | 897 |
+| [scripts/datasources/jurisdiction\_pilot/vendor\_detection.py](/scripts/datasources/jurisdiction_pilot/vendor_detection.py) | Python | 238 | 48 | 30 | 316 |
+| [scripts/datasources/jurisdiction\_pilot/verify.sql](/scripts/datasources/jurisdiction_pilot/verify.sql) | MS SQL | 97 | 10 | 9 | 116 |
+| [scripts/datasources/jurisdiction\_pilot/website\_youtube\_search.py](/scripts/datasources/jurisdiction_pilot/website_youtube_search.py) | Python | 175 | 44 | 54 | 273 |
+| [scripts/datasources/jurisdiction\_pilot/youtube\_channel\_enrich.py](/scripts/datasources/jurisdiction_pilot/youtube_channel_enrich.py) | Python | 209 | 86 | 47 | 342 |
 | [scripts/datasources/jurisdictions/export\_jurisdiction\_mapping\_quality\_json.py](/scripts/datasources/jurisdictions/export_jurisdiction_mapping_quality_json.py) | Python | 356 | 257 | 19 | 632 |
 | [scripts/datasources/jurisdictions/jurisdiction\_mapping\_queries.py](/scripts/datasources/jurisdictions/jurisdiction_mapping_queries.py) | Python | 86 | 3 | 9 | 98 |
 | [scripts/datasources/jurisdictions/load\_counties\_to\_postgres.py](/scripts/datasources/jurisdictions/load_counties_to_postgres.py) | Python | 157 | 27 | 34 | 218 |
@@ -536,6 +551,11 @@ Total : 1163 files,  297658 codes, 38716 comments, 49726 blanks, all 386100 line
 | [scripts/datasources/localview/enrich\_from\_localview.py](/scripts/datasources/localview/enrich_from_localview.py) | Python | 233 | 47 | 67 | 347 |
 | [scripts/datasources/localview/fuzzy\_jurisdiction\_matcher.py](/scripts/datasources/localview/fuzzy_jurisdiction_matcher.py) | Python | 183 | 128 | 55 | 366 |
 | [scripts/datasources/localview/load\_localview\_to\_postgres.py](/scripts/datasources/localview/load_localview_to_postgres.py) | Python | 381 | 20 | 50 | 451 |
+| [scripts/datasources/ma\_pilot/\_\_init\_\_.py](/scripts/datasources/ma_pilot/__init__.py) | Python | 0 | 0 | 1 | 1 |
+| [scripts/datasources/ma\_pilot/jurisdictions.py](/scripts/datasources/ma_pilot/jurisdictions.py) | Python | 142 | 22 | 7 | 171 |
+| [scripts/datasources/ma\_pilot/mayor\_boost.py](/scripts/datasources/ma_pilot/mayor_boost.py) | Python | 35 | 23 | 11 | 69 |
+| [scripts/datasources/ma\_pilot/scrape\_ma\_jurisdictions.py](/scripts/datasources/ma_pilot/scrape_ma_jurisdictions.py) | Python | 207 | 35 | 35 | 277 |
+| [scripts/datasources/ma\_pilot/verify.sql](/scripts/datasources/ma_pilot/verify.sql) | MS SQL | 109 | 12 | 10 | 131 |
 | [scripts/datasources/master\_data/README.md](/scripts/datasources/master_data/README.md) | Markdown | 310 | 0 | 79 | 389 |
 | [scripts/datasources/master\_data/create\_jurisdiction\_master.py](/scripts/datasources/master_data/create_jurisdiction_master.py) | Python | 1,005 | 182 | 144 | 1,331 |
 | [scripts/datasources/master\_data/query\_examples.sql](/scripts/datasources/master_data/query_examples.sql) | MS SQL | 281 | 72 | 52 | 405 |
@@ -557,10 +577,13 @@ Total : 1163 files,  297658 codes, 38716 comments, 49726 blanks, all 386100 line
 | [scripts/datasources/nces/load\_nces\_school\_districts\_to\_bronze.py](/scripts/datasources/nces/load_nces_school_districts_to_bronze.py) | Python | 393 | 108 | 15 | 516 |
 | [scripts/datasources/nces/migrate\_schools\_to\_orgloc.py](/scripts/datasources/nces/migrate_schools_to_orgloc.py) | Python | 123 | 18 | 28 | 169 |
 | [scripts/datasources/nces/update\_jurisdictions\_from\_nces\_simple.py](/scripts/datasources/nces/update_jurisdictions_from_nces_simple.py) | Python | 92 | 163 | 12 | 267 |
+| [scripts/datasources/netronline/\_\_init\_\_.py](/scripts/datasources/netronline/__init__.py) | Python | 0 | 0 | 1 | 1 |
+| [scripts/datasources/netronline/crawl\_county\_directory.py](/scripts/datasources/netronline/crawl_county_directory.py) | Python | 346 | 71 | 70 | 487 |
 | [scripts/datasources/ntee/README.md](/scripts/datasources/ntee/README.md) | Markdown | 163 | 0 | 49 | 212 |
 | [scripts/datasources/ntee/\_\_init\_\_.py](/scripts/datasources/ntee/__init__.py) | Python | 0 | 10 | 1 | 11 |
 | [scripts/datasources/ntee/load\_to\_postgres.py](/scripts/datasources/ntee/load_to_postgres.py) | Python | 183 | 49 | 57 | 289 |
 | [scripts/datasources/openstates/README.md](/scripts/datasources/openstates/README.md) | Markdown | 83 | 0 | 29 | 112 |
+| [scripts/datasources/openstates/\_\_init\_\_.py](/scripts/datasources/openstates/__init__.py) | Python | 0 | 0 | 1 | 1 |
 | [scripts/datasources/openstates/aggregate\_bills\_from\_postgres.py](/scripts/datasources/openstates/aggregate_bills_from_postgres.py) | Python | 241 | 170 | 33 | 444 |
 | [scripts/datasources/openstates/create\_openstates\_schema.py](/scripts/datasources/openstates/create_openstates_schema.py) | Python | 49 | 13 | 11 | 73 |
 | [scripts/datasources/openstates/export\_committee\_reports.py](/scripts/datasources/openstates/export_committee_reports.py) | Python | 61 | 97 | 19 | 177 |
@@ -579,6 +602,7 @@ Total : 1163 files,  297658 codes, 38716 comments, 49726 blanks, all 386100 line
 | [scripts/datasources/openstates/run\_openstates\_jurisdiction\_mapping.sh](/scripts/datasources/openstates/run_openstates_jurisdiction_mapping.sh) | Shell Script | 42 | 17 | 8 | 67 |
 | [scripts/datasources/openstates/setup\_dbt\_venv.sh](/scripts/datasources/openstates/setup_dbt_venv.sh) | Shell Script | 16 | 8 | 6 | 30 |
 | [scripts/datasources/openstates/setup\_openstates\_db.sh](/scripts/datasources/openstates/setup_openstates_db.sh) | Shell Script | 144 | 32 | 26 | 202 |
+| [scripts/datasources/openstates/sync\_persons\_to\_bronze.py](/scripts/datasources/openstates/sync_persons_to_bronze.py) | Python | 69 | 164 | 12 | 245 |
 | [scripts/datasources/osf/download\_osf\_zip.py](/scripts/datasources/osf/download_osf_zip.py) | Python | 307 | 48 | 82 | 437 |
 | [scripts/datasources/osf/load\_osf\_rds\_to\_bronze.R](/scripts/datasources/osf/load_osf_rds_to_bronze.R) | R | 126 | 24 | 22 | 172 |
 | [scripts/datasources/osf/load\_osf\_rds\_to\_bronze.py](/scripts/datasources/osf/load_osf_rds_to_bronze.py) | Python | 152 | 20 | 38 | 210 |
@@ -649,12 +673,12 @@ Total : 1163 files,  297658 codes, 38716 comments, 49726 blanks, all 386100 line
 | [scripts/datasources/youtube/download\_youtube\_audio\_mt.sh](/scripts/datasources/youtube/download_youtube_audio_mt.sh) | Shell Script | 6 | 4 | 1 | 11 |
 | [scripts/datasources/youtube/link\_youtube\_bronze\_from\_localview\_apply.sql](/scripts/datasources/youtube/link_youtube_bronze_from_localview_apply.sql) | MS SQL | 86 | 6 | 8 | 100 |
 | [scripts/datasources/youtube/link\_youtube\_bronze\_from\_localview\_preview.sql](/scripts/datasources/youtube/link_youtube_bronze_from_localview_preview.sql) | MS SQL | 91 | 6 | 6 | 103 |
-| [scripts/datasources/youtube/load\_channel\_candidates\_to\_catalog.py](/scripts/datasources/youtube/load_channel_candidates_to_catalog.py) | Python | 63 | 9 | 15 | 87 |
-| [scripts/datasources/youtube/load\_missing\_county\_channels.py](/scripts/datasources/youtube/load_missing_county_channels.py) | Python | 251 | 6 | 34 | 291 |
+| [scripts/datasources/youtube/load\_channel\_candidates\_to\_catalog.py](/scripts/datasources/youtube/load_channel_candidates_to_catalog.py) | Python | 119 | 9 | 17 | 145 |
+| [scripts/datasources/youtube/load\_missing\_county\_channels.py](/scripts/datasources/youtube/load_missing_county_channels.py) | Python | 285 | 7 | 38 | 330 |
 | [scripts/datasources/youtube/load\_youtube\_channels\_bronze.py](/scripts/datasources/youtube/load_youtube_channels_bronze.py) | Python | 356 | 45 | 65 | 466 |
 | [scripts/datasources/youtube/load\_youtube\_events\_colab.ipynb](/scripts/datasources/youtube/load_youtube_events_colab.ipynb) | JSON | 775 | 0 | 1 | 776 |
-| [scripts/datasources/youtube/load\_youtube\_events\_to\_postgres.py](/scripts/datasources/youtube/load_youtube_events_to_postgres.py) | Python | 1,386 | 201 | 221 | 1,808 |
-| [scripts/datasources/youtube/load\_youtube\_for\_jurisdiction.py](/scripts/datasources/youtube/load_youtube_for_jurisdiction.py) | Python | 126 | 19 | 17 | 162 |
+| [scripts/datasources/youtube/load\_youtube\_events\_to\_postgres.py](/scripts/datasources/youtube/load_youtube_events_to_postgres.py) | Python | 1,506 | 206 | 230 | 1,942 |
+| [scripts/datasources/youtube/load\_youtube\_for\_jurisdiction.py](/scripts/datasources/youtube/load_youtube_for_jurisdiction.py) | Python | 164 | 19 | 18 | 201 |
 | [scripts/datasources/youtube/normalize\_youtube\_jurisdiction\_ids.py](/scripts/datasources/youtube/normalize_youtube_jurisdiction_ids.py) | Python | 326 | 53 | 55 | 434 |
 | [scripts/datasources/youtube/run\_audit\_ga\_jurisdiction\_youtube\_gaps.sh](/scripts/datasources/youtube/run_audit_ga_jurisdiction_youtube_gaps.sh) | Shell Script | 39 | 3 | 8 | 50 |
 | [scripts/datasources/youtube/run\_audit\_ga\_youtube\_download\_filters.sh](/scripts/datasources/youtube/run_audit_ga_youtube_download_filters.sh) | Shell Script | 17 | 10 | 6 | 33 |
@@ -662,12 +686,14 @@ Total : 1163 files,  297658 codes, 38716 comments, 49726 blanks, all 386100 line
 | [scripts/datasources/youtube/run\_audit\_youtube\_jurisdiction\_coverage.sh](/scripts/datasources/youtube/run_audit_youtube_jurisdiction_coverage.sh) | Shell Script | 23 | 6 | 9 | 38 |
 | [scripts/datasources/youtube/run\_backfill\_bronze\_youtube\_publish\_dates.sh](/scripts/datasources/youtube/run_backfill_bronze_youtube_publish_dates.sh) | Shell Script | 9 | 12 | 5 | 26 |
 | [scripts/datasources/youtube/run\_link\_youtube\_bronze\_from\_localview.sh](/scripts/datasources/youtube/run_link_youtube_bronze_from_localview.sh) | Shell Script | 23 | 8 | 8 | 39 |
+| [scripts/datasources/youtube/run\_priority\_states\_channel\_pipeline.sh](/scripts/datasources/youtube/run_priority_states_channel_pipeline.sh) | Shell Script | 121 | 31 | 21 | 173 |
 | [scripts/datasources/youtube/run\_priority\_states\_last\_n.sh](/scripts/datasources/youtube/run_priority_states_last_n.sh) | Shell Script | 321 | 28 | 25 | 374 |
 | [scripts/datasources/youtube/setup\_channels\_bronze.sh](/scripts/datasources/youtube/setup_channels_bronze.sh) | Shell Script | 49 | 8 | 9 | 66 |
 | [scripts/datasources/youtube/sql/preview\_bronze\_youtube\_blank\_publish\_dates.sql](/scripts/datasources/youtube/sql/preview_bronze_youtube_blank_publish_dates.sql) | MS SQL | 24 | 6 | 5 | 35 |
 | [scripts/datasources/youtube/sync\_bronze\_youtube\_from\_localview.py](/scripts/datasources/youtube/sync_bronze_youtube_from_localview.py) | Python | 65 | 103 | 10 | 178 |
+| [scripts/datasources/youtube/test\_cobb\_county\_scrape.py](/scripts/datasources/youtube/test_cobb_county_scrape.py) | Python | 37 | 2 | 13 | 52 |
 | [scripts/datasources/youtube/transcript\_api\_client.py](/scripts/datasources/youtube/transcript_api_client.py) | Python | 33 | 12 | 10 | 55 |
-| [scripts/datasources/youtube/youtube\_channel\_discovery.py](/scripts/datasources/youtube/youtube_channel_discovery.py) | Python | 385 | 131 | 92 | 608 |
+| [scripts/datasources/youtube/youtube\_channel\_discovery.py](/scripts/datasources/youtube/youtube_channel_discovery.py) | Python | 681 | 198 | 130 | 1,009 |
 | [scripts/dbt-root.sh](/scripts/dbt-root.sh) | Shell Script | 5 | 8 | 1 | 14 |
 | [scripts/dbt.sh](/scripts/dbt.sh) | Shell Script | 5 | 8 | 1 | 14 |
 | [scripts/dbt/README.md](/scripts/dbt/README.md) | Markdown | 265 | 0 | 83 | 348 |
@@ -682,6 +708,7 @@ Total : 1163 files,  297658 codes, 38716 comments, 49726 blanks, all 386100 line
 | [scripts/deployment/neon/SETUP\_YOUTUBE.md](/scripts/deployment/neon/SETUP_YOUTUBE.md) | Markdown | 119 | 0 | 45 | 164 |
 | [scripts/deployment/neon/calculate\_stats\_only.py](/scripts/deployment/neon/calculate_stats_only.py) | Python | 131 | 21 | 40 | 192 |
 | [scripts/deployment/neon/ensure\_bronze\_jurisdictions\_cloud.py](/scripts/deployment/neon/ensure_bronze_jurisdictions_cloud.py) | Python | 154 | 15 | 26 | 195 |
+| [scripts/deployment/neon/load\_ocd\_jurisdictions\_to\_sql.sh](/scripts/deployment/neon/load_ocd_jurisdictions_to_sql.sh) | Shell Script | 74 | 5 | 16 | 95 |
 | [scripts/deployment/neon/migrate.py](/scripts/deployment/neon/migrate.py) | Python | 892 | 108 | 182 | 1,182 |
 | [scripts/deployment/neon/migrate\_all\_bronze\_tables.sh](/scripts/deployment/neon/migrate_all_bronze_tables.sh) | Shell Script | 49 | 7 | 14 | 70 |
 | [scripts/deployment/neon/migrate\_bills.py](/scripts/deployment/neon/migrate_bills.py) | Python | 158 | 64 | 49 | 271 |
@@ -735,6 +762,18 @@ Total : 1163 files,  297658 codes, 38716 comments, 49726 blanks, all 386100 line
 | [scripts/deployment/neon/migrations/036\_add\_official\_website\_updated\_at\_bronze\_wikidata.sql](/scripts/deployment/neon/migrations/036_add_official_website_updated_at_bronze_wikidata.sql) | MS SQL | 8 | 2 | 5 | 15 |
 | [scripts/deployment/neon/migrations/037\_bronze\_events\_youtube\_video\_url\_unique.sql](/scripts/deployment/neon/migrations/037_bronze_events_youtube_video_url_unique.sql) | MS SQL | 12 | 7 | 7 | 26 |
 | [scripts/deployment/neon/migrations/038\_jurisdiction\_merge\_details\_search.sql](/scripts/deployment/neon/migrations/038_jurisdiction_merge_details_search.sql) | MS SQL | 170 | 14 | 15 | 199 |
+| [scripts/deployment/neon/migrations/039\_create\_bronze\_jurisdiction\_youtube.sql](/scripts/deployment/neon/migrations/039_create_bronze_jurisdiction_youtube.sql) | MS SQL | 31 | 9 | 6 | 46 |
+| [scripts/deployment/neon/migrations/040\_alter\_bronze\_jurisdiction\_youtube\_add\_signals.sql](/scripts/deployment/neon/migrations/040_alter_bronze_jurisdiction_youtube_add_signals.sql) | MS SQL | 15 | 13 | 5 | 33 |
+| [scripts/deployment/neon/migrations/041\_add\_ocd\_ids.sql](/scripts/deployment/neon/migrations/041_add_ocd_ids.sql) | MS SQL | 25 | 16 | 14 | 55 |
+| [scripts/deployment/neon/migrations/041\_create\_bronze\_jurisdictions\_county\_directory.sql](/scripts/deployment/neon/migrations/041_create_bronze_jurisdictions_county_directory.sql) | MS SQL | 32 | 9 | 6 | 47 |
+| [scripts/deployment/neon/migrations/042\_create\_bronze\_jurisdiction\_ocd.sql](/scripts/deployment/neon/migrations/042_create_bronze_jurisdiction_ocd.sql) | MS SQL | 27 | 9 | 11 | 47 |
+| [scripts/deployment/neon/migrations/042\_rename\_bronze\_jurisdiction\_youtube\_confidence.sql](/scripts/deployment/neon/migrations/042_rename_bronze_jurisdiction_youtube_confidence.sql) | MS SQL | 6 | 11 | 5 | 22 |
+| [scripts/deployment/neon/migrations/043\_rename\_bronze\_contacts\_to\_persons.sql](/scripts/deployment/neon/migrations/043_rename_bronze_contacts_to_persons.sql) | MS SQL | 18 | 18 | 8 | 44 |
+| [scripts/deployment/neon/migrations/044\_rename\_bronze\_contacts\_from\_ai\_to\_persons.sql](/scripts/deployment/neon/migrations/044_rename_bronze_contacts_from_ai_to_persons.sql) | MS SQL | 5 | 9 | 5 | 19 |
+| [scripts/deployment/neon/migrations/045\_extend\_bronze\_persons\_scraped\_with\_ocd\_fields.sql](/scripts/deployment/neon/migrations/045_extend_bronze_persons_scraped_with_ocd_fields.sql) | MS SQL | 25 | 15 | 6 | 46 |
+| [scripts/deployment/neon/migrations/046\_create\_bronze\_jurisdiction\_openstates.sql](/scripts/deployment/neon/migrations/046_create_bronze_jurisdiction_openstates.sql) | MS SQL | 38 | 14 | 6 | 58 |
+| [scripts/deployment/neon/migrations/047\_create\_bronze\_elections\_scraped.sql](/scripts/deployment/neon/migrations/047_create_bronze_elections_scraped.sql) | MS SQL | 58 | 30 | 16 | 104 |
+| [scripts/deployment/neon/migrations/048\_rename\_public\_to\_c1\_align\_with\_openstates.sql](/scripts/deployment/neon/migrations/048_rename_public_to_c1_align_with_openstates.sql) | MS SQL | 103 | 43 | 26 | 172 |
 | [scripts/deployment/neon/psql\_resolved.sh](/scripts/deployment/neon/psql_resolved.sh) | Shell Script | 14 | 4 | 1 | 19 |
 | [scripts/deployment/neon/regenerate\_bills\_map.py](/scripts/deployment/neon/regenerate_bills_map.py) | Python | 73 | 13 | 18 | 104 |
 | [scripts/deployment/neon/run\_bronze\_jurisdictions\_to\_cloud.sh](/scripts/deployment/neon/run_bronze_jurisdictions_to_cloud.sh) | Shell Script | 15 | 13 | 7 | 35 |
@@ -761,14 +800,17 @@ Total : 1163 files,  297658 codes, 38716 comments, 49726 blanks, all 386100 line
 | [scripts/discovery/archive/comprehensive\_discovery\_pipeline\_meetings.py](/scripts/discovery/archive/comprehensive_discovery_pipeline_meetings.py) | Python | 6 | 5 | 3 | 14 |
 | [scripts/discovery/archive/discovery\_pipeline.py](/scripts/discovery/archive/discovery_pipeline.py) | Python | 26 | 9 | 6 | 41 |
 | [scripts/discovery/batch\_processor.py](/scripts/discovery/batch_processor.py) | Python | 352 | 115 | 78 | 545 |
-| [scripts/discovery/bronze\_contacts\_scraped\_persist.py](/scripts/discovery/bronze_contacts_scraped_persist.py) | Python | 63 | 34 | 6 | 103 |
+| [scripts/discovery/bronze\_contacts\_scraped\_persist.py](/scripts/discovery/bronze_contacts_scraped_persist.py) | Python | 5 | 9 | 3 | 17 |
+| [scripts/discovery/bronze\_jurisdiction\_youtube\_persist.py](/scripts/discovery/bronze_jurisdiction_youtube_persist.py) | Python | 98 | 40 | 12 | 150 |
+| [scripts/discovery/bronze\_jurisdictions\_county\_directory\_persist.py](/scripts/discovery/bronze_jurisdictions_county_directory_persist.py) | Python | 57 | 31 | 6 | 94 |
+| [scripts/discovery/bronze\_persons\_scraped\_persist.py](/scripts/discovery/bronze_persons_scraped_persist.py) | Python | 81 | 53 | 11 | 145 |
 | [scripts/discovery/civicclerk\_meetings\_sync.py](/scripts/discovery/civicclerk_meetings_sync.py) | Python | 329 | 21 | 48 | 398 |
 | [scripts/discovery/civicclerk\_public\_api.py](/scripts/discovery/civicclerk_public_api.py) | Python | 189 | 18 | 34 | 241 |
 | [scripts/discovery/comprehensive\_discovery\_pipeline\_jurisdiction.py](/scripts/discovery/comprehensive_discovery_pipeline_jurisdiction.py) | Python | 3,124 | 517 | 284 | 3,925 |
 | [scripts/discovery/contact\_directory\_heuristics.py](/scripts/discovery/contact_directory_heuristics.py) | Python | 130 | 11 | 15 | 156 |
 | [scripts/discovery/contact\_extract\_crawl4ai.py](/scripts/discovery/contact_extract_crawl4ai.py) | Python | 326 | 68 | 42 | 436 |
 | [scripts/discovery/contact\_extract\_from\_html.py](/scripts/discovery/contact_extract_from_html.py) | Python | 1,716 | 128 | 251 | 2,095 |
-| [scripts/discovery/contact\_profile\_images.py](/scripts/discovery/contact_profile_images.py) | Python | 731 | 50 | 64 | 845 |
+| [scripts/discovery/contact\_profile\_images.py](/scripts/discovery/contact_profile_images.py) | Python | 766 | 62 | 65 | 893 |
 | [scripts/discovery/contacts\_bundle.py](/scripts/discovery/contacts_bundle.py) | Python | 175 | 14 | 22 | 211 |
 | [scripts/discovery/curated\_sources.py](/scripts/discovery/curated_sources.py) | Python | 173 | 163 | 68 | 404 |
 | [scripts/discovery/discover\_oral\_health\_states.sh](/scripts/discovery/discover_oral_health_states.sh) | Shell Script | 35 | 6 | 13 | 54 |
@@ -777,7 +819,8 @@ Total : 1163 files,  297658 codes, 38716 comments, 49726 blanks, all 386100 line
 | [scripts/discovery/external\_url\_datasets.py](/scripts/discovery/external_url_datasets.py) | Python | 362 | 74 | 64 | 500 |
 | [scripts/discovery/fix\_scraped\_meetings\_manifest\_years.py](/scripts/discovery/fix_scraped_meetings_manifest_years.py) | Python | 81 | 15 | 17 | 113 |
 | [scripts/discovery/gomeet\_mp4\_to\_opus.py](/scripts/discovery/gomeet_mp4_to_opus.py) | Python | 303 | 42 | 51 | 396 |
-| [scripts/discovery/jurisdiction\_contact\_seed\_urls.py](/scripts/discovery/jurisdiction_contact_seed_urls.py) | Python | 40 | 19 | 6 | 65 |
+| [scripts/discovery/int\_person\_website\_enrichment.py](/scripts/discovery/int_person_website_enrichment.py) | Python | 77 | 188 | 13 | 278 |
+| [scripts/discovery/jurisdiction\_contact\_seed\_urls.py](/scripts/discovery/jurisdiction_contact_seed_urls.py) | Python | 86 | 35 | 6 | 127 |
 | [scripts/discovery/jurisdiction\_discovery\_pipeline.py](/scripts/discovery/jurisdiction_discovery_pipeline.py) | Python | 704 | 351 | 58 | 1,113 |
 | [scripts/discovery/jurisdiction\_meeting\_seed\_urls.py](/scripts/discovery/jurisdiction_meeting_seed_urls.py) | Python | 28 | 8 | 5 | 41 |
 | [scripts/discovery/load\_scraped\_meetings\_manifests\_to\_bronze.py](/scripts/discovery/load_scraped_meetings_manifests_to_bronze.py) | Python | 521 | 28 | 65 | 614 |
@@ -788,6 +831,7 @@ Total : 1163 files,  297658 codes, 38716 comments, 49726 blanks, all 386100 line
 | [scripts/discovery/platform\_detector.py](/scripts/discovery/platform_detector.py) | Python | 202 | 98 | 37 | 337 |
 | [scripts/discovery/refresh\_contacts\_from\_crawl\_html.py](/scripts/discovery/refresh_contacts_from_crawl_html.py) | Python | 391 | 9 | 42 | 442 |
 | [scripts/discovery/rename\_gomeet\_downloads.py](/scripts/discovery/rename_gomeet_downloads.py) | Python | 212 | 21 | 40 | 273 |
+| [scripts/discovery/rename\_meeting\_pdfs\_to\_ymd.py](/scripts/discovery/rename_meeting_pdfs_to_ymd.py) | Python | 235 | 49 | 54 | 338 |
 | [scripts/discovery/rename\_scraped\_meeting\_pdf\_files.py](/scripts/discovery/rename_scraped_meeting_pdf_files.py) | Python | 373 | 26 | 54 | 453 |
 | [scripts/discovery/run\_jurisdiction\_discovery.sh](/scripts/discovery/run_jurisdiction_discovery.sh) | Shell Script | 20 | 4 | 3 | 27 |
 | [scripts/discovery/scraped\_meetings\_crawl\_html\_pdfs.py](/scripts/discovery/scraped_meetings_crawl_html_pdfs.py) | Python | 169 | 16 | 28 | 213 |
@@ -866,7 +910,7 @@ Total : 1163 files,  297658 codes, 38716 comments, 49726 blanks, all 386100 line
 | [scripts/gemini/part2\_report\_normalize.py](/scripts/gemini/part2_report_normalize.py) | Python | 20 | 4 | 6 | 30 |
 | [scripts/gemini/persist\_policy\_analysis\_bronze.py](/scripts/gemini/persist_policy_analysis_bronze.py) | Python | 196 | 57 | 30 | 283 |
 | [scripts/gemini/policy\_exclusions.py](/scripts/gemini/policy_exclusions.py) | Python | 339 | 37 | 50 | 426 |
-| [scripts/gemini/policy\_processing\_status\_report.py](/scripts/gemini/policy_processing_status_report.py) | Python | 376 | 623 | 55 | 1,054 |
+| [scripts/gemini/policy\_processing\_status\_report.py](/scripts/gemini/policy_processing_status_report.py) | Python | 413 | 705 | 57 | 1,175 |
 | [scripts/gemini/print\_uncontested\_speakers.py](/scripts/gemini/print_uncontested_speakers.py) | Python | 107 | 3 | 20 | 130 |
 | [scripts/gemini/reparse\_policy\_run.py](/scripts/gemini/reparse_policy_run.py) | Python | 176 | 3 | 30 | 209 |
 | [scripts/gemini/speaker\_hints.py](/scripts/gemini/speaker_hints.py) | Python | 127 | 17 | 19 | 163 |
@@ -902,7 +946,7 @@ Total : 1163 files,  297658 codes, 38716 comments, 49726 blanks, all 386100 line
 | [scripts/localview/check\_meeting\_data.py](/scripts/localview/check_meeting_data.py) | Python | 205 | 24 | 60 | 289 |
 | [scripts/localview/extract\_transcripts.py](/scripts/localview/extract_transcripts.py) | Python | 144 | 47 | 45 | 236 |
 | [scripts/localview/load\_priority\_states.sh](/scripts/localview/load_priority_states.sh) | Shell Script | 133 | 16 | 26 | 175 |
-| [scripts/localview/scrape\_youtube\_channels.py](/scripts/localview/scrape_youtube_channels.py) | Python | 515 | 103 | 101 | 719 |
+| [scripts/localview/scrape\_youtube\_channels.py](/scripts/localview/scrape_youtube_channels.py) | Python | 573 | 105 | 108 | 786 |
 | [scripts/localview/update\_all.sh](/scripts/localview/update_all.sh) | Shell Script | 39 | 9 | 11 | 59 |
 | [scripts/localview/update\_municipality\_list.py](/scripts/localview/update_municipality_list.py) | Python | 202 | 45 | 52 | 299 |
 | [scripts/maintenance/README.md](/scripts/maintenance/README.md) | Markdown | 98 | 0 | 32 | 130 |
@@ -949,7 +993,7 @@ Total : 1163 files,  297658 codes, 38716 comments, 49726 blanks, all 386100 line
 | [start-all.sh](/start-all.sh) | Shell Script | 156 | 26 | 37 | 219 |
 | [stop-all.sh](/stop-all.sh) | Shell Script | 41 | 6 | 13 | 60 |
 | [tests/fixtures/contact\_extract/applingcountyga\_commissioners.html](/tests/fixtures/contact_extract/applingcountyga_commissioners.html) | HTML | 389 | 4 | 42 | 435 |
-| [tests/test\_agents.py](/tests/test_agents.py) | Python | 57 | 16 | 24 | 97 |
+| [tests/test\_agents.py](/tests/test_agents.py) | Python | 41 | 14 | 20 | 75 |
 | [tests/test\_civicclerk\_public\_api.py](/tests/test_civicclerk_public_api.py) | Python | 34 | 1 | 12 | 47 |
 | [tests/test\_civicplus\_contact\_extract.py](/tests/test_civicplus_contact_extract.py) | Python | 32 | 1 | 4 | 37 |
 | [tests/test\_colab\_bootstrap.py](/tests/test_colab_bootstrap.py) | Python | 18 | 1 | 10 | 29 |
@@ -957,21 +1001,20 @@ Total : 1163 files,  297658 codes, 38716 comments, 49726 blanks, all 386100 line
 | [tests/test\_colab\_runtime\_phases.py](/tests/test_colab_runtime_phases.py) | Python | 22 | 1 | 10 | 33 |
 | [tests/test\_county\_portal\_host\_macros.py](/tests/test_county_portal_host_macros.py) | Python | 28 | 1 | 16 | 45 |
 | [tests/test\_dedupe\_meeting\_videos.py](/tests/test_dedupe_meeting_videos.py) | Python | 56 | 1 | 11 | 68 |
-| [tests/test\_demo3\_text\_input.py](/tests/test_demo3_text_input.py) | Python | 39 | 1 | 12 | 52 |
-| [tests/test\_demo4\_gemma\_opus.py](/tests/test_demo4_gemma_opus.py) | Python | 112 | 2 | 37 | 151 |
-| [tests/test\_ga\_contact\_scraper\_regression.py](/tests/test_ga_contact_scraper_regression.py) | Python | 338 | 108 | 61 | 507 |
+| [tests/test\_ga\_contact\_scraper\_regression.py](/tests/test_ga_contact_scraper_regression.py) | Python | 385 | 113 | 68 | 566 |
+| [tests/test\_jurisdiction\_contact\_seed\_urls.py](/tests/test_jurisdiction_contact_seed_urls.py) | Python | 9 | 1 | 4 | 14 |
 | [tests/test\_jurisdiction\_mapping\_queries.py](/tests/test_jurisdiction_mapping_queries.py) | Python | 18 | 1 | 6 | 25 |
 | [tests/test\_legislation\_analysis.py](/tests/test_legislation_analysis.py) | Python | 87 | 0 | 13 | 100 |
 | [tests/test\_meeting\_consolidated\_summary.py](/tests/test_meeting_consolidated_summary.py) | Python | 75 | 1 | 11 | 87 |
 | [tests/test\_meeting\_date\_from\_title.py](/tests/test_meeting_date_from_title.py) | Python | 31 | 0 | 12 | 43 |
 | [tests/test\_meeting\_document\_naming.py](/tests/test_meeting_document_naming.py) | Python | 98 | 2 | 23 | 123 |
 | [tests/test\_mermaid\_diagrams.py](/tests/test_mermaid_diagrams.py) | Python | 89 | 2 | 13 | 104 |
-| [tests/test\_part2\_report\_normalize.py](/tests/test_part2_report_normalize.py) | Python | 10 | 0 | 3 | 13 |
 | [tests/test\_pipeline\_media\_scope.py](/tests/test_pipeline_media_scope.py) | Python | 118 | 1 | 33 | 152 |
 | [tests/test\_state\_acs\_mapping\_quality.py](/tests/test_state_acs_mapping_quality.py) | Python | 20 | 1 | 6 | 27 |
 | [tests/test\_transcript\_cache\_geography.py](/tests/test_transcript_cache_geography.py) | Python | 134 | 0 | 23 | 157 |
 | [tests/test\_wikidata\_entity\_search.py](/tests/test_wikidata_entity_search.py) | Python | 115 | 11 | 36 | 162 |
 | [tests/test\_youtube\_channel\_tabs.py](/tests/test_youtube_channel_tabs.py) | Python | 18 | 1 | 7 | 26 |
+| [tests/test\_youtube\_site\_search\_scrape.py](/tests/test_youtube_site_search_scrape.py) | Python | 164 | 15 | 63 | 242 |
 | [visualization/\_\_init\_\_.py](/visualization/__init__.py) | Python | 6 | 3 | 3 | 12 |
 | [visualization/heatmap.py](/visualization/heatmap.py) | Python | 229 | 162 | 34 | 425 |
 | [website/DOCUMENTATION\_MIGRATION.md](/website/DOCUMENTATION_MIGRATION.md) | Markdown | 167 | 0 | 37 | 204 |
@@ -992,7 +1035,7 @@ Total : 1163 files,  297658 codes, 38716 comments, 49726 blanks, all 386100 line
 | [website/docs/data-sources/census-data.md](/website/docs/data-sources/census-data.md) | Markdown | 72 | 0 | 33 | 105 |
 | [website/docs/data-sources/census-shapefiles.md](/website/docs/data-sources/census-shapefiles.md) | Markdown | 270 | 0 | 99 | 369 |
 | [website/docs/data-sources/charity-navigator.md](/website/docs/data-sources/charity-navigator.md) | Markdown | 297 | 0 | 102 | 399 |
-| [website/docs/data-sources/citations.md](/website/docs/data-sources/citations.md) | Markdown | 2,232 | 0 | 546 | 2,778 |
+| [website/docs/data-sources/citations.md](/website/docs/data-sources/citations.md) | Markdown | 2,254 | 0 | 552 | 2,806 |
 | [website/docs/data-sources/council-data-project-compatibility.md](/website/docs/data-sources/council-data-project-compatibility.md) | Markdown | 165 | 0 | 53 | 218 |
 | [website/docs/data-sources/data-model-erd.md](/website/docs/data-sources/data-model-erd.md) | Markdown | 3,236 | 0 | 403 | 3,639 |
 | [website/docs/data-sources/factcheck-sources.md](/website/docs/data-sources/factcheck-sources.md) | Markdown | 522 | 0 | 127 | 649 |

@@ -1,0 +1,50 @@
+Date : 2026-05-24 07:29:47
+Directory : /home/developer/projects/open-navigator
+Total : 16 files,  1004 codes, 677 comments, 211 blanks, all 1892 lines
+
+Languages
++----------+------------+------------+------------+------------+------------+
+| language | files      | code       | comment    | blank      | total      |
++----------+------------+------------+------------+------------+------------+
+| Python   |         10 |        757 |        548 |        144 |      1,449 |
+| MS SQL   |          6 |        247 |        129 |         67 |        443 |
++----------+------------+------------+------------+------------+------------+
+
+Directories
++----------------------------------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| path                                                                                                                             | files      | code       | comment    | blank      | total      |
++----------------------------------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| .                                                                                                                                |         16 |      1,004 |        677 |        211 |      1,892 |
+| scripts                                                                                                                          |         16 |      1,004 |        677 |        211 |      1,892 |
+| scripts/datasources                                                                                                              |          5 |        398 |        277 |         70 |        745 |
+| scripts/datasources/data_gov                                                                                                     |          2 |        262 |         31 |         48 |        341 |
+| scripts/datasources/jurisdiction_pilot                                                                                           |          1 |         67 |         82 |          9 |        158 |
+| scripts/datasources/openstates                                                                                                   |          2 |         69 |        164 |         13 |        246 |
+| scripts/deployment                                                                                                               |          6 |        247 |        129 |         67 |        443 |
+| scripts/deployment/neon                                                                                                          |          6 |        247 |        129 |         67 |        443 |
+| scripts/deployment/neon/migrations                                                                                               |          6 |        247 |        129 |         67 |        443 |
+| scripts/discovery                                                                                                                |          5 |        359 |        271 |         74 |        704 |
++----------------------------------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+
+Files
++----------------------------------------------------------------------------------------------------------------------------------+----------+------------+------------+------------+------------+
+| filename                                                                                                                         | language | code       | comment    | blank      | total      |
++----------------------------------------------------------------------------------------------------------------------------------+----------+------------+------------+------------+------------+
+| /home/developer/projects/open-navigator/scripts/datasources/data_gov/__init__.py                                                 | Python   |          0 |          0 |          1 |          1 |
+| /home/developer/projects/open-navigator/scripts/datasources/data_gov/download_data_gov_organizations.py                          | Python   |        262 |         31 |         47 |        340 |
+| /home/developer/projects/open-navigator/scripts/datasources/jurisdiction_pilot/scrape_priority_states.py                         | Python   |         67 |         82 |          9 |        158 |
+| /home/developer/projects/open-navigator/scripts/datasources/openstates/__init__.py                                               | Python   |          0 |          0 |          1 |          1 |
+| /home/developer/projects/open-navigator/scripts/datasources/openstates/sync_persons_to_bronze.py                                 | Python   |         69 |        164 |         12 |        245 |
+| /home/developer/projects/open-navigator/scripts/deployment/neon/migrations/043_rename_bronze_contacts_to_persons.sql             | MS SQL   |         18 |         18 |          8 |         44 |
+| /home/developer/projects/open-navigator/scripts/deployment/neon/migrations/044_rename_bronze_contacts_from_ai_to_persons.sql     | MS SQL   |          5 |          9 |          5 |         19 |
+| /home/developer/projects/open-navigator/scripts/deployment/neon/migrations/045_extend_bronze_persons_scraped_with_ocd_fields.sql | MS SQL   |         25 |         15 |          6 |         46 |
+| /home/developer/projects/open-navigator/scripts/deployment/neon/migrations/046_create_bronze_jurisdiction_openstates.sql         | MS SQL   |         38 |         14 |          6 |         58 |
+| /home/developer/projects/open-navigator/scripts/deployment/neon/migrations/047_create_bronze_elections_scraped.sql               | MS SQL   |         58 |         30 |         16 |        104 |
+| /home/developer/projects/open-navigator/scripts/deployment/neon/migrations/048_rename_public_to_c1_align_with_openstates.sql     | MS SQL   |        103 |         43 |         26 |        172 |
+| /home/developer/projects/open-navigator/scripts/discovery/bronze_contacts_scraped_persist.py                                     | Python   |        -69 |        -31 |         -5 |       -105 |
+| /home/developer/projects/open-navigator/scripts/discovery/bronze_persons_scraped_persist.py                                      | Python   |         81 |         53 |         11 |        145 |
+| /home/developer/projects/open-navigator/scripts/discovery/contact_profile_images.py                                              | Python   |         35 |         12 |          1 |         48 |
+| /home/developer/projects/open-navigator/scripts/discovery/int_person_website_enrichment.py                                       | Python   |         77 |        188 |         13 |        278 |
+| /home/developer/projects/open-navigator/scripts/discovery/rename_meeting_pdfs_to_ymd.py                                          | Python   |        235 |         49 |         54 |        338 |
+| Total                                                                                                                            |          |      1,004 |        677 |        211 |      1,892 |
++----------------------------------------------------------------------------------------------------------------------------------+----------+------------+------------+------------+------------+

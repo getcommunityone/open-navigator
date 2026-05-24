@@ -1,20 +1,20 @@
-Date : 2026-05-22 15:09:44
+Date : 2026-05-24 07:29:47
 Directory : /home/developer/projects/open-navigator
-Total : 1163 files,  297658 codes, 38716 comments, 49726 blanks, all 386100 lines
+Total : 1206 files,  303279 codes, 40606 comments, 50622 blanks, all 394507 lines
 
 Languages
 +--------------------+------------+------------+------------+------------+------------+
 | language           | files      | code       | comment    | blank      | total      |
 +--------------------+------------+------------+------------+------------+------------+
-| Python             |        446 |    111,418 |     34,139 |     19,504 |    165,061 |
-| Markdown           |        315 |     80,378 |          2 |     24,981 |    105,361 |
+| Python             |        471 |    115,432 |     35,768 |     20,184 |    171,384 |
+| Markdown           |        315 |     80,409 |          2 |     24,988 |    105,399 |
 | JSON               |         17 |     53,499 |          0 |         13 |     53,512 |
 | TypeScript JSX     |         58 |     23,811 |        903 |      1,580 |     26,294 |
-| MS SQL             |        125 |      9,808 |      1,833 |      1,371 |     13,012 |
-| Shell Script       |         95 |      5,176 |        996 |      1,096 |      7,268 |
+| MS SQL             |        140 |     11,163 |      2,058 |      1,541 |     14,762 |
+| Shell Script       |         97 |      5,371 |      1,032 |      1,133 |      7,536 |
 | JavaScript JSX     |         18 |      4,378 |        186 |        205 |      4,769 |
 | TypeScript         |         20 |      2,878 |        356 |        270 |      3,504 |
-| YAML               |         18 |      1,911 |         56 |        183 |      2,150 |
+| YAML               |         18 |      1,932 |         56 |        184 |      2,172 |
 | HTML               |          9 |      1,152 |         22 |        127 |      1,301 |
 | PostCSS            |          7 |      1,108 |         40 |        107 |      1,255 |
 | JavaScript         |         13 |        935 |         55 |        105 |      1,095 |
@@ -25,6 +25,7 @@ Languages
 | pip requirements   |          1 |         79 |         25 |         16 |        120 |
 | Docker             |          1 |         49 |         21 |         21 |         91 |
 | JSON with Comments |          3 |         42 |          5 |          5 |         52 |
+| Ini                |          1 |          5 |          0 |          1 |          6 |
 | Batch              |          1 |          2 |          1 |          1 |          4 |
 +--------------------+------------+------------+------------+------------+------------+
 
@@ -32,14 +33,14 @@ Directories
 +----------------------------------------------------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
 | path                                                                                                                                               | files      | code       | comment    | blank      | total      |
 +----------------------------------------------------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
-| .                                                                                                                                                  |      1,163 |    297,658 |     38,716 |     49,726 |    386,100 |
-| . (Files)                                                                                                                                          |         21 |      3,509 |        149 |        852 |      4,510 |
+| .                                                                                                                                                  |      1,206 |    303,279 |     40,606 |     50,622 |    394,507 |
+| . (Files)                                                                                                                                          |         22 |      3,523 |        149 |        854 |      4,526 |
 | .claude                                                                                                                                            |          1 |         12 |          0 |          1 |         13 |
 | .github                                                                                                                                            |          3 |        781 |          8 |        200 |        989 |
 | .github (Files)                                                                                                                                    |          1 |        611 |          0 |        164 |        775 |
 | .github/workflows                                                                                                                                  |          2 |        170 |          8 |         36 |        214 |
 | .huggingface                                                                                                                                       |          4 |        247 |         26 |         63 |        336 |
-| agents                                                                                                                                             |         14 |      2,382 |        851 |        484 |      3,717 |
+| agents                                                                                                                                             |         14 |      2,379 |        851 |        484 |      3,714 |
 | alerts                                                                                                                                             |          1 |        344 |        146 |         78 |        568 |
 | api                                                                                                                                                |         33 |      6,367 |      4,419 |      1,154 |     11,940 |
 | api (Files)                                                                                                                                        |          7 |      1,729 |        752 |        304 |      2,785 |
@@ -52,13 +53,13 @@ Directories
 | databricks                                                                                                                                         |          5 |      1,187 |        604 |        220 |      2,011 |
 | databricks (Files)                                                                                                                                 |          4 |      1,135 |        342 |        204 |      1,681 |
 | databricks/notebooks                                                                                                                               |          1 |         52 |        262 |         16 |        330 |
-| dbt_project                                                                                                                                        |         70 |      7,452 |        911 |        947 |      9,310 |
+| dbt_project                                                                                                                                        |         71 |      8,239 |        918 |        985 |     10,142 |
 | dbt_project (Files)                                                                                                                                |         10 |      1,059 |         36 |        328 |      1,423 |
 | dbt_project/analyses                                                                                                                               |          4 |         78 |         10 |          8 |         96 |
 | dbt_project/macros                                                                                                                                 |         10 |        123 |         30 |         13 |        166 |
-| dbt_project/models                                                                                                                                 |         41 |      6,086 |        811 |        578 |      7,475 |
+| dbt_project/models                                                                                                                                 |         42 |      6,873 |        818 |        616 |      8,307 |
 | dbt_project/models/bronze                                                                                                                          |          8 |        611 |        131 |         78 |        820 |
-| dbt_project/models/intermediate                                                                                                                    |         16 |      3,065 |        367 |        264 |      3,696 |
+| dbt_project/models/intermediate                                                                                                                    |         17 |      3,852 |        374 |        302 |      4,528 |
 | dbt_project/models/marts                                                                                                                           |         13 |      1,331 |        256 |        135 |      1,722 |
 | dbt_project/models/staging                                                                                                                         |          4 |      1,079 |         57 |        101 |      1,237 |
 | dbt_project/scripts                                                                                                                                |          3 |         50 |         14 |         12 |         76 |
@@ -97,19 +98,20 @@ Directories
 | output/tuscaloosa                                                                                                                                  |          1 |        404 |          0 |          0 |        404 |
 | pipeline                                                                                                                                           |         10 |      2,222 |        954 |        563 |      3,739 |
 | prompts                                                                                                                                            |          7 |      2,167 |          0 |        243 |      2,410 |
-| scripts                                                                                                                                            |        587 |    123,302 |     27,675 |     20,828 |    171,805 |
+| scripts                                                                                                                                            |        629 |    128,060 |     29,542 |     21,660 |    179,262 |
 | scripts (Files)                                                                                                                                    |         11 |      1,210 |        245 |        250 |      1,705 |
 | scripts/accessibility                                                                                                                              |         23 |      6,103 |        546 |        350 |      6,999 |
 | scripts/accessibility (Files)                                                                                                                      |         20 |      5,974 |        537 |        328 |      6,839 |
 | scripts/accessibility/sql                                                                                                                          |          3 |        129 |          9 |         22 |        160 |
 | scripts/colab                                                                                                                                      |         28 |     14,518 |      1,259 |      1,830 |     17,607 |
 | scripts/database                                                                                                                                   |          1 |         18 |          9 |          6 |         33 |
-| scripts/datasources                                                                                                                                |        257 |     53,618 |     15,009 |      9,774 |     78,401 |
+| scripts/datasources                                                                                                                                |        281 |     57,253 |     16,227 |     10,373 |     83,853 |
 | scripts/datasources (Files)                                                                                                                        |          2 |        106 |          0 |         41 |        147 |
 | scripts/datasources/ballotpedia                                                                                                                    |          2 |        365 |        215 |        108 |        688 |
 | scripts/datasources/cdp                                                                                                                            |          4 |        648 |        136 |        185 |        969 |
 | scripts/datasources/census                                                                                                                         |         32 |      5,786 |      1,923 |      1,202 |      8,911 |
 | scripts/datasources/cityscrapers                                                                                                                   |          2 |        339 |         85 |        120 |        544 |
+| scripts/datasources/data_gov                                                                                                                       |          2 |        262 |         31 |         48 |        341 |
 | scripts/datasources/dbpedia                                                                                                                        |          2 |        230 |        167 |         28 |        425 |
 | scripts/datasources/dot                                                                                                                            |          4 |        839 |         87 |        119 |      1,045 |
 | scripts/datasources/fec                                                                                                                            |         11 |      2,556 |        870 |        630 |      4,056 |
@@ -124,45 +126,48 @@ Directories
 | scripts/datasources/hifld                                                                                                                          |          4 |        541 |        125 |        157 |        823 |
 | scripts/datasources/hud                                                                                                                            |          1 |        151 |         22 |         40 |        213 |
 | scripts/datasources/irs                                                                                                                            |          7 |      1,476 |        378 |        445 |      2,299 |
+| scripts/datasources/jurisdiction_pilot                                                                                                             |         11 |      1,763 |        754 |        315 |      2,832 |
 | scripts/datasources/jurisdictions                                                                                                                  |          8 |      1,239 |        461 |        168 |      1,868 |
 | scripts/datasources/leagueofcities                                                                                                                 |          5 |      2,351 |        588 |        233 |      3,172 |
 | scripts/datasources/localview                                                                                                                      |          8 |      1,696 |        525 |        411 |      2,632 |
 | scripts/datasources/localview (Files)                                                                                                              |          5 |        961 |        221 |        219 |      1,401 |
 | scripts/datasources/localview/archive                                                                                                              |          3 |        735 |        304 |        192 |      1,231 |
+| scripts/datasources/ma_pilot                                                                                                                       |          5 |        493 |         92 |         64 |        649 |
 | scripts/datasources/master_data                                                                                                                    |          3 |      1,596 |        254 |        275 |      2,125 |
 | scripts/datasources/meetingbank                                                                                                                    |          2 |        269 |        128 |         89 |        486 |
 | scripts/datasources/naco                                                                                                                           |          5 |        962 |        167 |        186 |      1,315 |
 | scripts/datasources/nccs                                                                                                                           |          3 |        833 |         75 |        174 |      1,082 |
 | scripts/datasources/nces                                                                                                                           |          8 |      1,585 |        524 |        249 |      2,358 |
+| scripts/datasources/netronline                                                                                                                     |          2 |        346 |         71 |         71 |        488 |
 | scripts/datasources/ntee                                                                                                                           |          3 |        346 |         59 |        107 |        512 |
-| scripts/datasources/openstates                                                                                                                     |         19 |      2,864 |      1,185 |        715 |      4,764 |
+| scripts/datasources/openstates                                                                                                                     |         21 |      2,933 |      1,349 |        728 |      5,010 |
 | scripts/datasources/osf                                                                                                                            |          5 |        760 |        117 |        204 |      1,081 |
 | scripts/datasources/social_media                                                                                                                   |          1 |        238 |        137 |         59 |        434 |
 | scripts/datasources/uscm                                                                                                                           |          7 |        816 |        137 |        156 |      1,109 |
 | scripts/datasources/vendorsearch                                                                                                                   |          2 |        308 |         25 |         71 |        404 |
 | scripts/datasources/voter_data                                                                                                                     |          2 |        173 |        143 |         54 |        370 |
 | scripts/datasources/wikidata                                                                                                                       |         28 |      7,469 |      3,022 |        823 |     11,314 |
-| scripts/datasources/youtube                                                                                                                        |         44 |     11,134 |      1,971 |      1,318 |     14,423 |
-| scripts/datasources/youtube (Files)                                                                                                                |         43 |     11,110 |      1,965 |      1,313 |     14,388 |
+| scripts/datasources/youtube                                                                                                                        |         46 |     11,836 |      2,077 |      1,406 |     15,319 |
+| scripts/datasources/youtube (Files)                                                                                                                |         45 |     11,812 |      2,071 |      1,401 |     15,284 |
 | scripts/datasources/youtube/sql                                                                                                                    |          1 |         24 |          6 |          5 |         35 |
 | scripts/dbt                                                                                                                                        |          4 |        788 |         45 |        158 |        991 |
-| scripts/deployment                                                                                                                                 |         76 |      5,585 |      1,379 |      1,295 |      8,259 |
+| scripts/deployment                                                                                                                                 |         89 |      6,042 |      1,580 |      1,425 |      9,047 |
 | scripts/deployment (Files)                                                                                                                         |          9 |        565 |         74 |        129 |        768 |
-| scripts/deployment/neon                                                                                                                            |         67 |      5,020 |      1,305 |      1,166 |      7,491 |
-| scripts/deployment/neon (Files)                                                                                                                    |         18 |      2,953 |        793 |        693 |      4,439 |
-| scripts/deployment/neon/migrations                                                                                                                 |         49 |      2,067 |        512 |        473 |      3,052 |
+| scripts/deployment/neon                                                                                                                            |         80 |      5,477 |      1,506 |      1,296 |      8,279 |
+| scripts/deployment/neon (Files)                                                                                                                    |         19 |      3,027 |        798 |        709 |      4,534 |
+| scripts/deployment/neon/migrations                                                                                                                 |         61 |      2,450 |        708 |        587 |      3,745 |
 | scripts/development                                                                                                                                |          4 |        303 |         66 |         77 |        446 |
-| scripts/discovery                                                                                                                                  |         39 |     15,783 |      2,555 |      2,161 |     20,499 |
-| scripts/discovery (Files)                                                                                                                          |         34 |     14,891 |      2,392 |      2,003 |     19,286 |
+| scripts/discovery                                                                                                                                  |         44 |     16,354 |      2,919 |      2,255 |     21,528 |
+| scripts/discovery (Files)                                                                                                                          |         39 |     15,462 |      2,756 |      2,097 |     20,315 |
 | scripts/discovery/archive                                                                                                                          |          4 |        803 |        154 |        148 |      1,105 |
 | scripts/discovery/sql                                                                                                                              |          1 |         89 |          9 |         10 |        108 |
 | scripts/enrichment                                                                                                                                 |         23 |      4,150 |      1,421 |        883 |      6,454 |
 | scripts/enrichment_ai                                                                                                                              |         16 |      2,441 |      1,537 |        541 |      4,519 |
 | scripts/examples                                                                                                                                   |         10 |      1,800 |        420 |        490 |      2,710 |
 | scripts/frontend                                                                                                                                   |          2 |         55 |          7 |          4 |         66 |
-| scripts/gemini                                                                                                                                     |         29 |      9,342 |      1,374 |      1,215 |     11,931 |
+| scripts/gemini                                                                                                                                     |         29 |      9,379 |      1,456 |      1,217 |     12,052 |
 | scripts/huggingface                                                                                                                                |         22 |      2,823 |        789 |        699 |      4,311 |
-| scripts/localview                                                                                                                                  |          7 |      1,359 |        244 |        347 |      1,950 |
+| scripts/localview                                                                                                                                  |          7 |      1,417 |        246 |        354 |      2,017 |
 | scripts/maintenance                                                                                                                                |         12 |        699 |        143 |        183 |      1,025 |
 | scripts/mcp                                                                                                                                        |          2 |        570 |         55 |        115 |        740 |
 | scripts/media                                                                                                                                      |          3 |        390 |        313 |        114 |        817 |
@@ -172,18 +177,18 @@ Directories
 | scripts/wikicommons                                                                                                                                |          3 |        519 |         28 |         68 |        615 |
 | sql                                                                                                                                                |          1 |         39 |          0 |          0 |         39 |
 | sql/adhoc                                                                                                                                          |          1 |         39 |          0 |          0 |         39 |
-| tests                                                                                                                                              |         24 |      1,953 |        158 |        438 |      2,549 |
-| tests (Files)                                                                                                                                      |         23 |      1,564 |        154 |        396 |      2,114 |
+| tests                                                                                                                                              |         23 |      1,996 |        174 |        456 |      2,626 |
+| tests (Files)                                                                                                                                      |         22 |      1,607 |        170 |        414 |      2,191 |
 | tests/fixtures                                                                                                                                     |          1 |        389 |          4 |         42 |        435 |
 | tests/fixtures/contact_extract                                                                                                                     |          1 |        389 |          4 |         42 |        435 |
 | visualization                                                                                                                                      |          2 |        235 |        165 |         37 |        437 |
-| website                                                                                                                                            |        200 |     73,880 |        211 |     15,879 |     89,970 |
+| website                                                                                                                                            |        200 |     73,902 |        211 |     15,885 |     89,998 |
 | website (Files)                                                                                                                                    |          8 |     22,174 |         51 |         96 |     22,321 |
 | website/blog                                                                                                                                       |          5 |        310 |          0 |        108 |        418 |
-| website/docs                                                                                                                                       |        166 |     49,813 |          2 |     15,534 |     65,349 |
+| website/docs                                                                                                                                       |        166 |     49,835 |          2 |     15,540 |     65,377 |
 | website/docs (Files)                                                                                                                               |          9 |      1,997 |          0 |        701 |      2,698 |
 | website/docs/case-studies                                                                                                                          |          3 |      1,474 |          0 |        467 |      1,941 |
-| website/docs/data-sources                                                                                                                          |         24 |     12,162 |          0 |      3,127 |     15,289 |
+| website/docs/data-sources                                                                                                                          |         24 |     12,184 |          0 |      3,133 |     15,317 |
 | website/docs/dbt                                                                                                                                   |          5 |      1,033 |          0 |        304 |      1,337 |
 | website/docs/deployment                                                                                                                            |         21 |      5,212 |          0 |      1,810 |      7,022 |
 | website/docs/development                                                                                                                           |         39 |      9,122 |          0 |      2,801 |     11,923 |
@@ -221,7 +226,7 @@ Files
 | /home/developer/projects/open-navigator/.huggingface/nginx.conf                                                                                    | Properties         |        103 |         18 |         22 |        143 |
 | /home/developer/projects/open-navigator/.huggingface/start.sh                                                                                      | Shell Script       |         44 |          8 |         10 |         62 |
 | /home/developer/projects/open-navigator/.huggingface/supervisord.conf                                                                              | Properties         |         26 |          0 |          3 |         29 |
-| /home/developer/projects/open-navigator/CITATIONS.md                                                                                               | Markdown           |      1,765 |          0 |        354 |      2,119 |
+| /home/developer/projects/open-navigator/CITATIONS.md                                                                                               | Markdown           |      1,774 |          0 |        355 |      2,129 |
 | /home/developer/projects/open-navigator/CODE_OF_CONDUCT.md                                                                                         | Markdown           |         28 |          0 |         20 |         48 |
 | /home/developer/projects/open-navigator/CONTRIBUTING.md                                                                                            | Markdown           |         72 |          0 |         28 |        100 |
 | /home/developer/projects/open-navigator/Dockerfile                                                                                                 | Docker             |         49 |         21 |         21 |         91 |
@@ -231,7 +236,7 @@ Files
 | /home/developer/projects/open-navigator/__init__.py                                                                                                | Python             |         17 |          1 |          4 |         22 |
 | /home/developer/projects/open-navigator/agents/__init__.py                                                                                         | Python             |         14 |          1 |          2 |         17 |
 | /home/developer/projects/open-navigator/agents/advocacy.py                                                                                         | Python             |        298 |         58 |         53 |        409 |
-| /home/developer/projects/open-navigator/agents/base.py                                                                                             | Python             |        100 |         47 |         25 |        172 |
+| /home/developer/projects/open-navigator/agents/base.py                                                                                             | Python             |         97 |         47 |         25 |        169 |
 | /home/developer/projects/open-navigator/agents/classifier.py                                                                                       | Python             |        189 |         67 |         40 |        296 |
 | /home/developer/projects/open-navigator/agents/debate_grader.py                                                                                    | Python             |        305 |         64 |         56 |        425 |
 | /home/developer/projects/open-navigator/agents/mlflow_base.py                                                                                      | Python             |        162 |        108 |         38 |        308 |
@@ -315,10 +320,11 @@ Files
 | /home/developer/projects/open-navigator/dbt_project/models/bronze/bronze_financial_items_from_ai.sql                                               | MS SQL             |         75 |         14 |          8 |         97 |
 | /home/developer/projects/open-navigator/dbt_project/models/bronze/bronze_organizations_from_ai.sql                                                 | MS SQL             |        109 |         19 |          9 |        137 |
 | /home/developer/projects/open-navigator/dbt_project/models/bronze/bronze_topics_from_ai.sql                                                        | MS SQL             |         71 |         14 |          8 |         93 |
-| /home/developer/projects/open-navigator/dbt_project/models/intermediate/_intermediate.yml                                                          | YAML               |        502 |          0 |         27 |        529 |
-| /home/developer/projects/open-navigator/dbt_project/models/intermediate/int_events_channels.sql                                                    | MS SQL             |        164 |         32 |         25 |        221 |
+| /home/developer/projects/open-navigator/dbt_project/models/intermediate/_intermediate.yml                                                          | YAML               |        523 |          0 |         28 |        551 |
+| /home/developer/projects/open-navigator/dbt_project/models/intermediate/int_events_channels.sql                                                    | MS SQL             |        671 |         32 |         47 |        750 |
 | /home/developer/projects/open-navigator/dbt_project/models/intermediate/int_events_channels_enriched.sql                                           | MS SQL             |         61 |         19 |         12 |         92 |
 | /home/developer/projects/open-navigator/dbt_project/models/intermediate/int_events_localview.sql                                                   | MS SQL             |         24 |          8 |          3 |         35 |
+| /home/developer/projects/open-navigator/dbt_project/models/intermediate/int_jurisdiction_homepage_youtube_channels.sql                             | MS SQL             |        259 |          7 |         15 |        281 |
 | /home/developer/projects/open-navigator/dbt_project/models/intermediate/int_jurisdiction_websites.sql                                              | MS SQL             |        922 |         36 |         45 |      1,003 |
 | /home/developer/projects/open-navigator/dbt_project/models/intermediate/int_jurisdictions.sql                                                      | MS SQL             |        376 |         26 |         15 |        417 |
 | /home/developer/projects/open-navigator/dbt_project/models/intermediate/int_jurisdictions_clean.sql                                                | MS SQL             |         74 |         27 |         21 |        122 |
@@ -558,6 +564,7 @@ Files
 | /home/developer/projects/open-navigator/prompts/policy_analysis_part_2.md                                                                          | Markdown           |         63 |          0 |         27 |         90 |
 | /home/developer/projects/open-navigator/prompts/policy_analysis_sample_inputs.md                                                                   | Markdown           |         10 |          0 |          0 |         10 |
 | /home/developer/projects/open-navigator/prompts/policy_analysis_v1.md                                                                              | Markdown           |        788 |          0 |         76 |        864 |
+| /home/developer/projects/open-navigator/pytest.ini                                                                                                 | Ini                |          5 |          0 |          1 |          6 |
 | /home/developer/projects/open-navigator/requirements.txt                                                                                           | pip requirements   |         79 |         25 |         16 |        120 |
 | /home/developer/projects/open-navigator/scripts/README.md                                                                                          | Markdown           |        157 |          0 |         46 |        203 |
 | /home/developer/projects/open-navigator/scripts/__init__.py                                                                                        | Python             |          0 |          0 |          1 |          1 |
@@ -655,6 +662,8 @@ Files
 | /home/developer/projects/open-navigator/scripts/datasources/census/verify_bronze_migration.py                                                      | Python             |        129 |         17 |         33 |        179 |
 | /home/developer/projects/open-navigator/scripts/datasources/cityscrapers/README.md                                                                 | Markdown           |        169 |          0 |         61 |        230 |
 | /home/developer/projects/open-navigator/scripts/datasources/cityscrapers/city_scrapers_urls.py                                                     | Python             |        170 |         85 |         59 |        314 |
+| /home/developer/projects/open-navigator/scripts/datasources/data_gov/__init__.py                                                                   | Python             |          0 |          0 |          1 |          1 |
+| /home/developer/projects/open-navigator/scripts/datasources/data_gov/download_data_gov_organizations.py                                            | Python             |        262 |         31 |         47 |        340 |
 | /home/developer/projects/open-navigator/scripts/datasources/dbpedia/README.md                                                                      | Markdown           |          4 |          0 |          4 |          8 |
 | /home/developer/projects/open-navigator/scripts/datasources/dbpedia/dbpedia_integration.py                                                         | Python             |        226 |        167 |         24 |        417 |
 | /home/developer/projects/open-navigator/scripts/datasources/dot/build_dot_unified_events.py                                                        | Python             |        248 |         23 |         31 |        302 |
@@ -717,6 +726,17 @@ Files
 | /home/developer/projects/open-navigator/scripts/datasources/irs/load_irs_bmf.py                                                                    | Python             |        339 |        142 |         88 |        569 |
 | /home/developer/projects/open-navigator/scripts/datasources/irs/manage_nonprofits.py                                                               | Python             |        189 |         46 |         69 |        304 |
 | /home/developer/projects/open-navigator/scripts/datasources/irs/nonprofit_discovery.py                                                             | Python             |        410 |        164 |        119 |        693 |
+| /home/developer/projects/open-navigator/scripts/datasources/jurisdiction_pilot/__init__.py                                                         | Python             |          0 |          0 |          1 |          1 |
+| /home/developer/projects/open-navigator/scripts/datasources/jurisdiction_pilot/google_civic_youtube.py                                             | Python             |         69 |         27 |         25 |        121 |
+| /home/developer/projects/open-navigator/scripts/datasources/jurisdiction_pilot/legistar_scraper.py                                                 | Python             |         69 |         35 |         24 |        128 |
+| /home/developer/projects/open-navigator/scripts/datasources/jurisdiction_pilot/load_ocd_into_postgres.py                                           | Python             |        136 |         31 |         33 |        200 |
+| /home/developer/projects/open-navigator/scripts/datasources/jurisdiction_pilot/load_ocd_jurisdictions.py                                           | Python             |        141 |         57 |         35 |        233 |
+| /home/developer/projects/open-navigator/scripts/datasources/jurisdiction_pilot/mayor_url_discovery.py                                              | Python             |        138 |         43 |         24 |        205 |
+| /home/developer/projects/open-navigator/scripts/datasources/jurisdiction_pilot/scrape_priority_states.py                                           | Python             |        491 |        373 |         33 |        897 |
+| /home/developer/projects/open-navigator/scripts/datasources/jurisdiction_pilot/vendor_detection.py                                                 | Python             |        238 |         48 |         30 |        316 |
+| /home/developer/projects/open-navigator/scripts/datasources/jurisdiction_pilot/verify.sql                                                          | MS SQL             |         97 |         10 |          9 |        116 |
+| /home/developer/projects/open-navigator/scripts/datasources/jurisdiction_pilot/website_youtube_search.py                                           | Python             |        175 |         44 |         54 |        273 |
+| /home/developer/projects/open-navigator/scripts/datasources/jurisdiction_pilot/youtube_channel_enrich.py                                           | Python             |        209 |         86 |         47 |        342 |
 | /home/developer/projects/open-navigator/scripts/datasources/jurisdictions/export_jurisdiction_mapping_quality_json.py                              | Python             |        356 |        257 |         19 |        632 |
 | /home/developer/projects/open-navigator/scripts/datasources/jurisdictions/jurisdiction_mapping_queries.py                                          | Python             |         86 |          3 |          9 |         98 |
 | /home/developer/projects/open-navigator/scripts/datasources/jurisdictions/load_counties_to_postgres.py                                             | Python             |        157 |         27 |         34 |        218 |
@@ -738,6 +758,11 @@ Files
 | /home/developer/projects/open-navigator/scripts/datasources/localview/enrich_from_localview.py                                                     | Python             |        233 |         47 |         67 |        347 |
 | /home/developer/projects/open-navigator/scripts/datasources/localview/fuzzy_jurisdiction_matcher.py                                                | Python             |        183 |        128 |         55 |        366 |
 | /home/developer/projects/open-navigator/scripts/datasources/localview/load_localview_to_postgres.py                                                | Python             |        381 |         20 |         50 |        451 |
+| /home/developer/projects/open-navigator/scripts/datasources/ma_pilot/__init__.py                                                                   | Python             |          0 |          0 |          1 |          1 |
+| /home/developer/projects/open-navigator/scripts/datasources/ma_pilot/jurisdictions.py                                                              | Python             |        142 |         22 |          7 |        171 |
+| /home/developer/projects/open-navigator/scripts/datasources/ma_pilot/mayor_boost.py                                                                | Python             |         35 |         23 |         11 |         69 |
+| /home/developer/projects/open-navigator/scripts/datasources/ma_pilot/scrape_ma_jurisdictions.py                                                    | Python             |        207 |         35 |         35 |        277 |
+| /home/developer/projects/open-navigator/scripts/datasources/ma_pilot/verify.sql                                                                    | MS SQL             |        109 |         12 |         10 |        131 |
 | /home/developer/projects/open-navigator/scripts/datasources/master_data/README.md                                                                  | Markdown           |        310 |          0 |         79 |        389 |
 | /home/developer/projects/open-navigator/scripts/datasources/master_data/create_jurisdiction_master.py                                              | Python             |      1,005 |        182 |        144 |      1,331 |
 | /home/developer/projects/open-navigator/scripts/datasources/master_data/query_examples.sql                                                         | MS SQL             |        281 |         72 |         52 |        405 |
@@ -759,10 +784,13 @@ Files
 | /home/developer/projects/open-navigator/scripts/datasources/nces/load_nces_school_districts_to_bronze.py                                           | Python             |        393 |        108 |         15 |        516 |
 | /home/developer/projects/open-navigator/scripts/datasources/nces/migrate_schools_to_orgloc.py                                                      | Python             |        123 |         18 |         28 |        169 |
 | /home/developer/projects/open-navigator/scripts/datasources/nces/update_jurisdictions_from_nces_simple.py                                          | Python             |         92 |        163 |         12 |        267 |
+| /home/developer/projects/open-navigator/scripts/datasources/netronline/__init__.py                                                                 | Python             |          0 |          0 |          1 |          1 |
+| /home/developer/projects/open-navigator/scripts/datasources/netronline/crawl_county_directory.py                                                   | Python             |        346 |         71 |         70 |        487 |
 | /home/developer/projects/open-navigator/scripts/datasources/ntee/README.md                                                                         | Markdown           |        163 |          0 |         49 |        212 |
 | /home/developer/projects/open-navigator/scripts/datasources/ntee/__init__.py                                                                       | Python             |          0 |         10 |          1 |         11 |
 | /home/developer/projects/open-navigator/scripts/datasources/ntee/load_to_postgres.py                                                               | Python             |        183 |         49 |         57 |        289 |
 | /home/developer/projects/open-navigator/scripts/datasources/openstates/README.md                                                                   | Markdown           |         83 |          0 |         29 |        112 |
+| /home/developer/projects/open-navigator/scripts/datasources/openstates/__init__.py                                                                 | Python             |          0 |          0 |          1 |          1 |
 | /home/developer/projects/open-navigator/scripts/datasources/openstates/aggregate_bills_from_postgres.py                                            | Python             |        241 |        170 |         33 |        444 |
 | /home/developer/projects/open-navigator/scripts/datasources/openstates/create_openstates_schema.py                                                 | Python             |         49 |         13 |         11 |         73 |
 | /home/developer/projects/open-navigator/scripts/datasources/openstates/export_committee_reports.py                                                 | Python             |         61 |         97 |         19 |        177 |
@@ -781,6 +809,7 @@ Files
 | /home/developer/projects/open-navigator/scripts/datasources/openstates/run_openstates_jurisdiction_mapping.sh                                      | Shell Script       |         42 |         17 |          8 |         67 |
 | /home/developer/projects/open-navigator/scripts/datasources/openstates/setup_dbt_venv.sh                                                           | Shell Script       |         16 |          8 |          6 |         30 |
 | /home/developer/projects/open-navigator/scripts/datasources/openstates/setup_openstates_db.sh                                                      | Shell Script       |        144 |         32 |         26 |        202 |
+| /home/developer/projects/open-navigator/scripts/datasources/openstates/sync_persons_to_bronze.py                                                   | Python             |         69 |        164 |         12 |        245 |
 | /home/developer/projects/open-navigator/scripts/datasources/osf/download_osf_zip.py                                                                | Python             |        307 |         48 |         82 |        437 |
 | /home/developer/projects/open-navigator/scripts/datasources/osf/load_osf_rds_to_bronze.R                                                           | R                  |        126 |         24 |         22 |        172 |
 | /home/developer/projects/open-navigator/scripts/datasources/osf/load_osf_rds_to_bronze.py                                                          | Python             |        152 |         20 |         38 |        210 |
@@ -851,12 +880,12 @@ Files
 | /home/developer/projects/open-navigator/scripts/datasources/youtube/download_youtube_audio_mt.sh                                                   | Shell Script       |          6 |          4 |          1 |         11 |
 | /home/developer/projects/open-navigator/scripts/datasources/youtube/link_youtube_bronze_from_localview_apply.sql                                   | MS SQL             |         86 |          6 |          8 |        100 |
 | /home/developer/projects/open-navigator/scripts/datasources/youtube/link_youtube_bronze_from_localview_preview.sql                                 | MS SQL             |         91 |          6 |          6 |        103 |
-| /home/developer/projects/open-navigator/scripts/datasources/youtube/load_channel_candidates_to_catalog.py                                          | Python             |         63 |          9 |         15 |         87 |
-| /home/developer/projects/open-navigator/scripts/datasources/youtube/load_missing_county_channels.py                                                | Python             |        251 |          6 |         34 |        291 |
+| /home/developer/projects/open-navigator/scripts/datasources/youtube/load_channel_candidates_to_catalog.py                                          | Python             |        119 |          9 |         17 |        145 |
+| /home/developer/projects/open-navigator/scripts/datasources/youtube/load_missing_county_channels.py                                                | Python             |        285 |          7 |         38 |        330 |
 | /home/developer/projects/open-navigator/scripts/datasources/youtube/load_youtube_channels_bronze.py                                                | Python             |        356 |         45 |         65 |        466 |
 | /home/developer/projects/open-navigator/scripts/datasources/youtube/load_youtube_events_colab.ipynb                                                | JSON               |        775 |          0 |          1 |        776 |
-| /home/developer/projects/open-navigator/scripts/datasources/youtube/load_youtube_events_to_postgres.py                                             | Python             |      1,386 |        201 |        221 |      1,808 |
-| /home/developer/projects/open-navigator/scripts/datasources/youtube/load_youtube_for_jurisdiction.py                                               | Python             |        126 |         19 |         17 |        162 |
+| /home/developer/projects/open-navigator/scripts/datasources/youtube/load_youtube_events_to_postgres.py                                             | Python             |      1,506 |        206 |        230 |      1,942 |
+| /home/developer/projects/open-navigator/scripts/datasources/youtube/load_youtube_for_jurisdiction.py                                               | Python             |        164 |         19 |         18 |        201 |
 | /home/developer/projects/open-navigator/scripts/datasources/youtube/normalize_youtube_jurisdiction_ids.py                                          | Python             |        326 |         53 |         55 |        434 |
 | /home/developer/projects/open-navigator/scripts/datasources/youtube/run_audit_ga_jurisdiction_youtube_gaps.sh                                      | Shell Script       |         39 |          3 |          8 |         50 |
 | /home/developer/projects/open-navigator/scripts/datasources/youtube/run_audit_ga_youtube_download_filters.sh                                       | Shell Script       |         17 |         10 |          6 |         33 |
@@ -864,12 +893,14 @@ Files
 | /home/developer/projects/open-navigator/scripts/datasources/youtube/run_audit_youtube_jurisdiction_coverage.sh                                     | Shell Script       |         23 |          6 |          9 |         38 |
 | /home/developer/projects/open-navigator/scripts/datasources/youtube/run_backfill_bronze_youtube_publish_dates.sh                                   | Shell Script       |          9 |         12 |          5 |         26 |
 | /home/developer/projects/open-navigator/scripts/datasources/youtube/run_link_youtube_bronze_from_localview.sh                                      | Shell Script       |         23 |          8 |          8 |         39 |
+| /home/developer/projects/open-navigator/scripts/datasources/youtube/run_priority_states_channel_pipeline.sh                                        | Shell Script       |        121 |         31 |         21 |        173 |
 | /home/developer/projects/open-navigator/scripts/datasources/youtube/run_priority_states_last_n.sh                                                  | Shell Script       |        321 |         28 |         25 |        374 |
 | /home/developer/projects/open-navigator/scripts/datasources/youtube/setup_channels_bronze.sh                                                       | Shell Script       |         49 |          8 |          9 |         66 |
 | /home/developer/projects/open-navigator/scripts/datasources/youtube/sql/preview_bronze_youtube_blank_publish_dates.sql                             | MS SQL             |         24 |          6 |          5 |         35 |
 | /home/developer/projects/open-navigator/scripts/datasources/youtube/sync_bronze_youtube_from_localview.py                                          | Python             |         65 |        103 |         10 |        178 |
+| /home/developer/projects/open-navigator/scripts/datasources/youtube/test_cobb_county_scrape.py                                                     | Python             |         37 |          2 |         13 |         52 |
 | /home/developer/projects/open-navigator/scripts/datasources/youtube/transcript_api_client.py                                                       | Python             |         33 |         12 |         10 |         55 |
-| /home/developer/projects/open-navigator/scripts/datasources/youtube/youtube_channel_discovery.py                                                   | Python             |        385 |        131 |         92 |        608 |
+| /home/developer/projects/open-navigator/scripts/datasources/youtube/youtube_channel_discovery.py                                                   | Python             |        681 |        198 |        130 |      1,009 |
 | /home/developer/projects/open-navigator/scripts/dbt-root.sh                                                                                        | Shell Script       |          5 |          8 |          1 |         14 |
 | /home/developer/projects/open-navigator/scripts/dbt.sh                                                                                             | Shell Script       |          5 |          8 |          1 |         14 |
 | /home/developer/projects/open-navigator/scripts/dbt/README.md                                                                                      | Markdown           |        265 |          0 |         83 |        348 |
@@ -884,6 +915,7 @@ Files
 | /home/developer/projects/open-navigator/scripts/deployment/neon/SETUP_YOUTUBE.md                                                                   | Markdown           |        119 |          0 |         45 |        164 |
 | /home/developer/projects/open-navigator/scripts/deployment/neon/calculate_stats_only.py                                                            | Python             |        131 |         21 |         40 |        192 |
 | /home/developer/projects/open-navigator/scripts/deployment/neon/ensure_bronze_jurisdictions_cloud.py                                               | Python             |        154 |         15 |         26 |        195 |
+| /home/developer/projects/open-navigator/scripts/deployment/neon/load_ocd_jurisdictions_to_sql.sh                                                   | Shell Script       |         74 |          5 |         16 |         95 |
 | /home/developer/projects/open-navigator/scripts/deployment/neon/migrate.py                                                                         | Python             |        892 |        108 |        182 |      1,182 |
 | /home/developer/projects/open-navigator/scripts/deployment/neon/migrate_all_bronze_tables.sh                                                       | Shell Script       |         49 |          7 |         14 |         70 |
 | /home/developer/projects/open-navigator/scripts/deployment/neon/migrate_bills.py                                                                   | Python             |        158 |         64 |         49 |        271 |
@@ -937,6 +969,18 @@ Files
 | /home/developer/projects/open-navigator/scripts/deployment/neon/migrations/036_add_official_website_updated_at_bronze_wikidata.sql                 | MS SQL             |          8 |          2 |          5 |         15 |
 | /home/developer/projects/open-navigator/scripts/deployment/neon/migrations/037_bronze_events_youtube_video_url_unique.sql                          | MS SQL             |         12 |          7 |          7 |         26 |
 | /home/developer/projects/open-navigator/scripts/deployment/neon/migrations/038_jurisdiction_merge_details_search.sql                               | MS SQL             |        170 |         14 |         15 |        199 |
+| /home/developer/projects/open-navigator/scripts/deployment/neon/migrations/039_create_bronze_jurisdiction_youtube.sql                              | MS SQL             |         31 |          9 |          6 |         46 |
+| /home/developer/projects/open-navigator/scripts/deployment/neon/migrations/040_alter_bronze_jurisdiction_youtube_add_signals.sql                   | MS SQL             |         15 |         13 |          5 |         33 |
+| /home/developer/projects/open-navigator/scripts/deployment/neon/migrations/041_add_ocd_ids.sql                                                     | MS SQL             |         25 |         16 |         14 |         55 |
+| /home/developer/projects/open-navigator/scripts/deployment/neon/migrations/041_create_bronze_jurisdictions_county_directory.sql                    | MS SQL             |         32 |          9 |          6 |         47 |
+| /home/developer/projects/open-navigator/scripts/deployment/neon/migrations/042_create_bronze_jurisdiction_ocd.sql                                  | MS SQL             |         27 |          9 |         11 |         47 |
+| /home/developer/projects/open-navigator/scripts/deployment/neon/migrations/042_rename_bronze_jurisdiction_youtube_confidence.sql                   | MS SQL             |          6 |         11 |          5 |         22 |
+| /home/developer/projects/open-navigator/scripts/deployment/neon/migrations/043_rename_bronze_contacts_to_persons.sql                               | MS SQL             |         18 |         18 |          8 |         44 |
+| /home/developer/projects/open-navigator/scripts/deployment/neon/migrations/044_rename_bronze_contacts_from_ai_to_persons.sql                       | MS SQL             |          5 |          9 |          5 |         19 |
+| /home/developer/projects/open-navigator/scripts/deployment/neon/migrations/045_extend_bronze_persons_scraped_with_ocd_fields.sql                   | MS SQL             |         25 |         15 |          6 |         46 |
+| /home/developer/projects/open-navigator/scripts/deployment/neon/migrations/046_create_bronze_jurisdiction_openstates.sql                           | MS SQL             |         38 |         14 |          6 |         58 |
+| /home/developer/projects/open-navigator/scripts/deployment/neon/migrations/047_create_bronze_elections_scraped.sql                                 | MS SQL             |         58 |         30 |         16 |        104 |
+| /home/developer/projects/open-navigator/scripts/deployment/neon/migrations/048_rename_public_to_c1_align_with_openstates.sql                       | MS SQL             |        103 |         43 |         26 |        172 |
 | /home/developer/projects/open-navigator/scripts/deployment/neon/psql_resolved.sh                                                                   | Shell Script       |         14 |          4 |          1 |         19 |
 | /home/developer/projects/open-navigator/scripts/deployment/neon/regenerate_bills_map.py                                                            | Python             |         73 |         13 |         18 |        104 |
 | /home/developer/projects/open-navigator/scripts/deployment/neon/run_bronze_jurisdictions_to_cloud.sh                                               | Shell Script       |         15 |         13 |          7 |         35 |
@@ -963,14 +1007,17 @@ Files
 | /home/developer/projects/open-navigator/scripts/discovery/archive/comprehensive_discovery_pipeline_meetings.py                                     | Python             |          6 |          5 |          3 |         14 |
 | /home/developer/projects/open-navigator/scripts/discovery/archive/discovery_pipeline.py                                                            | Python             |         26 |          9 |          6 |         41 |
 | /home/developer/projects/open-navigator/scripts/discovery/batch_processor.py                                                                       | Python             |        352 |        115 |         78 |        545 |
-| /home/developer/projects/open-navigator/scripts/discovery/bronze_contacts_scraped_persist.py                                                       | Python             |         63 |         34 |          6 |        103 |
+| /home/developer/projects/open-navigator/scripts/discovery/bronze_contacts_scraped_persist.py                                                       | Python             |          5 |          9 |          3 |         17 |
+| /home/developer/projects/open-navigator/scripts/discovery/bronze_jurisdiction_youtube_persist.py                                                   | Python             |         98 |         40 |         12 |        150 |
+| /home/developer/projects/open-navigator/scripts/discovery/bronze_jurisdictions_county_directory_persist.py                                         | Python             |         57 |         31 |          6 |         94 |
+| /home/developer/projects/open-navigator/scripts/discovery/bronze_persons_scraped_persist.py                                                        | Python             |         81 |         53 |         11 |        145 |
 | /home/developer/projects/open-navigator/scripts/discovery/civicclerk_meetings_sync.py                                                              | Python             |        329 |         21 |         48 |        398 |
 | /home/developer/projects/open-navigator/scripts/discovery/civicclerk_public_api.py                                                                 | Python             |        189 |         18 |         34 |        241 |
 | /home/developer/projects/open-navigator/scripts/discovery/comprehensive_discovery_pipeline_jurisdiction.py                                         | Python             |      3,124 |        517 |        284 |      3,925 |
 | /home/developer/projects/open-navigator/scripts/discovery/contact_directory_heuristics.py                                                          | Python             |        130 |         11 |         15 |        156 |
 | /home/developer/projects/open-navigator/scripts/discovery/contact_extract_crawl4ai.py                                                              | Python             |        326 |         68 |         42 |        436 |
 | /home/developer/projects/open-navigator/scripts/discovery/contact_extract_from_html.py                                                             | Python             |      1,716 |        128 |        251 |      2,095 |
-| /home/developer/projects/open-navigator/scripts/discovery/contact_profile_images.py                                                                | Python             |        731 |         50 |         64 |        845 |
+| /home/developer/projects/open-navigator/scripts/discovery/contact_profile_images.py                                                                | Python             |        766 |         62 |         65 |        893 |
 | /home/developer/projects/open-navigator/scripts/discovery/contacts_bundle.py                                                                       | Python             |        175 |         14 |         22 |        211 |
 | /home/developer/projects/open-navigator/scripts/discovery/curated_sources.py                                                                       | Python             |        173 |        163 |         68 |        404 |
 | /home/developer/projects/open-navigator/scripts/discovery/discover_oral_health_states.sh                                                           | Shell Script       |         35 |          6 |         13 |         54 |
@@ -979,7 +1026,8 @@ Files
 | /home/developer/projects/open-navigator/scripts/discovery/external_url_datasets.py                                                                 | Python             |        362 |         74 |         64 |        500 |
 | /home/developer/projects/open-navigator/scripts/discovery/fix_scraped_meetings_manifest_years.py                                                   | Python             |         81 |         15 |         17 |        113 |
 | /home/developer/projects/open-navigator/scripts/discovery/gomeet_mp4_to_opus.py                                                                    | Python             |        303 |         42 |         51 |        396 |
-| /home/developer/projects/open-navigator/scripts/discovery/jurisdiction_contact_seed_urls.py                                                        | Python             |         40 |         19 |          6 |         65 |
+| /home/developer/projects/open-navigator/scripts/discovery/int_person_website_enrichment.py                                                         | Python             |         77 |        188 |         13 |        278 |
+| /home/developer/projects/open-navigator/scripts/discovery/jurisdiction_contact_seed_urls.py                                                        | Python             |         86 |         35 |          6 |        127 |
 | /home/developer/projects/open-navigator/scripts/discovery/jurisdiction_discovery_pipeline.py                                                       | Python             |        704 |        351 |         58 |      1,113 |
 | /home/developer/projects/open-navigator/scripts/discovery/jurisdiction_meeting_seed_urls.py                                                        | Python             |         28 |          8 |          5 |         41 |
 | /home/developer/projects/open-navigator/scripts/discovery/load_scraped_meetings_manifests_to_bronze.py                                             | Python             |        521 |         28 |         65 |        614 |
@@ -990,6 +1038,7 @@ Files
 | /home/developer/projects/open-navigator/scripts/discovery/platform_detector.py                                                                     | Python             |        202 |         98 |         37 |        337 |
 | /home/developer/projects/open-navigator/scripts/discovery/refresh_contacts_from_crawl_html.py                                                      | Python             |        391 |          9 |         42 |        442 |
 | /home/developer/projects/open-navigator/scripts/discovery/rename_gomeet_downloads.py                                                               | Python             |        212 |         21 |         40 |        273 |
+| /home/developer/projects/open-navigator/scripts/discovery/rename_meeting_pdfs_to_ymd.py                                                            | Python             |        235 |         49 |         54 |        338 |
 | /home/developer/projects/open-navigator/scripts/discovery/rename_scraped_meeting_pdf_files.py                                                      | Python             |        373 |         26 |         54 |        453 |
 | /home/developer/projects/open-navigator/scripts/discovery/run_jurisdiction_discovery.sh                                                            | Shell Script       |         20 |          4 |          3 |         27 |
 | /home/developer/projects/open-navigator/scripts/discovery/scraped_meetings_crawl_html_pdfs.py                                                      | Python             |        169 |         16 |         28 |        213 |
@@ -1068,7 +1117,7 @@ Files
 | /home/developer/projects/open-navigator/scripts/gemini/part2_report_normalize.py                                                                   | Python             |         20 |          4 |          6 |         30 |
 | /home/developer/projects/open-navigator/scripts/gemini/persist_policy_analysis_bronze.py                                                           | Python             |        196 |         57 |         30 |        283 |
 | /home/developer/projects/open-navigator/scripts/gemini/policy_exclusions.py                                                                        | Python             |        339 |         37 |         50 |        426 |
-| /home/developer/projects/open-navigator/scripts/gemini/policy_processing_status_report.py                                                          | Python             |        376 |        623 |         55 |      1,054 |
+| /home/developer/projects/open-navigator/scripts/gemini/policy_processing_status_report.py                                                          | Python             |        413 |        705 |         57 |      1,175 |
 | /home/developer/projects/open-navigator/scripts/gemini/print_uncontested_speakers.py                                                               | Python             |        107 |          3 |         20 |        130 |
 | /home/developer/projects/open-navigator/scripts/gemini/reparse_policy_run.py                                                                       | Python             |        176 |          3 |         30 |        209 |
 | /home/developer/projects/open-navigator/scripts/gemini/speaker_hints.py                                                                            | Python             |        127 |         17 |         19 |        163 |
@@ -1104,7 +1153,7 @@ Files
 | /home/developer/projects/open-navigator/scripts/localview/check_meeting_data.py                                                                    | Python             |        205 |         24 |         60 |        289 |
 | /home/developer/projects/open-navigator/scripts/localview/extract_transcripts.py                                                                   | Python             |        144 |         47 |         45 |        236 |
 | /home/developer/projects/open-navigator/scripts/localview/load_priority_states.sh                                                                  | Shell Script       |        133 |         16 |         26 |        175 |
-| /home/developer/projects/open-navigator/scripts/localview/scrape_youtube_channels.py                                                               | Python             |        515 |        103 |        101 |        719 |
+| /home/developer/projects/open-navigator/scripts/localview/scrape_youtube_channels.py                                                               | Python             |        573 |        105 |        108 |        786 |
 | /home/developer/projects/open-navigator/scripts/localview/update_all.sh                                                                            | Shell Script       |         39 |          9 |         11 |         59 |
 | /home/developer/projects/open-navigator/scripts/localview/update_municipality_list.py                                                              | Python             |        202 |         45 |         52 |        299 |
 | /home/developer/projects/open-navigator/scripts/maintenance/README.md                                                                              | Markdown           |         98 |          0 |         32 |        130 |
@@ -1151,7 +1200,7 @@ Files
 | /home/developer/projects/open-navigator/start-all.sh                                                                                               | Shell Script       |        156 |         26 |         37 |        219 |
 | /home/developer/projects/open-navigator/stop-all.sh                                                                                                | Shell Script       |         41 |          6 |         13 |         60 |
 | /home/developer/projects/open-navigator/tests/fixtures/contact_extract/applingcountyga_commissioners.html                                          | HTML               |        389 |          4 |         42 |        435 |
-| /home/developer/projects/open-navigator/tests/test_agents.py                                                                                       | Python             |         57 |         16 |         24 |         97 |
+| /home/developer/projects/open-navigator/tests/test_agents.py                                                                                       | Python             |         41 |         14 |         20 |         75 |
 | /home/developer/projects/open-navigator/tests/test_civicclerk_public_api.py                                                                        | Python             |         34 |          1 |         12 |         47 |
 | /home/developer/projects/open-navigator/tests/test_civicplus_contact_extract.py                                                                    | Python             |         32 |          1 |          4 |         37 |
 | /home/developer/projects/open-navigator/tests/test_colab_bootstrap.py                                                                              | Python             |         18 |          1 |         10 |         29 |
@@ -1159,21 +1208,20 @@ Files
 | /home/developer/projects/open-navigator/tests/test_colab_runtime_phases.py                                                                         | Python             |         22 |          1 |         10 |         33 |
 | /home/developer/projects/open-navigator/tests/test_county_portal_host_macros.py                                                                    | Python             |         28 |          1 |         16 |         45 |
 | /home/developer/projects/open-navigator/tests/test_dedupe_meeting_videos.py                                                                        | Python             |         56 |          1 |         11 |         68 |
-| /home/developer/projects/open-navigator/tests/test_demo3_text_input.py                                                                             | Python             |         39 |          1 |         12 |         52 |
-| /home/developer/projects/open-navigator/tests/test_demo4_gemma_opus.py                                                                             | Python             |        112 |          2 |         37 |        151 |
-| /home/developer/projects/open-navigator/tests/test_ga_contact_scraper_regression.py                                                                | Python             |        338 |        108 |         61 |        507 |
+| /home/developer/projects/open-navigator/tests/test_ga_contact_scraper_regression.py                                                                | Python             |        385 |        113 |         68 |        566 |
+| /home/developer/projects/open-navigator/tests/test_jurisdiction_contact_seed_urls.py                                                               | Python             |          9 |          1 |          4 |         14 |
 | /home/developer/projects/open-navigator/tests/test_jurisdiction_mapping_queries.py                                                                 | Python             |         18 |          1 |          6 |         25 |
 | /home/developer/projects/open-navigator/tests/test_legislation_analysis.py                                                                         | Python             |         87 |          0 |         13 |        100 |
 | /home/developer/projects/open-navigator/tests/test_meeting_consolidated_summary.py                                                                 | Python             |         75 |          1 |         11 |         87 |
 | /home/developer/projects/open-navigator/tests/test_meeting_date_from_title.py                                                                      | Python             |         31 |          0 |         12 |         43 |
 | /home/developer/projects/open-navigator/tests/test_meeting_document_naming.py                                                                      | Python             |         98 |          2 |         23 |        123 |
 | /home/developer/projects/open-navigator/tests/test_mermaid_diagrams.py                                                                             | Python             |         89 |          2 |         13 |        104 |
-| /home/developer/projects/open-navigator/tests/test_part2_report_normalize.py                                                                       | Python             |         10 |          0 |          3 |         13 |
 | /home/developer/projects/open-navigator/tests/test_pipeline_media_scope.py                                                                         | Python             |        118 |          1 |         33 |        152 |
 | /home/developer/projects/open-navigator/tests/test_state_acs_mapping_quality.py                                                                    | Python             |         20 |          1 |          6 |         27 |
 | /home/developer/projects/open-navigator/tests/test_transcript_cache_geography.py                                                                   | Python             |        134 |          0 |         23 |        157 |
 | /home/developer/projects/open-navigator/tests/test_wikidata_entity_search.py                                                                       | Python             |        115 |         11 |         36 |        162 |
 | /home/developer/projects/open-navigator/tests/test_youtube_channel_tabs.py                                                                         | Python             |         18 |          1 |          7 |         26 |
+| /home/developer/projects/open-navigator/tests/test_youtube_site_search_scrape.py                                                                   | Python             |        164 |         15 |         63 |        242 |
 | /home/developer/projects/open-navigator/visualization/__init__.py                                                                                  | Python             |          6 |          3 |          3 |         12 |
 | /home/developer/projects/open-navigator/visualization/heatmap.py                                                                                   | Python             |        229 |        162 |         34 |        425 |
 | /home/developer/projects/open-navigator/website/DOCUMENTATION_MIGRATION.md                                                                         | Markdown           |        167 |          0 |         37 |        204 |
@@ -1194,7 +1242,7 @@ Files
 | /home/developer/projects/open-navigator/website/docs/data-sources/census-data.md                                                                   | Markdown           |         72 |          0 |         33 |        105 |
 | /home/developer/projects/open-navigator/website/docs/data-sources/census-shapefiles.md                                                             | Markdown           |        270 |          0 |         99 |        369 |
 | /home/developer/projects/open-navigator/website/docs/data-sources/charity-navigator.md                                                             | Markdown           |        297 |          0 |        102 |        399 |
-| /home/developer/projects/open-navigator/website/docs/data-sources/citations.md                                                                     | Markdown           |      2,232 |          0 |        546 |      2,778 |
+| /home/developer/projects/open-navigator/website/docs/data-sources/citations.md                                                                     | Markdown           |      2,254 |          0 |        552 |      2,806 |
 | /home/developer/projects/open-navigator/website/docs/data-sources/council-data-project-compatibility.md                                            | Markdown           |        165 |          0 |         53 |        218 |
 | /home/developer/projects/open-navigator/website/docs/data-sources/data-model-erd.md                                                                | Markdown           |      3,236 |          0 |        403 |      3,639 |
 | /home/developer/projects/open-navigator/website/docs/data-sources/factcheck-sources.md                                                             | Markdown           |        522 |          0 |        127 |        649 |
@@ -1376,5 +1424,5 @@ Files
 | /home/developer/projects/open-navigator/website/static/img/undraw_docusaurus_tree.svg                                                              | XML                |         40 |          0 |          1 |         41 |
 | /home/developer/projects/open-navigator/website/test-admonition.md                                                                                 | Markdown           |         13 |          0 |          5 |         18 |
 | /home/developer/projects/open-navigator/website/tsconfig.json                                                                                      | JSON with Comments |          9 |          3 |          1 |         13 |
-| Total                                                                                                                                              |                    |    297,658 |     38,716 |     49,726 |    386,100 |
+| Total                                                                                                                                              |                    |    303,279 |     40,606 |     50,622 |    394,507 |
 +----------------------------------------------------------------------------------------------------------------------------------------------------+--------------------+------------+------------+------------+------------+

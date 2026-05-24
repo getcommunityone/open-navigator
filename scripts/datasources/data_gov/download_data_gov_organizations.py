@@ -30,10 +30,13 @@ from pathlib import Path
 
 import httpx
 import psycopg2
+from dotenv import load_dotenv
 from loguru import logger
 from psycopg2.extras import Json, execute_batch
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+_ROOT = Path(__file__).parent.parent.parent.parent
+sys.path.insert(0, str(_ROOT))
+load_dotenv(_ROOT / ".env")
 
 
 API_BASE = "https://api.gsa.gov/technology/datagov/v3/action"
@@ -101,22 +104,44 @@ INSERT_SQL = """
 
 
 def fetch_organizations(api_key: str, limit: int | None = None) -> list[dict]:
-    """Fetch the full organization list with all fields from Data.gov CKAN API."""
+    """Fetch the full organization list with all fields from Data.gov CKAN API.
+
+    Sends the api.data.gov key as both the X-Api-Key header and the api_key
+    query parameter — api.gsa.gov accepts either, and passing both avoids
+    edge cases where a gateway strips one.
+    """
     url = f"{API_BASE}/organization_list"
     params = {
         "all_fields": "true",
         "include_extras": "true",
         "include_dataset_count": "true",
         "include_users": "false",
+        "api_key": api_key,
     }
-    headers = {"x-api-key": api_key, "Accept": "application/json"}
+    headers = {"X-Api-Key": api_key, "Accept": "application/json"}
 
     logger.info(f"GET {url} (all_fields=true, include_extras=true)")
     with httpx.Client(timeout=120.0, follow_redirects=True) as client:
         resp = client.get(url, params=params, headers=headers)
-        resp.raise_for_status()
-        payload = resp.json()
 
+    if resp.status_code >= 400:
+        body_preview = resp.text[:500].replace("\n", " ")
+        logger.error(f"HTTP {resp.status_code} from {url}")
+        logger.error(f"Response body: {body_preview}")
+        if resp.status_code == 403:
+            logger.error(
+                "403 typically means the api.data.gov key is not authorized "
+                "for the Data.gov Catalog API. Verify the key at "
+                "https://api.data.gov/signup/ — some keys must be requested "
+                "per-API. You can also test the key directly with:"
+            )
+            logger.error(
+                f'  curl -H "X-Api-Key: $DATA_GOV_API_KEY" '
+                f'"{API_BASE}/organization_list?all_fields=true"'
+            )
+        resp.raise_for_status()
+
+    payload = resp.json()
     if not payload.get("success"):
         raise RuntimeError(f"CKAN API returned success=false: {payload}")
 

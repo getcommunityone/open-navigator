@@ -1,25 +1,25 @@
 # Summary
 
-Date : 2026-05-22 15:09:44
+Date : 2026-05-24 07:29:47
 
 Directory /home/developer/projects/open-navigator
 
-Total : 1163 files,  297658 codes, 38716 comments, 49726 blanks, all 386100 lines
+Total : 1206 files,  303279 codes, 40606 comments, 50622 blanks, all 394507 lines
 
 Summary / [Details](details.md) / [Diff Summary](diff.md) / [Diff Details](diff-details.md)
 
 ## Languages
 | language | files | code | comment | blank | total |
 | :--- | ---: | ---: | ---: | ---: | ---: |
-| Python | 446 | 111,418 | 34,139 | 19,504 | 165,061 |
-| Markdown | 315 | 80,378 | 2 | 24,981 | 105,361 |
+| Python | 471 | 115,432 | 35,768 | 20,184 | 171,384 |
+| Markdown | 315 | 80,409 | 2 | 24,988 | 105,399 |
 | JSON | 17 | 53,499 | 0 | 13 | 53,512 |
 | TypeScript JSX | 58 | 23,811 | 903 | 1,580 | 26,294 |
-| MS SQL | 125 | 9,808 | 1,833 | 1,371 | 13,012 |
-| Shell Script | 95 | 5,176 | 996 | 1,096 | 7,268 |
+| MS SQL | 140 | 11,163 | 2,058 | 1,541 | 14,762 |
+| Shell Script | 97 | 5,371 | 1,032 | 1,133 | 7,536 |
 | JavaScript JSX | 18 | 4,378 | 186 | 205 | 4,769 |
 | TypeScript | 20 | 2,878 | 356 | 270 | 3,504 |
-| YAML | 18 | 1,911 | 56 | 183 | 2,150 |
+| YAML | 18 | 1,932 | 56 | 184 | 2,172 |
 | HTML | 9 | 1,152 | 22 | 127 | 1,301 |
 | PostCSS | 7 | 1,108 | 40 | 107 | 1,255 |
 | JavaScript | 13 | 935 | 55 | 105 | 1,095 |
@@ -30,19 +30,20 @@ Summary / [Details](details.md) / [Diff Summary](diff.md) / [Diff Details](diff-
 | pip requirements | 1 | 79 | 25 | 16 | 120 |
 | Docker | 1 | 49 | 21 | 21 | 91 |
 | JSON with Comments | 3 | 42 | 5 | 5 | 52 |
+| Ini | 1 | 5 | 0 | 1 | 6 |
 | Batch | 1 | 2 | 1 | 1 | 4 |
 
 ## Directories
 | path | files | code | comment | blank | total |
 | :--- | ---: | ---: | ---: | ---: | ---: |
-| . | 1,163 | 297,658 | 38,716 | 49,726 | 386,100 |
-| . (Files) | 21 | 3,509 | 149 | 852 | 4,510 |
+| . | 1,206 | 303,279 | 40,606 | 50,622 | 394,507 |
+| . (Files) | 22 | 3,523 | 149 | 854 | 4,526 |
 | .claude | 1 | 12 | 0 | 1 | 13 |
 | .github | 3 | 781 | 8 | 200 | 989 |
 | .github (Files) | 1 | 611 | 0 | 164 | 775 |
 | .github/workflows | 2 | 170 | 8 | 36 | 214 |
 | .huggingface | 4 | 247 | 26 | 63 | 336 |
-| agents | 14 | 2,382 | 851 | 484 | 3,717 |
+| agents | 14 | 2,379 | 851 | 484 | 3,714 |
 | alerts | 1 | 344 | 146 | 78 | 568 |
 | api | 33 | 6,367 | 4,419 | 1,154 | 11,940 |
 | api (Files) | 7 | 1,729 | 752 | 304 | 2,785 |
@@ -55,13 +56,13 @@ Summary / [Details](details.md) / [Diff Summary](diff.md) / [Diff Details](diff-
 | databricks | 5 | 1,187 | 604 | 220 | 2,011 |
 | databricks (Files) | 4 | 1,135 | 342 | 204 | 1,681 |
 | databricks/notebooks | 1 | 52 | 262 | 16 | 330 |
-| dbt_project | 70 | 7,452 | 911 | 947 | 9,310 |
+| dbt_project | 71 | 8,239 | 918 | 985 | 10,142 |
 | dbt_project (Files) | 10 | 1,059 | 36 | 328 | 1,423 |
 | dbt_project/analyses | 4 | 78 | 10 | 8 | 96 |
 | dbt_project/macros | 10 | 123 | 30 | 13 | 166 |
-| dbt_project/models | 41 | 6,086 | 811 | 578 | 7,475 |
+| dbt_project/models | 42 | 6,873 | 818 | 616 | 8,307 |
 | dbt_project/models/bronze | 8 | 611 | 131 | 78 | 820 |
-| dbt_project/models/intermediate | 16 | 3,065 | 367 | 264 | 3,696 |
+| dbt_project/models/intermediate | 17 | 3,852 | 374 | 302 | 4,528 |
 | dbt_project/models/marts | 13 | 1,331 | 256 | 135 | 1,722 |
 | dbt_project/models/staging | 4 | 1,079 | 57 | 101 | 1,237 |
 | dbt_project/scripts | 3 | 50 | 14 | 12 | 76 |
@@ -100,19 +101,20 @@ Summary / [Details](details.md) / [Diff Summary](diff.md) / [Diff Details](diff-
 | output/tuscaloosa | 1 | 404 | 0 | 0 | 404 |
 | pipeline | 10 | 2,222 | 954 | 563 | 3,739 |
 | prompts | 7 | 2,167 | 0 | 243 | 2,410 |
-| scripts | 587 | 123,302 | 27,675 | 20,828 | 171,805 |
+| scripts | 629 | 128,060 | 29,542 | 21,660 | 179,262 |
 | scripts (Files) | 11 | 1,210 | 245 | 250 | 1,705 |
 | scripts/accessibility | 23 | 6,103 | 546 | 350 | 6,999 |
 | scripts/accessibility (Files) | 20 | 5,974 | 537 | 328 | 6,839 |
 | scripts/accessibility/sql | 3 | 129 | 9 | 22 | 160 |
 | scripts/colab | 28 | 14,518 | 1,259 | 1,830 | 17,607 |
 | scripts/database | 1 | 18 | 9 | 6 | 33 |
-| scripts/datasources | 257 | 53,618 | 15,009 | 9,774 | 78,401 |
+| scripts/datasources | 281 | 57,253 | 16,227 | 10,373 | 83,853 |
 | scripts/datasources (Files) | 2 | 106 | 0 | 41 | 147 |
 | scripts/datasources/ballotpedia | 2 | 365 | 215 | 108 | 688 |
 | scripts/datasources/cdp | 4 | 648 | 136 | 185 | 969 |
 | scripts/datasources/census | 32 | 5,786 | 1,923 | 1,202 | 8,911 |
 | scripts/datasources/cityscrapers | 2 | 339 | 85 | 120 | 544 |
+| scripts/datasources/data_gov | 2 | 262 | 31 | 48 | 341 |
 | scripts/datasources/dbpedia | 2 | 230 | 167 | 28 | 425 |
 | scripts/datasources/dot | 4 | 839 | 87 | 119 | 1,045 |
 | scripts/datasources/fec | 11 | 2,556 | 870 | 630 | 4,056 |
@@ -127,45 +129,48 @@ Summary / [Details](details.md) / [Diff Summary](diff.md) / [Diff Details](diff-
 | scripts/datasources/hifld | 4 | 541 | 125 | 157 | 823 |
 | scripts/datasources/hud | 1 | 151 | 22 | 40 | 213 |
 | scripts/datasources/irs | 7 | 1,476 | 378 | 445 | 2,299 |
+| scripts/datasources/jurisdiction_pilot | 11 | 1,763 | 754 | 315 | 2,832 |
 | scripts/datasources/jurisdictions | 8 | 1,239 | 461 | 168 | 1,868 |
 | scripts/datasources/leagueofcities | 5 | 2,351 | 588 | 233 | 3,172 |
 | scripts/datasources/localview | 8 | 1,696 | 525 | 411 | 2,632 |
 | scripts/datasources/localview (Files) | 5 | 961 | 221 | 219 | 1,401 |
 | scripts/datasources/localview/archive | 3 | 735 | 304 | 192 | 1,231 |
+| scripts/datasources/ma_pilot | 5 | 493 | 92 | 64 | 649 |
 | scripts/datasources/master_data | 3 | 1,596 | 254 | 275 | 2,125 |
 | scripts/datasources/meetingbank | 2 | 269 | 128 | 89 | 486 |
 | scripts/datasources/naco | 5 | 962 | 167 | 186 | 1,315 |
 | scripts/datasources/nccs | 3 | 833 | 75 | 174 | 1,082 |
 | scripts/datasources/nces | 8 | 1,585 | 524 | 249 | 2,358 |
+| scripts/datasources/netronline | 2 | 346 | 71 | 71 | 488 |
 | scripts/datasources/ntee | 3 | 346 | 59 | 107 | 512 |
-| scripts/datasources/openstates | 19 | 2,864 | 1,185 | 715 | 4,764 |
+| scripts/datasources/openstates | 21 | 2,933 | 1,349 | 728 | 5,010 |
 | scripts/datasources/osf | 5 | 760 | 117 | 204 | 1,081 |
 | scripts/datasources/social_media | 1 | 238 | 137 | 59 | 434 |
 | scripts/datasources/uscm | 7 | 816 | 137 | 156 | 1,109 |
 | scripts/datasources/vendorsearch | 2 | 308 | 25 | 71 | 404 |
 | scripts/datasources/voter_data | 2 | 173 | 143 | 54 | 370 |
 | scripts/datasources/wikidata | 28 | 7,469 | 3,022 | 823 | 11,314 |
-| scripts/datasources/youtube | 44 | 11,134 | 1,971 | 1,318 | 14,423 |
-| scripts/datasources/youtube (Files) | 43 | 11,110 | 1,965 | 1,313 | 14,388 |
+| scripts/datasources/youtube | 46 | 11,836 | 2,077 | 1,406 | 15,319 |
+| scripts/datasources/youtube (Files) | 45 | 11,812 | 2,071 | 1,401 | 15,284 |
 | scripts/datasources/youtube/sql | 1 | 24 | 6 | 5 | 35 |
 | scripts/dbt | 4 | 788 | 45 | 158 | 991 |
-| scripts/deployment | 76 | 5,585 | 1,379 | 1,295 | 8,259 |
+| scripts/deployment | 89 | 6,042 | 1,580 | 1,425 | 9,047 |
 | scripts/deployment (Files) | 9 | 565 | 74 | 129 | 768 |
-| scripts/deployment/neon | 67 | 5,020 | 1,305 | 1,166 | 7,491 |
-| scripts/deployment/neon (Files) | 18 | 2,953 | 793 | 693 | 4,439 |
-| scripts/deployment/neon/migrations | 49 | 2,067 | 512 | 473 | 3,052 |
+| scripts/deployment/neon | 80 | 5,477 | 1,506 | 1,296 | 8,279 |
+| scripts/deployment/neon (Files) | 19 | 3,027 | 798 | 709 | 4,534 |
+| scripts/deployment/neon/migrations | 61 | 2,450 | 708 | 587 | 3,745 |
 | scripts/development | 4 | 303 | 66 | 77 | 446 |
-| scripts/discovery | 39 | 15,783 | 2,555 | 2,161 | 20,499 |
-| scripts/discovery (Files) | 34 | 14,891 | 2,392 | 2,003 | 19,286 |
+| scripts/discovery | 44 | 16,354 | 2,919 | 2,255 | 21,528 |
+| scripts/discovery (Files) | 39 | 15,462 | 2,756 | 2,097 | 20,315 |
 | scripts/discovery/archive | 4 | 803 | 154 | 148 | 1,105 |
 | scripts/discovery/sql | 1 | 89 | 9 | 10 | 108 |
 | scripts/enrichment | 23 | 4,150 | 1,421 | 883 | 6,454 |
 | scripts/enrichment_ai | 16 | 2,441 | 1,537 | 541 | 4,519 |
 | scripts/examples | 10 | 1,800 | 420 | 490 | 2,710 |
 | scripts/frontend | 2 | 55 | 7 | 4 | 66 |
-| scripts/gemini | 29 | 9,342 | 1,374 | 1,215 | 11,931 |
+| scripts/gemini | 29 | 9,379 | 1,456 | 1,217 | 12,052 |
 | scripts/huggingface | 22 | 2,823 | 789 | 699 | 4,311 |
-| scripts/localview | 7 | 1,359 | 244 | 347 | 1,950 |
+| scripts/localview | 7 | 1,417 | 246 | 354 | 2,017 |
 | scripts/maintenance | 12 | 699 | 143 | 183 | 1,025 |
 | scripts/mcp | 2 | 570 | 55 | 115 | 740 |
 | scripts/media | 3 | 390 | 313 | 114 | 817 |
@@ -175,18 +180,18 @@ Summary / [Details](details.md) / [Diff Summary](diff.md) / [Diff Details](diff-
 | scripts/wikicommons | 3 | 519 | 28 | 68 | 615 |
 | sql | 1 | 39 | 0 | 0 | 39 |
 | sql/adhoc | 1 | 39 | 0 | 0 | 39 |
-| tests | 24 | 1,953 | 158 | 438 | 2,549 |
-| tests (Files) | 23 | 1,564 | 154 | 396 | 2,114 |
+| tests | 23 | 1,996 | 174 | 456 | 2,626 |
+| tests (Files) | 22 | 1,607 | 170 | 414 | 2,191 |
 | tests/fixtures | 1 | 389 | 4 | 42 | 435 |
 | tests/fixtures/contact_extract | 1 | 389 | 4 | 42 | 435 |
 | visualization | 2 | 235 | 165 | 37 | 437 |
-| website | 200 | 73,880 | 211 | 15,879 | 89,970 |
+| website | 200 | 73,902 | 211 | 15,885 | 89,998 |
 | website (Files) | 8 | 22,174 | 51 | 96 | 22,321 |
 | website/blog | 5 | 310 | 0 | 108 | 418 |
-| website/docs | 166 | 49,813 | 2 | 15,534 | 65,349 |
+| website/docs | 166 | 49,835 | 2 | 15,540 | 65,377 |
 | website/docs (Files) | 9 | 1,997 | 0 | 701 | 2,698 |
 | website/docs/case-studies | 3 | 1,474 | 0 | 467 | 1,941 |
-| website/docs/data-sources | 24 | 12,162 | 0 | 3,127 | 15,289 |
+| website/docs/data-sources | 24 | 12,184 | 0 | 3,133 | 15,317 |
 | website/docs/dbt | 5 | 1,033 | 0 | 304 | 1,337 |
 | website/docs/deployment | 21 | 5,212 | 0 | 1,810 | 7,022 |
 | website/docs/development | 39 | 9,122 | 0 | 2,801 | 11,923 |

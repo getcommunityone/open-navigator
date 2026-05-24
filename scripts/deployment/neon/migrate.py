@@ -634,10 +634,10 @@ def load_jurisdiction(conn):
         ]
         
         execute_values(cursor, """
-            INSERT INTO jurisdiction 
-            (name, type, state_code, state, county, geoid, fips_code, population, area_sq_miles, source, last_updated)
+            INSERT INTO c1_jurisdiction
+            (name, classification, state_code, state, county, geoid, fips_code, population, area_sq_miles, source, updated_at)
             VALUES %s
-            ON CONFLICT (name, type, state_code, county) DO UPDATE SET
+            ON CONFLICT (name, classification, state_code, county) DO UPDATE SET
                 geoid = EXCLUDED.geoid,
                 area_sq_miles = EXCLUDED.area_sq_miles,
                 state = EXCLUDED.state
@@ -663,10 +663,10 @@ def load_jurisdiction(conn):
         ]
         
         execute_values(cursor, """
-            INSERT INTO jurisdiction 
-            (name, type, state_code, state, county, geoid, fips_code, population, area_sq_miles, source, last_updated)
+            INSERT INTO c1_jurisdiction
+            (name, classification, state_code, state, county, geoid, fips_code, population, area_sq_miles, source, updated_at)
             VALUES %s
-            ON CONFLICT (name, type, state_code, county) DO UPDATE SET
+            ON CONFLICT (name, classification, state_code, county) DO UPDATE SET
                 geoid = EXCLUDED.geoid,
                 fips_code = EXCLUDED.fips_code,
                 area_sq_miles = EXCLUDED.area_sq_miles,
@@ -693,10 +693,10 @@ def load_jurisdiction(conn):
         ]
         
         execute_values(cursor, """
-            INSERT INTO jurisdiction 
-            (name, type, state_code, state, county, geoid, fips_code, population, area_sq_miles, source, last_updated)
+            INSERT INTO c1_jurisdiction
+            (name, classification, state_code, state, county, geoid, fips_code, population, area_sq_miles, source, updated_at)
             VALUES %s
-            ON CONFLICT (name, type, state_code, county) DO UPDATE SET
+            ON CONFLICT (name, classification, state_code, county) DO UPDATE SET
                 geoid = EXCLUDED.geoid,
                 area_sq_miles = EXCLUDED.area_sq_miles,
                 state = EXCLUDED.state
@@ -722,10 +722,10 @@ def load_jurisdiction(conn):
         ]
         
         execute_values(cursor, """
-            INSERT INTO jurisdiction 
-            (name, type, state_code, state, county, geoid, fips_code, population, area_sq_miles, source, last_updated)
+            INSERT INTO c1_jurisdiction
+            (name, classification, state_code, state, county, geoid, fips_code, population, area_sq_miles, source, updated_at)
             VALUES %s
-            ON CONFLICT (name, type, state_code, county) DO UPDATE SET
+            ON CONFLICT (name, classification, state_code, county) DO UPDATE SET
                 geoid = EXCLUDED.geoid,
                 area_sq_miles = EXCLUDED.area_sq_miles,
                 state = EXCLUDED.state
@@ -736,7 +736,7 @@ def load_jurisdiction(conn):
     
     conn.commit()
     logger.success(f"✅ Loaded {total_loaded:,} jurisdictions into search table")
-    record_sync(conn, 'jurisdiction', total_loaded)
+    record_sync(conn, 'c1_jurisdiction', total_loaded)
     return True
 
 
@@ -808,10 +808,10 @@ def load_event(conn, limit_states=None):
         
         if records:
             execute_values(cursor, """
-                INSERT INTO event 
-                (event_title, event_description, event_date, event_time, jurisdiction_name, jurisdiction_type,
-                 state_code, state, city, location, meeting_type, status, agenda_url, minutes_url, video_url,
-                 source, last_updated)
+                INSERT INTO c1_event
+                (name, description, start_date, event_time, jurisdiction_name, jurisdiction_type,
+                 state_code, state, city, location, classification, status, agenda_url, minutes_url, video_url,
+                 source, updated_at)
                 VALUES %s
             """, records)
             
@@ -820,7 +820,7 @@ def load_event(conn, limit_states=None):
     
     conn.commit()
     logger.success(f"✅ Loaded {total_loaded:,} events into search table")
-    record_sync(conn, 'event', total_loaded)
+    record_sync(conn, 'c1_event', total_loaded)
     return True
 
 
@@ -878,10 +878,10 @@ def load_contact(conn, limit_states=None):
             
             if records:
                 execute_values(cursor, """
-                    INSERT INTO contact 
+                    INSERT INTO c1_contact
                     (name, title, organization_name, organization_ein, email, phone,
                      street_address, city, state_code, state, zip_code, role_type, compensation,
-                     hours_per_week, source, tax_year, last_updated)
+                     hours_per_week, source, tax_year, updated_at)
                     VALUES %s
                 """, records)
                 
@@ -921,10 +921,10 @@ def load_contact(conn, limit_states=None):
             
             if records:
                 execute_values(cursor, """
-                    INSERT INTO contact 
+                    INSERT INTO c1_contact
                     (name, title, organization_name, organization_ein, email, phone,
                      street_address, city, state_code, state, zip_code, role_type, compensation,
-                     hours_per_week, source, tax_year, last_updated)
+                     hours_per_week, source, tax_year, updated_at)
                     VALUES %s
                 """, records)
                 
@@ -964,10 +964,10 @@ def load_contact(conn, limit_states=None):
             
             if records:
                 execute_values(cursor, """
-                    INSERT INTO contact 
+                    INSERT INTO c1_contact
                     (name, title, organization_name, organization_ein, email, phone,
                      street_address, city, state_code, state, zip_code, role_type, compensation,
-                     hours_per_week, source, tax_year, last_updated)
+                     hours_per_week, source, tax_year, updated_at)
                     VALUES %s
                 """, records)
                 
@@ -976,7 +976,7 @@ def load_contact(conn, limit_states=None):
     
     conn.commit()
     logger.success(f"✅ Loaded {total_loaded:,} contacts into search table")
-    record_sync(conn, 'contact', total_loaded)
+    record_sync(conn, 'c1_contact', total_loaded)
     return True
 
 

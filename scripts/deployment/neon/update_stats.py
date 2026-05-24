@@ -31,11 +31,11 @@ async def update_national_stats():
         
         # Count jurisdictions by type
         jurisdictions_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM jurisdiction WHERE type IN ('city', 'county', 'town', 'village')"
+            "SELECT COUNT(*) FROM c1_jurisdiction WHERE classification IN ('city', 'county', 'town', 'village')"
         )
         
         school_districts_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM jurisdiction WHERE type = 'school_district'"
+            "SELECT COUNT(*) FROM c1_jurisdiction WHERE classification = 'school_district'"
         )
         
         # Count nonprofits
@@ -54,12 +54,12 @@ async def update_national_stats():
         
         # Count events
         events_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM event"
+            "SELECT COUNT(*) FROM c1_event"
         )
         
         # Count contacts
         contacts_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM contact"
+            "SELECT COUNT(*) FROM c1_contact"
         )
         
         logger.info(f"  Jurisdictions: {jurisdictions_count:,}")
@@ -115,12 +115,12 @@ async def update_state_stats(conn):
         
         # Count jurisdictions
         jurisdictions_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM jurisdiction WHERE state = $1 AND type IN ('city', 'county', 'town', 'village')",
+            "SELECT COUNT(*) FROM c1_jurisdiction WHERE state = $1 AND classification IN ('city', 'county', 'town', 'village')",
             state
         )
         
         school_districts_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM jurisdiction WHERE state = $1 AND type = 'school_district'",
+            "SELECT COUNT(*) FROM c1_jurisdiction WHERE state = $1 AND classification = 'school_district'",
             state
         )
         
@@ -141,13 +141,13 @@ async def update_state_stats(conn):
         
         # Count events
         events_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM event WHERE state = $1",
+            "SELECT COUNT(*) FROM c1_event WHERE state = $1",
             state
         )
         
         # Count contacts
         contacts_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM contact WHERE state = $1",
+            "SELECT COUNT(*) FROM c1_contact WHERE state = $1",
             state
         )
         
