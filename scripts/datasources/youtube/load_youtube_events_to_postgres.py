@@ -122,7 +122,7 @@ class YouTubeEventsLoader:
         if ensure_schema_setup:
             self._add_jurisdiction_id_column()
             self._create_bronze_events_text_ai_table()
-            self._create_events_channels_search_table()
+            self._create_bronze_events_channels_table()
             ensure_bronze_events_channels_link_columns(self.conn)
     
     def _sanitize_database_url(self, url: str) -> str:
@@ -353,7 +353,7 @@ class YouTubeEventsLoader:
         finally:
             cursor.close()
     
-    def _create_events_channels_search_table(self):
+    def _create_bronze_events_channels_table(self):
         """Create bronze.bronze_events_channels table if it doesn't exist."""
         cursor = self.conn.cursor()
         

@@ -115,7 +115,10 @@ class MeetingTranscriptAnalyzer:
         create_table_sql = """
         CREATE TABLE IF NOT EXISTS bronze.bronze_events_analysis_ai (
             id SERIAL PRIMARY KEY,
-            event_id INTEGER NOT NULL REFERENCES event(event_id) ON DELETE CASCADE,
+            -- Soft reference to c1_event.legacy_id (the integer PK preserved by migration 048).
+            -- No FK constraint declared — bronze.bronze_events_analysis_ai pre-dates the rename
+            -- and adding a FK to an existing table risks blocking writes during the rename.
+            event_id INTEGER NOT NULL,
             video_id VARCHAR(20) NOT NULL,
             analysis_type VARCHAR(50) DEFAULT 'policy_frame_analysis',
             ai_model VARCHAR(100) DEFAULT 'gemini-1.5-flash',
@@ -233,7 +236,10 @@ class MeetingTranscriptAnalyzer:
         
         # Add state filter if provided (inside the CTE)
         if states_filter:
-            query += "              AND e.state_code = ANY(%s)\n"
+            # state column post-migration-048 holds either a 2-letter code or full name
+            # depending on row provenance; callers pass 2-letter codes. This filter only
+            # matches rows where state happens to be stored as the code.
+            query += "              AND e.state = ANY(%s)\n"
             params.append(states_filter)
         
         # Close the CTE and add the main query

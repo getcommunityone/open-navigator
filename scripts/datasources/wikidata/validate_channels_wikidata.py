@@ -2,8 +2,8 @@
 """
 Validate YouTube Channels against WikiData
 
-Uses existing jurisdictions from public.jurisdiction and validates
-their YouTube channels against WikiData. Updates events_channels_search with
+Uses existing jurisdictions from public.c1_jurisdiction and validates
+their YouTube channels against WikiData. Updates intermediate.int_events_channels with
 in_wikidata flags.
 
 This is faster than querying all WikiData jurisdictions because we only
@@ -54,7 +54,7 @@ class WikiDataChannelValidator:
                 state,
                 type AS jurisdiction_type,
                 youtube_channels
-            FROM jurisdiction
+            FROM c1_jurisdiction
             WHERE youtube_channel_count > 0
                 AND youtube_channels IS NOT NULL
         """
@@ -126,7 +126,7 @@ class WikiDataChannelValidator:
         
         try:
             cursor.execute("""
-                UPDATE events_channels_search
+                UPDATE intermediate.int_events_channels
                 SET 
                     in_wikidata = %s,
                     is_government = CASE 
@@ -215,7 +215,7 @@ class WikiDataChannelValidator:
                 COUNT(*) FILTER (WHERE in_wikidata = TRUE) as in_wikidata,
                 COUNT(*) FILTER (WHERE in_localview = TRUE) as in_localview,
                 COUNT(*) FILTER (WHERE is_government = TRUE) as confirmed_govt
-            FROM events_channels_search
+            FROM intermediate.int_events_channels
         """)
         stats = cursor.fetchone()
         cursor.close()
