@@ -102,8 +102,8 @@ from scripts.datasources.jurisdiction_pilot.website_youtube_search import (  # n
 from scripts.datasources.youtube.youtube_channel_discovery import (  # noqa: E402
     YouTubeChannelDiscovery,
 )
-from scripts.discovery.bronze_contacts_scraped_persist import (  # noqa: E402
-    insert_bronze_contacts_scraped,
+from scripts.discovery.bronze_persons_scraped_persist import (  # noqa: E402
+    insert_bronze_persons_scraped,
 )
 from scripts.discovery.bronze_jurisdiction_youtube_persist import (  # noqa: E402
     insert_bronze_jurisdiction_youtube,
@@ -417,9 +417,12 @@ def _scrape_contacts(
                 "source_page_url": url,
                 "page_classification": classification["directory_kind"],
                 "directory_score": int(classification["score"]),
-                "person_name": r.get("person_name"),
-                "title_or_role": r.get("title_or_role"),
-                "department": r.get("department"),
+                # OCD Popolo-aligned keys (Person.name, Membership.role, Membership.organization).
+                # The upstream extractor still returns person_name/title_or_role/department, so we
+                # remap once here.
+                "name": r.get("person_name"),
+                "role": r.get("title_or_role"),
+                "organization": r.get("department"),
                 "email": (r.get("email") or "").lower() or None,
                 "phone": r.get("phone"),
                 "mailing_address": r.get("mailing_address"),
@@ -691,7 +694,7 @@ def _process_one(
         )
 
         if all_contacts:
-            result.contacts_inserted = insert_bronze_contacts_scraped(
+            result.contacts_inserted = insert_bronze_persons_scraped(
                 database_url,
                 scrape_batch_id=batch_id,
                 jurisdiction_id=j.jurisdiction_id,
