@@ -339,6 +339,54 @@ def extract_profile_image_jobs(html: str, page_url: str, *, max_jobs: int = 80) 
         _parse_elementor_official_band,
     )
 
+    # Fusion / Avada theme person cards — very common in municipal WordPress sites
+    # (e.g. dekalbcountyal.us/members/). Structure is consistent:
+    #   <div class="person-img"><img alt="<Person Name>" src="..."></div>
+    #   <div class="person-desc">
+    #     <span class="person-name">Mr. Ricky Harcrow</span>
+    #     <span class="person-title">Commissioner President</span>
+    #   </div>
+    # Without this block the generic pass picks up ``person-title`` text as person_name
+    # and the saved image filename becomes the role ("commission_president.png") instead
+    # of the person ("ricky_harcrow.png").
+    for card_img in soup.select("img.person-img, div.person-img img, .person-img img"):
+        if len(out) >= max_jobs:
+            break
+        abs_u = img_best_abs_url(card_img, page_url)
+        if not abs_u or abs_u in seen_url or _SKIP_IMG_HOST.search(abs_u):
+            continue
+        if _profile_image_url_is_brand_or_chrome(abs_u):
+            continue
+        # Walk up to a shared ancestor that contains both .person-img and .person-desc.
+        person_card = card_img.find_parent(
+            lambda tag: bool(tag and tag.name and tag.find(class_="person-desc"))
+        )
+        name_guess = ""
+        title_guess = ""
+        if person_card:
+            name_el = person_card.find(class_="person-name")
+            title_el = person_card.find(class_="person-title")
+            if name_el:
+                name_guess = re.sub(r"\s+", " ", name_el.get_text(" ", strip=True))[:200]
+            if title_el:
+                title_guess = re.sub(r"\s+", " ", title_el.get_text(" ", strip=True))[:200]
+        # Fall back to the img alt attribute if the .person-name span wasn't found.
+        if not name_guess:
+            alt = (card_img.get("alt") or "").strip()
+            if alt and len(alt) >= 3 and not alt.lower().startswith(("logo", "menu")):
+                name_guess = alt[:200]
+        if not name_guess:
+            continue
+        if _label_is_non_person_photo_subject(name_guess, title_guess):
+            continue
+        seen_url.add(abs_u)
+        out.append({
+            "person_name": name_guess,
+            "title_or_role": title_guess or None,
+            "image_url": abs_u,
+            "match_method": "fusion_person_card",
+        })
+
     for band in _iter_elementor_official_bands(soup):
         if len(out) >= max_jobs:
             break

@@ -1,0 +1,103 @@
+Date : 2026-05-23 23:32:47
+Directory : /home/developer/projects/open-navigator
+Total : 52 files,  4617 codes, 1213 comments, 685 blanks, all 6515 lines
+
+Languages
++--------------+------------+------------+------------+------------+------------+
+| language     | files      | code       | comment    | blank      | total      |
++--------------+------------+------------+------------+------------+------------+
+| Python       |         36 |      3,257 |      1,081 |        536 |      4,874 |
+| MS SQL       |         10 |      1,108 |         96 |        103 |      1,307 |
+| Shell Script |          2 |        195 |         36 |         37 |        268 |
+| Markdown     |          2 |         31 |          0 |          7 |         38 |
+| YAML         |          1 |         21 |          0 |          1 |         22 |
+| Ini          |          1 |          5 |          0 |          1 |          6 |
++--------------+------------+------------+------------+------------+------------+
+
+Directories
++----------------------------------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| path                                                                                                                             | files      | code       | comment    | blank      | total      |
++----------------------------------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| .                                                                                                                                |         52 |      4,617 |      1,213 |        685 |      6,515 |
+| . (Files)                                                                                                                        |          2 |         14 |          0 |          2 |         16 |
+| agents                                                                                                                           |          1 |         -3 |          0 |          0 |         -3 |
+| dbt_project                                                                                                                      |          3 |        787 |          7 |         38 |        832 |
+| dbt_project/models                                                                                                               |          3 |        787 |          7 |         38 |        832 |
+| dbt_project/models/intermediate                                                                                                  |          3 |        787 |          7 |         38 |        832 |
+| scripts                                                                                                                          |         38 |      3,754 |      1,190 |        621 |      5,565 |
+| scripts/datasources                                                                                                              |         25 |      3,237 |        941 |        529 |      4,707 |
+| scripts/datasources/jurisdiction_pilot                                                                                           |         11 |      1,696 |        672 |        306 |      2,674 |
+| scripts/datasources/ma_pilot                                                                                                     |          5 |        493 |         92 |         64 |        649 |
+| scripts/datasources/netronline                                                                                                   |          2 |        346 |         71 |         71 |        488 |
+| scripts/datasources/youtube                                                                                                      |          7 |        702 |        106 |         88 |        896 |
+| scripts/deployment                                                                                                               |          7 |        210 |         72 |         63 |        345 |
+| scripts/deployment/neon                                                                                                          |          7 |        210 |         72 |         63 |        345 |
+| scripts/deployment/neon (Files)                                                                                                  |          1 |         74 |          5 |         16 |         95 |
+| scripts/deployment/neon/migrations                                                                                               |          6 |        136 |         67 |         47 |        250 |
+| scripts/discovery                                                                                                                |          4 |        212 |         93 |         20 |        325 |
+| scripts/gemini                                                                                                                   |          1 |         37 |         82 |          2 |        121 |
+| scripts/localview                                                                                                                |          1 |         58 |          2 |          7 |         67 |
+| tests                                                                                                                            |          7 |         43 |         16 |         18 |         77 |
+| website                                                                                                                          |          1 |         22 |          0 |          6 |         28 |
+| website/docs                                                                                                                     |          1 |         22 |          0 |          6 |         28 |
+| website/docs/data-sources                                                                                                        |          1 |         22 |          0 |          6 |         28 |
++----------------------------------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+
+Files
++----------------------------------------------------------------------------------------------------------------------------------+--------------+------------+------------+------------+------------+
+| filename                                                                                                                         | language     | code       | comment    | blank      | total      |
++----------------------------------------------------------------------------------------------------------------------------------+--------------+------------+------------+------------+------------+
+| /home/developer/projects/open-navigator/CITATIONS.md                                                                             | Markdown     |          9 |          0 |          1 |         10 |
+| /home/developer/projects/open-navigator/agents/base.py                                                                           | Python       |         -3 |          0 |          0 |         -3 |
+| /home/developer/projects/open-navigator/dbt_project/models/intermediate/_intermediate.yml                                        | YAML         |         21 |          0 |          1 |         22 |
+| /home/developer/projects/open-navigator/dbt_project/models/intermediate/int_events_channels.sql                                  | MS SQL       |        507 |          0 |         22 |        529 |
+| /home/developer/projects/open-navigator/dbt_project/models/intermediate/int_jurisdiction_homepage_youtube_channels.sql           | MS SQL       |        259 |          7 |         15 |        281 |
+| /home/developer/projects/open-navigator/pytest.ini                                                                               | Ini          |          5 |          0 |          1 |          6 |
+| /home/developer/projects/open-navigator/scripts/datasources/jurisdiction_pilot/__init__.py                                       | Python       |          0 |          0 |          1 |          1 |
+| /home/developer/projects/open-navigator/scripts/datasources/jurisdiction_pilot/google_civic_youtube.py                           | Python       |         69 |         27 |         25 |        121 |
+| /home/developer/projects/open-navigator/scripts/datasources/jurisdiction_pilot/legistar_scraper.py                               | Python       |         69 |         35 |         24 |        128 |
+| /home/developer/projects/open-navigator/scripts/datasources/jurisdiction_pilot/load_ocd_into_postgres.py                         | Python       |        136 |         31 |         33 |        200 |
+| /home/developer/projects/open-navigator/scripts/datasources/jurisdiction_pilot/load_ocd_jurisdictions.py                         | Python       |        141 |         57 |         35 |        233 |
+| /home/developer/projects/open-navigator/scripts/datasources/jurisdiction_pilot/mayor_url_discovery.py                            | Python       |        138 |         43 |         24 |        205 |
+| /home/developer/projects/open-navigator/scripts/datasources/jurisdiction_pilot/scrape_priority_states.py                         | Python       |        424 |        291 |         24 |        739 |
+| /home/developer/projects/open-navigator/scripts/datasources/jurisdiction_pilot/vendor_detection.py                               | Python       |        238 |         48 |         30 |        316 |
+| /home/developer/projects/open-navigator/scripts/datasources/jurisdiction_pilot/verify.sql                                        | MS SQL       |         97 |         10 |          9 |        116 |
+| /home/developer/projects/open-navigator/scripts/datasources/jurisdiction_pilot/website_youtube_search.py                         | Python       |        175 |         44 |         54 |        273 |
+| /home/developer/projects/open-navigator/scripts/datasources/jurisdiction_pilot/youtube_channel_enrich.py                         | Python       |        209 |         86 |         47 |        342 |
+| /home/developer/projects/open-navigator/scripts/datasources/ma_pilot/__init__.py                                                 | Python       |          0 |          0 |          1 |          1 |
+| /home/developer/projects/open-navigator/scripts/datasources/ma_pilot/jurisdictions.py                                            | Python       |        142 |         22 |          7 |        171 |
+| /home/developer/projects/open-navigator/scripts/datasources/ma_pilot/mayor_boost.py                                              | Python       |         35 |         23 |         11 |         69 |
+| /home/developer/projects/open-navigator/scripts/datasources/ma_pilot/scrape_ma_jurisdictions.py                                  | Python       |        207 |         35 |         35 |        277 |
+| /home/developer/projects/open-navigator/scripts/datasources/ma_pilot/verify.sql                                                  | MS SQL       |        109 |         12 |         10 |        131 |
+| /home/developer/projects/open-navigator/scripts/datasources/netronline/__init__.py                                               | Python       |          0 |          0 |          1 |          1 |
+| /home/developer/projects/open-navigator/scripts/datasources/netronline/crawl_county_directory.py                                 | Python       |        346 |         71 |         70 |        487 |
+| /home/developer/projects/open-navigator/scripts/datasources/youtube/load_channel_candidates_to_catalog.py                        | Python       |         56 |          0 |          2 |         58 |
+| /home/developer/projects/open-navigator/scripts/datasources/youtube/load_missing_county_channels.py                              | Python       |         34 |          1 |          4 |         39 |
+| /home/developer/projects/open-navigator/scripts/datasources/youtube/load_youtube_events_to_postgres.py                           | Python       |        120 |          5 |          9 |        134 |
+| /home/developer/projects/open-navigator/scripts/datasources/youtube/load_youtube_for_jurisdiction.py                             | Python       |         38 |          0 |          1 |         39 |
+| /home/developer/projects/open-navigator/scripts/datasources/youtube/run_priority_states_channel_pipeline.sh                      | Shell Script |        121 |         31 |         21 |        173 |
+| /home/developer/projects/open-navigator/scripts/datasources/youtube/test_cobb_county_scrape.py                                   | Python       |         37 |          2 |         13 |         52 |
+| /home/developer/projects/open-navigator/scripts/datasources/youtube/youtube_channel_discovery.py                                 | Python       |        296 |         67 |         38 |        401 |
+| /home/developer/projects/open-navigator/scripts/deployment/neon/load_ocd_jurisdictions_to_sql.sh                                 | Shell Script |         74 |          5 |         16 |         95 |
+| /home/developer/projects/open-navigator/scripts/deployment/neon/migrations/039_create_bronze_jurisdiction_youtube.sql            | MS SQL       |         31 |          9 |          6 |         46 |
+| /home/developer/projects/open-navigator/scripts/deployment/neon/migrations/040_alter_bronze_jurisdiction_youtube_add_signals.sql | MS SQL       |         15 |         13 |          5 |         33 |
+| /home/developer/projects/open-navigator/scripts/deployment/neon/migrations/041_add_ocd_ids.sql                                   | MS SQL       |         25 |         16 |         14 |         55 |
+| /home/developer/projects/open-navigator/scripts/deployment/neon/migrations/041_create_bronze_jurisdictions_county_directory.sql  | MS SQL       |         32 |          9 |          6 |         47 |
+| /home/developer/projects/open-navigator/scripts/deployment/neon/migrations/042_create_bronze_jurisdiction_ocd.sql                | MS SQL       |         27 |          9 |         11 |         47 |
+| /home/developer/projects/open-navigator/scripts/deployment/neon/migrations/042_rename_bronze_jurisdiction_youtube_confidence.sql | MS SQL       |          6 |         11 |          5 |         22 |
+| /home/developer/projects/open-navigator/scripts/discovery/bronze_contacts_scraped_persist.py                                     | Python       |         11 |          6 |          2 |         19 |
+| /home/developer/projects/open-navigator/scripts/discovery/bronze_jurisdiction_youtube_persist.py                                 | Python       |         98 |         40 |         12 |        150 |
+| /home/developer/projects/open-navigator/scripts/discovery/bronze_jurisdictions_county_directory_persist.py                       | Python       |         57 |         31 |          6 |         94 |
+| /home/developer/projects/open-navigator/scripts/discovery/jurisdiction_contact_seed_urls.py                                      | Python       |         46 |         16 |          0 |         62 |
+| /home/developer/projects/open-navigator/scripts/gemini/policy_processing_status_report.py                                        | Python       |         37 |         82 |          2 |        121 |
+| /home/developer/projects/open-navigator/scripts/localview/scrape_youtube_channels.py                                             | Python       |         58 |          2 |          7 |         67 |
+| /home/developer/projects/open-navigator/tests/test_agents.py                                                                     | Python       |        -16 |         -2 |         -4 |        -22 |
+| /home/developer/projects/open-navigator/tests/test_demo3_text_input.py                                                           | Python       |        -39 |         -1 |        -12 |        -52 |
+| /home/developer/projects/open-navigator/tests/test_demo4_gemma_opus.py                                                           | Python       |       -112 |         -2 |        -37 |       -151 |
+| /home/developer/projects/open-navigator/tests/test_ga_contact_scraper_regression.py                                              | Python       |         47 |          5 |          7 |         59 |
+| /home/developer/projects/open-navigator/tests/test_jurisdiction_contact_seed_urls.py                                             | Python       |          9 |          1 |          4 |         14 |
+| /home/developer/projects/open-navigator/tests/test_part2_report_normalize.py                                                     | Python       |        -10 |          0 |         -3 |        -13 |
+| /home/developer/projects/open-navigator/tests/test_youtube_site_search_scrape.py                                                 | Python       |        164 |         15 |         63 |        242 |
+| /home/developer/projects/open-navigator/website/docs/data-sources/citations.md                                                   | Markdown     |         22 |          0 |          6 |         28 |
+| Total                                                                                                                            |              |      4,617 |      1,213 |        685 |      6,515 |
++----------------------------------------------------------------------------------------------------------------------------------+--------------+------------+------------+------------+------------+

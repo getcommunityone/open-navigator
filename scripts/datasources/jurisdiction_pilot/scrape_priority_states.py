@@ -59,6 +59,9 @@ from pathlib import Path
 from threading import Event, Lock
 from typing import Any
 
+import re
+
+import httpx
 import psycopg2
 import requests
 import urllib3
@@ -111,6 +114,11 @@ from scripts.discovery.contact_directory_heuristics import (  # noqa: E402
 from scripts.discovery.contact_extract_from_html import (  # noqa: E402
     extract_structured_contacts_from_html,
 )
+from scripts.discovery.contact_profile_images import (  # noqa: E402
+    contact_profile_image_stem_from_name,
+    download_profile_images,
+    extract_profile_image_jobs,
+)
 from scripts.discovery.jurisdiction_contact_seed_urls import (  # noqa: E402
     merged_contact_seed_urls,
 )
@@ -136,8 +144,41 @@ MIN_CHANNEL_CONFIDENCE = float(os.getenv("MIN_CHANNEL_CONFIDENCE", "0.5"))
 _USER_AGENT = "OpenNavigatorJurisdictionPilot/1.0"
 _REQUEST_TIMEOUT_S = 20
 _CHECKPOINT_ROOT = _ROOT / "data" / "bronze" / "jurisdiction_pilot_progress"
+_SCRAPED_MEETINGS_ROOT = _ROOT / "data" / "cache" / "scraped_meetings"
 _PROGRESS_LOCK = Lock()
 _STOP = Event()
+
+
+# --------------------------------------------------------------------------------------
+# Normalized output paths — must match the existing scheme used by older
+# ``jurisdiction_discovery_pipeline.py`` and consumed by downstream tools:
+#
+#   data/cache/scraped_meetings/{STATE}/{type}/{slug}_{geoid_suffix}/_contact_images/
+#
+# Where ``type`` ∈ {county, municipality}, slug is a snake-cased place name with the
+# LSAD suffix stripped (``Tuscaloosa County`` → ``tuscaloosa``; ``Abbeville city`` →
+# ``abbeville``; ``Sweet Grass County`` → ``sweet_grass``), and ``geoid_suffix`` is the
+# numeric tail of jurisdiction_id (county: 5 digits, municipality: 7 digits).
+# --------------------------------------------------------------------------------------
+
+
+def _slug_from_name(name: str) -> str:
+    s = (name or "").strip().lower()
+    s = re.sub(
+        r"\s+(city|town|county|village|borough|cdp|municipality|township|parish)$",
+        "", s,
+    )
+    s = re.sub(r"[^a-z0-9]+", "_", s).strip("_")
+    return s or "unknown"
+
+
+def jurisdiction_output_dir(j: "Jurisdiction") -> Path:
+    """Return the canonical ``scraped_meetings/{STATE}/{type}/{slug}_{geoid}/`` dir."""
+    geoid_suffix = j.jurisdiction_id.split("_", 1)[1] if "_" in j.jurisdiction_id else j.jurisdiction_id
+    jtype = j.jurisdiction_type.lower()
+    if jtype in ("city", "place"):
+        jtype = "municipality"
+    return _SCRAPED_MEETINGS_ROOT / j.state_code.upper() / jtype / f"{_slug_from_name(j.name)}_{geoid_suffix}"
 
 
 # --------------------------------------------------------------------------------------
@@ -163,6 +204,7 @@ class JurisdictionResult:
     mayor_rows_inserted: int = 0
     youtube_inserted: int = 0
     youtube_filtered_out: int = 0
+    contact_images_saved: int = 0
     seed_urls_attempted: int = 0
     seed_urls_succeeded: int = 0
     error: str | None = None
@@ -282,6 +324,7 @@ def record_checkpoint(batch_id: str, result: JurisdictionResult) -> None:
         "contacts_inserted": result.contacts_inserted,
         "mayor_rows_inserted": result.mayor_rows_inserted,
         "youtube_inserted": result.youtube_inserted,
+        "contact_images_saved": result.contact_images_saved,
         "seed_urls_attempted": result.seed_urls_attempted,
         "seed_urls_succeeded": result.seed_urls_succeeded,
         "error": result.error,
@@ -349,10 +392,11 @@ def _fetch(url: str, session: requests.Session) -> tuple[int, str]:
 
 def _scrape_contacts(
     j: Jurisdiction, seeds: list[tuple[str, str]], session: requests.Session, batch_id: str,
-) -> tuple[list[dict[str, Any]], int]:
-    """Return (contact rows ready for insert, count of seed URLs that responded 200)."""
+) -> tuple[list[dict[str, Any]], int, dict[str, str]]:
+    """Return (contact rows, count of seed URLs that responded 200, html_by_url)."""
     rows_out: list[dict[str, Any]] = []
     ok = 0
+    html_by_url: dict[str, str] = {}
     scraped_at = datetime.now(timezone.utc).isoformat()
     for url, seed_kind in seeds:
         if _STOP.is_set():
@@ -361,6 +405,7 @@ def _scrape_contacts(
         if status != 200 or not html:
             continue
         ok += 1
+        html_by_url[url] = html
         classification = classify_contact_directory_page(url, html)
         rows = extract_structured_contacts_from_html(html, url)
         tagged_rows = tag_mayor_rows(rows, source_page_url=url)
@@ -387,7 +432,88 @@ def _scrape_contacts(
                 },
                 "scraped_at": scraped_at,
             })
-    return rows_out, ok
+    return rows_out, ok, html_by_url
+
+
+async def _download_jurisdiction_contact_images(
+    j: Jurisdiction,
+    html_by_url: dict[str, str],
+    contact_rows: list[dict[str, Any]],
+    *,
+    max_images_per_jurisdiction: int = 60,
+) -> list[dict[str, Any]]:
+    """
+    Pull profile-image jobs from every fetched HTML page, then download them under
+    ``jurisdiction_output_dir(j) / "_contact_images" / "{stem}.png"``.
+
+    Mutates ``contact_rows`` in place by setting ``raw_row['profile_image_filename']``
+    when an image was successfully saved that corresponds (by image_url) to a row.
+
+    Returns the per-job manifest from ``download_profile_images``.
+    """
+    if not html_by_url:
+        return []
+
+    # Collect image-extraction jobs across every fetched page; dedupe by image URL.
+    jobs: list[dict[str, Any]] = []
+    seen_image_urls: set[str] = set()
+    for url, html in html_by_url.items():
+        try:
+            page_jobs = extract_profile_image_jobs(html, url, max_jobs=80)
+        except Exception as exc:
+            logger.debug("[%s] image-job extract error on %s: %s", j.name, url, exc)
+            continue
+        for pj in page_jobs:
+            img_url = (pj.get("image_url") or "").strip()
+            if not img_url or img_url in seen_image_urls:
+                continue
+            seen_image_urls.add(img_url)
+            jobs.append({
+                "image_url": img_url,
+                "person_name": pj.get("person_name") or "",
+                "title_or_role": pj.get("title_or_role") or "",
+                "source_page_url": pj.get("source_page_url") or url,
+            })
+            if len(jobs) >= max_images_per_jurisdiction:
+                break
+        if len(jobs) >= max_images_per_jurisdiction:
+            break
+
+    if not jobs:
+        return []
+
+    out_dir = jurisdiction_output_dir(j) / "_contact_images"
+    referer = j.website_url or jobs[0].get("source_page_url") or ""
+    async with httpx.AsyncClient(
+        follow_redirects=True, timeout=60.0,
+        headers={"User-Agent": _USER_AGENT},
+    ) as client:
+        manifest = await download_profile_images(
+            client, jobs, out_dir,
+            referer=referer,
+            max_images=max_images_per_jurisdiction,
+            save_as_png=True,
+        )
+
+    # Index by image_url so we can stamp the filename back onto the matching contact row.
+    saved_by_url: dict[str, str] = {}
+    for entry in manifest:
+        fname = entry.get("saved_filename")
+        u = entry.get("image_url")
+        if fname and u:
+            saved_by_url[u] = fname
+
+    if saved_by_url:
+        for row in contact_rows:
+            raw = row.get("raw_row") or {}
+            img = (raw.get("profile_image_url") or "").strip()
+            if img and img in saved_by_url:
+                raw["profile_image_filename"] = saved_by_url[img]
+                # Also surface the local relative path for downstream queries
+                raw["profile_image_local_path"] = str((out_dir / saved_by_url[img]).resolve())
+                row["raw_row"] = raw
+
+    return manifest
 
 
 def _discover_youtube(j: Jurisdiction, session: requests.Session) -> list[dict[str, Any]]:
@@ -496,6 +622,7 @@ def _discover_youtube(j: Jurisdiction, session: requests.Session) -> list[dict[s
 
 def _process_one(
     j: Jurisdiction, batch_id: str, database_url: str, *, skip_youtube: bool,
+    skip_images: bool = False,
 ) -> JurisdictionResult:
     """Full pipeline for one jurisdiction. Catches everything; never raises."""
     result = JurisdictionResult(
@@ -536,8 +663,25 @@ def _process_one(
                 logger.debug("Found %d council members via Legistar", len(legistar_contacts))
 
         # Priority 2: Scrape website contacts
-        contact_rows, ok = _scrape_contacts(j, seeds, session, batch_id)
+        contact_rows, ok, html_by_url = _scrape_contacts(j, seeds, session, batch_id)
         result.seed_urls_succeeded = ok
+
+        # Download contact images BEFORE the DB insert so saved filenames can be stamped
+        # onto each row's raw_row payload. Images land at
+        # data/cache/scraped_meetings/{STATE}/{type}/{slug}_{geoid}/_contact_images/.
+        # Skip on opt-out, on stop signal, or when no HTML pages were fetched.
+        if not skip_images and not _STOP.is_set() and html_by_url:
+            try:
+                manifest = asyncio.run(
+                    _download_jurisdiction_contact_images(j, html_by_url, contact_rows)
+                )
+                saved = sum(1 for m in manifest if m.get("saved_filename"))
+                result.contact_images_saved = saved
+                if saved:
+                    logger.debug("[%s] saved %d contact image(s) to %s",
+                                 j.name, saved, jurisdiction_output_dir(j) / "_contact_images")
+            except Exception as exc:
+                logger.debug("[%s] image download failed: %s", j.name, exc)
 
         # Merge Legistar + scraped contacts (Legistar has priority)
         all_contacts = legistar_contacts + contact_rows
@@ -615,6 +759,11 @@ def main(argv: list[str] | None = None) -> int:
                    help="Resume an existing batch — already-completed jurisdictions are skipped.")
     p.add_argument("--skip-youtube", action="store_true")
     p.add_argument(
+        "--skip-images", action="store_true",
+        help="Don't download contact profile images (default: download to "
+             "data/cache/scraped_meetings/<STATE>/<type>/<slug>_<geoid>/_contact_images/).",
+    )
+    p.add_argument(
         "--min-channel-confidence", type=float, default=None,
         help=(
             "Drop YouTube rows with official_meeting_confidence below this threshold "
@@ -674,11 +823,15 @@ def main(argv: list[str] | None = None) -> int:
     _install_sigint_handler()
     start = time.monotonic()
     completed = 0
-    totals = {"contacts": 0, "mayors": 0, "youtube": 0, "youtube_filtered": 0, "errors": 0}
+    totals = {
+        "contacts": 0, "mayors": 0, "youtube": 0,
+        "youtube_filtered": 0, "images": 0, "errors": 0,
+    }
 
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
         futures = {
-            pool.submit(_process_one, j, batch_id, database_url, skip_youtube=args.skip_youtube): j
+            pool.submit(_process_one, j, batch_id, database_url,
+                        skip_youtube=args.skip_youtube, skip_images=args.skip_images): j
             for j in pending
         }
         for fut in as_completed(futures):
@@ -698,6 +851,7 @@ def main(argv: list[str] | None = None) -> int:
             totals["mayors"] += result.mayor_rows_inserted
             totals["youtube"] += result.youtube_inserted
             totals["youtube_filtered"] += result.youtube_filtered_out
+            totals["images"] += result.contact_images_saved
             if result.error:
                 totals["errors"] += 1
 
@@ -728,6 +882,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  of which mayor rows:   {totals['mayors']}")
     print(f"YouTube channels kept:   {totals['youtube']}")
     print(f"YouTube filtered out:    {totals['youtube_filtered']}  (confidence < {MIN_CHANNEL_CONFIDENCE:.2f})")
+    print(f"Contact images saved:    {totals['images']}  → data/cache/scraped_meetings/<STATE>/<type>/<slug>_<geoid>/_contact_images/")
     print(f"Errors:                  {totals['errors']}")
     print(f"Elapsed:                 {elapsed:.0f}s")
     print(f"Checkpoint file:         {_checkpoint_path(batch_id)}")
