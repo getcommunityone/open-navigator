@@ -49,6 +49,11 @@ _NON_PERSON_PHOTO_SUBJECT_RE = re.compile(
     r"|subscribe|newsletter|sign\s+up"
     r"|welcome\s+to|thank\s+you\s+for\s+visiting"
     r"|facebook\s+posts|instagram\s+feed|twitter\s+feed|social\s+media\s+feed"
+    r"|county\s+seal|site\s+logo|logo\b|icon\b|outline\b|calendar\s+icon"
+    r"|announcements?\b|meeting\s+agenda|meeting\s+minutes|archive\s+commission"
+    r"|job\s+opportunities|bid\s+advertisements?|car\s*[- ]?boat\s+tags"
+    r"|report\s+a\s+concern|tell\s+me\s+how\s+to|county\s+government"
+    r"|safe\s+streets|transportation\s+plan|veterans\s+service\s+office"
     r")\b",
 )
 
@@ -56,7 +61,9 @@ _NON_PERSON_NAME_LINE_RE = re.compile(
     r"(?is)\b("
     r"welcome|promote|growth|progress|hub|industry|shopping|entertainment|"
     r"connectivity|major\s+thoroughfares|central\s+to|southeast\s+georgia|"
-    r"click\s+here|learn\s+more|visit\s+our|discover|explore|community"
+    r"click\s+here|learn\s+more|visit\s+our|discover|explore|community|"
+    r"announcements?|county\s+government|county\s+seal|logo|icon|outline|"
+    r"agenda|minutes|archive|safe\s+streets|transportation|veterans\s+service"
     r")\b"
 )
 
@@ -607,7 +614,29 @@ def _looks_like_person_name_line(s: str) -> bool:
         return False
     if "@" in s:
         return False
-    if len(s.split()) > 8:
+    tokens = [t for t in re.findall(r"[A-Za-z]+", s)]
+    if len(tokens) > 5:
+        return False
+    descriptor_words = {
+        "icon",
+        "outline",
+        "calendar",
+        "announcements",
+        "announcement",
+        "agenda",
+        "minutes",
+        "archive",
+        "county",
+        "government",
+        "seal",
+        "logo",
+        "streets",
+        "transportation",
+        "service",
+        "office",
+    }
+    descriptor_hits = sum(1 for t in tokens if t.lower() in descriptor_words)
+    if descriptor_hits >= 2:
         return False
     letters = re.sub(r"[^A-Za-z]", "", s)
     if len(letters) < 4:

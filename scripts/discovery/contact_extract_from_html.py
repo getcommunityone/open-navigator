@@ -245,6 +245,22 @@ def extract_structured_contacts_from_html(
         if len(rows) >= max_rows:
             break
 
+    for dgr in extract_duda_gallery_staff_contacts_from_html(
+        html, page_url, max_rows=max(0, max_rows - len(rows))
+    ):
+        em = str(dgr.get("email") or "").lower()
+        if em and em in emails_seen:
+            continue
+        if em:
+            emails_seen.add(em)
+        k = _structured_contact_row_key(dgr)
+        if k in existing_keys:
+            continue
+        existing_keys.add(k)
+        rows.append(dgr)
+        if len(rows) >= max_rows:
+            break
+
     for er in extract_elementor_directory_contacts_from_html(
         html, page_url, max_rows=max(0, max_rows - len(rows))
     ):
@@ -727,6 +743,20 @@ def normalize_structured_contact_row(row: Dict[str, Any]) -> Dict[str, Any]:
 
     if raw_name and _SEND_EMAIL_LABEL_RE.match(raw_name):
         raw_name = ""
+
+    if (
+        raw_name
+        and _looks_like_person_name_line(raw_name)
+        and raw_title
+        and raw_dept
+        and not is_generic_district_label(raw_title)
+        and not is_generic_district_label(raw_dept)
+        and not _OFFICE_HONORIFIC_LINE_RE.match(raw_title)
+    ):
+        row["person_name"] = raw_name
+        row["title_or_role"] = raw_title
+        row["department"] = raw_dept
+        return row
 
     combined = raw_name
     district_hint = raw_dept or None
@@ -1461,6 +1491,92 @@ def extract_cityofwp_staff_cards_contacts_from_html(
                 "profile_image_url": profile_image_url or None,
                 "extraction_method": "cityofwp_staff_card",
                 "raw_row": {"page_url": page_url, "source": "li.mc-staff"},
+            }
+        )
+
+    return out
+
+
+def extract_duda_gallery_staff_contacts_from_html(
+    html: str,
+    page_url: str,
+    *,
+    max_rows: int = 120,
+) -> List[Dict[str, Any]]:
+    """Extract staff rows from Duda photo gallery cards with caption blocks."""
+    from bs4 import BeautifulSoup
+
+    out: List[Dict[str, Any]] = []
+    if not html or max_rows <= 0:
+        return out
+
+    soup = BeautifulSoup(html, "html.parser")
+    seen: Set[Tuple[str, str]] = set()
+
+    for card in soup.select("div.photoGalleryThumbs"):
+        if len(out) >= max_rows:
+            break
+
+        title_el = card.select_one(".caption-title")
+        text_el = card.select_one(".caption-text")
+        link_el = card.select_one(".image-container a[href]")
+        img_el = card.select_one(".image-container img")
+
+        name = re.sub(r"\s+", " ", title_el.get_text(" ", strip=True) or "").strip() if title_el else ""
+        if not name:
+            continue
+        if not _looks_like_person_name_line(name):
+            continue
+
+        role = None
+        department = None
+        if text_el is not None:
+            parts = [
+                re.sub(r"\s+", " ", p.get_text(" ", strip=True) or "").strip().replace("/ ", "/ ")
+                for p in text_el.find_all(["p", "div"])
+            ]
+            parts = [p for p in parts if p]
+            if parts:
+                role = parts[0][:512]
+            if len(parts) > 1:
+                department = parts[1][:512]
+
+        profile_url = None
+        if link_el is not None:
+            href = (link_el.get("href") or "").strip()
+            if href and not href.startswith("#"):
+                profile_url = urljoin(page_url, href)
+
+        profile_image_url = None
+        if link_el is not None:
+            bg = (link_el.get("data-image-url") or "").strip()
+            if bg:
+                profile_image_url = urljoin(page_url, bg)
+        if not profile_image_url and img_el is not None:
+            src = (
+                (img_el.get("data-src") or "").strip()
+                or (img_el.get("src") or "").strip()
+            )
+            if src:
+                profile_image_url = urljoin(page_url, src)
+
+        key = (name.lower(), (profile_url or "").lower())
+        if key in seen:
+            continue
+        seen.add(key)
+
+        out.append(
+            {
+                "person_name": name[:512],
+                "title_or_role": role,
+                "department": department,
+                "email": None,
+                "phone": None,
+                "mailing_address": None,
+                "profile_url": profile_url,
+                "profile_image_url": profile_image_url,
+                "extraction_method": "duda_photo_gallery_staff_card",
+                "raw_row": {"page_url": page_url, "source": "div.photoGalleryThumbs"},
             }
         )
 

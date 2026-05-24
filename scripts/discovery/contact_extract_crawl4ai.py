@@ -33,6 +33,7 @@ import json
 import os
 import re
 import sys
+import time
 from typing import List, Optional
 from urllib.parse import urljoin
 
@@ -347,6 +348,49 @@ def _ensure_litellm() -> "object":
     return litellm
 
 
+def _contact_ai_retry_attempts() -> int:
+    try:
+        return max(1, min(6, int((os.getenv("SCRAPED_CONTACT_AI_RETRY_ATTEMPTS") or "3").strip())))
+    except ValueError:
+        return 3
+
+
+def _contact_ai_retry_base_delay_s() -> float:
+    try:
+        return max(0.1, min(10.0, float((os.getenv("SCRAPED_CONTACT_AI_RETRY_BASE_DELAY_S") or "1.0").strip())))
+    except ValueError:
+        return 1.0
+
+
+def _contact_ai_retry_max_delay_s() -> float:
+    try:
+        return max(0.2, min(60.0, float((os.getenv("SCRAPED_CONTACT_AI_RETRY_MAX_DELAY_S") or "12.0").strip())))
+    except ValueError:
+        return 12.0
+
+
+def _looks_like_token_or_rate_limit_error(exc: Exception) -> bool:
+    s = str(exc).lower()
+    return (
+        "rate_limit" in s
+        or "rate limit" in s
+        or "tokens per minute" in s
+        or "request too large" in s
+        or "tpm" in s
+        or "too many requests" in s
+    )
+
+
+def _extract_retry_after_seconds(exc: Exception) -> float:
+    m = re.search(r"retry\s*after\s*(\d+(?:\.\d+)?)", str(exc), flags=re.I)
+    if not m:
+        return 0.0
+    try:
+        return max(0.0, min(120.0, float(m.group(1))))
+    except ValueError:
+        return 0.0
+
+
 def _call_llm_for_contacts(
     markdown: str,
     *,
@@ -378,10 +422,15 @@ def _call_llm_for_contacts(
             max_chars = 18_000
         else:
             max_chars = 30_000
-    if len(markdown) > max_chars:
-        head = int(max_chars * 0.7)
-        tail = max_chars - head
-        markdown = markdown[:head] + "\n\n... [TRUNCATED] ...\n\n" + markdown[-tail:]
+    def _truncate_markdown(src: str, limit: int) -> str:
+        if len(src) <= limit:
+            return src
+        head = int(limit * 0.7)
+        tail = limit - head
+        return src[:head] + "\n\n... [TRUNCATED] ...\n\n" + src[-tail:]
+
+    effective_max_chars = int(max_chars)
+    markdown = _truncate_markdown(markdown, effective_max_chars)
     schema = ContactRecord.model_json_schema()
     system_prompt = (
         f"{instruction}\n\n"
@@ -390,17 +439,46 @@ def _call_llm_for_contacts(
         f"ContactRecord matches this schema: {json.dumps(schema)}"
     )
     user_prompt = f"Source URL: {page_url}\n\nPage content (markdown):\n\n{markdown}"
-    resp = litellm.completion(  # type: ignore[attr-defined]
-        model=provider,
-        api_key=api_token,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        temperature=0.0,
-        max_tokens=2000,
-        response_format={"type": "json_object"},
-    )
+    retry_attempts = _contact_ai_retry_attempts()
+    retry_base_delay_s = _contact_ai_retry_base_delay_s()
+    retry_max_delay_s = _contact_ai_retry_max_delay_s()
+
+    resp = None
+    last_exc: Optional[Exception] = None
+    for attempt in range(1, retry_attempts + 1):
+        try:
+            resp = litellm.completion(  # type: ignore[attr-defined]
+                model=provider,
+                api_key=api_token,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                temperature=0.0,
+                max_tokens=2000,
+                response_format={"type": "json_object"},
+            )
+            break
+        except Exception as exc:
+            last_exc = exc
+            if attempt >= retry_attempts:
+                raise
+            # If rate/token constrained, shrink prompt and retry.
+            if _looks_like_token_or_rate_limit_error(exc):
+                effective_max_chars = max(3000, int(effective_max_chars * 0.75))
+                retry_user_prompt = _truncate_markdown(markdown, effective_max_chars)
+                user_prompt = f"Source URL: {page_url}\n\nPage content (markdown):\n\n{retry_user_prompt}"
+            retry_after = _extract_retry_after_seconds(exc)
+            delay_s = max(
+                retry_after,
+                min(retry_max_delay_s, retry_base_delay_s * (2 ** (attempt - 1))),
+            )
+            time.sleep(delay_s)
+
+    if resp is None:
+        if last_exc is not None:
+            raise last_exc
+        return ContactDirectory()
     raw = (resp["choices"][0]["message"]["content"] or "").strip()
     if not raw:
         return ContactDirectory()

@@ -161,12 +161,36 @@ async def _download_structured_profile_images(
         )
 
 
+def _cleanup_contact_image_dir(jurisdiction_dir: Path, rows: List[Dict[str, Any]]) -> int:
+    """Delete stale image files not referenced by the latest ``contact_profile_images`` rows."""
+    img_dir = jurisdiction_dir / "_contact_images"
+    if not img_dir.is_dir():
+        return 0
+    keep = {str(r.get("saved_filename") or "").strip() for r in rows}
+    keep.discard("")
+    deleted = 0
+    for p in img_dir.iterdir():
+        if not p.is_file():
+            continue
+        if p.name == "contacts.json":
+            continue
+        if p.name in keep:
+            continue
+        try:
+            p.unlink(missing_ok=True)
+            deleted += 1
+        except OSError:
+            continue
+    return deleted
+
+
 def refresh_jurisdiction_contacts(
     jurisdiction_dir: Path,
     *,
     page_url_contains: Optional[str] = None,
     seed_urls: Optional[List[str]] = None,
     replace_matching_pages: bool = False,
+    replace_all_structured_contacts: bool = False,
     download_profile_images_flag: bool = False,
     max_profile_images: int = 48,
     use_ai: bool = False,
@@ -304,7 +328,9 @@ def refresh_jurisdiction_contacts(
         contact_page_rows.append(extract_contacts_from_page(html, page_url))
 
     prior_sc = data.get("structured_contacts")
-    if replace_matching_pages and filter_sub and isinstance(prior_sc, list):
+    if replace_all_structured_contacts:
+        prior_sc = []
+    elif replace_matching_pages and filter_sub and isinstance(prior_sc, list):
         kept = [
             r
             for r in prior_sc
@@ -341,8 +367,9 @@ def refresh_jurisdiction_contacts(
                 max_images=max_profile_images,
             )
         )
-        if profile_dl:
-            data["contact_profile_images"] = profile_dl
+        # Replace old image rows even when empty so stale errors don't survive refresh runs.
+        data["contact_profile_images"] = profile_dl
+        _cleanup_contact_image_dir(jurisdiction_dir, profile_dl)
 
     data["contacts_refreshed_at"] = datetime.now(timezone.utc).isoformat()
     manifest_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
@@ -393,6 +420,11 @@ def main() -> None:
         "--replace-matching-pages",
         action="store_true",
         help="Drop prior structured_contacts rows whose source_page_url matches --page-url-contains before merge",
+    )
+    ap.add_argument(
+        "--replace-all-structured-contacts",
+        action="store_true",
+        help="Replace all prior structured_contacts with freshly extracted rows (full cleanup mode).",
     )
     ap.add_argument(
         "--download-profile-images",
@@ -450,6 +482,7 @@ def main() -> None:
         page_url_contains=args.page_url_contains or None,
         seed_urls=args.seed_url or None,
         replace_matching_pages=args.replace_matching_pages,
+        replace_all_structured_contacts=args.replace_all_structured_contacts,
         download_profile_images_flag=args.download_profile_images,
         max_profile_images=args.max_profile_images,
         use_ai=args.ai,

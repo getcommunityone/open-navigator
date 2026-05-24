@@ -61,6 +61,11 @@ def _is_probable_non_person_contact(row: Dict[str, Any]) -> bool:
 
     # Keep rows that have stronger person signals.
     if email or profile_url:
+        if email and not profile_url and not name and not title and not str(row.get("department") or "").strip():
+            return True
+        if not name and not title and not str(row.get("department") or "").strip() and email:
+            if is_generic_mailbox_email(email):
+                return True
         return False
 
     # Strong junk patterns observed on WordPress search pages.
