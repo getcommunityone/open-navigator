@@ -395,11 +395,19 @@ Some states require special setup or API credentials to access their legislative
 - Coverage: All 50 states, historical measures back to 1990s
 - Used for: Tracking fluoridation votes, school bond measures, health policy propositions
 
+**Our implementation:**
+- Scraper core: [scripts/datasources/ballotpedia/ballotpedia_integration.py](scripts/datasources/ballotpedia/ballotpedia_integration.py) — httpx with Playwright fallback; jurisdiction and state ballot-measure page parsers.
+- Downloader: [scripts/datasources/ballotpedia/download_ballotpedia_measures.py](scripts/datasources/ballotpedia/download_ballotpedia_measures.py) — bulk-scrapes state and local ballot-measure pages into `data/cache/ballotpedia/`.
+- Bronze schema: [scripts/deployment/neon/migrations/057_create_bronze_ballotpedia_measures.sql](scripts/deployment/neon/migrations/057_create_bronze_ballotpedia_measures.sql) — NIST-aligned `bronze.bronze_ballotpedia_measures`.
+- Loader: [scripts/datasources/ballotpedia/load_ballotpedia_measures_to_bronze.py](scripts/datasources/ballotpedia/load_ballotpedia_measures_to_bronze.py) — maps cache JSON into bronze, resolves `ocd_division_id`.
+- External links bronze: [scripts/deployment/neon/migrations/055_bronze_ballotpedia_external_links.sql](scripts/deployment/neon/migrations/055_bronze_ballotpedia_external_links.sql) — outbound links from Ballotpedia article pages.
+- dbt: [dbt_project/models/bronze/bronze_ballot_measures_nist.sql](dbt_project/models/bronze/bronze_ballot_measures_nist.sql) unions Ballotpedia measures with VIP and AI-extracted sources.
+
 ### **Power BI Ballot Measures Dashboard** (public embed)
 - Public Power BI report aggregating U.S. state and local ballot measures — headline KPI lists **9,670 ballot measures** at last scrape (2026-05-24).
 - Embed URL: https://app.powerbi.com/view?r=eyJrIjoiYjEwNDI2NTctZDFkMy00ZGM4LWFkMTItNTcwYTdkZmMxMGIxIiwidCI6IjM4MmZiOGIwLTRkYzMtNDEwNy04MGJkLTM1OTViMjQzMmZhZSIsImMiOjZ9
 - Power BI resource key: `b1042657-d1d3-4dc8-ad12-570a7dfc10b1` (tenant `382fb8b0-4dc3-4107-80bd-3595b2432fae`, cluster 6).
-- Publisher: not disclosed in the public embed token; the embed token only exposes the tenant GUID and the resource ID. **TODO:** confirm publisher / data steward with the link source and update this entry with their citation preference.
+- Publisher / data steward: not named on the public embed. The semantic model uses an **“All Years Table”** entity (state, year, title, measure type, topic, election, pass/fail, vote share). Treat as third-party civic data until the link source confirms attribution; update this entry when the steward is known.
 - License: not stated on the embed. Treat as the publisher's intellectual property; we only retain the scraped CSV under `data/cache/powerbi_ballot_measures/` for derivative analytics, not redistribution.
 - Used for: cross-referencing third-party ballot-measure aggregates against our own bronze tables (`bronze.bronze_elections_scraped`, `bronze.bronze_ballot_measures_nist`) and as a count-of-record sanity check.
 

@@ -300,13 +300,16 @@ class BallotpediaDiscovery:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.user_agent = user_agent
         self.session = None
-        self.max_retries = 4
+        self.max_retries = int(os.getenv("BALLOTPEDIA_HTTP_RETRIES", "4"))
         self.base_backoff_seconds = 2.0
+        # Ballotpedia often returns HTTP 202 (Cloudflare async) to httpx; retrying 4× wastes ~30s.
+        self.httpx_202_fast_escalate = os.getenv("BALLOTPEDIA_HTTP_202_FAST_ESCALATE", "1").strip().lower() not in {"0", "false", "no"}
         self.use_playwright_fallback = os.getenv("BALLOTPEDIA_USE_PLAYWRIGHT", "1").strip().lower() not in {"0", "false", "no"}
         # Default httpx-first: Playwright is slower and often blocked headless; escalate only on challenge.
         self.playwright_only = os.getenv("BALLOTPEDIA_PLAYWRIGHT_ONLY", "0").strip().lower() not in {"0", "false", "no"}
-        self.playwright_timeout_ms = int(os.getenv("BALLOTPEDIA_PLAYWRIGHT_TIMEOUT_MS", "60000"))
+        self.playwright_timeout_ms = int(os.getenv("BALLOTPEDIA_PLAYWRIGHT_TIMEOUT_MS", "90000"))
         self.inter_request_delay = float(os.getenv("BALLOTPEDIA_INTER_REQUEST_DELAY", "2.0"))
+        self.state_scrape_delay = float(os.getenv("BALLOTPEDIA_STATE_DELAY", "10.0"))
         self.playwright_content_retries = int(os.getenv("BALLOTPEDIA_PLAYWRIGHT_CONTENT_RETRIES", "3"))
         # Supported values: new (default), legacy, headed (or false/0/no/off)
         self.playwright_headless_mode = os.getenv("BALLOTPEDIA_PLAYWRIGHT_HEADLESS_MODE", "new").strip().lower()
@@ -325,6 +328,8 @@ class BallotpediaDiscovery:
         self._context = None
         self._page = None
         self._playwright_lock = asyncio.Lock()
+        self._playwright_warmed_up = False
+        self._last_playwright_error: str | None = None
 
     # Word-boundary-anchored markers. The substring ``captcha`` previously matched
     # the literal ``recaptcha`` that Ballotpedia loads on every page via Google's
@@ -380,6 +385,27 @@ class BallotpediaDiscovery:
         return ""
 
     @classmethod
+    def _is_empty_but_valid_article(cls, html: str) -> bool:
+        """True when Ballotpedia returned a real (possibly empty) article shell, not a bot block."""
+        if not html:
+            return False
+        try:
+            soup = BeautifulSoup(html, "html.parser")
+        except Exception:
+            return False
+        if soup.select_one(".noarticletext, .mw-empty-article"):
+            return True
+        title = cls._page_title_from_html(html)
+        if not title or "ballotpedia" not in title.lower():
+            return False
+        if soup.select_one("#firstHeading, .mw-page-title-main, h1.firstHeading"):
+            body_len = len(cls._article_body_text(html))
+            if body_len < cls._ARTICLE_BODY_MIN_TEXT:
+                # Real page title + heading but thin body (empty year page, stub, etc.)
+                return True
+        return False
+
+    @classmethod
     def _is_challenge_html(cls, html: str) -> bool:
         """
         Detect non-article responses. The MediaWiki shell (header, footer, search box,
@@ -396,7 +422,10 @@ class BallotpediaDiscovery:
 
         Real article pages produce 20KB+ of body text and are accepted even if the
         site loads reCAPTCHA JS (which it does on every page for the correction form).
+        Empty-but-valid article pages (``noarticletext``, year stubs) are accepted.
         """
+        if cls._is_empty_but_valid_article(html):
+            return False
         body_text = cls._article_body_text(html)
         if len(body_text) < cls._ARTICLE_BODY_MIN_TEXT:
             return True
@@ -525,7 +554,7 @@ class BallotpediaDiscovery:
                     "Referer": "https://ballotpedia.org/",
                 },
                 follow_redirects=True,
-                http2=True,
+                http2=False,
             )
         return self.session
     
@@ -569,7 +598,7 @@ class BallotpediaDiscovery:
         for attempt in range(1, self.max_retries + 1):
             try:
                 # Rate limiting - be respectful and add light jitter.
-                await asyncio.sleep(1.5 + random.random())
+                await asyncio.sleep(self.inter_request_delay + random.random())
                 response = await session.get(url)
                 status_history.append({"attempt": attempt, "status": response.status_code})
 
@@ -585,6 +614,12 @@ class BallotpediaDiscovery:
 
                 if response.status_code in (202, 429, 503):
                     saw_challenge_status = True
+                    if self.httpx_202_fast_escalate and response.status_code == 202 and self.use_playwright_fallback:
+                        if self.debug_verbose:
+                            logger.debug(
+                                f"HTTP 202 for {url}; fast-escalating to Playwright (skip httpx retries)"
+                            )
+                        break
                     retry_after_raw = response.headers.get("Retry-After")
                     retry_after = float(retry_after_raw) if retry_after_raw and retry_after_raw.isdigit() else 0.0
                     backoff = max(retry_after, self.base_backoff_seconds * (2 ** (attempt - 1)))
@@ -652,11 +687,17 @@ class BallotpediaDiscovery:
                         except Exception:
                             pass
 
+            pw_hint = ""
+            if not PLAYWRIGHT_AVAILABLE:
+                pw_hint = " (playwright package not importable — pip install playwright && playwright install chromium)"
+            elif not pw_artifacts and self._last_playwright_error:
+                pw_hint = f" (playwright: {self._last_playwright_error})"
+
             report_path = self._write_fetch_debug_report(
                 url=url,
                 report_type="challenge_blocked",
                 status_history=status_history,
-                error="challenge_or_bot_block_after_retries",
+                error=(self._last_playwright_error or "challenge_or_bot_block_after_retries") + pw_hint,
                 challenge_markers=markers,
                 final_page_title=final_title,
                 playwright_used=True,
@@ -671,6 +712,7 @@ class BallotpediaDiscovery:
                 challenge_markers=markers,
                 playwright_artifacts=[str(path) for path in pw_artifacts],
             )
+            await self._close_playwright()
         elif saw_challenge_status and not self.use_playwright_fallback:
             report_path = self._write_fetch_debug_report(
                 url=url,
@@ -701,24 +743,46 @@ class BallotpediaDiscovery:
         return None
 
     async def _fetch_page_with_playwright(self, url: str) -> tuple[Optional[str], List[Path]]:
+        self._last_playwright_error = None
         if not PLAYWRIGHT_AVAILABLE:
-            logger.warning("Playwright fallback requested but playwright is not installed")
+            self._last_playwright_error = "playwright_not_installed"
+            logger.warning(
+                "Playwright fallback requested but playwright is not installed. "
+                "Run: pip install playwright && playwright install chromium"
+            )
             return None, []
 
         logger.info(f"Trying Playwright fallback for {url}")
+        artifacts: List[Path] = []
+        page = None
         try:
             page = await self._get_playwright_page()
-            await page.goto(url, wait_until="commit", timeout=self.playwright_timeout_ms)
-            await page.wait_for_selector("body", timeout=self.playwright_timeout_ms)
-
             content = ""
-            for _ in range(4):
-                try:
-                    await page.wait_for_load_state("networkidle", timeout=10000)
-                except Exception:
-                    pass
-                await page.wait_for_timeout(2500)
-                content = await page.content()
+            for attempt in range(1, max(1, self.playwright_content_retries) + 1):
+                if attempt > 1:
+                    logger.info(f"Playwright reload attempt {attempt}/{self.playwright_content_retries} for {url}")
+                    await page.reload(wait_until="commit", timeout=self.playwright_timeout_ms)
+                else:
+                    await page.goto(url, wait_until="commit", timeout=self.playwright_timeout_ms)
+                await page.wait_for_selector("body", timeout=self.playwright_timeout_ms)
+
+                for _ in range(5):
+                    try:
+                        await page.wait_for_load_state("networkidle", timeout=12000)
+                    except Exception:
+                        pass
+                    try:
+                        await page.wait_for_selector(
+                            "#mw-content-text, .mw-parser-output, #bodyContent",
+                            timeout=8000,
+                        )
+                    except Exception:
+                        pass
+                    await page.wait_for_timeout(3000)
+                    content = await page.content()
+                    if content and not self._is_challenge_html(content):
+                        break
+
                 if content and not self._is_challenge_html(content):
                     break
 
@@ -729,20 +793,56 @@ class BallotpediaDiscovery:
                 logger.warning(
                     f"Playwright fetched challenge page for {url} (final_url={final_url}, title={title})"
                 )
+                self._last_playwright_error = f"challenge_page title={title!r}"
                 artifacts = await self._save_playwright_artifacts(page, url, "challenge")
                 return None, artifacts
 
             logger.info(f"Playwright fallback succeeded for {url} (final_url={final_url})")
             return content, []
         except Exception as exc:
+            self._last_playwright_error = str(exc)
             logger.warning(f"Playwright fallback failed for {url}: {exc}")
-            artifacts: List[Path] = []
+            if "Executable doesn't exist" in str(exc) or "playwright install" in str(exc).lower():
+                logger.error(
+                    "Chromium browser missing. Run from repo root: "
+                    "./.venv/bin/playwright install chromium"
+                )
             try:
-                page = await self._get_playwright_page()
+                if page is None:
+                    page = await self._get_playwright_page()
                 artifacts = await self._save_playwright_artifacts(page, url, "exception")
+            except Exception as save_exc:
+                logger.warning(f"Could not save Playwright failure artifacts: {save_exc}")
+            return None, artifacts
+
+    async def _close_playwright(self) -> None:
+        """Tear down browser so the next fetch gets a fresh context (helps after blocks)."""
+        async with self._playwright_lock:
+            try:
+                if self._page:
+                    await self._page.close()
             except Exception:
                 pass
-            return None, artifacts
+            self._page = None
+            try:
+                if self._context:
+                    await self._context.close()
+            except Exception:
+                pass
+            self._context = None
+            try:
+                if self._browser:
+                    await self._browser.close()
+            except Exception:
+                pass
+            self._browser = None
+            try:
+                if self._pw:
+                    await self._pw.stop()
+            except Exception:
+                pass
+            self._pw = None
+            self._playwright_warmed_up = False
 
     async def _get_playwright_page(self):
         async with self._playwright_lock:
@@ -780,6 +880,20 @@ class BallotpediaDiscovery:
                     logger.warning(f"playwright-stealth installed but failed to apply stealth patches: {exc}")
             else:
                 logger.warning("playwright-stealth is not installed; running Playwright fallback without stealth patches")
+
+            if not self._playwright_warmed_up:
+                try:
+                    logger.info("Playwright warmup: visiting Ballotpedia main page")
+                    await self._page.goto(
+                        f"{self.BASE_URL}/Main_Page",
+                        wait_until="commit",
+                        timeout=self.playwright_timeout_ms,
+                    )
+                    await self._page.wait_for_timeout(2500)
+                    self._playwright_warmed_up = True
+                except Exception as exc:
+                    logger.warning(f"Playwright warmup failed (continuing anyway): {exc}")
+
             return self._page
     
     async def search_leader(self, name: str, state: Optional[str] = None) -> Optional[Dict]:
@@ -1011,14 +1125,22 @@ class BallotpediaDiscovery:
                 if not name_txt:
                     continue
                 link = cells[name_idx].find("a")
-                measure_url = (f"{self.BASE_URL}{link['href']}"
-                               if link and link.get("href", "").startswith("/")
-                               else None)
+                measure_url = None
+                if link and link.get("href"):
+                    href = link["href"].strip()
+                    if href.startswith("http"):
+                        measure_url = href
+                    elif href.startswith("/"):
+                        measure_url = f"{self.BASE_URL}{href}"
+                outcome = cells[status_idx].get_text(" ", strip=True)
                 out.append({
                     "measure_title": name_txt,
-                    "measure_outcome": cells[status_idx].get_text(" ", strip=True),
+                    "measure_name": name_txt,
+                    "measure_outcome": outcome,
+                    "status": outcome,
                     "jurisdiction": jurisdiction,
                     "state": state,
+                    "scope": "jurisdiction",
                     "source": "ballotpedia",
                     "source_url": url,
                     "measure_url": measure_url,
@@ -1129,63 +1251,123 @@ class BallotpediaDiscovery:
         soup = BeautifulSoup(html, 'html.parser')
         measures = []
         
-        # Look for tables with ballot measures
         for table in soup.find_all('table'):
-            # Skip infoboxes
-            if 'infobox' in table.get('class', []):
+            cls_list = table.get('class') or []
+            if any('infobox' in c.lower() for c in cls_list):
                 continue
-            
-            # Process table rows
-            for row in table.find_all('tr')[1:]:  # Skip header
-                cells = row.find_all('td')
-                if len(cells) >= 2:
-                    measure_name = cells[0].get_text(strip=True)
-                    measure_status = cells[1].get_text(strip=True) if len(cells) > 1 else None
-                    
-                    # Extract measure link
-                    link = cells[0].find('a')
-                    measure_url = f"{self.BASE_URL}{link['href']}" if link and link.get('href') else None
-                    
-                    measures.append({
-                        "measure_name": measure_name,
-                        "status": measure_status,
-                        "state": state,
-                        "year": year,
-                        "measure_url": measure_url,
-                        "source": "ballotpedia",
-                        "scraped_at": datetime.utcnow().isoformat()
-                    })
+            rows = table.find_all('tr')
+            if len(rows) < 2:
+                continue
+            headers = [c.get_text(' ', strip=True).lower()
+                       for c in rows[0].find_all(['th', 'td'])]
+            name_idx = next((i for i, h in enumerate(headers)
+                             if any(k in h for k in ('measure', 'title', 'ballot', 'name', 'description'))), None)
+            type_idx = next((i for i, h in enumerate(headers)
+                             if any(k in h for k in ('type', 'classification'))), None)
+            status_idx = next((i for i, h in enumerate(headers)
+                               if any(k in h for k in ('outcome', 'status', 'result'))), None)
+            year_idx = next((i for i, h in enumerate(headers)
+                             if 'year' in h or 'date' in h or 'election' in h), None)
+
+            if name_idx is None and len(headers) >= 2:
+                # Legacy 2-column tables: col0=type/code, col1=title
+                type_idx, name_idx = 0, 1
+
+            for tr in rows[1:]:
+                cells = tr.find_all(['td', 'th'])
+                if not cells:
+                    continue
+                if name_idx is not None and len(cells) <= name_idx:
+                    continue
+                title_txt = cells[name_idx].get_text(' ', strip=True) if name_idx is not None else ''
+                type_txt = cells[type_idx].get_text(' ', strip=True) if type_idx is not None and len(cells) > type_idx else None
+                status_txt = cells[status_idx].get_text(' ', strip=True) if status_idx is not None and len(cells) > status_idx else None
+                year_txt = cells[year_idx].get_text(' ', strip=True) if year_idx is not None and len(cells) > year_idx else None
+
+                # When col0 is a short type code (LRCA, CI) and col1 is the long title, prefer col1.
+                if type_txt and title_txt and len(type_txt) <= 6 and len(title_txt) > len(type_txt):
+                    measure_title, measure_type = title_txt, type_txt
+                elif title_txt:
+                    measure_title, measure_type = title_txt, type_txt
+                elif status_txt:
+                    measure_title, measure_type = status_txt, type_txt
+                else:
+                    continue
+
+                link = cells[name_idx].find('a') if name_idx is not None and len(cells) > name_idx else None
+                measure_url = None
+                if link and link.get('href'):
+                    href = link['href'].strip()
+                    if href.startswith('http'):
+                        measure_url = href
+                    elif href.startswith('/'):
+                        measure_url = f"{self.BASE_URL}{href}"
+
+                measures.append({
+                    "measure_name": measure_title,
+                    "measure_title": measure_title,
+                    "measure_type": measure_type,
+                    "status": status_txt or measure_type,
+                    "measure_outcome": status_txt,
+                    "state": state,
+                    "year": str(year) if year is not None else (year_txt or None),
+                    "scope": "state",
+                    "source_url": url,
+                    "measure_url": measure_url,
+                    "source": "ballotpedia",
+                    "scraped_at": datetime.utcnow().isoformat(),
+                })
         
         logger.info(f"✅ Found {len(measures)} ballot measures for {state} ({year or 'all years'})")
         return measures
     
     async def close(self):
-        """Close HTTP session."""
+        """Close HTTP session and Playwright browser."""
         if self.session:
             await self.session.aclose()
-        async with self._playwright_lock:
-            if self._page:
-                await self._page.close()
-                self._page = None
-            if self._context:
-                await self._context.close()
-                self._context = None
-            if self._browser:
-                await self._browser.close()
-                self._browser = None
-            if self._pw:
-                await self._pw.stop()
-                self._pw = None
+            self.session = None
+        await self._close_playwright()
     
     def save_to_json(self, data: List[Dict], filename: str):
         """Save data to JSON cache."""
-        import json
-        
         filepath = self.cache_dir / filename
-        with open(filepath, 'w') as f:
+        with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2)
         
         logger.info(f"💾 Saved {len(data)} records to {filepath}")
+        return filepath
+
+    def save_measures_snapshot(
+        self,
+        measures: List[Dict],
+        *,
+        state_code: str,
+        scope: str,
+        jurisdiction_id: str | None = None,
+        election_year: str | None = None,
+    ) -> Path:
+        """Write a timestamped ballot-measures JSON file under the cache tree."""
+        ts = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+        year_suffix = f"_{election_year}" if election_year else ""
+        if scope == "state":
+            rel = Path(state_code.upper()) / "state" / f"state_ballot_measures{year_suffix}_{ts}.json"
+        else:
+            jkey = jurisdiction_id or "unknown"
+            rel = Path(state_code.upper()) / "municipality" / f"{jkey}_ballot_measures{year_suffix}_{ts}.json"
+        filepath = self.cache_dir / rel
+        filepath.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "state_code": state_code.upper(),
+            "scope": scope,
+            "jurisdiction_id": jurisdiction_id,
+            "election_year": election_year,
+            "scraped_at": datetime.utcnow().isoformat() + "Z",
+            "measure_count": len(measures),
+            "measures": measures,
+        }
+        filepath.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        logger.info(f"💾 Saved {len(measures)} ballot measure(s) → {filepath}")
+        return filepath
     
     def save_to_bronze_layer(
         self,

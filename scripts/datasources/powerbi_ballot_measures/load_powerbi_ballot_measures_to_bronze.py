@@ -102,19 +102,19 @@ def _norm(col: str) -> str:
 
 
 COLUMN_ALIASES: dict[str, list[str]] = {
-    "measure_id":        ["measureid", "id", "ballotmeasureid", "ocdid"],
-    "measure_title":     ["measuretitle", "title", "measurename", "name", "ballotmeasure", "measure"],
-    "measure_summary":   ["measuresummary", "summary", "description", "ballotsummary"],
-    "measure_type":      ["measuretype", "type", "classification", "ballottype"],
+    "measure_id":        ["measureid", "id", "ballotmeasureid", "ocdid", "g10"],
+    "measure_title":     ["measuretitle", "title", "measurename", "name", "ballotmeasure", "measure", "g2"],
+    "measure_summary":   ["measuresummary", "summary", "description", "ballotsummary", "g3"],
+    "measure_type":      ["measuretype", "type", "classification", "ballottype", "irtypedefinition", "g4", "ballottypecombined", "g9"],
     "state_code":        ["statecode", "stateabbreviation", "stateabbr", "st"],
-    "state":             ["state", "statename"],
+    "state":             ["state", "statename", "statename1", "g0"],
     "jurisdiction_name": ["jurisdiction", "jurisdictionname", "locality", "city", "county"],
     "election_date":     ["electiondate", "date", "votedate"],
-    "election_year":     ["electionyear", "year"],
-    "outcome":           ["outcome", "result", "status", "passfail"],
+    "election_year":     ["electionyear", "year", "g1"],
+    "outcome":           ["outcome", "result", "status", "passfail", "passfailcalculation", "g7"],
     "yes_count":         ["yescount", "yesvotes", "votesyes", "yes"],
     "no_count":          ["nocount", "novotes", "votesno", "no"],
-    "yes_percent":       ["yespercent", "yespct", "percentyes", "approval"],
+    "yes_percent":       ["yespercent", "yespct", "percentyes", "approval", "percentagevote", "g8"],
     "source_url":        ["sourceurl", "url", "link", "ballotpediaurl"],
 }
 

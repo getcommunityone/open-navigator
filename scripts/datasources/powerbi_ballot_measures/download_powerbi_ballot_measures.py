@@ -6,20 +6,19 @@ Approach
 --------
 Public Power BI reports (``app.powerbi.com/view?r=<token>``) fetch every
 visual's data by POSTing to ``<cluster>/public/reports/querydata``. We
-launch the report in Playwright, intercept those XHR responses, and parse
-the Power BI DSR (DataShape Result) payloads into rows. This is far more
-reliable than DOM-scraping virtualized tables of 9k+ rows.
+launch the report in Playwright, capture the main table's query template
+(headers + POST body), then page through the full dataset with
+``Window.RestartTokens`` (500 rows per request). Each response is Power BI
+DSR (DataShape Result) JSON — not DOM scraping.
 
 After capture, the script:
   1. Saves every raw querydata response to ``data/cache/powerbi_ballot_measures/raw/``.
-  2. Picks the response whose row count is closest to ``--expected-count``
-     (default 9670 — the headline KPI on the dashboard).
-  3. Writes the chosen response as a CSV next to the raw payloads.
+  2. Merges all table pages into one CSV (deduped by row content).
+  3. Asserts the row count matches ``--expected-count`` (default 9670).
 
 Usage
 -----
     python scripts/datasources/powerbi_ballot_measures/download_powerbi_ballot_measures.py \
-        --url "https://app.powerbi.com/view?r=<token>" \
         --expected-count 9670
 
     # Re-parse already-captured raw payloads without re-scraping:
@@ -56,65 +55,36 @@ CACHE_DIR = _ROOT / "data" / "cache" / "powerbi_ballot_measures"
 RAW_DIR = CACHE_DIR / "raw"
 
 QUERYDATA_PATH_RE = re.compile(r"/public/reports/querydata", re.IGNORECASE)
+TABLE_QUERY_MARKER = "All Years Table.StateName"
+MIN_TABLE_COLUMNS = 10
+PAGE_SIZE = 500
 
 
 # ---------------------------------------------------------------------------
 # DSR (DataShape Result) parsing
 # ---------------------------------------------------------------------------
-#
-# Power BI's querydata response is a deeply nested object. A typical shape:
-#
-# {
-#   "results": [
-#     {
-#       "result": {
-#         "data": {
-#           "descriptor": {"Select": [{"Name": "Table.Col", "Value": "Col"}, ...]},
-#           "dsr": {
-#             "DS": [
-#               {
-#                 "PH": [
-#                   {"DM0": [
-#                       {"C": [val0, val1, ...], "R": 0, "Ø": 4},
-#                       ...
-#                   ]}
-#                 ],
-#                 "ValueDicts": {"D0": ["str1", ...], ...}
-#               }
-#             ]
-#           }
-#         }
-#       }
-#     }
-#   ]
-# }
-#
-# Cells use bit-packing:
-#   * "R" (Repeat)   — bit N set means "reuse column N's value from the previous row".
-#   * "Ø" (Null)     — bit N set means "column N is null".
-#   * Dictionary refs are resolved by checking each column's "DN" hint in
-#     descriptor.Select[N].Variations or by looking up integer values in
-#     ValueDicts when the column is dictionary-encoded.
-#
-# We implement a pragmatic decoder that handles the common case (table
-# visuals with no nested groupings).
+
+
+def _friendly_column_name(entry: dict[str, Any]) -> str:
+    """Prefer NativeReferenceName, then strip ``Entity.`` from Name."""
+    native = entry.get("NativeReferenceName")
+    if native:
+        return str(native)
+    name = entry.get("Name") or entry.get("Value") or ""
+    if isinstance(name, str) and "." in name:
+        return name.rsplit(".", 1)[-1]
+    return str(name)
 
 
 def _extract_columns(descriptor: dict[str, Any]) -> list[str]:
-    """Return user-facing column names from the descriptor."""
     cols: list[str] = []
     for entry in descriptor.get("Select", []) or []:
-        # Prefer the friendly "Value" alias, then "Name", then the bare expression.
-        name = entry.get("Value") or entry.get("Name") or entry.get("Expr") or ""
-        if isinstance(name, dict):
-            name = name.get("Property") or json.dumps(name, sort_keys=True)
-        cols.append(str(name))
+        cols.append(_friendly_column_name(entry))
     return cols
 
 
 def _resolve_cell(raw: Any, col_idx: int, value_dicts: dict[str, list[Any]],
                   dict_keys: list[str | None]) -> Any:
-    """Resolve a packed cell value, expanding dictionary references."""
     if raw is None:
         return None
     dict_key = dict_keys[col_idx] if col_idx < len(dict_keys) else None
@@ -126,23 +96,13 @@ def _resolve_cell(raw: Any, col_idx: int, value_dicts: dict[str, list[Any]],
 
 
 def _column_dict_keys(ds: dict[str, Any], n_cols: int) -> list[str | None]:
-    """For each output column, return the ValueDicts key (e.g. ``"D0"``) or None.
-
-    DSR encodes this in ``SH[0].DataShapes[0]`` or in ``ValueDicts`` keys whose
-    column order mirrors ``descriptor.Select``. We use a best-effort heuristic:
-    if there are exactly ``n_cols`` dict buckets ``D0..D{n-1}``, assume positional
-    mapping. Otherwise return None for unmapped columns.
-    """
     value_dicts = ds.get("ValueDicts") or {}
     keys = [f"D{i}" for i in range(n_cols)]
     return [k if k in value_dicts else None for k in keys]
 
 
 def parse_dsr(payload: dict[str, Any]) -> list[tuple[list[str], list[list[Any]]]]:
-    """Parse one querydata payload into ``[(columns, rows), ...]`` per result.
-
-    Returns an empty list if the payload has no tabular DSR data.
-    """
+    """Parse one querydata payload into ``[(columns, rows), ...]`` per result."""
     out: list[tuple[list[str], list[list[Any]]]] = []
     for result in payload.get("results", []) or []:
         data = (result.get("result") or {}).get("data") or {}
@@ -157,7 +117,6 @@ def parse_dsr(payload: dict[str, Any]) -> list[tuple[list[str], list[list[Any]]]
             rows: list[list[Any]] = []
             prev_row: list[Any] = [None] * len(columns)
             for ph in ds.get("PH", []) or []:
-                # Each PH (PrimaryHierarchy) carries one or more DM (DataModel) arrays.
                 for dm_key, dm_rows in ph.items():
                     if not dm_key.startswith("DM"):
                         continue
@@ -185,97 +144,200 @@ def parse_dsr(payload: dict[str, Any]) -> list[tuple[list[str], list[list[Any]]]
     return out
 
 
-# ---------------------------------------------------------------------------
-# Playwright capture
-# ---------------------------------------------------------------------------
-async def _capture(url: str, raw_dir: Path, *, headless: bool, idle_seconds: float,
-                   max_seconds: float) -> list[Path]:
-    """Open the Power BI URL and persist every querydata response to ``raw_dir``."""
-    raw_dir.mkdir(parents=True, exist_ok=True)
-    captured: list[Path] = []
-    last_capture_at = [asyncio.get_event_loop().time()]
-    counter = [0]
+def _is_table_payload(payload: dict[str, Any]) -> bool:
+    return TABLE_QUERY_MARKER in json.dumps(payload)
 
+
+def _best_table_parse(payload: dict[str, Any]) -> tuple[list[str], list[list[Any]]] | None:
+    best: tuple[list[str], list[list[Any]]] | None = None
+    for cols, rows in parse_dsr(payload):
+        if len(cols) < MIN_TABLE_COLUMNS or not rows:
+            continue
+        if best is None or len(rows) > len(best[1]):
+            best = (cols, rows)
+    return best
+
+
+def _sql_literal(value: Any) -> str:
+    if value is None or value == "":
+        return "''"
+    if isinstance(value, float):
+        return f"{value}D"
+    if isinstance(value, int):
+        return str(value)
+    escaped = str(value).replace("'", "''")
+    return f"'{escaped}'"
+
+
+def _restart_literal(value: Any) -> str:
+    """Power BI ``RestartTokens`` use bare ``null`` for missing values, not ``''``."""
+    if value is None or value == "":
+        return "null"
+    return _sql_literal(value)
+
+
+def _ballot_restart_token(row: list[Any]) -> str:
+    """Last RestartToken column — ballot label (e.g. ``Proposition 119``)."""
+    if len(row) > 9 and row[9] not in (None, ""):
+        return _restart_literal(row[9])
+    if len(row) > 10 and row[10] not in (None, ""):
+        return _restart_literal(row[10])
+    return "null"
+
+
+def restart_tokens_from_row(row: list[Any]) -> list[list[str]]:
+    """Build ``RestartTokens`` for the next 500-row window (11 value columns)."""
+    if len(row) < 8:
+        raise ValueError(f"row too short for RestartTokens: {row!r}")
+    pct = row[8] if len(row) > 8 else None
+    tokens = [
+        _restart_literal(row[0]),
+        _restart_literal(row[1]),
+        _restart_literal(row[2]),
+        _restart_literal(row[3]),
+        _restart_literal(row[4]),
+        _restart_literal(row[5]),
+        _restart_literal(row[6]),
+        _restart_literal(row[7]),
+        _restart_literal(pct),
+        "''",
+        _ballot_restart_token(row),
+    ]
+    return [tokens]
+
+
+# ---------------------------------------------------------------------------
+# Playwright: capture session + paginate querydata XHR
+# ---------------------------------------------------------------------------
+async def _paginate_table(
+    context,
+    url: str,
+    headers: dict[str, str],
+    base_body: dict[str, Any],
+    raw_dir: Path,
+    *,
+    expected_count: int,
+    max_pages: int,
+) -> tuple[list[str], list[list[Any]]]:
+    """Fetch all table pages via RestartTokens; save each raw JSON response."""
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    merged: dict[tuple[str, ...], list[Any]] = {}
+    columns: list[str] = []
+    restart: list[list[str]] | None = None
+
+    for page_num in range(max_pages):
+        body = json.loads(json.dumps(base_body))
+        cmd = body["queries"][0]["Query"]["Commands"][0]["SemanticQueryDataShapeCommand"]
+        window: dict[str, Any] = {"Count": PAGE_SIZE}
+        if restart:
+            window["RestartTokens"] = restart
+        cmd["Binding"]["DataReduction"]["Primary"]["Window"] = window
+
+        response = await context.request.post(url, data=json.dumps(body), headers=headers)
+        await asyncio.sleep(0.15)
+        if response.status != 200:
+            text = await response.text()
+            raise RuntimeError(f"querydata page {page_num} failed: HTTP {response.status}: {text[:300]}")
+
+        payload = await response.json()
+        raw_path = raw_dir / f"table_page_{page_num + 1:04d}.json"
+        raw_path.write_text(json.dumps(payload))
+        parsed = _best_table_parse(payload)
+        if not parsed:
+            logger.warning("Page {}: empty or unparseable response — stopping pagination", page_num)
+            break
+        columns, rows = parsed
+        new = 0
+        for row in rows:
+            key = tuple("" if v is None else str(v) for v in row)
+            if key not in merged:
+                merged[key] = row
+                new += 1
+        logger.info(
+            "Page {:>2}: batch={:,} new={:,} total={:,}",
+            page_num, len(rows), new, len(merged),
+        )
+        if len(rows) < PAGE_SIZE or new == 0:
+            break
+        if len(merged) >= expected_count:
+            break
+        try:
+            restart = restart_tokens_from_row(rows[-1])
+        except ValueError as exc:
+            logger.warning("Cannot build RestartTokens from last row: {}", exc)
+            break
+
+    return columns, list(merged.values())
+
+
+async def _capture_and_download(
+    url: str,
+    raw_dir: Path,
+    *,
+    headless: bool,
+    expected_count: int,
+    max_pages: int,
+) -> tuple[list[str], list[list[Any]]]:
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(headless=headless)
-        context = await browser.new_context(viewport={"width": 1600, "height": 1000})
+        context = await browser.new_context(viewport={"width": 1600, "height": 1200})
         page = await context.new_page()
 
-        async def _on_response(response):
-            if not QUERYDATA_PATH_RE.search(response.url):
-                return
-            try:
-                body = await response.json()
-            except Exception as exc:  # noqa: BLE001
-                logger.debug("Non-JSON querydata response from {}: {}", response.url, exc)
-                return
-            counter[0] += 1
-            path = raw_dir / f"querydata_{counter[0]:04d}.json"
-            path.write_text(json.dumps(body))
-            captured.append(path)
-            last_capture_at[0] = asyncio.get_event_loop().time()
-            logger.info("Captured querydata #{} ({} bytes) → {}",
-                        counter[0], path.stat().st_size, path.name)
+        # Patch: _wait_for_table_request uses page.goto internally — refactor
+        holder: dict[str, Any] = {}
 
-        page.on("response", lambda r: asyncio.create_task(_on_response(r)))
+        async def _on_request(request):
+            if request.method != "POST" or not QUERYDATA_PATH_RE.search(request.url):
+                return
+            body = request.post_data_json
+            if not isinstance(body, dict) or TABLE_QUERY_MARKER not in json.dumps(body):
+                return
+            if "table" not in holder:
+                holder["table"] = (request.url, dict(request.headers), body)
+                logger.info("Captured table querydata template")
 
+        page.on("request", lambda r: asyncio.create_task(_on_request(r)))
         logger.info("Opening {}", url)
-        await page.goto(url, wait_until="domcontentloaded", timeout=60_000)
-
-        # Power BI lazy-loads the table on user interaction (scroll/hover). We
-        # simulate scrolling on the page to coax it into paging through all rows.
+        await page.goto(url, wait_until="domcontentloaded", timeout=90_000)
         start = asyncio.get_event_loop().time()
-        consecutive_idle = 0.0
-        while True:
-            now = asyncio.get_event_loop().time()
-            if now - start > max_seconds:
-                logger.warning("Hit max_seconds={}, stopping capture", max_seconds)
-                break
-            idle = now - last_capture_at[0]
-            if idle >= idle_seconds and captured:
-                logger.info("No new querydata for {:.1f}s — assuming complete", idle)
-                break
-            # Nudge the report: scroll page + send PageDown to focused visual.
-            try:
-                await page.mouse.wheel(0, 800)
-                await page.keyboard.press("PageDown")
-            except Exception:  # noqa: BLE001
-                pass
-            await asyncio.sleep(1.0)
-            consecutive_idle = idle
+        while "table" not in holder:
+            if asyncio.get_event_loop().time() - start > 90:
+                raise TimeoutError("Timed out waiting for ballot-measures table querydata request")
+            await page.mouse.wheel(0, 600)
+            await page.wait_for_timeout(400)
 
+        query_url, headers, base_body = holder["table"]
+        columns, rows = await _paginate_table(
+            context, query_url, headers, base_body, raw_dir,
+            expected_count=expected_count, max_pages=max_pages,
+        )
         await context.close()
         await browser.close()
-
-    logger.success("Captured {} querydata payloads → {}", len(captured), raw_dir)
-    return captured
+    return columns, rows
 
 
 # ---------------------------------------------------------------------------
-# Pick the best payload and write CSV
+# Parse-only merge (legacy raw/querydata_*.json captures)
 # ---------------------------------------------------------------------------
-def _choose_best_parse(raw_dir: Path, expected_count: int) -> tuple[list[str], list[list[Any]], Path] | None:
-    """Return ``(columns, rows, source_path)`` for the parse closest to expected_count."""
-    best: tuple[int, list[str], list[list[Any]], Path] | None = None  # (delta, cols, rows, path)
-    for path in sorted(raw_dir.glob("querydata_*.json")):
+def _merge_table_parses(raw_dir: Path) -> tuple[list[str], list[list[Any]]]:
+    merged: dict[tuple[str, ...], list[Any]] = {}
+    columns: list[str] = []
+    for path in sorted(raw_dir.glob("*.json")):
         try:
             payload = json.loads(path.read_text())
         except json.JSONDecodeError:
             continue
-        parses = parse_dsr(payload)
-        for cols, rows in parses:
-            n = len(rows)
-            if n == 0:
-                continue
-            delta = abs(n - expected_count)
-            logger.debug("{}: {} rows × {} cols (Δ={} vs expected {})",
-                         path.name, n, len(cols), delta, expected_count)
-            if best is None or delta < best[0] or (delta == best[0] and n > len(best[2])):
-                best = (delta, cols, rows, path)
-    if best is None:
-        return None
-    _, cols, rows, path = best
-    return cols, rows, path
+        if not _is_table_payload(payload):
+            continue
+        parsed = _best_table_parse(payload)
+        if not parsed:
+            continue
+        cols, rows = parsed
+        if len(cols) > len(columns):
+            columns = cols
+        for row in rows:
+            merged[tuple("" if v is None else str(v) for v in row)] = row
+    return columns, list(merged.values())
 
 
 def _write_csv(columns: list[str], rows: list[list[Any]], csv_path: Path) -> None:
@@ -285,7 +347,7 @@ def _write_csv(columns: list[str], rows: list[list[Any]], csv_path: Path) -> Non
         writer.writerow(columns)
         for row in rows:
             writer.writerow(["" if v is None else v for v in row])
-    logger.success("Wrote {} rows × {} cols → {}", len(rows), len(columns), csv_path)
+    logger.success("Wrote {:,} rows × {} cols → {}", len(rows), len(columns), csv_path)
 
 
 # ---------------------------------------------------------------------------
@@ -297,46 +359,46 @@ def main() -> int:
     parser.add_argument("--expected-count", type=int, default=9670,
                         help="Expected ballot-measure row count (KPI on dashboard).")
     parser.add_argument("--parse-only", action="store_true",
-                        help="Skip scraping; reparse existing raw/*.json into CSV.")
+                        help="Skip scraping; merge existing raw/*.json into CSV.")
     parser.add_argument("--headless", action="store_true", default=True)
     parser.add_argument("--headed", dest="headless", action="store_false",
                         help="Run with a visible browser (useful for debugging).")
-    parser.add_argument("--idle-seconds", type=float, default=8.0,
-                        help="Stop capture after this many seconds without a new querydata response.")
-    parser.add_argument("--max-seconds", type=float, default=180.0,
-                        help="Hard cap on total capture time.")
+    parser.add_argument("--max-pages", type=int, default=22,
+                        help="Safety cap on RestartTokens pagination (500 rows/page; 22 ≈ 11k rows).")
     parser.add_argument("--out", type=Path, default=None,
                         help="Output CSV path (default: data/cache/powerbi_ballot_measures/ballot_measures_<ts>.csv).")
     args = parser.parse_args()
 
     RAW_DIR.mkdir(parents=True, exist_ok=True)
 
-    if not args.parse_only:
-        asyncio.run(_capture(
+    if args.parse_only:
+        columns, rows = _merge_table_parses(RAW_DIR)
+    else:
+        columns, rows = asyncio.run(_capture_and_download(
             args.url, RAW_DIR,
             headless=args.headless,
-            idle_seconds=args.idle_seconds,
-            max_seconds=args.max_seconds,
+            expected_count=args.expected_count,
+            max_pages=args.max_pages,
         ))
 
-    best = _choose_best_parse(RAW_DIR, args.expected_count)
-    if best is None:
-        logger.error("No parseable querydata responses found in {}", RAW_DIR)
+    if not rows:
+        logger.error("No table rows parsed")
         return 1
-    cols, rows, src = best
 
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     csv_path = args.out or CACHE_DIR / f"ballot_measures_{ts}.csv"
-    _write_csv(cols, rows, csv_path)
+    _write_csv(columns, rows, csv_path)
 
     delta = len(rows) - args.expected_count
     status = "OK" if delta == 0 else ("UNDER" if delta < 0 else "OVER")
     logger.info("Count check [{}]: scraped={:,}, expected={:,}, Δ={:+}",
                 status, len(rows), args.expected_count, delta)
     if delta != 0:
-        logger.warning("Row count does not match expected — Power BI may have paged the "
-                       "data into multiple querydata responses. Inspect {} or re-run "
-                       "with --headed and a larger --max-seconds.", src.name)
+        logger.warning(
+            "Row count does not match dashboard KPI — inspect raw payloads in {} "
+            "or increase --max-pages.",
+            RAW_DIR,
+        )
         return 2
     return 0
 

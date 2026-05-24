@@ -842,6 +842,59 @@ sources:
           - name: created_at
             description: "When analysis was performed"
 
+      - name: bronze_ballotpedia_measures
+        description: |
+          Ballot measures scraped from Ballotpedia.org (state and jurisdiction pages).
+          Loaded by scripts/datasources/ballotpedia/load_ballotpedia_measures_to_bronze.py.
+          NIST-aligned columns consumed by bronze_ballot_measures_nist.sql.
+        columns:
+          - name: measure_id
+            description: "Stable source record id (ocd-ballotmeasure/UUID)"
+          - name: ocd_division_id
+            description: "OCD Division ID for GpUnit linkage"
+          - name: state_code
+          - name: jurisdiction_id
+          - name: jurisdiction_name
+          - name: election_date
+          - name: election_year
+            description: "Calendar year label as VARCHAR(4)"
+          - name: measure_number
+          - name: measure_title
+          - name: full_text
+          - name: summary_text
+          - name: measure_type
+          - name: yes_votes
+          - name: no_votes
+          - name: passed
+          - name: source_url
+          - name: scraped_at
+
+      - name: bronze_ballot_measures_powerbi
+        description: |
+          Ballot measures scraped from a public Power BI dashboard (~9,670 rows).
+          Loaded by scripts/datasources/powerbi_ballot_measures/load_powerbi_ballot_measures_to_bronze.py.
+        columns:
+          - name: measure_id
+          - name: measure_title
+          - name: state_code
+          - name: election_date
+          - name: election_year
+          - name: outcome
+          - name: yes_count
+          - name: no_count
+          - name: source_url
+          - name: scraped_at
+
+      - name: bronze_vip_ballot_measures
+        description: "VIP CDF ballot measures (placeholder — populated when VIP feeds are ingested)"
+        columns:
+          - name: contest_object_id
+          - name: ocd_division_id
+          - name: election_date
+          - name: ballot_measure_identifier
+          - name: contest_name
+          - name: ingested_at
+
   - name: gold_runtime
     description: "Runtime gold tables in public schema (ACS joins for mapping quality marts)"
     database: open_navigator
