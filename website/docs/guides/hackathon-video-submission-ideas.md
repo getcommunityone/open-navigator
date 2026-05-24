@@ -7,6 +7,20 @@ description: Reference patterns and a checklist for strong “Google for Good”
 
 Short guide for a **CommunityOne** (or similar civic-data) submission where the **video** has to carry the “wow” as much as the product. These notes distill reference talks and pitch formats that bridge **complex data → real-world utility**.
 
+## Quick jump: fraud tracks
+
+- [Fraud and conflict-of-interest master list](#fraud-and-conflict-of-interest-hackathon-ideas-master-list)
+- [Track 1: The appraisal gap watchdog](#track-1-the-appraisal-gap-watchdog)
+- [Track 2: Artificial valuation and tax evasion collusion](#track-2-artificial-valuation-and-tax-evasion-collusion)
+- [Track 3: The quid pro quo policy matrix](#track-3-the-quid-pro-quo-policy-matrix)
+- [Track 4: The shell game contractor audit](#track-4-the-shell-game-contractor-audit)
+- [Track 5: The earmark and dark money unveiler](#track-5-the-earmark-and-dark-money-unveiler)
+- [Track 6: The insider trading and land-use predictor](#track-6-the-insider-trading-and-land-use-predictor)
+- [Track 7: Municipal bond and infrastructure fund auditing](#track-7-municipal-bond-and-infrastructure-fund-auditing)
+- [Track 8: The healthcare phantom billing and upcoding detector](#track-8-the-healthcare-phantom-billing-and-upcoding-detector)
+- [Track 9: Synthetic identity theft and credit collusion](#track-9-synthetic-identity-theft-and-credit-collusion)
+- [Track 10: Greenwashing and environmental grant fraud](#track-10-greenwashing-and-environmental-grant-fraud)
+
 ## 2026 Gemma 4 Good — flagship question
 
 **Pitch hook:** *What percentage of a small town’s revenue comes from speed traps?*

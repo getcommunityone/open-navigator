@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Analyze YouTube Channels in events_channels_search
+Analyze YouTube Channels in intermediate.int_events_channels_enriched
 
 This script helps identify junk channels and provides statistics
 about channel sources and quality.
@@ -42,33 +42,33 @@ def get_channel_statistics(conn) -> Dict:
     stats = {}
     
     # Total channels
-    cursor.execute("SELECT COUNT(*) as total FROM events_channels_search")
+    cursor.execute("SELECT COUNT(*) as total FROM intermediate.int_events_channels_enriched")
     stats['total_channels'] = cursor.fetchone()['total']
     
     # Channels in LocalView
-    cursor.execute("SELECT COUNT(*) as count FROM events_channels_search WHERE in_localview = TRUE")
+    cursor.execute("SELECT COUNT(*) as count FROM intermediate.int_events_channels_enriched WHERE in_localview = TRUE")
     stats['in_localview'] = cursor.fetchone()['count']
     
     # Channels in jurisdictions_details
-    cursor.execute("SELECT COUNT(*) as count FROM events_channels_search WHERE in_jurisdictions_details = TRUE")
+    cursor.execute("SELECT COUNT(*) as count FROM intermediate.int_events_channels_enriched WHERE in_jurisdictions_details = TRUE")
     stats['in_jurisdictions_details'] = cursor.fetchone()['count']
     
     # Flagged as junk
-    cursor.execute("SELECT COUNT(*) as count FROM events_channels_search WHERE flagged_as_junk = TRUE")
+    cursor.execute("SELECT COUNT(*) as count FROM intermediate.int_events_channels_enriched WHERE flagged_as_junk = TRUE")
     stats['flagged_as_junk'] = cursor.fetchone()['count']
     
     # Confirmed government
-    cursor.execute("SELECT COUNT(*) as count FROM events_channels_search WHERE is_government = TRUE")
+    cursor.execute("SELECT COUNT(*) as count FROM intermediate.int_events_channels_enriched WHERE is_government = TRUE")
     stats['confirmed_government'] = cursor.fetchone()['count']
     
     # Confirmed NOT government
-    cursor.execute("SELECT COUNT(*) as count FROM events_channels_search WHERE is_government = FALSE")
+    cursor.execute("SELECT COUNT(*) as count FROM intermediate.int_events_channels_enriched WHERE is_government = FALSE")
     stats['confirmed_not_government'] = cursor.fetchone()['count']
     
     # By channel type
     cursor.execute("""
         SELECT channel_type, COUNT(*) as count 
-        FROM events_channels_search 
+        FROM intermediate.int_events_channels_enriched 
         GROUP BY channel_type 
         ORDER BY count DESC
     """)
@@ -95,7 +95,7 @@ def identify_junk_channels(conn) -> List[Dict]:
             flagged_as_junk,
             is_government,
             jurisdictions
-        FROM events_channels_search
+        FROM intermediate.int_events_channels_enriched
         WHERE ({pattern_conditions})
           AND flagged_as_junk = FALSE
           AND (is_government IS NULL OR is_government = FALSE)
@@ -113,9 +113,10 @@ def flag_channel_as_junk(conn, channel_id: str, reason: str):
     """Flag a channel as junk."""
     cursor = conn.cursor()
     
+    # Writes go to the base table (the _enriched form is a VIEW and not writable).
     cursor.execute("""
-        UPDATE events_channels_search
-        SET 
+        UPDATE intermediate.int_events_channels
+        SET
             flagged_as_junk = TRUE,
             is_government = FALSE,
             flag_reason = %s,

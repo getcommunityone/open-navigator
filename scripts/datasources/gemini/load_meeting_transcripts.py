@@ -193,34 +193,38 @@ class MeetingTranscriptAnalyzer:
         # Build query to get top N meetings per channel
         query = """
         WITH ranked_meetings AS (
-            SELECT 
-                e.event_id,
-                e.event_title,
-                e.event_description,
-                e.event_date,
+            SELECT
+                -- OCD-aligned column names after migration 048 (event_* -> name/description/start_date,
+                -- meeting_type -> classification). Aliased back to the old names so downstream code that
+                -- reads result dicts keyed by 'event_id' / 'event_title' / 'event_date' still works.
+                e.legacy_id     AS event_id,
+                e.name          AS event_title,
+                e.description   AS event_description,
+                e.start_date    AS event_date,
                 e.event_time,
                 e.video_url,
                 e.channel_id,
                 e.channel_url,
                 e.jurisdiction_name,
                 e.jurisdiction_type,
-                e.state_code,
+                e.state         AS state_code,    -- state column holds 2-letter code post-fold
                 e.state,
                 e.city,
-                e.meeting_type,
+                e.classification AS meeting_type,
                 c.channel_type,
                 c.in_localview,
                 ROW_NUMBER() OVER (
-                    PARTITION BY e.channel_id 
-                    ORDER BY e.event_date DESC, e.event_time DESC NULLS LAST
+                    PARTITION BY e.channel_id
+                    ORDER BY e.start_date DESC, e.event_time DESC NULLS LAST
                 ) as rn
-            FROM event e
-            INNER JOIN events_channels_search c ON e.channel_id = c.channel_id
+            FROM public.c1_event e
+            INNER JOIN intermediate.int_events_channels_enriched c
+                ON e.channel_id = c.channel_id
             WHERE e.video_url IS NOT NULL
               AND e.video_url LIKE 'https://www.youtube.com/watch%%'
               AND (
-                  (c.channel_type IS NOT NULL AND c.channel_type != 'unknown')  -- Known channel types
-                  OR c.in_localview = true  -- OR channels curated in localview
+                  (c.channel_type IS NOT NULL AND c.channel_type != 'unknown')
+                  OR c.in_localview = true
               )
         """
         
