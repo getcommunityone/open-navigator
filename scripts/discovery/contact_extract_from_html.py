@@ -243,6 +243,20 @@ def extract_structured_contacts_from_html(
         if len(rows) >= max_rows:
             break
 
+    for ctr in extract_civicplus_council_table_roster_contacts_from_html(
+        html, page_url, max_rows=max(0, max_rows - len(rows))
+    ):
+        k = _structured_contact_row_key(ctr)
+        if k in existing_keys:
+            continue
+        existing_keys.add(k)
+        em = str(ctr.get("email") or "").lower()
+        if em:
+            emails_seen.add(em)
+        rows.append(ctr)
+        if len(rows) >= max_rows:
+            break
+
     for cbd in extract_civicplus_bio_detail_contacts_from_html(
         html, page_url, max_rows=max(0, max_rows - len(rows))
     ):
@@ -343,6 +357,17 @@ def extract_structured_contacts_from_html(
             continue
         existing_keys.add(k)
         rows.append(ibr)
+        if len(rows) >= max_rows:
+            break
+
+    for hgr in extract_hostinger_grid_textbox_officials_from_html(
+        html, page_url, max_rows=max(0, max_rows - len(rows))
+    ):
+        k = _structured_contact_row_key(hgr)
+        if k in existing_keys:
+            continue
+        existing_keys.add(k)
+        rows.append(hgr)
         if len(rows) >= max_rows:
             break
 
@@ -522,6 +547,24 @@ def extract_structured_contacts_from_html(
             break
 
     for row in rows:
+        method = str(row.get("extraction_method") or "")
+        if method == "civicplus_mayor_council_roster":
+            roster_line = str((row.get("raw_row") or {}).get("roster_line") or "")
+            pname = str(row.get("person_name") or "").strip()
+            suffix = ""
+            if pname and pname in roster_line:
+                suffix = roster_line.split(pname, 1)[-1].strip(" ,")
+            normalize_structured_contact_row(row)
+            if suffix:
+                row["title_or_role"] = suffix[:512]
+                place_m = re.search(
+                    r",\s*(Place\s+(?:One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten|\d+))\s*$",
+                    suffix,
+                    re.I,
+                )
+                if place_m:
+                    row["department"] = place_m.group(1).strip()
+            continue
         normalize_structured_contact_row(row)
     rows = dedupe_structured_contact_rows(rows)
     return rows[:max_rows]
@@ -602,6 +645,8 @@ def is_decorative_profile_image_url(url: str) -> bool:
     ):
         return True
     if re.search(r"/assets/[^/]+/images/(white_|dark_|logo)", low):
+        return True
+    if re.search(r"blank\.png|/assets/blank", low):
         return True
     return False
 
@@ -804,11 +849,29 @@ def is_city_council_person_row(row: Dict[str, Any]) -> bool:
     """True when row looks like an individual council member (not the shared office)."""
     if str(row.get("contact_scope") or "").strip().lower() == "department":
         return False
+    method = str(row.get("extraction_method") or "")
+    if method in (
+        "civicplus_council_table_roster",
+        "civicplus_mayor_council_roster",
+        "civicplus_bio_detail",
+    ):
+        src = str(row.get("source_page_url") or "").lower()
+        if "/city-council" in src or "directory.aspx" in src:
+            return True
     blob = " ".join(
         str(row.get(k) or "")
-        for k in ("title_or_role", "department", "page_classification", "source_page_url", "profile_url")
+        for k in (
+            "person_name",
+            "title_or_role",
+            "department",
+            "page_classification",
+            "source_page_url",
+            "profile_url",
+        )
     )
     if _CITY_COUNCIL_CONTEXT_RE.search(blob):
+        return True
+    if _CIVICPLUS_WARD_ROLE_RE.search(blob):
         return True
     if row.get("title_or_role") and str(row.get("title_or_role")).lower() == "councilor":
         return True
@@ -1037,6 +1100,8 @@ def dedupe_structured_contact_rows(rows: List[Dict[str, Any]]) -> List[Dict[str,
             "infomedia_official_paragraph",
             "civicplus_bio_detail",
             "civicplus_mayor_council_roster",
+            "civicplus_council_table_roster",
+            "hostinger_grid_textbox_official",
         ):
             score += 4
         if str(r.get("extraction_method") or "") == "mailto_anchor":
@@ -1077,10 +1142,23 @@ def dedupe_structured_contact_rows(rows: List[Dict[str, Any]]) -> List[Dict[str,
 
     by_profile: Dict[str, Dict[str, Any]] = {}
     still_no_email: List[Dict[str, Any]] = []
+    email_with_profile = list(by_email.values())
     for row in no_email:
         pu = _profile_url_dedupe_key(str(row.get("profile_url") or ""))
         if not pu:
             still_no_email.append(row)
+            continue
+        merged_into_email = False
+        for er in email_with_profile:
+            if _profile_url_dedupe_key(str(er.get("profile_url") or "")) != pu:
+                continue
+            if _name_quality(row) > _name_quality(er):
+                _merge_supplemental_contact_fields(row, er)
+            else:
+                _merge_supplemental_contact_fields(er, row)
+            merged_into_email = True
+            break
+        if merged_into_email:
             continue
         prev = by_profile.get(pu)
         if prev is None:
@@ -1101,6 +1179,26 @@ def dedupe_structured_contact_rows(rows: List[Dict[str, Any]]) -> List[Dict[str,
             continue
         seen.add(k)
         deduped.append(row)
+
+    by_person: Dict[str, Dict[str, Any]] = {}
+    person_deduped: List[Dict[str, Any]] = []
+    for row in deduped:
+        pname = str(row.get("person_name") or "").strip()
+        if not pname or not _looks_like_person_name_line(pname):
+            person_deduped.append(row)
+            continue
+        pkey = pname.lower()
+        prev = by_person.get(pkey)
+        if prev is None:
+            by_person[pkey] = row
+        elif _name_quality(row) > _name_quality(prev):
+            _merge_supplemental_contact_fields(row, prev)
+            by_person[pkey] = row
+        else:
+            _merge_supplemental_contact_fields(prev, row)
+    if by_person:
+        person_deduped.extend(by_person.values())
+        deduped = person_deduped
 
     dept_seen: Set[Tuple[str, str, str]] = set()
     for row in department_rows:
@@ -1137,6 +1235,90 @@ def _caboose_person_detail_url(container: Any, page_url: str) -> str:
             if abs_u.lower().startswith(("http://", "https://")):
                 return abs_u
     return ""
+
+
+_CITY_COUNCIL_DISTRICT_LINE_RE = re.compile(
+    r"^city\s+council\s+district\s*(\d+)\s*$",
+    re.I,
+)
+
+
+def _caboose_rtedit_text_lines(rtedit: Any) -> List[str]:
+    """Non-empty paragraph lines from a Caboose ``div.rtedit`` block."""
+    from bs4 import Tag
+
+    if not isinstance(rtedit, Tag):
+        return []
+    lines: List[str] = []
+    for p in rtedit.find_all("p"):
+        t = re.sub(r"\s+", " ", p.get_text(" ", strip=True) or "").strip()
+        if t and t not in ("\xa0", "&nbsp;"):
+            lines.append(t)
+    return lines
+
+
+def _email_from_caboose_rtedit_lines(lines: List[str]) -> Optional[str]:
+    for line in lines:
+        if "@" not in line:
+            continue
+        m = _EMAIL_RE.search(line)
+        if m:
+            em = m.group(0).strip().lower()
+            if "@" in em and not _BOGUS_EMAIL_SUFFIX.search(em):
+                return em
+    return None
+
+
+def _parse_caboose_flex_grid_unit(container: Any, page_url: str) -> Optional[Dict[str, Any]]:
+    """
+    Caboose flex-grid council cards (Aliceville-style): ``image-block-holder`` photo +
+    adjacent ``richtext-block`` with name, district, and email lines.
+    """
+    from bs4 import Tag
+
+    if not isinstance(container, Tag):
+        return None
+    rt = container.select_one("div.richtext-block div.rtedit, div.rtedit")
+    if rt is None:
+        return None
+    lines = _caboose_rtedit_text_lines(rt)
+    if not lines:
+        return None
+    raw_name = lines[0]
+    raw_district = lines[1] if len(lines) > 1 else ""
+    if raw_name.lower() == "vacant" or not _looks_like_person_name_line(raw_name):
+        return None
+    email_pri = _email_from_caboose_rtedit_lines(lines)
+    name_line = re.sub(r"^hon\.?\s+", "", raw_name, flags=re.I).strip() or raw_name
+    person, honor, dept = split_office_holder_fields(name_line, None)
+    if _CITY_COUNCIL_DISTRICT_LINE_RE.match(raw_district):
+        dept = raw_district
+    elif raw_district and not dept:
+        dept = raw_district
+    if not person and not honor:
+        return None
+
+    profile_image_url = ""
+    img = container.select_one("div.image-block-holder img")
+    if img is not None:
+        from scripts.discovery.contact_profile_images import img_best_abs_url
+
+        profile_image_url = img_best_abs_url(img, page_url)
+        if profile_image_url and is_decorative_profile_image_url(profile_image_url):
+            profile_image_url = ""
+
+    return {
+        "person_name": person,
+        "title_or_role": honor,
+        "department": dept,
+        "email": email_pri,
+        "phone": None,
+        "mailing_address": None,
+        "profile_url": _strip_fragment_for_url(page_url),
+        "profile_image_url": profile_image_url or None,
+        "extraction_method": "caboose_flex_grid_unit",
+        "raw_row": {"page_url": page_url, "district_line": raw_district[:200]},
+    }
 
 
 def _caboose_headshot_url(container: Any, page_url: str, *, photo_sel: str) -> str:
@@ -1340,6 +1522,13 @@ def extract_civicplus_staff_directory_hcard_contacts_from_html(
 
 
 _CIVICPLUS_ROSTER_HEADING_RE = re.compile(r"Mayor\s*&\s*Council\s*Members?", re.I)
+_CIVICPLUS_COUNCIL_TABLE_HEADING_RE = re.compile(
+    r"City\s+Council\s+Members?|Mayor\s*&\s*Council\s*Members?",
+    re.I,
+)
+_CIVICPLUS_WARD_ROLE_RE = re.compile(
+    r"(?i)\b(?:ward\s+\d+|council\s+president|councilperson|councilor|pro[-\s]?temp)",
+)
 _CIVICPLUS_EID_HREF_RE = re.compile(r"directory\.aspx.*\beid\s*=", re.I)
 
 
@@ -1485,6 +1674,138 @@ def extract_civicplus_mayor_council_roster_contacts_from_html(
     return out
 
 
+def _parse_civicplus_council_table_pair(
+    name_td: Any,
+    role_td: Any,
+    page_url: str,
+) -> Optional[Dict[str, Any]]:
+    from bs4 import Tag
+
+    if not isinstance(name_td, Tag):
+        return None
+    anchor = name_td.find("a", href=lambda h: h and _CIVICPLUS_EID_HREF_RE.search(str(h)))
+    if not anchor:
+        return None
+    person_name = re.sub(r"\s+", " ", anchor.get_text(" ", strip=True)).strip()
+    if not person_name or not _looks_like_person_name_line(person_name):
+        return None
+    href = str(anchor.get("href") or "").strip()
+    profile_url = urljoin(page_url, href) if href else None
+    cell_text = re.sub(r"\s+", " ", name_td.get_text(" ", strip=True)).strip()
+    role_text = cell_text.split(person_name, 1)[-1].strip(" ,")
+    used_next_td = False
+    if not role_text and isinstance(role_td, Tag):
+        role_text = re.sub(r"\s+", " ", role_td.get_text(" ", strip=True)).strip()
+        used_next_td = bool(role_text)
+    row: Dict[str, Any] = {
+        "person_name": person_name,
+        "title_or_role": role_text[:512] if role_text else None,
+        "department": None,
+        "email": None,
+        "phone": None,
+        "mailing_address": None,
+        "profile_url": profile_url,
+        "extraction_method": "civicplus_council_table_roster",
+        "raw_row": {"page_url": page_url, "roster_cell": cell_text[:300]},
+    }
+    normalize_structured_contact_row(row)
+    if role_text:
+        row["title_or_role"] = role_text[:512]
+        if re.search(r"\bward\s+\d+", role_text, re.I):
+            row["department"] = None
+    row["_used_next_role_td"] = used_next_td
+    return row
+
+
+def extract_civicplus_council_table_roster_contacts_from_html(
+    html: str,
+    page_url: str,
+    *,
+    max_rows: int = 40,
+) -> List[Dict[str, Any]]:
+    """
+    CivicPlus council roster tables (Alabaster and similar).
+
+    ``<table><th>City Council Members</th><td><a href="Directory.aspx?EID=80">Greg Farrell</a> Ward 4…``
+    """
+    from bs4 import BeautifulSoup
+
+    out: List[Dict[str, Any]] = []
+    if not html or max_rows <= 0:
+        return out
+    soup = BeautifulSoup(html, "html.parser")
+    seen: Set[Tuple[str, str]] = set()
+
+    for table in soup.find_all("table"):
+        header_text = ""
+        thead = table.find("thead")
+        if thead is not None:
+            header_text = thead.get_text(" ", strip=True)
+        th = table.find("th")
+        if th is not None:
+            header_text = header_text or th.get_text(" ", strip=True)
+        if not _CIVICPLUS_COUNCIL_TABLE_HEADING_RE.search(header_text or ""):
+            continue
+        body = table.find("tbody") or table
+        for tr in body.find_all("tr"):
+            if len(out) >= max_rows:
+                break
+            tds = tr.find_all("td")
+            i = 0
+            while i < len(tds) and len(out) < max_rows:
+                name_td = tds[i]
+                role_td = tds[i + 1] if i + 1 < len(tds) else None
+                row = _parse_civicplus_council_table_pair(name_td, role_td, page_url)
+                if row is None:
+                    i += 1
+                    continue
+                i += 2 if row.pop("_used_next_role_td", False) else 1
+                key = (
+                    str(row.get("person_name") or "").lower(),
+                    str(row.get("profile_url") or "").lower(),
+                )
+                if key in seen:
+                    continue
+                seen.add(key)
+                out.append(row)
+        if out:
+            break
+
+    return out
+
+
+def _civicplus_bio_narrative_from_soup(soup: Any) -> str:
+    """Narrative text from CivicPlus ``div.BioText.fr-view`` (Biography and following sections)."""
+    bio_div = soup.select_one("div.BioText.fr-view") or soup.select_one("#CityDirectoryLeftMargin div.BioText")
+    if bio_div is None:
+        return ""
+
+    found_bio = False
+    parts: List[str] = []
+    for p in bio_div.find_all("p"):
+        text = re.sub(r"\s+", " ", p.get_text(" ", strip=True)).strip()
+        if not text:
+            continue
+        sub = p.find(class_=re.compile(r"subhead", re.I)) or p.find(
+            attrs={"fr-original-class": re.compile(r"subhead", re.I)}
+        )
+        label = (
+            re.sub(r"\s+", " ", sub.get_text(" ", strip=True)).strip()
+            if sub is not None
+            else text
+        )
+        if re.fullmatch(r"biography", label, re.I):
+            found_bio = True
+            continue
+        if sub is not None or re.fullmatch(r"(experience|family)\s*", label, re.I):
+            if found_bio:
+                continue
+        if not found_bio:
+            continue
+        parts.append(text)
+    return "\n\n".join(parts)[:8000]
+
+
 def extract_civicplus_bio_detail_contacts_from_html(
     html: str,
     page_url: str,
@@ -1530,13 +1851,28 @@ def extract_civicplus_bio_detail_contacts_from_html(
         break
 
     profile_image_url = ""
-    img = soup.select_one("#CityDirectoryLeftMargin img, img.imageAlignRight, img[alt]")
-    if img is not None:
+    img_candidates: List[Any] = []
+    left = soup.select_one("#CityDirectoryLeftMargin")
+    if left is not None:
+        img_candidates.extend(left.select("img.imageAlignRight, img.u-photo, img[alt]"))
+    bio_wrap = h1.find_parent("div") if h1 else None
+    if bio_wrap is not None:
+        img_candidates.extend(bio_wrap.select("img.imageAlignRight, img[alt]"))
+    for img in img_candidates:
         src = (img.get("src") or "").strip()
-        if src:
-            profile_image_url = urljoin(page_url, src)
+        alt = (img.get("alt") or "").strip()
+        if not src or is_decorative_profile_image_url(src):
+            continue
+        if re.search(r"alertcenter|alertbar|/search|homepage|iconshare", src, re.I):
+            continue
+        if alt and person_name.split()[0].lower() not in alt.lower():
+            if not re.search(r"\(jpe?g|png|photo|headshot\)", alt, re.I):
+                continue
+        profile_image_url = urljoin(page_url, src)
+        break
 
     person, honor, dept = split_office_holder_fields(person_name, title_raw or None)
+    biography = _civicplus_bio_narrative_from_soup(soup)
 
     row: Dict[str, Any] = {
         "person_name": person,
@@ -1549,6 +1885,9 @@ def extract_civicplus_bio_detail_contacts_from_html(
         "extraction_method": "civicplus_bio_detail",
         "raw_row": {"page_url": page_url, "title_line": title_raw[:200]},
     }
+    if biography:
+        row["biography"] = biography
+        row["raw_row"]["biography"] = biography[:2000]
     if profile_image_url and not is_decorative_profile_image_url(profile_image_url):
         row["profile_image_url"] = profile_image_url
     normalize_structured_contact_row(row)
@@ -1688,7 +2027,122 @@ def extract_caboose_directory_contacts_from_html(
             )
         )
 
+    for unit in soup.select("div.flex-grid-unit"):
+        if len(out) >= max_rows:
+            break
+        _append_parsed(_parse_caboose_flex_grid_unit(unit, page_url))
+
     return out
+
+
+def _caboose_rtedit_text_lines(rtedit: Any) -> List[str]:
+    """Non-empty paragraph lines from a Caboose ``div.rtedit`` block."""
+    from bs4 import Tag
+
+    if not isinstance(rtedit, Tag):
+        return []
+    lines: List[str] = []
+    for p in rtedit.find_all("p"):
+        t = re.sub(r"\s+", " ", p.get_text(" ", strip=True) or "").strip()
+        if t and t not in ("\xa0", "&nbsp;"):
+            lines.append(t)
+    return lines
+
+
+def _email_from_caboose_rtedit_lines(lines: List[str]) -> Optional[str]:
+    for line in lines:
+        if "@" not in line:
+            continue
+        m = _EMAIL_RE.search(line)
+        if m:
+            em = m.group(0).strip().lower()
+            if not _BOGUS_EMAIL_SUFFIX.search(em):
+                return em
+    return None
+
+
+def _parse_caboose_flex_grid_unit(container: Any, page_url: str) -> Optional[Dict[str, Any]]:
+    """
+    Aliceville-style Caboose layout: ``div.flex-grid-unit`` with ``image-block-holder`` +
+    adjacent ``richtext-block`` / ``rtedit`` (name, district, email).
+    """
+    from bs4 import Tag
+    from scripts.discovery.contact_profile_images import img_best_abs_url
+
+    if not isinstance(container, Tag):
+        return None
+    rt = container.select_one("div.richtext-block div.rtedit, div.rtedit")
+    if rt is None:
+        return None
+    lines = _caboose_rtedit_text_lines(rt)
+    if not lines:
+        return None
+    raw_name = lines[0]
+    if raw_name.lower() in ("vacant", "open", "tbd"):
+        return None
+    raw_district = ""
+    for line in lines[1:6]:
+        if re.search(r"\bdistrict\b", line, re.I) and not _line_is_contact_label(line):
+            raw_district = line
+            break
+    person_line = re.sub(r"^Hon\.?\s+", "", raw_name, flags=re.I).strip() or raw_name
+    if not _looks_like_person_name_line(person_line):
+        return None
+    email = _email_from_caboose_rtedit_lines(lines)
+    profile_image_url = ""
+    img = container.select_one("div.image-block-holder img")
+    if img is not None:
+        profile_image_url = img_best_abs_url(img, page_url)
+        if profile_image_url and is_decorative_profile_image_url(profile_image_url):
+            profile_image_url = ""
+    return {
+        "person_name": person_line,
+        "title_or_role": None,
+        "department": raw_district[:512] if raw_district else None,
+        "email": email,
+        "phone": None,
+        "mailing_address": None,
+        "profile_url": _strip_fragment_for_url(page_url),
+        "profile_image_url": profile_image_url or None,
+        "extraction_method": "caboose_flex_grid_unit",
+        "raw_row": {"page_url": page_url, "lines": lines[:8]},
+    }
+
+
+def extract_caboose_flex_grid_profile_jobs(
+    html: str,
+    page_url: str,
+    *,
+    max_jobs: int = 40,
+) -> List[Dict[str, Any]]:
+    """Profile download jobs for Caboose flex-grid council cards (``image-block-holder`` + ``rtedit``)."""
+    from bs4 import BeautifulSoup
+
+    out: List[Dict[str, Any]] = []
+    seen: Set[str] = set()
+    soup = BeautifulSoup(html or "", "html.parser")
+    for unit in soup.select("div.flex-grid-unit"):
+        if len(out) >= max_jobs:
+            break
+        parsed = _parse_caboose_flex_grid_unit(unit, page_url)
+        if not parsed:
+            continue
+        person = parsed.get("person_name")
+        img_u = str(parsed.get("profile_image_url") or "")
+        if not person or not img_u or img_u in seen:
+            continue
+        seen.add(img_u)
+        out.append(
+            {
+                "person_name": person,
+                "title_or_role": parsed.get("department"),
+                "department": parsed.get("department"),
+                "email": parsed.get("email"),
+                "image_url": img_u,
+                "match_method": "caboose_flex_grid_unit",
+            }
+        )
+    return out[:max_jobs]
 
 
 def extract_caboose_background_profile_jobs(
@@ -3229,6 +3683,126 @@ def extract_elementor_image_box_directory_contacts_from_html(
                 },
             }
         )
+
+    return out
+
+
+_HOSTINGER_GRID_TEXTBOX_PARENT_RE = re.compile(
+    r"GridTextBox|layout-element__component--GridTextBox",
+    re.I,
+)
+_HOSTINGER_OFFICIAL_PAGE_RE = re.compile(
+    r"(?i)elected[-\s]official|your\s+elected\s+official",
+)
+
+
+def _hostinger_role_to_title_and_department(role_line: str) -> Tuple[Optional[str], Optional[str]]:
+    role = re.sub(r"\s+", " ", (role_line or "").strip())
+    if not role:
+        return None, None
+    if is_generic_district_label(role):
+        return None, role.title()
+    if role.lower() in ("mayor", "vice mayor"):
+        return role.title(), None
+    return role[:512], None
+
+
+def extract_hostinger_grid_textbox_officials_from_html(
+    html: str,
+    page_url: str,
+    *,
+    max_rows: int = 40,
+) -> List[Dict[str, Any]]:
+    """
+    Hostinger / Zyro city sites: ``h6`` name + sibling ``p`` role inside ``GridTextBox`` cards
+    (Abbeville ``/elected-officials`` and similar).
+    """
+    from bs4 import BeautifulSoup, Tag
+
+    out: List[Dict[str, Any]] = []
+    if not html or max_rows <= 0:
+        return out
+
+    soup = BeautifulSoup(html, "html.parser")
+    page_text = soup.get_text(" ", strip=True)[:8000]
+    if not _HOSTINGER_OFFICIAL_PAGE_RE.search(page_url) and not _HOSTINGER_OFFICIAL_PAGE_RE.search(
+        page_text
+    ):
+        h6_named = 0
+        for h in soup.find_all("h6"):
+            name = re.sub(r"\s+", " ", h.get_text(" ", strip=True) or "").strip()
+            if name and _looks_like_person_name_line(name):
+                parent = h.parent
+                if isinstance(parent, Tag) and parent.find("p"):
+                    h6_named += 1
+        if h6_named < 3:
+            return out
+
+    seen: Set[Tuple[str, str]] = set()
+    for h in soup.find_all("h6"):
+        if len(out) >= max_rows:
+            break
+        if not isinstance(h, Tag):
+            continue
+        person_name = re.sub(r"\s+", " ", h.get_text(" ", strip=True) or "").strip()
+        if not person_name or not _looks_like_person_name_line(person_name):
+            continue
+
+        card = h.parent if isinstance(h.parent, Tag) else None
+        if card is None:
+            continue
+        card_classes = " ".join(card.get("class") or [])
+        if not _HOSTINGER_GRID_TEXTBOX_PARENT_RE.search(card_classes):
+            grand = card.parent if isinstance(card.parent, Tag) else None
+            if grand is not None and _HOSTINGER_GRID_TEXTBOX_PARENT_RE.search(
+                " ".join(grand.get("class") or [])
+            ):
+                card = grand
+            elif not card.find("p"):
+                continue
+
+        role_p = None
+        for p in card.find_all("p", recursive=False):
+            if p is h:
+                continue
+            role_p = p
+            break
+        if role_p is None:
+            role_p = card.find("p")
+        title_or_role, department = _hostinger_role_to_title_and_department(
+            role_p.get_text(" ", strip=True) if role_p is not None else ""
+        )
+
+        profile_image_url = ""
+        img = card.find("img")
+        if img is not None:
+            src = (img.get("src") or "").strip()
+            if src and not is_decorative_profile_image_url(src):
+                profile_image_url = urljoin(page_url, src)
+
+        dedupe_key = (person_name.lower(), (department or title_or_role or "").lower())
+        if dedupe_key in seen:
+            continue
+        seen.add(dedupe_key)
+
+        row: Dict[str, Any] = {
+            "person_name": person_name,
+            "title_or_role": title_or_role,
+            "department": department,
+            "email": None,
+            "phone": None,
+            "mailing_address": None,
+            "profile_url": None,
+            "extraction_method": "hostinger_grid_textbox_official",
+            "raw_row": {
+                "page_url": page_url,
+                "role_line": (role_p.get_text(" ", strip=True) if role_p is not None else "")[:200],
+            },
+        }
+        if profile_image_url:
+            row["profile_image_url"] = profile_image_url
+        normalize_structured_contact_row(row)
+        out.append(row)
 
     return out
 

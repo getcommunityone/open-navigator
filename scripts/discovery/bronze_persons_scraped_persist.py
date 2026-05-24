@@ -84,6 +84,11 @@ def insert_bronze_persons_scraped(
                 if mailing:
                     contact_details.append({"type": "address", "value": mailing})
 
+                biography = (r.get("biography") or "").strip()
+                image_url = (
+                    (r.get("image") or r.get("profile_image_url") or "").strip()
+                )[:4096] or None
+
                 cur.execute(
                     """
                     INSERT INTO bronze.bronze_persons_scraped (
@@ -105,9 +110,12 @@ def insert_bronze_persons_scraped(
                         contact_details,
                         contact_source,
                         raw_row,
-                        scraped_at
+                        scraped_at,
+                        biography,
+                        image
                     ) VALUES (
-                        %s::uuid, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s::jsonb, %s
+                        %s::uuid, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s::jsonb, %s,
+                        %s, %s
                     )
                     """,
                     (
@@ -130,6 +138,8 @@ def insert_bronze_persons_scraped(
                         (r.get("contact_source") or "").strip()[:128] or None,
                         json.dumps(raw, default=str),
                         sa_val,
+                        biography or None,
+                        image_url,
                     ),
                 )
                 n += 1

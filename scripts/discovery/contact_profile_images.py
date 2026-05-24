@@ -370,6 +370,7 @@ def extract_profile_image_jobs(html: str, page_url: str, *, max_jobs: int = 80) 
     from bs4 import BeautifulSoup
     from scripts.discovery.contact_extract_from_html import (
         extract_caboose_background_profile_jobs,
+        extract_caboose_flex_grid_profile_jobs,
         extract_centreville_big_box_profile_background_profile_jobs,
         extract_civicplus_bio_detail_profile_jobs,
         extract_divi_team_member_profile_jobs,
@@ -384,6 +385,12 @@ def extract_profile_image_jobs(html: str, page_url: str, *, max_jobs: int = 80) 
     soup = BeautifulSoup(html or "", "html.parser")
 
     for job in extract_caboose_background_profile_jobs(html, page_url, max_jobs=max_jobs):
+        u = str(job.get("image_url") or "")
+        if u and u not in seen_url:
+            seen_url.add(u)
+            out.append(job)
+
+    for job in extract_caboose_flex_grid_profile_jobs(html, page_url, max_jobs=max_jobs):
         u = str(job.get("image_url") or "")
         if u and u not in seen_url:
             seen_url.add(u)
@@ -526,6 +533,12 @@ def extract_profile_image_jobs(html: str, page_url: str, *, max_jobs: int = 80) 
 
         if _tag_inside_wp_caption(img):
             continue
+        flex_unit = img.find_parent(
+            "div", class_=lambda c: c and "flex-grid-unit" in " ".join(c if isinstance(c, list) else [c] or [])
+        )
+        if flex_unit is not None and flex_unit.select_one("div.image-block-holder img") is img:
+            if flex_unit.select_one("div.rtedit, div.richtext-block div.rtedit"):
+                continue
         if img.find_parent("div", class_=lambda c: c and "et_pb_team_member" in " ".join(c)):
             continue
         from scripts.discovery.contact_extract_from_html import _parse_infomedia_official_paragraph

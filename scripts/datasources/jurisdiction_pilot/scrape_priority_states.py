@@ -205,23 +205,16 @@ _STOP = Event()
 # --------------------------------------------------------------------------------------
 
 
-def _slug_from_name(name: str) -> str:
-    s = (name or "").strip().lower()
-    s = re.sub(
-        r"\s+(city|town|county|village|borough|cdp|municipality|township|parish)$",
-        "", s,
-    )
-    s = re.sub(r"[^a-z0-9]+", "_", s).strip("_")
-    return s or "unknown"
-
-
 def jurisdiction_output_dir(j: "Jurisdiction") -> Path:
     """Return the canonical ``scraped_meetings/{STATE}/{type}/{slug}_{geoid}/`` dir."""
-    geoid_suffix = j.jurisdiction_id.split("_", 1)[1] if "_" in j.jurisdiction_id else j.jurisdiction_id
-    jtype = j.jurisdiction_type.lower()
-    if jtype in ("city", "place"):
-        jtype = "municipality"
-    return _SCRAPED_MEETINGS_ROOT / j.state_code.upper() / jtype / f"{_slug_from_name(j.name)}_{geoid_suffix}"
+    from scripts.gemini.transcript_cache_paths import scraped_meetings_jurisdiction_dir
+
+    return scraped_meetings_jurisdiction_dir(
+        _SCRAPED_MEETINGS_ROOT,
+        state_code=j.state_code,
+        jurisdiction_id=j.jurisdiction_id,
+        place_name=j.name,
+    )
 
 
 # --------------------------------------------------------------------------------------

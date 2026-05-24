@@ -69,11 +69,26 @@ _NUMERIC_JID_RE = re.compile(r"^[0-9]+$")
 _UNKNOWN_CHANNEL_SEGMENT = "_unknown"
 
 
+_UNICODE_SPACE_RE = re.compile(r"[\u00a0\u2000-\u200a\u202f\u205f\u3000]+")
+_PLACE_OF_PREFIX_RE = re.compile(
+    r"^(?:city|town|village|borough|township|county)\s+of\s+",
+    re.I,
+)
+_PLACE_LSAD_SUFFIX_RE = re.compile(
+    r"\s+(?:city|town|village|county|borough|cdp|municipality|township|parish|ccd)\s*$",
+    re.I,
+)
+
+
+def _collapse_unicode_spaces(text: str) -> str:
+    return _UNICODE_SPACE_RE.sub(" ", (text or "").strip())
+
+
 def _normalize_place_name_for_match(name: str) -> str:
-    n = (name or "").strip().lower()
-    for suffix in (" city", " town", " village", " county", " ccd"):
-        if n.endswith(suffix):
-            n = n[: -len(suffix)].strip()
+    """Lowercase place label with LSAD / ``City of`` prefixes removed (Census-style names)."""
+    n = _collapse_unicode_spaces(name).lower()
+    n = _PLACE_OF_PREFIX_RE.sub("", n)
+    n = _PLACE_LSAD_SUFFIX_RE.sub("", n).strip()
     return re.sub(r"\s+", " ", n).strip()
 
 
@@ -211,8 +226,20 @@ def lookup_jurisdiction_place_name(jurisdiction_id: str) -> Optional[str]:
 def _place_slug_for_folder(name: str) -> str:
     from scripts.datasources.youtube.download_audio_to_drive import slug_snake_case
 
-    label = _normalize_place_name_for_match(name) or (name or "").strip()
+    label = _normalize_place_name_for_match(name) or _collapse_unicode_spaces(name)
     return slug_snake_case(label, max_length=56)
+
+
+def _legacy_place_slug_for_folder(name: str) -> str:
+    """
+    Pre-2026 slug: snake_case the raw label without stripping trailing ``city`` / ``town``.
+
+    Kept only for ``jurisdiction_cache_folder_aliases`` so older cache dirs resolve.
+    """
+    from scripts.datasources.youtube.download_audio_to_drive import slug_snake_case
+
+    collapsed = _collapse_unicode_spaces(name).lower()
+    return slug_snake_case(collapsed, max_length=56)
 
 
 def jurisdiction_cache_folder_name(jurisdiction_id: str, *, place_name: str | None = None) -> str:
@@ -233,18 +260,61 @@ def jurisdiction_cache_folder_name(jurisdiction_id: str, *, place_name: str | No
     return f"{_place_slug_for_folder(place)}_{geoid}"
 
 
-def jurisdiction_cache_folder_aliases(jurisdiction_id: str) -> List[str]:
+def jurisdiction_cache_folder_aliases(
+    jurisdiction_id: str,
+    *,
+    place_name: str | None = None,
+) -> List[str]:
     """On-disk folder basenames that may exist for one logical jurisdiction."""
     jid = resolve_canonical_jurisdiction_id(jurisdiction_id)
+    match = _JID_TYPED_RE.match(jid)
+    geoid = match.group("geoid") if match else ""
+    place = (place_name or "").strip() or (
+        lookup_jurisdiction_place_name(jid) if match else ""
+    )
     names: List[str] = []
     for candidate in (
-        jurisdiction_cache_folder_name(jid),
+        jurisdiction_cache_folder_name(jid, place_name=place_name),
         jid,
         (jurisdiction_id or "").strip(),
     ):
         if candidate and candidate not in names:
             names.append(candidate)
+    if match and place and geoid:
+        legacy_slug = _legacy_place_slug_for_folder(place)
+        legacy_folder = f"{legacy_slug}_{geoid}"
+        if legacy_folder not in names:
+            names.append(legacy_folder)
     return names
+
+
+def scraped_meetings_jurisdiction_dir(
+    output_root: Path,
+    *,
+    state_code: str,
+    jurisdiction_id: str,
+    place_name: str | None = None,
+) -> Path:
+    """
+    Canonical ``scraped_meetings/{ST}/{type}/{place_slug}_{geoid}/`` path.
+
+    If a legacy folder already exists (e.g. ``abbeville_city_0100124``), return it so
+    crawls resume in-place; new jurisdictions use the normalized canonical name.
+    """
+    st = (state_code or "").strip().upper()
+    segment = cache_type_segment(jurisdiction_id)
+    canonical = jurisdiction_cache_folder_name(jurisdiction_id, place_name=place_name)
+    root = Path(output_root)
+    canonical_path = root / st / segment / canonical
+    if canonical_path.is_dir():
+        return canonical_path
+    for alias in jurisdiction_cache_folder_aliases(jurisdiction_id, place_name=place_name):
+        if alias == canonical:
+            continue
+        candidate = root / st / segment / alias
+        if candidate.is_dir():
+            return candidate
+    return canonical_path
 
 
 def cache_type_segment(

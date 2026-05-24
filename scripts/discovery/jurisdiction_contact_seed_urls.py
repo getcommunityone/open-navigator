@@ -58,6 +58,21 @@ _BUILTIN: Dict[str, Tuple[str, ...]] = {
         "https://trussville.org/government/city-council/",
         "https://trussville.org/government/mayors-office/",
     ),
+    # City of Abbeville, AL — Hostinger Zyro ``h6`` + ``p`` elected-officials grid.
+    "municipality_0100124": (
+        "https://cityofabbeville.org/elected-officials",
+    ),
+    # City of Alabaster, AL — CivicPlus council table + ``directory.aspx?EID=`` bios.
+    "municipality_0100820": (
+        "https://www.cityofalabaster.com/161/City-Council",
+        "https://www.cityofalabaster.com/Directory.aspx?EID=80",
+        "https://www.cityofalabaster.com/Directory.aspx?EID=79",
+        "https://www.cityofalabaster.com/Directory.aspx?EID=254",
+        "https://www.cityofalabaster.com/Directory.aspx?EID=215",
+        "https://www.cityofalabaster.com/Directory.aspx?EID=81",
+        "https://www.cityofalabaster.com/Directory.aspx?EID=255",
+        "https://www.cityofalabaster.com/Directory.aspx?EID=8",
+    ),
     # City of Gulf Shores, AL — CivicPlus mayor/council roster + ``directory.aspx?eid=`` bios.
     "municipality_0132272": (
         "https://gulfshoresal.gov/400/Mayor-Council",

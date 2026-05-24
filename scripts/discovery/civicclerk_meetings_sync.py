@@ -70,8 +70,13 @@ def _civicclerk_sync_enabled() -> bool:
 
 
 def _jurisdiction_base_dir(output_root: Path, state: str, jurisdiction_id: str) -> Path:
-    jt = "county" if jurisdiction_id.startswith("county_") else "municipality"
-    return output_root / state.strip().upper() / jt / jurisdiction_id.strip()
+    from scripts.gemini.transcript_cache_paths import scraped_meetings_jurisdiction_dir
+
+    return scraped_meetings_jurisdiction_dir(
+        output_root,
+        state_code=state,
+        jurisdiction_id=jurisdiction_id,
+    )
 
 
 def _event_summary_row(tenant: str, event: Dict[str, Any]) -> Dict[str, Any]:

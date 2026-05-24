@@ -82,6 +82,28 @@ def _is_probable_non_person_contact(row: Dict[str, Any]) -> bool:
         return True
     if re.match(r"(?is)^please\s+call\b", name):
         return True
+    if name.lower() in {"overview", "overview:", "contact", "contacts"}:
+        return True
+    if method == "civicplus_staff_directory_hcard":
+        page_l = page.lower()
+        if any(
+            x in page_l
+            for x in (
+                "/board",
+                "/commission",
+                "/beautification",
+                "/library-board",
+                "/personnel-board",
+                "/planning",
+                "/zoning",
+                "/education",
+                "/clinic",
+                "/safety-board",
+                "/housing",
+                "/industrial",
+            )
+        ) and not is_city_council_person_row(row):
+            return True
     if re.match(r"^\d{1,6}\s+", name):
         return True
     if _NON_PERSON_PROFILE_SINGLE_WORD_RE.match(name):

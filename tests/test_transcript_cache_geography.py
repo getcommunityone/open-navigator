@@ -5,6 +5,7 @@ from scripts.gemini.transcript_cache_paths import (
     canonical_jurisdiction_root,
     find_jurisdiction_root,
     is_legacy_policy_jurisdiction_dir,
+    jurisdiction_cache_folder_aliases,
     jurisdiction_cache_folder_name,
     jurisdiction_root_candidates,
     list_legacy_policy_jurisdiction_dirs,
@@ -19,6 +20,38 @@ def test_cache_type_segment_from_typed_id():
     assert cache_type_segment("municipality_0177256") == "municipality"
     assert cache_type_segment("school_district_0100005") == "school"
     assert cache_type_segment("5583", jurisdiction_type="city") == "municipality"
+
+
+def test_jurisdiction_cache_folder_name_strips_nbsp_city_suffix(monkeypatch):
+    monkeypatch.setattr(
+        "scripts.gemini.transcript_cache_paths.resolve_canonical_jurisdiction_id",
+        lambda jid: jid,
+    )
+    # Census / DB names sometimes use a non-breaking space before ``city``.
+    assert (
+        jurisdiction_cache_folder_name(
+            "municipality_0100124",
+            place_name="Abbeville\u00a0city",
+        )
+        == "abbeville_0100124"
+    )
+
+
+def test_jurisdiction_cache_folder_aliases_include_legacy_city_slug(monkeypatch):
+    monkeypatch.setattr(
+        "scripts.gemini.transcript_cache_paths.resolve_canonical_jurisdiction_id",
+        lambda jid: jid,
+    )
+    monkeypatch.setattr(
+        "scripts.gemini.transcript_cache_paths.lookup_jurisdiction_place_name",
+        lambda jid: None,
+    )
+    aliases = jurisdiction_cache_folder_aliases(
+        "municipality_0100124",
+        place_name="Abbeville city",
+    )
+    assert "abbeville_0100124" in aliases
+    assert "abbeville_city_0100124" in aliases
 
 
 def test_jurisdiction_cache_folder_name(monkeypatch):
