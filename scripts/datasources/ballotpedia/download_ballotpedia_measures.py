@@ -9,13 +9,15 @@ Two scopes:
 Output lands under ``data/cache/ballotpedia/{ST}/{state|municipality}/`` as timestamped
 JSON snapshots consumed by ``load_ballotpedia_measures_to_bronze.py``.
 
+By default only **2025** and **2026** election years are scraped (``--years 2025,2026``).
+
 Usage
 -----
     python scripts/datasources/ballotpedia/download_ballotpedia_measures.py \\
         --states AL,GA,IN,MA
 
     python scripts/datasources/ballotpedia/download_ballotpedia_measures.py \\
-        --states AL --year 2024 --include-jurisdictions --limit-per-state 10
+        --states AL --years 2025,2026 --include-jurisdictions --limit-per-state 10
 
     # Headed browser when headless keeps getting challenged:
     BALLOTPEDIA_PLAYWRIGHT_HEADLESS_MODE=headed \\
@@ -27,6 +29,7 @@ import argparse
 import asyncio
 import json
 import os
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -41,6 +44,35 @@ from scripts.datasources.ballotpedia.ballotpedia_integration import BallotpediaD
 
 CACHE_DIR = _ROOT / "data" / "cache" / "ballotpedia"
 DEFAULT_STATES = ("AL", "GA", "IN", "MA", "WA", "WI")
+DEFAULT_ELECTION_YEARS = ("2025", "2026")
+
+
+def _parse_years(raw: str | None, *, legacy_year: int | None = None) -> tuple[str, ...]:
+    if legacy_year is not None:
+        return (str(legacy_year),)
+    if not raw or not raw.strip():
+        return DEFAULT_ELECTION_YEARS
+    years = tuple(y.strip() for y in raw.split(",") if y.strip())
+    if not years:
+        return DEFAULT_ELECTION_YEARS
+    for y in years:
+        if len(y) != 4 or not y.isdigit():
+            raise SystemExit(f"Invalid election year {y!r} — use four-digit strings like 2025")
+    return years
+
+
+def _measure_matches_years(measure: dict[str, Any], years: tuple[str, ...]) -> bool:
+    """True when measure year (field or title) falls in ``years``."""
+    year_val = measure.get("year") or measure.get("election_year")
+    if year_val:
+        m = re.search(r"\b(20\d{2})\b", str(year_val))
+        if m and m.group(1) in years:
+            return True
+    title = measure.get("measure_title") or measure.get("measure_name") or ""
+    for y in years:
+        if y in title:
+            return True
+    return False
 
 
 def _connect():
@@ -125,16 +157,17 @@ async def _scrape_state_measures(
 ) -> tuple[int, Path | None]:
     state_name = BallotpediaDiscovery.STATE_NAME_BY_CODE.get(state_code.upper(), state_code)
     year_int = int(year) if year else None
+    source_url = BallotpediaDiscovery.build_state_ballot_measures_url(state_name, year_int)
     measures = await discovery.get_ballot_measures(state_name, year=year_int)
-    if not measures:
-        logger.warning("No state measures for {} ({})", state_code, year or "all years")
-        return 0, None
     path = discovery.save_measures_snapshot(
         measures,
         state_code=state_code,
         scope="state",
         election_year=year,
+        source_url=source_url,
     )
+    if not measures:
+        logger.warning("No state measures for {} ({}) — wrote empty cache {}", state_code, year, path)
     return len(measures), path
 
 
@@ -142,22 +175,25 @@ async def _scrape_jurisdiction_measures(
     discovery: BallotpediaDiscovery,
     target: dict[str, Any],
     *,
-    year: str | None,
+    years: tuple[str, ...],
 ) -> tuple[int, Path | None]:
     state_code = target["state_code"]
     name = target["name"]
+    source_url = BallotpediaDiscovery.build_jurisdiction_ballot_measures_url(name, state_code)
     measures = await discovery.get_jurisdiction_ballot_measures(name, state_code)
-    if year:
-        measures = [m for m in measures if str(m.get("year") or "") == year or year in (m.get("measure_title") or "")]
-    if not measures:
-        return 0, None
+    measures = [m for m in measures if _measure_matches_years(m, years)]
     path = discovery.save_measures_snapshot(
         measures,
         state_code=state_code,
         scope="jurisdiction",
         jurisdiction_id=target["jurisdiction_id"],
-        election_year=year,
+        jurisdiction_name=name,
+        jurisdiction_type=target.get("jurisdiction_type"),
+        election_year=",".join(years),
+        source_url=source_url,
     )
+    if not measures:
+        return 0, path
     return len(measures), path
 
 
@@ -190,7 +226,7 @@ async def run(args: argparse.Namespace) -> int:
     if not states:
         raise SystemExit("--states must list at least one state code")
 
-    year = str(args.year) if args.year else None
+    years = _parse_years(args.years, legacy_year=args.year)
     if not args.skip_playwright_check:
         await _preflight_playwright()
     discovery = BallotpediaDiscovery(cache_dir=str(CACHE_DIR))
@@ -201,7 +237,12 @@ async def run(args: argparse.Namespace) -> int:
 
     logger.info("=" * 70)
     logger.info("Ballotpedia ballot measures → {}", CACHE_DIR)
-    logger.info("States: {} | year={} | jurisdictions={}", ", ".join(states), year or "all", args.include_jurisdictions)
+    logger.info(
+        "States: {} | years={} | jurisdictions={}",
+        ", ".join(states),
+        ", ".join(years),
+        args.include_jurisdictions,
+    )
     logger.info("=" * 70)
 
     for i, state_code in enumerate(states):
@@ -211,15 +252,16 @@ async def run(args: argparse.Namespace) -> int:
                 discovery.state_scrape_delay,
             )
             await asyncio.sleep(discovery.state_scrape_delay)
-        try:
-            n, path = await _scrape_state_measures(discovery, state_code=state_code, year=year)
-            total_measures += n
-            if path:
-                total_files += 1
-            logger.info("State {}: {} measure(s)", state_code, n)
-        except Exception as exc:
-            failures += 1
-            logger.error("State scrape failed for {}: {}", state_code, exc)
+        for year in years:
+            try:
+                n, path = await _scrape_state_measures(discovery, state_code=state_code, year=year)
+                total_measures += n
+                if path:
+                    total_files += 1
+                logger.info("State {} / {}: {} measure(s)", state_code, year, n)
+            except Exception as exc:
+                failures += 1
+                logger.error("State scrape failed for {} / {}: {}", state_code, year, exc)
 
     if args.include_jurisdictions:
         conn = _connect()
@@ -244,7 +286,7 @@ async def run(args: argparse.Namespace) -> int:
                 for target in targets:
                     try:
                         n, path = await _scrape_jurisdiction_measures(
-                            discovery, target, year=year,
+                            discovery, target, years=years,
                         )
                         total_measures += n
                         if path:
@@ -271,7 +313,7 @@ async def run(args: argparse.Namespace) -> int:
     summary = {
         "scraped_at": datetime.now(timezone.utc).isoformat(),
         "states": list(states),
-        "year": year,
+        "years": list(years),
         "total_measures": total_measures,
         "files_written": total_files,
         "failures": failures,
@@ -290,7 +332,12 @@ async def run(args: argparse.Namespace) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--states", default=",".join(DEFAULT_STATES), help="Comma-separated USPS codes")
-    parser.add_argument("--year", type=int, help="Optional election year filter (e.g. 2024)")
+    parser.add_argument(
+        "--years",
+        default=",".join(DEFAULT_ELECTION_YEARS),
+        help=f"Comma-separated election years (default: {','.join(DEFAULT_ELECTION_YEARS)})",
+    )
+    parser.add_argument("--year", type=int, help=argparse.SUPPRESS)  # legacy single-year override
     parser.add_argument("--include-jurisdictions", action="store_true",
                         help="Also scrape per-jurisdiction ballot-measures pages (requires DB)")
     parser.add_argument("--include-types", default="municipality,county",

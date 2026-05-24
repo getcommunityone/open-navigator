@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
 """
-Load Ballotpedia ballot-measure JSON snapshots into ``bronze.bronze_ballotpedia_measures``.
+Load Ballotpedia ballot-measure JSON snapshots into ``bronze.bronze_ballot_measures_ballotpedia``.
 
 Reads timestamped JSON files produced by ``download_ballotpedia_measures.py`` (and
 compatible snapshots written by the Google Civic loader path), maps fields into the
 NIST-aligned bronze columns, resolves ``ocd_division_id`` via OCD crosswalk, and
 stores the full measure dict in ``raw_row``.
 
+By default only measures with ``election_year`` in **2025** or **2026** are loaded.
+
 Usage
 -----
     python scripts/datasources/ballotpedia/load_ballotpedia_measures_to_bronze.py
     python scripts/datasources/ballotpedia/load_ballotpedia_measures_to_bronze.py --truncate
     python scripts/datasources/ballotpedia/load_ballotpedia_measures_to_bronze.py \\
-        --cache-dir data/cache/ballotpedia --limit 50
+        --years 2025,2026 --cache-dir data/cache/ballotpedia
 """
 from __future__ import annotations
 
@@ -36,6 +38,7 @@ sys.path.insert(0, str(_ROOT))
 load_dotenv(_ROOT / ".env")
 
 CACHE_DIR = _ROOT / "data" / "cache" / "ballotpedia"
+DEFAULT_ELECTION_YEARS = ("2025", "2026")
 POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "password")
 DATABASE_URL = (
     os.getenv("NEON_DATABASE_URL_DEV", "").strip()
@@ -43,12 +46,12 @@ DATABASE_URL = (
     or f"postgresql://postgres:{POSTGRES_PASSWORD}@localhost:5433/open_navigator"
 )
 
-TABLE = "bronze.bronze_ballotpedia_measures"
+TABLE = "bronze.bronze_ballot_measures_ballotpedia"
 _UUID_NS = uuid.UUID("b1ed9a39-f6a5-44f7-8e4b-5e0f58d4c0da")
 
 CREATE_TABLE_SQL = """
     CREATE SCHEMA IF NOT EXISTS bronze;
-    CREATE TABLE IF NOT EXISTS bronze.bronze_ballotpedia_measures (
+    CREATE TABLE IF NOT EXISTS bronze.bronze_ballot_measures_ballotpedia (
         id                  BIGSERIAL PRIMARY KEY,
         scrape_batch_id     UUID NOT NULL,
         measure_id          TEXT NOT NULL,
@@ -75,17 +78,17 @@ CREATE_TABLE_SQL = """
         scraped_at          TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
         loaded_at           TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
-    CREATE INDEX IF NOT EXISTS idx_bbp_meas_ocd    ON bronze.bronze_ballotpedia_measures (ocd_division_id);
-    CREATE INDEX IF NOT EXISTS idx_bbp_meas_state  ON bronze.bronze_ballotpedia_measures (state_code);
-    CREATE INDEX IF NOT EXISTS idx_bbp_meas_jur    ON bronze.bronze_ballotpedia_measures (jurisdiction_id);
-    CREATE INDEX IF NOT EXISTS idx_bbp_meas_date   ON bronze.bronze_ballotpedia_measures (election_date);
-    CREATE INDEX IF NOT EXISTS idx_bbp_meas_year   ON bronze.bronze_ballotpedia_measures (election_year);
-    CREATE INDEX IF NOT EXISTS idx_bbp_meas_batch  ON bronze.bronze_ballotpedia_measures (scrape_batch_id);
-    CREATE INDEX IF NOT EXISTS idx_bbp_meas_mid    ON bronze.bronze_ballotpedia_measures (measure_id);
+    CREATE INDEX IF NOT EXISTS idx_bbmb_ocd    ON bronze.bronze_ballot_measures_ballotpedia (ocd_division_id);
+    CREATE INDEX IF NOT EXISTS idx_bbmb_state  ON bronze.bronze_ballot_measures_ballotpedia (state_code);
+    CREATE INDEX IF NOT EXISTS idx_bbmb_jur    ON bronze.bronze_ballot_measures_ballotpedia (jurisdiction_id);
+    CREATE INDEX IF NOT EXISTS idx_bbmb_date   ON bronze.bronze_ballot_measures_ballotpedia (election_date);
+    CREATE INDEX IF NOT EXISTS idx_bbmb_year   ON bronze.bronze_ballot_measures_ballotpedia (election_year);
+    CREATE INDEX IF NOT EXISTS idx_bbmb_batch  ON bronze.bronze_ballot_measures_ballotpedia (scrape_batch_id);
+    CREATE INDEX IF NOT EXISTS idx_bbmb_mid    ON bronze.bronze_ballot_measures_ballotpedia (measure_id);
 """
 
 INSERT_SQL = """
-    INSERT INTO bronze.bronze_ballotpedia_measures (
+    INSERT INTO bronze.bronze_ballot_measures_ballotpedia (
         scrape_batch_id, measure_id, ocd_division_id,
         state_code, jurisdiction_id, jurisdiction_name, jurisdiction_type,
         election_date, election_year, measure_number,
@@ -109,6 +112,21 @@ _VOTE_PAIR_RE = re.compile(
     r"(?P<yes>\d[\d,]*)\s*(?:yes|for|in favor)[^\d]{0,40}(?P<no>\d[\d,]*)\s*(?:no|against)",
     re.I,
 )
+_CACHE_DEDUPE_RE = re.compile(r"^(?P<prefix>.+_ballot_measures(?:_\d{4})?)_\d{8}T", re.I)
+
+
+def _parse_years(raw: str | None) -> frozenset[str]:
+    if not raw or not raw.strip():
+        return frozenset(DEFAULT_ELECTION_YEARS)
+    years = frozenset(y.strip() for y in raw.split(",") if y.strip())
+    return years or frozenset(DEFAULT_ELECTION_YEARS)
+
+
+def _cache_dedupe_key(path: Path) -> str:
+    """One newest snapshot per state/jurisdiction + election year label."""
+    m = _CACHE_DEDUPE_RE.match(path.name)
+    prefix = m.group("prefix") if m else path.stem
+    return str(path.parent / prefix)
 
 
 def _stable_id(prefix: str, key: str) -> str:
@@ -290,7 +308,7 @@ def _iter_cache_files(cache_dir: Path) -> list[Path]:
     seen: set[str] = set()
     ordered: list[Path] = []
     for path in sorted(files, key=lambda p: p.stat().st_mtime, reverse=True):
-        key = str(path.parent / path.name.split("_ballot_measures")[0])
+        key = _cache_dedupe_key(path)
         if key in seen:
             continue
         seen.add(key)
@@ -311,8 +329,9 @@ def _load_json(path: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
 def parse_cache(
     cache_dir: Path,
     *,
+    years: frozenset[str],
     limit_files: int | None = None,
-) -> tuple[list[tuple], uuid.UUID, int]:
+) -> tuple[list[tuple], uuid.UUID, int, int]:
     files = _iter_cache_files(cache_dir)
     if limit_files:
         files = files[:limit_files]
@@ -325,6 +344,7 @@ def parse_cache(
     batch_id = uuid.uuid4()
     records: list[tuple] = []
     source_measures = 0
+    skipped_year = 0
 
     for path in files:
         envelope, measures = _load_json(path)
@@ -332,6 +352,10 @@ def parse_cache(
         for measure in measures:
             row = _normalize_measure(measure, envelope=envelope, source_path=path)
             if not row:
+                continue
+            election_year = row.get("election_year")
+            if election_year not in years:
+                skipped_year += 1
                 continue
             records.append((
                 str(batch_id),
@@ -359,7 +383,7 @@ def parse_cache(
                 row["scraped_at"],
             ))
 
-    return records, batch_id, source_measures
+    return records, batch_id, source_measures, skipped_year
 
 
 def load(
@@ -415,18 +439,30 @@ def load(
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--cache-dir", type=Path, default=CACHE_DIR)
+    parser.add_argument(
+        "--years",
+        default=",".join(DEFAULT_ELECTION_YEARS),
+        help=f"Comma-separated election years to load (default: {','.join(DEFAULT_ELECTION_YEARS)})",
+    )
     parser.add_argument("--limit", type=int, help="Limit number of cache files to read")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--truncate", action="store_true")
     args = parser.parse_args()
 
+    years = _parse_years(args.years)
+
     logger.info("=" * 70)
     logger.info("Ballotpedia measures → {}", TABLE)
+    logger.info("Election years: {}", ", ".join(sorted(years)))
     logger.info("=" * 70)
 
-    records, batch_id, source_measures = parse_cache(args.cache_dir, limit_files=args.limit)
-    logger.info("batch_id={} | {} cache measure(s) → {} bronze row(s)",
-                batch_id, source_measures, len(records))
+    records, batch_id, source_measures, skipped_year = parse_cache(
+        args.cache_dir, years=years, limit_files=args.limit,
+    )
+    logger.info(
+        "batch_id={} | {} cache measure(s) → {} bronze row(s) (skipped {} outside years)",
+        batch_id, source_measures, len(records), skipped_year,
+    )
 
     if not records:
         logger.error("No measures parsed from cache — nothing to load")

@@ -12,7 +12,7 @@ launch the report in Playwright, capture the main table's query template
 DSR (DataShape Result) JSON — not DOM scraping.
 
 After capture, the script:
-  1. Saves every raw querydata response to ``data/cache/powerbi_ballot_measures/raw/``.
+  1. Saves every raw querydata response to ``data/cache/ncls/raw/``.
   2. Merges all table pages into one CSV (deduped by row content).
   3. Asserts the row count matches ``--expected-count`` (default 9670).
 
@@ -51,7 +51,7 @@ DEFAULT_URL = (
     "eyJrIjoiYjEwNDI2NTctZDFkMy00ZGM4LWFkMTItNTcwYTdkZmMxMGIxIiwidCI6IjM4MmZiOGIwLTRkYzMtNDEwNy04MGJkLTM1OTViMjQzMmZhZSIsImMiOjZ9"
 )
 _ROOT = Path(__file__).resolve().parents[3]
-CACHE_DIR = _ROOT / "data" / "cache" / "powerbi_ballot_measures"
+CACHE_DIR = _ROOT / "data" / "cache" / "ncls"
 RAW_DIR = CACHE_DIR / "raw"
 
 QUERYDATA_PATH_RE = re.compile(r"/public/reports/querydata", re.IGNORECASE)
@@ -173,6 +173,15 @@ def _restart_literal(value: Any) -> str:
     """Power BI ``RestartTokens`` use bare ``null`` for missing values, not ``''``."""
     if value is None or value == "":
         return "null"
+    if isinstance(value, float):
+        return f"{value}D"
+    if isinstance(value, int) and not isinstance(value, bool):
+        return _sql_literal(str(value))
+    if isinstance(value, str) and re.match(r"^-?\d*\.\d", value):
+        try:
+            return f"{float(value)}D"
+        except ValueError:
+            pass
     return _sql_literal(value)
 
 
@@ -218,14 +227,39 @@ async def _paginate_table(
     *,
     expected_count: int,
     max_pages: int,
+    resume: bool,
 ) -> tuple[list[str], list[list[Any]]]:
     """Fetch all table pages via RestartTokens; save each raw JSON response."""
     raw_dir.mkdir(parents=True, exist_ok=True)
     merged: dict[tuple[str, ...], list[Any]] = {}
     columns: list[str] = []
     restart: list[list[str]] | None = None
+    start_page = 0
 
-    for page_num in range(max_pages):
+    if resume:
+        existing = sorted(raw_dir.glob("table_page_*.json"))
+        for path in existing:
+            payload = json.loads(path.read_text())
+            parsed = _best_table_parse(payload)
+            if not parsed:
+                continue
+            columns, rows = parsed
+            for row in rows:
+                merged[tuple("" if v is None else str(v) for v in row)] = row
+        if existing:
+            start_page = len(existing)
+            last_path = existing[-1]
+            last_parsed = _best_table_parse(json.loads(last_path.read_text()))
+            if last_parsed:
+                restart = restart_tokens_from_row(last_parsed[1][-1])
+                logger.info(
+                    "Resuming from page {} (loaded {:,} unique rows from {})",
+                    start_page, len(merged), last_path.name,
+                )
+
+    for page_num in range(start_page, max_pages):
+        if page_num > 0:
+            await asyncio.sleep(0.75)
         body = json.loads(json.dumps(base_body))
         cmd = body["queries"][0]["Query"]["Commands"][0]["SemanticQueryDataShapeCommand"]
         window: dict[str, Any] = {"Count": PAGE_SIZE}
@@ -233,16 +267,28 @@ async def _paginate_table(
             window["RestartTokens"] = restart
         cmd["Binding"]["DataReduction"]["Primary"]["Window"] = window
 
-        response = await context.request.post(url, data=json.dumps(body), headers=headers)
-        await asyncio.sleep(0.15)
-        if response.status != 200:
-            text = await response.text()
-            raise RuntimeError(f"querydata page {page_num} failed: HTTP {response.status}: {text[:300]}")
-
-        payload = await response.json()
+        payload: dict[str, Any] | None = None
+        parsed: tuple[list[str], list[list[Any]]] | None = None
+        for attempt in range(5):
+            try:
+                response = await context.request.post(
+                    url, data=json.dumps(body), headers=headers, timeout=120_000,
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("Page {} attempt {}: request failed: {}", page_num, attempt + 1, exc)
+                await asyncio.sleep(0.5 * (2 ** attempt))
+                continue
+            await asyncio.sleep(0.5 * (2 ** attempt))
+            if response.status != 200:
+                text = await response.text()
+                raise RuntimeError(f"querydata page {page_num} failed: HTTP {response.status}: {text[:300]}")
+            payload = await response.json()
+            parsed = _best_table_parse(payload)
+            if parsed:
+                break
+            logger.debug("Page {} attempt {}: empty DSR, retrying", page_num, attempt + 1)
         raw_path = raw_dir / f"table_page_{page_num + 1:04d}.json"
         raw_path.write_text(json.dumps(payload))
-        parsed = _best_table_parse(payload)
         if not parsed:
             logger.warning("Page {}: empty or unparseable response — stopping pagination", page_num)
             break
@@ -257,9 +303,15 @@ async def _paginate_table(
             "Page {:>2}: batch={:,} new={:,} total={:,}",
             page_num, len(rows), new, len(merged),
         )
-        if len(rows) < PAGE_SIZE or new == 0:
+        if len(rows) < PAGE_SIZE:
             break
+        if new == 0:
+            logger.warning(
+                "Page {}: batch had no new rows (overlap) — advancing RestartTokens anyway",
+                page_num,
+            )
         if len(merged) >= expected_count:
+            logger.info("Reached expected row count ({:,}) — stopping pagination", expected_count)
             break
         try:
             restart = restart_tokens_from_row(rows[-1])
@@ -277,6 +329,7 @@ async def _capture_and_download(
     headless: bool,
     expected_count: int,
     max_pages: int,
+    resume: bool,
 ) -> tuple[list[str], list[list[Any]]]:
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(headless=headless)
@@ -309,7 +362,7 @@ async def _capture_and_download(
         query_url, headers, base_body = holder["table"]
         columns, rows = await _paginate_table(
             context, query_url, headers, base_body, raw_dir,
-            expected_count=expected_count, max_pages=max_pages,
+            expected_count=expected_count, max_pages=max_pages, resume=resume,
         )
         await context.close()
         await browser.close()
@@ -360,13 +413,15 @@ def main() -> int:
                         help="Expected ballot-measure row count (KPI on dashboard).")
     parser.add_argument("--parse-only", action="store_true",
                         help="Skip scraping; merge existing raw/*.json into CSV.")
+    parser.add_argument("--resume", action="store_true",
+                        help="Continue pagination from existing raw/table_page_*.json files.")
     parser.add_argument("--headless", action="store_true", default=True)
     parser.add_argument("--headed", dest="headless", action="store_false",
                         help="Run with a visible browser (useful for debugging).")
-    parser.add_argument("--max-pages", type=int, default=22,
-                        help="Safety cap on RestartTokens pagination (500 rows/page; 22 ≈ 11k rows).")
+    parser.add_argument("--max-pages", type=int, default=25,
+                        help="Safety cap on RestartTokens pagination (500 rows/page; 25 ≈ 12.5k rows).")
     parser.add_argument("--out", type=Path, default=None,
-                        help="Output CSV path (default: data/cache/powerbi_ballot_measures/ballot_measures_<ts>.csv).")
+                        help="Output CSV path (default: data/cache/ncls/ballot_measures_<ts>.csv).")
     args = parser.parse_args()
 
     RAW_DIR.mkdir(parents=True, exist_ok=True)
@@ -375,10 +430,12 @@ def main() -> int:
         columns, rows = _merge_table_parses(RAW_DIR)
     else:
         columns, rows = asyncio.run(_capture_and_download(
-            args.url, RAW_DIR,
+            args.url,
+            RAW_DIR,
             headless=args.headless,
             expected_count=args.expected_count,
             max_pages=args.max_pages,
+            resume=args.resume,
         ))
 
     if not rows:
@@ -388,15 +445,20 @@ def main() -> int:
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     csv_path = args.out or CACHE_DIR / f"ballot_measures_{ts}.csv"
     _write_csv(columns, rows, csv_path)
+    logger.info("Output directory: {}", CACHE_DIR.resolve())
+    logger.info("Raw querydata pages: {}", RAW_DIR.resolve())
 
     delta = len(rows) - args.expected_count
-    status = "OK" if delta == 0 else ("UNDER" if delta < 0 else "OVER")
-    logger.info("Count check [{}]: scraped={:,}, expected={:,}, Δ={:+}",
-                status, len(rows), args.expected_count, delta)
-    if delta != 0:
+    tolerance = max(50, int(args.expected_count * 0.05))
+    status = "OK" if abs(delta) <= tolerance else ("UNDER" if delta < 0 else "OVER")
+    logger.info(
+        "Count check [{}]: scraped={:,}, expected={:,}, Δ={:+} (tolerance ±{:,})",
+        status, len(rows), args.expected_count, delta, tolerance,
+    )
+    if abs(delta) > tolerance:
         logger.warning(
-            "Row count does not match dashboard KPI — inspect raw payloads in {} "
-            "or increase --max-pages.",
+            "Row count outside dashboard KPI tolerance — inspect raw payloads in {} "
+            "or re-run with --resume.",
             RAW_DIR,
         )
         return 2

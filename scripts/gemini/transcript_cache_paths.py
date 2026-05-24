@@ -215,11 +215,13 @@ def _place_slug_for_folder(name: str) -> str:
     return slug_snake_case(label, max_length=56)
 
 
-def jurisdiction_cache_folder_name(jurisdiction_id: str) -> str:
+def jurisdiction_cache_folder_name(jurisdiction_id: str, *, place_name: str | None = None) -> str:
     """
     Filesystem folder under ``{state}/{type}/`` — ``{place_slug}_{geoid}``.
 
     Example: ``municipality_0101852`` → ``anniston_0101852``.
+
+    When ``place_name`` is supplied (e.g. from ``int_jurisdictions.name``), skip DB lookup.
     """
     jid = resolve_canonical_jurisdiction_id(jurisdiction_id)
     match = _JID_TYPED_RE.match(jid)
@@ -227,7 +229,7 @@ def jurisdiction_cache_folder_name(jurisdiction_id: str) -> str:
         safe = re.sub(r"[^A-Za-z0-9._-]+", "_", jid).strip("_")
         return safe[:200] or "unknown"
     geoid = match.group("geoid")
-    place = lookup_jurisdiction_place_name(jid) or geoid
+    place = (place_name or "").strip() or lookup_jurisdiction_place_name(jid) or geoid
     return f"{_place_slug_for_folder(place)}_{geoid}"
 
 

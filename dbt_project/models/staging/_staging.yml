@@ -842,7 +842,7 @@ sources:
           - name: created_at
             description: "When analysis was performed"
 
-      - name: bronze_ballotpedia_measures
+      - name: bronze_ballot_measures_ballotpedia
         description: |
           Ballot measures scraped from Ballotpedia.org (state and jurisdiction pages).
           Loaded by scripts/datasources/ballotpedia/load_ballotpedia_measures_to_bronze.py.
@@ -877,8 +877,11 @@ sources:
           - name: measure_id
           - name: measure_title
           - name: state_code
+          - name: jurisdiction_id
+          - name: ocd_id
           - name: election_date
           - name: election_year
+            description: "Calendar year label as VARCHAR(4)"
           - name: outcome
           - name: yes_count
           - name: no_count

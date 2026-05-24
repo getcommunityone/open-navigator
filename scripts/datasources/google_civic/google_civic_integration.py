@@ -1,39 +1,20 @@
 """
 Google Civic Information API Integration
 
-The Google Civic Information API is the gold standard for:
-- Address-to-representative mapping
-- Elected officials contact information
-- Election data and polling locations
-- Voter information
+Supported endpoints (Representatives API was turned down April 2025):
+- **Elections** (`/elections`) — upcoming election calendar metadata
+- **Voter Info** (`/voterinfo`) — VIP polling places, contests, candidates, referendums
+- **Divisions by address** (`/divisionsByAddress`) — OCD division IDs for an address
 
 API Docs: https://developers.google.com/civic-information
-Free Tier: 25,000 requests/day
-Cost: Free for non-commercial use
-
-SETUP:
-1. Get API key: https://console.cloud.google.com/
-2. Enable "Google Civic Information API"
-3. Add to .env: GOOGLE_CIVIC_API_KEY=your-key
-
-USAGE:
-    from scripts.discovery.google_civic_integration import GoogleCivicAPI
-    
-    api = GoogleCivicAPI()
-    
-    # Get representatives for an address
-    reps = await api.get_representatives("1600 Pennsylvania Ave NW, Washington DC")
-    
-    # Get upcoming elections
-    elections = await api.get_elections()
-    
-    # Get voter info
-    voter_info = await api.get_voter_info("123 Main St, Tuscaloosa, AL")
 """
 import asyncio
+import re
 from typing import Dict, List, Optional
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import quote
+
 import httpx
 from loguru import logger
 
@@ -47,342 +28,320 @@ except ImportError:
     logger.warning("Running without Spark/settings - limited functionality")
 
 
+# Census Gazetteer names often append LSAD descriptors ("Abbeville city") that cause
+# Google Civic address geocoding to fail. Strip them before querying.
+_CENSUS_LSAD_SUFFIX_RE = re.compile(
+    r"\s+(city|town|village|borough|township|cdp|municipality|parish|consolidated government)\s*$",
+    re.IGNORECASE,
+)
+_PAREN_QUALIFIER_RE = re.compile(r"\s*\([^)]*\)")
+
+
+def normalize_civic_place_name(name: str) -> str:
+    """Drop Census LSAD tokens and parenthetical qualifiers from a place label."""
+    place = re.sub(r"\s+", " ", (name or "").strip())
+    place = _PAREN_QUALIFIER_RE.sub(" ", place)
+    place = _CENSUS_LSAD_SUFFIX_RE.sub("", place)
+    place = re.sub(r"\s+", " ", place).strip(" ,")
+    return place or (name or "").strip()
+
+
+def format_civic_address_query(place_name: str, state_code: str) -> str:
+    """Build ``Place, ST`` suitable for Civic address= query parameters."""
+    place = normalize_civic_place_name(place_name)
+    state = (state_code or "").strip().upper()
+    return f"{place}, {state}"
+
+
+def normalize_civic_address(address: str) -> str:
+    """Normalize a full ``place, ST`` string (idempotent)."""
+    address = re.sub(r"\s+", " ", (address or "").strip())
+    m = re.match(r"^(.+?),\s*([A-Za-z]{2})\s*$", address)
+    if not m:
+        return address
+    return format_civic_address_query(m.group(1), m.group(2))
+
+
+def civic_elections_url(*, include_key: bool = False, api_key: str | None = None) -> str:
+    url = f"{GoogleCivicAPI.BASE_URL}/elections"
+    if include_key and api_key:
+        url += f"?key={api_key}"
+    return url
+
+
+def civic_voterinfo_url(
+    address: str,
+    *,
+    election_id: str | None = None,
+    include_key: bool = False,
+    api_key: str | None = None,
+) -> str:
+    q = quote(normalize_civic_address(address), safe=",")
+    url = f"{GoogleCivicAPI.BASE_URL}/voterinfo?address={q}"
+    if election_id:
+        url += f"&electionId={quote(str(election_id), safe='')}"
+    if include_key and api_key:
+        url += f"&key={api_key}"
+    return url
+
+
+def civic_divisions_by_address_url(address: str, *, include_key: bool = False, api_key: str | None = None) -> str:
+    """Canonical divisionsByAddress URL for cache/debug (never log bare API keys by default)."""
+    q = quote(normalize_civic_address(address), safe=",")
+    url = f"{GoogleCivicAPI.BASE_URL}/divisionsByAddress?address={q}"
+    if include_key and api_key:
+        url += f"&key={api_key}"
+    return url
+
+
+def elections_for_state(elections: List[Dict], state_code: str) -> List[Dict]:
+    """Filter electionQuery results to a state (includes national ``country:us`` rows)."""
+    state = (state_code or "").strip().lower()
+    if not state:
+        return list(elections or [])
+    out: List[Dict] = []
+    for election in elections or []:
+        ocd = (election.get("ocdDivisionId") or "").lower()
+        if ocd == "ocd-division/country:us" or f"/state:{state}" in ocd:
+            out.append(election)
+    return out
+
+
+def sanitize_civic_error_message(message: str) -> str:
+    """Clean httpx/Google error text for logs and cache JSON (fix typos, redact keys)."""
+    text = (message or "").replace("Not Foud", "Not Found")
+    text = re.sub(r"([?&]key=)[^&'\s\\]+", r"\1REDACTED", text)
+    return text
+
+
 class GoogleCivicAPI:
     """
-    Integration with Google Civic Information API.
-    
-    Best for:
-    - "Who represents this address?" queries
-    - Finding all elected officials for a location
-    - Election information
-    - Polling locations
+    Integration with Google Civic Information API (Elections + Voter Info + Divisions).
     """
-    
+
     BASE_URL = "https://www.googleapis.com/civicinfo/v2"
-    
+
     def __init__(self, api_key: Optional[str] = None):
-        """
-        Initialize Google Civic API client.
-        
-        Args:
-            api_key: Google Civic Information API key
-                    If not provided, will try to get from settings.google_civic_api_key
-        """
         if api_key:
             self.api_key = api_key
-        elif SPARK_AVAILABLE and hasattr(settings, 'google_civic_api_key'):
+        elif SPARK_AVAILABLE and hasattr(settings, "google_civic_api_key"):
             self.api_key = settings.google_civic_api_key
         else:
             self.api_key = None
             logger.warning("⚠️  GOOGLE_CIVIC_API_KEY not found")
             logger.warning("   Get one at: https://console.cloud.google.com/")
             logger.warning("   Add to .env: GOOGLE_CIVIC_API_KEY=your-key")
-        
+
         self.cache_dir = Path("data/cache/google_civic")
         self.cache_dir.mkdir(parents=True, exist_ok=True)
-    
-    async def get_representatives(
-        self,
-        address: str,
-        levels: Optional[List[str]] = None,
-        roles: Optional[List[str]] = None
-    ) -> Dict:
-        """
-        Get elected officials for a given address.
-        
-        Args:
-            address: Street address (e.g., "1600 Pennsylvania Ave NW, Washington DC")
-            levels: Filter by government level: ['country', 'administrativeArea1' (state), 
-                   'administrativeArea2' (county), 'locality' (city), 'subLocality1' (neighborhood)]
-            roles: Filter by role: ['legislatorUpperBody', 'legislatorLowerBody', 
-                  'deputyHeadOfGovernment', 'headOfGovernment', 'executiveCouncil', etc.]
-        
-        Returns:
-            Dict with 'offices' and 'officials' keys
-        """
-        if not self.api_key:
-            raise ValueError("Google Civic API key required. Set GOOGLE_CIVIC_API_KEY in .env")
-        
-        params = {
-            "address": address,
-            "key": self.api_key
-        }
-        
-        if levels:
-            params["levels"] = levels
-        if roles:
-            params["roles"] = roles
-        
-        logger.info(f"Fetching representatives for: {address}")
-        
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            try:
-                response = await client.get(
-                    f"{self.BASE_URL}/representatives",
-                    params=params
-                )
-                response.raise_for_status()
-                data = response.json()
-                
-                # Extract and format data
-                officials_data = {
-                    "address": address,
-                    "normalized_address": data.get("normalizedInput", {}).get("line1", address),
-                    "officials": [],
-                    "source": "google_civic_api",
-                    "fetched_at": datetime.utcnow().isoformat()
-                }
-                
-                # Parse offices and officials
-                offices = data.get("offices", [])
-                officials = data.get("officials", [])
-                
-                for office in offices:
-                    office_name = office.get("name")
-                    office_level = office.get("levels", ["unknown"])[0]
-                    office_roles = office.get("roles", [])
-                    
-                    # Get official indices for this office
-                    official_indices = office.get("officialIndices", [])
-                    
-                    for idx in official_indices:
-                        if idx < len(officials):
-                            official = officials[idx]
-                            
-                            officials_data["officials"].append({
-                                "name": official.get("name"),
-                                "office": office_name,
-                                "level": office_level,
-                                "roles": office_roles,
-                                "party": official.get("party"),
-                                "phones": official.get("phones", []),
-                                "urls": official.get("urls", []),
-                                "emails": official.get("emails", []),
-                                "photo_url": official.get("photoUrl"),
-                                "address": official.get("address", [{}])[0] if official.get("address") else {},
-                                "channels": official.get("channels", [])  # Social media
-                            })
-                
-                logger.info(f"✅ Found {len(officials_data['officials'])} officials for {address}")
-                return officials_data
-                
-            except httpx.HTTPStatusError as e:
-                logger.error(f"HTTP error: {e.response.status_code} - {e.response.text}")
-                raise
-            except Exception as e:
-                logger.error(f"Error fetching representatives: {e}")
-                raise
-    
+
     async def get_elections(self) -> Dict:
         """
-        Get information about upcoming elections.
-        
-        Returns:
-            Dict with 'elections' list
+        elections.electionQuery — master list of elections Google has VIP data for.
+
+        Returns id, name, electionDay, ocdDivisionId for each row.
         """
         if not self.api_key:
             raise ValueError("Google Civic API key required")
-        
+
         logger.info("Fetching upcoming elections")
-        
+
         async with httpx.AsyncClient(timeout=30.0) as client:
             try:
                 response = await client.get(
                     f"{self.BASE_URL}/elections",
-                    params={"key": self.api_key}
+                    params={"key": self.api_key},
                 )
                 response.raise_for_status()
                 data = response.json()
-                
                 elections_data = {
                     "elections": data.get("elections", []),
-                    "source": "google_civic_api",
-                    "fetched_at": datetime.utcnow().isoformat()
+                    "kind": data.get("kind"),
+                    "source": "google_civic_elections",
+                    "source_url": civic_elections_url(),
+                    "fetched_at": datetime.utcnow().isoformat(),
                 }
-                
                 logger.info(f"✅ Found {len(elections_data['elections'])} upcoming elections")
                 return elections_data
-                
-            except Exception as e:
-                logger.error(f"Error fetching elections: {e}")
+            except httpx.HTTPStatusError as e:
+                body = sanitize_civic_error_message(e.response.text or "")
+                logger.error(f"HTTP error: {e.response.status_code} - {body}")
                 raise
-    
+            except Exception as e:
+                logger.error(f"Error fetching elections: {sanitize_civic_error_message(str(e))}")
+                raise
+
     async def get_voter_info(
         self,
         address: str,
-        election_id: Optional[str] = None
+        election_id: Optional[str] = None,
     ) -> Dict:
         """
-        Get voter information for an address.
-        
-        Args:
-            address: Voter's address
-            election_id: Specific election ID (default: next election)
-        
-        Returns:
-            Dict with polling location, ballot info, etc.
+        elections.voterInfoQuery — VIP polling places, contests, candidates, referendums.
+
+        ``election_id`` is required when no default upcoming election applies to the address.
         """
         if not self.api_key:
             raise ValueError("Google Civic API key required")
-        
-        params = {
-            "address": address,
-            "key": self.api_key
+
+        raw_address = (address or "").strip()
+        query_address = normalize_civic_address(raw_address)
+        params: Dict[str, str] = {
+            "address": query_address,
+            "key": self.api_key,
         }
-        
         if election_id:
-            params["electionId"] = election_id
-        
-        logger.info(f"Fetching voter info for: {address}")
-        
+            params["electionId"] = str(election_id)
+
+        logger.info(
+            "Fetching voter info for: %s (electionId=%s)",
+            query_address,
+            election_id or "default",
+        )
+
         async with httpx.AsyncClient(timeout=30.0) as client:
             try:
                 response = await client.get(
                     f"{self.BASE_URL}/voterinfo",
-                    params=params
+                    params=params,
                 )
                 response.raise_for_status()
                 data = response.json()
-                
+                normalized = data.get("normalizedInput") or {}
                 voter_info = {
-                    "address": address,
-                    "normalized_address": data.get("normalizedInput", {}).get("line1", address),
-                    "election": data.get("election"),
+                    **data,
+                    "address": query_address,
+                    "raw_address": raw_address,
+                    "election_id": str(election_id) if election_id else None,
+                    "normalized_address": normalized.get("line1") or normalized.get("city") or query_address,
                     "polling_locations": data.get("pollingLocations", []),
                     "early_vote_sites": data.get("earlyVoteSites", []),
+                    "drop_off_locations": data.get("dropOffLocations", []),
                     "contests": data.get("contests", []),
                     "state": data.get("state", []),
-                    "source": "google_civic_api",
-                    "fetched_at": datetime.utcnow().isoformat()
+                    "election": data.get("election"),
+                    "source": "google_civic_voterinfo",
+                    "source_url": civic_voterinfo_url(query_address, election_id=election_id),
+                    "fetched_at": datetime.utcnow().isoformat(),
                 }
-                
-                logger.info(f"✅ Found voter info for {address}")
+                n_contests = len(voter_info["contests"])
+                n_polling = len(voter_info["polling_locations"])
+                logger.info(
+                    "✅ Voter info for %s: %d contest(s), %d polling location(s)",
+                    query_address,
+                    n_contests,
+                    n_polling,
+                )
                 return voter_info
-                
+            except httpx.HTTPStatusError as e:
+                body = sanitize_civic_error_message(e.response.text or "")
+                logger.error(f"HTTP error: {e.response.status_code} - {body}")
+                raise httpx.HTTPStatusError(
+                    sanitize_civic_error_message(str(e)),
+                    request=e.request,
+                    response=e.response,
+                ) from e
             except Exception as e:
-                logger.error(f"Error fetching voter info: {e}")
+                logger.error(f"Error fetching voter info: {sanitize_civic_error_message(str(e))}")
                 raise
-    
-    async def get_representatives_by_division(self, ocd_id: str) -> Dict:
-        """
-        Get representatives for an Open Civic Data division ID.
-        
-        Args:
-            ocd_id: OCD ID (e.g., "ocd-division/country:us/state:al/county:tuscaloosa")
-        
-        Returns:
-            Dict with officials for that division
-        """
+
+    async def get_divisions_by_address(self, address: str) -> Dict:
+        """Look up OCD division IDs for a residential address (post-Representatives turndown)."""
         if not self.api_key:
-            raise ValueError("Google Civic API key required")
-        
-        logger.info(f"Fetching representatives for OCD ID: {ocd_id}")
-        
+            raise ValueError("Google Civic API key required. Set GOOGLE_CIVIC_API_KEY in .env")
+
+        raw_address = (address or "").strip()
+        query_address = normalize_civic_address(raw_address)
+        params = {"address": query_address, "key": self.api_key}
+
+        logger.info(f"Fetching divisions for address: {query_address}")
+
         async with httpx.AsyncClient(timeout=30.0) as client:
             try:
                 response = await client.get(
-                    f"{self.BASE_URL}/representatives/{ocd_id}",
-                    params={"key": self.api_key}
+                    f"{self.BASE_URL}/divisionsByAddress",
+                    params=params,
                 )
                 response.raise_for_status()
-                return response.json()
-                
+                data = response.json()
+                return {
+                    **data,
+                    "address": query_address,
+                    "raw_address": raw_address,
+                    "source": "google_civic_divisions_by_address",
+                    "source_url": civic_divisions_by_address_url(query_address),
+                    "fetched_at": datetime.utcnow().isoformat(),
+                }
+            except httpx.HTTPStatusError as e:
+                body = sanitize_civic_error_message(e.response.text or "")
+                logger.error(f"HTTP error: {e.response.status_code} - {body}")
+                raise httpx.HTTPStatusError(
+                    sanitize_civic_error_message(str(e)),
+                    request=e.request,
+                    response=e.response,
+                ) from e
             except Exception as e:
-                logger.error(f"Error fetching division representatives: {e}")
+                logger.error(f"Error fetching divisions by address: {sanitize_civic_error_message(str(e))}")
                 raise
-    
+
     def save_to_json(self, data: Dict, filename: str):
         """Save data to JSON cache."""
         import json
-        
+
         filepath = self.cache_dir / filename
-        with open(filepath, 'w') as f:
+        with open(filepath, "w") as f:
             json.dump(data, f, indent=2)
-        
+
         logger.info(f"💾 Saved to {filepath}")
 
 
-# ============================================================================
-# Example Usage
-# ============================================================================
-
 async def example_usage():
-    """Example usage of Google Civic API."""
-    
-    # Initialize (will get key from settings or environment)
+    """Example usage of Google Civic API (Elections + Voter Info)."""
     api = GoogleCivicAPI()
-    
+
     if not api.api_key:
         logger.error("❌ API key not found. Please set GOOGLE_CIVIC_API_KEY in .env")
         return
-    
-    # Example 1: Get representatives for Tuscaloosa City Hall
-    logger.info("\n" + "="*80)
-    logger.info("Example 1: Get representatives for Tuscaloosa, AL")
-    logger.info("="*80)
-    
-    try:
-        reps = await api.get_representatives("2201 University Blvd, Tuscaloosa, AL 35401")
-        
-        print(f"\n✅ Found {len(reps['officials'])} officials:")
-        for official in reps['officials'][:10]:  # Show first 10
-            print(f"\n   • {official['name']}")
-            print(f"     Office: {official['office']}")
-            print(f"     Level: {official['level']}")
-            print(f"     Party: {official.get('party', 'N/A')}")
-            if official.get('phones'):
-                print(f"     Phone: {official['phones'][0]}")
-            if official.get('urls'):
-                print(f"     Website: {official['urls'][0]}")
-        
-        # Save to cache
-        api.save_to_json(reps, "tuscaloosa_representatives.json")
-        
-    except Exception as e:
-        logger.error(f"Error: {e}")
-    
-    # Example 2: Get upcoming elections
-    logger.info("\n" + "="*80)
-    logger.info("Example 2: Get upcoming elections")
-    logger.info("="*80)
-    
+
+    logger.info("\n" + "=" * 80)
+    logger.info("Example 1: elections.electionQuery")
+    logger.info("=" * 80)
+
     try:
         elections = await api.get_elections()
-        
-        print(f"\n✅ Found {len(elections['elections'])} upcoming elections:")
-        for election in elections['elections']:
-            print(f"\n   • {election['name']}")
-            print(f"     Date: {election['electionDay']}")
-            print(f"     ID: {election['id']}")
-        
+        election_rows = elections.get("elections", [])
+        print(f"\n✅ Found {len(election_rows)} upcoming elections:")
+        for election in election_rows[:10]:
+            print(f"\n   • {election.get('name')}")
+            print(f"     Date: {election.get('electionDay')}")
+            print(f"     ID: {election.get('id')}")
+            print(f"     OCD: {election.get('ocdDivisionId')}")
         api.save_to_json(elections, "upcoming_elections.json")
-        
     except Exception as e:
         logger.error(f"Error: {e}")
-    
-    # Example 3: Get voter info
-    logger.info("\n" + "="*80)
-    logger.info("Example 3: Get voter information")
-    logger.info("="*80)
-    
+
+    logger.info("\n" + "=" * 80)
+    logger.info("Example 2: elections.voterInfoQuery")
+    logger.info("=" * 80)
+
+    sample_address = "2201 University Blvd, Tuscaloosa, AL 35401"
     try:
-        voter_info = await api.get_voter_info("2201 University Blvd, Tuscaloosa, AL 35401")
-        
+        elections = await api.get_elections()
+        relevant = elections_for_state(elections.get("elections", []), "AL")
+        election_id = str(relevant[0]["id"]) if relevant else None
+        voter_info = await api.get_voter_info(sample_address, election_id=election_id)
+        election = voter_info.get("election") or {}
         print(f"\n✅ Voter Information:")
-        print(f"   Election: {voter_info['election']['name'] if voter_info.get('election') else 'None upcoming'}")
-        if voter_info.get('polling_locations'):
-            print(f"   Polling Locations: {len(voter_info['polling_locations'])}")
-        if voter_info.get('contests'):
-            print(f"   Ballot Contests: {len(voter_info['contests'])}")
-        
+        print(f"   Election: {election.get('name', 'N/A')}")
+        print(f"   Polling locations: {len(voter_info.get('polling_locations') or [])}")
+        print(f"   Early vote sites: {len(voter_info.get('early_vote_sites') or [])}")
+        print(f"   Contests: {len(voter_info.get('contests') or [])}")
         api.save_to_json(voter_info, "tuscaloosa_voter_info.json")
-        
     except Exception as e:
         logger.error(f"Error: {e}")
-    
+
     logger.info("\n✅ Examples complete!")
 
 
 if __name__ == "__main__":
-    # Run examples
     asyncio.run(example_usage())

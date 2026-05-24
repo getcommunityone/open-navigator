@@ -1,16 +1,16 @@
--- Migration: bronze.bronze_ballotpedia_measures — ballot measures scraped from
+-- Migration: bronze.bronze_ballot_measures_ballotpedia — ballot measures scraped from
 -- Ballotpedia.org (state-wide and jurisdiction-specific pages). Schema is aligned
 -- with NIST SP 1500-100 BallotMeasureContest fields consumed by
 -- ``dbt_project/models/bronze/bronze_ballot_measures_nist.sql``.
 --
 -- Apply:
---   ./scripts/deployment/neon/psql_resolved.sh -f scripts/deployment/neon/migrations/057_create_bronze_ballotpedia_measures.sql
+--   ./scripts/deployment/neon/psql_resolved.sh -f scripts/deployment/neon/migrations/057_create_bronze_ballot_measures_ballotpedia.sql
 
 BEGIN;
 
 CREATE SCHEMA IF NOT EXISTS bronze;
 
-CREATE TABLE IF NOT EXISTS bronze.bronze_ballotpedia_measures (
+CREATE TABLE IF NOT EXISTS bronze.bronze_ballot_measures_ballotpedia (
     id                  BIGSERIAL PRIMARY KEY,
     scrape_batch_id     UUID NOT NULL,
 
@@ -53,32 +53,32 @@ CREATE TABLE IF NOT EXISTS bronze.bronze_ballotpedia_measures (
     loaded_at           TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_bbp_meas_ocd
-    ON bronze.bronze_ballotpedia_measures (ocd_division_id);
-CREATE INDEX IF NOT EXISTS idx_bbp_meas_state
-    ON bronze.bronze_ballotpedia_measures (state_code);
-CREATE INDEX IF NOT EXISTS idx_bbp_meas_jurisdiction
-    ON bronze.bronze_ballotpedia_measures (jurisdiction_id);
-CREATE INDEX IF NOT EXISTS idx_bbp_meas_date
-    ON bronze.bronze_ballotpedia_measures (election_date);
-CREATE INDEX IF NOT EXISTS idx_bbp_meas_year
-    ON bronze.bronze_ballotpedia_measures (election_year);
-CREATE INDEX IF NOT EXISTS idx_bbp_meas_batch
-    ON bronze.bronze_ballotpedia_measures (scrape_batch_id);
-CREATE INDEX IF NOT EXISTS idx_bbp_meas_measure_id
-    ON bronze.bronze_ballotpedia_measures (measure_id);
+CREATE INDEX IF NOT EXISTS idx_bbmb_ocd
+    ON bronze.bronze_ballot_measures_ballotpedia (ocd_division_id);
+CREATE INDEX IF NOT EXISTS idx_bbmb_state
+    ON bronze.bronze_ballot_measures_ballotpedia (state_code);
+CREATE INDEX IF NOT EXISTS idx_bbmb_jurisdiction
+    ON bronze.bronze_ballot_measures_ballotpedia (jurisdiction_id);
+CREATE INDEX IF NOT EXISTS idx_bbmb_date
+    ON bronze.bronze_ballot_measures_ballotpedia (election_date);
+CREATE INDEX IF NOT EXISTS idx_bbmb_year
+    ON bronze.bronze_ballot_measures_ballotpedia (election_year);
+CREATE INDEX IF NOT EXISTS idx_bbmb_batch
+    ON bronze.bronze_ballot_measures_ballotpedia (scrape_batch_id);
+CREATE INDEX IF NOT EXISTS idx_bbmb_measure_id
+    ON bronze.bronze_ballot_measures_ballotpedia (measure_id);
 
-COMMENT ON TABLE bronze.bronze_ballotpedia_measures IS
+COMMENT ON TABLE bronze.bronze_ballot_measures_ballotpedia IS
     'Ballot measures scraped from Ballotpedia.org (state and local jurisdiction pages). '
     'NIST-aligned denormalized columns plus raw_row JSONB. Best-effort; treat as bronze.';
 
-COMMENT ON COLUMN bronze.bronze_ballotpedia_measures.measure_id IS
+COMMENT ON COLUMN bronze.bronze_ballot_measures_ballotpedia.measure_id IS
     'Stable source record id — consumed by bronze_ballot_measures_nist as source_record_id.';
-COMMENT ON COLUMN bronze.bronze_ballotpedia_measures.ocd_division_id IS
+COMMENT ON COLUMN bronze.bronze_ballot_measures_ballotpedia.ocd_division_id IS
     'OCD Division ID (GpUnit ExternalIdentifier) for joining to jurisdictions.';
-COMMENT ON COLUMN bronze.bronze_ballotpedia_measures.election_year IS
+COMMENT ON COLUMN bronze.bronze_ballot_measures_ballotpedia.election_year IS
     'Calendar year label as VARCHAR(4), e.g. ''2024''.';
-COMMENT ON COLUMN bronze.bronze_ballotpedia_measures.raw_row IS
+COMMENT ON COLUMN bronze.bronze_ballot_measures_ballotpedia.raw_row IS
     'Full scraped measure payload keyed by scraper field names.';
 
 COMMIT;

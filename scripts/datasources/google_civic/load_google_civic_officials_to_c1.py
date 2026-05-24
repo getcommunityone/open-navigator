@@ -1,21 +1,19 @@
 #!/usr/bin/env python3
 """
-Load Google Civic and Ballotpedia election snapshots into bronze first, then promote to c1.
+Load Google Civic Elections/Voter Info and Ballotpedia election snapshots into bronze, then promote to c1.
 
 Flow:
-  1) Fetch source payloads and save raw cache files under:
-     - data/cache/google_civic
-     - data/cache/ballotpedia
-  2) Insert normalized rows into bronze.bronze_elections_scraped with source tracking:
-     - source_name = bronze_election_google
-     - source_name = bronze_election_ballotpedia
-  3) Promote only the current scrape batch into c1_* tables via sync_elections_to_c1.
+  1) elections.electionQuery — global snapshot under data/cache/google_civic/elections/
+     plus a state-filtered copy per jurisdiction (same address used for voterInfo)
+  2) elections.voterInfoQuery — per jurisdiction address + electionId (VIP polling/contests)
+  3) divisionsByAddress — resolve OCD division IDs (Representatives API is retired)
+  4) Optional Ballotpedia ballot-measure / external-link enrichment for municipalities
 
 Usage:
-    .venv/bin/python -m scripts.datasources.google_civic.load_google_civic_officials_to_c1 \
+    .venv/bin/python -m scripts.datasources.google_civic.load_google_civic_officials_to_c1 \\
         --states AL,GA,IN,MA,WA,WI --limit-per-state 20
 
-    .venv/bin/python -m scripts.datasources.google_civic.load_google_civic_officials_to_c1 \
+    .venv/bin/python scripts/datasources/google_civic/load_google_civic_officials_to_c1.py \\
         --states MA --limit-per-state 5 --dry-run
 """
 
@@ -27,10 +25,15 @@ import json
 import logging
 import os
 import re
+import sys
 import uuid
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
+
+_ROOT = Path(__file__).resolve().parents[3]
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
 
 import psycopg2
 from dotenv import load_dotenv
@@ -44,8 +47,20 @@ from scripts.datasources.openstates.sync_elections_to_c1 import (
     upsert_divisions,
     upsert_elections,
 )
+from scripts.datasources.google_civic.google_civic_integration import (
+    civic_divisions_by_address_url,
+    civic_elections_url,
+    civic_voterinfo_url,
+    elections_for_state,
+    format_civic_address_query,
+    normalize_civic_place_name,
+    sanitize_civic_error_message,
+)
+from scripts.gemini.transcript_cache_paths import (
+    cache_type_segment,
+    jurisdiction_cache_folder_name,
+)
 
-_ROOT = Path(__file__).resolve().parents[3]
 load_dotenv(_ROOT / ".env")
 
 logger = logging.getLogger("google_civic_bronze_loader")
@@ -161,9 +176,39 @@ def _load_targets(
 
 
 def _normalize_ballotpedia_city_name(name: str) -> str:
-    cleaned = re.sub(r"\s+", " ", (name or "").strip())
-    cleaned = re.sub(r"\b(city|town|village|borough|township|cdp|municipality)\b\s*$", "", cleaned, flags=re.IGNORECASE)
-    return cleaned.strip(" ,") or name
+    """Strip Census LSAD suffixes; shared logic with Google Civic address normalization."""
+    return normalize_civic_place_name(name)
+
+
+def _jurisdiction_elections_cache_payload(
+    *,
+    elections_payload: dict[str, Any],
+    relevant_elections: list[dict[str, Any]],
+    civic_address: str,
+    jurisdiction_id: str,
+    state_code: str,
+    jurisdiction_name: str,
+    jurisdiction_type: str,
+) -> dict[str, Any]:
+    """electionQuery rows scoped to a jurisdiction address (state + national)."""
+    return {
+        "elections": relevant_elections,
+        "kind": elections_payload.get("kind"),
+        "source": elections_payload.get("source") or "google_civic_elections",
+        "source_url": elections_payload.get("source_url") or civic_elections_url(),
+        "fetched_at": elections_payload.get("fetched_at"),
+        "address": civic_address,
+        "raw_place_name": jurisdiction_name,
+        "jurisdiction_id": jurisdiction_id,
+        "state_code": state_code,
+        "jurisdiction_type": jurisdiction_type,
+        "debug_status": "success" if relevant_elections else "empty",
+        "debug_reason": (
+            "google_elections_ok"
+            if relevant_elections
+            else "google_elections_none_for_state"
+        ),
+    }
 
 
 def _cache_write(base_dir: Path, relative_name: str, payload: dict[str, Any] | list[dict[str, Any]]) -> Path:
@@ -175,19 +220,39 @@ def _cache_write(base_dir: Path, relative_name: str, payload: dict[str, Any] | l
     return path
 
 
-def _slugify_name(name: str) -> str:
-    slug = re.sub(r"[^a-z0-9]+", "_", (name or "").strip().lower())
-    return slug.strip("_") or "jurisdiction"
+def _jurisdiction_cache_folder(jurisdiction_name: str, jurisdiction_id: str) -> str:
+    return jurisdiction_cache_folder_name(jurisdiction_id, place_name=jurisdiction_name)
 
 
-def _jurisdiction_suffix(jurisdiction_id: str) -> str:
-    parts = (jurisdiction_id or "").split("_")
-    return parts[-1] if parts else "unknown"
+def _source_cache_dir(
+    *,
+    source: str,
+    state_code: str,
+    jurisdiction_type: str,
+    jurisdiction_name: str,
+    jurisdiction_id: str,
+) -> Path:
+    source_base = GOOGLE_CACHE_DIR if source == "google_civic" else BALLOTPEDIA_CACHE_DIR
+    segment = cache_type_segment(jurisdiction_id, jurisdiction_type=jurisdiction_type)
+    folder = _jurisdiction_cache_folder(jurisdiction_name, jurisdiction_id)
+    return source_base / state_code.upper() / segment / folder
 
 
 def _standard_jurisdiction_dir(*, state_code: str, jurisdiction_type: str, jurisdiction_name: str, jurisdiction_id: str) -> Path:
-    folder_name = f"{_slugify_name(jurisdiction_name)}_{_jurisdiction_suffix(jurisdiction_id)}"
-    return SCRAPED_MEETINGS_CACHE_DIR / state_code.upper() / jurisdiction_type.lower() / folder_name
+    folder_name = _jurisdiction_cache_folder(jurisdiction_name, jurisdiction_id)
+    segment = cache_type_segment(jurisdiction_id, jurisdiction_type=jurisdiction_type)
+    return SCRAPED_MEETINGS_CACHE_DIR / state_code.upper() / segment / folder_name
+
+
+def _enrich_source_cache_payload(payload: dict[str, Any] | list[dict[str, Any]]) -> dict[str, Any] | list[dict[str, Any]]:
+    """Ensure debug/empty cache JSON always carries when it ran and is self-describing."""
+    if not isinstance(payload, dict):
+        return payload
+    out = dict(payload)
+    now = datetime.now(timezone.utc).isoformat()
+    out.setdefault("scraped_at", now)
+    out.setdefault("cache_written_at", now)
+    return out
 
 
 def _write_source_cache(
@@ -200,8 +265,16 @@ def _write_source_cache(
     relative_name: str,
     payload: dict[str, Any] | list[dict[str, Any]],
 ) -> None:
-    source_base = GOOGLE_CACHE_DIR if source == "google_civic" else BALLOTPEDIA_CACHE_DIR
-    _cache_write(source_base / state_code / jurisdiction_type, relative_name, payload)
+    if isinstance(payload, dict):
+        payload = _enrich_source_cache_payload(payload)
+    dest_dir = _source_cache_dir(
+        source=source,
+        state_code=state_code,
+        jurisdiction_type=jurisdiction_type,
+        jurisdiction_name=jurisdiction_name,
+        jurisdiction_id=jurisdiction_id,
+    )
+    _cache_write(dest_dir, relative_name, payload)
     standard_dir = _standard_jurisdiction_dir(
         state_code=state_code,
         jurisdiction_type=jurisdiction_type,
@@ -215,10 +288,7 @@ def _prune_old_cache_artifacts(base_dir: Path, jurisdiction_id: str) -> int:
     if not base_dir.exists():
         return 0
     patterns = (
-        f"{jurisdiction_id}_officials_empty_*.json",
-        f"{jurisdiction_id}_officials_error_*.json",
-        f"{jurisdiction_id}_division_error_*.json",
-        f"{jurisdiction_id}_address_error_*.json",
+        f"{jurisdiction_id}_*.json",
     )
     deleted = 0
     for pattern in patterns:
@@ -231,10 +301,65 @@ def _prune_old_cache_artifacts(base_dir: Path, jurisdiction_id: str) -> int:
     return deleted
 
 
+def _legacy_flat_source_cache_dir(
+    *,
+    source: str,
+    state_code: str,
+    jurisdiction_type: str,
+    jurisdiction_id: str,
+) -> Path:
+    """Pre-folder layout: ``{state}/{type}/municipality_{geoid}_*.json``."""
+    source_base = GOOGLE_CACHE_DIR if source == "google_civic" else BALLOTPEDIA_CACHE_DIR
+    segment = cache_type_segment(jurisdiction_id, jurisdiction_type=jurisdiction_type)
+    return source_base / state_code.upper() / segment
+
+
+def prune_legacy_flat_source_cache(*, dry_run: bool = False) -> int:
+    """Remove jurisdiction JSON files sitting directly under ``{state}/{type}/``."""
+    typed_prefixes = ("municipality_", "county_", "township_", "school_district_")
+    deleted = 0
+    for source_base in (GOOGLE_CACHE_DIR, BALLOTPEDIA_CACHE_DIR):
+        if not source_base.exists():
+            continue
+        for path in source_base.rglob("*.json"):
+            rel = path.relative_to(source_base)
+            if len(rel.parts) != 3:
+                continue
+            state, segment, filename = rel.parts
+            if segment in ("state", "elections") or len(state) != 2:
+                continue
+            if not any(filename.startswith(p) for p in typed_prefixes):
+                continue
+            if dry_run:
+                print(f"would delete {path}")
+            else:
+                path.unlink(missing_ok=True)
+            deleted += 1
+    return deleted
+
+
 def _prune_jurisdiction_artifacts(*, state_code: str, jurisdiction_type: str, jurisdiction_name: str, jurisdiction_id: str) -> int:
     deleted = 0
-    deleted += _prune_old_cache_artifacts(GOOGLE_CACHE_DIR / state_code / jurisdiction_type, jurisdiction_id)
-    deleted += _prune_old_cache_artifacts(BALLOTPEDIA_CACHE_DIR / state_code / jurisdiction_type, jurisdiction_id)
+    for source in ("google_civic", "ballotpedia"):
+        deleted += _prune_old_cache_artifacts(
+            _source_cache_dir(
+                source=source,
+                state_code=state_code,
+                jurisdiction_type=jurisdiction_type,
+                jurisdiction_name=jurisdiction_name,
+                jurisdiction_id=jurisdiction_id,
+            ),
+            jurisdiction_id,
+        )
+        deleted += _prune_old_cache_artifacts(
+            _legacy_flat_source_cache_dir(
+                source=source,
+                state_code=state_code,
+                jurisdiction_type=jurisdiction_type,
+                jurisdiction_id=jurisdiction_id,
+            ),
+            jurisdiction_id,
+        )
     standard_dir = _standard_jurisdiction_dir(
         state_code=state_code,
         jurisdiction_type=jurisdiction_type,
@@ -374,7 +499,7 @@ def _insert_bronze_external_links(
         return 0
     cur.executemany(
         """
-        INSERT INTO bronze.bronze_ballotpedia_external_links
+        INSERT INTO bronze.bronze_websites_ballotpedia
             (scrape_batch_id, source_page_url, source_page_kind,
              target_url, target_host, target_kind, anchor_text, rel,
              state_code, jurisdiction_id, ocd_id, raw_row)
@@ -477,6 +602,148 @@ async def _capture_ballotpedia_extras(
     return n_measures, n_links
 
 
+def _parse_election_day(value: Any) -> date:
+    if isinstance(value, date):
+        return value
+    text = str(value or "").strip()
+    if not text:
+        return date.today()
+    try:
+        return date.fromisoformat(text[:10])
+    except ValueError:
+        return date.today()
+
+
+def _persist_voterinfo_bronze(
+    cur,
+    *,
+    scrape_batch_id: uuid.UUID,
+    voter_info: dict[str, Any],
+    state_code: str,
+    jurisdiction_id: str,
+    division_id: str,
+    civic_address: str,
+) -> tuple[int, int, int]:
+    """Insert bronze rows from a voterInfoQuery payload. Returns (elections, candidacies, measures)."""
+    election_meta = voter_info.get("election") or {}
+    civic_election_id = str(voter_info.get("election_id") or election_meta.get("id") or "")
+    election_name = election_meta.get("name") or f"Google Civic voter info ({civic_election_id or 'unknown'})"
+    election_day = _parse_election_day(election_meta.get("electionDay"))
+    source_url = voter_info.get("source_url") or civic_voterinfo_url(
+        civic_address,
+        election_id=civic_election_id or None,
+    )
+    election_row_id = _stable_id(
+        "election",
+        _stable_key(GOOGLE_SOURCE_NAME, civic_election_id, jurisdiction_id, civic_address, election_day.isoformat()),
+    )
+    _insert_bronze_row(
+        cur,
+        scrape_batch_id=scrape_batch_id,
+        record_type="election",
+        ocd_id=election_row_id,
+        election_name=election_name,
+        election_date_value=election_day,
+        election_type="civic_voterinfo",
+        election_status="confirmed",
+        ocd_jurisdiction_id=division_id,
+        state_code=state_code,
+        jurisdiction_id=jurisdiction_id,
+        candidate_name=None,
+        candidate_party=None,
+        candidate_post=None,
+        candidate_status=None,
+        source_url=source_url,
+        source_name=GOOGLE_SOURCE_NAME,
+        raw_row={
+            "source": GOOGLE_SOURCE_NAME,
+            "address": civic_address,
+            "jurisdiction_id": jurisdiction_id,
+            "division_id": division_id,
+            "election": election_meta,
+            "polling_locations": voter_info.get("polling_locations") or [],
+            "early_vote_sites": voter_info.get("early_vote_sites") or [],
+            "drop_off_locations": voter_info.get("drop_off_locations") or [],
+            "state_officials": voter_info.get("state") or [],
+            "normalized_input": voter_info.get("normalizedInput"),
+        },
+    )
+    n_elections = 1
+    n_candidacies = 0
+    n_measures = 0
+
+    for contest in voter_info.get("contests") or []:
+        if not isinstance(contest, dict):
+            continue
+        contest_type = (contest.get("type") or "").strip()
+        office_name = contest.get("office") or contest.get("district") or contest.get("level") or "Office"
+        if contest_type.lower() == "referendum" or contest.get("referendumTitle"):
+            measure_title = (
+                contest.get("referendumTitle")
+                or contest.get("referendumBrief")
+                or contest.get("ballotTitle")
+                or "Referendum"
+            )
+            measure_id = _stable_id(
+                "ballotmeasure",
+                _stable_key(GOOGLE_SOURCE_NAME, jurisdiction_id, civic_election_id, measure_title),
+            )
+            _insert_bronze_ballot_measure_row(
+                cur,
+                scrape_batch_id=scrape_batch_id,
+                ocd_id=measure_id,
+                state_code=state_code,
+                jurisdiction_id=jurisdiction_id,
+                ocd_jurisdiction_id=division_id,
+                measure_title=measure_title,
+                measure_outcome=None,
+                source_url=source_url,
+                source_name=GOOGLE_SOURCE_NAME,
+                raw_row={**contest, "jurisdiction_id": jurisdiction_id, "election_id": civic_election_id},
+            )
+            n_measures += 1
+            continue
+
+        for candidate in contest.get("candidates") or []:
+            if not isinstance(candidate, dict):
+                continue
+            person_name = candidate.get("name") or "Unknown candidate"
+            candidacy_id = _stable_id(
+                "candidacy",
+                _stable_key(GOOGLE_SOURCE_NAME, election_row_id, office_name, person_name, civic_election_id),
+            )
+            _insert_bronze_row(
+                cur,
+                scrape_batch_id=scrape_batch_id,
+                record_type="candidacy",
+                ocd_id=candidacy_id,
+                election_name=election_name,
+                election_date_value=election_day,
+                election_type="civic_voterinfo",
+                election_status="confirmed",
+                ocd_jurisdiction_id=division_id,
+                state_code=state_code,
+                jurisdiction_id=jurisdiction_id,
+                candidate_name=person_name,
+                candidate_party=candidate.get("party"),
+                candidate_post=office_name,
+                candidate_status=contest_type or "candidate",
+                source_url=(candidate.get("candidateUrl") or candidate.get("url") or source_url),
+                source_name=GOOGLE_SOURCE_NAME,
+                raw_row={
+                    "source": GOOGLE_SOURCE_NAME,
+                    "contest": contest,
+                    "candidate": candidate,
+                    "jurisdiction_id": jurisdiction_id,
+                    "division_id": division_id,
+                    "election_id": civic_election_id,
+                },
+            )
+            n_candidacies += 1
+
+    return n_elections, n_candidacies, n_measures
+
+
 async def _ingest_target(
     *,
     conn,
@@ -484,6 +751,8 @@ async def _ingest_target(
     ballotpedia,
     find_ocd_match,
     target: dict[str, Any],
+    elections: list[dict[str, Any]],
+    elections_payload: dict[str, Any],
     scrape_batch_id: uuid.UUID,
     dry_run: bool,
 ) -> tuple[int, int, int]:
@@ -491,16 +760,12 @@ async def _ingest_target(
     state_code = target["state_code"]
     jurisdiction_id = target["jurisdiction_id"]
     jurisdiction_type = target["jurisdiction_type"]
+    civic_address = format_civic_address_query(name, state_code)
     division_id = find_ocd_match(name, state_code, jurisdiction_type=jurisdiction_type) or jurisdiction_id
     if not division_id:
         logger.warning("Skipping %s (%s): no OCD match", name, jurisdiction_id)
         return 0, 0, 0
 
-    source_url = f"https://www.googleapis.com/civicinfo/v2/representatives/{division_id}"
-    source_name = GOOGLE_SOURCE_NAME
-    offices: list[dict[str, Any]] = []
-    officials: list[dict[str, Any]] = []
-    payload: dict[str, Any] = {}
     _standard_jurisdiction_dir(
         state_code=state_code,
         jurisdiction_type=jurisdiction_type,
@@ -515,275 +780,166 @@ async def _ingest_target(
     )
 
     try:
-        if not str(division_id).startswith("ocd-division/"):
-            raise ValueError(f"Non-OCD division id: {division_id}")
-        payload = await api.get_representatives_by_division(division_id)
-        offices = payload.get("offices", []) if isinstance(payload, dict) else []
-        officials = payload.get("officials", []) if isinstance(payload, dict) else []
+        divisions_payload = await api.get_divisions_by_address(civic_address)
+        divisions = divisions_payload.get("divisions", {})
+        place_keys = [k for k in divisions if "/place:" in k]
+        county_keys = [k for k in divisions if "/county:" in k]
+        if jurisdiction_type == "municipality" and place_keys:
+            division_id = sorted(place_keys, key=len)[-1]
+        elif jurisdiction_type == "county" and county_keys:
+            division_id = sorted(county_keys, key=len)[-1]
         _write_source_cache(
             source="google_civic",
             state_code=state_code,
             jurisdiction_type=jurisdiction_type,
             jurisdiction_name=name,
             jurisdiction_id=jurisdiction_id,
-            relative_name=f"{jurisdiction_id}_division",
-            payload=(
-                {
-                    **payload,
-                    "debug_status": "success",
-                    "debug_reason": "google_division_lookup_ok",
-                    "jurisdiction_id": jurisdiction_id,
-                    "state_code": state_code,
-                }
-                if isinstance(payload, dict)
-                else {
-                    "payload": payload,
-                    "debug_status": "success",
-                    "debug_reason": "google_division_lookup_ok",
-                    "jurisdiction_id": jurisdiction_id,
-                    "state_code": state_code,
-                }
-            ),
-        )
-    except Exception as exc:
-        logger.warning("Division lookup failed for %s (%s): %s", name, division_id, exc)
-        _write_source_cache(
-            source="google_civic",
-            state_code=state_code,
-            jurisdiction_type=jurisdiction_type,
-            jurisdiction_name=name,
-            jurisdiction_id=jurisdiction_id,
-            relative_name=f"{jurisdiction_id}_division_error",
+            relative_name=f"{jurisdiction_id}_divisions",
             payload={
-                "error": str(exc),
-                "source": "google_civic_division",
-                "debug_status": "error",
-                "debug_reason": "google_division_lookup_failed",
-                "division_id": division_id,
+                **divisions_payload,
+                "source_url": civic_divisions_by_address_url(civic_address),
+                "debug_status": "success",
+                "debug_reason": "google_divisions_by_address_ok",
                 "jurisdiction_id": jurisdiction_id,
                 "state_code": state_code,
+                "jurisdiction_name": name,
+                "resolved_division_id": division_id,
+                "address": civic_address,
+                "raw_place_name": name,
             },
         )
-        try:
-            payload = await api.get_representatives(f"{name}, {state_code}")
-            officials = payload.get("officials", []) if isinstance(payload, dict) else []
-            grouped: dict[str, list[int]] = {}
-            for idx, official in enumerate(officials):
-                office_name = official.get("office") or "Office"
-                grouped.setdefault(office_name, []).append(idx)
-            offices = [{"name": office_name, "officialIndices": indices} for office_name, indices in grouped.items()]
-            source_url = f"https://www.googleapis.com/civicinfo/v2/representatives?address={name}, {state_code}"
-            _write_source_cache(
-                source="google_civic",
-                state_code=state_code,
-                jurisdiction_type=jurisdiction_type,
-                jurisdiction_name=name,
-                jurisdiction_id=jurisdiction_id,
-                relative_name=f"{jurisdiction_id}_address",
-                payload=(
-                    {
-                        **payload,
-                        "debug_status": "success",
-                        "debug_reason": "google_address_lookup_ok",
-                        "jurisdiction_id": jurisdiction_id,
-                        "state_code": state_code,
-                    }
-                    if isinstance(payload, dict)
-                    else {
-                        "payload": payload,
-                        "debug_status": "success",
-                        "debug_reason": "google_address_lookup_ok",
-                        "jurisdiction_id": jurisdiction_id,
-                        "state_code": state_code,
-                    }
-                ),
-            )
-        except Exception as fallback_exc:
-            logger.warning("Address lookup failed for %s: %s", name, fallback_exc)
-            _write_source_cache(
-                source="google_civic",
-                state_code=state_code,
-                jurisdiction_type=jurisdiction_type,
-                jurisdiction_name=name,
-                jurisdiction_id=jurisdiction_id,
-                relative_name=f"{jurisdiction_id}_address_error",
-                payload={
-                    "error": str(fallback_exc),
-                    "source": "google_civic_address",
-                    "debug_status": "error",
-                    "debug_reason": "google_address_lookup_failed",
-                    "address": f"{name}, {state_code}",
-                    "jurisdiction_id": jurisdiction_id,
-                    "state_code": state_code,
-                },
-            )
-            if jurisdiction_type != "municipality":
-                return 0, 0, 0
-            query_name = _normalize_ballotpedia_city_name(name)
-            # Build the canonical Ballotpedia URL once; reused for the bronze source_url
-            # column and for all debug-payload writes so the user can investigate failures
-            # without guessing what URL was tried.
-            bp_url = ballotpedia.build_city_url(query_name, state_code)
-            try:
-                bp_officials = await ballotpedia.get_city_officials(query_name, state_code)
-            except Exception as bp_exc:
-                logger.warning("Ballotpedia fallback failed for %s: %s", name, bp_exc)
-                _write_source_cache(
-                    source="ballotpedia",
-                    state_code=state_code,
-                    jurisdiction_type=jurisdiction_type,
-                    jurisdiction_name=name,
-                    jurisdiction_id=jurisdiction_id,
-                    relative_name=f"{jurisdiction_id}_officials_error",
-                    payload={
-                        "error": str(bp_exc),
-                        "source": "ballotpedia",
-                        "source_url": bp_url,
-                        "debug_status": "error",
-                        "debug_reason": "ballotpedia_exception",
-                        "query_name": query_name,
-                        "jurisdiction_id": jurisdiction_id,
-                        "state_code": state_code,
-                    },
-                )
-                return 0, 0, 0
-            if not bp_officials:
-                _write_source_cache(
-                    source="ballotpedia",
-                    state_code=state_code,
-                    jurisdiction_type=jurisdiction_type,
-                    jurisdiction_name=name,
-                    jurisdiction_id=jurisdiction_id,
-                    relative_name=f"{jurisdiction_id}_officials_empty",
-                    payload={
-                        "error": "No officials returned",
-                        "source": "ballotpedia",
-                        "source_url": bp_url,
-                        "debug_status": "empty",
-                        "debug_reason": "ballotpedia_no_officials",
-                        "query_name": query_name,
-                        "jurisdiction_id": jurisdiction_id,
-                        "state_code": state_code,
-                    },
-                )
-                return 0, 0, 0
+    except Exception as divisions_exc:
+        logger.warning("Divisions-by-address lookup failed for %s: %s", name, divisions_exc)
+        _write_source_cache(
+            source="google_civic",
+            state_code=state_code,
+            jurisdiction_type=jurisdiction_type,
+            jurisdiction_name=name,
+            jurisdiction_id=jurisdiction_id,
+            relative_name=f"{jurisdiction_id}_divisions_error",
+            payload={
+                "error": sanitize_civic_error_message(str(divisions_exc)),
+                "source": "google_civic_divisions_by_address",
+                "source_url": civic_divisions_by_address_url(civic_address),
+                "debug_status": "error",
+                "debug_reason": "google_divisions_by_address_failed",
+                "address": civic_address,
+                "raw_place_name": name,
+                "jurisdiction_id": jurisdiction_id,
+                "state_code": state_code,
+                "jurisdiction_name": name,
+            },
+        )
 
-            source_name = BALLOTPEDIA_SOURCE_NAME
-            source_url = bp_url
-            officials = [
-                {
-                    "name": item.get("name"),
-                    "party": item.get("party"),
-                    "position": item.get("position"),
-                    "office": item.get("position") or "Office",
-                    "source": item.get("source", "ballotpedia"),
-                    "source_url": item.get("source_url"),
-                    "scraped_at": item.get("scraped_at"),
-                }
-                for item in bp_officials
-            ]
-            grouped = {}
-            for idx, official in enumerate(officials):
-                office_name = official.get("office") or "Office"
-                grouped.setdefault(office_name, []).append(idx)
-            offices = [{"name": office_name, "officialIndices": indices} for office_name, indices in grouped.items()]
-            payload = {"officials": officials, "offices": offices, "source": "ballotpedia"}
-            _write_source_cache(
-                source="ballotpedia",
-                state_code=state_code,
-                jurisdiction_type=jurisdiction_type,
-                jurisdiction_name=name,
-                jurisdiction_id=jurisdiction_id,
-                relative_name=f"{jurisdiction_id}_officials",
-                payload={
-                    **payload,
-                    "debug_status": "success",
-                    "debug_reason": "ballotpedia_lookup_ok",
-                    "query_name": query_name,
-                    "jurisdiction_id": jurisdiction_id,
-                    "state_code": state_code,
-                },
-            )
-
-    election_name = f"Officials snapshot: {name}"
-    election_id = _stable_id("election", _stable_key(source_name, division_id, state_code, name, str(date.today())))
-
-    if dry_run:
-        logger.info("[dry-run] %s %s %s (%s)", state_code, jurisdiction_type, name, source_name)
+    relevant_elections = elections_for_state(elections, state_code)
+    _write_source_cache(
+        source="google_civic",
+        state_code=state_code,
+        jurisdiction_type=jurisdiction_type,
+        jurisdiction_name=name,
+        jurisdiction_id=jurisdiction_id,
+        relative_name=f"{jurisdiction_id}_elections",
+        payload=_jurisdiction_elections_cache_payload(
+            elections_payload=elections_payload,
+            relevant_elections=relevant_elections,
+            civic_address=civic_address,
+            jurisdiction_id=jurisdiction_id,
+            state_code=state_code,
+            jurisdiction_name=name,
+            jurisdiction_type=jurisdiction_type,
+        ),
+    )
+    if not relevant_elections:
+        logger.warning("No elections.electionQuery rows for %s; skipping voterInfo for %s", state_code, name)
         return 0, 0, 0
 
-    with conn.cursor() as cur:
-        _insert_bronze_row(
-            cur,
-            scrape_batch_id=scrape_batch_id,
-            record_type="election",
-            ocd_id=election_id,
-            election_name=election_name,
-            election_date_value=date.today(),
-            election_type="officials_snapshot",
-            election_status="confirmed",
-            ocd_jurisdiction_id=division_id,
-            state_code=state_code,
-            jurisdiction_id=jurisdiction_id,
-            candidate_name=None,
-            candidate_party=None,
-            candidate_post=None,
-            candidate_status=None,
-            source_url=source_url,
-            source_name=source_name,
-            raw_row={
-                "source": source_name,
-                "state_code": state_code,
-                "jurisdiction_id": jurisdiction_id,
-                "jurisdiction_name": name,
-                "jurisdiction_type": jurisdiction_type,
-                "division_id": division_id,
-                "offices": offices,
-                "officials": officials,
-            },
+    voterinfo_payloads: list[dict[str, Any]] = []
+    for election in relevant_elections:
+        civic_election_id = str(election.get("id") or "")
+        if not civic_election_id:
+            continue
+        try:
+            voter_info = await api.get_voter_info(civic_address, election_id=civic_election_id)
+            voterinfo_payloads.append(voter_info)
+            _write_source_cache(
+                source="google_civic",
+                state_code=state_code,
+                jurisdiction_type=jurisdiction_type,
+                jurisdiction_name=name,
+                jurisdiction_id=jurisdiction_id,
+                relative_name=f"{jurisdiction_id}_voterinfo_{civic_election_id}",
+                payload={
+                    **voter_info,
+                    "debug_status": "success",
+                    "debug_reason": "google_voterinfo_ok",
+                    "jurisdiction_id": jurisdiction_id,
+                    "state_code": state_code,
+                    "jurisdiction_name": name,
+                    "google_election_id": civic_election_id,
+                },
+            )
+        except Exception as voter_exc:
+            logger.warning(
+                "voterInfoQuery failed for %s election %s: %s",
+                name,
+                civic_election_id,
+                voter_exc,
+            )
+            _write_source_cache(
+                source="google_civic",
+                state_code=state_code,
+                jurisdiction_type=jurisdiction_type,
+                jurisdiction_name=name,
+                jurisdiction_id=jurisdiction_id,
+                relative_name=f"{jurisdiction_id}_voterinfo_{civic_election_id}_error",
+                payload={
+                    "error": sanitize_civic_error_message(str(voter_exc)),
+                    "source": "google_civic_voterinfo",
+                    "source_url": civic_voterinfo_url(civic_address, election_id=civic_election_id),
+                    "debug_status": "error",
+                    "debug_reason": "google_voterinfo_failed",
+                    "address": civic_address,
+                    "raw_place_name": name,
+                    "google_election_id": civic_election_id,
+                    "jurisdiction_id": jurisdiction_id,
+                    "state_code": state_code,
+                    "jurisdiction_name": name,
+                },
+            )
+
+    if dry_run:
+        logger.info(
+            "[dry-run] %s %s %s (%d voterInfo payload(s))",
+            state_code,
+            jurisdiction_type,
+            name,
+            len(voterinfo_payloads),
         )
+        return 0, 0, 0
 
-        candidacy_count = 0
-        for office in offices:
-            office_name = office.get("name") or "Office"
-            for idx in office.get("officialIndices", []) or []:
-                if not isinstance(idx, int) or idx >= len(officials):
-                    continue
-                official = officials[idx] or {}
-                person_name = official.get("name") or "Unknown official"
-                candidacy_id = _stable_id("candidacy", _stable_key(source_name, election_id, office_name, person_name))
-                _insert_bronze_row(
-                    cur,
-                    scrape_batch_id=scrape_batch_id,
-                    record_type="candidacy",
-                    ocd_id=candidacy_id,
-                    election_name=election_name,
-                    election_date_value=date.today(),
-                    election_type="officials_snapshot",
-                    election_status="confirmed",
-                    ocd_jurisdiction_id=division_id,
-                    state_code=state_code,
-                    jurisdiction_id=jurisdiction_id,
-                    candidate_name=person_name,
-                    candidate_party=official.get("party"),
-                    candidate_post=office_name,
-                    candidate_status=official.get("position") or "current",
-                    source_url=official.get("source_url") or source_url,
-                    source_name=source_name,
-                    raw_row={
-                        "source": source_name,
-                        "office": office_name,
-                        "official": official,
-                        "jurisdiction_id": jurisdiction_id,
-                        "division_id": division_id,
-                    },
-                )
-                candidacy_count += 1
+    if not voterinfo_payloads:
+        return 0, 0, 0
 
-        # After officials/candidacy persistence, capture ballot measures + external
-        # links from the jurisdiction's Ballotpedia pages. Best-effort: failures
-        # don't abort the main ingest. Only fires when we used the Ballotpedia path.
-        if source_name == BALLOTPEDIA_SOURCE_NAME and ballotpedia is not None:
+    total_elections = 0
+    total_candidacies = 0
+    total_measures = 0
+    with conn.cursor() as cur:
+        for voter_info in voterinfo_payloads:
+            e_n, c_n, m_n = _persist_voterinfo_bronze(
+                cur,
+                scrape_batch_id=scrape_batch_id,
+                voter_info=voter_info,
+                state_code=state_code,
+                jurisdiction_id=jurisdiction_id,
+                division_id=division_id,
+                civic_address=civic_address,
+            )
+            total_elections += e_n
+            total_candidacies += c_n
+            total_measures += m_n
+
+        if jurisdiction_type == "municipality" and ballotpedia is not None:
+            query_name = _normalize_ballotpedia_city_name(name)
             measures_n, links_n = await _capture_ballotpedia_extras(
                 conn=conn,
                 cursor=cur,
@@ -794,16 +950,19 @@ async def _ingest_target(
                 division_id=division_id,
                 name=name,
                 query_name=query_name,
-                officials_page_html=None,  # not currently captured; future enhancement
+                officials_page_html=None,
             )
             if measures_n or links_n:
                 logger.info(
                     "Ballotpedia extras for %s/%s: %d ballot_measure(s), %d external link(s)",
-                    state_code, jurisdiction_id, measures_n, links_n,
+                    state_code,
+                    jurisdiction_id,
+                    measures_n,
+                    links_n,
                 )
 
     conn.commit()
-    return 1, 1, candidacy_count
+    return total_elections, total_elections, total_candidacies
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -850,15 +1009,21 @@ def main(argv: list[str] | None = None) -> int:
         bronze_snapshot_candidacies = 0
         bronze_ballotpedia_rows = 0
 
+        elections_payload_raw = _run_async(api.get_elections(), "fetching Google Civic elections")
+        elections_payload = (
+            elections_payload_raw
+            if isinstance(elections_payload_raw, dict)
+            else {"elections": [], "payload": elections_payload_raw}
+        )
+        upcoming_elections = elections_payload.get("elections", [])
         if not args.dry_run:
-            elections_payload = _run_async(api.get_elections(), "fetching Google Civic elections")
             _cache_write(
                 GOOGLE_CACHE_DIR / "elections",
                 "upcoming_elections",
-                elections_payload if isinstance(elections_payload, dict) else {"payload": elections_payload},
+                elections_payload,
             )
             with conn.cursor() as cur:
-                for election in elections_payload.get("elections", []) if isinstance(elections_payload, dict) else []:
+                for election in upcoming_elections:
                     civic_id = str(election.get("id") or "")
                     division_id = election.get("ocdDivisionId") or "ocd-division/country:us"
                     state_code = _state_code_from_ocd_id(division_id)
@@ -872,7 +1037,7 @@ def main(argv: list[str] | None = None) -> int:
                         record_type="election",
                         ocd_id=election_id,
                         election_name=election.get("name") or "Google Civic election",
-                        election_date_value=election.get("electionDay") or date.today(),
+                        election_date_value=_parse_election_day(election.get("electionDay")),
                         election_type="civic_calendar",
                         election_status="confirmed",
                         ocd_jurisdiction_id=division_id,
@@ -882,7 +1047,7 @@ def main(argv: list[str] | None = None) -> int:
                         candidate_party=None,
                         candidate_post=None,
                         candidate_status=None,
-                        source_url="https://www.googleapis.com/civicinfo/v2/elections",
+                        source_url=civic_elections_url(),
                         source_name=GOOGLE_SOURCE_NAME,
                         raw_row=election if isinstance(election, dict) else {"payload": election},
                     )
@@ -899,6 +1064,8 @@ def main(argv: list[str] | None = None) -> int:
                     ballotpedia=ballotpedia,
                     find_ocd_match=find_ocd_match,
                     target=target,
+                    elections=upcoming_elections,
+                    elections_payload=elections_payload,
                     scrape_batch_id=scrape_batch_id,
                     dry_run=args.dry_run,
                 )

@@ -46,7 +46,7 @@ WITH ballotpedia_measures AS (
         bp.no_votes                                         AS no_votes,
         bp.passed                                           AS passed,
         bp.scraped_at                                       AS extracted_at
-    FROM {{ source('bronze', 'bronze_ballotpedia_measures') }} bp
+    FROM {{ source('bronze', 'bronze_ballot_measures_ballotpedia') }} bp
     WHERE bp.ocd_division_id IS NOT NULL
 ),
 

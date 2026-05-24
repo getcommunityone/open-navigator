@@ -26,9 +26,11 @@ CREATE TABLE IF NOT EXISTS bronze.bronze_ballot_measures_powerbi (
     measure_type        TEXT,           -- referendum, initiative, charter_amendment, bond, …
     state_code          CHAR(2),
     state               TEXT,
+    jurisdiction_id     TEXT,
+    ocd_id              TEXT,
     jurisdiction_name   TEXT,
     election_date       DATE,
-    election_year       INTEGER,
+    election_year       VARCHAR(4),
     outcome             TEXT,           -- passed, failed, withdrawn, pending
     yes_count           BIGINT,
     no_count            BIGINT,
@@ -46,6 +48,10 @@ CREATE TABLE IF NOT EXISTS bronze.bronze_ballot_measures_powerbi (
 
 CREATE INDEX IF NOT EXISTS idx_bbmp_state
     ON bronze.bronze_ballot_measures_powerbi (state_code);
+CREATE INDEX IF NOT EXISTS idx_bbmp_jurisdiction
+    ON bronze.bronze_ballot_measures_powerbi (jurisdiction_id);
+CREATE INDEX IF NOT EXISTS idx_bbmp_ocd_id
+    ON bronze.bronze_ballot_measures_powerbi (ocd_id);
 CREATE INDEX IF NOT EXISTS idx_bbmp_year
     ON bronze.bronze_ballot_measures_powerbi (election_year);
 CREATE INDEX IF NOT EXISTS idx_bbmp_date

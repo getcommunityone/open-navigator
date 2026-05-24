@@ -1,4 +1,4 @@
--- Migration: bronze.bronze_ballotpedia_external_links — captures every outbound link
+-- Migration: bronze.bronze_websites_ballotpedia — captures every outbound link
 -- discovered on a Ballotpedia article page so downstream enrichment (jurisdiction-website
 -- discovery, leader-bio links, source citations) has a typed bronze surface to query.
 --
@@ -6,11 +6,11 @@
 -- under multiple source pages; that's intentional — provenance is the point of bronze.
 --
 -- Apply:
---   ./scripts/deployment/neon/psql_resolved.sh -f scripts/deployment/neon/migrations/055_bronze_ballotpedia_external_links.sql
+--   ./scripts/deployment/neon/psql_resolved.sh -f scripts/deployment/neon/migrations/055_bronze_websites_ballotpedia.sql
 
 BEGIN;
 
-CREATE TABLE IF NOT EXISTS bronze.bronze_ballotpedia_external_links (
+CREATE TABLE IF NOT EXISTS bronze.bronze_websites_ballotpedia (
     id              BIGSERIAL PRIMARY KEY,
     scrape_batch_id UUID NOT NULL,
 
@@ -37,20 +37,20 @@ CREATE TABLE IF NOT EXISTS bronze.bronze_ballotpedia_external_links (
     loaded_at       TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_bronze_bp_links_source_page
-    ON bronze.bronze_ballotpedia_external_links (source_page_url);
-CREATE INDEX IF NOT EXISTS idx_bronze_bp_links_target_host
-    ON bronze.bronze_ballotpedia_external_links (target_host);
-CREATE INDEX IF NOT EXISTS idx_bronze_bp_links_state
-    ON bronze.bronze_ballotpedia_external_links (state_code);
-CREATE INDEX IF NOT EXISTS idx_bronze_bp_links_jurisdiction
-    ON bronze.bronze_ballotpedia_external_links (jurisdiction_id);
-CREATE INDEX IF NOT EXISTS idx_bronze_bp_links_batch
-    ON bronze.bronze_ballotpedia_external_links (scrape_batch_id);
-CREATE INDEX IF NOT EXISTS idx_bronze_bp_links_target_kind
-    ON bronze.bronze_ballotpedia_external_links (target_kind);
+CREATE INDEX IF NOT EXISTS idx_bbwb_source_page
+    ON bronze.bronze_websites_ballotpedia (source_page_url);
+CREATE INDEX IF NOT EXISTS idx_bbwb_target_host
+    ON bronze.bronze_websites_ballotpedia (target_host);
+CREATE INDEX IF NOT EXISTS idx_bbwb_state
+    ON bronze.bronze_websites_ballotpedia (state_code);
+CREATE INDEX IF NOT EXISTS idx_bbwb_jurisdiction
+    ON bronze.bronze_websites_ballotpedia (jurisdiction_id);
+CREATE INDEX IF NOT EXISTS idx_bbwb_batch
+    ON bronze.bronze_websites_ballotpedia (scrape_batch_id);
+CREATE INDEX IF NOT EXISTS idx_bbwb_target_kind
+    ON bronze.bronze_websites_ballotpedia (target_kind);
 
-COMMENT ON TABLE bronze.bronze_ballotpedia_external_links IS
+COMMENT ON TABLE bronze.bronze_websites_ballotpedia IS
     'Outbound links discovered on Ballotpedia article pages. Loader records every external '
     '<a href> from each fetched page so downstream models can identify official websites, '
     'social media, news mentions, and other authoritative URLs per jurisdiction.';

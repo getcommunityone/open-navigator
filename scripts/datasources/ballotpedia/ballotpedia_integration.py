@@ -305,8 +305,9 @@ class BallotpediaDiscovery:
         # Ballotpedia often returns HTTP 202 (Cloudflare async) to httpx; retrying 4× wastes ~30s.
         self.httpx_202_fast_escalate = os.getenv("BALLOTPEDIA_HTTP_202_FAST_ESCALATE", "1").strip().lower() not in {"0", "false", "no"}
         self.use_playwright_fallback = os.getenv("BALLOTPEDIA_USE_PLAYWRIGHT", "1").strip().lower() not in {"0", "false", "no"}
-        # Default httpx-first: Playwright is slower and often blocked headless; escalate only on challenge.
-        self.playwright_only = os.getenv("BALLOTPEDIA_PLAYWRIGHT_ONLY", "0").strip().lower() not in {"0", "false", "no"}
+        # Ballotpedia returns HTTP 202 to httpx almost always — default to Playwright directly.
+        # Set BALLOTPEDIA_PLAYWRIGHT_ONLY=0 to probe with httpx first (usually wastes time).
+        self.playwright_only = os.getenv("BALLOTPEDIA_PLAYWRIGHT_ONLY", "1").strip().lower() not in {"0", "false", "no"}
         self.playwright_timeout_ms = int(os.getenv("BALLOTPEDIA_PLAYWRIGHT_TIMEOUT_MS", "90000"))
         self.inter_request_delay = float(os.getenv("BALLOTPEDIA_INTER_REQUEST_DELAY", "2.0"))
         self.state_scrape_delay = float(os.getenv("BALLOTPEDIA_STATE_DELAY", "10.0"))
@@ -747,12 +748,12 @@ class BallotpediaDiscovery:
         if not PLAYWRIGHT_AVAILABLE:
             self._last_playwright_error = "playwright_not_installed"
             logger.warning(
-                "Playwright fallback requested but playwright is not installed. "
+                "Playwright fetch requested but playwright is not installed. "
                 "Run: pip install playwright && playwright install chromium"
             )
             return None, []
 
-        logger.info(f"Trying Playwright fallback for {url}")
+        logger.info(f"Fetching with Playwright: {url}")
         artifacts: List[Path] = []
         page = None
         try:
@@ -797,11 +798,11 @@ class BallotpediaDiscovery:
                 artifacts = await self._save_playwright_artifacts(page, url, "challenge")
                 return None, artifacts
 
-            logger.info(f"Playwright fallback succeeded for {url} (final_url={final_url})")
+            logger.info(f"Playwright fetch succeeded for {url} (final_url={final_url})")
             return content, []
         except Exception as exc:
             self._last_playwright_error = str(exc)
-            logger.warning(f"Playwright fallback failed for {url}: {exc}")
+            logger.warning(f"Playwright fetch failed for {url}: {exc}")
             if "Executable doesn't exist" in str(exc) or "playwright install" in str(exc).lower():
                 logger.error(
                     "Chromium browser missing. Run from repo root: "
@@ -1219,6 +1220,13 @@ class BallotpediaDiscovery:
         html = await self._fetch_page(url)
         return html, self.extract_external_links(html or "", url)
 
+    @classmethod
+    def build_state_ballot_measures_url(cls, state: str, year: int | None = None) -> str:
+        """Canonical URL for a state's ballot-measures page (optional year suffix)."""
+        if year:
+            return f"{cls.BASE_URL}/{state}_ballot_measures,_{year}"
+        return f"{cls.BASE_URL}/{state}_ballot_measures"
+
     async def get_ballot_measures(
         self,
         state: str,
@@ -1237,10 +1245,7 @@ class BallotpediaDiscovery:
             List of ballot measure dicts
         """
         # Ballotpedia ballot measures page
-        if year:
-            url = f"{self.BASE_URL}/{state}_ballot_measures,_{year}"
-        else:
-            url = f"{self.BASE_URL}/{state}_ballot_measures"
+        url = self.build_state_ballot_measures_url(state, year)
         
         logger.info(f"Fetching ballot measures from {url}")
         
@@ -1344,29 +1349,53 @@ class BallotpediaDiscovery:
         state_code: str,
         scope: str,
         jurisdiction_id: str | None = None,
+        jurisdiction_name: str | None = None,
+        jurisdiction_type: str | None = None,
         election_year: str | None = None,
+        source_url: str | None = None,
+        debug_reason: str | None = None,
     ) -> Path:
         """Write a timestamped ballot-measures JSON file under the cache tree."""
+        from scripts.gemini.transcript_cache_paths import (
+            cache_type_segment,
+            jurisdiction_cache_folder_name,
+        )
+
         ts = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
         year_suffix = f"_{election_year}" if election_year else ""
         if scope == "state":
             rel = Path(state_code.upper()) / "state" / f"state_ballot_measures{year_suffix}_{ts}.json"
         else:
             jkey = jurisdiction_id or "unknown"
-            rel = Path(state_code.upper()) / "municipality" / f"{jkey}_ballot_measures{year_suffix}_{ts}.json"
+            segment = cache_type_segment(jkey, jurisdiction_type=jurisdiction_type or "municipality")
+            folder = jurisdiction_cache_folder_name(
+                jkey,
+                place_name=jurisdiction_name,
+            )
+            rel = (
+                Path(state_code.upper())
+                / segment
+                / folder
+                / f"{jkey}_ballot_measures{year_suffix}_{ts}.json"
+            )
         filepath = self.cache_dir / rel
         filepath.parent.mkdir(parents=True, exist_ok=True)
+        count = len(measures)
         payload = {
             "state_code": state_code.upper(),
             "scope": scope,
             "jurisdiction_id": jurisdiction_id,
             "election_year": election_year,
+            "source_url": source_url,
             "scraped_at": datetime.utcnow().isoformat() + "Z",
-            "measure_count": len(measures),
+            "cache_written_at": datetime.utcnow().isoformat() + "Z",
+            "measure_count": count,
+            "debug_status": "success" if count else "empty",
+            "debug_reason": debug_reason or ("measures_found" if count else "no_measures_on_page"),
             "measures": measures,
         }
         filepath.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-        logger.info(f"💾 Saved {len(measures)} ballot measure(s) → {filepath}")
+        logger.info(f"💾 Saved {count} ballot measure(s) → {filepath}")
         return filepath
     
     def save_to_bronze_layer(
