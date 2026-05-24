@@ -57,6 +57,7 @@ GOOGLE_SOURCE_NAME = "bronze_election_google"
 BALLOTPEDIA_SOURCE_NAME = "bronze_election_ballotpedia"
 GOOGLE_CACHE_DIR = _ROOT / "data" / "cache" / "google_civic"
 BALLOTPEDIA_CACHE_DIR = _ROOT / "data" / "cache" / "ballotpedia"
+SCRAPED_MEETINGS_CACHE_DIR = _ROOT / "data" / "cache" / "scraped_meetings"
 
 
 def _connect() -> psycopg2.extensions.connection:
@@ -149,6 +150,42 @@ def _cache_write(base_dir: Path, relative_name: str, payload: dict[str, Any] | l
     return path
 
 
+def _slugify_name(name: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "_", (name or "").strip().lower())
+    return slug.strip("_") or "jurisdiction"
+
+
+def _jurisdiction_suffix(jurisdiction_id: str) -> str:
+    parts = (jurisdiction_id or "").split("_")
+    return parts[-1] if parts else "unknown"
+
+
+def _standard_jurisdiction_dir(*, state_code: str, jurisdiction_type: str, jurisdiction_name: str, jurisdiction_id: str) -> Path:
+    folder_name = f"{_slugify_name(jurisdiction_name)}_{_jurisdiction_suffix(jurisdiction_id)}"
+    return SCRAPED_MEETINGS_CACHE_DIR / state_code.upper() / jurisdiction_type.lower() / folder_name
+
+
+def _write_source_cache(
+    *,
+    source: str,
+    state_code: str,
+    jurisdiction_type: str,
+    jurisdiction_name: str,
+    jurisdiction_id: str,
+    relative_name: str,
+    payload: dict[str, Any] | list[dict[str, Any]],
+) -> None:
+    source_base = GOOGLE_CACHE_DIR if source == "google_civic" else BALLOTPEDIA_CACHE_DIR
+    _cache_write(source_base / state_code / jurisdiction_type, relative_name, payload)
+    standard_dir = _standard_jurisdiction_dir(
+        state_code=state_code,
+        jurisdiction_type=jurisdiction_type,
+        jurisdiction_name=jurisdiction_name,
+        jurisdiction_id=jurisdiction_id,
+    )
+    _cache_write(standard_dir / "_downloads" / source, relative_name, payload)
+
+
 def _prune_old_cache_artifacts(base_dir: Path, jurisdiction_id: str) -> int:
     if not base_dir.exists():
         return 0
@@ -166,6 +203,21 @@ def _prune_old_cache_artifacts(base_dir: Path, jurisdiction_id: str) -> int:
                 deleted += 1
             except OSError:
                 continue
+    return deleted
+
+
+def _prune_jurisdiction_artifacts(*, state_code: str, jurisdiction_type: str, jurisdiction_name: str, jurisdiction_id: str) -> int:
+    deleted = 0
+    deleted += _prune_old_cache_artifacts(GOOGLE_CACHE_DIR / state_code / jurisdiction_type, jurisdiction_id)
+    deleted += _prune_old_cache_artifacts(BALLOTPEDIA_CACHE_DIR / state_code / jurisdiction_type, jurisdiction_id)
+    standard_dir = _standard_jurisdiction_dir(
+        state_code=state_code,
+        jurisdiction_type=jurisdiction_type,
+        jurisdiction_name=jurisdiction_name,
+        jurisdiction_id=jurisdiction_id,
+    )
+    deleted += _prune_old_cache_artifacts(standard_dir / "_downloads" / "google_civic", jurisdiction_id)
+    deleted += _prune_old_cache_artifacts(standard_dir / "_downloads" / "ballotpedia", jurisdiction_id)
     return deleted
 
 
@@ -246,8 +298,18 @@ async def _ingest_target(
     offices: list[dict[str, Any]] = []
     officials: list[dict[str, Any]] = []
     payload: dict[str, Any] = {}
-    _prune_old_cache_artifacts(GOOGLE_CACHE_DIR / state_code / jurisdiction_type, jurisdiction_id)
-    _prune_old_cache_artifacts(BALLOTPEDIA_CACHE_DIR / state_code / jurisdiction_type, jurisdiction_id)
+    _standard_jurisdiction_dir(
+        state_code=state_code,
+        jurisdiction_type=jurisdiction_type,
+        jurisdiction_name=name,
+        jurisdiction_id=jurisdiction_id,
+    ).mkdir(parents=True, exist_ok=True)
+    _prune_jurisdiction_artifacts(
+        state_code=state_code,
+        jurisdiction_type=jurisdiction_type,
+        jurisdiction_name=name,
+        jurisdiction_id=jurisdiction_id,
+    )
 
     try:
         if not str(division_id).startswith("ocd-division/"):
@@ -255,19 +317,45 @@ async def _ingest_target(
         payload = await api.get_representatives_by_division(division_id)
         offices = payload.get("offices", []) if isinstance(payload, dict) else []
         officials = payload.get("officials", []) if isinstance(payload, dict) else []
-        _cache_write(
-            GOOGLE_CACHE_DIR / state_code / jurisdiction_type,
-            f"{jurisdiction_id}_division",
-            payload if isinstance(payload, dict) else {"payload": payload},
+        _write_source_cache(
+            source="google_civic",
+            state_code=state_code,
+            jurisdiction_type=jurisdiction_type,
+            jurisdiction_name=name,
+            jurisdiction_id=jurisdiction_id,
+            relative_name=f"{jurisdiction_id}_division",
+            payload=(
+                {
+                    **payload,
+                    "debug_status": "success",
+                    "debug_reason": "google_division_lookup_ok",
+                    "jurisdiction_id": jurisdiction_id,
+                    "state_code": state_code,
+                }
+                if isinstance(payload, dict)
+                else {
+                    "payload": payload,
+                    "debug_status": "success",
+                    "debug_reason": "google_division_lookup_ok",
+                    "jurisdiction_id": jurisdiction_id,
+                    "state_code": state_code,
+                }
+            ),
         )
     except Exception as exc:
         logger.warning("Division lookup failed for %s (%s): %s", name, division_id, exc)
-        _cache_write(
-            GOOGLE_CACHE_DIR / state_code / jurisdiction_type,
-            f"{jurisdiction_id}_division_error",
-            {
+        _write_source_cache(
+            source="google_civic",
+            state_code=state_code,
+            jurisdiction_type=jurisdiction_type,
+            jurisdiction_name=name,
+            jurisdiction_id=jurisdiction_id,
+            relative_name=f"{jurisdiction_id}_division_error",
+            payload={
                 "error": str(exc),
                 "source": "google_civic_division",
+                "debug_status": "error",
+                "debug_reason": "google_division_lookup_failed",
                 "division_id": division_id,
                 "jurisdiction_id": jurisdiction_id,
                 "state_code": state_code,
@@ -282,19 +370,45 @@ async def _ingest_target(
                 grouped.setdefault(office_name, []).append(idx)
             offices = [{"name": office_name, "officialIndices": indices} for office_name, indices in grouped.items()]
             source_url = f"https://www.googleapis.com/civicinfo/v2/representatives?address={name}, {state_code}"
-            _cache_write(
-                GOOGLE_CACHE_DIR / state_code / jurisdiction_type,
-                f"{jurisdiction_id}_address",
-                payload if isinstance(payload, dict) else {"payload": payload},
+            _write_source_cache(
+                source="google_civic",
+                state_code=state_code,
+                jurisdiction_type=jurisdiction_type,
+                jurisdiction_name=name,
+                jurisdiction_id=jurisdiction_id,
+                relative_name=f"{jurisdiction_id}_address",
+                payload=(
+                    {
+                        **payload,
+                        "debug_status": "success",
+                        "debug_reason": "google_address_lookup_ok",
+                        "jurisdiction_id": jurisdiction_id,
+                        "state_code": state_code,
+                    }
+                    if isinstance(payload, dict)
+                    else {
+                        "payload": payload,
+                        "debug_status": "success",
+                        "debug_reason": "google_address_lookup_ok",
+                        "jurisdiction_id": jurisdiction_id,
+                        "state_code": state_code,
+                    }
+                ),
             )
         except Exception as fallback_exc:
             logger.warning("Address lookup failed for %s: %s", name, fallback_exc)
-            _cache_write(
-                GOOGLE_CACHE_DIR / state_code / jurisdiction_type,
-                f"{jurisdiction_id}_address_error",
-                {
+            _write_source_cache(
+                source="google_civic",
+                state_code=state_code,
+                jurisdiction_type=jurisdiction_type,
+                jurisdiction_name=name,
+                jurisdiction_id=jurisdiction_id,
+                relative_name=f"{jurisdiction_id}_address_error",
+                payload={
                     "error": str(fallback_exc),
                     "source": "google_civic_address",
+                    "debug_status": "error",
+                    "debug_reason": "google_address_lookup_failed",
                     "address": f"{name}, {state_code}",
                     "jurisdiction_id": jurisdiction_id,
                     "state_code": state_code,
@@ -307,12 +421,18 @@ async def _ingest_target(
                 bp_officials = await ballotpedia.get_city_officials(query_name, state_code)
             except Exception as bp_exc:
                 logger.warning("Ballotpedia fallback failed for %s: %s", name, bp_exc)
-                _cache_write(
-                    BALLOTPEDIA_CACHE_DIR / state_code / jurisdiction_type,
-                    f"{jurisdiction_id}_officials_error",
-                    {
+                _write_source_cache(
+                    source="ballotpedia",
+                    state_code=state_code,
+                    jurisdiction_type=jurisdiction_type,
+                    jurisdiction_name=name,
+                    jurisdiction_id=jurisdiction_id,
+                    relative_name=f"{jurisdiction_id}_officials_error",
+                    payload={
                         "error": str(bp_exc),
                         "source": "ballotpedia",
+                        "debug_status": "error",
+                        "debug_reason": "ballotpedia_exception",
                         "query_name": query_name,
                         "jurisdiction_id": jurisdiction_id,
                         "state_code": state_code,
@@ -320,12 +440,18 @@ async def _ingest_target(
                 )
                 return 0, 0, 0
             if not bp_officials:
-                _cache_write(
-                    BALLOTPEDIA_CACHE_DIR / state_code / jurisdiction_type,
-                    f"{jurisdiction_id}_officials_empty",
-                    {
+                _write_source_cache(
+                    source="ballotpedia",
+                    state_code=state_code,
+                    jurisdiction_type=jurisdiction_type,
+                    jurisdiction_name=name,
+                    jurisdiction_id=jurisdiction_id,
+                    relative_name=f"{jurisdiction_id}_officials_empty",
+                    payload={
                         "error": "No officials returned",
                         "source": "ballotpedia",
+                        "debug_status": "empty",
+                        "debug_reason": "ballotpedia_no_officials",
                         "query_name": query_name,
                         "jurisdiction_id": jurisdiction_id,
                         "state_code": state_code,
@@ -353,7 +479,22 @@ async def _ingest_target(
                 grouped.setdefault(office_name, []).append(idx)
             offices = [{"name": office_name, "officialIndices": indices} for office_name, indices in grouped.items()]
             payload = {"officials": officials, "offices": offices, "source": "ballotpedia"}
-            _cache_write(BALLOTPEDIA_CACHE_DIR / state_code / jurisdiction_type, f"{jurisdiction_id}_officials", payload)
+            _write_source_cache(
+                source="ballotpedia",
+                state_code=state_code,
+                jurisdiction_type=jurisdiction_type,
+                jurisdiction_name=name,
+                jurisdiction_id=jurisdiction_id,
+                relative_name=f"{jurisdiction_id}_officials",
+                payload={
+                    **payload,
+                    "debug_status": "success",
+                    "debug_reason": "ballotpedia_lookup_ok",
+                    "query_name": query_name,
+                    "jurisdiction_id": jurisdiction_id,
+                    "state_code": state_code,
+                },
+            )
 
     election_name = f"Officials snapshot: {name}"
     election_id = _stable_id("election", _stable_key(source_name, division_id, state_code, name, str(date.today())))
@@ -458,12 +599,13 @@ def main(argv: list[str] | None = None) -> int:
     from scripts.datasources.jurisdiction_pilot.load_ocd_jurisdictions import find_ocd_match
 
     api = GoogleCivicAPI()
-    ballotpedia = BallotpediaDiscovery()
+    ballotpedia = None
     if not api.api_key:
         raise SystemExit("GOOGLE_CIVIC_API_KEY is required")
 
     conn = _connect()
     try:
+        ballotpedia = BallotpediaDiscovery()
         targets = _load_targets(conn, states, include_types, args.limit_per_state)
         logger.info("Loaded %d jurisdictions for bronze election ingest", len(targets))
 
@@ -580,6 +722,11 @@ def main(argv: list[str] | None = None) -> int:
             print("(dry-run — no DB writes)")
         return 0
     finally:
+        if ballotpedia is not None:
+            try:
+                asyncio.run(ballotpedia.close())
+            except Exception:
+                pass
         conn.close()
 
 

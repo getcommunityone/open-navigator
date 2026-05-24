@@ -54,6 +54,7 @@ import asyncio
 import re
 import random
 import os
+import json
 from typing import List, Dict, Optional
 from datetime import datetime
 from pathlib import Path
@@ -69,9 +70,16 @@ except ImportError:
 
 try:
     from playwright_stealth import stealth_async
+    STEALTH_MODE = "legacy"
     PLAYWRIGHT_STEALTH_AVAILABLE = True
 except ImportError:
-    PLAYWRIGHT_STEALTH_AVAILABLE = False
+    try:
+        from playwright_stealth import Stealth
+        STEALTH_MODE = "class"
+        PLAYWRIGHT_STEALTH_AVAILABLE = True
+    except ImportError:
+        STEALTH_MODE = "none"
+        PLAYWRIGHT_STEALTH_AVAILABLE = False
 
 try:
     from pyspark.sql import SparkSession, DataFrame
@@ -295,13 +303,136 @@ class BallotpediaDiscovery:
         self.max_retries = 4
         self.base_backoff_seconds = 2.0
         self.use_playwright_fallback = os.getenv("BALLOTPEDIA_USE_PLAYWRIGHT", "1").strip().lower() not in {"0", "false", "no"}
+        self.playwright_only = os.getenv("BALLOTPEDIA_PLAYWRIGHT_ONLY", "1").strip().lower() not in {"0", "false", "no"}
         self.playwright_timeout_ms = int(os.getenv("BALLOTPEDIA_PLAYWRIGHT_TIMEOUT_MS", "45000"))
         self.playwright_headless = os.getenv("BALLOTPEDIA_PLAYWRIGHT_HEADLESS", "1").strip().lower() not in {"0", "false", "no"}
+        self.debug_verbose = os.getenv("BALLOTPEDIA_DEBUG_VERBOSE", "0").strip().lower() in {"1", "true", "yes"}
+        self.playwright_artifact_dir = Path(os.getenv("BALLOTPEDIA_PLAYWRIGHT_ARTIFACT_DIR", "data/cache/ballotpedia/playwright_debug"))
+        self.fetch_debug_dir = Path(os.getenv("BALLOTPEDIA_FETCH_DEBUG_DIR", "data/cache/ballotpedia/fetch_debug"))
         self._pw = None
         self._browser = None
         self._context = None
         self._page = None
         self._playwright_lock = asyncio.Lock()
+
+    @staticmethod
+    def _is_challenge_html(html: str) -> bool:
+        page_text = (html or "").lower()
+        challenge_markers = [
+            "checking your browser",
+            "enable javascript",
+            "ad blocker",
+            "access denied",
+            "captcha",
+            "security check",
+            "verify you are human",
+        ]
+        return any(marker in page_text for marker in challenge_markers)
+
+    @staticmethod
+    def _challenge_markers_found(html: str) -> List[str]:
+        page_text = (html or "").lower()
+        markers = [
+            "checking your browser",
+            "enable javascript",
+            "ad blocker",
+            "access denied",
+            "captcha",
+            "security check",
+            "verify you are human",
+        ]
+        return [marker for marker in markers if marker in page_text]
+
+    @staticmethod
+    def _page_title_from_html(html: str) -> str:
+        if not html:
+            return ""
+        try:
+            soup = BeautifulSoup(html, "html.parser")
+            title = (soup.title.string if soup.title else "") or ""
+            return title.strip()
+        except Exception:
+            return ""
+
+    def _write_fetch_debug_report(
+        self,
+        url: str,
+        report_type: str,
+        status_history: List[Dict],
+        error: Optional[str] = None,
+        challenge_markers: Optional[List[str]] = None,
+        final_page_title: Optional[str] = None,
+        playwright_used: bool = False,
+        playwright_succeeded: bool = False,
+        playwright_artifacts: Optional[List[str]] = None,
+    ) -> Optional[Path]:
+        try:
+            ts = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+            slug = re.sub(r"[^a-z0-9]+", "_", url.lower()).strip("_")[:120]
+            self.fetch_debug_dir.mkdir(parents=True, exist_ok=True)
+            report_path = self.fetch_debug_dir / f"{slug}_{ts}_{report_type}.json"
+            payload = {
+                "timestamp_utc": ts,
+                "url": url,
+                "report_type": report_type,
+                "status_history": status_history,
+                "error": error,
+                "challenge_markers": challenge_markers or [],
+                "final_page_title": final_page_title,
+                "playwright_used": playwright_used,
+                "playwright_succeeded": playwright_succeeded,
+                "playwright_artifacts": playwright_artifacts or [],
+            }
+            report_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            return report_path
+        except Exception as exc:
+            logger.warning(f"Failed to write fetch debug report for {url}: {exc}")
+            return None
+
+    def _log_fetch_failure_summary(
+        self,
+        url: str,
+        status_history: List[Dict],
+        reason: str,
+        report_path: Optional[Path] = None,
+        challenge_markers: Optional[List[str]] = None,
+        playwright_artifacts: Optional[List[str]] = None,
+    ) -> None:
+        statuses = [str(item.get("status")) for item in status_history if item.get("status") is not None]
+        attempts = len(status_history)
+        marker_text = ", ".join(challenge_markers or [])
+        artifact_text = ", ".join(playwright_artifacts or [])
+        logger.error(
+            "Ballotpedia fetch failed | "
+            f"reason={reason} attempts={attempts} statuses=[{','.join(statuses)}] "
+            f"url={url} markers=[{marker_text}] "
+            f"debug_report={report_path if report_path else 'n/a'} "
+            f"artifacts=[{artifact_text}]"
+        )
+
+    async def _save_playwright_artifacts(self, page, url: str, reason: str) -> List[Path]:
+        try:
+            ts = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+            slug = re.sub(r"[^a-z0-9]+", "_", url.lower()).strip("_")[:120]
+            base = self.playwright_artifact_dir
+            base.mkdir(parents=True, exist_ok=True)
+
+            html_path = base / f"{slug}_{ts}_{reason}.html"
+            png_path = base / f"{slug}_{ts}_{reason}.png"
+            txt_path = base / f"{slug}_{ts}_{reason}.txt"
+
+            content = await page.content()
+            title = await page.title()
+            meta = f"url={page.url}\nrequested_url={url}\ntitle={title}\nreason={reason}\n"
+
+            html_path.write_text(content, encoding="utf-8")
+            txt_path.write_text(meta, encoding="utf-8")
+            await page.screenshot(path=str(png_path), full_page=True)
+            logger.info(f"Saved Playwright debug artifacts: {html_path}, {png_path}, {txt_path}")
+            return [html_path, png_path, txt_path]
+        except Exception as exc:
+            logger.warning(f"Failed to save Playwright artifacts for {url}: {exc}")
+            return []
         
     async def _get_session(self) -> httpx.AsyncClient:
         """Get or create HTTP session with rate limiting."""
@@ -336,15 +467,48 @@ class BallotpediaDiscovery:
         Returns:
             HTML content or None if failed
         """
+        if self.playwright_only:
+            html, pw_artifacts = await self._fetch_page_with_playwright(url)
+            if html:
+                return html
+
+            report_path = self._write_fetch_debug_report(
+                url=url,
+                report_type="playwright_only_failed",
+                status_history=[],
+                error="playwright_only_mode_failed",
+                playwright_used=True,
+                playwright_succeeded=False,
+                playwright_artifacts=[str(path) for path in pw_artifacts],
+            )
+            self._log_fetch_failure_summary(
+                url=url,
+                status_history=[],
+                reason="playwright_only_failed",
+                report_path=report_path,
+                playwright_artifacts=[str(path) for path in pw_artifacts],
+            )
+            return None
+
         session = await self._get_session()
         saw_challenge_status = False
+        status_history: List[Dict] = []
+        last_exception: Optional[str] = None
         for attempt in range(1, self.max_retries + 1):
             try:
                 # Rate limiting - be respectful and add light jitter.
                 await asyncio.sleep(1.5 + random.random())
                 response = await session.get(url)
+                status_history.append({"attempt": attempt, "status": response.status_code})
 
                 if response.status_code == 200:
+                    if self._is_challenge_html(response.text or ""):
+                        saw_challenge_status = True
+                        if self.debug_verbose:
+                            logger.debug(
+                                f"Challenge-like HTTP 200 content detected for {url}; escalating to browser fallback"
+                            )
+                        break
                     return response.text
 
                 if response.status_code in (202, 429, 503):
@@ -352,70 +516,161 @@ class BallotpediaDiscovery:
                     retry_after_raw = response.headers.get("Retry-After")
                     retry_after = float(retry_after_raw) if retry_after_raw and retry_after_raw.isdigit() else 0.0
                     backoff = max(retry_after, self.base_backoff_seconds * (2 ** (attempt - 1)))
-                    logger.warning(
-                        f"Retryable fetch status {response.status_code} for {url} "
-                        f"(attempt {attempt}/{self.max_retries}); sleeping {backoff:.1f}s"
-                    )
+                    if self.debug_verbose:
+                        logger.debug(
+                            f"Retryable fetch status {response.status_code} for {url} "
+                            f"(attempt {attempt}/{self.max_retries}); sleeping {backoff:.1f}s"
+                        )
                     if attempt < self.max_retries:
                         await asyncio.sleep(backoff)
                         continue
                     # Final retryable response: let the function fall through to Playwright fallback.
                     break
 
-                logger.warning(f"Failed to fetch {url}: {response.status_code}")
+                report_path = self._write_fetch_debug_report(
+                    url=url,
+                    report_type="http_failure",
+                    status_history=status_history,
+                    error=f"unexpected_http_status:{response.status_code}",
+                )
+                self._log_fetch_failure_summary(
+                    url=url,
+                    status_history=status_history,
+                    reason="unexpected_http_status",
+                    report_path=report_path,
+                )
                 return None
 
             except Exception as e:
-                logger.error(f"Error fetching {url} (attempt {attempt}/{self.max_retries}): {e}")
+                last_exception = str(e)
+                status_history.append({"attempt": attempt, "status": None, "error": str(e)})
+                if self.debug_verbose:
+                    logger.debug(f"Error fetching {url} (attempt {attempt}/{self.max_retries}): {e}")
                 if attempt < self.max_retries:
                     await asyncio.sleep(self.base_backoff_seconds * (2 ** (attempt - 1)))
                     continue
+                report_path = self._write_fetch_debug_report(
+                    url=url,
+                    report_type="request_exception",
+                    status_history=status_history,
+                    error=last_exception,
+                )
+                self._log_fetch_failure_summary(
+                    url=url,
+                    status_history=status_history,
+                    reason="request_exception",
+                    report_path=report_path,
+                )
                 return None
 
         if saw_challenge_status and self.use_playwright_fallback:
-            html = await self._fetch_page_with_playwright(url)
+            html, pw_artifacts = await self._fetch_page_with_playwright(url)
             if html:
                 return html
 
+            markers: List[str] = []
+            final_title = ""
+            if pw_artifacts:
+                for artifact in pw_artifacts:
+                    if artifact.suffix == ".html":
+                        try:
+                            html_text = artifact.read_text(encoding="utf-8")
+                            markers = self._challenge_markers_found(html_text)
+                            final_title = self._page_title_from_html(html_text)
+                        except Exception:
+                            pass
+
+            report_path = self._write_fetch_debug_report(
+                url=url,
+                report_type="challenge_blocked",
+                status_history=status_history,
+                error="challenge_or_bot_block_after_retries",
+                challenge_markers=markers,
+                final_page_title=final_title,
+                playwright_used=True,
+                playwright_succeeded=False,
+                playwright_artifacts=[str(path) for path in pw_artifacts],
+            )
+            self._log_fetch_failure_summary(
+                url=url,
+                status_history=status_history,
+                reason="challenge_blocked",
+                report_path=report_path,
+                challenge_markers=markers,
+                playwright_artifacts=[str(path) for path in pw_artifacts],
+            )
+        elif saw_challenge_status and not self.use_playwright_fallback:
+            report_path = self._write_fetch_debug_report(
+                url=url,
+                report_type="challenge_no_playwright",
+                status_history=status_history,
+                error="challenge_detected_and_playwright_disabled",
+            )
+            self._log_fetch_failure_summary(
+                url=url,
+                status_history=status_history,
+                reason="challenge_no_playwright",
+                report_path=report_path,
+            )
+        elif saw_challenge_status:
+            report_path = self._write_fetch_debug_report(
+                url=url,
+                report_type="challenge_unknown",
+                status_history=status_history,
+                error="challenge_detected_unknown_terminal_state",
+            )
+            self._log_fetch_failure_summary(
+                url=url,
+                status_history=status_history,
+                reason="challenge_unknown",
+                report_path=report_path,
+            )
+
         return None
 
-    async def _fetch_page_with_playwright(self, url: str) -> Optional[str]:
+    async def _fetch_page_with_playwright(self, url: str) -> tuple[Optional[str], List[Path]]:
         if not PLAYWRIGHT_AVAILABLE:
             logger.warning("Playwright fallback requested but playwright is not installed")
-            return None
+            return None, []
 
         logger.info(f"Trying Playwright fallback for {url}")
         try:
             page = await self._get_playwright_page()
-            await page.goto(url, wait_until="domcontentloaded", timeout=self.playwright_timeout_ms)
-            # Challenges often resolve after scripts and redirects complete.
-            await page.wait_for_load_state("networkidle", timeout=self.playwright_timeout_ms)
+            await page.goto(url, wait_until="commit", timeout=self.playwright_timeout_ms)
             await page.wait_for_selector("body", timeout=self.playwright_timeout_ms)
-            await page.wait_for_timeout(2500)
-            content = await page.content()
+
+            content = ""
+            for _ in range(4):
+                try:
+                    await page.wait_for_load_state("networkidle", timeout=10000)
+                except Exception:
+                    pass
+                await page.wait_for_timeout(2500)
+                content = await page.content()
+                if content and not self._is_challenge_html(content):
+                    break
+
             final_url = page.url
             title = await page.title()
 
-            # Basic challenge detection heuristics.
-            page_text = (content or "").lower()
-            challenge_markers = [
-                "checking your browser",
-                "enable javascript",
-                "ad blocker",
-                "access denied",
-                "captcha",
-            ]
-            if any(marker in page_text for marker in challenge_markers):
+            if self._is_challenge_html(content or ""):
                 logger.warning(
                     f"Playwright fetched challenge page for {url} (final_url={final_url}, title={title})"
                 )
-                return None
+                artifacts = await self._save_playwright_artifacts(page, url, "challenge")
+                return None, artifacts
 
             logger.info(f"Playwright fallback succeeded for {url} (final_url={final_url})")
-            return content
+            return content, []
         except Exception as exc:
             logger.warning(f"Playwright fallback failed for {url}: {exc}")
-            return None
+            artifacts: List[Path] = []
+            try:
+                page = await self._get_playwright_page()
+                artifacts = await self._save_playwright_artifacts(page, url, "exception")
+            except Exception:
+                pass
+            return None, artifacts
 
     async def _get_playwright_page(self):
         async with self._playwright_lock:
@@ -423,15 +678,27 @@ class BallotpediaDiscovery:
                 return self._page
 
             self._pw = await async_playwright().start()
-            self._browser = await self._pw.chromium.launch(headless=self.playwright_headless)
+            self._browser = await self._pw.chromium.launch(
+                headless=self.playwright_headless,
+                args=["--disable-blink-features=AutomationControlled"],
+            )
             self._context = await self._browser.new_context(
                 user_agent=self.user_agent,
                 viewport={"width": 1366, "height": 768},
                 locale="en-US",
             )
+            await self._context.add_init_script(
+                "Object.defineProperty(navigator, 'webdriver', {get: () => undefined});"
+            )
             self._page = await self._context.new_page()
             if PLAYWRIGHT_STEALTH_AVAILABLE:
-                await stealth_async(self._page)
+                try:
+                    if STEALTH_MODE == "legacy":
+                        await stealth_async(self._page)
+                    else:
+                        await Stealth().apply_stealth_async(self._page)
+                except Exception as exc:
+                    logger.warning(f"playwright-stealth installed but failed to apply stealth patches: {exc}")
             else:
                 logger.warning("playwright-stealth is not installed; running Playwright fallback without stealth patches")
             return self._page

@@ -184,6 +184,33 @@ def _cleanup_contact_image_dir(jurisdiction_dir: Path, rows: List[Dict[str, Any]
     return deleted
 
 
+def _suggest_similar_jurisdiction_dirs(jurisdiction_dir: Path, limit: int = 8) -> List[str]:
+    parts = list(jurisdiction_dir.parts)
+    if "scraped_meetings" not in parts:
+        return []
+    idx = parts.index("scraped_meetings")
+    if idx + 1 >= len(parts):
+        return []
+    state_root = Path(*parts[: idx + 2])
+    if not state_root.is_dir():
+        return []
+
+    needle = (jurisdiction_dir.name.split("_", 1)[0] or "").strip().lower()
+    suggestions: List[tuple[int, str]] = []
+    for category_dir in sorted(state_root.iterdir()):
+        if not category_dir.is_dir():
+            continue
+        for cand in sorted(category_dir.iterdir()):
+            if not cand.is_dir() or not (cand / "_manifest.json").is_file():
+                continue
+            name_lower = cand.name.lower()
+            score = 2 if needle and name_lower.startswith(needle) else (1 if needle and needle in name_lower else 0)
+            rel = f"{category_dir.name}/{cand.name}"
+            suggestions.append((score, rel))
+    suggestions.sort(key=lambda x: (-x[0], x[1]))
+    return [s[1] for s in suggestions[:limit] if s[0] > 0] or [s[1] for s in suggestions[:limit]]
+
+
 def refresh_jurisdiction_contacts(
     jurisdiction_dir: Path,
     *,
@@ -208,7 +235,16 @@ def refresh_jurisdiction_contacts(
         if parent.is_dir():
             hint_dirs = [p.name for p in sorted(parent.iterdir()) if p.is_dir() and (p / "_manifest.json").is_file()][:8]
         hint = f" Available siblings with _manifest.json: {', '.join(hint_dirs)}" if hint_dirs else ""
-        raise FileNotFoundError(f"{manifest_path}.{hint}")
+        cross_hints = _suggest_similar_jurisdiction_dirs(jurisdiction_dir, limit=8)
+        has_downloads = (jurisdiction_dir / "_downloads").is_dir()
+        msg = f"{manifest_path}."
+        if has_downloads:
+            msg += " This directory contains _downloads and looks like a source-download cache folder, not a crawl snapshot folder."
+        if hint_dirs:
+            msg += f" Available siblings with _manifest.json: {', '.join(hint_dirs)}."
+        if cross_hints:
+            msg += f" Similar jurisdiction dirs in this state: {', '.join(cross_hints)}."
+        raise FileNotFoundError(msg)
     if not crawl_html.is_dir():
         raise FileNotFoundError(crawl_html)
 
