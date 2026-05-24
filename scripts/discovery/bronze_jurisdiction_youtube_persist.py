@@ -76,7 +76,7 @@ def insert_bronze_jurisdiction_youtube(
                         view_count,
                         latest_upload,
                         discovery_method,
-                        confidence,
+                        discovery_confidence,
                         raw_row,
                         scraped_at,
                         channel_description,

@@ -105,7 +105,12 @@ _DESCRIPTION_PATTERNS = (
 )
 
 # YouTube wraps external links in a redirect: "https://www.youtube.com/redirect?...&q=<URL-encoded-real>".
-_REDIRECT_Q_RE = re.compile(r'youtube\.com/redirect[^"\'<>\s]*?[?&]q=([^"&\'<>\s]+)')
+# Inside JSON-embedded payloads YouTube escapes ``&`` as ``&`` and there's almost always
+# at least one parameter (event=, redir_token=) between ``redirect?`` and ``q=``, so we accept
+# either ampersand form between the redirect base and the q= param.
+_REDIRECT_Q_RE = re.compile(
+    r'youtube\.com/redirect[^"\'<>\s]{0,500}?(?:&|\\u0026|\?)q=([^"&\'<>\s\\]+)'
+)
 _DIRECT_HREF_RE = re.compile(r'href="(https?://[^"]+)"')
 
 
@@ -146,6 +151,11 @@ def extract_external_links(html: str) -> list[str]:
             url = unquote(raw)
         except Exception:
             continue
+        # YouTube's redirect URLs frequently lack the scheme (e.g. ``www.co.adams.in.us``
+        # instead of ``https://www.co.adams.in.us``). Prepend a scheme so ``_is_external``
+        # accepts them and so the resulting URL has a parseable host.
+        if url and not url.lower().startswith(("http://", "https://")):
+            url = "https://" + url.lstrip("/")
         if _is_external(url) and url not in seen:
             seen.add(url)
             found.append(url)
@@ -226,14 +236,27 @@ def score_official_meeting_channel(
     Return a 0.0–1.0 heuristic confidence that this channel is the jurisdiction's
     official meeting/government channel. Components are additive (clamped at 1.0).
 
-    Weighting (max each):
-      jurisdiction name token in title              +0.30
-      gov-style keyword in title                    +0.20
-      meeting/council keyword in title              +0.20
-      back-links to jurisdiction website            +0.30
-      jurisdiction name + state in description      +0.10
-      video_count >= 50                             +0.10
-      existing policy_score >= 1 (existing scorer)  +0.10
+    Title and description are scored symmetrically because YouTube channel scrapes
+    frequently return junk titles like "Home" / "Shorts" / "Playlists" when the page
+    metadata isn't fully populated, while the description still contains the gold
+    ("Adams County, Indiana Government's YouTube channel, to broadcast public meetings.").
+    Each signal hits the title-OR-description path, whichever is stronger.
+
+    Weighting (max each, capped at 1.0):
+      jurisdiction name token in title OR description       +0.30
+      gov-style keyword in title OR description             +0.20
+      meeting/council keyword in title OR description       +0.20
+      back-links to jurisdiction website                    +0.50  ← strongest signal
+      name + state both visible in description              +0.10
+      video_count >= 50                                     +0.10
+      existing policy_score >= 1 (existing scorer)          +0.10
+
+    The back-link weight is high enough that a confirmed back-link alone clears the
+    default 0.50 threshold. Random channels essentially never link to municipal .gov
+    websites — when one does, it's almost always the jurisdiction's own channel even
+    if the channel's title is YouTube placeholder text ("Home" / "Shorts" / "Playlists")
+    and the description is the default "Share your videos with friends, family, and the
+    world." (PVPC for Hampden County MA is the canonical example.)
     """
     score = 0.0
     title_l = (channel_title or "").lower()
@@ -241,21 +264,31 @@ def score_official_meeting_channel(
     state_l = (jurisdiction_state_code or "").lower()
     name_tokens = _jurisdiction_name_tokens(jurisdiction_name)
 
-    if any(tok in title_l for tok in name_tokens):
+    name_in_title = any(tok in title_l for tok in name_tokens)
+    name_in_desc = any(tok in desc_l for tok in name_tokens)
+    if name_in_title or name_in_desc:
         score += 0.30
-    if any(kw in title_l for kw in _GOV_TITLE_KEYWORDS):
+
+    gov_in_title = any(kw in title_l for kw in _GOV_TITLE_KEYWORDS)
+    gov_in_desc = any(kw in desc_l for kw in _GOV_TITLE_KEYWORDS)
+    if gov_in_title or gov_in_desc:
         score += 0.20
-    if any(kw in title_l for kw in _MEETING_TITLE_KEYWORDS):
+
+    meeting_in_title = any(kw in title_l for kw in _MEETING_TITLE_KEYWORDS)
+    meeting_in_desc = any(kw in desc_l for kw in _MEETING_TITLE_KEYWORDS)
+    if meeting_in_title or meeting_in_desc:
         score += 0.20
 
     if backlinks_to_jurisdiction:
-        score += 0.30
+        score += 0.50
 
-    if name_tokens and any(tok in desc_l for tok in name_tokens):
-        if state_l and (f", {state_l}" in desc_l or f" {state_l} " in desc_l):
+    # Extra +0.10 only when BOTH the jurisdiction name AND a state-locator string are
+    # in the description — guards against name collisions across states ("Adams County"
+    # exists in many states, but "Adams County, Indiana" in the description tells us
+    # we have the right one).
+    if name_in_desc and state_l:
+        if f", {state_l}" in desc_l or f" {state_l} " in desc_l:
             score += 0.10
-        elif any(kw in desc_l for kw in _MEETING_TITLE_KEYWORDS):
-            score += 0.05
 
     if video_count is not None and video_count >= 50:
         score += 0.10

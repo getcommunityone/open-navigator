@@ -48,6 +48,16 @@ July 2023, Toronto, Canada.
 - Source: https://www.census.gov/
 - License: Public Domain (U.S. Government)
 
+### **OpenAddresses Project** ⭐
+- Crowdsourced, developer-focused index of the exact URLs, API endpoints, and FTP servers where local governments host public address, parcel, and appraisal data — structured as raw JSON/YAML source files rather than a clickable UI.
+- Site: https://openaddresses.io/
+- Repository: https://github.com/openaddresses/openaddresses
+- Data layout: per-country / per-state / per-county source files under `sources/` describing the upstream URL, format (Shapefile, CSV, GeoJSON, ArcGIS REST), licensing, and conform/transform rules.
+- License: BSD-3-Clause for the code; per-source licenses (mostly public-domain or open) declared in each YAML file.
+- Coverage: 1,000+ jurisdictions across the U.S. (county GIS / assessor systems) and many other countries.
+- Used for: discovering the canonical upstream data URLs for county and city parcel / address systems; complements CISA `.gov` and Census GID by providing the actual *data endpoint* (not just the website).
+- **Use:** Cite the project repository and the specific source file(s) you consume (e.g. `sources/us/al/jefferson.json`).
+
 ### **Opportunity Insights** (reference)
 - Non-partisan research on economic mobility, neighborhoods, and education; public tools such as the Opportunity Atlas ([https://opportunityinsights.org/](https://opportunityinsights.org/))
 - **Use:** Cite their papers, datasets, or tool pages directly when you use their materials; see [website/docs/data-sources/citations.md](website/docs/data-sources/citations.md#opportunity-insights)

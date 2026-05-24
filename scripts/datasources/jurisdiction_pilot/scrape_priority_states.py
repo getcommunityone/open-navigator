@@ -61,12 +61,23 @@ from typing import Any
 
 import psycopg2
 import requests
+import urllib3
 from dotenv import load_dotenv
+
+# Silence the InsecureRequestWarning flood. ``website_youtube_search`` intentionally
+# sets ``sess.verify = False`` because a chunk of municipal .gov sites still ship
+# broken cert chains (self-signed intermediates, expired roots, mismatched CNs).
+# Skipping verification is the deliberate choice there; we just don't want the warning
+# emitted on every request.
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 _ROOT = Path(__file__).resolve().parents[3]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
+from scripts.datasources.jurisdiction_pilot.load_ocd_jurisdictions import (  # noqa: E402
+    find_ocd_match,
+)
 from scripts.datasources.jurisdiction_pilot.mayor_url_discovery import (  # noqa: E402
     discover_seed_urls,
 )
@@ -498,7 +509,15 @@ def _process_one(
     ocd_id = find_ocd_match(j.name, j.state_code, jurisdiction_type=j.jurisdiction_type)
 
     # Detect vendor platform (Legistar, Granicus, etc.) for vendor-specific optimizations
-    vendor_type, vendor_info = detect_vendor(j.website_url, session=session)
+    vendor_type = "unknown"
+    vendor_info: dict[str, Any] = {}
+    try:
+        resp = session.get(j.website_url, timeout=10, allow_redirects=True)
+        if resp.status_code == 200:
+            vendor_info = detect_vendor(resp.text, j.website_url)
+            vendor_type = vendor_info.get("platform", "unknown")
+    except Exception as exc:
+        logger.debug("Vendor detection failed for %s: %s", j.name, exc)
     logger.debug("Detected vendor: %s for %s", vendor_type, j.name)
 
     try:
@@ -508,9 +527,12 @@ def _process_one(
 
         # Priority 1: Try Legistar for council members (high-confidence official contacts)
         legistar_contacts = []
-        if vendor_type == "legistar" and vendor_info.get("api_endpoint"):
-            legistar_contacts = get_legistar_council_members(vendor_info.get("api_endpoint", ""))
-            if legistar_contacts:
+        if vendor_type == "legistar":
+            # Extract Legistar instance URL from vendor_info
+            legistar_url = vendor_info.get("legistar_url") or j.website_url
+            legistar_members = get_legistar_council_members(legistar_url)
+            if legistar_members:
+                legistar_contacts = legistar_members
                 logger.debug("Found %d council members via Legistar", len(legistar_contacts))
 
         # Priority 2: Scrape website contacts

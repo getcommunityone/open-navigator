@@ -227,14 +227,38 @@ class YouTubeChannelDiscovery:
         if self.api_key:
             logger.info(f"Searching YouTube API for '{resolved_city_name}'...")
             api_channels = await self._search_youtube_api(resolved_city_name, state_code)
-            
+
             for channel in api_channels:
                 url = channel['channel_url']
                 if url not in tested_urls:
                     tested_urls.add(url)
                     discovered.append(channel)
                     logger.success(f"✓ Found via API: {url}")
-        
+
+        # Strategy 4: Domain-anchored YouTube API search. Searches for the jurisdiction's
+        # bare host (e.g. "cambridgema.gov") rather than the name. Domains are unique, so
+        # any channel surfaced this way is overwhelmingly the actual jurisdiction channel
+        # — much higher precision than name-token matching (which collides with arbitrary
+        # "Adams" / "John Adams" / "Mass B TV" results).
+        if self.api_key and homepage_url:
+            domain_channels = await self._search_youtube_by_domain(homepage_url)
+            if domain_channels:
+                logger.info(f"Domain search returned {len(domain_channels)} channel(s) for {homepage_url}")
+            for channel in domain_channels:
+                url = channel['channel_url']
+                if url not in tested_urls:
+                    tested_urls.add(url)
+                    discovered.append(channel)
+                    logger.success(f"✓ Found via domain search: {url}")
+                else:
+                    # Already discovered via another strategy — boost its confidence since
+                    # the domain search corroborates it.
+                    for existing in discovered:
+                        if existing.get('channel_url') == url:
+                            existing['discovery_method'] = 'domain_search+' + existing.get('discovery_method', '')
+                            existing['confidence'] = max(existing.get('confidence', 0.0), 0.98)
+                            break
+
         # Deduplicate by channel_id
         seen_ids = set()
         unique_channels = []
@@ -865,9 +889,83 @@ class YouTubeChannelDiscovery:
         
         except Exception as e:
             logger.warning(f"YouTube API search failed: {e}")
-        
+
         return channels
-    
+
+    async def _search_youtube_by_domain(self, homepage_url: str) -> List[Dict]:
+        """
+        Search YouTube Data API for channels whose title/description mentions the
+        jurisdiction's bare host (e.g. ``cambridgema.gov``, ``co.adams.wa.us``).
+
+        Rationale: domains are unique; name-token searches collide ("Adams" returns
+        "John Adams", "Mass B TV", etc.). A channel that puts the jurisdiction's
+        website in its About text is overwhelmingly that jurisdiction's channel.
+
+        Returns channel dicts with ``discovery_method='domain_search'`` and
+        ``confidence=0.98`` when the queried host appears in the channel description,
+        else ``confidence=0.85``.
+        """
+        if not self.api_key or not homepage_url:
+            return []
+
+        host = (urlparse(homepage_url).netloc or "").lower()
+        host = re.sub(r"^www\.", "", host)
+        if not host or "." not in host:
+            return []
+
+        channels: List[Dict[str, Any]] = []
+        try:
+            search_resp = await self.client.get(
+                "https://www.googleapis.com/youtube/v3/search",
+                params={
+                    "part": "snippet",
+                    "q": host,
+                    "type": "channel",
+                    "maxResults": 10,
+                    "key": self.api_key,
+                },
+            )
+            search_data = search_resp.json()
+            for item in search_data.get("items", []):
+                cid = item.get("id", {}).get("channelId")
+                if not cid:
+                    continue
+                title = item.get("snippet", {}).get("title", "")
+                # Pull full statistics + description so we can confirm the back-link
+                # without a second fetch from the enricher.
+                stats_resp = await self.client.get(
+                    "https://www.googleapis.com/youtube/v3/channels",
+                    params={
+                        "part": "statistics,snippet",
+                        "id": cid,
+                        "key": self.api_key,
+                    },
+                )
+                stats_items = stats_resp.json().get("items") or []
+                if not stats_items:
+                    continue
+                stats = stats_items[0].get("statistics", {})
+                snippet = stats_items[0].get("snippet", {})
+                full_description = (snippet.get("description") or "").lower()
+
+                domain_in_description = host in full_description
+                channels.append({
+                    "channel_url": f"https://www.youtube.com/channel/{cid}",
+                    "channel_id": cid,
+                    "channel_title": title,
+                    "video_count": int(stats.get("videoCount", 0) or 0),
+                    "subscriber_count": int(stats.get("subscriberCount", 0) or 0),
+                    "view_count": int(stats.get("viewCount", 0) or 0),
+                    "discovery_method": "domain_search",
+                    "confidence": 0.98 if domain_in_description else 0.85,
+                    "domain_search_host": host,
+                    "domain_in_description": domain_in_description,
+                })
+        except Exception as e:
+            logger.warning(f"YouTube domain search failed for {host}: {e}")
+
+        return channels
+
     async def close(self):
         """Close HTTP client."""
         await self.client.aclose()

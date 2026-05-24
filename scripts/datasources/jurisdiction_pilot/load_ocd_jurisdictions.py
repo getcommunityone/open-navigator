@@ -81,7 +81,10 @@ def load_state_ocd_data(state_code: str) -> dict[str, str]:
         if name not in ocd_data:
             ocd_data[name] = base_ocd
 
-    # Priority 2: Load from country-us.csv (has county-level data)
+    # Priority 2: Load from country-us.csv (counties AND places). The per-state
+    # ``state-XX-local_gov.csv`` files only contain things like board-of-education
+    # districts for many states (AL, GA, etc.) — places live exclusively in
+    # ``country-us.csv``. Without this branch, every municipality lookup returned None.
     country_csv = _OCD_CACHE / "identifiers" / "country-us.csv"
     if country_csv.exists():
         try:
@@ -98,28 +101,46 @@ def load_state_ocd_data(state_code: str) -> dict[str, str]:
                     if not parsed:
                         continue
 
-                    # Only consider counties (not districts/school_districts)
-                    if "county" not in parsed:
-                        continue
-
+                    # Accept top-level counties OR places only — skip subdivisions
+                    # (council_district / ward / school_district / precinct).
                     has_subdivision = any(
                         k in parsed for k in ("council_district", "ward", "school_district", "precinct")
                     )
                     if has_subdivision:
                         continue
 
-                    canonical_name = name.strip()
-                    # Only add if not already present (places take priority)
-                    if canonical_name not in ocd_data:
-                        ocd_data[canonical_name] = ocd_id.strip()
-
-                    # Also store by slug
-                    county_slug = parsed.get("county")
-                    if county_slug and f"{county_slug.title()} County" not in ocd_data:
-                        ocd_data[f"{county_slug.title()} County"] = ocd_id.strip()
+                    if "county" in parsed:
+                        canonical_name = name.strip()
+                        if canonical_name not in ocd_data:
+                            ocd_data[canonical_name] = ocd_id.strip()
+                        county_slug = parsed.get("county")
+                        if county_slug and f"{county_slug.title()} County" not in ocd_data:
+                            ocd_data[f"{county_slug.title()} County"] = ocd_id.strip()
+                    elif "place" in parsed:
+                        # ``Abbeville city`` -> map under both the display name and the
+                        # bare form (``Abbeville``) so the runner's lookup (which passes
+                        # j.name, often without the LSAD suffix) succeeds.
+                        canonical_name = name.strip()
+                        if canonical_name not in ocd_data:
+                            ocd_data[canonical_name] = ocd_id.strip()
+                        # Strip trailing LSAD tokens — "city", "town", "village", "borough",
+                        # "CDP", "municipality" — to get the bare place name.
+                        import re as _re
+                        bare = _re.sub(
+                            r"\s+(city|town|village|borough|cdp|municipality|township)$",
+                            "", canonical_name, flags=_re.IGNORECASE,
+                        ).strip()
+                        if bare and bare not in ocd_data:
+                            ocd_data[bare] = ocd_id.strip()
+                        # Also store by slug for safety.
+                        place_slug = parsed.get("place")
+                        if place_slug:
+                            slug_title = place_slug.replace("_", " ").title()
+                            if slug_title not in ocd_data:
+                                ocd_data[slug_title] = ocd_id.strip()
 
         except Exception as exc:
-            logger.debug("Failed to load counties from country-us.csv: %s", exc)
+            logger.debug("Failed to load counties/places from country-us.csv: %s", exc)
 
     return ocd_data
 

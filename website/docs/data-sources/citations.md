@@ -518,6 +518,34 @@ This is separate from the word-finding API and has different pricing.
 
 ---
 
+### OpenAddresses Project ⭐
+
+**Organization:** OpenAddresses contributors (open-source community)
+**What we use:** A developer-focused, raw index of where local governments host their public address, parcel, and appraisal data — structured as JSON/YAML source files (URLs, API endpoints, FTP paths, format/license metadata) rather than a clickable UI. Complements CISA `.gov` and the Census Government Integrated Directory by providing the actual *data endpoint* per jurisdiction (assessor / GIS server) instead of just the website root.
+
+- **Site:** https://openaddresses.io/
+- **Repository:** https://github.com/openaddresses/openaddresses
+- **Source layout:** per-country / per-state / per-county YAML/JSON files under `sources/` (e.g. `sources/us/al/jefferson.json`) describing the upstream URL, format (Shapefile, CSV, GeoJSON, ArcGIS REST), licensing, and conform/transform rules.
+- **Code license:** BSD-3-Clause; per-dataset licenses (mostly public-domain / open) declared inside each source file.
+- **Coverage:** 1,000+ U.S. county GIS / assessor systems plus many international jurisdictions.
+- **Used for:** Discovering the canonical upstream data URLs for county and city parcel / address systems; downstream of jurisdiction discovery (CISA `.gov`, Census GID) — gives the *where to actually pull the rows from* once a jurisdiction is identified.
+
+**How we use it:** Browse the `sources/` directory in the GitHub repo. For each priority state, the relevant per-county files document the upstream parcel / assessor / GIS endpoint plus the schema mapping needed to normalize it. Cite the specific source file(s) consumed (not just the repo root).
+
+**BibTeX:**
+```bibtex
+@misc{openaddresses_project,
+  author = {{OpenAddresses contributors}},
+  title = {OpenAddresses: A free, open, global collection of address data},
+  year = {2026},
+  url = {https://openaddresses.io/},
+  howpublished = {\url{https://github.com/openaddresses/openaddresses}},
+  note = {Code: BSD-3-Clause; per-source dataset licenses declared in each YAML file.}
+}
+```
+
+---
+
 ### IRS Exempt Organizations Business Master File (EO-BMF)
 
 **Organization:** Internal Revenue Service (IRS), U.S. Department of Treasury  
