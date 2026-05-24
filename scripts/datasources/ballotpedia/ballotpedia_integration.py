@@ -323,33 +323,94 @@ class BallotpediaDiscovery:
         self._page = None
         self._playwright_lock = asyncio.Lock()
 
-    @staticmethod
-    def _is_challenge_html(html: str) -> bool:
-        page_text = (html or "").lower()
-        challenge_markers = [
-            "checking your browser",
-            "enable javascript",
-            "ad blocker",
-            "access denied",
-            "captcha",
-            "security check",
-            "verify you are human",
-        ]
-        return any(marker in page_text for marker in challenge_markers)
+    # Word-boundary-anchored markers. The substring ``captcha`` previously matched
+    # the literal ``recaptcha`` that Ballotpedia loads on every page via Google's
+    # reCAPTCHA JS (e.g. ``https://www.gstatic.com/recaptcha/releases/.../recaptcha__en.js``).
+    # That false-positive caused real article pages to be classified as challenge pages.
+    #
+    # The markers are also anchored with ``\b`` so a phrase like ``ad blocker`` in a
+    # footer doesn't match if it appears as part of a longer token (it won't, but be safe).
+    # ``CHALLENGE_TEXT_ONLY_RE`` strips HTML tags before scanning so script-src attributes,
+    # CSS class names, and inline JS don't contribute false positives.
+    _CHALLENGE_PATTERNS = (
+        re.compile(r"\bchecking your browser\b", re.IGNORECASE),
+        re.compile(r"\bplease enable javascript\b", re.IGNORECASE),
+        re.compile(r"\bad ?blocker\b", re.IGNORECASE),
+        re.compile(r"\baccess denied\b", re.IGNORECASE),
+        re.compile(r"(?<![a-z])captcha(?![a-z])", re.IGNORECASE),     # not ``recaptcha`` / ``captchabox``
+        re.compile(r"\bsecurity check\b", re.IGNORECASE),
+        re.compile(r"\bverify you are human\b", re.IGNORECASE),
+        re.compile(r"\bcloudflare\b.*\bray id\b", re.IGNORECASE),
+    )
+    _TAG_STRIP_RE = re.compile(r"<(?:script|style)[^>]*>.*?</(?:script|style)>", re.IGNORECASE | re.DOTALL)
+    _HTML_TAG_RE  = re.compile(r"<[^>]+>")
 
-    @staticmethod
-    def _challenge_markers_found(html: str) -> List[str]:
-        page_text = (html or "").lower()
-        markers = [
-            "checking your browser",
-            "enable javascript",
-            "ad blocker",
-            "access denied",
-            "captcha",
-            "security check",
-            "verify you are human",
-        ]
-        return [marker for marker in markers if marker in page_text]
+    @classmethod
+    def _visible_text(cls, html: str) -> str:
+        """Strip <script>/<style> blocks and HTML tags so attribute values / JS / CSS
+        class names don't trigger challenge detection."""
+        if not html:
+            return ""
+        cleaned = cls._TAG_STRIP_RE.sub(" ", html)
+        cleaned = cls._HTML_TAG_RE.sub(" ", cleaned)
+        return cleaned
+
+    # The MediaWiki content container Ballotpedia uses for the actual article body.
+    # The page-shell HTML (header, footer, sidebar, search box, captcha form) is
+    # always present and ~70KB even when the article didn't render — so we have to
+    # measure the article body itself, not the whole document.
+    _ARTICLE_BODY_SELECTORS = ("#mw-content-text", ".mw-parser-output", "#bodyContent")
+    _ARTICLE_BODY_MIN_TEXT  = 2_000   # real article bodies are 20KB+ of text; shell-only pages << 1KB
+
+    @classmethod
+    def _article_body_text(cls, html: str) -> str:
+        if not html:
+            return ""
+        try:
+            soup = BeautifulSoup(html, "html.parser")
+        except Exception:
+            return ""
+        for sel in cls._ARTICLE_BODY_SELECTORS:
+            elem = soup.select_one(sel)
+            if elem:
+                return elem.get_text(" ", strip=True)
+        return ""
+
+    @classmethod
+    def _is_challenge_html(cls, html: str) -> bool:
+        """
+        Detect non-article responses. The MediaWiki shell (header, footer, search box,
+        Ballotpedia's correction form with its captcha UI, reCAPTCHA JS, etc.) is
+        always present and ~70KB even when the article body itself didn't render.
+        So we judge "real article" by the size of the article body, not the page.
+
+        We treat the page as a non-article (i.e. "challenge"-like — caller should
+        retry or give up) when:
+          * the article body text is < 2,000 chars (shell-only render, was observed
+            during high traffic / bot challenges), OR
+          * one of the Cloudflare/captcha challenge phrases appears in the visible
+            text AND the article body is below the size threshold.
+
+        Real article pages produce 20KB+ of body text and are accepted even if the
+        site loads reCAPTCHA JS (which it does on every page for the correction form).
+        """
+        body_text = cls._article_body_text(html)
+        if len(body_text) < cls._ARTICLE_BODY_MIN_TEXT:
+            return True
+        text = cls._visible_text(html)
+        # Real article body present; ignore generic captcha/recaptcha noise. Only treat
+        # as challenge if a hard interstitial marker appears in the visible page text
+        # alongside an unusually small body (handled by the size check above).
+        explicit_block = re.compile(
+            r"\b(?:attention required|just a moment|access denied|cloudflare\b.*\bray id)\b",
+            re.IGNORECASE,
+        )
+        return bool(explicit_block.search(text))
+
+    @classmethod
+    def _challenge_markers_found(cls, html: str) -> List[str]:
+        text = cls._visible_text(html)
+        return [pat.pattern for pat in cls._CHALLENGE_PATTERNS if pat.search(text)]
 
     @staticmethod
     def _page_title_from_html(html: str) -> str:
@@ -781,22 +842,35 @@ class BallotpediaDiscovery:
         logger.info(f"✅ Found leader: {name} - {leader_data.get('office')}")
         return leader_data
     
+    @classmethod
+    def build_city_url(cls, city: str, state: str) -> str:
+        """
+        Canonical Ballotpedia URL for a city page (e.g.
+        ``https://ballotpedia.org/Tuscaloosa,_Alabama``). ``state`` may be either a
+        2-letter code (``AL``) or the full name (``Alabama``); both resolve to the
+        same URL using the state-name form Ballotpedia requires.
+        """
+        state_clean = (state or "").strip()
+        state_name = cls.STATE_NAME_BY_CODE.get(state_clean.upper(), state_clean)
+        city_page = f"{city},_{state_name}".replace(" ", "_")
+        return f"{cls.BASE_URL}/{city_page}"
+
     async def get_city_officials(self, city: str, state: str) -> List[Dict]:
         """
         Get elected officials for a city.
-        
+
         Args:
             city: City name (e.g., "Tuscaloosa")
             state: State name or code (e.g., "Alabama" or "AL")
-            
+
         Returns:
-            List of official dicts
+            List of official dicts. Two parsing strategies in order:
+              1. Heading-anchored ``<ul>`` lists (legacy MediaWiki article shape).
+              2. ``<table>``-based "Office | Name | Party | Date" rosters (the
+                 current Ballotpedia format for state-executive / city-leader
+                 listings).
         """
-        # Ballotpedia city pages: https://ballotpedia.org/Tuscaloosa,_Alabama
-        state_clean = (state or "").strip()
-        state_name = self.STATE_NAME_BY_CODE.get(state_clean.upper(), state_clean)
-        city_page = f"{city},_{state_name}".replace(" ", "_")
-        url = f"{self.BASE_URL}/{city_page}"
+        url = self.build_city_url(city, state)
         
         logger.info(f"Fetching officials for {city}, {state} from {url}")
         
@@ -841,9 +915,185 @@ class BallotpediaDiscovery:
                     
                     next_elem = next_elem.find_next_sibling()
         
+        # Strategy 2: table-based extraction. Ballotpedia's current format puts
+        # officials in a 4-column table with headers like Office / Name / Party /
+        # Date assumed office. This applies both to the actual city-officials block
+        # on the Tuscaloosa page AND to the state-executives fallback table shown
+        # on smaller-city pages (e.g. Andalusia, Alabama).
+        if not officials:
+            for table in soup.find_all("table"):
+                rows = table.find_all("tr")
+                if len(rows) < 2:
+                    continue
+                # Header row — accept either <th> or the first <tr>'s text cells
+                header_cells = rows[0].find_all(["th", "td"])
+                headers = [c.get_text(" ", strip=True).lower() for c in header_cells]
+                if "office" not in headers or "name" not in headers:
+                    continue
+                idx_office = headers.index("office")
+                idx_name   = headers.index("name")
+                idx_party  = headers.index("party") if "party" in headers else None
+                idx_date   = next((i for i, h in enumerate(headers) if "date" in h), None)
+                for tr in rows[1:]:
+                    cells = tr.find_all(["td", "th"])
+                    if len(cells) <= max(idx_office, idx_name):
+                        continue
+                    name_txt = cells[idx_name].get_text(" ", strip=True)
+                    if not name_txt:
+                        continue
+                    officials.append({
+                        "name":      name_txt,
+                        "position":  cells[idx_office].get_text(" ", strip=True),
+                        "party":     cells[idx_party].get_text(" ", strip=True) if idx_party is not None and len(cells) > idx_party else None,
+                        "assumed":   cells[idx_date].get_text(" ", strip=True)  if idx_date  is not None and len(cells) > idx_date  else None,
+                        "jurisdiction": f"{city}, {state}",
+                        "source": "ballotpedia",
+                        "source_url": url,
+                        "scraped_at": datetime.utcnow().isoformat(),
+                    })
+
         logger.info(f"✅ Found {len(officials)} officials for {city}, {state}")
         return officials
     
+    # ------------------------------------------------------------------------------
+    # Jurisdiction-level ballot measures
+    # URL pattern: https://ballotpedia.org/<Jurisdiction>,_<State>_ballot_measures
+    # e.g. /Orleans_Parish,_Louisiana_ballot_measures
+    # ------------------------------------------------------------------------------
+
+    @classmethod
+    def build_jurisdiction_ballot_measures_url(cls, jurisdiction: str, state: str) -> str:
+        """Canonical URL for a jurisdiction's ballot-measures page on Ballotpedia."""
+        state_clean = (state or "").strip()
+        state_name = cls.STATE_NAME_BY_CODE.get(state_clean.upper(), state_clean)
+        slug = f"{jurisdiction},_{state_name}_ballot_measures".replace(" ", "_")
+        return f"{cls.BASE_URL}/{slug}"
+
+    async def get_jurisdiction_ballot_measures(
+        self, jurisdiction: str, state: str,
+    ) -> List[Dict]:
+        """
+        Extract ballot measures from a jurisdiction-specific page like
+        ``Orleans_Parish,_Louisiana_ballot_measures``. Returns a list of measure
+        dicts; empty when the page doesn't exist or has no measures section.
+        """
+        url = self.build_jurisdiction_ballot_measures_url(jurisdiction, state)
+        logger.info(f"Fetching jurisdiction ballot measures: {url}")
+        html = await self._fetch_page(url)
+        if not html:
+            return []
+        soup = BeautifulSoup(html, "html.parser")
+        out: List[Dict] = []
+        for table in soup.find_all("table"):
+            cls_list = table.get("class") or []
+            if any("infobox" in c.lower() for c in cls_list):
+                continue
+            rows = table.find_all("tr")
+            if len(rows) < 2:
+                continue
+            headers = [c.get_text(" ", strip=True).lower()
+                       for c in rows[0].find_all(["th", "td"])]
+            # Heuristic match: measure tables have a name/title col + an outcome/status col
+            name_idx = next((i for i, h in enumerate(headers)
+                             if any(k in h for k in ("measure", "title", "ballot", "name"))), None)
+            status_idx = next((i for i, h in enumerate(headers)
+                               if any(k in h for k in ("outcome", "status", "result"))), None)
+            if name_idx is None or status_idx is None:
+                continue
+            for tr in rows[1:]:
+                cells = tr.find_all(["td", "th"])
+                if len(cells) <= max(name_idx, status_idx):
+                    continue
+                name_txt = cells[name_idx].get_text(" ", strip=True)
+                if not name_txt:
+                    continue
+                link = cells[name_idx].find("a")
+                measure_url = (f"{self.BASE_URL}{link['href']}"
+                               if link and link.get("href", "").startswith("/")
+                               else None)
+                out.append({
+                    "measure_title": name_txt,
+                    "measure_outcome": cells[status_idx].get_text(" ", strip=True),
+                    "jurisdiction": jurisdiction,
+                    "state": state,
+                    "source": "ballotpedia",
+                    "source_url": url,
+                    "measure_url": measure_url,
+                    "scraped_at": datetime.utcnow().isoformat(),
+                })
+        logger.info(f"✅ Found {len(out)} ballot measure(s) for {jurisdiction}, {state}")
+        return out
+
+    # ------------------------------------------------------------------------------
+    # External link extraction (called by the loader for each fetched article)
+    # ------------------------------------------------------------------------------
+
+    _BALLOTPEDIA_HOST_RE = re.compile(r"(?:^|\.)ballotpedia\.org$", re.IGNORECASE)
+    _GOV_HOST_RE         = re.compile(r"\.(gov|us|mil)(?:$|/)", re.IGNORECASE)
+    _SOCIAL_HOST_RE      = re.compile(
+        r"^(?:www\.)?(facebook|twitter|x|instagram|youtube|linkedin|tiktok|threads|bsky)\.",
+        re.IGNORECASE,
+    )
+    _NEWS_HOST_RE        = re.compile(
+        r"\.(?:nytimes|washingtonpost|nola|advocate|cnn|foxnews|wsj|npr|apnews|reuters|bloomberg|axios|politico)\.",
+        re.IGNORECASE,
+    )
+    _WIKIPEDIA_HOST_RE   = re.compile(r"(?:^|\.)wikipedia\.org$", re.IGNORECASE)
+
+    @classmethod
+    def classify_external_host(cls, host: str) -> str:
+        h = (host or "").lower()
+        if not h:
+            return "other"
+        if cls._GOV_HOST_RE.search(h):       return "gov"
+        if cls._SOCIAL_HOST_RE.search(h):    return "social"
+        if cls._WIKIPEDIA_HOST_RE.search(h): return "wikipedia"
+        if cls._NEWS_HOST_RE.search(h):      return "news"
+        return "other"
+
+    @classmethod
+    def extract_external_links(cls, html: str, source_page_url: str) -> List[Dict]:
+        """
+        Return a list of dicts for every outbound <a href> on the page that points
+        OFF Ballotpedia. Internal /wiki/... and same-host links are excluded.
+        Each dict: ``target_url``, ``target_host``, ``target_kind``, ``anchor_text``, ``rel``.
+        """
+        if not html:
+            return []
+        from urllib.parse import urlparse
+        soup = BeautifulSoup(html, "html.parser")
+        out: List[Dict] = []
+        seen: set[str] = set()
+        for a in soup.find_all("a", href=True):
+            href = a["href"].strip()
+            if not href or href.startswith("#") or href.startswith("mailto:"):
+                continue
+            parsed = urlparse(href)
+            if not parsed.scheme or not parsed.netloc:
+                continue                                    # internal /wiki/... skipped
+            host = parsed.netloc.lower()
+            if cls._BALLOTPEDIA_HOST_RE.search(host):
+                continue
+            if href in seen:
+                continue
+            seen.add(href)
+            out.append({
+                "target_url":  href,
+                "target_host": host,
+                "target_kind": cls.classify_external_host(host),
+                "anchor_text": a.get_text(" ", strip=True) or None,
+                "rel":         " ".join(a.get("rel") or []) or None,
+                "source_page_url": source_page_url,
+            })
+        return out
+
+    async def fetch_and_extract_external_links(
+        self, url: str,
+    ) -> tuple[Optional[str], List[Dict]]:
+        """Fetch a Ballotpedia page and return (html, list-of-external-link-dicts)."""
+        html = await self._fetch_page(url)
+        return html, self.extract_external_links(html or "", url)
+
     async def get_ballot_measures(
         self,
         state: str,
@@ -852,12 +1102,12 @@ class BallotpediaDiscovery:
     ) -> List[Dict]:
         """
         Get ballot measures for a state.
-        
+
         Args:
             state: State name (e.g., "Alabama")
             year: Optional year filter (e.g., 2024)
             measure_type: Optional type filter (e.g., "local", "state")
-            
+
         Returns:
             List of ballot measure dicts
         """

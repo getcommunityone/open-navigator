@@ -96,9 +96,19 @@ def _state_code_from_ocd_id(ocd_id: str | None) -> str | None:
     return None
 
 
-def _load_targets(conn, states: tuple[str, ...], include_types: tuple[str, ...], limit_per_state: int | None) -> list[dict[str, Any]]:
+def _load_targets(
+    conn,
+    states: tuple[str, ...],
+    include_types: tuple[str, ...],
+    limit_per_state: int | None,
+    jurisdiction_ids: tuple[str, ...] = (),
+) -> list[dict[str, Any]]:
     state_placeholders = ",".join(["%s"] * len(states))
     type_placeholders = ",".join(["%s"] * len(include_types))
+    jur_filter_sql = ""
+    if jurisdiction_ids:
+        jur_placeholders = ",".join(["%s"] * len(jurisdiction_ids))
+        jur_filter_sql = f"AND j.jurisdiction_id IN ({jur_placeholders})"
     sql = f"""
         WITH ranked AS (
             SELECT
@@ -109,6 +119,7 @@ def _load_targets(conn, states: tuple[str, ...], include_types: tuple[str, ...],
             FROM intermediate.int_jurisdictions j
             WHERE j.state_code IN ({state_placeholders})
               AND j.jurisdiction_type IN ({type_placeholders})
+              {jur_filter_sql}
               AND EXISTS (
                   SELECT 1
                   FROM intermediate.int_jurisdiction_websites w
@@ -133,6 +144,8 @@ def _load_targets(conn, states: tuple[str, ...], include_types: tuple[str, ...],
                  jurisdiction_id
     """
     params: list[Any] = list(states) + list(include_types)
+    if jurisdiction_ids:
+        params.extend(jurisdiction_ids)
     params.extend([limit_per_state, limit_per_state])
     with conn.cursor() as cur:
         cur.execute(sql, params)
@@ -429,6 +442,10 @@ async def _ingest_target(
             if jurisdiction_type != "municipality":
                 return 0, 0, 0
             query_name = _normalize_ballotpedia_city_name(name)
+            # Build the canonical Ballotpedia URL once; reused for the bronze source_url
+            # column and for all debug-payload writes so the user can investigate failures
+            # without guessing what URL was tried.
+            bp_url = ballotpedia.build_city_url(query_name, state_code)
             try:
                 bp_officials = await ballotpedia.get_city_officials(query_name, state_code)
             except Exception as bp_exc:
@@ -443,6 +460,7 @@ async def _ingest_target(
                     payload={
                         "error": str(bp_exc),
                         "source": "ballotpedia",
+                        "source_url": bp_url,
                         "debug_status": "error",
                         "debug_reason": "ballotpedia_exception",
                         "query_name": query_name,
@@ -462,6 +480,7 @@ async def _ingest_target(
                     payload={
                         "error": "No officials returned",
                         "source": "ballotpedia",
+                        "source_url": bp_url,
                         "debug_status": "empty",
                         "debug_reason": "ballotpedia_no_officials",
                         "query_name": query_name,
@@ -472,7 +491,7 @@ async def _ingest_target(
                 return 0, 0, 0
 
             source_name = BALLOTPEDIA_SOURCE_NAME
-            source_url = f"https://ballotpedia.org/{query_name.replace(' ', '_')},{state_code}"
+            source_url = bp_url
             officials = [
                 {
                     "name": item.get("name"),
@@ -592,6 +611,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--states", default=",".join(DEFAULT_PRIORITY_STATES), help=f"Comma-separated state codes (default: {','.join(DEFAULT_PRIORITY_STATES)})")
     parser.add_argument("--include-types", default=",".join(DEFAULT_INCLUDE_TYPES), help=f"Comma-separated jurisdiction categories (default: {','.join(DEFAULT_INCLUDE_TYPES)})")
     parser.add_argument("--limit-per-state", type=int, default=20, help="Cap jurisdictions per state (default: 20)")
+    parser.add_argument("--jurisdiction-ids", default="",
+                        help="Optional comma-separated jurisdiction_id list to filter targets to (e.g. municipality_0177256). "
+                             "Useful for targeted re-test of a specific jurisdiction.")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--verbose", "-v", action="store_true")
     args = parser.parse_args(argv)
@@ -618,7 +640,8 @@ def main(argv: list[str] | None = None) -> int:
     conn = _connect()
     try:
         ballotpedia = BallotpediaDiscovery()
-        targets = _load_targets(conn, states, include_types, args.limit_per_state)
+        jurisdiction_ids = tuple(j.strip() for j in args.jurisdiction_ids.split(",") if j.strip())
+        targets = _load_targets(conn, states, include_types, args.limit_per_state, jurisdiction_ids)
         logger.info("Loaded %d jurisdictions for bronze election ingest", len(targets))
 
         scrape_batch_id = uuid.uuid4()
