@@ -347,6 +347,64 @@ def _q(s: str | None) -> str:
     return json.dumps(s)
 
 
+def denormalize_urls_onto_events(conn) -> int:
+    """
+    Roll up child c1_eventdocument + c1_eventmedia URLs onto the parent c1_event row:
+      * ``agenda_url`` / ``minutes_url`` <- first matching c1_eventdocument link
+      * ``video_url`` <- first c1_eventmedia link
+      * ``sources`` JSONB <- union of all child URLs with classification + kind tags
+
+    Idempotent: COALESCE preserves existing values; ``sources`` is overwritten with the
+    full child set each run (so removing a child also removes it from sources).
+
+    Returns count of c1_event rows updated.
+    """
+    with conn.cursor() as cur:
+        cur.execute("""
+            WITH doc_agg AS (
+                SELECT
+                    d.event_id,
+                    MAX(CASE WHEN d.classification = 'agenda'
+                             THEN d.links->0->>'url' END)  AS agenda_url,
+                    MAX(CASE WHEN d.classification = 'minutes'
+                             THEN d.links->0->>'url' END)  AS minutes_url,
+                    jsonb_agg(DISTINCT jsonb_strip_nulls(jsonb_build_object(
+                        'url',            d.links->0->>'url',
+                        'note',           NULLIF(d.note, ''),
+                        'classification', d.classification,
+                        'kind',           'document'
+                    ))) AS doc_sources
+                FROM public.c1_eventdocument d
+                WHERE d.links IS NOT NULL AND jsonb_array_length(d.links) > 0
+                GROUP BY d.event_id
+            ),
+            media_agg AS (
+                SELECT
+                    m.event_id,
+                    MAX(m.links->0->>'url') AS video_url,
+                    jsonb_agg(jsonb_build_object(
+                        'url', m.links->0->>'url',
+                        'classification', m.classification,
+                        'kind', 'media'
+                    )) AS media_sources
+                FROM public.c1_eventmedia m
+                WHERE m.links IS NOT NULL AND jsonb_array_length(m.links) > 0
+                GROUP BY m.event_id
+            )
+            UPDATE public.c1_event e
+            SET agenda_url  = COALESCE(e.agenda_url,  da.agenda_url),
+                minutes_url = COALESCE(e.minutes_url, da.minutes_url),
+                video_url   = COALESCE(e.video_url,   ma.video_url),
+                sources     = COALESCE(da.doc_sources, '[]'::jsonb)
+                              || COALESCE(ma.media_sources, '[]'::jsonb)
+            FROM doc_agg da
+            FULL OUTER JOIN media_agg ma ON ma.event_id = da.event_id
+            WHERE e.id = COALESCE(da.event_id, ma.event_id)
+              AND e.source = 'bronze_meetings_promotion'
+        """)
+        return cur.rowcount
+
+
 # --------------------------------------------------------------------------------------
 
 
@@ -394,11 +452,17 @@ def main(argv: list[str] | None = None) -> int:
         upserted = upsert_events(conn, groups, dry_run=False)
         logger.info("Upserted %d c1_event rows", upserted)
         counts = insert_resources(conn, groups, dry_run=False)
+        # After children land, denormalize the first agenda/minutes URL onto the parent
+        # event row, and append all child links to the event's ``sources`` JSONB so the
+        # event row alone tells the reader where the data came from.
+        denormalized = denormalize_urls_onto_events(conn)
+        logger.info("Denormalized URLs/sources onto %d c1_event rows", denormalized)
         print()
         print(f"c1_event rows upserted:                {upserted}")
         print(f"c1_eventdocument rows inserted:        {counts['documents']}")
         print(f"c1_eventmedia (YouTube) inserted:      {counts['media_youtube']}")
         print(f"c1_eventmedia (other-stream) inserted: {counts['media_other_stream']}")
+        print(f"c1_event rows w/ denormalized URLs:    {denormalized}")
         return 0
     finally:
         conn.close()
