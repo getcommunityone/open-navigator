@@ -610,6 +610,147 @@ Add to [Call to action slide](#call-to-action-slide-required-closing-beat):
 
 ## Why this matters
 
+## Fraud and conflict-of-interest hackathon ideas (master list)
+
+The list below adds 10 fraud and conflict-of-interest detection tracks organized into thematic lanes. Each track includes data pipelines, technical targets, and a concrete engineering deliverable.
+
+### Theme A: Real estate, appraisal, and property valuation fraud
+
+#### Track 1: The appraisal gap watchdog
+
+**Core concept:** Detect predatory flipping, artificial equity inflation, and mortgage fraud by identifying unjustified divergence between official property appraisals and market sale prices.
+
+**Challenge:** Build an anomaly detection pipeline that flags properties where finalized sale price jumps far above recent county appraisals without matching structural permits or neighborhood-wide economic shifts.
+
+**Data sources:** County assessor appraisal history, MLS or deed recorder finalized sale values, municipal building permit datasets.
+
+**Target technologies:** Isolation Forest, DBSCAN, XGBoost or LightGBM expected-value modeling, GeoPandas spatial normalization.
+
+**Deliverable:** Dashboard or API endpoint returning an Appraisal Fraud Risk Score for newly recorded deeds.
+
+#### Track 2: Artificial valuation and tax evasion collusion
+
+**Core concept:** Detect collusion where assets are undervalued for local taxes but inflated for lending.
+
+**Challenge:** Build entity-resolution and comparison logic that identifies dual-identity valuation behavior across tax and financing contexts.
+
+**Data sources:** County tax assessments, CMBS disclosures, zoning boundaries, state corporate tax filings.
+
+**Target technologies:** Splink-style record linkage, autoencoders for multivariate accounting anomalies.
+
+**Deliverable:** A detector for valuation schizophrenia patterns that maps assets with inconsistent valuation identities across agencies.
+
+### Theme B: Conflicts of interest and public accountability
+
+#### Track 3: The quid pro quo policy matrix
+
+**Core concept:** Map temporal and network correlation between donations and policy actions by the same officials.
+
+**Challenge:** Build a graph + time-window model that flags contribution spikes within 30 to 60 days of policy action likely to benefit donor sectors.
+
+**Data sources:** OpenFEC Schedule A or OpenSecrets donations; Open States bill actions, amendments, and roll-call votes using ocd IDs.
+
+**Target technologies:** Graph neural networks, cross-correlation, link prediction.
+
+**Deliverable:** A policy-to-dollar network visualization highlighting highest-conviction influence clusters.
+
+#### Track 4: The shell game contractor audit
+
+**Core concept:** Detect procurement conflicts where officials award contracts to entities linked through ownership, family, or prior business networks.
+
+**Challenge:** Resolve entities across corporate registries and contract award systems; flag newly formed or proxy-linked entities receiving public contracts.
+
+**Data sources:** OpenCorporates or state corporate registries, USAspending or local checkbook datasets, official rosters.
+
+**Target technologies:** Splink or Dedupe, Jaro-Winkler or Levenshtein similarity, centrality analysis.
+
+**Deliverable:** Compliance engine that flags high-risk procurement awards with explainable entity-link evidence.
+
+#### Track 5: The earmark and dark money unveiler
+
+**Core concept:** Expose how dark money channels influence local earmarks and infrastructure allocations.
+
+**Challenge:** Extract hyper-local earmarks from dense legislative text and cross-reference with nearby acquisitions or lobbying activity before drafting.
+
+**Data sources:** Open States and Legistar or Granicus legislative text, state lobbying disclosures, geospatial infrastructure datasets.
+
+**Target technologies:** RAG + NER, vector databases such as Milvus or Chroma.
+
+**Deliverable:** Interactive map translating bill paragraphs into likely financial beneficiaries.
+
+### Theme C: Public infrastructure and funding misallocation
+
+#### Track 6: The insider trading and land-use predictor
+
+**Core concept:** Identify acquisitions that precede major public investment or zoning changes.
+
+**Challenge:** Cross-reference transparency disclosures with localized acquisition spikes by politically exposed persons or linked entities before announcements.
+
+**Data sources:** Data.gov and legislative appropriations portals, OpenCorporates filings, property sale records by ZIP or coordinates.
+
+**Target technologies:** Neo4j knowledge graphs, NER over investment text, lagged time-series analysis.
+
+**Deliverable:** Alerting system for high-value localized acquisitions within a 90-day pre-announcement window.
+
+#### Track 7: Municipal bond and infrastructure fund auditing
+
+**Core concept:** Verify whether public land and housing acquisitions align with fair market value.
+
+**Challenge:** Build an automated auditor that compares public disbursements against local valuation baselines to detect inflated purchases.
+
+**Data sources:** HUD and municipal bond project data, OCD jurisdiction identifiers, local transaction indexes and AVMs.
+
+**Target technologies:** Explainable AI with SHAP for transparent overpricing flags.
+
+**Deliverable:** Open-source forensic accounting tool that flags projects paid above a threshold such as 25 percent over comparable median appraised values.
+
+### Theme D: Healthcare, identity, and environmental systems
+
+#### Track 8: The healthcare phantom billing and upcoding detector
+
+**Core concept:** Detect provider billing outliers for non-rendered services and upcoding patterns in public insurance claims.
+
+**Challenge:** Build peer-normalized provider profiles and flag outlier behavior such as impossible procedure volume or complex-code inflation.
+
+**Data sources:** CMS public use files with provider-level utilization and payment metrics.
+
+**Target technologies:** Benford analysis, K-Means peer clustering, robust Z-score anomaly detection.
+
+**Deliverable:** Interactive auditing app ranking facilities by Upcoding Risk Index.
+
+#### Track 9: Synthetic identity theft and credit collusion
+
+**Core concept:** Detect synthetic identities built from mixed stolen and fabricated attributes before account approval.
+
+**Challenge:** Train a classifier that spots profiles lacking natural history and exhibiting shared-node fraud signatures across address, phone, device, or IP.
+
+**Data sources:** Anonymized synthetic application logs, public address or phone structures, open credit simulation datasets.
+
+**Target technologies:** Deep autoencoders, graph databases for shared-node detection, LightGBM classification.
+
+**Deliverable:** Real-time ingestion gate that flags high-risk synthetic identity signatures pre-approval.
+
+#### Track 10: Greenwashing and environmental grant fraud
+
+**Core concept:** Detect mismatch between subsidized environmental claims and physical-world evidence.
+
+**Challenge:** Cross-validate compliance narratives with satellite-derived land and vegetation signals.
+
+**Data sources:** EPA ECHO, Sentinel or Landsat imagery via AWS Open Data, state or federal green subsidy award logs.
+
+**Target technologies:** CNN-based change detection, NDVI analysis, multimodal fusion of imagery + text reports.
+
+**Deliverable:** Automated reporting system flagging carbon-offset and green grant projects whose satellite footprint conflicts with paperwork.
+
+### Execution tip for organizers
+
+To keep teams focused on engineering instead of cleaning:
+
+1. **Enforce standard joins:** Provide shared entity mapping templates (properties, agencies, officials, and geography to normalized boundaries or OCD divisions).
+2. **Seed class imbalance intentionally:** Include synthetic anomalies or historic known cases so teams can calibrate thresholds and compare precision-recall tradeoffs.
+
+---
+
 Judges and voters often decide from a **short demo**: problem clarity, human face, and a single **reveal** beat a long architecture tour. Treat the recording as a **pitch product**, not an afterthought.
 
 ## Reference videos and takeaways

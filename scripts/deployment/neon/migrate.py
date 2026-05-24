@@ -333,7 +333,7 @@ def insert_stat(cursor, level, state, county, city, **metrics):
     ))
 
 
-def load_organization_nonprofit(conn, limit_states: Optional[list] = None):
+def load_irs_990_organizations(conn, limit_states: Optional[list] = None):
     """
     Load nonprofits into search table
     Args:
@@ -382,7 +382,7 @@ def load_organization_nonprofit(conn, limit_states: Optional[list] = None):
         total_loaded = 0
     
     logger.success(f"✅ Loaded {total_loaded:,} nonprofits into search table")
-    record_sync(conn, 'organization_nonprofit', total_loaded)
+    record_sync(conn, 'c1_organization', total_loaded)
     return True
 
 
@@ -408,8 +408,7 @@ def load_nonprofits_from_df(conn, df, state_override=None):
             row.get('organization_name', ''),
             '',  # street_address - not in new format
             row.get('city', ''),
-            state_code,  # state_code column
-            state_name,  # state column (full name)
+            state_code,  # state column (2-letter; merged in 050 from old state_code field)
             row.get('zip_code', ''),
             '',  # county - not in source data
             row.get('ntee_code', ''),
@@ -440,22 +439,21 @@ def load_nonprofits_from_df(conn, df, state_override=None):
     # Batch insert
     if records:
         execute_values(cursor, """
-            INSERT INTO organization_nonprofit 
-            (ein, name, street_address, city, state_code, state, zip_code, county,
+            INSERT INTO c1_organization
+            (ein, name, street_address, city, state, zip_code, county,
              ntee_code, ntee_description, subsection_code, affiliation_code, classification_code,
              revenue, assets, income, ruling_date, foundation_code, pf_filing_requirement_code,
              accounting_period, asset_code, income_code, filing_requirement_code,
              exempt_organization_status_code, tax_period, asset_amount, income_amount,
-             form_990_revenue_amount, source, last_updated)
+             form_990_revenue_amount, source, updated_at)
             VALUES %s
-            ON CONFLICT (ein) DO UPDATE SET
+            ON CONFLICT (ein) WHERE ein IS NOT NULL DO UPDATE SET
                 name = EXCLUDED.name,
                 city = EXCLUDED.city,
-                state_code = EXCLUDED.state_code,
                 state = EXCLUDED.state,
                 revenue = EXCLUDED.revenue,
                 assets = EXCLUDED.assets,
-                last_updated = EXCLUDED.last_updated
+                updated_at = EXCLUDED.updated_at
         """, records)
         
         conn.commit()
@@ -878,7 +876,7 @@ def load_contact(conn, limit_states=None):
             
             if records:
                 execute_values(cursor, """
-                    INSERT INTO c1_contact
+                    INSERT INTO c1_person
                     (name, title, organization_name, organization_ein, email, phone,
                      street_address, city, state_code, state, zip_code, role_type, compensation,
                      hours_per_week, source, tax_year, updated_at)
@@ -921,7 +919,7 @@ def load_contact(conn, limit_states=None):
             
             if records:
                 execute_values(cursor, """
-                    INSERT INTO c1_contact
+                    INSERT INTO c1_person
                     (name, title, organization_name, organization_ein, email, phone,
                      street_address, city, state_code, state, zip_code, role_type, compensation,
                      hours_per_week, source, tax_year, updated_at)
@@ -964,7 +962,7 @@ def load_contact(conn, limit_states=None):
             
             if records:
                 execute_values(cursor, """
-                    INSERT INTO c1_contact
+                    INSERT INTO c1_person
                     (name, title, organization_name, organization_ein, email, phone,
                      street_address, city, state_code, state, zip_code, role_type, compensation,
                      hours_per_week, source, tax_year, updated_at)
@@ -976,7 +974,7 @@ def load_contact(conn, limit_states=None):
     
     conn.commit()
     logger.success(f"✅ Loaded {total_loaded:,} contacts into search table")
-    record_sync(conn, 'c1_contact', total_loaded)
+    record_sync(conn, 'c1_person', total_loaded)
     return True
 
 
@@ -1131,7 +1129,7 @@ def main():
         # Step 4: Load nonprofit search data (start with MA as example)
         logger.info("⚠️  Loading only MA nonprofits (full load would be 3M+ records)")
         logger.info("   To load all states, modify limit_states parameter")
-        if not load_organization_nonprofit(conn, limit_states=['MA']):
+        if not load_irs_990_organizations(conn, limit_states=['MA']):
             return 1
         
         # Step 5: Load jurisdictions (all jurisdictions - reference data)

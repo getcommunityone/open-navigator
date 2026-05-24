@@ -40,7 +40,7 @@ async def update_national_stats():
         
         # Count nonprofits
         nonprofits_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM organization_nonprofit"
+            "SELECT COUNT(*) FROM c1_organization"
         )
         
         # Sum financials (handle NULL values)
@@ -48,7 +48,7 @@ async def update_national_stats():
             SELECT 
                 COALESCE(SUM(revenue), 0) as total_revenue,
                 COALESCE(SUM(assets), 0) as total_assets
-            FROM organization_nonprofit
+            FROM c1_organization
             WHERE revenue IS NOT NULL OR assets IS NOT NULL
         """)
         
@@ -59,7 +59,7 @@ async def update_national_stats():
         
         # Count contacts
         contacts_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM c1_contact"
+            "SELECT COUNT(*) FROM c1_person"
         )
         
         logger.info(f"  Jurisdictions: {jurisdictions_count:,}")
@@ -104,7 +104,7 @@ async def update_state_stats(conn):
     # Get all states with data
     states = await conn.fetch("""
         SELECT DISTINCT state 
-        FROM organization_nonprofit 
+        FROM c1_organization 
         WHERE state IS NOT NULL 
         ORDER BY state
     """)
@@ -126,7 +126,7 @@ async def update_state_stats(conn):
         
         # Count nonprofits
         nonprofits_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM organization_nonprofit WHERE state = $1",
+            "SELECT COUNT(*) FROM c1_organization WHERE state = $1",
             state
         )
         
@@ -135,7 +135,7 @@ async def update_state_stats(conn):
             SELECT 
                 COALESCE(SUM(revenue), 0) as total_revenue,
                 COALESCE(SUM(assets), 0) as total_assets
-            FROM organization_nonprofit
+            FROM c1_organization
             WHERE state = $1
         """, state)
         
@@ -147,7 +147,7 @@ async def update_state_stats(conn):
         
         # Count contacts
         contacts_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM c1_contact WHERE state = $1",
+            "SELECT COUNT(*) FROM c1_person WHERE state = $1",
             state
         )
         
