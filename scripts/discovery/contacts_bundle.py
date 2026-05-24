@@ -26,15 +26,55 @@ _NON_PERSON_PROFILE_NAME_RE = re.compile(
     r"(?is)\b("
     r"search|facebook|twitter|agenda|calendar|minutes|mission|district\s+map|"
     r"board\s+of\s+commissioners\s+agenda\s+appearance\s+form|"
-    r"agenda\s+center|government\s+offices\s+closed|development\s+authority"
+    r"agenda\s+center|government\s+offices\s+closed|development\s+authority|"
+    r"a\s+place\s+of\s+beginnings|official\s+website|welcome"
     r")\b"
 )
 
 _NON_PERSON_PROFILE_URL_RE = re.compile(
     r"(?is)(/assets/images/iconshare|/common/images/calendar/closebutton|"
     r"/common/images/getacro\.gif|homeiconminutes|iconshare(?:facebook|twitter|email)|"
-    r"documentid=161\b|documentid=231\b)"
+    r"documentid=161\b|documentid=231\b|"
+    r"/(?:f\d*header\d*|header\d*|hero\d*|banner\d*|logo\d*)\.(?:jpg|jpeg|png|webp)\b)"
 )
+
+_NON_PERSON_NAME_RE = re.compile(
+    r"(?is)^(?:end\s+latest\s+posts\s+section|"
+    r"(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)\s+\d{1,2},\s+\d{4}\s+read\s+more)\s*$"
+)
+
+_NON_PERSON_TITLE_RE = re.compile(
+    r"(?is)^(?:.+\s+search\s+results?|"
+    r"meetings\s+search\s+results?|minutes\s+search\s+results?|agenda\s+search\s+results?|"
+    r"board\s+search\s+results?|council\s+search\s+results?|commission\s+search\s+results?)\s*$"
+)
+
+
+def _is_probable_non_person_contact(row: Dict[str, Any]) -> bool:
+    """Return True for obvious search-result or UI artifact rows."""
+    name = str(row.get("person_name") or "").strip()
+    title = str(row.get("title_or_role") or "").strip()
+    email = str(row.get("email") or "").strip()
+    profile_url = str(row.get("profile_url") or "").strip()
+    method = str(row.get("extraction_method") or "").strip().lower()
+    page = str(row.get("source_page_url") or row.get("raw_row", {}).get("page_url") or "").strip().lower()
+
+    # Keep rows that have stronger person signals.
+    if email or profile_url:
+        return False
+
+    # Strong junk patterns observed on WordPress search pages.
+    if _NON_PERSON_NAME_RE.match(name):
+        return True
+    if _NON_PERSON_TITLE_RE.match(title):
+        return True
+
+    # Heading plaintext rows coming from query-result pages are often non-person snippets.
+    if method == "heading_section_plaintext" and ("?s=" in page or "/search" in page):
+        if not email and not profile_url:
+            return True
+
+    return False
 
 
 def _is_person_profile_image_record(img: Dict[str, Any]) -> bool:
@@ -50,11 +90,26 @@ def _is_person_profile_image_record(img: Dict[str, Any]) -> bool:
         return False
     if _NON_PERSON_PROFILE_NAME_RE.search(pname):
         return False
+    if "..." in pname:
+        return False
     if pname.endswith(":"):
         return False
-    # Require at least one alpha token pair (e.g., first + last) for portrait contacts.
+
+    # Require a plausible person-like name shape.
     toks = [t for t in re.findall(r"[A-Za-z]+", pname) if len(t) >= 2]
-    return len(toks) >= 2
+    if len(toks) < 2 or len(toks) > 5:
+        return False
+    lower_tokens = [t.lower() for t in toks]
+    stop_tokens = {
+        "city", "county", "department", "board", "commission", "meeting",
+        "agenda", "minutes", "search", "results", "official", "welcome",
+        "place", "beginnings",
+    }
+    if any(t in stop_tokens for t in lower_tokens):
+        return False
+    # At least two tokens should look like proper-name tokens.
+    proper_like = sum(1 for t in toks if t[:1].isupper())
+    return proper_like >= 2
 
 
 def build_contacts_bundle(
@@ -112,16 +167,31 @@ def build_contacts_bundle(
 
     rows = person_rows + department_offices
 
+    # Sanity filter pass: suppress obvious non-person artifacts from search-result pages.
+    pre_filter_person_count = len(person_rows)
+    filtered_person_rows: List[Dict[str, Any]] = []
+    removed_non_person_count = 0
+    for row in person_rows:
+        if _is_probable_non_person_contact(row):
+            removed_non_person_count += 1
+            continue
+        filtered_person_rows.append(row)
+    person_rows = filtered_person_rows
+    rows = person_rows + department_offices
+
     by_email: Dict[str, Dict[str, Any]] = {}
     for row in person_rows:
         em = str(row.get("email") or "").strip().lower()
         if em:
             by_email[em] = row
 
+    valid_profile_images = [
+        img for img in (contact_profile_images or []) if _is_person_profile_image_record(img)
+    ]
+    filtered_profile_images_count = len(contact_profile_images or []) - len(valid_profile_images)
+
     # Link saved headshots by email (from structured row) or person_stem / person_name match.
-    for img in contact_profile_images or []:
-        if not _is_person_profile_image_record(img):
-            continue
+    for img in valid_profile_images:
         rel = str(img.get("saved_relative_path") or "").strip()
         if not rel:
             rel = f"_contact_images/{img['saved_filename']}"
@@ -157,6 +227,11 @@ def build_contacts_bundle(
         )
     )
 
+    noisy_bulk_suspected = (
+        pre_filter_person_count >= 20
+        and removed_non_person_count >= max(6, int(pre_filter_person_count * 0.3))
+    )
+
     return {
         "schema_version": 2,
         "jurisdiction_id": jurisdiction_id,
@@ -168,6 +243,14 @@ def build_contacts_bundle(
         "contact_count": len(person_rows),
         "department_office_count": len(department_offices),
         "extraction_methods": extraction_methods,
+        "sanity_checks": {
+            "person_rows_before_filter": pre_filter_person_count,
+            "person_rows_removed_as_non_person": removed_non_person_count,
+            "noisy_bulk_suspected": noisy_bulk_suspected,
+            "threshold_rule": "flag when before_filter>=20 and removed>=max(6,30%)",
+            "profile_images_before_filter": len(contact_profile_images or []),
+            "profile_images_removed_as_non_person": filtered_profile_images_count,
+        },
         "contacts": person_rows,
         "department_offices": department_offices,
         "profile_images": [
@@ -187,8 +270,7 @@ def build_contacts_bundle(
                 )
                 if img.get(k) is not None
             }
-            for img in (contact_profile_images or [])
-            if _is_person_profile_image_record(img)
+            for img in valid_profile_images
         ],
         "extracted_contacts_summary": extracted_contacts or {},
     }

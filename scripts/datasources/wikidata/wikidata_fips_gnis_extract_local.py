@@ -300,13 +300,13 @@ def save_to_postgres(records: list[dict]) -> None:
         or os.getenv("DATABASE_URL")
         or "postgresql://postgres:postgres@localhost:5432/open_navigator_stats"
     )
-    logger.info(f"Writing {len(records):,} rows to Postgres (jurisdiction_wikidata_fips_gnis_map)…")
+    logger.info(f"Writing {len(records):,} rows to Postgres (bronze.bronze_jurisdiction_wikidata_fips_gnis_map)…")
 
     conn = psycopg2.connect(db_url)
     with conn:
         with conn.cursor() as cur:
             cur.execute("""
-                CREATE TABLE IF NOT EXISTS jurisdiction_wikidata_fips_gnis_map (
+                CREATE TABLE IF NOT EXISTS bronze.bronze_jurisdiction_wikidata_fips_gnis_map (
                     qid      TEXT NOT NULL,
                     label    TEXT,
                     fips     TEXT,
@@ -319,7 +319,7 @@ def save_to_postgres(records: list[dict]) -> None:
             execute_values(
                 cur,
                 """
-                INSERT INTO jurisdiction_wikidata_fips_gnis_map (qid, label, fips, gnis, modified, source)
+                INSERT INTO bronze.bronze_jurisdiction_wikidata_fips_gnis_map (qid, label, fips, gnis, modified, source)
                 VALUES %s
                 ON CONFLICT (qid, fips, gnis) DO UPDATE
                   SET label = EXCLUDED.label, modified = EXCLUDED.modified

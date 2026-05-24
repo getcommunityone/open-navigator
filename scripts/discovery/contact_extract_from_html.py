@@ -229,6 +229,22 @@ def extract_structured_contacts_from_html(
         if len(rows) >= max_rows:
             break
 
+    for swr in extract_cityofwp_staff_cards_contacts_from_html(
+        html, page_url, max_rows=max(0, max_rows - len(rows))
+    ):
+        em = str(swr.get("email") or "").lower()
+        if em and em in emails_seen:
+            continue
+        if em:
+            emails_seen.add(em)
+        k = _structured_contact_row_key(swr)
+        if k in existing_keys:
+            continue
+        existing_keys.add(k)
+        rows.append(swr)
+        if len(rows) >= max_rows:
+            break
+
     for er in extract_elementor_directory_contacts_from_html(
         html, page_url, max_rows=max(0, max_rows - len(rows))
     ):
@@ -1359,6 +1375,84 @@ def _mailto_from_anchor(a: Any) -> str | None:
         return None
     em = _clean_mailto(m.group(1))
     return em if "@" in em and not _BOGUS_EMAIL_SUFFIX.search(em) else None
+
+
+def extract_cityofwp_staff_cards_contacts_from_html(
+    html: str,
+    page_url: str,
+    *,
+    max_rows: int = 120,
+) -> List[Dict[str, Any]]:
+    """Extract contacts from CityOfWP-style staff cards (e.g. ``li.mc-staff``)."""
+    from bs4 import BeautifulSoup
+
+    out: List[Dict[str, Any]] = []
+    if not html or max_rows <= 0:
+        return out
+
+    soup = BeautifulSoup(html, "html.parser")
+    seen: Set[Tuple[str, str]] = set()
+
+    for card in soup.select("li.mc-staff, li[class*='mc-staff']"):
+        if len(out) >= max_rows:
+            break
+
+        name = ""
+        role = ""
+        email = ""
+        phone = ""
+        profile_url = ""
+
+        h3 = card.find("h3")
+        if h3 is not None:
+            name = re.sub(r"\s+", " ", h3.get_text(" ", strip=True) or "").strip()
+        if name.lower().startswith("honorable "):
+            name = name[len("Honorable ") :].strip()
+
+        for p in card.find_all("p"):
+            t = re.sub(r"\s+", " ", p.get_text(" ", strip=True) or "").strip()
+            if not t:
+                continue
+            if _ROLE_HEADING_LINE.search(t):
+                role = t[:512]
+                break
+
+        for a in card.find_all("a"):
+            href = (a.get("href") or "").strip()
+            em = _mailto_from_anchor(a)
+            if em:
+                email = em
+            if href and href.startswith(("http://", "https://")):
+                profile_url = href
+
+        phone_text = card.get_text(" ", strip=True)
+        pm = _PHONE_RE.search(phone_text)
+        if pm:
+            phone = _normalize_phone_display(pm.group(0))
+
+        if not email:
+            continue
+
+        key = (email.lower(), name.lower())
+        if key in seen:
+            continue
+        seen.add(key)
+
+        out.append(
+            {
+                "person_name": name[:512] if name else None,
+                "title_or_role": role[:512] if role else None,
+                "department": None,
+                "email": email[:512],
+                "phone": phone or None,
+                "mailing_address": None,
+                "profile_url": profile_url or None,
+                "extraction_method": "cityofwp_staff_card",
+                "raw_row": {"page_url": page_url, "source": "li.mc-staff"},
+            }
+        )
+
+    return out
 
 
 def _iter_elementor_official_bands(soup: Any):
