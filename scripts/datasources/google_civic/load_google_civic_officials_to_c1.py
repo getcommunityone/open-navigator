@@ -299,6 +299,184 @@ def _insert_bronze_row(
     )
 
 
+def _insert_bronze_ballot_measure_row(
+    cur,
+    *,
+    scrape_batch_id: uuid.UUID,
+    ocd_id: str,
+    state_code: str | None,
+    jurisdiction_id: str | None,
+    ocd_jurisdiction_id: str | None,
+    measure_title: str,
+    measure_outcome: str | None,
+    source_url: str | None,
+    source_name: str,
+    raw_row: dict[str, Any],
+) -> None:
+    """Insert a record_type='ballot_measure' row into bronze.bronze_elections_scraped."""
+    cur.execute(
+        """
+        INSERT INTO bronze.bronze_elections_scraped
+            (scrape_batch_id, record_type, ocd_id,
+             ocd_jurisdiction_id, state_code, jurisdiction_id,
+             measure_title, measure_outcome,
+             source_url, source_name, raw_row)
+        VALUES (%s, 'ballot_measure', %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """,
+        (
+            str(scrape_batch_id),
+            ocd_id,
+            ocd_jurisdiction_id,
+            state_code,
+            jurisdiction_id,
+            measure_title,
+            measure_outcome,
+            source_url,
+            source_name,
+            Json(raw_row),
+        ),
+    )
+
+
+def _insert_bronze_external_links(
+    cur,
+    *,
+    scrape_batch_id: uuid.UUID,
+    source_page_url: str,
+    source_page_kind: str | None,
+    state_code: str | None,
+    jurisdiction_id: str | None,
+    ocd_id: str | None,
+    links: list[dict[str, Any]],
+) -> int:
+    """Bulk-insert outbound-link rows. Returns count inserted."""
+    if not links:
+        return 0
+    rows = [
+        (
+            str(scrape_batch_id),
+            source_page_url,
+            source_page_kind,
+            link.get("target_url"),
+            link.get("target_host"),
+            link.get("target_kind"),
+            link.get("anchor_text"),
+            link.get("rel"),
+            state_code,
+            jurisdiction_id,
+            ocd_id,
+            Json(link),
+        )
+        for link in links
+        if link.get("target_url")
+    ]
+    if not rows:
+        return 0
+    cur.executemany(
+        """
+        INSERT INTO bronze.bronze_ballotpedia_external_links
+            (scrape_batch_id, source_page_url, source_page_kind,
+             target_url, target_host, target_kind, anchor_text, rel,
+             state_code, jurisdiction_id, ocd_id, raw_row)
+        VALUES (%s::uuid, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb)
+        """,
+        rows,
+    )
+    return len(rows)
+
+
+async def _capture_ballotpedia_extras(
+    *,
+    conn,
+    cursor,
+    ballotpedia,
+    scrape_batch_id: uuid.UUID,
+    state_code: str,
+    jurisdiction_id: str,
+    division_id: str | None,
+    name: str,
+    query_name: str,
+    officials_page_html: str | None,
+) -> tuple[int, int]:
+    """
+    Capture jurisdiction-level ballot measures + external links from the officials
+    page and the ballot-measures page. Returns ``(n_measures, n_links)`` inserted.
+
+    Failures are non-fatal (logged + swallowed) — measures/links are best-effort
+    enrichments, not the primary ingest goal.
+    """
+    n_measures = 0
+    n_links = 0
+    bp_source = BALLOTPEDIA_SOURCE_NAME
+
+    # 1. External links from the officials page (if we have its HTML)
+    officials_url = ballotpedia.build_city_url(query_name, state_code)
+    if officials_page_html:
+        try:
+            links = ballotpedia.extract_external_links(officials_page_html, officials_url)
+            n_links += _insert_bronze_external_links(
+                cursor,
+                scrape_batch_id=scrape_batch_id,
+                source_page_url=officials_url,
+                source_page_kind="city",
+                state_code=state_code,
+                jurisdiction_id=jurisdiction_id,
+                ocd_id=division_id,
+                links=links,
+            )
+        except Exception as exc:
+            logger.warning("external-link extraction failed for %s: %s", officials_url, exc)
+
+    # 2. Jurisdiction-level ballot measures + that page's external links
+    measures_url = ballotpedia.build_jurisdiction_ballot_measures_url(query_name, state_code)
+    try:
+        measures_html, measures_links = await ballotpedia.fetch_and_extract_external_links(measures_url)
+    except Exception as exc:
+        logger.warning("ballot-measures fetch failed for %s: %s", measures_url, exc)
+        measures_html, measures_links = None, []
+
+    if measures_html:
+        try:
+            measures = await ballotpedia.get_jurisdiction_ballot_measures(query_name, state_code)
+        except Exception as exc:
+            logger.warning("ballot-measures parse failed for %s: %s", measures_url, exc)
+            measures = []
+        for m in measures:
+            measure_id = _stable_id(
+                "ballotmeasure",
+                _stable_key(bp_source, state_code, jurisdiction_id, m.get("measure_title") or ""),
+            )
+            _insert_bronze_ballot_measure_row(
+                cursor,
+                scrape_batch_id=scrape_batch_id,
+                ocd_id=measure_id,
+                state_code=state_code,
+                jurisdiction_id=jurisdiction_id,
+                ocd_jurisdiction_id=division_id,
+                measure_title=m.get("measure_title") or "",
+                measure_outcome=m.get("measure_outcome"),
+                source_url=m.get("source_url") or measures_url,
+                source_name=bp_source,
+                raw_row={**m, "jurisdiction_id": jurisdiction_id},
+            )
+            n_measures += 1
+        try:
+            n_links += _insert_bronze_external_links(
+                cursor,
+                scrape_batch_id=scrape_batch_id,
+                source_page_url=measures_url,
+                source_page_kind="ballot_measures",
+                state_code=state_code,
+                jurisdiction_id=jurisdiction_id,
+                ocd_id=division_id,
+                links=measures_links,
+            )
+        except Exception as exc:
+            logger.warning("external-link insert failed for %s: %s", measures_url, exc)
+
+    return n_measures, n_links
+
+
 async def _ingest_target(
     *,
     conn,
@@ -601,6 +779,28 @@ async def _ingest_target(
                     },
                 )
                 candidacy_count += 1
+
+        # After officials/candidacy persistence, capture ballot measures + external
+        # links from the jurisdiction's Ballotpedia pages. Best-effort: failures
+        # don't abort the main ingest. Only fires when we used the Ballotpedia path.
+        if source_name == BALLOTPEDIA_SOURCE_NAME and ballotpedia is not None:
+            measures_n, links_n = await _capture_ballotpedia_extras(
+                conn=conn,
+                cursor=cur,
+                ballotpedia=ballotpedia,
+                scrape_batch_id=scrape_batch_id,
+                state_code=state_code,
+                jurisdiction_id=jurisdiction_id,
+                division_id=division_id,
+                name=name,
+                query_name=query_name,
+                officials_page_html=None,  # not currently captured; future enhancement
+            )
+            if measures_n or links_n:
+                logger.info(
+                    "Ballotpedia extras for %s/%s: %d ballot_measure(s), %d external link(s)",
+                    state_code, jurisdiction_id, measures_n, links_n,
+                )
 
     conn.commit()
     return 1, 1, candidacy_count
