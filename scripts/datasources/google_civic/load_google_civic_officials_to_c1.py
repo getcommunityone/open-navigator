@@ -4,7 +4,7 @@ Load Google Civic Elections/Voter Info and Ballotpedia election snapshots into b
 
 Flow:
   1) elections.electionQuery — global snapshot under data/cache/google_civic/elections/
-     plus a state-filtered copy per jurisdiction (same address used for voterInfo)
+     plus a per-state copy per jurisdiction (VIP Test id 2000 excluded; no date param on API)
   2) elections.voterInfoQuery — per jurisdiction address + electionId (VIP polling/contests)
   3) divisionsByAddress — resolve OCD division IDs (Representatives API is retired)
   4) Optional Ballotpedia ballot-measure / external-link enrichment for municipalities
@@ -52,6 +52,7 @@ from scripts.datasources.google_civic.google_civic_integration import (
     civic_elections_url,
     civic_voterinfo_url,
     elections_for_state,
+    filter_civic_elections,
     format_civic_address_query,
     normalize_civic_place_name,
     sanitize_civic_error_message,
@@ -1015,12 +1016,19 @@ def main(argv: list[str] | None = None) -> int:
             if isinstance(elections_payload_raw, dict)
             else {"elections": [], "payload": elections_payload_raw}
         )
-        upcoming_elections = elections_payload.get("elections", [])
+        all_elections = elections_payload.get("elections", [])
+        upcoming_elections = filter_civic_elections(all_elections)
+        if len(all_elections) != len(upcoming_elections):
+            logger.info(
+                "Excluded %d VIP/sandbox election(s) from ingest (e.g. id %s)",
+                len(all_elections) - len(upcoming_elections),
+                "2000",
+            )
         if not args.dry_run:
             _cache_write(
                 GOOGLE_CACHE_DIR / "elections",
                 "upcoming_elections",
-                elections_payload,
+                {**elections_payload, "elections": upcoming_elections},
             )
             with conn.cursor() as cur:
                 for election in upcoming_elections:

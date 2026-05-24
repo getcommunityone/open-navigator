@@ -94,15 +94,36 @@ def civic_divisions_by_address_url(address: str, *, include_key: bool = False, a
     return url
 
 
+# Google Civic sandbox election (VIP Test); not real ballot data.
+VIP_TEST_ELECTION_ID = "2000"
+
+
+def is_vip_test_election(election: Dict) -> bool:
+    election_id = str(election.get("id") or "").strip()
+    name = (election.get("name") or "").strip().lower()
+    return election_id == VIP_TEST_ELECTION_ID or "vip test" in name
+
+
+def filter_civic_elections(elections: List[Dict]) -> List[Dict]:
+    """Drop Google's VIP Test Election and any similar sandbox rows."""
+    return [e for e in (elections or []) if not is_vip_test_election(e)]
+
+
 def elections_for_state(elections: List[Dict], state_code: str) -> List[Dict]:
-    """Filter electionQuery results to a state (includes national ``country:us`` rows)."""
+    """
+    Filter electionQuery rows to a single state.
+
+    Only ``/state:{xx}`` OCD divisions are included. Bare ``country:us`` rows are
+    omitted because Google's only recurring ``country:us`` row is the VIP Test
+    sandbox (id 2000), not a real local ballot.
+    """
     state = (state_code or "").strip().lower()
     if not state:
-        return list(elections or [])
+        return filter_civic_elections(elections or [])
     out: List[Dict] = []
-    for election in elections or []:
+    for election in filter_civic_elections(elections or []):
         ocd = (election.get("ocdDivisionId") or "").lower()
-        if ocd == "ocd-division/country:us" or f"/state:{state}" in ocd:
+        if f"/state:{state}" in ocd:
             out.append(election)
     return out
 
