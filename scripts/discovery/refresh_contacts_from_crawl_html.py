@@ -107,7 +107,12 @@ def _snapshot_stem_to_page_url(homepage: str, snap_stem: str) -> str:
     """``page__220_City-Council`` → ``https://host/220/City-Council``."""
     slug = snap_stem[5:] if snap_stem.startswith("page_") else snap_stem
     slug = slug.lstrip("_")
-    if slug == "index":
+    eid_m = re.match(r"^directory\.aspx_eid_(\d+)$", slug, re.I) or re.match(
+        r"^Directory\.aspx_eid_(\d+)$", slug, re.I
+    )
+    if eid_m:
+        path = f"/directory.aspx?eid={eid_m.group(1)}"
+    elif slug == "index":
         path = "/"
     elif slug.isdigit():
         path = f"/{slug}"

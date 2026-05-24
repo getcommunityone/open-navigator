@@ -70,6 +70,18 @@ def _is_probable_non_person_contact(row: Dict[str, Any]) -> bool:
 
     if method == "heading_section_plaintext" and _UI_ACTION_PERSON_NAME_RE.match(name):
         return True
+    if method == "heading_section_plaintext" and name.lower() in {
+        "mayor",
+        "council",
+        "councilmember",
+        "commissioner",
+        "chair",
+        "phone",
+        "email",
+    }:
+        return True
+    if re.match(r"(?is)^please\s+call\b", name):
+        return True
     if re.match(r"^\d{1,6}\s+", name):
         return True
     if _NON_PERSON_PROFILE_SINGLE_WORD_RE.match(name):

@@ -246,6 +246,7 @@ from scripts.utils.gdrive_paths import (
 from scripts.utils.http_url_normalize import normalize_http_url_path_encoding as _normalize_http_url_path_encoding
 from scripts.discovery.contact_extract_from_html import (
     extract_caboose_person_detail_urls_from_html,
+    extract_civicplus_directory_detail_urls_from_html,
     extract_contacts_from_page,
     extract_structured_contacts_from_html,
     infer_profile_url_from_source_page,
@@ -2821,17 +2822,23 @@ class ComprehensiveDiscoveryPipelineJurisdiction:
 
                 page_structured: List[Dict[str, Any]] = []
                 if _structured_contact_extract_enabled() and flagged:
-                    more_info_urls = extract_caboose_person_detail_urls_from_html(html, page_ctx)
-                    if more_info_urls:
+                    detail_seed_urls: List[str] = []
+                    detail_seed_urls.extend(
+                        extract_caboose_person_detail_urls_from_html(html, page_ctx)
+                    )
+                    detail_seed_urls.extend(
+                        extract_civicplus_directory_detail_urls_from_html(html, page_ctx)
+                    )
+                    if detail_seed_urls:
                         front_detail = [
                             u
-                            for u in more_info_urls
+                            for u in detail_seed_urls
                             if _strip_fragment(u) not in visited
                         ]
                         if front_detail:
                             _enqueue_many_front(front_detail)
                             logger.info(
-                                "caboose_more_info_enqueued jurisdiction={} from={} n={}",
+                                "official_detail_enqueued jurisdiction={} from={} n={}",
                                 jid,
                                 _meetings_log_url(page_ctx),
                                 len(front_detail),
@@ -2993,7 +3000,15 @@ class ComprehensiveDiscoveryPipelineJurisdiction:
                     )
 
                 # HTML snapshots for audit (outside ``{year}/`` so PDF folders stay clean)
-                safe_name = re.sub(r"[^\w.-]+", "_", urlparse(fetch_url).path)[:120] or "index"
+                parsed_snap = urlparse(fetch_url)
+                safe_name = re.sub(r"[^\w.-]+", "_", parsed_snap.path)[:120] or "index"
+                if re.search(r"directory\.aspx$", parsed_snap.path, re.I):
+                    from urllib.parse import parse_qs
+
+                    q = parse_qs(parsed_snap.query)
+                    eid_vals = q.get("eid") or q.get("EID") or []
+                    if eid_vals and str(eid_vals[0]).strip().isdigit():
+                        safe_name = f"{safe_name}_eid_{eid_vals[0].strip()}"
                 snap_path = snap_dir / f"page_{safe_name}.html"
                 try:
                     snap_path.write_text(html[:2_000_000], encoding="utf-8", errors="replace")

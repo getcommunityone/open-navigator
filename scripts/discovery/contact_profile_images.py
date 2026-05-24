@@ -371,7 +371,9 @@ def extract_profile_image_jobs(html: str, page_url: str, *, max_jobs: int = 80) 
     from scripts.discovery.contact_extract_from_html import (
         extract_caboose_background_profile_jobs,
         extract_centreville_big_box_profile_background_profile_jobs,
+        extract_civicplus_bio_detail_profile_jobs,
         extract_divi_team_member_profile_jobs,
+        extract_infomedia_official_paragraph_profile_jobs,
         extract_wp_caption_figure_profile_jobs,
         is_generic_district_label,
         split_office_holder_fields,
@@ -402,6 +404,18 @@ def extract_profile_image_jobs(html: str, page_url: str, *, max_jobs: int = 80) 
             out.append(job)
 
     for job in extract_divi_team_member_profile_jobs(html, page_url, max_jobs=max_jobs):
+        u = str(job.get("image_url") or "")
+        if u and u not in seen_url:
+            seen_url.add(u)
+            out.append(job)
+
+    for job in extract_infomedia_official_paragraph_profile_jobs(html, page_url, max_jobs=max_jobs):
+        u = str(job.get("image_url") or "")
+        if u and u not in seen_url:
+            seen_url.add(u)
+            out.append(job)
+
+    for job in extract_civicplus_bio_detail_profile_jobs(html, page_url, max_jobs=max_jobs):
         u = str(job.get("image_url") or "")
         if u and u not in seen_url:
             seen_url.add(u)
@@ -513,6 +527,11 @@ def extract_profile_image_jobs(html: str, page_url: str, *, max_jobs: int = 80) 
         if _tag_inside_wp_caption(img):
             continue
         if img.find_parent("div", class_=lambda c: c and "et_pb_team_member" in " ".join(c)):
+            continue
+        from scripts.discovery.contact_extract_from_html import _parse_infomedia_official_paragraph
+
+        infomedia_p = img.find_parent("p")
+        if infomedia_p is not None and _parse_infomedia_official_paragraph(infomedia_p, page_url):
             continue
         abs_u = img_best_abs_url(img, page_url)
         if not abs_u:

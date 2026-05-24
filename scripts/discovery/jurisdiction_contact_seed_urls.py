@@ -53,6 +53,19 @@ _BUILTIN: Dict[str, Tuple[str, ...]] = {
     "county_01045": (
         "https://dalecountyal.org/county-commision/dale-county-alabama-county-commission-commissioners/",
     ),
+    # City of Trussville, AL — Infomedia ``<p>`` council / mayor bios (trussville.org).
+    "municipality_0176944": (
+        "https://trussville.org/government/city-council/",
+        "https://trussville.org/government/mayors-office/",
+    ),
+    # City of Gulf Shores, AL — CivicPlus mayor/council roster + ``directory.aspx?eid=`` bios.
+    "municipality_0132272": (
+        "https://gulfshoresal.gov/400/Mayor-Council",
+        "https://www.gulfshoresal.gov/directory.aspx?eid=195",
+        "https://www.gulfshoresal.gov/Directory.aspx?EID=4",
+        "https://www.gulfshoresal.gov/Directory.aspx?EID=5",
+        "https://www.gulfshoresal.gov/Directory.aspx?EID=6",
+    ),
     # --- Massachusetts pilot (10 jurisdictions) ---
     # Mayor URLs come first so single-bio mayor pages get crawled before the larger
     # council roster; council URLs follow. See ``scripts/datasources/ma_pilot``.
