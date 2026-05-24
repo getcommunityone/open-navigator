@@ -101,12 +101,15 @@ def load_bronze_rows(
     record_types: tuple[str, ...] | None,
     limit: int | None,
     scrape_batch_id: str | None = None,
+    jurisdiction_id: str | None = None,
 ) -> list[BronzeElectionRow]:
     state_clause, state_params = _state_filter_sql(states)
     type_clause = ""
     type_params: tuple[Any, ...] = tuple()
     batch_clause = ""
     batch_params: tuple[Any, ...] = tuple()
+    jurisdiction_clause = ""
+    jurisdiction_params: tuple[Any, ...] = tuple()
     if record_types:
         placeholders = ", ".join(["%s"] * len(record_types))
         type_clause = f"AND record_type IN ({placeholders})"
@@ -114,6 +117,9 @@ def load_bronze_rows(
     if scrape_batch_id:
         batch_clause = "AND scrape_batch_id::text = %s"
         batch_params = (scrape_batch_id,)
+    if jurisdiction_id:
+        jurisdiction_clause = "AND jurisdiction_id = %s"
+        jurisdiction_params = (jurisdiction_id,)
     limit_clause = f"LIMIT {int(limit)}" if limit else ""
     sql = f"""
         SELECT id, scrape_batch_id::text, record_type, ocd_id,
@@ -125,13 +131,48 @@ def load_bronze_rows(
                measure_yes_count, measure_no_count, measure_outcome,
                source_url, source_name, raw_row
         FROM bronze.bronze_elections_scraped
-        WHERE TRUE {state_clause} {type_clause} {batch_clause}
+        WHERE TRUE {state_clause} {type_clause} {batch_clause} {jurisdiction_clause}
         ORDER BY state_code NULLS LAST, election_date NULLS LAST, id
         {limit_clause}
     """
     with conn.cursor() as cur:
-        cur.execute(sql, state_params + type_params + batch_params)
+        cur.execute(
+            sql,
+            state_params + type_params + batch_params + jurisdiction_params,
+        )
         return [BronzeElectionRow(*r) for r in cur.fetchall()]
+
+
+def sync_jurisdiction_elections_to_c1(
+    conn,
+    scrape_batch_id: str,
+    jurisdiction_id: str,
+    *,
+    dry_run: bool = False,
+) -> dict[str, int]:
+    """Promote bronze rows for one jurisdiction in a batch into c1 election tables."""
+    rows = load_bronze_rows(
+        conn,
+        states=None,
+        record_types=("election", "candidacy", "ballot_measure"),
+        limit=None,
+        scrape_batch_id=scrape_batch_id,
+        jurisdiction_id=jurisdiction_id,
+    )
+    if not rows:
+        return {"elections": 0, "contests": 0, "candidacies": 0, "measures": 0, "divisions": 0}
+    n_divisions = upsert_divisions(conn, rows, dry_run=dry_run)
+    n_elections = upsert_elections(conn, rows, dry_run=dry_run)
+    contest_ids = upsert_candidate_contests(conn, rows, dry_run=dry_run)
+    n_candidacies = upsert_candidacies(conn, rows, contest_ids, dry_run=dry_run)
+    n_measures = upsert_ballot_measures(conn, rows, dry_run=dry_run)
+    return {
+        "divisions": n_divisions,
+        "elections": n_elections,
+        "contests": len(contest_ids),
+        "candidacies": n_candidacies,
+        "measures": n_measures,
+    }
 
 
 def _source_rows(raw_row: dict[str, Any], source_url: str | None) -> list[tuple[str, str]]:

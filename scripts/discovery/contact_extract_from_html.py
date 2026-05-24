@@ -14,7 +14,7 @@ import json
 import re
 from html import unescape
 from typing import Any, Dict, List, Set, Tuple
-from urllib.parse import unquote, urljoin
+from urllib.parse import parse_qs, unquote, urljoin, urlparse
 
 _MAILTO_RE = re.compile(r"mailto:([^?#\"'>\s\\]+)", re.I)
 _TEL_RE = re.compile(r"tel:([^?#\"'>\s\\]+)", re.I)
@@ -348,6 +348,8 @@ def extract_structured_contacts_from_html(
     for a in soup.select('a[href^="mailto:"]'):
         if len(rows) >= max_rows:
             break
+        if _tag_inside_wp_caption(a):
+            continue
         href = (a.get("href") or "").strip()
         m = _MAILTO_RE.search(href)
         if not m:
@@ -360,6 +362,11 @@ def extract_structured_contacts_from_html(
         label = a.get_text(" ", strip=True)
         if "@" in label:
             label = ""
+        if label and (
+            _SEND_EMAIL_LABEL_RE.match(label)
+            or _EMAIL_BUTTON_LABEL_RE.match(label)
+        ):
+            continue
         name_guess = label[:512] if label and len(label) >= 3 else ""
         key = (email.lower(), name_guess.lower())
         if key in seen:
@@ -406,6 +413,48 @@ def extract_structured_contacts_from_html(
         if len(rows) >= max_rows:
             break
 
+    for cbr in extract_centreville_big_box_profile_contacts_from_html(
+        html, page_url, max_rows=max(0, max_rows - len(rows))
+    ):
+        k = _structured_contact_row_key(cbr)
+        if k in existing_keys:
+            continue
+        existing_keys.add(k)
+        em = str(cbr.get("email") or "").lower()
+        if em:
+            emails_seen.add(em)
+        rows.append(cbr)
+        if len(rows) >= max_rows:
+            break
+
+    for dtr in extract_divi_team_member_contacts_from_html(
+        html, page_url, max_rows=max(0, max_rows - len(rows))
+    ):
+        k = _structured_contact_row_key(dtr)
+        if k in existing_keys:
+            continue
+        existing_keys.add(k)
+        em = str(dtr.get("email") or "").lower()
+        if em:
+            emails_seen.add(em)
+        rows.append(dtr)
+        if len(rows) >= max_rows:
+            break
+
+    for wcr in extract_wp_caption_figure_contacts_from_html(
+        html, page_url, max_rows=max(0, max_rows - len(rows))
+    ):
+        k = _structured_contact_row_key(wcr)
+        if k in existing_keys:
+            continue
+        existing_keys.add(k)
+        em = str(wcr.get("email") or "").lower()
+        if em:
+            emails_seen.add(em)
+        rows.append(wcr)
+        if len(rows) >= max_rows:
+            break
+
     rows.extend(
         extract_directory_cards_contacts_from_html(
             html, page_url, max_rows=max(0, max_rows - len(rows))
@@ -441,6 +490,11 @@ _BG_IMAGE_URL_RE = re.compile(
 _COUNCILOR_PREFIX_RE = re.compile(r"^councilor\s+", re.I)
 _DISTRICT_LABEL_RE = re.compile(r"^district\s*\d+\s*$", re.I)
 _SEND_EMAIL_LABEL_RE = re.compile(r"^send\s+an\s+email$", re.I)
+_EMAIL_BUTTON_LABEL_RE = re.compile(r"^email\s+\w[\w'.-]*$", re.I)
+_CONTACT_COMMISSIONER_SUBJECT_RE = re.compile(
+    r"^contact\s+commissioner\s+(.+)$",
+    re.I,
+)
 _MENU_OR_CHROME_ALT_RE = re.compile(r"^(menu|logo|city of tuscaloosa)$", re.I)
 _OFFICE_HONORIFIC_LINE_RE = re.compile(
     r"^(councilor|mayor|vice\s*mayor|commissioner|commission\s+chair(?:man)?|"
@@ -491,7 +545,16 @@ def is_decorative_profile_image_url(url: str) -> bool:
             "facebook.com/tr",
             "pixel.gif",
             "1x1",
+            "accessibility-plugin",
+            "onetap-pro",
+            "icon-drop-down-menu",
+            "weatherforyou.net",
         )
+    ):
+        return True
+    if re.search(
+        r"/wp-content/plugins/(?:accessibility|onetap)[^/]*/assets/images/(?:english|german|spanish|)",
+        low,
     ):
         return True
     if re.search(r"/assets/[^/]+/images/(white_|dark_|logo)", low):
@@ -923,6 +986,12 @@ def dedupe_structured_contact_rows(rows: List[Dict[str, Any]]) -> List[Dict[str,
             score += 1
         if str(r.get("extraction_method") or "").startswith("civicplus_staff_directory"):
             score += 3
+        if str(r.get("extraction_method") or "") in (
+            "wp_caption_figure",
+            "centreville_big_box_profile",
+            "divi_team_member",
+        ):
+            score += 4
         if str(r.get("extraction_method") or "") == "mailto_anchor":
             score -= 2
         return score
@@ -933,14 +1002,23 @@ def dedupe_structured_contact_rows(rows: List[Dict[str, Any]]) -> List[Dict[str,
         if not em:
             no_email.append(row)
             continue
-        prev = by_email.get(em)
+        person_key = str(row.get("person_name") or "").strip().lower()
+        dedupe_key = em
+        if person_key and not is_generic_district_label(person_key):
+            dedupe_key = f"{em}\0{person_key}"
+        prev = by_email.get(dedupe_key)
         if prev is None:
-            by_email[em] = row
+            by_email[dedupe_key] = row
         elif _name_quality(row) > _name_quality(prev):
             _merge_supplemental_contact_fields(row, prev)
-            by_email[em] = row
+            by_email[dedupe_key] = row
         else:
             _merge_supplemental_contact_fields(prev, row)
+        if person_key and not is_generic_district_label(person_key):
+            stale = by_email.get(em)
+            if stale is not None and stale is not by_email.get(dedupe_key):
+                if not str(stale.get("person_name") or "").strip():
+                    del by_email[em]
 
     out = list(by_email.values()) + no_email
     seen: Set[Tuple[str, str, str, str]] = set()
@@ -1362,6 +1440,465 @@ def extract_caboose_background_profile_jobs(
         )
 
     return out[:max_jobs]
+
+
+def _centreville_big_box_mailto_fields(anchor: Any) -> Tuple[str, Optional[str]]:
+    """Shared inbox + optional commissioner name from ``mailto:`` on Bibb-style cards."""
+    href = (anchor.get("href") or "").strip() if anchor is not None else ""
+    m = _MAILTO_RE.search(href)
+    if not m:
+        return "", None
+    email = _clean_mailto(m.group(1))
+    if not email or "@" not in email:
+        return "", None
+    person: Optional[str] = None
+    try:
+        parsed = urlparse(href)
+        for subj in parse_qs(parsed.query).get("subject") or []:
+            sm = _CONTACT_COMMISSIONER_SUBJECT_RE.match(unquote(subj).strip())
+            if sm:
+                person = (sm.group(1) or "").strip() or None
+                break
+    except (ValueError, TypeError):
+        pass
+    return email, person
+
+
+def extract_centreville_big_box_profile_contacts_from_html(
+    html: str,
+    page_url: str,
+    *,
+    max_rows: int = 40,
+) -> List[Dict[str, Any]]:
+    """
+    Centreville Tech ``div.big-box-profiles`` roster (Bibb County ``bibbal.com`` and similar).
+
+    Headshots are CSS ``background-image`` on ``div.profile-picture``; names in ``div.upper``,
+    district in ``div.lower``; shared ``mailto:`` buttons with ``subject=Contact Commissioner …``.
+    """
+    from bs4 import BeautifulSoup
+
+    out: List[Dict[str, Any]] = []
+    if not html or max_rows <= 0:
+        return out
+    soup = BeautifulSoup(html, "html.parser")
+    seen: Set[Tuple[str, str]] = set()
+
+    for box in soup.select("div.big-box-profiles"):
+        if len(out) >= max_rows:
+            break
+        upper = box.select_one("div.upper")
+        lower = box.select_one("div.lower")
+        name_line = (upper.get_text(" ", strip=True) if upper else "").strip()
+        district_line = (lower.get_text(" ", strip=True) if lower else "").strip()
+        if not name_line:
+            continue
+        person, title, dept = split_office_holder_fields(name_line, district_line)
+        if not person:
+            continue
+
+        email = ""
+        mailto_person: Optional[str] = None
+        for a in box.select('a[href^="mailto:"]'):
+            email, mailto_person = _centreville_big_box_mailto_fields(a)
+            if email:
+                break
+        if mailto_person and not person:
+            person = mailto_person
+
+        photo = box.select_one("div.profile-picture")
+        bg_url = profile_image_url_from_style(
+            (photo.get("style") or "") if photo else "",
+            page_url,
+        )
+
+        key = (person.lower(), (email or "").lower())
+        if key in seen:
+            continue
+        seen.add(key)
+
+        row: Dict[str, Any] = {
+            "person_name": person,
+            "title_or_role": title,
+            "department": dept,
+            "email": email or None,
+            "phone": None,
+            "mailing_address": None,
+            "profile_url": None,
+            "extraction_method": "centreville_big_box_profile",
+            "raw_row": {
+                "page_url": page_url,
+                "district_line": district_line[:200] if district_line else None,
+            },
+        }
+        if bg_url:
+            row["profile_image_url"] = bg_url
+        normalize_structured_contact_row(row)
+        out.append(row)
+
+    return out
+
+
+def extract_centreville_big_box_profile_background_profile_jobs(
+    html: str,
+    page_url: str,
+    *,
+    max_jobs: int = 40,
+) -> List[Dict[str, Any]]:
+    """Download jobs for Centreville Tech ``big-box-profiles`` background headshots."""
+    jobs: List[Dict[str, Any]] = []
+    for row in extract_centreville_big_box_profile_contacts_from_html(
+        html, page_url, max_rows=max_jobs
+    ):
+        bg = str(row.get("profile_image_url") or "")
+        person = row.get("person_name")
+        if not bg or not person:
+            continue
+        jobs.append(
+            {
+                "person_name": person,
+                "title_or_role": row.get("title_or_role"),
+                "department": row.get("department"),
+                "email": row.get("email"),
+                "image_url": bg,
+                "match_method": "centreville_big_box_profile_bg",
+            }
+        )
+    return jobs
+
+
+def _figure_is_wp_caption(figure: Any) -> bool:
+    classes = " ".join(figure.get("class") or [])
+    return "wp-caption" in classes.lower()
+
+
+def _tag_inside_wp_caption(tag: Any) -> bool:
+    for parent in getattr(tag, "parents", []):
+        if getattr(parent, "name", None) == "figure" and _figure_is_wp_caption(parent):
+            return True
+    return False
+
+
+def _parse_wp_caption_figure(figure: Any, page_url: str) -> Optional[Dict[str, Any]]:
+    """
+    WordPress ``figure.wp-caption`` roster (Choctaw County commissioners and similar).
+
+    ``<figcaption class="wp-caption-text">`` holds name (often ``<strong>``), district, mailto.
+    """
+    img = figure.find("img")
+    if img is None:
+        return None
+    cap = figure.find("figcaption")
+    if cap is None:
+        return None
+
+    strong = cap.find("strong")
+    name = (strong.get_text(" ", strip=True) if strong else "").strip()
+    if not name:
+        name = (img.get("alt") or "").strip()
+    if not name or not _looks_like_person_name_line(name):
+        return None
+
+    email: Optional[str] = None
+    for a in cap.select('a[href^="mailto:"]'):
+        email = _mailto_from_anchor(a)
+        if email:
+            break
+
+    phone: Optional[str] = None
+    district: Optional[str] = None
+    for line in re.split(r"[\n\r]+", cap.get_text("\n", strip=True) or ""):
+        line = re.sub(r"\s+", " ", line).strip()
+        if not line or line.lower() == name.lower():
+            continue
+        if _DISTRICT_LINE_RE.match(line):
+            district = line
+            continue
+        pm = _PHONE_RE.search(line)
+        if pm and not phone:
+            phone = pm.group(0).strip()
+            continue
+        if "@" in line and not email:
+            em_m = _EMAIL_RE.search(line)
+            if em_m:
+                email = em_m.group(0).strip().lower()
+
+    src = (img.get("src") or "").strip()
+    if not src:
+        srcset = (img.get("srcset") or "").split(",")[0].strip().split()[0:1]
+        src = srcset[0] if srcset else ""
+    image_url = _abs_background_image_url(src, page_url) if src else ""
+
+    person, title, dept = split_office_holder_fields(name, district)
+    if not person:
+        return None
+
+    row: Dict[str, Any] = {
+        "person_name": person,
+        "title_or_role": title,
+        "department": dept,
+        "email": email,
+        "phone": phone,
+        "mailing_address": None,
+        "profile_url": None,
+        "extraction_method": "wp_caption_figure",
+        "raw_row": {"page_url": page_url, "figure_id": figure.get("id")},
+    }
+    if image_url:
+        row["profile_image_url"] = image_url
+    normalize_structured_contact_row(row)
+    return row
+
+
+def extract_divi_team_member_contacts_from_html(
+    html: str,
+    page_url: str,
+    *,
+    max_rows: int = 40,
+) -> List[Dict[str, Any]]:
+    """
+    Divi Builder ``et_pb_team_member`` cards (Dale County and similar Elegant Themes sites).
+
+    Structure: ``.et_pb_team_member_image img`` + ``h4.et_pb_module_header`` + ``p.et_pb_member_position``.
+    """
+    from bs4 import BeautifulSoup
+
+    out: List[Dict[str, Any]] = []
+    if not html or max_rows <= 0:
+        return out
+    soup = BeautifulSoup(html, "html.parser")
+    seen: Set[str] = set()
+
+    for mod in soup.select("div.et_pb_team_member"):
+        if len(out) >= max_rows:
+            break
+        img = mod.select_one(".et_pb_team_member_image img, div.et_pb_team_member_image img")
+        header = mod.select_one("h4.et_pb_module_header, .et_pb_module_header")
+        position = mod.select_one("p.et_pb_member_position, .et_pb_member_position")
+        name = (header.get_text(" ", strip=True) if header else "").strip()
+        if not name and img is not None:
+            name = (img.get("alt") or "").strip()
+        if not name or not _looks_like_person_name_line(name):
+            continue
+        role_line = (position.get_text(" ", strip=True) if position else "").strip() or None
+        person, title, dept = split_office_holder_fields(name, role_line)
+        if not person:
+            continue
+        nk = person.lower()
+        if nk in seen:
+            continue
+        seen.add(nk)
+
+        image_url = ""
+        if img is not None:
+            src = (img.get("src") or "").strip()
+            if src:
+                image_url = _abs_background_image_url(src, page_url)
+
+        row: Dict[str, Any] = {
+            "person_name": person,
+            "title_or_role": title,
+            "department": dept,
+            "email": None,
+            "phone": None,
+            "mailing_address": None,
+            "profile_url": None,
+            "extraction_method": "divi_team_member",
+            "raw_row": {"page_url": page_url, "role_line": role_line},
+        }
+        if image_url:
+            row["profile_image_url"] = image_url
+        normalize_structured_contact_row(row)
+        out.append(row)
+
+    return out
+
+
+def extract_divi_team_member_profile_jobs(
+    html: str,
+    page_url: str,
+    *,
+    max_jobs: int = 40,
+) -> List[Dict[str, Any]]:
+    """Profile download jobs from Divi ``et_pb_team_member`` portrait cards."""
+    jobs: List[Dict[str, Any]] = []
+    for row in extract_divi_team_member_contacts_from_html(html, page_url, max_rows=max_jobs):
+        img_u = str(row.get("profile_image_url") or "")
+        person = row.get("person_name")
+        if not img_u or not person:
+            continue
+        jobs.append(
+            {
+                "person_name": person,
+                "title_or_role": row.get("title_or_role"),
+                "department": row.get("department"),
+                "email": row.get("email"),
+                "image_url": img_u,
+                "match_method": "divi_team_member",
+            }
+        )
+    return jobs
+
+
+def extract_wp_caption_figure_contacts_from_html(
+    html: str,
+    page_url: str,
+    *,
+    max_rows: int = 40,
+) -> List[Dict[str, Any]]:
+    """Official portraits in WordPress ``figure.wp-caption`` blocks with ``figcaption`` bios."""
+    from bs4 import BeautifulSoup
+
+    out: List[Dict[str, Any]] = []
+    if not html or max_rows <= 0:
+        return out
+    soup = BeautifulSoup(html, "html.parser")
+    seen: Set[Tuple[str, str]] = set()
+
+    for figure in soup.find_all("figure"):
+        if len(out) >= max_rows:
+            break
+        if not _figure_is_wp_caption(figure):
+            continue
+        row = _parse_wp_caption_figure(figure, page_url)
+        if not row:
+            continue
+        key = (
+            str(row.get("person_name") or "").lower(),
+            str(row.get("email") or "").lower(),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(row)
+
+    return out
+
+
+def extract_divi_team_member_contacts_from_html(
+    html: str,
+    page_url: str,
+    *,
+    max_rows: int = 40,
+) -> List[Dict[str, Any]]:
+    """
+    Divi ``et_pb_team_member`` cards (Dale County and other Elegant Themes sites).
+
+    Structure: ``.et_pb_team_member_image img`` + ``h4.et_pb_module_header`` + ``p.et_pb_member_position``.
+    """
+    from bs4 import BeautifulSoup
+
+    out: List[Dict[str, Any]] = []
+    if not html or max_rows <= 0:
+        return out
+    soup = BeautifulSoup(html, "html.parser")
+    seen: Set[Tuple[str, str]] = set()
+
+    for mod in soup.select("div.et_pb_team_member"):
+        if len(out) >= max_rows:
+            break
+        img = mod.select_one(".et_pb_team_member_image img, div.et_pb_team_member_image img")
+        header = mod.select_one("h4.et_pb_module_header, .et_pb_module_header")
+        position = mod.select_one("p.et_pb_member_position, .et_pb_member_position")
+        name = (header.get_text(" ", strip=True) if header else "").strip()
+        if not name:
+            name = (img.get("alt") or "").strip() if img else ""
+        if not name or not _looks_like_person_name_line(name):
+            continue
+        role_line = (position.get_text(" ", strip=True) if position else "").strip() or None
+        person, title, dept = split_office_holder_fields(name, role_line)
+        if not person:
+            continue
+
+        email = None
+        phone = None
+        for a in mod.select('a[href^="mailto:"]'):
+            email = _mailto_from_anchor(a) or email
+        blob = mod.get_text("\n", strip=True) or ""
+        if not phone:
+            pm = _PHONE_RE.search(blob)
+            if pm:
+                phone = pm.group(0).strip()
+
+        image_url = ""
+        if img:
+            src = (img.get("src") or "").strip()
+            if src:
+                image_url = _abs_background_image_url(src, page_url)
+
+        key = (person.lower(), (email or "").lower())
+        if key in seen:
+            continue
+        seen.add(key)
+
+        row: Dict[str, Any] = {
+            "person_name": person,
+            "title_or_role": title,
+            "department": dept,
+            "email": email,
+            "phone": phone,
+            "mailing_address": None,
+            "profile_url": None,
+            "extraction_method": "divi_team_member",
+            "raw_row": {"page_url": page_url},
+        }
+        if image_url:
+            row["profile_image_url"] = image_url
+        normalize_structured_contact_row(row)
+        out.append(row)
+
+    return out
+
+
+def extract_divi_team_member_profile_jobs(
+    html: str,
+    page_url: str,
+    *,
+    max_jobs: int = 40,
+) -> List[Dict[str, Any]]:
+    jobs: List[Dict[str, Any]] = []
+    for row in extract_divi_team_member_contacts_from_html(html, page_url, max_rows=max_jobs):
+        img_u = str(row.get("profile_image_url") or "")
+        person = row.get("person_name")
+        if not img_u or not person:
+            continue
+        jobs.append(
+            {
+                "person_name": person,
+                "title_or_role": row.get("title_or_role"),
+                "department": row.get("department"),
+                "email": row.get("email"),
+                "image_url": img_u,
+                "match_method": "divi_team_member",
+            }
+        )
+    return jobs
+
+
+def extract_wp_caption_figure_profile_jobs(
+    html: str,
+    page_url: str,
+    *,
+    max_jobs: int = 40,
+) -> List[Dict[str, Any]]:
+    """Profile download jobs from ``figure.wp-caption`` portrait + figcaption name."""
+    jobs: List[Dict[str, Any]] = []
+    for row in extract_wp_caption_figure_contacts_from_html(html, page_url, max_rows=max_jobs):
+        img_u = str(row.get("profile_image_url") or "")
+        person = row.get("person_name")
+        if not img_u or not person:
+            continue
+        jobs.append(
+            {
+                "person_name": person,
+                "title_or_role": row.get("title_or_role"),
+                "department": row.get("department"),
+                "email": row.get("email"),
+                "image_url": img_u,
+                "match_method": "wp_caption_figure",
+            }
+        )
+    return jobs
 
 
 def _structured_contact_row_key(r: Dict[str, Any]) -> Tuple[str, str, str, str]:
@@ -1797,7 +2334,7 @@ def extract_brochure_card_contacts_from_html(
             if derived:
                 name = derived
 
-        if not name or not _looks_like_person_name_line(name):
+        if not name or not _looks_like_person_name_line(name) or _is_brochure_addressish_line(name):
             continue
 
         phone = None
@@ -1818,7 +2355,9 @@ def extract_brochure_card_contacts_from_html(
         if img is not None:
             src = (img.get("src") or "").strip()
             if src and not _BROCHURE_PLACEHOLDER_ALT_RE.match(img_alt or ""):
-                profile_image_url = urljoin(page_url, src)
+                abs_img = urljoin(page_url, src)
+                if not is_decorative_profile_image_url(abs_img):
+                    profile_image_url = abs_img
 
         key = (name.lower(), email.lower())
         if key in seen:

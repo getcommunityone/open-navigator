@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-Concurrent, fault-tolerant, resumable contact + YouTube scraper for priority-state
-jurisdictions. Writes to Neon dev (``NEON_DATABASE_URL_DEV``):
+Concurrent, fault-tolerant, resumable contact + YouTube + elections scraper for
+priority-state jurisdictions. Writes to Neon dev (``NEON_DATABASE_URL_DEV``):
 
 - ``bronze.bronze_contacts_scraped``        (existing, migration 035)
-- ``bronze.bronze_jurisdiction_youtube``    (new, migration 039 — apply first)
+- ``bronze.bronze_jurisdiction_youtube``    (migration 039)
+- ``bronze.bronze_elections_scraped`` + c1 election tables (with ``--elections``, website crawl)
 
 Default scope: cities + counties for AL, GA, IN, MA, WA, WI (~2,300 jurisdictions).
 School districts and state-level rows are skipped (no mayors/councils to scrape).
@@ -26,6 +27,10 @@ Run (defaults are safe — start with a small slice to validate):
     .venv/bin/python -m scripts.datasources.jurisdiction_pilot.scrape_priority_states \
         --states MA --workers 4
 
+    # Contacts + YouTube + website election crawl → bronze + c1_* election tables:
+    .venv/bin/python -m scripts.datasources.jurisdiction_pilot.scrape_priority_states \
+        --states AL,GA,IN,MA,WA,WI --elections --workers 6
+
 Fault tolerance:
   - Each jurisdiction runs in its own try/except. A single failure logs and continues.
   - DB writes happen per-jurisdiction, so a crash mid-run loses at most the in-flight
@@ -36,7 +41,8 @@ Fault tolerance:
 
 Concurrency:
   - Thread pool sized by ``--workers``. Each worker handles one jurisdiction end-to-end
-    (probe seeds → fetch HTML → extract contacts → YouTube discovery → persist).
+    (probe seeds → fetch HTML → extract contacts → YouTube discovery → optional
+    website election pages → bronze + c1 election-domain tables).
   - Default 6 workers — gentle enough to avoid getting throttled by common municipal
     CMS providers.
 """
@@ -130,6 +136,43 @@ from scripts.datasources.ma_pilot.mayor_boost import (  # noqa: E402
 
 logger = logging.getLogger("jurisdiction_pilot")
 
+# Loggers that emit one line per HEAD/GET when left at DEBUG (unreadable with -v).
+_QUIET_HTTP_LOGGER_NAMES = (
+    "urllib3",
+    "urllib3.connectionpool",
+    "urllib3.util",
+    "urllib3.util.retry",
+    "httpx",
+    "httpx._client",
+    "requests",
+)
+
+
+def _quiet_http_loggers() -> None:
+    for name in _QUIET_HTTP_LOGGER_NAMES:
+        logging.getLogger(name).setLevel(logging.WARNING)
+
+
+# Submodule DEBUG (probe errors, Civic/YouTube lookups, OCD misses) drowns progress lines.
+_QUIET_HELPER_LOGGER_NAMES = (
+    "scripts.datasources.jurisdiction_pilot.mayor_url_discovery",
+    "scripts.datasources.jurisdiction_pilot.google_civic_youtube",
+    "scripts.datasources.jurisdiction_pilot.website_youtube_search",
+    "scripts.datasources.jurisdiction_pilot.youtube_channel_enrich",
+    "scripts.datasources.jurisdiction_pilot.website_elections",
+    "scripts.datasources.jurisdiction_pilot.load_ocd_jurisdictions",
+)
+
+
+def _quiet_helper_loggers() -> None:
+    for name in _QUIET_HELPER_LOGGER_NAMES:
+        logging.getLogger(name).setLevel(logging.WARNING)
+
+
+def _jlabel(j: Jurisdiction) -> str:
+    """Compact log prefix: state + jurisdiction name."""
+    return f"{j.state_code} {j.name}"
+
 DEFAULT_PRIORITY_STATES = ("AL", "GA", "IN", "MA", "WA", "WI")
 DEFAULT_INCLUDE_TYPES = ("municipality", "county")
 
@@ -205,9 +248,14 @@ class JurisdictionResult:
     youtube_inserted: int = 0
     youtube_filtered_out: int = 0
     contact_images_saved: int = 0
+    bronze_election_rows: int = 0
+    bronze_candidacy_rows: int = 0
+    c1_election_rows: int = 0
+    c1_candidacy_rows: int = 0
     seed_urls_attempted: int = 0
     seed_urls_succeeded: int = 0
     error: str | None = None
+    election_error: str | None = None
     duration_s: float = 0.0
     seeds_used: list[str] = field(default_factory=list)
 
@@ -325,6 +373,11 @@ def record_checkpoint(batch_id: str, result: JurisdictionResult) -> None:
         "mayor_rows_inserted": result.mayor_rows_inserted,
         "youtube_inserted": result.youtube_inserted,
         "contact_images_saved": result.contact_images_saved,
+        "bronze_election_rows": result.bronze_election_rows,
+        "bronze_candidacy_rows": result.bronze_candidacy_rows,
+        "c1_election_rows": result.c1_election_rows,
+        "c1_candidacy_rows": result.c1_candidacy_rows,
+        "election_error": result.election_error,
         "seed_urls_attempted": result.seed_urls_attempted,
         "seed_urls_succeeded": result.seed_urls_succeeded,
         "error": result.error,
@@ -464,7 +517,7 @@ async def _download_jurisdiction_contact_images(
         try:
             page_jobs = extract_profile_image_jobs(html, url, max_jobs=80)
         except Exception as exc:
-            logger.debug("[%s] image-job extract error on %s: %s", j.name, url, exc)
+            logger.debug("[%s] image-job extract error on %s: %s", _jlabel(j), url, exc)
             continue
         for pj in page_jobs:
             img_url = (pj.get("image_url") or "").strip()
@@ -543,7 +596,7 @@ def _discover_youtube(j: Jurisdiction, session: requests.Session) -> list[dict[s
                 "discovery_method": "civic_api",
             })
     if civic_urls:
-        logger.debug("Found %d verified YouTube URLs from Civic API for %s", len(civic_urls), j.name)
+        logger.debug("[%s] YouTube from Civic API=%d", _jlabel(j), len(civic_urls))
 
     # Priority 2: Search the jurisdiction's website for YouTube links.
     if not raw_channels:
@@ -559,7 +612,7 @@ def _discover_youtube(j: Jurisdiction, session: requests.Session) -> list[dict[s
                     "discovery_method": "website_search",
                 })
         if website_channel_urls:
-            logger.debug("Found %d YouTube URLs on %s website", len(website_channel_urls), j.name)
+            logger.debug("[%s] YouTube on website=%d", _jlabel(j), len(website_channel_urls))
 
     # Priority 3: Fall back to pattern matching if other methods found nothing.
     if not raw_channels:
@@ -624,8 +677,15 @@ def _discover_youtube(j: Jurisdiction, session: requests.Session) -> list[dict[s
 
 
 def _process_one(
-    j: Jurisdiction, batch_id: str, database_url: str, *, skip_youtube: bool,
+    j: Jurisdiction,
+    batch_id: str,
+    database_url: str,
+    *,
+    skip_youtube: bool,
     skip_images: bool = False,
+    scrape_elections: bool = False,
+    skip_elections_c1_sync: bool = False,
+    elections_max_pages: int = 10,
 ) -> JurisdictionResult:
     """Full pipeline for one jurisdiction. Catches everything; never raises."""
     result = JurisdictionResult(
@@ -647,8 +707,8 @@ def _process_one(
             vendor_info = detect_vendor(resp.text, j.website_url)
             vendor_type = vendor_info.get("platform", "unknown")
     except Exception as exc:
-        logger.debug("Vendor detection failed for %s: %s", j.name, exc)
-    logger.debug("Detected vendor: %s for %s", vendor_type, j.name)
+        logger.debug("[%s] vendor detection failed: %s", _jlabel(j), exc)
+    logger.debug("[%s] vendor=%s", _jlabel(j), vendor_type)
 
     try:
         seeds = _resolve_seed_urls(j)
@@ -663,7 +723,7 @@ def _process_one(
             legistar_members = get_legistar_council_members(legistar_url)
             if legistar_members:
                 legistar_contacts = legistar_members
-                logger.debug("Found %d council members via Legistar", len(legistar_contacts))
+                logger.debug("[%s] Legistar council members=%d", _jlabel(j), len(legistar_contacts))
 
         # Priority 2: Scrape website contacts
         contact_rows, ok, html_by_url = _scrape_contacts(j, seeds, session, batch_id)
@@ -681,10 +741,9 @@ def _process_one(
                 saved = sum(1 for m in manifest if m.get("saved_filename"))
                 result.contact_images_saved = saved
                 if saved:
-                    logger.debug("[%s] saved %d contact image(s) to %s",
-                                 j.name, saved, jurisdiction_output_dir(j) / "_contact_images")
+                    logger.debug("[%s] saved %d contact image(s)", _jlabel(j), saved)
             except Exception as exc:
-                logger.debug("[%s] image download failed: %s", j.name, exc)
+                logger.debug("[%s] image download failed: %s", _jlabel(j), exc)
 
         # Merge Legistar + scraped contacts (Legistar has priority)
         all_contacts = legistar_contacts + contact_rows
@@ -724,9 +783,37 @@ def _process_one(
                     website_url=j.website_url,
                     rows=keep_rows,
                 )
+
+        if scrape_elections and not _STOP.is_set():
+            from scripts.datasources.jurisdiction_pilot.website_elections import (
+                ingest_jurisdiction_elections_from_website,
+            )
+
+            election_cache_dir = jurisdiction_output_dir(j) / "_downloads" / "website_elections"
+            election_result = ingest_jurisdiction_elections_from_website(
+                database_url,
+                batch_id,
+                jurisdiction_id=j.jurisdiction_id,
+                state_code=j.state_code,
+                jurisdiction_type=j.jurisdiction_type,
+                name=j.name,
+                website_url=j.website_url,
+                ocd_jurisdiction_id=ocd_id,
+                html_by_url=html_by_url,
+                session=session,
+                cache_dir=election_cache_dir,
+                max_extra_pages=elections_max_pages,
+                sync_c1=not skip_elections_c1_sync,
+            )
+            result.bronze_election_rows = election_result.bronze_election_rows
+            result.bronze_candidacy_rows = election_result.bronze_candidacy_rows
+            result.c1_election_rows = election_result.c1_elections
+            result.c1_candidacy_rows = election_result.c1_candidacies
+            if election_result.error:
+                result.election_error = election_result.error
     except Exception as exc:  # fault tolerance: never let one jurisdiction kill the run
         result.error = f"{type(exc).__name__}: {exc}"
-        logger.exception("jurisdiction %s failed", j.jurisdiction_id)
+        logger.exception("[%s] %s failed", j.state_code, j.jurisdiction_id)
 
     result.duration_s = time.monotonic() - start
     return result
@@ -762,6 +849,26 @@ def main(argv: list[str] | None = None) -> int:
                    help="Resume an existing batch — already-completed jurisdictions are skipped.")
     p.add_argument("--skip-youtube", action="store_true")
     p.add_argument(
+        "--elections",
+        action="store_true",
+        help=(
+            "After contacts/YouTube, crawl the jurisdiction website for election/candidate/ballot "
+            "pages (HTML heuristics), write cache under _downloads/website_elections/, load "
+            "bronze.bronze_elections_scraped, and promote to c1_* election tables."
+        ),
+    )
+    p.add_argument(
+        "--elections-max-pages",
+        type=int,
+        default=10,
+        help="Max additional election-themed pages to fetch per jurisdiction (default: 10).",
+    )
+    p.add_argument(
+        "--elections-skip-c1-sync",
+        action="store_true",
+        help="With --elections, write bronze only; run sync_elections_to_c1 separately.",
+    )
+    p.add_argument(
         "--skip-images", action="store_true",
         help="Don't download contact profile images (default: download to "
              "data/cache/scraped_meetings/<STATE>/<type>/<slug>_<geoid>/_contact_images/).",
@@ -776,17 +883,26 @@ def main(argv: list[str] | None = None) -> int:
     )
     p.add_argument("--dry-run", action="store_true",
                    help="Resolve jurisdictions and print the plan; don't fetch or write.")
-    p.add_argument("--verbose", "-v", action="store_true")
+    p.add_argument(
+        "--verbose", "-v", action="store_true",
+        help="DEBUG for jurisdiction_pilot only (not urllib3 or URL probe modules).",
+    )
+    p.add_argument(
+        "--http-debug",
+        action="store_true",
+        help="Log every HTTP request from urllib3/httpx/requests (very noisy).",
+    )
     args = p.parse_args(argv)
 
     logging.basicConfig(
-        level=logging.DEBUG if args.verbose else logging.INFO,
+        level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
-    # Silence the underlying http client unless verbose; otherwise the log is unreadable.
-    if not args.verbose:
-        logging.getLogger("httpx").setLevel(logging.WARNING)
-        logging.getLogger("urllib3").setLevel(logging.WARNING)
+    if not args.http_debug:
+        _quiet_http_loggers()
+    _quiet_helper_loggers()
+    if args.verbose:
+        logging.getLogger("jurisdiction_pilot").setLevel(logging.DEBUG)
 
     states = tuple(s.strip().upper() for s in args.states.split(",") if s.strip())
     include_types = tuple(t.strip().lower() for t in args.include_types.split(",") if t.strip())
@@ -823,18 +939,35 @@ def main(argv: list[str] | None = None) -> int:
         print("Nothing to do (all jurisdictions complete in this batch).")
         return 0
 
+    if args.elections:
+        logger.info(
+            "Website election scrape enabled (max %d extra pages per jurisdiction)",
+            args.elections_max_pages,
+        )
+
     _install_sigint_handler()
     start = time.monotonic()
     completed = 0
     totals = {
         "contacts": 0, "mayors": 0, "youtube": 0,
         "youtube_filtered": 0, "images": 0, "errors": 0,
+        "bronze_elections": 0, "bronze_candidacies": 0, "c1_elections": 0, "c1_candidacies": 0,
+        "election_errors": 0,
     }
 
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
         futures = {
-            pool.submit(_process_one, j, batch_id, database_url,
-                        skip_youtube=args.skip_youtube, skip_images=args.skip_images): j
+            pool.submit(
+                _process_one,
+                j,
+                batch_id,
+                database_url,
+                skip_youtube=args.skip_youtube,
+                skip_images=args.skip_images,
+                scrape_elections=args.elections,
+                skip_elections_c1_sync=args.elections_skip_c1_sync,
+                elections_max_pages=args.elections_max_pages,
+            ): j
             for j in pending
         }
         for fut in as_completed(futures):
@@ -842,7 +975,7 @@ def main(argv: list[str] | None = None) -> int:
             try:
                 result = fut.result()
             except Exception as exc:  # extra safety net
-                logger.exception("worker raised for %s", j.jurisdiction_id)
+                logger.exception("[%s] worker raised for %s", j.state_code, j.jurisdiction_id)
                 result = JurisdictionResult(
                     jurisdiction_id=j.jurisdiction_id, state_code=j.state_code,
                     name=j.name, error=f"{type(exc).__name__}: {exc}",
@@ -855,20 +988,28 @@ def main(argv: list[str] | None = None) -> int:
             totals["youtube"] += result.youtube_inserted
             totals["youtube_filtered"] += result.youtube_filtered_out
             totals["images"] += result.contact_images_saved
+            totals["bronze_elections"] += result.bronze_election_rows
+            totals["bronze_candidacies"] += result.bronze_candidacy_rows
+            totals["c1_elections"] += result.c1_election_rows
+            totals["c1_candidacies"] += result.c1_candidacy_rows
             if result.error:
                 totals["errors"] += 1
+            if result.election_error:
+                totals["election_errors"] += 1
 
             if completed % 10 == 0 or completed == len(pending):
                 elapsed = time.monotonic() - start
                 rate = completed / elapsed if elapsed > 0 else 0
                 eta_s = (len(pending) - completed) / rate if rate > 0 else 0
                 logger.info(
-                    "[%d/%d] %s %s contacts=%d mayors=%d youtube=%d err=%s | "
-                    "totals contacts=%d mayors=%d youtube=%d errors=%d | rate=%.2f/s ETA=%.0fs",
-                    completed, len(pending), j.state_code, j.jurisdiction_id,
+                    "[%d/%d] [%s] %s contacts=%d mayors=%d youtube=%d "
+                    "bronze_el=%d c1_el=%d err=%s | "
+                    "totals contacts=%d youtube=%d c1_el=%d errors=%d | rate=%.2f/s ETA=%.0fs",
+                    completed, len(pending), j.state_code, j.name,
                     result.contacts_inserted, result.mayor_rows_inserted, result.youtube_inserted,
-                    "yes" if result.error else "no",
-                    totals["contacts"], totals["mayors"], totals["youtube"], totals["errors"],
+                    result.bronze_election_rows, result.c1_election_rows,
+                    "yes" if result.error or result.election_error else "no",
+                    totals["contacts"], totals["youtube"], totals["c1_elections"], totals["errors"],
                     rate, eta_s,
                 )
 
@@ -886,6 +1027,12 @@ def main(argv: list[str] | None = None) -> int:
     print(f"YouTube channels kept:   {totals['youtube']}")
     print(f"YouTube filtered out:    {totals['youtube_filtered']}  (confidence < {MIN_CHANNEL_CONFIDENCE:.2f})")
     print(f"Contact images saved:    {totals['images']}  → data/cache/scraped_meetings/<STATE>/<type>/<slug>_<geoid>/_contact_images/")
+    if args.elections:
+        print(f"Bronze election rows:    {totals['bronze_elections']}  (per-jurisdiction snapshots)")
+        print(f"Bronze candidacy rows:   {totals['bronze_candidacies']}")
+        print(f"c1_election rows synced: {totals['c1_elections']}")
+        print(f"c1_candidacy rows synced:{totals['c1_candidacies']}")
+        print(f"Election step errors:    {totals['election_errors']}")
     print(f"Errors:                  {totals['errors']}")
     print(f"Elapsed:                 {elapsed:.0f}s")
     print(f"Checkpoint file:         {_checkpoint_path(batch_id)}")

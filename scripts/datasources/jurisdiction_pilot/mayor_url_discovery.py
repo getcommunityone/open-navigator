@@ -130,8 +130,9 @@ def probe_urls(urls: Iterable[str], *, session: requests.Session | None = None) 
                 continue
             seen_resolved.add(resolved)
             live.append(resolved)
-        except requests.RequestException as exc:
-            logger.debug("probe error %s: %s", url, exc)
+        except requests.RequestException:
+            # Dead hosts and 404 probes are normal at scale; do not log each failure.
+            continue
     return live
 
 
@@ -153,8 +154,7 @@ def crawl_homepage_anchors(
         if resp.status_code != 200 or not resp.text:
             return []
         soup = BeautifulSoup(resp.text, "html.parser")
-    except requests.RequestException as exc:
-        logger.debug("homepage fetch error %s: %s", homepage_url, exc)
+    except requests.RequestException:
         return []
 
     found: list[str] = []

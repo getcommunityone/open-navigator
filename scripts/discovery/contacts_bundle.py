@@ -35,7 +35,13 @@ _NON_PERSON_PROFILE_URL_RE = re.compile(
     r"(?is)(/assets/images/iconshare|/common/images/calendar/closebutton|"
     r"/common/images/getacro\.gif|homeiconminutes|iconshare(?:facebook|twitter|email)|"
     r"documentid=161\b|documentid=231\b|"
-    r"/(?:f\d*header\d*|header\d*|hero\d*|banner\d*|logo\d*)\.(?:jpg|jpeg|png|webp)\b)"
+    r"/(?:f\d*header\d*|header\d*|hero\d*|banner\d*|logo\d*)\.(?:jpg|jpeg|png|webp)\b|"
+    r"/wp-content/plugins/(?:accessibility|onetap)[^/]*/|"
+    r"weatherforyou\.net|icon-drop-down-menu\.png|"
+    r"/assets/images/(?:english|german|spanish|french|italia|poland|portugal|rumania|slowakia|swedish|finnland)\.png)"
+)
+_NON_PERSON_PROFILE_SINGLE_WORD_RE = re.compile(
+    r"(?is)^(?:flag|flags|icon|icons|menu|logo|image|avatar|placeholder)$"
 )
 
 _NON_PERSON_NAME_RE = re.compile(
@@ -48,6 +54,9 @@ _NON_PERSON_TITLE_RE = re.compile(
     r"meetings\s+search\s+results?|minutes\s+search\s+results?|agenda\s+search\s+results?|"
     r"board\s+search\s+results?|council\s+search\s+results?|commission\s+search\s+results?)\s*$"
 )
+_UI_ACTION_PERSON_NAME_RE = re.compile(
+    r"(?is)^(?:view\s+(?:meeting\s+)?minutes|live\s+video\s+streaming|click\s+here)\b",
+)
 
 
 def _is_probable_non_person_contact(row: Dict[str, Any]) -> bool:
@@ -58,6 +67,13 @@ def _is_probable_non_person_contact(row: Dict[str, Any]) -> bool:
     profile_url = str(row.get("profile_url") or "").strip()
     method = str(row.get("extraction_method") or "").strip().lower()
     page = str(row.get("source_page_url") or row.get("raw_row", {}).get("page_url") or "").strip().lower()
+
+    if method == "heading_section_plaintext" and _UI_ACTION_PERSON_NAME_RE.match(name):
+        return True
+    if re.match(r"^\d{1,6}\s+", name):
+        return True
+    if _NON_PERSON_PROFILE_SINGLE_WORD_RE.match(name):
+        return True
 
     # Keep rows that have stronger person signals.
     if email or profile_url:
@@ -94,6 +110,10 @@ def _is_person_profile_image_record(img: Dict[str, Any]) -> bool:
     if _NON_PERSON_PROFILE_URL_RE.search(iurl):
         return False
     if _NON_PERSON_PROFILE_NAME_RE.search(pname):
+        return False
+    if _NON_PERSON_PROFILE_SINGLE_WORD_RE.match(pname):
+        return False
+    if re.match(r"^\d{1,6}\s+", pname):
         return False
     if "..." in pname:
         return False

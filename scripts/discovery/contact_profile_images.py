@@ -66,6 +66,24 @@ _NON_PERSON_NAME_LINE_RE = re.compile(
     r"agenda|minutes|archive|safe\s+streets|transportation|veterans\s+service"
     r")\b"
 )
+_UI_IMG_ALT_RE = re.compile(
+    r"^(?:flag|flags|icon|icons|menu|logo|image|avatar|placeholder|spacer|close|search|arrow|"
+    r"english|german|spanish|french|italian|portuguese|polish|swedish|finnish|romanian|"
+    r"slovak|hungarian|dutch|czech|turkish|russian|ukrainian|japanese|korean|chinese|"
+    r"arabic|hebrew|drop[\s-]?down)$",
+    re.I,
+)
+_ACCESSIBILITY_PLUGIN_URL_RE = re.compile(
+    r"(?is)(/wp-content/plugins/(?:accessibility|onetap)[^/]*/|"
+    r"/assets/images/(?:english|german|spanish|french|italia|poland|portugal|"
+    r"rumania|slowakia|swedish|finnland|icon-drop-down-menu))",
+)
+_STREET_ADDRESS_LINE_RE = re.compile(
+    r"^\d{1,6}\s+(?:north|south|east|west|n|s|e|w\.?\s+)?[a-z0-9\s.'-]*(?:"
+    r"st(?:reet)?|ave(?:nue)?|rd|road|hwy|highway|blvd|boulevard|drive|dr|ln|lane|"
+    r"way|route|al-|hwy\.)\b",
+    re.I,
+)
 
 
 def contact_profile_image_stem_from_name(person_name: Optional[str]) -> Optional[str]:
@@ -145,10 +163,24 @@ def img_best_abs_url(img: Any, page_url: str) -> str:
     return ""
 
 
+def _profile_image_url_is_plugin_or_ui_chrome(url: str) -> bool:
+    """Accessibility widgets, language pickers, weather badges — not people."""
+    if not url:
+        return True
+    low = url.lower()
+    if _ACCESSIBILITY_PLUGIN_URL_RE.search(low):
+        return True
+    if re.search(r"(weatherforyou\.net|/hw3\.cgi\b|icon-drop-down)", low, re.I):
+        return True
+    return False
+
+
 def _profile_image_url_is_brand_or_chrome(url: str) -> bool:
     """Sitewide logos, favicons, and header marks — not official portrait photos."""
     from scripts.discovery.contact_extract_from_html import is_decorative_profile_image_url
 
+    if _profile_image_url_is_plugin_or_ui_chrome(url):
+        return True
     if is_decorative_profile_image_url(url):
         return True
     if not url or not url.lower().startswith(("http://", "https://")):
@@ -163,6 +195,8 @@ def _profile_image_url_is_brand_or_chrome(url: str) -> bool:
     if re.search(r"[-_/]logo[-_.]|[-_]logo\.(png|jpe?g|gif|webp)(\?|$)", blob, re.I):
         return True
     if re.search(r"\b(logo|wordmark|lockup|site-logo|header-logo)\b", base, re.I):
+        return True
+    if re.search(r"\blogonew\b|[-_]logo[-_.]", blob, re.I):
         return True
     return False
 
@@ -194,9 +228,26 @@ def _name_from_portrait_url(url: str) -> str:
     return " ".join(p.title() for p in parts)
 
 
+def _is_plausible_person_display_name(name: Optional[str]) -> bool:
+    """Require at least two name-like tokens (filters ``flag``, ``icon``, single words)."""
+    raw = (name or "").strip()
+    if not raw or not _looks_like_person_name_line(raw):
+        return False
+    if _UI_IMG_ALT_RE.match(raw):
+        return False
+    if _STREET_ADDRESS_LINE_RE.match(raw):
+        return False
+    tokens = [t for t in re.findall(r"[A-Za-z]+", raw) if len(t) >= 2]
+    if len(tokens) < 2:
+        return False
+    return True
+
+
 def _label_is_non_person_photo_subject(name: Optional[str], title: Optional[str]) -> bool:
     blob = f"{name or ''} {title or ''}".strip()
     if not blob:
+        return True
+    if name and (_UI_IMG_ALT_RE.match(name.strip()) or _STREET_ADDRESS_LINE_RE.match(name.strip())):
         return True
     if _NON_PERSON_NAME_LINE_RE.search(blob):
         return True
@@ -319,6 +370,9 @@ def extract_profile_image_jobs(html: str, page_url: str, *, max_jobs: int = 80) 
     from bs4 import BeautifulSoup
     from scripts.discovery.contact_extract_from_html import (
         extract_caboose_background_profile_jobs,
+        extract_centreville_big_box_profile_background_profile_jobs,
+        extract_divi_team_member_profile_jobs,
+        extract_wp_caption_figure_profile_jobs,
         is_generic_district_label,
         split_office_holder_fields,
     )
@@ -328,6 +382,26 @@ def extract_profile_image_jobs(html: str, page_url: str, *, max_jobs: int = 80) 
     soup = BeautifulSoup(html or "", "html.parser")
 
     for job in extract_caboose_background_profile_jobs(html, page_url, max_jobs=max_jobs):
+        u = str(job.get("image_url") or "")
+        if u and u not in seen_url:
+            seen_url.add(u)
+            out.append(job)
+
+    for job in extract_centreville_big_box_profile_background_profile_jobs(
+        html, page_url, max_jobs=max_jobs
+    ):
+        u = str(job.get("image_url") or "")
+        if u and u not in seen_url:
+            seen_url.add(u)
+            out.append(job)
+
+    for job in extract_wp_caption_figure_profile_jobs(html, page_url, max_jobs=max_jobs):
+        u = str(job.get("image_url") or "")
+        if u and u not in seen_url:
+            seen_url.add(u)
+            out.append(job)
+
+    for job in extract_divi_team_member_profile_jobs(html, page_url, max_jobs=max_jobs):
         u = str(job.get("image_url") or "")
         if u and u not in seen_url:
             seen_url.add(u)
@@ -434,6 +508,12 @@ def extract_profile_image_jobs(html: str, page_url: str, *, max_jobs: int = 80) 
     for img in soup.find_all("img"):
         if len(out) >= max_jobs:
             break
+        from scripts.discovery.contact_extract_from_html import _tag_inside_wp_caption
+
+        if _tag_inside_wp_caption(img):
+            continue
+        if img.find_parent("div", class_=lambda c: c and "et_pb_team_member" in " ".join(c)):
+            continue
         abs_u = img_best_abs_url(img, page_url)
         if not abs_u:
             continue
@@ -445,7 +525,9 @@ def extract_profile_image_jobs(html: str, page_url: str, *, max_jobs: int = 80) 
             continue
         cls = " ".join(img.get("class") or [])
         alt = (img.get("alt") or "").strip()
-        if alt and re.match(r"^(menu|logo)$", alt, re.I):
+        if alt and (re.match(r"^(menu|logo)$", alt, re.I) or _UI_IMG_ALT_RE.match(alt)):
+            continue
+        if _profile_image_url_is_plugin_or_ui_chrome(abs_u):
             continue
         if "logo" in cls.lower():
             continue
@@ -471,7 +553,8 @@ def extract_profile_image_jobs(html: str, page_url: str, *, max_jobs: int = 80) 
             if wpish and not name_guess and not title_guess:
                 name_guess, title_guess = _role_name_from_following_heading(img)
         if not name_guess and alt and _NAMEISH.search(alt) and not alt.lower().startswith("logo"):
-            name_guess = alt[:200]
+            if not _UI_IMG_ALT_RE.match(alt):
+                name_guess = alt[:200]
         if not name_guess and not title_guess:
             continue
         if is_generic_district_label(name_guess) and not title_guess:
@@ -479,7 +562,7 @@ def extract_profile_image_jobs(html: str, page_url: str, *, max_jobs: int = 80) 
         person, honor, dept = split_office_holder_fields(name_guess, title_guess)
         if not person:
             continue
-        if not _looks_like_person_name_line(person):
+        if not _is_plausible_person_display_name(person):
             continue
         if _label_is_non_person_photo_subject(person, honor or dept):
             continue

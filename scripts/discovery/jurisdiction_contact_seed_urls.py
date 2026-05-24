@@ -41,6 +41,18 @@ _BUILTIN: Dict[str, Tuple[str, ...]] = {
     "county_13031": (
         "https://bullochcounty.net/commissioners/",
     ),
+    # Bibb County, AL — Centreville Tech roster (background-image headshots, shared mailto).
+    "county_01007": (
+        "https://bibbal.com/the-county-commission/",
+    ),
+    # Choctaw County, AL — WordPress wp-caption commissioner portraits.
+    "county_01023": (
+        "https://www.choctawcountyal.org/board-of-commissioners/",
+    ),
+    # Dale County, AL — Divi ``et_pb_team_member`` commissioner roster.
+    "county_01045": (
+        "https://dalecountyal.org/county-commision/dale-county-alabama-county-commission-commissioners/",
+    ),
     # --- Massachusetts pilot (10 jurisdictions) ---
     # Mayor URLs come first so single-bio mayor pages get crawled before the larger
     # council roster; council URLs follow. See ``scripts/datasources/ma_pilot``.
