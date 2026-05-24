@@ -1976,6 +1976,27 @@ def _contact_ai_min_quality() -> float:
         return 0.42
 
 
+def _contact_ai_min_directory_score() -> int:
+    try:
+        return max(0, min(100, int((os.getenv("SCRAPED_CONTACT_AI_MIN_DIRECTORY_SCORE") or "18").strip())))
+    except ValueError:
+        return 18
+
+
+def _contact_ai_min_person_photo_score() -> int:
+    try:
+        return max(0, min(80, int((os.getenv("SCRAPED_CONTACT_AI_MIN_PERSON_PHOTO_SCORE") or "6").strip())))
+    except ValueError:
+        return 6
+
+
+def _contact_ai_max_pages_per_jurisdiction() -> int:
+    try:
+        return max(1, min(20, int((os.getenv("SCRAPED_CONTACT_AI_MAX_PAGES_PER_JURISDICTION") or "3").strip())))
+    except ValueError:
+        return 3
+
+
 def _structured_contact_page_quality(rows: List[Dict[str, Any]]) -> float:
     """Return a coarse completeness score in [0, 1] for one page's extracted rows."""
     if not rows:
@@ -2005,23 +2026,32 @@ def _should_try_contact_ai_fallback(
     page_url: str,
     html: str,
     directory_score: int,
+    person_adjacent_image_score: int,
     page_structured: List[Dict[str, Any]],
 ) -> bool:
     if not _contact_ai_fallback_enabled():
         return False
     quality = _structured_contact_page_quality(page_structured)
     named_count = _structured_contact_rows_named_count(page_structured)
+    with_profile_image = sum(1 for r in page_structured if str(r.get("profile_image_url") or "").strip())
+    missing_many_images = named_count >= 2 and with_profile_image < max(1, named_count // 2)
     low_confidence = (
         not page_structured
         or quality < _contact_ai_min_quality()
         or (named_count < 2 and directory_score <= _contact_ai_low_confidence_score_max())
+        or missing_many_images
     )
     if not low_confidence:
         return False
+    if (
+        directory_score >= _contact_ai_min_directory_score()
+        and int(person_adjacent_image_score or 0) >= _contact_ai_min_person_photo_score()
+    ):
+        return True
     try:
-        from scripts.discovery.contact_extract_crawl4ai import looks_like_commissioner_page
+        from scripts.discovery.contact_extract_crawl4ai import looks_like_contact_roster_page
 
-        return looks_like_commissioner_page(page_url, html)
+        return looks_like_contact_roster_page(page_url, html)
     except Exception:
         return False
 
@@ -2652,6 +2682,8 @@ class ComprehensiveDiscoveryPipelineJurisdiction:
             structured_contact_rows_accum = list(result.structured_contact_rows)
             contact_directory_pages = list(result.contact_directory_pages)
             contact_profile_images_accum: List[Dict[str, Any]] = list(result.contact_profile_images)
+            ai_fallback_pages_used = 0
+            ai_fallback_pages_limit = _contact_ai_max_pages_per_jurisdiction()
 
             should_seed_home_and_sitemap = resume_mode != "state"
 
@@ -2806,12 +2838,14 @@ class ComprehensiveDiscoveryPipelineJurisdiction:
                             )
                     page_structured = extract_structured_contacts_from_html(html, page_ctx)
                     directory_score = int(cdir.get("score") or 0)
+                    person_adjacent_image_score = int(cdir.get("person_adjacent_image_score") or 0)
                     if _should_try_contact_ai_fallback(
                         page_url=page_ctx,
                         html=html,
                         directory_score=directory_score,
+                        person_adjacent_image_score=person_adjacent_image_score,
                         page_structured=page_structured,
-                    ):
+                    ) and ai_fallback_pages_used < ai_fallback_pages_limit:
                         try:
                             from scripts.discovery.contact_extract_crawl4ai import (
                                 ai_record_to_structured_row,
@@ -2819,6 +2853,7 @@ class ComprehensiveDiscoveryPipelineJurisdiction:
                             )
 
                             heuristic_count = len(page_structured)
+                            ai_fallback_pages_used += 1
                             ai_directory = extract_contact_directory_from_html_sync(
                                 html,
                                 page_ctx,
@@ -2850,6 +2885,14 @@ class ComprehensiveDiscoveryPipelineJurisdiction:
                                 )
                         except Exception as exc:
                             result.errors.append(f"structured_contact_ai_fallback:{page_ctx}:{exc!r}")
+                    elif ai_fallback_pages_used >= ai_fallback_pages_limit:
+                        logger.debug(
+                            "contact_ai_fallback_skipped_limit jurisdiction={} used={} limit={} url={}",
+                            jid,
+                            ai_fallback_pages_used,
+                            ai_fallback_pages_limit,
+                            _meetings_log_url(page_ctx),
+                        )
                     for prow in page_structured:
                         prow["source_page_url"] = page_ctx
                         prow["page_classification"] = str(

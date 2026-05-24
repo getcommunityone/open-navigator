@@ -10,7 +10,9 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
+import os
 from pathlib import Path
+from urllib.parse import urlparse
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -72,12 +74,21 @@ WSGI_APPLICATION = 'civic_odata.wsgi.application'
 
 
 # Database
-# https://docs.djangoproject.com/en/6.0/ref/settings/#databases
+# Use PostgreSQL (OpenStates) by default for Open Civic Data tables.
+_db_url = os.getenv(
+    'OPENSTATES_DATABASE_URL',
+    'postgresql://postgres:password@localhost:5433/openstates',
+)
+_parsed = urlparse(_db_url)
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': (_parsed.path or '/openstates').lstrip('/'),
+        'USER': _parsed.username or 'postgres',
+        'PASSWORD': _parsed.password or 'password',
+        'HOST': _parsed.hostname or 'localhost',
+        'PORT': str(_parsed.port or 5433),
     }
 }
 
@@ -117,6 +128,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
 
 # opencivicdata elections uses legacy NullBooleanField in model declarations.
 # Django 4.x flags this as fields.E903 even though runtime support remains.

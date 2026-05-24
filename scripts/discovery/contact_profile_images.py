@@ -8,7 +8,9 @@ the first file is ``unknown``, then ``unknown_2``, ``unknown_3``, and so on. Job
 
 from __future__ import annotations
 
+import asyncio
 import json
+import os
 import re
 import unicodedata
 from pathlib import Path
@@ -732,6 +734,45 @@ def _extension_from_response(url: str, content_type: str, body: bytes) -> str:
     return ".jpg"
 
 
+def _profile_image_retry_attempts() -> int:
+    try:
+        return max(1, min(5, int((os.getenv("SCRAPED_CONTACT_PROFILE_IMAGE_RETRY_ATTEMPTS") or "3").strip())))
+    except ValueError:
+        return 3
+
+
+def _profile_image_retry_base_delay_s() -> float:
+    try:
+        return max(0.1, min(10.0, float((os.getenv("SCRAPED_CONTACT_PROFILE_IMAGE_RETRY_BASE_DELAY_S") or "0.7").strip())))
+    except ValueError:
+        return 0.7
+
+
+def _profile_image_retry_max_delay_s() -> float:
+    try:
+        return max(0.2, min(30.0, float((os.getenv("SCRAPED_CONTACT_PROFILE_IMAGE_RETRY_MAX_DELAY_S") or "8.0").strip())))
+    except ValueError:
+        return 8.0
+
+
+def _profile_image_per_host_delay_s() -> float:
+    try:
+        ms = int((os.getenv("SCRAPED_CONTACT_PROFILE_IMAGE_PER_HOST_DELAY_MS") or "220").strip())
+        return max(0.0, min(3.0, ms / 1000.0))
+    except ValueError:
+        return 0.22
+
+
+def _retry_after_seconds(retry_after_header: str) -> float:
+    raw = (retry_after_header or "").strip()
+    if not raw:
+        return 0.0
+    try:
+        return max(0.0, min(60.0, float(raw)))
+    except ValueError:
+        return 0.0
+
+
 async def download_profile_images(
     client: httpx.AsyncClient,
     jobs: List[Dict[str, Any]],
@@ -754,6 +795,21 @@ async def download_profile_images(
     stem_counts: Dict[str, int] = {}
     unnamed_seq = 0
     n_ok = 0
+    retry_attempts = _profile_image_retry_attempts()
+    retry_base_delay_s = _profile_image_retry_base_delay_s()
+    retry_max_delay_s = _profile_image_retry_max_delay_s()
+    per_host_delay_s = _profile_image_per_host_delay_s()
+    host_backoff_until: Dict[str, float] = {}
+    host_next_request_at: Dict[str, float] = {}
+
+    async def _wait_for_host_slot(host: str) -> None:
+        if not host:
+            return
+        loop = asyncio.get_running_loop()
+        now = loop.time()
+        until = max(host_backoff_until.get(host, 0.0), host_next_request_at.get(host, 0.0))
+        if until > now:
+            await asyncio.sleep(min(until - now, retry_max_delay_s))
     for job in jobs:
         if n_ok >= max_images:
             break
@@ -769,14 +825,44 @@ async def download_profile_images(
             n = stem_counts.get(stem_base, 0) + 1
             stem_counts[stem_base] = n
             stem = stem_base if n == 1 else f"{stem_base}_{n}"
-        try:
-            r = await client.get(
-                url,
-                follow_redirects=True,
-                headers={"Referer": referer or url},
+        host = (urlparse(url).netloc or "").lower()
+        r: Optional[httpx.Response] = None
+        last_exc: Optional[Exception] = None
+        for attempt in range(1, retry_attempts + 1):
+            await _wait_for_host_slot(host)
+            try:
+                r = await client.get(
+                    url,
+                    follow_redirects=True,
+                    headers={"Referer": referer or url},
+                )
+            except Exception as exc:
+                last_exc = exc
+                if attempt >= retry_attempts:
+                    break
+                delay_s = min(retry_max_delay_s, retry_base_delay_s * (2 ** (attempt - 1)))
+                host_backoff_until[host] = asyncio.get_running_loop().time() + delay_s
+                continue
+
+            host_next_request_at[host] = asyncio.get_running_loop().time() + per_host_delay_s
+            if r.status_code in (429, 502, 503, 504) and attempt < retry_attempts:
+                retry_after = _retry_after_seconds(r.headers.get("Retry-After") or "")
+                delay_s = max(
+                    retry_after,
+                    min(retry_max_delay_s, retry_base_delay_s * (2 ** (attempt - 1))),
+                )
+                host_backoff_until[host] = asyncio.get_running_loop().time() + delay_s
+                continue
+            break
+
+        if r is None:
+            results.append(
+                {
+                    "image_url": url,
+                    "error": f"request:{last_exc!r}" if last_exc else "request:unknown",
+                    "person_stem": stem,
+                }
             )
-        except Exception as exc:
-            results.append({"image_url": url, "error": f"request:{exc!r}", "person_stem": stem})
             continue
         if r.status_code != 200:
             results.append({"image_url": url, "error": f"http_{r.status_code}", "person_stem": stem})

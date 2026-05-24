@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import re
 import sys
 from datetime import datetime, timezone
@@ -38,6 +39,13 @@ from scripts.discovery.comprehensive_discovery_pipeline_jurisdiction import (
 )
 from scripts.discovery.contact_profile_images import download_profile_images
 from scripts.discovery.contacts_bundle import build_contacts_bundle, write_contacts_bundle_json
+
+
+def _ai_fallback_max_pages_per_jurisdiction() -> int:
+    try:
+        return max(1, min(20, int((os.getenv("SCRAPED_CONTACT_AI_MAX_PAGES_PER_JURISDICTION") or "3").strip())))
+    except ValueError:
+        return 3
 
 
 def _structured_contact_page_quality(rows: List[Dict[str, Any]]) -> float:
@@ -68,23 +76,29 @@ def _should_try_ai_fallback(
     page_url: str,
     html: str,
     directory_score: int,
+    person_adjacent_image_score: int,
     page_structured: List[Dict[str, Any]],
     low_confidence_score_max: int,
     min_quality: float,
 ) -> bool:
     quality = _structured_contact_page_quality(page_structured)
     named_count = _structured_contact_rows_named_count(page_structured)
+    with_profile_image = sum(1 for r in page_structured if str(r.get("profile_image_url") or "").strip())
+    missing_many_images = named_count >= 2 and with_profile_image < max(1, named_count // 2)
     low_confidence = (
         not page_structured
         or quality < min_quality
         or (named_count < 2 and directory_score <= low_confidence_score_max)
+        or missing_many_images
     )
     if not low_confidence:
         return False
+    if directory_score >= 18 and int(person_adjacent_image_score or 0) >= 6:
+        return True
     try:
-        from scripts.discovery.contact_extract_crawl4ai import looks_like_commissioner_page
+        from scripts.discovery.contact_extract_crawl4ai import looks_like_contact_roster_page
 
-        return looks_like_commissioner_page(page_url, html)
+        return looks_like_contact_roster_page(page_url, html)
     except Exception:
         return False
 
@@ -181,6 +195,8 @@ def refresh_jurisdiction_contacts(
     fresh_structured: List[Dict[str, Any]] = []
     fresh_cdir: List[Dict[str, Any]] = []
     contact_page_rows: List[Dict[str, Any]] = []
+    ai_fallback_pages_used = 0
+    ai_fallback_pages_limit = _ai_fallback_max_pages_per_jurisdiction()
 
     filter_sub = (page_url_contains or "").strip().lower()
 
@@ -210,6 +226,7 @@ def refresh_jurisdiction_contacts(
             cdir.get("directory_kind") or ("seed_url" if seed_hit else "unknown")
         )
         directory_score = int(cdir.get("score") or 0)
+        person_adjacent_image_score = int(cdir.get("person_adjacent_image_score") or 0)
 
         if use_ai:
             from scripts.discovery.contact_extract_crawl4ai import (
@@ -234,10 +251,11 @@ def refresh_jurisdiction_contacts(
                 page_url=page_url,
                 html=html,
                 directory_score=directory_score,
+                person_adjacent_image_score=person_adjacent_image_score,
                 page_structured=page_structured,
                 low_confidence_score_max=max(0, ai_low_confidence_score_max),
                 min_quality=max(0.0, min(1.0, ai_min_quality)),
-            ):
+            ) and ai_fallback_pages_used < ai_fallback_pages_limit:
                 try:
                     from scripts.discovery.contact_extract_crawl4ai import (
                         ai_record_to_structured_row,
@@ -246,6 +264,7 @@ def refresh_jurisdiction_contacts(
 
                     ai_kwargs = {"provider": ai_provider} if ai_provider else {}
                     heuristic_count = len(page_structured)
+                    ai_fallback_pages_used += 1
                     ai_directory = extract_contact_directory_from_html_sync(
                         html,
                         page_url,
@@ -269,6 +288,11 @@ def refresh_jurisdiction_contacts(
                         )
                 except Exception as exc:
                     print(f"[contact_ai_fallback_error] page={page_url} detail={exc!r}")
+            elif use_ai_fallback and ai_fallback_pages_used >= ai_fallback_pages_limit:
+                print(
+                    f"[contact_ai_fallback_skip_limit] page={page_url} "
+                    f"used={ai_fallback_pages_used} limit={ai_fallback_pages_limit}"
+                )
 
             for prow in page_structured:
                 prow["source_page_url"] = page_url

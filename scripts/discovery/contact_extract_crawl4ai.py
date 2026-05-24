@@ -252,6 +252,39 @@ _COMMISSIONER_HEADING_RE = re.compile(
     r"|board\s+of\s+county\s+commissioners?)\b"
 )
 
+_ROSTER_URL_PATTERNS: tuple = (
+    "board-of-commissioner",
+    "board_of_commissioner",
+    "/commissioners",
+    "/commissioner-",
+    "county-commission",
+    "/boc",
+    "city-council",
+    "town-council",
+    "village-council",
+    "board-of-education",
+    "school-board",
+    "elected-official",
+    "county-official",
+    "/officials",
+    "department-head",
+    "/leadership",
+    "/staff",
+    "contact-directory",
+)
+
+_ROSTER_HEADING_RE = re.compile(
+    r"(?i)\b("
+    r"board\s+of\s+(?:county\s+)?commissioners?"
+    r"|county\s+commission(?:ers?)?"
+    r"|city\s+council|town\s+council|village\s+council"
+    r"|board\s+of\s+education|school\s+board"
+    r"|elected\s+officials?|county\s+officials?"
+    r"|mayor\s+(?:and|&)\s+council"
+    r"|leadership|department\s+heads?|administration"
+    r")\b"
+)
+
 
 def looks_like_commissioner_page(url: str, html: Optional[str] = None) -> bool:
     """Return True when a page is likely a county board-of-commissioners roster.
@@ -269,6 +302,19 @@ def looks_like_commissioner_page(url: str, html: Optional[str] = None) -> bool:
         for m in re.finditer(r"<h[1-3][^>]*>(.*?)</h[1-3]>", html, flags=re.I | re.S):
             text = re.sub(r"<[^>]+>", " ", m.group(1))
             if _COMMISSIONER_HEADING_RE.search(text):
+                return True
+    return False
+
+
+def looks_like_contact_roster_page(url: str, html: Optional[str] = None) -> bool:
+    """Cheap gate for likely contact-roster pages (officials/council/board/staff)."""
+    u = (url or "").lower()
+    if any(p in u for p in _ROSTER_URL_PATTERNS):
+        return True
+    if html:
+        for m in re.finditer(r"<h[1-3][^>]*>(.*?)</h[1-3]>", html, flags=re.I | re.S):
+            text = re.sub(r"<[^>]+>", " ", m.group(1))
+            if _ROSTER_HEADING_RE.search(text):
                 return True
     return False
 
@@ -308,17 +354,34 @@ def _call_llm_for_contacts(
     provider: str,
     api_token: str,
     instruction: str,
-    max_chars: int = 60_000,
+    max_chars: Optional[int] = None,
 ) -> ContactDirectory:
     """Send page markdown to ``provider`` via litellm; parse JSON into ContactDirectory.
 
-    ``max_chars`` caps the markdown length we send (Wix pages can be 600+KB raw;
-    the rendered markdown is ~10% of that, but we trim to keep prompts well
-    under llama-3.1-8b-instant's 131k-token window with headroom).
+    ``max_chars`` caps markdown length sent to the model. If omitted, uses
+    ``SCRAPED_CONTACT_AI_MAX_MARKDOWN_CHARS`` when set, else provider-aware
+    defaults tuned for cost/speed and TPM limits.
     """
     litellm = _ensure_litellm()
+    if max_chars is None:
+        env_raw = (os.getenv("SCRAPED_CONTACT_AI_MAX_MARKDOWN_CHARS") or "").strip()
+        if env_raw:
+            try:
+                max_chars = max(2_000, min(80_000, int(env_raw)))
+            except ValueError:
+                max_chars = None
+    if max_chars is None:
+        prov = (provider or "").lower()
+        if "groq/llama-3.1-8b-instant" in prov:
+            max_chars = 12_000
+        elif "groq/" in prov:
+            max_chars = 18_000
+        else:
+            max_chars = 30_000
     if len(markdown) > max_chars:
-        markdown = markdown[:max_chars]
+        head = int(max_chars * 0.7)
+        tail = max_chars - head
+        markdown = markdown[:head] + "\n\n... [TRUNCATED] ...\n\n" + markdown[-tail:]
     schema = ContactRecord.model_json_schema()
     system_prompt = (
         f"{instruction}\n\n"
