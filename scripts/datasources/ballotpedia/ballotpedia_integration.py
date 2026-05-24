@@ -305,7 +305,15 @@ class BallotpediaDiscovery:
         self.use_playwright_fallback = os.getenv("BALLOTPEDIA_USE_PLAYWRIGHT", "1").strip().lower() not in {"0", "false", "no"}
         self.playwright_only = os.getenv("BALLOTPEDIA_PLAYWRIGHT_ONLY", "1").strip().lower() not in {"0", "false", "no"}
         self.playwright_timeout_ms = int(os.getenv("BALLOTPEDIA_PLAYWRIGHT_TIMEOUT_MS", "45000"))
-        self.playwright_headless = os.getenv("BALLOTPEDIA_PLAYWRIGHT_HEADLESS", "1").strip().lower() not in {"0", "false", "no"}
+        # Supported values: new (default), legacy, headed (or false/0/no/off)
+        self.playwright_headless_mode = os.getenv("BALLOTPEDIA_PLAYWRIGHT_HEADLESS_MODE", "new").strip().lower()
+        if self.playwright_headless_mode in {"0", "false", "no", "off"}:
+            self.playwright_headless_mode = "headed"
+        # Backward compatibility for existing boolean env var.
+        if "BALLOTPEDIA_PLAYWRIGHT_HEADLESS" in os.environ:
+            legacy_headless = os.getenv("BALLOTPEDIA_PLAYWRIGHT_HEADLESS", "1").strip().lower() not in {"0", "false", "no"}
+            self.playwright_headless_mode = "legacy" if legacy_headless else "headed"
+        self.playwright_channel = os.getenv("BALLOTPEDIA_PLAYWRIGHT_CHANNEL", "").strip() or None
         self.debug_verbose = os.getenv("BALLOTPEDIA_DEBUG_VERBOSE", "0").strip().lower() in {"1", "true", "yes"}
         self.playwright_artifact_dir = Path(os.getenv("BALLOTPEDIA_PLAYWRIGHT_ARTIFACT_DIR", "data/cache/ballotpedia/playwright_debug"))
         self.fetch_debug_dir = Path(os.getenv("BALLOTPEDIA_FETCH_DEBUG_DIR", "data/cache/ballotpedia/fetch_debug"))
@@ -677,14 +685,21 @@ class BallotpediaDiscovery:
             if self._page:
                 return self._page
 
+            browser_args = ["--disable-blink-features=AutomationControlled", "--start-maximized"]
+            launch_kwargs: Dict[str, Any] = {
+                "headless": self.playwright_headless_mode != "headed",
+                "args": browser_args,
+            }
+            if self.playwright_headless_mode == "new":
+                launch_kwargs["args"] = [*browser_args, "--headless=new"]
+            if self.playwright_channel:
+                launch_kwargs["channel"] = self.playwright_channel
+
             self._pw = await async_playwright().start()
-            self._browser = await self._pw.chromium.launch(
-                headless=self.playwright_headless,
-                args=["--disable-blink-features=AutomationControlled"],
-            )
+            self._browser = await self._pw.chromium.launch(**launch_kwargs)
             self._context = await self._browser.new_context(
                 user_agent=self.user_agent,
-                viewport={"width": 1366, "height": 768},
+                viewport=None if self.playwright_headless_mode == "headed" else {"width": 1366, "height": 768},
                 locale="en-US",
             )
             await self._context.add_init_script(

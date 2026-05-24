@@ -60,6 +60,18 @@ BALLOTPEDIA_CACHE_DIR = _ROOT / "data" / "cache" / "ballotpedia"
 SCRAPED_MEETINGS_CACHE_DIR = _ROOT / "data" / "cache" / "scraped_meetings"
 
 
+def _run_async(coro: Any, description: str):
+    """Run async work and exit cleanly when interrupted by Ctrl+C."""
+    try:
+        return asyncio.run(coro)
+    except KeyboardInterrupt:
+        logger.warning("Interrupted while %s", description)
+        raise SystemExit(130)
+    except asyncio.CancelledError:
+        logger.warning("Cancelled while %s", description)
+        raise SystemExit(130)
+
+
 def _connect() -> psycopg2.extensions.connection:
     url = os.getenv("NEON_DATABASE_URL_DEV", "").strip()
     if not url:
@@ -616,7 +628,7 @@ def main(argv: list[str] | None = None) -> int:
         bronze_ballotpedia_rows = 0
 
         if not args.dry_run:
-            elections_payload = asyncio.run(api.get_elections())
+            elections_payload = _run_async(api.get_elections(), "fetching Google Civic elections")
             _cache_write(
                 GOOGLE_CACHE_DIR / "elections",
                 "upcoming_elections",
@@ -671,7 +683,10 @@ def main(argv: list[str] | None = None) -> int:
                 total_snapshot_candidacies += delta_candidacies
             return total_snapshot_elections, total_snapshot_candidacies
 
-        bronze_snapshot_elections, bronze_snapshot_candidacies = asyncio.run(_run_all_targets())
+        bronze_snapshot_elections, bronze_snapshot_candidacies = _run_async(
+            _run_all_targets(),
+            "ingesting Google Civic/Ballotpedia jurisdiction targets",
+        )
 
         if not args.dry_run:
             with conn.cursor() as cur:
@@ -724,7 +739,7 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         if ballotpedia is not None:
             try:
-                asyncio.run(ballotpedia.close())
+                _run_async(ballotpedia.close(), "closing Ballotpedia resources")
             except Exception:
                 pass
         conn.close()
