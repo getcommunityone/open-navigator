@@ -1402,6 +1402,7 @@ def extract_cityofwp_staff_cards_contacts_from_html(
         email = ""
         phone = ""
         profile_url = ""
+        profile_image_url = ""
 
         h3 = card.find("h3")
         if h3 is not None:
@@ -1425,6 +1426,16 @@ def extract_cityofwp_staff_cards_contacts_from_html(
             if href and href.startswith(("http://", "https://")):
                 profile_url = href
 
+        img = card.find("img")
+        if img is not None:
+            src = (
+                (img.get("src") or "").strip()
+                or (img.get("data-src") or "").strip()
+                or (img.get("data-lazy-src") or "").strip()
+            )
+            if src:
+                profile_image_url = urljoin(page_url, src)
+
         phone_text = card.get_text(" ", strip=True)
         pm = _PHONE_RE.search(phone_text)
         if pm:
@@ -1447,6 +1458,7 @@ def extract_cityofwp_staff_cards_contacts_from_html(
                 "phone": phone or None,
                 "mailing_address": None,
                 "profile_url": profile_url or None,
+                "profile_image_url": profile_image_url or None,
                 "extraction_method": "cityofwp_staff_card",
                 "raw_row": {"page_url": page_url, "source": "li.mc-staff"},
             }
