@@ -395,6 +395,74 @@ Some states require special setup or API credentials to access their legislative
 - Coverage: All 50 states, historical measures back to 1990s
 - Used for: Tracking fluoridation votes, school bond measures, health policy propositions
 
+### **Power BI Ballot Measures Dashboard** (public embed)
+- Public Power BI report aggregating U.S. state and local ballot measures — headline KPI lists **9,670 ballot measures** at last scrape (2026-05-24).
+- Embed URL: https://app.powerbi.com/view?r=eyJrIjoiYjEwNDI2NTctZDFkMy00ZGM4LWFkMTItNTcwYTdkZmMxMGIxIiwidCI6IjM4MmZiOGIwLTRkYzMtNDEwNy04MGJkLTM1OTViMjQzMmZhZSIsImMiOjZ9
+- Power BI resource key: `b1042657-d1d3-4dc8-ad12-570a7dfc10b1` (tenant `382fb8b0-4dc3-4107-80bd-3595b2432fae`, cluster 6).
+- Publisher: not disclosed in the public embed token; the embed token only exposes the tenant GUID and the resource ID. **TODO:** confirm publisher / data steward with the link source and update this entry with their citation preference.
+- License: not stated on the embed. Treat as the publisher's intellectual property; we only retain the scraped CSV under `data/cache/powerbi_ballot_measures/` for derivative analytics, not redistribution.
+- Used for: cross-referencing third-party ballot-measure aggregates against our own bronze tables (`bronze.bronze_elections_scraped`, `bronze.bronze_ballot_measures_nist`) and as a count-of-record sanity check.
+
+**Our implementation:**
+- Scraper: [scripts/datasources/powerbi_ballot_measures/download_powerbi_ballot_measures.py](scripts/datasources/powerbi_ballot_measures/download_powerbi_ballot_measures.py) — Playwright opens the embed, intercepts every `/public/reports/querydata` XHR, decodes the Power BI DSR (DataShape Result) payload into a CSV, and asserts the row count matches the dashboard KPI (default `--expected-count 9670`).
+- Bronze schema: [scripts/deployment/neon/migrations/056_create_bronze_ballot_measures_powerbi.sql](scripts/deployment/neon/migrations/056_create_bronze_ballot_measures_powerbi.sql).
+- Loader: [scripts/datasources/powerbi_ballot_measures/load_powerbi_ballot_measures_to_bronze.py](scripts/datasources/powerbi_ballot_measures/load_powerbi_ballot_measures_to_bronze.py) — maps scraped columns into denormalized bronze columns, stores the original row as JSONB, and re-verifies post-load count against the same 9,670 KPI.
+
+### **NIST SP 1500-100 — Election Results Reporting Common Data Format (ERR-CDF) / NIST VIP** ⭐
+- Formal, gold-standard schema for U.S. election-day data: contests, candidates, ballot measures, precincts, and results
+- Organization: National Institute of Standards and Technology (NIST), in collaboration with the Voting Information Project (VIP) and the Election Assistance Commission (EAC)
+- Specification (current revision): https://www.nist.gov/itl/voting/interoperability
+- Publication landing page: https://csrc.nist.gov/publications/detail/sp/1500-100/final
+- Election Results Reporting CDF (SP 1500-100): https://pages.nist.gov/ElectionResultsReporting/
+- Schema source (XML/JSON/UML, machine-readable): https://github.com/usnistgov/ElectionResultsReporting
+- Voting Information Project (VIP) feeds (consumer of CDF): https://www.votinginfoproject.org/
+- License: Public Domain (U.S. Government work)
+- Coverage: Federal, state, and local election data — designed for full election-night reporting and pre-election ballot publication
+- Used for: Modeling ballot measures (initiatives, referenda, recalls, bond measures), contests, and selections in a vendor-neutral way that joins cleanly to OCD Division IDs
+
+**Why this schema (vs. OCD or Popolo):**
+- Unlike the Open Civic Data (OCD) specification — which targets legislative tracking (bills, votes, legislators) — and unlike Popolo (people and organizations), NIST SP 1500-100 explicitly defines an entire **election-day** schema with first-class classes for ballot measures and contests.
+- Featured classes used in our bronze + public schemas:
+  - `BallotMeasureContest` — the contest wrapper for an initiative, referendum, or bond
+  - `BallotMeasureSelection` — the valid voter choices (typically "Yes" / "No")
+  - `BallotMeasureType` — enumeration distinguishing `initiative`, `referendum`, `recall`, `other`
+  - `Election`, `ElectionAdministration`, `GpUnit` (Geo-Political Unit) — election + jurisdiction container, joined to OCD Division IDs via `ExternalIdentifier`
+  - `ContestResults`, `BallotMeasureSelectionResults` — vote totals when results are available
+- `GpUnit.ExternalIdentifier` allows direct linkage to `ocd-division/country:us/...` IDs, so our NIST-shaped ballot tables join to OCD-keyed jurisdiction tables without lossy crosswalks.
+
+**Companion VIP specification:**
+- VIP CDF (NIST SP 1500-101): pre-election ballot information (polling places, contests, candidates, ballot measures) — same modeling primitives as SP 1500-100, scoped to *before* the election.
+- VIP spec: https://vip-specification.readthedocs.io/
+
+**Our implementation:**
+- Bronze layer: `dbt_project/models/bronze/bronze_ballot_measures_nist.sql` — landing zone preserving raw NIST `BallotMeasureContest` / `BallotMeasureSelection` shapes from upstream feeds (Ballotpedia, VIP, state SoS XML).
+- Public layer: `dbt_project/models/marts/ballot_measures.sql` — analyst-ready table keyed by `ocd_division_id`, with `ballot_measure_type` enum aligned to NIST `BallotMeasureType`.
+
+**BibTeX:**
+```bibtex
+@techreport{nist_sp1500_100,
+    title       = {Election Results Reporting Common Data Format Specification},
+    author      = {Wack, John and Kiniry, Joseph and Frincke, Deborah and {National Institute of Standards and Technology}},
+    institution = {National Institute of Standards and Technology},
+    number      = {NIST Special Publication 1500-100},
+    year        = {2019},
+    url         = {https://pages.nist.gov/ElectionResultsReporting/},
+    note        = {U.S. Government work; public domain. Defines BallotMeasureContest, BallotMeasureSelection, and BallotMeasureType classes used for election-day reporting.}
+}
+
+@techreport{nist_sp1500_101_vip,
+    title       = {Voting Information Project Common Data Format Specification},
+    author      = {{National Institute of Standards and Technology} and {Voting Information Project}},
+    institution = {National Institute of Standards and Technology},
+    number      = {NIST Special Publication 1500-101},
+    year        = {2019},
+    url         = {https://vip-specification.readthedocs.io/},
+    note        = {Pre-election ballot information CDF; companion to SP 1500-100.}
+}
+```
+
+**Attribution:** Cite as "National Institute of Standards and Technology, *Election Results Reporting Common Data Format Specification*, NIST SP 1500-100. https://pages.nist.gov/ElectionResultsReporting/".
+
 ### **MIT Election Data + Science Lab**
 - Presidential, Congressional, and gubernatorial election results
 - Organization: Massachusetts Institute of Technology

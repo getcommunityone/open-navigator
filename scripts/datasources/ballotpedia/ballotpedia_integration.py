@@ -303,8 +303,11 @@ class BallotpediaDiscovery:
         self.max_retries = 4
         self.base_backoff_seconds = 2.0
         self.use_playwright_fallback = os.getenv("BALLOTPEDIA_USE_PLAYWRIGHT", "1").strip().lower() not in {"0", "false", "no"}
-        self.playwright_only = os.getenv("BALLOTPEDIA_PLAYWRIGHT_ONLY", "1").strip().lower() not in {"0", "false", "no"}
-        self.playwright_timeout_ms = int(os.getenv("BALLOTPEDIA_PLAYWRIGHT_TIMEOUT_MS", "45000"))
+        # Default httpx-first: Playwright is slower and often blocked headless; escalate only on challenge.
+        self.playwright_only = os.getenv("BALLOTPEDIA_PLAYWRIGHT_ONLY", "0").strip().lower() not in {"0", "false", "no"}
+        self.playwright_timeout_ms = int(os.getenv("BALLOTPEDIA_PLAYWRIGHT_TIMEOUT_MS", "60000"))
+        self.inter_request_delay = float(os.getenv("BALLOTPEDIA_INTER_REQUEST_DELAY", "2.0"))
+        self.playwright_content_retries = int(os.getenv("BALLOTPEDIA_PLAYWRIGHT_CONTENT_RETRIES", "3"))
         # Supported values: new (default), legacy, headed (or false/0/no/off)
         self.playwright_headless_mode = os.getenv("BALLOTPEDIA_PLAYWRIGHT_HEADLESS_MODE", "new").strip().lower()
         if self.playwright_headless_mode in {"0", "false", "no", "off"}:
