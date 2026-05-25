@@ -18,6 +18,7 @@ from scripts.discovery.youtube_channel_purpose import (
     has_government_channel_signal,
     has_meeting_purpose_signal,
     is_meeting_primary_purpose,
+    is_tv_public_channel,
     looks_like_non_government_channel,
     min_confidence_for_purpose,
     purpose_requires_explicit_meeting,
@@ -50,7 +51,10 @@ _TRUSTED_DISCOVERY_PREFIXES = (
 )
 
 _CITY_GOVT_TITLE_RE = re.compile(r"\b(?:city|town|village|borough)\s+of\b", re.I)
+_CITY_SUFFIX_TITLE_RE = re.compile(r"\b[a-z0-9][\w.'-]*\s+city\b", re.I)
+_TOWN_OF_TITLE_RE = re.compile(r"\btown\s+of\b", re.I)
 _COMPACT_CITYOF_TITLE_RE = re.compile(r"^cityof[a-z0-9_]+$", re.I)
+_LOCAL_PLACE_KIND_RE = re.compile(r"\b(?:township|borough|village)\b", re.I)
 
 
 def is_localview_discovery(method: str) -> bool:
@@ -202,6 +206,7 @@ def rejection_reason_for_channel(
             str(row.get("channel_description") or ""),
             jurisdiction_type=jurisdiction_type,
             jurisdiction_name=jurisdiction_name,
+            external_links=row.get("external_links"),
         ):
             return "localview_unknown_no_government_signal"
 
@@ -287,6 +292,7 @@ def qualifies_for_bronze_jurisdiction_youtube(
             str(row.get("channel_description") or ""),
             jurisdiction_type=jurisdiction_type,
             jurisdiction_name=jurisdiction_name,
+            external_links=row.get("external_links"),
         ):
             return False
 
@@ -351,22 +357,50 @@ def _has_county_gov_signal(blob: str, county_token: str) -> bool:
     return _county_name_appears_as_county_reference(blob, county_token)
 
 
+def _title_indicates_local_place_government(title: str) -> bool:
+    """True for ``AbingtonTownship``, ``Town of …``, ``Foo borough``, etc."""
+    title_l = (title or "").strip().lower()
+    if not title_l:
+        return False
+    compact = re.sub(r"[^a-z0-9]+", "", title_l)
+    if "township" in compact:
+        return True
+    if _LOCAL_PLACE_KIND_RE.search(title_l):
+        return True
+    if _CITY_SUFFIX_TITLE_RE.search(title_l):
+        return True
+    if _CITY_GOVT_TITLE_RE.search(title_l):
+        return True
+    return False
+
+
+def _title_indicates_township_or_borough(title: str) -> bool:
+    """``AbingtonTownship``, ``Foo Township``, ``X borough`` — not county bodies."""
+    title_l = (title or "").lower()
+    compact = re.sub(r"[^a-z0-9]+", "", title_l)
+    return "township" in compact or bool(re.search(r"\bborough\b", title_l))
+
+
 def _looks_like_city_channel_for_county(
     row: Mapping[str, Any],
     *,
     jurisdiction_name: str,
 ) -> bool:
     """
-    Reject municipal YouTube channels attached to a county jurisdiction.
+    Reject municipal/township YouTube channels attached to a county jurisdiction.
 
     Catches ``City of Dothan AL`` on Houston County (seat city channel), not just
-    ``@CityOfBaxley``-style handles.
+    ``@CityOfBaxley``-style handles. PA townships often say ``Board of Commissioners``
+    in the description — title-level township/borough signals win over that.
     """
     title = str(row.get("channel_title") or "")
     desc = str(row.get("channel_description") or "")
     blob = f"{title} {desc}".lower()
     title_l = title.lower()
     county_token = _county_name_token(jurisdiction_name)
+
+    if is_tv_public_channel(title, desc):
+        return False
 
     if _title_is_compact_cityof_handle(title):
         if _has_county_gov_signal(title_l, county_token):
@@ -376,6 +410,26 @@ def _looks_like_city_channel_for_county(
     if _CITY_GOVT_TITLE_RE.search(title_l):
         # Explicit municipal title wins; do not let description mention of
         # "Dallas County" / "Cullman County" in a city channel bio override.
+        if _has_county_gov_signal(title_l, county_token):
+            return False
+        return True
+
+    if _CITY_SUFFIX_TITLE_RE.search(title_l):
+        if _has_county_gov_signal(title_l, county_token):
+            return False
+        return True
+
+    if re.search(r"\bcity council\b", blob):
+        if _has_county_gov_signal(title_l, county_token):
+            return False
+        return True
+
+    if _title_indicates_township_or_borough(title):
+        if _has_county_gov_signal(title_l, county_token):
+            return False
+        return True
+
+    if _TOWN_OF_TITLE_RE.search(title_l):
         if _has_county_gov_signal(title_l, county_token):
             return False
         return True

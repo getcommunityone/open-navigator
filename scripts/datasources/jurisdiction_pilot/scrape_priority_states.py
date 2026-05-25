@@ -288,6 +288,7 @@ class JurisdictionResult:
     meetings_events_captured: int = 0
     meetings_agendas_captured: int = 0
     meetings_minutes_captured: int = 0
+    municipalities_found: int = 0
     municipality_websites_inserted: int = 0
     seed_urls_attempted: int = 0
     seed_urls_succeeded: int = 0
@@ -455,6 +456,7 @@ def record_checkpoint(batch_id: str, result: JurisdictionResult) -> None:
         "meetings_events_captured": result.meetings_events_captured,
         "meetings_agendas_captured": result.meetings_agendas_captured,
         "meetings_minutes_captured": result.meetings_minutes_captured,
+        "municipalities_found": result.municipalities_found,
         "municipality_websites_inserted": result.municipality_websites_inserted,
         "error": result.error,
         "duration_s": round(result.duration_s, 2),
@@ -1112,6 +1114,7 @@ def _process_one(
                     session=session,
                     html_by_url=html_by_url,
                 )
+                result.municipalities_found = len(muni_rows)
                 if muni_rows:
                     for row in muni_rows:
                         row["jurisdiction_id"] = j.jurisdiction_id
@@ -1512,14 +1515,14 @@ def main(argv: list[str] | None = None) -> int:
                 eta_s = (len(pending) - completed) / rate if rate > 0 else 0
                 logger.info(
                     "[%d/%d] [%s] %s url=%s contacts=%d mayors=%d youtube=%d "
-                    "meetings=%d agendas=%d minutes=%d muni_links=%d yt_events=%d "
+                    "meetings=%d agendas=%d minutes=%d municipalities=%d yt_events=%d "
                     "bronze_el=%d c1_el=%d err=%s | "
                     "totals contacts=%d youtube=%d yt_events=%d c1_el=%d errors=%d | "
                     "rate=%.2f/s ETA=%.0fs",
                     completed, len(pending), j.state_code, j.name, j.website_url,
                     result.contacts_inserted, result.mayor_rows_inserted, result.youtube_inserted,
                     result.meetings_events_captured, result.meetings_agendas_captured,
-                    result.meetings_minutes_captured, result.municipality_websites_inserted,
+                    result.meetings_minutes_captured, result.municipalities_found,
                     result.youtube_events_count,
                     result.bronze_election_rows, result.c1_election_rows,
                     "yes" if result.error or result.election_error else "no",

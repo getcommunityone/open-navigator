@@ -662,6 +662,29 @@ channel_jurisdictions AS (
        AND j.jurisdiction_type = cgc.jurisdiction_type
 ),
 
+/*
+When a channel resolves to a municipality/township/school district, drop the
+parent county from ``jurisdictions`` (place→county crosswalk duplicates).
+*/
+channels_with_subcounty_place AS (
+    SELECT DISTINCT channel_id
+    FROM channel_jurisdictions
+    WHERE jurisdiction_type IN ('municipality', 'township', 'school_district')
+),
+
+channel_jurisdictions_for_agg AS (
+    SELECT cj.*
+    FROM channel_jurisdictions cj
+    WHERE NOT (
+        cj.jurisdiction_type = 'county'
+        AND EXISTS (
+            SELECT 1
+            FROM channels_with_subcounty_place sc
+            WHERE sc.channel_id = cj.channel_id
+        )
+    )
+),
+
 jurisdictions_by_channel AS (
     SELECT
         channel_id,
@@ -679,7 +702,7 @@ jurisdictions_by_channel AS (
         array_agg(jurisdiction_id ORDER BY jurisdiction_id) AS jurisdiction_ids,
         array_agg(DISTINCT state_code ORDER BY state_code) AS state_codes,
         array_agg(DISTINCT state ORDER BY state) AS states
-    FROM channel_jurisdictions
+    FROM channel_jurisdictions_for_agg
     GROUP BY channel_id
 )
 

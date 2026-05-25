@@ -4,6 +4,7 @@ from scripts.discovery.youtube_channel_purpose import (
     classify_channel_purpose,
     has_meeting_purpose_signal,
     is_tv_public_channel,
+    looks_like_community_promo_channel,
 )
 from scripts.discovery.youtube_channel_verification import (
     qualifies_for_bronze_jurisdiction_youtube,
@@ -110,6 +111,20 @@ def test_nantucket_town_meeting_over_tv_public():
         jurisdiction_type="township",
     )
     assert purpose == "municipality-meeting"
+
+
+def test_know_pickens_is_community_promo():
+    assert looks_like_community_promo_channel(
+        "Pickens County",
+        (
+            "Get to Know Pickens County in the North Georgia Mountains with videos of "
+            "government meetings, parades, concerts, events, pets, animals."
+        ),
+        external_links=[
+            {"url": "https://knowpickens.com"},
+            {"url": "https://facebook.com/knowpickens"},
+        ],
+    )
 
 
 def test_county_meeting_qualifies_at_default_threshold():

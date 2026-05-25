@@ -94,6 +94,46 @@ def test_houston_county_rejects_city_of_dothan_channel():
     )
 
 
+def test_abington_township_on_lackawanna_county_is_mismatch():
+    row = {
+        "youtube_channel_url": "https://www.youtube.com/channel/UCVc9zTTGLh7v2kFLOgaLRew",
+        "channel_title": "AbingtonTownship",
+        "channel_description": (
+            "This YouTube channel is dedicated to storing various Board of "
+            "Commissioners meetings, community events, and informational videos."
+        ),
+        "official_meeting_confidence": 0.85,
+        "discovery_method": "derived_from_localview",
+        "external_links": [{"url": "https://abingtonpa.gov", "title": "Abington Township website"}],
+    }
+    assert not qualifies_for_bronze_jurisdiction_youtube(
+        row,
+        jurisdiction_type="county",
+        jurisdiction_name="Lackawanna County",
+        jurisdiction_state_code="PA",
+        jurisdiction_homepage="",
+    )
+
+
+def test_pg_city_on_utah_county_is_mismatch():
+    row = {
+        "youtube_channel_url": "https://www.youtube.com/channel/UCOuXTzn9eDHmjpfFl4oJ2LA",
+        "channel_title": "PG City",
+        "channel_description": (
+            "Watch live video streams and past videos of the Pleasant Grove City Council Meetings."
+        ),
+        "official_meeting_confidence": 0.85,
+        "discovery_method": "derived_from_localview",
+    }
+    assert not qualifies_for_bronze_jurisdiction_youtube(
+        row,
+        jurisdiction_type="county",
+        jurisdiction_name="Utah County",
+        jurisdiction_state_code="UT",
+        jurisdiction_homepage="",
+    )
+
+
 def test_dallas_county_rejects_city_of_selma_even_when_description_mentions_county():
     row = {
         "youtube_channel_url": "https://www.youtube.com/channel/UCUK2CbPoPIa1pqUSBSWiNAQ",
@@ -197,6 +237,40 @@ def test_localview_unknown_without_government_signal_rejected():
         jurisdiction_state_code="MI",
         jurisdiction_homepage="",
     )
+
+
+def test_know_pickens_tourism_channel_rejected_for_county():
+    row = {
+        "youtube_channel_url": "https://www.youtube.com/channel/UCCfgk8u268MtXY7sWUmGA-Q",
+        "channel_title": "Pickens County",
+        "channel_description": (
+            "Get to Know Pickens County in the North Georgia Mountains with videos of "
+            "government meetings, parades, concerts, events, pets, animals, awards, "
+            "veterans, formal balls, and the people in Jasper, Ga."
+        ),
+        "discovery_method": "derived_from_localview",
+        "official_meeting_confidence": 0.85,
+        "back_links_to_jurisdiction_website": False,
+        "external_links": [
+            {"url": "https://knowpickens.com", "title": "Website"},
+            {"url": "https://facebook.com/knowpickens", "title": "Facebook"},
+            {"url": "https://tiktok.com/@knowpicken", "title": "TikTok"},
+        ],
+    }
+    assert not qualifies_for_bronze_jurisdiction_youtube(
+        row,
+        jurisdiction_type="county",
+        jurisdiction_name="Pickens County",
+        jurisdiction_state_code="GA",
+        jurisdiction_homepage="",
+    )
+    assert rejection_reason_for_channel(
+        row,
+        jurisdiction_type="county",
+        jurisdiction_name="Pickens County",
+        jurisdiction_state_code="GA",
+        jurisdiction_homepage="",
+    ) == "non_government_channel"
 
 
 def test_localview_county_meeting_channel_still_accepted():

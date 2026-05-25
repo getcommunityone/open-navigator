@@ -139,7 +139,75 @@ _PERSONAL_SOCIAL_HOSTS = (
     "tiktok.com",
     "twitter.com",
     "x.com",
+    "snapchat.com",
 )
+
+_COMMUNITY_PROMO_SIGNALS = (
+    "get to know",
+    "get to know our",
+    "discover our county",
+    "explore our county",
+)
+
+_NON_MEETING_LEISURE_SIGNALS = (
+    "parades",
+    "concerts",
+    "formal balls",
+    " pets",
+    "pets,",
+    " animals",
+    "animals,",
+    "festivals",
+    "fireworks",
+    "snapchat",
+    "tiktok",
+)
+
+
+def _external_link_urls(external_links: object) -> list[str]:
+    links: list[str] = []
+    if isinstance(external_links, list):
+        for item in external_links:
+            if isinstance(item, str):
+                links.append(item.lower())
+            elif isinstance(item, dict):
+                links.append(str(item.get("url") or "").lower())
+    return links
+
+
+def looks_like_community_promo_channel(
+    channel_title: str,
+    channel_description: str,
+    *,
+    external_links: object = None,
+) -> bool:
+    """
+    Tourism / chamber-style regional promo channels (``Know Pickens``, etc.) that
+    mention some government meetings alongside parades, pets, and social media.
+    """
+    text = _blob(channel_title, channel_description)
+    if any(sig in text for sig in _COMMUNITY_PROMO_SIGNALS):
+        return True
+
+    leisure_hits = sum(1 for sig in _NON_MEETING_LEISURE_SIGNALS if sig in text)
+    mentions_meetings = "government meeting" in text or "government meetings" in text
+    if mentions_meetings and leisure_hits >= 2:
+        return True
+
+    title_l = (channel_title or "").strip().lower()
+    if title_indicates_meeting_channel(channel_title):
+        return False
+
+    links = _external_link_urls(external_links)
+    has_gov_link = any(".gov" in url for url in links)
+    social_hits = sum(
+        1 for url in links if url and any(host in url for host in _PERSONAL_SOCIAL_HOSTS)
+    )
+    bare_county_title = bool(re.match(r"^[a-z .'-]+county$", title_l))
+    if bare_county_title and social_hits >= 2 and not has_gov_link and leisure_hits >= 1:
+        return True
+
+    return False
 
 
 def has_government_channel_signal(
@@ -148,8 +216,15 @@ def has_government_channel_signal(
     *,
     jurisdiction_type: str = "",
     jurisdiction_name: str = "",
+    external_links: object = None,
 ) -> bool:
     """True when title/description look like official or meeting-focused government media."""
+    if looks_like_community_promo_channel(
+        channel_title,
+        channel_description,
+        external_links=external_links,
+    ):
+        return False
     title = channel_title or ""
     desc = channel_description or ""
     text = _blob(title, desc)
@@ -195,24 +270,27 @@ def looks_like_non_government_channel(
     *,
     external_links: object = None,
 ) -> bool:
-    """True for obvious hobby/personal channels (trains, creator stores, etc.)."""
+    """True for hobby/personal channels and regional tourism promo channels."""
+    if looks_like_community_promo_channel(
+        channel_title,
+        channel_description,
+        external_links=external_links,
+    ):
+        return True
+
     text = _blob(channel_title, channel_description)
     if any(sig in text for sig in _NON_GOV_HOBBY_SIGNALS):
         return True
 
-    links: list[str] = []
-    if isinstance(external_links, list):
-        for item in external_links:
-            if isinstance(item, str):
-                links.append(item.lower())
-            elif isinstance(item, dict):
-                links.append(str(item.get("url") or "").lower())
+    links: list[str] = _external_link_urls(external_links)
     has_personal_social = any(
         host in url for url in links for host in _PERSONAL_SOCIAL_HOSTS if url
     )
     has_gov_link = any(".gov" in url for url in links)
     if has_personal_social and not has_gov_link and not has_government_channel_signal(
-        channel_title, channel_description
+        channel_title,
+        channel_description,
+        external_links=external_links,
     ):
         return True
     return False
