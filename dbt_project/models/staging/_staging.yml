@@ -618,6 +618,39 @@ sources:
           - name: completeness_score
           - name: payload
 
+      - name: bronze_events_meetings_counties_scraped
+        description: >
+          One row per scraped URL from county meetings manifests
+          (``load_scraped_meetings_manifests_to_bronze.py``).
+        columns:
+          - name: jurisdiction_id
+          - name: state_code
+          - name: census_geoid
+          - name: resource_kind
+          - name: url
+
+      - name: bronze_events_meetings_municipalities_scraped
+        description: >
+          One row per scraped URL from municipality meetings manifests
+          (``load_scraped_meetings_manifests_to_bronze.py``).
+        columns:
+          - name: jurisdiction_id
+          - name: state_code
+          - name: census_geoid
+          - name: resource_kind
+          - name: url
+
+      - name: bronze_events_meetings_school_districts_scraped
+        description: >
+          One row per scraped URL from school-district meetings manifests
+          (``load_scraped_meetings_manifests_to_bronze.py``).
+        columns:
+          - name: jurisdiction_id
+          - name: state_code
+          - name: census_geoid
+          - name: resource_kind
+          - name: url
+
       - name: bronze_jurisdictions_townships
         description: "Census Gazetteer county subdivision (township/minor civil division) jurisdictions"
         columns:

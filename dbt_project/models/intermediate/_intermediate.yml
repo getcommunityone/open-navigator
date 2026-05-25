@@ -282,6 +282,22 @@ models:
       - name: discovery_method
         description: "Always derived_from_homepage_youtube_link for this model"
 
+  - name: int_jurisdiction_meetings_scrape_youtube_channels
+    description: >
+      YouTube channel URLs from meetings crawl manifests
+      (``bronze_events_meetings_*_scraped``), joined to canonical ``int_jurisdictions``.
+      One row per jurisdiction + normalized channel URL. Feeds
+      ``sync_bronze_jurisdiction_youtube_from_meetings_scrape.py``.
+    columns:
+      - name: jurisdiction_id
+        tests:
+          - not_null
+      - name: channel_url_norm
+        tests:
+          - not_null
+      - name: discovery_method
+        description: "website_scrape for rows from meetings manifest YouTube links"
+
   - name: int_events_channels_enriched
     description: |
       Enriched YouTube channels with event statistics and quality scoring.
