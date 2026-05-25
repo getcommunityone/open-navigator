@@ -3,8 +3,8 @@ Local policy cache layout — mirrors scraped meetings geography + Opus basename
 
 ``data/cache/gemini_transcript_policy/{state}/{type}/{place_slug}_{geoid}/{channel_id}/``
 
-Jurisdiction folders use a place slug + GEOID (e.g. ``anniston_0101852``), not ``municipality_`` / ``county_`` / ``school_district_`` prefixes.
-Bronze ``jurisdiction_id`` values stay typed (``municipality_0101852``).
+Jurisdiction folders and bronze ``jurisdiction_id`` both use ``{place_slug}_{geoid}`` (e.g. ``anniston_0101852``).
+Legacy typed ids (``municipality_0101852``) are still resolved via ``resolve_canonical_jurisdiction_id``.
 
 - ``01_transcripts/`` — YouTube captions (``YYYY-MM-DD_<title>.json``)
 - ``02_analysis/`` — Part 1 structured JSON (same basename)
@@ -60,9 +60,16 @@ _BRONZE_JURISDICTION_TYPE_TO_CACHE = {
     "township": "township",
 }
 
-_JID_TYPED_RE = re.compile(
-    r"^(?P<jtype>county|municipality|state|township|school_district)_(?P<geoid>.+)$"
+from scripts.jurisdictions.jurisdiction_id import (
+    _SLUG_GEOID_RE,
+    _TYPED_JURISDICTION_ID_RE,
+    jurisdiction_pk_from_geoid,
+    parse_jurisdiction_id,
+    place_slug_for_jurisdiction_id,
+    resolve_canonical_jurisdiction_id as _resolve_slug_jurisdiction_id,
 )
+
+_JID_TYPED_RE = _TYPED_JURISDICTION_ID_RE
 _STATE_CODE_RE = re.compile(r"^[A-Za-z]{2}$")
 _YOUTUBE_CHANNEL_ID_RE = re.compile(r"^UC[\w-]{11,}$")
 _NUMERIC_JID_RE = re.compile(r"^[0-9]+$")
@@ -106,11 +113,22 @@ def _place_names_compatible(youtube_name: str, search_name: str) -> bool:
 
 def resolve_canonical_jurisdiction_id(jurisdiction_id: str) -> str:
     """
-    Map legacy ``jurisdiction.id`` (numeric) to ``municipality_{geoid}`` etc.
+    Map legacy numeric / typed ids to canonical ``{place_slug}_{geoid}``.
 
-    Returns the input unchanged when already typed or not numeric.
+    Returns the input unchanged when already canonical or not resolvable.
     """
     jid = (jurisdiction_id or "").strip()
+    if not jid:
+        return jid
+    if _SLUG_GEOID_RE.match(jid) and not _JID_TYPED_RE.match(jid):
+        return jid
+    jt, geoid, _slug = parse_jurisdiction_id(jid)
+    if geoid and jt and _SLUG_GEOID_RE.match(jid):
+        return jid
+    if geoid and jt and not _NUMERIC_JID_RE.fullmatch(jid):
+        name = lookup_jurisdiction_place_name(jid) or ""
+        if name:
+            return _resolve_slug_jurisdiction_id(jid, name=name, jurisdiction_type=jt) or jid
     if not jid or not _NUMERIC_JID_RE.fullmatch(jid):
         return jid
     url = _database_url()
@@ -153,10 +171,6 @@ def resolve_canonical_jurisdiction_id(jurisdiction_id: str) -> str:
         return jid
     if not row:
         return jid
-    from scripts.discovery.jurisdiction_discovery_pipeline import (
-        jurisdiction_pk_from_geoid,
-    )
-
     geoid, stype, search_name, search_state = (
         str(row[0] or ""),
         str(row[1] or ""),
@@ -175,7 +189,7 @@ def resolve_canonical_jurisdiction_id(jurisdiction_id: str) -> str:
         jt = "school_district"
     if "county" in yt_name.lower():
         jt = "county"
-    canonical = jurisdiction_pk_from_geoid(geoid, jt)
+    canonical = jurisdiction_pk_from_geoid(geoid, jt, name=search_name or yt_name)
     return canonical or jid
 
 
@@ -244,20 +258,19 @@ def _legacy_place_slug_for_folder(name: str) -> str:
 
 def jurisdiction_cache_folder_name(jurisdiction_id: str, *, place_name: str | None = None) -> str:
     """
-    Filesystem folder under ``{state}/{type}/`` — ``{place_slug}_{geoid}``.
+    Filesystem folder under ``{state}/{type}/`` — same as canonical ``jurisdiction_id``.
 
-    Example: ``municipality_0101852`` → ``anniston_0101852``.
-
-    When ``place_name`` is supplied (e.g. from ``int_jurisdictions.name``), skip DB lookup.
+    Legacy ``municipality_{geoid}`` is mapped via ``resolve_canonical_jurisdiction_id``.
     """
     jid = resolve_canonical_jurisdiction_id(jurisdiction_id)
-    match = _JID_TYPED_RE.match(jid)
-    if not match:
+    if _SLUG_GEOID_RE.match(jid) and not _JID_TYPED_RE.match(jid):
+        return jid
+    _jt, geoid, _slug = parse_jurisdiction_id(jid)
+    if not geoid:
         safe = re.sub(r"[^A-Za-z0-9._-]+", "_", jid).strip("_")
         return safe[:200] or "unknown"
-    geoid = match.group("geoid")
     place = (place_name or "").strip() or lookup_jurisdiction_place_name(jid) or geoid
-    return f"{_place_slug_for_folder(place)}_{geoid}"
+    return f"{place_slug_for_jurisdiction_id(place)}_{geoid}"
 
 
 def jurisdiction_cache_folder_aliases(
@@ -267,11 +280,8 @@ def jurisdiction_cache_folder_aliases(
 ) -> List[str]:
     """On-disk folder basenames that may exist for one logical jurisdiction."""
     jid = resolve_canonical_jurisdiction_id(jurisdiction_id)
-    match = _JID_TYPED_RE.match(jid)
-    geoid = match.group("geoid") if match else ""
-    place = (place_name or "").strip() or (
-        lookup_jurisdiction_place_name(jid) if match else ""
-    )
+    _jt, geoid, _slug = parse_jurisdiction_id(jid)
+    place = (place_name or "").strip() or (lookup_jurisdiction_place_name(jid) if geoid else "")
     names: List[str] = []
     for candidate in (
         jurisdiction_cache_folder_name(jid, place_name=place_name),
@@ -280,11 +290,16 @@ def jurisdiction_cache_folder_aliases(
     ):
         if candidate and candidate not in names:
             names.append(candidate)
-    if match and place and geoid:
+    if geoid and place:
         legacy_slug = _legacy_place_slug_for_folder(place)
         legacy_folder = f"{legacy_slug}_{geoid}"
         if legacy_folder not in names:
             names.append(legacy_folder)
+        typed = _JID_TYPED_RE.match(jid)
+        if typed:
+            typed_folder = f"{typed.group('jtype').lower()}_{geoid}"
+            if typed_folder not in names:
+                names.append(typed_folder)
     return names
 
 
@@ -323,10 +338,13 @@ def cache_type_segment(
     jurisdiction_type: Optional[str] = None,
 ) -> str:
     """Filesystem segment under ``{state}/`` (e.g. ``municipality``, ``school``)."""
-    jid = (jurisdiction_id or "").strip()
+    jid = resolve_canonical_jurisdiction_id((jurisdiction_id or "").strip())
     match = _JID_TYPED_RE.match(jid)
     if match:
         return _CACHE_TYPE_FROM_TYPED_ID.get(match.group("jtype"), match.group("jtype"))
+    jt, _geoid, _slug = parse_jurisdiction_id(jid)
+    if jt:
+        return _CACHE_TYPE_FROM_TYPED_ID.get(jt, jt)
     raw = (jurisdiction_type or "").strip().lower()
     if raw:
         return _BRONZE_JURISDICTION_TYPE_TO_CACHE.get(raw, raw)

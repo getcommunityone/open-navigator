@@ -16,7 +16,7 @@
 --
 -- After adding denylist rows: ``dbt seed --select jurisdiction_website_domain_denylist`` then rebuild this model.
 -- Curated URLs: ``jurisdiction_website_url_overrides`` seed (``dbt seed --select jurisdiction_website_url_overrides``).
--- Python scrapers rank **override** (this seed) first, then **NACO over GSA** for ``county_*`` ids so
+-- Python scrapers rank **override** (this seed) first, then **NACO over GSA** for county slug ids so
 -- curated and NACo county URLs beat questionable GSA .gov registry matches. **League** municipal
 -- directories union in after USCM with the same name-normalization join pattern.
 

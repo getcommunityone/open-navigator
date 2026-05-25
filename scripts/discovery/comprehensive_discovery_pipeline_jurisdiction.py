@@ -239,6 +239,7 @@ from scripts.discovery.jurisdiction_discovery_pipeline import (
     jurisdiction_pk_from_geoid,
     resolve_database_url,
 )
+from scripts.jurisdictions.jurisdiction_id import parse_jurisdiction_id as _parse_jurisdiction_id
 from scripts.utils.gdrive_paths import (
     resolve_scraped_meetings_output_root,
     scraped_meetings_root_resolution_note,
@@ -1134,12 +1135,6 @@ def _load_homepage_from_db(jurisdiction_id: str) -> Optional[str]:
     return cands[0] if cands else None
 
 
-_JURISDICTION_ID_RE = re.compile(
-    r"^(?P<jtype>county|municipality|state|township|school_district)_(?P<geoid>.+)$",
-    re.I,
-)
-
-
 def _prefer_https_homepage() -> bool:
     return (os.getenv("SCRAPED_MEETINGS_PREFER_HTTPS", "true").strip().lower() not in ("0", "false", "no", "off"))
 
@@ -1220,11 +1215,9 @@ def load_meeting_scrape_jobs_for_state(
             for jid_raw, wurl_raw in cur.fetchall():
                 jid = str(jid_raw or "").strip()
                 wurl = str(wurl_raw or "").strip()
-                m = _JURISDICTION_ID_RE.match(jid)
-                if not m:
+                jt, geoid, _slug = _parse_jurisdiction_id(jid)
+                if not geoid or not jt:
                     continue
-                jt = m.group("jtype").lower()
-                geoid = m.group("geoid").strip()
                 if want and jt != want:
                     continue
                 jobs.append(
@@ -1260,9 +1253,9 @@ def load_meeting_scrape_jobs_for_geoids(
         if not wurl:
             logger.warning("No website_url in DB for jurisdiction_id={}", jid)
             continue
-        m = _JURISDICTION_ID_RE.match(jid)
-        jt = m.group("jtype").lower() if m else (jtype or "municipality").lower()
-        geoid_part = m.group("geoid").strip() if m else g
+        parsed_jt, geoid_part, _slug = _parse_jurisdiction_id(jid)
+        jt = (parsed_jt or jtype or "municipality").lower()
+        geoid_part = geoid_part or g
         jobs.append(
             {
                 "state": st,

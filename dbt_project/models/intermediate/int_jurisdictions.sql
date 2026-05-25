@@ -8,6 +8,11 @@
   )
 }}
 
+/*
+  ``jurisdiction_id`` is propagated from bronze: ``{place_slug}_{geoid}`` (e.g. ``andalusia_0101708``,
+  ``mobile_01097``). States use 2-letter USPS from ``bronze_jurisdictions_states``.
+*/
+
 WITH
 
 -- Nearest ZCTA centroid for non-county jurisdictions (expensive). Off by default; `zip` stays NULL.
@@ -252,6 +257,7 @@ openstates_census_map AS (
 -- GEOID = state_fips(2) + county_fips(3) = 5 chars
 counties AS (
     SELECT
+        jurisdiction_id,
         geoid,
         geoid                   AS fips_code,
         LEFT(geoid, 2)          AS state_fips_code,
@@ -275,6 +281,7 @@ counties AS (
 -- GEOID = state_fips(2) + place_fips(5) = 7 chars
 municipalities AS (
     SELECT
+        m.jurisdiction_id,
         m.geoid,
         m.geoid                                                         AS fips_code,
         LEFT(m.geoid, 2)                                                AS state_fips_code,
@@ -299,6 +306,7 @@ municipalities AS (
 -- GEOID = state_fips(2) + district_code(5) = 7 chars
 school_districts AS (
     SELECT
+        sd.jurisdiction_id,
         sd.geoid,
         sd.geoid                                                        AS fips_code,
         LEFT(sd.geoid, 2)                                               AS state_fips_code,
@@ -323,6 +331,7 @@ school_districts AS (
 -- GEOID = state_fips(2) + county_fips(3) + cousub_fips(5) = 10 chars
 townships AS (
     SELECT
+        bronze.jurisdiction_id_from_place(t.name, t.geoid) AS jurisdiction_id,
         t.geoid,
         t.geoid                         AS fips_code,
         LEFT(t.geoid, 2)                AS state_fips_code,
@@ -347,6 +356,7 @@ townships AS (
 -- GEOID = 2-digit Census state FIPS (e.g. 01, 06). One row per state / DC / PR.
 states AS (
     SELECT
+        jurisdiction_id,
         LPAD(TRIM(geoid), 2, '0')       AS geoid,
         LPAD(TRIM(geoid), 2, '0')       AS fips_code,
         LPAD(TRIM(geoid), 2, '0')       AS state_fips_code,
@@ -383,9 +393,8 @@ unioned AS (
 )
 
 SELECT
-    -- Singleton primary key: type-prefixed GEOID guarantees uniqueness across
-    -- jurisdiction types (municipality and school_district share 7-digit GEOID namespace).
-    u.jurisdiction_type || '_' || u.geoid               AS jurisdiction_id,
+    -- Canonical id from bronze ({place_slug}_{geoid}); states use USPS (e.g. AL).
+    u.jurisdiction_id,
     osc.open_states_jurisdiction_id,
     osc.open_states_jurisdiction_id                     AS openstates_id,
     osc.openstates_name,

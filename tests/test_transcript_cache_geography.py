@@ -18,6 +18,7 @@ from scripts.gemini.transcript_cache_paths import (
 
 def test_cache_type_segment_from_typed_id():
     assert cache_type_segment("municipality_0177256") == "municipality"
+    assert cache_type_segment("tuscaloosa_0177256") == "municipality"
     assert cache_type_segment("school_district_0100005") == "school"
     assert cache_type_segment("5583", jurisdiction_type="city") == "municipality"
 
@@ -28,6 +29,7 @@ def test_jurisdiction_cache_folder_name_strips_nbsp_city_suffix(monkeypatch):
         lambda jid: jid,
     )
     # Census / DB names sometimes use a non-breaking space before ``city``.
+    assert jurisdiction_cache_folder_name("abbeville_0100124") == "abbeville_0100124"
     assert (
         jurisdiction_cache_folder_name(
             "municipality_0100124",

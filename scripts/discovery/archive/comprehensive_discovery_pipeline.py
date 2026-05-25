@@ -833,8 +833,8 @@ class ComprehensiveDiscoveryPipeline:
         else legacy Parquet under ``data/gold/``.
         """
         db_url = (
-            os.getenv("OPEN_NAVIGATOR_DATABASE_URL", "").strip()
-            or os.getenv("NEON_DATABASE_URL_DEV", "").strip()
+            os.getenv("NEON_DATABASE_URL_DEV", "").strip()
+            or os.getenv("OPEN_NAVIGATOR_DATABASE_URL", "").strip()
             or os.getenv("NEON_DATABASE_URL", "").strip()
             or os.getenv("DATABASE_URL", "").strip()
         )

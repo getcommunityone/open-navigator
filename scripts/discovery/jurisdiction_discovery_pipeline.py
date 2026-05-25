@@ -13,7 +13,7 @@ Each completed jurisdiction is **upserted to Postgres immediately** (no waiting 
 **DDL runs automatically** from ``scripts/discovery/sql/bronze_jurisdictions_scraped.sql`` (no separate
 ``psql`` step). Neon deploys may still apply ``009_create_bronze_jurisdictions_scraped.sql`` (same DDL).
 
-Resolves DB URL from ``.env`` / env (``OPEN_NAVIGATOR_DATABASE_URL``, ``NEON_*``, ``DATABASE_URL``),
+Resolves DB URL from ``.env`` / env (``NEON_DATABASE_URL_DEV`` first, then ``OPEN_NAVIGATOR_*``, ``NEON_*``, ``DATABASE_URL``),
 then falls back to local Postgres (see ``scripts.database.target_database_url``).
 
 Usage:
@@ -66,8 +66,8 @@ def _load_repo_dotenv() -> None:
 def resolve_database_url() -> str:
     _load_repo_dotenv()
     url = (
-        os.getenv("OPEN_NAVIGATOR_DATABASE_URL", "").strip()
-        or os.getenv("NEON_DATABASE_URL_DEV", "").strip()
+        os.getenv("NEON_DATABASE_URL_DEV", "").strip()
+        or os.getenv("OPEN_NAVIGATOR_DATABASE_URL", "").strip()
         or os.getenv("NEON_DATABASE_URL", "").strip()
         or os.getenv("DATABASE_URL", "").strip()
     )
@@ -238,26 +238,16 @@ def load_gsa_city_state_domain_map(conn) -> Dict[Tuple[str, str], str]:
     return out
 
 
-def jurisdiction_pk_from_geoid(geoid: Optional[str], jtype: Optional[str]) -> str:
-    """
-    Primary key matching ``int_jurisdictions.jurisdiction_id`` (``{type}_{padded_geoid}``).
+def jurisdiction_pk_from_geoid(
+    geoid: Optional[str],
+    jtype: Optional[str],
+    *,
+    name: Optional[str] = None,
+) -> str:
+    """Primary key matching bronze / ``int_jurisdictions`` (``{place_slug}_{geoid}``)."""
+    from scripts.jurisdictions.jurisdiction_id import jurisdiction_pk_from_geoid as _pk
 
-    Aligns with dbt ``int_jurisdictions`` padding: county 5, municipality/school 7, township 10, state 2.
-    """
-    raw = str(geoid or "").strip().replace("-", "")
-    if not raw or not raw.isdigit():
-        return ""
-    jt = (jtype or "city").lower()
-    if jt == "state":
-        return f"state_{raw.zfill(2)}"
-    if jt == "county":
-        return f"county_{raw.zfill(5)}"
-    if jt in ("school_district", "school"):
-        return f"school_district_{raw.zfill(7)}"
-    if jt == "township":
-        return f"township_{raw.zfill(10)}"
-    # city / municipality / place
-    return f"municipality_{raw.zfill(7)}"
+    return _pk(geoid, jtype, name=name)
 
 
 def load_int_jurisdiction_website_map(conn) -> Dict[str, str]:
@@ -692,6 +682,7 @@ class JurisdictionDiscoveryPipeline(ComprehensiveDiscoveryPipeline):
         pk = jurisdiction_pk_from_geoid(
             str(jurisdiction.get("GEOID") or ""),
             str(jurisdiction.get("type") or "city"),
+            name=str(jurisdiction.get("name") or jurisdiction.get("NAME") or ""),
         )
         if not pk:
             return None
@@ -953,7 +944,11 @@ class JurisdictionDiscoveryPipeline(ComprehensiveDiscoveryPipeline):
             st = j.get("state_code") or ""
             if not geoid:
                 continue
-            pk = jurisdiction_pk_from_geoid(str(geoid), str(jt))
+            pk = jurisdiction_pk_from_geoid(
+                str(geoid),
+                str(jt),
+                name=str(j.get("name") or j.get("NAME") or ""),
+            )
             url = ijw.get(pk) if pk else None
             if not url:
                 continue

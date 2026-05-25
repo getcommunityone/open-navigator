@@ -13,19 +13,30 @@ def _channel_url(ch: Dict[str, Any]) -> str:
     )
 
 
+def _discovery_method_priority(method: Optional[str]) -> int:
+    """Higher = prefer when picking the primary county/city channel."""
+    m = (method or "").strip().lower()
+    if "website_scrape" in m:
+        return 4
+    if m.startswith("pattern_match"):
+        return 3
+    if "domain_search" in m:
+        return 2
+    if m == "youtube_api" or m.startswith("youtube_api"):
+        return 1
+    return 0
+
+
 def youtube_channel_selection_confidence(ch: Dict[str, Any]) -> Optional[float]:
-    """Prefer ``official_meeting_confidence``, then upstream ``confidence``."""
-    for key in ("official_meeting_confidence", "confidence"):
-        raw = ch.get(key)
-        if raw is None:
-            continue
-        try:
-            val = float(raw)
-        except (TypeError, ValueError):
-            continue
-        if val >= 0.0:
-            return val
-    return None
+    """Official-channel score from enrichment (0.0–1.0). Ignores legacy ``confidence`` keys."""
+    raw = ch.get("official_meeting_confidence")
+    if raw is None:
+        return None
+    try:
+        val = float(raw)
+    except (TypeError, ValueError):
+        return None
+    return val if val >= 0.0 else None
 
 
 def pick_primary_youtube_channel(
@@ -34,7 +45,8 @@ def pick_primary_youtube_channel(
     """
     Return ``(youtube_channel_url, selection_method, selection_confidence)``.
 
-    Ranks by selection confidence, then ``video_count``, then ``subscriber_count``.
+    Ranks by ``official_meeting_confidence``, then discovery-method priority,
+    then ``video_count`` / ``subscriber_count``.
     """
     candidates: List[Dict[str, Any]] = []
     for ch in youtube_channels or []:
@@ -47,7 +59,8 @@ def pick_primary_youtube_channel(
     if not candidates:
         return None, None, None
 
-    def sort_key(ch: Dict[str, Any]) -> Tuple[float, int, int, str]:
+    def sort_key(ch: Dict[str, Any]) -> Tuple[int, float, int, int, str]:
+        method = str(ch.get("discovery_method") or ch.get("youtube_channel_selection_method") or "")
         conf = youtube_channel_selection_confidence(ch) or 0.0
         try:
             videos = int(ch.get("video_count") or 0)
@@ -57,7 +70,13 @@ def pick_primary_youtube_channel(
             subs = int(ch.get("subscriber_count") or 0)
         except (TypeError, ValueError):
             subs = 0
-        return (conf, videos, subs, _channel_url(ch))
+        return (
+            _discovery_method_priority(method),
+            conf,
+            videos,
+            subs,
+            _channel_url(ch),
+        )
 
     best = max(candidates, key=sort_key)
     url = _channel_url(best) or None

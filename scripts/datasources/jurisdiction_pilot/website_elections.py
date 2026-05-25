@@ -11,7 +11,7 @@ import json
 import logging
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -54,6 +54,17 @@ def _stable_id(prefix: str, key: str) -> str:
     return f"ocd-{prefix}/{uuid.uuid5(_UUID_NS, key)}"
 
 
+def _json_safe(value: Any) -> Any:
+    """Coerce ``date`` / ``datetime`` in nested dicts for ``psycopg2.extras.Json``."""
+    if isinstance(value, (date, datetime)):
+        return value.isoformat()
+    if isinstance(value, dict):
+        return {k: _json_safe(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_json_safe(v) for v in value]
+    return value
+
+
 def _insert_bronze_row(cur, *, scrape_batch_id: uuid.UUID, record_type: str, ocd_id: str, **fields: Any) -> None:
     cur.execute(
         """
@@ -94,7 +105,7 @@ def _insert_bronze_row(cur, *, scrape_batch_id: uuid.UUID, record_type: str, ocd
             fields.get("measure_outcome"),
             fields.get("source_url"),
             WEBSITE_SOURCE_NAME,
-            Json(fields.get("raw_row") or {}),
+            Json(_json_safe(fields.get("raw_row") or {})),
         ),
     )
 

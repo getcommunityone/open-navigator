@@ -8,7 +8,7 @@ def test_pick_primary_prefers_official_meeting_confidence():
         {
             "channel_url": "https://www.youtube.com/@low",
             "discovery_method": "pattern_match",
-            "confidence": 0.95,
+            "confidence": 0.95,  # legacy upstream field — ignored for ranking
             "official_meeting_confidence": 0.2,
         },
         {
@@ -26,3 +26,46 @@ def test_pick_primary_prefers_official_meeting_confidence():
 
 def test_pick_primary_empty():
     assert pick_primary_youtube_channel([]) == (None, None, None)
+
+
+def test_pick_primary_prefers_homepage_scrape_over_youtube_api():
+    channels = [
+        {
+            "channel_url": "https://www.youtube.com/channel/UCwrong",
+            "discovery_method": "youtube_api",
+            "official_meeting_confidence": 0.3,
+            "video_count": 900,
+        },
+        {
+            "channel_url": "https://www.youtube.com/@whitleycountygovernment",
+            "discovery_method": "website_scrape",
+            "official_meeting_confidence": 0.9,
+            "video_count": 1,
+        },
+    ]
+    url, method, conf = pick_primary_youtube_channel(channels)
+    assert url == "https://www.youtube.com/@whitleycountygovernment"
+    assert method == "website_scrape"
+    assert conf == 0.9
+
+
+def test_pick_primary_ignores_legacy_confidence_without_official_score():
+    """Method priority still breaks ties when only legacy ``confidence`` is present."""
+    channels = [
+        {
+            "channel_url": "https://www.youtube.com/channel/UCwrong",
+            "discovery_method": "youtube_api",
+            "confidence": 0.99,
+            "video_count": 900,
+        },
+        {
+            "channel_url": "https://www.youtube.com/@whitleycountygovernment",
+            "discovery_method": "website_scrape",
+            "confidence": 0.1,
+            "video_count": 1,
+        },
+    ]
+    url, method, conf = pick_primary_youtube_channel(channels)
+    assert url == "https://www.youtube.com/@whitleycountygovernment"
+    assert method == "website_scrape"
+    assert conf is None

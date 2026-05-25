@@ -32,6 +32,14 @@ Usage:
     
     # Fetch text transcripts only (no VTT downloads, faster and cleaner)
     python scripts/datasources/youtube/load_youtube_events_to_postgres.py --text-transcripts-only
+
+    # Priority states: county channels from bronze_jurisdictions_counties_scraped (Neon dev)
+    python scripts/datasources/youtube/load_youtube_events_to_postgres.py \\
+        --channel-source counties-scraped --states AL,GA,IN,MA,WA,WI --workers 4
+
+    # Same for municipalities with youtube_channel_url on municipalities_scraped
+    python scripts/datasources/youtube/load_youtube_events_to_postgres.py \\
+        --channel-source municipalities-scraped --states AL,GA,IN,MA,WA,WI --workers 4
 """
 
 import os
@@ -39,9 +47,11 @@ import sys
 import re
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Tuple
+from collections import Counter
 import argparse
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
@@ -68,13 +78,65 @@ from scripts.datasources.youtube.channel_about_links import (
     ensure_bronze_events_channels_link_columns,
 )
 from scripts.gemini.transcript_cache_paths import resolve_meeting_event_date
+from scripts.datasources.jurisdiction_pilot.scrape_priority_states import DEFAULT_PRIORITY_STATES
 
 # Load environment variables
-load_dotenv()
+load_dotenv(_root := Path(__file__).resolve().parents[3])
+load_dotenv(_root / ".env")
 
-# Database connection
-DATABASE_URL = os.getenv('NEON_DATABASE_URL_DEV', 'postgresql://postgres:password@localhost:5433/open_navigator')
-YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY')
+
+def resolve_loader_database_url() -> str:
+    """Match discovery loaders: Neon dev first."""
+    return (
+        (os.getenv("NEON_DATABASE_URL_DEV") or "").strip()
+        or (os.getenv("OPEN_NAVIGATOR_DATABASE_URL") or "").strip()
+        or (os.getenv("NEON_DATABASE_URL") or "").strip()
+        or (os.getenv("DATABASE_URL") or "").strip()
+        or "postgresql://postgres:password@localhost:5433/open_navigator"
+    )
+
+
+DATABASE_URL = resolve_loader_database_url()
+YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
+
+_CHANNEL_ID_RE = re.compile(r"/channel/((?:UC)[A-Za-z0-9_-]{20,})", re.I)
+_HANDLE_RE = re.compile(r"youtube\.com/@([^/?#]+)", re.I)
+_UC_ID_CAPTURE = r"((?:UC)[A-Za-z0-9_-]{22})"
+# ytInitialData / player response embeds (incl. subscribeEndpoint.channelIds)
+_HTML_CHANNEL_ID_PATTERNS: Tuple[Tuple[str, re.Pattern[str]], ...] = (
+    ("subscribeEndpoint.channelIds", re.compile(
+        rf'"subscribeEndpoint"\s*:\s*\{{[^{{}}]*"channelIds"\s*:\s*\[\s*"{_UC_ID_CAPTURE}"',
+        re.I,
+    )),
+    ("channelId", re.compile(rf'"channelId"\s*:\s*"{_UC_ID_CAPTURE}"', re.I)),
+    ("externalId", re.compile(rf'"externalId"\s*:\s*"{_UC_ID_CAPTURE}"', re.I)),
+    ("browseId", re.compile(rf'"browseId"\s*:\s*"{_UC_ID_CAPTURE}"', re.I)),
+    ("channelMetadataRenderer", re.compile(
+        rf'"channelMetadataRenderer"[^{{}}]*"externalId"\s*:\s*"{_UC_ID_CAPTURE}"',
+        re.I | re.DOTALL,
+    )),
+    ("canonicalUrl", re.compile(
+        rf"https?://www\.youtube\.com/channel/{_UC_ID_CAPTURE}",
+        re.I,
+    )),
+    ("rssFeed", re.compile(
+        rf"feeds/videos\.xml\?channel_id={_UC_ID_CAPTURE}",
+        re.I,
+    )),
+)
+
+
+def _process_jurisdiction_worker(
+    database_url: str,
+    jurisdiction: Dict[str, Any],
+    loader_kwargs: Dict[str, Any],
+) -> int:
+    """Thread worker: own DB connection and loader per jurisdiction."""
+    loader = YouTubeEventsLoader(database_url=database_url, **loader_kwargs)
+    try:
+        return loader.process_jurisdiction(jurisdiction)
+    finally:
+        loader.close()
 
 
 class YouTubeEventsLoader:
@@ -94,6 +156,10 @@ class YouTubeEventsLoader:
         cookies_file: Optional[str] = None,
         proxy_url: Optional[str] = None,
         ensure_schema_setup: bool = True,
+        transcript_workers: int = 1,
+        max_transcripts_per_channel: Optional[int] = None,
+        resolve_channels_ytdlp: Optional[bool] = None,
+        persist_scraped_channel_ids: bool = True,
     ):
         # Sanitize database URL to fix common connection issues (Neon channel_binding)
         self.database_url = self._sanitize_database_url(database_url)
@@ -107,13 +173,31 @@ class YouTubeEventsLoader:
         self.use_ytdlp_fallback = use_ytdlp_fallback  # Whether to fall back to yt-dlp when youtube_transcript_api fails
         self.cookies_file = cookies_file  # Path to cookies.txt file for authenticated requests
         self.proxy_url = proxy_url  # Proxy URL to bypass IP blocks
-        
+        self.transcript_workers = max(1, int(transcript_workers or 1))
+        self.max_transcripts_per_channel = (
+            max(0, int(max_transcripts_per_channel))
+            if max_transcripts_per_channel is not None
+            else None
+        )
+        if self.max_transcripts_per_channel == 0:
+            self.max_transcripts_per_channel = None
+
+        env_ytdlp = (os.getenv("YOUTUBE_RESOLVE_CHANNELS_YTDLP") or "").strip().lower()
+        if resolve_channels_ytdlp is None:
+            resolve_channels_ytdlp = env_ytdlp in ("1", "true", "yes", "on")
+        self.resolve_channels_ytdlp = bool(resolve_channels_ytdlp)
+        self._youtube_api_quota_exceeded = False
+        self.persist_scraped_channel_ids = bool(persist_scraped_channel_ids)
+        self._scraped_channel_id_columns_ready: set[str] = set()
+
         # Initialize YouTube scraper with cookies/proxy support
         self.scraper = MunicipalYouTubeScraper(
             api_key=youtube_api_key,
             cookies_file=cookies_file,
             proxy_url=proxy_url
         )
+        if self.resolve_channels_ytdlp or not youtube_api_key:
+            self.scraper.use_ytdlp_fallback = True
         
         # Connect to database
         self.conn = psycopg2.connect(self.database_url)
@@ -537,18 +621,530 @@ class YouTubeEventsLoader:
         finally:
             cursor.close()
     
-    def get_jurisdictions_with_youtube(
+    @staticmethod
+    def _is_youtube_api_quota_error(exc: Exception) -> bool:
+        msg = str(exc)
+        return (
+            "quotaExceeded" in msg
+            or "youtube.quota" in msg
+            or "exceeded your" in msg.lower()
+        )
+
+    @staticmethod
+    def _extract_channel_id_from_youtube_html(
+        html: str,
+        *,
+        final_url: str = "",
+    ) -> Optional[str]:
+        """
+        Parse ``UC…`` from public channel page HTML (ytInitialData), no API quota.
+
+        Includes ``subscribeEndpoint.channelIds`` (e.g. @OfficialBaldwin → UCeV9EK3GqBVa6tgCjpIzXlA).
+        """
+        if not html:
+            return None
+        normalized = html.replace("\\/", "/")
+        for url in (final_url,):
+            m = _CHANNEL_ID_RE.search(url or "")
+            if m:
+                return m.group(1)
+        counts: Counter[str] = Counter()
+        for _label, pattern in _HTML_CHANNEL_ID_PATTERNS:
+            for match in pattern.finditer(normalized):
+                cid = match.group(1)
+                if cid.startswith("UC") and len(cid) >= 24:
+                    counts[cid] += 3 if _label == "subscribeEndpoint.channelIds" else 1
+        if not counts:
+            return None
+        cid, _hits = counts.most_common(1)[0]
+        return cid
+
+    def _youtube_cookie_header(self) -> Optional[str]:
+        path = (self.cookies_file or "").strip()
+        if not path or not Path(path).is_file():
+            return None
+        try:
+            from http.cookiejar import MozillaCookieJar
+
+            jar = MozillaCookieJar(path)
+            jar.load(ignore_discard=True, ignore_expires=True)
+            parts = [
+                f"{c.name}={c.value}"
+                for c in jar
+                if "youtube.com" in (c.domain or "")
+            ]
+            return "; ".join(parts) if parts else None
+        except Exception as exc:
+            logger.debug("Could not load cookies for channel page fetch: {}", exc)
+            return None
+
+    def _resolve_handle_via_page_html(self, handle: str) -> Optional[str]:
+        """GET ``/@handle`` (and /videos) and scrape embedded channel id from page source."""
+        if not handle:
+            return None
+        try:
+            import httpx
+        except ImportError:
+            return None
+
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            ),
+            "Accept-Language": "en-US,en;q=0.9",
+        }
+        cookie_header = self._youtube_cookie_header()
+        if cookie_header:
+            headers["Cookie"] = cookie_header
+
+        for suffix in ("", "/videos", "/about"):
+            page_url = f"https://www.youtube.com/@{handle}{suffix}"
+            try:
+                with httpx.Client(
+                    follow_redirects=True,
+                    timeout=30.0,
+                    headers=headers,
+                ) as client:
+                    resp = client.get(page_url)
+                    resp.raise_for_status()
+                cid = self._extract_channel_id_from_youtube_html(
+                    resp.text,
+                    final_url=str(resp.url),
+                )
+                if cid:
+                    logger.info(
+                        "Resolved @{} → {} from page HTML ({})",
+                        handle,
+                        cid,
+                        suffix or "/",
+                    )
+                    return cid
+            except Exception as exc:
+                logger.debug("Page fetch failed for @{}{}: {}", handle, suffix, exc)
+        return None
+
+    def _resolve_handle_without_api(self, handle: str) -> Optional[str]:
+        """yt-dlp tab extract, then HTML ytInitialData (subscribeEndpoint, channelId, …)."""
+        if not handle:
+            return None
+        for suffix in ("/videos", "/streams", ""):
+            tab_url = f"https://www.youtube.com/@{handle}{suffix}"
+            entries, _ = self.scraper._ytdlp_extract_tab_entries(tab_url, max_results=3)
+            for entry in entries:
+                cid = str(entry.get("channel_id") or "").strip()
+                if cid.startswith("UC"):
+                    return cid
+            if entries:
+                uploader_id = str((entries[0] or {}).get("uploader_id") or "").strip()
+                if uploader_id.startswith("UC"):
+                    return uploader_id
+        return self._resolve_handle_via_page_html(handle)
+
+    def resolve_channel_id_from_url(self, channel_url: str) -> Tuple[Optional[str], str]:
+        """Resolve a UC channel id from ``/channel/UC…`` or ``@handle`` URLs."""
+        url = (channel_url or "").strip()
+        if not url:
+            return None, url
+
+        match = _CHANNEL_ID_RE.search(url)
+        if match:
+            channel_id = match.group(1)
+            return channel_id, f"https://www.youtube.com/channel/{channel_id}"
+
+        handle_match = _HANDLE_RE.search(url)
+        if handle_match:
+            handle = handle_match.group(1)
+
+            channel_id = self._resolve_handle_without_api(handle)
+            if channel_id:
+                return channel_id, f"https://www.youtube.com/channel/{channel_id}"
+
+            if (
+                not self.resolve_channels_ytdlp
+                and not self._youtube_api_quota_exceeded
+                and self.scraper.youtube
+            ):
+                try:
+                    response = (
+                        self.scraper.youtube.channels()
+                        .list(part="id", forHandle=handle)
+                        .execute()
+                    )
+                    items = response.get("items") or []
+                    if items:
+                        channel_id = str(items[0]["id"])
+                        return channel_id, f"https://www.youtube.com/channel/{channel_id}"
+                except Exception as exc:
+                    if self._is_youtube_api_quota_error(exc):
+                        self._youtube_api_quota_exceeded = True
+                        self.scraper.use_ytdlp_fallback = True
+                        logger.warning(
+                            "YouTube Data API quota exceeded — resolving @{} via yt-dlp only",
+                            handle,
+                        )
+                    else:
+                        logger.debug("forHandle lookup failed for @{}: {}", handle, exc)
+
+            logger.debug("Could not resolve channel id for @{} (yt-dlp + page HTML + API)", handle)
+
+        return None, url
+
+    _SCRAPED_CHANNEL_TABLES = {
+        "counties-scraped": "bronze.bronze_jurisdictions_counties_scraped",
+        "municipalities-scraped": "bronze.bronze_jurisdictions_municipalities_scraped",
+    }
+
+    def _ensure_scraped_youtube_channel_id_column(self, table: str) -> None:
+        if table in self._scraped_channel_id_columns_ready:
+            return
+        cursor = self.conn.cursor()
+        try:
+            cursor.execute(
+                f"""
+                ALTER TABLE {table}
+                ADD COLUMN IF NOT EXISTS youtube_channel_id TEXT
+                """
+            )
+            self.conn.commit()
+            self._scraped_channel_id_columns_ready.add(table)
+        finally:
+            cursor.close()
+
+    def persist_scraped_channel_resolution(
+        self,
+        *,
+        table: str,
+        geoid: str,
+        channel_id: str,
+        canonical_url: str,
+    ) -> bool:
+        """Write resolved ``UC…`` id and canonical channel URL when id was missing."""
+        if not self.persist_scraped_channel_ids:
+            return False
+        gid = (geoid or "").strip()
+        cid = (channel_id or "").strip()
+        curl = (canonical_url or "").strip()
+        if not gid or not cid.startswith("UC"):
+            return False
+        if not curl.startswith("http"):
+            curl = f"https://www.youtube.com/channel/{cid}"
+
+        self._ensure_scraped_youtube_channel_id_column(table)
+        cursor = self.conn.cursor()
+        try:
+            cursor.execute(
+                f"""
+                UPDATE {table}
+                SET youtube_channel_id = %s,
+                    youtube_channel_url = %s
+                WHERE geoid = %s
+                  AND (
+                        youtube_channel_id IS NULL
+                        OR BTRIM(youtube_channel_id) = ''
+                  )
+                """,
+                (cid, curl, gid),
+            )
+            updated = cursor.rowcount > 0
+            self.conn.commit()
+            if updated:
+                logger.info(
+                    "Updated {} geoid={} youtube_channel_id={}",
+                    table.split(".")[-1],
+                    gid,
+                    cid,
+                )
+            return updated
+        except Exception as exc:
+            self.conn.rollback()
+            logger.warning(
+                "Failed to persist youtube_channel_id on {} geoid={}: {}",
+                table,
+                gid,
+                exc,
+            )
+            return False
+        finally:
+            cursor.close()
+
+    def backfill_scraped_channel_ids(
+        self,
+        *,
+        channel_source: str,
+        states_filter: Optional[List[str]] = None,
+        jurisdiction_id: Optional[str] = None,
+    ) -> int:
+        """Resolve and persist ``youtube_channel_id`` for scraped rows that only have a URL."""
+        table = self._SCRAPED_CHANNEL_TABLES.get(channel_source)
+        if not table:
+            logger.warning("backfill_scraped_channel_ids: unsupported source {}", channel_source)
+            return 0
+
+        self._ensure_scraped_youtube_channel_id_column(table)
+        cursor = self.conn.cursor(cursor_factory=RealDictCursor)
+        query = f"""
+            SELECT geoid, jurisdiction_id, BTRIM(youtube_channel_url) AS youtube_channel_url,
+                   BTRIM(youtube_channel_id) AS youtube_channel_id
+            FROM {table}
+            WHERE youtube_channel_url IS NOT NULL
+              AND BTRIM(youtube_channel_url) <> ''
+              AND (
+                    youtube_channel_id IS NULL
+                    OR BTRIM(youtube_channel_id) = ''
+              )
+        """
+        params: list[Any] = []
+        if states_filter:
+            query += " AND upper(btrim(usps::text)) = ANY(%s)"
+            params.append([s.upper() for s in states_filter])
+        if jurisdiction_id:
+            query += " AND jurisdiction_id = %s"
+            params.append(jurisdiction_id.strip())
+        query += " ORDER BY usps, geoid"
+
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        cursor.close()
+
+        updated = 0
+        skipped = 0
+        for row in rows:
+            url = str(row["youtube_channel_url"] or "").strip()
+            channel_id, canonical_url = self.resolve_channel_id_from_url(url)
+            if not channel_id:
+                skipped += 1
+                logger.warning(
+                    "backfill skip {} — could not resolve {}",
+                    row.get("jurisdiction_id") or row.get("geoid"),
+                    url,
+                )
+                continue
+            if self.persist_scraped_channel_resolution(
+                table=table,
+                geoid=str(row["geoid"]),
+                channel_id=channel_id,
+                canonical_url=canonical_url,
+            ):
+                updated += 1
+
+        logger.info(
+            "backfill_scraped_channel_ids: {} updated, {} skipped (of {} rows)",
+            updated,
+            skipped,
+            len(rows),
+        )
+        return updated
+
+    def get_jurisdictions_from_counties_scraped(
         self,
         states_filter: Optional[List[str]] = None,
         jurisdiction_id: Optional[str] = None,
     ) -> List[Dict]:
+        """County jurisdictions with ``youtube_channel_url`` on ``bronze_jurisdictions_counties_scraped``."""
+        cursor = self.conn.cursor(cursor_factory=RealDictCursor)
+        query = """
+            SELECT
+                s.geoid,
+                s.usps AS state_code,
+                COALESCE(j.state, s.usps) AS state,
+                s.jurisdiction_id,
+                COALESCE(j.name, s.jurisdiction_id) AS jurisdiction_name,
+                COALESCE(j.jurisdiction_type, 'county') AS jurisdiction_type,
+                BTRIM(s.youtube_channel_url) AS youtube_channel_url,
+                BTRIM(s.youtube_channel_id) AS youtube_channel_id,
+                s.youtube_channel_selection_method,
+                s.youtube_channel_selection_confidence
+            FROM bronze.bronze_jurisdictions_counties_scraped s
+            LEFT JOIN intermediate.int_jurisdictions j
+                ON j.jurisdiction_id = s.jurisdiction_id
+            WHERE s.youtube_channel_url IS NOT NULL
+              AND BTRIM(s.youtube_channel_url) <> ''
+        """
+        params: list[Any] = []
+        if states_filter:
+            query += " AND upper(btrim(s.usps::text)) = ANY(%s)"
+            params.append([s.upper() for s in states_filter])
+        if jurisdiction_id:
+            query += " AND s.jurisdiction_id = %s"
+            params.append(jurisdiction_id.strip())
+        query += " ORDER BY s.usps, jurisdiction_name"
+
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        cursor.close()
+
+        jurisdictions: List[Dict] = []
+        for row in rows:
+            channel_url = str(row["youtube_channel_url"] or "").strip()
+            stored_id = str(row.get("youtube_channel_id") or "").strip()
+            if stored_id.startswith("UC"):
+                channel_id = stored_id
+                normalized_url = (
+                    channel_url
+                    if _CHANNEL_ID_RE.search(channel_url)
+                    else f"https://www.youtube.com/channel/{channel_id}"
+                )
+            else:
+                channel_id, normalized_url = self.resolve_channel_id_from_url(channel_url)
+                if channel_id:
+                    self.persist_scraped_channel_resolution(
+                        table="bronze.bronze_jurisdictions_counties_scraped",
+                        geoid=str(row["geoid"]),
+                        channel_id=channel_id,
+                        canonical_url=normalized_url,
+                    )
+            if not channel_id:
+                logger.warning(
+                    "Skipping {} — could not resolve channel id from {}",
+                    row["jurisdiction_id"],
+                    channel_url,
+                )
+                continue
+            jurisdictions.append(
+                {
+                    "jurisdiction_id": row["jurisdiction_id"],
+                    "jurisdiction_name": row["jurisdiction_name"],
+                    "state_code": row["state_code"],
+                    "state": row["state"],
+                    "jurisdiction_type": row["jurisdiction_type"],
+                    "youtube_channels": [
+                        {
+                            "channel_id": channel_id,
+                            "channel_url": normalized_url,
+                            "channel_title": row["jurisdiction_name"],
+                            "channel_type": "county",
+                            "discovery_method": row.get("youtube_channel_selection_method")
+                            or "counties_scraped",
+                            "confidence": row.get("youtube_channel_selection_confidence"),
+                        }
+                    ],
+                    "youtube_channel_count": 1,
+                }
+            )
+
+        logger.info(
+            "Found {} counties with YouTube channels (source=bronze.bronze_jurisdictions_counties_scraped)",
+            len(jurisdictions),
+        )
+        return jurisdictions
+
+    def get_jurisdictions_from_municipalities_scraped(
+        self,
+        states_filter: Optional[List[str]] = None,
+        jurisdiction_id: Optional[str] = None,
+    ) -> List[Dict]:
+        """Municipality jurisdictions with ``youtube_channel_url`` on ``bronze_jurisdictions_municipalities_scraped``."""
+        cursor = self.conn.cursor(cursor_factory=RealDictCursor)
+        query = """
+            SELECT
+                s.geoid,
+                s.usps AS state_code,
+                COALESCE(j.state, s.usps) AS state,
+                s.jurisdiction_id,
+                COALESCE(j.name, s.jurisdiction_id) AS jurisdiction_name,
+                COALESCE(j.jurisdiction_type, 'municipality') AS jurisdiction_type,
+                BTRIM(s.youtube_channel_url) AS youtube_channel_url,
+                BTRIM(s.youtube_channel_id) AS youtube_channel_id,
+                s.youtube_channel_selection_method,
+                s.youtube_channel_selection_confidence
+            FROM bronze.bronze_jurisdictions_municipalities_scraped s
+            LEFT JOIN intermediate.int_jurisdictions j
+                ON j.jurisdiction_id = s.jurisdiction_id
+            WHERE s.youtube_channel_url IS NOT NULL
+              AND BTRIM(s.youtube_channel_url) <> ''
+        """
+        params: list[Any] = []
+        if states_filter:
+            query += " AND upper(btrim(s.usps::text)) = ANY(%s)"
+            params.append([s.upper() for s in states_filter])
+        if jurisdiction_id:
+            query += " AND s.jurisdiction_id = %s"
+            params.append(jurisdiction_id.strip())
+        query += " ORDER BY s.usps, jurisdiction_name"
+
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        cursor.close()
+
+        jurisdictions: List[Dict] = []
+        municipalities_table = "bronze.bronze_jurisdictions_municipalities_scraped"
+        for row in rows:
+            channel_url = str(row["youtube_channel_url"] or "").strip()
+            stored_id = str(row.get("youtube_channel_id") or "").strip()
+            if stored_id.startswith("UC"):
+                channel_id = stored_id
+                normalized_url = (
+                    channel_url
+                    if _CHANNEL_ID_RE.search(channel_url)
+                    else f"https://www.youtube.com/channel/{channel_id}"
+                )
+            else:
+                channel_id, normalized_url = self.resolve_channel_id_from_url(channel_url)
+                if channel_id:
+                    self.persist_scraped_channel_resolution(
+                        table=municipalities_table,
+                        geoid=str(row["geoid"]),
+                        channel_id=channel_id,
+                        canonical_url=normalized_url,
+                    )
+            if not channel_id:
+                logger.warning(
+                    "Skipping {} — could not resolve channel id from {}",
+                    row["jurisdiction_id"],
+                    channel_url,
+                )
+                continue
+            jurisdictions.append(
+                {
+                    "jurisdiction_id": row["jurisdiction_id"],
+                    "jurisdiction_name": row["jurisdiction_name"],
+                    "state_code": row["state_code"],
+                    "state": row["state"],
+                    "jurisdiction_type": row["jurisdiction_type"],
+                    "youtube_channels": [
+                        {
+                            "channel_id": channel_id,
+                            "channel_url": normalized_url,
+                            "channel_title": row["jurisdiction_name"],
+                            "channel_type": "municipality",
+                            "discovery_method": row.get("youtube_channel_selection_method")
+                            or "municipalities_scraped",
+                            "confidence": row.get("youtube_channel_selection_confidence"),
+                        }
+                    ],
+                    "youtube_channel_count": 1,
+                }
+            )
+
+        logger.info(
+            "Found {} municipalities with YouTube channels (source=bronze.bronze_jurisdictions_municipalities_scraped)",
+            len(jurisdictions),
+        )
+        return jurisdictions
+
+    def get_jurisdictions_with_youtube(
+        self,
+        states_filter: Optional[List[str]] = None,
+        jurisdiction_id: Optional[str] = None,
+        *,
+        channel_source: str = "auto",
+    ) -> List[Dict]:
         """Get jurisdictions that have YouTube channels.
 
-        Primary source: ``intermediate.int_events_channels`` joined to
-        ``intermediate.int_jurisdictions`` (broader channel coverage).
-        Fallback: ``bronze.bronze_events_youtube`` when intermediate models are
-        unavailable or empty.
+        ``channel_source=counties-scraped``: ``bronze.bronze_jurisdictions_counties_scraped``.
+        ``channel_source=municipalities-scraped``: ``bronze.bronze_jurisdictions_municipalities_scraped``.
+        Otherwise: ``intermediate.int_events_channels``, then ``bronze.bronze_events_youtube``.
         """
+        if channel_source == "counties-scraped":
+            return self.get_jurisdictions_from_counties_scraped(
+                states_filter, jurisdiction_id=jurisdiction_id
+            )
+        if channel_source == "municipalities-scraped":
+            return self.get_jurisdictions_from_municipalities_scraped(
+                states_filter, jurisdiction_id=jurisdiction_id
+            )
+
         cursor = self.conn.cursor(cursor_factory=RealDictCursor)
         
         try:
@@ -1355,7 +1951,15 @@ class YouTubeEventsLoader:
             # Fetch and insert transcripts if enabled
             if self.fetch_transcripts and event_ids:
                 jurisdiction_id = (events[0].get("jurisdiction_id") or "").strip() if events else ""
-                logger.info(f"  📝 Fetching transcripts for {len(event_ids)} videos (delay: {self.transcript_delay}s each)...")
+                cap_note = (
+                    f", max {self.max_transcripts_per_channel} transcript(s) per channel"
+                    if self.max_transcripts_per_channel
+                    else ""
+                )
+                logger.info(
+                    f"  📝 Fetching transcripts for {len(event_ids)} video(s)"
+                    f" (delay: {self.transcript_delay}s each{cap_note})..."
+                )
                 transcripts_inserted = self.insert_transcripts(
                     event_ids, jurisdiction_id=jurisdiction_id or None
                 )
@@ -1372,6 +1976,31 @@ class YouTubeEventsLoader:
         finally:
             cursor.close()
     
+    def _limit_transcript_video_ids(
+        self,
+        event_ids: Dict[str, int],
+        limit: int,
+    ) -> Dict[str, int]:
+        """Keep only the ``limit`` newest videos by ``published_at`` for caption download."""
+        if limit <= 0 or len(event_ids) <= limit:
+            return event_ids
+        cursor = self.conn.cursor()
+        try:
+            cursor.execute(
+                """
+                SELECT video_id
+                FROM bronze.bronze_events_youtube
+                WHERE video_id = ANY(%s)
+                ORDER BY published_at DESC NULLS LAST, last_updated DESC NULLS LAST
+                LIMIT %s
+                """,
+                (list(event_ids.keys()), limit),
+            )
+            keep = {row[0] for row in cursor.fetchall()}
+        finally:
+            cursor.close()
+        return {vid: eid for vid, eid in event_ids.items() if vid in keep}
+
     def insert_transcripts(
         self,
         event_ids: Dict[str, int],
@@ -1380,6 +2009,18 @@ class YouTubeEventsLoader:
     ) -> int:
         """Fetch and insert transcripts for events with exponential backoff on rate limits."""
         import time
+
+        if self.max_transcripts_per_channel and len(event_ids) > self.max_transcripts_per_channel:
+            before = len(event_ids)
+            event_ids = self._limit_transcript_video_ids(
+                event_ids, self.max_transcripts_per_channel
+            )
+            logger.info(
+                "  Transcript cap: {} of {} video(s) (--max-transcripts-per-channel {})",
+                len(event_ids),
+                before,
+                self.max_transcripts_per_channel,
+            )
 
         if jurisdiction_id and len(event_ids) > 1:
             from scripts.datasources.youtube.dedupe_meeting_videos import (
@@ -1424,60 +2065,89 @@ class YouTubeEventsLoader:
         """
         
         try:
-            for i, (video_id, event_id) in enumerate(event_ids.items(), 1):
-                # Progressive delay based on rate limit history
+            items = list(event_ids.items())
+
+            def _fetch_transcript_safe(video_id: str) -> Tuple[str, Optional[Dict[str, Any]], Optional[str]]:
+                try:
+                    return video_id, self.fetch_transcript(video_id), None
+                except Exception as exc:
+                    if "RATE_LIMITED" in str(exc):
+                        return video_id, None, "RATE_LIMITED"
+                    logger.debug(f"  Error fetching transcript for {video_id}: {exc}")
+                    return video_id, None, None
+
+            def _persist_transcript(video_id: str, event_id: int, transcript_data: Dict[str, Any]) -> None:
+                nonlocal inserted
+                transcript_data = dict(transcript_data)
+                transcript_data["event_id"] = event_id
+                if transcript_data.get("segments"):
+                    transcript_data["segments"] = json.dumps(transcript_data["segments"])
+                else:
+                    transcript_data["segments"] = None
+                transcript_data["has_transcript"] = bool(transcript_data.get("raw_text"))
+                transcript_data["transcript_quality"] = (
+                    "medium" if transcript_data.get("is_auto_generated") else "high"
+                )
+                cursor.execute(insert_query, transcript_data)
+                inserted += 1
+                if inserted % 10 == 0:
+                    self.conn.commit()
+
+            if self.transcript_workers > 1 and len(items) > 1:
+                batch_size = self.transcript_workers
+                for batch_start in range(0, len(items), batch_size):
+                    batch = items[batch_start : batch_start + batch_size]
+                    if batch_start > 0 and consecutive_rate_limits == 0:
+                        time.sleep(self.transcript_delay)
+                    with ThreadPoolExecutor(max_workers=len(batch)) as pool:
+                        results = list(pool.map(lambda pair: _fetch_transcript_safe(pair[0]), batch))
+                    for (video_id, event_id), (vid, transcript_data, err) in zip(batch, results):
+                        if err == "RATE_LIMITED":
+                            rate_limit_count += 1
+                            consecutive_rate_limits += 1
+                            logger.warning(
+                                f"  ⚠️  Rate limited! ({rate_limit_count} total, {consecutive_rate_limits} consecutive)"
+                            )
+                            if consecutive_rate_limits >= 5:
+                                logger.error(
+                                    f"  ❌ Too many consecutive rate limits ({consecutive_rate_limits}), stopping transcript fetching"
+                                )
+                                return inserted
+                            continue
+                        if transcript_data:
+                            consecutive_rate_limits = 0
+                            _persist_transcript(vid, event_id, transcript_data)
+                self.conn.commit()
+                return inserted
+
+            for i, (video_id, event_id) in enumerate(items, 1):
                 base_delay = self.transcript_delay
                 if consecutive_rate_limits > 0:
-                    # Exponential backoff: 2s, 4s, 8s, 16s, 32s, 60s (max)
                     backoff_delay = min(base_delay * (2 ** consecutive_rate_limits), max_backoff)
-                    logger.warning(f"  ⏱️  Backing off {backoff_delay:.1f}s due to {consecutive_rate_limits} consecutive rate limits...")
+                    logger.warning(
+                        f"  ⏱️  Backing off {backoff_delay:.1f}s due to {consecutive_rate_limits} consecutive rate limits..."
+                    )
                     time.sleep(backoff_delay)
                 elif i > 1:
                     time.sleep(base_delay)
-                
-                # Fetch transcript with rate limit handling
-                transcript_data = None
-                try:
-                    transcript_data = self.fetch_transcript(video_id)
-                    consecutive_rate_limits = 0  # Reset on success
-                except Exception as e:
-                    if 'RATE_LIMITED' in str(e):
-                        rate_limit_count += 1
-                        consecutive_rate_limits += 1
-                        logger.warning(f"  ⚠️  Rate limited! ({rate_limit_count} total, {consecutive_rate_limits} consecutive)")
-                        if consecutive_rate_limits >= 5:
-                            logger.error(f"  ❌ Too many consecutive rate limits ({consecutive_rate_limits}), stopping transcript fetching")
-                            break
-                        continue
-                    else:
-                        # Other error, skip this video
-                        logger.debug(f"  Error fetching transcript for {video_id}: {e}")
-                        continue
-                
+
+                _, transcript_data, err = _fetch_transcript_safe(video_id)
+                if err == "RATE_LIMITED":
+                    rate_limit_count += 1
+                    consecutive_rate_limits += 1
+                    logger.warning(
+                        f"  ⚠️  Rate limited! ({rate_limit_count} total, {consecutive_rate_limits} consecutive)"
+                    )
+                    if consecutive_rate_limits >= 5:
+                        logger.error(
+                            f"  ❌ Too many consecutive rate limits ({consecutive_rate_limits}), stopping transcript fetching"
+                        )
+                        break
+                    continue
                 if transcript_data:
-                    transcript_data['event_id'] = event_id
-                    
-                    # Convert segments list to JSON string for PostgreSQL
-                    if 'segments' in transcript_data and transcript_data['segments']:
-                        import json
-                        transcript_data['segments'] = json.dumps(transcript_data['segments'])
-                    else:
-                        transcript_data['segments'] = None
-                    
-                    # Add bronze schema fields
-                    transcript_data['has_transcript'] = bool(transcript_data.get('raw_text'))
-                    # Quality based on whether auto-generated or manual
-                    if transcript_data.get('is_auto_generated'):
-                        transcript_data['transcript_quality'] = 'medium'
-                    else:
-                        transcript_data['transcript_quality'] = 'high'
-                    
-                    cursor.execute(insert_query, transcript_data)
-                    inserted += 1
-                    
-                    # Commit every 10 transcripts to avoid long transactions
-                    if inserted % 10 == 0:
-                        self.conn.commit()
+                    consecutive_rate_limits = 0
+                
+                    _persist_transcript(video_id, event_id, transcript_data)
             
             # Final commit
             self.conn.commit()
@@ -1697,6 +2367,9 @@ class YouTubeEventsLoader:
         self,
         states_filter: Optional[List[str]] = None,
         jurisdiction_id: Optional[str] = None,
+        *,
+        channel_source: str = "auto",
+        workers: int = 1,
     ):
         """Run the full loading process."""
         logger.info("=" * 80)
@@ -1720,25 +2393,70 @@ class YouTubeEventsLoader:
             logger.info(f"States filter: {', '.join(states_filter)}")
         if jurisdiction_id:
             logger.info(f"Jurisdiction filter: {jurisdiction_id}")
+        logger.info(f"Channel source: {channel_source}")
+        if workers > 1:
+            logger.info(f"Jurisdiction workers: {workers}")
+        if self.transcript_workers > 1 and self.fetch_transcripts:
+            logger.info(f"Transcript workers per jurisdiction: {self.transcript_workers}")
+        if self.max_transcripts_per_channel and self.fetch_transcripts:
+            logger.info(
+                f"Max transcripts per channel: {self.max_transcripts_per_channel} (newest by published_at)"
+            )
         logger.info("")
         
         start_time = datetime.now()
         
         # Get jurisdictions with YouTube channels
         jurisdictions = self.get_jurisdictions_with_youtube(
-            states_filter, jurisdiction_id=jurisdiction_id
+            states_filter,
+            jurisdiction_id=jurisdiction_id,
+            channel_source=channel_source,
         )
         
         if not jurisdictions:
             logger.warning("No jurisdictions found with YouTube channels")
             return
         
-        # Process each jurisdiction
         total_inserted = 0
-        for i, jurisdiction in enumerate(jurisdictions, 1):
-            logger.info(f"\n[{i}/{len(jurisdictions)}] Processing jurisdiction...")
-            inserted = self.process_jurisdiction(jurisdiction)
-            total_inserted += inserted
+        workers = max(1, int(workers or 1))
+        if workers == 1:
+            for i, jurisdiction in enumerate(jurisdictions, 1):
+                logger.info(f"\n[{i}/{len(jurisdictions)}] Processing jurisdiction...")
+                total_inserted += self.process_jurisdiction(jurisdiction)
+        else:
+            loader_kwargs = self._parallel_loader_kwargs()
+            completed = 0
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                futures = {
+                    pool.submit(
+                        _process_jurisdiction_worker,
+                        self.database_url,
+                        jurisdiction,
+                        loader_kwargs,
+                    ): jurisdiction
+                    for jurisdiction in jurisdictions
+                }
+                for future in as_completed(futures):
+                    jurisdiction = futures[future]
+                    completed += 1
+                    try:
+                        inserted = future.result()
+                        total_inserted += inserted
+                        logger.info(
+                            "[{}/{}] {} — inserted {}",
+                            completed,
+                            len(jurisdictions),
+                            jurisdiction.get("jurisdiction_name"),
+                            inserted,
+                        )
+                    except Exception as exc:
+                        logger.error(
+                            "[{}/{}] {} failed: {}",
+                            completed,
+                            len(jurisdictions),
+                            jurisdiction.get("jurisdiction_name"),
+                            exc,
+                        )
         
         # Get final stats
         cursor = self.conn.cursor()
@@ -1819,6 +2537,25 @@ class YouTubeEventsLoader:
         if self.conn:
             self.conn.close()
 
+    def _parallel_loader_kwargs(self) -> Dict[str, Any]:
+        """Constructor kwargs for per-jurisdiction worker loaders."""
+        return {
+            "youtube_api_key": self.youtube_api_key,
+            "max_videos_per_channel": self.max_videos,
+            "min_duration_seconds": self.min_duration_seconds,
+            "days_lookback": self.days_lookback,
+            "fetch_transcripts": self.fetch_transcripts,
+            "force_full_fetch": self.force_full_fetch,
+            "transcript_delay": self.transcript_delay,
+            "use_ytdlp_fallback": self.use_ytdlp_fallback,
+            "cookies_file": self.cookies_file,
+            "proxy_url": self.proxy_url,
+            "ensure_schema_setup": False,
+            "transcript_workers": self.transcript_workers,
+            "max_transcripts_per_channel": self.max_transcripts_per_channel,
+            "resolve_channels_ytdlp": self.resolve_channels_ytdlp,
+        }
+
 
 def main():
     """Main entry point."""
@@ -1827,7 +2564,29 @@ def main():
     parser.add_argument(
         '--states',
         type=str,
-        help='Comma-separated list of state codes to process (e.g., AL,MA,WI)'
+        default=",".join(DEFAULT_PRIORITY_STATES),
+        help=f'Comma-separated state codes (default: {",".join(DEFAULT_PRIORITY_STATES)})',
+    )
+    parser.add_argument(
+        '--channel-source',
+        choices=('auto', 'counties-scraped', 'municipalities-scraped'),
+        default='counties-scraped',
+        help=(
+            'Channel list source (default: counties-scraped). '
+            'municipalities-scraped = bronze_jurisdictions_municipalities_scraped'
+        ),
+    )
+    parser.add_argument(
+        '--workers',
+        type=int,
+        default=4,
+        help='Parallel jurisdiction workers (default: 4)',
+    )
+    parser.add_argument(
+        '--transcript-workers',
+        type=int,
+        default=3,
+        help='Parallel transcript fetches per jurisdiction batch (default: 3)',
     )
 
     parser.add_argument(
@@ -1847,7 +2606,18 @@ def main():
         '--max-videos',
         type=int,
         default=100,
-        help='Maximum videos to fetch per channel (default: 100)'
+        help='Maximum videos to catalog per channel (metadata in bronze_events_youtube; default: 100)',
+    )
+
+    parser.add_argument(
+        '--max-transcripts-per-channel',
+        type=int,
+        default=None,
+        metavar='N',
+        help=(
+            'Only download captions for the N newest videos per channel (by published_at). '
+            'Catalog still uses --max-videos. Example: --max-videos 100 --max-transcripts-per-channel 4'
+        ),
     )
 
     parser.add_argument(
@@ -1899,14 +2669,34 @@ def main():
         type=str,
         help='Proxy URL to use for requests (e.g., http://user:pass@proxy.com:8080). Helps bypass IP blocks.'
     )
-    
-    
+
+    parser.add_argument(
+        '--resolve-channels-ytdlp',
+        action='store_true',
+        help=(
+            'Resolve @handle URLs with yt-dlp only (no channels.list forHandle). '
+            'Use when API quota is exhausted. Same as YOUTUBE_RESOLVE_CHANNELS_YTDLP=1.'
+        ),
+    )
+
+    parser.add_argument(
+        '--backfill-scraped-channel-ids',
+        action='store_true',
+        help=(
+            'Only resolve and persist youtube_channel_id on scraped bronze tables '
+            '(counties-scraped or municipalities-scraped); skip video catalog/transcripts.'
+        ),
+    )
+
+    parser.add_argument(
+        '--no-persist-scraped-channel-ids',
+        action='store_true',
+        help='Do not UPDATE bronze_jurisdictions_*_scraped with resolved youtube_channel_id.',
+    )
+
     args = parser.parse_args()
     
-    # Parse states filter
-    states_filter = None
-    if args.states:
-        states_filter = [s.strip().upper() for s in args.states.split(',')]
+    states_filter = [s.strip().upper() for s in args.states.split(",") if s.strip()]
     
     # Initialize loader
     loader = YouTubeEventsLoader(
@@ -1920,13 +2710,36 @@ def main():
         transcript_delay=args.transcript_delay,
         use_ytdlp_fallback=not (args.no_ytdlp_fallback or args.text_transcripts_only),
         cookies_file=args.cookies,
-        proxy_url=args.proxy
+        proxy_url=args.proxy,
+        transcript_workers=args.transcript_workers,
+        max_transcripts_per_channel=args.max_transcripts_per_channel,
+        resolve_channels_ytdlp=args.resolve_channels_ytdlp,
+        persist_scraped_channel_ids=not args.no_persist_scraped_channel_ids,
     )
     
     jurisdiction_id = (args.jurisdiction_id or '').strip() or None
 
     try:
-        loader.run(states_filter=states_filter, jurisdiction_id=jurisdiction_id)
+        if args.backfill_scraped_channel_ids:
+            if args.channel_source not in YouTubeEventsLoader._SCRAPED_CHANNEL_TABLES:
+                logger.error(
+                    "--backfill-scraped-channel-ids requires --channel-source "
+                    "counties-scraped or municipalities-scraped (not auto)"
+                )
+                return 1
+            loader.backfill_scraped_channel_ids(
+                channel_source=args.channel_source,
+                states_filter=states_filter,
+                jurisdiction_id=jurisdiction_id,
+            )
+            return 0
+
+        loader.run(
+            states_filter=states_filter,
+            jurisdiction_id=jurisdiction_id,
+            channel_source=args.channel_source,
+            workers=args.workers,
+        )
         return 0
     except Exception as e:
         logger.error(f"✗ Loading failed: {e}")

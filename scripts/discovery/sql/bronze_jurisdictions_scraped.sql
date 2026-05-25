@@ -2,11 +2,11 @@
 -- Applied automatically by: python -m scripts.discovery.jurisdiction_discovery_pipeline
 -- Can also be run manually: psql "$DATABASE_URL" -f scripts/discovery/sql/bronze_jurisdictions_scraped.sql
 --
--- jurisdiction_id mirrors the formula in the base tables and carries a FK back:
+-- jurisdiction_id mirrors the base tables ({place_slug}_{geoid}, e.g. andalusia_0101708):
 --   states_scraped            → bronze_jurisdictions_states(jurisdiction_id)            via usps
---   municipalities_scraped    → bronze_jurisdictions_municipalities(jurisdiction_id)    via 'm-'||usps||'-'||geoid
---   counties_scraped          → bronze_jurisdictions_counties(jurisdiction_id)          via 'c-'||usps||'-'||geoid
---   school_districts_scraped  → bronze_jurisdictions_school_districts(jurisdiction_id)  via 's-'||usps||'-'||geoid
+--   municipalities_scraped    → bronze_jurisdictions_municipalities(jurisdiction_id)    via trigger + FK
+--   counties_scraped          → bronze_jurisdictions_counties(jurisdiction_id)          via trigger + FK
+--   school_districts_scraped  → bronze_jurisdictions_school_districts(jurisdiction_id)  via trigger + FK
 
 CREATE SCHEMA IF NOT EXISTS bronze;
 
@@ -45,10 +45,11 @@ CREATE TABLE IF NOT EXISTS bronze.bronze_jurisdictions_municipalities_scraped (
     status                 TEXT,
     completeness_score     DOUBLE PRECISION,
     youtube_channel_url                  TEXT,
+    youtube_channel_id                   TEXT,
     youtube_channel_selection_method     TEXT,
     youtube_channel_selection_confidence DOUBLE PRECISION,
     payload                JSONB         NOT NULL DEFAULT '{}'::jsonb,
-    jurisdiction_id        TEXT          GENERATED ALWAYS AS ('m-' || usps || '-' || geoid) STORED,
+    jurisdiction_id        TEXT,
     jurisdiction_type      bronze.jurisdiction_type_enum      NOT NULL DEFAULT 'municipality',
     jurisdiction_id_source bronze.jurisdiction_id_source_enum NOT NULL DEFAULT 'place_geoid',
     CONSTRAINT fk_bjms_jurisdiction_id
@@ -72,10 +73,11 @@ CREATE TABLE IF NOT EXISTS bronze.bronze_jurisdictions_counties_scraped (
     status                 TEXT,
     completeness_score     DOUBLE PRECISION,
     youtube_channel_url                  TEXT,
+    youtube_channel_id                   TEXT,
     youtube_channel_selection_method     TEXT,
     youtube_channel_selection_confidence DOUBLE PRECISION,
     payload                JSONB         NOT NULL DEFAULT '{}'::jsonb,
-    jurisdiction_id        TEXT          GENERATED ALWAYS AS ('c-' || usps || '-' || geoid) STORED,
+    jurisdiction_id        TEXT,
     jurisdiction_type      bronze.jurisdiction_type_enum      NOT NULL DEFAULT 'county',
     jurisdiction_id_source bronze.jurisdiction_id_source_enum NOT NULL DEFAULT 'county_fips',
     CONSTRAINT fk_bjcs_jurisdiction_id
@@ -99,7 +101,7 @@ CREATE TABLE IF NOT EXISTS bronze.bronze_jurisdictions_school_districts_scraped 
     status                 TEXT,
     completeness_score     DOUBLE PRECISION,
     payload                JSONB         NOT NULL DEFAULT '{}'::jsonb,
-    jurisdiction_id        TEXT          GENERATED ALWAYS AS ('s-' || usps || '-' || geoid) STORED,
+    jurisdiction_id        TEXT,
     jurisdiction_type      bronze.jurisdiction_type_enum      NOT NULL DEFAULT 'school_district',
     jurisdiction_id_source bronze.jurisdiction_id_source_enum NOT NULL DEFAULT 'school_district_geoid',
     CONSTRAINT fk_bjsds_jurisdiction_id

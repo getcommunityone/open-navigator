@@ -101,7 +101,7 @@ TYPES = {
                 intptlat        NUMERIC(11, 8),
                 intptlong       NUMERIC(12, 8),
                 ingestion_date  TIMESTAMP DEFAULT NOW(),
-                jurisdiction_id        TEXT GENERATED ALWAYS AS ('c-' || usps || '-' || geoid) STORED,
+                jurisdiction_id        TEXT GENERATED ALWAYS AS (bronze.jurisdiction_id_from_place(name, geoid)) STORED,
                 jurisdiction_type       bronze.jurisdiction_type_enum      NOT NULL DEFAULT 'county',
                 jurisdiction_id_source bronze.jurisdiction_id_source_enum NOT NULL DEFAULT 'county_fips',
                 UNIQUE (jurisdiction_id)
@@ -147,7 +147,7 @@ TYPES = {
                 intptlat        NUMERIC(11, 8),
                 intptlong       NUMERIC(12, 8),
                 ingestion_date  TIMESTAMP DEFAULT NOW(),
-                jurisdiction_id        TEXT GENERATED ALWAYS AS ('m-' || usps || '-' || geoid) STORED,
+                jurisdiction_id        TEXT GENERATED ALWAYS AS (bronze.jurisdiction_id_from_place(name, geoid)) STORED,
                 jurisdiction_type       bronze.jurisdiction_type_enum      NOT NULL DEFAULT 'municipality',
                 jurisdiction_id_source bronze.jurisdiction_id_source_enum NOT NULL DEFAULT 'place_geoid',
                 UNIQUE (jurisdiction_id)
@@ -196,7 +196,7 @@ TYPES = {
                 intptlat        NUMERIC(11, 8),
                 intptlong       NUMERIC(12, 8),
                 ingestion_date  TIMESTAMP DEFAULT NOW(),
-                jurisdiction_id        TEXT GENERATED ALWAYS AS ('s-' || usps || '-' || geoid) STORED,
+                jurisdiction_id        TEXT GENERATED ALWAYS AS (bronze.jurisdiction_id_from_place(name, geoid)) STORED,
                 jurisdiction_type       bronze.jurisdiction_type_enum      NOT NULL DEFAULT 'school_district',
                 jurisdiction_id_source bronze.jurisdiction_id_source_enum NOT NULL DEFAULT 'school_district_geoid',
                 UNIQUE (jurisdiction_id)

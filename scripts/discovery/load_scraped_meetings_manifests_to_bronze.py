@@ -61,7 +61,7 @@ from scripts.discovery.meeting_document_naming import (
 from scripts.utils.gdrive_paths import resolve_scraped_meetings_output_root
 from scripts.utils.http_url_normalize import normalize_http_url_path_encoding as _norm_http_url
 
-_JID_RE = re.compile(r"^(?P<jtype>county|municipality|school_district)_(?P<geoid>.+)$")
+from scripts.jurisdictions.jurisdiction_id import parse_jurisdiction_id as _parse_jurisdiction_id
 
 MIGRATION_PATH = _root / "scripts" / "deployment" / "neon" / "migrations" / "020_recreate_bronze_events_meetings_scraped_link_document.sql"
 
@@ -214,11 +214,10 @@ def _granular_rows_for_manifest(
     repo_root: Path,
 ) -> Optional[List[Tuple[Any, ...]]]:
     jid = str(manifest.get("jurisdiction_id") or "").strip()
-    m = _JID_RE.match(jid)
-    if not m:
+    _jt, geoid, _slug = _parse_jurisdiction_id(jid)
+    if not geoid:
         logger.warning("Skip manifest with unknown jurisdiction_id={}", jid)
         return None
-    geoid = m.group("geoid")
     state_code = str(manifest.get("state") or "").strip().upper()[:2]
     if len(state_code) != 2:
         return None
@@ -418,10 +417,8 @@ def _manifest_paths(cache_root: Path, state: str) -> List[Path]:
 
 
 def _classify_jurisdiction(jurisdiction_id: str) -> Optional[str]:
-    m = _JID_RE.match((jurisdiction_id or "").strip())
-    if not m:
-        return None
-    return m.group("jtype").lower()
+    jt, _geoid, _slug = _parse_jurisdiction_id((jurisdiction_id or "").strip())
+    return jt
 
 
 def _apply_ddl(conn: Any) -> None:

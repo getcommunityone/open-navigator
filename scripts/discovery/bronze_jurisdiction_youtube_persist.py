@@ -32,8 +32,8 @@ def insert_bronze_jurisdiction_youtube(
 
     Each ``row`` may include: ``youtube_channel_url`` (required), ``youtube_channel_id``,
     ``channel_title``, ``subscriber_count``, ``video_count``, ``view_count``,
-    ``latest_upload``, ``discovery_method``, ``confidence``, ``raw_row`` (dict),
-    ``scraped_at`` (ISO str optional).
+    ``latest_upload``, ``discovery_method``, ``official_meeting_confidence``,
+    ``raw_row`` (dict), ``scraped_at`` (ISO str optional).
     """
     if not rows or not database_url or psycopg2 is None:
         return 0
@@ -76,7 +76,6 @@ def insert_bronze_jurisdiction_youtube(
                         view_count,
                         latest_upload,
                         discovery_method,
-                        discovery_confidence,
                         raw_row,
                         scraped_at,
                         channel_description,
@@ -84,7 +83,7 @@ def insert_bronze_jurisdiction_youtube(
                         official_meeting_confidence,
                         external_links
                     ) VALUES (
-                        %s::uuid, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s,
+                        %s::uuid, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s,
                         %s, %s, %s, %s::jsonb
                     )
                     """,
@@ -102,7 +101,6 @@ def insert_bronze_jurisdiction_youtube(
                         _as_int(r.get("view_count")),
                         (str(r.get("latest_upload") or ""))[:64] or None,
                         (r.get("discovery_method") or "")[:64] or None,
-                        _as_float(r.get("confidence")),
                         json.dumps(raw, default=str),
                         sa_val,
                         (r.get("channel_description") or None),

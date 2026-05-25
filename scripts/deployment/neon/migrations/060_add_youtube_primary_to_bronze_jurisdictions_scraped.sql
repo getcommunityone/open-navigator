@@ -23,7 +23,7 @@ COMMENT ON COLUMN bronze.bronze_jurisdictions_municipalities_scraped.youtube_cha
 COMMENT ON COLUMN bronze.bronze_jurisdictions_municipalities_scraped.youtube_channel_selection_method IS
     'Discovery method of the selected primary channel (e.g. website_scrape, domain_search, youtube_api).';
 COMMENT ON COLUMN bronze.bronze_jurisdictions_municipalities_scraped.youtube_channel_selection_confidence IS
-    'Confidence used to rank channels (official_meeting_confidence when present, else discovery confidence).';
+    'Official-channel confidence (from enrichment official_meeting_confidence).';
 
 COMMENT ON COLUMN bronze.bronze_jurisdictions_counties_scraped.youtube_channel_url IS
     'Primary official/meeting YouTube channel URL chosen from payload youtube_channels.';

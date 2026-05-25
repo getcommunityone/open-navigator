@@ -114,6 +114,10 @@ from scripts.discovery.bronze_persons_scraped_persist import (  # noqa: E402
 from scripts.discovery.bronze_jurisdiction_youtube_persist import (  # noqa: E402
     insert_bronze_jurisdiction_youtube,
 )
+from scripts.discovery.sync_youtube_primary_from_jurisdiction_youtube import (  # noqa: E402
+    sync_primary_youtube_to_scraped,
+)
+from scripts.discovery.youtube_primary_channel import pick_primary_youtube_channel  # noqa: E402
 from scripts.discovery.contact_directory_heuristics import (  # noqa: E402
     classify_contact_directory_page,
 )
@@ -183,6 +187,8 @@ DEFAULT_INCLUDE_TYPES = ("municipality", "county")
 # AND at least one government/meeting keyword OR a website back-link." Lower to 0.4 if you
 # want broader recall and higher review burden.
 MIN_CHANNEL_CONFIDENCE = float(os.getenv("MIN_CHANNEL_CONFIDENCE", "0.5"))
+# Stricter bar for the single primary on ``*_scraped`` (counties-scraped loader reads this).
+SCRAPED_PRIMARY_MIN_CONFIDENCE = float(os.getenv("SCRAPED_PRIMARY_MIN_CONFIDENCE", "0.7"))
 
 _USER_AGENT = "OpenNavigatorJurisdictionPilot/1.0"
 _REQUEST_TIMEOUT_S = 20
@@ -658,7 +664,6 @@ def _discover_youtube(j: Jurisdiction, session: requests.Session) -> list[dict[s
             "view_count": enriched.get("view_count"),
             "latest_upload": str(enriched.get("latest_upload") or ""),
             "discovery_method": enriched.get("discovery_method") or ch.get("discovery_method"),
-            "confidence": enriched.get("confidence"),
             "channel_description": enriched.get("channel_description"),
             "back_links_to_jurisdiction_website": enriched.get("back_links_to_jurisdiction_website"),
             "official_meeting_confidence": enriched.get("official_meeting_confidence"),
@@ -667,6 +672,44 @@ def _discover_youtube(j: Jurisdiction, session: requests.Session) -> list[dict[s
             "scraped_at": scraped_at,
         })
     return rows
+
+
+def _promote_primary_youtube_to_scraped(
+    database_url: str,
+    *,
+    jurisdiction_id: str,
+    jurisdiction_type: str,
+    channels: list[dict[str, Any]],
+) -> None:
+    """Write the best high-confidence channel onto the county/municipality scraped row."""
+    url, method, conf = pick_primary_youtube_channel(channels)
+    if not url or jurisdiction_type not in ("county", "municipality"):
+        return
+    tbl = (
+        "bronze.bronze_jurisdictions_counties_scraped"
+        if jurisdiction_type == "county"
+        else "bronze.bronze_jurisdictions_municipalities_scraped"
+    )
+    conn = psycopg2.connect(database_url)
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"""
+                UPDATE {tbl} s
+                SET youtube_channel_url = %s,
+                    youtube_channel_selection_method = %s,
+                    youtube_channel_selection_confidence = %s,
+                    discovered_at = NOW()
+                FROM intermediate.int_jurisdictions j
+                WHERE j.jurisdiction_id = %s
+                  AND j.geoid = s.geoid
+                  AND j.jurisdiction_type::text = %s
+                """,
+                (url, method, conf, jurisdiction_id, jurisdiction_type),
+            )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def _process_one(
@@ -776,6 +819,20 @@ def _process_one(
                     website_url=j.website_url,
                     rows=keep_rows,
                 )
+                # One primary on *_scraped for downstream (counties-scraped channel source).
+                primary_candidates = [
+                    r
+                    for r in keep_rows
+                    if (r.get("official_meeting_confidence") or 0.0)
+                    >= SCRAPED_PRIMARY_MIN_CONFIDENCE
+                ]
+                if primary_candidates and j.jurisdiction_type in ("county", "municipality"):
+                    _promote_primary_youtube_to_scraped(
+                        database_url,
+                        jurisdiction_id=j.jurisdiction_id,
+                        jurisdiction_type=j.jurisdiction_type,
+                        channels=primary_candidates,
+                    )
 
         if scrape_elections and not _STOP.is_set():
             from scripts.datasources.jurisdiction_pilot.website_elections import (

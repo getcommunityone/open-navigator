@@ -572,23 +572,115 @@ class YouTubeChannelDiscovery:
     # Site-search queries, ordered most-specific first.
     _SITE_SEARCH_QUERIES = ("youtube meeting", "youtube")
 
+    _FOLLOWUP_ANCHOR_HINTS = (
+        "video archive",
+        "meeting video",
+        "youtube",
+        "watch meeting",
+        "commission meeting",
+        "live stream",
+        "webcast",
+        "meeting archive",
+        "county commission",
+        "meeting calendar",
+        "agendas & minutes",
+        "agendas and minutes",
+    )
+    _FOLLOWUP_PATH_HINTS = (
+        "/commission",
+        "/meetings",
+        "/meeting",
+        "/video",
+        "/agenda",
+        "/calendar",
+        "/broadcast",
+    )
+
+    @staticmethod
+    def _youtube_int_env(name: str, default: int) -> int:
+        try:
+            return max(0, int((os.getenv(name) or str(default)).strip()))
+        except ValueError:
+            return default
+
+    def _collect_youtube_followup_page_urls(
+        self, html: str, *, base_url: str, max_pages: int
+    ) -> list[str]:
+        """Same-host pages likely to link a commission YouTube channel (e.g. /commission/)."""
+        if not html or max_pages <= 0:
+            return []
+
+        try:
+            soup = BeautifulSoup(html, "html.parser")
+        except Exception:
+            return []
+
+        parsed_base = urlparse(base_url)
+        if not parsed_base.scheme or not parsed_base.netloc:
+            return []
+
+        scored: list[tuple[int, str]] = []
+        seen: set[str] = set()
+
+        for link in soup.find_all("a", href=True):
+            href = str(link.get("href") or "").strip()
+            if not href or href.startswith(("#", "mailto:", "tel:", "javascript:")):
+                continue
+            absolute = urljoin(base_url, href)
+            parsed = urlparse(absolute)
+            if parsed.scheme not in ("http", "https"):
+                continue
+            if parsed.netloc.lower() != parsed_base.netloc.lower():
+                continue
+            if self._normalize_youtube_channel_url(absolute):
+                continue
+
+            text = " ".join((link.get_text() or "").split()).lower()
+            path = (parsed.path or "").lower()
+            score = 0
+            if any(h in text for h in self._FOLLOWUP_ANCHOR_HINTS):
+                score += 10
+            if any(h in path for h in self._FOLLOWUP_PATH_HINTS):
+                score += 8
+            if "commission" in text or "commission" in path:
+                score += 6
+            if "video" in text or "video" in path:
+                score += 4
+            if score <= 0:
+                continue
+
+            norm = f"{parsed.scheme}://{parsed.netloc}{path}".rstrip("/") or absolute
+            if norm in seen:
+                continue
+            seen.add(norm)
+            scored.append((score, absolute))
+
+        scored.sort(key=lambda item: (-item[0], item[1]))
+        return [u for _, u in scored[:max_pages]]
+
+    async def _fetch_page_html(self, url: str) -> tuple[Optional[str], str]:
+        """httpx (+ VPN bypass), then Playwright when the plain GET fails entirely."""
+        try:
+            response = await async_get_with_vpn_bypass(self.client, url)
+            if response.status_code == 200 and (response.text or "").strip():
+                return response.text, ""
+        except Exception as exc:
+            logger.debug(f"httpx fetch failed for {url}: {exc}")
+
+        html = await self._fetch_search_html_via_playwright(url)
+        if html:
+            logger.info(f"YouTube scrape: Playwright recovered HTML for {url}")
+            return html, ""
+        return None, "fetch_failed"
+
     async def _scrape_website_for_channels(self, url: str) -> List[str]:
         """Scrape a website for YouTube channel links.
 
         Layered fallback:
 
-        1. Extract YouTube links directly from the homepage HTML.
-        2. If none: discover the site's real search endpoint from the
-           homepage's ``<form>`` markup and fetch results via httpx for
-           each query in :pyattr:`_SITE_SEARCH_QUERIES`.
-        3. If still none: try guessed common site-search URL patterns
-           via httpx.
-        4. If still none: re-fetch the URLs from steps 2 and 3 through
-           Playwright so JS-rendered result lists are captured.
-
-        Tiers 2 and 3 always try ``"youtube meeting"`` before falling
-        back to the broader ``"youtube"`` query so meeting recordings
-        outrank generic YouTube references on the results page.
+        1. Extract YouTube links from the seed page HTML (anchors, iframes, embedded URLs).
+        2. If none: follow same-host commission/meeting/video pages (e.g. ``/commission/``).
+        3. If none: site search via httpx (capped), then Playwright on a few search URLs.
         """
         channels: list[str] = []
         seen: set[str] = set()
@@ -599,21 +691,42 @@ class YouTubeChannelDiscovery:
                     seen.add(item)
                     channels.append(item)
 
-        homepage_html: Optional[str] = None
-        try:
-            response = await async_get_with_vpn_bypass(self.client, url)
-            homepage_html = response.text
+        followup_max = self._youtube_int_env("YOUTUBE_WEBSITE_FOLLOWUP_MAX", 12)
+        search_http_max = self._youtube_int_env("YOUTUBE_SITE_SEARCH_HTTP_MAX", 8)
+        search_pw_max = self._youtube_int_env("YOUTUBE_SITE_SEARCH_PLAYWRIGHT_MAX", 2)
+
+        homepage_html, _err = await self._fetch_page_html(url)
+        if homepage_html:
             add_channels(self._extract_youtube_links_from_html(homepage_html, base_url=url))
-        except Exception as e:
-            logger.debug(f"Error scraping {url}: {e}")
+        else:
+            logger.debug(f"Could not load homepage HTML for YouTube scrape: {url}")
 
         if channels:
             return channels
 
-        # Collect candidate search URLs across queries: discovered first
-        # (more likely to be correct), guessed second. Keeping the full
-        # list lets the Playwright tier re-try anything httpx missed.
+        if not homepage_html:
+            # Avoid dozens of blind search/Playwright probes when the seed page never loaded.
+            search_http_max = min(search_http_max, 3)
+            search_pw_max = 0
+
+        if homepage_html and followup_max > 0:
+            for follow_url in self._collect_youtube_followup_page_urls(
+                homepage_html, base_url=url, max_pages=followup_max
+            ):
+                page_html, _ = await self._fetch_page_html(follow_url)
+                if not page_html:
+                    continue
+                add_channels(self._extract_youtube_links_from_html(page_html, base_url=follow_url))
+                if channels:
+                    logger.info(
+                        "YouTube channel(s) from follow-up page {follow} (seed {seed})",
+                        follow=follow_url,
+                        seed=url,
+                    )
+                    return channels
+
         attempted_search_urls: list[str] = []
+        http_attempts = 0
 
         for query in self._SITE_SEARCH_QUERIES:
             discovered_urls = (
@@ -625,21 +738,26 @@ class YouTubeChannelDiscovery:
             for search_url in (*discovered_urls, *guessed_urls):
                 if search_url in attempted_search_urls:
                     continue
+                if http_attempts >= search_http_max:
+                    break
                 attempted_search_urls.append(search_url)
+                http_attempts += 1
                 try:
                     search_resp = await async_get_with_vpn_bypass(self.client, search_url)
-                    add_channels(
-                        self._extract_youtube_links_from_html(search_resp.text, base_url=search_url)
-                    )
+                    if search_resp.status_code == 200:
+                        add_channels(
+                            self._extract_youtube_links_from_html(
+                                search_resp.text, base_url=search_url
+                            )
+                        )
                 except Exception as exc:
                     logger.trace(f"Site search scrape failed for {search_url}: {exc}")
-            if channels:
-                return channels
+                if channels:
+                    return channels
+            if http_attempts >= search_http_max:
+                break
 
-        # Tier 3: render each attempted search URL with Playwright so
-        # JS-built result lists become visible. Only runs when every
-        # httpx attempt above came back empty.
-        for search_url in attempted_search_urls:
+        for search_url in attempted_search_urls[:search_pw_max]:
             html = await self._fetch_search_html_via_playwright(search_url)
             if not html:
                 continue
@@ -795,17 +913,39 @@ class YouTubeChannelDiscovery:
         return html
 
     def _extract_youtube_links_from_html(self, html: str, *, base_url: str) -> list[str]:
-        soup = BeautifulSoup(html, "html.parser")
         channels: list[str] = []
         seen: set[str] = set()
 
-        for link in soup.find_all("a", href=True):
-            href = str(link.get("href") or "").strip()
-            absolute = urljoin(base_url, href)
-            normalized = self._normalize_youtube_channel_url(absolute)
+        def _add(candidate: str) -> None:
+            normalized = self._normalize_youtube_channel_url(candidate)
             if normalized and normalized not in seen:
                 seen.add(normalized)
                 channels.append(normalized)
+
+        if not (html or "").strip():
+            return channels
+
+        for match in re.finditer(
+            r"https?://(?:www\.)?youtube\.com/(?:channel/[A-Za-z0-9_-]+|@[A-Za-z0-9_-]+|user/[A-Za-z0-9_-]+|c/[A-Za-z0-9_-]+)",
+            html,
+            re.IGNORECASE,
+        ):
+            _add(match.group(0))
+
+        try:
+            soup = BeautifulSoup(html, "html.parser")
+        except Exception:
+            return channels
+
+        for link in soup.find_all("a", href=True):
+            href = str(link.get("href") or "").strip()
+            _add(urljoin(base_url, href))
+
+        for tag in soup.find_all(["iframe", "embed"]):
+            for attr in ("src", "data-src", "href"):
+                raw = str(tag.get(attr) or "").strip()
+                if raw:
+                    _add(urljoin(base_url, raw))
 
         return channels
 
