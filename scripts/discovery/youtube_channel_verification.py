@@ -9,8 +9,16 @@ import re
 from typing import Any, Mapping, Optional
 
 from scripts.datasources.youtube.pattern_match_gate import (
+    has_meeting_signal,
     is_pattern_match_discovery,
     passes_pattern_match_gate,
+)
+from scripts.discovery.youtube_channel_purpose import (
+    classify_channel_purpose_from_row,
+    has_meeting_purpose_signal,
+    is_meeting_primary_purpose,
+    min_confidence_for_purpose,
+    purpose_requires_explicit_meeting,
 )
 
 # Default bar for canonical table (override via env in pilot runner).
@@ -108,6 +116,18 @@ def rejection_reason_for_channel(
     ):
         return "county_city_channel_mismatch"
 
+    purpose = classify_channel_purpose_from_row(row, jurisdiction_type=jurisdiction_type)
+    purpose_min = min_confidence_for_purpose(purpose)
+    if conf < max(min_confidence, purpose_min):
+        return "channel_purpose_low_confidence"
+
+    if purpose_requires_explicit_meeting(purpose):
+        if not has_meeting_purpose_signal(
+            str(row.get("channel_title") or ""),
+            str(row.get("channel_description") or ""),
+        ):
+            return "channel_purpose_not_meeting_focused"
+
     return "not_verified"
 
 
@@ -150,6 +170,20 @@ def qualifies_for_bronze_jurisdiction_youtube(
         row, jurisdiction_name=jurisdiction_name
     ):
         return False
+
+    purpose = classify_channel_purpose_from_row(row, jurisdiction_type=jurisdiction_type)
+    purpose_min = min_confidence_for_purpose(purpose)
+    if conf < max(min_confidence, purpose_min):
+        return False
+
+    if purpose_requires_explicit_meeting(purpose):
+        if not has_meeting_purpose_signal(
+            str(row.get("channel_title") or ""),
+            str(row.get("channel_description") or ""),
+        ):
+            return False
+        if purpose == "tv-public" and not backlink:
+            return False
 
     if any(method.startswith(p) for p in _TRUSTED_DISCOVERY_PREFIXES):
         return True

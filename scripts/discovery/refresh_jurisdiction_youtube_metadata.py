@@ -28,7 +28,7 @@ _ROOT = Path(__file__).resolve().parents[2]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from scripts.datasources.jurisdiction_pilot.youtube_channel_enrich import enrich_channel
+from scripts.discovery.youtube_channel_purpose import classify_channel_purpose
 from scripts.datasources.youtube.youtube_channel_page import is_junk_channel_title
 from scripts.discovery.jurisdiction_discovery_pipeline import resolve_database_url
 
@@ -73,6 +73,14 @@ def _update_values(enriched: dict, row: dict) -> dict:
         "official_meeting_confidence": enriched.get("official_meeting_confidence"),
         "youtube_channel_id": enriched.get("youtube_channel_id") or row.get("youtube_channel_id"),
         "youtube_channel_url": enriched.get("youtube_channel_url") or row.get("youtube_channel_url"),
+        "channel_purpose": enriched.get("channel_purpose")
+        or classify_channel_purpose(
+            channel_title=str(enriched.get("channel_title") or row.get("channel_title") or ""),
+            channel_description=str(
+                enriched.get("channel_description") or row.get("channel_description") or ""
+            ),
+            jurisdiction_type=str(row.get("jurisdiction_type") or ""),
+        ),
     }
 
 
@@ -147,6 +155,7 @@ def main() -> int:
                         y.back_links_to_jurisdiction_website,
                         y.discovery_method,
                         y.official_meeting_confidence,
+                        y.jurisdiction_type,
                         j.name AS jurisdiction_name
                     FROM {tbl} y
                     LEFT JOIN intermediate.int_jurisdictions j
@@ -182,6 +191,7 @@ def main() -> int:
                             jurisdiction_name=_jurisdiction_name(row),
                             jurisdiction_state_code=row["state_code"],
                             jurisdiction_homepage=row.get("website_url") or "",
+                            jurisdiction_type=str(row.get("jurisdiction_type") or ""),
                             session=session,
                             cookies_file=args.cookies,
                         )
@@ -219,6 +229,7 @@ def main() -> int:
                                     jurisdiction_website_back_links = %s::jsonb,
                                     back_links_to_jurisdiction_website = %s,
                                     official_meeting_confidence = %s,
+                                    channel_purpose = %s,
                                     youtube_channel_id = COALESCE(%s, youtube_channel_id),
                                     loaded_at = NOW()
                                 WHERE id = %s
@@ -234,6 +245,7 @@ def main() -> int:
                                     json.dumps(values["jurisdiction_website_back_links"]),
                                     values["back_links_to_jurisdiction_website"],
                                     values["official_meeting_confidence"],
+                                    values["channel_purpose"],
                                     values["youtube_channel_id"],
                                     row["id"],
                                 ),

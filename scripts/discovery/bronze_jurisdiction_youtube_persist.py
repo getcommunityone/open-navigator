@@ -74,6 +74,7 @@ def _row_values(
         _as_float(r.get("official_meeting_confidence")),
         json.dumps(r.get("external_links") or []),
         json.dumps(r.get("jurisdiction_website_back_links") or []),
+        (str(r.get("channel_purpose") or "")[:64] or None),
     )
 
 
@@ -128,10 +129,11 @@ def insert_bronze_jurisdiction_youtube_candidates(
                         channel_description, back_links_to_jurisdiction_website,
                         official_meeting_confidence, external_links,
                         jurisdiction_website_back_links,
+                        channel_purpose,
                         rejection_reason, is_verified
                     ) VALUES (
                         %s::uuid, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s,
-                        %s, %s, %s, %s::jsonb, %s::jsonb, %s, %s
+                        %s, %s, %s, %s::jsonb, %s::jsonb, %s, %s, %s
                     )
                     """,
                     (
@@ -212,10 +214,11 @@ def upsert_bronze_jurisdiction_youtube_verified(
                         channel_description, back_links_to_jurisdiction_website,
                         official_meeting_confidence, external_links,
                         jurisdiction_website_back_links,
+                        channel_purpose,
                         source, is_primary, verified_at
                     ) VALUES (
                         %s::uuid, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s,
-                        %s, %s, %s, %s::jsonb, %s::jsonb, %s, %s, NOW()
+                        %s, %s, %s, %s::jsonb, %s::jsonb, %s, %s, %s, %s, NOW()
                     )
                     ON CONFLICT (jurisdiction_id, youtube_channel_url)
                     DO UPDATE SET
@@ -240,6 +243,10 @@ def upsert_bronze_jurisdiction_youtube_verified(
                         official_meeting_confidence = EXCLUDED.official_meeting_confidence,
                         external_links = EXCLUDED.external_links,
                         jurisdiction_website_back_links = EXCLUDED.jurisdiction_website_back_links,
+                        channel_purpose = COALESCE(
+                            NULLIF(EXCLUDED.channel_purpose, ''),
+                            bronze.bronze_jurisdiction_youtube.channel_purpose
+                        ),
                         source = EXCLUDED.source,
                         is_primary = EXCLUDED.is_primary OR bronze.bronze_jurisdiction_youtube.is_primary,
                         verified_at = NOW(),

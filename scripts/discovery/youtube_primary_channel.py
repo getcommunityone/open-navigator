@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 
+from scripts.discovery.youtube_channel_purpose import is_meeting_primary_purpose
 from scripts.datasources.youtube.pattern_match_gate import (
     PATTERN_MATCH_PRIMARY_MIN_OFFICIAL_CONFIDENCE,
     is_pattern_match_discovery,
@@ -45,7 +46,10 @@ def youtube_channel_selection_confidence(ch: Dict[str, Any]) -> Optional[float]:
 
 
 def _promotable_for_primary(ch: Dict[str, Any]) -> bool:
-    """Exclude weak ``pattern_match`` rows (generic handles, wrong state)."""
+    """Exclude weak ``pattern_match`` rows and non-meeting channel purposes."""
+    purpose = str(ch.get("channel_purpose") or "").strip().lower()
+    if purpose and not is_meeting_primary_purpose(purpose):
+        return False
     if not is_pattern_match_discovery(ch):
         return True
     if not ch.get("back_links_to_jurisdiction_website"):

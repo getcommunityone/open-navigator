@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Union
 from datetime import UTC, datetime
 from enum import Enum
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 from loguru import logger
 
 
@@ -39,8 +39,6 @@ class AgentMessage(BaseModel):
     timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
     payload: Dict[str, Any] = Field(default_factory=dict, description="Message payload")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
-
-    model_config = ConfigDict(json_encoders={datetime: lambda v: v.isoformat()})
 
 
 class AgentStatus(str, Enum):

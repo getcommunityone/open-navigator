@@ -333,6 +333,7 @@ def enrich_channel(
     jurisdiction_name: str,
     jurisdiction_state_code: str,
     jurisdiction_homepage: str,
+    jurisdiction_type: str | None = None,
     session: requests.Session | None = None,
     cookies_file: str | None = None,
 ) -> dict[str, Any]:
@@ -430,4 +431,14 @@ def enrich_channel(
     enriched["view_count"] = view_count
     enriched["latest_upload"] = latest_upload
     enriched["official_meeting_confidence"] = confidence
+    from scripts.discovery.youtube_channel_purpose import classify_channel_purpose
+
+    jtype = str(
+        jurisdiction_type or channel.get("jurisdiction_type") or ""
+    ).strip()
+    enriched["channel_purpose"] = classify_channel_purpose(
+        channel_title=title or "",
+        channel_description=description or "",
+        jurisdiction_type=jtype,
+    )
     return enriched

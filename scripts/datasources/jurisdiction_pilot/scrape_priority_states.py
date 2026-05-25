@@ -501,7 +501,8 @@ def _fetch(url: str, session: requests.Session) -> tuple[int, str]:
         url, session, timeout_s=_REQUEST_TIMEOUT_S, try_playwright=True
     )
     if block:
-        logger.warning("fetch blocked for %s: %s", url, block)
+        # Guessed / probed seeds often 404 or hit bot walls at scale; not actionable at INFO/WARNING.
+        logger.debug("fetch blocked for %s: %s", url, block)
         return status, ""
     return status, html
 
@@ -724,6 +725,7 @@ def _discover_youtube(
             jurisdiction_name=j.name,
             jurisdiction_state_code=j.state_code,
             jurisdiction_homepage=j.website_url,
+            jurisdiction_type=j.jurisdiction_type,
             session=session,
             cookies_file=cookies_file,
         )
@@ -745,6 +747,7 @@ def _discover_youtube(
             "official_meeting_confidence": enriched.get("official_meeting_confidence"),
             "external_links": enriched.get("external_links") or [],
             "jurisdiction_website_back_links": enriched.get("jurisdiction_website_back_links") or [],
+            "channel_purpose": enriched.get("channel_purpose"),
             "raw_row": enriched,
             "scraped_at": scraped_at,
         }
