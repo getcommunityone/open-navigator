@@ -6,6 +6,7 @@ Shared by the jurisdiction pilot scraper and the YouTube events loader.
 
 from __future__ import annotations
 
+import json
 import re
 from collections import Counter
 from pathlib import Path
@@ -44,9 +45,36 @@ _HTML_CHANNEL_ID_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
 )
 
 _TITLE_PATTERNS = (
+    re.compile(
+        rf'"channelMetadataRenderer"[^{{}}]*"title"\s*:\s*"((?:[^"\\]|\\.)*)"',
+        re.DOTALL | re.IGNORECASE,
+    ),
     re.compile(r'"channelMetadataRenderer".*?"title":"([^"]+)"', re.DOTALL),
     re.compile(r'<meta\s+property="og:title"\s+content="([^"]+)"', re.IGNORECASE),
+    re.compile(r'<meta\s+name="title"\s+content="([^"]+)"', re.IGNORECASE),
 )
+
+# YouTube tab labels returned when the real channel name is not in page metadata.
+JUNK_CHANNEL_TAB_TITLES = frozenset(
+    s.lower()
+    for s in (
+        "home",
+        "videos",
+        "shorts",
+        "live",
+        "playlists",
+        "community",
+        "channels",
+        "about",
+        "youtube",
+        "posts",
+        "store",
+    )
+)
+
+
+def is_junk_channel_title(title: str) -> bool:
+    return (title or "").strip().lower() in JUNK_CHANNEL_TAB_TITLES
 
 
 def extract_channel_id_from_youtube_html(
@@ -84,10 +112,15 @@ def extract_channel_title_from_youtube_html(html: str) -> str:
     normalized = html.replace("\\/", "/")
     for pattern in _TITLE_PATTERNS:
         m = pattern.search(normalized)
-        if m:
-            title = m.group(1).strip()
-            if title and title.lower() not in ("youtube", "home"):
-                return title
+        if not m:
+            continue
+        raw = m.group(1).strip()
+        try:
+            title = json.loads(f'"{raw}"')
+        except (json.JSONDecodeError, ValueError):
+            title = raw.replace("\\n", " ").replace('\\"', '"').strip()
+        if isinstance(title, str) and title and not is_junk_channel_title(title):
+            return title
     return ""
 
 

@@ -73,6 +73,7 @@ def _row_values(
         _as_bool(r.get("back_links_to_jurisdiction_website")),
         _as_float(r.get("official_meeting_confidence")),
         json.dumps(r.get("external_links") or []),
+        json.dumps(r.get("jurisdiction_website_back_links") or []),
     )
 
 
@@ -126,10 +127,11 @@ def insert_bronze_jurisdiction_youtube_candidates(
                         discovery_method, raw_row, scraped_at,
                         channel_description, back_links_to_jurisdiction_website,
                         official_meeting_confidence, external_links,
+                        jurisdiction_website_back_links,
                         rejection_reason, is_verified
                     ) VALUES (
                         %s::uuid, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s,
-                        %s, %s, %s, %s::jsonb, %s, %s
+                        %s, %s, %s, %s::jsonb, %s::jsonb, %s, %s
                     )
                     """,
                     (
@@ -209,10 +211,11 @@ def upsert_bronze_jurisdiction_youtube_verified(
                         discovery_method, raw_row, scraped_at,
                         channel_description, back_links_to_jurisdiction_website,
                         official_meeting_confidence, external_links,
+                        jurisdiction_website_back_links,
                         source, is_primary, verified_at
                     ) VALUES (
                         %s::uuid, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s,
-                        %s, %s, %s, %s::jsonb, %s, %s, NOW()
+                        %s, %s, %s, %s::jsonb, %s::jsonb, %s, %s, NOW()
                     )
                     ON CONFLICT (jurisdiction_id, youtube_channel_url)
                     DO UPDATE SET
@@ -220,18 +223,23 @@ def upsert_bronze_jurisdiction_youtube_verified(
                                                      bronze.bronze_jurisdiction_youtube.jurisdiction_type),
                         youtube_channel_id = COALESCE(EXCLUDED.youtube_channel_id,
                                                       bronze.bronze_jurisdiction_youtube.youtube_channel_id),
-                        channel_title = COALESCE(EXCLUDED.channel_title,
-                                                 bronze.bronze_jurisdiction_youtube.channel_title),
+                        channel_title = COALESCE(
+                            NULLIF(EXCLUDED.channel_title, ''),
+                            bronze.bronze_jurisdiction_youtube.channel_title
+                        ),
                         subscriber_count = EXCLUDED.subscriber_count,
                         video_count = EXCLUDED.video_count,
                         view_count = EXCLUDED.view_count,
                         latest_upload = EXCLUDED.latest_upload,
                         discovery_method = EXCLUDED.discovery_method,
-                        channel_description = COALESCE(EXCLUDED.channel_description,
-                                                       bronze.bronze_jurisdiction_youtube.channel_description),
+                        channel_description = COALESCE(
+                            NULLIF(EXCLUDED.channel_description, ''),
+                            bronze.bronze_jurisdiction_youtube.channel_description
+                        ),
                         back_links_to_jurisdiction_website = EXCLUDED.back_links_to_jurisdiction_website,
                         official_meeting_confidence = EXCLUDED.official_meeting_confidence,
                         external_links = EXCLUDED.external_links,
+                        jurisdiction_website_back_links = EXCLUDED.jurisdiction_website_back_links,
                         source = EXCLUDED.source,
                         is_primary = EXCLUDED.is_primary OR bronze.bronze_jurisdiction_youtube.is_primary,
                         verified_at = NOW(),

@@ -744,6 +744,7 @@ def _discover_youtube(
             "back_links_to_jurisdiction_website": enriched.get("back_links_to_jurisdiction_website"),
             "official_meeting_confidence": enriched.get("official_meeting_confidence"),
             "external_links": enriched.get("external_links") or [],
+            "jurisdiction_website_back_links": enriched.get("jurisdiction_website_back_links") or [],
             "raw_row": enriched,
             "scraped_at": scraped_at,
         }

@@ -183,28 +183,56 @@ def back_links_to(
     *,
     description_text: str = "",
 ) -> bool:
-    """
-    True when:
-      - any external link host matches the jurisdiction website host, OR
-      - the description text mentions the jurisdiction's host (or its parent registrable host).
+    """True when ``jurisdiction_website_back_links`` would be non-empty."""
+    return bool(
+        jurisdiction_website_back_links(
+            external_links,
+            jurisdiction_homepage,
+            description_text=description_text,
+        )
+    )
 
-    The text fallback catches the common case where YouTube renders the About-page link
-    list via JS and it isn't present in static HTML.
+
+def jurisdiction_website_back_links(
+    external_links: Sequence[str],
+    jurisdiction_homepage: str,
+    *,
+    description_text: str = "",
+) -> list[str]:
+    """
+    Outbound URLs from the YouTube About page (or description text) that match the
+    jurisdiction's official website host.
     """
     target = _norm_host(jurisdiction_homepage)
     if not target:
-        return False
+        return []
+
+    matched: list[str] = []
+    seen: set[str] = set()
+
+    def _add(url: str) -> None:
+        u = (url or "").strip()
+        if not u or u in seen:
+            return
+        if not u.lower().startswith(("http://", "https://")):
+            u = "https://" + u.lstrip("/")
+        if _share_host(_norm_host(u), target):
+            seen.add(u)
+            matched.append(u)
+
     for link in external_links:
-        if _share_host(_norm_host(link), target):
-            return True
-    if description_text:
-        desc_l = description_text.lower()
-        if target in desc_l:
-            return True
+        _add(link)
+
+    desc_l = (description_text or "").lower()
+    if desc_l:
+        for raw in re.findall(r"https?://[^\s<>\"']+", description_text):
+            _add(raw)
         parent = _parent_gov_host(target)
-        if parent and parent != target and parent in desc_l:
-            return True
-    return False
+        for host in {target, parent}:
+            if host and host in desc_l:
+                _add(f"https://{host}/")
+
+    return matched[:20]
 
 
 def _jurisdiction_name_tokens(name: str) -> list[str]:
@@ -316,6 +344,7 @@ def enrich_channel(
         canonical_channel_url,
         extract_channel_id_from_youtube_html,
         extract_channel_title_from_youtube_html,
+        is_junk_channel_title,
         resolve_channel_id_from_url,
     )
 
@@ -325,7 +354,10 @@ def enrich_channel(
     )
     description = extract_channel_description(html)
     links = extract_external_links(html)
-    backlinks = back_links_to(links, jurisdiction_homepage, description_text=description)
+    website_back_links = jurisdiction_website_back_links(
+        links, jurisdiction_homepage, description_text=description
+    )
+    backlinks = bool(website_back_links)
 
     channel_id = (
         (channel.get("channel_id") or channel.get("youtube_channel_id") or "").strip()
@@ -340,8 +372,14 @@ def enrich_channel(
             channel_id = resolved_id
 
     title = (channel.get("channel_title") or "").strip()
-    if not title:
-        title = extract_channel_title_from_youtube_html(html)
+    html_title = extract_channel_title_from_youtube_html(html)
+    if html_title and (not title or is_junk_channel_title(title)):
+        title = html_title
+    elif not title:
+        title = html_title
+
+    if not description:
+        description = (channel.get("channel_description") or "").strip()
 
     normalized_url = canonical_channel_url(channel_id) if channel_id else channel_url
 
@@ -364,6 +402,7 @@ def enrich_channel(
     enriched["channel_title"] = title or enriched.get("channel_title")
     enriched["channel_description"] = description
     enriched["external_links"] = links
+    enriched["jurisdiction_website_back_links"] = website_back_links
     enriched["back_links_to_jurisdiction_website"] = backlinks
     enriched["official_meeting_confidence"] = confidence
     return enriched

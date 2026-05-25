@@ -73,6 +73,60 @@ ORDER BY n DESC
 LIMIT 20;
 
 \echo
+\echo === YouTube metadata quality (junk titles / missing description / back-links) ===
+SELECT
+    'verified' AS layer,
+    COUNT(*) AS rows,
+    COUNT(*) FILTER (
+        WHERE LOWER(BTRIM(channel_title)) IN ('home','videos','shorts','live','playlists','community','about')
+    ) AS junk_tab_titles,
+    COUNT(*) FILTER (
+        WHERE channel_description IS NULL OR BTRIM(channel_description) = ''
+    ) AS missing_description,
+    COUNT(*) FILTER (
+        WHERE jsonb_array_length(jurisdiction_website_back_links) > 0
+    ) AS has_jurisdiction_back_links
+FROM bronze.bronze_jurisdiction_youtube
+UNION ALL
+SELECT
+    'candidates',
+    COUNT(*),
+    COUNT(*) FILTER (
+        WHERE LOWER(BTRIM(channel_title)) IN ('home','videos','shorts','live','playlists','community','about')
+    ),
+    COUNT(*) FILTER (
+        WHERE channel_description IS NULL OR BTRIM(channel_description) = ''
+    ),
+    COUNT(*) FILTER (
+        WHERE jsonb_array_length(jurisdiction_website_back_links) > 0
+    )
+FROM bronze.bronze_jurisdiction_youtube_candidates;
+
+\echo
+\echo === Rows with junk tab titles (sample) ===
+SELECT
+    'verified' AS layer,
+    jurisdiction_id,
+    channel_title,
+    LEFT(channel_description, 80) AS description_preview,
+    jurisdiction_website_back_links,
+    youtube_channel_url
+FROM bronze.bronze_jurisdiction_youtube
+WHERE LOWER(BTRIM(channel_title)) IN ('home','videos','shorts','live','playlists','community','about')
+UNION ALL
+SELECT
+    'candidates',
+    jurisdiction_id,
+    channel_title,
+    LEFT(channel_description, 80),
+    jurisdiction_website_back_links,
+    youtube_channel_url
+FROM bronze.bronze_jurisdiction_youtube_candidates
+WHERE LOWER(BTRIM(channel_title)) IN ('home','videos','shorts','live','playlists','community','about')
+ORDER BY layer, jurisdiction_id
+LIMIT 25;
+
+\echo
 \echo === Verified canonical channels (GA counties sample) ===
 SELECT
     y.jurisdiction_id,
@@ -83,7 +137,8 @@ SELECT
     y.official_meeting_confidence,
     y.source,
     y.is_primary,
-    y.back_links_to_jurisdiction_website
+    y.back_links_to_jurisdiction_website,
+    y.jurisdiction_website_back_links
 FROM bronze.bronze_jurisdiction_youtube y
 JOIN intermediate.int_jurisdictions j USING (jurisdiction_id)
 WHERE j.state_code = 'GA'
