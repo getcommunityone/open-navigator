@@ -636,33 +636,56 @@ class TranscriptProbeResult:
     video_id: str
     reason: str  # ok | blocked | no_transcript | error
     detail: str = ""
+    source: str = ""
+    summary: str = ""
+    elapsed_sec: float = 0.0
 
 
 def probe_transcript_access(loader: YouTubeEventsLoader, video_id: str) -> TranscriptProbeResult:
     """Quick health check before a long backfill batch."""
+    started = time.monotonic()
     try:
         data = loader.fetch_transcript(video_id)
+        elapsed = time.monotonic() - started
         if data and (data.get("raw_text") or "").strip():
-            return TranscriptProbeResult(True, video_id, "ok")
+            from scripts.datasources.youtube.transcript_api_client import (
+                summarize_transcript_payload,
+            )
+
+            return TranscriptProbeResult(
+                True,
+                video_id,
+                "ok",
+                source=str(data.get("transcript_source") or ""),
+                summary=summarize_transcript_payload(data),
+                elapsed_sec=elapsed,
+            )
         return TranscriptProbeResult(
             False,
             video_id,
             "no_transcript",
             "Caption API and yt-dlp returned no text (may be disabled on this video, not always IP block)",
+            elapsed_sec=elapsed,
         )
     except Exception as exc:
+        elapsed = time.monotonic() - started
+        from scripts.datasources.youtube.transcript_api_client import format_transcript_error
+
+        detail = format_transcript_error(exc, max_len=400)
         if is_rate_limited(exc):
             return TranscriptProbeResult(
                 False,
                 video_id,
                 "blocked",
-                f"{type(exc).__name__}: {str(exc)[:240]}",
+                detail,
+                elapsed_sec=elapsed,
             )
         return TranscriptProbeResult(
             False,
             video_id,
             "error",
-            f"{type(exc).__name__}: {str(exc)[:240]}",
+            detail,
+            elapsed_sec=elapsed,
         )
 
 
@@ -673,22 +696,32 @@ def format_transcript_block_help(
     probe: TranscriptProbeResult,
 ) -> str:
     """Actionable multi-line message for IP / request blocks."""
+    from scripts.datasources.youtube.transcript_api_client import describe_caption_egress
+
+    egress = describe_caption_egress(
+        explicit_proxy_url=proxy_url,
+        cookies_path=cookies_path,
+        ytdlp_fallback=True,
+    )
     lines = [
         f"YouTube blocked transcript access on probe video {probe.video_id}.",
         f"  Reason: {probe.detail or probe.reason}",
+        f"  Probe took: {probe.elapsed_sec:.1f}s",
         "",
         "What is configured:",
+        f"  caption API: {egress['caption_api']}",
+        f"  caption egress: {egress['caption_egress_detail']}",
         f"  cookies: {cookies_path or '(none — export youtube_cookies.txt while logged into YouTube)'}",
-        f"  proxy:   {proxy_url or '(none — direct egress; OK if WSL and Windows show the same VPN IP)'}",
+        f"  yt-dlp fallback: {egress['ytdlp_egress_detail']}",
         "",
-        "This is usually YouTube blocking your current VPN/public IP (from earlier retries), not WSL routing.",
+        "This is usually YouTube throttling the caption endpoint (/api/timedtext) or blocking the egress IP.",
         "",
         "Fix (try in order):",
-        "  1. In Surfshark: switch country/server (new IP), then re-export youtube_cookies.txt from Chrome",
-        "  2. Wait 24–48h without caption fetches, then retry with --delay 15+ and --limit 5",
-        "  3. Confirm browser can open youtube.com/watch?v=ajsME66iXbY and show captions — if yes, cookies may be stale",
-        "  4. Do not use 9091/Tor for YouTube (connection reset); Surfshark has no local SOCKS port",
-        "  5. If WSL and Windows IPs differ: enable mirrored mode in C:\\Users\\<you>\\.wslconfig (see BYPASS_IP_BLOCK.md)",
+        "  1. Run: .venv/bin/python scripts/datasources/youtube/verify_webshare_proxy.py",
+        "  2. Set WEBSHARE_FILTER_IP_LOCATIONS=us and increase --delay (25+)",
+        "  3. Re-export youtube_cookies.txt from Chrome while logged into YouTube",
+        "  4. Wait 24–48h without caption fetches, then retry with --limit 5",
+        "  5. Confirm browser can open youtube.com/watch?v=ajsME66iXbY and show captions",
         "  6. See scripts/datasources/youtube/BYPASS_IP_BLOCK.md",
         "",
         "Flags: --skip-probe | --abort-on-probe-fail",
@@ -908,37 +941,29 @@ def run(args: argparse.Namespace) -> int:
 
     cookies = resolve_cookies_path(args.cookies or None)
     proxy = (args.proxy or os.getenv("YOUTUBE_TRANSCRIPT_PROXY") or "").strip() or None
-    if cookies:
-        logger.info("Using cookies file: {}", cookies)
-    else:
-        logger.warning(
-            "No cookies file — export youtube_cookies.txt while logged into YouTube "
-            "(reduces IP blocks; same as a successful single-video run)"
-        )
-    if not args.no_ytdlp_fallback:
-        logger.info(
-            "Caption fetch: youtube_transcript_api, then yt-dlp if API fails or captions "
-            "look disabled"
-        )
-    if proxy:
-        logger.info("Using proxy for transcript fetches: {}", proxy)
-        from scripts.datasources.youtube.transcript_api_client import check_proxy_reachable
+    from scripts.datasources.youtube.transcript_api_client import (
+        check_proxy_reachable,
+        log_caption_fetch_setup,
+    )
 
+    log_caption_fetch_setup(
+        logger,
+        cookies_path=cookies,
+        explicit_proxy_url=proxy,
+        ytdlp_fallback=not args.no_ytdlp_fallback,
+        verify_webshare=True,
+    )
+    if proxy:
         ok, msg = check_proxy_reachable(proxy)
         if not ok:
             logger.error(
-                "Proxy not reachable from this shell: {}. "
-                "Fix YOUTUBE_TRANSCRIPT_PROXY (VPN local port) or unset it and use cookies only. "
+                "YOUTUBE_TRANSCRIPT_PROXY not reachable from this shell: {}. "
+                "Fix the URL/port or unset it (Webshare via PROXY_* still applies to caption API). "
                 "On WSL, 127.0.0.1 is Linux — use the Windows host IP if the VPN runs on Windows.",
                 msg,
             )
             return 2
-        logger.info("Proxy check: {}", msg)
-    else:
-        logger.info(
-            "No explicit YOUTUBE_TRANSCRIPT_PROXY — using default WSL network route. "
-            "If mirrored networking + Surfshark is configured, this is expected."
-        )
+        logger.info("YOUTUBE_TRANSCRIPT_PROXY port check: {}", msg)
 
     loader = YouTubeEventsLoader(
         database_url=db_url,
@@ -959,9 +984,20 @@ def run(args: argparse.Namespace) -> int:
     if args.skip_probe or video_filter:
         probe_id = ""
     if probe_id:
-        logger.info("Probing transcript access for {} (may take 10–30s)…", probe_id)
+        logger.info(
+            "Probe: fetching captions for {} via loader.fetch_transcript (caption API first, "
+            "yt-dlp fallback if enabled)…",
+            probe_id,
+        )
         probe = probe_transcript_access(loader, probe_id)
-        if not probe.ok and probe.reason == "blocked":
+        if probe.ok:
+            logger.success(
+                "Probe OK {} in {:.1f}s — {}",
+                probe_id,
+                probe.elapsed_sec,
+                probe.summary or probe.source or "captions received",
+            )
+        elif not probe.ok and probe.reason == "blocked":
             help_text = format_transcript_block_help(
                 cookies_path=cookies,
                 proxy_url=proxy,
@@ -976,15 +1012,22 @@ def run(args: argparse.Namespace) -> int:
             consecutive_rl += 1
         elif not probe.ok:
             logger.warning(
-                "Probe {}: {} — {}",
+                "Probe {} failed in {:.1f}s: {} — {}",
                 probe_id,
+                probe.elapsed_sec,
                 probe.reason,
                 probe.detail or "(no detail)",
             )
 
+    from scripts.datasources.youtube.transcript_api_client import (
+        format_transcript_error,
+        summarize_transcript_payload,
+    )
+
     for i, row in enumerate(pending, 1):
         video_id = row["video_id"]
         test_url = str(row.get("video_url") or "").strip() or f"https://www.youtube.com/watch?v={video_id}"
+        title_snip = (str(row.get("title") or "")[:60]).strip()
         if i > 1:
             delay = args.delay
             if consecutive_rl > 0:
@@ -992,7 +1035,7 @@ def run(args: argparse.Namespace) -> int:
                 logger.warning("Backoff {:.1f}s after rate limit", delay)
             time.sleep(delay)
 
-        logger.info("[{}/{}] {}", i, len(pending), video_id)
+        logger.info("[{}/{}] {} — {}", i, len(pending), video_id, title_snip or "(no title)")
         event_id = row.get("event_id")
         via_socks = bool(proxy and "socks" in proxy.lower())
 
@@ -1077,7 +1120,11 @@ def run(args: argparse.Namespace) -> int:
                 )
             else:
                 stats["fail"] += 1
-                logger.warning("No transcript for {} (will retry): {}", video_id, exc)
+                logger.warning(
+                    "No transcript for {} — {}",
+                    video_id,
+                    format_transcript_error(exc, max_len=300),
+                )
             consecutive_rl = 0
             continue
 
@@ -1154,6 +1201,12 @@ def run(args: argparse.Namespace) -> int:
                     cur.close()
 
         stats["ok"] += 1
+        logger.success(
+            "OK {} — {} url={}",
+            video_id,
+            summarize_transcript_payload(yt),
+            test_url,
+        )
         if stats["ok"] % 25 == 0:
             logger.info("Progress: {}", stats)
 

@@ -9,7 +9,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { US_STATE_NAMES } from '../../utils/stateMapping'
+import { STATE_CODE_TO_NAME } from '../../utils/stateMapping'
 
 export type StateYoutubeCategoryKey = 'overall' | 'public_health' | 'education' | 'transportation'
 
@@ -68,7 +68,7 @@ function enrichStateYoutubeCategoryRows(
 ): EnrichedStateYoutubeCategoryRow[] {
   return (rows ?? []).map((r) => ({
     ...r,
-    name: r.state_name ?? US_STATE_NAMES[r.state_code] ?? r.state_code,
+    name: r.state_name ?? STATE_CODE_TO_NAME[r.state_code] ?? r.state_code,
     pct: r.mapped ? 100 : 0,
     missing: r.mapped ? 0 : 1,
   }))

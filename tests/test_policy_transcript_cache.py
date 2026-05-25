@@ -58,7 +58,7 @@ def test_write_policy_transcript_cache(tmp_path: Path):
     payload = json.loads(out.read_text(encoding="utf-8"))
     assert payload["caption_raw_data"][0]["text"] == "<i>hello</i>"
     assert payload["caption_preserve_formatting"] is True
-    assert policy_transcript_sidecar_path(out).is_file()
+    assert not policy_transcript_sidecar_path(out).is_file()
     assert not (out.parent / f"{out.stem}.caption_formatted.json").exists()
 
 

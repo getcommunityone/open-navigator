@@ -9,10 +9,12 @@ from scripts.datasources.youtube.transcript_api_client import (
     _fetched_to_payload,
     build_proxy_config,
     build_youtube_transcript_api,
+    describe_caption_egress,
     fetch_transcript_from_api,
     format_transcript_error,
     resolve_webshare_filter_ip_locations,
     resolve_webshare_proxy_credentials,
+    summarize_transcript_payload,
     transcript_failure_hint,
     resolve_ytdlp_proxy_url,
 )
@@ -169,3 +171,30 @@ def test_fetch_transcript_from_api_delegates_to_bundle(mock_bundle: MagicMock):
     mock_bundle.assert_called_once()
     assert result["raw_text"] == "hi"
     assert result["transcript_source"] == "youtube_transcript_api"
+
+
+@patch.dict(
+    os.environ,
+    {"PROXY_USER_NAME": "ws_user", "PROXY_PASSWORD": "ws_pass", "WEBSHARE_FILTER_IP_LOCATIONS": "us"},
+    clear=False,
+)
+def test_describe_caption_egress_webshare():
+    info = describe_caption_egress(cookies_path="/tmp/cookies.txt", ytdlp_fallback=True)
+    assert info["caption_egress_mode"] == "webshare"
+    assert "ws_user" in info["caption_egress_detail"]
+    assert info["webshare_configured"] is True
+    assert info["ytdlp_egress_mode"] == "direct"
+
+
+def test_summarize_transcript_payload():
+    text = summarize_transcript_payload(
+        {
+            "transcript_source": "youtube_transcript_api",
+            "language": "en",
+            "is_auto_generated": True,
+            "raw_text": "hello world",
+            "segments": [{"text": "hello world", "start": 0, "duration": 1}],
+        }
+    )
+    assert "youtube_transcript_api" in text
+    assert "chars=11" in text

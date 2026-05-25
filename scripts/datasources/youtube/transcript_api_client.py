@@ -508,6 +508,106 @@ def fetch_transcript_from_api(
     )
 
 
+def describe_caption_egress(
+    *,
+    explicit_proxy_url: Optional[str] = None,
+    cookies_path: Optional[str] = None,
+    ytdlp_fallback: bool = True,
+) -> dict[str, Any]:
+    """
+    Human-readable caption routing for logs (caption API vs yt-dlp egress).
+
+    Webshare (``PROXY_USER_NAME`` / ``PROXY_PASSWORD``) is used by the caption API even when
+    ``YOUTUBE_TRANSCRIPT_PROXY`` is unset.
+    """
+    ws_user, _ws_pass = resolve_webshare_proxy_credentials()
+    ws_locations = resolve_webshare_filter_ip_locations()
+    generic = resolve_transcript_proxy_url(explicit_proxy_url)
+
+    if ws_user:
+        caption_mode = "webshare"
+        loc = f", pool={','.join(ws_locations)}" if ws_locations else ""
+        caption_detail = f"Webshare residential (user={ws_user!r}{loc})"
+    elif generic:
+        caption_mode = "generic_proxy"
+        caption_detail = f"YOUTUBE_TRANSCRIPT_PROXY / --proxy ({generic})"
+    else:
+        caption_mode = "direct"
+        caption_detail = "direct egress (WSL/host network; no Webshare or YOUTUBE_TRANSCRIPT_PROXY)"
+
+    ytdlp_url = resolve_ytdlp_proxy_url(explicit_proxy_url)
+    if ytdlp_url:
+        ytdlp_mode = "webshare" if "webshare.io" in ytdlp_url else "generic_proxy"
+        ytdlp_detail = ytdlp_url.split("@")[-1][:80]
+    else:
+        ytdlp_mode = "direct"
+        ytdlp_detail = "direct + cookies (default)"
+
+    return {
+        "caption_api": "youtube-transcript-api (transcript_api_client)",
+        "caption_egress_mode": caption_mode,
+        "caption_egress_detail": caption_detail,
+        "webshare_configured": bool(ws_user),
+        "webshare_user": ws_user,
+        "webshare_locations": ws_locations,
+        "explicit_proxy": generic,
+        "cookies_path": cookies_path,
+        "ytdlp_fallback": ytdlp_fallback,
+        "ytdlp_egress_mode": ytdlp_mode,
+        "ytdlp_egress_detail": ytdlp_detail,
+    }
+
+
+def summarize_transcript_payload(payload: Optional[dict[str, Any]]) -> str:
+    """One-line fetch outcome for logs."""
+    if not payload:
+        return "no payload"
+    src = str(payload.get("transcript_source") or "?")
+    lang = str(payload.get("language") or "?")
+    auto = "auto" if payload.get("is_auto_generated") else "manual"
+    chars = len(str(payload.get("raw_text") or ""))
+    segs = len(payload.get("segments") or [])
+    return f"source={src} lang={lang} {auto} chars={chars} segments={segs}"
+
+
+def log_caption_fetch_setup(
+    logger: Any,
+    *,
+    cookies_path: Optional[str],
+    explicit_proxy_url: Optional[str] = None,
+    ytdlp_fallback: bool = True,
+    verify_webshare: bool = False,
+) -> None:
+    """Log caption API path, egress, cookies, and optional Webshare connectivity check."""
+    info = describe_caption_egress(
+        explicit_proxy_url=explicit_proxy_url,
+        cookies_path=cookies_path,
+        ytdlp_fallback=ytdlp_fallback,
+    )
+    logger.info("Caption API: {}", info["caption_api"])
+    logger.info("Caption egress: {}", info["caption_egress_detail"])
+    if info["cookies_path"]:
+        logger.info("Cookies: {}", info["cookies_path"])
+    else:
+        logger.warning(
+            "Cookies: (none) — export youtube_cookies.txt while logged into YouTube"
+        )
+    if info["ytdlp_fallback"]:
+        logger.info("yt-dlp fallback: enabled ({})", info["ytdlp_egress_detail"])
+    else:
+        logger.info("yt-dlp fallback: disabled (caption API only)")
+    if info["webshare_configured"] and info["explicit_proxy"]:
+        logger.info(
+            "Note: Webshare env wins for caption API; YOUTUBE_TRANSCRIPT_PROXY is for yt-dlp / generic only"
+        )
+    if verify_webshare and info["webshare_configured"]:
+        ok, msg = verify_webshare_proxy_connectivity()
+        if ok:
+            logger.info("Webshare check: {}", msg)
+        else:
+            logger.error("Webshare check failed: {}", msg)
+
+
 __all__ = [
     "DEFAULT_TRANSCRIPT_LANGUAGES",
     "format_transcript_error",
@@ -524,4 +624,7 @@ __all__ = [
     "resolve_webshare_retries_when_blocked",
     "resolve_ytdlp_proxy_url",
     "verify_webshare_proxy_connectivity",
+    "describe_caption_egress",
+    "summarize_transcript_payload",
+    "log_caption_fetch_setup",
 ]

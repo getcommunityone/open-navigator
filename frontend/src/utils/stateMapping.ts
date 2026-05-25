@@ -63,6 +63,9 @@ export const STATE_CODE_TO_NAME: Record<string, string> = Object.fromEntries(
   Object.entries(STATE_NAME_TO_CODE).map(([name, code]) => [code, name])
 )
 
+/** Alias used by jurisdiction-quality dashboard components. */
+export const US_STATE_NAMES = STATE_CODE_TO_NAME
+
 /**
  * Convert a full state name to its 2-letter code
  * @param stateName - Full state name (e.g., "Massachusetts")

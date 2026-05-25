@@ -100,11 +100,8 @@ def write_policy_transcript_cache(
         encoding="utf-8",
     )
 
-    if caption_raw_data is not None:
-        policy_transcript_sidecar_path(main_path).write_text(
-            json.dumps(caption_raw_data, indent=2, ensure_ascii=False) + "\n",
-            encoding="utf-8",
-        )
+    # Raw caption snippets live only in the main JSON (`caption_raw_data` key).
+    # Do not write a duplicate `.caption_raw_data.json` sidecar.
 
     return main_path
 

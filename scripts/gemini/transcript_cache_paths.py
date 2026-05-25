@@ -731,7 +731,7 @@ def _sanitize_audio_title(text: str, *, max_length: int = 80) -> str:
     text = re.sub(r'[<>:"\\|?*]', "", text)
     text = re.sub(r"\s+", "_", text.strip())
     text = re.sub(r"_+", "_", text).strip("_")
-    return (text or "untitled")[:max_length]
+    return (text or "untitled")[:max_length].strip("_") or "untitled"
 
 
 def strip_meeting_date_from_title(
@@ -745,13 +745,21 @@ def strip_meeting_date_from_title(
     Handles ``1/11/2024``, ``1-11-2024``, ``September 23, 2024``, and legacy compact
     suffixes like ``1112024`` (slashes removed by older sanitizers).
     """
-    t = (title or "").strip()
+    t = _normalize_title_for_date_parse(title)
     if not t:
         return "untitled"
 
-    month_match = _MONTH_DAY_YEAR_RE.search(t)
-    if month_match:
-        t = (t[: month_match.start()] + t[month_match.end() :]).strip()
+    month_matches = list(_MONTH_DAY_YEAR_RE.finditer(t))
+    if month_matches:
+        remove_match: Optional[re.Match[str]] = None
+        if resolved_date and resolved_date != "unknown-date":
+            for match in reversed(month_matches):
+                if _parse_month_day_year_match(match) == str(resolved_date)[:10]:
+                    remove_match = match
+                    break
+        if remove_match is None:
+            remove_match = month_matches[-1]
+        t = (t[: remove_match.start()] + t[remove_match.end() :]).strip()
     else:
         for pattern in _DATE_IN_TITLE_PATTERNS:
             match = re.search(pattern, t)
@@ -764,29 +772,53 @@ def strip_meeting_date_from_title(
                 if match:
                     t = (t[: match.start()] + t[match.end() :]).strip()
                     break
+            else:
+                compact = re.search(r"(?<!\d)(\d{8})(?!\d)", t)
+                if compact:
+                    t = (t[: compact.start()] + t[compact.end() :]).strip()
 
-    if resolved_date:
+    if resolved_date and resolved_date != "unknown-date":
+        compact_lead = re.match(r"^(?<!\d)(\d{8})(?!\d)", t)
+        if compact_lead:
+            try:
+                if (
+                    datetime.strptime(compact_lead.group(1), "%Y%m%d").strftime("%Y-%m-%d")
+                    == str(resolved_date)[:10]
+                ):
+                    t = t[compact_lead.end() :].strip()
+            except ValueError:
+                pass
         try:
             d = datetime.strptime(str(resolved_date)[:10], "%Y-%m-%d")
         except ValueError:
             d = None
         if d is not None:
             yy = d.year % 100
-            variants = (
-                f"{d.month}/{d.day}/{d.year}",
-                f"{d.month}-{d.day}-{d.year}",
-                f"{d.month:02d}/{d.day:02d}/{d.year}",
-                f"{d.month:02d}-{d.day:02d}-{d.year}",
-                f"{d.month}/{d.day}/{yy:02d}",
-                f"{d.month}-{d.day}-{yy:02d}",
-                f"{d.month:02d}/{d.day:02d}/{yy:02d}",
-                f"{d.month:02d}-{d.day:02d}-{yy:02d}",
-                f"{d.month}{d.day}{d.year}",
-                f"{d.month:02d}{d.day:02d}{d.year}",
+            variants = list(
+                _month_day_year_text_variants(d)
+                + (
+                    f"{d.month}/{d.day}/{d.year}",
+                    f"{d.month}-{d.day}-{d.year}",
+                    f"{d.month:02d}/{d.day:02d}/{d.year}",
+                    f"{d.month:02d}-{d.day:02d}-{d.year}",
+                    f"{d.month}/{d.day}/{yy:02d}",
+                    f"{d.month}-{d.day}-{yy:02d}",
+                    f"{d.month:02d}/{d.day:02d}/{yy:02d}",
+                    f"{d.month:02d}-{d.day:02d}-{yy:02d}",
+                    f"{d.month} {d.day} {d.year}",
+                    f"{d.month:02d} {d.day:02d} {d.year}",
+                    f"{d.month} {d.day} {yy:02d}",
+                    f"{d.month:02d} {d.day:02d} {yy:02d}",
+                    f"{d.month}{d.day}{d.year}",
+                    f"{d.month:02d}{d.day:02d}{d.year}",
+                )
             )
             for fragment in variants:
                 if t.endswith(fragment):
                     t = t[: -len(fragment)].strip()
+                    break
+                if fragment in t:
+                    t = t.replace(fragment, " ", 1).strip()
                     break
                 hyphenated = fragment.replace("/", "-")
                 if hyphenated != fragment and t.endswith(hyphenated):
@@ -805,18 +837,68 @@ _DATE_IN_TITLE_PATTERNS = (
     r"(\d{4})-(\d{1,2})-(\d{1,2})",
     r"(\d{1,2})-(\d{1,2})-(\d{4})",
     r"(\d{1,2})/(\d{1,2})/(\d{4})",
+    r"(?<!\d)(\d{1,2})\s+(\d{1,2})\s+(\d{4})(?!\d)",
 )
 # M-D-YY or M/D/YY (e.g. ``1-23-24`` in county board titles); not four-digit years.
 _DATE_IN_TITLE_PATTERNS_2Y = (
     r"(\d{1,2})-(\d{1,2})-(\d{2})(?!\d)",
     r"(\d{1,2})/(\d{1,2})/(\d{2})(?!\d)",
+    r"(?<!\d)(\d{1,2})\s+(\d{1,2})\s+(\d{2})(?!\d)",
 )
 _MONTH_DAY_YEAR_RE = re.compile(
     r"(January|February|March|April|May|June|July|August|September|October|November|December|"
-    r"Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\s+(\d{1,2}),\s+(\d{4})",
+    r"Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)"
+    r"\s+(\d{1,2})(?:st|nd|rd|th)?\s*,?\s*(\d{4})\b",
     re.IGNORECASE,
 )
-_MONTH_DAY_YEAR_FMTS = ("%B %d, %Y", "%b %d, %Y")
+
+
+def _ordinal_suffix(day: int) -> str:
+    if 11 <= (day % 100) <= 13:
+        return "th"
+    return {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
+
+
+def _month_number_from_name(name: str) -> Optional[int]:
+    token = (name or "").strip().lower().rstrip(".")
+    if not token:
+        return None
+    if token == "sept":
+        return 9
+    for month_idx in range(1, 13):
+        ref = datetime(2000, month_idx, 1)
+        if token in (ref.strftime("%B").lower(), ref.strftime("%b").lower()):
+            return month_idx
+    return None
+
+
+def _parse_month_day_year_match(match: re.Match[str]) -> Optional[str]:
+    month = _month_number_from_name(match.group(1))
+    if month is None:
+        return None
+    try:
+        day = int(match.group(2))
+        year = int(match.group(3))
+    except (TypeError, ValueError):
+        return None
+    return _parse_mdy_groups(month, day, year)
+
+
+def _month_day_year_text_variants(d: datetime) -> tuple[str, ...]:
+    """Text fragments like ``May 4th, 2026`` for suffix stripping."""
+    out: list[str] = []
+    for month_fmt in ("%B", "%b"):
+        month = d.strftime(month_fmt)
+        for day_s in (
+            str(d.day),
+            f"{d.day:02d}",
+            f"{d.day}{_ordinal_suffix(d.day)}",
+            f"{d.day:02d}{_ordinal_suffix(d.day)}",
+        ):
+            out.append(f"{month} {day_s}, {d.year}")
+            out.append(f"{month} {day_s} {d.year}")
+            out.append(f"{month} {day_s},{d.year}")
+    return tuple(dict.fromkeys(out))
 
 
 def _full_year_from_two_digit(yy: int) -> int:
@@ -834,42 +916,68 @@ def _parse_mdy_groups(month: int, day: int, year: int) -> Optional[str]:
         return None
 
 
-def extract_meeting_date_from_title(title: str) -> Optional[str]:
-    """Parse M/D/YYYY, M-D-YY, YYYY-MM-DD, or 'September 23, 2024' from a video title."""
-    month_match = _MONTH_DAY_YEAR_RE.search(title or "")
-    if month_match:
-        fragment = month_match.group(0)
-        for fmt in _MONTH_DAY_YEAR_FMTS:
+def _last_date_from_title_patterns(
+    text: str,
+    patterns: tuple[str, ...],
+    *,
+    two_digit_year: bool = False,
+) -> Optional[str]:
+    """Return the last valid M/D/Y match (trailing title dates win over earlier numbers)."""
+    found: Optional[str] = None
+    for pattern in patterns:
+        for match in re.finditer(pattern, text):
             try:
-                return datetime.strptime(fragment, fmt).strftime("%Y-%m-%d")
-            except ValueError:
+                if two_digit_year:
+                    month, day, yy = (
+                        int(match.group(1)),
+                        int(match.group(2)),
+                        int(match.group(3)),
+                    )
+                    parsed = _parse_mdy_groups(month, day, _full_year_from_two_digit(yy))
+                else:
+                    groups = match.groups()
+                    if len(groups[0]) == 4:
+                        year, month, day = int(groups[0]), int(groups[1]), int(groups[2])
+                    else:
+                        month, day, year = int(groups[0]), int(groups[1]), int(groups[2])
+                    parsed = _parse_mdy_groups(month, day, year)
+                if parsed:
+                    found = parsed
+            except (ValueError, IndexError):
                 continue
-    for pattern in _DATE_IN_TITLE_PATTERNS:
-        match = re.search(pattern, title or "")
-        if not match:
-            continue
-        groups = match.groups()
+    return found
+
+
+def _normalize_title_for_date_parse(title: str) -> str:
+    """Policy cache basenames use underscores; parse dates as spaced titles."""
+    return re.sub(r"\s+", " ", (title or "").replace("_", " ")).strip()
+
+
+def extract_meeting_date_from_title(title: str) -> Optional[str]:
+    """Parse M/D/YYYY, M-D-YY, YYYY-MM-DD, YYYYMMDD, or 'September 23, 2024' from a video title."""
+    text = _normalize_title_for_date_parse(title)
+    for match in re.finditer(r"(?<!\d)(\d{8})(?!\d)", text):
+        fragment = match.group(1)
         try:
-            if len(groups[0]) == 4:
-                year, month, day = int(groups[0]), int(groups[1]), int(groups[2])
-            else:
-                month, day, year = int(groups[0]), int(groups[1]), int(groups[2])
-            parsed = _parse_mdy_groups(month, day, year)
+            parsed = datetime.strptime(fragment, "%Y%m%d")
+        except ValueError:
+            continue
+        if 1990 <= parsed.year <= 2035:
+            return parsed.strftime("%Y-%m-%d")
+    month_matches = list(_MONTH_DAY_YEAR_RE.finditer(text))
+    if month_matches:
+        for match in reversed(month_matches):
+            parsed = _parse_month_day_year_match(match)
             if parsed:
                 return parsed
-        except (ValueError, IndexError):
-            continue
-    for pattern in _DATE_IN_TITLE_PATTERNS_2Y:
-        match = re.search(pattern, title or "")
-        if not match:
-            continue
-        try:
-            month, day, yy = int(match.group(1)), int(match.group(2)), int(match.group(3))
-            parsed = _parse_mdy_groups(month, day, _full_year_from_two_digit(yy))
-            if parsed:
-                return parsed
-        except (ValueError, IndexError):
-            continue
+    parsed = _last_date_from_title_patterns(text, _DATE_IN_TITLE_PATTERNS)
+    if parsed:
+        return parsed
+    parsed = _last_date_from_title_patterns(
+        text, _DATE_IN_TITLE_PATTERNS_2Y, two_digit_year=True
+    )
+    if parsed:
+        return parsed
     return None
 
 
@@ -1894,16 +2002,125 @@ def _patch_json_event_date_field(
         return False
     if not isinstance(data, dict):
         return False
-    resolved = resolve_meeting_event_date(title, event_date=data.get("event_date"))
-    if not resolved or str(data.get("event_date") or "")[:10] == resolved:
+    meeting = data.get("meeting") if isinstance(data.get("meeting"), dict) else {}
+    catalog_date = data.get("event_date") or meeting.get("meeting_date")
+    resolved = resolve_meeting_event_date(title, event_date=catalog_date)
+    if not resolved:
+        return False
+    changed = False
+    if str(data.get("event_date") or "")[:10] != resolved:
+        data["event_date"] = resolved
+        changed = True
+    if meeting and str(meeting.get("meeting_date") or "")[:10] != resolved:
+        meeting["meeting_date"] = resolved
+        changed = True
+    if not changed:
         return False
     if not dry_run:
-        data["event_date"] = resolved
         path.write_text(
             json.dumps(data, indent=2, ensure_ascii=False) + "\n",
             encoding="utf-8",
         )
     return True
+
+
+def iter_policy_channel_roots(cache_dir: Path) -> List[Path]:
+    """Every ``…/{channel_id}/`` folder that contains ``01_transcripts``."""
+    root = cache_dir.resolve()
+    if not root.is_dir():
+        return []
+    out: List[Path] = []
+    for transcripts_dir in sorted(root.rglob(DIR_TRANSCRIPTS)):
+        if transcripts_dir.is_dir() and transcripts_dir.name == DIR_TRANSCRIPTS:
+            out.append(transcripts_dir.parent)
+    return out
+
+
+def remove_redundant_transcript_files(
+    folder: Path,
+    *,
+    dry_run: bool = False,
+) -> Dict[str, int]:
+    """
+    Drop duplicate ``.caption_raw_data.json`` / ``.caption_formatted.json`` when the
+    main transcript JSON already holds (or should hold) that payload.
+    """
+    from scripts.datasources.youtube.policy_transcript_cache import (
+        policy_transcript_sidecar_path,
+    )
+
+    stats: Dict[str, int] = defaultdict(int)
+    transcripts_dir = folder.resolve() / DIR_TRANSCRIPTS
+    if not transcripts_dir.is_dir():
+        return dict(stats)
+
+    for path in sorted(transcripts_dir.iterdir()):
+        if not path.is_file() or path.suffix != ".json":
+            continue
+        name = path.name
+        if ".caption_raw_data." in name or ".caption_formatted." in name:
+            continue
+        if name == README_NAME:
+            continue
+
+        for formatted in (
+            path.parent / f"{path.stem}.caption_formatted.json",
+            path.parent / f"{path.stem}_.caption_formatted.json",
+        ):
+            if formatted.is_file():
+                if dry_run:
+                    stats["would_remove_formatted"] += 1
+                else:
+                    formatted.unlink()
+                    stats["removed_formatted"] += 1
+
+        sidecar = policy_transcript_sidecar_path(path)
+        if not sidecar.is_file():
+            legacy = path.parent / f"{path.stem}_.caption_raw_data.json"
+            if legacy.is_file():
+                sidecar = legacy
+        if not sidecar.is_file():
+            continue
+        has_embedded = False
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            raw = data.get("caption_raw_data")
+            has_embedded = isinstance(raw, list) and len(raw) > 0
+            if not has_embedded and isinstance(data.get("youtube"), dict):
+                segs = data["youtube"].get("segments")
+                has_embedded = isinstance(segs, list) and len(segs) > 0
+        except (json.JSONDecodeError, OSError):
+            stats["skipped_read_error"] += 1
+            continue
+        if not has_embedded:
+            stats["kept_orphan_sidecar"] += 1
+            continue
+        if dry_run:
+            stats["would_remove_sidecar"] += 1
+        else:
+            sidecar.unlink()
+            stats["removed_sidecar"] += 1
+
+    return dict(stats)
+
+
+def cleanup_policy_transcript_cache_tree(
+    cache_dir: Path,
+    *,
+    dry_run: bool = False,
+) -> Dict[str, int]:
+    """Fix ``unknown-date`` names and remove redundant caption sidecars under ``cache_dir``."""
+    totals: Dict[str, int] = defaultdict(int)
+    for channel_root in iter_policy_channel_roots(cache_dir):
+        for key, value in fix_policy_cache_dates_from_title(
+            channel_root, dry_run=dry_run
+        ).items():
+            totals[f"dates_{key}"] += value
+        for key, value in remove_redundant_transcript_files(
+            channel_root, dry_run=dry_run
+        ).items():
+            totals[f"sidecars_{key}"] += value
+    return dict(totals)
 
 
 def fix_policy_cache_dates_from_title(
@@ -1940,6 +2157,24 @@ def fix_policy_cache_dates_from_title(
                 action = _safe_move(path, dest, dry_run=dry_run)
                 stats[action] += 1
                 work_path = dest
+                if sub == DIR_TRANSCRIPTS:
+                    for suffix in (".caption_raw_data.json", ".caption_formatted.json"):
+                        for orphan in (
+                            path.parent / f"{path.stem}{suffix}",
+                            path.parent / f"{path.stem}_{suffix}",
+                        ):
+                            if orphan.is_file() and orphan.resolve() != (
+                                work_path.parent
+                                / f"{work_path.stem}{suffix}"
+                            ).resolve():
+                                if dry_run:
+                                    stats["would_move_sidecar"] += 1
+                                else:
+                                    orphan.rename(
+                                        work_path.parent
+                                        / f"{work_path.stem}{suffix}"
+                                    )
+                                    stats["moved_sidecar"] += 1
             else:
                 stats["already_named"] += 1
             if sub in (DIR_TRANSCRIPTS, DIR_ANALYSIS) and work_path.suffix == ".json":
