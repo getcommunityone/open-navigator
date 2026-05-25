@@ -998,6 +998,13 @@ def main(argv: list[str] | None = None) -> int:
             "Default: youtube_cookies.txt or YOUTUBE_COOKIES_FILE env."
         ),
     )
+    p.add_argument(
+        "--progress-every",
+        type=int,
+        default=10,
+        metavar="N",
+        help="Log a progress line every N completed jurisdictions (default: 10; use 1 for live terminal status).",
+    )
     args = p.parse_args(argv)
 
     logging.basicConfig(
@@ -1109,7 +1116,8 @@ def main(argv: list[str] | None = None) -> int:
             if result.election_error:
                 totals["election_errors"] += 1
 
-            if completed % 10 == 0 or completed == len(pending):
+            pe = max(1, int(args.progress_every))
+            if completed % pe == 0 or completed == len(pending):
                 elapsed = time.monotonic() - start
                 rate = completed / elapsed if elapsed > 0 else 0
                 eta_s = (len(pending) - completed) / rate if rate > 0 else 0

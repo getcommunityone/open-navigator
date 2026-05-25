@@ -50,6 +50,9 @@ _OCD_PREFIX_SHORT: dict[str, str] = {
     "ballotmeasure": "bm",
 }
 
+# Partial unique indexes (migration 055): ON CONFLICT must include the same predicate.
+_ON_CONFLICT_DEDUPE_KEY = "ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL"
+
 _C1_LIMITS = {
     "id": 50,
     "dedupe_key": 500,
@@ -321,8 +324,9 @@ def _ballotmeasure_id(row: BronzeElectionRow, election_id: str) -> tuple[str, st
 
 
 def _election_group_key(row: BronzeElectionRow) -> str:
-    election_id, dedupe_key = _election_id(row)
-    return dedupe_key or election_id
+    """Stable c1 election id for grouping (not dedupe_key — candidacies use election|{id})."""
+    election_id, _ = _election_id(row)
+    return fit_c1_id(election_id, prefix="election", fallback_key=str(row.id))
 
 
 def _election_rows_for_upsert(rows: list[BronzeElectionRow]) -> list[BronzeElectionRow]:
@@ -346,13 +350,13 @@ def _execute_election_upsert(cur, payload: tuple) -> None:
     dedupe_key = payload[9]
     if dedupe_key:
         cur.execute(
-            """
+            f"""
             INSERT INTO public.c1_election
                 (id, legacy_id, name, election_date, election_type, election_status,
                  jurisdiction_id, division_id, state_code, dedupe_key, source, source_url,
                  links, sources, extras)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (dedupe_key) DO UPDATE SET
+            {_ON_CONFLICT_DEDUPE_KEY} DO UPDATE SET
                 name = EXCLUDED.name,
                 election_date = EXCLUDED.election_date,
                 election_type = EXCLUDED.election_type,
@@ -413,7 +417,7 @@ def _execute_dedupe_upsert(
             f"""
             INSERT INTO public.{table} ({columns})
             VALUES ({placeholders})
-            ON CONFLICT (dedupe_key) DO UPDATE SET {update_set}
+            {_ON_CONFLICT_DEDUPE_KEY} DO UPDATE SET {update_set}
             """,
             payload,
         )
@@ -472,10 +476,14 @@ def upsert_elections(dst_conn, rows: list[BronzeElectionRow], *, dry_run: bool) 
     if dry_run:
         return len({_election_id(r)[0] for r in election_rows})
     count = 0
+    seen_election_ids: set[str] = set()
     with dst_conn.cursor() as cur:
         for row in election_rows:
             election_id, dedupe_key = _election_id(row)
             election_id = fit_c1_id(election_id, prefix="election", fallback_key=str(row.id))
+            if election_id in seen_election_ids:
+                continue
+            seen_election_ids.add(election_id)
             division_id = _fit_division_id(row.ocd_jurisdiction_id or row.jurisdiction_id)
             payload = (
                 election_id,

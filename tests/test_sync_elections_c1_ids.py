@@ -3,13 +3,19 @@
 from scripts.datasources.openstates.sync_elections_to_c1 import (
     BronzeElectionRow,
     _C1_LIMITS,
+    _ON_CONFLICT_DEDUPE_KEY,
     _contest_id,
     _dedupe_key,
+    _election_group_key,
     _election_id,
     _election_rows_for_upsert,
     fit_c1_id,
     make_ocd_id,
 )
+
+
+def test_on_conflict_matches_partial_dedupe_index():
+    assert "WHERE dedupe_key IS NOT NULL" in _ON_CONFLICT_DEDUPE_KEY
 
 
 def test_make_ocd_id_fits_varchar_50():
@@ -68,6 +74,71 @@ def test_candidacy_uses_parent_election_id_from_raw_row():
     election_id, dedupe = _election_id(row)
     assert election_id == fit_c1_id(parent, prefix="election", fallback_key=parent)
     assert dedupe == _dedupe_key("election", election_id)
+
+
+def test_election_rows_for_upsert_one_row_per_c1_election_id():
+    """Candidacy fallback dedupe_key must not create a second upsert for the same election id."""
+    parent = make_ocd_id("election", "lee-voting")
+    election_row = BronzeElectionRow(
+        id=1,
+        scrape_batch_id="00000000-0000-0000-0000-000000000001",
+        record_type="election",
+        ocd_id=parent,
+        election_name="Voting Locations",
+        election_date=None,
+        election_type="unknown",
+        election_status="scraped",
+        ocd_jurisdiction_id="county_13177",
+        state_code="GA",
+        jurisdiction_id="county_13177",
+        candidate_name=None,
+        candidate_party=None,
+        candidate_post=None,
+        candidate_status=None,
+        candidate_vote_count=None,
+        candidate_vote_percent=None,
+        measure_title=None,
+        measure_summary=None,
+        measure_classification=None,
+        measure_yes_count=None,
+        measure_no_count=None,
+        measure_outcome=None,
+        source_url=None,
+        source_name=None,
+        raw_row={},
+    )
+    eid = fit_c1_id(parent, prefix="election", fallback_key="1")
+    candidacy_row = BronzeElectionRow(
+        id=2,
+        scrape_batch_id="00000000-0000-0000-0000-000000000001",
+        record_type="candidacy",
+        ocd_id=make_ocd_id("candidacy", "c1"),
+        election_name=None,
+        election_date=None,
+        election_type=None,
+        election_status=None,
+        ocd_jurisdiction_id="county_13177",
+        state_code="GA",
+        jurisdiction_id="county_13177",
+        candidate_name="Jane",
+        candidate_party=None,
+        candidate_post="Clerk",
+        candidate_status="candidate",
+        candidate_vote_count=None,
+        candidate_vote_percent=None,
+        measure_title=None,
+        measure_summary=None,
+        measure_classification=None,
+        measure_yes_count=None,
+        measure_no_count=None,
+        measure_outcome=None,
+        source_url=None,
+        source_name=None,
+        raw_row={"election_id": parent},
+    )
+    ups = _election_rows_for_upsert([election_row, candidacy_row])
+    assert len(ups) == 1
+    assert _election_group_key(candidacy_row) == eid
 
 
 def test_election_rows_for_upsert_dedupes_same_dedupe_key():
