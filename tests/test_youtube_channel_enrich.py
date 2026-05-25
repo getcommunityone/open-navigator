@@ -4,8 +4,9 @@ from scripts.datasources.jurisdiction_pilot.youtube_channel_enrich import (
     jurisdiction_website_back_links,
 )
 from scripts.datasources.youtube.youtube_channel_page import (
-    is_junk_channel_title,
     extract_channel_title_from_youtube_html,
+    fetch_latest_upload_date_from_rss,
+    is_junk_channel_title,
 )
 
 
@@ -37,3 +38,11 @@ def test_jurisdiction_website_back_links_from_description_host():
         description_text="Visit huntsvilleal.gov for more info.",
     )
     assert any("huntsvilleal.gov" in u for u in links)
+
+
+def test_fetch_latest_upload_from_rss():
+    latest = fetch_latest_upload_date_from_rss("UCjQLzllGnzicLNiMMzcLwKQ")
+    assert latest
+    assert len(latest) == 10
+    assert latest[4] == "-"
+    assert latest[7] == "-"

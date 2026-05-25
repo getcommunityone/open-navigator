@@ -191,11 +191,15 @@ def _looks_like_city_channel_for_county(
     title_l = title.lower()
     county_token = _county_name_token(jurisdiction_name)
 
+    if _CITY_GOVT_TITLE_RE.search(title_l):
+        # Explicit municipal title wins; do not let description mention of
+        # "Dallas County" / "Cullman County" in a city channel bio override.
+        if _has_county_gov_signal(title_l, county_token):
+            return False
+        return True
+
     if _has_county_gov_signal(blob, county_token):
         return False
-
-    if _CITY_GOVT_TITLE_RE.search(title_l):
-        return True
 
     return _looks_like_city_handle_for_county(row, jurisdiction_name=jurisdiction_name)
 

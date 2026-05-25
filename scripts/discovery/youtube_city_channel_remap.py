@@ -17,7 +17,7 @@ from scripts.discovery.youtube_channel_verification import (
 from scripts.jurisdictions.jurisdiction_id import normalize_place_label_for_slug
 
 _CITY_OF_TITLE_RE = re.compile(
-    r"\b(?:city|town|village|borough)\s+of\s+(.+)",
+    r"\b(?:city|town|village|borough)\s*of\s+(.+)",
     re.I,
 )
 _TRAILING_JUNK_RE = re.compile(
@@ -60,6 +60,11 @@ def parse_municipality_name_from_channel(row: Mapping[str, Any]) -> Optional[str
             name = _TRAILING_JUNK_RE.sub("", name).strip(" ,.-")
             if name:
                 return name
+        compact = re.match(r"^cityof(.+)$", title.replace(" ", ""), re.I)
+        if compact:
+            name = _handle_to_place_name(compact.group(1))
+            if name:
+                return name
 
     url = str(row.get("youtube_channel_url") or row.get("channel_url") or "").lower()
     handle_match = _HANDLE_CITYOF_RE.search(url)
@@ -79,6 +84,7 @@ def lookup_municipality_jurisdiction(
     *,
     state_code: str,
     municipality_name: str,
+    municipality_index: dict[str, list[dict[str, str]]] | None = None,
 ) -> Optional[dict[str, str]]:
     """
     Return ``{jurisdiction_id, name, website_url}`` for a municipality in *state_code*.
@@ -89,6 +95,21 @@ def lookup_municipality_jurisdiction(
     if not want:
         return None
 
+    if municipality_index is None:
+        municipality_index = build_municipality_index(cur, state_code=state_code)
+
+    hits = municipality_index.get(want, [])
+    if len(hits) == 1:
+        return hits[0]
+    if len(hits) > 1:
+        slug = want.replace(" ", "_")
+        for hit in hits:
+            if hit["jurisdiction_id"].startswith(slug + "_"):
+                return hit
+    return None
+
+
+def build_municipality_index(cur, *, state_code: str) -> dict[str, list[dict[str, str]]]:
     cur.execute(
         """
         SELECT
@@ -109,27 +130,16 @@ def lookup_municipality_jurisdiction(
         """,
         (state_code.upper()[:2],),
     )
-    hits: list[dict[str, str]] = []
+    index: dict[str, list[dict[str, str]]] = {}
     for row in cur.fetchall():
-        jname = str(row["name"] or "")
-        norm = _normalize_municipality_lookup_name(jname)
-        if norm == want:
-            hits.append(
-                {
-                    "jurisdiction_id": str(row["jurisdiction_id"]),
-                    "name": jname,
-                    "website_url": str(row.get("website_url") or ""),
-                }
-            )
-    if len(hits) == 1:
-        return hits[0]
-    if len(hits) > 1:
-        # Prefer exact title-case match on slug prefix.
-        slug = want.replace(" ", "_")
-        for hit in hits:
-            if hit["jurisdiction_id"].startswith(slug + "_"):
-                return hit
-    return None
+        entry = {
+            "jurisdiction_id": str(row["jurisdiction_id"]),
+            "name": str(row["name"] or ""),
+            "website_url": str(row.get("website_url") or ""),
+        }
+        norm = _normalize_municipality_lookup_name(entry["name"])
+        index.setdefault(norm, []).append(entry)
+    return index
 
 
 def is_misassigned_city_channel_on_county(

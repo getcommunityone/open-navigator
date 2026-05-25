@@ -55,7 +55,7 @@ _MAYOR_CANDIDATE_PATHS: tuple[str, ...] = (
     "/about/mayor",
 )
 
-_COUNCIL_CANDIDATE_PATHS: tuple[str, ...] = (
+_MUNICIPALITY_COUNCIL_CANDIDATE_PATHS: tuple[str, ...] = (
     "/city-council",
     "/citycouncil",
     "/council",
@@ -64,11 +64,21 @@ _COUNCIL_CANDIDATE_PATHS: tuple[str, ...] = (
     "/departments/city-council",
     "/departments/citycouncil/members",
     "/elected-officials",
+)
+
+_COUNTY_COUNCIL_CANDIDATE_PATHS: tuple[str, ...] = (
     "/commissioners",
     "/county-commission",
     "/county-commissioner-meetings",
     "/board-of-commissioners",
+    "/government/commissioners",
+    "/government/county-commission",
+    "/departments/board-of-commissioners",
+    "/elected-officials",
 )
+
+# Homepage anchors with these patterns are municipal-only; skip on county discovery.
+_CITY_COUNCIL_URL_RE = re.compile(r"city[-_]?council|citycouncil", re.IGNORECASE)
 
 # Anchors whose href OR visible text match this pattern are followed by the
 # homepage-crawl fallback. Kept tight — broader patterns ("government", "officials")
@@ -92,11 +102,21 @@ def _slug_from_homepage(homepage_url: str) -> str:
     return stem or host
 
 
-def candidate_urls(homepage_url: str, *, kind: str = "mayor") -> list[str]:
+def candidate_urls(
+    homepage_url: str,
+    *,
+    kind: str = "mayor",
+    jurisdiction_type: str | None = None,
+) -> list[str]:
     """Return ordered candidate URLs for ``mayor`` or ``council`` pages."""
     if not homepage_url:
         return []
-    paths = _MAYOR_CANDIDATE_PATHS if kind == "mayor" else _COUNCIL_CANDIDATE_PATHS
+    if kind == "mayor":
+        paths = _MAYOR_CANDIDATE_PATHS
+    elif (jurisdiction_type or "").strip().lower() == "county":
+        paths = _COUNTY_COUNCIL_CANDIDATE_PATHS
+    else:
+        paths = _MUNICIPALITY_COUNCIL_CANDIDATE_PATHS
     slug = _slug_from_homepage(homepage_url)
     out: list[str] = []
     seen: set[str] = set()
@@ -205,14 +225,22 @@ def discover_seed_urls(
     mayor_live: list[str] = []
     if not skip_mayor:
         mayor_live = probe_urls(candidate_urls(homepage_url, kind="mayor"), session=session)
-    council_live = probe_urls(candidate_urls(homepage_url, kind="council"), session=session)
+    council_live = probe_urls(
+        candidate_urls(homepage_url, kind="council", jurisdiction_type=jt),
+        session=session,
+    )
 
     if mayor_live or council_live:
         return {"mayor": mayor_live, "council": council_live}
 
     anchors = crawl_homepage_anchors(homepage_url, session=session)
     if skip_mayor:
-        council_anchors = [u for u in anchors if not re.search(r"mayor", u, re.IGNORECASE)]
+        council_anchors = [
+            u
+            for u in anchors
+            if not re.search(r"mayor", u, re.IGNORECASE)
+            and not _CITY_COUNCIL_URL_RE.search(u)
+        ]
         return {"mayor": [], "council": council_anchors}
     mayor_anchors = [u for u in anchors if re.search(r"mayor", u, re.IGNORECASE)]
     council_anchors = [u for u in anchors if u not in mayor_anchors]

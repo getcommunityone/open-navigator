@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import json
 import re
+import xml.etree.ElementTree as ET
 from collections import Counter
+from datetime import datetime
 from pathlib import Path
 from typing import Optional, Tuple
 from urllib.parse import unquote
@@ -148,6 +150,90 @@ def _cookie_header(cookies_file: str | None) -> str | None:
         return "; ".join(parts) if parts else None
     except Exception:
         return None
+
+
+def fetch_youtube_channel_videos_page(
+    channel_url: str,
+    *,
+    session: requests.Session | None = None,
+    cookies_file: str | None = None,
+    timeout_s: float = 15,
+) -> Tuple[str, str]:
+    """Return ``(html, final_url)`` from the channel Videos tab."""
+    if not channel_url:
+        return "", ""
+    sess = session or requests.Session()
+    sess.headers.setdefault(
+        "User-Agent",
+        "Mozilla/5.0 (compatible; OpenNavigatorJurisdictionPilot/1.0)",
+    )
+    sess.headers.setdefault("Accept-Language", "en-US,en;q=0.9")
+    cookie_header = _cookie_header(cookies_file)
+    if cookie_header:
+        sess.headers["Cookie"] = cookie_header
+    page_url = channel_url.rstrip("/") + "/videos"
+    try:
+        resp = sess.get(page_url, timeout=timeout_s, allow_redirects=True)
+        if resp.status_code == 200 and resp.text:
+            return resp.text, str(resp.url)
+    except requests.RequestException:
+        pass
+    return "", ""
+
+
+def fetch_latest_upload_date_from_rss(
+    channel_id: str,
+    *,
+    session: requests.Session | None = None,
+    timeout_s: float = 15,
+) -> Optional[str]:
+    """
+    Return ``YYYY-MM-DD`` for the newest video via the public channel RSS feed.
+
+    No YouTube Data API quota; uses ``/feeds/videos.xml?channel_id=UC…``.
+    """
+    cid = (channel_id or "").strip()
+    if not cid.startswith("UC"):
+        return None
+    sess = session or requests.Session()
+    sess.headers.setdefault(
+        "User-Agent",
+        "Mozilla/5.0 (compatible; OpenNavigatorJurisdictionPilot/1.0)",
+    )
+    url = f"https://www.youtube.com/feeds/videos.xml?channel_id={cid}"
+    try:
+        resp = sess.get(url, timeout=timeout_s, allow_redirects=True)
+        if resp.status_code != 200 or not resp.text:
+            return None
+    except requests.RequestException:
+        return None
+
+    try:
+        root = ET.fromstring(resp.text)
+    except ET.ParseError:
+        return None
+
+    ns = {"atom": "http://www.w3.org/2005/Atom"}
+    published_values: list[str] = []
+    for entry in root.findall("atom:entry", ns):
+        pub = entry.findtext("atom:published", default="", namespaces=ns).strip()
+        if pub:
+            published_values.append(pub)
+    if not published_values:
+        return None
+
+    def _sort_key(ts: str) -> datetime:
+        try:
+            return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+        except ValueError:
+            return datetime.min
+
+    latest = max(published_values, key=_sort_key)
+    try:
+        return datetime.fromisoformat(latest.replace("Z", "+00:00")).date().isoformat()
+    except ValueError:
+        m = re.match(r"(\d{4}-\d{2}-\d{2})", latest)
+        return m.group(1) if m else None
 
 
 def fetch_youtube_channel_page(

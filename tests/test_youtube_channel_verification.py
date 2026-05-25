@@ -94,6 +94,22 @@ def test_houston_county_rejects_city_of_dothan_channel():
     )
 
 
+def test_dallas_county_rejects_city_of_selma_even_when_description_mentions_county():
+    row = {
+        "youtube_channel_url": "https://www.youtube.com/channel/UCUK2CbPoPIa1pqUSBSWiNAQ",
+        "channel_title": "City of Selma, Alabama Government",
+        "channel_description": "Selma is located in Dallas County of which it is the county seat.",
+        "official_meeting_confidence": 0.6,
+    }
+    assert not qualifies_for_bronze_jurisdiction_youtube(
+        row,
+        jurisdiction_type="county",
+        jurisdiction_name="Dallas County",
+        jurisdiction_state_code="AL",
+        jurisdiction_homepage="https://selma-al.gov",
+    )
+
+
 def test_houston_county_keeps_county_commission_channel():
     row = {
         "youtube_channel_url": "https://www.youtube.com/channel/UCLaqkkdvi6sYpsncNRiFggg",

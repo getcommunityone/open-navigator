@@ -13,9 +13,13 @@ from scripts.datasources.jurisdiction_pilot.scrape_priority_states import (
 def test_county_candidate_urls_skip_mayor_paths():
     home = "https://www.bartowcountyga.gov/"
     mayor_paths = candidate_urls(home, kind="mayor")
-    council_paths = candidate_urls(home, kind="council")
+    muni_council_paths = candidate_urls(home, kind="council")
+    county_council_paths = candidate_urls(home, kind="council", jurisdiction_type="county")
     assert any("/mayor" in p for p in mayor_paths)
-    assert not any("/mayor" in p for p in council_paths)
+    assert not any("/mayor" in p for p in muni_council_paths)
+    assert any("citycouncil" in p or "city-council" in p for p in muni_council_paths)
+    assert not any("citycouncil" in p or "city-council" in p for p in county_council_paths)
+    assert any("commission" in p for p in county_council_paths)
 
 
 def test_discover_seed_urls_county_returns_no_mayor(monkeypatch):
@@ -39,6 +43,7 @@ def test_discover_seed_urls_county_returns_no_mayor(monkeypatch):
     )
     assert out["mayor"] == []
     assert not any(kind == "mayor" for kind, _ in probed)
+    assert not any("citycouncil" in u or "city-council" in u for _, u in probed)
 
 
 def test_resolve_seed_urls_county_excludes_mayor_seeds(monkeypatch):

@@ -32,6 +32,7 @@ from scripts.discovery.bronze_jurisdiction_youtube_persist import (  # noqa: E40
 )
 from scripts.discovery.jurisdiction_discovery_pipeline import resolve_database_url  # noqa: E402
 from scripts.discovery.youtube_city_channel_remap import (  # noqa: E402
+    build_municipality_index,
     channel_url_key,
     is_misassigned_city_channel_on_county,
     lookup_municipality_jurisdiction,
@@ -40,7 +41,14 @@ from scripts.discovery.youtube_city_channel_remap import (  # noqa: E402
 
 
 def _fetch_county_rows(cur, table: str, state_codes: list[str] | None) -> list[dict[str, Any]]:
-    clauses = ["y.jurisdiction_type = 'county'"]
+    clauses = [
+        "y.jurisdiction_type = 'county'",
+        """(
+            LOWER(BTRIM(COALESCE(y.channel_title, ''))) ~ '^city of '
+            OR LOWER(BTRIM(COALESCE(y.channel_title, ''))) ~ '^(town|village|borough) of '
+            OR POSITION('cityof' IN LOWER(y.youtube_channel_url)) > 0
+        )""",
+    ]
     params: list[Any] = []
     if state_codes:
         clauses.append("y.state_code = ANY(%s)")
@@ -111,6 +119,7 @@ def remap_table(
         "misassigned": 0,
         "deleted_duplicate": 0,
         "moved_to_city": 0,
+        "deleted_unresolved": 0,
         "unresolved": 0,
         "skipped_not_mismatch": 0,
     }
@@ -121,6 +130,7 @@ def remap_table(
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             rows = _fetch_county_rows(cur, table, state_codes)
             stats["scanned"] = len(rows)
+            municipality_indexes: dict[str, dict[str, list[dict[str, str]]]] = {}
 
             for row in rows:
                 county_name = str(row.get("county_name") or "")
@@ -143,10 +153,15 @@ def remap_table(
                     )
                     continue
 
+                state = str(row["state_code"]).upper()[:2]
+                if state not in municipality_indexes:
+                    municipality_indexes[state] = build_municipality_index(cur, state_code=state)
+
                 city = lookup_municipality_jurisdiction(
                     cur,
-                    state_code=str(row["state_code"]),
+                    state_code=state,
                     municipality_name=place,
+                    municipality_index=municipality_indexes[state],
                 )
                 if not city:
                     stats["unresolved"] += 1
@@ -160,6 +175,13 @@ def remap_table(
                             "youtube_channel_url": row.get("youtube_channel_url"),
                         }
                     )
+                    if dry_run:
+                        continue
+                    cur.execute(
+                        f"DELETE FROM {table} WHERE id = %s",
+                        (row["id"],),
+                    )
+                    stats["deleted_unresolved"] = stats.get("deleted_unresolved", 0) + 1
                     continue
 
                 url_key = channel_url_key(str(row["youtube_channel_url"]))

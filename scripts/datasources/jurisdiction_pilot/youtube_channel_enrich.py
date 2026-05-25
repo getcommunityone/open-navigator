@@ -340,20 +340,27 @@ def enrich_channel(
     Fetch the channel page; resolve ``UC…`` id, title, description, external links,
     back-link flag, and ``official_meeting_confidence``. Returns a new merged dict.
     """
+    from scripts.datasources.youtube.channel_about_links import parse_channel_about_page
     from scripts.datasources.youtube.youtube_channel_page import (
         canonical_channel_url,
         extract_channel_id_from_youtube_html,
         extract_channel_title_from_youtube_html,
+        fetch_latest_upload_date_from_rss,
         is_junk_channel_title,
         resolve_channel_id_from_url,
     )
 
     channel_url = (channel.get("channel_url") or channel.get("youtube_channel_url") or "").strip()
+    sess = session or requests.Session()
     html, final_url = fetch_channel_html(
-        channel_url, session=session, cookies_file=cookies_file
+        channel_url, session=sess, cookies_file=cookies_file
     )
-    description = extract_channel_description(html)
-    links = extract_external_links(html)
+    about = parse_channel_about_page(html)
+    description = (about.channel_description or "").strip() or extract_channel_description(html)
+    link_rows = about.links or []
+    links = [str(row.get("url") or "").strip() for row in link_rows if row.get("url")]
+    if not links:
+        links = extract_external_links(html)
     website_back_links = jurisdiction_website_back_links(
         links, jurisdiction_homepage, description_text=description
     )
@@ -366,13 +373,13 @@ def enrich_channel(
         channel_id = extract_channel_id_from_youtube_html(html, final_url=final_url) or ""
     if not channel_id.startswith("UC"):
         resolved_id, _ = resolve_channel_id_from_url(
-            channel_url, session=session, cookies_file=cookies_file
+            channel_url, session=sess, cookies_file=cookies_file
         )
         if resolved_id:
             channel_id = resolved_id
 
     title = (channel.get("channel_title") or "").strip()
-    html_title = extract_channel_title_from_youtube_html(html)
+    html_title = (about.channel_title or "").strip() or extract_channel_title_from_youtube_html(html)
     if html_title and (not title or is_junk_channel_title(title)):
         title = html_title
     elif not title:
@@ -380,6 +387,20 @@ def enrich_channel(
 
     if not description:
         description = (channel.get("channel_description") or "").strip()
+
+    subscriber_count = about.subscriber_count
+    if subscriber_count is None:
+        subscriber_count = channel.get("subscriber_count")
+    video_count = about.video_count
+    if video_count is None:
+        video_count = channel.get("video_count")
+    view_count = about.view_count
+    if view_count is None:
+        view_count = channel.get("view_count")
+
+    latest_upload = channel.get("latest_upload")
+    if channel_id.startswith("UC"):
+        latest_upload = fetch_latest_upload_date_from_rss(channel_id, session=sess) or latest_upload
 
     normalized_url = canonical_channel_url(channel_id) if channel_id else channel_url
 
@@ -390,7 +411,7 @@ def enrich_channel(
         jurisdiction_state_code=jurisdiction_state_code,
         external_links=links,
         backlinks_to_jurisdiction=backlinks,
-        video_count=channel.get("video_count"),
+        video_count=video_count if video_count is not None else None,
         existing_policy_score=channel.get("policy_score"),
     )
 
@@ -404,5 +425,9 @@ def enrich_channel(
     enriched["external_links"] = links
     enriched["jurisdiction_website_back_links"] = website_back_links
     enriched["back_links_to_jurisdiction_website"] = backlinks
+    enriched["subscriber_count"] = subscriber_count
+    enriched["video_count"] = video_count
+    enriched["view_count"] = view_count
+    enriched["latest_upload"] = latest_upload
     enriched["official_meeting_confidence"] = confidence
     return enriched

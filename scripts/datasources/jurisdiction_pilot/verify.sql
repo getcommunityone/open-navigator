@@ -73,6 +73,34 @@ ORDER BY n DESC
 LIMIT 20;
 
 \echo
+\echo === Verified YouTube metadata coverage ===
+SELECT
+    COUNT(*) AS rows,
+    COUNT(*) FILTER (WHERE channel_description IS NOT NULL AND BTRIM(channel_description) <> '') AS has_description,
+    COUNT(*) FILTER (WHERE subscriber_count IS NOT NULL) AS has_subscribers,
+    COUNT(*) FILTER (WHERE video_count IS NOT NULL) AS has_video_count,
+    COUNT(*) FILTER (WHERE latest_upload IS NOT NULL AND BTRIM(latest_upload) <> '') AS has_latest_upload,
+    COUNT(*) FILTER (WHERE jsonb_array_length(jurisdiction_website_back_links) > 0) AS has_back_links
+FROM bronze.bronze_jurisdiction_youtube;
+
+\echo
+\echo === City channels incorrectly on counties (should be 0 verified) ===
+SELECT
+    y.jurisdiction_id AS county_id,
+    j.name AS county_name,
+    y.channel_title,
+    y.youtube_channel_url
+FROM bronze.bronze_jurisdiction_youtube y
+JOIN intermediate.int_jurisdictions j ON j.jurisdiction_id = y.jurisdiction_id
+WHERE y.jurisdiction_type = 'county'
+  AND (
+    LOWER(BTRIM(COALESCE(y.channel_title, ''))) ~ '^city of '
+    OR POSITION('cityof' IN LOWER(y.youtube_channel_url)) > 0
+  )
+ORDER BY y.state_code, y.jurisdiction_id
+LIMIT 25;
+
+\echo
 \echo === YouTube metadata quality (junk titles / missing description / back-links) ===
 SELECT
     'verified' AS layer,
