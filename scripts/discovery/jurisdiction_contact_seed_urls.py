@@ -49,6 +49,10 @@ _BUILTIN: Dict[str, Tuple[str, ...]] = {
     "county_01023": (
         "https://www.choctawcountyal.org/board-of-commissioners/",
     ),
+    # Atkinson County, GA — Fusion h3 name + p role on board-of-commissioners page.
+    "county_13003": (
+        "https://atkinsoncounty.org/board-of-commissioners/",
+    ),
     # Dale County, AL — Divi ``et_pb_team_member`` commissioner roster.
     "county_01045": (
         "https://dalecountyal.org/county-commision/dale-county-alabama-county-commission-commissioners/",

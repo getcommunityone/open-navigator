@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import re
 from html import unescape
-from typing import Dict, FrozenSet, List, Optional, Sequence, Set, Tuple
+from typing import Any, Dict, FrozenSet, List, Optional, Sequence, Set, Tuple
 from urllib.parse import parse_qs, quote_plus, urljoin, urlparse, urlunparse
 
 from bs4 import BeautifulSoup
@@ -114,6 +114,18 @@ def _host_matches_suffix(host: str, suffix: str) -> bool:
     h = host.rstrip(".").lower()
     s = suffix.lower().lstrip(".")
     return h == s or h.endswith("." + s)
+
+
+def _link_anchor_text(tag: Any) -> str:
+    """Visible link text; Wix often leaves ``<a>`` empty and uses ``aria-label``."""
+    text = (tag.get_text() or "").strip()
+    if text:
+        return text
+    for attr in ("aria-label", "title", "data-label"):
+        val = (tag.get(attr) or "").strip()
+        if val:
+            return val
+    return ""
 
 
 def is_trusted_offsite(url: str) -> bool:
@@ -413,7 +425,7 @@ def extract_simbli_agenda_minutes_html_pairs(
         if not href or href.startswith("#") or href.lower().startswith("javascript:"):
             continue
         full = resolve_page_href(join_base, href)
-        text = (a.get_text() or "").strip()
+        text = _link_anchor_text(a)
         if not eligible_target(full):
             continue
         if not is_simbli_agenda_minutes_html_target(full, text):
@@ -1266,7 +1278,7 @@ def extract_meeting_urls(
         if not href or href.startswith("#") or href.lower().startswith("javascript:"):
             continue
         full = resolve_page_href(join_base, href)
-        text = (a.get_text() or "").strip()
+        text = _link_anchor_text(a)
         text_l = text.lower()
         if MEETING_DOWNLOAD_EXT.search(full):
             if (

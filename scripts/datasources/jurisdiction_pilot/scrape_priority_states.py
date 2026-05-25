@@ -17,7 +17,7 @@ This runner writes:
   + ``youtube_channel_id`` per jurisdiction (for ``load_youtube_events_to_postgres --channel-source counties-scraped``)
 - ``bronze.bronze_elections_scraped`` + c1 election tables (with ``--elections``)
 
-Default scope: cities + counties for AL, GA, IN, MA, WA, WI (~2,300 jurisdictions).
+Default scope: **counties then municipalities** for AL, GA, IN, MA, WA, WI (~2,300 jurisdictions).
 School districts and state-level rows are skipped (no mayors/councils to scrape).
 
 Run (defaults are safe — start with a small slice to validate):
@@ -192,7 +192,8 @@ def _jlabel(j: Jurisdiction) -> str:
     return f"{j.state_code} {j.name}"
 
 DEFAULT_PRIORITY_STATES = ("AL", "GA", "IN", "MA", "WA", "WI")
-DEFAULT_INCLUDE_TYPES = ("municipality", "county")
+# Counties first (feeds counties-scraped for YouTube events loader); municipalities second.
+DEFAULT_INCLUDE_TYPES = ("county", "municipality")
 
 # Default insert-time gate on official_meeting_confidence. The upstream YouTube discovery
 # (pattern_match handles + YouTube Data API free-text search) is intentionally permissive;
@@ -318,7 +319,9 @@ def load_jurisdictions(
         )
         SELECT jurisdiction_id, state_code, jurisdiction_type, name, website_url
         FROM ranked
-        ORDER BY state_code, jurisdiction_id
+        ORDER BY state_code,
+                 CASE jurisdiction_type WHEN 'county' THEN 0 ELSE 1 END,
+                 jurisdiction_id
     """
     out: list[Jurisdiction] = []
     conn = psycopg2.connect(database_url)
@@ -449,11 +452,15 @@ def _resolve_seed_urls(j: Jurisdiction) -> list[tuple[str, str]]:
 
 
 def _fetch(url: str, session: requests.Session) -> tuple[int, str]:
-    try:
-        resp = session.get(url, timeout=_REQUEST_TIMEOUT_S, allow_redirects=True)
-        return resp.status_code, resp.text or ""
-    except requests.RequestException:
-        return 0, ""
+    from scripts.datasources.jurisdiction_pilot.http_fetch import fetch_page_html
+
+    status, html, block = fetch_page_html(
+        url, session, timeout_s=_REQUEST_TIMEOUT_S, try_playwright=True
+    )
+    if block:
+        logger.warning("fetch blocked for %s: %s", url, block)
+        return status, ""
+    return status, html
 
 
 def _scrape_contacts(
@@ -469,6 +476,7 @@ def _scrape_contacts(
             break
         status, html = _fetch(url, session)
         if status != 200 or not html:
+            logger.debug("[%s] skip seed %s (status=%s)", _jlabel(j), url, status)
             continue
         ok += 1
         html_by_url[url] = html
@@ -1005,6 +1013,16 @@ def main(argv: list[str] | None = None) -> int:
         metavar="N",
         help="Log a progress line every N completed jurisdictions (default: 10; use 1 for live terminal status).",
     )
+    p.add_argument(
+        "--jurisdiction-id",
+        default="",
+        help="Comma-separated jurisdiction_id filter (e.g. augusta_..., county_13047).",
+    )
+    p.add_argument(
+        "--youtube-debug",
+        action="store_true",
+        help="DEBUG logs for website YouTube crawl, enrich, and Civic API helpers.",
+    )
     args = p.parse_args(argv)
 
     logging.basicConfig(
@@ -1016,6 +1034,9 @@ def main(argv: list[str] | None = None) -> int:
     _quiet_helper_loggers()
     if args.verbose:
         logging.getLogger("jurisdiction_pilot").setLevel(logging.DEBUG)
+    if args.youtube_debug or args.verbose:
+        for name in _QUIET_HELPER_LOGGER_NAMES:
+            logging.getLogger(name).setLevel(logging.DEBUG)
 
     states = tuple(s.strip().upper() for s in args.states.split(",") if s.strip())
     include_types = tuple(t.strip().lower() for t in args.include_types.split(",") if t.strip())
@@ -1042,6 +1063,10 @@ def main(argv: list[str] | None = None) -> int:
         database_url, states=states, include_types=include_types,
         limit_per_state=args.limit_per_state,
     )
+    id_filter = {x.strip() for x in (args.jurisdiction_id or "").split(",") if x.strip()}
+    if id_filter:
+        targets = [j for j in targets if j.jurisdiction_id in id_filter]
+        logger.info("Filtered to %d jurisdiction(s) matching --jurisdiction-id", len(targets))
     pending = [j for j in targets if j.jurisdiction_id not in done_ids]
     logger.info("Batch %s — %d jurisdiction(s) pending (%d already completed in prior run)",
                 batch_id, len(pending), len(done_ids))
@@ -1122,10 +1147,10 @@ def main(argv: list[str] | None = None) -> int:
                 rate = completed / elapsed if elapsed > 0 else 0
                 eta_s = (len(pending) - completed) / rate if rate > 0 else 0
                 logger.info(
-                    "[%d/%d] [%s] %s contacts=%d mayors=%d youtube=%d "
+                    "[%d/%d] [%s] %s url=%s contacts=%d mayors=%d youtube=%d "
                     "bronze_el=%d c1_el=%d err=%s | "
                     "totals contacts=%d youtube=%d c1_el=%d errors=%d | rate=%.2f/s ETA=%.0fs",
-                    completed, len(pending), j.state_code, j.name,
+                    completed, len(pending), j.state_code, j.name, j.website_url,
                     result.contacts_inserted, result.mayor_rows_inserted, result.youtube_inserted,
                     result.bronze_election_rows, result.c1_election_rows,
                     "yes" if result.error or result.election_error else "no",

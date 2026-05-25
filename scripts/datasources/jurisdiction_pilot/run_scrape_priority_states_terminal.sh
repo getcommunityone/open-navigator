@@ -6,7 +6,7 @@
 #
 # Optional env:
 #   STATES=AL,GA,IN,MA,WA,WI
-#   INCLUDE_TYPES=municipality,county
+#   INCLUDE_TYPES=county,municipality   # default: counties first
 #   WORKERS=6
 #   BATCH_ID=<uuid>          # resume
 #   ELECTIONS=1              # pass --elections
@@ -23,7 +23,7 @@ set +a
 export PYTHONUNBUFFERED=1
 
 STATES="${STATES:-AL,GA,IN,MA,WA,WI}"
-INCLUDE_TYPES="${INCLUDE_TYPES:-municipality,county}"
+INCLUDE_TYPES="${INCLUDE_TYPES:-county,municipality}"
 WORKERS="${WORKERS:-6}"
 COOKIES="${COOKIES:-youtube_cookies.txt}"
 PROGRESS_EVERY="${PROGRESS_EVERY:-1}"

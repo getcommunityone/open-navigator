@@ -29,15 +29,40 @@ _USER_AGENT = "OpenNavigatorJurisdictionPilot/1.0"
 _TIMEOUT_S = 10
 _DUCKDUCKGO_API = "https://api.duckduckgo.com"
 
-# Common paths to try when looking for YouTube links
+# Common paths to try when looking for YouTube links (CivicPlus sites often use /youtube).
 _COMMON_PATHS = (
     "",  # Homepage
-    "/",
+    "/youtube",
     "/about",
     "/media",
     "/government",
     "/meetings",
     "/video",
+)
+
+# youtube.com/{slug} without @/channel/ — legacy custom channel URLs (e.g. /augustagagov).
+_LEGACY_CHANNEL_SLUG = re.compile(
+    r"^(?:https?://)?(?:www\.)?youtube\.com/([A-Za-z0-9_-]+)/?$",
+    re.IGNORECASE,
+)
+_RESERVED_YT_PATHS = frozenset(
+    {
+        "watch",
+        "playlist",
+        "feed",
+        "results",
+        "shorts",
+        "live",
+        "gaming",
+        "channel",
+        "c",
+        "user",
+        "about",
+        "account",
+        "redirect",
+        "embed",
+        "attribution_link",
+    }
 )
 
 
@@ -79,14 +104,15 @@ def _extract_youtube_urls_from_html(html: str) -> list[str]:
 
     # Regex fallback (always run for robustness)
     pattern = re.compile(
-        r'(?:href=)?["\']?(https?://(?:www\.)?youtube\.com/(?:@[A-Za-z0-9_-]+|c/[A-Za-z0-9_-]+|channel/[A-Za-z0-9_-]+|user/[A-Za-z0-9_-]+))["\']?',
-        re.IGNORECASE
+        r'(?:href=)?["\']?(https?://(?:www\.)?youtube\.com/(?:@[A-Za-z0-9_-]+|c/[A-Za-z0-9_-]+|channel/[A-Za-z0-9_-]+|user/[A-Za-z0-9_-]+|[A-Za-z0-9_-]+))["\']?',
+        re.IGNORECASE,
     )
     for match in pattern.finditer(html):
-        url = match.group(1).rstrip('/')
-        if url not in seen:
-            seen.add(url)
-            urls.append(url)
+        raw = match.group(1).rstrip("/")
+        normalized = _normalize_youtube_url(raw if raw.startswith("http") else f"https://www.youtube.com/{raw.lstrip('/')}")
+        if normalized and normalized not in seen:
+            seen.add(normalized)
+            urls.append(normalized)
 
     return urls
 
@@ -97,17 +123,24 @@ def _normalize_youtube_url(url: str) -> str | None:
         return None
 
     url = url.strip()
+    if not url.startswith("http"):
+        url = f"https://{url.lstrip('/')}"
 
-    # Extract channel identifier from various YouTube URL formats
+    # Modern @handle, channel/, c/, user/
     match = re.search(
-        r'(?:https?://)?(?:www\.)?youtube\.com/(@[A-Za-z0-9_-]+|c/[A-Za-z0-9_-]+|channel/[A-Za-z0-9_-]+|user/[A-Za-z0-9_-]+)',
+        r"(?:https?://)?(?:www\.)?youtube\.com/(@[A-Za-z0-9_-]+|c/[A-Za-z0-9_-]+|channel/[A-Za-z0-9_-]+|user/[A-Za-z0-9_-]+)",
         url,
-        re.IGNORECASE
+        re.IGNORECASE,
     )
-
     if match:
-        identifier = match.group(1)
-        return f"https://www.youtube.com/{identifier}"
+        return f"https://www.youtube.com/{match.group(1)}"
+
+    # Legacy custom slug (youtube.com/augustagagov → @augustagagov)
+    legacy = _LEGACY_CHANNEL_SLUG.match(url)
+    if legacy:
+        slug = legacy.group(1)
+        if slug.lower() not in _RESERVED_YT_PATHS and not slug.startswith("@"):
+            return f"https://www.youtube.com/@{slug}"
 
     return None
 
@@ -176,8 +209,8 @@ def _extract_youtube_urls_from_text(text: str) -> list[str]:
     """Extract YouTube URLs from text."""
     urls = []
     pattern = re.compile(
-        r'(?:https?://)?(?:www\.)?youtube\.com/(?:@[A-Za-z0-9_-]+|c/[A-Za-z0-9_-]+|channel/[A-Za-z0-9_-]+|user/[A-Za-z0-9_-]+)',
-        re.IGNORECASE
+        r"(?:https?://)?(?:www\.)?youtube\.com/(?:@[A-Za-z0-9_-]+|c/[A-Za-z0-9_-]+|channel/[A-Za-z0-9_-]+|user/[A-Za-z0-9_-]+|[A-Za-z0-9_-]+)",
+        re.IGNORECASE,
     )
     for match in pattern.finditer(text):
         url = match.group(0)
@@ -223,7 +256,20 @@ def crawl_website_for_youtube(
             logger.debug("Crawling %s for YouTube links", url)
             resp = sess.get(url, timeout=_TIMEOUT_S, allow_redirects=True)
 
-            if resp.status_code == 200 and resp.text:
+            if resp.status_code != 200:
+                continue
+
+            final_host = (urlparse(resp.url).netloc or "").lower()
+            # CivicPlus ``/youtube`` often 302s to youtube.com/{slug} — use that channel only,
+            # not every footer link on YouTube's global chrome.
+            if "youtube.com" in final_host:
+                channel = _normalize_youtube_url(resp.url)
+                if channel:
+                    all_urls[channel] = channel
+                    logger.debug("  → redirect to channel %s", channel)
+                continue
+
+            if resp.text:
                 found = _extract_youtube_urls_from_html(resp.text)
                 for yt_url in found:
                     all_urls[yt_url] = yt_url
@@ -256,16 +302,12 @@ def search_multiple_queries(
 
     all_urls: dict[str, str] = {}
 
-    # Try DuckDuckGo first
-    ddg_urls = search_duckduckgo_for_youtube(website_url, session=sess)
-    for url in ddg_urls:
+    # DuckDuckGo often returns nothing for .gov sites; always crawl too.
+    for url in search_duckduckgo_for_youtube(website_url, session=sess):
         all_urls[url] = url
 
-    # If DuckDuckGo finds nothing, try crawling the website directly
-    if not all_urls:
-        crawl_urls = crawl_website_for_youtube(website_url, session=sess)
-        for url in crawl_urls:
-            all_urls[url] = url
+    for url in crawl_website_for_youtube(website_url, session=sess):
+        all_urls[url] = url
 
     return list(all_urls.values())
 

@@ -398,6 +398,17 @@ def extract_structured_contacts_from_html(
         if len(rows) >= max_rows:
             break
 
+    for fbr in extract_fusion_boc_heading_roster_contacts_from_html(
+        html, page_url, max_rows=max(0, max_rows - len(rows))
+    ):
+        k = _structured_contact_row_key(fbr)
+        if k in existing_keys:
+            continue
+        existing_keys.add(k)
+        rows.append(fbr)
+        if len(rows) >= max_rows:
+            break
+
     for a in soup.select('a[href^="mailto:"]'):
         if len(rows) >= max_rows:
             break
@@ -2909,6 +2920,21 @@ _NON_PERSON_NAME_TOKEN_RE = re.compile(
     r"\b(county|code|physical|address|view|map|directions|suite|agenda|minutes|contact\s+us)\b",
     re.I,
 )
+_FUSION_BOC_PAGE_RE = re.compile(
+    r"\b(board\s+of\s+commissioners|county\s+commission)\b",
+    re.I,
+)
+_FUSION_BOC_ROLE_LINE_RE = re.compile(
+    r"\b("
+    r"chair(?:man|woman|person)?\s+of\s+the\s+board|"
+    r"district\s+\d+\s+commissioner|"
+    r"county\s+clerk|"
+    r"finance\s+officer|"
+    r"commissioner|"
+    r"clerk"
+    r")\b",
+    re.I,
+)
 
 
 def _tag_heading_level(tag: Any) -> int:
@@ -3876,6 +3902,79 @@ def extract_wix_commissioner_lines_contacts_from_html(
             }
         )
 
+    return out
+
+
+def extract_fusion_boc_heading_roster_contacts_from_html(
+    html: str,
+    page_url: str,
+    *,
+    max_rows: int = 120,
+) -> List[Dict[str, Any]]:
+    """
+    Avada / Fusion Builder county board pages: ``h3`` person name + following ``p`` role
+    (e.g. Atkinson County ``/board-of-commissioners/``).
+    """
+    from bs4 import BeautifulSoup, NavigableString, Tag
+
+    out: List[Dict[str, Any]] = []
+    seen: Set[Tuple[str, str]] = set()
+    if not html or max_rows <= 0:
+        return out
+    soup = BeautifulSoup(html, "html.parser")
+    page_context = any(
+        _FUSION_BOC_PAGE_RE.search(re.sub(r"\s+", " ", el.get_text(" ", strip=True) or ""))
+        for el in soup.find_all(["h1", "h2"], limit=6)
+    )
+    if not page_context:
+        return out
+
+    for h in soup.find_all(["h3", "h4"]):
+        if len(out) >= max_rows:
+            break
+        name = re.sub(r"\s+", " ", h.get_text(" ", strip=True) or "").strip()
+        if not _looks_like_person_name_line(name):
+            continue
+        if _NON_PERSON_ROSTER_LINE_RE.search(name):
+            continue
+        lvl = _tag_heading_level(h)
+        role = ""
+        for sib in h.next_siblings:
+            if isinstance(sib, NavigableString):
+                t = str(sib).strip()
+                if t and _FUSION_BOC_ROLE_LINE_RE.search(t):
+                    role = t
+                    break
+                continue
+            if not isinstance(sib, Tag):
+                continue
+            if sib.name in _HEADING_ORDER and _tag_heading_level(sib) <= lvl:
+                break
+            text = re.sub(r"\s+", " ", sib.get_text(" ", strip=True) or "").strip()
+            if not text or len(text) > 200:
+                continue
+            if _FUSION_BOC_ROLE_LINE_RE.search(text):
+                role = text
+                break
+        if not role:
+            continue
+        rk = (name.lower(), role.lower())
+        if rk in seen:
+            continue
+        seen.add(rk)
+        out.append(
+            {
+                "person_name": name[:512],
+                "title_or_role": role[:512],
+                "department": None,
+                "email": None,
+                "phone": None,
+                "mailing_address": None,
+                "profile_url": None,
+                "extraction_method": "fusion_boc_heading_roster",
+                "raw_row": {"page_url": page_url, "heading": name[:200]},
+            }
+        )
     return out
 
 

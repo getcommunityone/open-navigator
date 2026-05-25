@@ -12,6 +12,10 @@ import os
 from typing import Dict, List, Optional, Sequence, Tuple
 
 _BUILTIN: Dict[str, Tuple[str, ...]] = {
+    # Baker County, GA — Wix minutes/agendas table + ``/_files/ugd/*.pdf`` (labels in aria-label).
+    "county_13007": (
+        "https://www.bakercountyga.com/minutes-and-agendas",
+    ),
     "municipality_0155200": (
         "https://www.northportal.gov/129/Agendas-Minutes",
         "https://www.northportal.gov/AgendaCenter",
