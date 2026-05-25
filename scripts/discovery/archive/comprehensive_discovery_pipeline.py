@@ -48,6 +48,8 @@ from scripts.discovery.platform_detector import detect_platform
 from scripts.datasources.wikidata.wikidata_integration import WikidataQuery
 import httpx
 
+from scripts.discovery.scrape_http import async_get_with_vpn_bypass, make_scrape_async_client
+
 
 class ComprehensiveDiscoveryPipeline:
     """
@@ -309,11 +311,11 @@ class ComprehensiveDiscoveryPipeline:
                 f'https://www.{name_clean}county.gov',
             ])
         
-        client = httpx.AsyncClient(timeout=10, follow_redirects=True)
+        client = make_scrape_async_client(timeout=10, follow_redirects=True)
         
         for url in patterns:
             try:
-                response = await client.get(url)
+                response = await async_get_with_vpn_bypass(client, url)
                 if response.status_code == 200:
                     await client.aclose()
                     return {
@@ -383,11 +385,11 @@ class ComprehensiveDiscoveryPipeline:
         """Detect meeting platforms (Legistar, SuiteOne, Granicus, etc.)."""
         platforms = []
         
-        client = httpx.AsyncClient(timeout=15, follow_redirects=True)
+        client = make_scrape_async_client(timeout=15, follow_redirects=True)
         
         # Check website for platform
         try:
-            response = await client.get(homepage_url)
+            response = await async_get_with_vpn_bypass(client, homepage_url)
             if response.status_code == 200:
                 platform_type = detect_platform(homepage_url, response.text)
                 
@@ -411,7 +413,9 @@ class ComprehensiveDiscoveryPipeline:
         for slug in legistar_slugs:
             try:
                 url = f'https://webapi.legistar.com/v1/{slug}/events'
-                response = await client.get(url, params={'$top': 1}, timeout=5)
+                response = await async_get_with_vpn_bypass(
+                    client, url, params={"$top": 1}, timeout=5
+                )
                 
                 if response.status_code == 200:
                     platforms.append({
@@ -432,7 +436,7 @@ class ComprehensiveDiscoveryPipeline:
         
         for url in suiteone_patterns:
             try:
-                response = await client.get(url, timeout=5)
+                response = await async_get_with_vpn_bypass(client, url, timeout=5)
                 if response.status_code == 200 and 'suiteonemedia' in response.text.lower():
                     platforms.append({
                         'type': 'suiteone',
@@ -451,7 +455,7 @@ class ComprehensiveDiscoveryPipeline:
         
         for url in granicus_patterns:
             try:
-                response = await client.get(url, timeout=5)
+                response = await async_get_with_vpn_bypass(client, url, timeout=5)
                 if response.status_code == 200:
                     platforms.append({
                         'type': 'granicus',
@@ -488,11 +492,11 @@ class ComprehensiveDiscoveryPipeline:
         """Find agenda/document portals."""
         portals = []
         
-        client = httpx.AsyncClient(timeout=15, follow_redirects=True)
+        client = make_scrape_async_client(timeout=15, follow_redirects=True)
         
         # Check main page for agenda links
         try:
-            response = await client.get(homepage_url)
+            response = await async_get_with_vpn_bypass(client, homepage_url)
             if response.status_code == 200:
                 from bs4 import BeautifulSoup
                 soup = BeautifulSoup(response.content, 'html.parser')

@@ -296,6 +296,7 @@ from scripts.discovery.meetings_playwright_fetch import (
     playwright_fallback_enabled,
     print_agenda_html_page_to_pdf_via_playwright,
 )
+from scripts.discovery.scrape_http import async_get_with_vpn_bypass
 
 try:
     import psycopg2
@@ -2143,7 +2144,7 @@ class ComprehensiveDiscoveryPipelineJurisdiction:
         """
         timeout_ms = int(max(15_000, min(180_000, float(self.timeout_s) * 1000)))
         try:
-            r = await client.get(url, follow_redirects=True)
+            r = await async_get_with_vpn_bypass(client, url, follow_redirects=True)
             if r.status_code != 200:
                 reason = f"http_status_{r.status_code}"
                 if httpx_status_should_try_playwright(r.status_code):

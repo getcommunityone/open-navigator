@@ -26,6 +26,8 @@ import httpx
 from bs4 import BeautifulSoup
 from loguru import logger
 
+from scripts.discovery.scrape_http import async_get_with_vpn_bypass, make_scrape_async_client
+
 
 class SocialMediaDiscovery:
     """
@@ -86,12 +88,12 @@ class SocialMediaDiscovery:
     
     def __init__(self):
         """Initialize social media discovery."""
-        self.client = httpx.AsyncClient(
+        self.client = make_scrape_async_client(
             timeout=15.0,
             follow_redirects=True,
             headers={
                 "User-Agent": "Mozilla/5.0 (compatible; OralHealthPolicyBot/2.0)"
-            }
+            },
         )
         
         # Keywords that indicate official government channels likely to have policy/meeting content
@@ -233,7 +235,7 @@ class SocialMediaDiscovery:
         found = {platform: [] for platform in self.SOCIAL_PATTERNS.keys()}
         
         try:
-            response = await self.client.get(url)
+            response = await async_get_with_vpn_bypass(self.client, url)
             
             if response.status_code != 200:
                 return found

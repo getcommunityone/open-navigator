@@ -19,6 +19,8 @@ from bs4 import BeautifulSoup
 from loguru import logger
 import os
 
+from scripts.discovery.scrape_http import async_get_with_vpn_bypass, make_scrape_async_client
+
 
 class YouTubeChannelDiscovery:
     """
@@ -68,10 +70,10 @@ class YouTubeChannelDiscovery:
         # outcome in found | not_found | error | skipped_invalid_url,
         # http_status?, reason?, channel_title? when found.
         self.last_channel_probe_results: List[Dict[str, Any]] = []
-        self.client = httpx.AsyncClient(
+        self.client = make_scrape_async_client(
             timeout=20.0,
             follow_redirects=True,
-            headers={"User-Agent": "Mozilla/5.0 (compatible; OralHealthPolicyBot/2.0)"}
+            headers={"User-Agent": "Mozilla/5.0 (compatible; OralHealthPolicyBot/2.0)"},
         )
         
         # Keywords for identifying policy/meeting-focused channels
@@ -362,7 +364,7 @@ class YouTubeChannelDiscovery:
                 )
                 return None
 
-            response = await self.client.get(channel_url)
+            response = await async_get_with_vpn_bypass(self.client, channel_url)
             final_url = str(response.url)
 
             if response.status_code != 200:
@@ -599,7 +601,7 @@ class YouTubeChannelDiscovery:
 
         homepage_html: Optional[str] = None
         try:
-            response = await self.client.get(url)
+            response = await async_get_with_vpn_bypass(self.client, url)
             homepage_html = response.text
             add_channels(self._extract_youtube_links_from_html(homepage_html, base_url=url))
         except Exception as e:
@@ -625,7 +627,7 @@ class YouTubeChannelDiscovery:
                     continue
                 attempted_search_urls.append(search_url)
                 try:
-                    search_resp = await self.client.get(search_url)
+                    search_resp = await async_get_with_vpn_bypass(self.client, search_url)
                     add_channels(
                         self._extract_youtube_links_from_html(search_resp.text, base_url=search_url)
                     )
@@ -854,7 +856,7 @@ class YouTubeChannelDiscovery:
                 "key": self.api_key
             }
             
-            response = await self.client.get(api_url, params=params)
+            response = await async_get_with_vpn_bypass(self.client, api_url, params=params)
             data = response.json()
             
             if "items" in data:
@@ -870,7 +872,9 @@ class YouTubeChannelDiscovery:
                         "key": self.api_key
                     }
                     
-                    stats_response = await self.client.get(stats_url, params=stats_params)
+                    stats_response = await async_get_with_vpn_bypass(
+                        self.client, stats_url, params=stats_params
+                    )
                     stats_data = stats_response.json()
                     
                     if "items" in stats_data and stats_data["items"]:
@@ -915,7 +919,8 @@ class YouTubeChannelDiscovery:
 
         channels: List[Dict[str, Any]] = []
         try:
-            search_resp = await self.client.get(
+            search_resp = await async_get_with_vpn_bypass(
+                self.client,
                 "https://www.googleapis.com/youtube/v3/search",
                 params={
                     "part": "snippet",
@@ -933,7 +938,8 @@ class YouTubeChannelDiscovery:
                 title = item.get("snippet", {}).get("title", "")
                 # Pull full statistics + description so we can confirm the back-link
                 # without a second fetch from the enricher.
-                stats_resp = await self.client.get(
+                stats_resp = await async_get_with_vpn_bypass(
+                    self.client,
                     "https://www.googleapis.com/youtube/v3/channels",
                     params={
                         "part": "statistics,snippet",
