@@ -17,9 +17,12 @@ from typing import Mapping, Optional
 _MEETING_PURPOSE_SIGNALS = (
     "commission meeting",
     "board meeting",
+    "board of commissioners",
     "council meeting",
     "public meeting",
     "public meetings",
+    "official meetings",
+    "official meeting",
     "meeting recording",
     "meetings streamed",
     "meeting livestream",

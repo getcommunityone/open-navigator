@@ -73,6 +73,24 @@ ORDER BY n DESC
 LIMIT 20;
 
 \echo
+\echo === Verified YouTube channel purpose breakdown ===
+SELECT
+    COALESCE(channel_purpose, 'unknown') AS channel_purpose,
+    COUNT(*) AS rows,
+    COUNT(*) FILTER (WHERE is_primary) AS primary_rows
+FROM bronze.bronze_jurisdiction_youtube
+GROUP BY 1
+ORDER BY rows DESC;
+
+\echo
+\echo === Non-meeting channels still in verified (should review) ===
+SELECT jurisdiction_id, channel_title, channel_purpose, official_meeting_confidence
+FROM bronze.bronze_jurisdiction_youtube
+WHERE channel_purpose IN ('county-general', 'municipality-general', 'tv-public', 'unknown')
+ORDER BY channel_purpose, jurisdiction_id
+LIMIT 30;
+
+\echo
 \echo === Verified YouTube metadata coverage ===
 SELECT
     COUNT(*) AS rows,

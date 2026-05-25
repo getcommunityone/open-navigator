@@ -29,6 +29,7 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 from scripts.discovery.youtube_channel_purpose import classify_channel_purpose
+from scripts.datasources.jurisdiction_pilot.youtube_channel_enrich import enrich_channel
 from scripts.datasources.youtube.youtube_channel_page import is_junk_channel_title
 from scripts.discovery.jurisdiction_discovery_pipeline import resolve_database_url
 
