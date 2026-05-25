@@ -118,6 +118,13 @@ WHERE COALESCE(y.official_meeting_confidence, 0) < 0.55
        AND COALESCE(y.official_meeting_confidence, 0) < 0.55
    );
 
+-- Keep the best row per (jurisdiction, channel url) before adding uniqueness.
+DELETE FROM bronze.bronze_jurisdiction_youtube a
+USING bronze.bronze_jurisdiction_youtube b
+WHERE a.jurisdiction_id = b.jurisdiction_id
+  AND a.youtube_channel_url = b.youtube_channel_url
+  AND a.id < b.id;
+
 UPDATE bronze.bronze_jurisdiction_youtube
 SET source = COALESCE(source, discovery_method, 'pilot_legacy'),
     verified_at = COALESCE(verified_at, loaded_at)
@@ -125,5 +132,9 @@ WHERE source IS NULL OR verified_at IS NULL;
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_bronze_jurisdiction_youtube_jur_url
     ON bronze.bronze_jurisdiction_youtube (jurisdiction_id, youtube_channel_url);
+
+-- Consolidated rows (localview, events catalog) may not belong to a pilot batch.
+ALTER TABLE bronze.bronze_jurisdiction_youtube
+    ALTER COLUMN scrape_batch_id DROP NOT NULL;
 
 COMMIT;

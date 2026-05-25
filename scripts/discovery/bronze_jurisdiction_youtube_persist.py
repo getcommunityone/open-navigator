@@ -1,8 +1,8 @@
 """
-Insert rows into ``bronze.bronze_jurisdiction_youtube`` (Neon migration 039).
+Persist YouTube channel discovery rows to Neon bronze tables.
 
-One row per (jurisdiction × discovered channel). The runner is expected to dedupe
-duplicate channel URLs within a single batch before calling this helper.
+- ``bronze.bronze_jurisdiction_youtube_candidates`` — every probe (audit / review).
+- ``bronze.bronze_jurisdiction_youtube`` — verified channels only (canonical).
 """
 
 from __future__ import annotations
@@ -16,7 +16,217 @@ try:
 except ModuleNotFoundError:  # pragma: no cover
     psycopg2 = None  # type: ignore[misc, assignment]
 
+from scripts.discovery.youtube_channel_verification import canonical_source_from_row
 
+
+def _norm_jurisdiction_type(value: Any) -> str | None:
+    s = str(value or "").strip().lower()
+    return s[:64] if s else None
+
+
+def _row_values(
+    r: Dict[str, Any],
+    *,
+    scrape_batch_id: str,
+    jurisdiction_id: str,
+    state_code_norm: str,
+    jurisdiction_type: str | None,
+    ocd_id: str | None,
+    website_url: str | None,
+    scraped_default: datetime,
+) -> tuple[Any, ...] | None:
+    channel_url = (r.get("youtube_channel_url") or r.get("channel_url") or "").strip()
+    if not channel_url:
+        return None
+    raw = r.get("raw_row")
+    if raw is None:
+        raw = {k: v for k, v in r.items() if k not in ("scraped_at", "rejection_reason", "is_verified")}
+    scraped_at = r.get("scraped_at")
+    if isinstance(scraped_at, datetime):
+        sa_val = scraped_at
+    elif isinstance(scraped_at, str) and scraped_at.strip():
+        try:
+            sa_val = datetime.fromisoformat(scraped_at.strip().replace("Z", "+00:00"))
+        except ValueError:
+            sa_val = scraped_default
+    else:
+        sa_val = scraped_default
+    return (
+        scrape_batch_id,
+        jurisdiction_id,
+        _norm_jurisdiction_type(r.get("jurisdiction_type") or jurisdiction_type),
+        state_code_norm,
+        ocd_id,
+        (website_url or "")[:4096] or None,
+        channel_url[:4096],
+        (r.get("youtube_channel_id") or r.get("channel_id") or "")[:128] or None,
+        (r.get("channel_title") or "")[:512] or None,
+        _as_int(r.get("subscriber_count")),
+        _as_int(r.get("video_count")),
+        _as_int(r.get("view_count")),
+        (str(r.get("latest_upload") or ""))[:64] or None,
+        (r.get("discovery_method") or "")[:64] or None,
+        json.dumps(raw, default=str),
+        sa_val,
+        (r.get("channel_description") or None),
+        _as_bool(r.get("back_links_to_jurisdiction_website")),
+        _as_float(r.get("official_meeting_confidence")),
+        json.dumps(r.get("external_links") or []),
+    )
+
+
+def insert_bronze_jurisdiction_youtube_candidates(
+    database_url: str,
+    *,
+    scrape_batch_id: str,
+    jurisdiction_id: str,
+    state_code: str,
+    jurisdiction_type: str | None = None,
+    ocd_id: str | None = None,
+    website_url: str | None,
+    rows: List[Dict[str, Any]],
+) -> int:
+    """Insert audit rows (all candidates). Returns number inserted."""
+    if not rows or not database_url or psycopg2 is None:
+        return 0
+    scraped_default = datetime.now(timezone.utc)
+    state_code_norm = (state_code or "").strip().upper()[:2]
+    inserted = 0
+    conn = psycopg2.connect(database_url)
+    try:
+        with conn.cursor() as cur:
+            for r in rows:
+                base = _row_values(
+                    r,
+                    scrape_batch_id=scrape_batch_id,
+                    jurisdiction_id=jurisdiction_id,
+                    state_code_norm=state_code_norm,
+                    jurisdiction_type=jurisdiction_type,
+                    ocd_id=ocd_id,
+                    website_url=website_url,
+                    scraped_default=scraped_default,
+                )
+                if base is None:
+                    continue
+                cur.execute(
+                    """
+                    INSERT INTO bronze.bronze_jurisdiction_youtube_candidates (
+                        scrape_batch_id, jurisdiction_id, jurisdiction_type, state_code, ocd_id, website_url,
+                        youtube_channel_url, youtube_channel_id, channel_title,
+                        subscriber_count, video_count, view_count, latest_upload,
+                        discovery_method, raw_row, scraped_at,
+                        channel_description, back_links_to_jurisdiction_website,
+                        official_meeting_confidence, external_links,
+                        rejection_reason, is_verified
+                    ) VALUES (
+                        %s::uuid, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s,
+                        %s, %s, %s, %s::jsonb, %s, %s
+                    )
+                    """,
+                    (
+                        *base,
+                        (r.get("rejection_reason") or None),
+                        bool(r.get("is_verified")),
+                    ),
+                )
+                inserted += 1
+        conn.commit()
+    finally:
+        conn.close()
+    return inserted
+
+
+def upsert_bronze_jurisdiction_youtube_verified(
+    database_url: str,
+    *,
+    scrape_batch_id: str | None = None,
+    jurisdiction_id: str,
+    state_code: str,
+    jurisdiction_type: str | None = None,
+    ocd_id: str | None = None,
+    website_url: str | None,
+    rows: List[Dict[str, Any]],
+    mark_primary_jurisdiction_id: str | None = None,
+) -> int:
+    """Upsert verified channels into canonical table. Returns rows touched."""
+    if not rows or not database_url or psycopg2 is None:
+        return 0
+    scraped_default = datetime.now(timezone.utc)
+    state_code_norm = (state_code or "").strip().upper()[:2]
+    touched = 0
+    conn = psycopg2.connect(database_url)
+    try:
+        with conn.cursor() as cur:
+            for r in rows:
+                batch_id = r.get("scrape_batch_id") or scrape_batch_id
+                base = _row_values(
+                    r,
+                    scrape_batch_id=str(batch_id or "00000000-0000-0000-0000-000000000000"),
+                    jurisdiction_id=jurisdiction_id,
+                    state_code_norm=state_code_norm,
+                    jurisdiction_type=jurisdiction_type,
+                    ocd_id=ocd_id,
+                    website_url=website_url,
+                    scraped_default=scraped_default,
+                )
+                if base is None:
+                    continue
+                source = canonical_source_from_row(r)
+                is_primary = jurisdiction_id == mark_primary_jurisdiction_id and bool(
+                    r.get("is_primary")
+                )
+                cur.execute(
+                    """
+                    INSERT INTO bronze.bronze_jurisdiction_youtube (
+                        scrape_batch_id, jurisdiction_id, jurisdiction_type, state_code, ocd_id, website_url,
+                        youtube_channel_url, youtube_channel_id, channel_title,
+                        subscriber_count, video_count, view_count, latest_upload,
+                        discovery_method, raw_row, scraped_at,
+                        channel_description, back_links_to_jurisdiction_website,
+                        official_meeting_confidence, external_links,
+                        source, is_primary, verified_at
+                    ) VALUES (
+                        %s::uuid, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s,
+                        %s, %s, %s, %s::jsonb, %s, %s, NOW()
+                    )
+                    ON CONFLICT (jurisdiction_id, youtube_channel_url)
+                    DO UPDATE SET
+                        jurisdiction_type = COALESCE(EXCLUDED.jurisdiction_type,
+                                                     bronze.bronze_jurisdiction_youtube.jurisdiction_type),
+                        youtube_channel_id = COALESCE(EXCLUDED.youtube_channel_id,
+                                                      bronze.bronze_jurisdiction_youtube.youtube_channel_id),
+                        channel_title = COALESCE(EXCLUDED.channel_title,
+                                                 bronze.bronze_jurisdiction_youtube.channel_title),
+                        subscriber_count = EXCLUDED.subscriber_count,
+                        video_count = EXCLUDED.video_count,
+                        view_count = EXCLUDED.view_count,
+                        latest_upload = EXCLUDED.latest_upload,
+                        discovery_method = EXCLUDED.discovery_method,
+                        channel_description = COALESCE(EXCLUDED.channel_description,
+                                                       bronze.bronze_jurisdiction_youtube.channel_description),
+                        back_links_to_jurisdiction_website = EXCLUDED.back_links_to_jurisdiction_website,
+                        official_meeting_confidence = EXCLUDED.official_meeting_confidence,
+                        external_links = EXCLUDED.external_links,
+                        source = EXCLUDED.source,
+                        is_primary = EXCLUDED.is_primary OR bronze.bronze_jurisdiction_youtube.is_primary,
+                        verified_at = NOW(),
+                        loaded_at = NOW()
+                    """,
+                    (
+                        base[0] if str(base[0]) != "00000000-0000-0000-0000-000000000000" else None,
+                        *base[1:],
+                        source,
+                        is_primary,
+                    ),
+                )
+                touched += 1
+        conn.commit()
+    finally:
+        conn.close()
+    return touched
+
+
+# Backward-compatible alias (pilot previously wrote audit rows here).
 def insert_bronze_jurisdiction_youtube(
     database_url: str,
     *,
@@ -27,93 +237,17 @@ def insert_bronze_jurisdiction_youtube(
     website_url: str | None,
     rows: List[Dict[str, Any]],
 ) -> int:
-    """
-    Bulk-insert YouTube channel rows for one jurisdiction. Returns number inserted.
-
-    Each ``row`` may include: ``youtube_channel_url`` (required), ``youtube_channel_id``,
-    ``channel_title``, ``subscriber_count``, ``video_count``, ``view_count``,
-    ``latest_upload``, ``discovery_method``, ``official_meeting_confidence``,
-    ``raw_row`` (dict), ``scraped_at`` (ISO str optional).
-    """
-    if not rows or not database_url or psycopg2 is None:
-        return 0
-    scraped_default = datetime.now(timezone.utc)
-    state_code_norm = (state_code or "").strip().upper()[:2]
-    inserted = 0
-    conn = psycopg2.connect(database_url)
-    try:
-        with conn.cursor() as cur:
-            for r in rows:
-                channel_url = (r.get("youtube_channel_url") or "").strip()
-                if not channel_url:
-                    continue
-                raw = r.get("raw_row")
-                if raw is None:
-                    raw = {k: v for k, v in r.items() if k not in ("scraped_at",)}
-                scraped_at = r.get("scraped_at")
-                if isinstance(scraped_at, datetime):
-                    sa_val = scraped_at
-                elif isinstance(scraped_at, str) and scraped_at.strip():
-                    try:
-                        sa_val = datetime.fromisoformat(scraped_at.strip().replace("Z", "+00:00"))
-                    except ValueError:
-                        sa_val = scraped_default
-                else:
-                    sa_val = scraped_default
-                cur.execute(
-                    """
-                    INSERT INTO bronze.bronze_jurisdiction_youtube (
-                        scrape_batch_id,
-                        jurisdiction_id,
-                        state_code,
-                        ocd_id,
-                        website_url,
-                        youtube_channel_url,
-                        youtube_channel_id,
-                        channel_title,
-                        subscriber_count,
-                        video_count,
-                        view_count,
-                        latest_upload,
-                        discovery_method,
-                        raw_row,
-                        scraped_at,
-                        channel_description,
-                        back_links_to_jurisdiction_website,
-                        official_meeting_confidence,
-                        external_links
-                    ) VALUES (
-                        %s::uuid, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s,
-                        %s, %s, %s, %s::jsonb
-                    )
-                    """,
-                    (
-                        scrape_batch_id,
-                        jurisdiction_id,
-                        state_code_norm,
-                        ocd_id,
-                        (website_url or "")[:4096] or None,
-                        channel_url[:4096],
-                        (r.get("youtube_channel_id") or r.get("channel_id") or "")[:128] or None,
-                        (r.get("channel_title") or "")[:512] or None,
-                        _as_int(r.get("subscriber_count")),
-                        _as_int(r.get("video_count")),
-                        _as_int(r.get("view_count")),
-                        (str(r.get("latest_upload") or ""))[:64] or None,
-                        (r.get("discovery_method") or "")[:64] or None,
-                        json.dumps(raw, default=str),
-                        sa_val,
-                        (r.get("channel_description") or None),
-                        _as_bool(r.get("back_links_to_jurisdiction_website")),
-                        _as_float(r.get("official_meeting_confidence")),
-                        json.dumps(r.get("external_links") or []),
-                    ),
-                )
-                inserted += 1
-        conn.commit()
-    finally:
-        conn.close()
-    return inserted
+    """Deprecated: writes verified rows only. Use candidates + upsert_verified."""
+    return upsert_bronze_jurisdiction_youtube_verified(
+        database_url,
+        scrape_batch_id=scrape_batch_id,
+        jurisdiction_id=jurisdiction_id,
+        state_code=state_code,
+        jurisdiction_type=None,
+        ocd_id=ocd_id,
+        website_url=website_url,
+        rows=rows,
+    )
 
 
 def _as_int(v: Any) -> int | None:

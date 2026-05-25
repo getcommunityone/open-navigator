@@ -6,15 +6,13 @@
 --     psql "$NEON_DATABASE_URL_DEV" \
 --          -v batch="'<batch-uuid>'" \
 --          -f scripts/datasources/jurisdiction_pilot/verify.sql
---
--- If :batch is not set, defaults to "the latest batch present in either bronze table".
 
 \if :{?batch}
 \else
 \set batch (SELECT scrape_batch_id::text FROM ( \
     SELECT scrape_batch_id, MAX(loaded_at) AS t FROM bronze.bronze_contacts_scraped GROUP BY 1 \
     UNION ALL \
-    SELECT scrape_batch_id, MAX(loaded_at) AS t FROM bronze.bronze_jurisdiction_youtube GROUP BY 1 \
+    SELECT scrape_batch_id, MAX(loaded_at) AS t FROM bronze.bronze_jurisdiction_youtube_candidates GROUP BY 1 \
 ) x ORDER BY t DESC LIMIT 1)
 \endif
 
@@ -37,17 +35,78 @@ GROUP BY state_code
 ORDER BY state_code;
 
 \echo
-\echo === YouTube channels per state ===
+\echo === YouTube: candidates vs verified (this batch) ===
 SELECT
+    'candidates' AS layer,
     state_code,
-    COUNT(DISTINCT jurisdiction_id)  AS jurisdictions_with_channels,
-    COUNT(*)                         AS channel_rows,
-    COUNT(DISTINCT youtube_channel_url) AS distinct_channel_urls,
-    SUM(video_count)                 AS total_videos
+    COUNT(DISTINCT jurisdiction_id) AS jurisdictions,
+    COUNT(*) AS channel_rows,
+    COUNT(*) FILTER (WHERE is_verified) AS verified_flagged,
+    COUNT(*) FILTER (WHERE NOT is_verified) AS rejected,
+    COUNT(DISTINCT rejection_reason) AS distinct_rejection_reasons
+FROM bronze.bronze_jurisdiction_youtube_candidates
+WHERE scrape_batch_id = :batch::uuid
+GROUP BY state_code
+UNION ALL
+SELECT
+    'verified_canonical' AS layer,
+    state_code,
+    COUNT(DISTINCT jurisdiction_id),
+    COUNT(*),
+    COUNT(*) FILTER (WHERE is_primary),
+  NULL::bigint,
+  NULL::bigint
 FROM bronze.bronze_jurisdiction_youtube
 WHERE scrape_batch_id = :batch::uuid
 GROUP BY state_code
-ORDER BY state_code;
+ORDER BY layer, state_code;
+
+\echo
+\echo === Rejected candidate reasons (top) ===
+SELECT
+    COALESCE(rejection_reason, '(verified)') AS reason,
+    COUNT(*) AS n
+FROM bronze.bronze_jurisdiction_youtube_candidates
+WHERE scrape_batch_id = :batch::uuid
+GROUP BY 1
+ORDER BY n DESC
+LIMIT 20;
+
+\echo
+\echo === Verified canonical channels (GA counties sample) ===
+SELECT
+    y.jurisdiction_id,
+    y.jurisdiction_type,
+    j.name,
+    y.channel_title,
+    y.youtube_channel_url,
+    y.official_meeting_confidence,
+    y.source,
+    y.is_primary,
+    y.back_links_to_jurisdiction_website
+FROM bronze.bronze_jurisdiction_youtube y
+JOIN intermediate.int_jurisdictions j USING (jurisdiction_id)
+WHERE j.state_code = 'GA'
+  AND y.jurisdiction_type = 'county'
+ORDER BY y.jurisdiction_id, y.is_primary DESC, y.official_meeting_confidence DESC NULLS LAST
+LIMIT 30;
+
+\echo
+\echo === Noise still in candidates only (pattern_match rejects) ===
+SELECT
+    c.jurisdiction_id,
+    c.jurisdiction_type,
+    j.name,
+    c.channel_title,
+    c.youtube_channel_url,
+    c.official_meeting_confidence,
+    c.rejection_reason
+FROM bronze.bronze_jurisdiction_youtube_candidates c
+JOIN intermediate.int_jurisdictions j USING (jurisdiction_id)
+WHERE c.scrape_batch_id = :batch::uuid
+  AND NOT c.is_verified
+ORDER BY c.jurisdiction_id
+LIMIT 30;
 
 \echo
 \echo === Mayor-flagged contacts (top 50) ===
@@ -66,50 +125,30 @@ ORDER BY state_code, jurisdiction_id
 LIMIT 50;
 
 \echo
-\echo === Jurisdiction → website → YouTube map (sample 25) ===
-SELECT
-    y.state_code,
-    y.jurisdiction_id,
-    y.website_url,
-    y.youtube_channel_url,
-    y.channel_title,
-    y.video_count,
-    y.subscriber_count
-FROM bronze.bronze_jurisdiction_youtube y
-WHERE y.scrape_batch_id = :batch::uuid
-ORDER BY y.video_count DESC NULLS LAST
-LIMIT 25;
-
-\echo
-\echo === Coverage gap: jurisdictions with website but NO contacts and NO channels ===
+\echo === Coverage gap: jurisdictions with website but NO verified YouTube ===
 WITH targets AS (
     SELECT DISTINCT ON (jurisdiction_id)
         jurisdiction_id,
         state_code,
-        COALESCE(NULLIF(btrim(organization_name), ''),
-                 NULLIF(btrim(city), ''),
-                 jurisdiction_id) AS name,
+        COALESCE(NULLIF(btrim(j.name), ''), jurisdiction_id) AS name,
         btrim(website_url) AS website_url
-    FROM intermediate.int_jurisdiction_websites
-    WHERE state_code IN ('AL','GA','IN','MA','WA','WI')
-      AND jurisdiction_category IN ('municipality','county')
-      AND website_url IS NOT NULL AND btrim(website_url) <> ''
-    ORDER BY jurisdiction_id, website_record_key
+    FROM intermediate.int_jurisdiction_websites w
+    LEFT JOIN intermediate.int_jurisdictions j USING (jurisdiction_id)
+    WHERE w.state_code IN ('AL','GA','IN','MA','WA','WI')
+      AND w.jurisdiction_category IN ('municipality','county')
+      AND w.website_url IS NOT NULL AND btrim(w.website_url) <> ''
+    ORDER BY jurisdiction_id, w.website_record_key
 ),
-ran AS (
-    SELECT DISTINCT jurisdiction_id FROM bronze.bronze_contacts_scraped
-      WHERE scrape_batch_id = :batch::uuid
-    UNION
+verified AS (
     SELECT DISTINCT jurisdiction_id FROM bronze.bronze_jurisdiction_youtube
-      WHERE scrape_batch_id = :batch::uuid
 )
 SELECT t.state_code, t.jurisdiction_id, t.name, t.website_url
 FROM targets t
-LEFT JOIN ran r USING (jurisdiction_id)
-WHERE r.jurisdiction_id IS NULL
+LEFT JOIN verified v USING (jurisdiction_id)
+WHERE v.jurisdiction_id IS NULL
 ORDER BY t.state_code, t.jurisdiction_id
 LIMIT 50;
 
 \echo
-\echo === Errors recorded in checkpoint file? ===
-\echo (Checkpoint is a local JSONL — see data/bronze/jurisdiction_pilot_progress/<batch>.jsonl)
+\echo === Checkpoint file ===
+\echo (See data/bronze/jurisdiction_pilot_progress/<batch>.jsonl)

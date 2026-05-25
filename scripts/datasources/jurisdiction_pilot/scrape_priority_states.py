@@ -11,8 +11,8 @@ It is *not* the homepage deep-discovery pipeline (``jurisdiction_discovery_pipel
 This runner writes:
 
 - ``bronze.bronze_persons_scraped`` — contacts (+ profile images under ``data/cache/scraped_meetings/``)
-- ``bronze.bronze_jurisdiction_youtube`` — all candidate channels (audit) with ``UC`` id, title,
-  description, back-links, and ``official_meeting_confidence`` from one page fetch per channel
+- ``bronze.bronze_jurisdiction_youtube_candidates`` — every probe (audit, including rejected noise)
+- ``bronze.bronze_jurisdiction_youtube`` — **verified** channels only (website-linked / high-confidence)
 - ``bronze.bronze_jurisdictions_{counties,municipalities}_scraped`` — **one primary** channel URL
   + ``youtube_channel_id`` per jurisdiction (for ``load_youtube_events_to_postgres --channel-source counties-scraped``)
 - ``bronze.bronze_elections_scraped`` + c1 election tables (with ``--elections``)
@@ -122,7 +122,12 @@ from scripts.discovery.bronze_persons_scraped_persist import (  # noqa: E402
     insert_bronze_persons_scraped,
 )
 from scripts.discovery.bronze_jurisdiction_youtube_persist import (  # noqa: E402
-    insert_bronze_jurisdiction_youtube,
+    insert_bronze_jurisdiction_youtube_candidates,
+    upsert_bronze_jurisdiction_youtube_verified,
+)
+from scripts.discovery.youtube_channel_verification import (  # noqa: E402
+    DEFAULT_VERIFIED_MIN_OFFICIAL_CONFIDENCE,
+    rejection_reason_for_channel,
 )
 from scripts.discovery.sync_youtube_primary_from_jurisdiction_youtube import (  # noqa: E402
     sync_primary_youtube_to_scraped,
@@ -195,13 +200,10 @@ DEFAULT_PRIORITY_STATES = ("AL", "GA", "IN", "MA", "WA", "WI")
 # Counties first (feeds counties-scraped for YouTube events loader); municipalities second.
 DEFAULT_INCLUDE_TYPES = ("county", "municipality")
 
-# Default insert-time gate on official_meeting_confidence. The upstream YouTube discovery
-# (pattern_match handles + YouTube Data API free-text search) is intentionally permissive;
-# this threshold separates plausibly-official jurisdiction channels from squatted handles
-# and name-token collisions. 0.5 corresponds roughly to "title contains jurisdiction name
-# AND at least one government/meeting keyword OR a website back-link." Lower to 0.4 if you
-# want broader recall and higher review burden.
-MIN_CHANNEL_CONFIDENCE = float(os.getenv("MIN_CHANNEL_CONFIDENCE", "0.5"))
+# Default bar for canonical ``bronze_jurisdiction_youtube`` (candidates table keeps everything).
+MIN_CHANNEL_CONFIDENCE = float(
+    os.getenv("MIN_CHANNEL_CONFIDENCE", str(DEFAULT_VERIFIED_MIN_OFFICIAL_CONFIDENCE))
+)
 # Stricter bar for the single primary on ``*_scraped`` (counties-scraped loader reads this).
 SCRAPED_PRIMARY_MIN_CONFIDENCE = float(os.getenv("SCRAPED_PRIMARY_MIN_CONFIDENCE", "0.7"))
 
@@ -260,6 +262,7 @@ class JurisdictionResult:
     contacts_inserted: int = 0
     mayor_rows_inserted: int = 0
     youtube_inserted: int = 0
+    youtube_candidates_inserted: int = 0
     youtube_filtered_out: int = 0
     contact_images_saved: int = 0
     bronze_election_rows: int = 0
@@ -311,7 +314,10 @@ def load_jurisdictions(
                 COALESCE(
                     NULLIF(btrim(j.name), ''),
                     NULLIF(btrim(w.organization_name), ''),
-                    NULLIF(btrim(w.city), ''),
+                    CASE
+                        WHEN w.jurisdiction_category = 'county' THEN NULL
+                        ELSE NULLIF(btrim(w.city), '')
+                    END,
                     w.jurisdiction_id
                 ) AS name,
                 btrim(w.website_url) AS website_url
@@ -663,6 +669,7 @@ def _discover_youtube(
                     city or county or j.name,
                     j.state_code,
                     county if j.jurisdiction_type == "county" else None,
+                    include_city_patterns=(j.jurisdiction_type != "county"),
                 )
                 channels = []
                 for handle in patterns:
@@ -696,22 +703,9 @@ def _discover_youtube(
         )
         from scripts.datasources.youtube.pattern_match_gate import (
             is_pattern_match_discovery,
-            passes_pattern_match_gate,
         )
 
-        if is_pattern_match_discovery(enriched) and not passes_pattern_match_gate(
-            channel_title=str(enriched.get("channel_title") or ""),
-            channel_description=str(enriched.get("channel_description") or ""),
-            jurisdiction_name=j.name,
-            jurisdiction_state_code=j.state_code,
-            jurisdiction_homepage=j.website_url or "",
-            external_links=enriched.get("external_links"),
-            backlinks_to_jurisdiction=enriched.get(
-                "back_links_to_jurisdiction_website"
-            ),
-        ):
-            continue
-        rows.append({
+        row = {
             "youtube_channel_url": url,
             "youtube_channel_id": enriched.get("channel_id"),
             "channel_title": enriched.get("channel_title"),
@@ -726,7 +720,25 @@ def _discover_youtube(
             "external_links": enriched.get("external_links") or [],
             "raw_row": enriched,
             "scraped_at": scraped_at,
-        })
+        }
+        rejection = rejection_reason_for_channel(
+            row,
+            jurisdiction_type=j.jurisdiction_type,
+            jurisdiction_name=j.name,
+            jurisdiction_state_code=j.state_code,
+            jurisdiction_homepage=j.website_url or "",
+            min_confidence=MIN_CHANNEL_CONFIDENCE,
+        )
+        row["rejection_reason"] = rejection
+        row["is_verified"] = rejection is None
+        if is_pattern_match_discovery(enriched) and rejection == "pattern_match_gate_failed":
+            logger.debug(
+                "[%s] pattern_match rejected: %s (%s)",
+                _jlabel(j),
+                url,
+                enriched.get("channel_title"),
+            )
+        rows.append(row)
     return rows
 
 
@@ -934,29 +946,34 @@ def _process_one(
 
         if not skip_youtube and not _STOP.is_set():
             yt_rows = _discover_youtube(j, session, cookies_file=youtube_cookies_file)
-            # Hard filter: only persist channels above the officialness threshold. Upstream
-            # discovery is intentionally permissive (pattern_match + free-text API search);
-            # without this gate the table fills with squatted handles and random name-token
-            # collisions ("Adams" -> civil rights lawyer, etc.).
-            keep_rows = [
-                r for r in yt_rows
-                if (r.get("official_meeting_confidence") or 0.0) >= MIN_CHANNEL_CONFIDENCE
-            ]
-            result.youtube_filtered_out = len(yt_rows) - len(keep_rows)
-            if keep_rows:
-                result.youtube_inserted = insert_bronze_jurisdiction_youtube(
+            verified_rows = [r for r in yt_rows if r.get("is_verified")]
+            result.youtube_filtered_out = len(yt_rows) - len(verified_rows)
+            if yt_rows:
+                result.youtube_candidates_inserted = insert_bronze_jurisdiction_youtube_candidates(
                     database_url,
                     scrape_batch_id=batch_id,
                     jurisdiction_id=j.jurisdiction_id,
                     state_code=j.state_code,
+                    jurisdiction_type=j.jurisdiction_type,
                     ocd_id=ocd_id,
                     website_url=j.website_url,
-                    rows=keep_rows,
+                    rows=yt_rows,
+                )
+            if verified_rows:
+                result.youtube_inserted = upsert_bronze_jurisdiction_youtube_verified(
+                    database_url,
+                    scrape_batch_id=batch_id,
+                    jurisdiction_id=j.jurisdiction_id,
+                    state_code=j.state_code,
+                    jurisdiction_type=j.jurisdiction_type,
+                    ocd_id=ocd_id,
+                    website_url=j.website_url,
+                    rows=verified_rows,
                 )
                 # One primary on *_scraped for downstream (counties-scraped channel source).
                 primary_candidates = [
                     r
-                    for r in keep_rows
+                    for r in verified_rows
                     if (r.get("official_meeting_confidence") or 0.0)
                     >= SCRAPED_PRIMARY_MIN_CONFIDENCE
                 ]

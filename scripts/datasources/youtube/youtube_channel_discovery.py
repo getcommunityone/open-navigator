@@ -371,7 +371,9 @@ class YouTubeChannelDiscovery:
         self,
         city_name: str,
         state_code: str,
-        county_name: Optional[str]
+        county_name: Optional[str],
+        *,
+        include_city_patterns: bool = True,
     ) -> List[str]:
         """Generate common handle patterns to test."""
         patterns: List[str] = []
@@ -384,12 +386,13 @@ class YouTubeChannelDiscovery:
                 patterns.append(h)
 
         city_clean = self._compact_name_for_handles(city_name)
-        if not city_clean:
+        if not city_clean and not county_name:
             return []
 
-        # City patterns
-        for pattern in self.CITY_HANDLE_PATTERNS:
-            _add(pattern.format(city=city_clean, state=state_code))
+        # City patterns (municipalities only — counties use county templates below).
+        if include_city_patterns and city_clean:
+            for pattern in self.CITY_HANDLE_PATTERNS:
+                _add(pattern.format(city=city_clean, state=state_code))
 
         # County patterns
         if county_name:
