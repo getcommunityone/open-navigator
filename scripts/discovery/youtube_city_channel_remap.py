@@ -20,12 +20,12 @@ _CITY_OF_TITLE_RE = re.compile(
     r"\b(?:city|town|village|borough)\s+of\s+(.+)",
     re.I,
 )
-_TITLE_SUFFIX_RE = re.compile(
-    r",?\s*(?:"
-    r"al|ga|in|ma|wa|wi|"
-    r"alabama|georgia|indiana|massachusetts|washington|wisconsin|"
-    r"government|gov|official|usa|united states"
-    r").*$",
+_TRAILING_JUNK_RE = re.compile(
+    r"(?:"
+    r"\s+(?:government|gov|official|usa(?:\s+.*)?|united states(?:\s+.*)?)"
+    r"|,\s*(?:alabama|georgia|indiana|massachusetts|washington|wisconsin)(?:\s+.*)?"
+    r"|\s+(?:al|ga|in|ma|wa|wi)(?:\s+.*)?"
+    r")$",
     re.I,
 )
 _HANDLE_CITYOF_RE = re.compile(
@@ -56,7 +56,8 @@ def parse_municipality_name_from_channel(row: Mapping[str, Any]) -> Optional[str
     if title:
         match = _CITY_OF_TITLE_RE.search(title)
         if match:
-            name = _TITLE_SUFFIX_RE.sub("", match.group(1)).strip(" ,.-")
+            name = match.group(1).split(",")[0].strip()
+            name = _TRAILING_JUNK_RE.sub("", name).strip(" ,.-")
             if name:
                 return name
 
