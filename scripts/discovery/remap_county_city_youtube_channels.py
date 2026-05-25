@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Remap municipal YouTube channels off county jurisdictions.
+Remap municipal/town YouTube channels off county (or CDP) jurisdictions.
 
-For each verified / candidate row on a county that looks like a city channel:
-1. Resolve the target municipality from channel title or ``@CityOf…`` handle.
-2. If the city already has the same channel URL → delete the county row.
-3. Otherwise → upsert the row under the city jurisdiction and delete the county row.
+For each row attached to the wrong local government:
+1. Resolve target place from ``City/Town of …`` title (includes New England ``township`` rows).
+2. If the place already has the same channel URL → delete the wrong row.
+3. Otherwise → upsert under the correct jurisdiction and delete the wrong row.
 
 Usage:
   .venv/bin/python scripts/discovery/remap_county_city_youtube_channels.py --dry-run
@@ -32,17 +32,25 @@ from scripts.discovery.bronze_jurisdiction_youtube_persist import (  # noqa: E40
 )
 from scripts.discovery.jurisdiction_discovery_pipeline import resolve_database_url  # noqa: E402
 from scripts.discovery.youtube_city_channel_remap import (  # noqa: E402
-    build_municipality_index,
+    build_local_place_index,
     channel_url_key,
-    is_misassigned_city_channel_on_county,
-    lookup_municipality_jurisdiction,
+    is_misassigned_local_place_channel,
+    lookup_local_place_jurisdiction,
     parse_municipality_name_from_channel,
+    parse_place_kind_from_channel,
 )
 
 
-def _fetch_county_rows(cur, table: str, state_codes: list[str] | None) -> list[dict[str, Any]]:
+def _fetch_misassigned_rows(cur, table: str, state_codes: list[str] | None) -> list[dict[str, Any]]:
     clauses = [
-        "y.jurisdiction_type = 'county'",
+        """(
+            y.jurisdiction_type = 'county'
+            OR (
+                y.jurisdiction_type = 'municipality'
+                AND POSITION(' cdp' IN LOWER(j.name)) > 0
+                AND LOWER(BTRIM(COALESCE(y.channel_title, ''))) ~ '^(town|village|borough) of '
+            )
+        )""",
         """(
             LOWER(BTRIM(COALESCE(y.channel_title, ''))) ~ '^city of '
             OR LOWER(BTRIM(COALESCE(y.channel_title, ''))) ~ '^(town|village|borough) of '
@@ -56,7 +64,8 @@ def _fetch_county_rows(cur, table: str, state_codes: list[str] | None) -> list[d
     sql = f"""
         SELECT
             y.*,
-            j.name AS county_name
+            j.name AS attached_jurisdiction_name,
+            j.jurisdiction_type::text AS attached_jurisdiction_type
         FROM {table} y
         JOIN intermediate.int_jurisdictions j ON j.jurisdiction_id = y.jurisdiction_id
         WHERE {' AND '.join(clauses)}
@@ -98,7 +107,7 @@ def _row_to_verified_payload(row: dict[str, Any], city: dict[str, str]) -> dict[
         "is_primary": bool(row.get("is_primary")),
         "scrape_batch_id": row.get("scrape_batch_id"),
         "source": row.get("source"),
-        "jurisdiction_type": "municipality",
+        "jurisdiction_type": city.get("jurisdiction_type") or "municipality",
         "state_code": row.get("state_code"),
         "website_url": city.get("website_url") or row.get("website_url"),
     }
@@ -128,25 +137,33 @@ def remap_table(
     conn = psycopg2.connect(database_url)
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            rows = _fetch_county_rows(cur, table, state_codes)
+            rows = _fetch_misassigned_rows(cur, table, state_codes)
             stats["scanned"] = len(rows)
-            municipality_indexes: dict[str, dict[str, list[dict[str, str]]]] = {}
+            place_indexes: dict[str, dict[str, list[dict[str, str]]]] = {}
 
             for row in rows:
-                county_name = str(row.get("county_name") or "")
-                if not is_misassigned_city_channel_on_county(row, county_name=county_name):
+                attached_name = str(row.get("attached_jurisdiction_name") or "")
+                attached_type = str(
+                    row.get("attached_jurisdiction_type") or row.get("jurisdiction_type") or ""
+                )
+                if not is_misassigned_local_place_channel(
+                    row,
+                    jurisdiction_type=attached_type,
+                    jurisdiction_name=attached_name,
+                ):
                     stats["skipped_not_mismatch"] += 1
                     continue
 
                 stats["misassigned"] += 1
                 place = parse_municipality_name_from_channel(row)
+                place_kind = parse_place_kind_from_channel(row)
                 if not place:
                     stats["unresolved"] += 1
                     actions.append(
                         {
                             "action": "unresolved",
                             "table": table,
-                            "county_id": row["jurisdiction_id"],
+                            "from_id": row["jurisdiction_id"],
                             "channel_title": row.get("channel_title"),
                             "youtube_channel_url": row.get("youtube_channel_url"),
                         }
@@ -154,23 +171,26 @@ def remap_table(
                     continue
 
                 state = str(row["state_code"]).upper()[:2]
-                if state not in municipality_indexes:
-                    municipality_indexes[state] = build_municipality_index(cur, state_code=state)
+                if state not in place_indexes:
+                    place_indexes[state] = build_local_place_index(cur, state_code=state)
 
-                city = lookup_municipality_jurisdiction(
+                city = lookup_local_place_jurisdiction(
                     cur,
                     state_code=state,
-                    municipality_name=place,
-                    municipality_index=municipality_indexes[state],
+                    place_name=place,
+                    channel_title=str(row.get("channel_title") or ""),
+                    place_kind=place_kind,
+                    local_place_index=place_indexes[state],
                 )
                 if not city:
                     stats["unresolved"] += 1
                     actions.append(
                         {
-                            "action": "no_city_match",
+                            "action": "no_place_match",
                             "table": table,
-                            "county_id": row["jurisdiction_id"],
+                            "from_id": row["jurisdiction_id"],
                             "parsed_place": place,
+                            "place_kind": place_kind,
                             "channel_title": row.get("channel_title"),
                             "youtube_channel_url": row.get("youtube_channel_url"),
                         }
@@ -184,17 +204,24 @@ def remap_table(
                     stats["deleted_unresolved"] = stats.get("deleted_unresolved", 0) + 1
                     continue
 
+                if city["jurisdiction_id"] == row["jurisdiction_id"]:
+                    stats["skipped_not_mismatch"] += 1
+                    continue
+
                 url_key = channel_url_key(str(row["youtube_channel_url"]))
                 city_id = city["jurisdiction_id"]
-                county_id = row["jurisdiction_id"]
+                from_id = row["jurisdiction_id"]
+                target_type = city.get("jurisdiction_type") or "municipality"
                 already = _city_has_channel(cur, table, city_id, url_key)
 
                 action = {
-                    "action": "delete_duplicate" if already else "move_to_city",
+                    "action": "delete_duplicate" if already else "move_to_place",
                     "table": table,
-                    "county_id": county_id,
-                    "city_id": city_id,
+                    "from_id": from_id,
+                    "to_id": city_id,
+                    "to_jurisdiction_type": target_type,
                     "parsed_place": place,
+                    "place_kind": place_kind,
                     "channel_title": row.get("channel_title"),
                     "youtube_channel_url": row.get("youtube_channel_url"),
                 }
@@ -213,7 +240,7 @@ def remap_table(
                             database_url,
                             jurisdiction_id=city_id,
                             state_code=str(row["state_code"]),
-                            jurisdiction_type="municipality",
+                            jurisdiction_type=target_type,
                             jurisdiction_name=city["name"],
                             website_url=city.get("website_url") or row.get("website_url"),
                             rows=[_row_to_verified_payload(row, city)],
@@ -238,14 +265,15 @@ def remap_table(
                             """
                             UPDATE bronze.bronze_jurisdiction_youtube_candidates
                             SET jurisdiction_id = %s,
-                                jurisdiction_type = 'municipality',
+                                jurisdiction_type = %s,
                                 website_url = COALESCE(NULLIF(BTRIM(%s), ''), website_url),
-                                rejection_reason = COALESCE(rejection_reason, 'county_city_channel_mismatch'),
+                                rejection_reason = COALESCE(rejection_reason, 'local_place_jurisdiction_mismatch'),
                                 loaded_at = NOW()
                             WHERE id = %s
                             """,
                             (
                                 city_id,
+                                target_type,
                                 city.get("website_url") or "",
                                 row["id"],
                             ),

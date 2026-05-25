@@ -265,7 +265,7 @@ def canonical_source_from_row(row: Mapping[str, Any]) -> str:
         return "pilot_civic_api"
     if "website" in method:
         return "pilot_website_search"
-    if method.startswith("localview"):
+    if method.startswith("localview") or "localview" in method:
         return "localview"
     if method.startswith("verified_bronze") or method.startswith("events_catalog"):
         return "events_catalog"

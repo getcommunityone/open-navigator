@@ -1,12 +1,53 @@
 """Tests for remapping city YouTube channels off counties."""
 
 from scripts.discovery.youtube_city_channel_remap import (
+    _pick_best_place_match,
     parse_municipality_name_from_channel,
+    parse_place_kind_from_channel,
     _handle_to_place_name,
 )
 from scripts.discovery.youtube_channel_verification import (
     _looks_like_city_channel_for_county,
 )
+
+
+def test_parse_town_name_from_title():
+    row = {"channel_title": "Town of Nantucket", "youtube_channel_url": "https://youtube.com/x"}
+    assert parse_municipality_name_from_channel(row) == "Nantucket"
+    assert parse_place_kind_from_channel(row) == "town"
+
+
+def test_pick_nantucket_town_over_cdp():
+    hits = [
+        {
+            "jurisdiction_id": "nantucket_2543755",
+            "name": "Nantucket CDP",
+            "jurisdiction_type": "municipality",
+            "website_url": "",
+        },
+        {
+            "jurisdiction_id": "nantucket_2501943790",
+            "name": "Nantucket town",
+            "jurisdiction_type": "township",
+            "website_url": "https://nantucket-ma.gov",
+        },
+    ]
+    picked = _pick_best_place_match(
+        hits,
+        place_kind="town",
+        channel_title="Town of Nantucket",
+    )
+    assert picked is not None
+    assert picked["jurisdiction_id"] == "nantucket_2501943790"
+
+
+def test_nantucket_town_channel_is_county_mismatch():
+    row = {
+        "youtube_channel_url": "https://www.youtube.com/channel/UC-sgxA1fdoxteLNzRAUHIxA",
+        "channel_title": "Town of Nantucket",
+        "channel_description": "Nantucket Government TV ... town meetings ...",
+    }
+    assert _looks_like_city_channel_for_county(row, jurisdiction_name="Nantucket County")
 
 
 def test_parse_city_name_from_title():

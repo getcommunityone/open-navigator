@@ -79,6 +79,10 @@ _COUNTY_COUNCIL_CANDIDATE_PATHS: tuple[str, ...] = (
 
 # Homepage anchors with these patterns are municipal-only; skip on county discovery.
 _CITY_COUNCIL_URL_RE = re.compile(r"city[-_]?council|citycouncil", re.IGNORECASE)
+_COUNTY_COMMISSION_HREF_RE = re.compile(
+    r"(?:^|/)\d+/County[-_]Commission(?:/|$|\?)|/County[-_]Commission(?:/|$|\?)",
+    re.IGNORECASE,
+)
 
 # Anchors whose href OR visible text match this pattern are followed by the
 # homepage-crawl fallback. Kept tight — broader patterns ("government", "officials")
@@ -200,6 +204,39 @@ def crawl_homepage_anchors(
     return found
 
 
+def discover_county_commission_page_url(
+    homepage_url: str,
+    *,
+    session: requests.Session | None = None,
+) -> str | None:
+    """
+    CivicPlus counties often use ``/NN/County-Commission`` (not ``/county-commission``).
+    Scan the homepage for the first matching anchor.
+    """
+    if not homepage_url:
+        return None
+    sess = session or requests.Session()
+    sess.headers.setdefault("User-Agent", _USER_AGENT)
+    try:
+        resp = sess.get(homepage_url, timeout=_TIMEOUT_S, allow_redirects=True)
+        if resp.status_code != 200 or not resp.text:
+            return None
+        soup = BeautifulSoup(resp.text, "html.parser")
+    except requests.RequestException:
+        return None
+
+    host = urlparse(resp.url).netloc
+    for a in soup.find_all("a", href=True):
+        href = (a.get("href") or "").strip()
+        if not href or not _COUNTY_COMMISSION_HREF_RE.search(href):
+            continue
+        abs_url = urljoin(resp.url, href)
+        if urlparse(abs_url).netloc != host:
+            continue
+        return abs_url
+    return None
+
+
 def discover_seed_urls(
     homepage_url: str,
     *,
@@ -229,18 +266,25 @@ def discover_seed_urls(
         candidate_urls(homepage_url, kind="council", jurisdiction_type=jt),
         session=session,
     )
+    if skip_mayor and not council_live:
+        commission_page = discover_county_commission_page_url(homepage_url, session=session)
+        if commission_page:
+            council_live = [commission_page]
 
     if mayor_live or council_live:
         return {"mayor": mayor_live, "council": council_live}
 
     anchors = crawl_homepage_anchors(homepage_url, session=session)
     if skip_mayor:
+        commission_page = discover_county_commission_page_url(homepage_url, session=session)
         council_anchors = [
             u
             for u in anchors
             if not re.search(r"mayor", u, re.IGNORECASE)
             and not _CITY_COUNCIL_URL_RE.search(u)
         ]
+        if commission_page and commission_page not in council_anchors:
+            council_anchors.insert(0, commission_page)
         return {"mayor": [], "council": council_anchors}
     mayor_anchors = [u for u in anchors if re.search(r"mayor", u, re.IGNORECASE)]
     council_anchors = [u for u in anchors if u not in mayor_anchors]

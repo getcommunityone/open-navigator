@@ -88,6 +88,20 @@ def test_tv_public_with_meetings_can_qualify_at_high_confidence():
     )
 
 
+def test_nantucket_town_meeting_over_tv_public():
+    desc = (
+        'The Town of Nantucket official YouTube channel "Nantucket Government TV" '
+        "provides government programming. Live and broadcast town meetings, "
+        "boards and commissions meetings and public forums."
+    )
+    purpose = classify_channel_purpose(
+        channel_title="Town of Nantucket",
+        channel_description=desc,
+        jurisdiction_type="township",
+    )
+    assert purpose == "municipality-meeting"
+
+
 def test_county_meeting_qualifies_at_default_threshold():
     row = {
         "youtube_channel_url": "https://www.youtube.com/channel/UCexample",

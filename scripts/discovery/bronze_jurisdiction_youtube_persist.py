@@ -218,7 +218,7 @@ def upsert_bronze_jurisdiction_youtube_verified(
                         source, is_primary, verified_at
                     ) VALUES (
                         %s::uuid, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s,
-                        %s, %s, %s, %s::jsonb, %s::jsonb, %s, %s, %s, %s, NOW()
+                        %s, %s, %s, %s::jsonb, %s::jsonb, %s, %s, %s, NOW()
                     )
                     ON CONFLICT (jurisdiction_id, youtube_channel_url)
                     DO UPDATE SET

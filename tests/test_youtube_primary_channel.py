@@ -49,6 +49,26 @@ def test_pick_primary_prefers_homepage_scrape_over_youtube_api():
     assert conf == 0.9
 
 
+def test_pick_primary_skips_tv_public_and_general():
+    channels = [
+        {
+            "channel_url": "https://www.youtube.com/@CountyTV",
+            "discovery_method": "website_scrape",
+            "official_meeting_confidence": 0.95,
+            "channel_purpose": "tv-public",
+        },
+        {
+            "channel_url": "https://www.youtube.com/@CountyCommission",
+            "discovery_method": "website_scrape",
+            "official_meeting_confidence": 0.7,
+            "channel_purpose": "county-meeting",
+        },
+    ]
+    url, method, conf = pick_primary_youtube_channel(channels)
+    assert url == "https://www.youtube.com/@CountyCommission"
+    assert conf == 0.7
+
+
 def test_pick_primary_ignores_legacy_confidence_without_official_score():
     """Method priority still breaks ties when only legacy ``confidence`` is present."""
     channels = [

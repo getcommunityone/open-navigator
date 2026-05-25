@@ -39,6 +39,8 @@ _MEETING_PURPOSE_SIGNALS = (
     "recordings of local government meetings",
     "county government meetings",
     "government meetings",
+    "town meetings",
+    "boards and commissions meetings",
     "streamed on this channel are",
     "meetings and events for",
 )
@@ -119,7 +121,7 @@ def is_tv_public_channel(channel_title: str, channel_description: str) -> bool:
 
 def _norm_jurisdiction_type(jurisdiction_type: str) -> str:
     jt = (jurisdiction_type or "").strip().lower()
-    if jt in ("city", "town", "village", "borough", "place", "municipality"):
+    if jt in ("city", "town", "village", "borough", "place", "municipality", "township"):
         return "municipality"
     if jt == "county":
         return "county"
@@ -140,9 +142,21 @@ def classify_channel_purpose(
     title = channel_title or ""
     desc = channel_description or ""
     text = _blob(title, desc)
+    title_l = (title or "").lower()
+
+    # Official ``Town/City of …`` channels with meeting wording beat generic TV access.
+    if re.search(r"\b(city|town|village|borough)\s+of\b", title_l):
+        jt = "municipality"
+        if has_meeting_purpose_signal(title, desc):
+            return "municipality-meeting"
 
     if is_tv_public_channel(title, desc):
         return "tv-public"
+
+    # Title says Town/City of … — classify as local government even when the scrape
+    # target jurisdiction was a county (coterminous county/town like Nantucket MA).
+    if re.search(r"\b(city|town|village|borough)\s+of\b", title_l):
+        jt = "municipality"
 
     if jt == "county":
         if has_meeting_purpose_signal(title, desc):
