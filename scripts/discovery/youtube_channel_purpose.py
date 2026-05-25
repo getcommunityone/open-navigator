@@ -88,6 +88,20 @@ _TV_TITLE_RE = re.compile(
     re.I,
 )
 
+# Title-only: ``Houston County Commission``, ``Board of Commissioners``, etc.
+_COMMISSION_IN_TITLE_RE = re.compile(
+    r"\b(?:board\s+of\s+)?commission(?:ers|er)?s?\b",
+    re.I,
+)
+
+
+def title_indicates_meeting_channel(channel_title: str) -> bool:
+    """True when the channel title names a commission/board body (meeting channel)."""
+    title = (channel_title or "").strip()
+    if not title:
+        return False
+    return bool(_COMMISSION_IN_TITLE_RE.search(title))
+
 
 def _blob(channel_title: str, channel_description: str) -> str:
     return f"{channel_title or ''} {channel_description or ''}".lower()
@@ -95,10 +109,113 @@ def _blob(channel_title: str, channel_description: str) -> str:
 
 def has_meeting_purpose_signal(channel_title: str, channel_description: str) -> bool:
     """True when title/description focus on meetings (not generic ``government``)."""
+    if title_indicates_meeting_channel(channel_title):
+        return True
     text = _blob(channel_title, channel_description)
     if not text.strip():
         return False
     return any(sig in text for sig in _MEETING_PURPOSE_SIGNALS)
+
+
+_NON_GOV_HOBBY_SIGNALS = (
+    "filming trains",
+    "if you like trains",
+    "railroad",
+    "steam engine",
+    "big boy",
+    "follow me on facebook",
+    "follow the link below",
+    "my store",
+    "etsy.com",
+    "my short videos",
+    "adventures",
+    "subscribers filming",
+)
+
+_PERSONAL_SOCIAL_HOSTS = (
+    "facebook.com",
+    "instagram.com",
+    "etsy.com",
+    "tiktok.com",
+    "twitter.com",
+    "x.com",
+)
+
+
+def has_government_channel_signal(
+    channel_title: str,
+    channel_description: str,
+    *,
+    jurisdiction_type: str = "",
+    jurisdiction_name: str = "",
+) -> bool:
+    """True when title/description look like official or meeting-focused government media."""
+    title = channel_title or ""
+    desc = channel_description or ""
+    text = _blob(title, desc)
+    if not text.strip():
+        return False
+    if has_meeting_purpose_signal(title, desc):
+        return True
+    if any(sig in text for sig in _GENERAL_GOV_SIGNALS):
+        return True
+    if is_tv_public_channel(title, desc):
+        return True
+
+    jt = _norm_jurisdiction_type(jurisdiction_type)
+    name_l = (jurisdiction_name or "").lower()
+    if jt == "county":
+        county_token = name_l.replace(" county", "").strip()
+        if "county" in text and (not county_token or county_token in text):
+            return True
+        if any(
+            sig in text
+            for sig in (
+                "county commission",
+                "board of commissioners",
+                "county board",
+                "county government",
+            )
+        ):
+            return True
+    if jt == "municipality":
+        if re.search(r"\b(city|town|village|borough)\s+of\b", (title or "").lower()):
+            return True
+        if any(
+            sig in text
+            for sig in ("city of ", "town of ", "village of ", "borough of ", "municipal")
+        ):
+            return True
+    return False
+
+
+def looks_like_non_government_channel(
+    channel_title: str,
+    channel_description: str,
+    *,
+    external_links: object = None,
+) -> bool:
+    """True for obvious hobby/personal channels (trains, creator stores, etc.)."""
+    text = _blob(channel_title, channel_description)
+    if any(sig in text for sig in _NON_GOV_HOBBY_SIGNALS):
+        return True
+
+    links: list[str] = []
+    if isinstance(external_links, list):
+        for item in external_links:
+            if isinstance(item, str):
+                links.append(item.lower())
+            elif isinstance(item, dict):
+                links.append(str(item.get("url") or "").lower())
+    has_personal_social = any(
+        host in url for url in links for host in _PERSONAL_SOCIAL_HOSTS if url
+    )
+    has_gov_link = any(".gov" in url for url in links)
+    if has_personal_social and not has_gov_link and not has_government_channel_signal(
+        channel_title, channel_description
+    ):
+        return True
+    return False
 
 
 def is_tv_public_channel(channel_title: str, channel_description: str) -> bool:
@@ -152,6 +269,14 @@ def classify_channel_purpose(
 
     if is_tv_public_channel(title, desc):
         return "tv-public"
+
+    if title_indicates_meeting_channel(title):
+        if jt == "county":
+            return "county-meeting"
+        if jt == "municipality":
+            return "municipality-meeting"
+        if jt != "unknown":
+            return f"{jt}-meeting"
 
     # Title says Town/City of … — classify as local government even when the scrape
     # target jurisdiction was a county (coterminous county/town like Nantucket MA).

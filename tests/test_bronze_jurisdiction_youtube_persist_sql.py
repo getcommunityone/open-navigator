@@ -16,10 +16,9 @@ def _upsert_verified_sql() -> str:
     return text[start:end]
 
 
-def test_upsert_verified_placeholders_match_row_values():
+def test_upsert_verified_preserves_metadata_on_null_conflict():
     sql = _upsert_verified_sql()
-    before_now = sql.split("NOW()")[0]
-    placeholders = len(re.findall(r"%s", before_now))
-    # _row_values returns 22 fields; upsert passes base[0], *base[1:], source, is_primary.
-    expected_params = 22 + 2
-    assert placeholders == expected_params
+    assert "subscriber_count = COALESCE(" in sql
+    assert "EXCLUDED.subscriber_count,\n                            bronze.bronze_jurisdiction_youtube.subscriber_count" in sql
+    assert "video_count = COALESCE(" in sql
+    assert "external_links = CASE" in sql

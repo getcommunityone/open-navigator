@@ -26,6 +26,12 @@ _BUILTIN: Dict[str, Tuple[str, ...]] = {
     "barrow_13013": (
         "https://www.barrowga.org/390/Watch-a-Board-Meeting-Video",
     ),
+    # Shelby County, AL — CivicPlus Agenda Center + calendar
+    "shelby_01117": (
+        "https://www.shelbyal.com/AgendaCenter",
+        "https://www.shelbyal.com/AgendaCenter/County-Commission-1",
+        "https://www.shelbyal.com/calendar.aspx",
+    ),
     # City of Northport, AL — CivicPlus Agenda Center
     "northport_0155200": (
         "https://www.northportal.gov/129/Agendas-Minutes",

@@ -32,6 +32,7 @@ from scripts.discovery.youtube_channel_purpose import classify_channel_purpose
 from scripts.datasources.jurisdiction_pilot.youtube_channel_enrich import enrich_channel
 from scripts.datasources.youtube.youtube_channel_page import is_junk_channel_title
 from scripts.discovery.jurisdiction_discovery_pipeline import resolve_database_url
+from scripts.discovery.int_youtube_channel_metadata import cache_from_enriched_row
 
 
 def _needs_refresh(row: dict) -> bool:
@@ -253,6 +254,14 @@ def main() -> int:
                             )
                             conn.commit()
                             updated += 1
+                            scrape_cid = values.get("youtube_channel_id") or row.get("youtube_channel_id")
+                            if scrape_cid:
+                                cache_from_enriched_row(
+                                    conn,
+                                    channel_id=str(scrape_cid),
+                                    enriched=values,
+                                    channel_url=row["youtube_channel_url"],
+                                )
                         except Exception as exc:
                             failed += 1
                             conn.rollback()

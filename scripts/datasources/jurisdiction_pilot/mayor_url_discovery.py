@@ -29,7 +29,9 @@ from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
-_USER_AGENT = "OpenNavigatorJurisdictionPilot/1.0"
+from scripts.datasources.jurisdiction_pilot.http_fetch import BROWSER_USER_AGENT
+
+_USER_AGENT = BROWSER_USER_AGENT
 _TIMEOUT_S = 12
 
 # Ordered by likelihood. Single-word forms first (matches the largest share of city
@@ -67,6 +69,7 @@ _MUNICIPALITY_COUNCIL_CANDIDATE_PATHS: tuple[str, ...] = (
 )
 
 _COUNTY_COUNCIL_CANDIDATE_PATHS: tuple[str, ...] = (
+    "/Elected-Officials",
     "/commissioners",
     "/county-commission",
     "/county-commissioner-meetings",
@@ -204,6 +207,28 @@ def crawl_homepage_anchors(
     return found
 
 
+_ELECTED_OFFICIALS_PROBE_PATHS: tuple[str, ...] = (
+    "/Elected-Officials",
+    "/elected-officials",
+    "/government/elected-officials",
+)
+_ELECTED_OFFICIALS_HREF_RE = re.compile(r"Elected[-_]Officials", re.IGNORECASE)
+_CIVICPLUS_GOVERNMENT_HUB_RE = re.compile(r"/\d+/Government(?:/|$|\?)", re.IGNORECASE)
+
+
+def _commission_url_from_html(html: str, base_url: str) -> str | None:
+    host = urlparse(base_url).netloc
+    soup = BeautifulSoup(html, "html.parser")
+    for a in soup.find_all("a", href=True):
+        href = (a.get("href") or "").strip()
+        if not href or not _COUNTY_COMMISSION_HREF_RE.search(href):
+            continue
+        abs_url = urljoin(base_url, href)
+        if urlparse(abs_url).netloc == host:
+            return abs_url
+    return None
+
+
 def discover_county_commission_page_url(
     homepage_url: str,
     *,
@@ -211,29 +236,47 @@ def discover_county_commission_page_url(
 ) -> str | None:
     """
     CivicPlus counties often use ``/NN/County-Commission`` (not ``/county-commission``).
-    Scan the homepage for the first matching anchor.
+    Scan the homepage, then common ``Elected-Officials`` hub pages, for the first match.
     """
     if not homepage_url:
         return None
     sess = session or requests.Session()
     sess.headers.setdefault("User-Agent", _USER_AGENT)
+
+    pages_to_scan = [homepage_url]
+    for path in _ELECTED_OFFICIALS_PROBE_PATHS:
+        pages_to_scan.append(urljoin(homepage_url, path))
+
     try:
         resp = sess.get(homepage_url, timeout=_TIMEOUT_S, allow_redirects=True)
-        if resp.status_code != 200 or not resp.text:
-            return None
-        soup = BeautifulSoup(resp.text, "html.parser")
+        if resp.status_code == 200 and resp.text:
+            host = urlparse(resp.url).netloc
+            soup = BeautifulSoup(resp.text, "html.parser")
+            for a in soup.find_all("a", href=True):
+                href = (a.get("href") or "").strip()
+                if not href:
+                    continue
+                if not (
+                    _ELECTED_OFFICIALS_HREF_RE.search(href)
+                    or _CIVICPLUS_GOVERNMENT_HUB_RE.search(href)
+                ):
+                    continue
+                hub = urljoin(resp.url, href)
+                if urlparse(hub).netloc == host and hub not in pages_to_scan:
+                    pages_to_scan.append(hub)
     except requests.RequestException:
-        return None
+        pass
 
-    host = urlparse(resp.url).netloc
-    for a in soup.find_all("a", href=True):
-        href = (a.get("href") or "").strip()
-        if not href or not _COUNTY_COMMISSION_HREF_RE.search(href):
+    for page_url in pages_to_scan:
+        try:
+            resp = sess.get(page_url, timeout=_TIMEOUT_S, allow_redirects=True)
+            if resp.status_code != 200 or not resp.text:
+                continue
+            found = _commission_url_from_html(resp.text, resp.url)
+            if found:
+                return found
+        except requests.RequestException:
             continue
-        abs_url = urljoin(resp.url, href)
-        if urlparse(abs_url).netloc != host:
-            continue
-        return abs_url
     return None
 
 
@@ -266,10 +309,10 @@ def discover_seed_urls(
         candidate_urls(homepage_url, kind="council", jurisdiction_type=jt),
         session=session,
     )
-    if skip_mayor and not council_live:
+    if skip_mayor:
         commission_page = discover_county_commission_page_url(homepage_url, session=session)
-        if commission_page:
-            council_live = [commission_page]
+        if commission_page and commission_page not in council_live:
+            council_live = [commission_page] + list(council_live)
 
     if mayor_live or council_live:
         return {"mayor": mayor_live, "council": council_live}

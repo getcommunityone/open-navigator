@@ -230,19 +230,50 @@ def upsert_bronze_jurisdiction_youtube_verified(
                             NULLIF(EXCLUDED.channel_title, ''),
                             bronze.bronze_jurisdiction_youtube.channel_title
                         ),
-                        subscriber_count = EXCLUDED.subscriber_count,
-                        video_count = EXCLUDED.video_count,
-                        view_count = EXCLUDED.view_count,
-                        latest_upload = EXCLUDED.latest_upload,
-                        discovery_method = EXCLUDED.discovery_method,
+                        subscriber_count = COALESCE(
+                            EXCLUDED.subscriber_count,
+                            bronze.bronze_jurisdiction_youtube.subscriber_count
+                        ),
+                        video_count = COALESCE(
+                            EXCLUDED.video_count,
+                            bronze.bronze_jurisdiction_youtube.video_count
+                        ),
+                        view_count = COALESCE(
+                            EXCLUDED.view_count,
+                            bronze.bronze_jurisdiction_youtube.view_count
+                        ),
+                        latest_upload = COALESCE(
+                            NULLIF(EXCLUDED.latest_upload, ''),
+                            bronze.bronze_jurisdiction_youtube.latest_upload
+                        ),
+                        discovery_method = COALESCE(
+                            NULLIF(EXCLUDED.discovery_method, ''),
+                            bronze.bronze_jurisdiction_youtube.discovery_method
+                        ),
                         channel_description = COALESCE(
                             NULLIF(EXCLUDED.channel_description, ''),
                             bronze.bronze_jurisdiction_youtube.channel_description
                         ),
-                        back_links_to_jurisdiction_website = EXCLUDED.back_links_to_jurisdiction_website,
-                        official_meeting_confidence = EXCLUDED.official_meeting_confidence,
-                        external_links = EXCLUDED.external_links,
-                        jurisdiction_website_back_links = EXCLUDED.jurisdiction_website_back_links,
+                        back_links_to_jurisdiction_website = COALESCE(
+                            EXCLUDED.back_links_to_jurisdiction_website,
+                            bronze.bronze_jurisdiction_youtube.back_links_to_jurisdiction_website
+                        ),
+                        official_meeting_confidence = COALESCE(
+                            EXCLUDED.official_meeting_confidence,
+                            bronze.bronze_jurisdiction_youtube.official_meeting_confidence
+                        ),
+                        external_links = CASE
+                            WHEN EXCLUDED.external_links IS NOT NULL
+                                 AND EXCLUDED.external_links <> '[]'::jsonb
+                            THEN EXCLUDED.external_links
+                            ELSE bronze.bronze_jurisdiction_youtube.external_links
+                        END,
+                        jurisdiction_website_back_links = CASE
+                            WHEN EXCLUDED.jurisdiction_website_back_links IS NOT NULL
+                                 AND EXCLUDED.jurisdiction_website_back_links <> '[]'::jsonb
+                            THEN EXCLUDED.jurisdiction_website_back_links
+                            ELSE bronze.bronze_jurisdiction_youtube.jurisdiction_website_back_links
+                        END,
                         channel_purpose = COALESCE(
                             NULLIF(EXCLUDED.channel_purpose, ''),
                             bronze.bronze_jurisdiction_youtube.channel_purpose

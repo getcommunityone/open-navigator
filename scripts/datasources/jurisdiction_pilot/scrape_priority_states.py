@@ -142,7 +142,18 @@ from scripts.discovery.contact_directory_heuristics import (  # noqa: E402
     classify_contact_directory_page,
 )
 from scripts.discovery.contact_extract_from_html import (  # noqa: E402
+    extract_civicplus_commission_profile_urls_from_html,
     extract_structured_contacts_from_html,
+)
+from scripts.datasources.jurisdiction_pilot.website_civicplus_meetings import (  # noqa: E402
+    scrape_civicplus_meetings,
+    write_meetings_snapshot,
+)
+from scripts.datasources.jurisdiction_pilot.county_municipality_websites import (  # noqa: E402
+    scrape_county_municipality_websites,
+)
+from scripts.discovery.bronze_websites_ballotpedia_persist import (  # noqa: E402
+    insert_bronze_websites_ballotpedia,
 )
 from scripts.discovery.contact_profile_images import (  # noqa: E402
     contact_profile_image_stem_from_name,
@@ -208,7 +219,9 @@ MIN_CHANNEL_CONFIDENCE = float(
 # Stricter bar for the single primary on ``*_scraped`` (counties-scraped loader reads this).
 SCRAPED_PRIMARY_MIN_CONFIDENCE = float(os.getenv("SCRAPED_PRIMARY_MIN_CONFIDENCE", "0.7"))
 
-_USER_AGENT = "OpenNavigatorJurisdictionPilot/1.0"
+from scripts.datasources.jurisdiction_pilot.http_fetch import BROWSER_USER_AGENT
+
+_USER_AGENT = BROWSER_USER_AGENT
 _REQUEST_TIMEOUT_S = 20
 _CHECKPOINT_ROOT = _ROOT / "data" / "bronze" / "jurisdiction_pilot_progress"
 _SCRAPED_MEETINGS_ROOT = _ROOT / "data" / "cache" / "scraped_meetings"
@@ -272,6 +285,10 @@ class JurisdictionResult:
     c1_candidacy_rows: int = 0
     youtube_events_count: int = 0
     youtube_events_inserted: int = 0
+    meetings_events_captured: int = 0
+    meetings_agendas_captured: int = 0
+    meetings_minutes_captured: int = 0
+    municipality_websites_inserted: int = 0
     seed_urls_attempted: int = 0
     seed_urls_succeeded: int = 0
     error: str | None = None
@@ -435,6 +452,10 @@ def record_checkpoint(batch_id: str, result: JurisdictionResult) -> None:
         "election_error": result.election_error,
         "seed_urls_attempted": result.seed_urls_attempted,
         "seed_urls_succeeded": result.seed_urls_succeeded,
+        "meetings_events_captured": result.meetings_events_captured,
+        "meetings_agendas_captured": result.meetings_agendas_captured,
+        "meetings_minutes_captured": result.meetings_minutes_captured,
+        "municipality_websites_inserted": result.municipality_websites_inserted,
         "error": result.error,
         "duration_s": round(result.duration_s, 2),
         "completed_at": datetime.now(timezone.utc).isoformat(),
@@ -553,7 +574,95 @@ def _scrape_contacts(
                 },
                 "scraped_at": scraped_at,
             })
+    rows_out = _enrich_contact_rows_from_profile_pages(
+        j, rows_out, html_by_url, session, batch_id, scraped_at,
+    )
     return rows_out, ok, html_by_url
+
+
+def _contact_identity_key(row: dict[str, Any]) -> str:
+    name = (row.get("name") or (row.get("raw_row") or {}).get("person_name") or "").strip().lower()
+    return name
+
+
+def _merge_contact_row(existing: dict[str, Any], incoming: dict[str, Any]) -> dict[str, Any]:
+    """Prefer incoming row when it adds email, phone, biography, or profile image."""
+    out = {**existing, "raw_row": {**(existing.get("raw_row") or {}), **(incoming.get("raw_row") or {})}}
+    for field in ("email", "phone", "mailing_address", "profile_url", "role", "organization"):
+        if not out.get(field) and incoming.get(field):
+            out[field] = incoming[field]
+    if incoming.get("extraction_method") and incoming.get("extraction_method") != existing.get(
+        "extraction_method"
+    ):
+        out["extraction_method"] = incoming["extraction_method"]
+    return out
+
+
+def _enrich_contact_rows_from_profile_pages(
+    j: Jurisdiction,
+    rows_out: list[dict[str, Any]],
+    html_by_url: dict[str, str],
+    session: requests.Session,
+    batch_id: str,
+    scraped_at: str,
+    *,
+    max_profiles: int = 16,
+) -> list[dict[str, Any]]:
+    profile_urls: list[str] = []
+    seen_profile: set[str] = set()
+    from scripts.discovery.contact_extract_from_html import _COUNTY_COMMISSION_PAGE_RE
+
+    for page_url, html in html_by_url.items():
+        if not _COUNTY_COMMISSION_PAGE_RE.search(page_url):
+            continue
+        for u in extract_civicplus_commission_profile_urls_from_html(html, page_url):
+            if u in seen_profile or u in html_by_url:
+                continue
+            seen_profile.add(u)
+            profile_urls.append(u)
+            if len(profile_urls) >= max_profiles:
+                break
+        if len(profile_urls) >= max_profiles:
+            break
+
+    by_name: dict[str, dict[str, Any]] = {}
+    for row in rows_out:
+        key = _contact_identity_key(row)
+        if key:
+            by_name[key] = row
+
+    for url in profile_urls:
+        if _STOP.is_set():
+            break
+        status, html = _fetch(url, session)
+        if status != 200 or not html:
+            continue
+        html_by_url[url] = html
+        classification = classify_contact_directory_page(url, html)
+        for r in extract_structured_contacts_from_html(html, url):
+            name = (r.get("person_name") or "").strip()
+            if not name:
+                continue
+            incoming = {
+                "source_page_url": url,
+                "page_classification": classification["directory_kind"],
+                "directory_score": int(classification["score"]),
+                "name": name,
+                "role": r.get("title_or_role"),
+                "organization": r.get("department"),
+                "email": (r.get("email") or "").lower() or None,
+                "phone": r.get("phone"),
+                "mailing_address": r.get("mailing_address"),
+                "profile_url": r.get("profile_url") or url,
+                "extraction_method": r.get("extraction_method"),
+                "raw_row": {**r, "seed_kind": "council", "profile_page": True},
+                "scraped_at": scraped_at,
+            }
+            key = name.lower()
+            if key in by_name:
+                by_name[key] = _merge_contact_row(by_name[key], incoming)
+
+    return list(by_name.values()) if by_name else rows_out
 
 
 async def _download_jurisdiction_contact_images(
@@ -974,6 +1083,54 @@ def _process_one(
                 rows=all_contacts,
             )
 
+        if not _STOP.is_set() and j.website_url:
+            try:
+                meeting_capture = scrape_civicplus_meetings(
+                    j.website_url,
+                    session,
+                    html_by_url=html_by_url,
+                )
+                result.meetings_events_captured = meeting_capture.events_count
+                result.meetings_agendas_captured = meeting_capture.agendas
+                result.meetings_minutes_captured = meeting_capture.minutes
+                write_meetings_snapshot(
+                    jurisdiction_output_dir(j) / "_pilot_meetings.json",
+                    jurisdiction_id=j.jurisdiction_id,
+                    homepage_url=j.website_url,
+                    capture=meeting_capture,
+                    scrape_batch_id=batch_id,
+                )
+            except Exception as exc:
+                logger.debug("[%s] CivicPlus meetings capture failed: %s", _jlabel(j), exc)
+
+        if not _STOP.is_set() and j.jurisdiction_type == "county" and j.website_url:
+            try:
+                muni_rows, muni_page = scrape_county_municipality_websites(
+                    county_name=j.name,
+                    state_code=j.state_code,
+                    county_website_url=j.website_url,
+                    session=session,
+                    html_by_url=html_by_url,
+                )
+                if muni_rows:
+                    for row in muni_rows:
+                        row["jurisdiction_id"] = j.jurisdiction_id
+                        row["ocd_id"] = ocd_id
+                    result.municipality_websites_inserted = insert_bronze_websites_ballotpedia(
+                        database_url,
+                        scrape_batch_id=batch_id,
+                        rows=muni_rows,
+                    )
+                    if muni_page:
+                        logger.debug(
+                            "[%s] municipality websites=%d from %s",
+                            _jlabel(j),
+                            result.municipality_websites_inserted,
+                            muni_page,
+                        )
+            except Exception as exc:
+                logger.debug("[%s] county municipality websites failed: %s", _jlabel(j), exc)
+
         if not skip_youtube and not _STOP.is_set():
             yt_rows = _discover_youtube(j, session, cookies_file=youtube_cookies_file)
             verified_rows = [r for r in yt_rows if r.get("is_verified")]
@@ -1355,13 +1512,19 @@ def main(argv: list[str] | None = None) -> int:
                 eta_s = (len(pending) - completed) / rate if rate > 0 else 0
                 logger.info(
                     "[%d/%d] [%s] %s url=%s contacts=%d mayors=%d youtube=%d "
+                    "meetings=%d agendas=%d minutes=%d muni_links=%d yt_events=%d "
                     "bronze_el=%d c1_el=%d err=%s | "
-                    "totals contacts=%d youtube=%d c1_el=%d errors=%d | rate=%.2f/s ETA=%.0fs",
+                    "totals contacts=%d youtube=%d yt_events=%d c1_el=%d errors=%d | "
+                    "rate=%.2f/s ETA=%.0fs",
                     completed, len(pending), j.state_code, j.name, j.website_url,
                     result.contacts_inserted, result.mayor_rows_inserted, result.youtube_inserted,
+                    result.meetings_events_captured, result.meetings_agendas_captured,
+                    result.meetings_minutes_captured, result.municipality_websites_inserted,
+                    result.youtube_events_count,
                     result.bronze_election_rows, result.c1_election_rows,
                     "yes" if result.error or result.election_error else "no",
-                    totals["contacts"], totals["youtube"], totals["c1_elections"], totals["errors"],
+                    totals["contacts"], totals["youtube"], totals["events"],
+                    totals["c1_elections"], totals["errors"],
                     rate, eta_s,
                 )
 

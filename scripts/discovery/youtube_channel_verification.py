@@ -15,10 +15,13 @@ from scripts.datasources.youtube.pattern_match_gate import (
 )
 from scripts.discovery.youtube_channel_purpose import (
     classify_channel_purpose_from_row,
+    has_government_channel_signal,
     has_meeting_purpose_signal,
     is_meeting_primary_purpose,
+    looks_like_non_government_channel,
     min_confidence_for_purpose,
     purpose_requires_explicit_meeting,
+    title_indicates_meeting_channel,
 )
 
 # Default bar for canonical table (override via env in pilot runner).
@@ -43,12 +46,69 @@ _TRUSTED_DISCOVERY_PREFIXES = (
     "website_scrape",
     "civic_api",
     "localview",
-    "verified_bronze_events_youtube",
-    "events_catalog",
     "manual",
 )
 
 _CITY_GOVT_TITLE_RE = re.compile(r"\b(?:city|town|village|borough)\s+of\b", re.I)
+
+
+def is_localview_discovery(method: str) -> bool:
+    return "localview" in (method or "").strip().lower()
+
+
+def is_events_catalog_auto_discovery(method: str) -> bool:
+    """Auto-picked from bronze_events_youtube / repair script — not human-verified."""
+    m = (method or "").strip().lower()
+    return "verified_bronze" in m or m.startswith("events_catalog")
+
+
+_STRONG_GOV_CHANNEL_SIGNALS = (
+    "commission",
+    "council",
+    "board of",
+    "select board",
+    "selectmen",
+    "supervisors",
+    "government",
+    "official channel",
+    "official youtube",
+    "gov tv",
+    "government tv",
+    "public access",
+    "public meeting",
+    "meetings",
+    "granicus",
+    "legistar",
+)
+
+
+def _has_strong_gov_channel_signal(
+    channel_title: str,
+    channel_description: str,
+    *,
+    jurisdiction_type: str = "",
+    jurisdiction_name: str = "",
+) -> bool:
+    """Stricter than ``has_government_channel_signal`` — bare ``Franklin County`` is not enough."""
+    title = channel_title or ""
+    desc = channel_description or ""
+    if title_indicates_meeting_channel(title):
+        return True
+    text = f"{title} {desc}".lower()
+    if has_meeting_purpose_signal(title, desc):
+        return True
+    if any(sig in text for sig in _STRONG_GOV_CHANNEL_SIGNALS):
+        return True
+    return False
+
+
+def events_catalog_auto_confidence_cap(method: str, requested: float) -> float:
+    """Do not treat video-count auto-picks as high-confidence official channels."""
+    if is_events_catalog_auto_discovery(method):
+        return min(requested, 0.55)
+    return requested
+
+
 _COUNTY_GOV_TITLE_SIGNALS = (
     "county commission",
     "county commissioners",
@@ -116,6 +176,13 @@ def rejection_reason_for_channel(
     ):
         return "county_city_channel_mismatch"
 
+    if looks_like_non_government_channel(
+        str(row.get("channel_title") or ""),
+        str(row.get("channel_description") or ""),
+        external_links=row.get("external_links"),
+    ):
+        return "non_government_channel"
+
     purpose = classify_channel_purpose_from_row(row, jurisdiction_type=jurisdiction_type)
     purpose_min = min_confidence_for_purpose(purpose)
     if conf < max(min_confidence, purpose_min):
@@ -127,6 +194,27 @@ def rejection_reason_for_channel(
             str(row.get("channel_description") or ""),
         ):
             return "channel_purpose_not_meeting_focused"
+
+    if is_localview_discovery(method) and purpose == "unknown" and not backlink:
+        if not has_government_channel_signal(
+            str(row.get("channel_title") or ""),
+            str(row.get("channel_description") or ""),
+            jurisdiction_type=jurisdiction_type,
+            jurisdiction_name=jurisdiction_name,
+        ):
+            return "localview_unknown_no_government_signal"
+
+    if is_events_catalog_auto_discovery(method):
+        if not (
+            backlink
+            or _has_strong_gov_channel_signal(
+                str(row.get("channel_title") or ""),
+                str(row.get("channel_description") or ""),
+                jurisdiction_type=jurisdiction_type,
+                jurisdiction_name=jurisdiction_name,
+            )
+        ):
+            return "events_catalog_weak_signal"
 
     return "not_verified"
 
@@ -171,6 +259,13 @@ def qualifies_for_bronze_jurisdiction_youtube(
     ):
         return False
 
+    if looks_like_non_government_channel(
+        str(row.get("channel_title") or ""),
+        str(row.get("channel_description") or ""),
+        external_links=row.get("external_links"),
+    ):
+        return False
+
     purpose = classify_channel_purpose_from_row(row, jurisdiction_type=jurisdiction_type)
     purpose_min = min_confidence_for_purpose(purpose)
     if conf < max(min_confidence, purpose_min):
@@ -184,6 +279,30 @@ def qualifies_for_bronze_jurisdiction_youtube(
             return False
         if purpose == "tv-public" and not backlink:
             return False
+
+    if is_localview_discovery(method) and purpose == "unknown" and not backlink:
+        if not has_government_channel_signal(
+            str(row.get("channel_title") or ""),
+            str(row.get("channel_description") or ""),
+            jurisdiction_type=jurisdiction_type,
+            jurisdiction_name=jurisdiction_name,
+        ):
+            return False
+
+    if is_events_catalog_auto_discovery(method):
+        if not (
+            backlink
+            or _has_strong_gov_channel_signal(
+                str(row.get("channel_title") or ""),
+                str(row.get("channel_description") or ""),
+                jurisdiction_type=jurisdiction_type,
+                jurisdiction_name=jurisdiction_name,
+            )
+        ):
+            return False
+
+    if is_localview_discovery(method):
+        return True
 
     if any(method.startswith(p) for p in _TRUSTED_DISCOVERY_PREFIXES):
         return True

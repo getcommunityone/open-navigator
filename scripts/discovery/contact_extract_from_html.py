@@ -398,6 +398,22 @@ def extract_structured_contacts_from_html(
         if len(rows) >= max_rows:
             break
 
+    for cmr in extract_civicplus_commission_member_list_contacts_from_html(
+        html, page_url, max_rows=max(0, max_rows - len(rows))
+    ):
+        em = str(cmr.get("email") or "").lower()
+        if em and em in emails_seen:
+            continue
+        if em:
+            emails_seen.add(em)
+        k = _structured_contact_row_key(cmr)
+        if k in existing_keys:
+            continue
+        existing_keys.add(k)
+        rows.append(cmr)
+        if len(rows) >= max_rows:
+            break
+
     for fbr in extract_fusion_boc_heading_roster_contacts_from_html(
         html, page_url, max_rows=max(0, max_rows - len(rows))
     ):
@@ -2905,6 +2921,12 @@ _COMMISSIONER_SECTION_RE = re.compile(
     r"\b(board\s+of\s+commissioners|commissioners?)\b",
     re.I,
 )
+_MEMBERS_SECTION_RE = re.compile(r"^members$", re.I)
+_COUNTY_COMMISSION_PAGE_RE = re.compile(r"county[-_]?commission", re.I)
+_CIVICPLUS_COMMISSION_PROFILE_PATH_RE = re.compile(
+    r"/\d+/[A-Za-z][A-Za-z0-9-]*-[A-Za-z]",
+    re.I,
+)
 _NAME_DASH_ROLE_RE = re.compile(
     r"^([A-Za-z][A-Za-z'`.\-\s]{1,90}?)\s*[\u2013\u2014\-]\s*(.+)$",
     re.I,
@@ -4189,6 +4211,149 @@ def extract_heading_section_contacts_from_html(
             }
         )
 
+    return out
+
+
+def extract_civicplus_commission_member_list_contacts_from_html(
+    html: str,
+    page_url: str,
+    *,
+    max_rows: int = 40,
+) -> List[Dict[str, Any]]:
+    """
+    CivicPlus county commission rosters under a ``Members`` heading (Shelby County AL).
+
+    List items look like ``Kevin Morris - District 1`` with profile links ``/94/Kevin-Morris``.
+    """
+    from bs4 import BeautifulSoup, Tag
+
+    out: List[Dict[str, Any]] = []
+    if not html or max_rows <= 0:
+        return out
+
+    on_commission_page = bool(_COUNTY_COMMISSION_PAGE_RE.search(page_url or ""))
+    soup = BeautifulSoup(html, "html.parser")
+    seen: Set[Tuple[str, str]] = set()
+
+    def _parse_li(li: Tag, section_title: str) -> None:
+        if len(out) >= max_rows:
+            return
+        anchor = li.find("a", href=True)
+        li_text = re.sub(r"\s+", " ", li.get_text(" ", strip=True) or "").strip()
+        if anchor is not None:
+            name = re.sub(r"\s+", " ", anchor.get_text(" ", strip=True) or "").strip()
+            if not name:
+                name = li_text
+            profile_url = urljoin(page_url, (anchor.get("href") or "").strip())
+        else:
+            name = li_text
+            profile_url = None
+
+        if not name or not _looks_like_person_name_line(name.split(" - ")[0].split(" – ")[0]):
+            return
+        if _NON_PERSON_ROSTER_LINE_RE.search(name) or _NON_PERSON_NAME_TOKEN_RE.search(name):
+            return
+
+        role = ""
+        dept = None
+        m = _NAME_DASH_ROLE_RE.match(li_text)
+        if m:
+            name = re.sub(r"\s+", " ", m.group(1)).strip()
+            role = re.sub(r"\s+", " ", m.group(2)).strip()
+            if _DISTRICT_LINE_RE.match(role) or re.search(r"district\s*\d", role, re.I):
+                dept = role[:512]
+        elif anchor is not None and li_text and li_text != name:
+            tail = li_text.replace(name, "", 1).strip(" -–—")
+            if tail:
+                role = tail[:512]
+                if re.search(r"district\s*\d", tail, re.I):
+                    dept = tail[:512]
+
+        if not role and dept:
+            role = "Commissioner"
+
+        key = (name.lower(), (dept or role or "").lower())
+        if key in seen:
+            return
+        seen.add(key)
+
+        out.append(
+            {
+                "person_name": name[:512],
+                "title_or_role": (role or "Commissioner")[:512],
+                "department": dept,
+                "email": None,
+                "phone": None,
+                "mailing_address": None,
+                "profile_url": profile_url,
+                "extraction_method": "civicplus_commission_member_list",
+                "raw_row": {"page_url": page_url, "heading": section_title[:200]},
+            }
+        )
+
+    for h in soup.find_all(["h2", "h3", "h4", "h5", "h6"]):
+        title = re.sub(r"\s+", " ", h.get_text(" ", strip=True) or "").strip()
+        if not title:
+            continue
+        if not (_MEMBERS_SECTION_RE.match(title) or _COMMISSIONER_SECTION_RE.search(title)):
+            if not (on_commission_page and _MEMBERS_SECTION_RE.search(title)):
+                continue
+        uls: list[Tag] = []
+        for sib in h.find_next_siblings():
+            if getattr(sib, "name", None) in ("h2", "h3", "h4", "h5", "h6"):
+                break
+            if sib.name == "ul":
+                uls.append(sib)
+        if not uls:
+            nxt = h.find_next("ul")
+            if isinstance(nxt, Tag):
+                uls = [nxt]
+        for ul in uls:
+            for li in ul.find_all("li", recursive=False):
+                _parse_li(li, title)
+
+    if on_commission_page:
+        for ul in soup.select("div.fr-view ul"):
+            for li in ul.find_all("li", recursive=False):
+                if len(out) >= max_rows:
+                    break
+                anchor = li.find("a", href=True)
+                if anchor is None:
+                    continue
+                href = (anchor.get("href") or "").strip()
+                if not _CIVICPLUS_COMMISSION_PROFILE_PATH_RE.search(href):
+                    continue
+                _parse_li(li, "County Commission")
+
+    return out
+
+
+def extract_civicplus_commission_profile_urls_from_html(
+    html: str,
+    page_url: str,
+    *,
+    max_urls: int = 24,
+) -> List[str]:
+    """Profile pages linked from CivicPlus commission member lists (``/94/Kevin-Morris``)."""
+    from bs4 import BeautifulSoup
+
+    out: List[str] = []
+    seen: Set[str] = set()
+    soup = BeautifulSoup(html or "", "html.parser")
+    for a in soup.find_all("a", href=True):
+        if len(out) >= max_urls:
+            break
+        href = (a.get("href") or "").strip()
+        if not href or not _CIVICPLUS_COMMISSION_PROFILE_PATH_RE.search(href):
+            continue
+        label = re.sub(r"\s+", " ", a.get_text(" ", strip=True) or "").strip()
+        if not label or not _looks_like_person_name_line(label):
+            continue
+        abs_u = urljoin(page_url, href)
+        if abs_u in seen:
+            continue
+        seen.add(abs_u)
+        out.append(abs_u)
     return out
 
 

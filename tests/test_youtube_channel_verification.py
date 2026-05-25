@@ -145,3 +145,121 @@ def test_website_search_channel_accepted_with_backlink():
         jurisdiction_state_code="GA",
         jurisdiction_homepage="https://www.camden county.gov",
     )
+
+
+def test_localview_train_hobby_channel_rejected_for_county():
+    row = {
+        "youtube_channel_url": "https://www.youtube.com/channel/UCAVu4nbyK-IET2eFc9qqpAQ",
+        "channel_title": "Jason Asselin",
+        "channel_description": (
+            "I have over 145M hits filming trains of the Escanaba & Lake Superior Railroad "
+            "in upper Michigan and northern Wisconsin. If you like trains, this railroad "
+            "runs mostly vintage equipment on old Milwaukee tracks."
+        ),
+        "discovery_method": "derived_from_localview",
+        "official_meeting_confidence": 0.85,
+        "back_links_to_jurisdiction_website": False,
+        "external_links": [
+            {"url": "https://facebook.com/JasonAsselinsAdventures", "title": "Follow Me on Facebook"},
+            {"url": "https://etsy.com/shop/LakeShoreEmberlites", "title": "MY STORE"},
+        ],
+    }
+    assert not qualifies_for_bronze_jurisdiction_youtube(
+        row,
+        jurisdiction_type="county",
+        jurisdiction_name="Dickinson County",
+        jurisdiction_state_code="MI",
+        jurisdiction_homepage="",
+    )
+    assert rejection_reason_for_channel(
+        row,
+        jurisdiction_type="county",
+        jurisdiction_name="Dickinson County",
+        jurisdiction_state_code="MI",
+        jurisdiction_homepage="",
+    ) == "non_government_channel"
+
+
+def test_localview_unknown_without_government_signal_rejected():
+    row = {
+        "youtube_channel_url": "https://www.youtube.com/channel/UCexample",
+        "channel_title": "Random Creator",
+        "channel_description": "Music and vlogs from my hometown.",
+        "discovery_method": "derived_from_localview",
+        "official_meeting_confidence": 0.85,
+        "back_links_to_jurisdiction_website": False,
+        "external_links": [],
+    }
+    assert not qualifies_for_bronze_jurisdiction_youtube(
+        row,
+        jurisdiction_type="municipality",
+        jurisdiction_name="Example City",
+        jurisdiction_state_code="MI",
+        jurisdiction_homepage="",
+    )
+
+
+def test_localview_county_meeting_channel_still_accepted():
+    row = {
+        "youtube_channel_url": "https://www.youtube.com/channel/UCCfgk8u268MtXY7sWUmGA-Q",
+        "channel_title": "Pickens County",
+        "channel_description": "Pickens County commission meeting recordings.",
+        "discovery_method": "derived_from_localview",
+        "official_meeting_confidence": 0.85,
+        "back_links_to_jurisdiction_website": False,
+        "external_links": [],
+    }
+    assert qualifies_for_bronze_jurisdiction_youtube(
+        row,
+        jurisdiction_type="county",
+        jurisdiction_name="Pickens County",
+        jurisdiction_state_code="GA",
+        jurisdiction_homepage="",
+    )
+
+
+def test_verified_bronze_franklin_cartoon_channel_rejected():
+    """Franklin & Friends kids videos mis-tagged as Franklin County AL."""
+    row = {
+        "youtube_channel_url": "https://www.youtube.com/channel/UCQJ8D7gkhMCqP1qtusqmfgg",
+        "channel_title": "Franklin County",
+        "channel_description": "",
+        "discovery_method": "verified_bronze_events_youtube",
+        "official_meeting_confidence": 0.95,
+        "back_links_to_jurisdiction_website": False,
+    }
+    assert not qualifies_for_bronze_jurisdiction_youtube(
+        row,
+        jurisdiction_type="county",
+        jurisdiction_name="Franklin County",
+        jurisdiction_state_code="AL",
+        jurisdiction_homepage="http://franklincountyal.org/",
+    )
+    assert (
+        rejection_reason_for_channel(
+            row,
+            jurisdiction_type="county",
+            jurisdiction_name="Franklin County",
+            jurisdiction_state_code="AL",
+            jurisdiction_homepage="http://franklincountyal.org/",
+        )
+        in ("events_catalog_weak_signal", "channel_purpose_not_meeting_focused")
+    )
+
+
+def test_verified_bronze_county_commission_still_accepted():
+    row = {
+        "youtube_channel_url": "https://www.youtube.com/channel/UCLaqkkdvi6sYpsncNRiFggg",
+        "channel_title": "Houston County Commission - Dothan Al",
+        "channel_description": "Houston County Commission meetings",
+        "discovery_method": "verified_bronze_events_youtube",
+        "official_meeting_confidence": 0.75,
+        "back_links_to_jurisdiction_website": False,
+    }
+    assert qualifies_for_bronze_jurisdiction_youtube(
+        row,
+        jurisdiction_type="county",
+        jurisdiction_name="Houston County",
+        jurisdiction_state_code="AL",
+        jurisdiction_homepage="",
+    )

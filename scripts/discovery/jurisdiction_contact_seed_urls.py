@@ -28,6 +28,12 @@ _BUILTIN: Dict[str, Tuple[str, ...]] = {
     "big_timber_3006475": (
         "https://cityofbigtimber.com/major-council",
     ),
+    # Shelby County, AL — CivicPlus commission roster + Agenda Center
+    "shelby_01117": (
+        "https://www.shelbyal.com/93/County-Commission",
+        "https://www.shelbyal.com/27/Elected-Officials",
+        "https://www.shelbyal.com/185/Municipalities",
+    ),
     # Tuscaloosa County, AL — commission / probate directory (WordPress; plain-text emails)
     "tuscaloosa_01125": (
         "https://www.tuscco.com/county-officials/county-commission/",

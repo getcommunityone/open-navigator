@@ -30,6 +30,11 @@ from scripts.discovery.bronze_jurisdiction_youtube_persist import (  # noqa: E40
     upsert_bronze_jurisdiction_youtube_verified,
 )
 from scripts.discovery.jurisdiction_discovery_pipeline import resolve_database_url  # noqa: E402
+from scripts.discovery.int_youtube_channel_metadata import metadata_dict_for_channel  # noqa: E402
+from scripts.discovery.youtube_channel_verification import (  # noqa: E402
+    events_catalog_auto_confidence_cap,
+    qualifies_for_bronze_jurisdiction_youtube,
+)
 
 
 def _fetch_scraped_primaries(database_url: str, state_codes: list[str] | None) -> list[dict]:
@@ -45,6 +50,7 @@ def _fetch_scraped_primaries(database_url: str, state_codes: list[str] | None) -
     sql = f"""
         SELECT
             j.jurisdiction_id,
+            j.name AS jurisdiction_name,
             j.state_code,
             j.jurisdiction_type::text AS jurisdiction_type,
             s.youtube_channel_url,
@@ -61,6 +67,7 @@ def _fetch_scraped_primaries(database_url: str, state_codes: list[str] | None) -
         UNION ALL
         SELECT
             j.jurisdiction_id,
+            j.name AS jurisdiction_name,
             j.state_code,
             j.jurisdiction_type::text,
             s.youtube_channel_url,
@@ -79,9 +86,28 @@ def _fetch_scraped_primaries(database_url: str, state_codes: list[str] | None) -
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(sql, params + params if state_codes else [])
-            return [dict(r) for r in cur.fetchall()]
+            scraped_rows = [dict(r) for r in cur.fetchall()]
     finally:
         conn.close()
+
+    rows = scraped_rows
+    if scraped_rows:
+        meta_conn = psycopg2.connect(database_url)
+        try:
+            for row in scraped_rows:
+                cid = (row.get("youtube_channel_id") or "").strip()
+                if not cid:
+                    continue
+                meta = metadata_dict_for_channel(meta_conn, cid)
+                if meta:
+                    row["channel_title"] = meta.get("channel_title") or row.get("channel_title")
+                    row["channel_description"] = meta.get("channel_description")
+                    row["subscriber_count"] = meta.get("subscriber_count")
+                    row["video_count"] = meta.get("video_count")
+                    row["view_count"] = meta.get("view_count")
+        finally:
+            meta_conn.close()
+    return rows
 
 
 def consolidate(
@@ -91,30 +117,50 @@ def consolidate(
     dry_run: bool = False,
 ) -> dict[str, int]:
     rows = _fetch_scraped_primaries(database_url, state_codes)
-    stats = {"scraped_primaries": len(rows), "upserted": 0, "skipped_low_conf": 0}
+    stats = {
+        "scraped_primaries": len(rows),
+        "upserted": 0,
+        "skipped_low_conf": 0,
+        "skipped_verification": 0,
+    }
     by_jurisdiction: dict[str, list[dict]] = {}
     for row in rows:
-        conf = float(row.get("official_meeting_confidence") or 0.0)
-        if conf < 0.55 and not str(row.get("discovery_method") or "").startswith(
-            "verified_bronze"
-        ):
+        method = str(row.get("discovery_method") or "events_catalog")
+        conf = events_catalog_auto_confidence_cap(
+            method,
+            float(row.get("official_meeting_confidence") or 0.0),
+        )
+        if conf < 0.55 and not str(method or "").startswith("verified_bronze"):
             stats["skipped_low_conf"] += 1
             continue
         jid = str(row["jurisdiction_id"])
-        method = str(row.get("discovery_method") or "events_catalog")
         source = "events_catalog" if "verified_bronze" in method else method
         payload = {
             "youtube_channel_url": row["youtube_channel_url"],
             "youtube_channel_id": row.get("youtube_channel_id"),
+            "channel_title": row.get("channel_title"),
+            "channel_description": row.get("channel_description"),
+            "subscriber_count": row.get("subscriber_count"),
+            "video_count": row.get("video_count"),
+            "view_count": row.get("view_count"),
             "discovery_method": method,
-            "official_meeting_confidence": conf or 0.95,
+            "official_meeting_confidence": conf or 0.55,
             "source": source,
             "is_primary": True,
-            "back_links_to_jurisdiction_website": True,
+            "back_links_to_jurisdiction_website": row.get("back_links_to_jurisdiction_website"),
             "state_code": row["state_code"],
             "jurisdiction_type": row["jurisdiction_type"],
             "website_url": row.get("website_url"),
         }
+        if not qualifies_for_bronze_jurisdiction_youtube(
+            payload,
+            jurisdiction_type=str(row.get("jurisdiction_type") or ""),
+            jurisdiction_name=str(row.get("jurisdiction_name") or ""),
+            jurisdiction_state_code=str(row.get("state_code") or ""),
+            jurisdiction_homepage=str(row.get("website_url") or ""),
+        ):
+            stats["skipped_verification"] += 1
+            continue
         by_jurisdiction.setdefault(jid, []).append(payload)
 
     if dry_run:

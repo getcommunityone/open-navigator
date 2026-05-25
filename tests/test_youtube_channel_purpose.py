@@ -11,6 +11,16 @@ from scripts.discovery.youtube_channel_verification import (
 )
 
 
+def test_commission_in_title_classifies_as_county_meeting():
+    purpose = classify_channel_purpose(
+        channel_title="Houston County Commission - Dothan Al",
+        channel_description="",
+        jurisdiction_type="county",
+    )
+    assert purpose == "county-meeting"
+    assert has_meeting_purpose_signal("Houston County Commission", "")
+
+
 def test_county_meeting_channel():
     purpose = classify_channel_purpose(
         channel_title="Adams County, Indiana Government",

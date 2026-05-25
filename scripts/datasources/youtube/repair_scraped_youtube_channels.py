@@ -143,19 +143,48 @@ def collect_verified_from_gemini_cache(
 def collect_verified_from_bronze_events(conn) -> dict[str, VerifiedChannel]:
     """Map canonical ``jurisdiction_id`` → channel with most cataloged videos."""
     from scripts.jurisdictions.jurisdiction_id import resolve_canonical_jurisdiction_id
+    from scripts.discovery.youtube_channel_verification import (
+        qualifies_for_bronze_jurisdiction_youtube,
+    )
 
     sql = """
-        SELECT jurisdiction_id, channel_id, COUNT(*) AS n
-        FROM bronze.bronze_events_youtube
-        WHERE channel_id IS NOT NULL AND channel_id LIKE 'UC%'
-        GROUP BY jurisdiction_id, channel_id
-        ORDER BY jurisdiction_id, n DESC
+        SELECT
+            y.jurisdiction_id,
+            y.channel_id,
+            COUNT(*) AS n,
+            MAX(y.jurisdiction_name) AS jurisdiction_name,
+            MAX(y.state_code) AS state_code,
+            MAX(y.jurisdiction_type) AS jurisdiction_type,
+            MAX(bc.channel_title) AS channel_title,
+            MAX(bc.channel_description) AS channel_description
+        FROM bronze.bronze_events_youtube y
+        LEFT JOIN bronze.bronze_events_channels bc ON bc.channel_id = y.channel_id
+        WHERE y.channel_id IS NOT NULL AND y.channel_id LIKE 'UC%%'
+        GROUP BY y.jurisdiction_id, y.channel_id
+        ORDER BY y.jurisdiction_id, n DESC
     """
     by_jid: dict[str, list[VerifiedChannel]] = defaultdict(list)
     with conn.cursor() as cur:
         cur.execute(sql)
-        for jid_raw, cid, n in cur.fetchall():
+        for jid_raw, cid, n, jname, state, jtype, title, desc in cur.fetchall():
             canon = resolve_canonical_jurisdiction_id(str(jid_raw)) or str(jid_raw)
+            row = {
+                "youtube_channel_url": f"https://www.youtube.com/channel/{cid}",
+                "youtube_channel_id": str(cid).strip(),
+                "channel_title": title,
+                "channel_description": desc,
+                "discovery_method": "verified_bronze_events_youtube",
+                "official_meeting_confidence": 0.55,
+                "back_links_to_jurisdiction_website": False,
+            }
+            if not qualifies_for_bronze_jurisdiction_youtube(
+                row,
+                jurisdiction_type=str(jtype or "county"),
+                jurisdiction_name=str(jname or canon),
+                jurisdiction_state_code=str(state or ""),
+                jurisdiction_homepage="",
+            ):
+                continue
             by_jid[canon].append(
                 VerifiedChannel(
                     channel_id=str(cid).strip(),
@@ -322,7 +351,7 @@ def repair_table(
                 new_url = verified.channel_url
                 new_cid = verified.channel_id
                 new_method = f"verified_{verified.source}"
-                new_conf = 0.95
+                new_conf = 0.95 if verified.source == "gemini_transcript_policy" else 0.55
                 stats.restored += 1
                 stats.by_source[verified.source] += 1
             elif clear_without_replacement or clear_only or not verified:
@@ -339,7 +368,7 @@ def repair_table(
             new_url = verified.channel_url
             new_cid = verified.channel_id
             new_method = f"verified_{verified.source}"
-            new_conf = 0.95
+            new_conf = 0.95 if verified.source == "gemini_transcript_policy" else 0.55
             stats.restored += 1
             stats.by_source[verified.source] += 1
 
