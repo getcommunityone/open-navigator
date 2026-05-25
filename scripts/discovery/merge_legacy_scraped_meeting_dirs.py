@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-Merge duplicate ``scraped_meetings`` municipality folders into the canonical path and remove legacy aliases.
+Merge duplicate or misnamed ``scraped_meetings`` folders into the canonical path and remove legacy aliases.
 
-Canonical folder names come from ``jurisdiction_cache_folder_name()`` (LSAD-stripped slug + GEOID).
-All other on-disk folders sharing the same 7-digit GEOID suffix are merged into that directory, then deleted.
+Canonical folder names come from ``jurisdiction_cache_folder_name()`` (bronze ``{slug}_{geoid}``).
+On-disk folders sharing the same GEOID suffix but a different basename (e.g. county seat city
+``abbeville_01067`` vs ``henry_01067``) are merged into the canonical directory, then deleted.
 
 Priority states default matches ``scrape_priority_states.DEFAULT_PRIORITY_STATES``.
 
@@ -28,7 +29,10 @@ if str(_root) not in sys.path:
 
 from scripts.datasources.jurisdiction_pilot.scrape_priority_states import DEFAULT_PRIORITY_STATES
 
-_GEOID_SUFFIX_RE = re.compile(r"_(\d{7})$")
+_SEGMENT_SPECS = (
+    ("county", "county", 5),
+    ("municipality", "municipality", 7),
+)
 
 
 def _load_dotenv() -> None:
@@ -66,35 +70,39 @@ def merge_tree(src: Path, dst: Path, *, dry_run: bool) -> Tuple[int, int]:
     return copied, skipped
 
 
-def plan_for_state(
+def plan_for_segment(
     root: Path,
     state_code: str,
+    *,
+    segment: str,
+    jurisdiction_type: str,
+    geoid_width: int,
 ) -> List[Dict[str, Any]]:
     from scripts.gemini.transcript_cache_paths import jurisdiction_cache_folder_name
     from scripts.jurisdictions.jurisdiction_id import lookup_canonical_jurisdiction_id_from_bronze
 
-    muni = root / state_code.upper() / "municipality"
-    if not muni.is_dir():
+    type_dir = root / state_code.upper() / segment
+    if not type_dir.is_dir():
         return []
 
+    geoid_re = re.compile(rf"_(\d{{{geoid_width}}})$")
     by_geoid: Dict[str, List[Path]] = {}
-    for p in muni.iterdir():
+    for p in type_dir.iterdir():
         if not p.is_dir():
             continue
-        m = _GEOID_SUFFIX_RE.search(p.name)
+        m = geoid_re.search(p.name)
         if not m:
             continue
         by_geoid.setdefault(m.group(1), []).append(p)
 
     plans: List[Dict[str, Any]] = []
     for geoid, paths in sorted(by_geoid.items()):
-        jid = lookup_canonical_jurisdiction_id_from_bronze(geoid, "municipality") or f"municipality_{geoid}"
+        jid = lookup_canonical_jurisdiction_id_from_bronze(geoid, jurisdiction_type) or (
+            f"{jurisdiction_type}_{geoid}"
+        )
         canonical_name = jurisdiction_cache_folder_name(jid)
-        canonical_path = muni / canonical_name
+        canonical_path = type_dir / canonical_name
         on_disk = {p.name: p for p in paths}
-        if canonical_name not in on_disk:
-            # e.g. only legacy aliases exist — still use canonical name as target
-            pass
         for name, src in sorted(on_disk.items()):
             if name == canonical_name:
                 continue
@@ -102,6 +110,7 @@ def plan_for_state(
             plans.append(
                 {
                     "state": state_code.upper(),
+                    "segment": segment,
                     "geoid": geoid,
                     "jurisdiction_id": jid,
                     "canonical": canonical_name,
@@ -112,6 +121,24 @@ def plan_for_state(
                     "canonical_exists": canonical_path.is_dir(),
                 }
             )
+    return plans
+
+
+def plan_for_state(
+    root: Path,
+    state_code: str,
+) -> List[Dict[str, Any]]:
+    plans: List[Dict[str, Any]] = []
+    for segment, jurisdiction_type, geoid_width in _SEGMENT_SPECS:
+        plans.extend(
+            plan_for_segment(
+                root,
+                state_code,
+                segment=segment,
+                jurisdiction_type=jurisdiction_type,
+                geoid_width=geoid_width,
+            )
+        )
     return plans
 
 
@@ -180,7 +207,8 @@ def main() -> int:
         print("\nSample merges (legacy -> canonical):")
         for row in sorted(report["details"], key=lambda r: -int(r.get("legacy_bytes") or 0))[:20]:
             print(
-                f"  {row['state']} {row['legacy']} -> {row['canonical']} "
+                f"  {row['state']}/{row.get('segment', 'municipality')} "
+                f"{row['legacy']} -> {row['canonical']} "
                 f"({row['legacy_bytes'] / 1024:.1f} KB)"
             )
         if len(report["details"]) > 20:

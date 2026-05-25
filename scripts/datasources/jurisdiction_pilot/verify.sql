@@ -12,7 +12,7 @@
 \set batch (SELECT scrape_batch_id::text FROM ( \
     SELECT scrape_batch_id, MAX(loaded_at) AS t FROM bronze.bronze_contacts_scraped GROUP BY 1 \
     UNION ALL \
-    SELECT scrape_batch_id, MAX(loaded_at) AS t FROM bronze.bronze_jurisdiction_youtube_candidates GROUP BY 1 \
+    SELECT scrape_batch_id, MAX(loaded_at) AS t FROM intermediate.int_events_channels_candidates GROUP BY 1 \
 ) x ORDER BY t DESC LIMIT 1)
 \endif
 
@@ -44,7 +44,7 @@ SELECT
     COUNT(*) FILTER (WHERE is_verified) AS verified_flagged,
     COUNT(*) FILTER (WHERE NOT is_verified) AS rejected,
     COUNT(DISTINCT rejection_reason) AS distinct_rejection_reasons
-FROM bronze.bronze_jurisdiction_youtube_candidates
+FROM intermediate.int_events_channels_candidates
 WHERE scrape_batch_id = :batch::uuid
 GROUP BY state_code
 UNION ALL
@@ -56,7 +56,7 @@ SELECT
     COUNT(*) FILTER (WHERE is_primary),
   NULL::bigint,
   NULL::bigint
-FROM bronze.bronze_jurisdiction_youtube
+FROM intermediate.int_events_channels
 WHERE scrape_batch_id = :batch::uuid
 GROUP BY state_code
 ORDER BY layer, state_code;
@@ -66,7 +66,7 @@ ORDER BY layer, state_code;
 SELECT
     COALESCE(rejection_reason, '(verified)') AS reason,
     COUNT(*) AS n
-FROM bronze.bronze_jurisdiction_youtube_candidates
+FROM intermediate.int_events_channels_candidates
 WHERE scrape_batch_id = :batch::uuid
 GROUP BY 1
 ORDER BY n DESC
@@ -78,14 +78,14 @@ SELECT
     COALESCE(channel_purpose, 'unknown') AS channel_purpose,
     COUNT(*) AS rows,
     COUNT(*) FILTER (WHERE is_primary) AS primary_rows
-FROM bronze.bronze_jurisdiction_youtube
+FROM intermediate.int_events_channels
 GROUP BY 1
 ORDER BY rows DESC;
 
 \echo
 \echo === Non-meeting channels still in verified (should review) ===
 SELECT jurisdiction_id, channel_title, channel_purpose, official_meeting_confidence
-FROM bronze.bronze_jurisdiction_youtube
+FROM intermediate.int_events_channels
 WHERE channel_purpose IN ('county-general', 'municipality-general', 'tv-public', 'unknown')
 ORDER BY channel_purpose, jurisdiction_id
 LIMIT 30;
@@ -99,7 +99,7 @@ SELECT
     COUNT(*) FILTER (WHERE video_count IS NOT NULL) AS has_video_count,
     COUNT(*) FILTER (WHERE latest_upload IS NOT NULL AND BTRIM(latest_upload) <> '') AS has_latest_upload,
     COUNT(*) FILTER (WHERE jsonb_array_length(jurisdiction_website_back_links) > 0) AS has_back_links
-FROM bronze.bronze_jurisdiction_youtube;
+FROM intermediate.int_events_channels;
 
 \echo
 \echo === City channels incorrectly on counties (should be 0 verified) ===
@@ -108,7 +108,7 @@ SELECT
     j.name AS county_name,
     y.channel_title,
     y.youtube_channel_url
-FROM bronze.bronze_jurisdiction_youtube y
+FROM intermediate.int_events_channels y
 JOIN intermediate.int_jurisdictions j ON j.jurisdiction_id = y.jurisdiction_id
 WHERE y.jurisdiction_type = 'county'
   AND (
@@ -132,7 +132,7 @@ SELECT
     COUNT(*) FILTER (
         WHERE jsonb_array_length(jurisdiction_website_back_links) > 0
     ) AS has_jurisdiction_back_links
-FROM bronze.bronze_jurisdiction_youtube
+FROM intermediate.int_events_channels
 UNION ALL
 SELECT
     'candidates',
@@ -146,7 +146,7 @@ SELECT
     COUNT(*) FILTER (
         WHERE jsonb_array_length(jurisdiction_website_back_links) > 0
     )
-FROM bronze.bronze_jurisdiction_youtube_candidates;
+FROM intermediate.int_events_channels_candidates;
 
 \echo
 \echo === Rows with junk tab titles (sample) ===
@@ -157,7 +157,7 @@ SELECT
     LEFT(channel_description, 80) AS description_preview,
     jurisdiction_website_back_links,
     youtube_channel_url
-FROM bronze.bronze_jurisdiction_youtube
+FROM intermediate.int_events_channels
 WHERE LOWER(BTRIM(channel_title)) IN ('home','videos','shorts','live','playlists','community','about')
 UNION ALL
 SELECT
@@ -167,7 +167,7 @@ SELECT
     LEFT(channel_description, 80),
     jurisdiction_website_back_links,
     youtube_channel_url
-FROM bronze.bronze_jurisdiction_youtube_candidates
+FROM intermediate.int_events_channels_candidates
 WHERE LOWER(BTRIM(channel_title)) IN ('home','videos','shorts','live','playlists','community','about')
 ORDER BY layer, jurisdiction_id
 LIMIT 25;
@@ -185,7 +185,7 @@ SELECT
     y.is_primary,
     y.back_links_to_jurisdiction_website,
     y.jurisdiction_website_back_links
-FROM bronze.bronze_jurisdiction_youtube y
+FROM intermediate.int_events_channels y
 JOIN intermediate.int_jurisdictions j USING (jurisdiction_id)
 WHERE j.state_code = 'GA'
   AND y.jurisdiction_type = 'county'
@@ -202,7 +202,7 @@ SELECT
     c.youtube_channel_url,
     c.official_meeting_confidence,
     c.rejection_reason
-FROM bronze.bronze_jurisdiction_youtube_candidates c
+FROM intermediate.int_events_channels_candidates c
 JOIN intermediate.int_jurisdictions j USING (jurisdiction_id)
 WHERE c.scrape_batch_id = :batch::uuid
   AND NOT c.is_verified
@@ -241,7 +241,7 @@ WITH targets AS (
     ORDER BY jurisdiction_id, w.website_record_key
 ),
 verified AS (
-    SELECT DISTINCT jurisdiction_id FROM bronze.bronze_jurisdiction_youtube
+    SELECT DISTINCT jurisdiction_id FROM intermediate.int_events_channels
 )
 SELECT t.state_code, t.jurisdiction_id, t.name, t.website_url
 FROM targets t

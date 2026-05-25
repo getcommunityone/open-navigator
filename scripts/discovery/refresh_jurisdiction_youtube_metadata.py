@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 """
-Re-fetch YouTube channel metadata (HTML + RSS, no Data API) for bronze channel rows.
+Re-fetch YouTube channel metadata (HTML + RSS, no Data API) for jurisdiction channel rows.
 
-Updates ``channel_title``, ``channel_description``, ``subscriber_count``,
-``video_count``, ``latest_upload`` (``YYYY-MM-DD``), ``external_links``, and
-``jurisdiction_website_back_links`` on ``bronze.bronze_jurisdiction_youtube``.
+Updates ``youtube_channel_id``, ``channel_title``, ``channel_description``,
+``subscriber_count``, ``video_count``, ``view_count``, ``latest_upload`` (``YYYY-MM-DD``),
+``external_links``, ``jurisdiction_website_back_links``, and
+``back_links_to_jurisdiction_website`` on ``intermediate.int_events_channels`` and/or
+``intermediate.int_events_channels_candidates``.
 
 Usage:
   .venv/bin/python scripts/discovery/refresh_jurisdiction_youtube_metadata.py --all
   .venv/bin/python scripts/discovery/refresh_jurisdiction_youtube_metadata.py --all --states AL,GA
+  .venv/bin/python scripts/discovery/refresh_jurisdiction_youtube_metadata.py \\
+      --table candidates --all --states AL
   .venv/bin/python scripts/discovery/refresh_jurisdiction_youtube_metadata.py \\
       --jurisdiction-id dothan_0121184 --cookies youtube_cookies.txt
 """
@@ -28,27 +32,13 @@ _ROOT = Path(__file__).resolve().parents[2]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from scripts.discovery.youtube_channel_purpose import classify_channel_purpose
 from scripts.datasources.jurisdiction_pilot.youtube_channel_enrich import enrich_channel
-from scripts.datasources.youtube.youtube_channel_page import is_junk_channel_title
 from scripts.discovery.jurisdiction_discovery_pipeline import resolve_database_url
-from scripts.discovery.int_youtube_channel_metadata import cache_from_enriched_row
-
-
-def _needs_refresh(row: dict) -> bool:
-    title = (row.get("channel_title") or "").strip()
-    desc = (row.get("channel_description") or "").strip()
-    if not desc:
-        return True
-    if is_junk_channel_title(title):
-        return True
-    if row.get("subscriber_count") is None or row.get("video_count") is None:
-        return True
-    if not (row.get("latest_upload") or "").strip():
-        return True
-    if not row.get("jurisdiction_website_back_links") and row.get("back_links_to_jurisdiction_website"):
-        return True
-    return False
+from scripts.discovery.int_youtube_channel_metadata import (
+    row_needs_youtube_metadata_refresh,
+    update_jurisdiction_youtube_row,
+    values_from_enriched_metadata,
+)
 
 
 def _jurisdiction_name(row: dict) -> str:
@@ -56,34 +46,6 @@ def _jurisdiction_name(row: dict) -> str:
     if name:
         return name
     return row["jurisdiction_id"].rsplit("_", 1)[0].replace("_", " ")
-
-
-def _update_values(enriched: dict, row: dict) -> dict:
-    latest = enriched.get("latest_upload") or row.get("latest_upload")
-    if latest:
-        latest = str(latest)[:10]
-    return {
-        "channel_title": enriched.get("channel_title") or row.get("channel_title"),
-        "channel_description": enriched.get("channel_description") or row.get("channel_description"),
-        "subscriber_count": enriched.get("subscriber_count"),
-        "video_count": enriched.get("video_count"),
-        "view_count": enriched.get("view_count"),
-        "latest_upload": latest,
-        "external_links": enriched.get("external_links") or [],
-        "jurisdiction_website_back_links": enriched.get("jurisdiction_website_back_links") or [],
-        "back_links_to_jurisdiction_website": bool(enriched.get("back_links_to_jurisdiction_website")),
-        "official_meeting_confidence": enriched.get("official_meeting_confidence"),
-        "youtube_channel_id": enriched.get("youtube_channel_id") or row.get("youtube_channel_id"),
-        "youtube_channel_url": enriched.get("youtube_channel_url") or row.get("youtube_channel_url"),
-        "channel_purpose": enriched.get("channel_purpose")
-        or classify_channel_purpose(
-            channel_title=str(enriched.get("channel_title") or row.get("channel_title") or ""),
-            channel_description=str(
-                enriched.get("channel_description") or row.get("channel_description") or ""
-            ),
-            jurisdiction_type=str(row.get("jurisdiction_type") or ""),
-        ),
-    }
 
 
 def main() -> int:
@@ -94,8 +56,8 @@ def main() -> int:
     parser.add_argument(
         "--table",
         choices=("verified", "candidates", "both"),
-        default="verified",
-        help="Default: bronze.bronze_jurisdiction_youtube only",
+        default="candidates",
+        help="Default: intermediate.int_events_channels_candidates",
     )
     parser.add_argument(
         "--all",
@@ -118,9 +80,9 @@ def main() -> int:
 
     tables = []
     if args.table in ("verified", "both"):
-        tables.append("bronze.bronze_jurisdiction_youtube")
+        tables.append("intermediate.int_events_channels")
     if args.table in ("candidates", "both"):
-        tables.append("bronze.bronze_jurisdiction_youtube_candidates")
+        tables.append("intermediate.int_events_channels_candidates")
 
     state_codes = [s.strip().upper() for s in (args.states or "").split(",") if s.strip()]
     jids = [j.strip() for j in args.jurisdiction_id if j.strip()]
@@ -172,7 +134,7 @@ def main() -> int:
                 rows = list(cur.fetchall())
 
                 for row in rows:
-                    if not args.all and not _needs_refresh(row):
+                    if not args.all and not row_needs_youtube_metadata_refresh(row):
                         skipped += 1
                         continue
                     try:
@@ -202,7 +164,7 @@ def main() -> int:
                         print(f"FAIL {row['jurisdiction_id']}: {exc}", file=sys.stderr)
                         continue
 
-                    values = _update_values(enriched, row)
+                    values = values_from_enriched_metadata(enriched, row)
                     if args.dry_run:
                         print(
                             json.dumps(
@@ -218,50 +180,14 @@ def main() -> int:
                         updated += 1
                     else:
                         try:
-                            cur.execute(
-                                f"""
-                                UPDATE {tbl}
-                                SET channel_title = %s,
-                                    channel_description = %s,
-                                    subscriber_count = %s,
-                                    video_count = %s,
-                                    view_count = %s,
-                                    latest_upload = %s,
-                                    external_links = %s::jsonb,
-                                    jurisdiction_website_back_links = %s::jsonb,
-                                    back_links_to_jurisdiction_website = %s,
-                                    official_meeting_confidence = %s,
-                                    channel_purpose = %s,
-                                    youtube_channel_id = COALESCE(%s, youtube_channel_id),
-                                    loaded_at = NOW()
-                                WHERE id = %s
-                                """,
-                                (
-                                    values["channel_title"],
-                                    values["channel_description"],
-                                    values["subscriber_count"],
-                                    values["video_count"],
-                                    values["view_count"],
-                                    values["latest_upload"],
-                                    json.dumps(values["external_links"]),
-                                    json.dumps(values["jurisdiction_website_back_links"]),
-                                    values["back_links_to_jurisdiction_website"],
-                                    values["official_meeting_confidence"],
-                                    values["channel_purpose"],
-                                    values["youtube_channel_id"],
-                                    row["id"],
-                                ),
+                            update_jurisdiction_youtube_row(
+                                conn,
+                                table=tbl,
+                                row_id=int(row["id"]),
+                                enriched=enriched,
+                                row=row,
                             )
-                            conn.commit()
                             updated += 1
-                            scrape_cid = values.get("youtube_channel_id") or row.get("youtube_channel_id")
-                            if scrape_cid:
-                                cache_from_enriched_row(
-                                    conn,
-                                    channel_id=str(scrape_cid),
-                                    enriched=values,
-                                    channel_url=row["youtube_channel_url"],
-                                )
                         except Exception as exc:
                             failed += 1
                             conn.rollback()

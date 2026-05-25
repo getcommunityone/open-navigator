@@ -60,7 +60,7 @@ channels_with_quality AS (
             ELSE 0
         END as jurisdiction_association_count
         
-    FROM {{ ref('int_events_channels') }} c
+    FROM {{ ref('int_events_channels_registry') }} c
 )
 
 -- Join with event statistics

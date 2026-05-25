@@ -15,6 +15,17 @@ Also writes capped **drill-down** lists from ``public.jurisdiction_mapping_analy
   ``school_district``. Each value is a list of
   ``{ state_code, total_jurisdictions, with_primary_website, pct_with_primary_website }``.
 
+- ``youtube_entity_state_rollup`` — same shape for golden YouTube channel URLs from
+  ``intermediate.int_events_channels`` (counties + municipalities only):
+  ``{ state_code, total_jurisdictions, with_youtube_channel, pct_with_youtube_channel }``.
+
+- ``state_youtube_category_rollup`` — per-state YouTube URL mapping for policy categories
+  (``overall``, ``public_health``, ``education``, ``transportation``) from
+  ``intermediate.int_events_channels_registry`` (title/description keyword scoring).
+
+- ``drilldown.missing_youtube`` — sample jurisdictions without ``youtube_channel_url`` in
+  ``int_events_channels`` (see ``missing_youtube_total``).
+
 - ``states`` — one row per U.S. state/territory in the ACS list: state-level ACS tiers plus whether the
   **state government** row (``jurisdiction_type = 'state'``) has a primary URL — not a rollup of cities,
   counties, or districts in that state.
@@ -40,6 +51,8 @@ Usage (repo root):
 
 Full unmapped drill-down lists (no JSON cap): ``GET /api/jurisdiction-mapping/unmapped`` (see
 ``api/routes/jurisdiction_mapping.py``).
+
+Missing YouTube channel drill-down: ``GET /api/jurisdiction-mapping/missing-youtube-channel``.
 """
 
 from __future__ import annotations
@@ -62,15 +75,21 @@ OUT = ROOT / "frontend" / "public" / "data" / "jurisdiction_mapping_quality.json
 
 from scripts.datasources.jurisdictions.jurisdiction_mapping_queries import (
     ENTITY_SLICE_WHERE,
+    MISSING_YOUTUBE_ROW_SELECT,
     UNMAPPED_ROW_SELECT,
+    build_missing_youtube_where_psycopg,
     build_unmapped_where_psycopg,
 )
 from scripts.datasources.jurisdictions.state_acs_mapping_quality import build_states_payload
+from scripts.datasources.jurisdictions.state_youtube_category_rollup import (
+    build_state_youtube_category_rollup,
+)
 
 # Capped lists for dashboard drill-down (keep JSON size reasonable; raise via env if needed).
 _UNMAPPED_CAP = int(os.environ.get("JURIS_MAPPING_QUALITY_UNMAPPED_CAP", "2500"))
 _MAPPED_ISSUES_CAP = int(os.environ.get("JURIS_MAPPING_QUALITY_MAPPED_ISSUES_CAP", "800"))
 _BUCKET_DRILL_CAP = int(os.environ.get("JURIS_MAPPING_QUALITY_BUCKET_DRILL_CAP", "500"))
+_MISSING_YOUTUBE_CAP = int(os.environ.get("JURIS_MAPPING_QUALITY_MISSING_YOUTUBE_CAP", "2500"))
 
 _SUMMARY_PRIMARY_FROM_COLS = """
                        primary_from_naco,
@@ -80,6 +99,32 @@ _SUMMARY_PRIMARY_FROM_COLS = """
                        primary_from_league,
                        primary_from_wikidata,
                        primary_from_override"""
+
+_SUMMARY_YOUTUBE_COLS = """
+                       with_youtube_channel,
+                       pct_with_youtube_channel"""
+
+
+def _table_column_exists(cur, schema: str, table: str, column: str) -> bool:
+    cur.execute(
+        """
+        SELECT EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = %s
+              AND table_name = %s
+              AND column_name = %s
+        ) AS ok
+        """,
+        (schema, table, column),
+    )
+    return bool(cur.fetchone()["ok"])
+
+
+def _summary_youtube_select_fragment(enabled: bool) -> str:
+    if not enabled:
+        return ""
+    return ",\n" + _SUMMARY_YOUTUBE_COLS
 
 def _row_dicts(cur) -> list[dict[str, object]]:
     return [{k: _jsonify_value(v) for k, v in dict(r).items()} for r in cur.fetchall()]
@@ -178,6 +223,26 @@ def main() -> int:
     conn = psycopg2.connect(url)
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            summary_has_youtube = _table_column_exists(
+                cur, "public", "jurisdiction_mapping_quality_summary", "with_youtube_channel"
+            )
+            analysis_has_youtube = _table_column_exists(
+                cur, "public", "jurisdiction_mapping_analysis", "has_youtube_channel"
+            )
+            summary_youtube_sql = _summary_youtube_select_fragment(summary_has_youtube)
+            if not summary_has_youtube:
+                print(
+                    "Note: summary marts lack with_youtube_channel — re-run dbt "
+                    "jurisdiction_mapping_quality_summary+ after jurisdiction_mapping_analysis.",
+                    file=sys.stderr,
+                )
+            if not analysis_has_youtube:
+                print(
+                    "Note: jurisdiction_mapping_analysis lacks has_youtube_channel — "
+                    "YouTube rollups and missing-channel drill-down will be omitted.",
+                    file=sys.stderr,
+                )
+
             cur.execute(
                 f"""
                 SELECT jurisdiction_type::text AS jurisdiction_type,
@@ -198,7 +263,7 @@ def main() -> int:
                        jurisdictions_touching_league,
                        jurisdictions_touching_wikidata,
                        jurisdictions_touching_override,
-                       {_SUMMARY_PRIMARY_FROM_COLS},
+                       {_SUMMARY_PRIMARY_FROM_COLS}{summary_youtube_sql},
                        summary_generated_at::text AS summary_generated_at
                 FROM public.jurisdiction_mapping_quality_summary
                 ORDER BY jurisdiction_type
@@ -228,7 +293,7 @@ def main() -> int:
                        jurisdictions_touching_league,
                        jurisdictions_touching_wikidata,
                        jurisdictions_touching_override,
-                       {_SUMMARY_PRIMARY_FROM_COLS},
+                       {_SUMMARY_PRIMARY_FROM_COLS}{summary_youtube_sql},
                        summary_generated_at::text AS summary_generated_at
                 FROM public.jurisdiction_mapping_quality_summary_municipality_places
                 ORDER BY
@@ -266,7 +331,7 @@ def main() -> int:
                        jurisdictions_touching_league,
                        jurisdictions_touching_wikidata,
                        jurisdictions_touching_override,
-                       {_SUMMARY_PRIMARY_FROM_COLS},
+                       {_SUMMARY_PRIMARY_FROM_COLS}{summary_youtube_sql},
                        summary_generated_at::text AS summary_generated_at
                 FROM public.jurisdiction_mapping_quality_summary_by_acs_population_tier
                 ORDER BY
@@ -306,7 +371,7 @@ def main() -> int:
                        jurisdictions_touching_league,
                        jurisdictions_touching_wikidata,
                        jurisdictions_touching_override,
-                       {_SUMMARY_PRIMARY_FROM_COLS},
+                       {_SUMMARY_PRIMARY_FROM_COLS}{summary_youtube_sql},
                        summary_generated_at::text AS summary_generated_at
                 FROM public.jurisdiction_mapping_quality_summary_by_acs_income_level
                 ORDER BY
@@ -433,6 +498,29 @@ def main() -> int:
                 )
                 return [{k: _jsonify_value(v) for k, v in dict(r).items()} for r in cur.fetchall()]
 
+            def _youtube_state_rollup(where_clause: str) -> list[dict[str, object]]:
+                cur.execute(
+                    f"""
+                    SELECT state_code::text AS state_code,
+                           COUNT(*)::bigint AS total_jurisdictions,
+                           COUNT(*) FILTER (WHERE COALESCE(has_youtube_channel, FALSE))::bigint
+                               AS with_youtube_channel,
+                           CASE
+                               WHEN COUNT(*) = 0 THEN NULL
+                               ELSE ROUND(
+                                   (100.0 * COUNT(*) FILTER (WHERE COALESCE(has_youtube_channel, FALSE)))
+                                   / COUNT(*)::numeric,
+                                   1
+                               )
+                           END AS pct_with_youtube_channel
+                    FROM public.jurisdiction_mapping_analysis
+                    WHERE {where_clause}
+                    GROUP BY state_code
+                    ORDER BY state_code
+                    """
+                )
+                return [{k: _jsonify_value(v) for k, v in dict(r).items()} for r in cur.fetchall()]
+
             entity_state_rollup = {
                 "county": _state_rollup("jurisdiction_type = 'county'"),
                 "municipality_incorporated_city": _state_rollup(
@@ -446,6 +534,56 @@ def main() -> int:
                 ),
                 "school_district": _state_rollup("jurisdiction_type = 'school_district'"),
             }
+
+            youtube_entity_state_rollup = (
+                {
+                    "county": _youtube_state_rollup("jurisdiction_type = 'county'"),
+                    "municipality_incorporated_city": _youtube_state_rollup(
+                        "jurisdiction_type = 'municipality' AND municipality_place_kind = 'incorporated_city'"
+                    ),
+                    "municipality_towns_and_cdp": _youtube_state_rollup(
+                        "jurisdiction_type = 'municipality' "
+                        "AND municipality_place_kind IN ("
+                        "'incorporated_other', 'unknown', 'census_designated_place'"
+                        ")"
+                    ),
+                }
+                if analysis_has_youtube
+                else {
+                    "county": [],
+                    "municipality_incorporated_city": [],
+                    "municipality_towns_and_cdp": [],
+                }
+            )
+
+            if analysis_has_youtube:
+                cur.execute(
+                    """
+                    SELECT COUNT(*)::bigint AS n
+                    FROM public.jurisdiction_mapping_analysis
+                    WHERE NOT COALESCE(has_youtube_channel, FALSE)
+                      AND jurisdiction_type IN ('county', 'municipality')
+                    """
+                )
+                missing_youtube_total = int(_jsonify_value(cur.fetchone()["n"]))
+
+                cur.execute(
+                    f"""
+                    {MISSING_YOUTUBE_ROW_SELECT}
+                    FROM public.jurisdiction_mapping_analysis
+                    WHERE NOT COALESCE(has_youtube_channel, FALSE)
+                      AND jurisdiction_type IN ('county', 'municipality')
+                    ORDER BY jurisdiction_type, state_code, name
+                    LIMIT %s
+                    """,
+                    (_MISSING_YOUTUBE_CAP,),
+                )
+                missing_youtube_sample = _row_dicts(cur)
+            else:
+                missing_youtube_total = 0
+                missing_youtube_sample = []
+
+            state_youtube_category_rollup = build_state_youtube_category_rollup(cur)
 
             def _state_government_mapping() -> list[dict[str, object]]:
                 """One row per state government in ``jurisdiction_mapping_analysis`` (portal mapped or not)."""
@@ -591,6 +729,8 @@ def main() -> int:
             "override": "Curated seed jurisdiction_website_url_overrides",
         },
         "entity_state_rollup": entity_state_rollup,
+        "youtube_entity_state_rollup": youtube_entity_state_rollup,
+        "state_youtube_category_rollup": state_youtube_category_rollup,
         "entity_acs_by_slice": entity_acs_by_slice,
         "entity_acs_unmapped_drill": entity_acs_unmapped_drill,
         "entity_acs_bucket_drill_cap": _BUCKET_DRILL_CAP,
@@ -618,6 +758,13 @@ def main() -> int:
                 "has_*_source": "True if at least one candidate row exists from that directory for this jurisdiction.",
                 "acs_population_tier": "ACS B01003 size bucket when joined; null if no ACS row.",
                 "acs_income_level": "ACS B19013 income bucket when joined; null if missing income.",
+            },
+            "missing_youtube_total": missing_youtube_total,
+            "missing_youtube_sample_limit": _MISSING_YOUTUBE_CAP,
+            "missing_youtube": missing_youtube_sample,
+            "missing_youtube_explained": {
+                "source_table": "intermediate.int_events_channels — golden verified county/municipality YouTube channel URLs.",
+                "has_youtube_channel": "True when a non-blank youtube_channel_url exists for the jurisdiction (prefers is_primary).",
             },
         },
     }

@@ -27,6 +27,6 @@ CREATE INDEX IF NOT EXISTS idx_int_youtube_channel_metadata_source
     ON intermediate.int_youtube_channel_metadata (metadata_source);
 
 COMMENT ON TABLE intermediate.int_youtube_channel_metadata IS
-    'Cached YouTube channel About/metadata keyed by channel_id. Populated from bronze_events_channels and About scrapes; used to refresh bronze_jurisdiction_youtube without hitting YouTube again.';
+    'Cached YouTube channel About/metadata keyed by channel_id. Populated from bronze_events_channels and About scrapes; used to refresh int_events_channels without hitting YouTube again.';
 
 COMMIT;

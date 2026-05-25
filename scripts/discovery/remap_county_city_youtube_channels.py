@@ -234,7 +234,7 @@ def remap_table(
                         stats["moved_to_city"] += 1
                     continue
 
-                if table == "bronze.bronze_jurisdiction_youtube":
+                if table == "intermediate.int_events_channels":
                     if not already:
                         upsert_bronze_jurisdiction_youtube_verified(
                             database_url,
@@ -250,20 +250,20 @@ def remap_table(
                     else:
                         stats["deleted_duplicate"] += 1
                     cur.execute(
-                        "DELETE FROM bronze.bronze_jurisdiction_youtube WHERE id = %s",
+                        "DELETE FROM intermediate.int_events_channels WHERE id = %s",
                         (row["id"],),
                     )
                 else:
                     if already:
                         cur.execute(
-                            "DELETE FROM bronze.bronze_jurisdiction_youtube_candidates WHERE id = %s",
+                            "DELETE FROM intermediate.int_events_channels_candidates WHERE id = %s",
                             (row["id"],),
                         )
                         stats["deleted_duplicate"] += 1
                     else:
                         cur.execute(
                             """
-                            UPDATE bronze.bronze_jurisdiction_youtube_candidates
+                            UPDATE intermediate.int_events_channels_candidates
                             SET jurisdiction_id = %s,
                                 jurisdiction_type = %s,
                                 website_url = COALESCE(NULLIF(BTRIM(%s), ''), website_url),
@@ -310,9 +310,9 @@ def main() -> int:
     state_codes = [s.strip().upper() for s in (args.states or "").split(",") if s.strip()] or None
     tables: list[tuple[str, str]] = []
     if args.table in ("verified", "both"):
-        tables.append(("verified", "bronze.bronze_jurisdiction_youtube"))
+        tables.append(("verified", "intermediate.int_events_channels"))
     if args.table in ("candidates", "both"):
-        tables.append(("candidates", "bronze.bronze_jurisdiction_youtube_candidates"))
+        tables.append(("candidates", "intermediate.int_events_channels_candidates"))
 
     combined: dict[str, Any] = {}
     for label, tbl in tables:

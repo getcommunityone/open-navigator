@@ -1,16 +1,21 @@
 #!/usr/bin/env python3
 """
-Populate ``intermediate.int_youtube_channel_metadata`` and refresh bronze jurisdiction rows.
+Populate ``intermediate.int_youtube_channel_metadata`` and refresh jurisdiction channel rows.
 
 Phase 1 (no YouTube scrape): copy from ``bronze_events_channels`` + ``int_events_channels``.
-Phase 2: apply cache onto ``bronze_jurisdiction_youtube`` / candidates.
-Phase 3 (optional): scrape About pages for channels still missing metadata.
+Phase 2: apply cache onto ``int_events_channels`` / ``int_events_channels_candidates``.
+Phase 3 (optional): scrape About pages for rows still missing metadata (HTML + RSS, no API).
+
+Scraped fields written to ``int_events_channels_candidates`` include ``youtube_channel_id``,
+``channel_title``, ``channel_description``, ``subscriber_count``, ``view_count``,
+``latest_upload``, ``jurisdiction_website_back_links``, and ``back_links_to_jurisdiction_website``.
 
 Examples::
 
   .venv/bin/python scripts/discovery/sync_int_youtube_channel_metadata.py --from-warehouse
   .venv/bin/python scripts/discovery/sync_int_youtube_channel_metadata.py --from-warehouse --apply-bronze --states AL
-  .venv/bin/python scripts/discovery/sync_int_youtube_channel_metadata.py --scrape-missing --states AL --limit 20
+  .venv/bin/python scripts/discovery/sync_int_youtube_channel_metadata.py --scrape-missing --table candidates --states AL --limit 20
+  .venv/bin/python scripts/discovery/refresh_jurisdiction_youtube_metadata.py --table candidates --states AL
 """
 
 from __future__ import annotations
@@ -29,11 +34,12 @@ if str(_ROOT) not in sys.path:
 
 from scripts.discovery.int_youtube_channel_metadata import (  # noqa: E402
     apply_metadata_to_jurisdiction_tables,
-    cache_from_enriched_row,
     ensure_table,
     fetch_row,
+    row_needs_youtube_metadata_refresh,
     sync_from_bronze_events_channels,
     sync_from_int_events_channels,
+    update_jurisdiction_youtube_row,
 )
 from scripts.discovery.jurisdiction_discovery_pipeline import resolve_database_url  # noqa: E402
 from scripts.datasources.jurisdiction_pilot.youtube_channel_enrich import enrich_channel  # noqa: E402
@@ -56,11 +62,6 @@ def _scrape_missing(
     clauses = [
         "y.youtube_channel_url IS NOT NULL",
         "BTRIM(y.youtube_channel_url) <> ''",
-        """(
-            y.channel_title IS NULL OR BTRIM(y.channel_title) = ''
-            OR y.channel_description IS NULL OR BTRIM(y.channel_description) = ''
-            OR y.subscriber_count IS NULL
-        )""",
     ]
     params: list = []
     if state_codes:
@@ -70,6 +71,9 @@ def _scrape_missing(
     sql = f"""
         SELECT y.id, y.jurisdiction_id, y.state_code, y.website_url,
                y.youtube_channel_url, y.youtube_channel_id, y.channel_title,
+               y.channel_description, y.subscriber_count, y.video_count,
+               y.view_count, y.latest_upload,
+               y.jurisdiction_website_back_links, y.back_links_to_jurisdiction_website,
                y.discovery_method, y.official_meeting_confidence, y.jurisdiction_type,
                j.name AS jurisdiction_name
         FROM {table} y
@@ -88,12 +92,16 @@ def _scrape_missing(
         rows = list(cur.fetchall())
 
     for row in rows:
+        if not row_needs_youtube_metadata_refresh(row):
+            stats["skipped_cached"] += 1
+            continue
         cid = (row.get("youtube_channel_id") or "").strip()
         if cid and fetch_row(conn, cid):
             cached = fetch_row(conn, cid)
             if cached and (cached.get("channel_title") or cached.get("channel_description")):
-                stats["skipped_cached"] += 1
-                continue
+                if not row_needs_youtube_metadata_refresh({**row, **cached}):
+                    stats["skipped_cached"] += 1
+                    continue
         try:
             enriched = enrich_channel(
                 channel={
@@ -111,14 +119,13 @@ def _scrape_missing(
                 session=session,
                 cookies_file=cookies,
             )
-            scrape_cid = enriched.get("youtube_channel_id") or cid
-            if scrape_cid:
-                cache_from_enriched_row(
-                    conn,
-                    channel_id=str(scrape_cid),
-                    enriched=enriched,
-                    channel_url=row["youtube_channel_url"],
-                )
+            update_jurisdiction_youtube_row(
+                conn,
+                table=table,
+                row_id=int(row["id"]),
+                enriched=enriched,
+                row=row,
+            )
             stats["scraped"] += 1
         except Exception as exc:
             stats["failed"] += 1
@@ -139,7 +146,7 @@ def main() -> int:
     parser.add_argument(
         "--apply-bronze",
         action="store_true",
-        help="Push int cache onto bronze_jurisdiction_youtube tables",
+        help="Push int cache onto int_events_channels tables",
     )
     parser.add_argument(
         "--scrape-missing",
@@ -150,7 +157,7 @@ def main() -> int:
     parser.add_argument(
         "--table",
         choices=("verified", "candidates", "both"),
-        default="verified",
+        default="candidates",
     )
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--cookies", default="youtube_cookies.txt")
@@ -185,9 +192,9 @@ def main() -> int:
 
         tables = []
         if args.table in ("verified", "both"):
-            tables.append("bronze.bronze_jurisdiction_youtube")
+            tables.append("intermediate.int_events_channels")
         if args.table in ("candidates", "both"):
-            tables.append("bronze.bronze_jurisdiction_youtube_candidates")
+            tables.append("intermediate.int_events_channels_candidates")
 
         if args.apply_bronze:
             stats["bronze_updated"] = {}

@@ -18,7 +18,7 @@ SET
     state_code = j.state_code,
     state = j.state,
     last_updated = CURRENT_TIMESTAMP
-FROM intermediate.int_events_channels ec
+FROM intermediate.int_events_channels_registry ec
 INNER JOIN intermediate.int_jurisdictions j
     ON j.jurisdiction_id = ec.jurisdiction_id
 WHERE y.channel_id = ec.channel_id
@@ -36,7 +36,7 @@ SET
     in_localview = TRUE,
     discovery_method = COALESCE(bc.discovery_method, 'derived_from_localview'),
     last_updated = CURRENT_TIMESTAMP
-FROM intermediate.int_events_channels ec
+FROM intermediate.int_events_channels_registry ec
 WHERE bc.channel_id = ec.channel_id
   AND ec.jurisdiction_id IS NOT NULL
   AND ec.jurisdictions IS NOT NULL
@@ -85,7 +85,7 @@ SET
 FROM juris_name_match jnm
 INNER JOIN intermediate.int_jurisdictions j
     ON j.jurisdiction_id = jnm.jurisdiction_id
-LEFT JOIN intermediate.int_events_channels ec ON ec.channel_id = jnm.channel_id
+LEFT JOIN intermediate.int_events_channels_registry ec ON ec.channel_id = jnm.channel_id
 WHERE y.channel_id = jnm.channel_id
   AND ec.jurisdiction_id IS NULL
   AND (

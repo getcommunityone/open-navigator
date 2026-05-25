@@ -2,7 +2,7 @@
 """
 Promote one primary YouTube channel per jurisdiction onto ``*_scraped`` tables.
 
-``bronze.bronze_jurisdiction_youtube`` is an **audit** table: every candidate channel
+``intermediate.int_events_channels`` is the **golden** table: verified county/municipality channels.
 above the pilot insert threshold (default 0.5) is kept. County/municipality scraped
 tables should expose **one** high-confidence primary for downstream loaders (e.g.
 ``load_youtube_events_to_postgres.py --channel-source counties-scraped``).
@@ -59,7 +59,7 @@ def sync_primary_youtube_to_scraped(
     dry_run: bool = False,
 ) -> dict[str, int]:
     """
-    Pick primary channel per jurisdiction from ``bronze_jurisdiction_youtube`` and
+    Pick primary channel per jurisdiction from ``int_events_channels`` and
     upsert columns on the matching ``*_scraped`` row.
     """
     try:
@@ -85,7 +85,7 @@ def sync_primary_youtube_to_scraped(
             y.video_count,
             y.subscriber_count,
             y.channel_title
-        FROM bronze.bronze_jurisdiction_youtube y
+        FROM intermediate.int_events_channels y
         INNER JOIN intermediate.int_jurisdictions j
             ON j.jurisdiction_id = y.jurisdiction_id
         WHERE COALESCE(y.official_meeting_confidence, 0) >= %s

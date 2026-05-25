@@ -40,7 +40,7 @@ import {
 } from '../data/exploreActionPhases'
 import { useAuth } from '../contexts/AuthContext'
 import AddressLookup from '../components/AddressLookup'
-import HeroLicensePlateBadge from '../components/HeroLicensePlateBadge'
+import HeroStateSilhouetteBadge from '../components/HeroStateSilhouetteBadge'
 import { useLocation as useLocationContext, type LocationData } from '../contexts/LocationContext'
 import { formatCommunityPlaceLine } from '../utils/communityLocationLabel'
 
@@ -981,7 +981,7 @@ export default function Home() {
                   >
                     <div className="text-center max-w-6xl w-full mx-auto space-y-1 md:space-y-1.5">
                       <div className="flex justify-center px-2">
-                        <HeroLicensePlateBadge
+                        <HeroStateSilhouetteBadge
                           location={location}
                           onChangeLocation={() => setSelectedTab(1)}
                           changeLocationLabel="Change your community location"

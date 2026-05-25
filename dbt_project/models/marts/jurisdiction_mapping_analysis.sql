@@ -19,6 +19,9 @@ Downstream: LLM context, QA dashboards, ``export_jurisdiction_mapping_quality_js
 ``municipality_place_kind`` / ``lsad`` split municipalities for CDP vs incorporated city (LSAD 25) vs other LSADs.
 Latest matching ``public.jurisdiction_acs`` row (by ``acs_vintage_year``) adds ``acs_population_tier`` (B01003 size class)
 and ``acs_income_level`` (B19013 bucket) for county / municipality / school_district GEOIDs.
+
+``has_youtube_channel`` / ``youtube_channel_url`` come from golden verified rows in
+``intermediate.int_events_channels`` (county / municipality only; migration 071).
 */
 
 WITH base AS (
@@ -137,6 +140,51 @@ picked AS (
     WHERE j.jurisdiction_type IN ('county', 'municipality', 'school_district', 'state')
 ),
 
+{% if int_events_channels_jurisdiction_exists() %}
+youtube_channel_pick AS (
+    SELECT DISTINCT ON (jurisdiction_id)
+        jurisdiction_id,
+        youtube_channel_url,
+        youtube_channel_id,
+        discovery_method AS youtube_discovery_method
+    FROM intermediate.int_events_channels
+    WHERE youtube_channel_url IS NOT NULL
+      AND BTRIM(youtube_channel_url) <> ''
+    ORDER BY
+        jurisdiction_id,
+        CASE WHEN is_primary THEN 0 ELSE 1 END,
+        verified_at DESC NULLS LAST,
+        loaded_at DESC NULLS LAST,
+        id DESC
+),
+
+youtube_channel_counts AS (
+    SELECT
+        jurisdiction_id,
+        COUNT(*)::BIGINT AS n_youtube_channel_rows
+    FROM intermediate.int_events_channels
+    WHERE youtube_channel_url IS NOT NULL
+      AND BTRIM(youtube_channel_url) <> ''
+    GROUP BY jurisdiction_id
+),
+{% else %}
+youtube_channel_pick AS (
+    SELECT
+        CAST(NULL AS TEXT) AS jurisdiction_id,
+        CAST(NULL AS TEXT) AS youtube_channel_url,
+        CAST(NULL AS TEXT) AS youtube_channel_id,
+        CAST(NULL AS TEXT) AS youtube_discovery_method
+    WHERE FALSE
+),
+
+youtube_channel_counts AS (
+    SELECT
+        CAST(NULL AS TEXT) AS jurisdiction_id,
+        CAST(0 AS BIGINT) AS n_youtube_channel_rows
+    WHERE FALSE
+),
+{% endif %}
+
 {% if jurisdiction_acs_exists() %}
 acs_latest AS (
     SELECT
@@ -253,7 +301,14 @@ SELECT
     picked.acs_total_population,
     picked.acs_population_tier,
     picked.acs_income_level,
+    (yp.jurisdiction_id IS NOT NULL) AS has_youtube_channel,
+    yp.youtube_channel_url,
+    yp.youtube_channel_id,
+    yp.youtube_discovery_method,
+    COALESCE(yc.n_youtube_channel_rows, 0)::BIGINT AS n_youtube_channel_rows,
     CAST(NULL AS TEXT) AS leadership_directory_url,
     CAST(NULL AS TEXT) AS leadership_mapping_method,
     CURRENT_TIMESTAMP AS analysis_generated_at
 FROM acs_latest picked
+LEFT JOIN youtube_channel_pick yp ON yp.jurisdiction_id = picked.jurisdiction_id
+LEFT JOIN youtube_channel_counts yc ON yc.jurisdiction_id = picked.jurisdiction_id

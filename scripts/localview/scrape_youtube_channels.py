@@ -482,7 +482,9 @@ class MunicipalYouTubeScraper:
             'nocheckcertificate': True,
         }
         if self.cookies_file:
-            opts['cookiefile'] = self.cookies_file
+            cookie_path = Path(self.cookies_file)
+            if cookie_path.is_file():
+                opts['cookiefile'] = str(cookie_path.resolve())
         if self.proxy_url:
             opts['proxy'] = self.proxy_url
         return opts

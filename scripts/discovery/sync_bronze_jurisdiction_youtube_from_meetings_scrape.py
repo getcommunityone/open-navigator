@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Merge meetings-scrape YouTube channels from ``intermediate.int_jurisdiction_meetings_scrape_youtube_channels``
-into ``bronze.bronze_jurisdiction_youtube_candidates`` and ``bronze.bronze_jurisdiction_youtube``.
+into ``intermediate.int_events_channels_candidates`` and ``intermediate.int_events_channels``.
 
 Prerequisites::
 
@@ -80,7 +80,7 @@ def _existing_candidate_keys(database_url: str) -> set[tuple[str, str]]:
             cur.execute(
                 """
                 SELECT jurisdiction_id, youtube_channel_url
-                FROM bronze.bronze_jurisdiction_youtube_candidates
+                FROM intermediate.int_events_channels_candidates
                 WHERE youtube_channel_url IS NOT NULL
                   AND BTRIM(youtube_channel_url) <> ''
                 """

@@ -400,6 +400,8 @@ def write_local_from_bronze(
             "is_auto_generated": t.get("is_auto_generated"),
             "transcript_source": t.get("transcript_source") or "bronze",
         },
+        cache_dir=cache_dir,
+        state_code=st,
     )
     return True
 
@@ -458,21 +460,34 @@ def write_local_transcript(
     *,
     row: Dict[str, Any],
     yt: Dict[str, Any],
-) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
+    cache_dir: Optional[Path] = None,
+    state_code: Optional[str] = None,
+    jurisdiction_type: Optional[str] = None,
+) -> Path:
+    """Write under ``gemini_transcript_policy`` (``path`` is ignored; kept for callers)."""
+    from scripts.datasources.youtube.policy_transcript_cache import (
+        write_policy_transcript_cache,
+    )
+
     row = apply_resolved_event_date(dict(row))
-    payload = {
-        "video_id": row["video_id"],
-        "video_url": row["video_url"],
-        "title": row.get("title"),
-        "event_date": row.get("event_date"),
-        "jurisdiction_id": row["jurisdiction_id"],
-        "youtube": yt,
-        "segment_count": len(yt.get("segments") or []),
-        "transcript_chars": len(yt.get("raw_text") or ""),
-        "transcript_source": yt.get("transcript_source"),
+    if cache_dir is None:
+        raise ValueError("cache_dir is required for write_local_transcript")
+    root = cache_dir
+    yt_block = {
+        k: v
+        for k, v in yt.items()
+        if k
+        not in ("caption_raw_data", "caption_formatted", "caption_preserve_formatting")
     }
-    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return write_policy_transcript_cache(
+        root,
+        jurisdiction_id=str(row["jurisdiction_id"]),
+        state_code=state_code or str(row.get("state_code") or ""),
+        row=row,
+        yt=yt_block,
+        caption_raw_data=yt.get("caption_raw_data"),
+        jurisdiction_type=jurisdiction_type or row.get("jurisdiction_type"),
+    )
 
 
 def clear_transcript_tombstones(
@@ -1091,6 +1106,8 @@ def run(args: argparse.Namespace) -> int:
                 ),
                 row=row,
                 yt=yt,
+                cache_dir=cache_dir,
+                state_code=state_code,
             )
 
         if args.write_bronze:

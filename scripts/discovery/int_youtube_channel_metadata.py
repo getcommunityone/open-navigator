@@ -8,7 +8,9 @@ Populate from existing warehouse rows first (``bronze_events_channels``,
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, Mapping
+
+from scripts.datasources.youtube.youtube_channel_page import is_junk_channel_title
 
 CREATE_TABLE_SQL = """
 CREATE SCHEMA IF NOT EXISTS intermediate;
@@ -203,7 +205,7 @@ def sync_from_int_events_channels(conn) -> int:
                 ec.video_count,
                 ec.view_count,
                 ec.channel_external_links
-            FROM intermediate.int_events_channels ec
+            FROM intermediate.int_events_channels_registry ec
             WHERE ec.channel_id IS NOT NULL
               AND BTRIM(ec.channel_id) <> ''
               AND (
@@ -228,7 +230,7 @@ def sync_from_int_events_channels(conn) -> int:
         upsert_channel_metadata(
             conn,
             channel_id=row[0],
-            metadata_source="int_events_channels",
+            metadata_source="int_events_channels_registry",
             channel_url=row[1],
             channel_title=row[2],
             channel_description=row[3],
@@ -283,6 +285,129 @@ def metadata_dict_for_channel(conn, channel_id: str) -> dict[str, Any]:
     return dict(row) if row else {}
 
 
+def row_needs_youtube_metadata_refresh(row: Mapping[str, Any]) -> bool:
+    """True when a jurisdiction YouTube row should be re-scraped from the channel page."""
+    title = (row.get("channel_title") or "").strip()
+    desc = (row.get("channel_description") or "").strip()
+    channel_id = (row.get("youtube_channel_id") or "").strip()
+    if not channel_id.startswith("UC"):
+        return True
+    if not desc:
+        return True
+    if is_junk_channel_title(title):
+        return True
+    if row.get("subscriber_count") is None or row.get("video_count") is None:
+        return True
+    if row.get("view_count") is None:
+        return True
+    if not (row.get("latest_upload") or "").strip():
+        return True
+    back_links = row.get("jurisdiction_website_back_links")
+    if not back_links and row.get("back_links_to_jurisdiction_website"):
+        return True
+    return False
+
+
+def values_from_enriched_metadata(
+    enriched: Mapping[str, Any],
+    row: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Normalize scrape/enrich output for ``int_events_channels*`` UPDATE statements."""
+    from scripts.discovery.youtube_channel_purpose import classify_channel_purpose
+
+    latest = enriched.get("latest_upload") or row.get("latest_upload")
+    if latest:
+        latest = str(latest)[:10]
+    return {
+        "channel_title": enriched.get("channel_title") or row.get("channel_title"),
+        "channel_description": enriched.get("channel_description") or row.get("channel_description"),
+        "subscriber_count": enriched.get("subscriber_count"),
+        "video_count": enriched.get("video_count"),
+        "view_count": enriched.get("view_count"),
+        "latest_upload": latest,
+        "external_links": enriched.get("external_links") or [],
+        "jurisdiction_website_back_links": enriched.get("jurisdiction_website_back_links") or [],
+        "back_links_to_jurisdiction_website": bool(enriched.get("back_links_to_jurisdiction_website")),
+        "official_meeting_confidence": enriched.get("official_meeting_confidence"),
+        "youtube_channel_id": (
+            enriched.get("youtube_channel_id")
+            or enriched.get("channel_id")
+            or row.get("youtube_channel_id")
+        ),
+        "youtube_channel_url": enriched.get("youtube_channel_url") or row.get("youtube_channel_url"),
+        "channel_purpose": enriched.get("channel_purpose")
+        or classify_channel_purpose(
+            channel_title=str(enriched.get("channel_title") or row.get("channel_title") or ""),
+            channel_description=str(
+                enriched.get("channel_description") or row.get("channel_description") or ""
+            ),
+            jurisdiction_type=str(row.get("jurisdiction_type") or ""),
+        ),
+    }
+
+
+def update_jurisdiction_youtube_row(
+    conn,
+    *,
+    table: str,
+    row_id: int,
+    enriched: Mapping[str, Any],
+    row: Mapping[str, Any],
+) -> None:
+    """Write scraped YouTube metadata onto one ``int_events_channels*`` row."""
+    values = values_from_enriched_metadata(enriched, row)
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            f"""
+            UPDATE {table}
+            SET channel_title = %s,
+                channel_description = %s,
+                subscriber_count = %s,
+                video_count = %s,
+                view_count = %s,
+                latest_upload = %s,
+                external_links = %s::jsonb,
+                jurisdiction_website_back_links = %s::jsonb,
+                back_links_to_jurisdiction_website = %s,
+                official_meeting_confidence = %s,
+                channel_purpose = %s,
+                youtube_channel_id = COALESCE(%s, youtube_channel_id),
+                youtube_channel_url = COALESCE(NULLIF(BTRIM(%s), ''), youtube_channel_url),
+                loaded_at = NOW()
+            WHERE id = %s
+            """,
+            (
+                values["channel_title"],
+                values["channel_description"],
+                values["subscriber_count"],
+                values["video_count"],
+                values["view_count"],
+                values["latest_upload"],
+                json.dumps(values["external_links"]),
+                json.dumps(values["jurisdiction_website_back_links"]),
+                values["back_links_to_jurisdiction_website"],
+                values["official_meeting_confidence"],
+                values["channel_purpose"],
+                values["youtube_channel_id"],
+                values["youtube_channel_url"],
+                row_id,
+            ),
+        )
+        conn.commit()
+    finally:
+        cur.close()
+
+    scrape_cid = values.get("youtube_channel_id") or row.get("youtube_channel_id")
+    if scrape_cid:
+        cache_from_enriched_row(
+            conn,
+            channel_id=str(scrape_cid),
+            enriched=values,
+            channel_url=str(row.get("youtube_channel_url") or ""),
+        )
+
+
 def apply_metadata_to_jurisdiction_tables(
     conn,
     *,
@@ -290,7 +415,7 @@ def apply_metadata_to_jurisdiction_tables(
     state_codes: list[str] | None = None,
     only_missing: bool = True,
 ) -> int:
-    """Copy int cache onto bronze_jurisdiction_youtube* rows by youtube_channel_id."""
+    """Copy int cache onto int_events_channels* rows by youtube_channel_id."""
     where_parts = [
         "m.channel_id = y.youtube_channel_id",
         "y.youtube_channel_id IS NOT NULL",
@@ -303,15 +428,19 @@ def apply_metadata_to_jurisdiction_tables(
     if only_missing:
         where_parts.append(
             """(
-                y.channel_title IS NULL OR BTRIM(y.channel_title) = ''
+                y.youtube_channel_id IS NULL OR BTRIM(y.youtube_channel_id) = ''
+                OR y.channel_title IS NULL OR BTRIM(y.channel_title) = ''
                 OR y.channel_description IS NULL OR BTRIM(y.channel_description) = ''
                 OR y.subscriber_count IS NULL
+                OR y.view_count IS NULL
+                OR y.latest_upload IS NULL OR BTRIM(y.latest_upload) = ''
             )"""
         )
 
     sql = f"""
         UPDATE {table} AS y
         SET
+            youtube_channel_id = COALESCE(NULLIF(BTRIM(m.channel_id), ''), y.youtube_channel_id),
             channel_title = COALESCE(NULLIF(BTRIM(m.channel_title), ''), y.channel_title),
             channel_description = COALESCE(NULLIF(BTRIM(m.channel_description), ''), y.channel_description),
             subscriber_count = COALESCE(m.subscriber_count, y.subscriber_count),

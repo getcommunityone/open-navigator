@@ -26,7 +26,7 @@ import shutil
 from collections import defaultdict
 from datetime import date, datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 DIR_TRANSCRIPTS = "01_transcripts"
 DIR_ANALYSIS = "02_analysis"
@@ -63,11 +63,15 @@ _BRONZE_JURISDICTION_TYPE_TO_CACHE = {
 from scripts.jurisdictions.jurisdiction_id import (
     _SLUG_GEOID_RE,
     _TYPED_JURISDICTION_ID_RE,
+    infer_jurisdiction_type_from_geoid,
     jurisdiction_pk_from_geoid,
+    lookup_canonical_jurisdiction_id_from_bronze,
     parse_jurisdiction_id,
     place_slug_for_jurisdiction_id,
     resolve_canonical_jurisdiction_id as _resolve_slug_jurisdiction_id,
 )
+
+_GEOID_FOLDER_SUFFIX_RE = re.compile(r"_(\d{5,10})$")
 
 _JID_TYPED_RE = _TYPED_JURISDICTION_ID_RE
 _STATE_CODE_RE = re.compile(r"^[A-Za-z]{2}$")
@@ -256,16 +260,40 @@ def _legacy_place_slug_for_folder(name: str) -> str:
     return slug_snake_case(collapsed, max_length=56)
 
 
+def geoid_folder_suffix(folder_name: str) -> Optional[str]:
+    """Trailing Census GEOID from a cache folder basename (``henry_01067`` → ``01067``)."""
+    m = _GEOID_FOLDER_SUFFIX_RE.search((folder_name or "").strip())
+    return m.group(1) if m else None
+
+
+def _canonical_cache_folder_from_bronze_geoid(
+    geoid: str,
+    jurisdiction_type: str,
+) -> str:
+    """``{slug}_{geoid}`` from bronze when GEOID + type are known (ignores caller ``place_name``)."""
+    jid = lookup_canonical_jurisdiction_id_from_bronze(geoid, jurisdiction_type)
+    if jid and _SLUG_GEOID_RE.match(jid) and not _JID_TYPED_RE.match(jid):
+        return jid
+    return ""
+
+
 def jurisdiction_cache_folder_name(jurisdiction_id: str, *, place_name: str | None = None) -> str:
     """
     Filesystem folder under ``{state}/{type}/`` — same as canonical ``jurisdiction_id``.
 
     Legacy ``municipality_{geoid}`` is mapped via ``resolve_canonical_jurisdiction_id``.
+    When bronze has a GEOID match, that canonical id wins over a seat-city ``place_name``
+    (e.g. Henry County ``01067`` → ``henry_01067``, not ``abbeville_01067``).
     """
     jid = resolve_canonical_jurisdiction_id(jurisdiction_id)
+    _jt, geoid, _slug = parse_jurisdiction_id(jid)
+    jtype = (_jt or infer_jurisdiction_type_from_geoid(geoid or "") or "").lower()
+    if geoid and jtype:
+        bronze_folder = _canonical_cache_folder_from_bronze_geoid(geoid, jtype)
+        if bronze_folder:
+            return bronze_folder
     if _SLUG_GEOID_RE.match(jid) and not _JID_TYPED_RE.match(jid):
         return jid
-    _jt, geoid, _slug = parse_jurisdiction_id(jid)
     if not geoid:
         safe = re.sub(r"[^A-Za-z0-9._-]+", "_", jid).strip("_")
         return safe[:200] or "unknown"
@@ -323,8 +351,14 @@ def scraped_meetings_jurisdiction_dir(
     canonical_path = root / st / segment / canonical
     if canonical_path.is_dir():
         return canonical_path
+    canon_geoid = geoid_folder_suffix(canonical)
     for alias in jurisdiction_cache_folder_aliases(jurisdiction_id, place_name=place_name):
         if alias == canonical:
+            continue
+        # Seat-city misnames (``abbeville_01067`` for Henry County) — merge script fixes;
+        # new writes use the canonical folder name.
+        alias_geoid = geoid_folder_suffix(alias)
+        if canon_geoid and alias_geoid == canon_geoid:
             continue
         candidate = root / st / segment / alias
         if candidate.is_dir():
@@ -724,6 +758,12 @@ def strip_meeting_date_from_title(
             if match:
                 t = (t[: match.start()] + t[match.end() :]).strip()
                 break
+        else:
+            for pattern in _DATE_IN_TITLE_PATTERNS_2Y:
+                match = re.search(pattern, t)
+                if match:
+                    t = (t[: match.start()] + t[match.end() :]).strip()
+                    break
 
     if resolved_date:
         try:
@@ -731,11 +771,16 @@ def strip_meeting_date_from_title(
         except ValueError:
             d = None
         if d is not None:
+            yy = d.year % 100
             variants = (
                 f"{d.month}/{d.day}/{d.year}",
                 f"{d.month}-{d.day}-{d.year}",
                 f"{d.month:02d}/{d.day:02d}/{d.year}",
                 f"{d.month:02d}-{d.day:02d}-{d.year}",
+                f"{d.month}/{d.day}/{yy:02d}",
+                f"{d.month}-{d.day}-{yy:02d}",
+                f"{d.month:02d}/{d.day:02d}/{yy:02d}",
+                f"{d.month:02d}-{d.day:02d}-{yy:02d}",
                 f"{d.month}{d.day}{d.year}",
                 f"{d.month:02d}{d.day:02d}{d.year}",
             )
@@ -761,6 +806,11 @@ _DATE_IN_TITLE_PATTERNS = (
     r"(\d{1,2})-(\d{1,2})-(\d{4})",
     r"(\d{1,2})/(\d{1,2})/(\d{4})",
 )
+# M-D-YY or M/D/YY (e.g. ``1-23-24`` in county board titles); not four-digit years.
+_DATE_IN_TITLE_PATTERNS_2Y = (
+    r"(\d{1,2})-(\d{1,2})-(\d{2})(?!\d)",
+    r"(\d{1,2})/(\d{1,2})/(\d{2})(?!\d)",
+)
 _MONTH_DAY_YEAR_RE = re.compile(
     r"(January|February|March|April|May|June|July|August|September|October|November|December|"
     r"Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\s+(\d{1,2}),\s+(\d{4})",
@@ -769,8 +819,23 @@ _MONTH_DAY_YEAR_RE = re.compile(
 _MONTH_DAY_YEAR_FMTS = ("%B %d, %Y", "%b %d, %Y")
 
 
+def _full_year_from_two_digit(yy: int) -> int:
+    """Meeting titles: ``00``–``49`` → 2000–2049; ``50``–``99`` → 1950–1999."""
+    yy = int(yy) % 100
+    if yy < 50:
+        return 2000 + yy
+    return 1900 + yy
+
+
+def _parse_mdy_groups(month: int, day: int, year: int) -> Optional[str]:
+    try:
+        return datetime(year, month, day).strftime("%Y-%m-%d")
+    except ValueError:
+        return None
+
+
 def extract_meeting_date_from_title(title: str) -> Optional[str]:
-    """Parse M/D/YYYY, MM-DD-YYYY, YYYY-MM-DD, or 'September 23, 2024' from a video title."""
+    """Parse M/D/YYYY, M-D-YY, YYYY-MM-DD, or 'September 23, 2024' from a video title."""
     month_match = _MONTH_DAY_YEAR_RE.search(title or "")
     if month_match:
         fragment = month_match.group(0)
@@ -789,7 +854,20 @@ def extract_meeting_date_from_title(title: str) -> Optional[str]:
                 year, month, day = int(groups[0]), int(groups[1]), int(groups[2])
             else:
                 month, day, year = int(groups[0]), int(groups[1]), int(groups[2])
-            return datetime(year, month, day).strftime("%Y-%m-%d")
+            parsed = _parse_mdy_groups(month, day, year)
+            if parsed:
+                return parsed
+        except (ValueError, IndexError):
+            continue
+    for pattern in _DATE_IN_TITLE_PATTERNS_2Y:
+        match = re.search(pattern, title or "")
+        if not match:
+            continue
+        try:
+            month, day, yy = int(match.group(1)), int(match.group(2)), int(match.group(3))
+            parsed = _parse_mdy_groups(month, day, _full_year_from_two_digit(yy))
+            if parsed:
+                return parsed
         except (ValueError, IndexError):
             continue
     return None
@@ -2200,4 +2278,272 @@ def migrate_policy_cache_folder_names(
                 else:
                     shutil.move(str(geo_dir), str(dest))
                     stats["renamed"] += 1
+    return dict(stats)
+
+
+_INT_TYPES_FOR_CACHE_SEGMENT = {
+    "municipality": frozenset({"municipality", "city", "town", "village"}),
+    "county": frozenset({"county"}),
+    "school": frozenset({"school_district", "school"}),
+    "township": frozenset({"township"}),
+    "state": frozenset({"state"}),
+}
+
+
+def geoid_variants_for_numeric(numeric_id: str) -> frozenset[str]:
+    """Filesystem legacy ids often drop leading zeros from Census GEOIDs."""
+    n = (numeric_id or "").strip()
+    if not _NUMERIC_JID_RE.fullmatch(n):
+        return frozenset()
+    variants = {n, str(int(n)), n.zfill(7), n.zfill(5), n.zfill(10), str(int(n)).zfill(7)}
+    return frozenset(v for v in variants if v)
+
+
+def _int_type_matches_cache_segment(int_type: str, cache_segment: str) -> bool:
+    allowed = _INT_TYPES_FOR_CACHE_SEGMENT.get(cache_segment, frozenset({cache_segment}))
+    return (int_type or "").strip().lower() in allowed
+
+
+def resolve_numeric_folder_canonical_id(
+    numeric_id: str,
+    *,
+    state_code: str,
+    cache_type_segment: str,
+    jurisdictions: Sequence[Dict[str, str]],
+) -> Optional[str]:
+    """
+    Map a bare numeric cache folder (e.g. ``159472``) to ``{place_slug}_{geoid}``.
+
+    Uses ``intermediate.int_jurisdictions`` rows supplied by the caller.
+    """
+    variants = geoid_variants_for_numeric(numeric_id)
+    if not variants:
+        return None
+    st = (state_code or "").strip().upper()
+    hits: List[str] = []
+    for row in jurisdictions:
+        if (row.get("state_code") or "").strip().upper() != st:
+            continue
+        geoid = str(row.get("geoid") or "").strip()
+        if geoid not in variants:
+            continue
+        jtype = str(row.get("jurisdiction_type") or row.get("type") or "").strip().lower()
+        if not _int_type_matches_cache_segment(jtype, cache_type_segment):
+            continue
+        jid = str(row.get("jurisdiction_id") or "").strip()
+        if jid and jid not in hits:
+            hits.append(jid)
+    if len(hits) == 1:
+        return hits[0]
+    return None
+
+
+def list_numeric_policy_geo_dirs(cache_dir: Path) -> List[Tuple[str, str, str, Path]]:
+    """``(state_code, cache_type_segment, numeric_folder_name, path)``."""
+    cache_dir = cache_dir.resolve()
+    out: List[Tuple[str, str, str, Path]] = []
+    for state_dir in sorted(cache_dir.iterdir()):
+        if not _is_state_cache_dir(state_dir):
+            continue
+        for type_dir in sorted(state_dir.iterdir()):
+            if not type_dir.is_dir():
+                continue
+            for geo_dir in sorted(type_dir.iterdir()):
+                if geo_dir.is_dir() and _NUMERIC_JID_RE.fullmatch(geo_dir.name):
+                    out.append((state_dir.name, type_dir.name, geo_dir.name, geo_dir))
+    return out
+
+
+def load_int_jurisdictions_for_numeric_migration(database_url: str) -> List[Dict[str, str]]:
+    """Rows used to resolve numeric policy-cache folders."""
+    try:
+        import psycopg2
+        from psycopg2.extras import RealDictCursor
+    except ImportError:
+        return []
+    if not database_url:
+        return []
+    try:
+        with psycopg2.connect(database_url) as conn, conn.cursor(
+            cursor_factory=RealDictCursor
+        ) as cur:
+            cur.execute(
+                """
+                SELECT jurisdiction_id, geoid, name, jurisdiction_type, state_code
+                FROM intermediate.int_jurisdictions
+                WHERE geoid IS NOT NULL AND BTRIM(geoid) <> ''
+                """
+            )
+            rows = cur.fetchall()
+    except Exception:
+        return []
+    out: List[Dict[str, str]] = []
+    for row in rows:
+        out.append(
+            {
+                "jurisdiction_id": str(row.get("jurisdiction_id") or "").strip(),
+                "geoid": str(row.get("geoid") or "").strip(),
+                "name": str(row.get("name") or "").strip(),
+                "jurisdiction_type": str(row.get("jurisdiction_type") or "").strip().lower(),
+                "state_code": str(row.get("state_code") or "").strip().upper(),
+            }
+        )
+    return out
+
+
+def build_numeric_policy_folder_mapping(
+    cache_dir: Path,
+    jurisdictions: Sequence[Dict[str, str]],
+    *,
+    jurisdiction_id_filter: str = "",
+) -> Dict[str, str]:
+    """Legacy numeric folder basename → canonical ``jurisdiction_id``."""
+    want = (jurisdiction_id_filter or "").strip()
+    want_aliases = set(jurisdiction_cache_folder_aliases(want)) if want else set()
+    mapping: Dict[str, str] = {}
+    ambiguous: Dict[str, List[str]] = {}
+
+    for state_code, cache_segment, numeric_name, _geo in list_numeric_policy_geo_dirs(cache_dir):
+        if want_aliases and numeric_name not in want_aliases:
+            canonical_hint = resolve_numeric_folder_canonical_id(
+                numeric_name,
+                state_code=state_code,
+                cache_type_segment=cache_segment,
+                jurisdictions=jurisdictions,
+            )
+            if not canonical_hint or canonical_hint not in want_aliases:
+                if jurisdiction_cache_folder_name(canonical_hint or "") not in want_aliases:
+                    continue
+        canonical = resolve_numeric_folder_canonical_id(
+            numeric_name,
+            state_code=state_code,
+            cache_type_segment=cache_segment,
+            jurisdictions=jurisdictions,
+        )
+        if not canonical or canonical == numeric_name:
+            continue
+        if numeric_name in mapping and mapping[numeric_name] != canonical:
+            ambiguous.setdefault(numeric_name, sorted({mapping[numeric_name], canonical}))
+            continue
+        mapping[numeric_name] = canonical
+
+    for legacy, options in ambiguous.items():
+        mapping.pop(legacy, None)
+    return mapping
+
+
+def _merge_policy_dir_contents(src: Path, dest: Path, *, dry_run: bool) -> None:
+    dest.mkdir(parents=True, exist_ok=True)
+    for child in src.iterdir():
+        target = dest / child.name
+        if child.is_dir():
+            if target.exists():
+                _merge_policy_dir_contents(child, target, dry_run=dry_run)
+                if not dry_run and not any(child.iterdir()):
+                    child.rmdir()
+            elif dry_run:
+                pass
+            else:
+                shutil.move(str(child), str(target))
+        elif target.exists():
+            if not dry_run and child.name == README_NAME and target.name == README_NAME:
+                child.unlink()
+            continue
+        elif dry_run:
+            pass
+        else:
+            shutil.move(str(child), str(target))
+
+
+def _patch_policy_cache_json_jurisdiction_id(
+    root: Path,
+    canonical: str,
+    *,
+    dry_run: bool,
+) -> None:
+    if not root.is_dir():
+        return
+    for path in root.rglob("*.json"):
+        if path.parent.name not in (
+            DIR_TRANSCRIPTS,
+            DIR_ANALYSIS,
+            DIR_RUNS,
+        ) and "_transcript" not in path.name:
+            continue
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            continue
+        if str(data.get("jurisdiction_id") or "") == canonical:
+            continue
+        data["jurisdiction_id"] = canonical
+        if not dry_run:
+            path.write_text(
+                json.dumps(data, indent=2, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+
+
+def migrate_policy_cache_numeric_folders(
+    cache_dir: Path,
+    *,
+    database_url: Optional[str] = None,
+    jurisdictions: Optional[Sequence[Dict[str, str]]] = None,
+    dry_run: bool = False,
+    jurisdiction_id: str = "",
+) -> Dict[str, int]:
+    """
+    Merge ``{state}/{type}/{numeric}/`` policy-cache folders into ``{place_slug}_{geoid}/``.
+
+    Handles legacy ids that dropped leading zeros (``159472`` → ``phenix_city_0159472``).
+    """
+    cache_dir = cache_dir.resolve()
+    stats: Dict[str, int] = defaultdict(int)
+    rows = list(jurisdictions) if jurisdictions is not None else load_int_jurisdictions_for_numeric_migration(
+        database_url or _database_url() or ""
+    )
+    if not rows:
+        stats["skipped_no_jurisdictions"] += 1
+        return dict(stats)
+
+    mapping = build_numeric_policy_folder_mapping(
+        cache_dir,
+        rows,
+        jurisdiction_id_filter=jurisdiction_id,
+    )
+    stats["mapped"] = len(mapping)
+
+    for legacy, canonical in sorted(mapping.items()):
+        dest_folder = jurisdiction_cache_folder_name(canonical)
+        segment = cache_type_segment(canonical)
+        dest_paths: List[Path] = []
+
+        for geo in list(cache_dir.glob("*/" + segment + "/" + legacy)):
+            if not geo.is_dir():
+                continue
+            dest_geo = geo.parent / dest_folder
+            if dest_geo.resolve() == geo.resolve():
+                stats["already_named"] += 1
+                dest_paths.append(dest_geo)
+                continue
+            if dest_geo.exists():
+                if dry_run:
+                    stats["would_merge"] += 1
+                else:
+                    _merge_policy_dir_contents(geo, dest_geo, dry_run=False)
+                    if not any(geo.iterdir()):
+                        geo.rmdir()
+                    stats["merged"] += 1
+            elif dry_run:
+                stats["would_rename"] += 1
+            else:
+                shutil.move(str(geo), str(dest_geo))
+                stats["renamed"] += 1
+            dest_paths.append(dest_geo)
+
+        for dest in dest_paths:
+            if dest.is_dir():
+                _patch_policy_cache_json_jurisdiction_id(dest, canonical, dry_run=dry_run)
+                stats["json_patched_roots"] += 1
+
     return dict(stats)

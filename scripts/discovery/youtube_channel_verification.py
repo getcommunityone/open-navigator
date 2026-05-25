@@ -1,6 +1,6 @@
 """
-Decide which discovered YouTube channels belong in ``bronze.bronze_jurisdiction_youtube``
-(canonical verified) vs ``bronze_jurisdiction_youtube_candidates`` (audit only).
+Decide which discovered YouTube channels belong in ``intermediate.int_events_channels``
+(golden verified county/municipality) vs ``int_events_channels_candidates`` (audit only).
 """
 
 from __future__ import annotations
@@ -234,7 +234,7 @@ def qualifies_for_bronze_jurisdiction_youtube(
     jurisdiction_homepage: str,
     min_confidence: float = DEFAULT_VERIFIED_MIN_OFFICIAL_CONFIDENCE,
 ) -> bool:
-    """True when a channel row should upsert into ``bronze.bronze_jurisdiction_youtube``."""
+    """True when a channel row should upsert into ``intermediate.int_events_channels``."""
     conf = float(row.get("official_meeting_confidence") or 0.0)
     method = str(row.get("discovery_method") or "").strip().lower()
     title = str(row.get("channel_title") or "").strip().lower()

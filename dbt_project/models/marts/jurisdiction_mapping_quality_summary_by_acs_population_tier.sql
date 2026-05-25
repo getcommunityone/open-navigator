@@ -54,6 +54,7 @@ SELECT
     COUNT(*) FILTER (WHERE has_wikidata_source)::BIGINT AS jurisdictions_touching_wikidata,
     COUNT(*) FILTER (WHERE has_override_source)::BIGINT AS jurisdictions_touching_override,
     {{ jurisdiction_mapping_primary_from_source_columns() }},
+    {{ jurisdiction_mapping_youtube_summary_columns() }},
     CURRENT_TIMESTAMP AS summary_generated_at
 FROM {{ ref('jurisdiction_mapping_analysis') }}
 WHERE acs_population_tier IS NOT NULL

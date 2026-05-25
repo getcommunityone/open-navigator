@@ -11,8 +11,8 @@ It is *not* the homepage deep-discovery pipeline (``jurisdiction_discovery_pipel
 This runner writes:
 
 - ``bronze.bronze_persons_scraped`` — contacts (+ profile images under ``data/cache/scraped_meetings/``)
-- ``bronze.bronze_jurisdiction_youtube_candidates`` — every probe (audit, including rejected noise)
-- ``bronze.bronze_jurisdiction_youtube`` — **verified** channels only (website-linked / high-confidence)
+- ``intermediate.int_events_channels_candidates`` — every probe (audit, including rejected noise)
+- ``intermediate.int_events_channels`` — **verified** channels only (website-linked / high-confidence)
 - ``bronze.bronze_jurisdictions_{counties,municipalities}_scraped`` — **one primary** channel URL
   + ``youtube_channel_id`` per jurisdiction (for ``load_youtube_events_to_postgres --channel-source counties-scraped``)
 - ``bronze.bronze_elections_scraped`` + c1 election tables (with ``--elections``)
@@ -212,7 +212,7 @@ DEFAULT_PRIORITY_STATES = ("AL", "GA", "IN", "MA", "WA", "WI")
 # Counties first (feeds counties-scraped for YouTube events loader); municipalities second.
 DEFAULT_INCLUDE_TYPES = ("county", "municipality")
 
-# Default bar for canonical ``bronze_jurisdiction_youtube`` (candidates table keeps everything).
+# Default bar for golden ``int_events_channels`` (candidates table keeps everything).
 MIN_CHANNEL_CONFIDENCE = float(
     os.getenv("MIN_CHANNEL_CONFIDENCE", str(DEFAULT_VERIFIED_MIN_OFFICIAL_CONFIDENCE))
 )

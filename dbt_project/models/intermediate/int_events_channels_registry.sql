@@ -1,9 +1,13 @@
 {{ config(
     materialized='table',
+    alias='int_events_channels_registry',
     tags=['intermediate', 'youtube', 'channels']
 ) }}
 
 /*
+Channel-centric registry (LocalView + homepage discovery). Golden county/municipality
+verified rows live in ``intermediate.int_events_channels`` (jurisdiction grain).
+
 Intermediate model: derived channel registry.
 
 `bronze_events_channels` is a dbt `source` table; when missing in a dev DB, create it

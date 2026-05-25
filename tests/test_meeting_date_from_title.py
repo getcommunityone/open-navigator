@@ -30,6 +30,21 @@ def test_meeting_media_basename_slash_becomes_hyphen_without_duplicate_date():
     assert base == "2024-01-11_City_of_Northport_-_Council_Meeting"
 
 
+def test_extract_two_digit_year_hyphen_from_board_title():
+    title = "Board of Commissioners Meeting 1-23-24"
+    assert extract_meeting_date_from_title(title) == "2024-01-23"
+
+
+def test_meeting_media_basename_two_digit_year_in_title():
+    title = "Board of Commissioners Meeting 1-23-24"
+    base = meeting_media_basename(title, event_date=None)
+    assert base == "2024-01-23_Board_of_Commissioners_Meeting"
+
+
+def test_extract_slash_two_digit_year():
+    assert extract_meeting_date_from_title("Council 3/5/25") == "2025-03-05"
+
+
 def test_strip_compact_legacy_suffix():
     from scripts.gemini.transcript_cache_paths import strip_meeting_date_from_title
 

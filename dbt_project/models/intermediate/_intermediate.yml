@@ -226,9 +226,9 @@ models:
         tests:
           - unique
   
-  - name: int_events_channels
+  - name: int_events_channels_registry
     description: >
-      YouTube channel registry derived from `int_events_localview` channel_ids
+      Channel-centric registry derived from `int_events_localview` channel_ids
       plus homepage-discovered channel_ids from
       `int_jurisdiction_homepage_youtube_channels`,
       enriched with `bronze_events_youtube` URLs (or canonical channel URL),
@@ -239,36 +239,16 @@ models:
       `view_count` (lifetime channel views from About scrape), and `channel_external_links`
       from `bronze_events_channels`
       when present (see `channel_about_links.py`).
-    columns:
-      - name: channel_external_links
-        description: >
-          JSON array of outbound links: About-tab featured links plus URLs parsed from
-          the channel description; from bronze.bronze_events_channels when populated.
-      - name: jurisdiction_id
-        description: >
-          Smallest `jurisdiction_id` among resolved matches (same order as
-          `jurisdiction_ids`); NULL when geography does not resolve to `int_jurisdictions`.
-      - name: state_code
-        description: >
-          Top-level two-letter state code for convenience in SQL filtering.
-          Derived from resolved jurisdiction matches (same source as `jurisdictions`).
-      - name: state
-        description: >
-          Top-level full state name for convenience in SQL filtering/grouping.
-          Derived from resolved jurisdiction matches (same source as `jurisdictions`).
-      - name: channel_url
-        description: >
-          URL from `bronze_events_youtube` when non-blank; otherwise
-          `https://www.youtube.com/channel/{channel_id}`.
-        tests:
-          - not_null
+      Golden verified county/municipality rows live in ``intermediate.int_events_channels``
+      (jurisdiction grain, migration 071; not a dbt model). Audit probes:
+      ``intermediate.int_events_channels_candidates``.
 
   - name: int_jurisdiction_homepage_youtube_channels
     description: >
       Homepage-discovered YouTube channels mapped back to canonical `int_jurisdictions`
       rows. This table keeps one best jurisdiction candidate per normalized YouTube URL
       from the scraped jurisdiction homepages and is used as a fallback in
-      `int_events_channels`.
+      `int_events_channels_registry`.
     columns:
       - name: channel_url_norm
         description: "Normalized YouTube URL used as the join key"

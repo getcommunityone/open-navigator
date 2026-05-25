@@ -1,18 +1,23 @@
+import json
 from pathlib import Path
 
 from scripts.gemini.transcript_cache_paths import (
     cache_type_segment,
     canonical_jurisdiction_root,
     find_jurisdiction_root,
+    geoid_variants_for_numeric,
     is_legacy_policy_jurisdiction_dir,
     jurisdiction_cache_folder_aliases,
     jurisdiction_cache_folder_name,
     jurisdiction_root_candidates,
     list_legacy_policy_jurisdiction_dirs,
+    list_numeric_policy_geo_dirs,
     migrate_policy_cache_channels,
     migrate_policy_cache_folder_names,
     migrate_policy_cache_geography,
+    migrate_policy_cache_numeric_folders,
     normalize_channel_segment,
+    resolve_numeric_folder_canonical_id,
 )
 
 
@@ -54,6 +59,28 @@ def test_jurisdiction_cache_folder_aliases_include_legacy_city_slug(monkeypatch)
     )
     assert "abbeville_0100124" in aliases
     assert "abbeville_city_0100124" in aliases
+
+
+def test_jurisdiction_cache_folder_name_county_seat_not_used(monkeypatch):
+    """County folders use the county slug from bronze, not the seat city ``place_name``."""
+    monkeypatch.setattr(
+        "scripts.gemini.transcript_cache_paths.lookup_canonical_jurisdiction_id_from_bronze",
+        lambda geoid, jtype, database_url=None: (
+            "henry_01067" if geoid == "01067" and jtype == "county" else ""
+        ),
+    )
+    monkeypatch.setattr(
+        "scripts.gemini.transcript_cache_paths.resolve_canonical_jurisdiction_id",
+        lambda jid: jid,
+    )
+    assert (
+        jurisdiction_cache_folder_name("abbeville_01067", place_name="Abbeville city")
+        == "henry_01067"
+    )
+    assert (
+        jurisdiction_cache_folder_name("county_01067", place_name="Abbeville city")
+        == "henry_01067"
+    )
 
 
 def test_jurisdiction_cache_folder_name(monkeypatch):
@@ -189,3 +216,96 @@ def test_jurisdiction_root_candidates_order(tmp_path: Path, monkeypatch):
         tmp_path, "municipality_0155200", state_code="AL"
     )
     assert cands[0].parent == tmp_path / "AL" / "municipality" / "northport_0155200"
+
+
+def test_geoid_variants_for_numeric():
+    assert "0159472" in geoid_variants_for_numeric("159472")
+    assert "2581005" in geoid_variants_for_numeric("2581005")
+
+
+def test_resolve_numeric_folder_canonical_id():
+    rows = [
+        {
+            "jurisdiction_id": "phenix_city_0159472",
+            "geoid": "0159472",
+            "name": "Phenix City city",
+            "jurisdiction_type": "municipality",
+            "state_code": "AL",
+        },
+        {
+            "jurisdiction_id": "winthrop_town_2581005",
+            "geoid": "2581005",
+            "name": "Winthrop Town city",
+            "jurisdiction_type": "municipality",
+            "state_code": "MA",
+        },
+    ]
+    assert (
+        resolve_numeric_folder_canonical_id(
+            "159472",
+            state_code="AL",
+            cache_type_segment="municipality",
+            jurisdictions=rows,
+        )
+        == "phenix_city_0159472"
+    )
+    assert (
+        resolve_numeric_folder_canonical_id(
+            "2581005",
+            state_code="MA",
+            cache_type_segment="municipality",
+            jurisdictions=rows,
+        )
+        == "winthrop_town_2581005"
+    )
+
+
+def test_migrate_policy_cache_numeric_folders(tmp_path: Path):
+    rows = [
+        {
+            "jurisdiction_id": "phenix_city_0159472",
+            "geoid": "0159472",
+            "name": "Phenix City city",
+            "jurisdiction_type": "municipality",
+            "state_code": "AL",
+        },
+        {
+            "jurisdiction_id": "winthrop_town_2581005",
+            "geoid": "2581005",
+            "name": "Winthrop Town city",
+            "jurisdiction_type": "municipality",
+            "state_code": "MA",
+        },
+    ]
+    orphan = tmp_path / "AL" / "municipality" / "159472" / "UCchan" / "README.md"
+    orphan.parent.mkdir(parents=True)
+    orphan.write_text("legacy", encoding="utf-8")
+
+    winthrop_src = tmp_path / "MA" / "municipality" / "2581005" / "UCw" / "01_transcripts"
+    tx = winthrop_src / "2026-05-19_Foo.json"
+    tx.parent.mkdir(parents=True)
+    tx.write_text(
+        '{"video_id":"abc12345678","title":"Foo","jurisdiction_id":"2581005"}',
+        encoding="utf-8",
+    )
+
+    stats = migrate_policy_cache_numeric_folders(
+        tmp_path,
+        jurisdictions=rows,
+        dry_run=False,
+    )
+    assert stats["renamed"] == 2
+    assert not (tmp_path / "AL" / "municipality" / "159472").exists()
+    assert (tmp_path / "MA" / "municipality" / "winthrop_town_2581005" / "UCw").is_dir()
+    merged = json.loads(
+        (
+            tmp_path
+            / "MA"
+            / "municipality"
+            / "winthrop_town_2581005"
+            / "UCw"
+            / "01_transcripts"
+            / "2026-05-19_Foo.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert merged["jurisdiction_id"] == "winthrop_town_2581005"

@@ -2,7 +2,7 @@
 """
 Load and Validate YouTube Channels
 
-This script loads channels from jurisdiction into intermediate.int_events_channels,
+This script loads channels from jurisdiction into intermediate.int_events_channels_registry,
 validates them against multiple sources, and flags junk channels.
 
 Features:
@@ -76,12 +76,12 @@ class ChannelLoader:
     
     def _create_channels_table(self):
         """
-        No-op since migration 052 dropped public.intermediate.int_events_channels.
-        The destination is now ``intermediate.int_events_channels``, which is owned by
+        No-op since migration 052 dropped public.intermediate.int_events_channels_registry.
+        The destination is now ``intermediate.int_events_channels_registry``, which is owned by
         the dbt intermediate layer (not by this script). We deliberately do NOT recreate
         the dropped table — that would regress migrations 052.
         """
-        logger.info("Skipping table creation — writes go to intermediate.int_events_channels (owned elsewhere)")
+        logger.info("Skipping table creation — writes go to intermediate.int_events_channels_registry (owned elsewhere)")
     
     def get_jurisdictions_channels(self, states_filter: Optional[List[str]] = None) -> List[Dict]:
         """Get all channels from jurisdiction."""
@@ -380,7 +380,7 @@ class ChannelLoader:
             logger.info("  Step 2: Marking channels with localview events...")
             
             cursor.execute("""
-                UPDATE intermediate.int_events_channels
+                UPDATE intermediate.int_events_channels_registry
                 SET in_localview = TRUE,
                     last_updated = CURRENT_TIMESTAMP
                 WHERE channel_id IN (
@@ -402,7 +402,7 @@ class ChannelLoader:
                 SELECT 
                     COUNT(DISTINCT c.channel_id) as total_localview_channels,
                     COUNT(DISTINCT e.event_id) as localview_events_linked
-                FROM intermediate.int_events_channels c
+                FROM intermediate.int_events_channels_registry c
                 INNER JOIN event e ON c.channel_id = e.channel_id
                 WHERE c.in_localview = TRUE
                   AND e.source = 'localview';
@@ -436,12 +436,12 @@ class ChannelLoader:
             return False
     
     def upsert_channel(self, channel_data: Dict):
-        """Insert or update channel in intermediate.int_events_channels."""
+        """Insert or update channel in intermediate.int_events_channels_registry."""
         cursor = self.conn.cursor()
         
         try:
             cursor.execute("""
-                INSERT INTO intermediate.int_events_channels (
+                INSERT INTO intermediate.int_events_channels_registry (
                     channel_id, channel_url, channel_title, channel_type,
                     subscriber_count, video_count,
                     in_localview, in_jurisdictions_details, in_wikidata,
@@ -457,23 +457,23 @@ class ChannelLoader:
                     CURRENT_TIMESTAMP
                 )
                 ON CONFLICT (channel_id) DO UPDATE SET
-                    channel_title = COALESCE(EXCLUDED.channel_title, intermediate.int_events_channels.channel_title),
-                    channel_type = COALESCE(EXCLUDED.channel_type, intermediate.int_events_channels.channel_type),
-                    subscriber_count = COALESCE(EXCLUDED.subscriber_count, intermediate.int_events_channels.subscriber_count),
-                    video_count = COALESCE(EXCLUDED.video_count, intermediate.int_events_channels.video_count),
-                    in_localview = EXCLUDED.in_localview OR intermediate.int_events_channels.in_localview,
+                    channel_title = COALESCE(EXCLUDED.channel_title, intermediate.int_events_channels_registry.channel_title),
+                    channel_type = COALESCE(EXCLUDED.channel_type, intermediate.int_events_channels_registry.channel_type),
+                    subscriber_count = COALESCE(EXCLUDED.subscriber_count, intermediate.int_events_channels_registry.subscriber_count),
+                    video_count = COALESCE(EXCLUDED.video_count, intermediate.int_events_channels_registry.video_count),
+                    in_localview = EXCLUDED.in_localview OR intermediate.int_events_channels_registry.in_localview,
                     in_jurisdictions_details = TRUE,
-                    in_wikidata = EXCLUDED.in_wikidata OR intermediate.int_events_channels.in_wikidata,
-                    confidence_score = COALESCE(EXCLUDED.confidence_score, intermediate.int_events_channels.confidence_score),
+                    in_wikidata = EXCLUDED.in_wikidata OR intermediate.int_events_channels_registry.in_wikidata,
+                    confidence_score = COALESCE(EXCLUDED.confidence_score, intermediate.int_events_channels_registry.confidence_score),
                     jurisdictions = CASE
-                        WHEN intermediate.int_events_channels.jurisdictions IS NULL THEN EXCLUDED.jurisdictions
-                        WHEN NOT intermediate.int_events_channels.jurisdictions @> EXCLUDED.jurisdictions 
-                        THEN intermediate.int_events_channels.jurisdictions || EXCLUDED.jurisdictions
-                        ELSE intermediate.int_events_channels.jurisdictions
+                        WHEN intermediate.int_events_channels_registry.jurisdictions IS NULL THEN EXCLUDED.jurisdictions
+                        WHEN NOT intermediate.int_events_channels_registry.jurisdictions @> EXCLUDED.jurisdictions 
+                        THEN intermediate.int_events_channels_registry.jurisdictions || EXCLUDED.jurisdictions
+                        ELSE intermediate.int_events_channels_registry.jurisdictions
                     END,
-                    is_government = COALESCE(EXCLUDED.is_government, intermediate.int_events_channels.is_government),
-                    flagged_as_junk = EXCLUDED.flagged_as_junk OR intermediate.int_events_channels.flagged_as_junk,
-                    flag_reason = COALESCE(EXCLUDED.flag_reason, intermediate.int_events_channels.flag_reason),
+                    is_government = COALESCE(EXCLUDED.is_government, intermediate.int_events_channels_registry.is_government),
+                    flagged_as_junk = EXCLUDED.flagged_as_junk OR intermediate.int_events_channels_registry.flagged_as_junk,
+                    flag_reason = COALESCE(EXCLUDED.flag_reason, intermediate.int_events_channels_registry.flag_reason),
                     last_updated = CURRENT_TIMESTAMP
             """, channel_data)
             
@@ -612,7 +612,7 @@ class ChannelLoader:
                 COUNT(*) FILTER (WHERE channel_type = 'county') as county,
                 COUNT(*) FILTER (WHERE channel_type = 'school') as school,
                 COUNT(*) FILTER (WHERE channel_type = 'unknown') as unknown
-            FROM intermediate.int_events_channels
+            FROM intermediate.int_events_channels_registry
         """)
         stats = cursor.fetchone()
         cursor.close()

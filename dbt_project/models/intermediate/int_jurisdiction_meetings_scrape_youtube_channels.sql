@@ -11,7 +11,7 @@
   Video / embed / live URLs are excluded — only durable channel handles.
 
   Downstream: ``sync_bronze_jurisdiction_youtube_from_meetings_scrape.py`` enriches
-  and upserts into ``bronze.bronze_jurisdiction_youtube*`` (same pattern as LocalView).
+  and upserts into ``intermediate.int_events_channels*`` (same pattern as LocalView).
 */
 
 WITH meetings_youtube AS (

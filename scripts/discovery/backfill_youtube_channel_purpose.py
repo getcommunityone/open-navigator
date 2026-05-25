@@ -49,9 +49,9 @@ def main() -> int:
 
     tables = []
     if args.table in ("verified", "both"):
-        tables.append("bronze.bronze_jurisdiction_youtube")
+        tables.append("intermediate.int_events_channels")
     if args.table in ("candidates", "both"):
-        tables.append("bronze.bronze_jurisdiction_youtube_candidates")
+        tables.append("intermediate.int_events_channels_candidates")
 
     stats = {"tagged": 0, "demoted": 0}
     conn = psycopg2.connect(dbu)
@@ -95,7 +95,7 @@ def main() -> int:
 
                     if (
                         args.demote_non_meeting
-                        and tbl == "bronze.bronze_jurisdiction_youtube"
+                        and tbl == "intermediate.int_events_channels"
                     ):
                         row_dict = dict(row)
                         row_dict["channel_purpose"] = purpose
@@ -113,7 +113,7 @@ def main() -> int:
                                 )
                             else:
                                 cur.execute(
-                                    "DELETE FROM bronze.bronze_jurisdiction_youtube WHERE id = %s",
+                                    "DELETE FROM intermediate.int_events_channels WHERE id = %s",
                                     (row["id"],),
                                 )
                             stats["demoted"] += 1

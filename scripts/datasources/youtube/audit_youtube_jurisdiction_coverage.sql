@@ -23,7 +23,7 @@ CREATE TEMP TABLE _tmp_yt_covered_jurisdiction AS
 SELECT DISTINCT x.jurisdiction_id
 FROM (
     SELECT ec.jurisdiction_id
-    FROM intermediate.int_events_channels ec
+    FROM intermediate.int_events_channels_registry ec
     WHERE ec.jurisdiction_id IS NOT NULL
       AND BTRIM(ec.jurisdiction_id) <> ''
       AND lower(BTRIM(ec.jurisdiction_id)) <> 'unknown'
@@ -31,7 +31,7 @@ FROM (
     UNION
 
     SELECT elem->>'jurisdiction_id' AS jurisdiction_id
-    FROM intermediate.int_events_channels ec,
+    FROM intermediate.int_events_channels_registry ec,
     LATERAL jsonb_array_elements(COALESCE(ec.jurisdictions, '[]'::jsonb)) AS elem
     WHERE elem ? 'jurisdiction_id'
       AND BTRIM(COALESCE(elem->>'jurisdiction_id', '')) <> ''

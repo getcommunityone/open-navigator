@@ -24,6 +24,7 @@ import {
 } from '@heroicons/react/24/outline'
 import { useLocation as useLocationContext } from '../contexts/LocationContext'
 import AddressLookup from '../components/AddressLookup'
+import HeroStateSilhouetteBadge from '../components/HeroStateSilhouetteBadge'
 
 export default function HomeModern() {
   const navigate = useNavigate()
@@ -452,6 +453,14 @@ export default function HomeModern() {
             <span className="text-sm font-medium" style={{ color: '#354F52' }}>
               The open path to everything local
             </span>
+          </div>
+
+          <div className="flex justify-center mb-4 animate-[slideUp_0.7s_ease-out_0.15s_both]">
+            <HeroStateSilhouetteBadge
+              location={location}
+              onChangeLocation={() => setSelectedTab(1)}
+              changeLocationLabel="Change your community location"
+            />
           </div>
 
           <h1 className="text-6xl md:text-7xl font-bold mb-6 animate-[slideUp_0.8s_ease-out_0.2s_both]" style={{ color: '#354F52' }}>

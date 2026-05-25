@@ -47,7 +47,8 @@ import sys
 import re
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
-from typing import List, Dict, Optional, Any, Tuple
+from pathlib import Path
+from typing import List, Dict, Optional, Any, Tuple, Union, Sequence
 from collections import Counter
 import argparse
 import json
@@ -182,6 +183,7 @@ class YouTubeEventsLoader:
         force_full_fetch: bool = False,
         transcript_delay: float = 2.0,
         use_ytdlp_fallback: bool = True,
+        transcript_source: str = "auto",
         cookies_file: Optional[str] = None,
         proxy_url: Optional[str] = None,
         ensure_schema_setup: bool = True,
@@ -189,6 +191,8 @@ class YouTubeEventsLoader:
         max_transcripts_per_channel: Optional[int] = None,
         resolve_channels_ytdlp: Optional[bool] = None,
         persist_scraped_channel_ids: bool = True,
+        write_policy_cache: bool = True,
+        policy_cache_dir: Optional[Union[str, Path]] = None,
     ):
         # Sanitize database URL to fix common connection issues (Neon channel_binding)
         self.database_url = self._sanitize_database_url(database_url)
@@ -199,9 +203,15 @@ class YouTubeEventsLoader:
         self.fetch_transcripts = fetch_transcripts
         self.force_full_fetch = force_full_fetch
         self.transcript_delay = transcript_delay  # Delay between transcript fetches (seconds)
-        self.use_ytdlp_fallback = use_ytdlp_fallback  # Whether to fall back to yt-dlp when youtube_transcript_api fails
-        self.cookies_file = cookies_file  # Path to cookies.txt file for authenticated requests
+        self.transcript_source = (transcript_source or "auto").strip().lower()
+        if self.transcript_source == "api-only":
+            use_ytdlp_fallback = False
+        elif self.transcript_source == "ytdlp-only":
+            use_ytdlp_fallback = True
+        self.use_ytdlp_fallback = use_ytdlp_fallback
+        self.cookies_file = cookies_file
         self.proxy_url = proxy_url  # Proxy URL to bypass IP blocks
+        self._last_ytdlp_transcript_error: Optional[str] = None
         self.transcript_workers = max(1, int(transcript_workers or 1))
         self.max_transcripts_per_channel = (
             max(0, int(max_transcripts_per_channel))
@@ -218,6 +228,15 @@ class YouTubeEventsLoader:
         self._youtube_api_quota_exceeded = False
         self.persist_scraped_channel_ids = bool(persist_scraped_channel_ids)
         self._scraped_channel_id_columns_ready: set[str] = set()
+        self.write_policy_cache = bool(write_policy_cache)
+        if policy_cache_dir is not None:
+            self.policy_cache_dir = Path(policy_cache_dir)
+        else:
+            from scripts.datasources.youtube.policy_transcript_cache import (
+                DEFAULT_POLICY_CACHE_DIR,
+            )
+
+            self.policy_cache_dir = DEFAULT_POLICY_CACHE_DIR
 
         # Initialize YouTube scraper with cookies/proxy support
         self.scraper = MunicipalYouTubeScraper(
@@ -1183,7 +1202,8 @@ class YouTubeEventsLoader:
 
         ``channel_source=counties-scraped``: ``bronze.bronze_jurisdictions_counties_scraped``.
         ``channel_source=municipalities-scraped``: ``bronze.bronze_jurisdictions_municipalities_scraped``.
-        Otherwise: ``intermediate.int_events_channels``, then ``bronze.bronze_events_youtube``.
+        Otherwise: golden ``intermediate.int_events_channels``, then ``int_events_channels_registry``,
+        then ``bronze.bronze_events_youtube``.
         """
         if channel_source == "counties-scraped":
             return self.get_jurisdictions_from_counties_scraped(
@@ -1197,7 +1217,7 @@ class YouTubeEventsLoader:
         cursor = self.conn.cursor(cursor_factory=RealDictCursor)
         
         try:
-            # Preferred source for full reruns: channel registry resolved by dbt.
+            # Preferred source: golden verified county/municipality channels.
             query_int = """
                 SELECT
                     j.jurisdiction_id,
@@ -1207,22 +1227,20 @@ class YouTubeEventsLoader:
                     j.jurisdiction_type,
                     jsonb_agg(
                         DISTINCT jsonb_build_object(
-                            'channel_id', ec.channel_id,
-                            'channel_url', COALESCE(NULLIF(BTRIM(ec.channel_url), ''), 'https://www.youtube.com/channel/' || ec.channel_id),
+                            'channel_id', ec.youtube_channel_id,
+                            'channel_url', ec.youtube_channel_url,
                             'channel_title', COALESCE(NULLIF(BTRIM(ec.channel_title), ''), j.name),
-                            'channel_type', COALESCE(NULLIF(BTRIM(ec.channel_type), ''), 'unknown')
+                            'channel_type', 'unknown'
                         )
                     ) AS youtube_channels,
-                    COUNT(DISTINCT ec.channel_id) AS youtube_channel_count
+                    COUNT(DISTINCT ec.youtube_channel_id) AS youtube_channel_count
                 FROM intermediate.int_events_channels ec
                 INNER JOIN intermediate.int_jurisdictions j
                     ON j.jurisdiction_id = ec.jurisdiction_id
-                WHERE ec.channel_id IS NOT NULL
-                  AND BTRIM(ec.channel_id) <> ''
-                  AND ec.jurisdiction_id IS NOT NULL
-                  AND BTRIM(ec.jurisdiction_id::text) <> ''
-                  AND COALESCE(ec.flagged_as_junk, FALSE) = FALSE
-                  AND COALESCE(ec.is_government, TRUE) = TRUE
+                WHERE ec.youtube_channel_id IS NOT NULL
+                  AND BTRIM(ec.youtube_channel_id) <> ''
+                  AND ec.jurisdiction_type IN ('county', 'municipality')
+                  AND COALESCE(ec.official_meeting_confidence, 0) >= 0.55
             """
 
             params_int: list[Any] = []
@@ -1235,7 +1253,7 @@ class YouTubeEventsLoader:
 
             query_int += """
                 GROUP BY j.jurisdiction_id, j.name, j.state_code, j.state, j.jurisdiction_type
-                HAVING COUNT(DISTINCT ec.channel_id) > 0
+                HAVING COUNT(DISTINCT ec.youtube_channel_id) > 0
                 ORDER BY youtube_channel_count DESC, jurisdiction_name
             """
 
@@ -1572,13 +1590,92 @@ class YouTubeEventsLoader:
                 "SIGN IN TO CONFIRM",
                 "429",
                 "TOO MANY REQUESTS",
+                "TOO MANY 429",
                 "RESOURCE_EXHAUSTED",
             )
         )
 
     @staticmethod
+    def _youtube_watch_url(video_id: str) -> str:
+        vid = (video_id or "").strip()
+        return f"https://www.youtube.com/watch?v={vid}" if vid else ""
+
+    def _log_transcript_failure(
+        self,
+        video_id: str,
+        *,
+        caption_exc: Optional[BaseException] = None,
+        ytdlp_detail: Optional[str] = None,
+        context: str = "",
+    ) -> None:
+        from scripts.datasources.youtube.transcript_api_client import (
+            format_transcript_error,
+            transcript_failure_hint,
+        )
+
+        parts: list[str] = []
+        if caption_exc is not None:
+            parts.append(f"caption API: {format_transcript_error(caption_exc)}")
+        if ytdlp_detail:
+            parts.append(ytdlp_detail)
+        detail = " | ".join(parts) if parts else "(unknown)"
+        suffix = f" ({context})" if context else ""
+        logger.warning(
+            "    No transcript for {}{} — {}",
+            self._youtube_video_log_label(video_id),
+            suffix,
+            detail,
+        )
+        hint = transcript_failure_hint(detail)
+        if hint:
+            logger.warning("    Hint ({}): {}", video_id, hint)
+
+    @classmethod
+    def _youtube_video_log_label(cls, video_id: str) -> str:
+        """``video_id`` plus full watch URL for log lines."""
+        vid = (video_id or "").strip()
+        if not vid:
+            return "(no video_id)"
+        return f"{vid} — {cls._youtube_watch_url(vid)}"
+
+    @staticmethod
     def _raise_rate_limited(video_id: str, reason: str) -> None:
-        raise Exception(f"RATE_LIMITED: {reason} (video_id={video_id})")
+        url = YouTubeEventsLoader._youtube_watch_url(video_id)
+        raise Exception(f"RATE_LIMITED: {reason} (video_id={video_id}, url={url})")
+
+    @staticmethod
+    def _rate_limit_detail(exc: BaseException) -> str:
+        """Human-readable detail from ``_raise_rate_limited`` or similar errors."""
+        msg = str(exc).strip()
+        if "RATE_LIMITED:" in msg:
+            msg = msg.split("RATE_LIMITED:", 1)[1].strip()
+        if "(video_id=" in msg:
+            msg = msg.rsplit("(video_id=", 1)[0].strip()
+        if ", url=" in msg:
+            msg = msg.rsplit(", url=", 1)[0].strip()
+        return msg[:300] if msg else type(exc).__name__
+
+    def _transcript_ytdlp_fallback(
+        self,
+        video_id: str,
+        *,
+        reason: str,
+    ) -> Optional[Dict[str, Any]]:
+        """Try yt-dlp subtitles when the caption API is blocked or throttled."""
+        if not self.use_ytdlp_fallback:
+            self._raise_rate_limited(video_id, reason)
+        logger.warning(
+            "    ⚠️ {} for {} — trying yt-dlp subtitles (no YouTube Data API quota)",
+            reason,
+            self._youtube_video_log_label(video_id),
+        )
+        ytdlp_result = self.fetch_transcript_ytdlp(video_id)
+        if ytdlp_result is None:
+            self._raise_rate_limited(
+                video_id,
+                f"{reason}; yt-dlp subtitles also failed",
+            )
+        return ytdlp_result
 
     @staticmethod
     def _is_unavailable_format_error(message: str) -> bool:
@@ -1608,6 +1705,7 @@ class YouTubeEventsLoader:
         *,
         use_cookies: bool,
         relaxed: bool = False,
+        proxy_override: Optional[str] = None,
     ) -> Dict[str, Any]:
         """yt-dlp options for subtitle-only extraction (no video download)."""
         from scripts.datasources.youtube.download_audio_to_drive import _yt_dlp_youtube_ejs_opts
@@ -1642,12 +1740,58 @@ class YouTubeEventsLoader:
             cookie_path = Path(self.cookies_file)
             if cookie_path.is_file():
                 opts["cookiefile"] = str(cookie_path.resolve())
-        if self.proxy_url:
-            opts["proxy"] = self.proxy_url
+        proxy = proxy_override if proxy_override is not None else self.proxy_url
+        if proxy:
+            opts["proxy"] = proxy
         return opts
+
+    @staticmethod
+    def _is_proxy_connection_error(exc: BaseException) -> bool:
+        name = type(exc).__name__
+        if name in ("ProxyError", "ConnectionError", "ConnectTimeout"):
+            return True
+        msg = str(exc).lower()
+        return "proxyerror" in msg or "max retries exceeded" in msg and "proxy" in msg
+
+    def _ytdlp_extract_info_with_proxy_fallback(
+        self,
+        url: str,
+        *,
+        use_cookies: bool,
+        relaxed: bool = False,
+    ) -> Any:
+        """Run yt-dlp extract_info; on proxy failure retry once without proxy."""
+        proxy_attempts: list[Optional[str]] = [self.proxy_url]
+        if self.proxy_url:
+            proxy_attempts.append(None)
+        last_err: Optional[Exception] = None
+        for proxy in proxy_attempts:
+            opts = self._ytdlp_transcript_opts(
+                use_cookies=use_cookies,
+                relaxed=relaxed,
+                proxy_override=proxy,
+            )
+            try:
+                with yt_dlp.YoutubeDL(opts) as ydl:
+                    return ydl.extract_info(url, download=False)
+            except Exception as exc:
+                last_err = exc
+                if proxy and self._is_proxy_connection_error(exc):
+                    logger.warning(
+                        "    yt-dlp ProxyError via proxy — retrying {} without proxy",
+                        self._youtube_video_log_label(url.split("v=")[-1].split("&")[0]),
+                    )
+                    continue
+                raise
+        if last_err:
+            raise last_err
+        raise RuntimeError("yt-dlp extract_info failed with no error")
 
     def fetch_transcript_ytdlp(self, video_id: str) -> Optional[Dict[str, Any]]:
         """Fetch transcript using yt-dlp as fallback."""
+        from scripts.datasources.youtube.transcript_api_client import format_transcript_error
+
+        self._last_ytdlp_transcript_error = None
         try:
             url = f'https://www.youtube.com/watch?v={video_id}'
             info = None
@@ -1657,10 +1801,9 @@ class YouTubeEventsLoader:
             attempts = (False, True) if self.cookies_file else (False,)
             for use_cookies in attempts:
                 try:
-                    with yt_dlp.YoutubeDL(
-                        self._ytdlp_transcript_opts(use_cookies=use_cookies)
-                    ) as ydl:
-                        info = ydl.extract_info(url, download=False)
+                    info = self._ytdlp_extract_info_with_proxy_fallback(
+                        url, use_cookies=use_cookies
+                    )
                     break
                 except Exception as exc:
                     last_err = exc
@@ -1669,13 +1812,9 @@ class YouTubeEventsLoader:
                     # "Requested format is not available". Retry with relaxed opts.
                     if self._is_unavailable_format_error(err):
                         try:
-                            with yt_dlp.YoutubeDL(
-                                self._ytdlp_transcript_opts(
-                                    use_cookies=use_cookies,
-                                    relaxed=True,
-                                )
-                            ) as ydl:
-                                info = ydl.extract_info(url, download=False)
+                            info = self._ytdlp_extract_info_with_proxy_fallback(
+                                url, use_cookies=use_cookies, relaxed=True
+                            )
                             break
                         except Exception as exc_relaxed:
                             last_err = exc_relaxed
@@ -1723,6 +1862,9 @@ class YouTubeEventsLoader:
                     is_auto = True
 
             if not transcript_data:
+                self._last_ytdlp_transcript_error = (
+                    "yt-dlp: metadata had no manual or auto captions"
+                )
                 return None
 
             subtitle_url = None
@@ -1735,6 +1877,9 @@ class YouTubeEventsLoader:
                 subtitle_url = transcript_data[0].get('url')
 
             if not subtitle_url:
+                self._last_ytdlp_transcript_error = (
+                    "yt-dlp: caption list had no vtt/srv3/json3 URL"
+                )
                 return None
 
             import re
@@ -1798,6 +1943,7 @@ class YouTubeEventsLoader:
             raw_text = ' '.join([seg['text'] for seg in segments])
 
             if not raw_text:
+                self._last_ytdlp_transcript_error = "yt-dlp: subtitle file was empty"
                 return None
 
             return {
@@ -1810,11 +1956,19 @@ class YouTubeEventsLoader:
             }
 
         except Exception as e:
-            error_msg = str(e)
-            if self._youtube_block_signal(error_msg):
-                logger.warning(f"    ⚠️ yt-dlp blocked/rate-limited for {video_id}")
-                self._raise_rate_limited(video_id, error_msg[:200])
-            logger.debug(f"    yt-dlp transcript error for {video_id}: {error_msg[:200]}")
+            error_msg = format_transcript_error(e)
+            self._last_ytdlp_transcript_error = f"yt-dlp: {error_msg}"
+            if self._youtube_block_signal(str(e)):
+                logger.warning(
+                    "    ⚠️ yt-dlp blocked/rate-limited for {}",
+                    self._youtube_video_log_label(video_id),
+                )
+                self._raise_rate_limited(video_id, error_msg[:500])
+            logger.debug(
+                "    yt-dlp transcript error for {}: {}",
+                self._youtube_video_log_label(video_id),
+                error_msg,
+            )
             return None
     
     def fetch_transcript(self, video_id: str) -> Optional[Dict[str, Any]]:
@@ -1825,130 +1979,99 @@ class YouTubeEventsLoader:
             return self._fetch_transcript_unlocked(video_id)
 
     def _fetch_transcript_unlocked(self, video_id: str) -> Optional[Dict[str, Any]]:
-        # Try youtube_transcript_api first (faster and cleaner)
+        if self.transcript_source == "ytdlp-only":
+            if not self.use_ytdlp_fallback:
+                logger.warning(
+                    "    transcript-source=ytdlp-only but yt-dlp fallback disabled; skipping {}",
+                    self._youtube_video_log_label(video_id),
+                )
+                return None
+            result = self.fetch_transcript_ytdlp(video_id)
+            if result is None:
+                self._log_transcript_failure(
+                    video_id,
+                    ytdlp_detail=self._last_ytdlp_transcript_error,
+                    context="yt-dlp only",
+                )
+            return result
+
         try:
             from scripts.datasources.youtube.transcript_api_client import (
-                build_youtube_transcript_api,
+                fetch_transcript_from_api,
+                resolve_cookies_path,
             )
 
-            api = build_youtube_transcript_api(self.proxy_url)
-            
-            # Try to get English transcript first
-            try:
-                fetched_transcript = api.fetch(video_id, languages=['en'])
-                language = 'en'
-                is_auto = fetched_transcript.is_generated
-            except NoTranscriptFound:
-                # Try any available language
-                try:
-                    transcript_list = api.list(video_id)
-                    # Get first available transcript
-                    available = list(transcript_list)
-                    if not available:
-                        raise NoTranscriptFound(video_id)
-                    first_transcript = available[0]
-                    fetched_transcript = first_transcript.fetch()
-                    language = first_transcript.language_code
-                    is_auto = first_transcript.is_generated
-                except:
-                    raise NoTranscriptFound(video_id)
-            
-            # Extract both raw text and structured segments with timing
-            raw_text = ' '.join([snippet.text for snippet in fetched_transcript.snippets])
-            
-            # Preserve timing data in structured format
-            segments = [
-                {
-                    'text': snippet.text,
-                    'start': snippet.start,
-                    'duration': snippet.duration
-                }
-                for snippet in fetched_transcript.snippets
-            ]
-            
-            return {
-                'video_id': video_id,
-                'raw_text': raw_text,
-                'segments': segments,
-                'language': language,
-                'is_auto_generated': is_auto,
-                'transcript_source': 'youtube_api'
-            }
-            
+            cookies_path = resolve_cookies_path(self.cookies_file)
+            # Captions: Webshare via PROXY_* env in build_proxy_config (not yt-dlp proxy URL).
+            return fetch_transcript_from_api(
+                video_id,
+                proxy_url=None,
+                cookies_file=cookies_path,
+            )
         except TranscriptsDisabled:
             if self.use_ytdlp_fallback:
                 logger.debug(
-                    f"    Caption API reports disabled for {video_id} — trying yt-dlp"
+                    "    Caption API reports disabled for {} — trying yt-dlp",
+                    self._youtube_video_log_label(video_id),
                 )
                 result = self.fetch_transcript_ytdlp(video_id)
                 if result:
                     return result
-            logger.warning(f"    Captions disabled by uploader for {video_id}")
+            logger.warning(
+                "    Captions disabled by uploader for {}",
+                self._youtube_video_log_label(video_id),
+            )
             return None
         except VideoUnavailable:
-            logger.warning(f"    Video unavailable (private/deleted) for {video_id}")
+            logger.warning(
+                "    Video unavailable (private/deleted) for {}",
+                self._youtube_video_log_label(video_id),
+            )
             return None
         except IpBlocked:
-            if _parallel_transcript_mode():
-                self._raise_rate_limited(
-                    video_id,
-                    "IP blocked on caption API (parallel load: skip yt-dlp retry)",
-                )
-            if self.use_ytdlp_fallback:
-                logger.warning(
-                    f"    ⚠️ IP blocked on transcript API for {video_id} — trying yt-dlp fallback"
-                )
-                ytdlp_result = self.fetch_transcript_ytdlp(video_id)
-                if ytdlp_result is None:
-                    self._raise_rate_limited(
-                        video_id,
-                        "IP blocked on caption API and yt-dlp fallback returned no transcript",
-                    )
-                return ytdlp_result
-            self._raise_rate_limited(video_id, "IP blocked by YouTube (caption API)")
+            return self._transcript_ytdlp_fallback(
+                video_id,
+                reason="IP blocked on youtube-transcript-api (caption endpoint)",
+            )
         except (NoTranscriptFound, Exception) as e:
             if type(e).__name__ in ("RequestBlocked", "IpBlocked"):
-                if _parallel_transcript_mode():
-                    self._raise_rate_limited(
+                try:
+                    return self._transcript_ytdlp_fallback(
                         video_id,
-                        f"Request blocked on caption API ({type(e).__name__})",
+                        reason=f"Request blocked on caption API ({type(e).__name__})",
                     )
-                if self.use_ytdlp_fallback:
-                    logger.warning(
-                        f"    ⚠️ Request blocked for {video_id} — trying yt-dlp fallback"
-                    )
-                    try:
-                        ytdlp_result = self.fetch_transcript_ytdlp(video_id)
-                    except Exception as ytdlp_exc:
-                        if self._youtube_block_signal(str(ytdlp_exc)):
-                            self._raise_rate_limited(video_id, str(ytdlp_exc)[:200])
-                        raise
-                    if ytdlp_result is None:
-                        self._raise_rate_limited(
-                            video_id,
-                            "Request blocked on caption API and yt-dlp fallback failed",
-                        )
-                    return ytdlp_result
-                self._raise_rate_limited(video_id, str(e)[:200])
+                except Exception as ytdlp_exc:
+                    if self._youtube_block_signal(str(ytdlp_exc)):
+                        self._raise_rate_limited(video_id, str(ytdlp_exc)[:200])
+                    raise
             # Fall back to yt-dlp ONLY if enabled and not rate limited
             error_msg = str(e)
             # Check for rate limiting
-            if '429' in error_msg or 'Too Many Requests' in error_msg:
-                logger.warning(f"    ⚠️ Rate limited (YouTube API) for {video_id}")
-                # Signal rate limit to caller
-                raise Exception(f"RATE_LIMITED: {error_msg}")
+            if self._youtube_block_signal(error_msg):
+                self._raise_rate_limited(
+                    video_id,
+                    f"Caption API rate limited: {error_msg[:300]}",
+                )
             elif self.use_ytdlp_fallback:
-                logger.debug(f"    youtube_transcript_api failed for {video_id}, trying yt-dlp fallback...")
+                logger.debug(
+                    "    youtube_transcript_api failed for {} ({}), trying yt-dlp fallback...",
+                    self._youtube_video_log_label(video_id),
+                    type(e).__name__,
+                )
                 result = self.fetch_transcript_ytdlp(video_id)
                 if result is None:
-                    logger.warning(
-                        f"    No transcript for {video_id} after API + yt-dlp "
-                        f"({type(e).__name__}: {error_msg[:120]})"
+                    self._log_transcript_failure(
+                        video_id,
+                        caption_exc=e,
+                        ytdlp_detail=self._last_ytdlp_transcript_error,
+                        context="caption API + yt-dlp fallback",
                     )
                 return result
             else:
-                logger.warning(
-                    f"    No transcript for {video_id} ({type(e).__name__}: {error_msg[:120]})"
+                self._log_transcript_failure(
+                    video_id,
+                    caption_exc=e,
+                    context="caption API only",
                 )
                 return None
     
@@ -2013,19 +2136,44 @@ class YouTubeEventsLoader:
             # Fetch and insert transcripts if enabled
             if self.fetch_transcripts and event_ids:
                 jurisdiction_id = (events[0].get("jurisdiction_id") or "").strip() if events else ""
+                first = events[0] if events else {}
+                state_code = (first.get("state_code") or "").strip() or None
+                jurisdiction_type = (first.get("jurisdiction_type") or "").strip() or None
+                channel_ids = self._channel_ids_from_events(events)
+                primary_channel = channel_ids[0] if channel_ids else None
+                channel_note = ""
+                if len(channel_ids) > 1:
+                    channel_note = (
+                        f" (primary channel {primary_channel}; "
+                        f"{len(channel_ids)} channels this batch)"
+                    )
                 cap_note = (
-                    f", max {self.max_transcripts_per_channel} transcript(s) per channel"
+                    f", max {self.max_transcripts_per_channel} per channel"
                     if self.max_transcripts_per_channel
                     else ""
                 )
                 logger.info(
-                    f"  📝 Fetching transcripts for {len(event_ids)} video(s)"
-                    f" (delay: {self.transcript_delay}s each{cap_note})..."
+                    "  📝 Fetching transcripts for {} video(s) "
+                    "(delay: {}s each{})…",
+                    len(event_ids),
+                    self.transcript_delay,
+                    cap_note,
+                )
+                self._log_policy_transcripts_folder(
+                    jurisdiction_id=jurisdiction_id or None,
+                    state_code=state_code,
+                    jurisdiction_type=jurisdiction_type,
+                    channel_id=primary_channel,
+                    channel_note=channel_note,
                 )
                 transcripts_inserted = self.insert_transcripts(
-                    event_ids, jurisdiction_id=jurisdiction_id or None
+                    event_ids,
+                    jurisdiction_id=jurisdiction_id or None,
+                    state_code=state_code,
+                    jurisdiction_type=jurisdiction_type,
+                    channel_id=primary_channel,
                 )
-                logger.info(f"  ✓ Inserted {transcripts_inserted} transcripts")
+                logger.info("  ✓ Inserted {} transcripts", transcripts_inserted)
             elif not self.fetch_transcripts and event_ids:
                 logger.info(f"  ⏭️  Skipped fetching transcripts for {len(event_ids)} videos (use --skip-transcripts=false to enable)")
             
@@ -2063,11 +2211,102 @@ class YouTubeEventsLoader:
             cursor.close()
         return {vid: eid for vid, eid in event_ids.items() if vid in keep}
 
+    def _channel_ids_from_events(self, events: List[Dict[str, Any]]) -> List[str]:
+        return sorted(
+            {
+                str(e.get("channel_id") or "").strip()
+                for e in events
+                if (e.get("channel_id") or "").strip()
+            }
+        )
+
+    def _policy_transcripts_dir(
+        self,
+        *,
+        jurisdiction_id: Optional[str],
+        state_code: Optional[str] = None,
+        jurisdiction_type: Optional[str] = None,
+        channel_id: Optional[str] = None,
+    ) -> Optional[Path]:
+        if not self.write_policy_cache or not (jurisdiction_id or "").strip():
+            return None
+        from scripts.datasources.youtube.policy_transcript_cache import (
+            resolve_policy_transcripts_dir,
+        )
+
+        return resolve_policy_transcripts_dir(
+            self.policy_cache_dir,
+            jurisdiction_id.strip(),
+            state_code=state_code,
+            jurisdiction_type=jurisdiction_type,
+            channel_id=channel_id,
+        )
+
+    def _log_policy_transcripts_folder(
+        self,
+        *,
+        jurisdiction_id: Optional[str],
+        state_code: Optional[str] = None,
+        jurisdiction_type: Optional[str] = None,
+        channel_id: Optional[str] = None,
+        channel_note: str = "",
+    ) -> Optional[Path]:
+        folder = self._policy_transcripts_dir(
+            jurisdiction_id=jurisdiction_id,
+            state_code=state_code,
+            jurisdiction_type=jurisdiction_type,
+            channel_id=channel_id,
+        )
+        if folder is None:
+            return None
+        logger.info(
+            "  📁 Policy transcripts → {}{}",
+            folder,
+            channel_note,
+        )
+        logger.info("  🔗 file://{}", folder.as_posix())
+        return folder
+
+    def _fetch_transcript_event_rows(
+        self,
+        video_ids: Sequence[str],
+    ) -> Dict[str, Dict[str, Any]]:
+        """Bronze metadata for policy cache paths (title, dates, channel)."""
+        ids = [v.strip() for v in video_ids if (v or "").strip()]
+        if not ids:
+            return {}
+        cursor = self.conn.cursor()
+        try:
+            cursor.execute(
+                """
+                SELECT video_id, title, event_date, published_at, channel_id, channel_url,
+                       jurisdiction_id, state_code, jurisdiction_type
+                FROM bronze.bronze_events_youtube
+                WHERE video_id = ANY(%s)
+                """,
+                (ids,),
+            )
+            cols = [d[0] for d in cursor.description]
+            out: Dict[str, Dict[str, Any]] = {}
+            for row in cursor.fetchall():
+                rec = dict(zip(cols, row))
+                vid = str(rec.get("video_id") or "").strip()
+                if not vid:
+                    continue
+                rec["video_url"] = f"https://www.youtube.com/watch?v={vid}"
+                out[vid] = rec
+            return out
+        finally:
+            cursor.close()
+
     def insert_transcripts(
         self,
         event_ids: Dict[str, int],
         *,
         jurisdiction_id: Optional[str] = None,
+        state_code: Optional[str] = None,
+        jurisdiction_type: Optional[str] = None,
+        channel_id: Optional[str] = None,
     ) -> int:
         """Fetch and insert transcripts for events with exponential backoff on rate limits."""
         import time
@@ -2077,12 +2316,37 @@ class YouTubeEventsLoader:
             event_ids = self._limit_transcript_video_ids(
                 event_ids, self.max_transcripts_per_channel
             )
-            logger.info(
-                "  Transcript cap: {} of {} video(s) (--max-transcripts-per-channel {})",
-                len(event_ids),
-                before,
-                self.max_transcripts_per_channel,
+            cap_channel = channel_id
+            if jurisdiction_id and not cap_channel and event_ids:
+                rows = self._fetch_transcript_event_rows(list(event_ids.keys()))
+                for row in rows.values():
+                    cid = str(row.get("channel_id") or "").strip()
+                    if cid:
+                        cap_channel = cid
+                        break
+            folder = self._policy_transcripts_dir(
+                jurisdiction_id=jurisdiction_id,
+                state_code=state_code,
+                jurisdiction_type=jurisdiction_type,
+                channel_id=cap_channel,
             )
+            if folder is not None:
+                logger.info(
+                    "  Transcript cap: {} of {} video(s) (--max-transcripts-per-channel {}) "
+                    "→ {}",
+                    len(event_ids),
+                    before,
+                    self.max_transcripts_per_channel,
+                    folder,
+                )
+                logger.info("  🔗 file://{}", folder.as_posix())
+            else:
+                logger.info(
+                    "  Transcript cap: {} of {} video(s) (--max-transcripts-per-channel {})",
+                    len(event_ids),
+                    before,
+                    self.max_transcripts_per_channel,
+                )
 
         if jurisdiction_id and len(event_ids) > 1:
             from scripts.datasources.youtube.dedupe_meeting_videos import (
@@ -2128,19 +2392,46 @@ class YouTubeEventsLoader:
         
         try:
             items = list(event_ids.items())
+            event_rows: Dict[str, Dict[str, Any]] = {}
+            if self.write_policy_cache and jurisdiction_id:
+                event_rows = self._fetch_transcript_event_rows(list(event_ids.keys()))
 
-            def _fetch_transcript_safe(video_id: str) -> Tuple[str, Optional[Dict[str, Any]], Optional[str]]:
+            def _fetch_transcript_safe(
+                video_id: str,
+            ) -> Tuple[str, Optional[Dict[str, Any]], Optional[str]]:
                 try:
                     return video_id, self.fetch_transcript(video_id), None
                 except Exception as exc:
                     if "RATE_LIMITED" in str(exc):
-                        return video_id, None, "RATE_LIMITED"
-                    logger.debug(f"  Error fetching transcript for {video_id}: {exc}")
+                        return video_id, None, self._rate_limit_detail(exc)
+                    logger.warning(
+                        "  Transcript fetch failed for {}: {}",
+                        self._youtube_video_log_label(video_id),
+                        exc,
+                    )
                     return video_id, None, None
+
+            def _log_rate_limited(video_id: str, detail: str) -> None:
+                nonlocal rate_limit_count, consecutive_rate_limits
+                rate_limit_count += 1
+                consecutive_rate_limits += 1
+                logger.warning(
+                    "  ⚠️  Caption throttled for {} — {} (#{} total, {} consecutive). "
+                    "Tips: --transcript-source api-only --cookies youtube_cookies.txt, "
+                    "--workers 1, higher --transcript-delay, or "
+                    "--skip-transcripts then backfill_jurisdiction_transcripts.py",
+                    self._youtube_video_log_label(video_id),
+                    detail,
+                    rate_limit_count,
+                    consecutive_rate_limits,
+                )
 
             def _persist_transcript(video_id: str, event_id: int, transcript_data: Dict[str, Any]) -> None:
                 nonlocal inserted
                 transcript_data = dict(transcript_data)
+                caption_raw_data = transcript_data.pop("caption_raw_data", None)
+                transcript_data.pop("caption_preserve_formatting", None)
+                transcript_data.pop("caption_formatted", None)
                 transcript_data["event_id"] = event_id
                 if transcript_data.get("segments"):
                     transcript_data["segments"] = json.dumps(transcript_data["segments"])
@@ -2154,6 +2445,57 @@ class YouTubeEventsLoader:
                 inserted += 1
                 if inserted % 10 == 0:
                     self.conn.commit()
+                if (
+                    self.write_policy_cache
+                    and jurisdiction_id
+                    and (transcript_data.get("raw_text") or "").strip()
+                ):
+                    from scripts.datasources.youtube.policy_transcript_cache import (
+                        write_policy_transcript_cache,
+                    )
+
+                    row = dict(event_rows.get(video_id) or {})
+                    row.setdefault("video_id", video_id)
+                    row.setdefault("jurisdiction_id", jurisdiction_id)
+                    if state_code:
+                        row.setdefault("state_code", state_code)
+                    if jurisdiction_type:
+                        row.setdefault("jurisdiction_type", jurisdiction_type)
+                    youtube_block = {
+                        k: transcript_data.get(k)
+                        for k in (
+                            "video_id",
+                            "raw_text",
+                            "language",
+                            "is_auto_generated",
+                            "transcript_source",
+                        )
+                        if k in transcript_data
+                    }
+                    segs = transcript_data.get("segments")
+                    if isinstance(segs, str):
+                        try:
+                            segs = json.loads(segs)
+                        except json.JSONDecodeError:
+                            segs = None
+                    youtube_block["segments"] = segs
+                    try:
+                        write_policy_transcript_cache(
+                            self.policy_cache_dir,
+                            jurisdiction_id=jurisdiction_id,
+                            state_code=state_code or str(row.get("state_code") or ""),
+                            row=row,
+                            yt=youtube_block,
+                            caption_raw_data=caption_raw_data,
+                            jurisdiction_type=jurisdiction_type
+                            or row.get("jurisdiction_type"),
+                        )
+                    except Exception as cache_exc:
+                        logger.warning(
+                            "  Policy cache write failed for {}: {}",
+                            self._youtube_video_log_label(video_id),
+                            cache_exc,
+                        )
 
             if self.transcript_workers > 1 and len(items) > 1:
                 batch_size = self.transcript_workers
@@ -2175,12 +2517,8 @@ class YouTubeEventsLoader:
                         )
                         results = [_fetch_transcript_safe(pair[0]) for pair in batch]
                     for (video_id, event_id), (vid, transcript_data, err) in zip(batch, results):
-                        if err == "RATE_LIMITED":
-                            rate_limit_count += 1
-                            consecutive_rate_limits += 1
-                            logger.warning(
-                                f"  ⚠️  Rate limited! ({rate_limit_count} total, {consecutive_rate_limits} consecutive)"
-                            )
+                        if err:
+                            _log_rate_limited(vid, err)
                             if consecutive_rate_limits >= 5:
                                 logger.error(
                                     f"  ❌ Too many consecutive rate limits ({consecutive_rate_limits}), stopping transcript fetching"
@@ -2205,12 +2543,8 @@ class YouTubeEventsLoader:
                     time.sleep(base_delay)
 
                 _, transcript_data, err = _fetch_transcript_safe(video_id)
-                if err == "RATE_LIMITED":
-                    rate_limit_count += 1
-                    consecutive_rate_limits += 1
-                    logger.warning(
-                        f"  ⚠️  Rate limited! ({rate_limit_count} total, {consecutive_rate_limits} consecutive)"
-                    )
+                if err:
+                    _log_rate_limited(video_id, err)
                     if consecutive_rate_limits >= 5:
                         logger.error(
                             f"  ❌ Too many consecutive rate limits ({consecutive_rate_limits}), stopping transcript fetching"
@@ -2454,6 +2788,50 @@ class YouTubeEventsLoader:
         
         if self.fetch_transcripts:
             logger.info(f"Fetch transcripts: YES (delay: {self.transcript_delay}s between fetches)")
+            from scripts.datasources.youtube.transcript_api_client import (
+                resolve_webshare_filter_ip_locations,
+                resolve_webshare_proxy_credentials,
+            )
+
+            ws_user, _ = resolve_webshare_proxy_credentials()
+            if ws_user:
+                ws_locations = resolve_webshare_filter_ip_locations()
+                if ws_locations:
+                    logger.info(
+                        "Caption proxy: Webshare residential, rotate pool: {}",
+                        ", ".join(ws_locations),
+                    )
+                else:
+                    logger.info(
+                        "Caption proxy: Webshare residential (PROXY_USER_NAME / PROXY_PASSWORD)"
+                    )
+            elif self.proxy_url or (os.getenv("YOUTUBE_TRANSCRIPT_PROXY") or "").strip():
+                logger.info("Caption proxy: YOUTUBE_TRANSCRIPT_PROXY / --proxy")
+            if ws_user:
+                logger.info(
+                    "Caption API: Webshare (PROXY_USER_NAME); yt-dlp uses direct egress "
+                    "unless YOUTUBE_YTDLP_USE_WEBSHARE=1 or YOUTUBE_HTTPS_PROXY"
+                )
+            if self.proxy_url and self.scraper.use_ytdlp_fallback:
+                logger.info("yt-dlp proxy: {}", self.proxy_url.split("@")[-1][:80])
+            elif self.scraper.use_ytdlp_fallback:
+                logger.info(
+                    "yt-dlp proxy: none (direct + --cookies); set YOUTUBE_HTTPS_PROXY "
+                    "or YOUTUBE_YTDLP_USE_WEBSHARE=1 to force Webshare on catalog"
+                )
+            if self.transcript_source == "api-only":
+                logger.info(
+                    "Caption path: youtube-transcript-api only "
+                    "(https://github.com/jdepoix/youtube-transcript-api; cookies/proxy recommended)"
+                )
+            elif self.transcript_source == "ytdlp-only":
+                logger.info("Caption path: yt-dlp subtitles only")
+            elif self.use_ytdlp_fallback:
+                logger.info(
+                    "Caption path: youtube-transcript-api first, yt-dlp subtitles on failure"
+                )
+            else:
+                logger.info("Caption path: youtube-transcript-api only (--no-ytdlp-fallback)")
             logger.warning("⚠️  Transcript fetching may hit rate limits. Use --skip-transcripts to load events only.")
         else:
             logger.info("Fetch transcripts: NO (skipped - faster load, no rate limits)")
@@ -2467,6 +2845,10 @@ class YouTubeEventsLoader:
         if jurisdiction_id:
             logger.info(f"Jurisdiction filter: {jurisdiction_id}")
         logger.info(f"Channel source: {channel_source}")
+        if self.resolve_channels_ytdlp or not self.youtube_api_key:
+            logger.info("Video catalog: yt-dlp (YouTube Data API optional / quota-safe)")
+        else:
+            logger.info("Video catalog: YouTube Data API with yt-dlp fallback")
         if workers > 1:
             logger.info(f"Jurisdiction workers: {workers}")
             if self.fetch_transcripts:
@@ -2637,6 +3019,7 @@ class YouTubeEventsLoader:
             "force_full_fetch": self.force_full_fetch,
             "transcript_delay": self.transcript_delay,
             "use_ytdlp_fallback": self.use_ytdlp_fallback,
+            "transcript_source": self.transcript_source,
             "cookies_file": self.cookies_file,
             "proxy_url": self.proxy_url,
             "ensure_schema_setup": False,
@@ -2726,13 +3109,27 @@ def main():
     parser.add_argument(
         '--text-transcripts-only',
         action='store_true',
-        help='Fetch text transcripts only, skip VTT file downloads (uses youtube_transcript_api only, faster and cleaner)'
+        help=(
+            'Prefer youtube-transcript-api for captions (faster). '
+            'Does not disable yt-dlp subtitle fallback on IP block — use --no-ytdlp-fallback for that.'
+        ),
     )
     
     parser.add_argument(
+        '--transcript-source',
+        choices=('auto', 'api-only', 'ytdlp-only'),
+        default=os.getenv('YOUTUBE_TRANSCRIPT_SOURCE', 'auto').strip().lower() or 'auto',
+        help=(
+            'Caption backend: auto (youtube-transcript-api then yt-dlp), '
+            'api-only (jdepoix/youtube-transcript-api — use --cookies / proxy), '
+            'ytdlp-only'
+        ),
+    )
+
+    parser.add_argument(
         '--no-ytdlp-fallback',
         action='store_true',
-        help='Disable yt-dlp VTT fallback for transcripts (reduces API calls to YouTube, use if getting IP blocked)'
+        help='Same as --transcript-source api-only (legacy flag)'
     )
     
     parser.add_argument(
@@ -2796,6 +3193,21 @@ def main():
         help='DEBUG level (includes per-tab yt-dlp lines when workers=1)',
     )
 
+    parser.add_argument(
+        '--no-policy-cache',
+        action='store_true',
+        help=(
+            'Do not write captions to data/cache/gemini_transcript_policy '
+            '(main JSON + .caption_raw_data.json, preserve_formatting=True)'
+        ),
+    )
+    parser.add_argument(
+        '--policy-cache-dir',
+        type=str,
+        default='',
+        help='Override gemini_transcript_policy cache root (default: data/cache/gemini_transcript_policy)',
+    )
+
     args = parser.parse_args()
 
     workers = max(1, int(args.workers or 1))
@@ -2816,7 +3228,18 @@ def main():
         )
 
     states_filter = [s.strip().upper() for s in args.states.split(",") if s.strip()]
-    
+
+    transcript_source = (args.transcript_source or "auto").strip().lower()
+    if args.no_ytdlp_fallback:
+        transcript_source = "api-only"
+
+    from scripts.datasources.youtube.transcript_api_client import (
+        resolve_webshare_proxy_credentials,
+        resolve_ytdlp_proxy_url,
+    )
+
+    ytdlp_proxy = resolve_ytdlp_proxy_url((args.proxy or "").strip() or None)
+
     # Initialize loader
     loader = YouTubeEventsLoader(
         database_url=DATABASE_URL,
@@ -2827,13 +3250,16 @@ def main():
         fetch_transcripts=fetch_transcripts,
         force_full_fetch=args.force,
         transcript_delay=args.transcript_delay,
-        use_ytdlp_fallback=not (args.no_ytdlp_fallback or args.text_transcripts_only),
+        use_ytdlp_fallback=not args.no_ytdlp_fallback,
+        transcript_source=transcript_source,
         cookies_file=args.cookies,
-        proxy_url=args.proxy,
+        proxy_url=ytdlp_proxy,
         transcript_workers=args.transcript_workers,
         max_transcripts_per_channel=args.max_transcripts_per_channel,
         resolve_channels_ytdlp=args.resolve_channels_ytdlp,
         persist_scraped_channel_ids=not args.no_persist_scraped_channel_ids,
+        write_policy_cache=not args.no_policy_cache,
+        policy_cache_dir=(args.policy_cache_dir or "").strip() or None,
     )
     
     jurisdiction_id = (args.jurisdiction_id or '').strip() or None

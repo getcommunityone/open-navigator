@@ -27,7 +27,12 @@ import {
   fetchUnmappedJurisdictions,
   type UnmappedDrillParams,
 } from '../../api/jurisdictionMappingUnmapped'
+import {
+  fetchMissingYoutubeChannels,
+  type MissingYoutubeDrillParams,
+} from '../../api/jurisdictionMappingMissingYoutube'
 import { DATA_EXPLORER_MAP_BASE } from '../../utils/dataExplorerPaths'
+import StateYoutubeCategorySection from './StateYoutubeCategorySection'
 
 const US_STATE_NAMES: Record<string, string> = {
   AL: 'Alabama',
@@ -103,6 +108,8 @@ type SummaryRow = {
   primary_from_league?: number
   primary_from_wikidata?: number
   primary_from_override?: number
+  with_youtube_channel?: number
+  pct_with_youtube_channel?: number | null
 }
 
 type MunicipalityPlaceSummaryRow = {
@@ -125,6 +132,15 @@ type MunicipalityPlaceSummaryRow = {
   primary_from_league?: number
   primary_from_wikidata?: number
   primary_from_override?: number
+  with_youtube_channel?: number
+  pct_with_youtube_channel?: number | null
+}
+
+type YoutubeStateRollupRow = {
+  state_code: string
+  total_jurisdictions: number
+  with_youtube_channel: number
+  pct_with_youtube_channel: number | null
 }
 
 type SourceRow = { website_source: string; distinct_jurisdictions: number }
@@ -239,6 +255,44 @@ export type QualityPayload = {
     municipality_towns_and_cdp: StateRollupRow[]
     school_district: StateRollupRow[]
   }
+  youtube_entity_state_rollup?: {
+    county: YoutubeStateRollupRow[]
+    municipality_incorporated_city: YoutubeStateRollupRow[]
+    municipality_towns_and_cdp: YoutubeStateRollupRow[]
+  }
+  state_youtube_category_rollup?: {
+    categories: string[]
+    by_category: Record<
+      string,
+      {
+        state_code: string
+        state_name: string
+        category: string
+        mapped: boolean
+        youtube_channel_url?: string | null
+        channel_id?: string | null
+        channel_title?: string | null
+        channel_type?: string | null
+        discovery_method?: string | null
+        match_score?: number | null
+        confidence_score?: number | null
+      }[]
+    >
+    summary?: Record<
+      string,
+      {
+        total_states: number
+        mapped: number
+        missing: number
+        pct_mapped: number | null
+      }
+    >
+    explained?: {
+      source_table?: string | null
+      categories?: Record<string, string>
+      classification?: string
+    }
+  }
   acs_vintage_year?: string | null
   acs_source?: string | null
   states?: StateQualityRow[]
@@ -301,6 +355,17 @@ const ENTITY_ROLLUP_KEY: Record<Exclude<EntityKey, 'state'>, keyof NonNullable<Q
   counties: 'county',
   schools: 'school_district',
 }
+
+const ENTITY_YOUTUBE_ROLLUP_KEY: Record<
+  Exclude<EntityKey, 'state' | 'schools'>,
+  keyof NonNullable<QualityPayload['youtube_entity_state_rollup']>
+> = {
+  cities: 'municipality_incorporated_city',
+  towns: 'municipality_towns_and_cdp',
+  counties: 'county',
+}
+
+const YOUTUBE_ENTITY_KEYS = new Set<EntityKey>(['cities', 'towns', 'counties'])
 
 function stateRowsToRollup(states: StateQualityRow[]): StateRollupRow[] {
   return states.map((s) => ({
@@ -586,6 +651,59 @@ function entityMetrics(
   const agg = aggregateMuniKinds(muniRows, ['incorporated_other', 'unknown', 'census_designated_place'])
   const syntaxErr = Math.max(0, agg.withUrl - agg.syntaxOk)
   return { total: agg.total, withUrl: agg.withUrl, pct: agg.pct, syntaxErr, touch: null }
+}
+
+function youtubeEntityMetrics(
+  entity: EntityKey,
+  summaryByType: SummaryRow[],
+  muniRows: MunicipalityPlaceSummaryRow[] | undefined,
+): { total: number; withChannel: number; pct: number } {
+  if (!YOUTUBE_ENTITY_KEYS.has(entity)) return { total: 0, withChannel: 0, pct: 0 }
+  if (entity === 'counties') {
+    const r = summaryByType.find((x) => x.jurisdiction_type === 'county')
+    if (!r) return { total: 0, withChannel: 0, pct: 0 }
+    const withChannel = Number(r.with_youtube_channel ?? 0)
+    return {
+      total: Number(r.total_jurisdictions),
+      withChannel,
+      pct: Number(r.pct_with_youtube_channel ?? 0),
+    }
+  }
+  if (entity === 'cities') {
+    const row = muniRows?.find((x) => x.municipality_place_kind === 'incorporated_city')
+    if (!row) return { total: 0, withChannel: 0, pct: 0 }
+    const withChannel = Number(row.with_youtube_channel ?? 0)
+    return {
+      total: Number(row.total_jurisdictions),
+      withChannel,
+      pct: Number(row.pct_with_youtube_channel ?? 0),
+    }
+  }
+  let total = 0
+  let withChannel = 0
+  for (const r of muniRows ?? []) {
+    if (!['incorporated_other', 'unknown', 'census_designated_place'].includes(r.municipality_place_kind)) continue
+    total += Number(r.total_jurisdictions)
+    withChannel += Number(r.with_youtube_channel ?? 0)
+  }
+  const pct = total > 0 ? (100 * withChannel) / total : 0
+  return { total, withChannel, pct }
+}
+
+function metricsFromYoutubeRollupRow(row: YoutubeStateRollupRow): {
+  total: number
+  withChannel: number
+  pct: number
+} {
+  const total = Number(row.total_jurisdictions)
+  const withChannel = Number(row.with_youtube_channel)
+  const pct =
+    row.pct_with_youtube_channel != null
+      ? Number(row.pct_with_youtube_channel)
+      : total > 0
+        ? (100 * withChannel) / total
+        : 0
+  return { total, withChannel, pct }
 }
 
 type PrimarySourceRow = SummaryRow | MunicipalityPlaceSummaryRow
@@ -1084,8 +1202,9 @@ function DrillPanel({
   onClose,
   bannerExtra,
   expectedMissing,
+  variant = 'primary',
 }: {
-  query: UnmappedDrillParams
+  query: UnmappedDrillParams | MissingYoutubeDrillParams
   title: string
   subtitle: string
   onClose: () => void
@@ -1093,11 +1212,14 @@ function DrillPanel({
   bannerExtra?: string | null
   /** Rollup missing count from JSON summary (for mismatch hint). */
   expectedMissing?: number
+  variant?: 'primary' | 'youtube'
 }) {
   const { data, isPending, isError, error } = useQuery({
-    queryKey: ['jurisdiction-mapping-unmapped', query],
+    queryKey: ['jurisdiction-mapping-drill', variant, query],
     queryFn: ({ signal }) =>
-      fetchUnmappedJurisdictions({ ...query, limit: 50_000, offset: 0 }, signal),
+      variant === 'youtube'
+        ? fetchMissingYoutubeChannels({ ...(query as MissingYoutubeDrillParams), limit: 50_000, offset: 0 }, signal)
+        : fetchUnmappedJurisdictions({ ...(query as UnmappedDrillParams), limit: 50_000, offset: 0 }, signal),
     staleTime: 60_000,
   })
   const rows = data?.rows ?? []
@@ -1107,7 +1229,7 @@ function DrillPanel({
   if (!isPending && !isError && data) {
     loadBanner = [
       loadBanner,
-      `Showing ${fmt(rows.length)} of ${fmt(total)} unmapped jurisdictions (live API).`,
+      `Showing ${fmt(rows.length)} of ${fmt(total)} ${variant === 'youtube' ? 'missing YouTube channel' : 'unmapped'} jurisdictions (live API).`,
       expectedMissing != null && expectedMissing > 0 && total !== expectedMissing
         ? `Summary rollup reports ${fmt(expectedMissing)} missing in this slice — counts can differ if the snapshot JSON is stale.`
         : null,
@@ -1115,6 +1237,11 @@ function DrillPanel({
       .filter(Boolean)
       .join(' ')
   }
+
+  const apiPath =
+    variant === 'youtube'
+      ? 'GET /api/jurisdiction-mapping/missing-youtube-channel'
+      : 'GET /api/jurisdiction-mapping/unmapped'
 
   const modal = (
     <div
@@ -1148,24 +1275,29 @@ function DrillPanel({
         </div>
         <div className="border-b border-[var(--jmq-border)] bg-[var(--jmq-amber-dim)] px-4 py-2 text-[11px] text-[#4d2d00]">
           <div>
-            Loaded from <code className="text-[10px]">GET /api/jurisdiction-mapping/unmapped</code>
+            Loaded from <code className="text-[10px]">{apiPath}</code>
           </div>
           {loadBanner ? <div className="mt-1 font-medium">{loadBanner}</div> : null}
         </div>
         <div className="flex-1 overflow-y-auto">
           {isPending ? (
-            <div className="p-10 text-center text-sm text-[var(--jmq-text-muted)]">Loading unmapped list…</div>
+            <div className="p-10 text-center text-sm text-[var(--jmq-text-muted)]">
+              Loading {variant === 'youtube' ? 'missing YouTube channel' : 'unmapped'} list…
+            </div>
           ) : isError ? (
             <div className="p-10 text-center text-sm text-[var(--jmq-red)]">
               Could not load drill-down: {(error as Error)?.message ?? 'unknown error'}. Is the API running on port 8000?
             </div>
           ) : rows.length === 0 ? (
-            <div className="p-10 text-center text-sm text-[var(--jmq-green)]">No matching unmapped rows in the warehouse.</div>
+            <div className="p-10 text-center text-sm text-[var(--jmq-green)]">No matching rows in the warehouse.</div>
           ) : (
             <table className="w-full border-collapse text-xs">
               <thead className="sticky top-0 bg-[var(--jmq-surface2)]">
                 <tr>
-                  {['Jurisdiction', 'State', 'GEOID', 'ACS pop', 'ACS income', 'Directories'].map((h) => (
+                  {(variant === 'youtube'
+                    ? ['Jurisdiction', 'State', 'GEOID', 'Primary URL', 'ACS pop', 'ACS income']
+                    : ['Jurisdiction', 'State', 'GEOID', 'ACS pop', 'ACS income', 'Directories']
+                  ).map((h) => (
                     <th
                       key={h}
                       className="border-b border-[var(--jmq-border)] px-3 py-2 text-left font-mono text-[10px] font-semibold uppercase tracking-wide text-[var(--jmq-text-muted)]"
@@ -1181,13 +1313,28 @@ function DrillPanel({
                     <td className="px-3 py-2 font-medium text-[var(--jmq-text)]">{r.name}</td>
                     <td className="px-3 py-2 font-mono text-[var(--jmq-text-muted)]">{r.state_code}</td>
                     <td className="px-3 py-2 font-mono text-[10px] text-[var(--jmq-text-muted)]">{r.geoid ?? '—'}</td>
+                    {variant === 'youtube' ? (
+                      <td className="max-w-[14rem] break-all px-3 py-2 font-mono text-[10px] text-[var(--jmq-text-muted)]">
+                        {'primary_website_url' in r && r.primary_website_url ? r.primary_website_url : '—'}
+                      </td>
+                    ) : null}
                     <td className="px-3 py-2 font-mono text-[10px]">{r.acs_population_tier ?? '—'}</td>
                     <td className="px-3 py-2 font-mono text-[10px]">{r.acs_income_level ?? '—'}</td>
-                    <td className="px-3 py-2 font-mono text-[10px] text-[var(--jmq-text-muted)]">
-                      {[r.has_naco_source && 'NACo', r.has_uscm_source && 'USCM', r.has_nces_directory_source && 'NCES', r.has_gsa_source && 'GSA', r.has_league_source && 'League', r.has_wikidata_source && 'WD', r.has_override_source && 'ovr']
-                        .filter(Boolean)
-                        .join(', ') || '—'}
-                    </td>
+                    {variant === 'primary' ? (
+                      <td className="px-3 py-2 font-mono text-[10px] text-[var(--jmq-text-muted)]">
+                        {[
+                          'has_naco_source' in r && r.has_naco_source && 'NACo',
+                          'has_uscm_source' in r && r.has_uscm_source && 'USCM',
+                          'has_nces_directory_source' in r && r.has_nces_directory_source && 'NCES',
+                          'has_gsa_source' in r && r.has_gsa_source && 'GSA',
+                          'has_league_source' in r && r.has_league_source && 'League',
+                          'has_wikidata_source' in r && r.has_wikidata_source && 'WD',
+                          'has_override_source' in r && r.has_override_source && 'ovr',
+                        ]
+                          .filter(Boolean)
+                          .join(', ') || '—'}
+                      </td>
+                    ) : null}
                   </tr>
                 ))}
               </tbody>
@@ -1233,24 +1380,63 @@ function enrichStateRollup(
   })
 }
 
+type EnrichedYoutubeStateRollup = YoutubeStateRollupRow & {
+  name: string
+  missing: number
+  pct: number
+}
+
+function enrichYoutubeStateRollup(
+  rollup: YoutubeStateRollupRow[],
+  stateQuality?: StateQualityRow[],
+): EnrichedYoutubeStateRollup[] {
+  const qualityByCode = new Map<string, StateQualityRow>()
+  for (const s of stateQuality ?? []) qualityByCode.set(s.state_code, s)
+  return rollup.map((r) => {
+    const total = Number(r.total_jurisdictions)
+    const withChannel = Number(r.with_youtube_channel)
+    const pct =
+      r.pct_with_youtube_channel != null
+        ? Number(r.pct_with_youtube_channel)
+        : total > 0
+          ? (100 * withChannel) / total
+          : 0
+    const q = qualityByCode.get(r.state_code)
+    return {
+      ...r,
+      name: q?.state_name ?? US_STATE_NAMES[r.state_code] ?? r.state_code,
+      missing: Math.max(0, total - withChannel),
+      pct,
+    }
+  })
+}
+
 /** State-by-state coverage + missing-primary-URL drill for cities, towns, counties, schools. */
 function EntityStateRollupSection({
   entity,
   rollup,
   stateQuality,
+  variant = 'primary',
 }: {
   entity: Exclude<EntityKey, 'state'>
-  rollup: StateRollupRow[]
+  rollup: StateRollupRow[] | YoutubeStateRollupRow[]
   stateQuality?: StateQualityRow[]
+  variant?: 'primary' | 'youtube'
 }) {
   const label = ENTITY_META[entity].label
+  const isYoutube = variant === 'youtube'
   const [view, setView] = useState<'worst' | 'best' | 'all'>('worst')
   const [search, setSearch] = useState('')
   const [sortCol, setSortCol] = useState<'pct' | 'missing' | 'total_jurisdictions' | 'state_code'>('missing')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
-  const [drill, setDrill] = useState<EnrichedStateRollup | null>(null)
+  const [drill, setDrill] = useState<(EnrichedStateRollup | EnrichedYoutubeStateRollup) | null>(null)
 
-  const enriched = useMemo(() => enrichStateRollup(rollup, stateQuality), [rollup, stateQuality])
+  const enriched = useMemo(() => {
+    if (isYoutube) {
+      return enrichYoutubeStateRollup(rollup as YoutubeStateRollupRow[], stateQuality)
+    }
+    return enrichStateRollup(rollup as StateRollupRow[], stateQuality)
+  }, [isYoutube, rollup, stateQuality])
 
   const filtered = useMemo(() => {
     let rows = [...enriched]
@@ -1278,7 +1464,7 @@ function EntityStateRollupSection({
   const totalMissing = useMemo(() => enriched.reduce((s, r) => s + r.missing, 0), [enriched])
 
   const setDrillFromBar = (barData: unknown) => {
-    const p = (barData as { payload?: EnrichedStateRollup } | null)?.payload
+    const p = (barData as { payload?: EnrichedStateRollup | EnrichedYoutubeStateRollup } | null)?.payload
     if (p?.state_code && p.missing > 0) setDrill(p)
   }
 
@@ -1291,14 +1477,15 @@ function EntityStateRollupSection({
   }
 
   return (
-    <div id="jmq-missing-by-state" className="scroll-mt-24">
+    <div id={isYoutube ? 'jmq-missing-youtube-by-state' : 'jmq-missing-by-state'} className="scroll-mt-24">
       {drill ? (
         <DrillPanel
-          query={{ entity, state_code: drill.state_code }}
+          query={{ entity: entity as MissingYoutubeDrillParams['entity'] & UnmappedDrillParams['entity'], state_code: drill.state_code }}
           expectedMissing={drill.missing}
-          title="Missing primary URL"
+          title={isYoutube ? 'Missing YouTube channel URL' : 'Missing primary URL'}
           subtitle={`${drill.name} (${drill.state_code}) · ${label}`}
           onClose={() => setDrill(null)}
+          variant={variant}
         />
       ) : null}
 
@@ -1306,11 +1493,23 @@ function EntityStateRollupSection({
         {[
           { label: 'States in view', val: fmt(enriched.length) },
           { label: 'With any gap', val: fmt(enriched.filter((s) => s.missing > 0).length) },
-          { label: 'Missing URLs (sum)', val: fmt(totalMissing) },
+          {
+            label: isYoutube ? 'Missing channels (sum)' : 'Missing URLs (sum)',
+            val: fmt(totalMissing),
+          },
           {
             label: 'National coverage',
             val: `${(
-              (enriched.reduce((s, r) => s + Number(r.with_primary_website), 0) /
+              (enriched.reduce(
+                (s, r) =>
+                  s +
+                  Number(
+                    isYoutube
+                      ? (r as EnrichedYoutubeStateRollup).with_youtube_channel
+                      : (r as EnrichedStateRollup).with_primary_website,
+                  ),
+                0,
+              ) /
                 Math.max(1, enriched.reduce((s, r) => s + Number(r.total_jurisdictions), 0))) *
               100
             ).toFixed(1)}%`,
@@ -1360,9 +1559,13 @@ function EntityStateRollupSection({
       </div>
 
       <div className="jmq-card mb-4">
-        <div className="jmq-card-title">Missing primary URLs by state (click a bar)</div>
+        <div className="jmq-card-title">
+          {isYoutube ? 'Missing YouTube channel URLs by state (click a bar)' : 'Missing primary URLs by state (click a bar)'}
+        </div>
         <p className="jmq-card-sub">
-          Count of {label.toLowerCase()} without a mapped primary website in each state. Bars with zero are omitted in this chart.
+          {isYoutube
+            ? `Count of ${label.toLowerCase()} without a golden youtube_channel_url in intermediate.int_events_channels. Bars with zero are omitted.`
+            : `Count of ${label.toLowerCase()} without a mapped primary website in each state. Bars with zero are omitted in this chart.`}
         </p>
         <div className="h-56 w-full sm:h-64">
           <ResponsiveContainer width="100%" height="100%">
@@ -1374,7 +1577,7 @@ function EntityStateRollupSection({
                 tick={{ fontSize: 10, fill: 'var(--jmq-text-muted)' }}
                 width={48}
                 label={{
-                  value: 'Missing primary URL (count)',
+                  value: isYoutube ? 'Missing YouTube channel (count)' : 'Missing primary URL (count)',
                   angle: -90,
                   position: 'insideLeft',
                   offset: 4,
@@ -1915,11 +2118,26 @@ export default function EntityQualityDashboard({
     return roll[ENTITY_ROLLUP_KEY[entity]]?.find((r) => r.state_code === stateFilter) ?? null
   }, [data.entity_state_rollup, entity, stateFilter])
 
+  const filteredYoutubeRollupRow = useMemo(() => {
+    if (!YOUTUBE_ENTITY_KEYS.has(entity) || !stateFilter) return null
+    const roll = data.youtube_entity_state_rollup
+    if (!roll) return null
+    return roll[ENTITY_YOUTUBE_ROLLUP_KEY[entity as Exclude<EntityKey, 'state' | 'schools'>]]?.find(
+      (r) => r.state_code === stateFilter,
+    ) ?? null
+  }, [data.youtube_entity_state_rollup, entity, stateFilter])
+
   const metrics = useMemo(() => {
     if (entity === 'state') return stateGovMetrics(stateQualityRows)
     if (filteredRollupRow) return metricsFromRollupRow(filteredRollupRow)
     return entityMetrics(entity, summaryByType, muniRows)
   }, [entity, filteredRollupRow, stateQualityRows, summaryByType, muniRows])
+
+  const youtubeMetrics = useMemo(() => {
+    if (!YOUTUBE_ENTITY_KEYS.has(entity)) return { total: 0, withChannel: 0, pct: 0 }
+    if (filteredYoutubeRollupRow) return metricsFromYoutubeRollupRow(filteredYoutubeRollupRow)
+    return youtubeEntityMetrics(entity, summaryByType, muniRows)
+  }, [entity, filteredYoutubeRollupRow, summaryByType, muniRows])
 
   const sourceRateRow = useMemo((): PrimarySourceRow | null => {
     if (filteredRollupRow) return null
@@ -1983,6 +2201,15 @@ export default function EntityQualityDashboard({
     return rows.filter((r) => r.state_code === stateFilter)
   }, [data.entity_state_rollup, entity, stateFilter, stateQualityRows])
 
+  const youtubeRollup = useMemo(() => {
+    if (!YOUTUBE_ENTITY_KEYS.has(entity)) return []
+    const roll = data.youtube_entity_state_rollup
+    if (!roll) return []
+    const rows = roll[ENTITY_YOUTUBE_ROLLUP_KEY[entity as Exclude<EntityKey, 'state' | 'schools'>]] ?? []
+    if (!stateFilter) return rows
+    return rows.filter((r) => r.state_code === stateFilter)
+  }, [data.youtube_entity_state_rollup, entity, stateFilter])
+
   const insight = useMemo(() => {
     const { total, withUrl, pct } = metrics
     const miss = total - withUrl
@@ -1996,11 +2223,18 @@ export default function EntityQualityDashboard({
       return `Incorporated cities sit near ${pct.toFixed(1)}% coverage (${fmt(withUrl)} of ${fmt(total)}). Primaries come from GSA (${fmt(fromGsa)}), Wikidata official sites (${fmt(fromWikidata)}), League (${fmt(fromLeague)}), and USCM (${fmt(fromUscm)}). ${fmt(miss)} cities still have no URL — often no Wikidata P856 and no directory match (Wikipedia articles are not used).`
     if (entity === 'counties')
       return `Counties are the best-covered class in most snapshots (~${pct.toFixed(1)}%). NACO, GSA, and Wikidata (P856) supply most primaries; remaining ${fmt(miss)} gaps skew rural / no official website.`
-    if (entity === 'state')
-      return `${fmt(withUrl)} of ${fmt(total)} state governments have a primary portal URL in the warehouse (${pct.toFixed(1)}%). ${fmt(miss)} states lack one. Population / income tabs group states by ACS tiers.`
+    if (entity === 'state') {
+      const yt = data.state_youtube_category_rollup?.summary
+      const overallPct = yt?.overall?.pct_mapped
+      const ytNote =
+        overallPct != null
+          ? ` YouTube registry mapping: ${overallPct.toFixed(1)}% of states have an overall government channel; use category pills below for public health, education, and transportation.`
+          : ''
+      return `${fmt(withUrl)} of ${fmt(total)} state governments have a primary portal URL in the warehouse (${pct.toFixed(1)}%). ${fmt(miss)} states lack one.${ytNote} Population / income tabs group states by ACS tiers.`
+    }
     const stateNote = stateFilter ? ` · ${US_STATE_NAMES[stateFilter] ?? stateFilter} (${stateFilter})` : ''
     return `${ENTITY_META[entity].label}${stateNote}: ~${pct.toFixed(1)}% with a primary URL; ${fmt(miss)} still missing. Use the state filter to scope drills to one state.`
-  }, [entity, metrics, stateFilter, sourceRateRow])
+  }, [entity, metrics, stateFilter, sourceRateRow, data.state_youtube_category_rollup])
 
   const acsBucketDrillQuery = useMemo((): UnmappedDrillParams | null => {
     if (!bucketDrill || bucketDrill.mode !== 'entity_acs') return null
@@ -2054,7 +2288,7 @@ export default function EntityQualityDashboard({
           <div className="min-w-0">
             <div className="jmq-hdr-title">Open Navigator — Data Quality</div>
             <div className="font-mono text-[11px] text-[var(--jmq-text-muted)]">
-              jurisdiction_mapping_quality.json · NACo / USCM / NCES / GSA / Wikidata
+              jurisdiction_mapping_quality.json · NACo / USCM / NCES / GSA / Wikidata · YouTube (int_events_channels)
             </div>
           </div>
           <div className="jmq-hdr-sub hidden flex-wrap justify-end gap-2 lg:flex">
@@ -2291,12 +2525,53 @@ export default function EntityQualityDashboard({
         † Among rows with a primary URL: jurisdictions failing static syntax vs counted “syntax OK” in summary tables.
       </p>
 
+      {YOUTUBE_ENTITY_KEYS.has(entity) ? (
+        <>
+          <div className="mb-2 font-mono text-[10px] font-semibold uppercase tracking-wide text-[var(--jmq-text-muted)]">
+            YouTube channel URL match · intermediate.int_events_channels
+          </div>
+          <div className="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {[
+              { label: 'Total', val: fmt(youtubeMetrics.total), c: 'var(--jmq-text-muted)' },
+              { label: 'With channel', val: fmt(youtubeMetrics.withChannel), c: 'var(--jmq-blue)' },
+              { label: 'Match rate', val: `${youtubeMetrics.pct.toFixed(1)}%`, c: barColor(youtubeMetrics.pct) },
+              {
+                label: 'Missing',
+                val: fmt(Math.max(0, youtubeMetrics.total - youtubeMetrics.withChannel)),
+                c: youtubeMetrics.total - youtubeMetrics.withChannel > 500 ? '#a40e26' : '#9a6700',
+              },
+            ].map((k) => (
+              <div
+                key={k.label}
+                className="jmq-kpi jmq-kpi--info relative overflow-hidden rounded-lg border border-[var(--jmq-border)] bg-[var(--jmq-surface)] p-3"
+              >
+                <div className="absolute left-0 right-0 top-0 h-0.5" style={{ background: k.c }} />
+                <div className="jmq-kpi-label !mb-1">{k.label}</div>
+                <div className="font-mono text-xl font-extrabold leading-tight" style={{ color: k.c }}>
+                  {k.val}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      ) : null}
+
       {entity === 'state' && section === 'overview' ? (
         <div className="space-y-4">
           <div className="grid gap-3 lg:grid-cols-[1fr_200px]">
             <div className="rounded-lg border border-[var(--jmq-teal)]/30 bg-[var(--jmq-teal-dim)] px-4 py-3 text-sm leading-relaxed text-[var(--jmq-text)]">
               <span className="font-bold text-[var(--jmq-teal)]">Insight · </span>
               {insight}
+              {data.state_youtube_category_rollup ? (
+                <p className="mt-2 font-mono text-[11px]">
+                  <a
+                    href="#jmq-state-youtube-by-category"
+                    className="font-semibold text-[var(--jmq-teal)] underline-offset-2 hover:underline"
+                  >
+                    ↓ YouTube URL mapping by policy category
+                  </a>
+                </p>
+              ) : null}
             </div>
             <TypicalStatePortalSourcesCard row={sourceRateRow} total={metrics.total} withUrl={metrics.withUrl} />
           </div>
@@ -2361,6 +2636,9 @@ export default function EntityQualityDashboard({
           ) : (
             <StateAnalysisSection rollup={rollup} stateQuality={stateQualityRows} />
           )}
+          {data.state_youtube_category_rollup ? (
+            <StateYoutubeCategorySection rollup={data.state_youtube_category_rollup} />
+          ) : null}
         </div>
       ) : null}
       {entity === 'state' && section === 'population' ? (
@@ -2535,6 +2813,22 @@ export default function EntityQualityDashboard({
               stateQuality={stateQualityRows}
             />
           )}
+          {YOUTUBE_ENTITY_KEYS.has(entity) ? (
+            youtubeRollup.length === 0 ? (
+              <div className="jmq-placeholder">
+                <strong>No YouTube state rollup in JSON</strong>
+                Re-run dbt + <code>export_jurisdiction_mapping_quality_json.py</code> after{' '}
+                <code>intermediate.int_events_channels</code> is populated.
+              </div>
+            ) : (
+              <EntityStateRollupSection
+                entity={entity}
+                rollup={youtubeRollup}
+                stateQuality={stateQualityRows}
+                variant="youtube"
+              />
+            )
+          ) : null}
         </div>
       )}
 

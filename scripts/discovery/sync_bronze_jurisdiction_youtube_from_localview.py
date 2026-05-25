@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """
-Merge LocalView channel → jurisdiction mappings from ``intermediate.int_events_channels``
-into ``bronze.bronze_jurisdiction_youtube_candidates`` and ``bronze.bronze_jurisdiction_youtube``.
+Merge LocalView channel → jurisdiction mappings from ``intermediate.int_events_channels_registry``
+into ``intermediate.int_events_channels_candidates`` and ``intermediate.int_events_channels``.
 
 The dbt int layer already resolves LocalView geography
 (``int_localview_jurisdiction_geography`` → ``int_localview_channel_geography`` →
-``int_events_channels``). This script was missing: existing LocalView link scripts only
+``int_events_channels_registry``). This script was missing: existing LocalView link scripts only
 update ``bronze_events_youtube`` / ``bronze_events_channels``.
 
 Prerequisites::
 
   ./scripts/dbt.sh run --select int_events_localview int_localview_jurisdiction_geography \\
-      int_localview_channel_geography int_jurisdictions int_events_channels
+      int_localview_channel_geography int_jurisdictions int_events_channels_registry
 
 Examples::
 
@@ -36,9 +36,9 @@ _ROOT = Path(__file__).resolve().parents[2]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from scripts.discovery.bronze_jurisdiction_youtube_persist import (  # noqa: E402
-    insert_bronze_jurisdiction_youtube_candidates,
-    upsert_bronze_jurisdiction_youtube_verified,
+from scripts.discovery.int_events_channels_persist import (  # noqa: E402
+    insert_int_events_channels_candidates,
+    upsert_int_events_channels_verified,
 )
 from scripts.discovery.jurisdiction_discovery_pipeline import resolve_database_url  # noqa: E402
 from scripts.jurisdictions.jurisdiction_id import ensure_canonical_jurisdiction_id  # noqa: E402
@@ -71,7 +71,7 @@ WITH channel_juris AS (
         j.elem->>'jurisdiction_name' AS jurisdiction_name,
         j.elem->>'state_code' AS state_code,
         j.elem->>'jurisdiction_type' AS jurisdiction_type
-    FROM intermediate.int_events_channels ec
+    FROM intermediate.int_events_channels_registry ec
     CROSS JOIN LATERAL jsonb_array_elements(COALESCE(ec.jurisdictions, '[]'::jsonb)) AS j(elem)
     WHERE ec.in_localview IS TRUE
       AND ec.jurisdictions IS NOT NULL
@@ -112,7 +112,7 @@ def _existing_candidate_keys(database_url: str) -> set[tuple[str, str]]:
             cur.execute(
                 """
                 SELECT jurisdiction_id, youtube_channel_url
-                FROM bronze.bronze_jurisdiction_youtube_candidates
+                FROM intermediate.int_events_channels_candidates
                 WHERE discovery_method LIKE 'derived_from_localview%'
                    OR discovery_method = 'localview'
                 """
@@ -277,7 +277,7 @@ def sync_from_int_events_channels(
         if not rows:
             continue
         meta = meta_by_jurisdiction[jid]
-        insert_bronze_jurisdiction_youtube_candidates(
+        insert_int_events_channels_candidates(
             database_url,
             scrape_batch_id=str(LOCALVIEW_SYNC_BATCH_ID),
             jurisdiction_id=jid,
@@ -290,7 +290,7 @@ def sync_from_int_events_channels(
 
     for jid, rows in verified_by_jurisdiction.items():
         meta = meta_by_jurisdiction[jid]
-        stats["verified_upserted"] += upsert_bronze_jurisdiction_youtube_verified(
+        stats["verified_upserted"] += upsert_int_events_channels_verified(
             database_url,
             scrape_batch_id=str(LOCALVIEW_SYNC_BATCH_ID),
             jurisdiction_id=jid,
@@ -323,7 +323,7 @@ def main() -> int:
         return 1
 
     logger.info(
-        "Sync LocalView int_events_channels → bronze_jurisdiction_youtube* (dry_run={})",
+        "Sync LocalView int_events_channels_registry → int_events_channels* (dry_run={})",
         args.dry_run,
     )
     stats = sync_from_int_events_channels(
