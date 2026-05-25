@@ -35,16 +35,16 @@ SELECT
     j.jurisdiction_id,
     j.homepage
 FROM (VALUES
-    ('Boston',          'municipality_2507000', 'https://www.boston.gov/'),
-    ('Cambridge',       'municipality_2511000', 'https://www.cambridgema.gov/'),
-    ('Worcester',       'municipality_2582000', 'https://www.worcesterma.gov/'),
-    ('Springfield',     'municipality_2567000', 'https://www.springfield-ma.gov/'),
-    ('Lowell',          'municipality_2537000', 'https://www.lowellma.gov/'),
-    ('Somerville',      'municipality_2562535', 'https://www.somervillema.gov/'),
-    ('Newton',          'municipality_2545560', 'https://www.newtonma.gov/'),
-    ('Quincy',          'municipality_2555745', 'https://www.quincyma.gov/'),
-    ('Plymouth County', 'county_25023',         'https://www.plymouthcountyma.gov/'),
-    ('Norfolk County',  'county_25021',         'http://www.norfolkcounty.org/')
+    ('Boston',          'boston_2507000', 'https://www.boston.gov/'),
+    ('Cambridge',       'cambridge_2511000', 'https://www.cambridgema.gov/'),
+    ('Worcester',       'worcester_2582000', 'https://www.worcesterma.gov/'),
+    ('Springfield',     'springfield_2567000', 'https://www.springfield-ma.gov/'),
+    ('Lowell',          'lowell_2537000', 'https://www.lowellma.gov/'),
+    ('Somerville',      'somerville_2562535', 'https://www.somervillema.gov/'),
+    ('Newton',          'newton_2545560', 'https://www.newtonma.gov/'),
+    ('Quincy',          'quincy_2555745', 'https://www.quincyma.gov/'),
+    ('Plymouth County', 'plymouth_25023',         'https://www.plymouthcountyma.gov/'),
+    ('Norfolk County',  'norfolk_25021',         'http://www.norfolkcounty.org/')
 ) AS j(name, jurisdiction_id, homepage)
 LEFT JOIN (
     SELECT DISTINCT jurisdiction_id
@@ -112,16 +112,16 @@ SELECT
     j.name AS jurisdiction_name,
     j.jurisdiction_id
 FROM (VALUES
-    ('Boston',          'municipality_2507000'),
-    ('Cambridge',       'municipality_2511000'),
-    ('Worcester',       'municipality_2582000'),
-    ('Springfield',     'municipality_2567000'),
-    ('Lowell',          'municipality_2537000'),
-    ('Somerville',      'municipality_2562535'),
-    ('Newton',          'municipality_2545560'),
-    ('Quincy',          'municipality_2555745'),
-    ('Plymouth County', 'county_25023'),
-    ('Norfolk County',  'county_25021')
+    ('Boston',          'boston_2507000'),
+    ('Cambridge',       'cambridge_2511000'),
+    ('Worcester',       'worcester_2582000'),
+    ('Springfield',     'springfield_2567000'),
+    ('Lowell',          'lowell_2537000'),
+    ('Somerville',      'somerville_2562535'),
+    ('Newton',          'newton_2545560'),
+    ('Quincy',          'quincy_2555745'),
+    ('Plymouth County', 'plymouth_25023'),
+    ('Norfolk County',  'norfolk_25021')
 ) AS j(name, jurisdiction_id)
 LEFT JOIN (
     SELECT DISTINCT jurisdiction_id

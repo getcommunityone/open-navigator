@@ -1,9 +1,8 @@
 """
 Pilot registry of 10 Massachusetts jurisdictions (8 cities + 2 counties).
 
-``jurisdiction_id`` follows the repo convention ``int_jurisdictions.jurisdiction_id``:
-``municipality_{state_fips}{place_fips}`` (zfill 7) and ``county_{state_fips}{county_fips}``
-(zfill 5).
+``jurisdiction_id`` follows ``int_jurisdictions.jurisdiction_id``: ``{place_slug}_{geoid}``
+(e.g. ``boston_2507000``, ``plymouth_25023``).
 
 Each entry carries a ``homepage`` (used for YouTube channel discovery) plus separate lists
 of ``council_seed_urls`` and ``mayor_seed_urls`` so the contact scraper can target the
@@ -31,7 +30,7 @@ class MAJurisdiction(TypedDict):
 
 MA_PILOT_JURISDICTIONS: list[MAJurisdiction] = [
     {
-        "jurisdiction_id": "municipality_2507000",
+        "jurisdiction_id": "boston_2507000",
         "state_code": "MA",
         "name": "Boston",
         "type": "city",
@@ -44,7 +43,7 @@ MA_PILOT_JURISDICTIONS: list[MAJurisdiction] = [
         ],
     },
     {
-        "jurisdiction_id": "municipality_2511000",
+        "jurisdiction_id": "cambridge_2511000",
         "state_code": "MA",
         "name": "Cambridge",
         "type": "city",
@@ -58,7 +57,7 @@ MA_PILOT_JURISDICTIONS: list[MAJurisdiction] = [
         ],
     },
     {
-        "jurisdiction_id": "municipality_2582000",
+        "jurisdiction_id": "worcester_2582000",
         "state_code": "MA",
         "name": "Worcester",
         "type": "city",
@@ -72,7 +71,7 @@ MA_PILOT_JURISDICTIONS: list[MAJurisdiction] = [
         ],
     },
     {
-        "jurisdiction_id": "municipality_2567000",
+        "jurisdiction_id": "springfield_2567000",
         "state_code": "MA",
         "name": "Springfield",
         "type": "city",
@@ -85,7 +84,7 @@ MA_PILOT_JURISDICTIONS: list[MAJurisdiction] = [
         ],
     },
     {
-        "jurisdiction_id": "municipality_2537000",
+        "jurisdiction_id": "lowell_2537000",
         "state_code": "MA",
         "name": "Lowell",
         "type": "city",
@@ -94,13 +93,10 @@ MA_PILOT_JURISDICTIONS: list[MAJurisdiction] = [
             "https://www.lowellma.gov/533/Meet-the-City-Council",
             "https://www.lowellma.gov/directory.aspx?did=16",
         ],
-        # Lowell uses Plan E (council-manager); the mayor is elected from the council
-        # rather than having a separate office page. Mayor's row should fall out of the
-        # council roster scrape with title_or_role containing "Mayor".
         "mayor_seed_urls": [],
     },
     {
-        "jurisdiction_id": "municipality_2562535",
+        "jurisdiction_id": "somerville_2562535",
         "state_code": "MA",
         "name": "Somerville",
         "type": "city",
@@ -113,7 +109,7 @@ MA_PILOT_JURISDICTIONS: list[MAJurisdiction] = [
         ],
     },
     {
-        "jurisdiction_id": "municipality_2545560",
+        "jurisdiction_id": "newton_2545560",
         "state_code": "MA",
         "name": "Newton",
         "type": "city",
@@ -121,15 +117,13 @@ MA_PILOT_JURISDICTIONS: list[MAJurisdiction] = [
         "council_seed_urls": [
             "https://www.newtonma.gov/government/city-council",
         ],
-        # Newton swapped mayors in Jan 2026 (Fuller -> Laredo); legacy /mayor-fuller
-        # paths may 404. Runner probes; non-200 seeds are skipped.
         "mayor_seed_urls": [
             "https://www.newtonma.gov/government/mayor",
             "https://www.newtonma.gov/government/mayor-laredo",
         ],
     },
     {
-        "jurisdiction_id": "municipality_2555745",
+        "jurisdiction_id": "quincy_2555745",
         "state_code": "MA",
         "name": "Quincy",
         "type": "city",
@@ -143,7 +137,7 @@ MA_PILOT_JURISDICTIONS: list[MAJurisdiction] = [
         ],
     },
     {
-        "jurisdiction_id": "county_25023",
+        "jurisdiction_id": "plymouth_25023",
         "state_code": "MA",
         "name": "Plymouth County",
         "type": "county",
@@ -152,12 +146,10 @@ MA_PILOT_JURISDICTIONS: list[MAJurisdiction] = [
             "https://www.plymouthcountyma.gov/222/Commissioners",
             "https://www.plymouthcountyma.gov/directory.aspx?did=12",
         ],
-        # No mayor for a MA county — chair of commissioners is the closest analog and
-        # will be extracted from the commissioners roster.
         "mayor_seed_urls": [],
     },
     {
-        "jurisdiction_id": "county_25021",
+        "jurisdiction_id": "norfolk_25021",
         "state_code": "MA",
         "name": "Norfolk County",
         "type": "county",

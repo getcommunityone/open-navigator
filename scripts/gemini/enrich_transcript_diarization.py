@@ -57,7 +57,7 @@ from scripts.gemini.speaker_hints import (  # noqa: E402
     load_contacts_bundle,
 )
 
-DEFAULT_JURISDICTION = "municipality_0177256"
+DEFAULT_JURISDICTION = "tuscaloosa_0177256"
 
 
 def enrich_payload(
@@ -177,7 +177,7 @@ def main() -> None:
                 audio_path = explicit
             else:
                 search_dirs: List[Path] = []
-                if jid == "municipality_0177256":
+                if jid == "tuscaloosa_0177256":
                     tdir = tuscaloosa_youtube_audio_dir(Path(args.audio_root))
                     if tdir.is_dir():
                         search_dirs.append(tdir)

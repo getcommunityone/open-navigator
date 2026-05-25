@@ -101,7 +101,7 @@ def _canonical_from_search_row(
     jurisdiction_name: str,
 ) -> str:
     jt = _infer_jtype_from_label(jurisdiction_name, search_type)
-    return jurisdiction_pk_from_geoid(geoid, jt)
+    return jurisdiction_pk_from_geoid(geoid, jt, name=jurisdiction_name)
 
 
 def build_legacy_to_canonical_map(conn) -> Dict[str, str]:

@@ -266,6 +266,8 @@ class JurisdictionResult:
     bronze_candidacy_rows: int = 0
     c1_election_rows: int = 0
     c1_candidacy_rows: int = 0
+    youtube_events_count: int = 0
+    youtube_events_inserted: int = 0
     seed_urls_attempted: int = 0
     seed_urls_succeeded: int = 0
     error: str | None = None
@@ -302,20 +304,25 @@ def load_jurisdictions(
     type_placeholders = ",".join(["%s"] * len(include_types))
     sql = f"""
         WITH ranked AS (
-            SELECT DISTINCT ON (jurisdiction_id)
-                jurisdiction_id,
-                state_code,
-                jurisdiction_category AS jurisdiction_type,
-                COALESCE(NULLIF(btrim(organization_name), ''),
-                         NULLIF(btrim(city), ''),
-                         jurisdiction_id) AS name,
-                btrim(website_url) AS website_url
-            FROM intermediate.int_jurisdiction_websites
-            WHERE state_code IN ({state_placeholders})
-              AND jurisdiction_category IN ({type_placeholders})
-              AND website_url IS NOT NULL
-              AND btrim(website_url) <> ''
-            ORDER BY jurisdiction_id, website_record_key
+            SELECT DISTINCT ON (w.jurisdiction_id)
+                w.jurisdiction_id,
+                w.state_code,
+                w.jurisdiction_category AS jurisdiction_type,
+                COALESCE(
+                    NULLIF(btrim(j.name), ''),
+                    NULLIF(btrim(w.organization_name), ''),
+                    NULLIF(btrim(w.city), ''),
+                    w.jurisdiction_id
+                ) AS name,
+                btrim(w.website_url) AS website_url
+            FROM intermediate.int_jurisdiction_websites w
+            LEFT JOIN intermediate.int_jurisdictions j
+              ON j.jurisdiction_id = w.jurisdiction_id
+            WHERE w.state_code IN ({state_placeholders})
+              AND w.jurisdiction_category IN ({type_placeholders})
+              AND w.website_url IS NOT NULL
+              AND btrim(w.website_url) <> ''
+            ORDER BY w.jurisdiction_id, w.website_record_key
         )
         SELECT jurisdiction_id, state_code, jurisdiction_type, name, website_url
         FROM ranked
@@ -420,22 +427,26 @@ def _resolve_seed_urls(j: Jurisdiction) -> list[tuple[str, str]]:
     """
     seeds: list[tuple[str, str]] = []
     seen: set[str] = set()
+    is_county = (j.jurisdiction_type or "").strip().lower() == "county"
 
     for u in merged_contact_seed_urls(j.jurisdiction_id, []):
         if u in seen:
             continue
         seen.add(u)
-        kind = "mayor" if is_mayor_seed_url(u) else "council"
+        if is_county:
+            kind = "council"
+        else:
+            kind = "mayor" if is_mayor_seed_url(u) else "council"
         seeds.append((u, kind))
 
-    # If hand-curated covers both kinds, skip the heuristic to save HTTP.
-    have_mayor = any(k == "mayor" for _, k in seeds)
+    # Counties have commissioners, not mayors — skip mayor heuristic probes entirely.
+    have_mayor = (not is_county) and any(k == "mayor" for _, k in seeds)
     have_council = any(k == "council" for _, k in seeds)
     if have_mayor and have_council:
         return seeds
 
-    discovered = discover_seed_urls(j.website_url)
-    if not have_mayor:
+    discovered = discover_seed_urls(j.website_url, jurisdiction_type=j.jurisdiction_type)
+    if not have_mayor and not is_county:
         for u in discovered.get("mayor", []):
             if u in seen:
                 continue
@@ -766,6 +777,71 @@ def _promote_primary_youtube_to_scraped(
         conn.close()
 
 
+def _count_youtube_events(database_url: str, jurisdiction_id: str) -> int:
+    """Rows in ``bronze.bronze_events_youtube`` for this jurisdiction (catalog size)."""
+    conn = psycopg2.connect(database_url)
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT COUNT(*)::int
+                FROM bronze.bronze_events_youtube
+                WHERE jurisdiction_id = %s
+                """,
+                (jurisdiction_id,),
+            )
+            row = cur.fetchone()
+            return int(row[0]) if row else 0
+    finally:
+        conn.close()
+
+
+def _load_youtube_events_for_primary(
+    database_url: str,
+    j: Jurisdiction,
+    *,
+    channel_id: str,
+    channel_url: str,
+    channel_title: str,
+    discovery_method: str,
+    confidence: float | None,
+    max_videos: int,
+    skip_transcripts: bool,
+    cookies_file: str | None,
+) -> int:
+    """Catalog videos/streams for the promoted primary channel; returns rows written."""
+    from scripts.datasources.youtube.load_youtube_events_to_postgres import YouTubeEventsLoader
+
+    loader = YouTubeEventsLoader(
+        database_url=database_url,
+        youtube_api_key=os.getenv("YOUTUBE_API_KEY"),
+        max_videos_per_channel=max_videos,
+        fetch_transcripts=not skip_transcripts,
+        cookies_file=cookies_file,
+    )
+    try:
+        jurisdiction = {
+            "jurisdiction_id": j.jurisdiction_id,
+            "jurisdiction_name": j.name,
+            "state_code": j.state_code,
+            "state": j.state_code,
+            "jurisdiction_type": j.jurisdiction_type,
+            "youtube_channels": [
+                {
+                    "channel_id": channel_id,
+                    "channel_url": channel_url,
+                    "channel_title": channel_title or j.name,
+                    "channel_type": "municipal",
+                    "discovery_method": discovery_method or "website_scrape",
+                    "confidence": confidence,
+                }
+            ],
+        }
+        return int(loader.process_jurisdiction(jurisdiction) or 0)
+    finally:
+        loader.conn.close()
+
+
 def _process_one(
     j: Jurisdiction,
     batch_id: str,
@@ -777,6 +853,9 @@ def _process_one(
     skip_elections_c1_sync: bool = False,
     elections_max_pages: int = 10,
     youtube_cookies_file: str | None = None,
+    load_youtube_events: bool = False,
+    youtube_events_max_videos: int = 100,
+    youtube_events_skip_transcripts: bool = True,
 ) -> JurisdictionResult:
     """Full pipeline for one jurisdiction. Catches everything; never raises."""
     result = JurisdictionResult(
@@ -888,6 +967,50 @@ def _process_one(
                         jurisdiction_type=j.jurisdiction_type,
                         channels=primary_candidates,
                     )
+                    if load_youtube_events and not _STOP.is_set():
+                        primary = pick_primary_youtube_channel(primary_candidates)
+                        promo_url = primary[0] if primary else ""
+                        primary_row = next(
+                            (
+                                r
+                                for r in primary_candidates
+                                if _channel_url(r) == promo_url
+                            ),
+                            primary_candidates[0],
+                        )
+                        channel_id = str(
+                            primary_row.get("youtube_channel_id")
+                            or primary_row.get("channel_id")
+                            or ""
+                        ).strip()
+                        if channel_id.startswith("UC"):
+                            try:
+                                result.youtube_events_inserted = _load_youtube_events_for_primary(
+                                    database_url,
+                                    j,
+                                    channel_id=channel_id,
+                                    channel_url=promo_url
+                                    or canonical_channel_url(channel_id),
+                                    channel_title=str(
+                                        primary_row.get("channel_title") or j.name
+                                    ),
+                                    discovery_method=str(
+                                        primary_row.get("discovery_method") or ""
+                                    ),
+                                    confidence=float(
+                                        primary_row.get("official_meeting_confidence") or 0
+                                    )
+                                    or None,
+                                    max_videos=youtube_events_max_videos,
+                                    skip_transcripts=youtube_events_skip_transcripts,
+                                    cookies_file=youtube_cookies_file,
+                                )
+                            except Exception as exc:
+                                logger.warning(
+                                    "[%s] YouTube events load failed: %s",
+                                    _jlabel(j),
+                                    exc,
+                                )
 
         if scrape_elections and not _STOP.is_set():
             from scripts.datasources.jurisdiction_pilot.website_elections import (
@@ -919,6 +1042,11 @@ def _process_one(
     except Exception as exc:  # fault tolerance: never let one jurisdiction kill the run
         result.error = f"{type(exc).__name__}: {exc}"
         logger.exception("[%s] %s failed", j.state_code, j.jurisdiction_id)
+
+    try:
+        result.youtube_events_count = _count_youtube_events(database_url, j.jurisdiction_id)
+    except Exception as exc:
+        logger.debug("[%s] youtube events count failed: %s", _jlabel(j), exc)
 
     result.duration_s = time.monotonic() - start
     return result
@@ -1023,6 +1151,25 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="DEBUG logs for website YouTube crawl, enrich, and Civic API helpers.",
     )
+    p.add_argument(
+        "--youtube-events",
+        action="store_true",
+        help=(
+            "After promoting a primary YouTube channel, catalog videos into "
+            "bronze.bronze_events_youtube (slow; uses YOUTUBE_API_KEY)."
+        ),
+    )
+    p.add_argument(
+        "--youtube-events-max-videos",
+        type=int,
+        default=100,
+        help="With --youtube-events, max videos per channel (default: 100).",
+    )
+    p.add_argument(
+        "--youtube-events-transcripts",
+        action="store_true",
+        help="With --youtube-events, fetch captions (default: skip for pilot speed).",
+    )
     args = p.parse_args(argv)
 
     logging.basicConfig(
@@ -1087,6 +1234,12 @@ def main(argv: list[str] | None = None) -> int:
             "Website election scrape enabled (max %d extra pages per jurisdiction)",
             args.elections_max_pages,
         )
+    if args.youtube_events:
+        logger.info(
+            "YouTube events catalog enabled (max %d videos/channel, transcripts=%s)",
+            args.youtube_events_max_videos,
+            args.youtube_events_transcripts,
+        )
 
     _install_sigint_handler()
     start = time.monotonic()
@@ -1095,7 +1248,7 @@ def main(argv: list[str] | None = None) -> int:
         "contacts": 0, "mayors": 0, "youtube": 0,
         "youtube_filtered": 0, "images": 0, "errors": 0,
         "bronze_elections": 0, "bronze_candidacies": 0, "c1_elections": 0, "c1_candidacies": 0,
-        "election_errors": 0,
+        "election_errors": 0, "events": 0, "events_inserted": 0,
     }
 
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
@@ -1111,6 +1264,9 @@ def main(argv: list[str] | None = None) -> int:
                 skip_elections_c1_sync=args.elections_skip_c1_sync,
                 elections_max_pages=args.elections_max_pages,
                 youtube_cookies_file=cookies_path or None,
+                load_youtube_events=args.youtube_events,
+                youtube_events_max_videos=args.youtube_events_max_videos,
+                youtube_events_skip_transcripts=not args.youtube_events_transcripts,
             ): j
             for j in pending
         }
@@ -1140,6 +1296,8 @@ def main(argv: list[str] | None = None) -> int:
                 totals["errors"] += 1
             if result.election_error:
                 totals["election_errors"] += 1
+            totals["events"] += result.youtube_events_count
+            totals["events_inserted"] += result.youtube_events_inserted
 
             pe = max(1, int(args.progress_every))
             if completed % pe == 0 or completed == len(pending):

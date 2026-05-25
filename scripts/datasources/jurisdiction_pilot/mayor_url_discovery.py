@@ -66,6 +66,7 @@ _COUNCIL_CANDIDATE_PATHS: tuple[str, ...] = (
     "/elected-officials",
     "/commissioners",
     "/county-commission",
+    "/county-commissioner-meetings",
     "/board-of-commissioners",
 )
 
@@ -179,26 +180,40 @@ def crawl_homepage_anchors(
     return found
 
 
-def discover_seed_urls(homepage_url: str) -> dict[str, list[str]]:
+def discover_seed_urls(
+    homepage_url: str,
+    *,
+    jurisdiction_type: str | None = None,
+) -> dict[str, list[str]]:
     """
     Combined two-tier discovery. Returns a dict with ``mayor`` and ``council`` lists.
     Each list contains URLs that responded 200 from the heuristic probe; if both come
     back empty, falls back to a single homepage-anchor crawl whose results are split
     into ``mayor`` vs ``council`` by URL/text inspection.
+
+    Counties skip mayor probes entirely (commissioners / board pages only).
     """
     if not homepage_url:
         return {"mayor": [], "council": []}
 
+    jt = (jurisdiction_type or "").strip().lower()
+    skip_mayor = jt == "county"
+
     session = requests.Session()
     session.headers["User-Agent"] = _USER_AGENT
 
-    mayor_live = probe_urls(candidate_urls(homepage_url, kind="mayor"), session=session)
+    mayor_live: list[str] = []
+    if not skip_mayor:
+        mayor_live = probe_urls(candidate_urls(homepage_url, kind="mayor"), session=session)
     council_live = probe_urls(candidate_urls(homepage_url, kind="council"), session=session)
 
     if mayor_live or council_live:
         return {"mayor": mayor_live, "council": council_live}
 
     anchors = crawl_homepage_anchors(homepage_url, session=session)
+    if skip_mayor:
+        council_anchors = [u for u in anchors if not re.search(r"mayor", u, re.IGNORECASE)]
+        return {"mayor": [], "council": council_anchors}
     mayor_anchors = [u for u in anchors if re.search(r"mayor", u, re.IGNORECASE)]
     council_anchors = [u for u in anchors if u not in mayor_anchors]
     return {"mayor": mayor_anchors, "council": council_anchors}

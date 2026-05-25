@@ -47,9 +47,12 @@ def load_counties(conn, counties_file: Path, states_filter: list = None, batch_s
     # Prepare records for insertion
     records = []
     for _, row in df.iterrows():
-        # Create jurisdiction_id from GEOID
-        jurisdiction_id = f"county_{row['GEOID']}"
         jurisdiction_name = row['NAME'].replace(' County', '').strip()
+        from scripts.jurisdictions.jurisdiction_id import jurisdiction_id_from_name_geoid
+
+        jurisdiction_id = jurisdiction_id_from_name_geoid(
+            row['NAME'], str(row['GEOID']), jurisdiction_type="county"
+        )
         
         record = {
             'jurisdiction_id': jurisdiction_id,

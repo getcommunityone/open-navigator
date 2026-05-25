@@ -17,6 +17,16 @@ def test_mobile_county_id():
     assert jurisdiction_id_from_name_geoid("Mobile County", "01097", jurisdiction_type="county") == "mobile_01097"
 
 
+def test_jurisdiction_pk_from_bronze_geoid_lookup():
+    from scripts.jurisdictions.jurisdiction_id import (
+        lookup_canonical_jurisdiction_id_from_bronze,
+    )
+
+    canonical = lookup_canonical_jurisdiction_id_from_bronze("0177256", "municipality")
+    if canonical:
+        assert canonical == "tuscaloosa_0177256"
+
+
 def test_jurisdiction_pk_with_name():
     assert (
         jurisdiction_pk_from_geoid("0101708", "municipality", name="Andalusia city")

@@ -3189,14 +3189,30 @@ class JurisdictionsWikiDataLoader:
                     if g.isdigit() and len(g) == 4:
                         geoid = g.zfill(5)
                 fips_code = geoid
-                jurisdiction_id = f"county_{geoid}" if geoid else None
+                place_label = str(result.get("itemLabel") or "").strip()
+                from scripts.jurisdictions.jurisdiction_id import jurisdiction_id_from_name_geoid
+
+                jurisdiction_id = (
+                    jurisdiction_id_from_name_geoid(
+                        place_label, geoid, jurisdiction_type="county"
+                    )
+                    if geoid and place_label
+                    else None
+                )
                 jurisdiction_id_type = 'county_fips' if geoid else None
             elif jurisdiction_type == 'school_district' and nces_id:
-                # Format: school_{NCES} (e.g., school_0100001)
-                jurisdiction_id = f"school_{nces_id}"
-                jurisdiction_id_type = 'nces_id'
-                # GEOID for school districts is the NCES ID
                 geoid = nces_id
+                place_label = str(result.get("itemLabel") or "").strip()
+                from scripts.jurisdictions.jurisdiction_id import jurisdiction_id_from_name_geoid
+
+                jurisdiction_id = (
+                    jurisdiction_id_from_name_geoid(
+                        place_label, geoid, jurisdiction_type="school_district"
+                    )
+                    if place_label
+                    else f"school_district_{geoid}"
+                )
+                jurisdiction_id_type = 'nces_id'
             elif fips_code:
                 # City/municipality with FIPS place code.
                 # Wikidata P882 for places is often a 5-digit *place* FIPS; our bronze GEOID
@@ -3206,7 +3222,18 @@ class JurisdictionsWikiDataLoader:
                     geoid = f"{state_fips}{fips_code}"
                 else:
                     geoid = fips_code
-            
+                if geoid and jurisdiction_type == "municipality":
+                    place_label = str(result.get("itemLabel") or "").strip()
+                    from scripts.jurisdictions.jurisdiction_id import (
+                        jurisdiction_id_from_name_geoid,
+                    )
+
+                    if place_label:
+                        jurisdiction_id = jurisdiction_id_from_name_geoid(
+                            place_label, geoid, jurisdiction_type="municipality"
+                        )
+                        jurisdiction_id_type = "place_fips"
+
             if gnis_id and not jurisdiction_id:
                 # Format: {GNIS_ID} (e.g., 173056)
                 jurisdiction_id = gnis_id

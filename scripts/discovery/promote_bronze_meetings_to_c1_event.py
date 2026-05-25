@@ -134,6 +134,7 @@ class BronzeRow:
     doc_type: str | None
     anchor: str | None
     homepage_url: str | None
+    meeting_date: str | None = None  # ISO YYYY-MM-DD from bronze when set
 
     @property
     def is_pdf(self) -> bool:
@@ -156,12 +157,14 @@ def load_bronze_rows(conn, states: tuple[str, ...] | None) -> list[BronzeRow]:
         args = (list(states),)
     sql = f"""
         SELECT id, jurisdiction_id, state_code, resource_category, resource_kind,
-               url, local_path, doc_type, anchor_or_link_text, homepage_url
+               url, local_path, doc_type, anchor_or_link_text, homepage_url,
+               meeting_date::text
         FROM bronze.bronze_events_meetings_counties_scraped
         WHERE TRUE {state_filter}
         UNION ALL
         SELECT id, jurisdiction_id, state_code, resource_category, resource_kind,
-               url, local_path, doc_type, anchor_or_link_text, homepage_url
+               url, local_path, doc_type, anchor_or_link_text, homepage_url,
+               meeting_date::text
         FROM bronze.bronze_events_meetings_municipalities_scraped
         WHERE TRUE {state_filter}
     """
@@ -175,6 +178,7 @@ def load_bronze_rows(conn, states: tuple[str, ...] | None) -> list[BronzeRow]:
                 resource_category=r[3], resource_kind=r[4],
                 url=r[5], local_path=r[6], doc_type=r[7],
                 anchor=r[8], homepage_url=r[9],
+                meeting_date=r[10],
             ))
     return rows
 
@@ -218,8 +222,9 @@ def group_rows(bronze: list[BronzeRow]) -> tuple[list[EventGroup], int, int]:
     by_key: dict[tuple[str, str], EventGroup] = {}
     datable = undatable = 0
     for r in bronze:
-        # Only datable resources contribute to event creation.
-        date = derive_date(r.anchor or "", r.url or "", r.local_path or "")
+        date = (r.meeting_date or "").strip()[:10] or None
+        if not date:
+            date = derive_date(r.anchor or "", r.url or "", r.local_path or "")
         if not date:
             undatable += 1
             continue
@@ -325,7 +330,8 @@ def insert_resources(conn, groups: list[EventGroup], *, dry_run: bool) -> dict[s
                         counts["media_youtube"] += 1
                 elif r.is_other_stream and r.url:
                     media_id = _det_uuid(g.event_id, r.url, "media_other_stream")
-                    links = '[{"url":' + _q(r.url) + '}]'
+                    media_type = "video/vimeo" if "vimeo.com" in (r.url or "").lower() else "video/stream"
+                    links = '[{"url":' + _q(r.url) + ',"media_type":' + _q(media_type) + "}]"
                     cur.execute("""
                         INSERT INTO public.c1_eventmedia
                             (id, note, date, event_id, classification, links)

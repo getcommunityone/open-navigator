@@ -77,7 +77,7 @@ DEFAULT_PROMPT_PATH = _REPO_ROOT / "prompts" / "policy_analysis_v1.md"
 DEFAULT_PROMPT_PART_1 = _REPO_ROOT / "prompts" / "policy_analysis_part_1.md"
 DEFAULT_PROMPT_PART_2 = _REPO_ROOT / "prompts" / "policy_analysis_part_2.md"
 PART2_USER_MARKER = "JSON from Step 1"
-DEFAULT_JURISDICTION_ID = "municipality_0177256"
+DEFAULT_JURISDICTION_ID = "tuscaloosa_0177256"
 DEFAULT_GEMINI_URL = "https://gemini.google.com/app"
 DEFAULT_OUTPUT_DIR = _REPO_ROOT / "data" / "cache" / "gemini_browser_policy"
 

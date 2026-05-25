@@ -364,7 +364,12 @@ def _granular_rows_for_manifest(
         u = _norm_http_url(str(ot.get("url") or "").strip())
         if not u:
             continue
-        is_m = _is_likely_meeting_other_stream(ot)
+        anchor = str(ot.get("anchor_text") or "").strip()
+        is_m = _is_likely_meeting_other_stream(ot) or bool(
+            anchor and _MEETING_HINT.search(anchor)
+        )
+        md, mdsrc = _pick_meeting_date(url=u, anchor=anchor, doc_type="video")
+        title = (anchor or u)[:500]
         rows.append(
             (
                 jid,
@@ -380,14 +385,14 @@ def _granular_rows_for_manifest(
                 None,
                 None,
                 None,
-                None,
+                anchor or None,
                 stacks_j,
                 contacts_j,
                 Json(_hints_for_url(hmap, u)) if _hints_for_url(hmap, u) else None,
                 is_m,
-                None,
-                None,
-                u[:500],
+                md,
+                mdsrc,
+                title,
                 None,
                 Json(ot),
             )

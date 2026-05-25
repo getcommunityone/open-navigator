@@ -150,6 +150,8 @@ def _map_jurisdiction_type(raw: str) -> str:
 
 
 def _jurisdiction_group_from_id(jurisdiction_id: str) -> str:
+    from scripts.jurisdictions.jurisdiction_id import parse_jurisdiction_id
+
     jid = (jurisdiction_id or "").strip().lower()
     if jid.startswith("county_"):
         return "county"
@@ -160,6 +162,17 @@ def _jurisdiction_group_from_id(jurisdiction_id: str) -> str:
     if jid.startswith("state_"):
         return "state"
     if jid.startswith("township_"):
+        return "township"
+    jt, _geoid, _slug = parse_jurisdiction_id(jid)
+    if jt == "county":
+        return "county"
+    if jt == "municipality":
+        return "city"
+    if jt == "school_district":
+        return "school"
+    if jt == "state":
+        return "state"
+    if jt == "township":
         return "township"
     return "other"
 

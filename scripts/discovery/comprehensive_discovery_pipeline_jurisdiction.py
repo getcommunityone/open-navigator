@@ -2984,6 +2984,7 @@ class ComprehensiveDiscoveryPipelineJurisdiction:
                             "platform": vs.get("platform", "unknown"),
                             "found_via": vs.get("found_via", ""),
                             "discovered_on": page_ctx,
+                            "anchor_text": vs.get("anchor_text") or "",
                         }
                     )
 

@@ -52,7 +52,7 @@ from scripts.datasources.youtube.load_youtube_events_to_postgres import (  # noq
 )
 
 # City of Tuscaloosa, AL — from meetings manifest / @TuscaloosaCityAL
-TUSCALOOSA_JURISDICTION_ID = "municipality_0177256"
+TUSCALOOSA_JURISDICTION_ID = "tuscaloosa_0177256"
 TUSCALOOSA_JURISDICTION_NAME = "Tuscaloosa"
 TUSCALOOSA_STATE = "AL"
 TUSCALOOSA_CHANNEL_ID = "UC74dczS0B3MhDhUHp2ZGRPA"

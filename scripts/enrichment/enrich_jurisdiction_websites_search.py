@@ -962,10 +962,12 @@ def main() -> None:
             )
             continue
         meta = names.get(geoid)
+        place_name = (meta or {}).get("name") if meta else None
         if not meta:
             rows_out.append(
                 EnrichmentRow(
-                    jurisdiction_id=jurisdiction_pk_from_geoid(geoid, jt) or f"{_id_prefix(jt)}{geoid}",
+                    jurisdiction_id=jurisdiction_pk_from_geoid(geoid, jt, name=place_name)
+                    or f"{_id_prefix(jt)}{geoid}",
                     geoid=geoid,
                     county_name="",
                     state_code=state,

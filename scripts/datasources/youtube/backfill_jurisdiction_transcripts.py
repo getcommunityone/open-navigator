@@ -84,7 +84,7 @@ def _effective_state_code(
     return db_st
 
 DEFAULT_LOCAL_CACHE = _REPO_ROOT / "data" / "cache" / "gemini_transcript_policy"
-TUSCALOOSA_JURISDICTION_ID = "municipality_0177256"
+TUSCALOOSA_JURISDICTION_ID = "tuscaloosa_0177256"
 
 # Bronze rows with transcript_source like tombstone:% are skipped on future backfills.
 TOMBSTONE_SOURCE_PREFIX = "tombstone:"

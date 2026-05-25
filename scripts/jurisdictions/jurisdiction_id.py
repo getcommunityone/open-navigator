@@ -127,17 +127,89 @@ def parse_jurisdiction_id(
     return None, None, None
 
 
+def builtin_seed_urls_for_jurisdiction(
+    jurisdiction_id: str,
+    builtin_map: dict[str, tuple[str, ...]],
+) -> tuple[str, ...]:
+    """Resolve built-in seed URLs by exact id or shared GEOID (legacy ``county_*`` vs ``slug_geoid``)."""
+    jid = (jurisdiction_id or "").strip()
+    if jid in builtin_map:
+        return builtin_map[jid]
+    _, geoid, _ = parse_jurisdiction_id(jid)
+    if not geoid:
+        return ()
+    for key, urls in builtin_map.items():
+        _, key_geoid, _ = parse_jurisdiction_id(key)
+        if key_geoid and key_geoid == geoid:
+            return urls
+    return ()
+
+
+_BRONZE_GEOID_TABLE: dict[str, tuple[str, str]] = {
+    "county": ("bronze.bronze_jurisdictions_counties", "5"),
+    "municipality": ("bronze.bronze_jurisdictions_municipalities", "7"),
+    "school_district": ("bronze.bronze_jurisdictions_school_districts", "7"),
+    "township": ("bronze.bronze_jurisdictions_townships", "10"),
+}
+
+
+def lookup_canonical_jurisdiction_id_from_bronze(
+    geoid: str,
+    jurisdiction_type: str,
+    *,
+    database_url: Optional[str] = None,
+) -> str:
+    """Resolve ``{slug}_{geoid}`` from bronze when only GEOID + type are known."""
+    import os
+
+    raw = str(geoid or "").strip().replace("-", "")
+    if not raw or not raw.isdigit():
+        return ""
+    jt = (jurisdiction_type or "").lower()
+    if jt in ("city", "town", "village", "borough", "place"):
+        jt = "municipality"
+    if jt == "school":
+        jt = "school_district"
+    spec = _BRONZE_GEOID_TABLE.get(jt)
+    if not spec:
+        return ""
+    table, width = spec
+    padded = raw.zfill(int(width))
+    url = (
+        (database_url or "").strip()
+        or os.getenv("NEON_DATABASE_URL_DEV", "").strip()
+        or os.getenv("NEON_DATABASE_URL", "").strip()
+    )
+    if not url:
+        return ""
+    try:
+        import psycopg2
+    except ImportError:
+        return ""
+    try:
+        with psycopg2.connect(url) as conn, conn.cursor() as cur:
+            cur.execute(
+                f"SELECT jurisdiction_id FROM {table} WHERE geoid IN (%s, %s) LIMIT 1",
+                (padded, raw),
+            )
+            row = cur.fetchone()
+            return str(row[0]).strip() if row and row[0] else ""
+    except Exception:
+        return ""
+
+
 def jurisdiction_pk_from_geoid(
     geoid: Optional[str],
     jtype: Optional[str],
     *,
     name: Optional[str] = None,
+    database_url: Optional[str] = None,
 ) -> str:
     """
     Primary key matching bronze / ``int_jurisdictions.jurisdiction_id``.
 
-    When ``name`` is provided (or derivable from bronze), returns ``{slug}_{geoid}``.
-    Without ``name``, returns legacy ``{type}_{padded_geoid}`` for backward compatibility.
+    Prefers ``{slug}_{geoid}`` from place ``name`` or a bronze GEOID lookup. Legacy
+    ``{type}_{geoid}`` is only returned when neither is available (no DB / unknown GEOID).
     """
     raw = str(geoid or "").strip().replace("-", "")
     if not raw or not raw.isdigit():
@@ -157,6 +229,12 @@ def jurisdiction_pk_from_geoid(
         elif jt == "township":
             padded = raw.zfill(10)
         return jurisdiction_id_from_name_geoid(name, padded, jurisdiction_type=jt)
+
+    canonical = lookup_canonical_jurisdiction_id_from_bronze(
+        raw, jt, database_url=database_url
+    )
+    if canonical:
+        return canonical
 
     if jt == "state":
         return f"state_{raw.zfill(2)}"

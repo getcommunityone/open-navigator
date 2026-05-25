@@ -1130,7 +1130,7 @@ def extract_other_video_stream_refs(html: str, page_url: str) -> List[Dict[str, 
     out: List[Dict[str, str]] = []
     seen: Set[str] = set()
 
-    def consider(raw: str, found_via: str) -> None:
+    def consider(raw: str, found_via: str, anchor_text: str = "") -> None:
         full = _absolute_http_stream_url(raw, page_url)
         if not full:
             return
@@ -1140,13 +1140,17 @@ def extract_other_video_stream_refs(html: str, page_url: str) -> List[Dict[str, 
         if full in seen:
             return
         seen.add(full)
-        out.append({"url": full, "platform": plat, "found_via": found_via})
+        row: Dict[str, str] = {"url": full, "platform": plat, "found_via": found_via}
+        label = re.sub(r"\s+", " ", (anchor_text or "").strip())
+        if label:
+            row["anchor_text"] = label[:500]
+        out.append(row)
 
     for a in soup.find_all("a", href=True):
         href = (a.get("href") or "").strip()
         if not href or href.startswith("#"):
             continue
-        consider(href, "a_href")
+        consider(href, "a_href", _link_anchor_text(a))
 
     for tag in soup.find_all(["iframe", "embed", "object"], src=True):
         src = (tag.get("src") or "").strip()

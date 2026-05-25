@@ -67,20 +67,19 @@ def upsert_homepage_overrides(conn, geoids: List[str], state: str) -> int:
             if not url:
                 logger.warning("No homepage override for geoid {}", geoid)
                 continue
-            jid = f"county_{geoid.zfill(5)}"
             cur.execute(
                 """
-                SELECT name, state_code, state
-                FROM intermediate.int_jurisdictions
-                WHERE jurisdiction_id = %s
+                SELECT jurisdiction_id, name, state_code, state
+                FROM bronze.bronze_jurisdictions_counties
+                WHERE geoid = %s
                 """,
-                (jid,),
+                (geoid.zfill(5),),
             )
             row = cur.fetchone()
             if not row:
-                logger.warning("Unknown jurisdiction_id {}", jid)
+                logger.warning("Unknown county geoid {}", geoid)
                 continue
-            name, state_code, state_name = row
+            jid, name, state_code, state_name = row
             cur.execute(
                 """
                 DELETE FROM intermediate.int_jurisdiction_websites

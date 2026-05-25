@@ -71,6 +71,7 @@ def plan_for_state(
     state_code: str,
 ) -> List[Dict[str, Any]]:
     from scripts.gemini.transcript_cache_paths import jurisdiction_cache_folder_name
+    from scripts.jurisdictions.jurisdiction_id import lookup_canonical_jurisdiction_id_from_bronze
 
     muni = root / state_code.upper() / "municipality"
     if not muni.is_dir():
@@ -87,7 +88,7 @@ def plan_for_state(
 
     plans: List[Dict[str, Any]] = []
     for geoid, paths in sorted(by_geoid.items()):
-        jid = f"municipality_{geoid}"
+        jid = lookup_canonical_jurisdiction_id_from_bronze(geoid, "municipality") or f"municipality_{geoid}"
         canonical_name = jurisdiction_cache_folder_name(jid)
         canonical_path = muni / canonical_name
         on_disk = {p.name: p for p in paths}
