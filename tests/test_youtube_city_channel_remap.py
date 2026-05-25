@@ -84,6 +84,17 @@ def test_houston_county_dothan_is_mismatch():
     assert _looks_like_city_channel_for_county(row, jurisdiction_name="Houston County")
 
 
+def test_covington_county_cityof_compact_title_is_mismatch():
+    """``cityofcovington`` must not stick to Covington County (city handle, not county)."""
+    row = {
+        "youtube_channel_url": "https://www.youtube.com/@cityofcovington",
+        "channel_title": "cityofcovington",
+        "channel_description": "City of Covington, Alabama",
+    }
+    assert _looks_like_city_channel_for_county(row, jurisdiction_name="Covington County")
+    assert parse_municipality_name_from_channel(row) == "Covington"
+
+
 def test_houston_county_commission_not_mismatch():
     row = {
         "youtube_channel_url": "https://www.youtube.com/channel/UCLaqkkdvi6sYpsncNRiFggg",

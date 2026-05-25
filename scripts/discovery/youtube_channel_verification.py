@@ -50,6 +50,7 @@ _TRUSTED_DISCOVERY_PREFIXES = (
 )
 
 _CITY_GOVT_TITLE_RE = re.compile(r"\b(?:city|town|village|borough)\s+of\b", re.I)
+_COMPACT_CITYOF_TITLE_RE = re.compile(r"^cityof[a-z0-9_]+$", re.I)
 
 
 def is_localview_discovery(method: str) -> bool:
@@ -317,14 +318,37 @@ def _county_name_token(jurisdiction_name: str) -> str:
     return jurisdiction_name.replace("County", "").replace("county", "").strip().lower()
 
 
+def _county_name_appears_as_county_reference(text: str, county_token: str) -> bool:
+    """
+    True when ``county_token`` is a county reference, not merely a substring of
+    ``cityofcovington``-style municipal handles.
+    """
+    if not county_token:
+        return False
+    t = (text or "").lower()
+    if re.search(rf"\b{re.escape(county_token)}\s+county\b", t):
+        return True
+    if re.search(rf"\bcounty\s+of\s+{re.escape(county_token)}\b", t):
+        return True
+    if "county" not in t:
+        return False
+    compact = re.sub(r"[^a-z0-9]+", "", t)
+    if county_token in compact and re.search(rf"cityof{re.escape(county_token)}", compact):
+        remainder = compact.replace(f"cityof{county_token}", "", 1)
+        if county_token not in remainder:
+            return False
+    return bool(re.search(rf"\b{re.escape(county_token)}\b", t))
+
+
+def _title_is_compact_cityof_handle(title: str) -> bool:
+    compact = re.sub(r"[^a-z0-9_]+", "", (title or "").strip().lower())
+    return bool(_COMPACT_CITYOF_TITLE_RE.match(compact))
+
+
 def _has_county_gov_signal(blob: str, county_token: str) -> bool:
     if any(sig in blob for sig in _COUNTY_GOV_TITLE_SIGNALS):
         return True
-    if county_token and re.search(rf"\b{re.escape(county_token)}\s+county\b", blob):
-        return True
-    if "county" in blob and county_token and county_token in blob:
-        return True
-    return False
+    return _county_name_appears_as_county_reference(blob, county_token)
 
 
 def _looks_like_city_channel_for_county(
@@ -343,6 +367,11 @@ def _looks_like_city_channel_for_county(
     blob = f"{title} {desc}".lower()
     title_l = title.lower()
     county_token = _county_name_token(jurisdiction_name)
+
+    if _title_is_compact_cityof_handle(title):
+        if _has_county_gov_signal(title_l, county_token):
+            return False
+        return True
 
     if _CITY_GOVT_TITLE_RE.search(title_l):
         # Explicit municipal title wins; do not let description mention of
@@ -371,9 +400,11 @@ def _looks_like_city_handle_for_county(
     desc = str(row.get("channel_description") or "").lower()
     blob = f"{title} {desc}"
     county_token = _county_name_token(jurisdiction_name)
+    if _title_is_compact_cityof_handle(title):
+        return not _has_county_gov_signal(title, county_token)
     if "county" in blob or "commission" in blob or "commissioners" in blob:
         return False
-    if county_token and county_token in blob:
+    if _county_name_appears_as_county_reference(blob, county_token):
         return False
     return True
 
