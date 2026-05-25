@@ -6,6 +6,7 @@ from scripts.datasources.openstates.sync_elections_to_c1 import (
     _contest_id,
     _dedupe_key,
     _election_id,
+    _election_rows_for_upsert,
     fit_c1_id,
     make_ocd_id,
 )
@@ -30,7 +31,78 @@ def test_fit_c1_id_hashes_legacy_long_ocd_id():
 def test_dedupe_key_truncated_to_500():
     long_name = "x" * 2000
     dk = _dedupe_key("jurisdiction", "2026-01-01", long_name, "general")
+    assert dk is not None
     assert len(dk) == _C1_LIMITS["dedupe_key"]
+
+
+def test_candidacy_uses_parent_election_id_from_raw_row():
+    parent = make_ocd_id("election", "parent-key")
+    row = BronzeElectionRow(
+        id=2,
+        scrape_batch_id="00000000-0000-0000-0000-000000000001",
+        record_type="candidacy",
+        ocd_id=make_ocd_id("candidacy", "cand-1"),
+        election_name=None,
+        election_date=None,
+        election_type=None,
+        election_status=None,
+        ocd_jurisdiction_id="county_13047",
+        state_code="GA",
+        jurisdiction_id="county_13047",
+        candidate_name="Jane",
+        candidate_party=None,
+        candidate_post="Mayor",
+        candidate_status="candidate",
+        candidate_vote_count=None,
+        candidate_vote_percent=None,
+        measure_title=None,
+        measure_summary=None,
+        measure_classification=None,
+        measure_yes_count=None,
+        measure_no_count=None,
+        measure_outcome=None,
+        source_url=None,
+        source_name=None,
+        raw_row={"election_id": parent},
+    )
+    election_id, dedupe = _election_id(row)
+    assert election_id == fit_c1_id(parent, prefix="election", fallback_key=parent)
+    assert dedupe == _dedupe_key("election", election_id)
+
+
+def test_election_rows_for_upsert_dedupes_same_dedupe_key():
+    base = dict(
+        scrape_batch_id="00000000-0000-0000-0000-000000000001",
+        record_type="election",
+        ocd_id=make_ocd_id("election", "a"),
+        election_name="Voting Precincts",
+        election_date=None,
+        election_type="unknown",
+        election_status="scraped",
+        ocd_jurisdiction_id="ocd-division/country:us/state:ga/place:ringgold",
+        state_code="GA",
+        jurisdiction_id="county_13047",
+        candidate_name=None,
+        candidate_party=None,
+        candidate_post=None,
+        candidate_status=None,
+        candidate_vote_count=None,
+        candidate_vote_percent=None,
+        measure_title=None,
+        measure_summary=None,
+        measure_classification=None,
+        measure_yes_count=None,
+        measure_no_count=None,
+        measure_outcome=None,
+        source_url=None,
+        source_name=None,
+        raw_row={},
+    )
+    rows = [
+        BronzeElectionRow(id=1, **base),
+        BronzeElectionRow(id=2, ocd_id=make_ocd_id("election", "b"), **{k: v for k, v in base.items() if k != "ocd_id"}),
+    ]
+    assert len(_election_rows_for_upsert(rows)) == 1
 
 
 def test_election_id_and_contest_id_within_limits():

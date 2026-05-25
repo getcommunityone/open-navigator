@@ -53,8 +53,11 @@ _OCD_PREFIX_SHORT: dict[str, str] = {
 _C1_LIMITS = {
     "id": 50,
     "dedupe_key": 500,
+    "division_id": 300,
+    "jurisdiction_id": 300,
     "source": 100,
     "electionsource_note": 300,
+    "electionsource_url": 2000,
 }
 
 
@@ -128,8 +131,19 @@ def _stable_key(*parts: str | None) -> str:
     return "|".join((p or "").strip().lower() for p in parts)
 
 
-def _dedupe_key(*parts: str | None) -> str:
-    return _truncate(_stable_key(*parts), _C1_LIMITS["dedupe_key"]) or ""
+def _dedupe_key(*parts: str | None) -> str | None:
+    key = _stable_key(*parts)
+    if not key:
+        return None
+    return _truncate(key, _C1_LIMITS["dedupe_key"])
+
+
+def _fit_division_id(value: str | None) -> str | None:
+    return _truncate(value, _C1_LIMITS["division_id"])
+
+
+def _fit_jurisdiction_id(value: str | None) -> str | None:
+    return _truncate(value, _C1_LIMITS["jurisdiction_id"])
 
 
 def _state_filter_sql(states: tuple[str, ...] | None) -> tuple[str, tuple[Any, ...]]:
@@ -241,48 +255,192 @@ def _source_rows(raw_row: dict[str, Any], source_url: str | None) -> list[tuple[
     return deduped
 
 
-def _election_id(row: BronzeElectionRow) -> tuple[str, str]:
+def _election_id(row: BronzeElectionRow) -> tuple[str, str | None]:
+    """Resolve c1 election id + dedupe_key (dedupe may be None)."""
+    raw = row.raw_row or {}
+    parent_election_id = (raw.get("election_id") or "").strip()
+    jurisdiction = row.jurisdiction_id or row.ocd_jurisdiction_id
+
+    if row.record_type == "election":
+        dedupe_key = _dedupe_key(
+            jurisdiction,
+            str(row.election_date or ""),
+            row.election_name,
+            row.election_type,
+        )
+        fallback = dedupe_key or str(row.id)
+        election_id = fit_c1_id(row.ocd_id, prefix="election", fallback_key=fallback)
+        return election_id, dedupe_key
+
+    if parent_election_id:
+        election_id = fit_c1_id(
+            parent_election_id, prefix="election", fallback_key=parent_election_id
+        )
+        dedupe_key = _dedupe_key(
+            jurisdiction,
+            str(row.election_date or ""),
+            row.election_name,
+            row.election_type,
+        )
+        if not (row.election_name or row.election_date or row.election_type):
+            dedupe_key = _dedupe_key("election", election_id)
+        return election_id, dedupe_key
+
     dedupe_key = _dedupe_key(
-        row.ocd_jurisdiction_id,
+        jurisdiction,
         str(row.election_date or ""),
         row.election_name,
         row.election_type,
+        str(row.id),
     )
-    election_id = fit_c1_id(row.ocd_id, prefix="election", fallback_key=dedupe_key)
+    fallback = dedupe_key or str(row.id)
+    election_id = fit_c1_id(row.ocd_id, prefix="election", fallback_key=fallback)
     return election_id, dedupe_key
 
 
-def _contest_id(row: BronzeElectionRow, election_id: str) -> tuple[str, str]:
+def _contest_id(row: BronzeElectionRow, election_id: str) -> tuple[str, str | None]:
     key = _dedupe_key(election_id, row.candidate_post, row.candidate_party)
-    return make_ocd_id("candidatecontest", key), key
+    contest_id = make_ocd_id("candidatecontest", key or f"{election_id}|{row.id}")
+    return contest_id, key
 
 
-def _candidacy_id(row: BronzeElectionRow, election_id: str, contest_id: str) -> tuple[str, str]:
+def _candidacy_id(row: BronzeElectionRow, election_id: str, contest_id: str) -> tuple[str, str | None]:
     key = _dedupe_key(election_id, contest_id, row.candidate_name, row.candidate_party)
-    candidacy_id = fit_c1_id(row.ocd_id, prefix="candidacy", fallback_key=key)
+    fallback = key or str(row.id)
+    candidacy_id = fit_c1_id(row.ocd_id, prefix="candidacy", fallback_key=fallback)
     return candidacy_id, key
 
 
-def _ballotmeasure_id(row: BronzeElectionRow, election_id: str) -> tuple[str, str]:
+def _ballotmeasure_id(row: BronzeElectionRow, election_id: str) -> tuple[str, str | None]:
     key = _dedupe_key(
         election_id, row.measure_title, row.measure_classification, row.measure_outcome
     )
-    measure_id = fit_c1_id(row.ocd_id, prefix="ballotmeasure", fallback_key=key)
+    fallback = key or str(row.id)
+    measure_id = fit_c1_id(row.ocd_id, prefix="ballotmeasure", fallback_key=fallback)
     return measure_id, key
+
+
+def _election_group_key(row: BronzeElectionRow) -> str:
+    election_id, dedupe_key = _election_id(row)
+    return dedupe_key or election_id
+
+
+def _election_rows_for_upsert(rows: list[BronzeElectionRow]) -> list[BronzeElectionRow]:
+    """One bronze row per election group; candidacies inherit parent election from raw_row."""
+    grouped: dict[str, BronzeElectionRow] = {}
+    for row in rows:
+        if row.record_type != "election":
+            continue
+        grouped[_election_group_key(row)] = row
+    for row in rows:
+        if row.record_type == "election":
+            continue
+        key = _election_group_key(row)
+        if key not in grouped:
+            grouped[key] = row
+    return list(grouped.values())
+
+
+def _execute_election_upsert(cur, payload: tuple) -> None:
+    """Upsert by dedupe_key when set (avoids ux_c1_election_dedupe_key violations)."""
+    dedupe_key = payload[9]
+    if dedupe_key:
+        cur.execute(
+            """
+            INSERT INTO public.c1_election
+                (id, legacy_id, name, election_date, election_type, election_status,
+                 jurisdiction_id, division_id, state_code, dedupe_key, source, source_url,
+                 links, sources, extras)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (dedupe_key) DO UPDATE SET
+                name = EXCLUDED.name,
+                election_date = EXCLUDED.election_date,
+                election_type = EXCLUDED.election_type,
+                election_status = EXCLUDED.election_status,
+                jurisdiction_id = EXCLUDED.jurisdiction_id,
+                division_id = EXCLUDED.division_id,
+                state_code = EXCLUDED.state_code,
+                source = EXCLUDED.source,
+                source_url = EXCLUDED.source_url,
+                links = EXCLUDED.links,
+                sources = EXCLUDED.sources,
+                extras = EXCLUDED.extras,
+                updated_at = now()
+            """,
+            payload,
+        )
+        return
+    cur.execute(
+        """
+        INSERT INTO public.c1_election
+            (id, legacy_id, name, election_date, election_type, election_status,
+             jurisdiction_id, division_id, state_code, dedupe_key, source, source_url,
+             links, sources, extras)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ON CONFLICT (id) DO UPDATE SET
+            name = EXCLUDED.name,
+            election_date = EXCLUDED.election_date,
+            election_type = EXCLUDED.election_type,
+            election_status = EXCLUDED.election_status,
+            jurisdiction_id = EXCLUDED.jurisdiction_id,
+            division_id = EXCLUDED.division_id,
+            state_code = EXCLUDED.state_code,
+            dedupe_key = EXCLUDED.dedupe_key,
+            source = EXCLUDED.source,
+            source_url = EXCLUDED.source_url,
+            links = EXCLUDED.links,
+            sources = EXCLUDED.sources,
+            extras = EXCLUDED.extras,
+            updated_at = now()
+        """,
+        payload,
+    )
+
+
+def _execute_dedupe_upsert(
+    cur,
+    *,
+    table: str,
+    columns: str,
+    placeholders: str,
+    update_set: str,
+    payload: tuple,
+    dedupe_index: int,
+) -> None:
+    dedupe_key = payload[dedupe_index]
+    if dedupe_key:
+        cur.execute(
+            f"""
+            INSERT INTO public.{table} ({columns})
+            VALUES ({placeholders})
+            ON CONFLICT (dedupe_key) DO UPDATE SET {update_set}
+            """,
+            payload,
+        )
+    else:
+        cur.execute(
+            f"""
+            INSERT INTO public.{table} ({columns})
+            VALUES ({placeholders})
+            ON CONFLICT (id) DO UPDATE SET {update_set}
+            """,
+            payload,
+        )
 
 
 def upsert_divisions(dst_conn, rows: list[BronzeElectionRow], *, dry_run: bool) -> int:
     payloads: dict[str, tuple] = {}
     for row in rows:
-        division_id = row.ocd_jurisdiction_id or row.jurisdiction_id
+        division_id = _fit_division_id(row.ocd_jurisdiction_id or row.jurisdiction_id)
         if not division_id:
             continue
         payloads[division_id] = (
             division_id,
-            row.jurisdiction_id or row.election_name or division_id,
+            _truncate(row.jurisdiction_id or row.election_name or division_id, 500)
+            or division_id,
             "jurisdiction",
             None,
-            row.jurisdiction_id,
+            _fit_jurisdiction_id(row.jurisdiction_id),
             row.state_code,
             Json({"source": row.source_name or "bronze_elections_scraped"}),
         )
@@ -310,56 +468,44 @@ def upsert_divisions(dst_conn, rows: list[BronzeElectionRow], *, dry_run: bool) 
 
 
 def upsert_elections(dst_conn, rows: list[BronzeElectionRow], *, dry_run: bool) -> int:
-    election_rows = [r for r in rows if r.record_type == "election"] or [r for r in rows if r.election_date]
+    election_rows = _election_rows_for_upsert(rows)
     if dry_run:
-        return len({ _election_id(r)[0] for r in election_rows })
+        return len({_election_id(r)[0] for r in election_rows})
     count = 0
     with dst_conn.cursor() as cur:
         for row in election_rows:
             election_id, dedupe_key = _election_id(row)
-            cur.execute(
-                """
-                INSERT INTO public.c1_election
-                    (id, legacy_id, name, election_date, election_type, election_status,
-                     jurisdiction_id, division_id, state_code, dedupe_key, source, source_url,
-                     links, sources, extras)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (id) DO UPDATE SET
-                    name = EXCLUDED.name,
-                    election_date = EXCLUDED.election_date,
-                    election_type = EXCLUDED.election_type,
-                    election_status = EXCLUDED.election_status,
-                    jurisdiction_id = EXCLUDED.jurisdiction_id,
-                    division_id = EXCLUDED.division_id,
-                    state_code = EXCLUDED.state_code,
-                    dedupe_key = EXCLUDED.dedupe_key,
-                    source = EXCLUDED.source,
-                    source_url = EXCLUDED.source_url,
-                    links = EXCLUDED.links,
-                    sources = EXCLUDED.sources,
-                    extras = EXCLUDED.extras,
-                    updated_at = now()
-                """,
-                (
-                    election_id,
-                    row.id,
-                    row.election_name or row.source_name or "Election",
-                    row.election_date,
-                    row.election_type,
-                    row.election_status,
-                    row.jurisdiction_id,
-                    row.ocd_jurisdiction_id or row.jurisdiction_id,
-                    row.state_code,
-                    dedupe_key,
-                    _truncate(row.source_name or "bronze_elections_scraped", _C1_LIMITS["source"])
-                    or "bronze_elections_scraped",
-                    row.source_url,
-                    Json((row.raw_row or {}).get("links") or []),
-                    Json((row.raw_row or {}).get("sources") or []),
-                    Json(row.raw_row or {}),
-                ),
+            election_id = fit_c1_id(election_id, prefix="election", fallback_key=str(row.id))
+            division_id = _fit_division_id(row.ocd_jurisdiction_id or row.jurisdiction_id)
+            payload = (
+                election_id,
+                row.id,
+                row.election_name or row.source_name or "Election",
+                row.election_date,
+                row.election_type,
+                row.election_status,
+                _fit_jurisdiction_id(row.jurisdiction_id),
+                division_id,
+                row.state_code,
+                dedupe_key,
+                _truncate(row.source_name or "bronze_elections_scraped", _C1_LIMITS["source"])
+                or "bronze_elections_scraped",
+                row.source_url,
+                Json((row.raw_row or {}).get("links") or []),
+                Json((row.raw_row or {}).get("sources") or []),
+                Json(row.raw_row or {}),
             )
+            _execute_election_upsert(cur, payload)
             count += 1
+            resolved_election_id = election_id
+            if dedupe_key:
+                cur.execute(
+                    "SELECT id FROM public.c1_election WHERE dedupe_key = %s",
+                    (dedupe_key,),
+                )
+                found = cur.fetchone()
+                if found:
+                    resolved_election_id = found[0]
             for note, url in _source_rows(row.raw_row or {}, row.source_url):
                 cur.execute(
                     """
@@ -367,7 +513,11 @@ def upsert_elections(dst_conn, rows: list[BronzeElectionRow], *, dry_run: bool) 
                     VALUES (%s, %s, %s)
                     ON CONFLICT DO NOTHING
                     """,
-                    (election_id, note, url),
+                    (
+                        resolved_election_id,
+                        note,
+                        _truncate(url, _C1_LIMITS["electionsource_url"]),
+                    ),
                 )
     dst_conn.commit()
     return count
@@ -380,17 +530,18 @@ def upsert_candidate_contests(dst_conn, rows: list[BronzeElectionRow], *, dry_ru
             continue
         election_id, _ = _election_id(row)
         contest_id, contest_key = _contest_id(row, election_id)
-        if contest_key not in grouped:
-            grouped[contest_key] = (
+        group_key = contest_key or contest_id
+        if group_key not in grouped:
+            grouped[group_key] = (
                 contest_id,
                 (
                     contest_id,
                     row.id,
-                    election_id,
+                    fit_c1_id(election_id, prefix="election", fallback_key=str(row.id)),
                     row.candidate_post or row.candidate_name or row.election_name or "Contest",
                     row.candidate_post,
                     row.candidate_status,
-                    row.jurisdiction_id,
+                    _fit_jurisdiction_id(row.jurisdiction_id),
                     row.state_code,
                     contest_key,
                     _truncate(row.source_name or "bronze_elections_scraped", _C1_LIMITS["source"])
@@ -400,32 +551,29 @@ def upsert_candidate_contests(dst_conn, rows: list[BronzeElectionRow], *, dry_ru
                 ),
             )
     if dry_run:
-        return {key: contest_id for key, (contest_id, _) in grouped.items()}
+        return {key: cid for key, (cid, _) in grouped.items()}
     with dst_conn.cursor() as cur:
         for contest_id, payload in grouped.values():
-            cur.execute(
-                """
-                INSERT INTO public.c1_candidatecontest
-                    (id, legacy_id, election_id, name, office, status,
-                     jurisdiction_id, state_code, dedupe_key, source, source_url, extras)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (id) DO UPDATE SET
-                    election_id = EXCLUDED.election_id,
-                    name = EXCLUDED.name,
-                    office = EXCLUDED.office,
-                    status = EXCLUDED.status,
-                    jurisdiction_id = EXCLUDED.jurisdiction_id,
-                    state_code = EXCLUDED.state_code,
-                    dedupe_key = EXCLUDED.dedupe_key,
-                    source = EXCLUDED.source,
-                    source_url = EXCLUDED.source_url,
-                    extras = EXCLUDED.extras,
-                    updated_at = now()
-                """,
-                payload,
+            _execute_dedupe_upsert(
+                cur,
+                table="c1_candidatecontest",
+                columns=(
+                    "id, legacy_id, election_id, name, office, status, "
+                    "jurisdiction_id, state_code, dedupe_key, source, source_url, extras"
+                ),
+                placeholders="%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s",
+                update_set=(
+                    "election_id = EXCLUDED.election_id, "
+                    "name = EXCLUDED.name, office = EXCLUDED.office, status = EXCLUDED.status, "
+                    "jurisdiction_id = EXCLUDED.jurisdiction_id, state_code = EXCLUDED.state_code, "
+                    "source = EXCLUDED.source, source_url = EXCLUDED.source_url, "
+                    "extras = EXCLUDED.extras, updated_at = now()"
+                ),
+                payload=payload,
+                dedupe_index=8,
             )
     dst_conn.commit()
-    return {key: contest_id for key, (contest_id, _) in grouped.items()}
+    return {key: cid for key, (cid, _) in grouped.items()}
 
 
 def upsert_candidacies(dst_conn, rows: list[BronzeElectionRow], contest_ids: dict[str, str], *, dry_run: bool) -> int:
@@ -438,54 +586,49 @@ def upsert_candidacies(dst_conn, rows: list[BronzeElectionRow], contest_ids: dic
                 continue
             election_id, _ = _election_id(row)
             contest_id, contest_key = _contest_id(row, election_id)
-            resolved_contest_id = contest_ids.get(contest_key, contest_id)
+            resolved_contest_id = contest_ids.get(contest_key or contest_id, contest_id)
             candidacy_id, dedupe_key = _candidacy_id(row, election_id, resolved_contest_id)
-            cur.execute(
-                """
-                INSERT INTO public.c1_candidacy
-                    (id, legacy_id, election_id, contest_id, contest_name, person_name,
-                     person_id, party, status, vote_count, vote_percent, jurisdiction_id,
-                     state_code, dedupe_key, source, source_url, extras, raw_row)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (id) DO UPDATE SET
-                    election_id = EXCLUDED.election_id,
-                    contest_id = EXCLUDED.contest_id,
-                    contest_name = EXCLUDED.contest_name,
-                    person_name = EXCLUDED.person_name,
-                    party = EXCLUDED.party,
-                    status = EXCLUDED.status,
-                    vote_count = EXCLUDED.vote_count,
-                    vote_percent = EXCLUDED.vote_percent,
-                    jurisdiction_id = EXCLUDED.jurisdiction_id,
-                    state_code = EXCLUDED.state_code,
-                    dedupe_key = EXCLUDED.dedupe_key,
-                    source = EXCLUDED.source,
-                    source_url = EXCLUDED.source_url,
-                    extras = EXCLUDED.extras,
-                    raw_row = EXCLUDED.raw_row,
-                    updated_at = now()
-                """,
-                (
-                    candidacy_id,
-                    row.id,
-                    election_id,
-                    resolved_contest_id,
-                    row.candidate_post or row.candidate_name or row.election_name or "Contest",
-                    row.candidate_name,
-                    None,
-                    row.candidate_party,
-                    row.candidate_status,
-                    row.candidate_vote_count,
-                    row.candidate_vote_percent,
-                    row.jurisdiction_id,
-                    row.state_code,
-                    dedupe_key,
-                    _truncate(row.source_name or "bronze_elections_scraped", _C1_LIMITS["source"])
-                    or "bronze_elections_scraped",
-                    row.source_url,
-                    Json(row.raw_row or {}),
-                    Json(row.raw_row or {}),
+            payload = (
+                candidacy_id,
+                row.id,
+                fit_c1_id(election_id, prefix="election", fallback_key=str(row.id)),
+                fit_c1_id(resolved_contest_id, prefix="candidatecontest", fallback_key=str(row.id)),
+                row.candidate_post or row.candidate_name or row.election_name or "Contest",
+                row.candidate_name,
+                None,
+                row.candidate_party,
+                row.candidate_status,
+                row.candidate_vote_count,
+                row.candidate_vote_percent,
+                _fit_jurisdiction_id(row.jurisdiction_id),
+                row.state_code,
+                dedupe_key,
+                _truncate(row.source_name or "bronze_elections_scraped", _C1_LIMITS["source"])
+                or "bronze_elections_scraped",
+                row.source_url,
+                Json(row.raw_row or {}),
+                Json(row.raw_row or {}),
+            )
+            _execute_dedupe_upsert(
+                cur,
+                table="c1_candidacy",
+                columns=(
+                    "id, legacy_id, election_id, contest_id, contest_name, person_name, "
+                    "person_id, party, status, vote_count, vote_percent, jurisdiction_id, "
+                    "state_code, dedupe_key, source, source_url, extras, raw_row"
                 ),
+                placeholders="%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s",
+                update_set=(
+                    "election_id = EXCLUDED.election_id, contest_id = EXCLUDED.contest_id, "
+                    "contest_name = EXCLUDED.contest_name, person_name = EXCLUDED.person_name, "
+                    "party = EXCLUDED.party, status = EXCLUDED.status, "
+                    "vote_count = EXCLUDED.vote_count, vote_percent = EXCLUDED.vote_percent, "
+                    "jurisdiction_id = EXCLUDED.jurisdiction_id, state_code = EXCLUDED.state_code, "
+                    "source = EXCLUDED.source, source_url = EXCLUDED.source_url, "
+                    "extras = EXCLUDED.extras, raw_row = EXCLUDED.raw_row, updated_at = now()"
+                ),
+                payload=payload,
+                dedupe_index=13,
             )
             count += 1
     dst_conn.commit()
@@ -502,55 +645,49 @@ def upsert_ballot_measures(dst_conn, rows: list[BronzeElectionRow], *, dry_run: 
                 continue
             election_id, _ = _election_id(row)
             measure_id, dedupe_key = _ballotmeasure_id(row, election_id)
-            cur.execute(
-                """
-                INSERT INTO public.c1_ballotmeasure
-                    (id, legacy_id, election_id, name, title, summary, classification,
-                     status, result, yes_votes, no_votes, yes_percentage, jurisdiction_id,
-                     state_code, dedupe_key, source, source_url, extras, raw_row)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (id) DO UPDATE SET
-                    election_id = EXCLUDED.election_id,
-                    name = EXCLUDED.name,
-                    title = EXCLUDED.title,
-                    summary = EXCLUDED.summary,
-                    classification = EXCLUDED.classification,
-                    status = EXCLUDED.status,
-                    result = EXCLUDED.result,
-                    yes_votes = EXCLUDED.yes_votes,
-                    no_votes = EXCLUDED.no_votes,
-                    yes_percentage = EXCLUDED.yes_percentage,
-                    jurisdiction_id = EXCLUDED.jurisdiction_id,
-                    state_code = EXCLUDED.state_code,
-                    dedupe_key = EXCLUDED.dedupe_key,
-                    source = EXCLUDED.source,
-                    source_url = EXCLUDED.source_url,
-                    extras = EXCLUDED.extras,
-                    raw_row = EXCLUDED.raw_row,
-                    updated_at = now()
-                """,
-                (
-                    measure_id,
-                    row.id,
-                    election_id,
-                    row.measure_title or row.election_name or "Ballot measure",
-                    row.measure_title,
-                    row.measure_summary,
-                    row.measure_classification,
-                    row.measure_outcome,
-                    row.measure_outcome,
-                    row.measure_yes_count,
-                    row.measure_no_count,
-                    None,
-                    row.jurisdiction_id,
-                    row.state_code,
-                    dedupe_key,
-                    _truncate(row.source_name or "bronze_elections_scraped", _C1_LIMITS["source"])
-                    or "bronze_elections_scraped",
-                    row.source_url,
-                    Json(row.raw_row or {}),
-                    Json(row.raw_row or {}),
+            payload = (
+                measure_id,
+                row.id,
+                fit_c1_id(election_id, prefix="election", fallback_key=str(row.id)),
+                row.measure_title or row.election_name or "Ballot measure",
+                row.measure_title,
+                row.measure_summary,
+                row.measure_classification,
+                row.measure_outcome,
+                row.measure_outcome,
+                row.measure_yes_count,
+                row.measure_no_count,
+                None,
+                _fit_jurisdiction_id(row.jurisdiction_id),
+                row.state_code,
+                dedupe_key,
+                _truncate(row.source_name or "bronze_elections_scraped", _C1_LIMITS["source"])
+                or "bronze_elections_scraped",
+                row.source_url,
+                Json(row.raw_row or {}),
+                Json(row.raw_row or {}),
+            )
+            _execute_dedupe_upsert(
+                cur,
+                table="c1_ballotmeasure",
+                columns=(
+                    "id, legacy_id, election_id, name, title, summary, classification, "
+                    "status, result, yes_votes, no_votes, yes_percentage, jurisdiction_id, "
+                    "state_code, dedupe_key, source, source_url, extras, raw_row"
                 ),
+                placeholders="%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s",
+                update_set=(
+                    "election_id = EXCLUDED.election_id, name = EXCLUDED.name, "
+                    "title = EXCLUDED.title, summary = EXCLUDED.summary, "
+                    "classification = EXCLUDED.classification, status = EXCLUDED.status, "
+                    "result = EXCLUDED.result, yes_votes = EXCLUDED.yes_votes, "
+                    "no_votes = EXCLUDED.no_votes, yes_percentage = EXCLUDED.yes_percentage, "
+                    "jurisdiction_id = EXCLUDED.jurisdiction_id, state_code = EXCLUDED.state_code, "
+                    "source = EXCLUDED.source, source_url = EXCLUDED.source_url, "
+                    "extras = EXCLUDED.extras, raw_row = EXCLUDED.raw_row, updated_at = now()"
+                ),
+                payload=payload,
+                dedupe_index=14,
             )
             for note, url in _source_rows(row.raw_row or {}, row.source_url):
                 cur.execute(

@@ -781,4 +781,12 @@ def main():
 
 
 if __name__ == "__main__":
+    _root = Path(__file__).resolve().parents[2]
+    if str(_root) not in sys.path:
+        sys.path.insert(0, str(_root))
+    from scripts.datasources.youtube.youtube_loader_logging import (
+        configure_youtube_loader_logging,
+    )
+
+    configure_youtube_loader_logging(workers=1)
     main()

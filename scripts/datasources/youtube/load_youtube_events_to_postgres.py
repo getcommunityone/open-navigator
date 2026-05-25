@@ -51,7 +51,12 @@ from typing import List, Dict, Optional, Any, Tuple
 from collections import Counter
 import argparse
 import json
+import threading
+from contextlib import contextmanager
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+# One transcript fetch at a time when jurisdiction workers > 1 (avoids IP blocks).
+_TRANSCRIPT_FETCH_LOCK = threading.Lock()
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
@@ -76,6 +81,10 @@ from scrape_youtube_channels import MunicipalYouTubeScraper
 
 from scripts.datasources.youtube.channel_about_links import (
     ensure_bronze_events_channels_link_columns,
+)
+from scripts.datasources.youtube.youtube_loader_logging import (
+    configure_youtube_loader_logging,
+    log_progress,
 )
 from scripts.gemini.transcript_cache_paths import resolve_meeting_event_date
 from scripts.datasources.jurisdiction_pilot.scrape_priority_states import DEFAULT_PRIORITY_STATES
@@ -132,18 +141,18 @@ def _channel_id_from_url(channel_url: str) -> Optional[str]:
     return match.group(1) if match else None
 
 
-def _configure_parallel_worker_logging() -> None:
-    """Loguru + thread pool: avoid writing to stderr after yt-dlp redirects it."""
-    try:
-        logger.remove()
-    except ValueError:
-        pass
-    logger.add(
-        sys.stderr,
-        format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level:<8} | {name}:{function}:{line} - {message}",
-        level="INFO",
-        enqueue=True,
-    )
+@contextmanager
+def _transcript_fetch_slot():
+    """Serialize caption requests across parallel jurisdiction workers."""
+    if os.getenv("YOUTUBE_LOADER_PARALLEL") == "1":
+        with _TRANSCRIPT_FETCH_LOCK:
+            yield
+    else:
+        yield
+
+
+def _parallel_transcript_mode() -> bool:
+    return os.getenv("YOUTUBE_LOADER_PARALLEL") == "1"
 
 
 def _process_jurisdiction_worker(
@@ -152,7 +161,6 @@ def _process_jurisdiction_worker(
     loader_kwargs: Dict[str, Any],
 ) -> int:
     """Thread worker: own DB connection and loader per jurisdiction."""
-    _configure_parallel_worker_logging()
     loader = YouTubeEventsLoader(database_url=database_url, **loader_kwargs)
     try:
         return loader.process_jurisdiction(jurisdiction)
@@ -1813,7 +1821,10 @@ class YouTubeEventsLoader:
         """Fetch transcript/captions for a YouTube video."""
         if not video_id:
             return None
-        
+        with _transcript_fetch_slot():
+            return self._fetch_transcript_unlocked(video_id)
+
+    def _fetch_transcript_unlocked(self, video_id: str) -> Optional[Dict[str, Any]]:
         # Try youtube_transcript_api first (faster and cleaner)
         try:
             from scripts.datasources.youtube.transcript_api_client import (
@@ -1878,6 +1889,11 @@ class YouTubeEventsLoader:
             logger.warning(f"    Video unavailable (private/deleted) for {video_id}")
             return None
         except IpBlocked:
+            if _parallel_transcript_mode():
+                self._raise_rate_limited(
+                    video_id,
+                    "IP blocked on caption API (parallel load: skip yt-dlp retry)",
+                )
             if self.use_ytdlp_fallback:
                 logger.warning(
                     f"    ⚠️ IP blocked on transcript API for {video_id} — trying yt-dlp fallback"
@@ -1892,6 +1908,11 @@ class YouTubeEventsLoader:
             self._raise_rate_limited(video_id, "IP blocked by YouTube (caption API)")
         except (NoTranscriptFound, Exception) as e:
             if type(e).__name__ in ("RequestBlocked", "IpBlocked"):
+                if _parallel_transcript_mode():
+                    self._raise_rate_limited(
+                        video_id,
+                        f"Request blocked on caption API ({type(e).__name__})",
+                    )
                 if self.use_ytdlp_fallback:
                     logger.warning(
                         f"    ⚠️ Request blocked for {video_id} — trying yt-dlp fallback"
@@ -2448,7 +2469,13 @@ class YouTubeEventsLoader:
         logger.info(f"Channel source: {channel_source}")
         if workers > 1:
             logger.info(f"Jurisdiction workers: {workers}")
-        if self.transcript_workers > 1 and self.fetch_transcripts:
+            if self.fetch_transcripts:
+                logger.info(
+                    "Transcript fetches are serialized globally (one video at a time) "
+                    "while counties run in parallel — use --skip-transcripts with high "
+                    "--workers for fastest catalog, then re-run with --workers 1 for captions"
+                )
+        if self.transcript_workers > 1 and self.fetch_transcripts and workers <= 1:
             logger.info(f"Transcript workers per jurisdiction: {self.transcript_workers}")
         if self.max_transcripts_per_channel and self.fetch_transcripts:
             logger.info(
@@ -2494,11 +2521,12 @@ class YouTubeEventsLoader:
                     try:
                         inserted = future.result()
                         total_inserted += inserted
-                        logger.info(
-                            "[{}/{}] {} — inserted {}",
+                        log_progress(
+                            "[{}/{}] {} ({}) — +{} videos",
                             completed,
                             len(jurisdictions),
                             jurisdiction.get("jurisdiction_name"),
+                            jurisdiction.get("state_code"),
                             inserted,
                         )
                     except Exception as exc:
@@ -2621,17 +2649,6 @@ class YouTubeEventsLoader:
 
 def main():
     """Main entry point."""
-    try:
-        logger.remove()
-    except ValueError:
-        pass
-    logger.add(
-        sys.stderr,
-        format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level:<8} | {name}:{function}:{line} - {message}",
-        level="INFO",
-        enqueue=True,
-    )
-
     parser = argparse.ArgumentParser(description='Load YouTube events from jurisdictions into event')
     
     parser.add_argument(
@@ -2767,8 +2784,37 @@ def main():
         help='Do not UPDATE bronze_jurisdictions_*_scraped with resolved youtube_channel_id.',
     )
 
+    parser.add_argument(
+        '--log-file',
+        type=str,
+        default='',
+        help='Write detailed logs here (default: data/bronze/youtube_loader_logs/run_<timestamp>.log)',
+    )
+    parser.add_argument(
+        '--verbose',
+        action='store_true',
+        help='DEBUG level (includes per-tab yt-dlp lines when workers=1)',
+    )
+
     args = parser.parse_args()
-    
+
+    workers = max(1, int(args.workers or 1))
+    log_path = configure_youtube_loader_logging(
+        workers=workers,
+        log_file=(args.log_file or '').strip() or None,
+        level='DEBUG' if args.verbose else 'INFO',
+    )
+    logger.info('Log file: {}', log_path)
+
+    fetch_transcripts = not args.skip_transcripts
+    if workers > 1 and fetch_transcripts and args.transcript_delay < 8:
+        logger.warning(
+            "With --workers {} and transcripts enabled, consider --transcript-delay 10 "
+            "(current: {}s) to reduce YouTube blocks",
+            workers,
+            args.transcript_delay,
+        )
+
     states_filter = [s.strip().upper() for s in args.states.split(",") if s.strip()]
     
     # Initialize loader
@@ -2778,7 +2824,7 @@ def main():
         max_videos_per_channel=args.max_videos,
         min_duration_seconds=args.min_duration_seconds,
         days_lookback=args.days,
-        fetch_transcripts=not args.skip_transcripts,
+        fetch_transcripts=fetch_transcripts,
         force_full_fetch=args.force,
         transcript_delay=args.transcript_delay,
         use_ytdlp_fallback=not (args.no_ytdlp_fallback or args.text_transcripts_only),

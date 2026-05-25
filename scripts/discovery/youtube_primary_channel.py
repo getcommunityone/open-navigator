@@ -6,6 +6,11 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 
+from scripts.datasources.youtube.pattern_match_gate import (
+    PATTERN_MATCH_PRIMARY_MIN_OFFICIAL_CONFIDENCE,
+    is_pattern_match_discovery,
+)
+
 
 def _channel_url(ch: Dict[str, Any]) -> str:
     return (
@@ -19,7 +24,7 @@ def _discovery_method_priority(method: Optional[str]) -> int:
     if "website_scrape" in m:
         return 4
     if m.startswith("pattern_match"):
-        return 3
+        return 0
     if "domain_search" in m:
         return 2
     if m == "youtube_api" or m.startswith("youtube_api"):
@@ -39,6 +44,18 @@ def youtube_channel_selection_confidence(ch: Dict[str, Any]) -> Optional[float]:
     return val if val >= 0.0 else None
 
 
+def _promotable_for_primary(ch: Dict[str, Any]) -> bool:
+    """Exclude weak ``pattern_match`` rows (generic handles, wrong state)."""
+    if not is_pattern_match_discovery(ch):
+        return True
+    if not ch.get("back_links_to_jurisdiction_website"):
+        return False
+    conf = youtube_channel_selection_confidence(ch)
+    if conf is None or conf < PATTERN_MATCH_PRIMARY_MIN_OFFICIAL_CONFIDENCE:
+        return False
+    return True
+
+
 def pick_primary_youtube_channel(
     youtube_channels: Optional[List[Dict[str, Any]]],
 ) -> Tuple[Optional[str], Optional[str], Optional[float]]:
@@ -56,6 +73,7 @@ def pick_primary_youtube_channel(
         if not url:
             continue
         candidates.append(ch)
+    candidates = [ch for ch in candidates if _promotable_for_primary(ch)]
     if not candidates:
         return None, None, None
 

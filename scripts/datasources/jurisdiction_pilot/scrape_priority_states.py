@@ -675,6 +675,23 @@ def _discover_youtube(
             session=session,
             cookies_file=cookies_file,
         )
+        from scripts.datasources.youtube.pattern_match_gate import (
+            is_pattern_match_discovery,
+            passes_pattern_match_gate,
+        )
+
+        if is_pattern_match_discovery(enriched) and not passes_pattern_match_gate(
+            channel_title=str(enriched.get("channel_title") or ""),
+            channel_description=str(enriched.get("channel_description") or ""),
+            jurisdiction_name=j.name,
+            jurisdiction_state_code=j.state_code,
+            jurisdiction_homepage=j.website_url or "",
+            external_links=enriched.get("external_links"),
+            backlinks_to_jurisdiction=enriched.get(
+                "back_links_to_jurisdiction_website"
+            ),
+        ):
+            continue
         rows.append({
             "youtube_channel_url": url,
             "youtube_channel_id": enriched.get("channel_id"),

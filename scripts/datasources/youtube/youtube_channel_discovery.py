@@ -197,6 +197,9 @@ class YouTubeChannelDiscovery:
         
         logger.info(f"Testing {len(patterns_to_test)} common handle patterns...")
         
+        j_display_name = (county_name or resolved_city_name or "").strip()
+        can_pattern_match = bool((homepage_url or "").strip())
+
         for handle in patterns_to_test:
             url = f"https://www.youtube.com/@{handle}"
             
@@ -205,9 +208,78 @@ class YouTubeChannelDiscovery:
             tested_urls.add(url)
             
             channel_info = await self._check_channel_exists(url, "pattern_match")
-            if channel_info:
-                discovered.append(channel_info)
-                logger.success(f"✓ Found: {url} ({channel_info['video_count']} videos)")
+            if not channel_info:
+                await asyncio.sleep(0.3)
+                continue
+
+            if not can_pattern_match:
+                self._record_channel_probe(
+                    {
+                        "channel_url": url,
+                        "checked_at": datetime.now(timezone.utc).isoformat(),
+                        "discovery_method": "pattern_match",
+                        "outcome": "rejected_pattern_gate",
+                        "http_status": None,
+                        "reason": "no_jurisdiction_homepage_for_backlink_check",
+                        "channel_id": channel_info.get("channel_id"),
+                        "channel_title": (channel_info.get("channel_title") or "")[:500],
+                    }
+                )
+                await asyncio.sleep(0.3)
+                continue
+
+            from scripts.datasources.jurisdiction_pilot.youtube_channel_enrich import (
+                enrich_channel,
+            )
+            from scripts.datasources.youtube.pattern_match_gate import (
+                passes_pattern_match_gate,
+            )
+
+            try:
+                enriched = await asyncio.to_thread(
+                    enrich_channel,
+                    channel=channel_info,
+                    jurisdiction_name=j_display_name,
+                    jurisdiction_state_code=state_code,
+                    jurisdiction_homepage=homepage_url,
+                )
+            except Exception as exc:
+                logger.debug("pattern_match enrich failed for {}: {}", url, exc)
+                await asyncio.sleep(0.3)
+                continue
+
+            if not passes_pattern_match_gate(
+                channel_title=str(enriched.get("channel_title") or ""),
+                channel_description=str(enriched.get("channel_description") or ""),
+                jurisdiction_name=j_display_name,
+                jurisdiction_state_code=state_code,
+                jurisdiction_homepage=homepage_url or "",
+                external_links=enriched.get("external_links"),
+                backlinks_to_jurisdiction=enriched.get(
+                    "back_links_to_jurisdiction_website"
+                ),
+            ):
+                self._record_channel_probe(
+                    {
+                        "channel_url": url,
+                        "checked_at": datetime.now(timezone.utc).isoformat(),
+                        "discovery_method": "pattern_match",
+                        "outcome": "rejected_pattern_gate",
+                        "http_status": None,
+                        "reason": "missing_state_backlink_or_meeting_signal",
+                        "channel_id": enriched.get("channel_id"),
+                        "channel_title": (enriched.get("channel_title") or "")[:500],
+                    }
+                )
+                await asyncio.sleep(0.3)
+                continue
+
+            discovered.append(enriched)
+            logger.success(
+                "✓ pattern_match accepted: {} (conf={})",
+                url,
+                enriched.get("official_meeting_confidence"),
+            )
             
             # Rate limiting
             await asyncio.sleep(0.3)
@@ -441,7 +513,13 @@ class YouTubeChannelDiscovery:
                 "latest_upload": stats.get("latest_upload"),
                 "discovery_method": discovery_method,
                 "discovered_at": datetime.now().isoformat(),
-                "confidence": 0.9 if discovery_method == "website_scrape" else 0.7,
+                "confidence": (
+                    0.9
+                    if discovery_method == "website_scrape"
+                    else 0.1
+                    if discovery_method == "pattern_match"
+                    else 0.5
+                ),
             }
 
         except Exception as e:

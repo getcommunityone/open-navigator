@@ -44,11 +44,26 @@ def _parallel_filter(record: dict) -> bool:
     if record["level"].no >= 30:  # WARNING+
         return True
     module = record.get("module") or ""
-    if module in ("load_youtube_events_to_postgres", "youtube_loader_logging"):
+    if module in (
+        "load_youtube_events_to_postgres",
+        "youtube_loader_logging",
+        "__main__",
+    ):
         return True
     if record["extra"].get("progress"):
         return True
     return False
+
+
+def _stderr_filter(record: dict) -> bool:
+    """Console: progress + warnings/errors from any thread; INFO only on main thread when parallel."""
+    if not _parallel_filter(record):
+        return False
+    if os.getenv("YOUTUBE_LOADER_PARALLEL") == "1":
+        if record["level"].no >= 30:
+            return True
+        return record["thread"].name == "MainThread"
+    return True
 
 
 def configure_youtube_loader_logging(
@@ -88,7 +103,7 @@ def configure_youtube_loader_logging(
             level=level,
             enqueue=True,
             colorize=True,
-            filter=_parallel_filter,
+            filter=_stderr_filter,
         )
 
     if workers > 1:
@@ -100,6 +115,6 @@ def configure_youtube_loader_logging(
     return log_path
 
 
-def log_progress(message: str) -> None:
+def log_progress(message: str, *args, **kwargs) -> None:
     """Coordinator progress line (always shown in parallel mode)."""
-    logger.bind(progress=True).info(message)
+    logger.bind(progress=True).info(message, *args, **kwargs)

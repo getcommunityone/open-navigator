@@ -585,12 +585,47 @@ def _result_to_scraped_row(
     homepage_url = websites[0]["url"] if websites else None
     homepage_final = websites[0].get("final_url") if websites else None
     from scripts.discovery.youtube_primary_channel import pick_primary_youtube_channel
+    from scripts.datasources.jurisdiction_pilot.youtube_channel_enrich import enrich_channel
+    from scripts.datasources.youtube.pattern_match_gate import (
+        is_pattern_match_discovery,
+        passes_pattern_match_gate,
+    )
 
-    youtube_channels = r.get("youtube_channels") or []
+    raw_youtube_channels = r.get("youtube_channels") or []
+    j_name = str(j.get("name") or geoid or "").strip()
+    youtube_channels: list = []
+    for ch in raw_youtube_channels:
+        if not isinstance(ch, dict):
+            continue
+        if is_pattern_match_discovery(ch):
+            if not homepage_url:
+                continue
+            try:
+                ch = enrich_channel(
+                    channel=ch,
+                    jurisdiction_name=j_name,
+                    jurisdiction_state_code=usps,
+                    jurisdiction_homepage=homepage_url,
+                )
+            except Exception:
+                continue
+            if not passes_pattern_match_gate(
+                channel_title=str(ch.get("channel_title") or ""),
+                channel_description=str(ch.get("channel_description") or ""),
+                jurisdiction_name=j_name,
+                jurisdiction_state_code=usps,
+                jurisdiction_homepage=homepage_url or "",
+                external_links=ch.get("external_links"),
+                backlinks_to_jurisdiction=ch.get(
+                    "back_links_to_jurisdiction_website"
+                ),
+            ):
+                continue
+        youtube_channels.append(ch)
     yt_url, yt_method, yt_conf = pick_primary_youtube_channel(youtube_channels)
     payload = {
         "websites": r.get("websites"),
-        "youtube_channels": youtube_channels,
+        "youtube_channels": raw_youtube_channels,
         # Per-URL probe audit: outcome not_found | found | error | skipped_invalid_url | timeout; checked_at UTC ISO
         "youtube_channel_checks": r.get("youtube_channel_checks"),
         "other_video": r.get("other_video"),
