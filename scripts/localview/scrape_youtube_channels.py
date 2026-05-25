@@ -23,7 +23,10 @@ Usage:
 """
 
 import argparse
+import contextlib
+import os
 import sys
+import threading
 from pathlib import Path
 from typing import Any, List, Dict, Optional, Tuple
 from datetime import datetime, timedelta
@@ -51,8 +54,8 @@ except ImportError:
 # Load environment variables
 load_dotenv()
 
-# Configure logger
-logger.add(sys.stderr, format="{time} {level} {message}", level="INFO")
+# Logging is configured by load_youtube_events_to_postgres (or CLI entry below).
+_YTDLP_STDERR_LOCK = threading.Lock()
 
 
 def _parse_published_at(value: Any) -> Optional[datetime]:
@@ -488,22 +491,18 @@ class MunicipalYouTubeScraper:
         self, channel_url: str, max_results: int
     ) -> Tuple[List[Dict[str, Any]], str]:
         """Extract flat playlist entries from a channel tab URL."""
-        import os
-
         if not YT_DLP_AVAILABLE:
             return [], channel_url
 
-        original_stderr = sys.stderr
-        try:
-            sys.stderr = open(os.devnull, 'w')
-            with yt_dlp.YoutubeDL(self._ytdlp_base_opts(max_results)) as ydl:
-                info = ydl.extract_info(channel_url, download=False)
-        except Exception:
-            return [], channel_url
-        finally:
-            if sys.stderr != original_stderr:
-                sys.stderr.close()
-                sys.stderr = original_stderr
+        info = None
+        with _YTDLP_STDERR_LOCK:
+            with open(os.devnull, "w") as devnull:
+                with contextlib.redirect_stderr(devnull):
+                    try:
+                        with yt_dlp.YoutubeDL(self._ytdlp_base_opts(max_results)) as ydl:
+                            info = ydl.extract_info(channel_url, download=False)
+                    except Exception:
+                        return [], channel_url
 
         if not info or 'entries' not in info:
             return [], channel_url

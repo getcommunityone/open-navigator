@@ -126,12 +126,33 @@ _HTML_CHANNEL_ID_PATTERNS: Tuple[Tuple[str, re.Pattern[str]], ...] = (
 )
 
 
+def _channel_id_from_url(channel_url: str) -> Optional[str]:
+    """Parse ``UC…`` from a canonical ``/channel/UC…`` URL without network I/O."""
+    match = _CHANNEL_ID_RE.search(channel_url or "")
+    return match.group(1) if match else None
+
+
+def _configure_parallel_worker_logging() -> None:
+    """Loguru + thread pool: avoid writing to stderr after yt-dlp redirects it."""
+    try:
+        logger.remove()
+    except ValueError:
+        pass
+    logger.add(
+        sys.stderr,
+        format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level:<8} | {name}:{function}:{line} - {message}",
+        level="INFO",
+        enqueue=True,
+    )
+
+
 def _process_jurisdiction_worker(
     database_url: str,
     jurisdiction: Dict[str, Any],
     loader_kwargs: Dict[str, Any],
 ) -> int:
     """Thread worker: own DB connection and loader per jurisdiction."""
+    _configure_parallel_worker_logging()
     loader = YouTubeEventsLoader(database_url=database_url, **loader_kwargs)
     try:
         return loader.process_jurisdiction(jurisdiction)
@@ -850,10 +871,9 @@ class YouTubeEventsLoader:
             self.conn.commit()
             if updated:
                 logger.info(
-                    "Updated {} geoid={} youtube_channel_id={}",
+                    "Persisted youtube_channel_id on {} geoid={} (was empty)",
                     table.split(".")[-1],
                     gid,
-                    cid,
                 )
             return updated
         except Exception as exc:
@@ -975,21 +995,32 @@ class YouTubeEventsLoader:
         cursor.close()
 
         jurisdictions: List[Dict] = []
+        counties_table = "bronze.bronze_jurisdictions_counties_scraped"
         for row in rows:
             channel_url = str(row["youtube_channel_url"] or "").strip()
             stored_id = str(row.get("youtube_channel_id") or "").strip()
+            url_id = _channel_id_from_url(channel_url)
             if stored_id.startswith("UC"):
                 channel_id = stored_id
                 normalized_url = (
                     channel_url
-                    if _CHANNEL_ID_RE.search(channel_url)
+                    if url_id == stored_id
                     else f"https://www.youtube.com/channel/{channel_id}"
+                )
+            elif url_id:
+                channel_id = url_id
+                normalized_url = f"https://www.youtube.com/channel/{channel_id}"
+                self.persist_scraped_channel_resolution(
+                    table=counties_table,
+                    geoid=str(row["geoid"]),
+                    channel_id=channel_id,
+                    canonical_url=normalized_url,
                 )
             else:
                 channel_id, normalized_url = self.resolve_channel_id_from_url(channel_url)
                 if channel_id:
                     self.persist_scraped_channel_resolution(
-                        table="bronze.bronze_jurisdictions_counties_scraped",
+                        table=counties_table,
                         geoid=str(row["geoid"]),
                         channel_id=channel_id,
                         canonical_url=normalized_url,
@@ -1072,12 +1103,22 @@ class YouTubeEventsLoader:
         for row in rows:
             channel_url = str(row["youtube_channel_url"] or "").strip()
             stored_id = str(row.get("youtube_channel_id") or "").strip()
+            url_id = _channel_id_from_url(channel_url)
             if stored_id.startswith("UC"):
                 channel_id = stored_id
                 normalized_url = (
                     channel_url
-                    if _CHANNEL_ID_RE.search(channel_url)
+                    if url_id == stored_id
                     else f"https://www.youtube.com/channel/{channel_id}"
+                )
+            elif url_id:
+                channel_id = url_id
+                normalized_url = f"https://www.youtube.com/channel/{channel_id}"
+                self.persist_scraped_channel_resolution(
+                    table=municipalities_table,
+                    geoid=str(row["geoid"]),
+                    channel_id=channel_id,
+                    canonical_url=normalized_url,
                 )
             else:
                 channel_id, normalized_url = self.resolve_channel_id_from_url(channel_url)
@@ -2099,8 +2140,19 @@ class YouTubeEventsLoader:
                     batch = items[batch_start : batch_start + batch_size]
                     if batch_start > 0 and consecutive_rate_limits == 0:
                         time.sleep(self.transcript_delay)
-                    with ThreadPoolExecutor(max_workers=len(batch)) as pool:
-                        results = list(pool.map(lambda pair: _fetch_transcript_safe(pair[0]), batch))
+                    try:
+                        with ThreadPoolExecutor(max_workers=len(batch)) as pool:
+                            results = list(
+                                pool.map(lambda pair: _fetch_transcript_safe(pair[0]), batch)
+                            )
+                    except ValueError as exc:
+                        if "closed file" not in str(exc).lower():
+                            raise
+                        logger.warning(
+                            "  Parallel transcript fetch hit closed stderr; "
+                            "retrying batch sequentially"
+                        )
+                        results = [_fetch_transcript_safe(pair[0]) for pair in batch]
                     for (video_id, event_id), (vid, transcript_data, err) in zip(batch, results):
                         if err == "RATE_LIMITED":
                             rate_limit_count += 1
@@ -2424,7 +2476,7 @@ class YouTubeEventsLoader:
                 logger.info(f"\n[{i}/{len(jurisdictions)}] Processing jurisdiction...")
                 total_inserted += self.process_jurisdiction(jurisdiction)
         else:
-            loader_kwargs = self._parallel_loader_kwargs()
+            loader_kwargs = self._parallel_loader_kwargs(workers)
             completed = 0
             with ThreadPoolExecutor(max_workers=workers) as pool:
                 futures = {
@@ -2537,8 +2589,17 @@ class YouTubeEventsLoader:
         if self.conn:
             self.conn.close()
 
-    def _parallel_loader_kwargs(self) -> Dict[str, Any]:
+    def _parallel_loader_kwargs(self, jurisdiction_workers: int = 1) -> Dict[str, Any]:
         """Constructor kwargs for per-jurisdiction worker loaders."""
+        # Nested thread pools (county workers × transcript workers) break stderr/loguru.
+        transcript_workers = (
+            1 if jurisdiction_workers > 1 else self.transcript_workers
+        )
+        if jurisdiction_workers > 1 and self.transcript_workers > 1:
+            logger.info(
+                "Jurisdiction workers={}: transcript_workers capped at 1 per county",
+                jurisdiction_workers,
+            )
         return {
             "youtube_api_key": self.youtube_api_key,
             "max_videos_per_channel": self.max_videos,
@@ -2551,14 +2612,26 @@ class YouTubeEventsLoader:
             "cookies_file": self.cookies_file,
             "proxy_url": self.proxy_url,
             "ensure_schema_setup": False,
-            "transcript_workers": self.transcript_workers,
+            "transcript_workers": transcript_workers,
             "max_transcripts_per_channel": self.max_transcripts_per_channel,
             "resolve_channels_ytdlp": self.resolve_channels_ytdlp,
+            "persist_scraped_channel_ids": self.persist_scraped_channel_ids,
         }
 
 
 def main():
     """Main entry point."""
+    try:
+        logger.remove()
+    except ValueError:
+        pass
+    logger.add(
+        sys.stderr,
+        format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level:<8} | {name}:{function}:{line} - {message}",
+        level="INFO",
+        enqueue=True,
+    )
+
     parser = argparse.ArgumentParser(description='Load YouTube events from jurisdictions into event')
     
     parser.add_argument(
