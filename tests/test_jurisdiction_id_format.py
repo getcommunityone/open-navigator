@@ -1,6 +1,7 @@
 """Canonical jurisdiction_id: {place_slug}_{geoid}."""
 
 from scripts.jurisdictions.jurisdiction_id import (
+    ensure_canonical_jurisdiction_id,
     jurisdiction_id_from_name_geoid,
     jurisdiction_pk_from_geoid,
     parse_jurisdiction_id,
@@ -51,6 +52,28 @@ def test_resolve_legacy_to_canonical():
     assert (
         resolve_canonical_jurisdiction_id("municipality_0101708", name="Andalusia city")
         == "andalusia_0101708"
+    )
+
+
+def test_ensure_canonical_huntsville_legacy():
+    assert (
+        ensure_canonical_jurisdiction_id(
+            "municipality_0137000",
+            jurisdiction_type="municipality",
+            name="Huntsville city",
+        )
+        == "huntsville_0137000"
+    )
+
+
+def test_ensure_canonical_passes_through_slug_geoid():
+    assert (
+        ensure_canonical_jurisdiction_id(
+            "irondale_0137864",
+            jurisdiction_type="municipality",
+            name="Irondale city",
+        )
+        == "irondale_0137864"
     )
 
 

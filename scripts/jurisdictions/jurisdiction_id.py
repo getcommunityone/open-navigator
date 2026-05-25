@@ -269,3 +269,36 @@ def resolve_canonical_jurisdiction_id(
             name, geoid, jurisdiction_type=infer_jurisdiction_type_from_geoid(geoid)
         )
     return jid
+
+
+def ensure_canonical_jurisdiction_id(
+    jurisdiction_id: str,
+    *,
+    jurisdiction_type: Optional[str] = None,
+    name: Optional[str] = None,
+    database_url: Optional[str] = None,
+) -> str:
+    """
+    Return ``{slug}_{geoid}`` for pilot / bronze writes.
+
+    Resolves legacy ``municipality_{geoid}`` via place ``name`` or bronze GEOID lookup.
+    Already-canonical ids pass through unchanged.
+    """
+    jid = (jurisdiction_id or "").strip()
+    if not jid:
+        return jid
+    if _SLUG_GEOID_RE.match(jid) and not _TYPED_JURISDICTION_ID_RE.match(jid):
+        return jid
+    jt, geoid, _ = parse_jurisdiction_id(jid)
+    jtype = (jurisdiction_type or jt or infer_jurisdiction_type_from_geoid(geoid or "") or "").lower()
+    if jtype in ("city", "town", "village", "borough", "place"):
+        jtype = "municipality"
+    if geoid and jtype:
+        pk = jurisdiction_pk_from_geoid(geoid, jtype, name=name, database_url=database_url)
+        if pk and not _TYPED_JURISDICTION_ID_RE.match(pk):
+            return pk
+        if pk:
+            return pk
+    return resolve_canonical_jurisdiction_id(
+        jid, name=name, jurisdiction_type=jurisdiction_type or jtype or None
+    )

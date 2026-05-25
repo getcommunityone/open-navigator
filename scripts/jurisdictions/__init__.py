@@ -2,6 +2,7 @@
 
 from scripts.jurisdictions.jurisdiction_id import (
     builtin_seed_urls_for_jurisdiction,
+    ensure_canonical_jurisdiction_id,
     jurisdiction_id_from_name_geoid,
     jurisdiction_pk_from_geoid,
     lookup_canonical_jurisdiction_id_from_bronze,
@@ -12,6 +13,7 @@ from scripts.jurisdictions.jurisdiction_id import (
 
 __all__ = [
     "builtin_seed_urls_for_jurisdiction",
+    "ensure_canonical_jurisdiction_id",
     "jurisdiction_id_from_name_geoid",
     "jurisdiction_pk_from_geoid",
     "lookup_canonical_jurisdiction_id_from_bronze",

@@ -5,6 +5,7 @@ Decide which discovered YouTube channels belong in ``bronze.bronze_jurisdiction_
 
 from __future__ import annotations
 
+import re
 from typing import Any, Mapping, Optional
 
 from scripts.datasources.youtube.pattern_match_gate import (
@@ -37,6 +38,17 @@ _TRUSTED_DISCOVERY_PREFIXES = (
     "verified_bronze_events_youtube",
     "events_catalog",
     "manual",
+)
+
+_CITY_GOVT_TITLE_RE = re.compile(r"\b(?:city|town|village|borough)\s+of\b", re.I)
+_COUNTY_GOV_TITLE_SIGNALS = (
+    "county commission",
+    "county commissioners",
+    "board of commissioners",
+    "county board",
+    "county government",
+    " commissioners",
+    "commissioners meeting",
 )
 
 
@@ -91,10 +103,10 @@ def rejection_reason_for_channel(
     if method.startswith("pattern_match") and not backlink:
         return "pattern_match_no_backlink"
 
-    if jurisdiction_type == "county" and _looks_like_city_handle_for_county(
+    if jurisdiction_type == "county" and _looks_like_city_channel_for_county(
         row, jurisdiction_name=jurisdiction_name
     ):
-        return "county_city_handle_mismatch"
+        return "county_city_channel_mismatch"
 
     return "not_verified"
 
@@ -134,7 +146,7 @@ def qualifies_for_bronze_jurisdiction_youtube(
         if not backlink and conf < 0.7:
             return False
 
-    if jurisdiction_type == "county" and _looks_like_city_handle_for_county(
+    if jurisdiction_type == "county" and _looks_like_city_channel_for_county(
         row, jurisdiction_name=jurisdiction_name
     ):
         return False
@@ -146,6 +158,46 @@ def qualifies_for_bronze_jurisdiction_youtube(
         return True
 
     return conf >= 0.7 and not method.startswith("pattern_match")
+
+
+def _county_name_token(jurisdiction_name: str) -> str:
+    return jurisdiction_name.replace("County", "").replace("county", "").strip().lower()
+
+
+def _has_county_gov_signal(blob: str, county_token: str) -> bool:
+    if any(sig in blob for sig in _COUNTY_GOV_TITLE_SIGNALS):
+        return True
+    if county_token and re.search(rf"\b{re.escape(county_token)}\s+county\b", blob):
+        return True
+    if "county" in blob and county_token and county_token in blob:
+        return True
+    return False
+
+
+def _looks_like_city_channel_for_county(
+    row: Mapping[str, Any],
+    *,
+    jurisdiction_name: str,
+) -> bool:
+    """
+    Reject municipal YouTube channels attached to a county jurisdiction.
+
+    Catches ``City of Dothan AL`` on Houston County (seat city channel), not just
+    ``@CityOfBaxley``-style handles.
+    """
+    title = str(row.get("channel_title") or "")
+    desc = str(row.get("channel_description") or "")
+    blob = f"{title} {desc}".lower()
+    title_l = title.lower()
+    county_token = _county_name_token(jurisdiction_name)
+
+    if _has_county_gov_signal(blob, county_token):
+        return False
+
+    if _CITY_GOVT_TITLE_RE.search(title_l):
+        return True
+
+    return _looks_like_city_handle_for_county(row, jurisdiction_name=jurisdiction_name)
 
 
 def _looks_like_city_handle_for_county(
@@ -161,7 +213,7 @@ def _looks_like_city_handle_for_county(
     title = str(row.get("channel_title") or "").lower()
     desc = str(row.get("channel_description") or "").lower()
     blob = f"{title} {desc}"
-    county_token = jurisdiction_name.replace("County", "").replace("county", "").strip().lower()
+    county_token = _county_name_token(jurisdiction_name)
     if "county" in blob or "commission" in blob or "commissioners" in blob:
         return False
     if county_token and county_token in blob:

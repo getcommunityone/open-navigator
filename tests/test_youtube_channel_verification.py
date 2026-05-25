@@ -66,6 +66,52 @@ def test_bacon_city_pattern_rejected_for_county():
     )
 
 
+def test_houston_county_rejects_city_of_dothan_channel():
+    row = {
+        "youtube_channel_url": "https://www.youtube.com/channel/UCjQLzllGnzicLNiMMzcLwKQ",
+        "channel_title": "City of Dothan AL",
+        "channel_description": "Welcome to the City of Dothan Youtube Channel.",
+        "discovery_method": "youtube_api",
+        "official_meeting_confidence": 0.7,
+        "back_links_to_jurisdiction_website": False,
+    }
+    assert not qualifies_for_bronze_jurisdiction_youtube(
+        row,
+        jurisdiction_type="county",
+        jurisdiction_name="Houston County",
+        jurisdiction_state_code="AL",
+        jurisdiction_homepage="https://houstoncosoal.gov",
+    )
+    assert (
+        rejection_reason_for_channel(
+            row,
+            jurisdiction_type="county",
+            jurisdiction_name="Houston County",
+            jurisdiction_state_code="AL",
+            jurisdiction_homepage="https://houstoncosoal.gov",
+        )
+        == "county_city_channel_mismatch"
+    )
+
+
+def test_houston_county_keeps_county_commission_channel():
+    row = {
+        "youtube_channel_url": "https://www.youtube.com/channel/UCLaqkkdvi6sYpsncNRiFggg",
+        "channel_title": "Houston County Commission - Dothan Al",
+        "channel_description": "Houston County Commission meetings",
+        "discovery_method": "website_search",
+        "official_meeting_confidence": 0.8,
+        "back_links_to_jurisdiction_website": True,
+    }
+    assert qualifies_for_bronze_jurisdiction_youtube(
+        row,
+        jurisdiction_type="county",
+        jurisdiction_name="Houston County",
+        jurisdiction_state_code="AL",
+        jurisdiction_homepage="https://houstoncosoal.gov",
+    )
+
+
 def test_website_search_channel_accepted_with_backlink():
     row = {
         "youtube_channel_url": "https://www.youtube.com/@CamdenCountyBOC",

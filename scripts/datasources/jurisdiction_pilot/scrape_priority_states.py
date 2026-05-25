@@ -94,6 +94,7 @@ _ROOT = Path(__file__).resolve().parents[3]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
+from scripts.jurisdictions.jurisdiction_id import ensure_canonical_jurisdiction_id  # noqa: E402
 from scripts.datasources.jurisdiction_pilot.load_ocd_jurisdictions import (  # noqa: E402
     find_ocd_match,
 )
@@ -307,12 +308,16 @@ def load_jurisdictions(
     type_placeholders = ",".join(["%s"] * len(include_types))
     sql = f"""
         WITH ranked AS (
-            SELECT DISTINCT ON (w.jurisdiction_id)
-                w.jurisdiction_id,
+            SELECT DISTINCT ON (
+                COALESCE(j.jurisdiction_id, j_geo.jurisdiction_id, w.jurisdiction_id)
+            )
+                COALESCE(j.jurisdiction_id, j_geo.jurisdiction_id, w.jurisdiction_id)
+                    AS jurisdiction_id,
                 w.state_code,
                 w.jurisdiction_category AS jurisdiction_type,
                 COALESCE(
                     NULLIF(btrim(j.name), ''),
+                    NULLIF(btrim(j_geo.name), ''),
                     NULLIF(btrim(w.organization_name), ''),
                     CASE
                         WHEN w.jurisdiction_category = 'county' THEN NULL
@@ -324,11 +329,22 @@ def load_jurisdictions(
             FROM intermediate.int_jurisdiction_websites w
             LEFT JOIN intermediate.int_jurisdictions j
               ON j.jurisdiction_id = w.jurisdiction_id
+            LEFT JOIN intermediate.int_jurisdictions j_geo
+              ON j.jurisdiction_id IS NULL
+             AND j_geo.geoid = CASE
+                    WHEN w.jurisdiction_id ~* '^(county|municipality|school_district|township)_'
+                        THEN regexp_replace(w.jurisdiction_id, '^(county|municipality|school_district|township)_', '', 'i')
+                    WHEN w.jurisdiction_id ~ '_([0-9]+)$'
+                        THEN (regexp_match(w.jurisdiction_id, '_([0-9]+)$'))[1]
+                    ELSE NULL
+                 END
+             AND j_geo.jurisdiction_type::text = w.jurisdiction_category
             WHERE w.state_code IN ({state_placeholders})
               AND w.jurisdiction_category IN ({type_placeholders})
               AND w.website_url IS NOT NULL
               AND btrim(w.website_url) <> ''
-            ORDER BY w.jurisdiction_id, w.website_record_key
+            ORDER BY COALESCE(j.jurisdiction_id, j_geo.jurisdiction_id, w.jurisdiction_id),
+                     w.website_record_key
         )
         SELECT jurisdiction_id, state_code, jurisdiction_type, name, website_url
         FROM ranked
@@ -341,9 +357,19 @@ def load_jurisdictions(
     try:
         with conn.cursor() as cur:
             cur.execute(sql, (*states, *include_types))
+            seen: set[str] = set()
             for jid, sc, jtype, name, url in cur.fetchall():
+                canonical_id = ensure_canonical_jurisdiction_id(
+                    jid,
+                    jurisdiction_type=jtype,
+                    name=name,
+                    database_url=database_url,
+                )
+                if canonical_id in seen:
+                    continue
+                seen.add(canonical_id)
                 out.append(Jurisdiction(
-                    jurisdiction_id=jid, state_code=sc,
+                    jurisdiction_id=canonical_id, state_code=sc,
                     jurisdiction_type=jtype, name=name, website_url=url,
                 ))
     finally:
@@ -955,6 +981,7 @@ def _process_one(
                     jurisdiction_id=j.jurisdiction_id,
                     state_code=j.state_code,
                     jurisdiction_type=j.jurisdiction_type,
+                    jurisdiction_name=j.name,
                     ocd_id=ocd_id,
                     website_url=j.website_url,
                     rows=yt_rows,
@@ -966,6 +993,7 @@ def _process_one(
                     jurisdiction_id=j.jurisdiction_id,
                     state_code=j.state_code,
                     jurisdiction_type=j.jurisdiction_type,
+                    jurisdiction_name=j.name,
                     ocd_id=ocd_id,
                     website_url=j.website_url,
                     rows=verified_rows,

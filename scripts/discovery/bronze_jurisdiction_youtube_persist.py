@@ -17,6 +17,7 @@ except ModuleNotFoundError:  # pragma: no cover
     psycopg2 = None  # type: ignore[misc, assignment]
 
 from scripts.discovery.youtube_channel_verification import canonical_source_from_row
+from scripts.jurisdictions.jurisdiction_id import ensure_canonical_jurisdiction_id
 
 
 def _norm_jurisdiction_type(value: Any) -> str | None:
@@ -82,6 +83,7 @@ def insert_bronze_jurisdiction_youtube_candidates(
     jurisdiction_id: str,
     state_code: str,
     jurisdiction_type: str | None = None,
+    jurisdiction_name: str | None = None,
     ocd_id: str | None = None,
     website_url: str | None,
     rows: List[Dict[str, Any]],
@@ -91,6 +93,13 @@ def insert_bronze_jurisdiction_youtube_candidates(
         return 0
     scraped_default = datetime.now(timezone.utc)
     state_code_norm = (state_code or "").strip().upper()[:2]
+    jurisdiction_type_norm = _norm_jurisdiction_type(jurisdiction_type)
+    canonical_jurisdiction_id = ensure_canonical_jurisdiction_id(
+        jurisdiction_id,
+        jurisdiction_type=jurisdiction_type_norm,
+        name=jurisdiction_name,
+        database_url=database_url,
+    )
     inserted = 0
     conn = psycopg2.connect(database_url)
     try:
@@ -99,7 +108,7 @@ def insert_bronze_jurisdiction_youtube_candidates(
                 base = _row_values(
                     r,
                     scrape_batch_id=scrape_batch_id,
-                    jurisdiction_id=jurisdiction_id,
+                    jurisdiction_id=canonical_jurisdiction_id,
                     state_code_norm=state_code_norm,
                     jurisdiction_type=jurisdiction_type,
                     ocd_id=ocd_id,
@@ -143,6 +152,7 @@ def upsert_bronze_jurisdiction_youtube_verified(
     jurisdiction_id: str,
     state_code: str,
     jurisdiction_type: str | None = None,
+    jurisdiction_name: str | None = None,
     ocd_id: str | None = None,
     website_url: str | None,
     rows: List[Dict[str, Any]],
@@ -153,6 +163,21 @@ def upsert_bronze_jurisdiction_youtube_verified(
         return 0
     scraped_default = datetime.now(timezone.utc)
     state_code_norm = (state_code or "").strip().upper()[:2]
+    jurisdiction_type_norm = _norm_jurisdiction_type(jurisdiction_type)
+    canonical_jurisdiction_id = ensure_canonical_jurisdiction_id(
+        jurisdiction_id,
+        jurisdiction_type=jurisdiction_type_norm,
+        name=jurisdiction_name,
+        database_url=database_url,
+    )
+    primary_id = mark_primary_jurisdiction_id
+    if primary_id:
+        primary_id = ensure_canonical_jurisdiction_id(
+            primary_id,
+            jurisdiction_type=jurisdiction_type_norm,
+            name=jurisdiction_name,
+            database_url=database_url,
+        )
     touched = 0
     conn = psycopg2.connect(database_url)
     try:
@@ -162,7 +187,7 @@ def upsert_bronze_jurisdiction_youtube_verified(
                 base = _row_values(
                     r,
                     scrape_batch_id=str(batch_id or "00000000-0000-0000-0000-000000000000"),
-                    jurisdiction_id=jurisdiction_id,
+                    jurisdiction_id=canonical_jurisdiction_id,
                     state_code_norm=state_code_norm,
                     jurisdiction_type=jurisdiction_type,
                     ocd_id=ocd_id,
@@ -172,7 +197,7 @@ def upsert_bronze_jurisdiction_youtube_verified(
                 if base is None:
                     continue
                 source = canonical_source_from_row(r)
-                is_primary = jurisdiction_id == mark_primary_jurisdiction_id and bool(
+                is_primary = canonical_jurisdiction_id == primary_id and bool(
                     r.get("is_primary")
                 )
                 cur.execute(
