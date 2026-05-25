@@ -17,6 +17,7 @@ from scripts.datasources.youtube.transcript_api_client import (
     summarize_transcript_payload,
     transcript_failure_hint,
     resolve_ytdlp_proxy_url,
+    webshare_enabled,
 )
 
 
@@ -126,11 +127,39 @@ def test_build_proxy_config_prefers_webshare(mock_webshare: MagicMock):
     {
         "PROXY_USER_NAME": "ws_user",
         "PROXY_PASSWORD": "ws_pass",
+    },
+    clear=False,
+)
+def test_resolve_ytdlp_proxy_url_uses_webshare_by_default(mock_webshare: MagicMock):
+    mock_webshare.return_value.http_url = "http://ws_user-rotate:ws_pass@p.webshare.io:80/"
+    url = resolve_ytdlp_proxy_url()
+    assert "webshare.io" in (url or "")
+
+
+@patch.dict(
+    os.environ,
+    {
+        "PROXY_USER_NAME": "ws_user",
+        "PROXY_PASSWORD": "ws_pass",
+        "YOUTUBE_YTDLP_USE_WEBSHARE": "0",
+    },
+    clear=False,
+)
+def test_resolve_ytdlp_proxy_url_webshare_opt_out():
+    assert resolve_ytdlp_proxy_url() is None
+
+
+@patch("scripts.datasources.youtube.transcript_api_client.WebshareProxyConfig")
+@patch.dict(
+    os.environ,
+    {
+        "PROXY_USER_NAME": "ws_user",
+        "PROXY_PASSWORD": "ws_pass",
         "YOUTUBE_YTDLP_USE_WEBSHARE": "1",
     },
     clear=False,
 )
-def test_resolve_ytdlp_proxy_url_webshare_only_when_opt_in(mock_webshare: MagicMock):
+def test_resolve_ytdlp_proxy_url_webshare_explicit_opt_in(mock_webshare: MagicMock):
     mock_webshare.return_value.http_url = "http://ws_user-rotate:ws_pass@p.webshare.io:80/"
     assert "webshare.io" in (resolve_ytdlp_proxy_url() or "")
 
@@ -178,12 +207,34 @@ def test_fetch_transcript_from_api_delegates_to_bundle(mock_bundle: MagicMock):
     {"PROXY_USER_NAME": "ws_user", "PROXY_PASSWORD": "ws_pass", "WEBSHARE_FILTER_IP_LOCATIONS": "us"},
     clear=False,
 )
+@patch.dict(
+    os.environ,
+    {
+        "PROXY_USER_NAME": "ws_user",
+        "PROXY_PASSWORD": "ws_pass",
+        "YOUTUBE_USE_WEBSHARE": "0",
+    },
+    clear=False,
+)
+def test_webshare_disabled_via_youtube_use_webshare():
+    assert webshare_enabled() is False
+    assert resolve_ytdlp_proxy_url() is None
+    info = describe_caption_egress()
+    assert info["caption_egress_mode"] == "direct"
+    assert info["webshare_configured"] is False
+
+
+@patch.dict(
+    os.environ,
+    {"PROXY_USER_NAME": "ws_user", "PROXY_PASSWORD": "ws_pass", "WEBSHARE_FILTER_IP_LOCATIONS": "us"},
+    clear=False,
+)
 def test_describe_caption_egress_webshare():
     info = describe_caption_egress(cookies_path="/tmp/cookies.txt", ytdlp_fallback=True)
     assert info["caption_egress_mode"] == "webshare"
     assert "ws_user" in info["caption_egress_detail"]
     assert info["webshare_configured"] is True
-    assert info["ytdlp_egress_mode"] == "direct"
+    assert info["ytdlp_egress_mode"] == "webshare"
 
 
 def test_summarize_transcript_payload():

@@ -1700,16 +1700,143 @@ class YouTubeEventsLoader:
 
         return _QuietLogger()
 
+    @staticmethod
+    def _ytdlp_has_caption_tracks(info: Optional[Dict[str, Any]]) -> bool:
+        if not info:
+            return False
+        return bool(info.get("subtitles") or info.get("automatic_captions"))
+
+    @staticmethod
+    def _ytdlp_pick_caption_track(
+        subtitles: Dict[str, Any],
+        auto_captions: Dict[str, Any],
+    ) -> tuple[Optional[list], bool, str]:
+        """Pick manual or auto English (or first available) caption format list."""
+        for lang in ("en", "en-US", "en-GB", "en-orig", "a.en", "en-orig"):
+            if lang in subtitles:
+                return subtitles[lang], False, lang
+            if lang in auto_captions:
+                return auto_captions[lang], True, lang
+        for lang, track in subtitles.items():
+            if str(lang).lower() == "en" or str(lang).lower().startswith("en"):
+                return track, False, str(lang)
+        for lang, track in auto_captions.items():
+            low = str(lang).lower()
+            if low == "en" or low.endswith("-en") or low.startswith("en"):
+                return track, True, str(lang)
+        if subtitles:
+            lang = next(iter(subtitles))
+            return subtitles[lang], False, str(lang)
+        if auto_captions:
+            lang = next(iter(auto_captions))
+            return auto_captions[lang], True, str(lang)
+        return None, False, "en"
+
+    _YTDLP_SUBTITLE_EXT_ORDER = ("vtt", "srv1", "srv2", "srv3", "srt", "ttml")
+
+    @classmethod
+    def _ytdlp_pick_subtitle_url(cls, transcript_data: list) -> tuple[Optional[str], Optional[str]]:
+        """Prefer VTT/XML timedtext over json3 (json3 is not WEBVTT)."""
+        for ext in cls._YTDLP_SUBTITLE_EXT_ORDER:
+            for fmt in transcript_data:
+                if fmt.get("ext") == ext and fmt.get("url"):
+                    return fmt.get("url"), ext
+        if transcript_data and transcript_data[0].get("url"):
+            return transcript_data[0].get("url"), transcript_data[0].get("ext")
+        return None, None
+
+    @staticmethod
+    def _ytdlp_parse_subtitle_body(raw_content: str, ext: Optional[str]) -> list[Dict[str, Any]]:
+        import re
+        import xml.etree.ElementTree as ET
+
+        segments: list[Dict[str, Any]] = []
+        ext_l = (ext or "").lower()
+
+        if ext_l in ("srv1", "srv2", "srv3", "ttml") or raw_content.lstrip().startswith("<?xml"):
+            try:
+                root = ET.fromstring(raw_content)
+            except ET.ParseError:
+                root = None
+            if root is not None:
+                for node in root.iter():
+                    tag = node.tag.split("}")[-1] if "}" in node.tag else node.tag
+                    if tag not in ("text", "p"):
+                        continue
+                    start_raw = node.attrib.get("t") or node.attrib.get("start")
+                    dur_raw = node.attrib.get("d") or node.attrib.get("dur")
+                    if start_raw is None:
+                        continue
+                    try:
+                        if tag == "text":
+                            start_s = float(start_raw)
+                            dur_s = float(dur_raw) if dur_raw is not None else 0.0
+                        else:
+                            start_s = float(start_raw) / 1000.0
+                            dur_s = float(dur_raw) / 1000.0 if dur_raw is not None else 0.0
+                    except (TypeError, ValueError):
+                        continue
+                    text = "".join(node.itertext()).strip()
+                    text = re.sub(r"\s+", " ", text)
+                    if text:
+                        segments.append({"text": text, "start": start_s, "duration": dur_s})
+            if segments:
+                return segments
+
+        lines = raw_content.split("\n")
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
+            if "-->" in line:
+                timestamp_match = re.match(
+                    r"(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})",
+                    line,
+                )
+                if timestamp_match:
+
+                    def timestamp_to_seconds(ts: str) -> float:
+                        h, m, s = ts.split(":")
+                        return int(h) * 3600 + int(m) * 60 + float(s)
+
+                    start = timestamp_to_seconds(timestamp_match.group(1))
+                    end = timestamp_to_seconds(timestamp_match.group(2))
+                    duration = end - start
+                    i += 1
+                    text_lines = []
+                    while i < len(lines):
+                        text_line = lines[i].strip()
+                        if (
+                            not text_line
+                            or "-->" in text_line
+                            or text_line.startswith("WEBVTT")
+                        ):
+                            break
+                        if not text_line.isdigit():
+                            clean_text = re.sub(r"<[^>]+>", "", text_line)
+                            if clean_text:
+                                text_lines.append(clean_text)
+                        i += 1
+                    if text_lines:
+                        segments.append({
+                            "text": " ".join(text_lines),
+                            "start": start,
+                            "duration": duration,
+                        })
+            i += 1
+        return segments
+
     def _ytdlp_transcript_opts(
         self,
         *,
         use_cookies: bool,
         relaxed: bool = False,
         proxy_override: Optional[str] = None,
+        player_clients: Optional[list[str]] = None,
     ) -> Dict[str, Any]:
         """yt-dlp options for subtitle-only extraction (no video download)."""
         from scripts.datasources.youtube.download_audio_to_drive import _yt_dlp_youtube_ejs_opts
 
+        clients = player_clients or ["android", "web"]
         opts: Dict[str, Any] = {
             "skip_download": True,
             # Preferred mode requests subtitle metadata directly. Relaxed mode falls
@@ -1722,7 +1849,7 @@ class YouTubeEventsLoader:
             "quiet": True,
             "no_warnings": True,
             "logger": self._ytdlp_quiet_logger(),
-            "extractor_args": {"youtube": {"player_client": ["android", "web"]}},
+            "extractor_args": {"youtube": {"player_client": clients}},
             "user_agent": (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
                 "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -1759,17 +1886,25 @@ class YouTubeEventsLoader:
         *,
         use_cookies: bool,
         relaxed: bool = False,
+        player_clients: Optional[list[str]] = None,
+        direct_only: bool = False,
     ) -> Any:
         """Run yt-dlp extract_info; on proxy failure retry once without proxy."""
-        proxy_attempts: list[Optional[str]] = [self.proxy_url]
-        if self.proxy_url:
-            proxy_attempts.append(None)
+        from scripts.datasources.youtube.transcript_api_client import ytdlp_proxy_is_webshare
+
+        if direct_only:
+            proxy_attempts = [None]
+        else:
+            proxy_attempts = [self.proxy_url]
+            if self.proxy_url and not ytdlp_proxy_is_webshare(self.proxy_url):
+                proxy_attempts.append(None)
         last_err: Optional[Exception] = None
         for proxy in proxy_attempts:
             opts = self._ytdlp_transcript_opts(
                 use_cookies=use_cookies,
                 relaxed=relaxed,
                 proxy_override=proxy,
+                player_clients=player_clients,
             )
             try:
                 with yt_dlp.YoutubeDL(opts) as ydl:
@@ -1787,6 +1922,60 @@ class YouTubeEventsLoader:
             raise last_err
         raise RuntimeError("yt-dlp extract_info failed with no error")
 
+    def _ytdlp_extract_info_for_subtitles(self, url: str, video_id: str) -> Any:
+        """
+        Extract metadata with caption track lists populated.
+
+        YouTube's web client often omits downloadable subs without a PO token; android
+        usually exposes ``automatic_captions['en']`` even when the site UI shows CC.
+        """
+        last_err: Optional[Exception] = None
+        attempts: list[tuple[bool, list[str], str, bool]] = [
+            (False, ["android", "web"], "android+web", False),
+            (False, ["android"], "android", False),
+            (False, ["android"], "android-direct", True),
+        ]
+
+        for use_cookies, clients, label, direct_only in attempts:
+            try:
+                info = self._ytdlp_extract_info_with_proxy_fallback(
+                    url,
+                    use_cookies=use_cookies,
+                    player_clients=clients,
+                    direct_only=direct_only,
+                )
+                if self._ytdlp_has_caption_tracks(info):
+                    logger.debug(
+                        "    yt-dlp caption metadata via {} for {}",
+                        label,
+                        self._youtube_video_log_label(video_id),
+                    )
+                    return info
+                logger.debug(
+                    "    yt-dlp returned no subtitle tracks (client={}) for {}",
+                    clients,
+                    self._youtube_video_log_label(video_id),
+                )
+            except Exception as exc:
+                last_err = exc
+                err = str(exc)
+                if self._is_unavailable_format_error(err):
+                    try:
+                        info = self._ytdlp_extract_info_with_proxy_fallback(
+                            url,
+                            use_cookies=use_cookies,
+                            relaxed=True,
+                            player_clients=clients,
+                            direct_only=direct_only,
+                        )
+                        if self._ytdlp_has_caption_tracks(info):
+                            return info
+                    except Exception as exc_relaxed:
+                        last_err = exc_relaxed
+        if last_err:
+            raise last_err
+        raise RuntimeError("yt-dlp could not load subtitle metadata")
+
     def fetch_transcript_ytdlp(self, video_id: str) -> Optional[Dict[str, Any]]:
         """Fetch transcript using yt-dlp as fallback."""
         from scripts.datasources.youtube.transcript_api_client import format_transcript_error
@@ -1794,152 +1983,40 @@ class YouTubeEventsLoader:
         self._last_ytdlp_transcript_error = None
         try:
             url = f'https://www.youtube.com/watch?v={video_id}'
-            info = None
-            last_err: Optional[Exception] = None
-            # Android client works best without cookies; cookiefile often causes
-            # "Requested format is not available" unless EJS + Node/Deno are installed.
-            attempts = (False, True) if self.cookies_file else (False,)
-            for use_cookies in attempts:
-                try:
-                    info = self._ytdlp_extract_info_with_proxy_fallback(
-                        url, use_cookies=use_cookies
-                    )
-                    break
-                except Exception as exc:
-                    last_err = exc
-                    err = str(exc)
-                    # Some videos reject the default subtitle extraction path and raise
-                    # "Requested format is not available". Retry with relaxed opts.
-                    if self._is_unavailable_format_error(err):
-                        try:
-                            info = self._ytdlp_extract_info_with_proxy_fallback(
-                                url, use_cookies=use_cookies, relaxed=True
-                            )
-                            break
-                        except Exception as exc_relaxed:
-                            last_err = exc_relaxed
-                            err = str(exc_relaxed)
-                    if (
-                        use_cookies
-                        and self.cookies_file
-                        and ("Requested format is not available" in err or "not a bot" in err.lower())
-                    ):
-                        logger.debug(
-                            f"    yt-dlp retry without cookies for {video_id} "
-                            f"(cookies often need EJS: https://github.com/yt-dlp/yt-dlp/wiki/EJS)"
-                        )
-                        continue
-                    raise
-            if info is None:
-                if last_err:
-                    raise last_err
+            try:
+                info = self._ytdlp_extract_info_for_subtitles(url, video_id)
+            except Exception as exc:
+                self._last_ytdlp_transcript_error = f"yt-dlp: {format_transcript_error(exc, max_len=300)}"
                 return None
 
-            # Try manual subtitles first, then auto-generated
-            subtitles = info.get('subtitles', {})
-            auto_captions = info.get('automatic_captions', {})
-
-            transcript_data = None
-            is_auto = False
-            language = 'en'
-
-            if 'en' in subtitles:
-                transcript_data = subtitles['en']
-                is_auto = False
-            elif 'en' in auto_captions:
-                transcript_data = auto_captions['en']
-                is_auto = True
-            else:
-                if subtitles:
-                    lang = list(subtitles.keys())[0]
-                    transcript_data = subtitles[lang]
-                    language = lang
-                    is_auto = False
-                elif auto_captions:
-                    lang = list(auto_captions.keys())[0]
-                    transcript_data = auto_captions[lang]
-                    language = lang
-                    is_auto = True
+            subtitles = info.get("subtitles") or {}
+            auto_captions = info.get("automatic_captions") or {}
+            transcript_data, is_auto, language = self._ytdlp_pick_caption_track(
+                subtitles, auto_captions
+            )
 
             if not transcript_data:
                 self._last_ytdlp_transcript_error = (
-                    "yt-dlp: metadata had no manual or auto captions"
+                    "yt-dlp: metadata had no manual or auto captions "
+                    "(browser CC can still exist — web client may need a PO token; try "
+                    "--transcript-source auto or YOUTUBE_USE_WEBSHARE=0)"
                 )
                 return None
 
-            subtitle_url = None
-            for fmt in transcript_data:
-                if fmt.get('ext') in ['vtt', 'srv3', 'json3']:
-                    subtitle_url = fmt.get('url')
-                    break
-
-            if not subtitle_url and transcript_data:
-                subtitle_url = transcript_data[0].get('url')
+            subtitle_url, subtitle_ext = self._ytdlp_pick_subtitle_url(transcript_data)
 
             if not subtitle_url:
                 self._last_ytdlp_transcript_error = (
-                    "yt-dlp: caption list had no vtt/srv3/json3 URL"
+                    "yt-dlp: caption list had no downloadable subtitle URL"
                 )
                 return None
-
-            import re
 
             import requests
 
             response = requests.get(subtitle_url, timeout=10)
             response.raise_for_status()
 
-            raw_content = response.text
-            segments = []
-            lines = raw_content.split('\n')
-            i = 0
-
-            while i < len(lines):
-                line = lines[i].strip()
-
-                if '-->' in line:
-                    timestamp_match = re.match(
-                        r'(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})',
-                        line,
-                    )
-
-                    if timestamp_match:
-                        start_str = timestamp_match.group(1)
-                        end_str = timestamp_match.group(2)
-
-                        def timestamp_to_seconds(ts: str) -> float:
-                            h, m, s = ts.split(':')
-                            return int(h) * 3600 + int(m) * 60 + float(s)
-
-                        start = timestamp_to_seconds(start_str)
-                        end = timestamp_to_seconds(end_str)
-                        duration = end - start
-
-                        i += 1
-                        text_lines = []
-                        while i < len(lines):
-                            text_line = lines[i].strip()
-                            if (
-                                not text_line
-                                or '-->' in text_line
-                                or text_line.startswith('WEBVTT')
-                            ):
-                                break
-                            if not text_line.isdigit():
-                                clean_text = re.sub(r'<[^>]+>', '', text_line)
-                                if clean_text:
-                                    text_lines.append(clean_text)
-                            i += 1
-
-                        if text_lines:
-                            segments.append({
-                                'text': ' '.join(text_lines),
-                                'start': start,
-                                'duration': duration,
-                            })
-
-                i += 1
-
+            segments = self._ytdlp_parse_subtitle_body(response.text, subtitle_ext)
             raw_text = ' '.join([seg['text'] for seg in segments])
 
             if not raw_text:
@@ -2807,17 +2884,23 @@ class YouTubeEventsLoader:
                     )
             elif self.proxy_url or (os.getenv("YOUTUBE_TRANSCRIPT_PROXY") or "").strip():
                 logger.info("Caption proxy: YOUTUBE_TRANSCRIPT_PROXY / --proxy")
-            if ws_user:
+            if ws_user and self.proxy_url and "webshare.io" in (self.proxy_url or ""):
                 logger.info(
-                    "Caption API: Webshare (PROXY_USER_NAME); yt-dlp uses direct egress "
-                    "unless YOUTUBE_YTDLP_USE_WEBSHARE=1 or YOUTUBE_HTTPS_PROXY"
+                    "Caption API + yt-dlp: Webshare (PROXY_USER_NAME); "
+                    "set YOUTUBE_YTDLP_USE_WEBSHARE=0 to keep yt-dlp on direct egress"
+                )
+            elif ws_user:
+                logger.info(
+                    "Caption API: Webshare (PROXY_USER_NAME); yt-dlp: {} "
+                    "(set YOUTUBE_YTDLP_USE_WEBSHARE=0 for direct yt-dlp only)",
+                    (self.proxy_url or "direct").split("@")[-1][:80],
                 )
             if self.proxy_url and self.scraper.use_ytdlp_fallback:
                 logger.info("yt-dlp proxy: {}", self.proxy_url.split("@")[-1][:80])
             elif self.scraper.use_ytdlp_fallback:
                 logger.info(
-                    "yt-dlp proxy: none (direct + --cookies); set YOUTUBE_HTTPS_PROXY "
-                    "or YOUTUBE_YTDLP_USE_WEBSHARE=1 to force Webshare on catalog"
+                    "yt-dlp proxy: none (direct + --cookies); set PROXY_* for Webshare "
+                    "or YOUTUBE_HTTPS_PROXY for a generic proxy"
                 )
             if self.transcript_source == "api-only":
                 logger.info(

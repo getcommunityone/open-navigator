@@ -925,6 +925,34 @@ def run(args: argparse.Namespace) -> int:
         args.order_by,
     )
 
+    batch_id = (getattr(args, "batch_id", None) or os.getenv("BATCH_JOB_ID") or "").strip()
+    batch_store = None
+    if batch_id:
+        from scripts.datasources.youtube.batch_job_status import (
+            BatchJobStore,
+            count_policy_files_for_jurisdiction,
+        )
+
+        batch_store = BatchJobStore(batch_id)
+
+    def _batch_video(
+        vid: str,
+        status: str,
+        *,
+        title: str = "",
+        error: str = "",
+        source: str = "",
+    ) -> None:
+        if batch_store:
+            batch_store.record_video(
+                jurisdiction_id=jurisdiction_id,
+                video_id=vid,
+                status=status,
+                title=title,
+                error=error,
+                transcript_source=source,
+            )
+
     if args.dry_run:
         for i, row in enumerate(pending, 1):
             pub = row.get("published_at")
@@ -933,10 +961,36 @@ def run(args: argparse.Namespace) -> int:
                 f"{i:4}. {row['video_id']}  pub={pub_s}  meeting={row.get('event_date') or '?'}  "
                 f"tx={row.get('bronze_has_transcript')}  {(row.get('title') or '')[:55]}"
             )
+        if batch_store:
+            j_name = (getattr(args, "jurisdiction_name", None) or "").strip()
+            batch_store.jurisdiction_start(
+                state_code=state_code,
+                jurisdiction_id=jurisdiction_id,
+                jurisdiction_name=j_name,
+                pending_videos=len(pending),
+            )
+            batch_store.jurisdiction_finish(
+                jurisdiction_id=jurisdiction_id,
+                exit_code=0,
+                stats={"dry_run": len(pending)},
+            )
         return 0
 
     if not pending:
         logger.info("Nothing to fetch — all transcripts present (NOOP)")
+        if batch_store:
+            j_name = (getattr(args, "jurisdiction_name", None) or "").strip()
+            batch_store.jurisdiction_start(
+                state_code=state_code,
+                jurisdiction_id=jurisdiction_id,
+                jurisdiction_name=j_name,
+                pending_videos=0,
+            )
+            batch_store.jurisdiction_finish(
+                jurisdiction_id=jurisdiction_id,
+                exit_code=0,
+                stats={"noop": 1},
+            )
         return 0
 
     cookies = resolve_cookies_path(args.cookies or None)
@@ -944,7 +998,11 @@ def run(args: argparse.Namespace) -> int:
     from scripts.datasources.youtube.transcript_api_client import (
         check_proxy_reachable,
         log_caption_fetch_setup,
+        resolve_ytdlp_proxy_url,
+        ytdlp_proxy_is_webshare,
     )
+
+    ytdlp_proxy = resolve_ytdlp_proxy_url(proxy)
 
     log_caption_fetch_setup(
         logger,
@@ -953,7 +1011,7 @@ def run(args: argparse.Namespace) -> int:
         ytdlp_fallback=not args.no_ytdlp_fallback,
         verify_webshare=True,
     )
-    if proxy:
+    if proxy and not ytdlp_proxy_is_webshare(proxy):
         ok, msg = check_proxy_reachable(proxy)
         if not ok:
             logger.error(
@@ -965,13 +1023,24 @@ def run(args: argparse.Namespace) -> int:
             return 2
         logger.info("YOUTUBE_TRANSCRIPT_PROXY port check: {}", msg)
 
+    transcript_source = (getattr(args, "transcript_source", None) or "auto").strip().lower()
+    if args.no_ytdlp_fallback and transcript_source == "auto":
+        transcript_source = "api-only"
+    if transcript_source == "ytdlp-only":
+        logger.info("Caption path: yt-dlp subtitles only (youtube-transcript-api skipped)")
+    elif transcript_source == "api-only":
+        logger.info("Caption path: youtube-transcript-api only (--no-ytdlp-fallback)")
+
     loader = YouTubeEventsLoader(
         database_url=db_url,
         fetch_transcripts=False,
         transcript_delay=args.delay,
-        use_ytdlp_fallback=not args.no_ytdlp_fallback,
+        use_ytdlp_fallback=(
+            transcript_source == "ytdlp-only" or not args.no_ytdlp_fallback
+        ),
+        transcript_source=transcript_source,
         cookies_file=cookies,
-        proxy_url=proxy,
+        proxy_url=ytdlp_proxy,
         ensure_schema_setup=False,
     )
 
@@ -979,16 +1048,21 @@ def run(args: argparse.Namespace) -> int:
     use_tombstones = args.write_bronze and not getattr(args, "no_tombstones", False)
     consecutive_rl = 0
     max_rl = args.max_consecutive_rate_limits
+    exit_code = 0
 
     probe_id = (args.probe_video_id or "").strip() or "ajsME66iXbY"
     if args.skip_probe or video_filter:
         probe_id = ""
     if probe_id:
-        logger.info(
-            "Probe: fetching captions for {} via loader.fetch_transcript (caption API first, "
-            "yt-dlp fallback if enabled)…",
-            probe_id,
-        )
+        if transcript_source == "ytdlp-only":
+            logger.info("Probe: yt-dlp only for {}…", probe_id)
+        elif transcript_source == "api-only":
+            logger.info("Probe: youtube-transcript-api only for {}…", probe_id)
+        else:
+            logger.info(
+                "Probe: {} — caption API first, yt-dlp fallback if enabled…",
+                probe_id,
+            )
         probe = probe_transcript_access(loader, probe_id)
         if probe.ok:
             logger.success(
@@ -1024,35 +1098,107 @@ def run(args: argparse.Namespace) -> int:
         summarize_transcript_payload,
     )
 
-    for i, row in enumerate(pending, 1):
-        video_id = row["video_id"]
-        test_url = str(row.get("video_url") or "").strip() or f"https://www.youtube.com/watch?v={video_id}"
-        title_snip = (str(row.get("title") or "")[:60]).strip()
-        if i > 1:
-            delay = args.delay
-            if consecutive_rl > 0:
-                delay = min(args.delay * (2**consecutive_rl), args.max_backoff)
-                logger.warning("Backoff {:.1f}s after rate limit", delay)
-            time.sleep(delay)
+    if batch_store:
+        j_name = (getattr(args, "jurisdiction_name", None) or "").strip()
+        batch_store.jurisdiction_start(
+            state_code=state_code,
+            jurisdiction_id=jurisdiction_id,
+            jurisdiction_name=j_name,
+            pending_videos=len(pending),
+        )
 
-        logger.info("[{}/{}] {} — {}", i, len(pending), video_id, title_snip or "(no title)")
-        event_id = row.get("event_id")
-        via_socks = bool(proxy and "socks" in proxy.lower())
+    try:
+        for i, row in enumerate(pending, 1):
+            video_id = row["video_id"]
+            test_url = str(row.get("video_url") or "").strip() or f"https://www.youtube.com/watch?v={video_id}"
+            title_snip = (str(row.get("title") or "")[:60]).strip()
+            row_title = str(row.get("title") or "")
+            if i > 1:
+                delay = args.delay
+                if consecutive_rl > 0:
+                    delay = min(args.delay * (2**consecutive_rl), args.max_backoff)
+                    logger.warning("Backoff {:.1f}s after rate limit", delay)
+                time.sleep(delay)
 
-        if (
-            row.get("bronze_has_transcript")
-            and not args.include_bronze_existing
-            and not args.no_local_cache
-        ):
-            if write_local_from_bronze(db_url, cache_dir, jurisdiction_id, row):
-                stats["ok"] += 1
-                logger.success("Synced bronze → local for {} (skip YouTube)", video_id)
-                continue
+            logger.info("[{}/{}] {} — {}", i, len(pending), video_id, title_snip or "(no title)")
+            event_id = row.get("event_id")
+            via_socks = bool(proxy and "socks" in proxy.lower())
 
-        try:
-            yt = loader.fetch_transcript(video_id)
-            if yt is None:
-                reason = permanent_failure_reason(None, via_proxy=via_socks)
+            if (
+                row.get("bronze_has_transcript")
+                and not args.include_bronze_existing
+                and not args.no_local_cache
+            ):
+                if write_local_from_bronze(db_url, cache_dir, jurisdiction_id, row):
+                    stats["ok"] += 1
+                    _batch_video(video_id, "ok", title=row_title, source="bronze_sync")
+                    logger.success("Synced bronze → local for {} (skip YouTube)", video_id)
+                    continue
+
+            try:
+                yt = loader.fetch_transcript(video_id)
+                if yt is None:
+                    reason = permanent_failure_reason(None, via_proxy=via_socks)
+                    if reason and use_tombstones and event_id:
+                        write_transcript_tombstone(
+                            loader,
+                            event_id=int(event_id),
+                            video_id=video_id,
+                            reason=reason,
+                        )
+                        stats["tombstoned"] += 1
+                        _batch_video(video_id, "tombstoned", title=row_title, error=reason or "")
+                        logger.info(
+                            "Tombstoned {} ({}) — will not retry on future backfills. Test URL: {}",
+                            video_id,
+                            reason,
+                            test_url,
+                        )
+                    else:
+                        stats["fail"] += 1
+                        err = getattr(loader, "_last_ytdlp_transcript_error", None) or ""
+                        _batch_video(video_id, "fail", title=row_title, error=str(err))
+                        if via_socks:
+                            logger.warning(
+                                "No transcript for {} — SOCKS proxy {} cannot reach YouTube "
+                                "(Connection reset by peer). Unset YOUTUBE_TRANSCRIPT_PROXY or use a "
+                                "residential/VPN egress that supports youtube.com; 9091/Tor often fails here.",
+                                video_id,
+                                proxy,
+                            )
+                        else:
+                            logger.warning(
+                                "No transcript for {} — this upload has no captions (API + yt-dlp); "
+                                "skip or use audio/Whisper. Not an IP block if you see 'Captions disabled by uploader' above.",
+                                video_id,
+                            )
+                    continue
+            except Exception as exc:
+                if is_rate_limited(exc):
+                    stats["rate_limit"] += 1
+                    _batch_video(
+                        video_id,
+                        "rate_limit",
+                        title=row_title,
+                        error=format_transcript_error(exc, max_len=300),
+                    )
+                    consecutive_rl += 1
+                    wait = min(args.delay * (2**consecutive_rl), args.max_backoff)
+                    logger.warning(
+                        "IP blocked / rate limited on {} ({}/{}) — next sleep {:.0f}s (not tombstoned)",
+                        video_id,
+                        consecutive_rl,
+                        max_rl,
+                        wait,
+                    )
+                    if consecutive_rl >= max_rl:
+                        logger.error(
+                            "Stopping after {} consecutive blocks — fix VPN/proxy, wait, then re-run",
+                            max_rl,
+                        )
+                        break
+                    continue
+                reason = permanent_failure_reason(exc, via_proxy=via_socks)
                 if reason and use_tombstones and event_id:
                     write_transcript_tombstone(
                         loader,
@@ -1061,6 +1207,7 @@ def run(args: argparse.Namespace) -> int:
                         reason=reason,
                     )
                     stats["tombstoned"] += 1
+                    _batch_video(video_id, "tombstoned", title=row_title, error=reason or "")
                     logger.info(
                         "Tombstoned {} ({}) — will not retry on future backfills. Test URL: {}",
                         video_id,
@@ -1069,146 +1216,119 @@ def run(args: argparse.Namespace) -> int:
                     )
                 else:
                     stats["fail"] += 1
-                    if via_socks:
-                        logger.warning(
-                            "No transcript for {} — SOCKS proxy {} cannot reach YouTube "
-                            "(Connection reset by peer). Unset YOUTUBE_TRANSCRIPT_PROXY or use a "
-                            "residential/VPN egress that supports youtube.com; 9091/Tor often fails here.",
-                            video_id,
-                            proxy,
-                        )
-                    else:
-                        logger.warning(
-                            "No transcript for {} — this upload has no captions (API + yt-dlp); "
-                            "skip or use audio/Whisper. Not an IP block if you see 'Captions disabled by uploader' above.",
-                            video_id,
-                        )
-                continue
-        except Exception as exc:
-            if is_rate_limited(exc):
-                stats["rate_limit"] += 1
-                consecutive_rl += 1
-                wait = min(args.delay * (2**consecutive_rl), args.max_backoff)
-                logger.warning(
-                    "IP blocked / rate limited on {} ({}/{}) — next sleep {:.0f}s (not tombstoned)",
-                    video_id,
-                    consecutive_rl,
-                    max_rl,
-                    wait,
-                )
-                if consecutive_rl >= max_rl:
-                    logger.error(
-                        "Stopping after {} consecutive blocks — fix VPN/proxy, wait, then re-run",
-                        max_rl,
+                    err_msg = format_transcript_error(exc, max_len=300)
+                    _batch_video(video_id, "fail", title=row_title, error=err_msg)
+                    logger.warning(
+                        "No transcript for {} — {}",
+                        video_id,
+                        err_msg,
                     )
-                    break
+                consecutive_rl = 0
                 continue
-            reason = permanent_failure_reason(exc, via_proxy=via_socks)
-            if reason and use_tombstones and event_id:
-                write_transcript_tombstone(
-                    loader,
-                    event_id=int(event_id),
-                    video_id=video_id,
-                    reason=reason,
-                )
-                stats["tombstoned"] += 1
-                logger.info(
-                    "Tombstoned {} ({}) — will not retry on future backfills. Test URL: {}",
-                    video_id,
-                    reason,
-                    test_url,
-                )
-            else:
-                stats["fail"] += 1
-                logger.warning(
-                    "No transcript for {} — {}",
-                    video_id,
-                    format_transcript_error(exc, max_len=300),
-                )
+
             consecutive_rl = 0
-            continue
-
-        consecutive_rl = 0
-        if not (yt.get("raw_text") or "").strip():
-            stats["empty"] += 1
-            if use_tombstones and event_id:
-                write_transcript_tombstone(
-                    loader,
-                    event_id=int(event_id),
-                    video_id=video_id,
-                    reason="empty_transcript",
-                )
-                stats["tombstoned"] += 1
-                logger.info(
-                    "Tombstoned {} (empty_transcript) — will not retry on future backfills. Test URL: {}",
-                    video_id,
-                    test_url,
-                )
-            continue
-
-        if not args.no_local_cache:
-            write_local_transcript(
-                local_transcript_path(
-                    cache_dir, jurisdiction_id, row, state_code=state_code
-                ),
-                row=row,
-                yt=yt,
-                cache_dir=cache_dir,
-                state_code=state_code,
-            )
-
-        if args.write_bronze:
-            import json as _json
-
-            if event_id:
-                segments = yt.get("segments")
-                seg_json = _json.dumps(segments) if segments else None
-                quality = "medium" if yt.get("is_auto_generated") else "high"
-                cur = loader.conn.cursor()
-                try:
-                    cur.execute(
-                        """
-                        INSERT INTO bronze.bronze_events_text_ai (
-                            event_id, video_id, raw_text, segments, language,
-                            is_auto_generated, transcript_source, has_transcript, transcript_quality
-                        ) VALUES (
-                            %(event_id)s, %(video_id)s, %(raw_text)s, %(segments)s::jsonb, %(language)s,
-                            %(is_auto_generated)s, %(transcript_source)s, true, %(transcript_quality)s
-                        )
-                        ON CONFLICT (video_id) DO UPDATE SET
-                            raw_text = EXCLUDED.raw_text,
-                            segments = EXCLUDED.segments,
-                            language = EXCLUDED.language,
-                            is_auto_generated = EXCLUDED.is_auto_generated,
-                            transcript_source = EXCLUDED.transcript_source,
-                            has_transcript = EXCLUDED.has_transcript,
-                            transcript_quality = EXCLUDED.transcript_quality,
-                            last_updated = CURRENT_TIMESTAMP
-                        """,
-                        {
-                            "event_id": event_id,
-                            "video_id": video_id,
-                            "raw_text": yt.get("raw_text"),
-                            "segments": seg_json,
-                            "language": yt.get("language"),
-                            "is_auto_generated": yt.get("is_auto_generated"),
-                            "transcript_source": yt.get("transcript_source"),
-                            "transcript_quality": quality,
-                        },
+            if not (yt.get("raw_text") or "").strip():
+                stats["empty"] += 1
+                _batch_video(video_id, "empty", title=row_title)
+                if use_tombstones and event_id:
+                    write_transcript_tombstone(
+                        loader,
+                        event_id=int(event_id),
+                        video_id=video_id,
+                        reason="empty_transcript",
                     )
-                    loader.conn.commit()
-                finally:
-                    cur.close()
+                    stats["tombstoned"] += 1
+                    logger.info(
+                        "Tombstoned {} (empty_transcript) — will not retry on future backfills. Test URL: {}",
+                        video_id,
+                        test_url,
+                    )
+                continue
 
-        stats["ok"] += 1
-        logger.success(
-            "OK {} — {} url={}",
-            video_id,
-            summarize_transcript_payload(yt),
-            test_url,
-        )
-        if stats["ok"] % 25 == 0:
-            logger.info("Progress: {}", stats)
+            if not args.no_local_cache:
+                write_local_transcript(
+                    local_transcript_path(
+                        cache_dir, jurisdiction_id, row, state_code=state_code
+                    ),
+                    row=row,
+                    yt=yt,
+                    cache_dir=cache_dir,
+                    state_code=state_code,
+                )
+
+            if args.write_bronze:
+                import json as _json
+
+                if event_id:
+                    segments = yt.get("segments")
+                    seg_json = _json.dumps(segments) if segments else None
+                    quality = "medium" if yt.get("is_auto_generated") else "high"
+                    cur = loader.conn.cursor()
+                    try:
+                        cur.execute(
+                            """
+                            INSERT INTO bronze.bronze_events_text_ai (
+                                event_id, video_id, raw_text, segments, language,
+                                is_auto_generated, transcript_source, has_transcript, transcript_quality
+                            ) VALUES (
+                                %(event_id)s, %(video_id)s, %(raw_text)s, %(segments)s::jsonb, %(language)s,
+                                %(is_auto_generated)s, %(transcript_source)s, true, %(transcript_quality)s
+                            )
+                            ON CONFLICT (video_id) DO UPDATE SET
+                                raw_text = EXCLUDED.raw_text,
+                                segments = EXCLUDED.segments,
+                                language = EXCLUDED.language,
+                                is_auto_generated = EXCLUDED.is_auto_generated,
+                                transcript_source = EXCLUDED.transcript_source,
+                                has_transcript = EXCLUDED.has_transcript,
+                                transcript_quality = EXCLUDED.transcript_quality,
+                                last_updated = CURRENT_TIMESTAMP
+                            """,
+                            {
+                                "event_id": event_id,
+                                "video_id": video_id,
+                                "raw_text": yt.get("raw_text"),
+                                "segments": seg_json,
+                                "language": yt.get("language"),
+                                "is_auto_generated": yt.get("is_auto_generated"),
+                                "transcript_source": yt.get("transcript_source"),
+                                "transcript_quality": quality,
+                            },
+                        )
+                        loader.conn.commit()
+                    finally:
+                        cur.close()
+
+            stats["ok"] += 1
+            _batch_video(
+                video_id,
+                "ok",
+                title=row_title,
+                source=str(yt.get("transcript_source") or ""),
+            )
+            logger.success(
+                "OK {} — {} url={}",
+                video_id,
+                summarize_transcript_payload(yt),
+                test_url,
+            )
+            if stats["ok"] % 25 == 0:
+                logger.info("Progress: {}", stats)
+
+    finally:
+        if batch_store:
+            exit_code = 0 if stats["rate_limit"] < max_rl else 2
+            file_counts = count_policy_files_for_jurisdiction(
+                cache_dir,
+                state_code=state_code,
+                jurisdiction_id=jurisdiction_id,
+            )
+            batch_store.jurisdiction_finish(
+                jurisdiction_id=jurisdiction_id,
+                exit_code=exit_code,
+                stats=stats,
+                file_counts=file_counts,
+            )
 
     loader.close()
     logger.info("Done: {}", stats)
@@ -1263,9 +1383,18 @@ def main() -> None:
     )
     parser.add_argument("--proxy", default="", help="Proxy URL (or YOUTUBE_TRANSCRIPT_PROXY)")
     parser.add_argument(
+        "--transcript-source",
+        choices=("auto", "api-only", "ytdlp-only"),
+        default="auto",
+        help=(
+            "auto = caption API then yt-dlp; api-only = youtube-transcript-api; "
+            "ytdlp-only = yt-dlp subtitles only (skip /api/timedtext)"
+        ),
+    )
+    parser.add_argument(
         "--no-ytdlp-fallback",
         action="store_true",
-        help="Do not fall back to yt-dlp when youtube_transcript_api fails",
+        help="Same as --transcript-source api-only",
     )
     parser.add_argument("--max-backoff", type=float, default=60.0)
     parser.add_argument(
@@ -1338,6 +1467,16 @@ def main() -> None:
         "--local-cache-dir",
         type=Path,
         default=DEFAULT_LOCAL_CACHE,
+    )
+    parser.add_argument(
+        "--batch-id",
+        default="",
+        help="Batch job id for status dashboard (or set BATCH_JOB_ID)",
+    )
+    parser.add_argument(
+        "--jurisdiction-name",
+        default="",
+        help="Display name for batch dashboard jurisdiction row",
     )
     args = parser.parse_args()
     raise SystemExit(run(args))

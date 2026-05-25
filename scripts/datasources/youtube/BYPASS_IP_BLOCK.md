@@ -156,3 +156,21 @@ SELECT COUNT(*) as transcript_count FROM events_text_search;
 - Increase `--transcript-delay` to 5-10 seconds
 - Use `--no-ytdlp-fallback` to reduce total requests
 - Consider commercial proxy service with rotating IPs
+
+## Batch job dashboard
+
+Priority-state runs (`run_priority_states_last_n.sh`) record progress under `data/cache/batch_jobs/`.
+
+```bash
+./scripts/datasources/youtube/run_priority_states_last_n.sh captions
+
+# Another terminal — rebuild and open HTML dashboard:
+.venv/bin/python scripts/datasources/youtube/batch_job_dashboard.py --build --open
+
+# Or serve (re-run --build to refresh):
+.venv/bin/python scripts/datasources/youtube/batch_job_dashboard.py --serve
+```
+
+Shows batches with processed / failed / remaining jurisdictions, elapsed time, ETA, video outcomes, and policy-cache file counts. Click a jurisdiction to drill down to per-video rows.
+
+Disable: `BATCH_STATUS=0 ./scripts/datasources/youtube/run_priority_states_last_n.sh captions`

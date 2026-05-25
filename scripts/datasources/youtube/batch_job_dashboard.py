@@ -1,0 +1,477 @@
+#!/usr/bin/env python3
+"""
+Build and open an HTML dashboard for batch job status (captions / analyze / catalog).
+
+Usage (repo root):
+  .venv/bin/python scripts/datasources/youtube/batch_job_dashboard.py --build
+  .venv/bin/python scripts/datasources/youtube/batch_job_dashboard.py --build --open
+  .venv/bin/python scripts/datasources/youtube/batch_job_dashboard.py --serve
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+import webbrowser
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from typing import Any, Dict, List
+
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.datasources.youtube.batch_job_status import (
+    _REPO_ROOT,
+    BatchJob,
+    count_policy_files_for_jurisdiction,
+    jobs_dir,
+    list_batches,
+)
+
+_DASHBOARD_NAME = "dashboard.html"
+_POLICY_CACHE = _REPO_ROOT / "data" / "cache" / "gemini_transcript_policy"
+
+
+def _fmt_duration(seconds: Any) -> str:
+    if seconds is None:
+        return "—"
+    try:
+        total = int(float(seconds))
+    except (TypeError, ValueError):
+        return "—"
+    if total < 60:
+        return f"{total}s"
+    m, s = divmod(total, 60)
+    if m < 60:
+        return f"{m}m {s}s"
+    h, m = divmod(m, 60)
+    return f"{h}h {m}m"
+
+
+def _enrich_file_counts(job: BatchJob) -> BatchJob:
+    for j in job.jurisdictions:
+        j.file_counts = count_policy_files_for_jurisdiction(
+            _POLICY_CACHE,
+            state_code=j.state_code,
+            jurisdiction_id=j.jurisdiction_id,
+        )
+    return job
+
+
+def build_dashboard_data(*, refresh_files: bool = True) -> Dict[str, Any]:
+    batches: List[Dict[str, Any]] = []
+    totals = {
+        "batches": 0,
+        "running": 0,
+        "processed_jurisdictions": 0,
+        "failed_jurisdictions": 0,
+        "remaining_jurisdictions": 0,
+        "videos_ok": 0,
+        "videos_fail": 0,
+        "files_transcripts": 0,
+        "files_analysis": 0,
+        "files_reports": 0,
+    }
+
+    for job in list_batches(limit=100):
+        if refresh_files:
+            _enrich_file_counts(job)
+        d = job.to_dict()
+        batches.append(d)
+        s = d.get("summary") or {}
+        totals["batches"] += 1
+        if d.get("status") == "running":
+            totals["running"] += 1
+        totals["processed_jurisdictions"] += int(s.get("processed_jurisdictions") or 0)
+        totals["failed_jurisdictions"] += int(s.get("failed_jurisdictions") or 0)
+        totals["remaining_jurisdictions"] += int(s.get("remaining_jurisdictions") or 0)
+        totals["videos_ok"] += int(s.get("videos_ok") or 0)
+        totals["videos_fail"] += int(s.get("videos_fail") or 0)
+        totals["files_transcripts"] += int(s.get("files_transcripts") or 0)
+        totals["files_analysis"] += int(s.get("files_analysis") or 0)
+        totals["files_reports"] += int(s.get("files_reports") or 0)
+
+    return {"generated_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(), "totals": totals, "batches": batches}
+
+
+def render_html(payload: Dict[str, Any]) -> str:
+    data_json = json.dumps(payload, ensure_ascii=False)
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Batch job status</title>
+  <style>
+    :root {{
+      --bg: #0f1419;
+      --panel: #1a2332;
+      --border: #2d3a4f;
+      --text: #e7ecf3;
+      --muted: #8b9cb3;
+      --accent: #3d8bfd;
+      --ok: #3dd68c;
+      --fail: #f07178;
+      --warn: #e7b86a;
+      --run: #7eb6ff;
+    }}
+    * {{ box-sizing: border-box; }}
+    body {{
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+    }}
+    header {{
+      padding: 1.25rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: baseline;
+      justify-content: space-between;
+    }}
+    h1 {{ margin: 0; font-size: 1.35rem; font-weight: 600; }}
+    .meta {{ color: var(--muted); font-size: 0.85rem; }}
+    main {{ display: grid; grid-template-columns: 280px 1fr; min-height: calc(100vh - 72px); }}
+    @media (max-width: 900px) {{
+      main {{ grid-template-columns: 1fr; }}
+    }}
+    aside {{
+      border-right: 1px solid var(--border);
+      padding: 1rem;
+      overflow: auto;
+    }}
+    section {{ padding: 1rem 1.25rem; overflow: auto; }}
+    .cards {{
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 0.65rem;
+      margin-bottom: 1.25rem;
+    }}
+    .card {{
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem 0.85rem;
+    }}
+    .card .label {{ color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; }}
+    .card .value {{ font-size: 1.35rem; font-weight: 600; margin-top: 0.15rem; }}
+    .batch-list {{ list-style: none; padding: 0; margin: 0; }}
+    .batch-list li {{
+      margin-bottom: 0.35rem;
+    }}
+    .batch-list button {{
+      width: 100%;
+      text-align: left;
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text);
+      padding: 0.55rem 0.65rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.88rem;
+    }}
+    .batch-list button:hover {{ background: var(--panel); }}
+    .batch-list button.active {{
+      background: var(--panel);
+      border-color: var(--accent);
+    }}
+    .badge {{
+      display: inline-block;
+      font-size: 0.68rem;
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+      margin-left: 0.35rem;
+      vertical-align: middle;
+    }}
+    .badge.running {{ background: #1e3a5f; color: var(--run); }}
+    .badge.completed {{ background: #1a3d2e; color: var(--ok); }}
+    .badge.failed {{ background: #3d2226; color: var(--fail); }}
+    table {{
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.86rem;
+    }}
+    th, td {{
+      text-align: left;
+      padding: 0.5rem 0.6rem;
+      border-bottom: 1px solid var(--border);
+    }}
+    th {{ color: var(--muted); font-weight: 500; font-size: 0.75rem; text-transform: uppercase; }}
+    tr.j-row {{ cursor: pointer; }}
+    tr.j-row:hover {{ background: rgba(61, 139, 253, 0.08); }}
+    tr.j-row.selected {{ background: rgba(61, 139, 253, 0.15); }}
+    .status-ok {{ color: var(--ok); }}
+    .status-fail {{ color: var(--fail); }}
+    .status-running {{ color: var(--run); }}
+    .detail-panel {{
+      margin-top: 1rem;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+    }}
+    .detail-panel h3 {{ margin: 0 0 0.75rem; font-size: 1rem; }}
+    .empty {{ color: var(--muted); padding: 2rem; text-align: center; }}
+    .bar-wrap {{
+      height: 8px;
+      background: var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 0.5rem;
+    }}
+    .bar-fill {{ height: 100%; background: var(--accent); }}
+    a {{ color: var(--accent); }}
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Batch job status</h1>
+      <div class="meta" id="generated-meta"></div>
+    </div>
+    <div class="meta">Refresh: re-run <code>batch_job_dashboard.py --build</code></div>
+  </header>
+  <main>
+    <aside>
+      <div class="cards" id="global-cards"></div>
+      <ul class="batch-list" id="batch-list"></ul>
+    </aside>
+    <section>
+      <div id="batch-detail" class="empty">Select a batch</div>
+      <div id="jurisdiction-detail"></div>
+    </section>
+  </main>
+  <script>
+    const DATA = {data_json};
+    const fmtDur = (s) => {{
+      if (s == null || s === '') return '—';
+      const t = Math.max(0, Math.floor(Number(s)));
+      if (t < 60) return t + 's';
+      const m = Math.floor(t / 60);
+      const r = t % 60;
+      if (m < 60) return m + 'm ' + r + 's';
+      const h = Math.floor(m / 60);
+      return h + 'h ' + (m % 60) + 'm';
+    }};
+    let selectedBatchId = null;
+    let selectedJurisdictionId = null;
+
+    function renderGlobalCards() {{
+      const t = DATA.totals;
+      const cards = [
+        ['Batches', t.batches],
+        ['Running', t.running],
+        ['Jurisdictions done', t.processed_jurisdictions],
+        ['Jurisdictions failed', t.failed_jurisdictions],
+        ['Remaining', t.remaining_jurisdictions],
+        ['Videos OK', t.videos_ok],
+        ['Videos failed', t.videos_fail],
+        ['Transcript files', t.files_transcripts],
+        ['Analysis files', t.files_analysis],
+        ['Report files', t.files_reports],
+      ];
+      document.getElementById('global-cards').innerHTML = cards.map(([l,v]) =>
+        `<div class="card"><div class="label">${{l}}</div><div class="value">${{v}}</div></div>`
+      ).join('');
+      document.getElementById('generated-meta').textContent =
+        'Generated ' + (DATA.generated_at || '').replace('T', ' ').slice(0, 19) + ' UTC';
+    }}
+
+    function statusClass(st) {{
+      if (st === 'completed') return 'status-ok';
+      if (st === 'failed') return 'status-fail';
+      if (st === 'running') return 'status-running';
+      return '';
+    }}
+
+    function renderBatchList() {{
+      const ul = document.getElementById('batch-list');
+      ul.innerHTML = DATA.batches.map(b => {{
+        const s = b.summary || {{}};
+        const pct = s.total_jurisdictions
+          ? Math.round(100 * (s.processed_jurisdictions || 0) / s.total_jurisdictions)
+          : 0;
+        return `<li>
+          <button type="button" data-id="${{b.batch_id}}" class="${{selectedBatchId === b.batch_id ? 'active' : ''}}">
+            <div><strong>${{b.step}}</strong>
+              <span class="badge ${{b.status}}">${{b.status}}</span></div>
+            <div class="meta">${{b.batch_id}}</div>
+            <div class="meta">${{s.processed_jurisdictions || 0}}/${{s.total_jurisdictions || '?'}} jurisdictions · ${{pct}}%</div>
+          </button>
+        </li>`;
+      }}).join('');
+      ul.querySelectorAll('button').forEach(btn => {{
+        btn.addEventListener('click', () => selectBatch(btn.dataset.id));
+      }});
+      if (!selectedBatchId && DATA.batches.length) selectBatch(DATA.batches[0].batch_id);
+    }}
+
+    function selectBatch(id) {{
+      selectedBatchId = id;
+      selectedJurisdictionId = null;
+      renderBatchList();
+      renderBatchDetail();
+      document.getElementById('jurisdiction-detail').innerHTML = '';
+    }}
+
+    function renderBatchDetail() {{
+      const el = document.getElementById('batch-detail');
+      const b = DATA.batches.find(x => x.batch_id === selectedBatchId);
+      if (!b) {{ el.innerHTML = '<div class="empty">No batch selected</div>'; return; }}
+      const s = b.summary || {{}};
+      const cfg = b.config || {{}};
+      const pct = s.total_jurisdictions
+        ? Math.round(100 * (s.processed_jurisdictions || 0) / s.total_jurisdictions)
+        : 0;
+      const jurs = b.jurisdictions || [];
+      el.innerHTML = `
+        <h2 style="margin:0 0 0.5rem;font-size:1.15rem">${{b.step}} <span class="badge ${{b.status}}">${{b.status}}</span></h2>
+        <div class="meta">${{b.batch_id}} · started ${{b.started_at || '—'}}</div>
+        <div class="cards" style="margin-top:1rem">
+          <div class="card"><div class="label">Processed</div><div class="value">${{s.processed_jurisdictions || 0}} / ${{s.total_jurisdictions || '?'}}</div></div>
+          <div class="card"><div class="label">Success</div><div class="value status-ok">${{s.success_jurisdictions || 0}}</div></div>
+          <div class="card"><div class="label">Failed</div><div class="value status-fail">${{s.failed_jurisdictions || 0}}</div></div>
+          <div class="card"><div class="label">Remaining</div><div class="value">${{s.remaining_jurisdictions || 0}}</div></div>
+          <div class="card"><div class="label">Elapsed</div><div class="value">${{fmtDur(s.elapsed_seconds)}}</div></div>
+          <div class="card"><div class="label">ETA</div><div class="value">${{fmtDur(s.eta_seconds)}}</div></div>
+          <div class="card"><div class="label">Videos OK</div><div class="value">${{s.videos_ok || 0}}</div></div>
+          <div class="card"><div class="label">Videos fail</div><div class="value">${{s.videos_fail || 0}}</div></div>
+        </div>
+        <div class="bar-wrap"><div class="bar-fill" style="width:${{pct}}%"></div></div>
+        <p class="meta" style="margin-top:0.75rem">States: ${{(cfg.states || []).join(', ') || '—'}} · N=${{cfg.n || '—'}} · delay=${{cfg.delay || '—'}}s · source=${{cfg.transcript_source || '—'}}</p>
+        <h3 style="margin:1.25rem 0 0.5rem;font-size:0.95rem">Jurisdictions (${{jurs.length}})</h3>
+        <table>
+          <thead><tr>
+            <th>State</th><th>Jurisdiction</th><th>Status</th><th>Videos</th><th>Files</th><th>Time</th>
+          </tr></thead>
+          <tbody id="juris-table-body"></tbody>
+        </table>
+      `;
+      const tbody = document.getElementById('juris-table-body');
+      tbody.innerHTML = jurs.map(j => {{
+        const st = j.stats || {{}};
+        const fc = j.file_counts || {{}};
+        const vids = (st.ok || 0) + (st.fail || 0) + (st.tombstoned || 0);
+        return `<tr class="j-row ${{selectedJurisdictionId === j.jurisdiction_id ? 'selected' : ''}}" data-jid="${{j.jurisdiction_id}}">
+          <td>${{j.state_code}}</td>
+          <td><strong>${{j.jurisdiction_name || j.jurisdiction_id}}</strong><br><span class="meta">${{j.jurisdiction_id}}</span></td>
+          <td class="${{statusClass(j.status)}}">${{j.status}}${{j.exit_code ? ' (' + j.exit_code + ')' : ''}}</td>
+          <td>ok ${{st.ok || 0}} · fail ${{st.fail || 0}} · tomb ${{st.tombstoned || 0}}${{vids ? '' : ''}}</td>
+          <td>T ${{fc.transcripts || 0}} · A ${{fc.analysis || 0}} · R ${{fc.reports || 0}}</td>
+          <td>${{fmtDur(j.elapsed_seconds)}}</td>
+        </tr>`;
+      }}).join('');
+      tbody.querySelectorAll('.j-row').forEach(row => {{
+        row.addEventListener('click', () => selectJurisdiction(b, row.dataset.jid));
+      }});
+    }}
+
+    function selectJurisdiction(batch, jid) {{
+      selectedJurisdictionId = jid;
+      renderBatchDetail();
+      const j = (batch.jurisdictions || []).find(x => x.jurisdiction_id === jid);
+      const panel = document.getElementById('jurisdiction-detail');
+      if (!j) {{ panel.innerHTML = ''; return; }}
+      const videos = j.videos || [];
+      panel.innerHTML = `
+        <div class="detail-panel">
+          <h3>${{j.jurisdiction_name || j.jurisdiction_id}} — videos (${{videos.length}})</h3>
+          <table>
+            <thead><tr><th>Video</th><th>Title</th><th>Status</th><th>Source</th><th>Error</th></tr></thead>
+            <tbody>
+              ${{videos.length ? videos.map(v => `
+                <tr>
+                  <td><a href="https://www.youtube.com/watch?v=${{v.video_id}}" target="_blank" rel="noopener">${{v.video_id}}</a></td>
+                  <td>${{escapeHtml(v.title || '')}}</td>
+                  <td class="${{v.status === 'ok' ? 'status-ok' : 'status-fail'}}">${{v.status}}</td>
+                  <td>${{v.transcript_source || '—'}}</td>
+                  <td class="meta">${{escapeHtml(v.error || '')}}</td>
+                </tr>`).join('') : '<tr><td colspan="5" class="meta">No per-video log (re-run with --batch-id)</td></tr>'}}
+            </tbody>
+          </table>
+          <p class="meta" style="margin-top:0.75rem">Stats: ${{JSON.stringify(j.stats || {{}})}}</p>
+        </div>
+      `;
+    }}
+
+    function escapeHtml(s) {{
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }}
+
+    renderGlobalCards();
+    renderBatchList();
+  </script>
+</body>
+</html>
+"""
+
+
+def write_dashboard(*, refresh_files: bool = True) -> Path:
+    out_dir = jobs_dir()
+    out_dir.mkdir(parents=True, exist_ok=True)
+    payload = build_dashboard_data(refresh_files=refresh_files)
+    out_path = out_dir / _DASHBOARD_NAME
+    out_path.write_text(render_html(payload), encoding="utf-8")
+    return out_path
+
+
+def serve_dashboard(port: int = 8765) -> None:
+    root = jobs_dir()
+    root.mkdir(parents=True, exist_ok=True)
+    handler = SimpleHTTPRequestHandler
+    original = handler.directory
+
+    class _Handler(SimpleHTTPRequestHandler):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, directory=str(root), **kwargs)
+
+    server = ThreadingHTTPServer(("127.0.0.1", port), _Handler)
+    url = f"http://127.0.0.1:{port}/{_DASHBOARD_NAME}"
+    print(f"Serving {root} at {url}")
+    print("Ctrl+C to stop")
+    try:
+        webbrowser.open(url)
+    except Exception:
+        pass
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\nStopped.")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--build", action="store_true", help="Write dashboard.html")
+    parser.add_argument("--open", action="store_true", help="Open dashboard in browser after build")
+    parser.add_argument("--serve", action="store_true", help="Serve jobs dir and open dashboard")
+    parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument(
+        "--no-refresh-files",
+        action="store_true",
+        help="Skip scanning policy cache for file counts (faster)",
+    )
+    args = parser.parse_args()
+
+    if args.serve:
+        write_dashboard(refresh_files=not args.no_refresh_files)
+        serve_dashboard(port=args.port)
+        return 0
+
+    if args.build or not (args.build or args.serve):
+        path = write_dashboard(refresh_files=not args.no_refresh_files)
+        print(path)
+        if args.open:
+            webbrowser.open(path.as_uri())
+        return 0
+
+    parser.print_help()
+    return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

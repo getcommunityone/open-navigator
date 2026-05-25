@@ -1,24 +1,29 @@
 #!/usr/bin/env bash
 # Catalog + caption backfill + Gemini policy analysis for the last N uploads per
-# jurisdiction in priority states (default N=2).
+# jurisdiction in priority states (default N=10; override with N= env).
 #
 # Usage (repo root):
 #   ./scripts/datasources/youtube/run_priority_states_last_n.sh
-#   N=2 ./scripts/datasources/youtube/run_priority_states_last_n.sh catalog
-#   N=2 ./scripts/datasources/youtube/run_priority_states_last_n.sh captions
-#   N=2 ./scripts/datasources/youtube/run_priority_states_last_n.sh analyze
-#   DAYS=7 N=2 ./scripts/datasources/youtube/run_priority_states_last_n.sh all
-#   N=2 ./scripts/datasources/youtube/run_priority_states_last_n.sh each
+#   ./scripts/datasources/youtube/run_priority_states_last_n.sh catalog
+#   ./scripts/datasources/youtube/run_priority_states_last_n.sh captions
+#   ./scripts/datasources/youtube/run_priority_states_last_n.sh analyze
+#   DAYS=7 ./scripts/datasources/youtube/run_priority_states_last_n.sh all
+#   ./scripts/datasources/youtube/run_priority_states_last_n.sh each
 #     — round-robin jurisdictions: captions then analyze per place, then next
 #
 # Optional env:
 #   STATES=AL,GA,IN,MA,MT,WA,WI
+#   N=10                 — newest N videos per jurisdiction (default 10; set in .env)
+#   BATCH_STATUS=0       — disable batch job JSON + dashboard updates
 #   COOKIES=youtube_cookies.txt
 #   DELAY=10
 #   MAX_JURISDICTIONS=50   — cap per run (round-robin order preserved)
 #   NO_CLEAR_TOMBSTONES=1  — pass --no-clear-tombstones (avoid retrying old permanent misses)
+#   NO_TOMBSTONES=1        — pass --no-tombstones (do not write new tombstone:* rows)
 #   SKIP_PROBE=1           — pass --skip-probe (faster; fewer per-jurisdiction probe calls)
 #   PROXY=http://user:pass@host:port  — pass --proxy to caption backfill (or YOUTUBE_TRANSCRIPT_PROXY)
+#   TRANSCRIPT_SOURCE=ytdlp-only       — skip youtube-transcript-api; use yt-dlp subtitles only
+#   YOUTUBE_USE_WEBSHARE=0           — opt out of Webshare (direct egress + cookies)
 #   DRY_RUN=1          — print jurisdictions / dry-run loaders only
 #   SKIP_CATALOG=1     — skip step 1
 #   CATALOG_FORCE=1    — pass --force (last N videos, not incremental-only-after-last insert)
@@ -31,9 +36,22 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 cd "$ROOT"
 
+if [[ -f "$ROOT/.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$ROOT/.env"
+  set +a
+fi
+# Webshare on by default when PROXY_USER_NAME / PROXY_PASSWORD are set (see transcript_api_client).
+if [[ "${YOUTUBE_USE_WEBSHARE:-}" == "0" ]]; then
+  export YOUTUBE_USE_WEBSHARE=0
+else
+  unset YOUTUBE_USE_WEBSHARE
+fi
+
 PYTHON="${PYTHON:-$ROOT/.venv/bin/python}"
 STATES="${STATES:-AL,GA,IN,MA,MT,WA,WI}"
-N="${N:-2}"
+N="${N:-10}"
 DAYS="${DAYS:-}"
 COOKIES="${COOKIES:-youtube_cookies.txt}"
 DELAY="${DELAY:-10}"
@@ -45,6 +63,44 @@ if [[ ! -x "$PYTHON" ]]; then
   echo "Missing $PYTHON — create .venv first." >&2
   exit 1
 fi
+
+batch_dashboard_refresh() {
+  if [[ -n "${BATCH_STATUS:-}" && "${BATCH_STATUS}" == "0" ]]; then
+    return 0
+  fi
+  "$PYTHON" scripts/datasources/youtube/batch_job_dashboard.py --build --no-refresh-files 2>/dev/null || true
+}
+
+batch_start() {
+  local step="$1"
+  local total="$2"
+  if [[ -n "${BATCH_STATUS:-}" && "${BATCH_STATUS}" == "0" ]]; then
+    BATCH_JOB_ID=""
+    return 0
+  fi
+  BATCH_JOB_ID="$("$PYTHON" scripts/datasources/youtube/batch_job_status.py start \
+    --step "$step" \
+    --states "$STATES" \
+    --n "$N" \
+    --delay "$DELAY" \
+    --total-jurisdictions "$total" \
+    --transcript-source "${TRANSCRIPT_SOURCE:-auto}" \
+    --max-jurisdictions "${MAX_JURISDICTIONS:-0}")"
+  export BATCH_JOB_ID
+  echo "Batch job: $BATCH_JOB_ID"
+  batch_dashboard_refresh
+}
+
+batch_finish() {
+  local status="${1:-completed}"
+  if [[ -z "${BATCH_JOB_ID:-}" ]]; then
+    return 0
+  fi
+  "$PYTHON" scripts/datasources/youtube/batch_job_status.py finish \
+    --batch-id "$BATCH_JOB_ID" --status "$status" || true
+  batch_dashboard_refresh
+  echo "Dashboard: $ROOT/data/cache/batch_jobs/dashboard.html"
+}
 
 format_duration() {
   local total_sec="${1:-0}"
@@ -189,6 +245,7 @@ run_captions() {
   local start_ts
   start_ts="$(date +%s)"
   echo "=== Captions batch: target jurisdictions=$target_total (states=$STATES, N=$N) ==="
+  batch_start captions "$target_total"
 
   for row in "${rows[@]}"; do
     IFS=$'\t' read -r st jid name <<< "$row"
@@ -208,6 +265,9 @@ run_captions() {
     if [[ -n "${NO_CLEAR_TOMBSTONES:-}" ]]; then
       cap_args+=(--no-clear-tombstones)
     fi
+    if [[ -n "${NO_TOMBSTONES:-}" ]]; then
+      cap_args+=(--no-tombstones)
+    fi
     if [[ -n "${SKIP_PROBE:-}" ]]; then
       cap_args+=(--skip-probe)
     fi
@@ -217,14 +277,29 @@ run_captions() {
     if [[ -n "$PROXY_ARG" ]]; then
       cap_args+=(--proxy "$PROXY_ARG")
     fi
+    if [[ -n "${TRANSCRIPT_SOURCE:-}" ]]; then
+      cap_args+=(--transcript-source "$TRANSCRIPT_SOURCE")
+    fi
+    if [[ -n "${BATCH_JOB_ID:-}" ]]; then
+      cap_args+=(--batch-id "$BATCH_JOB_ID" --jurisdiction-name "$name")
+    fi
     if [[ -n "${DRY_RUN:-}" ]]; then
       cap_args+=(--dry-run)
     fi
+    local cap_ec=0
     if ! "$PYTHON" scripts/datasources/youtube/backfill_jurisdiction_transcripts.py "${cap_args[@]}"; then
+      cap_ec=$?
       ((failed+=1))
-      echo "WARN: captions failed for $jid" >&2
+      echo "WARN: captions failed for $jid (exit $cap_ec)" >&2
     else
       ((success+=1))
+    fi
+    if [[ -n "${BATCH_JOB_ID:-}" && "$cap_ec" -ne 0 ]]; then
+      "$PYTHON" scripts/datasources/youtube/batch_job_status.py jurisdiction-finish \
+        --batch-id "$BATCH_JOB_ID" \
+        --jurisdiction-id "$jid" \
+        --exit-code "$cap_ec" \
+        --stats "{\"shell_exit\":$cap_ec}" 2>/dev/null || true
     fi
     ((processed+=1))
 
@@ -242,8 +317,10 @@ run_captions() {
       eta=$((avg_per * remaining))
     fi
     echo "--- Progress: done=$processed/$target_total success=$success failed=$failed remaining=$remaining elapsed=$(format_duration "$elapsed") eta=$(format_duration "$eta")"
+    batch_dashboard_refresh
   done
 
+  batch_finish completed
   echo "=== Captions complete: processed=$processed success=$success failed=$failed target=$target_total ==="
 }
 
@@ -315,6 +392,9 @@ run_each_jurisdiction() {
     if [[ -n "${NO_CLEAR_TOMBSTONES:-}" ]]; then
       cap_args+=(--no-clear-tombstones)
     fi
+    if [[ -n "${NO_TOMBSTONES:-}" ]]; then
+      cap_args+=(--no-tombstones)
+    fi
     if [[ -n "${SKIP_PROBE:-}" ]]; then
       cap_args+=(--skip-probe)
     fi
@@ -323,6 +403,12 @@ run_each_jurisdiction() {
     fi
     if [[ -n "$PROXY_ARG" ]]; then
       cap_args+=(--proxy "$PROXY_ARG")
+    fi
+    if [[ -n "${TRANSCRIPT_SOURCE:-}" ]]; then
+      cap_args+=(--transcript-source "$TRANSCRIPT_SOURCE")
+    fi
+    if [[ -n "${BATCH_JOB_ID:-}" ]]; then
+      cap_args+=(--batch-id "$BATCH_JOB_ID" --jurisdiction-name "$name")
     fi
     if [[ -n "${DRY_RUN:-}" ]]; then
       cap_args+=(--dry-run)

@@ -135,6 +135,32 @@ def _env_truthy(name: str) -> bool:
     return (os.getenv(name) or "").strip().lower() in ("1", "true", "yes", "on")
 
 
+def _env_falsy(name: str) -> bool:
+    return (os.getenv(name) or "").strip().lower() in ("0", "false", "no", "off")
+
+
+def webshare_enabled() -> bool:
+    """False when ``YOUTUBE_USE_WEBSHARE=0`` (caption API + yt-dlp use direct/generic proxy only)."""
+    if _env_falsy("YOUTUBE_USE_WEBSHARE"):
+        return False
+    user, password = resolve_webshare_proxy_credentials()
+    return bool(user and password)
+
+
+def resolve_webshare_proxy_http_url() -> Optional[str]:
+    """Rotating residential proxy URL for requests/yt-dlp (``p.webshare.io``)."""
+    if not webshare_enabled():
+        return None
+    proxy_user, proxy_password = resolve_webshare_proxy_credentials()
+    if not proxy_user or not proxy_password:
+        return None
+    return _webshare_proxy_config(proxy_user, proxy_password).http_url
+
+
+def ytdlp_proxy_is_webshare(proxy_url: Optional[str]) -> bool:
+    return bool(proxy_url and "webshare.io" in proxy_url.lower())
+
+
 def resolve_webshare_filter_ip_locations() -> Optional[list[str]]:
     """
     Country codes for Webshare rotating pool (e.g. ``de``, ``us``).
@@ -229,10 +255,11 @@ def resolve_ytdlp_proxy_url(explicit: Optional[str] = None) -> Optional[str]:
     """
     Proxy URL for yt-dlp (video catalog / subtitle fallback).
 
-    Order: explicit / ``--proxy`` → ``YOUTUBE_HTTPS_PROXY`` → ``YOUTUBE_TRANSCRIPT_PROXY``.
-    Webshare (``PROXY_USER_NAME`` / ``PROXY_PASSWORD``) is **not** used for yt-dlp unless
-    ``YOUTUBE_YTDLP_USE_WEBSHARE=1`` — it is for ``youtube-transcript-api`` via
-    ``build_proxy_config()`` and often breaks yt-dlp HTTPS to ``www.youtube.com``.
+    Order: explicit / ``--proxy`` → ``YOUTUBE_HTTPS_PROXY`` → ``YOUTUBE_TRANSCRIPT_PROXY``
+    → Webshare when ``PROXY_USER_NAME`` / ``PROXY_PASSWORD`` are set.
+
+    Webshare is the default for yt-dlp when those credentials exist (same egress family as
+    the caption API). Set ``YOUTUBE_YTDLP_USE_WEBSHARE=0`` to keep yt-dlp on direct egress.
     """
     url = (
         (explicit or "").strip()
@@ -242,11 +269,9 @@ def resolve_ytdlp_proxy_url(explicit: Optional[str] = None) -> Optional[str]:
     )
     if url:
         return url
-    if _env_truthy("YOUTUBE_YTDLP_USE_WEBSHARE"):
-        proxy_user, proxy_password = resolve_webshare_proxy_credentials()
-        if proxy_user and proxy_password:
-            return _webshare_proxy_config(proxy_user, proxy_password).http_url
-    return None
+    if _env_falsy("YOUTUBE_YTDLP_USE_WEBSHARE"):
+        return None
+    return resolve_webshare_proxy_http_url()
 
 
 def build_proxy_config(
@@ -258,9 +283,10 @@ def build_proxy_config(
     Webshare uses rotating residential IPs (``-rotate`` in proxy URL). Optional
     ``WEBSHARE_FILTER_IP_LOCATIONS=de,us`` limits the rotation pool to those countries.
     """
-    proxy_user, proxy_password = resolve_webshare_proxy_credentials()
-    if proxy_user and proxy_password:
-        return _webshare_proxy_config(proxy_user, proxy_password)
+    if webshare_enabled():
+        proxy_user, proxy_password = resolve_webshare_proxy_credentials()
+        if proxy_user and proxy_password:
+            return _webshare_proxy_config(proxy_user, proxy_password)
     url = resolve_transcript_proxy_url(proxy_url)
     if url:
         return GenericProxyConfig(http_url=url, https_url=url)
@@ -523,8 +549,9 @@ def describe_caption_egress(
     ws_user, _ws_pass = resolve_webshare_proxy_credentials()
     ws_locations = resolve_webshare_filter_ip_locations()
     generic = resolve_transcript_proxy_url(explicit_proxy_url)
+    ws_active = webshare_enabled() and bool(ws_user)
 
-    if ws_user:
+    if ws_active:
         caption_mode = "webshare"
         loc = f", pool={','.join(ws_locations)}" if ws_locations else ""
         caption_detail = f"Webshare residential (user={ws_user!r}{loc})"
@@ -541,13 +568,15 @@ def describe_caption_egress(
         ytdlp_detail = ytdlp_url.split("@")[-1][:80]
     else:
         ytdlp_mode = "direct"
-        ytdlp_detail = "direct + cookies (default)"
+        ytdlp_detail = (
+            "direct + cookies (set PROXY_* for Webshare, or YOUTUBE_YTDLP_USE_WEBSHARE=0 to opt out)"
+        )
 
     return {
         "caption_api": "youtube-transcript-api (transcript_api_client)",
         "caption_egress_mode": caption_mode,
         "caption_egress_detail": caption_detail,
-        "webshare_configured": bool(ws_user),
+        "webshare_configured": ws_active,
         "webshare_user": ws_user,
         "webshare_locations": ws_locations,
         "explicit_proxy": generic,
@@ -600,7 +629,11 @@ def log_caption_fetch_setup(
         logger.info(
             "Note: Webshare env wins for caption API; YOUTUBE_TRANSCRIPT_PROXY is for yt-dlp / generic only"
         )
-    if verify_webshare and info["webshare_configured"]:
+    if _env_falsy("YOUTUBE_USE_WEBSHARE"):
+        logger.info(
+            "Webshare: disabled (YOUTUBE_USE_WEBSHARE=0) — caption API uses direct egress + cookies"
+        )
+    elif verify_webshare and info["webshare_configured"]:
         ok, msg = verify_webshare_proxy_connectivity()
         if ok:
             logger.info("Webshare check: {}", msg)
@@ -627,4 +660,7 @@ __all__ = [
     "describe_caption_egress",
     "summarize_transcript_payload",
     "log_caption_fetch_setup",
+    "resolve_webshare_proxy_http_url",
+    "webshare_enabled",
+    "ytdlp_proxy_is_webshare",
 ]
