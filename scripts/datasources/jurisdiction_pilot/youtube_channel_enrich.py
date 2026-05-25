@@ -73,25 +73,21 @@ def _share_host(link_host: str, target_host: str) -> bool:
     return _parent_gov_host(link_host) == _parent_gov_host(target_host)
 
 
-def fetch_channel_html(channel_url: str, *, session: requests.Session | None = None) -> str:
-    """Return the channel page HTML (About tab when possible). Empty string on failure."""
-    if not channel_url:
-        return ""
-    sess = session or requests.Session()
-    sess.headers.setdefault("User-Agent", _USER_AGENT)
-    sess.headers.setdefault("Accept-Language", "en-US,en;q=0.9")
-    candidates = []
-    base = channel_url.rstrip("/")
-    candidates.append(f"{base}/about")
-    candidates.append(base)
-    for url in candidates:
-        try:
-            resp = sess.get(url, timeout=_TIMEOUT_S, allow_redirects=True)
-            if resp.status_code == 200 and resp.text:
-                return resp.text
-        except requests.RequestException as exc:
-            logger.debug("channel fetch error %s: %s", url, exc)
-    return ""
+def fetch_channel_html(
+    channel_url: str,
+    *,
+    session: requests.Session | None = None,
+    cookies_file: str | None = None,
+) -> tuple[str, str]:
+    """Return ``(html, final_url)`` from the channel About/home page."""
+    from scripts.datasources.youtube.youtube_channel_page import fetch_youtube_channel_page
+
+    return fetch_youtube_channel_page(
+        channel_url,
+        session=session,
+        cookies_file=cookies_file,
+        timeout_s=_TIMEOUT_S,
+    )
 
 
 # YouTube embeds the description and external link list inside the ytInitialData JSON
@@ -310,20 +306,47 @@ def enrich_channel(
     jurisdiction_state_code: str,
     jurisdiction_homepage: str,
     session: requests.Session | None = None,
+    cookies_file: str | None = None,
 ) -> dict[str, Any]:
     """
-    Fetch the channel's About page; compute description, external_links, back-link
-    indicator, and official_meeting_confidence. Returns a NEW dict merging the
-    enrichment into ``channel`` (does not mutate input).
+    Fetch the channel page; resolve ``UC…`` id, title, description, external links,
+    back-link flag, and ``official_meeting_confidence``. Returns a new merged dict.
     """
-    channel_url = channel.get("channel_url") or ""
-    html = fetch_channel_html(channel_url, session=session)
+    from scripts.datasources.youtube.youtube_channel_page import (
+        canonical_channel_url,
+        extract_channel_id_from_youtube_html,
+        extract_channel_title_from_youtube_html,
+        resolve_channel_id_from_url,
+    )
+
+    channel_url = (channel.get("channel_url") or channel.get("youtube_channel_url") or "").strip()
+    html, final_url = fetch_channel_html(
+        channel_url, session=session, cookies_file=cookies_file
+    )
     description = extract_channel_description(html)
     links = extract_external_links(html)
     backlinks = back_links_to(links, jurisdiction_homepage, description_text=description)
 
+    channel_id = (
+        (channel.get("channel_id") or channel.get("youtube_channel_id") or "").strip()
+    )
+    if not channel_id.startswith("UC"):
+        channel_id = extract_channel_id_from_youtube_html(html, final_url=final_url) or ""
+    if not channel_id.startswith("UC"):
+        resolved_id, _ = resolve_channel_id_from_url(
+            channel_url, session=session, cookies_file=cookies_file
+        )
+        if resolved_id:
+            channel_id = resolved_id
+
+    title = (channel.get("channel_title") or "").strip()
+    if not title:
+        title = extract_channel_title_from_youtube_html(html)
+
+    normalized_url = canonical_channel_url(channel_id) if channel_id else channel_url
+
     confidence = score_official_meeting_channel(
-        channel_title=channel.get("channel_title") or "",
+        channel_title=title,
         channel_description=description,
         jurisdiction_name=jurisdiction_name,
         jurisdiction_state_code=jurisdiction_state_code,
@@ -334,6 +357,11 @@ def enrich_channel(
     )
 
     enriched = dict(channel)
+    enriched["channel_url"] = normalized_url or channel_url
+    enriched["youtube_channel_url"] = normalized_url or channel_url
+    enriched["channel_id"] = channel_id or None
+    enriched["youtube_channel_id"] = channel_id or None
+    enriched["channel_title"] = title or enriched.get("channel_title")
     enriched["channel_description"] = description
     enriched["external_links"] = links
     enriched["back_links_to_jurisdiction_website"] = backlinks

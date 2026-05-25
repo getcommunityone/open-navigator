@@ -1,11 +1,21 @@
 #!/usr/bin/env python3
 """
-Concurrent, fault-tolerant, resumable contact + YouTube + elections scraper for
-priority-state jurisdictions. Writes to Neon dev (``NEON_DATABASE_URL_DEV``):
+Jurisdiction pilot scraper (``scrape_priority_states``) — contacts, YouTube, elections.
 
-- ``bronze.bronze_contacts_scraped``        (existing, migration 035)
-- ``bronze.bronze_jurisdiction_youtube``    (migration 039)
-- ``bronze.bronze_elections_scraped`` + c1 election tables (with ``--elections``, website crawl)
+**What “pilot” means:** early end-to-end scrape for priority states (AL, GA, IN, MA, WA, WI),
+implemented under ``scripts/datasources/jurisdiction_pilot/``. It is the same run as:
+
+    python -m scripts.datasources.jurisdiction_pilot.scrape_priority_states
+
+It is *not* the homepage deep-discovery pipeline (``jurisdiction_discovery_pipeline``).
+This runner writes:
+
+- ``bronze.bronze_persons_scraped`` — contacts (+ profile images under ``data/cache/scraped_meetings/``)
+- ``bronze.bronze_jurisdiction_youtube`` — all candidate channels (audit) with ``UC`` id, title,
+  description, back-links, and ``official_meeting_confidence`` from one page fetch per channel
+- ``bronze.bronze_jurisdictions_{counties,municipalities}_scraped`` — **one primary** channel URL
+  + ``youtube_channel_id`` per jurisdiction (for ``load_youtube_events_to_postgres --channel-source counties-scraped``)
+- ``bronze.bronze_elections_scraped`` + c1 election tables (with ``--elections``)
 
 Default scope: cities + counties for AL, GA, IN, MA, WA, WI (~2,300 jurisdictions).
 School districts and state-level rows are skipped (no mayors/councils to scrape).
@@ -117,7 +127,11 @@ from scripts.discovery.bronze_jurisdiction_youtube_persist import (  # noqa: E40
 from scripts.discovery.sync_youtube_primary_from_jurisdiction_youtube import (  # noqa: E402
     sync_primary_youtube_to_scraped,
 )
-from scripts.discovery.youtube_primary_channel import pick_primary_youtube_channel  # noqa: E402
+from scripts.discovery.youtube_primary_channel import (  # noqa: E402
+    _channel_url,
+    pick_primary_youtube_channel,
+)
+from scripts.datasources.youtube.youtube_channel_page import canonical_channel_url  # noqa: E402
 from scripts.discovery.contact_directory_heuristics import (  # noqa: E402
     classify_contact_directory_page,
 )
@@ -571,7 +585,12 @@ async def _download_jurisdiction_contact_images(
     return manifest
 
 
-def _discover_youtube(j: Jurisdiction, session: requests.Session) -> list[dict[str, Any]]:
+def _discover_youtube(
+    j: Jurisdiction,
+    session: requests.Session,
+    *,
+    cookies_file: str | None = None,
+) -> list[dict[str, Any]]:
     """
     Discover channels via verified sources, then enrich each with description +
     back-link + officialness score before returning rows ready for the bronze table.
@@ -654,6 +673,7 @@ def _discover_youtube(j: Jurisdiction, session: requests.Session) -> list[dict[s
             jurisdiction_state_code=j.state_code,
             jurisdiction_homepage=j.website_url,
             session=session,
+            cookies_file=cookies_file,
         )
         rows.append({
             "youtube_channel_url": url,
@@ -681,10 +701,18 @@ def _promote_primary_youtube_to_scraped(
     jurisdiction_type: str,
     channels: list[dict[str, Any]],
 ) -> None:
-    """Write the best high-confidence channel onto the county/municipality scraped row."""
+    """Write the best high-confidence primary channel (URL + ``UC`` id) onto ``*_scraped``."""
     url, method, conf = pick_primary_youtube_channel(channels)
     if not url or jurisdiction_type not in ("county", "municipality"):
         return
+    channel_id = ""
+    for ch in channels:
+        if _channel_url(ch) == url:
+            channel_id = (
+                str(ch.get("youtube_channel_id") or ch.get("channel_id") or "").strip()
+            )
+            break
+    promo_url = canonical_channel_url(channel_id) if channel_id.startswith("UC") else url
     tbl = (
         "bronze.bronze_jurisdictions_counties_scraped"
         if jurisdiction_type == "county"
@@ -697,6 +725,7 @@ def _promote_primary_youtube_to_scraped(
                 f"""
                 UPDATE {tbl} s
                 SET youtube_channel_url = %s,
+                    youtube_channel_id = %s,
                     youtube_channel_selection_method = %s,
                     youtube_channel_selection_confidence = %s,
                     discovered_at = NOW()
@@ -705,7 +734,7 @@ def _promote_primary_youtube_to_scraped(
                   AND j.geoid = s.geoid
                   AND j.jurisdiction_type::text = %s
                 """,
-                (url, method, conf, jurisdiction_id, jurisdiction_type),
+                (promo_url, channel_id or None, method, conf, jurisdiction_id, jurisdiction_type),
             )
         conn.commit()
     finally:
@@ -722,6 +751,7 @@ def _process_one(
     scrape_elections: bool = False,
     skip_elections_c1_sync: bool = False,
     elections_max_pages: int = 10,
+    youtube_cookies_file: str | None = None,
 ) -> JurisdictionResult:
     """Full pipeline for one jurisdiction. Catches everything; never raises."""
     result = JurisdictionResult(
@@ -799,7 +829,7 @@ def _process_one(
             )
 
         if not skip_youtube and not _STOP.is_set():
-            yt_rows = _discover_youtube(j, session)
+            yt_rows = _discover_youtube(j, session, cookies_file=youtube_cookies_file)
             # Hard filter: only persist channels above the officialness threshold. Upstream
             # discovery is intentionally permissive (pattern_match + free-text API search);
             # without this gate the table fills with squatted handles and random name-token
@@ -942,6 +972,15 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Log every HTTP request from urllib3/httpx/requests (very noisy).",
     )
+    p.add_argument(
+        "--cookies",
+        type=str,
+        default=os.getenv("YOUTUBE_COOKIES_FILE", "youtube_cookies.txt"),
+        help=(
+            "Netscape cookies.txt for YouTube channel page fetches (resolve @handle → UC). "
+            "Default: youtube_cookies.txt or YOUTUBE_COOKIES_FILE env."
+        ),
+    )
     args = p.parse_args(argv)
 
     logging.basicConfig(
@@ -963,6 +1002,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.min_channel_confidence is not None:
         MIN_CHANNEL_CONFIDENCE = args.min_channel_confidence
     logger.info("YouTube hard filter: official_meeting_confidence >= %.2f", MIN_CHANNEL_CONFIDENCE)
+
+    cookies_path = (args.cookies or "").strip()
+    if cookies_path and not Path(cookies_path).is_file():
+        logger.warning("YouTube cookies file not found: %s (@handle resolution may fail)", cookies_path)
+        cookies_path = ""
 
     database_url = _resolve_database_url()
     batch_id = args.batch_id or str(uuid.uuid4())
@@ -1017,6 +1061,7 @@ def main(argv: list[str] | None = None) -> int:
                 scrape_elections=args.elections,
                 skip_elections_c1_sync=args.elections_skip_c1_sync,
                 elections_max_pages=args.elections_max_pages,
+                youtube_cookies_file=cookies_path or None,
             ): j
             for j in pending
         }

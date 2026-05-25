@@ -42,6 +42,21 @@ logger = logging.getLogger("openstates_sync_elections_c1")
 
 _UUID_NS = uuid.UUID("6f33a6d3-6f5c-4d74-8f12-33eb1cdb8f26")
 
+# c1_* ``id`` columns are VARCHAR(50); long prefixes like ``ocd-candidatecontest/`` overflow.
+_OCD_PREFIX_SHORT: dict[str, str] = {
+    "election": "el",
+    "candidatecontest": "cc",
+    "candidacy": "cy",
+    "ballotmeasure": "bm",
+}
+
+_C1_LIMITS = {
+    "id": 50,
+    "dedupe_key": 500,
+    "source": 100,
+    "electionsource_note": 300,
+}
+
 
 @dataclass(frozen=True)
 class BronzeElectionRow:
@@ -80,12 +95,41 @@ def _connect(env_var: str) -> psycopg2.extensions.connection:
     return psycopg2.connect(url)
 
 
+def make_ocd_id(prefix: str, key: str) -> str:
+    """Stable id that fits ``c1_*``.``id`` VARCHAR(50) (``ocd-el/<uuid>`` ≈ 43 chars)."""
+    short = _OCD_PREFIX_SHORT.get(prefix, prefix[:8])
+    return f"ocd-{short}/{uuid.uuid5(_UUID_NS, key)}"
+
+
 def _make_id(prefix: str, key: str) -> str:
-    return f"ocd-{prefix}/{uuid.uuid5(_UUID_NS, key)}"
+    return make_ocd_id(prefix, key)
+
+
+def _truncate(value: str | None, max_len: int) -> str | None:
+    if value is None:
+        return None
+    text = value.strip()
+    if not text:
+        return None
+    return text if len(text) <= max_len else text[:max_len]
+
+
+def fit_c1_id(value: str | None, *, prefix: str, fallback_key: str) -> str:
+    """Use ``value`` when it fits VARCHAR(50); otherwise hash to a short stable id."""
+    text = (value or "").strip()
+    if text and len(text) <= _C1_LIMITS["id"]:
+        return text
+    if text:
+        return make_ocd_id(prefix, text)
+    return make_ocd_id(prefix, fallback_key)
 
 
 def _stable_key(*parts: str | None) -> str:
     return "|".join((p or "").strip().lower() for p in parts)
+
+
+def _dedupe_key(*parts: str | None) -> str:
+    return _truncate(_stable_key(*parts), _C1_LIMITS["dedupe_key"]) or ""
 
 
 def _state_filter_sql(states: tuple[str, ...] | None) -> tuple[str, tuple[Any, ...]]:
@@ -183,7 +227,10 @@ def _source_rows(raw_row: dict[str, Any], source_url: str | None) -> list[tuple[
         if isinstance(item, dict):
             url = (item.get("url") or item.get("source_url") or "").strip()
             if url:
-                note = str(item.get("note") or item.get("classification") or item.get("kind") or "source")
+                note = _truncate(
+                    str(item.get("note") or item.get("classification") or item.get("kind") or "source"),
+                    _C1_LIMITS["electionsource_note"],
+                ) or "source"
                 rows.append((note, url))
     deduped: list[tuple[str, str]] = []
     seen: set[tuple[str, str]] = set()
@@ -195,23 +242,33 @@ def _source_rows(raw_row: dict[str, Any], source_url: str | None) -> list[tuple[
 
 
 def _election_id(row: BronzeElectionRow) -> tuple[str, str]:
-    dedupe_key = _stable_key(row.ocd_jurisdiction_id, str(row.election_date or ""), row.election_name, row.election_type)
-    return row.ocd_id or _make_id("election", dedupe_key), dedupe_key
+    dedupe_key = _dedupe_key(
+        row.ocd_jurisdiction_id,
+        str(row.election_date or ""),
+        row.election_name,
+        row.election_type,
+    )
+    election_id = fit_c1_id(row.ocd_id, prefix="election", fallback_key=dedupe_key)
+    return election_id, dedupe_key
 
 
 def _contest_id(row: BronzeElectionRow, election_id: str) -> tuple[str, str]:
-    key = _stable_key(election_id, row.candidate_post, row.candidate_party)
-    return _make_id("candidatecontest", key), key
+    key = _dedupe_key(election_id, row.candidate_post, row.candidate_party)
+    return make_ocd_id("candidatecontest", key), key
 
 
 def _candidacy_id(row: BronzeElectionRow, election_id: str, contest_id: str) -> tuple[str, str]:
-    key = _stable_key(election_id, contest_id, row.candidate_name, row.candidate_party)
-    return row.ocd_id or _make_id("candidacy", key), key
+    key = _dedupe_key(election_id, contest_id, row.candidate_name, row.candidate_party)
+    candidacy_id = fit_c1_id(row.ocd_id, prefix="candidacy", fallback_key=key)
+    return candidacy_id, key
 
 
 def _ballotmeasure_id(row: BronzeElectionRow, election_id: str) -> tuple[str, str]:
-    key = _stable_key(election_id, row.measure_title, row.measure_classification, row.measure_outcome)
-    return row.ocd_id or _make_id("ballotmeasure", key), key
+    key = _dedupe_key(
+        election_id, row.measure_title, row.measure_classification, row.measure_outcome
+    )
+    measure_id = fit_c1_id(row.ocd_id, prefix="ballotmeasure", fallback_key=key)
+    return measure_id, key
 
 
 def upsert_divisions(dst_conn, rows: list[BronzeElectionRow], *, dry_run: bool) -> int:
@@ -294,7 +351,8 @@ def upsert_elections(dst_conn, rows: list[BronzeElectionRow], *, dry_run: bool) 
                     row.ocd_jurisdiction_id or row.jurisdiction_id,
                     row.state_code,
                     dedupe_key,
-                    row.source_name or "bronze_elections_scraped",
+                    _truncate(row.source_name or "bronze_elections_scraped", _C1_LIMITS["source"])
+                    or "bronze_elections_scraped",
                     row.source_url,
                     Json((row.raw_row or {}).get("links") or []),
                     Json((row.raw_row or {}).get("sources") or []),
@@ -335,7 +393,8 @@ def upsert_candidate_contests(dst_conn, rows: list[BronzeElectionRow], *, dry_ru
                     row.jurisdiction_id,
                     row.state_code,
                     contest_key,
-                    row.source_name or "bronze_elections_scraped",
+                    _truncate(row.source_name or "bronze_elections_scraped", _C1_LIMITS["source"])
+                    or "bronze_elections_scraped",
                     row.source_url,
                     Json(row.raw_row or {}),
                 ),
@@ -421,7 +480,8 @@ def upsert_candidacies(dst_conn, rows: list[BronzeElectionRow], contest_ids: dic
                     row.jurisdiction_id,
                     row.state_code,
                     dedupe_key,
-                    row.source_name or "bronze_elections_scraped",
+                    _truncate(row.source_name or "bronze_elections_scraped", _C1_LIMITS["source"])
+                    or "bronze_elections_scraped",
                     row.source_url,
                     Json(row.raw_row or {}),
                     Json(row.raw_row or {}),
@@ -485,7 +545,8 @@ def upsert_ballot_measures(dst_conn, rows: list[BronzeElectionRow], *, dry_run: 
                     row.jurisdiction_id,
                     row.state_code,
                     dedupe_key,
-                    row.source_name or "bronze_elections_scraped",
+                    _truncate(row.source_name or "bronze_elections_scraped", _C1_LIMITS["source"])
+                    or "bronze_elections_scraped",
                     row.source_url,
                     Json(row.raw_row or {}),
                     Json(row.raw_row or {}),
