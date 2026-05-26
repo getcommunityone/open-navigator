@@ -70,6 +70,28 @@ export type BatchJobsDashboardPayload = {
   source?: 'database' | 'files'
 }
 
+type ApiErrorBody = { detail?: string | { msg?: string }[] }
+
+/** User-visible message from failed ``api.get`` (includes FastAPI ``detail``). */
+export function batchJobsFetchErrorMessage(error: unknown): string {
+  const err = error as {
+    message?: string
+    response?: { data?: ApiErrorBody; status?: number; statusText?: string }
+  }
+  const detail = err.response?.data?.detail
+  if (typeof detail === 'string' && detail.trim()) {
+    return detail
+  }
+  if (Array.isArray(detail)) {
+    const text = detail.map((d) => d?.msg).filter(Boolean).join('; ')
+    if (text) return text
+  }
+  if (err.response?.status) {
+    return `HTTP ${err.response.status}: ${err.response.statusText ?? 'Error'}`
+  }
+  return err.message ?? 'unknown error'
+}
+
 export async function fetchBatchJobsDashboard(
   refreshFiles = false,
 ): Promise<BatchJobsDashboardPayload> {

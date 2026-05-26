@@ -3,6 +3,7 @@ import { useState, useEffect, Fragment, useRef } from 'react'
 import { Tab } from '@headlessui/react'
 import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
+import { homeLog } from '../utils/devLog'
 import { 
   MagnifyingGlassIcon, 
   MapIcon,
@@ -42,7 +43,7 @@ export default function HomeModern() {
   // Debounce keyword input (300ms delay)
   useEffect(() => {
     const timer = setTimeout(() => {
-      console.log('⏱️ [HomeModern] Debounced keyword update:', keyword);
+      homeLog('⏱️ [HomeModern] Debounced keyword update:', keyword);
       setDebouncedKeyword(keyword);
     }, 300);
 
@@ -89,11 +90,11 @@ export default function HomeModern() {
     queryKey: ['platform-stats-all', location?.state, location?.county, location?.city],
     queryFn: async () => {
       if (!location || !location.state) {
-        console.log('📊 [HomeModern] No location set, skipping stats fetch');
+        homeLog('📊 [HomeModern] No location set, skipping stats fetch');
         return null;
       }
       
-      console.log('📊 [HomeModern] Fetching stats for location:', location);
+      homeLog('📊 [HomeModern] Fetching stats for location:', location);
       
       // Fetch stats for all scopes in parallel
       const [cityStats, countyStats, stateStats] = await Promise.all([
@@ -101,7 +102,7 @@ export default function HomeModern() {
         location.city 
           ? api.get('/stats', { params: { state: location.state, county: location.county, city: location.city } })
               .then(res => {
-                console.log('📊 [HomeModern] City stats:', res.data);
+                homeLog('📊 [HomeModern] City stats:', res.data);
                 return res.data;
               })
               .catch(err => {
@@ -113,7 +114,7 @@ export default function HomeModern() {
         location.county 
           ? api.get('/stats', { params: { state: location.state, county: location.county } })
               .then(res => {
-                console.log('📊 [HomeModern] County stats:', res.data);
+                homeLog('📊 [HomeModern] County stats:', res.data);
                 return res.data;
               })
               .catch(err => {
@@ -124,7 +125,7 @@ export default function HomeModern() {
         // State stats - ALWAYS fetch if we have a state
         api.get('/stats', { params: { state: location.state } })
           .then(res => {
-            console.log('📊 [HomeModern] State stats:', res.data);
+            homeLog('📊 [HomeModern] State stats:', res.data);
             return res.data;
           })
           .catch(err => {
@@ -140,7 +141,7 @@ export default function HomeModern() {
         community: cityStats // Use city stats for community/school board
       };
       
-      console.log('📊 [HomeModern] All stats loaded:', result);
+      homeLog('📊 [HomeModern] All stats loaded:', result);
       return result;
     },
     enabled: !!(location && location.state), // Only fetch when we have at least a state
@@ -167,15 +168,15 @@ export default function HomeModern() {
     school_districts_display: formatNumber(rawStatsData.school_districts)
   } : null;
   
-  console.log('📊 [HomeModern] Current scope:', searchScope, 'Stats data:', statsData, 'Loading:', statsLoading);
+  homeLog('📊 [HomeModern] Current scope:', searchScope, 'Stats data:', statsData, 'Loading:', statsLoading);
 
   // Live search preview (type-ahead with actual results from API)
   const { data: previewResults, isLoading: previewLoading, error: previewError } = useQuery({
     queryKey: ['search-preview-home', debouncedKeyword, location?.state],
     queryFn: async () => {
-      console.log('🔍 [HomeModern] Fetching preview for:', debouncedKeyword, 'in state:', location?.state);
+      homeLog('🔍 [HomeModern] Fetching preview for:', debouncedKeyword, 'in state:', location?.state);
       if (!debouncedKeyword || debouncedKeyword.length < 2) {
-        console.log('⚠️ [HomeModern] Query too short, skipping');
+        homeLog('⚠️ [HomeModern] Query too short, skipping');
         return null;
       }
       
@@ -189,17 +190,17 @@ export default function HomeModern() {
       // Add state filter if location is set
       if (location && location.state) {
         params.state = location.state;
-        console.log('📍 [HomeModern] Filtering by state:', location.state);
+        homeLog('📍 [HomeModern] Filtering by state:', location.state);
       }
       
-      console.log('📤 [HomeModern] API Request:', url, params);
+      homeLog('📤 [HomeModern] API Request:', url, params);
       try {
         const response = await api.get(url, { params });
-        console.log('📥 [HomeModern] API Response:', response.data);
-        console.log('📊 [HomeModern] Total results:', response.data.total_results);
-        console.log('🎯 [HomeModern] Causes:', response.data.results.causes.length);
-        console.log('👥 [HomeModern] Contacts:', response.data.results.contacts.length);
-        console.log('🏢 [HomeModern] Organizations:', response.data.results.organizations.length);
+        homeLog('📥 [HomeModern] API Response:', response.data);
+        homeLog('📊 [HomeModern] Total results:', response.data.total_results);
+        homeLog('🎯 [HomeModern] Causes:', response.data.results.causes.length);
+        homeLog('👥 [HomeModern] Contacts:', response.data.results.contacts.length);
+        homeLog('🏢 [HomeModern] Organizations:', response.data.results.organizations.length);
         return response.data;
       } catch (error: any) {
         console.error('❌ [HomeModern] API Error:', error);
@@ -216,7 +217,7 @@ export default function HomeModern() {
 
   // Log when preview results change
   useEffect(() => {
-    console.log('🔄 [HomeModern] Preview results updated:', {
+    homeLog('🔄 [HomeModern] Preview results updated:', {
       hasResults: !!previewResults,
       totalResults: previewResults?.total_results,
       showSuggestions,
@@ -252,10 +253,10 @@ export default function HomeModern() {
 
   const handleKeywordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    console.log('⌨️ [HomeModern] Keyword changed:', value);
+    homeLog('⌨️ [HomeModern] Keyword changed:', value);
     setKeyword(value);
     setShowSuggestions(value.length >= 2);
-    console.log('👁️ [HomeModern] Show suggestions:', value.length >= 2);
+    homeLog('👁️ [HomeModern] Show suggestions:', value.length >= 2);
   }
 
   const handleSelectSuggestion = (suggestion: string) => {

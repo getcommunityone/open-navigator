@@ -116,38 +116,57 @@ def _aggregate_jobs(
     try:
         from scripts.datasources.youtube.batch_job_status import (
             _batch_plan_cache_key,
+            _recompute_summary,
             config_state_codes,
+            expand_batch_job_plan,
             fetch_batch_plan_jurisdictions_cached,
+            needs_plan_expand,
             normalize_batch_job_jurisdictions,
             persist_batch_job,
         )
 
         plan_by_states: Dict[str, list] = {}
 
+        import logging
+
+        _log = logging.getLogger(__name__)
+
         for job in jobs:
-            status_before = job.status
-            states = config_state_codes(job.config or {})
-            rr = job.config.get("round_robin") if job.config else None
-            if rr is None:
-                rr = True
-            plan_key = _batch_plan_cache_key(states, round_robin=bool(rr))
-            if plan_key and plan_key not in plan_by_states:
-                plan_by_states[plan_key] = fetch_batch_plan_jurisdictions_cached(
-                    states, round_robin=bool(rr)
-                )
-            expand_batch_job_plan(
-                job, plan=plan_by_states.get(plan_key) if plan_key else None
-            )
-            meta_changed = normalize_batch_job_jurisdictions(job)
-            apply_batch_lifecycle(job)
-            if status_before != job.status or meta_changed:
-                persist_batch_job(job)
-            if bronze_conn is not None:
-                try:
-                    enrich_transcript_seconds_from_bronze(bronze_conn, job)
-                except Exception:
-                    pass
-            d = job.to_dict()
+            try:
+                status_before = job.status
+                if needs_plan_expand(job):
+                    states = config_state_codes(job.config or {})
+                    rr = job.config.get("round_robin") if job.config else None
+                    if rr is None:
+                        rr = True
+                    plan_key = _batch_plan_cache_key(states, round_robin=bool(rr))
+                    if plan_key and plan_key not in plan_by_states:
+                        plan_by_states[plan_key] = fetch_batch_plan_jurisdictions_cached(
+                            states, round_robin=bool(rr)
+                        )
+                    expand_batch_job_plan(
+                        job, plan=plan_by_states.get(plan_key) if plan_key else None
+                    )
+                    if (job.status or "").lower() == "running":
+                        normalize_batch_job_jurisdictions(job)
+                apply_batch_lifecycle(job)
+                _recompute_summary(job)
+                if status_before != job.status:
+                    try:
+                        persist_batch_job(job)
+                    except Exception as exc:
+                        _log.warning(
+                            "persist batch %s failed: %s", job.batch_id, exc
+                        )
+                if bronze_conn is not None:
+                    try:
+                        enrich_transcript_seconds_from_bronze(bronze_conn, job)
+                    except Exception:
+                        pass
+                d = job.to_dict()
+            except Exception as exc:
+                _log.exception("batch %s skipped in dashboard: %s", job.batch_id, exc)
+                d = job.to_dict()
             batches.append(d)
             s = d.get("summary") or {}
             totals["batches"] += 1

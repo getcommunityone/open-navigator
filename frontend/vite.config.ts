@@ -16,6 +16,8 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true,
+        proxyTimeout: 120_000,
+        timeout: 120_000,
         // Don't follow redirects - let browser handle OAuth redirects
         followRedirects: false,
         configure: (proxy, _options) => {

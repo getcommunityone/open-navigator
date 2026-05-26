@@ -55,6 +55,8 @@ npm run lint
 VITE_DEBUG_API=true
 ```
 
+**`[Home] Preview state` / location / stats logs** — Off by default. Set `VITE_DEBUG_HOME=true` in `.env.local` to re-enable.
+
 **`background.js` / `addEventListener` on null** and **“message channel closed”** on `batch-jobs:1` — From a **browser extension** (`chrome-extension://…`), not this app. Use an external browser or Incognito with extensions disabled; see `chrome://extensions` to find the extension ID from the Sources panel.
 
 ## Project Structure

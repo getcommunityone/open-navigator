@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   batchJobsStreamUrl,
+  batchJobsFetchErrorMessage,
   fetchBatchJobsDashboard,
   type BatchJob,
   type BatchJurisdictionRun,
@@ -782,11 +783,12 @@ export default function BatchJobStatusPage() {
   const queryClient = useQueryClient()
   const [streamLive, setStreamLive] = useState(false)
 
-  const { data, isPending, isError, error, refetch } = useQuery({
+  const { data, isPending, isFetching, isError, error, refetch } = useQuery({
     queryKey: ['batch-jobs-dashboard'],
     queryFn: () => fetchBatchJobsDashboard(false),
     staleTime: Infinity,
     refetchOnWindowFocus: true,
+    retry: 1,
   })
 
   useEffect(() => {
@@ -975,15 +977,22 @@ export default function BatchJobStatusPage() {
         </p>
       </div>
 
-      {isPending && (
+      {isPending && !data && (
         <div className="rounded-lg border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
           Loading batch status…
+          <p className="mt-2 text-xs text-slate-400">
+            First load can take up to a minute while batch rows are read from Postgres.
+          </p>
         </div>
+      )}
+
+      {isFetching && data && (
+        <p className="text-xs text-slate-500">Refreshing batch metrics…</p>
       )}
 
       {isError && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-          Could not load batch jobs: {(error as Error)?.message ?? 'unknown error'}
+          Could not load batch jobs: {batchJobsFetchErrorMessage(error)}
           <p className="mt-2 text-xs text-red-700">
             Start or restart the API:{' '}
             <code className="rounded bg-red-100 px-1">

@@ -3,6 +3,7 @@ import React, { useState, Fragment, useEffect, useRef } from 'react'
 import { Menu, Transition } from '@headlessui/react'
 import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
+import { homeLog } from '../utils/devLog'
 import { 
   MagnifyingGlassIcon, 
   DocumentTextIcon, 
@@ -181,7 +182,7 @@ export default function Home() {
   // Debounce keyword input (300ms delay)
   useEffect(() => {
     const timer = setTimeout(() => {
-      console.log('⏱️ [Home] Debounced keyword update:', keyword);
+      homeLog('⏱️ [Home] Debounced keyword update:', keyword);
       setDebouncedKeyword(keyword);
     }, 300);
 
@@ -233,9 +234,9 @@ export default function Home() {
         params.state = location.state;
       }
       
-      console.log('📊 [Home] Fetching stats for scope:', searchScope, 'params:', params);
+      homeLog('📊 [Home] Fetching stats for scope:', searchScope, 'params:', params);
       const response = await api.get('/stats', { params });
-      console.log('📊 [Home] Location stats:', response.data);
+      homeLog('📊 [Home] Location stats:', response.data);
       return response.data;
     },
     enabled: !!location,
@@ -294,7 +295,7 @@ export default function Home() {
   const trendingTopics = React.useMemo(() => {
     // If we have location stats with trending causes, use those
     if (locationStats?.trending_causes && Array.isArray(locationStats.trending_causes)) {
-      console.log('📊 [Home] Using location-specific trending causes:', locationStats.trending_causes)
+      homeLog('📊 [Home] Using location-specific trending causes:', locationStats.trending_causes)
       
       // Transform the database trending_causes to match TrendingCause interface
       // Filter out causes with no decisions
@@ -312,7 +313,7 @@ export default function Home() {
     
     // Otherwise use global trending causes from API
     // Also filter these to only show causes with decision counts
-    console.log('📊 [Home] Using global trending causes from API')
+    homeLog('📊 [Home] Using global trending causes from API')
     const globalCauses = trendingData?.causes || []
     return globalCauses.filter((cause: any) => (cause.decision_count || 0) > 0)
   }, [locationStats, trendingData])
@@ -399,9 +400,9 @@ export default function Home() {
   const { data: previewResults, isLoading: previewLoading, error: previewError } = useQuery({
     queryKey: ['search-preview-home', debouncedKeyword, location?.state, searchScope, heroSearchTypes],
     queryFn: async () => {
-      console.log('🔍 [Home] Fetching preview for:', debouncedKeyword, 'in state:', location?.state);
+      homeLog('🔍 [Home] Fetching preview for:', debouncedKeyword, 'in state:', location?.state);
       if (!debouncedKeyword || debouncedKeyword.length < 2) {
-        console.log('⚠️ [Home] Query too short, skipping');
+        homeLog('⚠️ [Home] Query too short, skipping');
         return null;
       }
       
@@ -416,15 +417,15 @@ export default function Home() {
         // Add state filter based on search scope (don't filter if scope is 'national')
         if (location && location.state && searchScope !== 'national') {
           params.state = location.state;
-          console.log('📍 [Home] Filtering by state:', location.state);
+          homeLog('📍 [Home] Filtering by state:', location.state);
         } else if (searchScope === 'national') {
-          console.log('🌎 [Home] National search - no state filter');
+          homeLog('🌎 [Home] National search - no state filter');
         }
         
-        console.log('📤 [Home] API Request:', url, params);
+        homeLog('📤 [Home] API Request:', url, params);
         const response = await api.get(url, { params });
-        console.log('📥 [Home] API Response:', response.data);
-        console.log('📊 [Home] Total results:', response.data.total_results);
+        homeLog('📥 [Home] API Response:', response.data);
+        homeLog('📊 [Home] Total results:', response.data.total_results);
         return response.data;
       } catch (error: any) {
         console.error('❌ [Home] Search preview error:', error);
@@ -444,7 +445,7 @@ export default function Home() {
 
   // Log when preview state changes
   useEffect(() => {
-    console.log('🔄 [Home] Preview state:', {
+    homeLog('🔄 [Home] Preview state:', {
       keyword,
       keywordLength: keyword.length,
       showSuggestions,
@@ -506,7 +507,7 @@ export default function Home() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
-    console.log('🔍 [Home] Search submitted:', { keyword, location: location?.state, searchScope });
+    homeLog('🔍 [Home] Search submitted:', { keyword, location: location?.state, searchScope });
 
     const q = keyword.trim()
     // Unified search supports browse-by-type with no query; hero still requires a query on "All".
@@ -523,16 +524,16 @@ export default function Home() {
 
     if (location && location.state) {
       params.set('state', location.state)
-      console.log('📍 [Home] Adding state filter:', location.state)
+      homeLog('📍 [Home] Adding state filter:', location.state)
     }
 
     const searchUrl = `/search?${params.toString()}`
-    console.log('🚀 [Home] Navigating to:', searchUrl)
+    homeLog('🚀 [Home] Navigating to:', searchUrl)
     navigate(searchUrl)
   }
 
   const handleAddressFound = (locationData: LocationData) => {
-    console.log('📍 [Home] Address found, updating location:', locationData)
+    homeLog('📍 [Home] Address found, updating location:', locationData)
     setLocation({
       address: locationData.address,
       state: locationData.state,
@@ -556,8 +557,8 @@ export default function Home() {
 
   // Debug: Log when location changes
   useEffect(() => {
-    console.log('📍 [Home] Location state changed:', location);
-    console.log('📍 [Home] Current subtitle:', getSubtitle());
+    homeLog('📍 [Home] Location state changed:', location);
+    homeLog('📍 [Home] Current subtitle:', getSubtitle());
   }, [location]);
 
   // Smooth scroll to section with offset for sticky header
@@ -664,7 +665,7 @@ export default function Home() {
                           if (fallback) fallback.style.display = 'flex';
                         }}
                         onLoad={() => {
-                          console.log('✅ Avatar loaded successfully:', user.avatar_url?.substring(0, 50));
+                          homeLog('✅ Avatar loaded successfully:', user.avatar_url?.substring(0, 50));
                         }}
                       />
                     ) : null}

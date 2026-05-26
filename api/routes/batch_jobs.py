@@ -88,6 +88,39 @@ class BatchJobsDashboardResponse(BaseModel):
     source: str = "database"
 
 
+def _sanitize_dashboard_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Coerce DB payloads so Pydantic response validation does not 500."""
+    import math
+
+    totals = payload.get("totals")
+    if isinstance(totals, dict):
+        th = totals.get("transcript_hours")
+        if isinstance(th, float) and (math.isnan(th) or math.isinf(th)):
+            totals["transcript_hours"] = 0.0
+
+    for batch in payload.get("batches") or []:
+        if not isinstance(batch, dict):
+            continue
+        for j in batch.get("jurisdictions") or []:
+            if not isinstance(j, dict):
+                continue
+            raw_stats = j.get("stats")
+            if isinstance(raw_stats, dict):
+                clean: Dict[str, int] = {}
+                for key, val in raw_stats.items():
+                    try:
+                        clean[str(key)] = int(val)
+                    except (TypeError, ValueError):
+                        continue
+                j["stats"] = clean
+            for field in ("elapsed_seconds",):
+                try:
+                    j[field] = float(j.get(field) or 0)
+                except (TypeError, ValueError):
+                    j[field] = 0.0
+    return payload
+
+
 def _load_dashboard(
     *,
     refresh_files: bool,
@@ -96,11 +129,12 @@ def _load_dashboard(
 ) -> Dict[str, Any]:
     from scripts.datasources.youtube.batch_job_dashboard import build_dashboard_data
 
-    return build_dashboard_data(
+    payload = build_dashboard_data(
         refresh_files=refresh_files,
         enrich_bronze=enrich_bronze,
         enrich_bronze_only_running=enrich_bronze_only_running,
     )
+    return _sanitize_dashboard_payload(payload)
 
 
 @router.get("/stream")

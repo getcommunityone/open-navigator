@@ -641,6 +641,30 @@ def _prefer_jurisdiction_run(
     return current
 
 
+def needs_plan_expand(job: BatchJob) -> bool:
+    """
+  True when the dashboard should merge the full state plan into this batch.
+
+  Skip for finished batches that already have their jurisdiction rows (avoids
+  re-merging hundreds of pending placeholders on every API read).
+    """
+    cfg = job.config or {}
+    if cfg.get("seed_plan") is False:
+        return False
+    if not cfg.get("states"):
+        return False
+    status = (job.status or "").lower()
+    if status == "running":
+        return True
+    total = int(cfg.get("total_jurisdictions") or 0) or len(job.jurisdictions)
+    if status in ("completed", "cancelled", "failed") and job.jurisdictions:
+        if total > 0 and len(job.jurisdictions) >= total:
+            return False
+        if status in ("completed", "cancelled") and len(job.jurisdictions) > 0:
+            return False
+    return True
+
+
 def expand_batch_job_plan(
     job: BatchJob,
     plan: Optional[List[JurisdictionRun]] = None,
