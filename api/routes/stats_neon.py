@@ -33,8 +33,52 @@ DATABASE_URL = (
 # Connection pool (created on first request)
 _db_pool = None
 
-# Cached per-table column sets (public schema) — invalid when pool resets
+# Cached per-table column sets — invalid when pool resets; never cache empty (failed introspection).
 _table_columns: Dict[str, frozenset] = {}
+
+# When pg_catalog introspection fails (permissions, timing), use schema.sql shapes.
+_TABLE_COLUMN_FALLBACKS: Dict[str, frozenset] = {
+    "jurisdiction_state_aggregate": frozenset(
+        {
+            "state_code",
+            "state",
+            "level",
+            "county",
+            "city",
+            "jurisdictions_count",
+            "school_districts_count",
+            "nonprofits_count",
+            "events_count",
+            "bills_count",
+            "contacts_count",
+            "total_revenue",
+            "total_assets",
+            "trending_causes",
+            "last_updated",
+        }
+    ),
+    "jurisdiction": frozenset(
+        {
+            "id",
+            "name",
+            "type",
+            "state_code",
+            "state",
+            "county",
+            "geoid",
+            "jurisdiction_id",
+        }
+    ),
+    "contact": frozenset(
+        {
+            "id",
+            "name",
+            "state_code",
+            "state",
+            "city",
+        }
+    ),
+}
 
 
 def _reset_schema_cache() -> None:
@@ -42,19 +86,57 @@ def _reset_schema_cache() -> None:
     _table_columns = {}
 
 
+async def _resolve_relation(conn, table: str) -> Optional[tuple[str, str]]:
+    """Return (schema, relname) for first matching table/view/matview."""
+    row = await conn.fetchrow(
+        """
+        SELECT n.nspname AS schema_name, c.relname AS rel_name
+        FROM pg_catalog.pg_class c
+        JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.relkind IN ('r', 'v', 'm')
+          AND c.relname = $1
+          AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+        ORDER BY (n.nspname = 'public') DESC, n.nspname
+        LIMIT 1
+        """,
+        table,
+    )
+    if not row:
+        return None
+    return row["schema_name"], row["rel_name"]
+
+
 async def _get_table_columns(conn, table: str) -> frozenset:
-    """Columns for `table` in public schema (lowercase names)."""
-    if table not in _table_columns:
+    """Columns for ``table`` (lowercase names). Never caches empty sets."""
+    if table in _table_columns:
+        return _table_columns[table]
+
+    cols: frozenset = frozenset()
+    resolved = await _resolve_relation(conn, table)
+    if resolved:
+        schema, rel = resolved
         rows = await conn.fetch(
             """
-            SELECT column_name
-            FROM information_schema.columns
-            WHERE table_schema = 'public' AND table_name = $1
+            SELECT a.attname AS column_name
+            FROM pg_catalog.pg_attribute a
+            JOIN pg_catalog.pg_class c ON c.oid = a.attrelid
+            JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname = $1
+              AND c.relname = $2
+              AND a.attnum > 0
+              AND NOT a.attisdropped
             """,
-            table,
+            schema,
+            rel,
         )
-        _table_columns[table] = frozenset(r["column_name"] for r in rows)
-    return _table_columns[table]
+        cols = frozenset(str(r["column_name"]) for r in rows)
+
+    if not cols:
+        cols = _TABLE_COLUMN_FALLBACKS.get(table, frozenset())
+
+    if cols:
+        _table_columns[table] = cols
+    return cols
 
 
 def _state_usps_match_sql(columns: frozenset, param: str = "$1") -> str:
@@ -80,6 +162,85 @@ def _state_usps_match_sql(columns: frozenset, param: str = "$1") -> str:
     if has_st:
         return f"UPPER(TRIM(COALESCE(state::text, ''))) = UPPER(TRIM({param}::text))"
     raise ValueError(f"Table has neither state_code nor state among columns: {columns}")
+
+
+async def _aggregate_table_exists(conn, table: str) -> bool:
+    return (await _resolve_relation(conn, table)) is not None
+
+
+async def _fetch_location_stats_from_jurisdiction(
+    conn,
+    *,
+    state_val: str,
+    county: Optional[str] = None,
+    city: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """Build minimal stats from ``public.jurisdiction`` when aggregate table is missing."""
+    jur_cols = await _get_table_columns(conn, "jurisdiction")
+    if not jur_cols:
+        return None
+    if not await _aggregate_table_exists(conn, "jurisdiction"):
+        return None
+
+    jur_state_pred = _state_usps_match_sql(jur_cols, "$1")
+    name_filter = ""
+    params: list[Any] = [state_val]
+    if city:
+        params.append(f"%{city}%")
+        name_filter = f" AND name ILIKE ${len(params)}"
+    elif county:
+        county_name = county.replace(" County", "").strip() if county else county
+        params.append(f"%{county_name}%")
+        name_filter = f" AND (name ILIKE ${len(params)} OR county ILIKE ${len(params)})"
+
+    jurisdiction_query = f"""
+        SELECT COUNT(DISTINCT id) AS count
+        FROM jurisdiction
+        WHERE ({jur_state_pred}){name_filter}
+    """
+    jur_result = await conn.fetchrow(jurisdiction_query, *params)
+    jurisdictions = int(jur_result["count"] or 0) if jur_result else 0
+
+    school_query = f"""
+        SELECT COUNT(*) AS count
+        FROM jurisdiction
+        WHERE type = 'school_district'
+          AND ({jur_state_pred}){name_filter}
+    """
+    school_result = await conn.fetchrow(school_query, *params)
+    school_districts = int(school_result["count"] or 0) if school_result else 0
+
+    contacts = 0
+    if await _aggregate_table_exists(conn, "contact"):
+        contact_cols = await _get_table_columns(conn, "contact")
+        if contact_cols:
+            contact_state_pred = _state_usps_match_sql(contact_cols, "$1")
+            contact_result = await conn.fetchrow(
+                f"SELECT COUNT(*) AS count FROM contact WHERE ({contact_state_pred})",
+                state_val,
+            )
+            contacts = int(contact_result["count"] or 0) if contact_result else 0
+
+    if jurisdictions <= 0 and contacts <= 0:
+        return None
+
+    level = "city" if city else "county" if county else "state"
+    return {
+        "level": level,
+        "state": state_val,
+        "county": county,
+        "city": city,
+        "jurisdictions_count": jurisdictions,
+        "school_districts_count": school_districts,
+        "nonprofits_count": 0,
+        "events_count": 0,
+        "bills_count": 0,
+        "contacts_count": contacts,
+        "total_revenue": 0,
+        "total_assets": 0,
+        "last_updated": datetime.now(),
+        "source": "database",
+    }
 
 
 async def get_db_pool():
@@ -237,6 +398,20 @@ async def fetch_stats_from_neon(
         
         async with pool.acquire() as conn:
             stats_cols = await _get_table_columns(conn, "jurisdiction_state_aggregate")
+            has_stats_table = await _aggregate_table_exists(conn, "jurisdiction_state_aggregate")
+            if not stats_cols or not has_stats_table:
+                logger.warning(
+                    "jurisdiction_state_aggregate unavailable; querying jurisdiction directly"
+                )
+                if level in ("county", "city", "state") and state:
+                    return await _fetch_location_stats_from_jurisdiction(
+                        conn,
+                        state_val=state.upper() if len(state) == 2 else state,
+                        county=county,
+                        city=city,
+                    )
+                return None
+
             state_pred_stats = _state_usps_match_sql(stats_cols, "$1")
             state_val = state.upper() if state and len(state) == 2 else state
 
@@ -279,6 +454,12 @@ async def fetch_stats_from_neon(
                         LIMIT 1
                     """
                     result = await conn.fetchrow(query, state_val)
+                if not result and state:
+                    return await _fetch_location_stats_from_jurisdiction(
+                        conn,
+                        state_val=state_val,
+                        county=county,
+                    )
                 
             elif level == 'city':
                 # Try city-level stats first from jurisdiction_state_aggregate
