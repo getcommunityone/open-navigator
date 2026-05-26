@@ -68,7 +68,11 @@ export type BatchJobsDashboardPayload = {
   totals: BatchJobsTotals
   batches: BatchJob[]
   source?: 'database' | 'files'
+  /** ``summary`` = metrics only; ``full`` = all per-video rows included. */
+  detail?: 'summary' | 'full' | string
 }
+
+export type BatchJobsDetailLevel = 'summary' | 'standard' | 'full'
 
 type ApiErrorBody = { detail?: string | { msg?: string }[] }
 
@@ -94,11 +98,42 @@ export function batchJobsFetchErrorMessage(error: unknown): string {
 
 export async function fetchBatchJobsDashboard(
   refreshFiles = false,
+  detail: BatchJobsDetailLevel = 'summary',
 ): Promise<BatchJobsDashboardPayload> {
   const res = await api.get<BatchJobsDashboardPayload>('/batch-jobs', {
-    params: { refresh_files: refreshFiles, enrich_bronze: false },
+    params: {
+      refresh_files: refreshFiles,
+      enrich_bronze: false,
+      detail,
+      batch_limit: 25,
+    },
   })
   return res.data
+}
+
+export async function fetchBatchJobDetail(
+  batchId: string,
+  includeVideos: 'all' | 'failed_only' | 'none' | 'running' = 'all',
+): Promise<BatchJob> {
+  const res = await api.get<BatchJob>(`/batch-jobs/${encodeURIComponent(batchId)}`, {
+    params: { enrich_bronze: false, include_videos: includeVideos },
+  })
+  return res.data
+}
+
+/** Merge jurisdiction rows (and videos) from a detail fetch into cached dashboard data. */
+export function mergeBatchIntoDashboard(
+  prev: BatchJobsDashboardPayload | undefined,
+  batch: BatchJob,
+): BatchJobsDashboardPayload | undefined {
+  if (!prev) return prev
+  const batches = prev.batches.map((b) =>
+    b.batch_id === batch.batch_id ? { ...b, ...batch, jurisdictions: batch.jurisdictions } : b,
+  )
+  if (!batches.some((b) => b.batch_id === batch.batch_id)) {
+    batches.unshift(batch)
+  }
+  return { ...prev, batches, detail: 'full' }
 }
 
 /** SSE URL for live dashboard updates (Postgres-backed). */

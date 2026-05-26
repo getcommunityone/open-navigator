@@ -18,7 +18,204 @@ import sys
 import webbrowser
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Literal
+
+VideoPayloadMode = Literal["none", "failed_only", "running", "all"]
+
+_FAILED_VIDEO_STATUSES = frozenset(
+    {
+        "fail",
+        "failed",
+        "tombstoned",
+        "empty",
+        "rate_limit",
+        "error",
+    }
+)
+
+
+def _is_failed_video_status(status: str) -> bool:
+    s = (status or "").strip().lower()
+    if not s or s in ("ok", "pending", "skipped", "noop"):
+        return False
+    if s in _FAILED_VIDEO_STATUSES:
+        return True
+    return s != "ok"
+
+
+def slim_jurisdiction_videos(
+    j: Dict[str, Any],
+    *,
+    video_mode: VideoPayloadMode,
+) -> Dict[str, Any]:
+    """Drop per-video rows when counts in ``stats`` are enough for the table."""
+    if video_mode == "all":
+        return j
+    out = dict(j)
+    status = (out.get("status") or "").strip().lower()
+    if video_mode == "running" and (
+        status == "running" or (out.get("current_video_id") or "").strip()
+    ):
+        return out
+    videos = list(out.get("videos") or [])
+    if video_mode == "failed_only":
+        out["videos"] = [v for v in videos if _is_failed_video_status(v.get("status", ""))]
+    else:
+        out["videos"] = []
+    return out
+
+
+def slim_batch_dict(
+    batch: Dict[str, Any],
+    *,
+    video_mode: VideoPayloadMode,
+) -> Dict[str, Any]:
+    out = dict(batch)
+    jurs = batch.get("jurisdictions") or []
+    if not jurs:
+        return out
+    batch_running = (batch.get("status") or "").lower() == "running"
+    mode: VideoPayloadMode = video_mode
+    if video_mode == "running" and not batch_running:
+        mode = "failed_only"
+    out["jurisdictions"] = [
+        slim_jurisdiction_videos(j, video_mode=mode) if isinstance(j, dict) else j
+        for j in jurs
+    ]
+    return out
+
+
+def _totals_from_batch_summaries(batches: List[Dict[str, Any]]) -> Dict[str, Any]:
+    totals = {
+        "batches": 0,
+        "running": 0,
+        "states": 0,
+        "states_planned": 0,
+        "states_started": 0,
+        "states_completed": 0,
+        "processed_jurisdictions": 0,
+        "failed_jurisdictions": 0,
+        "remaining_jurisdictions": 0,
+        "videos_ok": 0,
+        "videos_fail": 0,
+        "videos_attempted": 0,
+        "files_transcripts": 0,
+        "files_transcripts_disk": 0,
+        "transcript_hours": 0.0,
+        "bronze_download_rows": 0,
+        "files_analysis": 0,
+        "files_reports": 0,
+    }
+    planned_states: set[str] = set()
+    started_states: set[str] = set()
+    completed_states: set[str] = set()
+    transcript_seconds = 0.0
+
+    from scripts.datasources.youtube.batch_job_status import config_state_codes
+
+    for d in batches:
+        totals["batches"] += 1
+        if d.get("status") == "running":
+            totals["running"] += 1
+        s = d.get("summary") or {}
+        for st in config_state_codes(d.get("config") or {}):
+            planned_states.add(st)
+        for st in s.get("states_started_codes") or []:
+            started_states.add(str(st).upper())
+        for st in s.get("states_completed_codes") or []:
+            completed_states.add(str(st).upper())
+        totals["processed_jurisdictions"] += int(s.get("processed_jurisdictions") or 0)
+        totals["failed_jurisdictions"] += int(s.get("failed_jurisdictions") or 0)
+        totals["remaining_jurisdictions"] += int(s.get("remaining_jurisdictions") or 0)
+        totals["videos_ok"] += int(s.get("videos_ok") or 0)
+        totals["videos_fail"] += int(s.get("videos_fail") or 0)
+        attempted = int(s.get("videos_attempted") or s.get("files_processed") or 0)
+        if not attempted:
+            attempted = (
+                int(s.get("videos_ok") or 0)
+                + int(s.get("videos_fail") or 0)
+                + int(s.get("videos_tombstoned") or 0)
+                + int(s.get("videos_empty") or 0)
+                + int(s.get("videos_rate_limit") or 0)
+            )
+        totals["videos_attempted"] += attempted
+        totals["files_transcripts"] += int(s.get("files_transcripts") or 0)
+        totals["files_transcripts_disk"] += int(s.get("files_transcripts_disk") or 0)
+        totals["bronze_download_rows"] += int(s.get("bronze_download_rows") or 0)
+        totals["files_analysis"] += int(s.get("files_analysis") or 0)
+        totals["files_reports"] += int(s.get("files_reports") or 0)
+        transcript_seconds += float(s.get("transcript_seconds") or 0)
+
+    totals["states_planned"] = len(planned_states)
+    totals["states_started"] = len(started_states)
+    totals["states_completed"] = len(completed_states)
+    totals["states"] = totals["states_planned"]
+    totals["transcript_hours"] = round(transcript_seconds / 3600.0, 2)
+    return totals
+
+
+def _last_activity_from_batch_rows(batches: List[Dict[str, Any]]) -> str:
+    best = ""
+    for d in batches:
+        for key in ("updated_at", "finished_at", "started_at"):
+            raw = (d.get(key) or "").strip()
+            if raw and (not best or raw > best):
+                best = raw
+    return best
+
+
+def build_dashboard_summary(*, limit: int = 30) -> Dict[str, Any]:
+    """Fast path: batch list + totals from ``summary`` JSON only (no payload parse)."""
+    import datetime as _dt
+    import os
+
+    use_db = os.getenv("BATCH_JOBS_USE_DB", "1").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+        "off",
+    )
+    batches: List[Dict[str, Any]] = []
+    source = "files"
+
+    if use_db:
+        try:
+            from scripts.datasources.youtube.batch_job_db import list_batch_job_meta_from_db
+
+            batches = list_batch_job_meta_from_db(limit=limit)
+            if batches:
+                source = "database"
+        except Exception:
+            batches = []
+
+    if not batches:
+        jobs = list_batches(limit=limit)
+        batches = [
+            {
+                "batch_id": j.batch_id,
+                "step": j.step,
+                "status": j.status,
+                "started_at": j.started_at,
+                "updated_at": j.updated_at,
+                "finished_at": j.finished_at,
+                "config": dict(j.config or {}),
+                "summary": dict(j.summary or {}),
+                "jurisdictions": [],
+            }
+            for j in jobs
+        ]
+        source = "files"
+
+    totals = _totals_from_batch_summaries(batches)
+    now = _dt.datetime.now(_dt.timezone.utc)
+    return {
+        "generated_at": now.isoformat(),
+        "last_activity_at": _last_activity_from_batch_rows(batches),
+        "totals": totals,
+        "batches": batches,
+        "source": source,
+        "detail": "summary",
+    }
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(_REPO_ROOT) not in sys.path:
@@ -221,6 +418,7 @@ def _aggregate_jobs(
         "totals": totals,
         "batches": batches,
         "source": "database",
+        "detail": "full",
     }
 
 
@@ -229,6 +427,8 @@ def build_dashboard_data(
     refresh_files: bool = False,
     enrich_bronze: bool = True,
     enrich_bronze_only_running: bool = False,
+    batch_limit: int = 25,
+    video_mode: VideoPayloadMode = "running",
 ) -> Dict[str, Any]:
     """
     Build dashboard payload. Prefer Postgres (``bronze.youtube_batch_job_runs``);
@@ -254,10 +454,10 @@ def build_dashboard_data(
                 sync_json_batches_to_db,
             )
 
-            jobs = list_batch_jobs_from_db(limit=100)
+            jobs = list_batch_jobs_from_db(limit=batch_limit)
             if not jobs:
-                sync_json_batches_to_db(limit=100)
-                jobs = list_batch_jobs_from_db(limit=100)
+                sync_json_batches_to_db(limit=batch_limit)
+                jobs = list_batch_jobs_from_db(limit=batch_limit)
             if jobs:
                 if enrich_bronze:
                     enrich_jobs_from_bronze(
@@ -268,9 +468,16 @@ def build_dashboard_data(
                 elif refresh_files:
                     for job in jobs:
                         _enrich_file_counts(job)
-                return _aggregate_jobs(
+                payload = _aggregate_jobs(
                     jobs, enrich_transcript_from_bronze=enrich_bronze
                 )
+                if video_mode != "all":
+                    payload["batches"] = [
+                        slim_batch_dict(b, video_mode=video_mode)
+                        for b in payload.get("batches") or []
+                    ]
+                payload["detail"] = "full"
+                return payload
         except Exception as exc:
             import logging
 
@@ -278,7 +485,7 @@ def build_dashboard_data(
                 "batch dashboard DB read failed, using JSON files: %s", exc
             )
 
-    jobs = list_batches(limit=100)
+    jobs = list_batches(limit=batch_limit)
     if refresh_files:
         for job in jobs:
             _enrich_file_counts(job)
@@ -291,6 +498,11 @@ def build_dashboard_data(
             pass
     payload = _aggregate_jobs(jobs, enrich_transcript_from_bronze=enrich_bronze)
     payload["source"] = "files"
+    if video_mode != "all":
+        payload["batches"] = [
+            slim_batch_dict(b, video_mode=video_mode) for b in payload.get("batches") or []
+        ]
+    payload["detail"] = "full"
     return payload
 
 

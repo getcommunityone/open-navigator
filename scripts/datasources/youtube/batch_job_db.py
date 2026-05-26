@@ -158,6 +158,232 @@ def list_batch_jobs_from_db(*, limit: int = 100) -> List[BatchJob]:
     return jobs
 
 
+def aggregate_dashboard_totals_from_db(*, limit: int = 30) -> Dict[str, Any]:
+    """Sum numeric fields from ``summary`` JSONB across recent batches (no payload)."""
+    with get_db_connection() as conn:
+        ensure_batch_job_tables(conn)
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                WITH recent AS (
+                    SELECT status, config, summary, updated_at
+                    FROM bronze.youtube_batch_job_runs
+                    ORDER BY updated_at DESC NULLS LAST
+                    LIMIT %s
+                )
+                SELECT
+                    COUNT(*)::int AS batches,
+                    COUNT(*) FILTER (WHERE status = 'running')::int AS running,
+                    COALESCE(SUM((summary->>'processed_jurisdictions')::int), 0)
+                        AS processed_jurisdictions,
+                    COALESCE(SUM((summary->>'failed_jurisdictions')::int), 0)
+                        AS failed_jurisdictions,
+                    COALESCE(SUM((summary->>'remaining_jurisdictions')::int), 0)
+                        AS remaining_jurisdictions,
+                    COALESCE(SUM((summary->>'videos_ok')::int), 0) AS videos_ok,
+                    COALESCE(SUM((summary->>'videos_fail')::int), 0) AS videos_fail,
+                    COALESCE(SUM((summary->>'files_transcripts')::int), 0)
+                        AS files_transcripts,
+                    COALESCE(SUM((summary->>'files_transcripts_disk')::int), 0)
+                        AS files_transcripts_disk,
+                    COALESCE(SUM((summary->>'bronze_download_rows')::int), 0)
+                        AS bronze_download_rows,
+                    COALESCE(SUM((summary->>'files_analysis')::int), 0) AS files_analysis,
+                    COALESCE(SUM((summary->>'files_reports')::int), 0) AS files_reports,
+                    COALESCE(SUM((summary->>'transcript_seconds')::float), 0)
+                        AS transcript_seconds,
+                    MAX(updated_at) AS last_updated
+                FROM recent
+                """,
+                (limit,),
+            )
+            row = cur.fetchone() or {}
+    totals = {
+        "batches": int(row.get("batches") or 0),
+        "running": int(row.get("running") or 0),
+        "states": 0,
+        "states_planned": 0,
+        "states_started": 0,
+        "states_completed": 0,
+        "processed_jurisdictions": int(row.get("processed_jurisdictions") or 0),
+        "failed_jurisdictions": int(row.get("failed_jurisdictions") or 0),
+        "remaining_jurisdictions": int(row.get("remaining_jurisdictions") or 0),
+        "videos_ok": int(row.get("videos_ok") or 0),
+        "videos_fail": int(row.get("videos_fail") or 0),
+        "videos_attempted": 0,
+        "files_transcripts": int(row.get("files_transcripts") or 0),
+        "files_transcripts_disk": int(row.get("files_transcripts_disk") or 0),
+        "transcript_hours": round(float(row.get("transcript_seconds") or 0) / 3600.0, 2),
+        "bronze_download_rows": int(row.get("bronze_download_rows") or 0),
+        "files_analysis": int(row.get("files_analysis") or 0),
+        "files_reports": int(row.get("files_reports") or 0),
+    }
+  last_updated = row.get("last_updated")
+    totals["last_activity_at"] = (
+        last_updated.isoformat() if last_updated is not None else ""
+    )
+    return totals
+
+
+def list_jurisdiction_rows_from_db(
+    batch_id: str,
+    state_code: str,
+) -> List[Dict[str, Any]]:
+    """
+    Extract slim jurisdiction rows for one state via JSONB (no per-video arrays).
+    """
+    st = (state_code or "").strip().upper()
+    if not st:
+        return []
+    with get_db_connection() as conn:
+        ensure_batch_job_tables(conn)
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT COALESCE(
+                    jsonb_agg(sub.row ORDER BY sub.sort_name),
+                    '[]'::jsonb
+                ) AS jurisdictions
+                FROM (
+                    SELECT
+                        jsonb_build_object(
+                            'state_code', elem->>'state_code',
+                            'jurisdiction_id', elem->>'jurisdiction_id',
+                            'jurisdiction_name', elem->>'jurisdiction_name',
+                            'status', COALESCE(NULLIF(elem->>'status', ''), 'pending'),
+                            'started_at', COALESCE(elem->>'started_at', ''),
+                            'updated_at', COALESCE(elem->>'updated_at', ''),
+                            'finished_at', COALESCE(elem->>'finished_at', ''),
+                            'elapsed_seconds',
+                                COALESCE((elem->>'elapsed_seconds')::float, 0),
+                            'exit_code', COALESCE((elem->>'exit_code')::int, 0),
+                            'stats', COALESCE(elem->'stats', '{}'::jsonb),
+                            'file_counts', COALESCE(elem->'file_counts', '{}'::jsonb),
+                            'current_video_id', COALESCE(elem->>'current_video_id', ''),
+                            'current_video_title', COALESCE(elem->>'current_video_title', ''),
+                            'current_video_started_at',
+                                COALESCE(elem->>'current_video_started_at', ''),
+                            'videos', '[]'::jsonb
+                        ) AS row,
+                        lower(
+                            COALESCE(
+                                elem->>'jurisdiction_name',
+                                elem->>'jurisdiction_id',
+                                ''
+                            )
+                        ) AS sort_name
+                    FROM bronze.youtube_batch_job_runs b,
+                         jsonb_array_elements(
+                             CASE
+                                 WHEN jsonb_typeof(b.payload->'jurisdictions') = 'array'
+                                 THEN b.payload->'jurisdictions'
+                                 ELSE '[]'::jsonb
+                             END
+                         ) elem
+                    WHERE b.batch_id = %s
+                      AND UPPER(COALESCE(elem->>'state_code', '')) = %s
+                ) sub
+                """,
+                (batch_id, st),
+            )
+            row = cur.fetchone()
+    raw = row.get("jurisdictions") if row else []
+    if isinstance(raw, str):
+        raw = json.loads(raw)
+    if not isinstance(raw, list):
+        return []
+    return [dict(x) for x in raw if isinstance(x, dict)]
+
+
+def running_batch_activity_from_db() -> Optional[Dict[str, Any]]:
+    """Active in-flight video for the current running batch (one payload parse)."""
+    with get_db_connection() as conn:
+        ensure_batch_job_tables(conn)
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT batch_id, payload
+                FROM bronze.youtube_batch_job_runs
+                WHERE status = 'running'
+                ORDER BY updated_at DESC NULLS LAST
+                LIMIT 1
+                """
+            )
+            row = cur.fetchone()
+    if not row:
+        return None
+    payload = row["payload"]
+    if isinstance(payload, str):
+        payload = json.loads(payload)
+    batch_id = row["batch_id"]
+    active: List[Dict[str, Any]] = []
+    for elem in payload.get("jurisdictions") or []:
+        if not isinstance(elem, dict):
+            continue
+        status = (elem.get("status") or "").lower()
+        if status != "running" and not (elem.get("current_video_id") or "").strip():
+            continue
+        slim = {
+            "state_code": elem.get("state_code") or "",
+            "jurisdiction_id": elem.get("jurisdiction_id") or "",
+            "jurisdiction_name": elem.get("jurisdiction_name") or "",
+            "status": elem.get("status") or "running",
+            "current_video_id": elem.get("current_video_id") or "",
+            "current_video_title": elem.get("current_video_title") or "",
+            "current_video_started_at": elem.get("current_video_started_at") or "",
+            "videos": [],
+        }
+        if status == "running" or slim["current_video_id"]:
+            active.append(slim)
+    if not active:
+        return None
+    return {"batch_id": batch_id, "jurisdictions": active}
+
+
+def list_batch_job_meta_from_db(*, limit: int = 30) -> List[Dict[str, Any]]:
+    """Lightweight batch rows (no ``payload``) for fast dashboard summary."""
+    with get_db_connection() as conn:
+        ensure_batch_job_tables(conn)
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT
+                    batch_id,
+                    step,
+                    status,
+                    started_at,
+                    updated_at,
+                    finished_at,
+                    config,
+                    summary
+                FROM bronze.youtube_batch_job_runs
+                ORDER BY updated_at DESC NULLS LAST
+                LIMIT %s
+                """,
+                (limit,),
+            )
+            rows = cur.fetchall()
+    out: List[Dict[str, Any]] = []
+    for row in rows:
+        started = row.get("started_at")
+        updated = row.get("updated_at")
+        finished = row.get("finished_at")
+        out.append(
+            {
+                "batch_id": row["batch_id"],
+                "step": row["step"],
+                "status": row["status"],
+                "started_at": started.isoformat() if started else "",
+                "updated_at": updated.isoformat() if updated else "",
+                "finished_at": finished.isoformat() if finished else "",
+                "config": row.get("config") or {},
+                "summary": row.get("summary") or {},
+                "jurisdictions": [],
+            }
+        )
+    return out
+
+
 def sync_json_batches_to_db(*, limit: int = 100) -> int:
     """Import recent JSON batch files into Postgres (one-time / backfill)."""
     if not _use_db():

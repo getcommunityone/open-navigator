@@ -86,6 +86,7 @@ class BatchJobsDashboardResponse(BaseModel):
     totals: BatchJobsTotals
     batches: List[BatchJobModel]
     source: str = "database"
+    detail: str = "full"
 
 
 def _sanitize_dashboard_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -126,14 +127,26 @@ def _load_dashboard(
     refresh_files: bool,
     enrich_bronze: bool,
     enrich_bronze_only_running: bool = False,
+    detail: str = "full",
+    batch_limit: int = 25,
 ) -> Dict[str, Any]:
-    from scripts.datasources.youtube.batch_job_dashboard import build_dashboard_data
-
-    payload = build_dashboard_data(
-        refresh_files=refresh_files,
-        enrich_bronze=enrich_bronze,
-        enrich_bronze_only_running=enrich_bronze_only_running,
+    from scripts.datasources.youtube.batch_job_dashboard import (
+        VideoPayloadMode,
+        build_dashboard_data,
+        build_dashboard_summary,
     )
+
+    if detail == "summary":
+        payload = build_dashboard_summary(limit=batch_limit)
+    else:
+        video_mode: VideoPayloadMode = "all" if detail == "full" else "running"
+        payload = build_dashboard_data(
+            refresh_files=refresh_files,
+            enrich_bronze=enrich_bronze,
+            enrich_bronze_only_running=enrich_bronze_only_running,
+            batch_limit=batch_limit,
+            video_mode=video_mode,
+        )
     return _sanitize_dashboard_payload(payload)
 
 
@@ -149,16 +162,8 @@ async def stream_batch_jobs(
 
     async def event_generator() -> AsyncIterator[str]:
         last_rev: Optional[str] = None
-        last_totals_hash: Optional[int] = None
+        running_batches = 0
         while True:
-            payload = _load_dashboard(
-                refresh_files=refresh_files,
-                enrich_bronze=enrich_bronze,
-                enrich_bronze_only_running=True,
-            )
-            totals = payload.get("totals") or {}
-            totals_hash = hash(json.dumps(totals, sort_keys=True, default=str))
-
             try:
                 from scripts.datasources.youtube.batch_job_db import (
                     latest_dashboard_revision,
@@ -168,13 +173,30 @@ async def stream_batch_jobs(
             except Exception:
                 rev = None
 
-            if rev != last_rev or totals_hash != last_totals_hash:
-                yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+            if last_rev is None or rev != last_rev:
+                summary = _load_dashboard(
+                    refresh_files=False,
+                    enrich_bronze=False,
+                    detail="summary",
+                )
+                yield (
+                    "event: summary\n"
+                    f"data: {json.dumps(summary, ensure_ascii=False)}\n\n"
+                )
+                payload = _load_dashboard(
+                    refresh_files=refresh_files,
+                    enrich_bronze=enrich_bronze,
+                    detail="standard",
+                )
+                yield (
+                    "event: dashboard\n"
+                    f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+                )
+                totals = payload.get("totals") or {}
+                running_batches = int(totals.get("running") or 0)
                 last_rev = rev
-                last_totals_hash = totals_hash
 
-            running = int(totals.get("running") or 0) > 0
-            await asyncio.sleep(1.0 if running else 3.0)
+            await asyncio.sleep(1.0 if running_batches > 0 else 3.0)
 
     return StreamingResponse(
         event_generator(),
@@ -198,11 +220,23 @@ async def list_batch_jobs(
         False,
         description="Refresh transcript metrics from bronze (slow; stream uses lighter enrich)",
     ),
+    detail: str = Query(
+        "standard",
+        description="summary = totals + batch list only; standard = jurisdictions without most videos; full = all video rows",
+    ),
+    batch_limit: int = Query(25, ge=1, le=100),
 ) -> BatchJobsDashboardResponse:
+    if detail not in ("summary", "standard", "full"):
+        raise HTTPException(
+            status_code=400,
+            detail="detail must be summary, standard, or full",
+        )
     try:
         payload = _load_dashboard(
             refresh_files=refresh_files,
             enrich_bronze=enrich_bronze,
+            detail=detail,
+            batch_limit=batch_limit,
         )
         return BatchJobsDashboardResponse(**payload)
     except Exception as exc:
@@ -217,7 +251,11 @@ async def list_batch_jobs(
 async def get_batch_job(
     batch_id: str,
     refresh_files: bool = Query(False),
-    enrich_bronze: bool = Query(True),
+    enrich_bronze: bool = Query(False),
+    include_videos: str = Query(
+        "all",
+        description="all | failed_only | none — per-video rows for drill-down",
+    ),
 ) -> BatchJobModel:
     from scripts.datasources.youtube.batch_job_db import (
         enrich_jobs_from_bronze,
@@ -265,4 +303,17 @@ async def get_batch_job(
                 state_code=j.state_code,
                 jurisdiction_id=j.jurisdiction_id,
             )
-    return BatchJobModel(**job.to_dict())
+    d = job.to_dict()
+    if include_videos in ("none", "failed_only", "running"):
+        from scripts.datasources.youtube.batch_job_dashboard import (
+            slim_batch_dict,
+        )
+
+        mode = include_videos if include_videos != "running" else "running"
+        d = slim_batch_dict(d, video_mode=mode)  # type: ignore[arg-type]
+    elif include_videos != "all":
+        raise HTTPException(
+            status_code=400,
+            detail="include_videos must be all, failed_only, none, or running",
+        )
+    return BatchJobModel(**d)
