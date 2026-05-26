@@ -111,6 +111,17 @@ export async function fetchBatchJobsDashboard(
   return res.data
 }
 
+export async function fetchBatchJurisdictions(
+  batchId: string,
+  stateCode: string,
+): Promise<BatchJurisdictionRun[]> {
+  const res = await api.get<{ jurisdictions: BatchJurisdictionRun[] }>(
+    `/batch-jobs/${encodeURIComponent(batchId)}/jurisdictions`,
+    { params: { state: stateCode.toUpperCase() } },
+  )
+  return res.data.jurisdictions ?? []
+}
+
 export async function fetchBatchJobDetail(
   batchId: string,
   includeVideos: 'all' | 'failed_only' | 'none' | 'running' = 'all',
@@ -119,6 +130,14 @@ export async function fetchBatchJobDetail(
     params: { enrich_bronze: false, include_videos: includeVideos },
   })
   return res.data
+}
+
+/** Attach on-demand jurisdiction rows to a summary-only batch row. */
+export function mergeBatchJurisdictions(
+  batch: BatchJob,
+  jurisdictions: BatchJurisdictionRun[],
+): BatchJob {
+  return { ...batch, jurisdictions }
 }
 
 /** Merge jurisdiction rows (and videos) from a detail fetch into cached dashboard data. */

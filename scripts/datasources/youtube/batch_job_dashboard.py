@@ -177,14 +177,26 @@ def build_dashboard_summary(*, limit: int = 30) -> Dict[str, Any]:
     )
     batches: List[Dict[str, Any]] = []
     source = "files"
+    sql_totals: Dict[str, Any] | None = None
 
     if use_db:
         try:
-            from scripts.datasources.youtube.batch_job_db import list_batch_job_meta_from_db
+            from scripts.datasources.youtube.batch_job_db import (
+                aggregate_dashboard_totals_from_db,
+                list_batch_job_meta_from_db,
+                running_batch_activity_from_db,
+            )
 
             batches = list_batch_job_meta_from_db(limit=limit)
             if batches:
                 source = "database"
+                sql_totals = aggregate_dashboard_totals_from_db(limit=limit)
+                running = running_batch_activity_from_db()
+                if running:
+                    for b in batches:
+                        if b.get("batch_id") == running.get("batch_id"):
+                            b["jurisdictions"] = running.get("jurisdictions") or []
+                            break
         except Exception:
             batches = []
 
@@ -207,15 +219,94 @@ def build_dashboard_summary(*, limit: int = 30) -> Dict[str, Any]:
         source = "files"
 
     totals = _totals_from_batch_summaries(batches)
+    if sql_totals:
+        totals.update(
+            {
+                k: sql_totals[k]
+                for k in (
+                    "batches",
+                    "running",
+                    "processed_jurisdictions",
+                    "failed_jurisdictions",
+                    "remaining_jurisdictions",
+                    "videos_ok",
+                    "videos_fail",
+                    "files_transcripts",
+                    "files_transcripts_disk",
+                    "bronze_download_rows",
+                    "files_analysis",
+                    "files_reports",
+                    "transcript_hours",
+                )
+                if k in sql_totals
+            }
+        )
+        if sql_totals.get("last_activity_at"):
+            last_activity = sql_totals["last_activity_at"]
+        else:
+            last_activity = _last_activity_from_batch_rows(batches)
+    else:
+        last_activity = _last_activity_from_batch_rows(batches)
     now = _dt.datetime.now(_dt.timezone.utc)
     return {
         "generated_at": now.isoformat(),
-        "last_activity_at": _last_activity_from_batch_rows(batches),
+        "last_activity_at": last_activity,
         "totals": totals,
         "batches": batches,
         "source": source,
         "detail": "summary",
     }
+
+
+def build_batch_state_jurisdictions(*, batch_id: str, state_code: str) -> List[Dict[str, Any]]:
+    """
+    Slim jurisdiction rows for one state (no per-video arrays).
+
+    Uses JSONB extraction for finished batches; single-state plan merge for running.
+    """
+    from scripts.datasources.youtube.batch_job_db import (
+        list_jurisdiction_rows_from_db,
+        load_batch_job_from_db,
+    )
+    from scripts.datasources.youtube.batch_job_status import (
+        apply_batch_lifecycle,
+        expand_batch_job_plan,
+        fetch_batch_plan_jurisdictions_cached,
+        needs_plan_expand,
+    )
+
+    st = (state_code or "").strip().upper()
+    if not st:
+        return []
+
+    job = load_batch_job_from_db(batch_id)
+    if not job:
+        return []
+
+    status = (job.status or "").lower()
+    if status == "running" and needs_plan_expand(job):
+        rr = job.config.get("round_robin") if job.config else None
+        if rr is None:
+            rr = True
+        plan = fetch_batch_plan_jurisdictions_cached([st], round_robin=bool(rr))
+        expand_batch_job_plan(job, plan=plan)
+        apply_batch_lifecycle(job)
+        return [
+            slim_jurisdiction_videos(j.to_dict(), video_mode="none")
+            for j in job.jurisdictions
+            if (j.state_code or "").upper() == st
+        ]
+
+    rows = list_jurisdiction_rows_from_db(batch_id, st)
+    if rows:
+        return rows
+
+    apply_batch_lifecycle(job)
+    return [
+        slim_jurisdiction_videos(j.to_dict(), video_mode="none")
+        for j in job.jurisdictions
+        if (j.state_code or "").upper() == st
+    ]
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(_REPO_ROOT) not in sys.path:

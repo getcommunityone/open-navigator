@@ -5,8 +5,10 @@ import {
   batchJobsStreamUrl,
   batchJobsFetchErrorMessage,
   fetchBatchJobDetail,
+  fetchBatchJurisdictions,
   fetchBatchJobsDashboard,
   mergeBatchIntoDashboard,
+  mergeBatchJurisdictions,
   type BatchJob,
   type BatchJurisdictionRun,
   type BatchJobsDashboardPayload,
@@ -807,7 +809,6 @@ export default function BatchJobStatusPage() {
   const showFailedVideos = searchParams.get('view') === 'failed-videos'
   const queryClient = useQueryClient()
   const [streamLive, setStreamLive] = useState(false)
-  const [jurisdictionsLoading, setJurisdictionsLoading] = useState(true)
   const [videosLoading, setVideosLoading] = useState(false)
 
   const { data, isPending, isFetching, isError, error, refetch } = useQuery({
@@ -826,9 +827,6 @@ export default function BatchJobStatusPage() {
       queryClient.setQueryData(['batch-jobs-dashboard'], (prev) =>
         mergeDashboardFromStream(prev, payload),
       )
-      if (payload.detail !== 'summary') {
-        setJurisdictionsLoading(false)
-      }
     }
 
     es.onopen = () => setStreamLive(true)
@@ -839,34 +837,19 @@ export default function BatchJobStatusPage() {
         /* ignore */
       }
     })
-    es.addEventListener('dashboard', (ev) => {
-      try {
-        applyPayload(JSON.parse(ev.data) as BatchJobsDashboardPayload)
-      } catch {
-        /* ignore */
-      }
-    })
     es.onerror = () => {
       setStreamLive(false)
       es.close()
-      void fetchBatchJobsDashboard(false, 'standard')
-        .then((payload) => {
-          applyPayload(payload)
-        })
-        .catch(() => {})
+      void refetch()
     }
 
     return () => {
       setStreamLive(false)
       es.close()
     }
-  }, [queryClient])
+  }, [queryClient, refetch])
 
-  const detailsReady = useMemo(() => {
-    if (!data || data.detail === 'summary') return false
-    const b = data.batches.find((x) => x.batch_id === batchId) ?? data.batches[0]
-    return !b || (b.jurisdictions?.length ?? 0) > 0
-  }, [data, batchId])
+  const detailsReady = !!data
 
   const selectedBatch = useMemo(() => {
     if (!data?.batches?.length) return null
@@ -935,13 +918,13 @@ export default function BatchJobStatusPage() {
 
   const planStateCodes = useMemo(() => {
     if (!selectedBatch) return [] as string[]
-    const fromRows = jurisdictionStateCodes(selectedBatch.jurisdictions)
     const fromCfg = Array.isArray(selectedBatch.config?.states)
       ? (selectedBatch.config.states as string[])
           .map((s) => String(s).toUpperCase().trim())
           .filter(Boolean)
       : []
-    return [...new Set([...fromCfg, ...fromRows])].sort()
+    if (fromCfg.length) return [...new Set(fromCfg)].sort()
+    return jurisdictionStateCodes(selectedBatch.jurisdictions)
   }, [selectedBatch])
 
   const effectiveStateFilter = useMemo(() => {
@@ -950,12 +933,34 @@ export default function BatchJobStatusPage() {
   }, [selectedBatch, stateFilter, planStateCodes])
 
   const visibleJurisdictions = useMemo(() => {
-    if (!selectedBatch || !effectiveStateFilter) return []
+    if (!selectedBatchForPanel || !effectiveStateFilter) return []
     return filterJurisdictionsByState(
-      sortJurisdictions(selectedBatch.jurisdictions),
+      sortJurisdictions(selectedBatchForPanel.jurisdictions),
       effectiveStateFilter,
     )
-  }, [selectedBatch, effectiveStateFilter])
+  }, [selectedBatchForPanel, effectiveStateFilter])
+
+  const {
+    data: stateJurisdictions,
+    isFetching: stateJurisdictionsFetching,
+  } = useQuery({
+    queryKey: ['batch-jurisdictions', selectedBatch?.batch_id, effectiveStateFilter],
+    queryFn: () =>
+      fetchBatchJurisdictions(selectedBatch!.batch_id, effectiveStateFilter),
+    enabled: !!selectedBatch?.batch_id && !!effectiveStateFilter,
+    staleTime: 15_000,
+  })
+
+  const selectedBatchForPanel = useMemo(() => {
+    if (!selectedBatch) return null
+    if (!effectiveStateFilter) return selectedBatch
+    const base =
+      (selectedBatch.jurisdictions?.length ?? 0) > 0 &&
+      !stateJurisdictions?.length
+        ? selectedBatch
+        : mergeBatchJurisdictions(selectedBatch, stateJurisdictions ?? [])
+    return base
+  }, [selectedBatch, effectiveStateFilter, stateJurisdictions])
 
   const effectiveJurisdictionId = useMemo(() => {
     if (!jurisdictionId || !selectedBatch) return null
@@ -1052,7 +1057,10 @@ export default function BatchJobStatusPage() {
   const lastActivityIso = useMemo(() => {
     const fromApi = data?.last_activity_at?.trim()
     if (fromApi) return fromApi
-    return latestDashboardActivityIso(data?.batches ?? [])
+    const fromBatches = latestDashboardActivityIso(data?.batches ?? [])
+    if (fromBatches) return fromBatches
+    const running = data?.batches?.find((b) => b.status === 'running')
+    return running?.updated_at?.trim() || null
   }, [data?.last_activity_at, data?.batches])
   const [agoClockMs, setAgoClockMs] = useState(() => Date.now())
   useEffect(() => {
@@ -1102,12 +1110,8 @@ export default function BatchJobStatusPage() {
         </div>
       )}
 
-      {isFetching && data && !detailsReady && (
-        <p className="text-xs text-slate-500">Loading jurisdiction list…</p>
-      )}
-
-      {isFetching && data && detailsReady && (
-        <p className="text-xs text-slate-500">Refreshing batch metrics…</p>
+      {isFetching && data && (
+        <p className="text-xs text-slate-500">Refreshing batch summary…</p>
       )}
 
       {isError && (

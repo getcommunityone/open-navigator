@@ -218,7 +218,7 @@ def aggregate_dashboard_totals_from_db(*, limit: int = 30) -> Dict[str, Any]:
         "files_analysis": int(row.get("files_analysis") or 0),
         "files_reports": int(row.get("files_reports") or 0),
     }
-  last_updated = row.get("last_updated")
+    last_updated = row.get("last_updated")
     totals["last_activity_at"] = (
         last_updated.isoformat() if last_updated is not None else ""
     )

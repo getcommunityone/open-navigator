@@ -183,16 +183,7 @@ async def stream_batch_jobs(
                     "event: summary\n"
                     f"data: {json.dumps(summary, ensure_ascii=False)}\n\n"
                 )
-                payload = _load_dashboard(
-                    refresh_files=refresh_files,
-                    enrich_bronze=enrich_bronze,
-                    detail="standard",
-                )
-                yield (
-                    "event: dashboard\n"
-                    f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
-                )
-                totals = payload.get("totals") or {}
+                totals = summary.get("totals") or {}
                 running_batches = int(totals.get("running") or 0)
                 last_rev = rev
 
@@ -221,8 +212,8 @@ async def list_batch_jobs(
         description="Refresh transcript metrics from bronze (slow; stream uses lighter enrich)",
     ),
     detail: str = Query(
-        "standard",
-        description="summary = totals + batch list only; standard = jurisdictions without most videos; full = all video rows",
+        "summary",
+        description="summary = aggregates + batch list (default); standard/full load jurisdiction payloads (slow)",
     ),
     batch_limit: int = Query(25, ge=1, le=100),
 ) -> BatchJobsDashboardResponse:
@@ -247,6 +238,45 @@ async def list_batch_jobs(
         ) from exc
 
 
+class BatchJurisdictionsResponse(BaseModel):
+    batch_id: str
+    state_code: str
+    jurisdictions: List[JurisdictionRunModel] = Field(default_factory=list)
+
+
+@router.get("/{batch_id}/jurisdictions", response_model=BatchJurisdictionsResponse)
+async def list_batch_jurisdictions(
+    batch_id: str,
+    state: str = Query(..., min_length=2, max_length=2, description="USPS state code"),
+) -> BatchJurisdictionsResponse:
+    """Slim jurisdiction rows for one state (loaded on demand; no per-video arrays)."""
+    from scripts.datasources.youtube.batch_job_dashboard import (
+        build_batch_state_jurisdictions,
+    )
+
+    st = state.strip().upper()
+    try:
+        rows = build_batch_state_jurisdictions(batch_id=batch_id, state_code=st)
+    except Exception as exc:
+        logger.exception("batch jurisdictions failed for %s %s", batch_id, st)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Batch jurisdictions failed: {exc}",
+        ) from exc
+    if not rows:
+        from scripts.datasources.youtube.batch_job_db import load_batch_job_from_db
+
+        if load_batch_job_from_db(batch_id) is None:
+            raise HTTPException(status_code=404, detail=f"Batch not found: {batch_id}")
+    payload = _sanitize_dashboard_payload({"batches": [{"jurisdictions": rows}]})
+    jurs = payload.get("batches", [{}])[0].get("jurisdictions") or []
+    return BatchJurisdictionsResponse(
+        batch_id=batch_id,
+        state_code=st,
+        jurisdictions=[JurisdictionRunModel(**j) for j in jurs],
+    )
+
+
 @router.get("/{batch_id}", response_model=BatchJobModel)
 async def get_batch_job(
     batch_id: str,
@@ -264,13 +294,6 @@ async def get_batch_job(
 
     job = load_batch_job_from_db(batch_id)
     if job is None:
-        payload = _load_dashboard(
-            refresh_files=refresh_files,
-            enrich_bronze=enrich_bronze,
-        )
-        for batch in payload.get("batches") or []:
-            if batch.get("batch_id") == batch_id:
-                return BatchJobModel(**batch)
         from scripts.datasources.youtube.batch_job_status import BatchJobStore
 
         try:
@@ -282,10 +305,10 @@ async def get_batch_job(
 
     from scripts.datasources.youtube.batch_job_status import (
         _recompute_summary,
-        expand_batch_job_plan,
+        apply_batch_lifecycle,
     )
 
-    expand_batch_job_plan(job)
+    apply_batch_lifecycle(job)
     _recompute_summary(job)
     if enrich_bronze:
         enrich_jobs_from_bronze([job])
