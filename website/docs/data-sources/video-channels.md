@@ -609,4 +609,4 @@ async def process_batch(cities, batch_size=50):
 - ✅ Full roadmap for 1,000+ city coverage
 
 **Impact:**
-Going from 6 cities with video URLs to **3,000-5,000 cities with YouTube channels** will dramatically increase the reach of the Oral Health Policy Pulse system!
+Going from 6 cities with video URLs to **3,000-5,000 cities with YouTube channels** will dramatically increase the reach of the CommunityOne Open Navigatory system!

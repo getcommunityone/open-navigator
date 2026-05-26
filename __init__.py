@@ -1,4 +1,4 @@
-"""Oral Health Policy Pulse - Multi-Agent Policy Analysis System"""
+"""CommunityOne Open Navigatory - Multi-Agent Policy Analysis System"""
 
 __version__ = "1.0.0"
 __author__ = "Community One"

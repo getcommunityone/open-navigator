@@ -2,7 +2,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                     ORAL HEALTH POLICY PULSE                            │
+│                     CommunityOne Open Navigatory                            │
 │              Integrated Patterns from 11 Civic Tech Projects            │
 └─────────────────────────────────────────────────────────────────────────┘
 

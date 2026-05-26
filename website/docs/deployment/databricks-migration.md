@@ -264,7 +264,7 @@ For existing users:
 
 ## Summary
 
-This refactoring transforms the Oral Health Policy Pulse from a standalone multi-agent system into a **production-ready, enterprise-grade application** that leverages Databricks' full stack for AI governance, deployment, and monitoring. The system now has:
+This refactoring transforms the CommunityOne Open Navigatory from a standalone multi-agent system into a **production-ready, enterprise-grade application** that leverages Databricks' full stack for AI governance, deployment, and monitoring. The system now has:
 
 - 🏢 **Enterprise deployment** via Model Serving
 - 📊 **Automatic observability** with MLflow tracing

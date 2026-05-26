@@ -39,7 +39,6 @@ export function formatAgoCompact(
   const d = parseApiDateTime(value)
   if (!d) return '—'
   const sec = Math.max(0, Math.floor((nowMs - d.getTime()) / 1000))
-  if (sec < 45) return 'just now'
   const m = Math.floor(sec / 60)
   if (m < 60) return `${m}m ago`
   const h = Math.floor(m / 60)

@@ -274,7 +274,7 @@ This dataset contains comprehensive data about oral health policy discussions in
 
 ## Dataset Description
 
-- **Curated by:** Oral Health Policy Pulse Project
+- **Curated by:** CommunityOne Open Navigatory Project
 - **Language(s):** English
 - **License:** CC0 (Public Domain)
 
@@ -368,7 +368,7 @@ If you use this dataset in your research, please cite:
 
 ```
 @dataset{{oral_health_policy_data,
-  author = {{Oral Health Policy Pulse Project}},
+  author = {{CommunityOne Open Navigatory Project}},
   title = {{Oral Health Policy Data}},
   year = {{2026}},
   publisher = {{Hugging Face}},

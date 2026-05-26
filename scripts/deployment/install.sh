@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-echo "🦷 Oral Health Policy Pulse - Installation Script"
+echo "🦷 CommunityOne Open Navigatory - Installation Script"
 echo "=================================================="
 echo ""
 

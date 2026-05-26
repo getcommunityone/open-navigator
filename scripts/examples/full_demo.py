@@ -376,7 +376,7 @@ def demo_integration_summary():
 def main():
     """Run all demos."""
     print("\n" + "🦷" * 40)
-    print("  ORAL HEALTH POLICY PULSE")
+    print("  CommunityOne Open Navigatory")
     print("  Full Integration Demo: AI + Alerts + Scale")
     print("🦷" * 40)
     

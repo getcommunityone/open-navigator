@@ -1,5 +1,5 @@
 """
-FastAPI application for the Oral Health Policy Pulse system.
+FastAPI application for the CommunityOne Open Navigatory system.
 
 Provides REST API endpoints for:
 - Initiating policy analysis workflows
@@ -1396,7 +1396,7 @@ async def startup_event():
 @app.on_event("shutdown")
 async def shutdown_event():
     """Cleanup on shutdown."""
-    logger.info("Shutting down Oral Health Policy Pulse API")
+    logger.info("Shutting down CommunityOne Open Navigatory API")
 
 
 if __name__ == "__main__":

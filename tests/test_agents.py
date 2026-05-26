@@ -1,5 +1,5 @@
 """
-Test suite for the Oral Health Policy Pulse system.
+Test suite for the CommunityOne Open Navigatory system.
 """
 import pytest
 from agents.base import AgentRole, MessageType, AgentStatus

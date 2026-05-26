@@ -203,7 +203,7 @@ if __name__ == "__main__":
     from datetime import datetime
     from models.meeting_event import Location
     
-    print("🦷 Oral Health Policy Pulse - Platform Integration Demo")
+    print("🦷 CommunityOne Open Navigatory - Platform Integration Demo")
     print("=" * 80)
     
     # Run async demos

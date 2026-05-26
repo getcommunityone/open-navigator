@@ -1,6 +1,6 @@
-# Contributing to Oral Health Policy Pulse
+# Contributing to CommunityOne Open Navigatory
 
-Thank you for your interest in contributing to the Oral Health Policy Pulse project!!
+Thank you for your interest in contributing to the CommunityOne Open Navigatory project!!
  
 ## How to Contribute
 

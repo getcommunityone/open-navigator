@@ -94,22 +94,16 @@ def last_batch_activity_at(job: BatchJob) -> datetime:
 
 
 def latest_dashboard_activity_at(jobs: List[BatchJob]) -> str:
-    """Latest real activity across batches (for dashboard ``last_activity_at``)."""
+    """Latest jurisdiction/video progress across batches (not API ``generated_at``)."""
     best: Optional[datetime] = None
     for job in jobs:
-        for iso in (job.updated_at, job.started_at, job.finished_at):
-            dt = _parse_utc_iso(iso or "")
-            if dt and (best is None or dt > best):
-                best = dt
         try:
             dt = last_batch_activity_at(job)
             if dt.year > 1971 and (best is None or dt > best):
                 best = dt
         except Exception:
             pass
-    if best is not None and best.year > 1971:
-        return best.isoformat()
-    return _utc_now_iso()
+    return best.isoformat() if best is not None and best.year > 1971 else ""
 
 
 def state_progress_for_job(job: BatchJob) -> Dict[str, Any]:

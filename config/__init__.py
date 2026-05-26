@@ -1,4 +1,4 @@
-"""Configuration module for Oral Health Policy Pulse."""
+"""Configuration module for CommunityOne Open Navigatory."""
 from config.settings import settings
 
 __all__ = ["settings"]

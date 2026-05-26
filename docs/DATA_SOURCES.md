@@ -1,6 +1,6 @@
 # Official Data Sources for Jurisdiction Discovery
 
-This document credits the **official, free, public datasets** used by the Oral Health Policy Pulse jurisdiction discovery system.
+This document credits the **official, free, public datasets** used by the CommunityOne Open Navigatory jurisdiction discovery system.
 
 ---
 

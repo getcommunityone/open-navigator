@@ -24,6 +24,7 @@ import {
   remainingVideosForRunningBatches,
   resolveRunningFileClock,
   jurisdictionLastUpdatedIso,
+  latestDashboardActivityIso,
   remainingVideosForBatch,
   sortJurisdictions,
   useTickingSeconds,
@@ -927,10 +928,14 @@ export default function BatchJobStatusPage() {
     return 'All batches'
   }, [effectiveJurisdictionId, selectedBatch])
 
-  const lastActivityIso = data?.last_activity_at ?? data?.generated_at ?? null
+  const lastActivityIso = useMemo(() => {
+    const fromApi = data?.last_activity_at?.trim()
+    if (fromApi) return fromApi
+    return latestDashboardActivityIso(data?.batches ?? [])
+  }, [data?.last_activity_at, data?.batches])
   const [agoClockMs, setAgoClockMs] = useState(() => Date.now())
   useEffect(() => {
-    const id = window.setInterval(() => setAgoClockMs(Date.now()), 30_000)
+    const id = window.setInterval(() => setAgoClockMs(Date.now()), 10_000)
     return () => window.clearInterval(id)
   }, [])
   const lastUpdateAgo = useMemo(
@@ -965,12 +970,6 @@ export default function BatchJobStatusPage() {
             <span className="ml-2 inline-flex items-center gap-1 text-emerald-700">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
               connected
-            </span>
-          )}
-          {lastUpdateAgo && (
-            <span className="ml-2 text-slate-500" title={lastUpdateAbsolute?.title}>
-              Last update · {lastUpdateAgo}
-              {data?.source === 'database' ? ' · database' : ''}
             </span>
           )}
         </p>
@@ -1011,6 +1010,17 @@ export default function BatchJobStatusPage() {
       {data && (
         <>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+            {lastActivityIso && lastUpdateAgo ? (
+              <SummaryCard
+                label="Last update"
+                value={lastUpdateAgo}
+                title={
+                  lastUpdateAbsolute?.title
+                    ? `${lastUpdateAbsolute.title}${data.source === 'database' ? ' · pipeline progress from database' : ''}`
+                    : undefined
+                }
+              />
+            ) : null}
             <SummaryCard
               label="Batches"
               value={formatCompactNumber(data.totals.batches)}

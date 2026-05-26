@@ -1,5 +1,5 @@
 """
-Configuration settings for the Oral Health Policy Pulse system.
+Configuration settings for the CommunityOne Open Navigatory system.
 """
 from pathlib import Path
 from typing import List, Optional

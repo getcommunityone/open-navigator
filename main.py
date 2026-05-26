@@ -1,5 +1,5 @@
 """
-Main entry point for running the Oral Health Policy Pulse system.
+Main entry point for running the CommunityOne Open Navigatory system.
 """
 import asyncio
 import sys
@@ -40,7 +40,7 @@ logger.add(
 
 @click.group()
 def cli():
-    """Oral Health Policy Pulse - Multi-agent policy analysis system."""
+    """CommunityOne Open Navigatory - Multi-agent policy analysis system."""
     pass
 
 
@@ -196,7 +196,7 @@ def generate_heatmap(output: str, urgency: Optional[str]):
 @cli.command()
 def init():
     """Initialize the system (create database tables, etc.)."""
-    logger.info("Initializing Oral Health Policy Pulse system")
+    logger.info("Initializing CommunityOne Open Navigatory system")
     
     try:
         pipeline = DeltaLakePipeline()

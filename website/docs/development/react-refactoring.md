@@ -6,7 +6,7 @@ sidebar_position: 13
 
 ## Executive Summary
 
-The Oral Health Policy Pulse has been **completely refactored** from a CLI-based multi-agent system into a **modern full-stack web application** that deploys as a **Databricks App**.
+The CommunityOne Open Navigatory has been **completely refactored** from a CLI-based multi-agent system into a **modern full-stack web application** that deploys as a **Databricks App**.
 
 ### What Changed
 
@@ -539,7 +539,7 @@ docker run -p 8000:8000 \
 
 ## Conclusion
 
-The **React + FastAPI refactoring** transforms Oral Health Policy Pulse from a developer-focused CLI tool into an **enterprise-ready web application** that can be:
+The **React + FastAPI refactoring** transforms CommunityOne Open Navigatory from a developer-focused CLI tool into an **enterprise-ready web application** that can be:
 
 ✅ **Deployed instantly** to Databricks Apps  
 ✅ **Used by non-technical users** via web browser  

@@ -1,8 +1,8 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # Oral Health Policy Pulse - Example Analysis
+# MAGIC # CommunityOne Open Navigatory - Example Analysis
 # MAGIC 
-# MAGIC This notebook demonstrates how to use the Oral Health Policy Pulse system
+# MAGIC This notebook demonstrates how to use the CommunityOne Open Navigatory system
 # MAGIC to analyze local government meeting minutes and identify advocacy opportunities.
 
 # COMMAND ----------

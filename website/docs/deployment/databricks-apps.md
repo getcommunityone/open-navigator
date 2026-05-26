@@ -6,7 +6,7 @@ sidebar_position: 1
 
 ## Overview
 
-The Oral Health Policy Pulse application has been refactored as a **React + FastAPI Databricks App**, providing:
+The CommunityOne Open Navigatory application has been refactored as a **React + FastAPI Databricks App**, providing:
 
 - 🎨 **Modern React UI** with TypeScript, Tailwind CSS, and interactive visualizations
 - ⚡ **FastAPI Backend** serving both API and static frontend

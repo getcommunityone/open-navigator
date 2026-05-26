@@ -1,4 +1,4 @@
-"""Setup configuration for Oral Health Policy Pulse."""
+"""Setup configuration for CommunityOne Open Navigatory."""
 from setuptools import setup, find_packages
 from pathlib import Path
 

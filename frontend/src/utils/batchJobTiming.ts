@@ -41,6 +41,32 @@ export function jurisdictionLastUpdatedIso(j: BatchJurisdictionRun): string | nu
   return best
 }
 
+/** Latest progress timestamp across all batches (ignores batch ``updated_at`` metadata). */
+export function latestDashboardActivityIso(batches: BatchJob[]): string | null {
+  let bestMs = 0
+  let best: string | null = null
+  for (const batch of batches) {
+    for (const j of batch.jurisdictions || []) {
+      const iso = jurisdictionLastUpdatedIso(j)
+      const d = parseApiDateTime(iso)
+      if (d && d.getTime() >= bestMs) {
+        bestMs = d.getTime()
+        best = iso
+      }
+    }
+    for (const iso of [batch.started_at, batch.finished_at]) {
+      const trimmed = iso?.trim()
+      if (!trimmed) continue
+      const d = parseApiDateTime(trimmed)
+      if (d && d.getTime() >= bestMs) {
+        bestMs = d.getTime()
+        best = trimmed
+      }
+    }
+  }
+  return best
+}
+
 export function jurisdictionStateCodes(jurisdictions: BatchJurisdictionRun[]): string[] {
   const codes = new Set<string>()
   for (const j of jurisdictions) {
