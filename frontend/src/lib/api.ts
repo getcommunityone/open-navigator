@@ -112,7 +112,10 @@ class APIClient {
     }
   }
 
-  async get<T = any>(url: string, config?: { params?: Record<string, any> }): Promise<APIResponse<T>> {
+  async get<T = any>(
+    url: string,
+    config?: { params?: Record<string, any>; signal?: AbortSignal },
+  ): Promise<APIResponse<T>> {
     // Build query string
     let fullUrl = url
     if (config?.params) {
@@ -128,7 +131,7 @@ class APIClient {
       }
     }
 
-    return this.request<T>(fullUrl, { method: 'GET' })
+    return this.request<T>(fullUrl, { method: 'GET', signal: config?.signal })
   }
 
   async post<T = any>(url: string, data?: any): Promise<APIResponse<T>> {

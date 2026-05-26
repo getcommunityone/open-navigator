@@ -7,6 +7,7 @@ import {
   fetchBatchJobDetail,
   fetchBatchJurisdictions,
   fetchBatchJobsDashboard,
+  fetchFailedVideos,
   mergeBatchIntoDashboard,
   mergeBatchJurisdictions,
   type BatchJob,
@@ -251,11 +252,13 @@ function ProgressBar({ pct }: { pct: number }) {
 function FailedVideosPanel({
   rows,
   scopeLabel,
+  subtitle,
   onClose,
   onSelectJurisdiction,
 }: {
   rows: FailedVideoRow[]
   scopeLabel: string
+  subtitle?: string
   onClose: () => void
   onSelectJurisdiction?: (batchId: string, jurisdictionId: string) => void
 }) {
@@ -266,6 +269,7 @@ function FailedVideosPanel({
           <h3 className="text-sm font-semibold text-red-900">Failed videos</h3>
           <p className="text-xs text-red-800/80">
             {scopeLabel} · {rows.length} video{rows.length === 1 ? '' : 's'}
+            {subtitle ? ` · ${subtitle}` : ''}
           </p>
         </div>
         <button
@@ -403,7 +407,9 @@ function JurisdictionTable({
             <th className="px-3 py-2 font-medium">Videos</th>
             <th className="px-3 py-2 font-medium">Files</th>
             <th className="px-3 py-2 font-medium">Time</th>
-            <th className="px-3 py-2 font-medium">Updated</th>
+            <th className="px-3 py-2 font-medium" title="When this jurisdiction was last checked in the batch run">
+              Last checked
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -441,7 +447,12 @@ function JurisdictionTable({
                   {j.status === 'pending' ? (
                     <span className="text-slate-400">—</span>
                   ) : Number(st.noop) > 0 ? (
-                    <span className="text-slate-500">nothing to do</span>
+                    <span
+                      className="text-slate-500"
+                      title="Backfill ran; no videos needed download (already in bronze or on disk)"
+                    >
+                      all cached
+                    </span>
                   ) : (
                     <>
                       ok {st.ok ?? 0} ·{' '}
@@ -464,9 +475,22 @@ function JurisdictionTable({
                     </>
                   )}
                 </td>
-                <td className="px-3 py-2 text-xs text-slate-600">
-                  disk T {fc.transcripts_disk ?? fc.transcripts ?? 0} · A{' '}
-                  {fc.analysis_disk ?? fc.analysis ?? 0} · R {fc.reports_disk ?? fc.reports ?? 0}
+                <td
+                  className="px-3 py-2 text-xs text-slate-600"
+                  title="Transcript / analysis / report files under policy cache for this place"
+                >
+                  {Number(st.noop) > 0 &&
+                  !(fc.transcripts_disk ?? fc.transcripts) &&
+                  !(fc.analysis_disk ?? fc.analysis) &&
+                  !(fc.reports_disk ?? fc.reports) ? (
+                    <span className="text-slate-400">—</span>
+                  ) : (
+                    <>
+                      disk T {fc.transcripts_disk ?? fc.transcripts ?? 0} · A{' '}
+                      {fc.analysis_disk ?? fc.analysis ?? 0} · R{' '}
+                      {fc.reports_disk ?? fc.reports ?? 0}
+                    </>
+                  )}
                 </td>
                 <td className="px-3 py-2 text-xs tabular-nums text-slate-600">
                   {formatDuration(j.elapsed_seconds)}
@@ -629,11 +653,11 @@ function BatchDetailPanel({
   const batchRemainingVideos = useMemo(() => remainingVideosForBatch(batch), [batch])
 
   const stateCodes = useMemo(() => {
-    const fromRows = jurisdictionStateCodes(batch.jurisdictions)
     const fromCfg = Array.isArray(cfg.states)
       ? (cfg.states as string[]).map((s) => String(s).toUpperCase().trim()).filter(Boolean)
       : []
-    return [...new Set([...fromCfg, ...fromRows])].sort()
+    if (fromCfg.length) return [...new Set(fromCfg)].sort()
+    return jurisdictionStateCodes(batch.jurisdictions)
   }, [batch.jurisdictions, cfg.states])
   const sortedJurisdictions = useMemo(
     () => sortJurisdictions(batch.jurisdictions),
@@ -807,6 +831,7 @@ export default function BatchJobStatusPage() {
   const jurisdictionId = searchParams.get('jurisdiction') ?? ''
   const stateFilter = (searchParams.get('state') ?? '').toUpperCase()
   const showFailedVideos = searchParams.get('view') === 'failed-videos'
+  const failedVideosScopeAll = searchParams.get('failed_scope') === 'all'
   const queryClient = useQueryClient()
   const [streamLive, setStreamLive] = useState(false)
   const [videosLoading, setVideosLoading] = useState(false)
@@ -904,13 +929,22 @@ export default function BatchJobStatusPage() {
   )
 
   const setShowFailedVideos = useCallback(
-    (open: boolean, opts?: { batchId?: string; jurisdictionId?: string }) => {
+    (
+      open: boolean,
+      opts?: { batchId?: string; jurisdictionId?: string; allBatches?: boolean },
+    ) => {
       const next = new URLSearchParams(searchParams)
       if (opts?.batchId) next.set('batch', opts.batchId)
       if (opts?.jurisdictionId) next.set('jurisdiction', opts.jurisdictionId)
       else if (!open) next.delete('jurisdiction')
-      if (open) next.set('view', 'failed-videos')
-      else next.delete('view')
+      if (open) {
+        next.set('view', 'failed-videos')
+        if (opts?.allBatches) next.set('failed_scope', 'all')
+        else next.delete('failed_scope')
+      } else {
+        next.delete('view')
+        next.delete('failed_scope')
+      }
       setSearchParams(next, { replace: true })
     },
     [searchParams, setSearchParams],
@@ -932,14 +966,6 @@ export default function BatchJobStatusPage() {
     return planStateCodes.includes(stateFilter) ? stateFilter : ''
   }, [selectedBatch, stateFilter, planStateCodes])
 
-  const visibleJurisdictions = useMemo(() => {
-    if (!selectedBatchForPanel || !effectiveStateFilter) return []
-    return filterJurisdictionsByState(
-      sortJurisdictions(selectedBatchForPanel.jurisdictions),
-      effectiveStateFilter,
-    )
-  }, [selectedBatchForPanel, effectiveStateFilter])
-
   const {
     data: stateJurisdictions,
     isFetching: stateJurisdictionsFetching,
@@ -954,47 +980,56 @@ export default function BatchJobStatusPage() {
   const selectedBatchForPanel = useMemo(() => {
     if (!selectedBatch) return null
     if (!effectiveStateFilter) return selectedBatch
-    const base =
-      (selectedBatch.jurisdictions?.length ?? 0) > 0 &&
-      !stateJurisdictions?.length
-        ? selectedBatch
-        : mergeBatchJurisdictions(selectedBatch, stateJurisdictions ?? [])
-    return base
+    if (stateJurisdictions) {
+      return mergeBatchJurisdictions(selectedBatch, stateJurisdictions)
+    }
+    return selectedBatch
   }, [selectedBatch, effectiveStateFilter, stateJurisdictions])
+
+  const visibleJurisdictions = useMemo(() => {
+    if (!selectedBatchForPanel || !effectiveStateFilter) return []
+    return filterJurisdictionsByState(
+      sortJurisdictions(selectedBatchForPanel.jurisdictions),
+      effectiveStateFilter,
+    )
+  }, [selectedBatchForPanel, effectiveStateFilter])
 
   const effectiveJurisdictionId = useMemo(() => {
     if (!jurisdictionId || !selectedBatch) return null
-    const inBatch = selectedBatch.jurisdictions.some(
-      (j) => j.jurisdiction_id === jurisdictionId,
-    )
-    if (!inBatch) return null
-    if (effectiveStateFilter) {
-      return visibleJurisdictions.some((j) => j.jurisdiction_id === jurisdictionId)
-        ? jurisdictionId
-        : null
-    }
-    return jurisdictionId
+    if (!effectiveStateFilter) return jurisdictionId
+    return visibleJurisdictions.some((j) => j.jurisdiction_id === jurisdictionId)
+      ? jurisdictionId
+      : null
   }, [jurisdictionId, selectedBatch, effectiveStateFilter, visibleJurisdictions])
 
   const selectedJurisdictionForVideos = useMemo(() => {
-    if (!selectedBatch || !effectiveJurisdictionId) return null
+    if (!selectedBatchForPanel || !effectiveJurisdictionId) return null
     return (
-      selectedBatch.jurisdictions.find(
+      selectedBatchForPanel.jurisdictions.find(
         (j) => j.jurisdiction_id === effectiveJurisdictionId,
       ) ?? null
     )
-  }, [selectedBatch, effectiveJurisdictionId])
+  }, [selectedBatchForPanel, effectiveJurisdictionId])
+
+  const failedVideosBatchId = failedVideosScopeAll
+    ? undefined
+    : selectedBatch?.batch_id
+
+  const {
+    data: failedVideosPayload,
+    isFetching: failedVideosFetching,
+  } = useQuery({
+    queryKey: ['batch-failed-videos', failedVideosBatchId ?? 'all'],
+    queryFn: () => fetchFailedVideos(failedVideosBatchId),
+    enabled:
+      showFailedVideos &&
+      !effectiveJurisdictionId &&
+      (data?.totals.videos_fail ?? 0) > 0,
+    staleTime: 30_000,
+  })
 
   useEffect(() => {
     if (!selectedBatch?.batch_id) return
-    const failedRowsForBatch = collectFailedVideos(data?.batches ?? [], {
-      batchId: selectedBatch.batch_id,
-    })
-    const needsFailedPanel =
-      showFailedVideos &&
-      !effectiveJurisdictionId &&
-      (data?.totals.videos_fail ?? 0) > 0 &&
-      failedRowsForBatch.length === 0
     const needsJurisdictionVideos =
       !!effectiveJurisdictionId &&
       !!selectedJurisdictionForVideos &&
@@ -1006,11 +1041,11 @@ export default function BatchJobStatusPage() {
         : (selectedJurisdictionForVideos.videos?.length ?? 0) === 0 &&
           (Number(selectedJurisdictionForVideos.stats?.ok ?? 0) > 0 ||
             failedVideoCount(selectedJurisdictionForVideos) > 0))
-    if (!needsFailedPanel && !needsJurisdictionVideos) return
+    if (!needsJurisdictionVideos) return
 
     let cancelled = false
     setVideosLoading(true)
-    const mode = showFailedVideos && !effectiveJurisdictionId ? 'failed_only' : 'all'
+    const mode = 'all'
     void fetchBatchJobDetail(selectedBatch.batch_id, mode)
       .then((batch) => {
         if (cancelled) return
@@ -1034,14 +1069,33 @@ export default function BatchJobStatusPage() {
     queryClient,
   ])
 
-  const allFailedVideoRows = useMemo(
-    () =>
-      collectFailedVideos(data?.batches ?? [], {
+  const allFailedVideoRows = useMemo((): FailedVideoRow[] => {
+    if (effectiveJurisdictionId) {
+      return collectFailedVideos(data?.batches ?? [], {
         batchId: selectedBatch?.batch_id,
-        jurisdictionId: effectiveJurisdictionId || undefined,
-      }),
-    [data?.batches, selectedBatch?.batch_id, effectiveJurisdictionId],
-  )
+        jurisdictionId: effectiveJurisdictionId,
+      })
+    }
+    if (failedVideosPayload?.rows?.length) {
+      return failedVideosPayload.rows.map((r) => ({
+        batch_id: r.batch_id,
+        batch_step: r.batch_step,
+        state_code: r.state_code,
+        jurisdiction_id: r.jurisdiction_id,
+        jurisdiction_name: r.jurisdiction_name,
+        video: r.video,
+      }))
+    }
+    return collectFailedVideos(data?.batches ?? [], {
+      batchId: failedVideosBatchId,
+    })
+  }, [
+    data?.batches,
+    selectedBatch?.batch_id,
+    effectiveJurisdictionId,
+    failedVideosPayload,
+    failedVideosBatchId,
+  ])
 
   const failedScopeLabel = useMemo(() => {
     if (effectiveJurisdictionId && selectedBatch) {
@@ -1050,9 +1104,29 @@ export default function BatchJobStatusPage() {
       )
       return `${selectedBatch.step} · ${j?.jurisdiction_name || effectiveJurisdictionId}`
     }
+    if (failedVideosScopeAll) return 'All recent batches'
     if (selectedBatch) return `Batch ${selectedBatch.step} (${selectedBatch.batch_id})`
     return 'All batches'
-  }, [effectiveJurisdictionId, selectedBatch])
+  }, [effectiveJurisdictionId, selectedBatch, failedVideosScopeAll])
+
+  const failedVideosSubtitle = useMemo(() => {
+    if (effectiveJurisdictionId) return undefined
+    const total =
+      failedVideosPayload?.total_fail_in_summaries ?? data?.totals.videos_fail ?? 0
+    const parts: string[] = []
+    if (total > allFailedVideoRows.length) {
+      parts.push(`${total} in summaries`)
+    }
+    if (failedVideosPayload?.truncated) {
+      parts.push('list capped at 500')
+    }
+    return parts.length ? parts.join('; ') : undefined
+  }, [
+    effectiveJurisdictionId,
+    failedVideosPayload,
+    data?.totals.videos_fail,
+    allFailedVideoRows.length,
+  ])
 
   const lastActivityIso = useMemo(() => {
     const fromApi = data?.last_activity_at?.trim()
@@ -1145,12 +1219,14 @@ export default function BatchJobStatusPage() {
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
             {lastActivityIso && lastUpdateAgo ? (
               <SummaryCard
-                label="Last update"
+                label="Last progress"
                 value={lastUpdateAgo}
                 title={
                   lastUpdateAbsolute?.title
-                    ? `${lastUpdateAbsolute.title}${data.source === 'database' ? ' · pipeline progress from database' : ''}`
-                    : undefined
+                    ? `${lastUpdateAbsolute.title} · last jurisdiction or video step (not the same clock as Current file)${
+                        data.source === 'database' ? ' · from database' : ''
+                      }`
+                    : 'Last jurisdiction or video step (not the same clock as Current file)'
                 }
               />
             ) : null}
@@ -1200,6 +1276,7 @@ export default function BatchJobStatusPage() {
                   title={
                     runningTiming.activeVideo
                       ? [
+                          'Time on this in-flight video since it started (can exceed Avg / file if yt-dlp is slow or stuck).',
                           runningTiming.activeVideo.title,
                           runningTiming.activeVideo.videoId,
                           runningTiming.activeVideo.jurisdictionId,
@@ -1251,7 +1328,10 @@ export default function BatchJobStatusPage() {
               active={showFailedVideos}
               onClick={
                 data.totals.videos_fail > 0
-                  ? () => setShowFailedVideos(!showFailedVideos)
+                  ? () =>
+                      setShowFailedVideos(!showFailedVideos, {
+                        allBatches: !showFailedVideos,
+                      })
                   : undefined
               }
             />
@@ -1303,6 +1383,11 @@ export default function BatchJobStatusPage() {
             <FailedVideosPanel
               rows={allFailedVideoRows}
               scopeLabel={failedScopeLabel}
+              subtitle={
+                failedVideosFetching
+                  ? 'loading…'
+                  : failedVideosSubtitle
+              }
               onClose={() => setShowFailedVideos(false)}
               onSelectJurisdiction={(bid, jid) => {
                 setShowFailedVideos(true, { batchId: bid, jurisdictionId: jid })
@@ -1311,11 +1396,11 @@ export default function BatchJobStatusPage() {
           )}
 
           <div className="grid min-h-0 gap-4 lg:grid-cols-[minmax(220px,280px)_1fr]">
-            {(jurisdictionsLoading && !detailsReady) || videosLoading ? (
+            {videosLoading || stateJurisdictionsFetching ? (
               <p className="text-xs text-slate-500 lg:col-span-2">
                 {videosLoading
                   ? 'Loading per-video details…'
-                  : 'Loading jurisdiction progress…'}
+                  : 'Loading jurisdictions for selected state…'}
               </p>
             ) : null}
             <aside className="rounded-lg border border-slate-200 bg-white shadow-sm">
@@ -1366,37 +1451,32 @@ export default function BatchJobStatusPage() {
             </aside>
 
             <section className="min-w-0">
-              {selectedBatch ? (
-                detailsReady ? (
-                  <BatchDetailPanel
-                    batch={selectedBatch}
-                    selectedJurisdictionId={effectiveJurisdictionId}
-                    onSelectJurisdiction={setJurisdiction}
-                    stateFilter={effectiveStateFilter}
-                    onStateFilterChange={setStateFilter}
-                    showFailedVideos={showFailedVideos}
-                    onToggleFailedVideos={() =>
+              {selectedBatchForPanel ? (
+                <BatchDetailPanel
+                  batch={selectedBatchForPanel}
+                  selectedJurisdictionId={effectiveJurisdictionId}
+                  onSelectJurisdiction={setJurisdiction}
+                  stateFilter={effectiveStateFilter}
+                  onStateFilterChange={setStateFilter}
+                  showFailedVideos={showFailedVideos}
+                  onToggleFailedVideos={() =>
                       setShowFailedVideos(!showFailedVideos, {
-                        batchId: selectedBatch.batch_id,
+                        batchId: selectedBatchForPanel.batch_id,
+                        allBatches: false,
                       })
                     }
-                    onShowFailedForJurisdiction={(jid) => {
-                      setShowFailedVideos(true, {
-                        batchId: selectedBatch.batch_id,
-                        jurisdictionId: jid,
-                      })
-                      requestAnimationFrame(() => {
-                        document
-                          .getElementById('batch-jurisdiction-drilldown')
-                          ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-                      })
-                    }}
-                  />
-                ) : (
-                  <div className="rounded-lg border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
-                    Loading jurisdiction progress…
-                  </div>
-                )
+                  onShowFailedForJurisdiction={(jid) => {
+                    setShowFailedVideos(true, {
+                      batchId: selectedBatchForPanel.batch_id,
+                      jurisdictionId: jid,
+                    })
+                    requestAnimationFrame(() => {
+                      document
+                        .getElementById('batch-jurisdiction-drilldown')
+                        ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+                    })
+                  }}
+                />
               ) : (
                 <div className="rounded-lg border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
                   Select a batch

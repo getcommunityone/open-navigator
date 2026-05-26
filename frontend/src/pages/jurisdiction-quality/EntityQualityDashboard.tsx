@@ -32,6 +32,9 @@ import {
   type MissingYoutubeDrillParams,
 } from '../../api/jurisdictionMappingMissingYoutube'
 import { DATA_EXPLORER_MAP_BASE } from '../../utils/dataExplorerPaths'
+import { fetchYoutubeChannelCoverage } from '../../api/jurisdictionMappingYoutubeDiagnostics'
+import { formatCompactNumber, formatFullNumber } from '../../utils/formatCompact'
+import CountyYoutubeDiagnosticsSection from './CountyYoutubeDiagnosticsSection'
 import StateYoutubeCategorySection from './StateYoutubeCategorySection'
 
 const US_STATE_NAMES: Record<string, string> = {
@@ -462,6 +465,20 @@ const ENTITY_META: Record<
 
 function fmt(n: number): string {
   return Number(n).toLocaleString()
+}
+
+function fmtCompact(n: number): string {
+  return formatCompactNumber(n)
+}
+
+function exportHasYoutubeChannelMetrics(data: QualityPayload): boolean {
+  const county = data.summary_by_type?.find((x) => x.jurisdiction_type === 'county')
+  return county != null && county.with_youtube_channel != null
+}
+
+function youtubeDiagnosticsEntity(entity: EntityKey): 'counties' | 'cities' | 'towns' | null {
+  if (entity === 'counties' || entity === 'cities' || entity === 'towns') return entity
+  return null
 }
 
 /** Shared Y-axis title for bar charts that plot share with a primary website URL. */
@@ -2127,6 +2144,26 @@ export default function EntityQualityDashboard({
     ) ?? null
   }, [data.youtube_entity_state_rollup, entity, stateFilter])
 
+  const youtubeDiagEntity = youtubeDiagnosticsEntity(entity)
+  const needsLiveYoutubeCoverage =
+    YOUTUBE_ENTITY_KEYS.has(entity) &&
+    !exportHasYoutubeChannelMetrics(data) &&
+    (filteredYoutubeRollupRow == null || filteredYoutubeRollupRow.with_youtube_channel == null)
+
+  const { data: liveYoutubeCoverage } = useQuery({
+    queryKey: ['youtube-channel-coverage', youtubeDiagEntity, stateFilter || 'national'],
+    queryFn: ({ signal }) =>
+      fetchYoutubeChannelCoverage(
+        {
+          entity: youtubeDiagEntity!,
+          state_code: stateFilter.trim() || undefined,
+        },
+        signal,
+      ),
+    enabled: needsLiveYoutubeCoverage && youtubeDiagEntity != null,
+    staleTime: 60_000,
+  })
+
   const metrics = useMemo(() => {
     if (entity === 'state') return stateGovMetrics(stateQualityRows)
     if (filteredRollupRow) return metricsFromRollupRow(filteredRollupRow)
@@ -2135,9 +2172,18 @@ export default function EntityQualityDashboard({
 
   const youtubeMetrics = useMemo(() => {
     if (!YOUTUBE_ENTITY_KEYS.has(entity)) return { total: 0, withChannel: 0, pct: 0 }
-    if (filteredYoutubeRollupRow) return metricsFromYoutubeRollupRow(filteredYoutubeRollupRow)
+    if (filteredYoutubeRollupRow?.with_youtube_channel != null) {
+      return metricsFromYoutubeRollupRow(filteredYoutubeRollupRow)
+    }
+    if (liveYoutubeCoverage) {
+      return {
+        total: liveYoutubeCoverage.total,
+        withChannel: liveYoutubeCoverage.with_youtube_channel,
+        pct: liveYoutubeCoverage.pct_with_youtube_channel,
+      }
+    }
     return youtubeEntityMetrics(entity, summaryByType, muniRows)
-  }, [entity, filteredYoutubeRollupRow, summaryByType, muniRows])
+  }, [entity, filteredYoutubeRollupRow, liveYoutubeCoverage, summaryByType, muniRows])
 
   const sourceRateRow = useMemo((): PrimarySourceRow | null => {
     if (filteredRollupRow) return null
@@ -2531,28 +2577,56 @@ export default function EntityQualityDashboard({
             YouTube channel URL match · intermediate.int_events_channels
           </div>
           <div className="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {[
-              { label: 'Total', val: fmt(youtubeMetrics.total), c: 'var(--jmq-text-muted)' },
-              { label: 'With channel', val: fmt(youtubeMetrics.withChannel), c: 'var(--jmq-blue)' },
-              { label: 'Match rate', val: `${youtubeMetrics.pct.toFixed(1)}%`, c: barColor(youtubeMetrics.pct) },
-              {
-                label: 'Missing',
-                val: fmt(Math.max(0, youtubeMetrics.total - youtubeMetrics.withChannel)),
-                c: youtubeMetrics.total - youtubeMetrics.withChannel > 500 ? '#a40e26' : '#9a6700',
-              },
-            ].map((k) => (
+            {(
+              [
+                {
+                  label: 'Total',
+                  display: fmtCompact(youtubeMetrics.total),
+                  title: formatFullNumber(youtubeMetrics.total),
+                  c: 'var(--jmq-text-muted)',
+                },
+                {
+                  label: 'With channel',
+                  display: fmtCompact(youtubeMetrics.withChannel),
+                  title: formatFullNumber(youtubeMetrics.withChannel),
+                  c: 'var(--jmq-blue)',
+                },
+                {
+                  label: 'Match rate',
+                  display: `${youtubeMetrics.pct.toFixed(1)}%`,
+                  title: undefined,
+                  c: barColor(youtubeMetrics.pct),
+                },
+                {
+                  label: 'Missing',
+                  display: fmtCompact(Math.max(0, youtubeMetrics.total - youtubeMetrics.withChannel)),
+                  title: formatFullNumber(Math.max(0, youtubeMetrics.total - youtubeMetrics.withChannel)),
+                  c: youtubeMetrics.total - youtubeMetrics.withChannel > 500 ? '#a40e26' : '#9a6700',
+                },
+              ] as const
+            ).map((k) => (
               <div
                 key={k.label}
                 className="jmq-kpi jmq-kpi--info relative overflow-hidden rounded-lg border border-[var(--jmq-border)] bg-[var(--jmq-surface)] p-3"
               >
                 <div className="absolute left-0 right-0 top-0 h-0.5" style={{ background: k.c }} />
                 <div className="jmq-kpi-label !mb-1">{k.label}</div>
-                <div className="font-mono text-xl font-extrabold leading-tight" style={{ color: k.c }}>
-                  {k.val}
+                <div
+                  className="font-mono text-xl font-extrabold leading-tight"
+                  style={{ color: k.c }}
+                  title={k.title}
+                >
+                  {k.display}
                 </div>
               </div>
             ))}
           </div>
+          {needsLiveYoutubeCoverage && liveYoutubeCoverage ? (
+            <p className="mb-4 font-mono text-[10px] text-[var(--jmq-text-muted)]">
+              YouTube KPIs from live <code>int_events_channels</code> join (export JSON lacks{' '}
+              <code>with_youtube_channel</code> — re-run dbt + export for offline snapshot).
+            </p>
+          ) : null}
         </>
       ) : null}
 
@@ -2813,7 +2887,7 @@ export default function EntityQualityDashboard({
               stateQuality={stateQualityRows}
             />
           )}
-          {YOUTUBE_ENTITY_KEYS.has(entity) ? (
+              {YOUTUBE_ENTITY_KEYS.has(entity) ? (
             youtubeRollup.length === 0 ? (
               <div className="jmq-placeholder">
                 <strong>No YouTube state rollup in JSON</strong>
@@ -2828,6 +2902,23 @@ export default function EntityQualityDashboard({
                 variant="youtube"
               />
             )
+          ) : null}
+          {YOUTUBE_ENTITY_KEYS.has(entity) ? (
+            <>
+              <p className="font-mono text-[11px]">
+                <a
+                  href="#jmq-youtube-channel-diagnostics"
+                  className="font-semibold text-[var(--jmq-teal)] underline-offset-2 hover:underline"
+                >
+                  ↓ YouTube channel diagnostics (int_events_channels vs bronze videos)
+                </a>
+              </p>
+              <CountyYoutubeDiagnosticsSection
+                entity={entity}
+                stateFilter={stateFilter}
+                onPickState={setStateFilter}
+              />
+            </>
           ) : null}
         </div>
       )}

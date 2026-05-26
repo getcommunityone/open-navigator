@@ -122,6 +122,33 @@ def _sanitize_dashboard_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     return payload
 
 
+async def _latest_dashboard_revision_async() -> Optional[str]:
+    try:
+        from scripts.datasources.youtube.batch_job_db import latest_dashboard_revision
+
+        return await asyncio.to_thread(latest_dashboard_revision)
+    except Exception:
+        return None
+
+
+async def _load_dashboard_async(
+    *,
+    refresh_files: bool,
+    enrich_bronze: bool,
+    enrich_bronze_only_running: bool = False,
+    detail: str = "full",
+    batch_limit: int = 25,
+) -> Dict[str, Any]:
+    return await asyncio.to_thread(
+        _load_dashboard,
+        refresh_files=refresh_files,
+        enrich_bronze=enrich_bronze,
+        enrich_bronze_only_running=enrich_bronze_only_running,
+        detail=detail,
+        batch_limit=batch_limit,
+    )
+
+
 def _load_dashboard(
     *,
     refresh_files: bool,
@@ -164,17 +191,10 @@ async def stream_batch_jobs(
         last_rev: Optional[str] = None
         running_batches = 0
         while True:
-            try:
-                from scripts.datasources.youtube.batch_job_db import (
-                    latest_dashboard_revision,
-                )
-
-                rev = latest_dashboard_revision()
-            except Exception:
-                rev = None
+            rev = await _latest_dashboard_revision_async()
 
             if last_rev is None or rev != last_rev:
-                summary = _load_dashboard(
+                summary = await _load_dashboard_async(
                     refresh_files=False,
                     enrich_bronze=False,
                     detail="summary",
@@ -223,7 +243,7 @@ async def list_batch_jobs(
             detail="detail must be summary, standard, or full",
         )
     try:
-        payload = _load_dashboard(
+        payload = await _load_dashboard_async(
             refresh_files=refresh_files,
             enrich_bronze=enrich_bronze,
             detail=detail,
@@ -244,6 +264,53 @@ class BatchJurisdictionsResponse(BaseModel):
     jurisdictions: List[JurisdictionRunModel] = Field(default_factory=list)
 
 
+class FailedVideoRowModel(BaseModel):
+    batch_id: str
+    batch_step: str = ""
+    state_code: str = ""
+    jurisdiction_id: str = ""
+    jurisdiction_name: str = ""
+    video: VideoResultModel
+
+
+class FailedVideosListResponse(BaseModel):
+    rows: List[FailedVideoRowModel] = Field(default_factory=list)
+    total_fail_in_summaries: int = 0
+    truncated: bool = False
+
+
+@router.get("/failed-videos", response_model=FailedVideosListResponse)
+async def list_failed_videos(
+    batch_id: Optional[str] = Query(
+        None, description="Limit to one batch; omit for recent batches combined"
+    ),
+    limit: int = Query(500, ge=1, le=2000),
+    batch_limit: int = Query(25, ge=1, le=100),
+) -> FailedVideosListResponse:
+    """Per-video failure log extracted from batch payloads (not summary counts only)."""
+    from scripts.datasources.youtube.batch_job_db import list_failed_videos_from_db
+
+    try:
+        payload = await asyncio.to_thread(
+            list_failed_videos_from_db,
+            batch_id=batch_id,
+            limit=limit,
+            batch_limit=batch_limit,
+        )
+    except Exception as exc:
+        logger.exception("list failed videos failed")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed videos list failed: {exc}",
+        ) from exc
+    rows = payload.get("rows") or []
+    return FailedVideosListResponse(
+        rows=[FailedVideoRowModel(**r) for r in rows],
+        total_fail_in_summaries=int(payload.get("total_fail_in_summaries") or 0),
+        truncated=bool(payload.get("truncated")),
+    )
+
+
 @router.get("/{batch_id}/jurisdictions", response_model=BatchJurisdictionsResponse)
 async def list_batch_jurisdictions(
     batch_id: str,
@@ -256,7 +323,11 @@ async def list_batch_jurisdictions(
 
     st = state.strip().upper()
     try:
-        rows = build_batch_state_jurisdictions(batch_id=batch_id, state_code=st)
+        rows = await asyncio.to_thread(
+            build_batch_state_jurisdictions,
+            batch_id=batch_id,
+            state_code=st,
+        )
     except Exception as exc:
         logger.exception("batch jurisdictions failed for %s %s", batch_id, st)
         raise HTTPException(
@@ -266,7 +337,7 @@ async def list_batch_jurisdictions(
     if not rows:
         from scripts.datasources.youtube.batch_job_db import load_batch_job_from_db
 
-        if load_batch_job_from_db(batch_id) is None:
+        if await asyncio.to_thread(load_batch_job_from_db, batch_id) is None:
             raise HTTPException(status_code=404, detail=f"Batch not found: {batch_id}")
     payload = _sanitize_dashboard_payload({"batches": [{"jurisdictions": rows}]})
     jurs = payload.get("batches", [{}])[0].get("jurisdictions") or []
@@ -287,56 +358,62 @@ async def get_batch_job(
         description="all | failed_only | none — per-video rows for drill-down",
     ),
 ) -> BatchJobModel:
-    from scripts.datasources.youtube.batch_job_db import (
-        enrich_jobs_from_bronze,
-        load_batch_job_from_db,
-    )
-
-    job = load_batch_job_from_db(batch_id)
-    if job is None:
-        from scripts.datasources.youtube.batch_job_status import BatchJobStore
-
-        try:
-            job = BatchJobStore(batch_id).load()
-        except FileNotFoundError as exc:
-            raise HTTPException(
-                status_code=404, detail=f"Batch not found: {batch_id}"
-            ) from exc
-
-    from scripts.datasources.youtube.batch_job_status import (
-        _recompute_summary,
-        apply_batch_lifecycle,
-    )
-
-    apply_batch_lifecycle(job)
-    _recompute_summary(job)
-    if enrich_bronze:
-        enrich_jobs_from_bronze([job])
-        expand_batch_job_plan(job)
-        _recompute_summary(job)
-    elif refresh_files:
+    def _build_job() -> Dict[str, Any]:
+        from scripts.datasources.youtube.batch_job_db import (
+            enrich_jobs_from_bronze,
+            load_batch_job_from_db,
+        )
         from scripts.datasources.youtube.batch_job_status import (
+            BatchJobStore,
+            _recompute_summary,
+            apply_batch_lifecycle,
             count_policy_files_for_jurisdiction,
+            expand_batch_job_plan,
         )
         from scripts.datasources.youtube.batch_job_dashboard import _POLICY_CACHE
 
-        for j in job.jurisdictions:
-            j.file_counts = count_policy_files_for_jurisdiction(
-                _POLICY_CACHE,
-                state_code=j.state_code,
-                jurisdiction_id=j.jurisdiction_id,
-            )
-    d = job.to_dict()
-    if include_videos in ("none", "failed_only", "running"):
-        from scripts.datasources.youtube.batch_job_dashboard import (
-            slim_batch_dict,
-        )
+        job = load_batch_job_from_db(batch_id)
+        if job is None:
+            try:
+                job = BatchJobStore(batch_id).load()
+            except FileNotFoundError as exc:
+                raise HTTPException(
+                    status_code=404, detail=f"Batch not found: {batch_id}"
+                ) from exc
 
-        mode = include_videos if include_videos != "running" else "running"
-        d = slim_batch_dict(d, video_mode=mode)  # type: ignore[arg-type]
-    elif include_videos != "all":
+        apply_batch_lifecycle(job)
+        _recompute_summary(job)
+        if enrich_bronze:
+            enrich_jobs_from_bronze([job])
+            expand_batch_job_plan(job)
+            _recompute_summary(job)
+        elif refresh_files:
+            for j in job.jurisdictions:
+                j.file_counts = count_policy_files_for_jurisdiction(
+                    _POLICY_CACHE,
+                    state_code=j.state_code,
+                    jurisdiction_id=j.jurisdiction_id,
+                )
+        d = job.to_dict()
+        if include_videos in ("none", "failed_only", "running"):
+            from scripts.datasources.youtube.batch_job_dashboard import slim_batch_dict
+
+            mode = include_videos if include_videos != "running" else "running"
+            d = slim_batch_dict(d, video_mode=mode)  # type: ignore[arg-type]
+        elif include_videos != "all":
+            raise HTTPException(
+                status_code=400,
+                detail="include_videos must be all, failed_only, none, or running",
+            )
+        return d
+
+    try:
+        d = await asyncio.to_thread(_build_job)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("batch job detail failed for %s", batch_id)
         raise HTTPException(
-            status_code=400,
-            detail="include_videos must be all, failed_only, none, or running",
-        )
+            status_code=500, detail=f"Batch job load failed: {exc}"
+        ) from exc
     return BatchJobModel(**d)

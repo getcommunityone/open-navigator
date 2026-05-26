@@ -187,6 +187,67 @@ def test_website_search_channel_accepted_with_backlink():
     )
 
 
+def test_fulton_fgtv_tv_public_qualifies_with_gov_backlink():
+    """FGTV links to fultoncountyga.gov on About — tv-public without meeting boilerplate."""
+    row = {
+        "youtube_channel_url": "https://www.youtube.com/channel/UCYH7E0jH6HxE-3KTRluH8SQ",
+        "channel_title": "FGTV - Fulton Government Television",
+        "channel_description": (
+            "FGTV's original programming informs citizens about services in Fulton County, "
+            "Georgia. www.fultoncountyga.gov"
+        ),
+        "discovery_method": "website_search",
+        "official_meeting_confidence": 0.95,
+        "back_links_to_jurisdiction_website": True,
+        "external_links": ["https://www.fultoncountyga.gov/"],
+    }
+    assert qualifies_for_bronze_jurisdiction_youtube(
+        row,
+        jurisdiction_type="county",
+        jurisdiction_name="Fulton County",
+        jurisdiction_state_code="GA",
+        jurisdiction_homepage="https://www.fultoncountyga.gov",
+    )
+    assert rejection_reason_for_channel(
+        row,
+        jurisdiction_type="county",
+        jurisdiction_name="Fulton County",
+        jurisdiction_state_code="GA",
+        jurisdiction_homepage="https://www.fultoncountyga.gov",
+    ) is None
+
+
+def test_dekalb_website_youtube_footer_link_accepted_at_county_general_confidence():
+    """BOC page/footer links (website_search) beat county-general purpose bar without manual promotion."""
+    row = {
+        "youtube_channel_url": "https://www.youtube.com/user/DeKalbCountyGov",
+        "channel_title": "DeKalbCountyGov",
+        "channel_description": (
+            "DeKalb County Television, Channel 23 continues to bring national exposure "
+            "and a voice to the many initiatives, programs, services and events of "
+            "DeKalb County, Georgia departments."
+        ),
+        "discovery_method": "website_search",
+        "official_meeting_confidence": 0.6,
+        "back_links_to_jurisdiction_website": False,
+        "external_links": [],
+    }
+    assert qualifies_for_bronze_jurisdiction_youtube(
+        row,
+        jurisdiction_type="county",
+        jurisdiction_name="DeKalb County",
+        jurisdiction_state_code="GA",
+        jurisdiction_homepage="https://dekalbcountyga.gov",
+    )
+    assert rejection_reason_for_channel(
+        row,
+        jurisdiction_type="county",
+        jurisdiction_name="DeKalb County",
+        jurisdiction_state_code="GA",
+        jurisdiction_homepage="https://dekalbcountyga.gov",
+    ) is None
+
+
 def test_localview_train_hobby_channel_rejected_for_county():
     row = {
         "youtube_channel_url": "https://www.youtube.com/channel/UCAVu4nbyK-IET2eFc9qqpAQ",

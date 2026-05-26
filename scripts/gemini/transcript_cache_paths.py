@@ -1072,16 +1072,24 @@ def resolve_meeting_event_date(
     title: str,
     event_date: Optional[Union[str, datetime, date]] = None,
     published_at: Optional[Union[str, datetime]] = None,
+    *,
+    audio_file_path: Optional[str] = None,
+    media_basename: Optional[str] = None,
 ) -> Optional[str]:
     """
     Meeting calendar date for filenames and bronze.
 
-    Prefer a date parsed from the title (e.g. ``9/23/2024`` in the council meeting title)
+    Prefer a date parsed from the title (e.g. ``9/23/2024`` in the council meeting title),
+    then an ISO prefix on ``audio_file_path`` / ``media_basename`` (``2026-02-25_title.opus``),
     over catalog ``event_date`` / YouTube ``published_at`` (often the upload day).
     """
     from_title = extract_meeting_date_from_title(title)
     if from_title:
         return from_title
+    for hint in (media_basename, audio_file_path):
+        from_name = extract_meeting_date_from_filename(hint or "")
+        if from_name:
+            return from_name
     coerced = _coerce_date_str(event_date)
     if coerced:
         return coerced
@@ -1098,8 +1106,16 @@ def resolve_meeting_event_date(
 def meeting_media_basename(
     title: str,
     event_date: Optional[Union[str, datetime]] = None,
+    *,
+    audio_file_path: Optional[str] = None,
+    media_basename: Optional[str] = None,
 ) -> str:
-    date_str = resolve_meeting_event_date(title, event_date=event_date)
+    date_str = resolve_meeting_event_date(
+        title,
+        event_date=event_date,
+        audio_file_path=audio_file_path,
+        media_basename=media_basename,
+    )
     if not date_str:
         date_str = "unknown-date"
     title_without_date = strip_meeting_date_from_title(title, resolved_date=date_str)
@@ -1471,6 +1487,19 @@ def _parse_dated_basename(filename: str) -> Tuple[Optional[str], str]:
     if match:
         return match.group(1), match.group(2)
     return None, stem
+
+
+def extract_meeting_date_from_filename(name: str) -> Optional[str]:
+    """
+    Calendar date from a media basename prefix (``2026-02-25_title.opus``).
+
+    Accepts a full path or bare filename. Does not parse ambiguous six-digit tokens
+    (e.g. ``260123`` in ``2026-02-25_260123_Behind_Beloit_Pilot``); use the ISO prefix.
+    """
+    if not (name or "").strip():
+        return None
+    parsed, _ = _parse_dated_basename(Path(name).name)
+    return parsed
 
 
 def _title_from_meeting_and_meta(folder: Path, meeting: Dict[str, Any]) -> Tuple[str, Optional[Any], str]:
@@ -2075,7 +2104,11 @@ def _patch_json_event_date_field(
         return False
     meeting = data.get("meeting") if isinstance(data.get("meeting"), dict) else {}
     catalog_date = data.get("event_date") or meeting.get("meeting_date")
-    resolved = resolve_meeting_event_date(title, event_date=catalog_date)
+    resolved = resolve_meeting_event_date(
+        title,
+        event_date=catalog_date,
+        media_basename=path.name,
+    )
     if not resolved:
         return False
     changed = False

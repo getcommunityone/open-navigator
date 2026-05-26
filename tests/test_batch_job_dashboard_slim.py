@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from scripts.datasources.youtube.batch_job_dashboard import (
     _totals_from_batch_summaries,
+    pipeline_activity_at_from_batches,
     slim_batch_dict,
     slim_jurisdiction_videos,
 )
@@ -47,6 +48,33 @@ def test_slim_batch_keeps_running_jurisdiction_videos():
     done = out["jurisdictions"][1]
     assert len(running["videos"]) == 1
     assert done["videos"] == []
+
+
+def test_pipeline_activity_uses_summary_current_video_started_at():
+    batches = [
+        {
+            "status": "running",
+            "started_at": "2026-05-26T10:00:00+00:00",
+            "jurisdictions": [],
+            "summary": {"current_video_started_at": "2026-05-26T20:00:00+00:00"},
+        }
+    ]
+    assert pipeline_activity_at_from_batches(batches) == "2026-05-26T20:00:00+00:00"
+
+
+def test_pipeline_activity_ignores_batch_updated_at():
+    batches = [
+        {
+            "updated_at": "2026-05-26T20:00:00+00:00",
+            "jurisdictions": [
+                {
+                    "status": "running",
+                    "current_video_started_at": "2026-05-26T19:50:00+00:00",
+                }
+            ],
+        }
+    ]
+    assert pipeline_activity_at_from_batches(batches) == "2026-05-26T19:50:00+00:00"
 
 
 def test_totals_from_summaries_only():

@@ -39,7 +39,11 @@ def get_db_connection():
     for bad in ("&channel_binding=require", "channel_binding=require&", "channel_binding=require"):
         url = url.replace(bad, "")
     url = url.replace("&&", "&").rstrip("?&")
-    return psycopg2.connect(url)
+    return psycopg2.connect(
+        url,
+        connect_timeout=int(os.getenv("PGCONNECT_TIMEOUT", "10")),
+        options=os.getenv("PGOPTIONS", "-c statement_timeout=60000"),
+    )
 
 
 def ensure_batch_job_tables(conn: Any) -> None:
@@ -296,48 +300,193 @@ def list_jurisdiction_rows_from_db(
 
 
 def running_batch_activity_from_db() -> Optional[Dict[str, Any]]:
-    """Active in-flight video for the current running batch (one payload parse)."""
+    """Active in-flight rows for the running batch (JSONB projection; no full payload parse)."""
     with get_db_connection() as conn:
         ensure_batch_job_tables(conn)
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
                 """
-                SELECT batch_id, payload
-                FROM bronze.youtube_batch_job_runs
-                WHERE status = 'running'
-                ORDER BY updated_at DESC NULLS LAST
+                SELECT
+                    b.batch_id,
+                    COALESCE(
+                        jsonb_agg(sub.row ORDER BY sub.sort_key),
+                        '[]'::jsonb
+                    ) AS jurisdictions
+                FROM bronze.youtube_batch_job_runs b
+                LEFT JOIN LATERAL (
+                    SELECT
+                        jsonb_build_object(
+                            'state_code', elem->>'state_code',
+                            'jurisdiction_id', elem->>'jurisdiction_id',
+                            'jurisdiction_name', elem->>'jurisdiction_name',
+                            'status', COALESCE(elem->>'status', 'running'),
+                            'updated_at', COALESCE(elem->>'updated_at', ''),
+                            'current_video_id', COALESCE(elem->>'current_video_id', ''),
+                            'current_video_title', COALESCE(elem->>'current_video_title', ''),
+                            'current_video_started_at',
+                                COALESCE(elem->>'current_video_started_at', ''),
+                            'videos', '[]'::jsonb
+                        ) AS row,
+                        COALESCE(elem->>'current_video_started_at', elem->>'started_at', '')
+                            AS sort_key
+                    FROM jsonb_array_elements(
+                        CASE
+                            WHEN jsonb_typeof(b.payload->'jurisdictions') = 'array'
+                            THEN b.payload->'jurisdictions'
+                            ELSE '[]'::jsonb
+                        END
+                    ) elem
+                    WHERE LOWER(COALESCE(elem->>'status', '')) = 'running'
+                       OR COALESCE(elem->>'current_video_id', '') <> ''
+                ) sub ON TRUE
+                WHERE b.status = 'running'
+                GROUP BY b.batch_id
+                ORDER BY MAX(b.updated_at) DESC NULLS LAST
                 LIMIT 1
                 """
             )
             row = cur.fetchone()
     if not row:
         return None
-    payload = row["payload"]
-    if isinstance(payload, str):
-        payload = json.loads(payload)
-    batch_id = row["batch_id"]
-    active: List[Dict[str, Any]] = []
-    for elem in payload.get("jurisdictions") or []:
-        if not isinstance(elem, dict):
-            continue
-        status = (elem.get("status") or "").lower()
-        if status != "running" and not (elem.get("current_video_id") or "").strip():
-            continue
-        slim = {
-            "state_code": elem.get("state_code") or "",
-            "jurisdiction_id": elem.get("jurisdiction_id") or "",
-            "jurisdiction_name": elem.get("jurisdiction_name") or "",
-            "status": elem.get("status") or "running",
-            "current_video_id": elem.get("current_video_id") or "",
-            "current_video_title": elem.get("current_video_title") or "",
-            "current_video_started_at": elem.get("current_video_started_at") or "",
-            "videos": [],
-        }
-        if status == "running" or slim["current_video_id"]:
-            active.append(slim)
-    if not active:
+    jurs = row.get("jurisdictions") or []
+    if isinstance(jurs, str):
+        jurs = json.loads(jurs)
+    if not isinstance(jurs, list) or not jurs:
         return None
-    return {"batch_id": batch_id, "jurisdictions": active}
+    return {"batch_id": row["batch_id"], "jurisdictions": [dict(x) for x in jurs if isinstance(x, dict)]}
+
+
+_FAILED_VIDEO_STATUSES = frozenset(
+    {"fail", "failed", "tombstoned", "empty", "rate_limit", "error"}
+)
+
+
+def list_failed_videos_from_db(
+    *,
+    batch_id: Optional[str] = None,
+    limit: int = 500,
+    batch_limit: int = 25,
+) -> Dict[str, Any]:
+    """
+    Extract per-video failure rows from stored batch payloads (JSONB).
+
+    Returns ``rows`` plus ``total_fail_in_summaries`` (sum of ``summary.videos_fail``)
+    which may exceed ``len(rows)`` when failures were counted in stats but not logged
+    per video, or when ``limit`` truncates.
+    """
+    bid = (batch_id or "").strip() or None
+    lim = max(1, min(int(limit), 2000))
+    with get_db_connection() as conn:
+        ensure_batch_job_tables(conn)
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            if bid:
+                cur.execute(
+                    """
+                    SELECT COALESCE((summary->>'videos_fail')::int, 0) AS n
+                    FROM bronze.youtube_batch_job_runs
+                    WHERE batch_id = %s
+                    """,
+                    (bid,),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT COALESCE(SUM((summary->>'videos_fail')::int), 0)::int AS n
+                    FROM (
+                        SELECT summary
+                        FROM bronze.youtube_batch_job_runs
+                        ORDER BY updated_at DESC NULLS LAST
+                        LIMIT %s
+                    ) recent
+                    """,
+                    (batch_limit,),
+                )
+            summary_row = cur.fetchone() or {}
+            total_fail = int(summary_row.get("n") or 0)
+
+            cur.execute(
+                """
+                SELECT
+                    b.batch_id,
+                    b.step AS batch_step,
+                    j.elem->>'state_code' AS state_code,
+                    j.elem->>'jurisdiction_id' AS jurisdiction_id,
+                    j.elem->>'jurisdiction_name' AS jurisdiction_name,
+                    v.elem->>'video_id' AS video_id,
+                    v.elem->>'title' AS title,
+                    v.elem->>'status' AS status,
+                    v.elem->>'error' AS error,
+                    v.elem->>'transcript_source' AS transcript_source,
+                    v.elem->>'finished_at' AS finished_at,
+                    v.elem->>'duration_seconds' AS duration_seconds
+                FROM bronze.youtube_batch_job_runs b
+                CROSS JOIN LATERAL jsonb_array_elements(
+                    CASE
+                        WHEN jsonb_typeof(b.payload->'jurisdictions') = 'array'
+                        THEN b.payload->'jurisdictions'
+                        ELSE '[]'::jsonb
+                    END
+                ) AS j(elem)
+                CROSS JOIN LATERAL jsonb_array_elements(
+                    CASE
+                        WHEN jsonb_typeof(j.elem->'videos') = 'array'
+                        THEN j.elem->'videos'
+                        ELSE '[]'::jsonb
+                    END
+                ) AS v(elem)
+                WHERE (%s::text IS NULL OR b.batch_id = %s)
+                  AND COALESCE(v.elem->>'video_id', '') <> ''
+                  AND (
+                    LOWER(COALESCE(v.elem->>'status', '')) = ANY(%s)
+                    OR (
+                      LOWER(COALESCE(v.elem->>'status', '')) NOT IN (
+                        'ok', 'pending', 'skipped', 'noop', ''
+                      )
+                    )
+                  )
+                ORDER BY b.updated_at DESC NULLS LAST,
+                         v.elem->>'finished_at' DESC NULLS LAST
+                LIMIT %s
+                """,
+                (
+                    bid,
+                    bid,
+                    list(_FAILED_VIDEO_STATUSES),
+                    lim + 1,
+                ),
+            )
+            raw_rows = cur.fetchall()
+    truncated = len(raw_rows) > lim
+    rows_out: List[Dict[str, Any]] = []
+    for row in raw_rows[:lim]:
+        dur = row.get("duration_seconds")
+        try:
+            dur_f = float(dur) if dur not in (None, "") else None
+        except (TypeError, ValueError):
+            dur_f = None
+        rows_out.append(
+            {
+                "batch_id": row["batch_id"],
+                "batch_step": row.get("batch_step") or "",
+                "state_code": row.get("state_code") or "",
+                "jurisdiction_id": row.get("jurisdiction_id") or "",
+                "jurisdiction_name": row.get("jurisdiction_name") or "",
+                "video": {
+                    "video_id": row.get("video_id") or "",
+                    "title": row.get("title") or "",
+                    "status": row.get("status") or "",
+                    "error": row.get("error") or "",
+                    "transcript_source": row.get("transcript_source") or "",
+                    "finished_at": row.get("finished_at") or "",
+                    "duration_seconds": dur_f,
+                },
+            }
+        )
+    return {
+        "rows": rows_out,
+        "total_fail_in_summaries": total_fail,
+        "truncated": truncated,
+    }
 
 
 def list_batch_job_meta_from_db(*, limit: int = 30) -> List[Dict[str, Any]]:

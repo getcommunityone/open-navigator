@@ -293,10 +293,10 @@ def post_ytdlp_transcode_output(
     if not year_dir.is_dir():
         return
 
-    esc = re.escape(stem)
+    # Stems are sanitized alphanumerics + ``._-``; do not ``re.escape`` (breaks ``YYYY-MM-DD`` globs).
     sources = [
         p
-        for p in sorted(year_dir.glob(f"{esc}.*"))
+        for p in sorted(year_dir.glob(f"{stem}.*"))
         if p.suffix.lower() in _SOURCE_SUFFIXES
     ]
     if not sources:

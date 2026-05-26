@@ -23,6 +23,7 @@ def apply_resolved_event_date(row: Dict[str, Any]) -> Dict[str, Any]:
         str(row.get("title") or ""),
         event_date=row.get("event_date"),
         published_at=row.get("published_at"),
+        audio_file_path=row.get("audio_file_path"),
     )
     if resolved:
         row["event_date"] = resolved

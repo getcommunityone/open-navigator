@@ -50,6 +50,18 @@ _TRUSTED_DISCOVERY_PREFIXES = (
     "manual",
 )
 
+# Channel URL extracted from the jurisdiction's own website (footer, /youtube, BOC page, etc.).
+_OFFICIAL_WEBSITE_DISCOVERY_PREFIXES = (
+    "website_search",
+    "website_scrape",
+)
+
+
+def is_official_website_discovery(method: str) -> bool:
+    """True when the channel link was found on the jurisdiction website crawl."""
+    m = (method or "").strip().lower()
+    return any(m.startswith(p) for p in _OFFICIAL_WEBSITE_DISCOVERY_PREFIXES)
+
 _CITY_GOVT_TITLE_RE = re.compile(r"\b(?:city|town|village|borough)\s+of\b", re.I)
 _CITY_SUFFIX_TITLE_RE = re.compile(r"\b[a-z0-9][\w.'-]*\s+city\b", re.I)
 _TOWN_OF_TITLE_RE = re.compile(r"\btown\s+of\b", re.I)
@@ -190,10 +202,17 @@ def rejection_reason_for_channel(
 
     purpose = classify_channel_purpose_from_row(row, jurisdiction_type=jurisdiction_type)
     purpose_min = min_confidence_for_purpose(purpose)
-    if conf < max(min_confidence, purpose_min):
+    website_linked = is_official_website_discovery(method)
+    # Channel About → .gov, or .gov → channel: trust enrichment floors (≥0.85).
+    effective_min = (
+        min_confidence
+        if (website_linked or backlink)
+        else max(min_confidence, purpose_min)
+    )
+    if conf < effective_min:
         return "channel_purpose_low_confidence"
 
-    if purpose_requires_explicit_meeting(purpose):
+    if purpose_requires_explicit_meeting(purpose) and not website_linked and not backlink:
         if not has_meeting_purpose_signal(
             str(row.get("channel_title") or ""),
             str(row.get("channel_description") or ""),
@@ -274,10 +293,16 @@ def qualifies_for_bronze_jurisdiction_youtube(
 
     purpose = classify_channel_purpose_from_row(row, jurisdiction_type=jurisdiction_type)
     purpose_min = min_confidence_for_purpose(purpose)
-    if conf < max(min_confidence, purpose_min):
+    website_linked = is_official_website_discovery(method)
+    effective_min = (
+        min_confidence
+        if (website_linked or backlink)
+        else max(min_confidence, purpose_min)
+    )
+    if conf < effective_min:
         return False
 
-    if purpose_requires_explicit_meeting(purpose):
+    if purpose_requires_explicit_meeting(purpose) and not website_linked and not backlink:
         if not has_meeting_purpose_signal(
             str(row.get("channel_title") or ""),
             str(row.get("channel_description") or ""),

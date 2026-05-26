@@ -1,14 +1,15 @@
 ---
 displayed_sidebar: developersSidebar
-description: Reference patterns and a checklist for strong “Google for Good”–style hackathon demo videos (CommunityOne / Open Navigator), including flagship pitch hooks (speed-trap revenue, potholes & street repair, Gapminder-style animated charts, automated interactive annual reports, TikTok-style issue summaries, circular seasonal data storytelling inspired by Searching for Birds, integrated timeline / entity / map views (KronoGraph pattern), required CTA slide, 100k-meeting safety scrub, 100k-decision reasoning & bias audit, jurisdiction website accessibility), plus inspirational civic data talks and case studies.
+description: Reference patterns and a checklist for strong “Google for Good”–style hackathon demo videos (CommunityOne / Open Navigator), including flagship pitch hooks (speed-trap revenue, potholes & street repair, Gapminder-style animated charts, automated interactive annual reports, TikTok-style issue summaries, circular seasonal data storytelling inspired by Searching for Birds, integrated timeline / entity / map views (KronoGraph pattern), cross-dataset corruption investigation OSINT pipeline (Splink, Aleph, Datashare, Neo4j, NetworkX), fraud and conflict-of-interest master list, required CTA slide, 100k-meeting safety scrub, 100k-decision reasoning & bias audit, jurisdiction website accessibility), plus inspirational civic data talks and case studies.
 ---
 
 # Hackathon video submission ideas (reference library)
 
 Short guide for a **CommunityOne** (or similar civic-data) submission where the **video** has to carry the “wow” as much as the product. These notes distill reference talks and pitch formats that bridge **complex data → real-world utility**.
 
-## Quick jump: fraud tracks
+## Quick jump: fraud & cross-dataset investigation
 
+- [Cross-dataset corruption investigation (OSINT pipeline)](#cross-dataset-corruption-investigation-osint-pipeline)
 - [Fraud and conflict-of-interest master list](#fraud-and-conflict-of-interest-hackathon-ideas-master-list)
 - [Track 1: The appraisal gap watchdog](#track-1-the-appraisal-gap-watchdog)
 - [Track 2: Artificial valuation and tax evasion collusion](#track-2-artificial-valuation-and-tax-evasion-collusion)
@@ -624,6 +625,69 @@ Add to [Call to action slide](#call-to-action-slide-required-closing-beat):
 
 ## Why this matters
 
+## Cross-dataset corruption investigation (OSINT pipeline)
+
+You do **not** need one monolithic “anti-corruption” model to connect **meeting notes, campaign finance, property records, and charities**. Investigative desks (ICIJ on the Panama Papers, OCCRP on cross-border graft) use **open-source intelligence (OSINT)**, **entity resolution**, **network analysis**, and **NLP**—mostly on GitHub. Reuse that stack; use CommunityOne for the **meeting + policy + timestamp** layer.
+
+**Citations and licenses:** [Data and Citations — Investigative OSINT toolkit](../data-sources/citations.md#investigative-osint--anti-corruption-toolkit).
+
+### 1. Core investigative ecosystem (entity resolution + data model)
+
+| Tool | Repo | Role in your demo |
+| --- | --- | --- |
+| **Splink** | [moj-analytical-services/splink](https://github.com/moj-analytical-services/splink) | Link “John Smith” / “J. Smith” / “Johnny Smith” across property, FEC, and charity tables (Fellegi–Sunter probabilities) |
+| **Aleph** | [alephdata/aleph](https://github.com/alephdata/aleph) | OCCRP-style investigation workspace: ingest, search, cross-reference |
+| **Follow the Money** | [alephdata/followthemoney](https://github.com/alephdata/followthemoney) | Shared schema: Person, Company, Land, Interest, Donation—before you graph |
+
+**Maps to fraud tracks:** [Track 2 (valuation collusion)](#track-2-artificial-valuation-and-tax-evasion-collusion), [Track 4 (shell contractors)](#track-4-the-shell-game-contractor-audit).
+
+### 2. Text & NLP (meetings + legislation)
+
+| Tool | Repo | Role |
+| --- | --- | --- |
+| **Datashare** | [ICIJ/datashare](https://github.com/ICIJ/datashare) | OCR + entity extraction + search over thousands of PDF minutes (local or API) |
+| **Grano** | [ANCIR/grano](https://github.com/ANCIR/grano) | Influence networks from mixed political/economic sources |
+
+**CommunityOne shortcut:** You already have **transcripts + policy JSON** (`decisions[]`, `people[]`, `places[]`). Pitch Datashare for **bulk PDF backfill**; pitch CommunityOne for **structured decisions with playback timestamps**.
+
+**Maps to fraud tracks:** [Track 5 (earmarks / dark money)](#track-5-the-earmark-and-dark-money-unveiler), [Track 3 (quid pro quo matrix)](#track-3-the-quid-pro-quo-policy-matrix).
+
+### 3. Graph & network analysis
+
+| Tool | Repo | Role |
+| --- | --- | --- |
+| **Datashare → Neo4j** | [ICIJ/datashare-extension-neo4j](https://github.com/ICIJ/datashare-extension-neo4j) | Visual traversable graph: “Who in Meeting X also donated before Vote Y?” |
+| **NetworkX** | [networkx/networkx](https://github.com/networkx/networkx) | Centrality and cluster detection—who are the hubs? |
+
+**Maps to fraud tracks:** [Track 3](#track-3-the-quid-pro-quo-policy-matrix), [Track 6 (land-use predictor)](#track-6-the-insider-trading-and-land-use-predictor).
+
+### 4. Anomaly detection (property & donations)
+
+| Tool | Repo | Role |
+| --- | --- | --- |
+| **ProACT** | [INTVP/proACT](https://github.com/INTVP/proACT) | Procurement-focused but includes transferable scripts (e.g. **Benford**) for skewed distributions |
+| **Canary** | [CanaryInAMine/Canary](https://github.com/CanaryInAMine/Canary) | Public-records fraud / anomaly patterns for journalism |
+
+**Maps to fraud tracks:** [Track 1 (appraisal gap)](#track-1-the-appraisal-gap-watchdog), [Track 7 (bond / infrastructure audit)](#track-7-municipal-bond-and-infrastructure-fund-auditing).
+
+### Recommended workflow (hackathon slide)
+
+```text
+[Meeting notes / bills]  →  Datashare (or CommunityOne JSON)  →  entities
+[Donations & charities]  →  Splink                            →  same person?
+[Property DB]            →  Benford / outliers                →  value spikes
+                                                              ↓
+                                                    Neo4j / NetworkX
+                                                    Cypher: short paths
+                                                    policy ↔ money ↔ land
+```
+
+**60-second demo beat:** One zoning vote from a **Tuscaloosa** (or pilot) meeting → Splink matches a donor name to a **parcel owner** → Neo4j shows a **3-hop path** in under 10 seconds on screen.
+
+**Do not:** Rebuild entity resolution from scratch with fuzzy `LIKE` joins—judges have seen Splink/OCCRP stories; name the tools.
+
+---
+
 ## Fraud and conflict-of-interest hackathon ideas (master list)
 
 The list below adds 10 fraud and conflict-of-interest detection tracks organized into thematic lanes. Each track includes data pipelines, technical targets, and a concrete engineering deliverable.
@@ -650,7 +714,7 @@ The list below adds 10 fraud and conflict-of-interest detection tracks organized
 
 **Data sources:** County tax assessments, CMBS disclosures, zoning boundaries, state corporate tax filings.
 
-**Target technologies:** Splink-style record linkage, autoencoders for multivariate accounting anomalies.
+**Target technologies:** [Splink](https://github.com/moj-analytical-services/splink) (probabilistic linkage), autoencoders for multivariate accounting anomalies. See [OSINT pipeline](#cross-dataset-corruption-investigation-osint-pipeline).
 
 **Deliverable:** A detector for valuation schizophrenia patterns that maps assets with inconsistent valuation identities across agencies.
 
@@ -676,7 +740,7 @@ The list below adds 10 fraud and conflict-of-interest detection tracks organized
 
 **Data sources:** OpenCorporates or state corporate registries, USAspending or local checkbook datasets, official rosters.
 
-**Target technologies:** Splink or Dedupe, Jaro-Winkler or Levenshtein similarity, centrality analysis.
+**Target technologies:** [Splink](https://github.com/moj-analytical-services/splink) or Dedupe, [NetworkX](https://github.com/networkx/networkx) centrality. See [OSINT pipeline](#cross-dataset-corruption-investigation-osint-pipeline).
 
 **Deliverable:** Compliance engine that flags high-risk procurement awards with explainable entity-link evidence.
 
@@ -702,7 +766,7 @@ The list below adds 10 fraud and conflict-of-interest detection tracks organized
 
 **Data sources:** Data.gov and legislative appropriations portals, OpenCorporates filings, property sale records by ZIP or coordinates.
 
-**Target technologies:** Neo4j knowledge graphs, NER over investment text, lagged time-series analysis.
+**Target technologies:** [Neo4j](https://neo4j.com/) + [followthemoney](https://github.com/alephdata/followthemoney) / [Datashare Neo4j extension](https://github.com/ICIJ/datashare-extension-neo4j), NER over investment text, lagged time-series analysis. See [OSINT pipeline](#cross-dataset-corruption-investigation-osint-pipeline).
 
 **Deliverable:** Alerting system for high-value localized acquisitions within a 90-day pre-announcement window.
 
@@ -760,8 +824,9 @@ The list below adds 10 fraud and conflict-of-interest detection tracks organized
 
 To keep teams focused on engineering instead of cleaning:
 
-1. **Enforce standard joins:** Provide shared entity mapping templates (properties, agencies, officials, and geography to normalized boundaries or OCD divisions).
+1. **Enforce standard joins:** Provide shared entity mapping templates (properties, agencies, officials, and geography to normalized boundaries or OCD divisions). Point teams at **[Splink](https://github.com/moj-analytical-services/splink)** + **[followthemoney](https://github.com/alephdata/followthemoney)** rather than hand-rolled name matching.
 2. **Seed class imbalance intentionally:** Include synthetic anomalies or historic known cases so teams can calibrate thresholds and compare precision-recall tradeoffs.
+3. **Document stack:** Require a one-slide “OSINT pipeline” ([template above](#recommended-workflow-hackathon-slide)) so demos interoperate with ICIJ/OCCRP-style tooling.
 
 ---
 

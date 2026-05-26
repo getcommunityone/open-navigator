@@ -245,6 +245,12 @@ def _jurisdiction_name_tokens(name: str) -> list[str]:
     return [t for t in tokens if t not in {"city", "town", "county", "village", "borough"}]
 
 
+def is_discovered_on_jurisdiction_website(discovery_method: str) -> bool:
+    """True when the channel URL was found linked from the jurisdiction website crawl."""
+    method = (discovery_method or "").strip().lower()
+    return method.startswith("website_search") or method.startswith("website_scrape")
+
+
 def score_official_meeting_channel(
     *,
     channel_title: str,
@@ -255,6 +261,7 @@ def score_official_meeting_channel(
     backlinks_to_jurisdiction: bool,
     video_count: int | None,
     existing_policy_score: int | float | None = None,
+    discovered_on_jurisdiction_website: bool = False,
 ) -> float:
     """
     Return a 0.0–1.0 heuristic confidence that this channel is the jurisdiction's
@@ -274,6 +281,10 @@ def score_official_meeting_channel(
       name + state both visible in description              +0.10
       video_count >= 50                                     +0.10
       existing policy_score >= 1 (existing scorer)          +0.10
+
+    Floors (after additive score, still capped at 1.0):
+      channel About links to jurisdiction .gov host         min 0.85
+      two-way link (channel → .gov and .gov → channel)    min 0.95
 
     The back-link weight is high enough that a confirmed back-link alone clears the
     default 0.50 threshold. Random channels essentially never link to municipal .gov
@@ -323,6 +334,11 @@ def score_official_meeting_channel(
                 score += 0.10
         except (TypeError, ValueError):
             pass
+
+    if backlinks_to_jurisdiction:
+        score = max(score, 0.85)
+        if discovered_on_jurisdiction_website:
+            score = max(score, 0.95)
 
     return round(min(score, 1.0), 3)
 
@@ -405,6 +421,9 @@ def enrich_channel(
 
     normalized_url = canonical_channel_url(channel_id) if channel_id else channel_url
 
+    discovered_on_website = is_discovered_on_jurisdiction_website(
+        str(channel.get("discovery_method") or "")
+    )
     confidence = score_official_meeting_channel(
         channel_title=title,
         channel_description=description,
@@ -414,6 +433,7 @@ def enrich_channel(
         backlinks_to_jurisdiction=backlinks,
         video_count=video_count if video_count is not None else None,
         existing_policy_score=channel.get("policy_score"),
+        discovered_on_jurisdiction_website=discovered_on_website,
     )
 
     enriched = dict(channel)
@@ -426,6 +446,10 @@ def enrich_channel(
     enriched["external_links"] = links
     enriched["jurisdiction_website_back_links"] = website_back_links
     enriched["back_links_to_jurisdiction_website"] = backlinks
+    enriched["discovered_on_jurisdiction_website"] = discovered_on_website
+    enriched["mutual_official_website_link"] = bool(
+        backlinks and discovered_on_website
+    )
     enriched["subscriber_count"] = subscriber_count
     enriched["video_count"] = video_count
     enriched["view_count"] = view_count

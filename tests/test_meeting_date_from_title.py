@@ -1,4 +1,5 @@
 from scripts.gemini.transcript_cache_paths import (
+    extract_meeting_date_from_filename,
     extract_meeting_date_from_title,
     meeting_media_basename,
     resolve_meeting_event_date,
@@ -9,6 +10,25 @@ from scripts.gemini.transcript_cache_paths import (
 def test_extract_slash_date_from_council_title():
     title = "City of Northport - Council Meeting 9/23/2024"
     assert extract_meeting_date_from_title(title) == "2024-09-23"
+
+
+def test_resolve_uses_iso_prefix_from_audio_path():
+    title = "Behind Beloit Pilot"
+    audio = "WI/Some_Channel/2026-02-25_260123_Behind_Beloit_Pilot.opus"
+    assert extract_meeting_date_from_filename(audio) == "2026-02-25"
+    assert (
+        resolve_meeting_event_date(
+            title,
+            event_date="2026-05-26",
+            published_at="2026-05-26",
+            audio_file_path=audio,
+        )
+        == "2026-02-25"
+    )
+    assert (
+        meeting_media_basename(title, event_date="2026-05-26", audio_file_path=audio)
+        == "2026-02-25_Behind_Beloit_Pilot"
+    )
 
 
 def test_resolve_prefers_title_over_upload_date():

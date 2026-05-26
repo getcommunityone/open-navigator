@@ -54,6 +54,18 @@ export function latestDashboardActivityIso(batches: BatchJob[]): string | null {
         best = iso
       }
     }
+    const summary = batch.summary || {}
+    const summaryIso =
+      typeof summary.current_video_started_at === 'string'
+        ? summary.current_video_started_at.trim()
+        : ''
+    if (summaryIso) {
+      const d = parseApiDateTime(summaryIso)
+      if (d && d.getTime() >= bestMs) {
+        bestMs = d.getTime()
+        best = summaryIso
+      }
+    }
     for (const iso of [batch.started_at, batch.finished_at]) {
       const trimmed = iso?.trim()
       if (!trimmed) continue

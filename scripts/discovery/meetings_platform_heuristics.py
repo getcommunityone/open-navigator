@@ -1097,6 +1097,8 @@ _OTHER_VIDEO_STREAM_PATTERNS: Tuple[Tuple[str, re.Pattern], ...] = (
     ("uscreen", re.compile(r"uscreen\.io|videodelivery\.net", re.I)),
     # GoMeet / Meetmaps-style hosted recordings (e.g. Sweet Grass County MT commission table links).
     ("gomeet", re.compile(r"gomeet\.com/", re.I)),
+    # Champ Digital Solutions (TV Gwinnett and similar ``play.champds.com`` embeds).
+    ("champds", re.compile(r"play\.champds\.com|playapi\.champds\.com|securestream\d+\.champds\.com", re.I)),
 )
 
 

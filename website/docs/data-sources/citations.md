@@ -46,7 +46,7 @@ This page documents all data sources, standards, and research contributions used
   </a>
   <a href="#-civic-tech--open-source" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #673AB7'}}>
     <strong>💻 Civic Tech & Open Source</strong><br/>
-    <span style={{fontSize: '0.9em', color: '#666'}}>GitHub, Code for America, Hackathons, Microsoft, Google, AWS, Databricks, DPGA</span>
+    <span style={{fontSize: '0.9em', color: '#666'}}>GitHub, Code for America, Splink, Aleph, Datashare, Neo4j, NetworkX, hackathons, cloud platforms</span>
   </a>
   <a href="#-community-solutions--use-cases" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #FFEB3B'}}>
     <strong>🌟 Community Solutions & Use Cases</strong><br/>
@@ -1922,11 +1922,49 @@ https://www.arcgis.com/home/item.html?id=333a74c8e9c64cb6870689d31e8836af
 ## 💻 Civic Tech & Open Source
 
 **In this section:**
+- [Investigative OSINT & anti-corruption toolkit](#investigative-osint--anti-corruption-toolkit)
 - [Cloud & Data Platforms](#cloud--data-platforms)
 - [Civic Tech Field Guide](#civic-tech-field-guide)
 - [Code for America: Brigade Network](#code-for-america-brigade-network)
 - [U.S. Digital Response (USDR)](#us-digital-response-usdr)
 - [Digital Public Goods Alliance (DPGA)](#digital-public-goods-alliance-dpga)
+
+### Investigative OSINT & anti-corruption toolkit
+
+Investigative journalism networks (for example **ICIJ** on the Panama Papers and **OCCRP** on cross-border corruption) rely on an ecosystem of open-source tools—not a single “anti-corruption app”—to connect **meeting notes, campaign finance, property records, and charities**. Open Navigator’s cross-dataset work (entity resolution, graph views, meeting NLP) aligns with this stack.
+
+**Core challenge:** **Entity resolution**—ensuring “John Smith” the developer, “J. Smith” the donor, and “Johnny Smith” on a charity board are the same person (or confidently not).
+
+**Recommended pipeline (do not rebuild from scratch):**
+
+```
+[Meeting notes / bills]  →  ICIJ Datashare  →  NER / searchable text     ┐
+[Donations & charities]  →  Splink          →  probabilistic name match  ├──  Neo4j / NetworkX
+[Property & assessor]    →  Benford / outliers → valuation spikes         ┘
+                              (followthemoney schema)
+```
+
+| Tool | Repository | What it does | When to cite |
+| --- | --- | --- | --- |
+| **Splink** | [moj-analytical-services/splink](https://github.com/moj-analytical-services/splink) | Probabilistic record linkage (Fellegi–Sunter); dedupe and link messy names/addresses across tables without shared IDs | Property rolls × donors × charity boards |
+| **Aleph** | [alephdata/aleph](https://github.com/alephdata/aleph) | OCCRP’s investigation platform: ingest, search, and cross-reference document and entity collections | Document-heavy corruption probes |
+| **Follow the Money** | [alephdata/followthemoney](https://github.com/alephdata/followthemoney) | Data model for anti-corruption entities (Person, Company, Land, Interest, Donation) | Structuring heterogeneous feeds before graph export |
+| **Datashare** | [ICIJ/datashare](https://github.com/ICIJ/datashare) | ICIJ document analysis: OCR on PDFs, entity extraction, full-text search over large troves | Meeting minutes, legislation, scanned packets |
+| **Grano** | [ANCIR/grano](https://github.com/ANCIR/grano) | ANCIR toolkit for mapping political and economic influence networks | Influence / lobbying style graphs |
+| **Datashare → Neo4j** | [ICIJ/datashare-extension-neo4j](https://github.com/ICIJ/datashare-extension-neo4j) | Exports Datashare entities into Neo4j for traversable graphs | “Short path” queries between meetings and money |
+| **NetworkX** | [networkx/networkx](https://github.com/networkx/networkx) | Python graph algorithms: centrality, community detection, path analysis | Hub officials, collusive clusters |
+| **ProACT** | [INTVP/proACT](https://github.com/INTVP/proACT) | World Bank–linked procurement transparency platform; includes reusable anomaly scripts (e.g. Benford) | Transferable math for donations / valuations |
+| **Canary** | [CanaryInAMine/Canary](https://github.com/CanaryInAMine/Canary) | Data-journalism accountability tool for fraud/anomaly patterns in public records | Public-records screening |
+
+**Query pattern (after linking):** Push linked entities into **Neo4j** using **followthemoney**-style types, then run **Cypher** for short paths between **policy events** (votes, zoning, contracts) and **private enrichment** (donations, property transfers, charity flows).
+
+**Open Navigator overlap:** Meeting transcripts and policy JSON (`decisions[]`, `people[]`, `places[]`), FEC / nonprofit bronze, assessor and parcel discovery (OpenAddresses), and jurisdiction graphs are inputs to the same pipeline—CommunityOne is the **local-government meeting layer**; Splink/Aleph/Neo4j are the **cross-agency glue**.
+
+**Hackathon pitches:** See [Hackathon video submission ideas — OSINT pipeline](../guides/hackathon-video-submission-ideas.md#cross-dataset-corruption-investigation-osint-pipeline) and [fraud tracks](../guides/hackathon-video-submission-ideas.md#fraud-and-conflict-of-interest-hackathon-ideas-master-list).
+
+**License note:** Each repository has its own license (often Apache-2.0 or similar); cite the **tool paper/site**, the **GitHub repo**, and any **journalistic investigation** that motivated your use.
+
+---
 
 ### Cloud & Data Platforms
 

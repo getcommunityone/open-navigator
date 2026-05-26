@@ -388,6 +388,7 @@ def fetch_videos(
                     str(title or ""),
                     event_date=r.get("event_date"),
                     published_at=r.get("published_at"),
+                    audio_file_path=r.get("audio_file_path"),
                 ),
                 audio_file_path=r.get("audio_file_path"),
                 jurisdiction_id=str(r.get("jurisdiction_id") or jurisdiction_id),

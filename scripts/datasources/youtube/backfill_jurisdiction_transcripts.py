@@ -225,6 +225,7 @@ def fetch_pending_videos(
             y.duration_minutes,
             y.published_at,
             y.last_updated,
+            y.audio_file_path,
             COALESCE(y.transcript_download_attempts, 0) AS transcript_download_attempts,
             y.transcript_download_at,
             y.transcript_file_error,
@@ -300,6 +301,7 @@ def fetch_video_row(
                     y.duration_minutes,
                     y.published_at,
                     y.last_updated,
+                    y.audio_file_path,
                     COALESCE(y.transcript_download_attempts, 0) AS transcript_download_attempts,
                     y.transcript_download_at,
                     y.transcript_file_error,
@@ -320,11 +322,12 @@ def fetch_video_row(
 
 
 def apply_resolved_event_date(row: Dict[str, Any]) -> Dict[str, Any]:
-    """Set ``event_date`` from title when the title contains a meeting date."""
+    """Set ``event_date`` from title or dated audio/transcript basename."""
     resolved = resolve_meeting_event_date(
         str(row.get("title") or ""),
         event_date=row.get("event_date"),
         published_at=row.get("published_at"),
+        audio_file_path=row.get("audio_file_path"),
     )
     if resolved:
         row["event_date"] = resolved
@@ -347,7 +350,7 @@ def fix_bronze_event_dates_from_titles(
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
                 """
-                SELECT video_id, title, event_date::text AS event_date, published_at
+                SELECT video_id, title, event_date::text AS event_date, published_at, audio_file_path
                 FROM bronze.bronze_events_youtube
                 WHERE jurisdiction_id = %s AND title IS NOT NULL
                 """,
@@ -359,6 +362,7 @@ def fix_bronze_event_dates_from_titles(
                 str(row["title"] or ""),
                 event_date=row.get("event_date"),
                 published_at=row.get("published_at"),
+                audio_file_path=row.get("audio_file_path"),
             )
             if not resolved or resolved == (row.get("event_date") or "")[:10]:
                 continue
@@ -1099,6 +1103,11 @@ def run(args: argparse.Namespace) -> int:
     if not pending:
         logger.info("Nothing to fetch — all transcripts present (NOOP)")
         if batch_store:
+            from scripts.datasources.youtube.batch_job_status import (
+                count_policy_files_for_jurisdiction,
+                policy_disk_file_counts,
+            )
+
             j_name = (getattr(args, "jurisdiction_name", None) or "").strip()
             batch_store.jurisdiction_start(
                 state_code=state_code,
@@ -1110,6 +1119,13 @@ def run(args: argparse.Namespace) -> int:
                 jurisdiction_id=jurisdiction_id,
                 exit_code=0,
                 stats={"noop": 1},
+                file_counts=policy_disk_file_counts(
+                    count_policy_files_for_jurisdiction(
+                        cache_dir,
+                        state_code=state_code,
+                        jurisdiction_id=jurisdiction_id,
+                    )
+                ),
             )
         return 0
 

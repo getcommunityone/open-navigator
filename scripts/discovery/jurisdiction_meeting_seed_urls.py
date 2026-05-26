@@ -26,6 +26,11 @@ _BUILTIN: Dict[str, Tuple[str, ...]] = {
     "barrow_13013": (
         "https://www.barrowga.org/390/Watch-a-Board-Meeting-Video",
     ),
+    # Gwinnett County, GA — TV Gwinnett commission meetings (ChampDS embed)
+    "gwinnett_13135": (
+        "https://www.gwinnettcounty.com/government/departments/communications/"
+        "tv-gwinnett/videos/commission-meetings",
+    ),
     # Shelby County, AL — CivicPlus Agenda Center + calendar
     "shelby_01117": (
         "https://www.shelbyal.com/AgendaCenter",

@@ -2,6 +2,7 @@
 
 from scripts.datasources.jurisdiction_pilot.youtube_channel_enrich import (
     jurisdiction_website_back_links,
+    score_official_meeting_channel,
 )
 from scripts.datasources.youtube.youtube_channel_page import (
     extract_channel_title_from_youtube_html,
@@ -46,3 +47,33 @@ def test_fetch_latest_upload_from_rss():
     assert len(latest) == 10
     assert latest[4] == "-"
     assert latest[7] == "-"
+
+
+def test_score_floor_for_channel_backlink_to_gov_site():
+    """About-page link to jurisdiction .gov → high confidence even with sparse metadata."""
+    conf = score_official_meeting_channel(
+        channel_title="Home",
+        channel_description="Share your videos with friends, family, and the world",
+        jurisdiction_name="Example County",
+        jurisdiction_state_code="GA",
+        external_links=["https://www.examplecounty.gov/"],
+        backlinks_to_jurisdiction=True,
+        video_count=None,
+    )
+    assert conf >= 0.85
+
+
+def test_score_floor_for_mutual_official_website_link():
+    conf = score_official_meeting_channel(
+        channel_title="FGTV - Fulton Government Television",
+        channel_description=(
+            "FGTV informs citizens about Fulton County, Georgia. www.fultoncountyga.gov"
+        ),
+        jurisdiction_name="Fulton County",
+        jurisdiction_state_code="GA",
+        external_links=["https://www.fultoncountyga.gov/"],
+        backlinks_to_jurisdiction=True,
+        video_count=200,
+        discovered_on_jurisdiction_website=True,
+    )
+    assert conf >= 0.95

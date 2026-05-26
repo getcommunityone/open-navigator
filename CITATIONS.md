@@ -1686,6 +1686,26 @@ Comprehensive, curated directory of civic technology projects, organizations, an
 
 ---
 
+### **Investigative OSINT & Anti-Corruption Toolkit** (reference)
+
+Open-source stack used by investigative networks (ICIJ, OCCRP, ANCIR) to link **meetings, donations, property, and charities** via entity resolution and graph analysis.
+
+| Tool | Repository |
+| --- | --- |
+| Splink | https://github.com/moj-analytical-services/splink |
+| Aleph | https://github.com/alephdata/aleph |
+| Follow the Money | https://github.com/alephdata/followthemoney |
+| Datashare | https://github.com/ICIJ/datashare |
+| Grano | https://github.com/ANCIR/grano |
+| Datashare Neo4j extension | https://github.com/ICIJ/datashare-extension-neo4j |
+| NetworkX | https://github.com/networkx/networkx |
+| ProACT | https://github.com/INTVP/proACT |
+| Canary | https://github.com/CanaryInAMine/Canary |
+
+**Full write-up:** [website/docs/data-sources/citations.md](website/docs/data-sources/citations.md#investigative-osint--anti-corruption-toolkit) · **Hackathon pipeline:** [website/docs/guides/hackathon-video-submission-ideas.md](website/docs/guides/hackathon-video-submission-ideas.md#cross-dataset-corruption-investigation-osint-pipeline)
+
+---
+
 ## �️ **Technology Platforms & Support Programs**
 
 ### **Databricks for Good Program** ⭐

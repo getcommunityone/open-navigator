@@ -154,13 +154,45 @@ def _totals_from_batch_summaries(batches: List[Dict[str, Any]]) -> Dict[str, Any
     return totals
 
 
-def _last_activity_from_batch_rows(batches: List[Dict[str, Any]]) -> str:
+def _max_iso_timestamp(best: str, candidate: str) -> str:
+    raw = (candidate or "").strip()
+    if raw and (not best or raw > best):
+        return raw
+    return best
+
+
+def pipeline_activity_at_from_batches(batches: List[Dict[str, Any]]) -> str:
+    """
+    Latest jurisdiction/video progress timestamp (not batch ``updated_at`` sync metadata).
+
+    Includes ``summary.current_video_started_at`` (same clock as the Current file card) when
+    the slim running snapshot has no jurisdiction rows.
+    """
     best = ""
-    for d in batches:
-        for key in ("updated_at", "finished_at", "started_at"):
-            raw = (d.get(key) or "").strip()
-            if raw and (not best or raw > best):
-                best = raw
+    for b in batches:
+        jurs = b.get("jurisdictions") or []
+        for j in jurs:
+            if not isinstance(j, dict):
+                continue
+            for key in (
+                "updated_at",
+                "current_video_started_at",
+                "finished_at",
+                "started_at",
+            ):
+                best = _max_iso_timestamp(best, j.get(key) or "")
+            for v in j.get("videos") or []:
+                if isinstance(v, dict):
+                    best = _max_iso_timestamp(best, v.get("finished_at") or "")
+        summary = b.get("summary") or {}
+        if isinstance(summary, dict):
+            for key in (
+                "current_video_started_at",
+                "current_jurisdiction_finished_at",
+            ):
+                best = _max_iso_timestamp(best, summary.get(key) or "")
+        for key in ("finished_at", "started_at"):
+            best = _max_iso_timestamp(best, b.get(key) or "")
     return best
 
 
@@ -241,12 +273,11 @@ def build_dashboard_summary(*, limit: int = 30) -> Dict[str, Any]:
                 if k in sql_totals
             }
         )
-        if sql_totals.get("last_activity_at"):
+        last_activity = pipeline_activity_at_from_batches(batches)
+        if not last_activity and sql_totals.get("last_activity_at"):
             last_activity = sql_totals["last_activity_at"]
-        else:
-            last_activity = _last_activity_from_batch_rows(batches)
     else:
-        last_activity = _last_activity_from_batch_rows(batches)
+        last_activity = pipeline_activity_at_from_batches(batches)
     now = _dt.datetime.now(_dt.timezone.utc)
     return {
         "generated_at": now.isoformat(),
@@ -291,10 +322,11 @@ def build_batch_state_jurisdictions(*, batch_id: str, state_code: str) -> List[D
         plan = fetch_batch_plan_jurisdictions_cached([st], round_robin=bool(rr))
         expand_batch_job_plan(job, plan=plan)
         apply_batch_lifecycle(job)
+        full = job.to_dict()
         return [
-            slim_jurisdiction_videos(j.to_dict(), video_mode="none")
-            for j in job.jurisdictions
-            if (j.state_code or "").upper() == st
+            slim_jurisdiction_videos(j, video_mode="none")
+            for j in full.get("jurisdictions") or []
+            if (j.get("state_code") or "").upper() == st
         ]
 
     rows = list_jurisdiction_rows_from_db(batch_id, st)
@@ -302,10 +334,11 @@ def build_batch_state_jurisdictions(*, batch_id: str, state_code: str) -> List[D
         return rows
 
     apply_batch_lifecycle(job)
+    full = job.to_dict()
     return [
-        slim_jurisdiction_videos(j.to_dict(), video_mode="none")
-        for j in job.jurisdictions
-        if (j.state_code or "").upper() == st
+        slim_jurisdiction_videos(j, video_mode="none")
+        for j in full.get("jurisdictions") or []
+        if (j.get("state_code") or "").upper() == st
     ]
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]

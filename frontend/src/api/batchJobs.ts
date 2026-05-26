@@ -107,6 +107,34 @@ export async function fetchBatchJobsDashboard(
       detail,
       batch_limit: 25,
     },
+    signal: AbortSignal.timeout(30_000),
+  })
+  return res.data
+}
+
+export type FailedVideosListPayload = {
+  rows: Array<{
+    batch_id: string
+    batch_step: string
+    state_code: string
+    jurisdiction_id: string
+    jurisdiction_name: string
+    video: BatchVideoResult
+  }>
+  total_fail_in_summaries: number
+  truncated: boolean
+}
+
+export async function fetchFailedVideos(
+  batchId?: string,
+  limit = 500,
+): Promise<FailedVideosListPayload> {
+  const res = await api.get<FailedVideosListPayload>('/batch-jobs/failed-videos', {
+    params: {
+      ...(batchId ? { batch_id: batchId } : {}),
+      limit,
+    },
+    signal: AbortSignal.timeout(60_000),
   })
   return res.data
 }

@@ -292,3 +292,257 @@ async def list_missing_youtube_channels(
     except Exception as e:
         logger.exception("list_missing_youtube_channels failed")
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+class YoutubeChannelGoldenRow(BaseModel):
+    youtube_channel_url: Optional[str] = None
+    youtube_channel_id: Optional[str] = None
+    channel_title: Optional[str] = None
+    is_primary: bool = False
+    discovery_method: Optional[str] = None
+    verified_at: Optional[str] = None
+
+
+class YoutubeChannelCandidateRow(BaseModel):
+    youtube_channel_url: Optional[str] = None
+    youtube_channel_id: Optional[str] = None
+    channel_title: Optional[str] = None
+    is_verified: bool = False
+    discovery_method: Optional[str] = None
+    official_meeting_confidence: Optional[float] = None
+    rejection_reason: Optional[str] = None
+
+
+class YoutubeChannelDiagnosticsRow(BaseModel):
+    jurisdiction_id: str
+    name: str
+    state_code: str
+    jurisdiction_type: str
+    geoid: Optional[str] = None
+    primary_website_url: Optional[str] = None
+    has_primary_website: bool = False
+    has_youtube_channel: bool = False
+    youtube_channel_url: Optional[str] = None
+    youtube_channel_id: Optional[str] = None
+    youtube_discovery_method: Optional[str] = None
+    n_golden_channel_rows: int = 0
+    n_candidates: int = 0
+    n_verified_candidates: int = 0
+    n_bronze_videos: int = 0
+    gap_reason_code: str
+    gap_reason_label: str
+    golden_channels: List[YoutubeChannelGoldenRow] = Field(default_factory=list)
+    candidate_channels: List[YoutubeChannelCandidateRow] = Field(default_factory=list)
+
+
+class YoutubeChannelCoverageResponse(BaseModel):
+    entity: str
+    state_code: Optional[str] = None
+    total: int
+    with_youtube_channel: int
+    pct_with_youtube_channel: float
+    source: str = Field(
+        default="live_int_events_channels",
+        description="Counts join intermediate.int_events_channels (not stale JSON export).",
+    )
+
+
+class YoutubeChannelDiagnosticsResponse(BaseModel):
+    entity: str
+    state_code: str
+    name_search: Optional[str] = None
+    total: int
+    rows: List[YoutubeChannelDiagnosticsRow]
+    explained: Dict[str, str] = Field(
+        default_factory=lambda: {
+            "golden_table": "intermediate.int_events_channels",
+            "candidates_table": "intermediate.int_events_channels_candidates",
+            "bronze_videos": "bronze.bronze_events_youtube",
+            "has_youtube_channel": (
+                "True when intermediate.int_events_channels has a non-blank "
+                "youtube_channel_url for this jurisdiction (matched by jurisdiction_id "
+                "or GEOID suffix + jurisdiction_type — not website_url)."
+            ),
+            "website_url": (
+                "int_events_channels.website_url is the jurisdiction portal used during "
+                "discovery; golden mapping is youtube_channel_url only."
+            ),
+        }
+    )
+
+
+def _diag_row_to_model(row: Any) -> YoutubeChannelDiagnosticsRow:
+    from scripts.datasources.jurisdictions.youtube_channel_diagnostics import (
+        compute_youtube_gap_reason,
+    )
+
+    d = dict(row)
+    code, label = compute_youtube_gap_reason(d)
+    golden_raw = d.get("golden_channels")
+    cand_raw = d.get("candidate_channels")
+    if isinstance(golden_raw, str):
+        import json
+
+        golden_raw = json.loads(golden_raw)
+    if isinstance(cand_raw, str):
+        import json
+
+        cand_raw = json.loads(cand_raw)
+    golden_list = golden_raw if isinstance(golden_raw, list) else []
+    cand_list = cand_raw if isinstance(cand_raw, list) else []
+
+    return YoutubeChannelDiagnosticsRow(
+        jurisdiction_id=str(d["jurisdiction_id"]),
+        name=str(d["name"]),
+        state_code=str(d["state_code"]),
+        jurisdiction_type=str(d["jurisdiction_type"]),
+        geoid=d.get("geoid"),
+        primary_website_url=d.get("primary_website_url"),
+        has_primary_website=bool(d.get("has_primary_website")),
+        has_youtube_channel=bool(d.get("has_youtube_channel")),
+        youtube_channel_url=d.get("youtube_channel_url"),
+        youtube_channel_id=d.get("youtube_channel_id"),
+        youtube_discovery_method=d.get("youtube_discovery_method"),
+        n_golden_channel_rows=int(d.get("n_golden_channel_rows") or 0),
+        n_candidates=int(d.get("n_candidates") or 0),
+        n_verified_candidates=int(d.get("n_verified_candidates") or 0),
+        n_bronze_videos=int(d.get("n_bronze_videos") or 0),
+        gap_reason_code=code,
+        gap_reason_label=label,
+        golden_channels=[YoutubeChannelGoldenRow(**x) for x in golden_list if isinstance(x, dict)],
+        candidate_channels=[YoutubeChannelCandidateRow(**x) for x in cand_list if isinstance(x, dict)],
+    )
+
+
+@router.get("/youtube-channel-coverage", response_model=YoutubeChannelCoverageResponse)
+async def youtube_channel_coverage(
+    entity: str = Query(..., description="counties, cities, or towns"),
+    state_code: Optional[str] = Query(
+        None,
+        min_length=2,
+        max_length=2,
+        description="Optional USPS state code (national totals when omitted)",
+    ),
+):
+    """
+    Live golden-channel coverage from ``intermediate.int_events_channels`` (GEOID-aware match).
+    Use when ``jurisdiction_mapping_quality.json`` lacks ``with_youtube_channel`` (dbt not rebuilt).
+    """
+    from scripts.datasources.jurisdictions.youtube_channel_diagnostics import (
+        YOUTUBE_COVERAGE_SUMMARY_SQL,
+        build_youtube_coverage_where_asyncpg,
+    )
+
+    entity_key = entity.strip().lower()
+    if entity_key not in VALID_ENTITIES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"entity must be one of: {', '.join(sorted(VALID_ENTITIES))}",
+        )
+    if entity_key in {"state", "schools"}:
+        raise HTTPException(
+            status_code=400,
+            detail="YouTube channel coverage applies to counties and municipalities only.",
+        )
+
+    try:
+        where_sql, where_params, _ = build_youtube_coverage_where_asyncpg(
+            entity_key,
+            state_code=state_code,
+            param_start=1,
+        )
+        pool = await get_db_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                f"""
+                {YOUTUBE_COVERAGE_SUMMARY_SQL}
+                WHERE {where_sql}
+                """,
+                *where_params,
+            )
+        total = int((row["total"] if row else 0) or 0)
+        with_ch = int((row["with_youtube_channel"] if row else 0) or 0)
+        pct = round(100.0 * with_ch / total, 2) if total > 0 else 0.0
+        st = state_code.strip().upper() if state_code else None
+        return YoutubeChannelCoverageResponse(
+            entity=entity_key,
+            state_code=st,
+            total=total,
+            with_youtube_channel=with_ch,
+            pct_with_youtube_channel=pct,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception as e:
+        logger.exception("youtube_channel_coverage failed")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.get("/youtube-channel-diagnostics", response_model=YoutubeChannelDiagnosticsResponse)
+async def list_youtube_channel_diagnostics(
+    entity: str = Query(..., description="counties, cities, or towns"),
+    state_code: str = Query(..., min_length=2, max_length=2, description="USPS state code (required)"),
+    name_search: Optional[str] = Query(
+        None,
+        description="Case-insensitive substring on jurisdiction name (e.g. dekalb)",
+    ),
+    limit: int = Query(500, ge=1, le=2000),
+):
+    """
+  Per-jurisdiction YouTube pipeline status: golden ``int_events_channels``, candidates,
+  and ``bronze_events_youtube`` video counts — explains missing videos vs missing URLs.
+    """
+    from scripts.datasources.jurisdictions.youtube_channel_diagnostics import (
+        YOUTUBE_DIAGNOSTICS_ROW_SQL,
+        build_youtube_diagnostics_where_asyncpg,
+    )
+
+    entity_key = entity.strip().lower()
+    if entity_key not in VALID_ENTITIES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"entity must be one of: {', '.join(sorted(VALID_ENTITIES))}",
+        )
+
+    try:
+        where_sql, where_params, next_idx = build_youtube_diagnostics_where_asyncpg(
+            entity_key,
+            state_code=state_code,
+            name_search=name_search,
+            param_start=1,
+        )
+        pool = await get_db_pool()
+        async with pool.acquire() as conn:
+            total = await conn.fetchval(
+                f"""
+                SELECT COUNT(*)::bigint
+                FROM public.jurisdiction_mapping_analysis a
+                WHERE {where_sql}
+                """,
+                *where_params,
+            )
+            limit_idx = next_idx
+            rows_raw = await conn.fetch(
+                f"""
+                {YOUTUBE_DIAGNOSTICS_ROW_SQL}
+                WHERE {where_sql}
+                ORDER BY a.name
+                LIMIT ${limit_idx}
+                """,
+                *where_params,
+                limit,
+            )
+        rows = [_diag_row_to_model(r) for r in rows_raw]
+        st = state_code.strip().upper()
+        return YoutubeChannelDiagnosticsResponse(
+            entity=entity_key,
+            state_code=st,
+            name_search=name_search.strip() if name_search else None,
+            total=int(total or 0),
+            rows=rows,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception as e:
+        logger.exception("list_youtube_channel_diagnostics failed")
+        raise HTTPException(status_code=500, detail=str(e)) from e
