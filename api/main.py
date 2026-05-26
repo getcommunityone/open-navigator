@@ -295,6 +295,7 @@ from api.routes import data_deletion as data_deletion_routes
 from api.routes import trending as trending_routes
 from api.routes import lighthouse_reports as lighthouse_reports_routes
 from api.routes import jurisdiction_mapping as jurisdiction_mapping_routes
+from api.routes import batch_jobs as batch_jobs_routes
 from api.routes import locations as locations_routes
 from api.database import init_db
 
@@ -308,6 +309,7 @@ app.include_router(data_deletion_routes.router, prefix="/api", tags=["privacy"])
 app.include_router(trending_routes.router)
 app.include_router(lighthouse_reports_routes.router, prefix="/api")
 app.include_router(jurisdiction_mapping_routes.router, prefix="/api")
+app.include_router(batch_jobs_routes.router, prefix="/api")
 app.include_router(locations_routes.router, prefix="/api")
 
 # Custom Swagger UI with logo

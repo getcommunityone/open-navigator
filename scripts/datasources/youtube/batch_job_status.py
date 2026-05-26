@@ -2,10 +2,11 @@
 """
 Persist batch job progress for priority-state pipelines (captions, analyze, catalog).
 
-Status files: ``data/cache/batch_jobs/<batch_id>.json`` and ``index.json``.
+Writes JSON under ``data/cache/batch_jobs/`` and syncs to
+``bronze.youtube_batch_job_runs`` (migration 073) for the live API dashboard.
 
 Used by ``run_priority_states_last_n.sh`` and ``backfill_jurisdiction_transcripts.py``.
-View: ``.venv/bin/python scripts/datasources/youtube/batch_job_dashboard.py --open``
+View in React: ``/data-explorer/batch-jobs`` (``GET /api/batch-jobs/stream`` SSE).
 """
 
 from __future__ import annotations
@@ -22,6 +23,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 _DEFAULT_JOBS_DIR = _REPO_ROOT / "data" / "cache" / "batch_jobs"
 _INDEX_NAME = "index.json"
 _SLUG_RE = re.compile(r"[^a-zA-Z0-9._-]+")
@@ -29,6 +32,19 @@ _SLUG_RE = re.compile(r"[^a-zA-Z0-9._-]+")
 
 def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def duration_seconds_from_catalog_minutes(duration_minutes: object) -> Optional[float]:
+    """Convert ``bronze_events_youtube.duration_minutes`` to seconds for batch UI."""
+    if duration_minutes is None:
+        return None
+    try:
+        sec = float(duration_minutes) * 60.0
+    except (TypeError, ValueError):
+        return None
+    if sec <= 0 or sec > 86400 * 48:  # cap absurd values (~48h)
+        return None
+    return round(sec, 1)
 
 
 def _slug(s: str, max_len: int = 48) -> str:
@@ -46,6 +62,240 @@ def jobs_dir() -> Path:
     return Path(raw).resolve() if raw else _DEFAULT_JOBS_DIR
 
 
+def _batch_database_url() -> str:
+    return (
+        os.getenv("NEON_DATABASE_URL_DEV", "").strip()
+        or os.getenv("NEON_DATABASE_URL", "").strip()
+        or os.getenv("DATABASE_URL", "").strip()
+    )
+
+
+def fetch_batch_plan_jurisdictions(
+    states: List[str],
+    *,
+    round_robin: bool = True,
+    database_url: Optional[str] = None,
+) -> List[JurisdictionRun]:
+    """
+    Canonical jurisdictions for the batch plan (``pending``), aligned with
+    ``intermediate.int_jurisdictions`` — not legacy ``c-AL-*`` ids on bronze video rows.
+    """
+    from scripts.jurisdictions.jurisdiction_id import (
+        _PREFIXED_USPS_GEOID_RE,
+        _SLUG_GEOID_RE,
+        _TYPED_JURISDICTION_ID_RE,
+        ensure_canonical_jurisdiction_id,
+    )
+
+    st_list = [s.strip().upper() for s in states if (s or "").strip()]
+    if not st_list:
+        return []
+    url = (database_url or "").strip() or _batch_database_url()
+    if not url:
+        return []
+    try:
+        import psycopg2
+        from psycopg2.extras import RealDictCursor
+    except ImportError:
+        return []
+
+    rows: list = []
+    try:
+        with psycopg2.connect(url) as conn, conn.cursor(
+            cursor_factory=RealDictCursor
+        ) as cur:
+            cur.execute(
+                """
+                SELECT
+                    j.state_code,
+                    j.jurisdiction_id,
+                    j.name AS jurisdiction_name,
+                    j.jurisdiction_type::text AS jurisdiction_type
+                FROM intermediate.int_jurisdictions j
+                WHERE j.state_code = ANY(%s)
+                  AND j.jurisdiction_id IS NOT NULL
+                  AND BTRIM(j.jurisdiction_id) <> ''
+                  AND EXISTS (
+                      SELECT 1
+                      FROM bronze.bronze_events_youtube y
+                      WHERE y.state_code = j.state_code
+                        AND (
+                          y.jurisdiction_id = j.jurisdiction_id
+                          OR y.jurisdiction_id = 'c-' || j.state_code || '-' || j.geoid
+                          OR y.jurisdiction_id = 'municipality_' || j.geoid
+                          OR y.jurisdiction_id LIKE '%\\_' || j.geoid ESCAPE '\\'
+                        )
+                  )
+                ORDER BY j.state_code, j.name, j.jurisdiction_id
+                """,
+                (st_list,),
+            )
+            rows = list(cur.fetchall())
+    except Exception:
+        rows = []
+
+    if not rows:
+        try:
+            with psycopg2.connect(url) as conn, conn.cursor(
+                cursor_factory=RealDictCursor
+            ) as cur:
+                cur.execute(
+                    """
+                    SELECT DISTINCT ON (state_code, jurisdiction_id)
+                           state_code,
+                           jurisdiction_id,
+                           jurisdiction_name,
+                           NULL::text AS jurisdiction_type
+                    FROM bronze.bronze_events_youtube
+                    WHERE state_code = ANY(%s)
+                      AND jurisdiction_id IS NOT NULL
+                      AND BTRIM(jurisdiction_id) <> ''
+                    ORDER BY state_code, jurisdiction_id, jurisdiction_name
+                    """,
+                    (st_list,),
+                )
+                rows = list(cur.fetchall())
+        except Exception:
+            return []
+
+    if round_robin:
+        from collections import defaultdict
+
+        buckets: Dict[str, list] = defaultdict(list)
+        for r in rows:
+            buckets[str(r["state_code"]).upper()].append(r)
+        active = [s for s in st_list if buckets.get(s)]
+        max_len = max((len(buckets[s]) for s in active), default=0)
+        ordered: list = []
+        for i in range(max_len):
+            for s in active:
+                if i < len(buckets[s]):
+                    ordered.append(buckets[s][i])
+        rows = ordered
+
+    out: List[JurisdictionRun] = []
+    seen_keys: set[str] = set()
+    for r in rows:
+        raw_id = str(r["jurisdiction_id"]).strip()
+        name = str(r.get("jurisdiction_name") or "").strip()
+        jtype = str(r.get("jurisdiction_type") or "").strip()
+        jid = ensure_canonical_jurisdiction_id(
+            raw_id,
+            name=name or None,
+            jurisdiction_type=jtype or None,
+            database_url=url,
+        ) or raw_id
+        if _PREFIXED_USPS_GEOID_RE.match(jid):
+            continue
+        if not (
+            (_SLUG_GEOID_RE.match(jid) and not _TYPED_JURISDICTION_ID_RE.match(jid))
+            or _TYPED_JURISDICTION_ID_RE.match(jid)
+        ):
+            continue
+        key = _plan_jurisdiction_key(jid)
+        if not key or key in seen_keys:
+            continue
+        seen_keys.add(key)
+        out.append(
+            JurisdictionRun(
+                state_code=str(r["state_code"]).upper(),
+                jurisdiction_id=jid,
+                jurisdiction_name=name,
+                jurisdiction_type=jtype,
+                status="pending",
+            )
+        )
+
+    return out
+
+
+_STATUS_RANK = {
+    "completed": 5,
+    "failed": 4,
+    "running": 3,
+    "pending": 1,
+}
+
+
+def _plan_jurisdiction_key(jurisdiction_id: str) -> str:
+    """Match plan rows to batch rows even when id format differs (``municipality_*`` vs ``slug_geoid``)."""
+    from scripts.jurisdictions.jurisdiction_id import (
+        parse_jurisdiction_id,
+        resolve_canonical_jurisdiction_id,
+    )
+
+    jid = (jurisdiction_id or "").strip()
+    if not jid:
+        return ""
+    canonical = resolve_canonical_jurisdiction_id(jid).strip().lower()
+    _jt, geoid, _slug = parse_jurisdiction_id(canonical or jid)
+    if geoid:
+        return f"geoid:{geoid}"
+    return canonical or jid.lower()
+
+
+def _prefer_jurisdiction_run(
+    current: JurisdictionRun, other: JurisdictionRun
+) -> JurisdictionRun:
+    """Keep the row with the most advanced status (never downgrade completed → pending)."""
+    cur_rank = _STATUS_RANK.get((current.status or "").lower(), 0)
+    other_rank = _STATUS_RANK.get((other.status or "").lower(), 0)
+    if other_rank > cur_rank:
+        return other
+    if other_rank < cur_rank:
+        return current
+    if (other.videos or other.stats) and not (current.videos or current.stats):
+        return other
+    return current
+
+
+def expand_batch_job_plan(job: BatchJob) -> None:
+    """Fill in ``pending`` rows for jurisdictions not started yet in this batch."""
+    cfg = job.config or {}
+    if cfg.get("seed_plan") is False:
+        return
+    states = cfg.get("states") or []
+    if not states:
+        return
+    rr = cfg.get("round_robin")
+    if rr is None:
+        rr = True
+    plan = fetch_batch_plan_jurisdictions(states, round_robin=bool(rr))
+    if not plan:
+        return
+
+    by_key: Dict[str, JurisdictionRun] = {}
+    for j in job.jurisdictions:
+        key = _plan_jurisdiction_key(j.jurisdiction_id)
+        if not key:
+            continue
+        if key in by_key:
+            by_key[key] = _prefer_jurisdiction_run(by_key[key], j)
+        else:
+            by_key[key] = j
+
+    merged: List[JurisdictionRun] = []
+    matched: set[str] = set()
+    for placeholder in plan:
+        key = _plan_jurisdiction_key(placeholder.jurisdiction_id)
+        existing = by_key.get(key) if key else None
+        if existing is not None:
+            merged.append(existing)
+            matched.add(key)
+        else:
+            merged.append(placeholder)
+            if key:
+                matched.add(key)
+
+    for key, j in by_key.items():
+        if key not in matched:
+            merged.append(j)
+
+    job.jurisdictions = merged
+    if not int(cfg.get("total_jurisdictions") or 0):
+        job.config["total_jurisdictions"] = len(merged)
+
+
 @dataclass
 class VideoResult:
     video_id: str
@@ -54,6 +304,7 @@ class VideoResult:
     error: str = ""
     transcript_source: str = ""
     finished_at: str = ""
+    duration_seconds: Optional[float] = None
 
 
 @dataclass
@@ -61,8 +312,10 @@ class JurisdictionRun:
     state_code: str
     jurisdiction_id: str
     jurisdiction_name: str = ""
+    jurisdiction_type: str = ""
     status: str = "pending"  # pending | running | completed | failed
     started_at: str = ""
+    updated_at: str = ""
     finished_at: str = ""
     elapsed_seconds: float = 0.0
     exit_code: int = 0
@@ -71,6 +324,9 @@ class JurisdictionRun:
     file_counts: Dict[str, int] = field(
         default_factory=lambda: {"transcripts": 0, "analysis": 0, "reports": 0}
     )
+    current_video_id: str = ""
+    current_video_title: str = ""
+    current_video_started_at: str = ""
 
 
 @dataclass
@@ -92,14 +348,26 @@ class BatchJob:
     def from_dict(cls, data: Dict[str, Any]) -> BatchJob:
         jurs = []
         for j in data.get("jurisdictions") or []:
-            videos = [VideoResult(**v) for v in j.get("videos") or []]
+            videos = []
+            for v in j.get("videos") or []:
+                vd = dict(v)
+                if "duration_seconds" not in vd:
+                    vd["duration_seconds"] = None
+                elif vd["duration_seconds"] is not None:
+                    try:
+                        vd["duration_seconds"] = float(vd["duration_seconds"])
+                    except (TypeError, ValueError):
+                        vd["duration_seconds"] = None
+                videos.append(VideoResult(**vd))
             jurs.append(
                 JurisdictionRun(
                     state_code=j.get("state_code", ""),
                     jurisdiction_id=j.get("jurisdiction_id", ""),
                     jurisdiction_name=j.get("jurisdiction_name", ""),
+                    jurisdiction_type=str(j.get("jurisdiction_type") or ""),
                     status=j.get("status", "pending"),
                     started_at=j.get("started_at", ""),
+                    updated_at=j.get("updated_at", ""),
                     finished_at=j.get("finished_at", ""),
                     elapsed_seconds=float(j.get("elapsed_seconds") or 0),
                     exit_code=int(j.get("exit_code") or 0),
@@ -109,6 +377,9 @@ class BatchJob:
                         j.get("file_counts")
                         or {"transcripts": 0, "analysis": 0, "reports": 0}
                     ),
+                    current_video_id=j.get("current_video_id", ""),
+                    current_video_title=j.get("current_video_title", ""),
+                    current_video_started_at=j.get("current_video_started_at", ""),
                 )
             )
         return cls(
@@ -124,6 +395,113 @@ class BatchJob:
         )
 
 
+_VIDEO_COUNT_KEYS = ("ok", "fail", "tombstoned", "empty", "rate_limit")
+
+_STATUS_TO_STAT_KEY: Dict[str, str] = {
+    "ok": "ok",
+    "fail": "fail",
+    "tombstoned": "tombstoned",
+    "empty": "empty",
+    "rate_limit": "rate_limit",
+}
+
+
+def _disk_file_count(fc: Dict[str, int], disk_key: str, legacy_key: str) -> int:
+    """Prefer explicit ``*_disk`` keys; fall back to legacy ``transcripts`` / ``analysis`` keys."""
+    if disk_key in fc:
+        return int(fc.get(disk_key) or 0)
+    return int(fc.get(legacy_key) or 0)
+
+
+def _jurisdiction_video_counts(j: JurisdictionRun) -> Dict[str, int]:
+    """Count finished videos for summary totals.
+
+    While a jurisdiction is running, ``record_video`` appends to ``j.videos`` but
+    ``jurisdiction_finish`` has not written final ``j.stats`` yet — prefer the video
+    list so the dashboard does not lag behind jurisdiction success counts.
+    """
+    if j.videos:
+        counts = {k: 0 for k in _VIDEO_COUNT_KEYS}
+        for v in j.videos:
+            key = _STATUS_TO_STAT_KEY.get((v.status or "").strip().lower())
+            if key:
+                counts[key] += 1
+        return counts
+    return {k: int((j.stats or {}).get(k) or 0) for k in _VIDEO_COUNT_KEYS}
+
+
+def _running_file_clock(
+    j: JurisdictionRun, now: datetime
+) -> tuple[Optional[float], str, str, str]:
+    """
+  Seconds on the in-flight video for a running jurisdiction.
+
+  Uses explicit ``current_video_started_at`` when set; otherwise time since the
+  last completed video in this run, or since the jurisdiction started.
+    """
+    if j.status != "running":
+        return None, "", "", ""
+
+    if j.current_video_started_at:
+        try:
+            start = datetime.fromisoformat(
+                j.current_video_started_at.replace("Z", "+00:00")
+            )
+            secs = max(0.0, (now - start).total_seconds())
+            return (
+                secs,
+                j.current_video_id or "",
+                (j.current_video_title or "")[:120],
+                j.current_video_started_at,
+            )
+        except ValueError:
+            pass
+
+    start_iso = ""
+    video_id = ""
+    title = ""
+    if j.videos:
+        last = j.videos[-1]
+        if last.finished_at:
+            start_iso = last.finished_at
+            video_id = last.video_id
+            title = (last.title or "")[:120]
+    if not start_iso and j.started_at:
+        start_iso = j.started_at
+    if not start_iso:
+        return None, video_id, title, ""
+
+    try:
+        start = datetime.fromisoformat(start_iso.replace("Z", "+00:00"))
+        secs = max(0.0, (now - start).total_seconds())
+        return secs, video_id, title, start_iso
+    except ValueError:
+        return None, video_id, title, start_iso
+
+
+def _maybe_auto_finish_batch(job: BatchJob) -> None:
+    """
+    Mark the batch completed when every target jurisdiction is done.
+
+    Progress cards use jurisdiction counts; ``job.status`` only flipped on ``finish_batch``
+    before. Single-jurisdiction tests (or a killed shell after the last backfill) left
+    ``running`` at 100%.
+    """
+    if job.status != "running":
+        return
+    total_j = int(job.config.get("total_jurisdictions") or 0) or len(job.jurisdictions)
+    if total_j <= 0:
+        return
+    if any(j.status == "running" for j in job.jurisdictions):
+        return
+    processed = sum(1 for j in job.jurisdictions if j.status in ("completed", "failed"))
+    if processed < total_j:
+        return
+    job.status = "completed"
+    if not job.finished_at:
+        job.finished_at = _utc_now_iso()
+
+
 def _recompute_summary(job: BatchJob) -> None:
     total_j = int(job.config.get("total_jurisdictions") or 0) or len(job.jurisdictions)
     processed = sum(1 for j in job.jurisdictions if j.status in ("completed", "failed"))
@@ -133,13 +511,12 @@ def _recompute_summary(job: BatchJob) -> None:
 
     v_ok = v_fail = v_tomb = v_empty = v_rl = 0
     for j in job.jurisdictions:
-        for st in (j.stats or {}).values():
-            pass
-        v_ok += int((j.stats or {}).get("ok") or 0)
-        v_fail += int((j.stats or {}).get("fail") or 0)
-        v_tomb += int((j.stats or {}).get("tombstoned") or 0)
-        v_empty += int((j.stats or {}).get("empty") or 0)
-        v_rl += int((j.stats or {}).get("rate_limit") or 0)
+        counts = _jurisdiction_video_counts(j)
+        v_ok += counts["ok"]
+        v_fail += counts["fail"]
+        v_tomb += counts["tombstoned"]
+        v_empty += counts["empty"]
+        v_rl += counts["rate_limit"]
 
     elapsed = 0.0
     if job.started_at:
@@ -158,10 +535,39 @@ def _recompute_summary(job: BatchJob) -> None:
     if processed > 0 and remaining > 0 and elapsed > 0:
         eta_seconds = (elapsed / processed) * remaining
 
-    files = {"transcripts": 0, "analysis": 0, "reports": 0}
+    disk = {"transcripts": 0, "analysis": 0, "reports": 0}
+    bronze_download_rows = 0
     for j in job.jurisdictions:
-        for k in files:
-            files[k] += int((j.file_counts or {}).get(k) or 0)
+        fc = j.file_counts or {}
+        disk["transcripts"] += _disk_file_count(
+            fc, "transcripts_disk", "transcripts"
+        )
+        disk["analysis"] += _disk_file_count(fc, "analysis_disk", "analysis")
+        disk["reports"] += _disk_file_count(fc, "reports_disk", "reports")
+        bronze_download_rows += int(fc.get("bronze_download_rows") or 0)
+
+    files_processed = v_ok + v_fail + v_tomb + v_empty + v_rl
+    videos_attempted = files_processed
+    avg_seconds_per_file: Optional[float] = None
+    if files_processed > 0 and elapsed > 0:
+        avg_seconds_per_file = round(elapsed / files_processed, 1)
+
+    current_file_seconds: Optional[float] = None
+    current_video_id = ""
+    current_video_title = ""
+    current_jurisdiction_id = ""
+    current_video_started_at = ""
+    now = datetime.now(timezone.utc)
+    for j in job.jurisdictions:
+        secs, vid, title, started_iso = _running_file_clock(j, now)
+        if secs is None:
+            continue
+        if current_file_seconds is None or secs >= current_file_seconds:
+            current_file_seconds = secs
+            current_video_id = vid
+            current_video_title = title
+            current_jurisdiction_id = j.jurisdiction_id
+            current_video_started_at = started_iso
 
     job.summary = {
         "total_jurisdictions": total_j,
@@ -176,10 +582,28 @@ def _recompute_summary(job: BatchJob) -> None:
         "videos_tombstoned": v_tomb,
         "videos_empty": v_empty,
         "videos_rate_limit": v_rl,
-        "files_transcripts": files["transcripts"],
-        "files_analysis": files["analysis"],
-        "files_reports": files["reports"],
+        # Batch-scoped caption outcomes (same source as Videos OK / fail cards).
+        "files_transcripts": v_ok,
+        "files_processed": files_processed,
+        "videos_attempted": videos_attempted,
+        # Policy cache on disk (all JSON under each jurisdiction folder, not this run only).
+        "files_transcripts_disk": disk["transcripts"],
+        "files_analysis": disk["analysis"],
+        "files_reports": disk["reports"],
+        # Bronze rows with transcript_download_at (lifetime per jurisdiction).
+        "bronze_download_rows": bronze_download_rows,
+        "avg_seconds_per_file": avg_seconds_per_file,
+        "current_file_seconds": (
+            round(current_file_seconds, 1)
+            if current_file_seconds is not None
+            else None
+        ),
+        "current_video_id": current_video_id,
+        "current_video_title": current_video_title,
+        "current_jurisdiction_id": current_jurisdiction_id,
+        "current_video_started_at": current_video_started_at,
     }
+    _maybe_auto_finish_batch(job)
 
 
 class BatchJobStore:
@@ -205,6 +629,12 @@ class BatchJobStore:
         )
         tmp.replace(self.path)
         _update_index(self.root, job)
+        try:
+            from scripts.datasources.youtube.batch_job_db import sync_batch_job_to_db
+
+            sync_batch_job_to_db(job)
+        except Exception:
+            pass
 
     def start_batch(
         self,
@@ -213,14 +643,26 @@ class BatchJobStore:
         config: Optional[Dict[str, Any]] = None,
     ) -> BatchJob:
         now = _utc_now_iso()
+        cfg = dict(config or {})
         job = BatchJob(
             batch_id=self.batch_id,
             step=step,
             status="running",
             started_at=now,
             updated_at=now,
-            config=dict(config or {}),
+            config=cfg,
         )
+        states = cfg.get("states") or []
+        if states and cfg.get("seed_plan") is not False:
+            plan = fetch_batch_plan_jurisdictions(
+                states,
+                round_robin=bool(cfg.get("round_robin", True)),
+            )
+            if plan:
+                job.jurisdictions = plan
+                if not int(cfg.get("total_jurisdictions") or 0):
+                    cfg["total_jurisdictions"] = len(plan)
+                    job.config = cfg
         self.save(job)
         return job
 
@@ -239,28 +681,62 @@ class BatchJobStore:
         jurisdiction_name: str = "",
         pending_videos: int = 0,
     ) -> JurisdictionRun:
+        from scripts.jurisdictions.jurisdiction_id import resolve_canonical_jurisdiction_id
+
+        jurisdiction_id = resolve_canonical_jurisdiction_id(
+            jurisdiction_id.strip(),
+            name=(jurisdiction_name or "").strip() or None,
+        )
         job = self.load()
+        now = _utc_now_iso()
         run = JurisdictionRun(
             state_code=state_code.upper(),
             jurisdiction_id=jurisdiction_id,
             jurisdiction_name=jurisdiction_name,
             status="running",
-            started_at=_utc_now_iso(),
+            started_at=now,
+            updated_at=now,
         )
         if pending_videos:
             run.stats["pending"] = pending_videos
+        start_key = _plan_jurisdiction_key(jurisdiction_id)
         job.jurisdictions = [
-            j for j in job.jurisdictions if j.jurisdiction_id != jurisdiction_id
+            j
+            for j in job.jurisdictions
+            if _plan_jurisdiction_key(j.jurisdiction_id) != start_key
         ]
         job.jurisdictions.append(run)
         self.save(job)
         return run
 
     def _find_jurisdiction(self, job: BatchJob, jurisdiction_id: str) -> JurisdictionRun:
+        from scripts.jurisdictions.jurisdiction_id import resolve_canonical_jurisdiction_id
+
+        jid = resolve_canonical_jurisdiction_id((jurisdiction_id or "").strip()) or (
+            jurisdiction_id or ""
+        ).strip()
+        key = _plan_jurisdiction_key(jid)
         for j in job.jurisdictions:
-            if j.jurisdiction_id == jurisdiction_id:
+            if j.jurisdiction_id == jid:
+                return j
+            if key and _plan_jurisdiction_key(j.jurisdiction_id) == key:
                 return j
         raise KeyError(jurisdiction_id)
+
+    def video_start(
+        self,
+        *,
+        jurisdiction_id: str,
+        video_id: str,
+        title: str = "",
+    ) -> None:
+        job = self.load()
+        j = self._find_jurisdiction(job, jurisdiction_id)
+        j.current_video_id = video_id
+        j.current_video_title = (title or "")[:200]
+        j.current_video_started_at = _utc_now_iso()
+        j.updated_at = j.current_video_started_at
+        self.save(job)
 
     def record_video(
         self,
@@ -271,10 +747,25 @@ class BatchJobStore:
         title: str = "",
         error: str = "",
         transcript_source: str = "",
+        duration_seconds: Optional[float] = None,
     ) -> None:
         job = self.load()
         j = self._find_jurisdiction(job, jurisdiction_id)
+        if j.current_video_id == video_id:
+            j.current_video_id = ""
+            j.current_video_title = ""
+            j.current_video_started_at = ""
+        prior_status = ""
+        for v in j.videos:
+            if v.video_id == video_id:
+                prior_status = (v.status or "").strip().lower()
+                break
         j.videos = [v for v in j.videos if v.video_id != video_id]
+        if prior_status:
+            old_key = _STATUS_TO_STAT_KEY.get(prior_status)
+            if old_key:
+                j.stats[old_key] = max(0, int(j.stats.get(old_key) or 0) - 1)
+        now = _utc_now_iso()
         j.videos.append(
             VideoResult(
                 video_id=video_id,
@@ -282,9 +773,14 @@ class BatchJobStore:
                 status=status,
                 error=(error or "")[:500],
                 transcript_source=transcript_source,
-                finished_at=_utc_now_iso(),
+                finished_at=now,
+                duration_seconds=duration_seconds,
             )
         )
+        new_key = _STATUS_TO_STAT_KEY.get((status or "").strip().lower())
+        if new_key:
+            j.stats[new_key] = int(j.stats.get(new_key) or 0) + 1
+        j.updated_at = now
         self.save(job)
 
     def jurisdiction_finish(
@@ -300,6 +796,10 @@ class BatchJobStore:
         j.status = "completed" if exit_code == 0 else "failed"
         j.exit_code = exit_code
         j.finished_at = _utc_now_iso()
+        j.updated_at = j.finished_at
+        j.current_video_id = ""
+        j.current_video_title = ""
+        j.current_video_started_at = ""
         if stats:
             j.stats = {k: int(v) for k, v in stats.items()}
         if file_counts:
@@ -360,6 +860,15 @@ def _update_index(root: Path, job: BatchJob) -> None:
     )
     entries = entries[:200]
     index_path.write_text(json.dumps(entries, indent=2) + "\n", encoding="utf-8")
+
+
+def policy_disk_file_counts(scanned: Dict[str, int]) -> Dict[str, int]:
+    """Map ``count_policy_files_for_jurisdiction`` keys to explicit on-disk counters."""
+    return {
+        "transcripts_disk": int(scanned.get("transcripts") or 0),
+        "analysis_disk": int(scanned.get("analysis") or 0),
+        "reports_disk": int(scanned.get("reports") or 0),
+    }
 
 
 def count_policy_files_for_jurisdiction(
@@ -459,6 +968,8 @@ def _cli_start(args: argparse.Namespace) -> int:
         "total_jurisdictions": args.total_jurisdictions,
         "transcript_source": args.transcript_source or "",
         "max_jurisdictions": args.max_jurisdictions or 0,
+        "round_robin": bool(getattr(args, "round_robin", 1)),
+        "seed_plan": not getattr(args, "no_seed_plan", False),
     }
     store.start_batch(step=args.step, config=config)
     print(batch_id)
@@ -506,6 +1017,17 @@ def main() -> int:
     p_start.add_argument("--total-jurisdictions", type=int, default=0)
     p_start.add_argument("--transcript-source", default="")
     p_start.add_argument("--max-jurisdictions", type=int, default=0)
+    p_start.add_argument(
+        "--round-robin",
+        type=int,
+        default=1,
+        help="1 = interleave states in plan order (default), 0 = state-by-state",
+    )
+    p_start.add_argument(
+        "--no-seed-plan",
+        action="store_true",
+        help="Do not pre-load all jurisdictions as pending rows",
+    )
     p_start.set_defaults(func=_cli_start)
 
     p_js = sub.add_parser("jurisdiction-start")

@@ -660,6 +660,11 @@ async def get_school_districts(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# Batch job dashboard (caption/analyze pipelines)
+from api.routes import batch_jobs as batch_jobs_routes
+
+app.include_router(batch_jobs_routes.router, prefix="/api")
+
 # Serve React frontend
 static_dir = Path(__file__).parent / "static"
 if static_dir.exists():

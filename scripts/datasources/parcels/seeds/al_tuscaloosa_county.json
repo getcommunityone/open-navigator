@@ -1,0 +1,9 @@
+{
+  "country": "us",
+  "state": "al",
+  "county": "Tuscaloosa",
+  "fips": "01125",
+  "note": "OpenAddresses sources/us/al/tuscaloosa.json has addresses only; parcel layer from county tax assessor ArcGIS Online.",
+  "esri_endpoint": "https://services.arcgis.com/AWzSDaKZ41uuVges/ArcGIS/rest/services/Parcels/FeatureServer/0",
+  "extracted_csv": "data/cache/parcels/al/tuscaloosa_county_attrs.csv"
+}

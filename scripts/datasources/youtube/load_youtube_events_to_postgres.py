@@ -256,6 +256,11 @@ class YouTubeEventsLoader:
             self._create_bronze_events_text_ai_table()
             self._create_bronze_events_channels_table()
             ensure_bronze_events_channels_link_columns(self.conn)
+            from scripts.datasources.youtube.bronze_transcript_tracking import (
+                ensure_bronze_youtube_transcript_columns,
+            )
+
+            ensure_bronze_youtube_transcript_columns(self.conn)
     
     def _sanitize_database_url(self, url: str) -> str:
         """Sanitize database URL to fix common connection issues.
@@ -2505,6 +2510,11 @@ class YouTubeEventsLoader:
 
             def _persist_transcript(video_id: str, event_id: int, transcript_data: Dict[str, Any]) -> None:
                 nonlocal inserted
+                from scripts.datasources.youtube.bronze_transcript_tracking import (
+                    record_transcript_download_error,
+                    record_transcript_download_success,
+                )
+
                 transcript_data = dict(transcript_data)
                 caption_raw_data = transcript_data.pop("caption_raw_data", None)
                 transcript_data.pop("caption_preserve_formatting", None)
@@ -2522,6 +2532,7 @@ class YouTubeEventsLoader:
                 inserted += 1
                 if inserted % 10 == 0:
                     self.conn.commit()
+                cache_path: Optional[Path] = None
                 if (
                     self.write_policy_cache
                     and jurisdiction_id
@@ -2557,7 +2568,7 @@ class YouTubeEventsLoader:
                             segs = None
                     youtube_block["segments"] = segs
                     try:
-                        write_policy_transcript_cache(
+                        cache_path = write_policy_transcript_cache(
                             self.policy_cache_dir,
                             jurisdiction_id=jurisdiction_id,
                             state_code=state_code or str(row.get("state_code") or ""),
@@ -2573,6 +2584,26 @@ class YouTubeEventsLoader:
                             self._youtube_video_log_label(video_id),
                             cache_exc,
                         )
+                        record_transcript_download_error(
+                            self.conn,
+                            video_id,
+                            str(cache_exc),
+                            commit=False,
+                        )
+                        return
+                try:
+                    record_transcript_download_success(
+                        self.conn,
+                        video_id,
+                        cache_path,
+                        commit=False,
+                    )
+                except Exception as track_exc:
+                    logger.warning(
+                        "  bronze transcript tracking update failed for {}: {}",
+                        self._youtube_video_log_label(video_id),
+                        track_exc,
+                    )
 
             if self.transcript_workers > 1 and len(items) > 1:
                 batch_size = self.transcript_workers
@@ -2596,6 +2627,13 @@ class YouTubeEventsLoader:
                     for (video_id, event_id), (vid, transcript_data, err) in zip(batch, results):
                         if err:
                             _log_rate_limited(vid, err)
+                            from scripts.datasources.youtube.bronze_transcript_tracking import (
+                                record_transcript_download_error,
+                            )
+
+                            record_transcript_download_error(
+                                self.conn, vid, err, commit=False
+                            )
                             if consecutive_rate_limits >= 5:
                                 logger.error(
                                     f"  ❌ Too many consecutive rate limits ({consecutive_rate_limits}), stopping transcript fetching"
@@ -2605,6 +2643,15 @@ class YouTubeEventsLoader:
                         if transcript_data:
                             consecutive_rate_limits = 0
                             _persist_transcript(vid, event_id, transcript_data)
+                        else:
+                            from scripts.datasources.youtube.bronze_transcript_tracking import (
+                                record_transcript_download_error,
+                            )
+
+                            detail = self._last_ytdlp_transcript_error or "no transcript returned"
+                            record_transcript_download_error(
+                                self.conn, vid, detail, commit=False
+                            )
                 self.conn.commit()
                 return inserted
 
@@ -2622,6 +2669,13 @@ class YouTubeEventsLoader:
                 _, transcript_data, err = _fetch_transcript_safe(video_id)
                 if err:
                     _log_rate_limited(video_id, err)
+                    from scripts.datasources.youtube.bronze_transcript_tracking import (
+                        record_transcript_download_error,
+                    )
+
+                    record_transcript_download_error(
+                        self.conn, video_id, err, commit=False
+                    )
                     if consecutive_rate_limits >= 5:
                         logger.error(
                             f"  ❌ Too many consecutive rate limits ({consecutive_rate_limits}), stopping transcript fetching"
@@ -2630,8 +2684,16 @@ class YouTubeEventsLoader:
                     continue
                 if transcript_data:
                     consecutive_rate_limits = 0
-                
                     _persist_transcript(video_id, event_id, transcript_data)
+                else:
+                    from scripts.datasources.youtube.bronze_transcript_tracking import (
+                        record_transcript_download_error,
+                    )
+
+                    detail = self._last_ytdlp_transcript_error or "no transcript returned"
+                    record_transcript_download_error(
+                        self.conn, video_id, detail, commit=False
+                    )
             
             # Final commit
             self.conn.commit()

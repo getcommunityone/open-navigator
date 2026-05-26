@@ -1,0 +1,8 @@
+[
+  {
+    "county": "Tuscaloosa",
+    "geoid": "01125",
+    "esri_endpoint": "https://services.arcgis.com/AWzSDaKZ41uuVges/ArcGIS/rest/services/Parcels/FeatureServer/0",
+    "note": "Not in OpenAddresses parcels layer; county tax assessor ArcGIS Online."
+  }
+]

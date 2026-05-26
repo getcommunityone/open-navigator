@@ -437,7 +437,21 @@ def consolidate(
             if payload is None:
                 stats["skipped_low_conf"] += 1
                 continue
-            # Trust existing bronze catalog (prior loader runs).
+            # Verify even for prior bronze catalog rows.
+            #
+            # Rationale: The events catalog can accumulate false positives over time
+            # (e.g. gamer/kids channels sharing a jurisdiction name). If we blindly
+            # trust these as primaries, we can lock in bad mappings and re-catalog
+            # non-meeting videos forever.
+            if not qualifies_for_bronze_jurisdiction_youtube(
+                payload,
+                jurisdiction_type=str(row.get("jurisdiction_type") or ""),
+                jurisdiction_name=str(row.get("jurisdiction_name") or ""),
+                jurisdiction_state_code=str(row.get("state_code") or ""),
+                jurisdiction_homepage=str(row.get("website_url") or ""),
+            ):
+                stats["skipped_verification"] += 1
+                continue
             _merge_channel(by_jurisdiction, row, payload)
 
     if dry_run:

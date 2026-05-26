@@ -2,21 +2,29 @@
 """
 Download U.S. state silhouette SVGs from Wikimedia Commons into ``data/cache/wikimedia/``.
 
-Resolution order per state:
-1. ``File:State of {StateName}.svg`` when it is a real outline SVG (not a redirect to a seal/flag).
-2. ``File:Map of USA {USPS}.svg`` — complete 50-state fallback series on Commons.
+For each state we fetch **both** Commons variants when available:
+
+1. **Locator** — ``File:Map of USA {USPS}.svg`` (state highlighted on the U.S. map).
+   Saved as ``{USPS}_silhouette_locator.svg``. This is the UX default.
+2. **State outline** — ``File:State of {StateName}.svg`` when it is a real outline SVG
+   (not a redirect to a seal/flag). Saved as ``{USPS}_silhouette_state.svg``.
+
+``{USPS}_silhouette.svg`` is a copy of the locator file when present, else the state
+outline, for backward compatibility with older sync paths.
 
 Usage (repo root):
 
   python3 scripts/wikimedia/download_state_silhouettes.py
   python3 scripts/wikimedia/download_state_silhouettes.py --only GA TX
   python3 scripts/wikimedia/download_state_silhouettes.py --dry-run
+  python3 scripts/wikimedia/download_state_silhouettes.py --us-only
 """
 from __future__ import annotations
 
 import argparse
 import json
 import re
+import shutil
 import sys
 import time
 import urllib.error
@@ -30,6 +38,10 @@ UA = (
     "+https://github.com/getcommunityone/open-navigator-for-engagement)"
 )
 COMMONS_API = "https://commons.wikimedia.org/w/api.php"
+
+# National default for hero when no state is selected (not a USPS code).
+US_SILHOUETTE_COMMONS = "File:United States of America.svg"
+US_SILHOUETTE_LOCAL = "USA_silhouette.svg"
 
 STATES: list[tuple[str, str]] = [
     ("AL", "Alabama"),
@@ -92,6 +104,7 @@ _BAD_SUBSTR = frozenset(
         "emblem",
         "logo",
         "burgee",
+        "motto",
     }
 )
 
@@ -182,18 +195,139 @@ def _commons_fetch_binary(url: str, referer: str) -> bytes:
         return resp.read()
 
 
-def _resolve_title(usps: str, name: str, infos: dict[str, dict[str, Any]]) -> tuple[str, str] | None:
-    primary = f"File:State of {name}.svg"
+def _resolve_locator_title(
+    usps: str, infos: dict[str, dict[str, Any]]
+) -> tuple[str, str] | None:
     fallback = f"File:Map of USA {usps}.svg"
-    primary_info = infos.get(primary)
-    if primary_info and _is_valid_silhouette(primary, primary_info):
-        page_title = primary_info.get("_page_title", primary)
-        return page_title, "state_of"
     fallback_info = infos.get(fallback)
     if fallback_info and fallback_info.get("mime") == "image/svg+xml":
         page_title = fallback_info.get("_page_title", fallback)
         return page_title, "map_of_usa"
     return None
+
+
+def _resolve_state_title(
+    name: str, infos: dict[str, dict[str, Any]]
+) -> tuple[str, str] | None:
+    primary = f"File:State of {name}.svg"
+    primary_info = infos.get(primary)
+    if primary_info and _is_valid_silhouette(primary, primary_info):
+        page_title = primary_info.get("_page_title", primary)
+        return page_title, "state_of"
+    return None
+
+
+def _variant_meta(
+    file_title: str,
+    info: dict[str, Any],
+    *,
+    strategy: str,
+    local_file: str,
+    body_len: int | None = None,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    referer = info.get("descriptionurl") or (
+        "https://commons.wikimedia.org/wiki/"
+        + urllib.parse.quote(file_title.replace(" ", "_"))
+    )
+    meta: dict[str, Any] = {
+        "commons_title": file_title.replace("File:", ""),
+        "commons_url": referer,
+        "download_url": info["url"],
+        "strategy": strategy,
+        "local_file": local_file,
+        "timestamp": info.get("timestamp"),
+    }
+    if dry_run:
+        meta["dry_run"] = True
+    elif body_len is not None:
+        meta["bytes"] = body_len
+    return meta
+
+
+def _download_variant(
+    out_dir: Path,
+    *,
+    usps: str,
+    file_title: str,
+    info: dict[str, Any],
+    strategy: str,
+    local_name: str,
+    dry_run: bool,
+) -> dict[str, Any] | None:
+    url = info["url"]
+    referer = info.get("descriptionurl") or (
+        "https://commons.wikimedia.org/wiki/"
+        + urllib.parse.quote(file_title.replace(" ", "_"))
+    )
+    dest = out_dir / local_name
+
+    if dry_run:
+        print(
+            f"  {usps}: would download {file_title.replace('File:', '')} "
+            f"-> {local_name} ({strategy})"
+        )
+        return _variant_meta(
+            file_title,
+            info,
+            strategy=strategy,
+            local_file=local_name,
+            dry_run=True,
+        )
+
+    try:
+        body = _commons_fetch_binary(url, referer)
+        dest.write_bytes(body)
+    except Exception as exc:  # noqa: BLE001
+        print(f"  {usps}: FAIL {local_name} ({exc})", file=sys.stderr)
+        return None
+
+    print(
+        f"  {usps}: {file_title.replace('File:', '')} -> {local_name} ({strategy})"
+    )
+    return _variant_meta(
+        file_title,
+        info,
+        strategy=strategy,
+        local_file=local_name,
+        body_len=len(body),
+    )
+
+
+def download_us_silhouette(
+    out_dir: Path,
+    sleep_s: float,
+    dry_run: bool,
+) -> bool:
+    """Download the contiguous + AK/HI U.S. outline used as the national hero default."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    infos = _imageinfo_for_titles([US_SILHOUETTE_COMMONS], sleep_s)
+    info = infos.get(US_SILHOUETTE_COMMONS)
+    if not info or info.get("mime") != "image/svg+xml":
+        print(f"  US: SKIP ({US_SILHOUETTE_COMMONS} not found)", file=sys.stderr)
+        return False
+
+    url = info["url"]
+    referer = info.get("descriptionurl") or (
+        "https://commons.wikimedia.org/wiki/"
+        + urllib.parse.quote(US_SILHOUETTE_COMMONS.replace(" ", "_"))
+    )
+    dest = out_dir / US_SILHOUETTE_LOCAL
+
+    if dry_run:
+        print(f"  US: would download {US_SILHOUETTE_COMMONS} -> {US_SILHOUETTE_LOCAL}")
+        return True
+
+    try:
+        body = _commons_fetch_binary(url, referer)
+        dest.write_bytes(body)
+    except Exception as exc:  # noqa: BLE001
+        print(f"  US: FAIL ({exc})", file=sys.stderr)
+        return False
+
+    print(f"  US: {US_SILHOUETTE_COMMONS.replace('File:', '')} -> {US_SILHOUETTE_LOCAL}")
+    time.sleep(sleep_s)
+    return True
 
 
 def download_state_silhouettes(
@@ -222,65 +356,74 @@ def download_state_silhouettes(
 
     manifest: dict[str, Any] = {
         "source": "Wikimedia Commons",
+        "default_variant": "locator",
         "files": {},
     }
     ok = 0
     for usps, name in selected:
-        resolved = _resolve_title(usps, name, infos)
-        if not resolved:
-            manifest["files"][usps] = {
-                "state_name": name,
-                "error": "No suitable silhouette SVG found on Commons.",
-            }
+        entry: dict[str, Any] = {"state_name": name, "variants": {}}
+        locator_resolved = _resolve_locator_title(usps, infos)
+        state_resolved = _resolve_state_title(name, infos)
+
+        if not locator_resolved and not state_resolved:
+            entry["error"] = "No suitable silhouette SVG found on Commons."
+            manifest["files"][usps] = entry
             print(f"  {usps}: SKIP (no file)", file=sys.stderr)
             continue
 
-        file_title, strategy = resolved
-        info = infos[file_title]
-        url = info["url"]
-        referer = info.get("descriptionurl") or f"https://commons.wikimedia.org/wiki/{urllib.parse.quote(file_title.replace(' ', '_'))}"
-        local_name = f"{usps}_silhouette.svg"
-        dest = out_dir / local_name
+        if locator_resolved:
+            file_title, strategy = locator_resolved
+            meta = _download_variant(
+                out_dir,
+                usps=usps,
+                file_title=file_title,
+                info=infos[file_title],
+                strategy=strategy,
+                local_name=f"{usps}_silhouette_locator.svg",
+                dry_run=dry_run,
+            )
+            if meta:
+                entry["variants"]["locator"] = meta
+                if not dry_run:
+                    time.sleep(sleep_s)
 
-        if dry_run:
-            print(f"  {usps}: would download {file_title} -> {local_name} ({strategy})")
-            ok += 1
-            manifest["files"][usps] = {
-                "state_name": name,
-                "commons_title": file_title.replace("File:", ""),
-                "commons_url": referer,
-                "download_url": url,
-                "strategy": strategy,
-                "local_file": local_name,
-                "dry_run": True,
-            }
+        if state_resolved:
+            file_title, strategy = state_resolved
+            meta = _download_variant(
+                out_dir,
+                usps=usps,
+                file_title=file_title,
+                info=infos[file_title],
+                strategy=strategy,
+                local_name=f"{usps}_silhouette_state.svg",
+                dry_run=dry_run,
+            )
+            if meta:
+                entry["variants"]["state"] = meta
+                if not dry_run:
+                    time.sleep(sleep_s)
+
+        if not entry["variants"]:
+            entry["error"] = "Download failed for all variants."
+            manifest["files"][usps] = entry
             continue
 
-        try:
-            body = _commons_fetch_binary(url, referer)
-            dest.write_bytes(body)
-        except Exception as exc:  # noqa: BLE001
-            manifest["files"][usps] = {
-                "state_name": name,
-                "commons_title": file_title.replace("File:", ""),
-                "error": str(exc),
-            }
-            print(f"  {usps}: FAIL ({exc})", file=sys.stderr)
-            continue
+        default_local = (
+            entry["variants"].get("locator", {}).get("local_file")
+            or entry["variants"].get("state", {}).get("local_file")
+        )
+        entry["default_variant"] = (
+            "locator" if "locator" in entry["variants"] else "state"
+        )
+        entry["local_file"] = default_local
 
-        manifest["files"][usps] = {
-            "state_name": name,
-            "commons_title": file_title.replace("File:", ""),
-            "commons_url": referer,
-            "download_url": url,
-            "strategy": strategy,
-            "local_file": local_name,
-            "bytes": len(body),
-            "timestamp": info.get("timestamp"),
-        }
+        if not dry_run and default_local:
+            legacy = out_dir / f"{usps}_silhouette.svg"
+            shutil.copy2(out_dir / default_local, legacy)
+            entry["legacy_local_file"] = legacy.name
+
+        manifest["files"][usps] = entry
         ok += 1
-        print(f"  {usps}: {file_title.replace('File:', '')} -> {local_name} ({strategy})")
-        time.sleep(sleep_s)
 
     manifest_path = out_dir / "_manifest.json"
     if not dry_run:
@@ -316,9 +459,25 @@ def main() -> int:
         action="store_true",
         help="Resolve titles only; do not download or write manifest",
     )
+    parser.add_argument(
+        "--us-only",
+        action="store_true",
+        help=f"Download only {US_SILHOUETTE_LOCAL} ({US_SILHOUETTE_COMMONS})",
+    )
+    parser.add_argument(
+        "--no-us",
+        action="store_true",
+        help="Skip national U.S. silhouette when downloading states",
+    )
     args = parser.parse_args()
     only = {x.upper() for x in args.only} if args.only else None
-    download_state_silhouettes(args.out, args.sleep, only, args.dry_run)
+    if args.us_only:
+        download_us_silhouette(args.out, args.sleep, args.dry_run)
+        return 0
+    if not args.no_us:
+        download_us_silhouette(args.out, args.sleep, args.dry_run)
+    if not args.us_only:
+        download_state_silhouettes(args.out, args.sleep, only, args.dry_run)
     return 0
 
 

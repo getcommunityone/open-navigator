@@ -3048,7 +3048,6 @@ function CensusMapPage() {
                   formatBarEnd={(v) => formatMetricValueCompact(metricSlug, v, metrics, valueMode)}
                   formatAxisTick={formatAxisTick}
                   playing={playing}
-                  winnerUsps={barData[0] ? FIPS2_TO_USPS[barData[0].geoid] : null}
                   vintageYear={displayVintage}
                   yearHelp={CENSUS_MAP_UI_HELP.year}
                   winnerCaption={censusMetricWinnerCaption(metricSlug)}
@@ -3361,7 +3360,7 @@ function CensusMapPage() {
                     geoLevel="county"
                     pinnedRowId={leaderboardPinnedId}
                     onTogglePinnedRow={toggleLeaderboardPin}
-                    leaderPlateUsps={stateUsps ?? null}
+                    leaderSilhouetteUsps={stateUsps ?? null}
                     displayVintage={displayVintage}
                   />
                 </motion.div>
@@ -3641,7 +3640,7 @@ function CensusMapPage() {
                     geoLevel="place"
                     pinnedRowId={leaderboardPinnedId}
                     onTogglePinnedRow={toggleLeaderboardPin}
-                    leaderPlateUsps={stateUsps ?? null}
+                    leaderSilhouetteUsps={stateUsps ?? null}
                     displayVintage={displayVintage}
                   />
                 </motion.div>
@@ -3677,8 +3676,8 @@ type PlaceBarChartProps = {
   geoLevel: 'county' | 'place'
   pinnedRowId?: string | null
   onTogglePinnedRow?: (id: string) => void
-  /** State plate at top of strip while #1 row may be a county or place. */
-  leaderPlateUsps?: string | null
+  /** State silhouette at top of strip while #1 row may be a county or place. */
+  leaderSilhouetteUsps?: string | null
   displayVintage: string
 }
 
@@ -3697,7 +3696,7 @@ function PlaceBarChart(props: PlaceBarChartProps) {
     geoLevel,
     pinnedRowId = null,
     onTogglePinnedRow,
-    leaderPlateUsps = null,
+    leaderSilhouetteUsps = null,
     displayVintage,
   } = props
   const rows = useMemo(() => {
@@ -3750,7 +3749,7 @@ function PlaceBarChart(props: PlaceBarChartProps) {
       formatBarEnd={(v) => formatMetricValueCompact(metricSlug, v, metrics, valueMode)}
       formatAxisTick={formatAxisTick}
       playing={playing}
-      leaderPlateUsps={leaderPlateUsps}
+      leaderSilhouetteUsps={leaderSilhouetteUsps}
       vintageYear={displayVintage}
       yearHelp={CENSUS_MAP_UI_HELP.year}
       winnerCaption={censusMetricWinnerCaption(metricSlug)}

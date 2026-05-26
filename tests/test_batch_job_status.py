@@ -21,7 +21,7 @@ def test_batch_lifecycle_and_summary():
         store = BatchJobStore(bid, jobs_root=root)
         store.start_batch(
             step="captions",
-            config={"states": ["GA"], "n": 10, "total_jurisdictions": 2},
+            config={"n": 10, "total_jurisdictions": 2, "seed_plan": False},
         )
         store.jurisdiction_start(
             state_code="GA",
@@ -36,6 +36,10 @@ def test_batch_lifecycle_and_summary():
             title="Meeting",
             transcript_source="yt-dlp",
         )
+        mid = store.load()
+        _recompute_summary(mid)
+        assert mid.summary["videos_ok"] == 1
+        assert mid.summary["videos_fail"] == 0
         store.record_video(
             jurisdiction_id="appling_13001",
             video_id="def456",
@@ -46,7 +50,12 @@ def test_batch_lifecycle_and_summary():
             jurisdiction_id="appling_13001",
             exit_code=0,
             stats={"ok": 1, "fail": 1},
-            file_counts={"transcripts": 5, "analysis": 0, "reports": 0},
+            file_counts={
+                "transcripts_disk": 5,
+                "analysis_disk": 2,
+                "reports_disk": 0,
+                "bronze_download_rows": 99,
+            },
         )
         store.finish_batch(status="completed")
 
@@ -56,7 +65,12 @@ def test_batch_lifecycle_and_summary():
         assert job.summary["remaining_jurisdictions"] == 1
         assert job.summary["videos_ok"] == 1
         assert job.summary["videos_fail"] == 1
-        assert job.summary["files_transcripts"] == 5
+        assert job.summary["files_transcripts"] == 1
+        assert job.summary["files_processed"] == 2
+        assert job.summary["videos_attempted"] == 2
+        assert job.summary["files_transcripts_disk"] == 5
+        assert job.summary["files_analysis"] == 2
+        assert job.summary["bronze_download_rows"] == 99
         assert len(job.jurisdictions) == 1
         assert len(job.jurisdictions[0].videos) == 2
 
@@ -92,3 +106,29 @@ def test_dashboard_build_no_refresh():
 
         assert payload["totals"]["batches"] >= 1
         assert payload["batches"][0]["batch_id"] == bid
+        assert store.load().status == "completed"
+
+
+def test_auto_finish_when_all_target_jurisdictions_done():
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        bid = new_batch_id("captions")
+        store = BatchJobStore(bid, jobs_root=root)
+        store.start_batch(
+            step="captions",
+            config={"total_jurisdictions": 1, "seed_plan": False},
+        )
+        store.jurisdiction_start(
+            state_code="AL",
+            jurisdiction_id="bullock_01011",
+            jurisdiction_name="Bullock",
+        )
+        store.jurisdiction_finish(
+            jurisdiction_id="bullock_01011",
+            exit_code=0,
+            stats={"ok": 2},
+        )
+        job = store.load()
+        assert job.status == "completed"
+        assert job.finished_at
+        assert job.summary["remaining_jurisdictions"] == 0

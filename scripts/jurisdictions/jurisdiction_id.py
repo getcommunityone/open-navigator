@@ -7,6 +7,7 @@ States remain 2-letter USPS (``AL``). Legacy typed ids (``municipality_0101852``
 
 from __future__ import annotations
 
+import functools
 import re
 from typing import Optional, Tuple
 
@@ -153,11 +154,10 @@ _BRONZE_GEOID_TABLE: dict[str, tuple[str, str]] = {
 }
 
 
-def lookup_canonical_jurisdiction_id_from_bronze(
+def _lookup_canonical_jurisdiction_id_from_bronze_uncached(
     geoid: str,
     jurisdiction_type: str,
-    *,
-    database_url: Optional[str] = None,
+    database_url: Optional[str],
 ) -> str:
     """Resolve ``{slug}_{geoid}`` from bronze when only GEOID + type are known."""
     import os
@@ -196,6 +196,29 @@ def lookup_canonical_jurisdiction_id_from_bronze(
             return str(row[0]).strip() if row and row[0] else ""
     except Exception:
         return ""
+
+
+@functools.lru_cache(maxsize=8192)
+def _lookup_canonical_jurisdiction_id_from_bronze_cached(
+    geoid: str,
+    jurisdiction_type: str,
+) -> str:
+    return _lookup_canonical_jurisdiction_id_from_bronze_uncached(
+        geoid, jurisdiction_type, None
+    )
+
+
+def lookup_canonical_jurisdiction_id_from_bronze(
+    geoid: str,
+    jurisdiction_type: str,
+    *,
+    database_url: Optional[str] = None,
+) -> str:
+    if database_url:
+        return _lookup_canonical_jurisdiction_id_from_bronze_uncached(
+            geoid, jurisdiction_type, database_url
+        )
+    return _lookup_canonical_jurisdiction_id_from_bronze_cached(geoid, jurisdiction_type)
 
 
 def jurisdiction_pk_from_geoid(

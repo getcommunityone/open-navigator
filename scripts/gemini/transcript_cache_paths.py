@@ -277,7 +277,11 @@ def _canonical_cache_folder_from_bronze_geoid(
     return ""
 
 
-def jurisdiction_cache_folder_name(jurisdiction_id: str, *, place_name: str | None = None) -> str:
+@functools.lru_cache(maxsize=4096)
+def _jurisdiction_cache_folder_name_cached(
+    jurisdiction_id: str,
+    place_name: str,
+) -> str:
     """
     Filesystem folder under ``{state}/{type}/`` — same as canonical ``jurisdiction_id``.
 
@@ -297,22 +301,30 @@ def jurisdiction_cache_folder_name(jurisdiction_id: str, *, place_name: str | No
     if not geoid:
         safe = re.sub(r"[^A-Za-z0-9._-]+", "_", jid).strip("_")
         return safe[:200] or "unknown"
-    place = (place_name or "").strip() or lookup_jurisdiction_place_name(jid) or geoid
+    pn = (place_name or "").strip()
+    place = pn or lookup_jurisdiction_place_name(jid) or geoid
     return f"{place_slug_for_jurisdiction_id(place)}_{geoid}"
 
 
-def jurisdiction_cache_folder_aliases(
+def jurisdiction_cache_folder_name(jurisdiction_id: str, *, place_name: str | None = None) -> str:
+    return _jurisdiction_cache_folder_name_cached(
+        jurisdiction_id, (place_name or "").strip()
+    )
+
+
+@functools.lru_cache(maxsize=2048)
+def _jurisdiction_cache_folder_aliases_cached(
     jurisdiction_id: str,
-    *,
-    place_name: str | None = None,
-) -> List[str]:
+    place_name: str,
+) -> tuple[str, ...]:
     """On-disk folder basenames that may exist for one logical jurisdiction."""
     jid = resolve_canonical_jurisdiction_id(jurisdiction_id)
     _jt, geoid, _slug = parse_jurisdiction_id(jid)
-    place = (place_name or "").strip() or (lookup_jurisdiction_place_name(jid) if geoid else "")
+    pn = (place_name or "").strip()
+    place = pn or (lookup_jurisdiction_place_name(jid) if geoid else "")
     names: List[str] = []
     for candidate in (
-        jurisdiction_cache_folder_name(jid, place_name=place_name),
+        jurisdiction_cache_folder_name(jid, place_name=pn or None),
         jid,
         (jurisdiction_id or "").strip(),
     ):
@@ -328,7 +340,19 @@ def jurisdiction_cache_folder_aliases(
             typed_folder = f"{typed.group('jtype').lower()}_{geoid}"
             if typed_folder not in names:
                 names.append(typed_folder)
-    return names
+    return tuple(names)
+
+
+def jurisdiction_cache_folder_aliases(
+    jurisdiction_id: str,
+    *,
+    place_name: str | None = None,
+) -> List[str]:
+    return list(
+        _jurisdiction_cache_folder_aliases_cached(
+            jurisdiction_id, (place_name or "").strip()
+        )
+    )
 
 
 def scraped_meetings_jurisdiction_dir(
@@ -648,7 +672,7 @@ def jurisdiction_geo_candidates(
     for folder_name in jurisdiction_cache_folder_aliases(jid):
         if st:
             add(cache_dir / st / segment / folder_name)
-        if segment:
+        elif segment:
             for state_dir in sorted(cache_dir.iterdir()):
                 if not _is_state_cache_dir(state_dir):
                     continue

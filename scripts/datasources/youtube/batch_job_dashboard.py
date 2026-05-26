@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """
-Build and open an HTML dashboard for batch job status (captions / analyze / catalog).
+Build static HTML for batch job status (optional; primary UI is React).
+
+React app: Data explorer → Batch jobs (`/data-explorer/batch-jobs`) via `GET /api/batch-jobs`.
 
 Usage (repo root):
   .venv/bin/python scripts/datasources/youtube/batch_job_dashboard.py --build
@@ -25,7 +27,9 @@ if str(_REPO_ROOT) not in sys.path:
 from scripts.datasources.youtube.batch_job_status import (
     _REPO_ROOT,
     BatchJob,
+    _recompute_summary,
     count_policy_files_for_jurisdiction,
+    expand_batch_job_plan,
     jobs_dir,
     list_batches,
 )
@@ -51,49 +55,163 @@ def _fmt_duration(seconds: Any) -> str:
 
 
 def _enrich_file_counts(job: BatchJob) -> BatchJob:
+    from scripts.datasources.youtube.batch_job_status import policy_disk_file_counts
+
     for j in job.jurisdictions:
-        j.file_counts = count_policy_files_for_jurisdiction(
+        scanned = count_policy_files_for_jurisdiction(
             _POLICY_CACHE,
             state_code=j.state_code,
             jurisdiction_id=j.jurisdiction_id,
         )
+        j.file_counts = dict(j.file_counts or {})
+        j.file_counts.update(policy_disk_file_counts(scanned))
     return job
 
 
-def build_dashboard_data(*, refresh_files: bool = True) -> Dict[str, Any]:
+def _aggregate_jobs(jobs: List[BatchJob]) -> Dict[str, Any]:
     batches: List[Dict[str, Any]] = []
     totals = {
         "batches": 0,
         "running": 0,
+        "states": 0,
         "processed_jurisdictions": 0,
         "failed_jurisdictions": 0,
         "remaining_jurisdictions": 0,
         "videos_ok": 0,
         "videos_fail": 0,
+        "videos_attempted": 0,
         "files_transcripts": 0,
+        "files_transcripts_disk": 0,
+        "transcript_hours": 0.0,
+        "bronze_download_rows": 0,
         "files_analysis": 0,
         "files_reports": 0,
     }
-
-    for job in list_batches(limit=100):
-        if refresh_files:
-            _enrich_file_counts(job)
+    state_codes: set[str] = set()
+    transcript_seconds = 0.0
+    for job in jobs:
+        expand_batch_job_plan(job)
+        _recompute_summary(job)
         d = job.to_dict()
         batches.append(d)
         s = d.get("summary") or {}
         totals["batches"] += 1
         if d.get("status") == "running":
             totals["running"] += 1
+        for st in (job.config or {}).get("states") or []:
+            if isinstance(st, str) and st.strip():
+                state_codes.add(st.strip().upper())
+        if not (job.config or {}).get("states"):
+            for j in job.jurisdictions:
+                if j.state_code:
+                    state_codes.add(j.state_code.strip().upper())
         totals["processed_jurisdictions"] += int(s.get("processed_jurisdictions") or 0)
         totals["failed_jurisdictions"] += int(s.get("failed_jurisdictions") or 0)
         totals["remaining_jurisdictions"] += int(s.get("remaining_jurisdictions") or 0)
         totals["videos_ok"] += int(s.get("videos_ok") or 0)
         totals["videos_fail"] += int(s.get("videos_fail") or 0)
+        attempted = int(s.get("videos_attempted") or s.get("files_processed") or 0)
+        if not attempted:
+            attempted = (
+                int(s.get("videos_ok") or 0)
+                + int(s.get("videos_fail") or 0)
+                + int(s.get("videos_tombstoned") or 0)
+                + int(s.get("videos_empty") or 0)
+                + int(s.get("videos_rate_limit") or 0)
+            )
+        totals["videos_attempted"] += attempted
         totals["files_transcripts"] += int(s.get("files_transcripts") or 0)
+        totals["files_transcripts_disk"] += int(s.get("files_transcripts_disk") or 0)
+        totals["bronze_download_rows"] += int(s.get("bronze_download_rows") or 0)
         totals["files_analysis"] += int(s.get("files_analysis") or 0)
         totals["files_reports"] += int(s.get("files_reports") or 0)
+        for j in job.jurisdictions:
+            for v in j.videos or []:
+                if (v.status or "").strip().lower() != "ok":
+                    continue
+                if v.duration_seconds is None:
+                    continue
+                transcript_seconds += float(v.duration_seconds)
 
-    return {"generated_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(), "totals": totals, "batches": batches}
+    totals["states"] = len(state_codes)
+    totals["transcript_hours"] = round(transcript_seconds / 3600.0, 2)
+
+    return {
+        "generated_at": __import__("datetime")
+        .datetime.now(__import__("datetime").timezone.utc)
+        .isoformat(),
+        "totals": totals,
+        "batches": batches,
+        "source": "database",
+    }
+
+
+def build_dashboard_data(
+    *,
+    refresh_files: bool = False,
+    enrich_bronze: bool = True,
+    enrich_bronze_only_running: bool = False,
+) -> Dict[str, Any]:
+    """
+    Build dashboard payload. Prefer Postgres (``bronze.youtube_batch_job_runs``);
+    fall back to JSON files under ``data/cache/batch_jobs/``.
+
+    ``refresh_files`` scans the policy cache on disk (slow). By default transcript
+  counts come from ``bronze.bronze_events_youtube`` when ``enrich_bronze`` is true.
+    """
+    import os
+
+    use_db = os.getenv("BATCH_JOBS_USE_DB", "1").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+        "off",
+    )
+
+    if use_db:
+        try:
+            from scripts.datasources.youtube.batch_job_db import (
+                enrich_jobs_from_bronze,
+                list_batch_jobs_from_db,
+                sync_json_batches_to_db,
+            )
+
+            jobs = list_batch_jobs_from_db(limit=100)
+            if not jobs:
+                sync_json_batches_to_db(limit=100)
+                jobs = list_batch_jobs_from_db(limit=100)
+            if jobs:
+                if enrich_bronze:
+                    enrich_jobs_from_bronze(
+                        jobs,
+                        only_running_jurisdictions=enrich_bronze_only_running,
+                        enrich_disk=not enrich_bronze_only_running,
+                    )
+                elif refresh_files:
+                    for job in jobs:
+                        _enrich_file_counts(job)
+                return _aggregate_jobs(jobs)
+        except Exception as exc:
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "batch dashboard DB read failed, using JSON files: %s", exc
+            )
+
+    jobs = list_batches(limit=100)
+    if refresh_files:
+        for job in jobs:
+            _enrich_file_counts(job)
+    elif enrich_bronze:
+        try:
+            from scripts.datasources.youtube.batch_job_db import enrich_jobs_from_bronze
+
+            enrich_jobs_from_bronze(jobs)
+        except Exception:
+            pass
+    payload = _aggregate_jobs(jobs)
+    payload["source"] = "files"
+    return payload
 
 
 def render_html(payload: Dict[str, Any]) -> str:
@@ -271,9 +389,11 @@ def render_html(payload: Dict[str, Any]) -> str:
         ['Remaining', t.remaining_jurisdictions],
         ['Videos OK', t.videos_ok],
         ['Videos failed', t.videos_fail],
-        ['Transcript files', t.files_transcripts],
-        ['Analysis files', t.files_analysis],
-        ['Report files', t.files_reports],
+        ['Videos attempted (batch)', t.videos_attempted],
+        ['Transcripts on disk', t.files_transcripts_disk],
+        ['Bronze download rows', t.bronze_download_rows],
+        ['Analysis on disk', t.files_analysis],
+        ['Reports on disk', t.files_reports],
       ];
       document.getElementById('global-cards').innerHTML = cards.map(([l,v]) =>
         `<div class="card"><div class="label">${{l}}</div><div class="value">${{v}}</div></div>`
@@ -455,7 +575,18 @@ def main() -> int:
         action="store_true",
         help="Skip scanning policy cache for file counts (faster)",
     )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print dashboard JSON to stdout (for Vite dev fallback / debugging)",
+    )
     args = parser.parse_args()
+
+    if args.json:
+        payload = build_dashboard_data(refresh_files=not args.no_refresh_files)
+        json.dump(payload, sys.stdout, ensure_ascii=False)
+        sys.stdout.write("\n")
+        return 0
 
     if args.serve:
         write_dashboard(refresh_files=not args.no_refresh_files)

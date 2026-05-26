@@ -58,12 +58,15 @@ from scripts.datasources.youtube.load_youtube_events_to_postgres import (  # noq
     YouTubeEventsLoader,
 )
 from scripts.gemini.transcript_cache_paths import (  # noqa: E402
+    DIR_TRANSCRIPTS,
     jurisdiction_root,
     legacy_transcript_cache_path,
     lookup_jurisdiction_geo_from_db,
     resolve_meeting_event_date,
     resolve_transcript_cache_path,
+    transcript_cache_filename,
     transcript_cache_path,
+    _is_policy_channel_dir,
 )
 
 
@@ -134,20 +137,33 @@ def _sort_timestamp(value: Any) -> float:
     return 0.0
 
 
-def sort_backfill_rows(rows: List[Dict[str, Any]], order_by: str) -> List[Dict[str, Any]]:
-    """Restore newest-first order after dedupe (dedupe clusters scramble SQL order)."""
+def _row_order_timestamp(row: Dict[str, Any], order_by: str) -> float:
     key_name = (order_by or "published_at").strip().lower()
+    if key_name == "meeting_date":
+        return _sort_timestamp(row.get("event_date") or row.get("published_at"))
+    if key_name == "last_updated":
+        return _sort_timestamp(row.get("last_updated"))
+    if key_name == "event_date":
+        return _sort_timestamp(row.get("event_date"))
+    return _sort_timestamp(row.get("published_at") or row.get("event_date"))
 
-    def sort_key(row: Dict[str, Any]) -> float:
-        if key_name == "meeting_date":
-            return _sort_timestamp(row.get("event_date") or row.get("published_at"))
-        if key_name == "last_updated":
-            return _sort_timestamp(row.get("last_updated"))
-        if key_name == "event_date":
-            return _sort_timestamp(row.get("event_date"))
-        return _sort_timestamp(row.get("published_at") or row.get("event_date"))
 
-    return sorted(rows, key=sort_key, reverse=True)
+def sort_backfill_rows(
+    rows: List[Dict[str, Any]],
+    order_by: str,
+    *,
+    prefer_untried: bool = True,
+) -> List[Dict[str, Any]]:
+    """Restore fetch order after dedupe (dedupe clusters scramble SQL order)."""
+    if prefer_untried:
+        return sorted(
+            rows,
+            key=lambda r: (
+                int(r.get("transcript_download_attempts") or 0),
+                -_row_order_timestamp(r, order_by),
+            ),
+        )
+    return sorted(rows, key=lambda r: -_row_order_timestamp(r, order_by))
 
 
 def row_needs_backfill(
@@ -158,6 +174,7 @@ def row_needs_backfill(
     skip_local_existing: bool,
     include_bronze_existing: bool,
     state_code: Optional[str] = None,
+    policy_folder: Optional[Path] = None,
 ) -> bool:
     """True if this row still needs YouTube fetch and/or local cache sync."""
     if not row.get("bronze_has_transcript"):
@@ -165,11 +182,19 @@ def row_needs_backfill(
     if include_bronze_existing:
         return True
     if skip_local_existing and local_transcript_exists(
-        cache_dir, jurisdiction_id, row, state_code=state_code
+        cache_dir,
+        jurisdiction_id,
+        row,
+        state_code=state_code,
+        policy_folder=policy_folder,
     ):
         return False
     if row.get("bronze_has_transcript") and not local_transcript_exists(
-        cache_dir, jurisdiction_id, row, state_code=state_code
+        cache_dir,
+        jurisdiction_id,
+        row,
+        state_code=state_code,
+        policy_folder=policy_folder,
     ):
         return True
     return False
@@ -183,6 +208,7 @@ def fetch_pending_videos(
     skip_bronze: bool = True,
     order_by: str = "published_at",
     video_id: Optional[str] = None,
+    prefer_untried: bool = True,
 ) -> List[Dict[str, Any]]:
     import psycopg2
     from psycopg2.extras import RealDictCursor
@@ -199,6 +225,9 @@ def fetch_pending_videos(
             y.duration_minutes,
             y.published_at,
             y.last_updated,
+            COALESCE(y.transcript_download_attempts, 0) AS transcript_download_attempts,
+            y.transcript_download_at,
+            y.transcript_file_error,
             t.has_transcript AS bronze_has_transcript
         FROM bronze.bronze_events_youtube y
         LEFT JOIN bronze.bronze_events_text_ai t ON t.video_id = y.video_id
@@ -225,9 +254,13 @@ def fetch_pending_videos(
         raise ValueError(
             f"order_by must be one of: {', '.join(_PENDING_ORDER_CLAUSES)}"
         )
+    order_parts: list[str] = []
+    if prefer_untried:
+        order_parts.append("sub.transcript_download_attempts ASC")
+    order_parts.append(_PENDING_ORDER_CLAUSES[order_key])
     sql = f"""
         SELECT * FROM ({sql}) sub
-        ORDER BY {_PENDING_ORDER_CLAUSES[order_key]}
+        ORDER BY {", ".join(order_parts)}
     """
     if limit is not None:
         sql += " LIMIT %s"
@@ -267,6 +300,9 @@ def fetch_video_row(
                     y.duration_minutes,
                     y.published_at,
                     y.last_updated,
+                    COALESCE(y.transcript_download_attempts, 0) AS transcript_download_attempts,
+                    y.transcript_download_at,
+                    y.transcript_file_error,
                     t.has_transcript AS bronze_has_transcript,
                     t.transcript_source AS bronze_transcript_source
                 FROM bronze.bronze_events_youtube y
@@ -433,26 +469,60 @@ def local_transcript_exists(
     row: Dict[str, Any],
     *,
     state_code: Optional[str] = None,
+    policy_folder: Optional[Path] = None,
 ) -> bool:
+    """Return True if a caption JSON for this row is already on disk."""
     st = _effective_state_code(jurisdiction_id, row, explicit=state_code)
-    folder = jurisdiction_root(cache_dir, jurisdiction_id, state_code=st)
-    if local_transcript_path(cache_dir, jurisdiction_id, row, state_code=st).is_file():
+    folder = policy_folder
+    if folder is None:
+        folder = jurisdiction_root(cache_dir, jurisdiction_id, state_code=st)
+
+    row_resolved = apply_resolved_event_date(dict(row))
+    vid = str(row_resolved["video_id"])
+    title = str(row_resolved.get("title") or "")
+    event_date = row_resolved.get("event_date")
+    cid = str(row_resolved.get("channel_id") or "").strip() or None
+
+    if (
+        resolve_transcript_cache_path(
+            folder,
+            video_id=vid,
+            title=title,
+            event_date=event_date,
+        )
+        is not None
+    ):
+        return True
+
+    if cid:
+        if _is_policy_channel_dir(folder):
+            channel_root = folder
+        else:
+            channel_root = folder / cid
+        if title:
+            named = (
+                channel_root
+                / DIR_TRANSCRIPTS
+                / transcript_cache_filename(title, event_date)
+            )
+            if named.is_file():
+                return True
+
+    if policy_folder is not None:
+        return False
+
+    if local_transcript_path(cache_dir, jurisdiction_id, row_resolved, state_code=st).is_file():
         return True
     legacy = legacy_transcript_cache_path(
         cache_dir,
         jurisdiction_id,
-        str(row["video_id"]),
+        vid,
         state_code=st,
-        channel_id=str(row.get("channel_id") or "").strip() or None,
+        channel_id=cid,
     )
     if legacy.is_file():
         return True
-    return resolve_transcript_cache_path(
-        folder,
-        video_id=str(row["video_id"]),
-        title=str(row.get("title") or ""),
-        event_date=row.get("event_date"),
-    ) is not None
+    return False
 
 
 def write_local_transcript(
@@ -750,6 +820,19 @@ def run(args: argparse.Namespace) -> int:
     state_code = _effective_state_code(
         jurisdiction_id, explicit=(getattr(args, "state", None) or "").strip() or None
     )
+    prefer_untried = not getattr(args, "no_prefer_untried", False)
+    if os.getenv("NO_PREFER_UNTRIED", "").strip().lower() in ("1", "true", "yes"):
+        prefer_untried = False
+
+    policy_folder: Optional[Path] = None
+
+    def ensure_policy_folder() -> Path:
+        nonlocal policy_folder
+        if policy_folder is None:
+            policy_folder = jurisdiction_root(
+                cache_dir, jurisdiction_id, state_code=state_code
+            )
+        return policy_folder
 
     if getattr(args, "fix_event_dates_from_title", False):
         count = fix_bronze_event_dates_from_titles(
@@ -823,7 +906,11 @@ def run(args: argparse.Namespace) -> int:
             )
         if row.get("bronze_has_transcript") and not args.include_bronze_existing:
             if args.skip_local_existing and local_transcript_exists(
-                cache_dir, jurisdiction_id, row, state_code=state_code
+                cache_dir,
+                jurisdiction_id,
+                row,
+                state_code=state_code,
+                policy_folder=ensure_policy_folder(),
             ):
                 logger.success(
                     "{} already has bronze + local transcript — nothing to do",
@@ -853,6 +940,12 @@ def run(args: argparse.Namespace) -> int:
                 limit=newest_n,
                 skip_bronze=False,
                 order_by=args.order_by,
+                prefer_untried=prefer_untried,
+            )
+            local_pf = (
+                ensure_policy_folder()
+                if not args.include_bronze_existing
+                else None
             )
             pending = [
                 r
@@ -864,6 +957,7 @@ def run(args: argparse.Namespace) -> int:
                     skip_local_existing=args.skip_local_existing,
                     include_bronze_existing=args.include_bronze_existing,
                     state_code=state_code,
+                    policy_folder=local_pf,
                 )
             ]
             logger.info(
@@ -878,12 +972,18 @@ def run(args: argparse.Namespace) -> int:
                 limit=args.limit,
                 skip_bronze=not args.include_bronze_existing,
                 order_by=args.order_by,
+                prefer_untried=prefer_untried,
             )
             if args.skip_local_existing:
+                local_pf = ensure_policy_folder()
                 filtered: List[Dict[str, Any]] = []
                 for row in pending:
                     if local_transcript_exists(
-                        cache_dir, jurisdiction_id, row, state_code=state_code
+                        cache_dir,
+                        jurisdiction_id,
+                        row,
+                        state_code=state_code,
+                        policy_folder=local_pf,
                     ):
                         continue
                     filtered.append(row)
@@ -900,9 +1000,14 @@ def run(args: argparse.Namespace) -> int:
 
         title_by_id = {r["video_id"]: str(r.get("title") or "") for r in pending}
         row_by_id = {r["video_id"]: r for r in pending}
+        local_pf = ensure_policy_folder()
         for row in pending:
             row["local_has_transcript"] = local_transcript_exists(
-                cache_dir, jurisdiction_id, row, state_code=state_code
+                cache_dir,
+                jurisdiction_id,
+                row,
+                state_code=state_code,
+                policy_folder=local_pf,
             )
             row["has_transcript"] = (
                 row.get("bronze_has_transcript") is True
@@ -911,18 +1016,24 @@ def run(args: argparse.Namespace) -> int:
         pending, dedupe = dedupe_meeting_rows(pending)
         log_duplicate_skips(dedupe, title_by_id=title_by_id, row_by_id=row_by_id)
 
-    pending = sort_backfill_rows(pending, args.order_by)
+    pending = sort_backfill_rows(
+        pending, args.order_by, prefer_untried=prefer_untried
+    )
     from scripts.gemini.policy_exclusions import filter_rows_not_excluded
 
     pending = filter_rows_not_excluded(
         pending, cache_dir, jurisdiction_id, state_code=state_code
     )
 
+    row_by_id = {r.get("video_id"): r for r in pending if r.get("video_id")}
+
     logger.info(
-        "Jurisdiction {} — {} video(s) to fetch (order: {} desc)",
+        "Jurisdiction {} — {} video(s) to fetch (order: {} desc{}, prefer_untried={})",
         jurisdiction_id,
         len(pending),
         args.order_by,
+        ", untried first" if prefer_untried else "",
+        prefer_untried,
     )
 
     batch_id = (getattr(args, "batch_id", None) or os.getenv("BATCH_JOB_ID") or "").strip()
@@ -944,6 +1055,10 @@ def run(args: argparse.Namespace) -> int:
         source: str = "",
     ) -> None:
         if batch_store:
+            from scripts.datasources.youtube.batch_job_status import (
+                duration_seconds_from_catalog_minutes,
+            )
+
             batch_store.record_video(
                 jurisdiction_id=jurisdiction_id,
                 video_id=vid,
@@ -951,15 +1066,20 @@ def run(args: argparse.Namespace) -> int:
                 title=title,
                 error=error,
                 transcript_source=source,
+                duration_seconds=duration_seconds_from_catalog_minutes(
+                    row_by_id.get(vid, {}).get("duration_minutes")
+                )
             )
 
     if args.dry_run:
         for i, row in enumerate(pending, 1):
             pub = row.get("published_at")
             pub_s = pub.strftime("%Y-%m-%d") if hasattr(pub, "strftime") else str(pub or "?")[:10]
+            attempts = int(row.get("transcript_download_attempts") or 0)
             print(
-                f"{i:4}. {row['video_id']}  pub={pub_s}  meeting={row.get('event_date') or '?'}  "
-                f"tx={row.get('bronze_has_transcript')}  {(row.get('title') or '')[:55]}"
+                f"{i:4}. {row['video_id']}  attempts={attempts}  pub={pub_s}  "
+                f"meeting={row.get('event_date') or '?'}  tx={row.get('bronze_has_transcript')}  "
+                f"{(row.get('title') or '')[:55]}"
             )
         if batch_store:
             j_name = (getattr(args, "jurisdiction_name", None) or "").strip()
@@ -1044,6 +1164,14 @@ def run(args: argparse.Namespace) -> int:
         ensure_schema_setup=False,
     )
 
+    from scripts.datasources.youtube.bronze_transcript_tracking import (
+        ensure_bronze_youtube_transcript_columns,
+        record_transcript_download_error,
+        record_transcript_download_success,
+    )
+
+    ensure_bronze_youtube_transcript_columns(loader.conn)
+
     stats = {"ok": 0, "fail": 0, "rate_limit": 0, "empty": 0, "tombstoned": 0}
     use_tombstones = args.write_bronze and not getattr(args, "no_tombstones", False)
     consecutive_rl = 0
@@ -1121,6 +1249,12 @@ def run(args: argparse.Namespace) -> int:
                 time.sleep(delay)
 
             logger.info("[{}/{}] {} — {}", i, len(pending), video_id, title_snip or "(no title)")
+            if batch_store:
+                batch_store.video_start(
+                    jurisdiction_id=jurisdiction_id,
+                    video_id=video_id,
+                    title=row_title,
+                )
             event_id = row.get("event_id")
             via_socks = bool(proxy and "socks" in proxy.lower())
 
@@ -1132,6 +1266,13 @@ def run(args: argparse.Namespace) -> int:
                 if write_local_from_bronze(db_url, cache_dir, jurisdiction_id, row):
                     stats["ok"] += 1
                     _batch_video(video_id, "ok", title=row_title, source="bronze_sync")
+                    record_transcript_download_success(
+                        loader.conn,
+                        video_id,
+                        local_transcript_path(
+                            cache_dir, jurisdiction_id, row, state_code=state_code
+                        ),
+                    )
                     logger.success("Synced bronze → local for {} (skip YouTube)", video_id)
                     continue
 
@@ -1148,6 +1289,9 @@ def run(args: argparse.Namespace) -> int:
                         )
                         stats["tombstoned"] += 1
                         _batch_video(video_id, "tombstoned", title=row_title, error=reason or "")
+                        record_transcript_download_error(
+                            loader.conn, video_id, reason or "captions_unavailable"
+                        )
                         logger.info(
                             "Tombstoned {} ({}) — will not retry on future backfills. Test URL: {}",
                             video_id,
@@ -1157,7 +1301,11 @@ def run(args: argparse.Namespace) -> int:
                     else:
                         stats["fail"] += 1
                         err = getattr(loader, "_last_ytdlp_transcript_error", None) or ""
-                        _batch_video(video_id, "fail", title=row_title, error=str(err))
+                        err_msg = str(err) or "no transcript returned"
+                        _batch_video(video_id, "fail", title=row_title, error=err_msg)
+                        record_transcript_download_error(
+                            loader.conn, video_id, err_msg
+                        )
                         if via_socks:
                             logger.warning(
                                 "No transcript for {} — SOCKS proxy {} cannot reach YouTube "
@@ -1176,12 +1324,14 @@ def run(args: argparse.Namespace) -> int:
             except Exception as exc:
                 if is_rate_limited(exc):
                     stats["rate_limit"] += 1
+                    rl_err = format_transcript_error(exc, max_len=300)
                     _batch_video(
                         video_id,
                         "rate_limit",
                         title=row_title,
-                        error=format_transcript_error(exc, max_len=300),
+                        error=rl_err,
                     )
+                    record_transcript_download_error(loader.conn, video_id, rl_err)
                     consecutive_rl += 1
                     wait = min(args.delay * (2**consecutive_rl), args.max_backoff)
                     logger.warning(
@@ -1208,6 +1358,9 @@ def run(args: argparse.Namespace) -> int:
                     )
                     stats["tombstoned"] += 1
                     _batch_video(video_id, "tombstoned", title=row_title, error=reason or "")
+                    record_transcript_download_error(
+                        loader.conn, video_id, reason or "captions_unavailable"
+                    )
                     logger.info(
                         "Tombstoned {} ({}) — will not retry on future backfills. Test URL: {}",
                         video_id,
@@ -1218,6 +1371,7 @@ def run(args: argparse.Namespace) -> int:
                     stats["fail"] += 1
                     err_msg = format_transcript_error(exc, max_len=300)
                     _batch_video(video_id, "fail", title=row_title, error=err_msg)
+                    record_transcript_download_error(loader.conn, video_id, err_msg)
                     logger.warning(
                         "No transcript for {} — {}",
                         video_id,
@@ -1230,6 +1384,9 @@ def run(args: argparse.Namespace) -> int:
             if not (yt.get("raw_text") or "").strip():
                 stats["empty"] += 1
                 _batch_video(video_id, "empty", title=row_title)
+                record_transcript_download_error(
+                    loader.conn, video_id, "empty_transcript"
+                )
                 if use_tombstones and event_id:
                     write_transcript_tombstone(
                         loader,
@@ -1245,8 +1402,9 @@ def run(args: argparse.Namespace) -> int:
                     )
                 continue
 
+            written_path = None
             if not args.no_local_cache:
-                write_local_transcript(
+                written_path = write_local_transcript(
                     local_transcript_path(
                         cache_dir, jurisdiction_id, row, state_code=state_code
                     ),
@@ -1306,6 +1464,9 @@ def run(args: argparse.Namespace) -> int:
                 title=row_title,
                 source=str(yt.get("transcript_source") or ""),
             )
+            record_transcript_download_success(
+                loader.conn, video_id, written_path
+            )
             logger.success(
                 "OK {} — {} url={}",
                 video_id,
@@ -1318,10 +1479,16 @@ def run(args: argparse.Namespace) -> int:
     finally:
         if batch_store:
             exit_code = 0 if stats["rate_limit"] < max_rl else 2
-            file_counts = count_policy_files_for_jurisdiction(
-                cache_dir,
-                state_code=state_code,
-                jurisdiction_id=jurisdiction_id,
+            from scripts.datasources.youtube.batch_job_status import (
+                policy_disk_file_counts,
+            )
+
+            file_counts = policy_disk_file_counts(
+                count_policy_files_for_jurisdiction(
+                    cache_dir,
+                    state_code=state_code,
+                    jurisdiction_id=jurisdiction_id,
+                )
             )
             batch_store.jurisdiction_finish(
                 jurisdiction_id=jurisdiction_id,
@@ -1461,6 +1628,11 @@ def main() -> None:
         "--no-clear-tombstones",
         action="store_true",
         help="Do not delete existing tombstone:* rows before fetching (default: clear and retry)",
+    )
+    parser.add_argument(
+        "--no-prefer-untried",
+        action="store_true",
+        help="Order only by --order-by (do not fetch never-tried videos before retries)",
     )
     parser.add_argument("--no-write-bronze", action="store_false", dest="write_bronze")
     parser.add_argument(

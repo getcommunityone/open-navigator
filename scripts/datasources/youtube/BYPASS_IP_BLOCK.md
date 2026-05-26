@@ -164,13 +164,13 @@ Priority-state runs (`run_priority_states_last_n.sh`) record progress under `dat
 ```bash
 ./scripts/datasources/youtube/run_priority_states_last_n.sh captions
 
-# Another terminal — rebuild and open HTML dashboard:
-.venv/bin/python scripts/datasources/youtube/batch_job_dashboard.py --build --open
+# In the React app (with API + frontend dev servers running):
+#   http://localhost:5173/data-explorer/batch-jobs
 
-# Or serve (re-run --build to refresh):
-.venv/bin/python scripts/datasources/youtube/batch_job_dashboard.py --serve
+# Optional static HTML (dev only):
+#   .venv/bin/python scripts/datasources/youtube/batch_job_dashboard.py --build --open
 ```
 
-Shows batches with processed / failed / remaining jurisdictions, elapsed time, ETA, video outcomes, and policy-cache file counts. Click a jurisdiction to drill down to per-video rows.
+Shows batches with processed / failed / remaining jurisdictions, elapsed time, ETA, video outcomes, and policy-cache file counts. Click a jurisdiction to drill down to per-video rows. The UI polls every 5s while a batch is `running`.
 
 Disable: `BATCH_STATUS=0 ./scripts/datasources/youtube/run_priority_states_last_n.sh captions`

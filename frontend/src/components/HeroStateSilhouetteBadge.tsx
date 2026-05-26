@@ -31,8 +31,8 @@ export default function HeroStateSilhouetteBadge({
 }: HeroStateSilhouetteBadgeProps) {
   const src = stateSilhouettePublicSrc(location?.state)
   const alt = !location?.state
-    ? 'Sample U.S. state silhouette from Wikimedia Commons.'
-    : `${stateName(location)} state silhouette (Wikimedia Commons).`
+    ? 'United States map silhouette (Wikimedia Commons).'
+    : `${stateName(location)} highlighted on United States map (Wikimedia Commons).`
   const label = locationLabel(location)
   const state = stateName(location)
 

@@ -1,7 +1,12 @@
-import { useEffect, useId, useMemo, useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { formatCensusMapAxisTick } from '../utils/censusMapTransforms'
+import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
+import {
+  defaultStateSilhouettePublicSrc,
+  stateSilhouettePublicSrc,
+} from '../utils/wikimediaStateSilhouette'
 import { InfoHelpTrigger } from './InfoHelpTrigger'
 
 export type CensusRaceBarRow = {
@@ -34,14 +39,16 @@ function tickPositionPercent(tickValue: number, min: number, max: number): numbe
 
 const AXIS_TICK_COUNT = 6
 
-/** Try Vite public ``/wikicommons/{USPS}_latest.*``, then ``/data/wikicommons/…``, flags, legacy ``/data/state-symbols/``. */
-function winnerVisualCandidates(usps: string): string[] {
-  const pubLatest = (['png', 'jpg', 'jpeg', 'webp'] as const).map((ext) => `/wikicommons/${usps}_latest.${ext}`)
-  const w = `/data/wikicommons/${usps}`
-  const latest = (['png', 'jpg', 'jpeg', 'webp', 'svg'] as const).map((ext) => `${w}_latest.${ext}`)
-  const heroes = [`${w}_colors_hero.svg`, `${w}_colors_hero.jpg`]
-  const legacy = [`/data/state-symbols/${usps}_colors_hero.jpg`, `/data/state-symbols/${usps}_colors_hero.svg`]
-  return [...pubLatest, ...latest, ...heroes, ...legacy]
+function leaderboardSilhouetteSrc(usps: string | null): string | null {
+  return stateSilhouettePublicSrc(usps, 'locator') ?? defaultStateSilhouettePublicSrc()
+}
+
+function leaderboardSilhouetteAlt(usps: string | null): string {
+  if (!usps || usps.length !== 2) {
+    return 'United States map silhouette (Wikimedia Commons).'
+  }
+  const name = STATE_CODE_TO_NAME[usps.toUpperCase()] ?? usps
+  return `${name} highlighted on United States map (Wikimedia Commons).`
 }
 
 type CensusRaceBarChartProps = {
@@ -50,10 +57,11 @@ type CensusRaceBarChartProps = {
   formatBarEnd?: (v: number) => string
   formatAxisTick?: (n: number, valueSpan?: number) => string
   playing?: boolean
-  /** USPS code for the #1 row (US map: top state). Used when ``leaderPlateUsps`` is not set. */
-  winnerUsps?: string | null
-  /** When drilling counties/places, show this **state’s** plate at the top while #1 may be a county/city. */
-  leaderPlateUsps?: string | null
+  /**
+   * Hero silhouette above the #1 row. ``null`` = United States; two-letter USPS = that state.
+   * Omit on the national US map to default to the USA silhouette.
+   */
+  leaderSilhouetteUsps?: string | null
   /** Shown beside the winner row (e.g. selected map year). */
   vintageYear?: string | null
   /** Tooltip for the year badge (ACS window labeling). */
@@ -88,8 +96,7 @@ export function CensusRaceBarChart({
   formatBarEnd,
   formatAxisTick = formatCensusMapAxisTick,
   playing = false,
-  winnerUsps,
-  leaderPlateUsps = null,
+  leaderSilhouetteUsps,
   vintageYear = null,
   yearHelp = null,
   winnerCaption = null,
@@ -105,7 +112,6 @@ export function CensusRaceBarChart({
   rowsScrollClassName,
 }: CensusRaceBarChartProps) {
   const reduced = useReducedMotion()
-  const [heroAttempt, setHeroAttempt] = useState(0)
   const readingPanelId = useId()
   const [readingOpen, setReadingOpen] = useState(false)
 
@@ -116,14 +122,10 @@ export function CensusRaceBarChart({
   }, [min, max])
 
   const winner = rows[0]
-  const plateUsps = leaderPlateUsps ?? winnerUsps ?? null
+  const silhouetteUsps = leaderSilhouetteUsps !== undefined ? leaderSilhouetteUsps : null
   const rankWhat = winnerRankLabel?.trim() ? winnerRankLabel.trim() : 'this metric'
-  const heroCandidates = plateUsps ? winnerVisualCandidates(plateUsps) : []
-  const heroUrl = heroAttempt < heroCandidates.length ? heroCandidates[heroAttempt] : undefined
-
-  useEffect(() => {
-    setHeroAttempt(0)
-  }, [plateUsps, winner?.id])
+  const heroUrl = leaderboardSilhouetteSrc(silhouetteUsps)
+  const heroAlt = leaderboardSilhouetteAlt(silhouetteUsps)
 
   const rowTransition = reduced
     ? { duration: 0.12, ease: 'easeOut' as const }
@@ -197,25 +199,17 @@ export function CensusRaceBarChart({
         <div className="mb-3 flex w-full min-w-0 shrink-0 flex-col gap-2 border-b border-slate-200 pb-3 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
           <div className="flex min-w-0 flex-1 flex-row items-start gap-3">
             {heroUrl ? (
-              <div className="group relative w-[min(7.5rem,32%)] shrink-0 sm:w-28">
-                <div className="rounded-lg bg-gradient-to-br from-slate-300/90 via-slate-100 to-zinc-200 p-[2px] shadow-md ring-1 ring-slate-500/20">
-                  <div className="rounded-md bg-gradient-to-b from-white/90 to-slate-200/80 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
-                    <div
-                      className="relative w-full overflow-hidden rounded bg-[linear-gradient(180deg,#f8fafc_0%,#e2e8f0_55%,#cbd5e1_100%)] ring-1 ring-slate-900/10"
-                      style={{ aspectRatio: '2.06 / 1' }}
-                    >
-                      <img
-                        src={heroUrl}
-                        alt={`${plateUsps ?? ''} — reference license plate art`}
-                        className={`absolute inset-0 h-full w-full object-contain object-center p-0.5 drop-shadow-[0_2px_6px_rgba(15,23,42,0.15)] transition-[transform,filter] duration-300 ease-out ${
-                          reduced ? '' : 'group-hover:scale-[1.02] group-hover:drop-shadow-[0_4px_12px_rgba(15,23,42,0.2)]'
-                        }`}
-                        loading="lazy"
-                        decoding="async"
-                        onError={() => setHeroAttempt((a) => a + 1)}
-                      />
-                    </div>
-                  </div>
+              <div className="group relative w-[min(5.5rem,28%)] shrink-0 sm:w-20">
+                <div className="flex h-[4.5rem] w-full items-center justify-center rounded-lg border border-slate-200/90 bg-gradient-to-b from-slate-50 to-slate-100/90 px-1.5 shadow-sm ring-1 ring-slate-900/5">
+                  <img
+                    src={heroUrl}
+                    alt={heroAlt}
+                    className={`max-h-[3.75rem] max-w-full object-contain opacity-90 drop-shadow-[0_2px_4px_rgba(53,79,82,0.12)] transition-[transform,filter] duration-300 ease-out ${
+                      reduced ? '' : 'group-hover:scale-[1.03] group-hover:drop-shadow-[0_3px_8px_rgba(53,79,82,0.18)]'
+                    }`}
+                    loading="lazy"
+                    decoding="async"
+                  />
                 </div>
               </div>
             ) : null}
