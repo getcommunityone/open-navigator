@@ -4,6 +4,9 @@ export type BatchJobsTotals = {
   batches: number
   running: number
   states: number
+  states_planned: number
+  states_started: number
+  states_completed: number
   processed_jurisdictions: number
   failed_jurisdictions: number
   remaining_jurisdictions: number

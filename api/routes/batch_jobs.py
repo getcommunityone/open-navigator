@@ -23,6 +23,9 @@ class BatchJobsTotals(BaseModel):
     batches: int = 0
     running: int = 0
     states: int = 0
+    states_planned: int = 0
+    states_started: int = 0
+    states_completed: int = 0
     processed_jurisdictions: int = 0
     failed_jurisdictions: int = 0
     remaining_jurisdictions: int = 0

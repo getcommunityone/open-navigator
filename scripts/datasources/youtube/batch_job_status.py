@@ -34,6 +34,145 @@ def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def batch_inactivity_seconds() -> float:
+    """Mark ``running`` batches cancelled after this many seconds without activity."""
+    raw = os.getenv("BATCH_JOB_INACTIVITY_SECONDS", "3600")
+    try:
+        return max(60.0, float(raw))
+    except (TypeError, ValueError):
+        return 3600.0
+
+
+def config_state_codes(cfg: Optional[Dict[str, Any]]) -> List[str]:
+    raw = (cfg or {}).get("states") or []
+    if isinstance(raw, str):
+        return [s.strip().upper() for s in raw.split(",") if s.strip()]
+    if isinstance(raw, list):
+        return [str(s).strip().upper() for s in raw if str(s).strip()]
+    return []
+
+
+def _parse_utc_iso(iso: str) -> Optional[datetime]:
+    text = (iso or "").strip()
+    if not text:
+        return None
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def last_batch_activity_at(job: BatchJob) -> datetime:
+    """Latest timestamp that indicates the batch or a jurisdiction is still working."""
+    best: Optional[datetime] = None
+    dt = _parse_utc_iso(job.updated_at or "")
+    if dt:
+        best = dt
+    for j in job.jurisdictions:
+        for iso in (
+            j.updated_at,
+            j.current_video_started_at,
+        ):
+            dt = _parse_utc_iso(iso or "")
+            if dt and (best is None or dt > best):
+                best = dt
+    return best or datetime.now(timezone.utc)
+
+
+def state_progress_for_job(job: BatchJob) -> Dict[str, Any]:
+    """
+    Per-batch state coverage from jurisdiction rows.
+
+    * started — at least one jurisdiction in that state is running or finished
+    * completed — every jurisdiction row for that state is finished (none pending/running)
+    """
+    planned = config_state_codes(job.config)
+    by_state: Dict[str, Dict[str, int]] = {}
+    for j in job.jurisdictions:
+        st = (j.state_code or "").strip().upper()
+        if not st:
+            continue
+        bucket = by_state.setdefault(st, {"pending": 0, "running": 0, "done": 0})
+        if j.status == "pending":
+            bucket["pending"] += 1
+        elif j.status == "running":
+            bucket["running"] += 1
+        else:
+            bucket["done"] += 1
+
+    universe = sorted(set(planned) | set(by_state))
+    started_codes = [
+        st
+        for st in universe
+        if by_state.get(st, {}).get("running", 0) + by_state.get(st, {}).get("done", 0) > 0
+    ]
+    completed_codes = [
+        st
+        for st in universe
+        if by_state.get(st)
+        and by_state[st].get("pending", 0) == 0
+        and by_state[st].get("running", 0) == 0
+        and by_state[st].get("done", 0) > 0
+    ]
+    return {
+        "states_planned": len(universe),
+        "states_started": len(started_codes),
+        "states_completed": len(completed_codes),
+        "states_started_codes": started_codes,
+        "states_completed_codes": completed_codes,
+    }
+
+
+def _maybe_stale_cancel_batch(job: BatchJob) -> bool:
+    """Cancel ``running`` batches with no activity for ``batch_inactivity_seconds()``."""
+    if (job.status or "").lower() != "running":
+        return False
+    inactive = batch_inactivity_seconds()
+    now = datetime.now(timezone.utc)
+    if (now - last_batch_activity_at(job)).total_seconds() <= inactive:
+        return False
+    finished = _utc_now_iso()
+    job.status = "cancelled"
+    job.finished_at = finished
+    cfg = dict(job.config or {})
+    cfg["stale_cancel_reason"] = f"no activity for {int(inactive)}s"
+    job.config = cfg
+    for j in job.jurisdictions:
+        if j.status == "running":
+            j.status = "failed"
+            j.exit_code = -1
+            j.finished_at = finished
+            j.updated_at = finished
+            j.current_video_id = ""
+            j.current_video_title = ""
+            j.current_video_started_at = ""
+    return True
+
+
+def persist_batch_job(job: BatchJob) -> None:
+    """Write lifecycle changes to Postgres and the JSON cache file when present."""
+    job.updated_at = _utc_now_iso()
+    _recompute_summary(job)
+    try:
+        from scripts.datasources.youtube.batch_job_db import sync_batch_job_to_db
+
+        sync_batch_job_to_db(job)
+    except Exception:
+        pass
+    try:
+        store = BatchJobStore(job.batch_id)
+        if store.path.is_file():
+            tmp = store.path.with_suffix(".json.tmp")
+            tmp.write_text(
+                json.dumps(job.to_dict(), indent=2, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+            tmp.replace(store.path)
+            _update_index(store.root, job)
+    except Exception:
+        pass
+
+
 def duration_seconds_from_catalog_minutes(duration_minutes: object) -> Optional[float]:
     """Convert ``bronze_events_youtube.duration_minutes`` to seconds for batch UI."""
     if duration_minutes is None:
@@ -213,6 +352,7 @@ _STATUS_RANK = {
     "completed": 5,
     "failed": 4,
     "running": 3,
+    "cancelled": 2,
     "pending": 1,
 }
 
@@ -413,6 +553,19 @@ def _disk_file_count(fc: Dict[str, int], disk_key: str, legacy_key: str) -> int:
     return int(fc.get(legacy_key) or 0)
 
 
+def transcript_seconds_from_job_videos(job: BatchJob) -> float:
+    """Sum ``duration_seconds`` for batch video rows with status ``ok``."""
+    total = 0.0
+    for j in job.jurisdictions:
+        for v in j.videos or []:
+            if (v.status or "").strip().lower() != "ok":
+                continue
+            if v.duration_seconds is None:
+                continue
+            total += float(v.duration_seconds)
+    return total
+
+
 def _jurisdiction_video_counts(j: JurisdictionRun) -> Dict[str, int]:
     """Count finished videos for summary totals.
 
@@ -479,6 +632,14 @@ def _running_file_clock(
         return None, video_id, title, start_iso
 
 
+def apply_batch_lifecycle(job: BatchJob) -> bool:
+    """Stale-cancel inactive runs, then auto-finish when the plan is done. Returns True if status changed."""
+    before = (job.status or "").lower()
+    _maybe_stale_cancel_batch(job)
+    _maybe_auto_finish_batch(job)
+    return before != (job.status or "").lower()
+
+
 def _maybe_auto_finish_batch(job: BatchJob) -> None:
     """
     Mark the batch completed when every target jurisdiction is done.
@@ -503,6 +664,8 @@ def _maybe_auto_finish_batch(job: BatchJob) -> None:
 
 
 def _recompute_summary(job: BatchJob) -> None:
+    if (job.status or "").lower() == "running":
+        _maybe_stale_cancel_batch(job)
     total_j = int(job.config.get("total_jurisdictions") or 0) or len(job.jurisdictions)
     processed = sum(1 for j in job.jurisdictions if j.status in ("completed", "failed"))
     success = sum(1 for j in job.jurisdictions if j.status == "completed" and j.exit_code == 0)
@@ -592,6 +755,7 @@ def _recompute_summary(job: BatchJob) -> None:
         "files_reports": disk["reports"],
         # Bronze rows with transcript_download_at (lifetime per jurisdiction).
         "bronze_download_rows": bronze_download_rows,
+        "transcript_seconds": round(transcript_seconds_from_job_videos(job), 1),
         "avg_seconds_per_file": avg_seconds_per_file,
         "current_file_seconds": (
             round(current_file_seconds, 1)
@@ -602,6 +766,7 @@ def _recompute_summary(job: BatchJob) -> None:
         "current_video_title": current_video_title,
         "current_jurisdiction_id": current_jurisdiction_id,
         "current_video_started_at": current_video_started_at,
+        **state_progress_for_job(job),
     }
     _maybe_auto_finish_batch(job)
 

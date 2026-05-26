@@ -12,16 +12,52 @@ from scripts.gemini.transcript_cache_paths import (
     jurisdiction_root_candidates,
     list_legacy_policy_jurisdiction_dirs,
     list_numeric_policy_geo_dirs,
+    lookup_jurisdiction_place_name,
     migrate_policy_cache_channels,
     migrate_policy_cache_folder_names,
     migrate_policy_cache_geography,
     migrate_policy_cache_numeric_folders,
     normalize_channel_segment,
+    resolve_canonical_jurisdiction_id,
     resolve_numeric_folder_canonical_id,
 )
 
 
-def test_cache_type_segment_from_typed_id():
+def test_lookup_does_not_call_resolve_canonical(monkeypatch):
+    """Regression: lookup and resolve must not call each other (RecursionError)."""
+    monkeypatch.setattr(
+        "scripts.gemini.transcript_cache_paths.resolve_canonical_jurisdiction_id",
+        lambda *_: (_ for _ in ()).throw(AssertionError("lookup must not resolve")),
+    )
+    monkeypatch.setattr(
+        "scripts.gemini.transcript_cache_paths._fetch_place_name_from_db",
+        lambda jid: "Anniston city" if "0101852" in jid else None,
+    )
+    lookup_jurisdiction_place_name.cache_clear()
+    assert lookup_jurisdiction_place_name("municipality_0101852") == "Anniston city"
+
+
+def test_resolve_canonical_uses_fetch_not_lookup(monkeypatch):
+    monkeypatch.setattr(
+        "scripts.gemini.transcript_cache_paths._fetch_place_name_from_db",
+        lambda jid: "Anniston city" if jid == "municipality_0101852" else None,
+    )
+    monkeypatch.setattr(
+        "scripts.gemini.transcript_cache_paths.lookup_canonical_jurisdiction_id_from_bronze",
+        lambda *a, **k: "",
+    )
+    monkeypatch.setattr(
+        "scripts.gemini.transcript_cache_paths.lookup_jurisdiction_place_name",
+        lambda *_: (_ for _ in ()).throw(AssertionError("resolve must not lookup")),
+    )
+    assert resolve_canonical_jurisdiction_id("municipality_0101852") == "anniston_0101852"
+
+
+def test_cache_type_segment_from_typed_id(monkeypatch):
+    monkeypatch.setattr(
+        "scripts.gemini.transcript_cache_paths.resolve_canonical_jurisdiction_id",
+        lambda jid: jid,
+    )
     assert cache_type_segment("municipality_0177256") == "municipality"
     assert cache_type_segment("tuscaloosa_0177256") == "municipality"
     assert cache_type_segment("school_district_0100005") == "school"

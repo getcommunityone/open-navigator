@@ -68,12 +68,19 @@ def _enrich_file_counts(job: BatchJob) -> BatchJob:
     return job
 
 
-def _aggregate_jobs(jobs: List[BatchJob]) -> Dict[str, Any]:
+def _aggregate_jobs(
+    jobs: List[BatchJob],
+    *,
+    enrich_transcript_from_bronze: bool = False,
+) -> Dict[str, Any]:
     batches: List[Dict[str, Any]] = []
     totals = {
         "batches": 0,
         "running": 0,
         "states": 0,
+        "states_planned": 0,
+        "states_started": 0,
+        "states_completed": 0,
         "processed_jurisdictions": 0,
         "failed_jurisdictions": 0,
         "remaining_jurisdictions": 0,
@@ -87,53 +94,84 @@ def _aggregate_jobs(jobs: List[BatchJob]) -> Dict[str, Any]:
         "files_analysis": 0,
         "files_reports": 0,
     }
-    state_codes: set[str] = set()
+    planned_states: set[str] = set()
+    started_states: set[str] = set()
+    completed_states: set[str] = set()
     transcript_seconds = 0.0
-    for job in jobs:
-        expand_batch_job_plan(job)
-        _recompute_summary(job)
-        d = job.to_dict()
-        batches.append(d)
-        s = d.get("summary") or {}
-        totals["batches"] += 1
-        if d.get("status") == "running":
-            totals["running"] += 1
-        for st in (job.config or {}).get("states") or []:
-            if isinstance(st, str) and st.strip():
-                state_codes.add(st.strip().upper())
-        if not (job.config or {}).get("states"):
-            for j in job.jurisdictions:
-                if j.state_code:
-                    state_codes.add(j.state_code.strip().upper())
-        totals["processed_jurisdictions"] += int(s.get("processed_jurisdictions") or 0)
-        totals["failed_jurisdictions"] += int(s.get("failed_jurisdictions") or 0)
-        totals["remaining_jurisdictions"] += int(s.get("remaining_jurisdictions") or 0)
-        totals["videos_ok"] += int(s.get("videos_ok") or 0)
-        totals["videos_fail"] += int(s.get("videos_fail") or 0)
-        attempted = int(s.get("videos_attempted") or s.get("files_processed") or 0)
-        if not attempted:
-            attempted = (
-                int(s.get("videos_ok") or 0)
-                + int(s.get("videos_fail") or 0)
-                + int(s.get("videos_tombstoned") or 0)
-                + int(s.get("videos_empty") or 0)
-                + int(s.get("videos_rate_limit") or 0)
-            )
-        totals["videos_attempted"] += attempted
-        totals["files_transcripts"] += int(s.get("files_transcripts") or 0)
-        totals["files_transcripts_disk"] += int(s.get("files_transcripts_disk") or 0)
-        totals["bronze_download_rows"] += int(s.get("bronze_download_rows") or 0)
-        totals["files_analysis"] += int(s.get("files_analysis") or 0)
-        totals["files_reports"] += int(s.get("files_reports") or 0)
-        for j in job.jurisdictions:
-            for v in j.videos or []:
-                if (v.status or "").strip().lower() != "ok":
-                    continue
-                if v.duration_seconds is None:
-                    continue
-                transcript_seconds += float(v.duration_seconds)
 
-    totals["states"] = len(state_codes)
+    bronze_conn = None
+    if enrich_transcript_from_bronze:
+        try:
+            from scripts.datasources.youtube.batch_job_db import (
+                enrich_transcript_seconds_from_bronze,
+                get_db_connection,
+            )
+
+            bronze_conn = get_db_connection()
+        except Exception:
+            bronze_conn = None
+
+    try:
+        from scripts.datasources.youtube.batch_job_status import (
+            config_state_codes,
+            persist_batch_job,
+        )
+
+        for job in jobs:
+            status_before = job.status
+            expand_batch_job_plan(job)
+            _recompute_summary(job)
+            if status_before != job.status:
+                persist_batch_job(job)
+            if bronze_conn is not None:
+                try:
+                    enrich_transcript_seconds_from_bronze(bronze_conn, job)
+                except Exception:
+                    pass
+            d = job.to_dict()
+            batches.append(d)
+            s = d.get("summary") or {}
+            totals["batches"] += 1
+            if d.get("status") == "running":
+                totals["running"] += 1
+            for st in config_state_codes(job.config or {}):
+                planned_states.add(st)
+            for st in s.get("states_started_codes") or []:
+                started_states.add(str(st).upper())
+            for st in s.get("states_completed_codes") or []:
+                completed_states.add(str(st).upper())
+            totals["processed_jurisdictions"] += int(s.get("processed_jurisdictions") or 0)
+            totals["failed_jurisdictions"] += int(s.get("failed_jurisdictions") or 0)
+            totals["remaining_jurisdictions"] += int(s.get("remaining_jurisdictions") or 0)
+            totals["videos_ok"] += int(s.get("videos_ok") or 0)
+            totals["videos_fail"] += int(s.get("videos_fail") or 0)
+            attempted = int(s.get("videos_attempted") or s.get("files_processed") or 0)
+            if not attempted:
+                attempted = (
+                    int(s.get("videos_ok") or 0)
+                    + int(s.get("videos_fail") or 0)
+                    + int(s.get("videos_tombstoned") or 0)
+                    + int(s.get("videos_empty") or 0)
+                    + int(s.get("videos_rate_limit") or 0)
+                )
+            totals["videos_attempted"] += attempted
+            totals["files_transcripts"] += int(s.get("files_transcripts") or 0)
+            totals["files_transcripts_disk"] += int(s.get("files_transcripts_disk") or 0)
+            totals["bronze_download_rows"] += int(s.get("bronze_download_rows") or 0)
+            totals["files_analysis"] += int(s.get("files_analysis") or 0)
+            totals["files_reports"] += int(s.get("files_reports") or 0)
+            transcript_seconds += float(s.get("transcript_seconds") or 0)
+    finally:
+        if bronze_conn is not None:
+            try:
+                bronze_conn.close()
+            except Exception:
+                pass
+
+    totals["states_planned"] = len(planned_states)
+    totals["states_started"] = len(started_states)
+    totals["states_completed"] = len(completed_states)
+    totals["states"] = totals["states_planned"]
     totals["transcript_hours"] = round(transcript_seconds / 3600.0, 2)
 
     return {
@@ -190,7 +228,9 @@ def build_dashboard_data(
                 elif refresh_files:
                     for job in jobs:
                         _enrich_file_counts(job)
-                return _aggregate_jobs(jobs)
+                return _aggregate_jobs(
+                    jobs, enrich_transcript_from_bronze=enrich_bronze
+                )
         except Exception as exc:
             import logging
 
@@ -209,7 +249,7 @@ def build_dashboard_data(
             enrich_jobs_from_bronze(jobs)
         except Exception:
             pass
-    payload = _aggregate_jobs(jobs)
+    payload = _aggregate_jobs(jobs, enrich_transcript_from_bronze=enrich_bronze)
     payload["source"] = "files"
     return payload
 

@@ -207,6 +207,90 @@ def enrich_transcript_counts_from_bronze(conn: Any, job: BatchJob) -> None:
         )
 
 
+def enrich_transcript_seconds_from_bronze(conn: Any, job: BatchJob) -> None:
+    """
+    Set ``job.summary['transcript_seconds']`` from ``bronze_events_youtube.duration_minutes``.
+
+    Batch payloads often have per-video stats without ``duration_seconds`` (older runs or
+    DB copies). Prefer catalog duration for ok video ids in ``j.videos``; if none, sum
+    transcripts downloaded in processed jurisdictions since ``job.started_at``.
+    """
+    from scripts.datasources.youtube.batch_job_status import (
+        transcript_seconds_from_job_videos,
+    )
+
+    ok_ids = [
+        v.video_id
+        for j in job.jurisdictions
+        for v in j.videos or []
+        if (v.status or "").strip().lower() == "ok" and (v.video_id or "").strip()
+    ]
+    cur = conn.cursor()
+    try:
+        if ok_ids:
+            cur.execute(
+                """
+                SELECT COALESCE(SUM(duration_minutes), 0) * 60.0
+                FROM bronze.bronze_events_youtube
+                WHERE video_id = ANY(%s)
+                  AND duration_minutes IS NOT NULL
+                  AND duration_minutes > 0
+                """,
+                (ok_ids,),
+            )
+            row = cur.fetchone()
+            secs = float(row[0] or 0) if row else 0.0
+        else:
+            active_jids = [
+                j.jurisdiction_id
+                for j in job.jurisdictions
+                if j.jurisdiction_id
+                and j.status in ("completed", "failed", "running")
+                and (
+                    int((j.stats or {}).get("ok") or 0) > 0
+                    or any(
+                        (v.status or "").strip().lower() == "ok" for v in j.videos or []
+                    )
+                )
+            ]
+            if not active_jids:
+                secs = transcript_seconds_from_job_videos(job)
+            elif job.started_at:
+                cur.execute(
+                    """
+                    SELECT COALESCE(SUM(duration_minutes), 0) * 60.0
+                    FROM bronze.bronze_events_youtube
+                    WHERE jurisdiction_id = ANY(%s)
+                      AND transcript_download_at IS NOT NULL
+                      AND transcript_download_at >= %s::timestamptz
+                      AND duration_minutes IS NOT NULL
+                      AND duration_minutes > 0
+                    """,
+                    (active_jids, job.started_at),
+                )
+                row = cur.fetchone()
+                secs = float(row[0] or 0) if row else 0.0
+            else:
+                cur.execute(
+                    """
+                    SELECT COALESCE(SUM(duration_minutes), 0) * 60.0
+                    FROM bronze.bronze_events_youtube
+                    WHERE jurisdiction_id = ANY(%s)
+                      AND transcript_download_at IS NOT NULL
+                      AND duration_minutes IS NOT NULL
+                      AND duration_minutes > 0
+                    """,
+                    (active_jids,),
+                )
+                row = cur.fetchone()
+                secs = float(row[0] or 0) if row else 0.0
+    finally:
+        cur.close()
+
+    job.summary = dict(job.summary or {})
+    job.summary["transcript_seconds"] = round(secs, 1)
+
+
 def enrich_disk_file_counts(job: BatchJob, *, cache_root: Path | None = None) -> None:
     """Merge on-disk policy cache file counts into each jurisdiction's ``file_counts``."""
     from scripts.datasources.youtube.batch_job_status import (
@@ -254,6 +338,7 @@ def enrich_jobs_from_bronze(
                         jurisdictions=pending,
                     )
                     enrich_transcript_counts_from_bronze(conn, stub)
+                    enrich_transcript_seconds_from_bronze(conn, stub)
                     if enrich_disk:
                         enrich_disk_file_counts(stub)
                     by_jid = {j.jurisdiction_id: j for j in pending}
@@ -263,6 +348,7 @@ def enrich_jobs_from_bronze(
                             j.file_counts.update(by_jid[j.jurisdiction_id].file_counts)
                 else:
                     enrich_transcript_counts_from_bronze(conn, job)
+                    enrich_transcript_seconds_from_bronze(conn, job)
                     if enrich_disk:
                         enrich_disk_file_counts(job)
     except Exception as exc:

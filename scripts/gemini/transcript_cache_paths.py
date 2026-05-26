@@ -127,12 +127,15 @@ def resolve_canonical_jurisdiction_id(jurisdiction_id: str) -> str:
     if _SLUG_GEOID_RE.match(jid) and not _JID_TYPED_RE.match(jid):
         return jid
     jt, geoid, _slug = parse_jurisdiction_id(jid)
-    if geoid and jt and _SLUG_GEOID_RE.match(jid):
+    if geoid and jt and _SLUG_GEOID_RE.match(jid) and not _JID_TYPED_RE.match(jid):
         return jid
     if geoid and jt and not _NUMERIC_JID_RE.fullmatch(jid):
-        name = lookup_jurisdiction_place_name(jid) or ""
+        name = _fetch_place_name_from_db(jid) or ""
         if name:
             return _resolve_slug_jurisdiction_id(jid, name=name, jurisdiction_type=jt) or jid
+        bronze_canon = lookup_canonical_jurisdiction_id_from_bronze(geoid, jt)
+        if bronze_canon:
+            return bronze_canon
     if not jid or not _NUMERIC_JID_RE.fullmatch(jid):
         return jid
     url = _database_url()
@@ -197,10 +200,14 @@ def resolve_canonical_jurisdiction_id(jurisdiction_id: str) -> str:
     return canonical or jid
 
 
-@functools.lru_cache(maxsize=4096)
-def lookup_jurisdiction_place_name(jurisdiction_id: str) -> Optional[str]:
-    """Display name from ``int_jurisdictions`` (fallback: bronze YouTube label)."""
-    jid = resolve_canonical_jurisdiction_id(jurisdiction_id)
+def _fetch_place_name_from_db(jurisdiction_id: str) -> Optional[str]:
+    """
+    Place display name from ``int_jurisdictions`` / bronze by id (no canonical resolution).
+
+    Used by ``lookup_jurisdiction_place_name`` and ``resolve_canonical_jurisdiction_id`` so
+    those helpers do not call each other (avoids infinite recursion on typed legacy ids).
+    """
+    jid = (jurisdiction_id or "").strip()
     if not jid:
         return None
     url = _database_url()
@@ -210,35 +217,75 @@ def lookup_jurisdiction_place_name(jurisdiction_id: str) -> Optional[str]:
         import psycopg2
     except ImportError:
         return None
+
+    def _query(cur: Any, key: str) -> Optional[str]:
+        cur.execute(
+            """
+            SELECT name FROM intermediate.int_jurisdictions
+            WHERE jurisdiction_id = %s
+            LIMIT 1
+            """,
+            (key,),
+        )
+        row = cur.fetchone()
+        if row and row[0]:
+            return str(row[0]).strip()
+        cur.execute(
+            """
+            SELECT jurisdiction_name FROM bronze.bronze_events_youtube
+            WHERE jurisdiction_id = %s
+              AND jurisdiction_name IS NOT NULL
+              AND BTRIM(jurisdiction_name) <> ''
+            LIMIT 1
+            """,
+            (key,),
+        )
+        row = cur.fetchone()
+        if row and row[0]:
+            return str(row[0]).strip()
+        return None
+
     try:
         with psycopg2.connect(url) as conn, conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT name FROM intermediate.int_jurisdictions
-                WHERE jurisdiction_id = %s
-                LIMIT 1
-                """,
-                (jid,),
-            )
-            row = cur.fetchone()
-            if row and row[0]:
-                return str(row[0]).strip()
-            cur.execute(
-                """
-                SELECT jurisdiction_name FROM bronze.bronze_events_youtube
-                WHERE jurisdiction_id = %s
-                  AND jurisdiction_name IS NOT NULL
-                  AND BTRIM(jurisdiction_name) <> ''
-                LIMIT 1
-                """,
-                (jid,),
-            )
-            row = cur.fetchone()
-            if row and row[0]:
-                return str(row[0]).strip()
+            name = _query(cur, jid)
+            if name:
+                return name
+            _jt, geoid, _slug = parse_jurisdiction_id(jid)
+            if geoid and _JID_TYPED_RE.match(jid):
+                cur.execute(
+                    """
+                    SELECT name FROM intermediate.int_jurisdictions
+                    WHERE geoid = %s
+                    ORDER BY jurisdiction_id
+                    LIMIT 1
+                    """,
+                    (geoid,),
+                )
+                row = cur.fetchone()
+                if row and row[0]:
+                    return str(row[0]).strip()
+                cur.execute(
+                    """
+                    SELECT jurisdiction_name FROM bronze.bronze_events_youtube
+                    WHERE jurisdiction_id LIKE %s
+                      AND jurisdiction_name IS NOT NULL
+                      AND BTRIM(jurisdiction_name) <> ''
+                    LIMIT 1
+                    """,
+                    (f"%_{geoid}",),
+                )
+                row = cur.fetchone()
+                if row and row[0]:
+                    return str(row[0]).strip()
     except Exception:
         return None
     return None
+
+
+@functools.lru_cache(maxsize=4096)
+def lookup_jurisdiction_place_name(jurisdiction_id: str) -> Optional[str]:
+    """Display name from ``int_jurisdictions`` (fallback: bronze YouTube label)."""
+    return _fetch_place_name_from_db(jurisdiction_id)
 
 
 def _place_slug_for_folder(name: str) -> str:

@@ -132,3 +132,64 @@ def test_auto_finish_when_all_target_jurisdictions_done():
         assert job.status == "completed"
         assert job.finished_at
         assert job.summary["remaining_jurisdictions"] == 0
+
+
+def test_stale_cancel_after_inactivity():
+    from datetime import datetime, timedelta, timezone
+
+    from scripts.datasources.youtube.batch_job_status import (
+        JurisdictionRun,
+        _recompute_summary,
+        batch_inactivity_seconds,
+    )
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        bid = new_batch_id("captions")
+        store = BatchJobStore(bid, jobs_root=root)
+        stale = (
+            datetime.now(timezone.utc) - timedelta(seconds=batch_inactivity_seconds() + 60)
+        ).isoformat()
+        store.start_batch(
+            step="captions",
+            config={"states": ["AL", "GA"], "total_jurisdictions": 2, "seed_plan": False},
+        )
+        job = store.load()
+        job.status = "running"
+        job.updated_at = stale
+        job.jurisdictions = [
+            JurisdictionRun(
+                state_code="AL",
+                jurisdiction_id="a_1",
+                status="running",
+                updated_at=stale,
+            ),
+        ]
+        _recompute_summary(job)
+        assert job.status == "cancelled"
+        assert job.jurisdictions[0].status == "failed"
+
+
+def test_state_progress_started_and_completed():
+    from scripts.datasources.youtube.batch_job_status import (
+        BatchJob,
+        JurisdictionRun,
+        _recompute_summary,
+    )
+
+    job = BatchJob(
+        batch_id="test",
+        step="captions",
+        config={"states": ["AL", "GA", "IN"]},
+        jurisdictions=[
+            JurisdictionRun(state_code="AL", jurisdiction_id="a_1", status="completed"),
+            JurisdictionRun(state_code="AL", jurisdiction_id="a_2", status="pending"),
+            JurisdictionRun(state_code="GA", jurisdiction_id="g_1", status="running"),
+            JurisdictionRun(state_code="IN", jurisdiction_id="i_1", status="pending"),
+        ],
+    )
+    _recompute_summary(job)
+    assert job.summary["states_planned"] == 3
+    assert job.summary["states_started"] == 2
+    assert set(job.summary["states_started_codes"]) == {"AL", "GA"}
+    assert job.summary["states_completed"] == 0

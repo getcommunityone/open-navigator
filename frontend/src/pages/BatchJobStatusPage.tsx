@@ -11,6 +11,12 @@ import {
 } from '../api/batchJobs'
 import { LinkifiedText } from '../utils/linkifiedText'
 import {
+  formatCompactHours,
+  formatCompactNumber,
+  formatCompactPair,
+  formatFullNumber,
+} from '../utils/formatCompact'
+import {
   aggregateRunningFileTiming,
   avgSecondsPerFile,
   filterJurisdictionsByState,
@@ -92,7 +98,19 @@ function formatDuration(seconds: unknown): string {
   const s = total % 60
   if (m < 60) return `${m}m ${s}s`
   const h = Math.floor(m / 60)
-  return `${h}h ${m % 60}m`
+  const remM = m % 60
+  if (h >= 24) {
+    const compact = formatCompactNumber(h)
+    return remM > 0 ? `${compact}h ${remM}m` : `${compact}h`
+  }
+  return remM > 0 ? `${h}h ${remM}m` : `${h}h`
+}
+
+function metricCountTitle(n: unknown, label: string): string | undefined {
+  const full = formatFullNumber(n)
+  const compact = formatCompactNumber(n, '')
+  if (!full || full === compact) return undefined
+  return `${label}: ${full}`
 }
 
 function formatVideoDuration(seconds: unknown): string {
@@ -118,6 +136,9 @@ function statusBadgeClass(status: string): string {
   }
   if (status === 'running') {
     return 'bg-sky-100 text-sky-800'
+  }
+  if (status === 'cancelled') {
+    return 'bg-slate-200 text-slate-700'
   }
   if (status === 'pending') {
     return 'bg-amber-50 text-amber-900'
@@ -629,12 +650,25 @@ function BatchDetailPanel({
       </div>
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <SummaryCard label="Processed" value={`${processed} / ${total || '?'}`} />
-        <SummaryCard label="Success" value={Number(s.success_jurisdictions) || 0} />
-        <SummaryCard label="Failed" value={Number(s.failed_jurisdictions) || 0} />
+        <SummaryCard
+          label="Processed"
+          value={formatCompactPair(processed, total || '?')}
+          title={metricCountTitle(processed, 'Processed jurisdictions')}
+        />
+        <SummaryCard
+          label="Success"
+          value={formatCompactNumber(s.success_jurisdictions)}
+          title={metricCountTitle(s.success_jurisdictions, 'Success jurisdictions')}
+        />
+        <SummaryCard
+          label="Failed"
+          value={formatCompactNumber(s.failed_jurisdictions)}
+          title={metricCountTitle(s.failed_jurisdictions, 'Failed jurisdictions')}
+        />
         <SummaryCard
           label="Jurisdictions remaining"
-          value={Number(s.remaining_jurisdictions) || 0}
+          value={formatCompactNumber(s.remaining_jurisdictions)}
+          title={metricCountTitle(s.remaining_jurisdictions, 'Remaining jurisdictions')}
         />
         <SummaryCard label="Elapsed" value={formatDuration(s.elapsed_seconds)} />
         <SummaryCard label="ETA" value={formatDuration(s.eta_seconds)} />
@@ -647,14 +681,24 @@ function BatchDetailPanel({
             />
             <SummaryCard
               label="Videos remaining"
-              value={batchRemainingVideos ?? '—'}
+              value={
+                batchRemainingVideos != null
+                  ? formatCompactNumber(batchRemainingVideos)
+                  : '—'
+              }
+              title={metricCountTitle(batchRemainingVideos, 'Videos remaining')}
             />
           </>
         ) : null}
-        <SummaryCard label="Videos OK" value={Number(s.videos_ok) || 0} />
+        <SummaryCard
+          label="Videos OK"
+          value={formatCompactNumber(s.videos_ok)}
+          title={metricCountTitle(s.videos_ok, 'Videos OK')}
+        />
         <SummaryCard
           label="Videos fail"
-          value={videosFailCount}
+          value={formatCompactNumber(videosFailCount)}
+          title={metricCountTitle(videosFailCount, 'Videos failed')}
           emphasis={videosFailCount > 0 ? 'danger' : 'default'}
           active={showFailedVideos}
           onClick={videosFailCount > 0 ? onToggleFailedVideos : undefined}
@@ -956,9 +1000,32 @@ export default function BatchJobStatusPage() {
       {data && (
         <>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-            <SummaryCard label="Batches" value={data.totals.batches} />
-            <SummaryCard label="Running" value={data.totals.running} />
-            <SummaryCard label="States" value={data.totals.states ?? 0} />
+            <SummaryCard
+              label="Batches"
+              value={formatCompactNumber(data.totals.batches)}
+              title={metricCountTitle(data.totals.batches, 'Batches')}
+            />
+            <SummaryCard
+              label="Running"
+              value={formatCompactNumber(data.totals.running)}
+              title={metricCountTitle(data.totals.running, 'Running batches')}
+            />
+            <SummaryCard
+              label="States started"
+              value={formatCompactPair(
+                data.totals.states_started ?? 0,
+                data.totals.states_planned ?? data.totals.states ?? 0,
+              )}
+              title="States with at least one jurisdiction running or finished in the batch plan"
+            />
+            <SummaryCard
+              label="States completed"
+              value={formatCompactPair(
+                data.totals.states_completed ?? 0,
+                data.totals.states_planned ?? data.totals.states ?? 0,
+              )}
+              title="States where every planned jurisdiction row is finished (none pending or running)"
+            />
             {data.totals.running > 0 ? (
               <>
                 <SummaryCard
@@ -971,20 +1038,40 @@ export default function BatchJobStatusPage() {
                 />
                 <SummaryCard
                   label="Videos remaining"
-                  value={remainingVideos ?? '—'}
+                  value={
+                    remainingVideos != null ? formatCompactNumber(remainingVideos) : '—'
+                  }
+                  title={metricCountTitle(remainingVideos, 'Videos remaining')}
                 />
               </>
             ) : null}
-            <SummaryCard label="Jurisdictions done" value={data.totals.processed_jurisdictions} />
-            <SummaryCard label="Jurisdictions failed" value={data.totals.failed_jurisdictions} />
+            <SummaryCard
+              label="Jurisdictions done"
+              value={formatCompactNumber(data.totals.processed_jurisdictions)}
+              title={metricCountTitle(data.totals.processed_jurisdictions, 'Jurisdictions done')}
+            />
+            <SummaryCard
+              label="Jurisdictions failed"
+              value={formatCompactNumber(data.totals.failed_jurisdictions)}
+              title={metricCountTitle(data.totals.failed_jurisdictions, 'Jurisdictions failed')}
+            />
             <SummaryCard
               label="Jurisdictions remaining"
-              value={data.totals.remaining_jurisdictions}
+              value={formatCompactNumber(data.totals.remaining_jurisdictions)}
+              title={metricCountTitle(
+                data.totals.remaining_jurisdictions,
+                'Jurisdictions remaining',
+              )}
             />
-            <SummaryCard label="Videos OK" value={data.totals.videos_ok} />
+            <SummaryCard
+              label="Videos OK"
+              value={formatCompactNumber(data.totals.videos_ok)}
+              title={metricCountTitle(data.totals.videos_ok, 'Videos OK')}
+            />
             <SummaryCard
               label="Videos failed"
-              value={data.totals.videos_fail}
+              value={formatCompactNumber(data.totals.videos_fail)}
+              title={metricCountTitle(data.totals.videos_fail, 'Videos failed')}
               emphasis={data.totals.videos_fail > 0 ? 'danger' : 'default'}
               active={showFailedVideos}
               onClick={
@@ -995,33 +1082,45 @@ export default function BatchJobStatusPage() {
             />
             <SummaryCard
               label="Videos attempted"
-              value={data.totals.videos_attempted ?? 0}
-              title="Caption fetch outcomes this batch (ok + fail + tombstoned + empty + rate limit)"
+              value={formatCompactNumber(data.totals.videos_attempted ?? 0)}
+              title={
+                metricCountTitle(data.totals.videos_attempted, 'Videos attempted') ??
+                'Caption fetch outcomes this batch (ok + fail + tombstoned + empty + rate limit)'
+              }
             />
             <SummaryCard
               label="Transcripts on disk"
-              value={data.totals.files_transcripts_disk ?? 0}
-              title="JSON files under 01_transcripts/ in the policy cache (all time, per jurisdiction folder)"
+              value={formatCompactNumber(data.totals.files_transcripts_disk ?? 0)}
+              title={
+                metricCountTitle(data.totals.files_transcripts_disk, 'Transcript files') ??
+                'JSON files under 01_transcripts/ in the policy cache (all time, per jurisdiction folder)'
+              }
             />
             <SummaryCard
               label="Transcript hours"
-              value={`${(data.totals.transcript_hours ?? 0).toLocaleString()}h`}
-              title="Sum of duration for batch video results with status=ok and a known duration (batch-scoped)."
+              value={formatCompactHours(data.totals.transcript_hours ?? 0)}
+              title={
+                metricCountTitle(data.totals.transcript_hours, 'Transcript hours') ??
+                'Sum of catalog duration_minutes for batch OK videos (from per-video rows or bronze since batch start).'
+              }
             />
             <SummaryCard
               label="Bronze download rows"
-              value={data.totals.bronze_download_rows ?? 0}
-              title="bronze_events_youtube rows with transcript_download_at (all time)"
+              value={formatCompactNumber(data.totals.bronze_download_rows ?? 0)}
+              title={
+                metricCountTitle(data.totals.bronze_download_rows, 'Bronze download rows') ??
+                'bronze_events_youtube rows with transcript_download_at (all time)'
+              }
             />
             <SummaryCard
               label="Analysis on disk"
-              value={data.totals.files_analysis}
-              title="JSON under 02_analysis/ in the policy cache"
+              value={formatCompactNumber(data.totals.files_analysis)}
+              title={metricCountTitle(data.totals.files_analysis, 'Analysis files')}
             />
             <SummaryCard
               label="Reports on disk"
-              value={data.totals.files_reports}
-              title="Markdown under 03_reports/ in the policy cache"
+              value={formatCompactNumber(data.totals.files_reports)}
+              title={metricCountTitle(data.totals.files_reports, 'Report files')}
             />
           </div>
 
