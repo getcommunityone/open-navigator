@@ -116,14 +116,16 @@ def _aggregate_jobs(
     try:
         from scripts.datasources.youtube.batch_job_status import (
             config_state_codes,
+            normalize_batch_job_jurisdictions,
             persist_batch_job,
         )
 
         for job in jobs:
             status_before = job.status
             expand_batch_job_plan(job)
+            meta_changed = normalize_batch_job_jurisdictions(job)
             apply_batch_lifecycle(job)
-            if status_before != job.status:
+            if status_before != job.status or meta_changed:
                 persist_batch_job(job)
             if bronze_conn is not None:
                 try:

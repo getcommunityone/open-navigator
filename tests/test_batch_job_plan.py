@@ -87,6 +87,45 @@ def test_expand_preserves_completed_when_ids_differ_by_type(monkeypatch):
     assert job.jurisdictions[0].stats.get("ok") == 6
 
 
+def test_expand_upgrades_legacy_prefixed_row_from_plan(monkeypatch):
+    def fake_plan(states, *, round_robin=True, database_url=None):
+        return [
+            JurisdictionRun(
+                state_code="AL",
+                jurisdiction_id="chilton_01021",
+                jurisdiction_name="Chilton County",
+                jurisdiction_type="county",
+                status="pending",
+            ),
+        ]
+
+    monkeypatch.setattr(
+        "scripts.datasources.youtube.batch_job_status.fetch_batch_plan_jurisdictions",
+        fake_plan,
+    )
+    monkeypatch.setattr(
+        "scripts.datasources.youtube.batch_job_status._lookup_jurisdiction_name_from_db",
+        lambda *_a, **_k: "Chilton County",
+    )
+    job = BatchJob(
+        batch_id="test",
+        step="captions",
+        config={"states": ["AL"], "total_jurisdictions": 1},
+        jurisdictions=[
+            JurisdictionRun(
+                state_code="AL",
+                jurisdiction_id="c-AL-01021",
+                jurisdiction_name="c-AL-01021",
+                status="pending",
+            ),
+        ],
+    )
+    expand_batch_job_plan(job)
+    assert len(job.jurisdictions) == 1
+    assert job.jurisdictions[0].jurisdiction_id == "chilton_01021"
+    assert job.jurisdictions[0].jurisdiction_name == "Chilton County"
+
+
 def test_fetch_batch_plan_drops_legacy_prefixed_ids(monkeypatch):
     class FakeCursor:
         def __init__(self, rows):

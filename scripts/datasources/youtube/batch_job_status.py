@@ -344,6 +344,8 @@ def fetch_batch_plan_jurisdictions(
     for r in rows:
         raw_id = str(r["jurisdiction_id"]).strip()
         name = str(r.get("jurisdiction_name") or "").strip()
+        if not name or name == raw_id or _looks_like_jurisdiction_id_label(name):
+            name = ""
         jtype = str(r.get("jurisdiction_type") or "").strip()
         jid = ensure_canonical_jurisdiction_id(
             raw_id,
@@ -362,15 +364,15 @@ def fetch_batch_plan_jurisdictions(
         if not key or key in seen_keys:
             continue
         seen_keys.add(key)
-        out.append(
-            JurisdictionRun(
-                state_code=str(r["state_code"]).upper(),
-                jurisdiction_id=jid,
-                jurisdiction_name=name,
-                jurisdiction_type=jtype,
-                status="pending",
-            )
+        row = JurisdictionRun(
+            state_code=str(r["state_code"]).upper(),
+            jurisdiction_id=jid,
+            jurisdiction_name=name,
+            jurisdiction_type=jtype,
+            status="pending",
         )
+        normalize_jurisdiction_run(row, database_url=url)
+        out.append(row)
 
     return out
 
@@ -399,6 +401,155 @@ def _plan_jurisdiction_key(jurisdiction_id: str) -> str:
     if geoid:
         return f"geoid:{geoid}"
     return canonical or jid.lower()
+
+
+def _looks_like_jurisdiction_id_label(text: str) -> bool:
+    """True when ``text`` is an id string, not a place name (e.g. ``c-AL-01021``)."""
+    from scripts.jurisdictions.jurisdiction_id import (
+        _PREFIXED_USPS_GEOID_RE,
+        _SLUG_GEOID_RE,
+        _TYPED_JURISDICTION_ID_RE,
+    )
+
+    t = (text or "").strip()
+    if not t:
+        return False
+    if _PREFIXED_USPS_GEOID_RE.match(t):
+        return True
+    if _TYPED_JURISDICTION_ID_RE.match(t):
+        return True
+    if _SLUG_GEOID_RE.match(t) and "_" in t and not re.search(r"\s", t):
+        return True
+    return False
+
+
+def _lookup_jurisdiction_name_from_db(
+    jurisdiction_id: str,
+    *,
+    database_url: Optional[str] = None,
+) -> str:
+    """Place name from ``int_jurisdictions`` for a canonical or legacy id."""
+    from scripts.jurisdictions.jurisdiction_id import parse_jurisdiction_id
+
+    jid = (jurisdiction_id or "").strip()
+    if not jid:
+        return ""
+    url = (database_url or "").strip() or _batch_database_url()
+    if not url:
+        return ""
+    _jt, geoid, _slug = parse_jurisdiction_id(jid)
+    try:
+        import psycopg2
+    except ImportError:
+        return ""
+    try:
+        with psycopg2.connect(url) as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT name FROM intermediate.int_jurisdictions
+                WHERE jurisdiction_id = %s
+                LIMIT 1
+                """,
+                (jid,),
+            )
+            row = cur.fetchone()
+            if row and row[0]:
+                return str(row[0]).strip()
+            if geoid:
+                cur.execute(
+                    """
+                    SELECT name FROM intermediate.int_jurisdictions
+                    WHERE geoid = %s
+                    ORDER BY jurisdiction_id
+                    LIMIT 1
+                    """,
+                    (geoid,),
+                )
+                row = cur.fetchone()
+                if row and row[0]:
+                    return str(row[0]).strip()
+    except Exception:
+        return ""
+    return ""
+
+
+def normalize_jurisdiction_run(
+    j: JurisdictionRun,
+    *,
+    database_url: Optional[str] = None,
+) -> JurisdictionRun:
+    """Canonical ``jurisdiction_id`` and human ``jurisdiction_name`` for dashboard rows."""
+    from scripts.jurisdictions.jurisdiction_id import (
+        _PREFIXED_USPS_GEOID_RE,
+        ensure_canonical_jurisdiction_id,
+    )
+
+    raw_id = (j.jurisdiction_id or "").strip()
+    if not raw_id:
+        return j
+    name = (j.jurisdiction_name or "").strip()
+    if not name or name == raw_id or _looks_like_jurisdiction_id_label(name):
+        name = ""
+
+    jid = ensure_canonical_jurisdiction_id(
+        raw_id,
+        name=name or None,
+        jurisdiction_type=(j.jurisdiction_type or None),
+        database_url=database_url,
+    ) or raw_id
+    if _PREFIXED_USPS_GEOID_RE.match(jid):
+        jid = ensure_canonical_jurisdiction_id(
+            raw_id,
+            name=None,
+            jurisdiction_type=(j.jurisdiction_type or "county"),
+            database_url=database_url,
+        ) or jid
+
+    j.jurisdiction_id = jid
+    if not name or _looks_like_jurisdiction_id_label(name):
+        name = _lookup_jurisdiction_name_from_db(jid, database_url=database_url)
+    if name and not _looks_like_jurisdiction_id_label(name):
+        j.jurisdiction_name = name
+    return j
+
+
+def _upgrade_jurisdiction_from_plan(
+    existing: JurisdictionRun, placeholder: JurisdictionRun
+) -> None:
+    """Apply canonical id and display name from the fresh plan row."""
+    from scripts.jurisdictions.jurisdiction_id import (
+        _SLUG_GEOID_RE,
+        _TYPED_JURISDICTION_ID_RE,
+    )
+
+    def _is_canonical_slug(jid: str) -> bool:
+        return bool(_SLUG_GEOID_RE.match(jid) and not _TYPED_JURISDICTION_ID_RE.match(jid))
+
+    pid = (placeholder.jurisdiction_id or "").strip()
+    eid = (existing.jurisdiction_id or "").strip()
+    if pid and (_is_canonical_slug(pid) or not _is_canonical_slug(eid)):
+        existing.jurisdiction_id = pid
+    pname = (placeholder.jurisdiction_name or "").strip()
+    if pname and not _looks_like_jurisdiction_id_label(pname):
+        existing.jurisdiction_name = pname
+    if placeholder.jurisdiction_type and not (existing.jurisdiction_type or "").strip():
+        existing.jurisdiction_type = placeholder.jurisdiction_type
+
+
+def normalize_batch_job_jurisdictions(
+    job: BatchJob,
+    *,
+    database_url: Optional[str] = None,
+) -> bool:
+    """Normalize all jurisdiction rows in place. Returns True if anything changed."""
+    changed = False
+    url = database_url
+    for j in job.jurisdictions:
+        before = (j.jurisdiction_id, j.jurisdiction_name)
+        normalize_jurisdiction_run(j, database_url=url)
+        if (j.jurisdiction_id, j.jurisdiction_name) != before:
+            changed = True
+    return changed
 
 
 def _prefer_jurisdiction_run(
@@ -447,16 +598,25 @@ def expand_batch_job_plan(job: BatchJob) -> None:
         key = _plan_jurisdiction_key(placeholder.jurisdiction_id)
         existing = by_key.get(key) if key else None
         if existing is not None:
+            _upgrade_jurisdiction_from_plan(existing, placeholder)
+            normalize_jurisdiction_run(existing)
             merged.append(existing)
             matched.add(key)
         else:
+            normalize_jurisdiction_run(placeholder)
             merged.append(placeholder)
             if key:
                 matched.add(key)
 
     for key, j in by_key.items():
-        if key not in matched:
-            merged.append(j)
+        if key in matched:
+            continue
+        from scripts.jurisdictions.jurisdiction_id import _PREFIXED_USPS_GEOID_RE
+
+        if _PREFIXED_USPS_GEOID_RE.match((j.jurisdiction_id or "").strip()):
+            continue
+        normalize_jurisdiction_run(j)
+        merged.append(j)
 
     job.jurisdictions = merged
     if not int(cfg.get("total_jurisdictions") or 0):
