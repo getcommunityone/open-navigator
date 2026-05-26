@@ -74,7 +74,7 @@ export async function fetchBatchJobsDashboard(
   refreshFiles = false,
 ): Promise<BatchJobsDashboardPayload> {
   const res = await api.get<BatchJobsDashboardPayload>('/batch-jobs', {
-    params: { refresh_files: refreshFiles, enrich_bronze: true },
+    params: { refresh_files: refreshFiles, enrich_bronze: false },
   })
   return res.data
 }

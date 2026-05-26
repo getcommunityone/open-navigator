@@ -115,14 +115,29 @@ def _aggregate_jobs(
 
     try:
         from scripts.datasources.youtube.batch_job_status import (
+            _batch_plan_cache_key,
             config_state_codes,
+            fetch_batch_plan_jurisdictions_cached,
             normalize_batch_job_jurisdictions,
             persist_batch_job,
         )
 
+        plan_by_states: Dict[str, list] = {}
+
         for job in jobs:
             status_before = job.status
-            expand_batch_job_plan(job)
+            states = config_state_codes(job.config or {})
+            rr = job.config.get("round_robin") if job.config else None
+            if rr is None:
+                rr = True
+            plan_key = _batch_plan_cache_key(states, round_robin=bool(rr))
+            if plan_key and plan_key not in plan_by_states:
+                plan_by_states[plan_key] = fetch_batch_plan_jurisdictions_cached(
+                    states, round_robin=bool(rr)
+                )
+            expand_batch_job_plan(
+                job, plan=plan_by_states.get(plan_key) if plan_key else None
+            )
             meta_changed = normalize_batch_job_jurisdictions(job)
             apply_batch_lifecycle(job)
             if status_before != job.status or meta_changed:
@@ -228,8 +243,8 @@ def build_dashboard_data(
                 if enrich_bronze:
                     enrich_jobs_from_bronze(
                         jobs,
-                        only_running_jurisdictions=enrich_bronze_only_running,
-                        enrich_disk=not enrich_bronze_only_running,
+                        only_running_jurisdictions=True,
+                        enrich_disk=False,
                     )
                 elif refresh_files:
                     for job in jobs:

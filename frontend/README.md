@@ -47,6 +47,16 @@ npm run type-check
 npm run lint
 ```
 
+### Console noise
+
+**`🔍 [FETCH]` logs** — Off by default. To enable per-request logging in dev, add to `frontend/.env.local`:
+
+```bash
+VITE_DEBUG_API=true
+```
+
+**`background.js` / `addEventListener` on null** and **“message channel closed”** on `batch-jobs:1` — From a **browser extension** (`chrome-extension://…`), not this app. Use an external browser or Incognito with extensions disabled; see `chrome://extensions` to find the extension ID from the Sources panel.
+
 ## Project Structure
 
 ```

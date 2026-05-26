@@ -12,6 +12,7 @@ View in React: ``/data-explorer/batch-jobs`` (``GET /api/batch-jobs/stream`` SSE
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import os
 import re
@@ -236,6 +237,11 @@ def _batch_database_url() -> str:
     )
 
 
+def _batch_plan_cache_key(states: List[str], *, round_robin: bool) -> str:
+    st_list = [s.strip().upper() for s in states if (s or "").strip()]
+    return f"{','.join(st_list)}|{int(bool(round_robin))}"
+
+
 def fetch_batch_plan_jurisdictions(
     states: List[str],
     *,
@@ -377,6 +383,51 @@ def fetch_batch_plan_jurisdictions(
     return out
 
 
+@functools.lru_cache(maxsize=16)
+def _fetch_batch_plan_cached(cache_key: str, database_url: str) -> tuple:
+    """Cacheable wrapper; returns tuple of row dicts for ``lru_cache``."""
+    parts = cache_key.rsplit("|", 1)
+    states = [s for s in parts[0].split(",") if s]
+    round_robin = bool(int(parts[1]))
+    runs = fetch_batch_plan_jurisdictions(
+        states, round_robin=round_robin, database_url=database_url or None
+    )
+    return tuple(
+        (
+            r.state_code,
+            r.jurisdiction_id,
+            r.jurisdiction_name,
+            r.jurisdiction_type,
+            r.status,
+        )
+        for r in runs
+    )
+
+
+def fetch_batch_plan_jurisdictions_cached(
+    states: List[str],
+    *,
+    round_robin: bool = True,
+    database_url: Optional[str] = None,
+) -> List[JurisdictionRun]:
+    """Same as ``fetch_batch_plan_jurisdictions`` but deduped per process (dashboard load)."""
+    url = (database_url or "").strip() or _batch_database_url()
+    key = _batch_plan_cache_key(states, round_robin=round_robin)
+    if not key or key == "|0":
+        return []
+    rows = _fetch_batch_plan_cached(key, url or "")
+    return [
+        JurisdictionRun(
+            state_code=row[0],
+            jurisdiction_id=row[1],
+            jurisdiction_name=row[2],
+            jurisdiction_type=row[3],
+            status=row[4],
+        )
+        for row in rows
+    ]
+
+
 _STATUS_RANK = {
     "completed": 5,
     "failed": 4,
@@ -481,6 +532,8 @@ def normalize_jurisdiction_run(
     """Canonical ``jurisdiction_id`` and human ``jurisdiction_name`` for dashboard rows."""
     from scripts.jurisdictions.jurisdiction_id import (
         _PREFIXED_USPS_GEOID_RE,
+        _SLUG_GEOID_RE,
+        _TYPED_JURISDICTION_ID_RE,
         ensure_canonical_jurisdiction_id,
     )
 
@@ -488,6 +541,14 @@ def normalize_jurisdiction_run(
     if not raw_id:
         return j
     name = (j.jurisdiction_name or "").strip()
+    if (
+        _SLUG_GEOID_RE.match(raw_id)
+        and not _TYPED_JURISDICTION_ID_RE.match(raw_id)
+        and name
+        and not _looks_like_jurisdiction_id_label(name)
+        and name != raw_id
+    ):
+        return j
     if not name or name == raw_id or _looks_like_jurisdiction_id_label(name):
         name = ""
 
@@ -541,13 +602,26 @@ def normalize_batch_job_jurisdictions(
     *,
     database_url: Optional[str] = None,
 ) -> bool:
-    """Normalize all jurisdiction rows in place. Returns True if anything changed."""
+    """Normalize all jurisdiction rows in place. True when ids/names need a DB persist."""
+    from scripts.jurisdictions.jurisdiction_id import _PREFIXED_USPS_GEOID_RE
+
     changed = False
     url = database_url
     for j in job.jurisdictions:
-        before = (j.jurisdiction_id, j.jurisdiction_name)
+        before_id = (j.jurisdiction_id or "").strip()
+        before_name = (j.jurisdiction_name or "").strip()
         normalize_jurisdiction_run(j, database_url=url)
-        if (j.jurisdiction_id, j.jurisdiction_name) != before:
+        after_id = (j.jurisdiction_id or "").strip()
+        after_name = (j.jurisdiction_name or "").strip()
+        if before_id != after_id:
+            changed = True
+        elif _PREFIXED_USPS_GEOID_RE.match(before_id) and not _PREFIXED_USPS_GEOID_RE.match(
+            after_id
+        ):
+            changed = True
+        elif _looks_like_jurisdiction_id_label(before_name) and not _looks_like_jurisdiction_id_label(
+            after_name
+        ):
             changed = True
     return changed
 
@@ -567,7 +641,10 @@ def _prefer_jurisdiction_run(
     return current
 
 
-def expand_batch_job_plan(job: BatchJob) -> None:
+def expand_batch_job_plan(
+    job: BatchJob,
+    plan: Optional[List[JurisdictionRun]] = None,
+) -> None:
     """Fill in ``pending`` rows for jurisdictions not started yet in this batch."""
     cfg = job.config or {}
     if cfg.get("seed_plan") is False:
@@ -578,7 +655,8 @@ def expand_batch_job_plan(job: BatchJob) -> None:
     rr = cfg.get("round_robin")
     if rr is None:
         rr = True
-    plan = fetch_batch_plan_jurisdictions(states, round_robin=bool(rr))
+    if plan is None:
+        plan = fetch_batch_plan_jurisdictions_cached(states, round_robin=bool(rr))
     if not plan:
         return
 

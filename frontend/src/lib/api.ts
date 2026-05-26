@@ -1,29 +1,29 @@
 // Native fetch-based API client - No axios dependency!
 // Handles relative URLs correctly without HTTP/HTTPS conversion issues
 
+/** Set `VITE_DEBUG_API=true` in `.env.local` to log every request in dev. */
+const DEBUG_API = import.meta.env.VITE_DEBUG_API === 'true'
+
+function apiLog(...args: unknown[]) {
+  if (DEBUG_API) console.log(...args)
+}
+
 // Environment-aware API base URL with NUCLEAR OPTION for production
 let API_BASE_URL: string
 
 if (import.meta.env.PROD) {
-  // 🚨 NUCLEAR OPTION: HARDCODE /api in production - IGNORE ALL ENVIRONMENT VARIABLES
-  // This prevents HuggingFace build secrets from injecting http:// URLs
+  // HARDCODE /api in production — ignore env vars that inject http:// URLs
   API_BASE_URL = '/api'
-  console.log('🌐 [API] Production mode: HARDCODED relative path:', API_BASE_URL)
-  console.log('🚨 [API] Ignoring all environment variables (nuclear option enabled)')
-  
-  // SAFETY CHECK: If somehow an http:// URL got through, log a warning
-  if (typeof import.meta.env.VITE_API_URL === 'string' && import.meta.env.VITE_API_URL.startsWith('http://')) {
-    console.warn('⚠️ [API] BLOCKED http:// URL from environment:', import.meta.env.VITE_API_URL)
-    console.warn('⚠️ [API] Using hardcoded /api instead')
+  if (
+    typeof import.meta.env.VITE_API_URL === 'string' &&
+    import.meta.env.VITE_API_URL.startsWith('http://')
+  ) {
+    console.warn('[API] Ignoring insecure VITE_API_URL in production; using /api')
   }
 } else {
-  // Development: Use /api (Vite proxy handles routing to localhost:8000)
   API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
-  console.log('🔧 [API] Development mode:', API_BASE_URL)
+  apiLog('[API] Development base URL:', API_BASE_URL)
 }
-
-console.log('📡 [API] Final base URL:', API_BASE_URL)
-console.log('🔒 [API] Page protocol:', typeof window !== 'undefined' ? window.location.protocol : 'N/A')
 
 // Response type that matches axios structure
 interface APIResponse<T> {
@@ -56,9 +56,8 @@ class APIClient {
       throw new Error(`BLOCKED: Attempted to make insecure HTTP request in production: ${fullUrl}`)
     }
     
-    console.log('🔍 [FETCH] Request URL:', fullUrl)
-    console.log('🔍 [FETCH] Method:', options.method || 'GET')
-    
+    apiLog('[FETCH]', options.method || 'GET', fullUrl)
+
     // Add auth token if available
     const token = localStorage.getItem('auth_token')
     const headers: Record<string, string> = {
@@ -101,14 +100,14 @@ class APIClient {
         }
       }
 
-      console.log('✅ [FETCH] Success:', response.status)
+      apiLog('[FETCH]', response.status, fullUrl)
       return {
         data,
         status: response.status,
         statusText: response.statusText,
       }
     } catch (error) {
-      console.error('❌ [FETCH] Error:', error)
+      console.error('[FETCH] Error:', fullUrl, error)
       throw error
     }
   }

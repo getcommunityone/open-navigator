@@ -44,13 +44,15 @@
     <meta name="twitter:description" content="Track 90,000+ jurisdictions, 1.8M nonprofits, and analyze meeting minutes with AI. The open path to everything local." />
     <meta name="twitter:image" content="https://www.communityone.com/communityone_logo.svg" />
     
-    <!-- Google tag (gtag.js) -->
+    <!-- Google tag (gtag.js) — after DOM; avoids head-time null refs in strict embeds -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-5EQV815915"></script>
     <script>
       window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      gtag('config', 'G-5EQV815915');
+      function gtag() { dataLayer.push(arguments); }
+      window.addEventListener('DOMContentLoaded', function () {
+        gtag('js', new Date());
+        gtag('config', 'G-5EQV815915');
+      });
     </script>
     
     <!-- Structured Data (JSON-LD) for SEO -->

@@ -104,9 +104,16 @@ def test_expand_upgrades_legacy_prefixed_row_from_plan(monkeypatch):
         fake_plan,
     )
     monkeypatch.setattr(
+        "scripts.datasources.youtube.batch_job_status.fetch_batch_plan_jurisdictions_cached",
+        fake_plan,
+    )
+    monkeypatch.setattr(
         "scripts.datasources.youtube.batch_job_status._lookup_jurisdiction_name_from_db",
         lambda *_a, **_k: "Chilton County",
     )
+    from scripts.datasources.youtube import batch_job_status as mod
+
+    mod._fetch_batch_plan_cached.cache_clear()
     job = BatchJob(
         batch_id="test",
         step="captions",

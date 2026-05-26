@@ -14,6 +14,7 @@ from typing import Any, AsyncIterator, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
+from loguru import logger
 from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/batch-jobs", tags=["batch-jobs"])
@@ -160,15 +161,22 @@ async def list_batch_jobs(
         description="Scan policy cache on disk for analysis/report counts (slow)",
     ),
     enrich_bronze: bool = Query(
-        True,
-        description="Transcript counts from bronze.bronze_events_youtube",
+        False,
+        description="Refresh transcript metrics from bronze (slow; stream uses lighter enrich)",
     ),
 ) -> BatchJobsDashboardResponse:
-    payload = _load_dashboard(
-        refresh_files=refresh_files,
-        enrich_bronze=enrich_bronze,
-    )
-    return BatchJobsDashboardResponse(**payload)
+    try:
+        payload = _load_dashboard(
+            refresh_files=refresh_files,
+            enrich_bronze=enrich_bronze,
+        )
+        return BatchJobsDashboardResponse(**payload)
+    except Exception as exc:
+        logger.exception("batch-jobs dashboard failed")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Batch jobs dashboard failed: {exc}",
+        ) from exc
 
 
 @router.get("/{batch_id}", response_model=BatchJobModel)

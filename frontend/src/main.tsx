@@ -7,6 +7,9 @@ import { LocationProvider } from './contexts/LocationContext'
 import ScrollToTop from './components/ScrollToTop'
 import App from './App'
 import './index.css'
+import { installExtensionConsoleNoiseFilter } from './utils/filterExtensionConsoleNoise'
+
+installExtensionConsoleNoiseFilter()
 
 const queryClient = new QueryClient({
   defaultOptions: {
