@@ -29,6 +29,7 @@ import {
   useTickingSeconds,
 } from '../utils/batchJobTiming'
 import {
+  formatAgoCompact,
   formatDateTimeAbsolute,
   formatUpdatedAt,
 } from '../utils/dateTime'
@@ -926,9 +927,19 @@ export default function BatchJobStatusPage() {
     return 'All batches'
   }, [effectiveJurisdictionId, selectedBatch])
 
-  const updatedAt = useMemo(
-    () => (data?.generated_at ? formatUpdatedAt(data.generated_at) : null),
-    [data?.generated_at],
+  const lastActivityIso = data?.last_activity_at ?? data?.generated_at ?? null
+  const [agoClockMs, setAgoClockMs] = useState(() => Date.now())
+  useEffect(() => {
+    const id = window.setInterval(() => setAgoClockMs(Date.now()), 30_000)
+    return () => window.clearInterval(id)
+  }, [])
+  const lastUpdateAgo = useMemo(
+    () => (lastActivityIso ? formatAgoCompact(lastActivityIso, agoClockMs) : null),
+    [lastActivityIso, agoClockMs],
+  )
+  const lastUpdateAbsolute = useMemo(
+    () => (lastActivityIso ? formatUpdatedAt(lastActivityIso) : null),
+    [lastActivityIso],
   )
 
   const runningTiming = useMemo(
@@ -956,9 +967,9 @@ export default function BatchJobStatusPage() {
               connected
             </span>
           )}
-          {updatedAt && (
-            <span className="ml-2 text-slate-500" title={updatedAt.title}>
-              Updated {updatedAt.display}
+          {lastUpdateAgo && (
+            <span className="ml-2 text-slate-500" title={lastUpdateAbsolute?.title}>
+              Last update · {lastUpdateAgo}
               {data?.source === 'database' ? ' · database' : ''}
             </span>
           )}
@@ -1008,7 +1019,11 @@ export default function BatchJobStatusPage() {
             <SummaryCard
               label="Running"
               value={formatCompactNumber(data.totals.running)}
-              title={metricCountTitle(data.totals.running, 'Running batches')}
+              title={
+                runningTiming.idleRunningBatchCount > 0
+                  ? `${formatFullNumber(data.totals.running)} batch(es) with status running; ${runningTiming.idleRunningBatchCount} idle (no active file). Idle runs auto-cancel after 1h without progress.`
+                  : metricCountTitle(data.totals.running, 'Running batches')
+              }
             />
             <SummaryCard
               label="States started"
@@ -1034,7 +1049,24 @@ export default function BatchJobStatusPage() {
                 />
                 <SummaryCard
                   label="Current file"
-                  value={formatDuration(globalCurrentFileSeconds)}
+                  value={
+                    runningTiming.activeVideo
+                      ? formatDuration(globalCurrentFileSeconds)
+                      : 'Idle'
+                  }
+                  title={
+                    runningTiming.activeVideo
+                      ? [
+                          runningTiming.activeVideo.title,
+                          runningTiming.activeVideo.videoId,
+                          runningTiming.activeVideo.jurisdictionId,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ') || 'In-flight video'
+                      : runningTiming.idleRunningBatchCount > 0
+                        ? `${runningTiming.idleRunningBatchCount} running batch(es) with no in-flight video (between jurisdictions or waiting).`
+                        : 'No in-flight video with a start time'
+                  }
                 />
                 <SummaryCard
                   label="Videos remaining"

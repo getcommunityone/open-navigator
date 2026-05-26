@@ -63,6 +63,8 @@ export type BatchJob = {
 
 export type BatchJobsDashboardPayload = {
   generated_at: string
+  /** Latest batch/jurisdiction progress timestamp (not API build time). */
+  last_activity_at?: string
   totals: BatchJobsTotals
   batches: BatchJob[]
   source?: 'database' | 'files'

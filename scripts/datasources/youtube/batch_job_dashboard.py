@@ -28,9 +28,11 @@ from scripts.datasources.youtube.batch_job_status import (
     _REPO_ROOT,
     BatchJob,
     _recompute_summary,
+    apply_batch_lifecycle,
     count_policy_files_for_jurisdiction,
     expand_batch_job_plan,
     jobs_dir,
+    latest_dashboard_activity_at,
     list_batches,
 )
 
@@ -120,7 +122,7 @@ def _aggregate_jobs(
         for job in jobs:
             status_before = job.status
             expand_batch_job_plan(job)
-            _recompute_summary(job)
+            apply_batch_lifecycle(job)
             if status_before != job.status:
                 persist_batch_job(job)
             if bronze_conn is not None:
@@ -174,10 +176,12 @@ def _aggregate_jobs(
     totals["states"] = totals["states_planned"]
     totals["transcript_hours"] = round(transcript_seconds / 3600.0, 2)
 
+    import datetime as _dt
+
+    now = _dt.datetime.now(_dt.timezone.utc)
     return {
-        "generated_at": __import__("datetime")
-        .datetime.now(__import__("datetime").timezone.utc)
-        .isoformat(),
+        "generated_at": now.isoformat(),
+        "last_activity_at": latest_dashboard_activity_at(jobs),
         "totals": totals,
         "batches": batches,
         "source": "database",

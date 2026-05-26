@@ -63,20 +63,53 @@ def _parse_utc_iso(iso: str) -> Optional[datetime]:
 
 
 def last_batch_activity_at(job: BatchJob) -> datetime:
-    """Latest timestamp that indicates the batch or a jurisdiction is still working."""
+    """
+    Latest timestamp that indicates real pipeline work (jurisdiction / video progress).
+
+    Does not use ``job.updated_at`` (dashboard sync metadata). When nothing is recorded,
+    falls back to ``started_at`` so idle ``running`` rows can stale-cancel instead of
+    looking falsely active.
+    """
     best: Optional[datetime] = None
-    dt = _parse_utc_iso(job.updated_at or "")
-    if dt:
-        best = dt
     for j in job.jurisdictions:
         for iso in (
             j.updated_at,
             j.current_video_started_at,
+            j.finished_at,
+            j.started_at,
         ):
             dt = _parse_utc_iso(iso or "")
             if dt and (best is None or dt > best):
                 best = dt
-    return best or datetime.now(timezone.utc)
+        for v in j.videos or []:
+            dt = _parse_utc_iso(v.finished_at or "")
+            if dt and (best is None or dt > best):
+                best = dt
+    if best is not None:
+        return best
+    dt = _parse_utc_iso(job.started_at or "")
+    if dt:
+        return dt
+    return datetime.fromtimestamp(0, tz=timezone.utc)
+
+
+def latest_dashboard_activity_at(jobs: List[BatchJob]) -> str:
+    """Latest real activity across batches (for dashboard ``last_activity_at``)."""
+    best: Optional[datetime] = None
+    for job in jobs:
+        for iso in (job.updated_at, job.started_at, job.finished_at):
+            dt = _parse_utc_iso(iso or "")
+            if dt and (best is None or dt > best):
+                best = dt
+        try:
+            dt = last_batch_activity_at(job)
+            if dt.year > 1971 and (best is None or dt > best):
+                best = dt
+        except Exception:
+            pass
+    if best is not None and best.year > 1971:
+        return best.isoformat()
+    return _utc_now_iso()
 
 
 def state_progress_for_job(job: BatchJob) -> Dict[str, Any]:

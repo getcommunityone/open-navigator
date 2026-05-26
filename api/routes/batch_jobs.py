@@ -81,6 +81,7 @@ class BatchJobModel(BaseModel):
 
 class BatchJobsDashboardResponse(BaseModel):
     generated_at: str
+    last_activity_at: str = ""
     totals: BatchJobsTotals
     batches: List[BatchJobModel]
     source: str = "database"

@@ -31,6 +31,23 @@ function formatRelativeToNow(date: Date): string {
   return absoluteFormatter.format(date)
 }
 
+/** Compact age for live dashboards, e.g. ``5m ago``, ``2h ago``. */
+export function formatAgoCompact(
+  value: string | null | undefined,
+  nowMs = Date.now(),
+): string {
+  const d = parseApiDateTime(value)
+  if (!d) return '—'
+  const sec = Math.max(0, Math.floor((nowMs - d.getTime()) / 1000))
+  if (sec < 45) return 'just now'
+  const m = Math.floor(sec / 60)
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 48) return `${h}h ago`
+  const days = Math.floor(h / 24)
+  return `${days}d ago`
+}
+
 /** "Updated" line: relative when within a week, otherwise absolute. */
 export function formatUpdatedAt(value: string | null | undefined): {
   display: string

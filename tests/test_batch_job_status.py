@@ -134,6 +134,40 @@ def test_auto_finish_when_all_target_jurisdictions_done():
         assert job.summary["remaining_jurisdictions"] == 0
 
 
+def test_last_batch_activity_not_now_when_jurisdiction_timestamps_missing():
+    from scripts.datasources.youtube.batch_job_status import (
+        BatchJob,
+        JurisdictionRun,
+        batch_inactivity_seconds,
+        last_batch_activity_at,
+    )
+
+    stale_start = (
+        __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
+        - __import__("datetime").timedelta(seconds=batch_inactivity_seconds() + 120)
+    ).isoformat()
+    job = BatchJob(
+        batch_id="x",
+        step="captions",
+        started_at=stale_start,
+        updated_at=__import__("datetime").datetime.now(
+            __import__("datetime").timezone.utc
+        ).isoformat(),
+        jurisdictions=[
+            JurisdictionRun(
+                state_code="AL",
+                jurisdiction_id="a_1",
+                status="running",
+            ),
+        ],
+    )
+    idle = (
+        __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
+        - last_batch_activity_at(job)
+    ).total_seconds()
+    assert idle > batch_inactivity_seconds()
+
+
 def test_stale_cancel_after_inactivity():
     from datetime import datetime, timedelta, timezone
 

@@ -252,14 +252,20 @@ export function remainingVideosForRunningBatches(batches: BatchJob[]): number | 
 export function aggregateRunningFileTiming(batches: BatchJob[]): {
   avgSecondsPerFile: number | null
   activeVideo: ActiveVideoRun | null
+  runningBatchCount: number
+  idleRunningBatchCount: number
 } {
   let totalElapsed = 0
   let totalFiles = 0
   let activeVideo: ActiveVideoRun | null = null
   let activeStarted = 0
 
+  let runningBatchCount = 0
+  let idleRunningBatchCount = 0
+
   for (const batch of batches) {
     if (batch.status !== 'running') continue
+    runningBatchCount += 1
     const s = batch.summary || {}
     const elapsed = Number(s.elapsed_seconds) || 0
     const files =
@@ -273,7 +279,10 @@ export function aggregateRunningFileTiming(batches: BatchJob[]): {
     totalFiles += files
 
     const run = resolveRunningFileClock(batch)
-    if (!run) continue
+    if (!run) {
+      idleRunningBatchCount += 1
+      continue
+    }
     const t = parseApiDateTime(run.startedAt)?.getTime() ?? 0
     if (!activeVideo || t >= activeStarted) {
       activeVideo = run
@@ -285,6 +294,8 @@ export function aggregateRunningFileTiming(batches: BatchJob[]): {
     avgSecondsPerFile:
       totalFiles > 0 && totalElapsed > 0 ? totalElapsed / totalFiles : null,
     activeVideo,
+    runningBatchCount,
+    idleRunningBatchCount,
   }
 }
 
