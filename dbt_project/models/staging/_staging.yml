@@ -117,7 +117,16 @@ sources:
           - name: loaded_at
       
       - name: bronze_events_youtube
-        description: "Raw YouTube video data from government channels"
+        description: |
+          Raw YouTube video data from government channels. Landed by the LAND
+          loader ingestion.youtube.events (pre-collected JSON/JSONL out of
+          data/cache/youtube/, emitted by the FETCH scraper
+          scripts/datasources/youtube/load_youtube_events_to_postgres.py). The
+          loader lands records VERBATIM with NO derivation: event_date /
+          event_time are NULL here — the meeting date is DERIVED from the title
+          downstream in stg_youtube__event, along with channel_type
+          classification and per-video dedup. event_id is a stable SHA-derived
+          integer (not Python hash()).
         columns:
           - name: id
           - name: event_id
@@ -851,7 +860,12 @@ sources:
             description: "When record was loaded"
       
       - name: bronze_events_text_ai
-        description: "Video transcripts and AI-extracted meeting text"
+        description: |
+          Video transcripts and AI-extracted meeting text. YouTube captions are
+          landed here by the LAND loader ingestion.youtube.events (second-table
+          route: one row per video_id that carries a transcript block), linked
+          by video_id. transcript_quality is the only light flag set at load
+          time (high vs auto-generated medium); no NLP/derivation.
         columns:
           - name: id
             description: "Primary key"
