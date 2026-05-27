@@ -46,8 +46,8 @@ jobs:
 
       - name: Check build artifacts
         run: |
-          if [ ! -d "frontend/dist" ]; then
-            echo "❌ Frontend build failed - no dist directory"
+          if [ ! -d "api/static/assets" ]; then
+            echo "❌ Frontend build failed - no api/static/assets directory"
             exit 1
           fi
           echo "✅ Frontend build successful"

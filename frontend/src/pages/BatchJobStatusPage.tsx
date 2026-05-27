@@ -849,7 +849,7 @@ export default function BatchJobStatusPage() {
     const es = new EventSource(url)
 
     const applyPayload = (payload: BatchJobsDashboardPayload) => {
-      queryClient.setQueryData(['batch-jobs-dashboard'], (prev) =>
+      queryClient.setQueryData<BatchJobsDashboardPayload>(['batch-jobs-dashboard'], (prev) =>
         mergeDashboardFromStream(prev, payload),
       )
     }
@@ -873,8 +873,6 @@ export default function BatchJobStatusPage() {
       es.close()
     }
   }, [queryClient, refetch])
-
-  const detailsReady = !!data
 
   const selectedBatch = useMemo(() => {
     if (!data?.batches?.length) return null
@@ -1049,7 +1047,7 @@ export default function BatchJobStatusPage() {
     void fetchBatchJobDetail(selectedBatch.batch_id, mode)
       .then((batch) => {
         if (cancelled) return
-        queryClient.setQueryData(
+        queryClient.setQueryData<BatchJobsDashboardPayload>(
           ['batch-jobs-dashboard'],
           (prev) => mergeBatchIntoDashboard(prev, batch) ?? prev,
         )

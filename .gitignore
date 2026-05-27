@@ -88,6 +88,8 @@ nohup.out
 
 # Data files
 data/
+!frontend/src/data/
+!frontend/src/data/**
 .migration_backup/
 *.csv
 *.parquet
