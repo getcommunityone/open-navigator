@@ -1,167 +1,83 @@
-"""
-GSA .gov Domain List Integration
+"""GSA .gov domains downloader: fetch the cisagov/dotgov-data CSV into data/cache/gsa/.
 
-Downloads and processes the GSA's public list of all registered .gov domains
-to identify official government websites.
-
-Data Source: https://github.com/cisagov/dotgov-data
+Ported from download_gsa_domains.py to core_lib.http.BaseAsyncClient. This module is
+download-only — the load step lives in ingestion.gsa.domains (DataSourcePipeline).
+This is the reference pattern for porting scripts/datasources/*/download_*.py.
 
 Usage:
-    python scripts/datasources/gsa/download_gsa_domains.py
-    python scripts/datasources/gsa/download_gsa_domains.py --limit 100
+    python -m ingestion.gsa.download
+    python -m ingestion.gsa.download --force
 """
-import sys
-import asyncio
+from __future__ import annotations
+
 import argparse
-import os
-from datetime import datetime
+import asyncio
+from datetime import datetime, timezone
 from pathlib import Path
 
-import httpx
-import pandas as pd
-import psycopg2
-from psycopg2.extras import execute_batch
 from loguru import logger
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+from core_lib.http import BaseAsyncClient, HttpClientConfig
+from core_lib.logging import setup_logging
 
 
-DOMAIN_LIST_URL = "https://raw.githubusercontent.com/cisagov/dotgov-data/main/current-full.csv"
 CACHE_DIR = Path("data/cache/gsa")
-POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "password")
-DATABASE_URL = f"postgresql://postgres:{POSTGRES_PASSWORD}@localhost:5433/open_navigator"
-
-CREATE_TABLE_SQL = """
-    CREATE SCHEMA IF NOT EXISTS bronze;
-    CREATE TABLE IF NOT EXISTS bronze.bronze_gov_domains (
-        domain_name         VARCHAR(255) PRIMARY KEY,
-        domain_type         VARCHAR(50),
-        agency              VARCHAR(255),
-        organization        VARCHAR(255),
-        city                VARCHAR(100),
-        state               VARCHAR(2),
-        security_contact    VARCHAR(255),
-        ingestion_date      TIMESTAMP DEFAULT NOW()
-    );
-    CREATE INDEX IF NOT EXISTS idx_bgd_domain_type ON bronze.bronze_gov_domains(domain_type);
-    CREATE INDEX IF NOT EXISTS idx_bgd_state       ON bronze.bronze_gov_domains(state);
-"""
-
-INSERT_SQL = """
-    INSERT INTO bronze.bronze_gov_domains
-        (domain_name, domain_type, agency, organization, city, state, security_contact)
-    VALUES (%s, %s, %s, %s, %s, %s, %s)
-    ON CONFLICT (domain_name) DO UPDATE SET
-        domain_type      = EXCLUDED.domain_type,
-        agency           = EXCLUDED.agency,
-        organization     = EXCLUDED.organization,
-        city             = EXCLUDED.city,
-        state            = EXCLUDED.state,
-        security_contact = EXCLUDED.security_contact,
-        ingestion_date   = NOW()
-"""
+_BASE_URL = "https://raw.githubusercontent.com"
+_CSV_PATH = "/cisagov/dotgov-data/main/current-full.csv"
+_MAX_CACHE_AGE_S = 86_400  # reuse a cache file younger than 24h
 
 
-async def download_domain_list() -> Path:
+class GsaDomainsClient(BaseAsyncClient):
+    """BaseAsyncClient subclass for the cisagov/dotgov-data raw host."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            HttpClientConfig(
+                base_url=_BASE_URL,
+                source="gsa_domains",
+                timeout_s=60.0,
+                rate_limit_per_sec=None,  # single-file fetch; no throttle needed
+            )
+        )
+
+
+def _cache_path() -> Path:
+    return CACHE_DIR / f"dotgov_domains_{datetime.now(timezone.utc).strftime('%Y%m%d')}.csv"
+
+
+def _is_fresh(path: Path) -> bool:
+    return path.exists() and (datetime.now().timestamp() - path.stat().st_mtime) < _MAX_CACHE_AGE_S
+
+
+async def download(*, force: bool = False) -> Path:
+    """Fetch current-full.csv into the GSA cache; reuse a <24h cache unless force."""
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    cache_file = CACHE_DIR / f"dotgov_domains_{datetime.now().strftime('%Y%m%d')}.csv"
-
-    if cache_file.exists() and (datetime.now().timestamp() - cache_file.stat().st_mtime) < 86400:
-        logger.info(f"Using cached GSA domain list: {cache_file}")
-        return cache_file
-
-    logger.info(f"Downloading .gov domain list from GSA...")
-    async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
-        response = await client.get(DOMAIN_LIST_URL)
-        response.raise_for_status()
-
-    cache_file.write_bytes(response.content)
-    logger.success(f"Downloaded {len(response.content):,} bytes → {cache_file}")
-    return cache_file
+    out = _cache_path()
+    bound = logger.bind(source="gsa_domains")
+    if not force and _is_fresh(out):
+        bound.info(f"cache_hit {out}")
+        return out
+    async with GsaDomainsClient() as client:
+        resp = await client.get(_CSV_PATH)
+    out.write_bytes(resp.content)
+    bound.info(f"downloaded {len(resp.content)} bytes -> {out}")
+    return out
 
 
-def safe_str(val, maxlen=None):
-    if pd.isna(val):
-        return None
-    s = str(val).strip()
-    if not s:
-        return None
-    return s[:maxlen] if maxlen else s
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Download the GSA .gov domains CSV into data/cache/gsa/"
+    )
+    parser.add_argument("--force", action="store_true", help="Re-download even if a fresh cache exists")
+    return parser
 
 
-def load_domains(csv_path: Path, limit: int = None) -> int:
-    logger.info(f"Parsing {csv_path}...")
-    df = pd.read_csv(csv_path, dtype=str, low_memory=False)
-    df.columns = [c.strip() for c in df.columns]
-    logger.info(f"Columns: {list(df.columns)}")
-    logger.info(f"Total rows: {len(df):,}")
-
-    if limit:
-        df = df.head(limit)
-
-    # Normalize column names — the CSV uses "Domain Name", "Domain Type", etc.
-    col_map = {c: c.strip().lower().replace(" ", "_") for c in df.columns}
-    df = df.rename(columns=col_map)
-
-    records = []
-    for _, row in df.iterrows():
-        records.append((
-            safe_str(row.get("domain_name"), 255),
-            safe_str(row.get("domain_type"), 50),
-            safe_str(row.get("organization_name"), 255),        # "Organization name" column
-            safe_str(row.get("suborganization_name"), 255),     # "Suborganization name" column
-            safe_str(row.get("city"), 100),
-            safe_str(row.get("state"), 2),
-            safe_str(row.get("security_contact_email"), 255),
-        ))
-
-    # Drop rows with no domain name
-    records = [r for r in records if r[0]]
-    logger.info(f"Prepared {len(records):,} domain records")
-
-    conn = psycopg2.connect(DATABASE_URL)
-    cur = conn.cursor()
-    cur.execute(CREATE_TABLE_SQL)
-    conn.commit()
-
-    execute_batch(cur, INSERT_SQL, records, page_size=5000)
-    conn.commit()
-
-    cur.execute("SELECT COUNT(*) FROM bronze.bronze_gov_domains")
-    total = cur.fetchone()[0]
-    logger.success(f"Loaded {len(records):,} domains → bronze.bronze_gov_domains (total in table: {total:,})")
-
-    cur.execute("""
-        SELECT domain_type, COUNT(*) as cnt
-        FROM bronze.bronze_gov_domains
-        GROUP BY domain_type
-        ORDER BY cnt DESC
-        LIMIT 10
-    """)
-    logger.info("\nBreakdown by domain type:")
-    for domain_type, cnt in cur.fetchall():
-        logger.info(f"  {domain_type or '(unknown)'}: {cnt:,}")
-
-    cur.close()
-    conn.close()
-    return len(records)
-
-
-async def main(limit: int = None):
-    logger.info("=" * 70)
-    logger.info("GSA .gov Domains → bronze.bronze_gov_domains")
-    logger.info("=" * 70)
-
-    csv_path = await download_domain_list()
-    load_domains(csv_path, limit=limit)
-
-    logger.success("=" * 70)
-    logger.success("Done.")
-    logger.success("=" * 70)
+def main() -> None:
+    setup_logging()
+    args = build_parser().parse_args()
+    path = asyncio.run(download(force=args.force))
+    logger.info(f"cache file: {path}")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Download GSA .gov domain list into bronze table")
-    parser.add_argument("--limit", type=int, help="Limit records (for testing)")
-    args = parser.parse_args()
-    asyncio.run(main(limit=args.limit))
+    main()
