@@ -1,0 +1,53 @@
+version: 2
+
+models:
+  - name: stg_ntee__code
+    description: |
+      NTEE classification codes — one row per code. 1:1 with public.cause_ntee
+      (raw landing from ingestion.ntee.codes). NOTE: source is in the PUBLIC
+      schema, not bronze (see the public_raw source group in _staging.yml).
+      Light cleaning + type stabilization only; the hierarchical cause_breadcrumb
+      is derived downstream in int_ntee__breadcrumb.
+    config:
+      contract:
+        enforced: true
+      materialized: view
+    columns:
+      - name: code
+        description: "NTEE code. Natural key — one row per code."
+        data_type: varchar(100)
+        constraints:
+          - type: not_null
+        tests:
+          - unique
+          - not_null
+      - name: name
+        description: "Human-readable code name (falls back to the code itself if blank)."
+        data_type: text
+      - name: description
+        description: "Code description (may be null)."
+        data_type: text
+      - name: cause_type
+        description: "Always 'ntee' for this source."
+        data_type: varchar(20)
+      - name: parent_code
+        description: "Parent NTEE code (null at the taxonomy root). Walked recursively for the breadcrumb."
+        data_type: varchar(100)
+      - name: category
+        description: "NTEE type/category label."
+        data_type: varchar(100)
+      - name: subcategory
+        description: "Reserved; currently always null."
+        data_type: varchar(100)
+      - name: code_source
+        description: "Code source provenance (e.g. 'irs')."
+        data_type: varchar(50)
+      - name: source_ingested_at
+        description: "last_updated from the raw cause_ntee table."
+        data_type: timestamp
+      - name: dbt_loaded_at
+        # `current_timestamp` in Postgres returns `timestamp with time zone`;
+        # the contract has to match or dbt aborts the view creation.
+        data_type: timestamp with time zone
+        constraints:
+          - type: not_null

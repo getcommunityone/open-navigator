@@ -939,6 +939,43 @@ sources:
       - name: jurisdiction_acs
         description: "ACS population / income tiers keyed by geography_type + geoid"
 
+  # NOTE: NTEE codes land in the PUBLIC schema, NOT bronze. The ingestion loader
+  # (ingestion.ntee.codes) creates `cause_ntee` with no schema qualifier, so it
+  # resolves to `public.cause_ntee`. This is the only raw source dbt reads from
+  # `public`; flagged here because every other ingestion source lives in `bronze`.
+  - name: public_raw
+    description: |
+      Raw ingestion tables that land in the PUBLIC schema (not bronze). Currently
+      only `cause_ntee` (NTEE classification codes from ingestion.ntee.codes).
+    database: open_navigator
+    schema: public
+    tables:
+      - name: cause_ntee
+        description: |
+          Raw NTEE classification codes — one row per `code`. Landed by
+          ingestion.ntee.codes WITHOUT the derived `cause_breadcrumb`; the
+          hierarchical parent-chain path is derived downstream in
+          int_ntee__breadcrumb via a recursive CTE over `parent_code`.
+        columns:
+          - name: code
+            description: "NTEE code — primary key / natural key."
+          - name: name
+            description: "Human-readable code name (falls back to code if no description)."
+          - name: description
+            description: "Code description (may be null)."
+          - name: cause_type
+            description: "Always 'ntee' for this source."
+          - name: parent_code
+            description: "Parent NTEE code (null at the taxonomy root). Walked recursively for the breadcrumb."
+          - name: category
+            description: "NTEE type/category label (ntee_type from the parquet)."
+          - name: subcategory
+            description: "Reserved; currently always null."
+          - name: source
+            description: "Code source provenance (e.g. 'irs')."
+          - name: last_updated
+            description: "Upsert timestamp."
+
 models:
   - name: stg_bronze_contacts
     description: "Staged and cleaned bronze contacts with normalized names"
