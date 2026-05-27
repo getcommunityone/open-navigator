@@ -8,11 +8,9 @@ from pathlib import Path
 
 import pytest
 
-_NCCS_DIR = Path(__file__).resolve().parents[1] / "scripts" / "datasources" / "nccs"
-sys.path.insert(0, str(_NCCS_DIR))
 
-import bulk_pipeline as mod  # noqa: E402
-from bulk_pipeline import (  # noqa: E402
+import ingestion.nccs.bulk as mod  # noqa: E402
+from ingestion.nccs.bulk import (  # noqa: E402
     NccsBulkPipeline,
     NccsBulkRow,
     clean_record,

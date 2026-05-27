@@ -9,10 +9,8 @@ from pathlib import Path
 
 import pytest
 
-_USCM_DIR = Path(__file__).resolve().parents[1] / "scripts" / "datasources" / "uscm"
-sys.path.insert(0, str(_USCM_DIR))
 
-from mayors_pipeline import (  # noqa: E402
+from ingestion.uscm.mayors import (  # noqa: E402
     MayorRow,
     UscmMayorsPipeline,
     _int,
@@ -51,7 +49,7 @@ def test_mayor_row_requires_state_and_municipality():
 
 
 def test_find_latest_cache_returns_newest(tmp_path, monkeypatch):
-    import mayors_pipeline as mp
+    import ingestion.uscm.mayors as mp
     monkeypatch.setattr(mp, "CACHE_DIR", tmp_path)
     older = tmp_path / "meet_the_mayors_us_20250101.json"
     newer = tmp_path / "meet_the_mayors_us_20260101.json"
@@ -65,7 +63,7 @@ def test_find_latest_cache_returns_newest(tmp_path, monkeypatch):
 
 
 def test_find_latest_cache_none_when_missing(tmp_path, monkeypatch):
-    import mayors_pipeline as mp
+    import ingestion.uscm.mayors as mp
     monkeypatch.setattr(mp, "CACHE_DIR", tmp_path)
     assert find_latest_cache() is None
 
@@ -124,7 +122,7 @@ def test_extract_reads_json_and_yields_validated_rows(tmp_path):
 
 
 def test_extract_raises_when_no_file(tmp_path, monkeypatch):
-    import mayors_pipeline as mp
+    import ingestion.uscm.mayors as mp
     monkeypatch.setattr(mp, "CACHE_DIR", tmp_path)
     p = UscmMayorsPipeline()
 

@@ -8,10 +8,8 @@ from pathlib import Path
 
 import pytest
 
-_OSF_DIR = Path(__file__).resolve().parents[1] / "scripts" / "datasources" / "osf"
-sys.path.insert(0, str(_OSF_DIR))
 
-from files_pipeline import (  # noqa: E402
+from ingestion.osf.files import (  # noqa: E402
     FileRow,
     OsfFilesPipeline,
     _file_ext,
@@ -106,14 +104,14 @@ def test_pipeline_metadata():
 
 
 def test_find_extract_dir_raises_when_missing(tmp_path, monkeypatch):
-    import files_pipeline as fp
+    import ingestion.osf.files as fp
     monkeypatch.setattr(fp, "CACHE_DIR", tmp_path / "does_not_exist")
     with pytest.raises(FileNotFoundError):
         find_extract_dir()
 
 
 def test_find_extract_dir_returns_existing(tmp_path, monkeypatch):
-    import files_pipeline as fp
+    import ingestion.osf.files as fp
     monkeypatch.setattr(fp, "CACHE_DIR", tmp_path)
     assert find_extract_dir() == tmp_path
 

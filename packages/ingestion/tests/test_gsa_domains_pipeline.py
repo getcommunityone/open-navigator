@@ -8,10 +8,8 @@ from pathlib import Path
 
 import pytest
 
-_GSA_DIR = Path(__file__).resolve().parents[1] / "scripts" / "datasources" / "gsa"
-sys.path.insert(0, str(_GSA_DIR))
 
-from domains_pipeline import (  # noqa: E402
+from ingestion.gsa.domains import (  # noqa: E402
     DomainRow,
     GsaDomainsPipeline,
     _safe_str,
@@ -70,14 +68,14 @@ def test_domain_row_requires_domain_name():
 
 
 def test_find_latest_csv_raises_when_no_files(tmp_path, monkeypatch):
-    import domains_pipeline as dp
+    import ingestion.gsa.domains as dp
     monkeypatch.setattr(dp, "CACHE_DIR", tmp_path)
     with pytest.raises(FileNotFoundError):
         find_latest_csv()
 
 
 def test_find_latest_csv_returns_most_recent(tmp_path, monkeypatch):
-    import domains_pipeline as dp
+    import ingestion.gsa.domains as dp
     monkeypatch.setattr(dp, "CACHE_DIR", tmp_path)
     (tmp_path / "dotgov_domains_20260101.csv").write_text("")
     (tmp_path / "dotgov_domains_20260507.csv").write_text("")

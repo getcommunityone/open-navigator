@@ -8,10 +8,8 @@ from pathlib import Path
 
 import pytest
 
-_FEC_DIR = Path(__file__).resolve().parents[1] / "scripts" / "datasources" / "fec"
-sys.path.insert(0, str(_FEC_DIR))
 
-from contributions_pipeline import (  # noqa: E402
+from ingestion.fec.contributions import (  # noqa: E402
     RAW_COLUMN_COUNT,
     ContributionRow,
     FecContributionsPipeline,

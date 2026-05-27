@@ -10,11 +10,9 @@ from pathlib import Path
 
 import pytest
 
-_HUD_DIR = Path(__file__).resolve().parents[1] / "scripts" / "datasources" / "hud"
-sys.path.insert(0, str(_HUD_DIR))
 
-import zip_county_pipeline as mod  # noqa: E402
-from zip_county_pipeline import (  # noqa: E402
+import ingestion.hud.zip_county as mod  # noqa: E402
+from ingestion.hud.zip_county import (  # noqa: E402
     HudZipCountyPipeline,
     ZipCountyRow,
     _safe_decimal,

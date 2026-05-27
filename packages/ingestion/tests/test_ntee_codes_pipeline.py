@@ -9,10 +9,8 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-_NTEE_DIR = Path(__file__).resolve().parents[1] / "scripts" / "datasources" / "ntee"
-sys.path.insert(0, str(_NTEE_DIR))
 
-from codes_pipeline import (  # noqa: E402
+from ingestion.ntee.codes import (  # noqa: E402
     NteeCodesPipeline,
     NteeCodesRow,
     _is_missing,
@@ -125,14 +123,14 @@ def test_pipeline_metadata():
 
 
 def test_find_latest_parquet_raises_when_no_files(tmp_path, monkeypatch):
-    import codes_pipeline as cp
+    import ingestion.ntee.codes as cp
     monkeypatch.setattr(cp, "GOLD_DIR", tmp_path)
     with pytest.raises(FileNotFoundError):
         find_latest_parquet()
 
 
 def test_find_latest_parquet_returns_most_recent(tmp_path, monkeypatch):
-    import codes_pipeline as cp
+    import ingestion.ntee.codes as cp
     monkeypatch.setattr(cp, "GOLD_DIR", tmp_path)
     (tmp_path / "causes_ntee_codes.parquet").write_text("")
     (tmp_path / "causes_ntee_codes_20260101.parquet").write_text("")

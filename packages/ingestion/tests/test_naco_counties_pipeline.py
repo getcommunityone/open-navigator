@@ -9,10 +9,8 @@ from pathlib import Path
 
 import pytest
 
-_NACO_DIR = Path(__file__).resolve().parents[1] / "scripts" / "datasources" / "naco"
-sys.path.insert(0, str(_NACO_DIR))
 
-from counties_pipeline import (  # noqa: E402
+from ingestion.naco.counties import (  # noqa: E402
     CountyRow,
     NacoCountiesPipeline,
     _int,
@@ -113,7 +111,7 @@ def test_pipeline_metadata():
 
 
 def test_find_cache_files_filters_by_date_and_state(tmp_path, monkeypatch):
-    import counties_pipeline as cp
+    import ingestion.naco.counties as cp
     monkeypatch.setattr(cp, "CACHE_DIR", tmp_path)
     (tmp_path / "naco_counties_AL_20260510.json").write_text("[]")
     (tmp_path / "naco_counties_GA_20260510.json").write_text("[]")
@@ -131,7 +129,7 @@ def test_find_cache_files_filters_by_date_and_state(tmp_path, monkeypatch):
 
 
 def test_discover_raises_when_no_files(tmp_path, monkeypatch):
-    import counties_pipeline as cp
+    import ingestion.naco.counties as cp
     monkeypatch.setattr(cp, "CACHE_DIR", tmp_path)
     p = NacoCountiesPipeline(date_str="20990101")
     with pytest.raises(FileNotFoundError):

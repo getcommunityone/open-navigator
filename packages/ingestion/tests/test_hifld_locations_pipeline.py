@@ -9,10 +9,8 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-_HIFLD_DIR = Path(__file__).resolve().parents[1] / "scripts" / "datasources" / "hifld"
-sys.path.insert(0, str(_HIFLD_DIR))
 
-from locations_pipeline import (  # noqa: E402
+from ingestion.hifld.locations import (  # noqa: E402
     FIELD_MAP,
     HifldLocationsPipeline,
     LocationRow,

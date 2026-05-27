@@ -9,10 +9,8 @@ from typing import AsyncIterator
 
 import pytest
 
-_CENSUS_DIR = Path(__file__).resolve().parents[1] / "scripts" / "datasources" / "census"
-sys.path.insert(0, str(_CENSUS_DIR))
 
-from states_pipeline import (  # noqa: E402
+from ingestion.census.states import (  # noqa: E402
     US_STATES,
     CensusStatesPipeline,
     StateRow,

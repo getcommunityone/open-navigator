@@ -9,10 +9,8 @@ from pathlib import Path
 
 import pytest
 
-_BP_DIR = Path(__file__).resolve().parents[1] / "scripts" / "datasources" / "ballotpedia"
-sys.path.insert(0, str(_BP_DIR))
 
-from measures_pipeline import (  # noqa: E402
+from ingestion.ballotpedia.measures import (  # noqa: E402
     BallotMeasureRow,
     BallotpediaMeasuresPipeline,
     _parse_int,
@@ -98,7 +96,7 @@ def test_pipeline_metadata():
 
 
 def test_find_latest_cache_files_raises_when_missing(tmp_path, monkeypatch):
-    import measures_pipeline as mp
+    import ingestion.ballotpedia.measures as mp
     monkeypatch.setattr(mp, "CACHE_DIR", tmp_path)
     with pytest.raises(FileNotFoundError):
         find_latest_cache_files(tmp_path)

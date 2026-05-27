@@ -9,10 +9,8 @@ from pathlib import Path
 
 import pytest
 
-_DOT_DIR = Path(__file__).resolve().parents[1] / "scripts" / "datasources" / "dot"
-sys.path.insert(0, str(_DOT_DIR))
 
-from events_pipeline import (  # noqa: E402
+from ingestion.dot.events import (  # noqa: E402
     DotEventRow,
     DotEventsPipeline,
     _parse_date_iso,
