@@ -1,102 +1,53 @@
 #!/usr/bin/env python3
-"""
-Load LocalView Meeting Data into bronze.bronze_events_localview table
+"""LocalView meeting-events pipeline: load cached parquet into
+bronze.bronze_events_localview.
 
-This script reads all LocalView parquet files and inserts meeting data
-into the bronze.bronze_events_localview table following the medallion architecture.
+Ported from load_localview_to_postgres.py to the core_lib DataSourcePipeline
+contract.
 
-Uniqueness is enforced on datasource_id (YouTube video ID). event_id is a
+This reads LocalView meeting parquet files and upserts meeting (video) rows
+into bronze.bronze_events_localview following the medallion architecture.
+Uniqueness is enforced on datasource_id (the YouTube video ID); event_id is a
 BIGSERIAL surrogate key — never hash-derived, which was non-deterministic.
 
+The source parquet also carries a video→channel mapping, which is upserted into
+intermediate.int_localview_youtube_video_channels for lineage.
+
 Usage:
-    python3 scripts/datasources/localview/load_localview_to_postgres.py
-    python3 scripts/datasources/localview/load_localview_to_postgres.py --truncate
-    python3 scripts/datasources/localview/load_localview_to_postgres.py --truncate --year 2023
+    python -m scripts.datasources.localview.events
+    python scripts/datasources/localview/events.py --truncate
+    python scripts/datasources/localview/events.py --truncate --year 2023
+    python scripts/datasources/localview/events.py \\
+        --file data/cache/localview/meetings.2023.parquet --limit 100
+
+Configuration:
+    NEON_DATABASE_URL_DEV / NEON_DATABASE_URL / DATABASE_URL via core_lib.db
+    (replaces hardcoded postgresql://postgres:password@localhost:5433).
 """
-import os
-import sys
+from __future__ import annotations
+
 import argparse
-from pathlib import Path
+import asyncio
 from datetime import datetime
-from typing import Dict, Any, Optional
+from pathlib import Path
+from typing import Any, AsyncIterator, Dict, Optional
+
 import pandas as pd
-import psycopg2
-from psycopg2.extras import execute_batch, execute_values
-from loguru import logger
-from dotenv import load_dotenv
+from pydantic import Field
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
-load_dotenv()
+from core_lib.db import async_session
+from core_lib.logging import setup_logging
+from core_lib.pipeline import DataSourcePipeline, PipelineContext, RawRow
 
-DATABASE_URL = os.getenv('NEON_DATABASE_URL_DEV', 'postgresql://postgres:password@localhost:5433/open_navigator')
-LOCALVIEW_DIR = Path('data/cache/localview')
 
-CREATE_MAPPING_TABLE_SQL = """
-    CREATE SCHEMA IF NOT EXISTS intermediate;
-    CREATE TABLE IF NOT EXISTS intermediate.int_localview_youtube_video_channels (
-        video_id       VARCHAR(255) PRIMARY KEY,
-        youtube_url    TEXT,
-        channel_id     VARCHAR(255) NOT NULL,
-        channel_title  VARCHAR(500),
-        fetched_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE INDEX IF NOT EXISTS idx_ilvyvc_channel_id
-      ON intermediate.int_localview_youtube_video_channels(channel_id);
-"""
+CACHE_DIR = Path("data/cache/localview")
 
-CREATE_TABLE_SQL = """
-    CREATE SCHEMA IF NOT EXISTS bronze;
-    CREATE TABLE IF NOT EXISTS bronze.bronze_events_localview (
-        event_id          BIGSERIAL PRIMARY KEY,
-        event_date        DATE,
-        jurisdiction_name VARCHAR(500),
-        jurisdiction_type VARCHAR(100),
-        city              VARCHAR(255),
-        city_name         VARCHAR(255),
-        state_code        VARCHAR(2),
-        state             VARCHAR(100),
-        meeting_type      VARCHAR(255),
-        title             VARCHAR(500),
-        video_url         TEXT,
-        datasource        VARCHAR(100),
-        datasource_id     VARCHAR(255) NOT NULL,
-        loaded_at         TIMESTAMP DEFAULT NOW(),
 
-        -- Raw LocalView columns (kept for lineage/debugging)
-        st_fips                  VARCHAR(10),
-        place_govt               VARCHAR(255),
-        channel_title            VARCHAR(500),
-        vid_title                VARCHAR(500),
-        vid_desc                 TEXT,
-        vid_length_min           DOUBLE PRECISION,
-        vid_upload_date          TIMESTAMP,
-        vid_livestreamed         BOOLEAN,
-        vid_views                DOUBLE PRECISION,
-        vid_likes                DOUBLE PRECISION,
-        vid_dislikes             DOUBLE PRECISION,
-        vid_comments             DOUBLE PRECISION,
-        vid_favorites            DOUBLE PRECISION,
-        meeting_date_raw         VARCHAR(50),
-        caption_text             TEXT,
-        caption_text_clean       TEXT,
-        channel_type             VARCHAR(100),
-        acs_18_amind             DOUBLE PRECISION,
-        acs_18_asian             DOUBLE PRECISION,
-        acs_18_black             DOUBLE PRECISION,
-        acs_18_hispanic          DOUBLE PRECISION,
-        acs_18_median_age        DOUBLE PRECISION,
-        acs_18_median_gross_rent DOUBLE PRECISION,
-        acs_18_median_hh_inc     DOUBLE PRECISION,
-        acs_18_nhapi             DOUBLE PRECISION,
-        acs_18_pop               DOUBLE PRECISION,
-        acs_18_white             DOUBLE PRECISION,
-
-        CONSTRAINT uq_localview_datasource_id UNIQUE (datasource_id)
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_belv_event_date  ON bronze.bronze_events_localview(event_date);
-    CREATE INDEX IF NOT EXISTS idx_belv_state_code  ON bronze.bronze_events_localview(state_code);
-    CREATE INDEX IF NOT EXISTS idx_belv_datasource  ON bronze.bronze_events_localview(datasource);
-"""
+# ---------------------------------------------------------------------------
+# Pure helpers (preserved verbatim from the original loader)
+# ---------------------------------------------------------------------------
 
 JURISDICTION_TYPE_MAP = {
     # Municipal
@@ -218,7 +169,185 @@ def row_to_event(row: pd.Series) -> Dict[str, Any]:
     }
 
 
-INSERT_SQL = """
+def _row_to_channel_mapping(row: pd.Series) -> Optional[Dict[str, Any]]:
+    """Build the video→channel mapping for one row, or None if not mappable.
+
+    Mirrors upsert_video_channel_mappings: require non-empty vid_id + channel_id,
+    trim both, cap channel_title to 500 chars.
+    """
+    vid_id = row.get("vid_id")
+    channel_id = row.get("channel_id")
+    if pd.isna(vid_id) or pd.isna(channel_id):
+        return None
+    vid_id = str(vid_id).strip()
+    channel_id = str(channel_id).strip()
+    if not vid_id or not channel_id:
+        return None
+    channel_title = row.get("channel_title")
+    channel_title = str(channel_title)[:500] if pd.notna(channel_title) else None
+    return {
+        "video_id": vid_id,
+        "youtube_url": f"https://www.youtube.com/watch?v={vid_id}",
+        "channel_id": channel_id,
+        "channel_title": channel_title,
+        "fetched_at": datetime.now(),
+    }
+
+
+def find_parquet_files(year: int | None = None) -> list[Path]:
+    files = sorted(CACHE_DIR.glob("meetings.*.parquet"))
+    if year is not None:
+        files = [f for f in files if f.name == f"meetings.{year}.parquet"]
+    if not files:
+        raise FileNotFoundError(
+            f"No LocalView parquet files found in {CACHE_DIR}. "
+            "Run the LocalView downloader first."
+        )
+    return files
+
+
+# ---------------------------------------------------------------------------
+# Row schema
+# ---------------------------------------------------------------------------
+
+class LocalviewEventRow(RawRow):
+    """One LocalView meeting (video) event row, validated before upsert.
+
+    Nullability mirrors the loader: every bronze column is nullable except
+    datasource_id, which is the upsert key (NOT NULL + UNIQUE).
+    """
+
+    event_date: datetime | None = None
+    jurisdiction_name: str | None = Field(default=None, max_length=500)
+    jurisdiction_type: str | None = Field(default=None, max_length=100)
+    city: str | None = Field(default=None, max_length=255)
+    city_name: str | None = Field(default=None, max_length=255)
+    state_code: str | None = Field(default=None, max_length=2)
+    state: str | None = Field(default=None, max_length=100)
+    meeting_type: str | None = Field(default=None, max_length=255)
+    title: str | None = Field(default=None, max_length=500)
+    video_url: str | None = None
+    datasource: str | None = Field(default=None, max_length=100)
+    datasource_id: str = Field(min_length=1, max_length=255)
+    loaded_at: datetime | None = None
+    st_fips: str | None = Field(default=None, max_length=10)
+    place_govt: str | None = Field(default=None, max_length=255)
+    channel_title: str | None = Field(default=None, max_length=500)
+    vid_title: str | None = Field(default=None, max_length=500)
+    vid_desc: str | None = None
+    vid_length_min: float | None = None
+    vid_upload_date: datetime | None = None
+    vid_livestreamed: bool | None = None
+    vid_views: float | None = None
+    vid_likes: float | None = None
+    vid_dislikes: float | None = None
+    vid_comments: float | None = None
+    vid_favorites: float | None = None
+    meeting_date_raw: str | None = Field(default=None, max_length=50)
+    caption_text: str | None = None
+    caption_text_clean: str | None = None
+    channel_type: str | None = Field(default=None, max_length=100)
+    acs_18_amind: float | None = None
+    acs_18_asian: float | None = None
+    acs_18_black: float | None = None
+    acs_18_hispanic: float | None = None
+    acs_18_median_age: float | None = None
+    acs_18_median_gross_rent: float | None = None
+    acs_18_median_hh_inc: float | None = None
+    acs_18_nhapi: float | None = None
+    acs_18_pop: float | None = None
+    acs_18_white: float | None = None
+    # Carried for the intermediate video→channel mapping (not a bronze column).
+    channel_id: str | None = Field(default=None, max_length=255)
+
+
+# ---------------------------------------------------------------------------
+# DDL (each statement separate; preserve original schema verbatim)
+# ---------------------------------------------------------------------------
+
+_CREATE_MAPPING_SCHEMA_SQL = text("CREATE SCHEMA IF NOT EXISTS intermediate")
+
+_CREATE_MAPPING_TABLE_SQL = text(
+    """
+    CREATE TABLE IF NOT EXISTS intermediate.int_localview_youtube_video_channels (
+        video_id       VARCHAR(255) PRIMARY KEY,
+        youtube_url    TEXT,
+        channel_id     VARCHAR(255) NOT NULL,
+        channel_title  VARCHAR(500),
+        fetched_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+    """
+)
+
+_CREATE_MAPPING_INDEX_SQL = text(
+    "CREATE INDEX IF NOT EXISTS idx_ilvyvc_channel_id "
+    "ON intermediate.int_localview_youtube_video_channels(channel_id)"
+)
+
+_CREATE_SCHEMA_SQL = text("CREATE SCHEMA IF NOT EXISTS bronze")
+
+_CREATE_TABLE_SQL = text(
+    """
+    CREATE TABLE IF NOT EXISTS bronze.bronze_events_localview (
+        event_id          BIGSERIAL PRIMARY KEY,
+        event_date        DATE,
+        jurisdiction_name VARCHAR(500),
+        jurisdiction_type VARCHAR(100),
+        city              VARCHAR(255),
+        city_name         VARCHAR(255),
+        state_code        VARCHAR(2),
+        state             VARCHAR(100),
+        meeting_type      VARCHAR(255),
+        title             VARCHAR(500),
+        video_url         TEXT,
+        datasource        VARCHAR(100),
+        datasource_id     VARCHAR(255) NOT NULL,
+        loaded_at         TIMESTAMP DEFAULT NOW(),
+
+        -- Raw LocalView columns (kept for lineage/debugging)
+        st_fips                  VARCHAR(10),
+        place_govt               VARCHAR(255),
+        channel_title            VARCHAR(500),
+        vid_title                VARCHAR(500),
+        vid_desc                 TEXT,
+        vid_length_min           DOUBLE PRECISION,
+        vid_upload_date          TIMESTAMP,
+        vid_livestreamed         BOOLEAN,
+        vid_views                DOUBLE PRECISION,
+        vid_likes                DOUBLE PRECISION,
+        vid_dislikes             DOUBLE PRECISION,
+        vid_comments             DOUBLE PRECISION,
+        vid_favorites            DOUBLE PRECISION,
+        meeting_date_raw         VARCHAR(50),
+        caption_text             TEXT,
+        caption_text_clean       TEXT,
+        channel_type             VARCHAR(100),
+        acs_18_amind             DOUBLE PRECISION,
+        acs_18_asian             DOUBLE PRECISION,
+        acs_18_black             DOUBLE PRECISION,
+        acs_18_hispanic          DOUBLE PRECISION,
+        acs_18_median_age        DOUBLE PRECISION,
+        acs_18_median_gross_rent DOUBLE PRECISION,
+        acs_18_median_hh_inc     DOUBLE PRECISION,
+        acs_18_nhapi             DOUBLE PRECISION,
+        acs_18_pop               DOUBLE PRECISION,
+        acs_18_white             DOUBLE PRECISION,
+
+        CONSTRAINT uq_localview_datasource_id UNIQUE (datasource_id)
+    )
+    """
+)
+
+_CREATE_INDEXES_SQL = (
+    text("CREATE INDEX IF NOT EXISTS idx_belv_event_date  ON bronze.bronze_events_localview(event_date)"),
+    text("CREATE INDEX IF NOT EXISTS idx_belv_state_code  ON bronze.bronze_events_localview(state_code)"),
+    text("CREATE INDEX IF NOT EXISTS idx_belv_datasource  ON bronze.bronze_events_localview(datasource)"),
+)
+
+_DROP_TABLE_SQL = text("DROP TABLE IF EXISTS bronze.bronze_events_localview CASCADE")
+
+_UPSERT_SQL = text(
+    """
     INSERT INTO bronze.bronze_events_localview (
         event_date, jurisdiction_name, jurisdiction_type,
         city, city_name, state_code, state, meeting_type,
@@ -231,16 +360,16 @@ INSERT_SQL = """
         acs_18_median_age, acs_18_median_gross_rent, acs_18_median_hh_inc,
         acs_18_nhapi, acs_18_pop, acs_18_white
     ) VALUES (
-        %(event_date)s, %(jurisdiction_name)s, %(jurisdiction_type)s,
-        %(city)s, %(city_name)s, %(state_code)s, %(state)s, %(meeting_type)s,
-        %(title)s, %(video_url)s, %(datasource)s, %(datasource_id)s, %(loaded_at)s,
-        %(st_fips)s, %(place_govt)s, %(channel_title)s, %(vid_title)s, %(vid_desc)s,
-        %(vid_length_min)s, %(vid_upload_date)s, %(vid_livestreamed)s,
-        %(vid_views)s, %(vid_likes)s, %(vid_dislikes)s, %(vid_comments)s, %(vid_favorites)s,
-        %(meeting_date_raw)s, %(caption_text)s, %(caption_text_clean)s, %(channel_type)s,
-        %(acs_18_amind)s, %(acs_18_asian)s, %(acs_18_black)s, %(acs_18_hispanic)s,
-        %(acs_18_median_age)s, %(acs_18_median_gross_rent)s, %(acs_18_median_hh_inc)s,
-        %(acs_18_nhapi)s, %(acs_18_pop)s, %(acs_18_white)s
+        :event_date, :jurisdiction_name, :jurisdiction_type,
+        :city, :city_name, :state_code, :state, :meeting_type,
+        :title, :video_url, :datasource, :datasource_id, :loaded_at,
+        :st_fips, :place_govt, :channel_title, :vid_title, :vid_desc,
+        :vid_length_min, :vid_upload_date, :vid_livestreamed,
+        :vid_views, :vid_likes, :vid_dislikes, :vid_comments, :vid_favorites,
+        :meeting_date_raw, :caption_text, :caption_text_clean, :channel_type,
+        :acs_18_amind, :acs_18_asian, :acs_18_black, :acs_18_hispanic,
+        :acs_18_median_age, :acs_18_median_gross_rent, :acs_18_median_hh_inc,
+        :acs_18_nhapi, :acs_18_pop, :acs_18_white
     )
     ON CONFLICT (datasource_id) DO UPDATE SET
         event_date        = COALESCE(EXCLUDED.event_date,        bronze_events_localview.event_date),
@@ -280,171 +409,164 @@ INSERT_SQL = """
         acs_18_pop        = COALESCE(EXCLUDED.acs_18_pop,        bronze_events_localview.acs_18_pop),
         acs_18_white      = COALESCE(EXCLUDED.acs_18_white,      bronze_events_localview.acs_18_white),
         loaded_at         = NOW()
-"""
+    """
+)
 
-UPSERT_VIDEO_CHANNELS_SQL = """
+_UPSERT_VIDEO_CHANNELS_SQL = text(
+    """
     INSERT INTO intermediate.int_localview_youtube_video_channels
       (video_id, youtube_url, channel_id, channel_title, fetched_at)
-    VALUES %s
+    VALUES
+      (:video_id, :youtube_url, :channel_id, :channel_title, :fetched_at)
     ON CONFLICT (video_id) DO UPDATE SET
       youtube_url = COALESCE(EXCLUDED.youtube_url, intermediate.int_localview_youtube_video_channels.youtube_url),
       channel_id = EXCLUDED.channel_id,
       channel_title = COALESCE(EXCLUDED.channel_title, intermediate.int_localview_youtube_video_channels.channel_title),
       fetched_at = EXCLUDED.fetched_at
-"""
+    """
+)
 
 
-def upsert_video_channel_mappings(df: pd.DataFrame, conn, batch_size: int = 2000) -> int:
-    if df.empty:
-        return 0
+class LocalviewEventsPipeline(DataSourcePipeline[LocalviewEventRow]):
+    source = "localview_events"
+    batch_size = 1_000
+    row_schema = LocalviewEventRow
 
-    if "vid_id" not in df.columns or "channel_id" not in df.columns:
-        return 0
+    def __init__(self, *, path: Path | None = None, limit: int | None = None):
+        self._path = path
+        self._limit = limit
 
-    d = df[["vid_id", "channel_id", "channel_title"]].copy()
-    d = d[d["vid_id"].notna() & d["channel_id"].notna()]
-    if d.empty:
-        return 0
+    async def extract(self, ctx: PipelineContext) -> AsyncIterator[dict]:
+        paths = [self._path] if self._path is not None else find_parquet_files()
+        emitted = 0
+        for path in paths:
+            df = pd.read_parquet(path)
+            # Mirror the original: only rows with both a meeting_date and a vid_id.
+            df_valid = df[df['meeting_date'].notna() & df['vid_id'].notna()].copy()
+            for _, row in df_valid.iterrows():
+                if self._limit is not None and emitted >= self._limit:
+                    return
+                event = row_to_event(row)
+                mapping = _row_to_channel_mapping(row)
+                yield {
+                    "source": self.source,
+                    "source_version": path.stem,
+                    "natural_key": str(event["datasource_id"]),
+                    **event,
+                    "channel_id": mapping["channel_id"] if mapping else None,
+                }
+                emitted += 1
 
-    d["vid_id"] = d["vid_id"].astype(str).str.strip()
-    d["channel_id"] = d["channel_id"].astype(str).str.strip()
-    if "channel_title" in d.columns:
-        d["channel_title"] = d["channel_title"].where(d["channel_title"].notna(), None)
+    async def load_batch(
+        self,
+        session: AsyncSession,
+        rows: list[LocalviewEventRow],
+        ctx: PipelineContext,
+    ) -> None:
+        event_params = [
+            {
+                "event_date": r.event_date,
+                "jurisdiction_name": r.jurisdiction_name,
+                "jurisdiction_type": r.jurisdiction_type,
+                "city": r.city,
+                "city_name": r.city_name,
+                "state_code": r.state_code,
+                "state": r.state,
+                "meeting_type": r.meeting_type,
+                "title": r.title,
+                "video_url": r.video_url,
+                "datasource": r.datasource,
+                "datasource_id": r.datasource_id,
+                "loaded_at": r.loaded_at,
+                "st_fips": r.st_fips,
+                "place_govt": r.place_govt,
+                "channel_title": r.channel_title,
+                "vid_title": r.vid_title,
+                "vid_desc": r.vid_desc,
+                "vid_length_min": r.vid_length_min,
+                "vid_upload_date": r.vid_upload_date,
+                "vid_livestreamed": r.vid_livestreamed,
+                "vid_views": r.vid_views,
+                "vid_likes": r.vid_likes,
+                "vid_dislikes": r.vid_dislikes,
+                "vid_comments": r.vid_comments,
+                "vid_favorites": r.vid_favorites,
+                "meeting_date_raw": r.meeting_date_raw,
+                "caption_text": r.caption_text,
+                "caption_text_clean": r.caption_text_clean,
+                "channel_type": r.channel_type,
+                "acs_18_amind": r.acs_18_amind,
+                "acs_18_asian": r.acs_18_asian,
+                "acs_18_black": r.acs_18_black,
+                "acs_18_hispanic": r.acs_18_hispanic,
+                "acs_18_median_age": r.acs_18_median_age,
+                "acs_18_median_gross_rent": r.acs_18_median_gross_rent,
+                "acs_18_median_hh_inc": r.acs_18_median_hh_inc,
+                "acs_18_nhapi": r.acs_18_nhapi,
+                "acs_18_pop": r.acs_18_pop,
+                "acs_18_white": r.acs_18_white,
+            }
+            for r in rows
+        ]
+        await session.execute(_UPSERT_SQL, event_params)
 
-    d = d[(d["vid_id"] != "") & (d["channel_id"] != "")]
-    if d.empty:
-        return 0
-
-    d = d.drop_duplicates(subset=["vid_id"], keep="first")
-
-    rows = [
-        (
-            r["vid_id"],
-            f"https://www.youtube.com/watch?v={r['vid_id']}",
-            r["channel_id"],
-            (str(r["channel_title"])[:500] if r.get("channel_title") is not None else None),
-            datetime.now(),
-        )
-        for _, r in d.iterrows()
-    ]
-
-    cur = conn.cursor()
-    inserted = 0
-    try:
-        for i in range(0, len(rows), batch_size):
-            execute_values(cur, UPSERT_VIDEO_CHANNELS_SQL, rows[i : i + batch_size], page_size=batch_size)
-            inserted += min(batch_size, len(rows) - i)
-        conn.commit()
-        return inserted
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        cur.close()
-
-
-def load_parquet_file(filepath: Path, conn, batch_size: int = 1000) -> int:
-    logger.info(f"Loading {filepath.name}...")
-    df = pd.read_parquet(filepath)
-    logger.info(f"  Rows in file: {len(df):,}")
-
-    # Keep the video→channel mapping in intermediate (source parquet already has it).
-    try:
-        n_map = upsert_video_channel_mappings(df, conn)
-        if n_map:
-            logger.info(f"  Upserted {n_map:,} video→channel mappings from parquet")
-    except Exception as e:
-        logger.warning(f"  Mapping upsert failed (continuing with event load): {e}")
-
-    df_valid = df[df['meeting_date'].notna() & df['vid_id'].notna()].copy()
-    logger.info(f"  Valid rows (have date + video ID): {len(df_valid):,}")
-
-    if df_valid.empty:
-        return 0
-
-    events = [row_to_event(row) for _, row in df_valid.iterrows()]
-
-    cursor = conn.cursor()
-    inserted = 0
-    try:
-        for i in range(0, len(events), batch_size):
-            batch = events[i:i + batch_size]
-            execute_batch(cursor, INSERT_SQL, batch, page_size=batch_size)
-            inserted += len(batch)
-            conn.commit()
-            if i % 10000 == 0 and i > 0:
-                logger.info(f"  Processed {i:,} / {len(events):,}...")
-        logger.success(f"  ✓ {inserted:,} rows upserted from {filepath.name}")
-        return inserted
-    except Exception as e:
-        conn.rollback()
-        logger.error(f"  ✗ Error on {filepath.name}: {e}")
-        raise
-    finally:
-        cursor.close()
+        # Keep the video→channel mapping in intermediate (the parquet carries it).
+        mapping_params = [
+            {
+                "video_id": r.datasource_id,
+                "youtube_url": f"https://www.youtube.com/watch?v={r.datasource_id}",
+                "channel_id": r.channel_id,
+                "channel_title": r.channel_title,
+                "fetched_at": r.loaded_at or datetime.now(),
+            }
+            for r in rows
+            if r.channel_id
+        ]
+        if mapping_params:
+            await session.execute(_UPSERT_VIDEO_CHANNELS_SQL, mapping_params)
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Load LocalView parquet files → bronze.bronze_events_localview")
-    parser.add_argument('--truncate', action='store_true', help='Drop and recreate the table before loading (full reload)')
-    parser.add_argument('--year', type=int, help='Load only a specific year (e.g. --year 2023)')
-    args = parser.parse_args()
+async def _prepare_target(truncate: bool) -> None:
+    async with async_session() as session:
+        if truncate:
+            await session.execute(_DROP_TABLE_SQL)
+        await session.execute(_CREATE_MAPPING_SCHEMA_SQL)
+        await session.execute(_CREATE_MAPPING_TABLE_SQL)
+        await session.execute(_CREATE_MAPPING_INDEX_SQL)
+        await session.execute(_CREATE_SCHEMA_SQL)
+        await session.execute(_CREATE_TABLE_SQL)
+        for idx in _CREATE_INDEXES_SQL:
+            await session.execute(idx)
 
-    logger.info("=" * 80)
-    logger.info("LOCALVIEW → POSTGRES LOADER")
-    logger.info("=" * 80)
 
-    parquet_files = sorted(LOCALVIEW_DIR.glob('meetings.*.parquet'))
-    if args.year:
-        parquet_files = [f for f in parquet_files if f.name == f'meetings.{args.year}.parquet']
-    logger.info(f"Found {len(parquet_files)} parquet file(s) to load")
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Load LocalView parquet files into bronze.bronze_events_localview"
+    )
+    parser.add_argument("--file", type=Path, help="Path to a single parquet file (default: all in data/cache/localview/)")
+    parser.add_argument("--limit", type=int, help="Load only the first N valid rows")
+    parser.add_argument("--year", type=int, help="Load only a specific year (e.g. --year 2023)")
+    parser.add_argument(
+        "--truncate", action="store_true",
+        help="Drop and recreate the table before loading (full reload)",
+    )
+    return parser
 
-    if not parquet_files:
-        logger.error("No parquet files found — check LOCALVIEW_DIR.")
-        return 1
 
-    try:
-        conn = psycopg2.connect(DATABASE_URL)
-        logger.success("✓ Connected to database")
-        cur = conn.cursor()
+async def _run(args: argparse.Namespace) -> None:
+    await _prepare_target(args.truncate)
+    if args.file is None and args.year is not None:
+        for f in find_parquet_files(year=args.year):
+            await LocalviewEventsPipeline(path=f, limit=args.limit).run()
+        return
+    await LocalviewEventsPipeline(path=args.file, limit=args.limit).run()
 
-        if args.truncate:
-            logger.warning("--truncate: dropping bronze.bronze_events_localview...")
-            cur.execute("DROP TABLE IF EXISTS bronze.bronze_events_localview CASCADE;")
-            conn.commit()
-            logger.info("Table dropped.")
 
-        cur.execute(CREATE_MAPPING_TABLE_SQL)
-        cur.execute(CREATE_TABLE_SQL)
-        conn.commit()
-        cur.close()
-        logger.info("✓ bronze.bronze_events_localview ready")
-    except Exception as e:
-        logger.error(f"✗ Database setup failed: {e}")
-        return 1
-
-    total = 0
-    start = datetime.now()
-    try:
-        for filepath in parquet_files:
-            total += load_parquet_file(filepath, conn)
-
-        cur = conn.cursor()
-        cur.execute("SELECT COUNT(*) FROM bronze.bronze_events_localview")
-        final_count = cur.fetchone()[0]
-        cur.close()
-
-        duration = (datetime.now() - start).total_seconds()
-        logger.success("=" * 80)
-        logger.success(f"✓ Done. {total:,} rows upserted | {final_count:,} total in table | {duration:.1f}s")
-        logger.success("=" * 80)
-        return 0
-    except Exception as e:
-        logger.error(f"✗ Load failed: {e}")
-        return 1
-    finally:
-        conn.close()
+def main() -> None:
+    setup_logging()
+    args = build_parser().parse_args()
+    asyncio.run(_run(args))
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()
