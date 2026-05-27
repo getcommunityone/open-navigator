@@ -12,7 +12,7 @@
 with
 
 ranked as (
-    {{ latest_per_natural_key(ref('stg_nccs__organizations'), 'ein', 'org_year_last') }}
+    {{ latest_per_natural_key(ref('stg_nccs__organization'), 'ein', 'org_year_last') }}
 ),
 
 final as (

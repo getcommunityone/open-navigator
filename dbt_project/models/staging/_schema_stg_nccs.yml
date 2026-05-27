@@ -1,7 +1,7 @@
 version: 2
 
 models:
-  - name: stg_nccs__organizations
+  - name: stg_nccs__organization
     description: |
       NCCS Unified BMF organization-years — one row per (ein, org_year_last).
       1:1 with bronze.bronze_organizations_nonprofits_nccs_history (raw landing

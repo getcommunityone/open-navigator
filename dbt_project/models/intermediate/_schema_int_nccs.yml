@@ -5,7 +5,7 @@ models:
     description: |
       Current (most-recent) NCCS organization per EIN — the dedup that
       ingestion.nccs.bulk used to compute in Python (dual-write to a "current"
-      table), now derived here from stg_nccs__organizations via
+      table), now derived here from stg_nccs__organization via
       latest_per_natural_key(ein, org_year_last).
     config:
       contract:
