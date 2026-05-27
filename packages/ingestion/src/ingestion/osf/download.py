@@ -1,56 +1,144 @@
 #!/usr/bin/env python3
 """
-OSF ZIP Downloader + Extractor
+OSF ZIP Downloader + Extractor (core_lib.http.BaseAsyncClient port).
 
 Goal:
   - Download the dataset ZIP from an OSF "osfstorage" page
   - Extract into a stable cache folder:
       data/cache/osf/osf/
 
+The HTTP fetch of the ZIP runs through core_lib's BaseAsyncClient (retries,
+structured logging). ZIP discovery helpers and extraction remain stdlib-local.
+This module is DOWNLOAD-ONLY; the DB/bronze load lives in ingestion.osf.files /
+ingestion.osf.rds.
+
 Usage:
-  python scripts/datasources/osf/download_osf_zip.py
-  python scripts/datasources/osf/download_osf_zip.py --page-url https://osf.io/mv5e6/files/osfstorage
-  python scripts/datasources/osf/download_osf_zip.py --zip-url <direct-zip-url>
-  python scripts/datasources/osf/download_osf_zip.py --force
-  python scripts/datasources/osf/download_osf_zip.py --no-extract
+  python -m ingestion.osf.download
+  python -m ingestion.osf.download --page-url https://osf.io/mv5e6/files/osfstorage
+  python -m ingestion.osf.download --zip-url <direct-zip-url>
+  python -m ingestion.osf.download --force
+  python -m ingestion.osf.download --no-extract
 """
 
 from __future__ import annotations
 
 import argparse
+import asyncio
 import hashlib
+import json
 import re
 import shutil
 import sys
 import zipfile
 from pathlib import Path
-import json
-import time
 from urllib.parse import urljoin
 from urllib.request import Request, urlopen
-from urllib.error import HTTPError, URLError
 
-try:
-    from loguru import logger  # type: ignore
-except Exception:  # pragma: no cover
-    class _FallbackLogger:
-        def info(self, msg: str) -> None:
-            print(msg)
-
-        def success(self, msg: str) -> None:
-            print(msg)
-
-        def warning(self, msg: str) -> None:
-            print(msg)
-
-        def error(self, msg: str) -> None:
-            print(msg, file=sys.stderr)
-
-    logger = _FallbackLogger()
+from core_lib.http import BaseAsyncClient, HttpClientConfig
+from core_lib.logging import setup_logging
+from loguru import logger
 
 
+# OSF web host (zip download links and HTML pages live here / on
+# files.osf.io, which the discovery helpers may return as absolute URLs).
+OSF_BASE_URL = "https://osf.io"
 DEFAULT_PAGE_URL = "https://osf.io/mv5e6/files/osfstorage"
-DEFAULT_CACHE_DIR = Path("data/cache/osf")
+CACHE_DIR = Path("data/cache/osf")
+# A dataset ZIP can be large; allow a generous timeout for the streamed fetch.
+DOWNLOAD_TIMEOUT_S = 600.0
+
+
+class OsfClient(BaseAsyncClient):
+    """Async HTTP client for fetching the OSF dataset ZIP."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            HttpClientConfig(
+                base_url=OSF_BASE_URL,
+                source="osf",
+                timeout_s=DOWNLOAD_TIMEOUT_S,
+                rate_limit_per_sec=None,
+                default_headers={"User-Agent": "open-navigator (osf downloader)"},
+            )
+        )
+
+    async def download(
+        self,
+        *,
+        force: bool = False,
+        page_url: str = DEFAULT_PAGE_URL,
+        zip_url: str | None = None,
+        cache_dir: Path | None = None,
+    ) -> Path:
+        """Fetch the OSF ZIP into the cache, reusing a fresh cached copy.
+
+        Returns the path to the cached ZIP. Extraction is handled separately
+        by ``extract_zip``.
+        """
+        base = cache_dir or CACHE_DIR
+        dest = base / "osf.zip"
+        dest.parent.mkdir(parents=True, exist_ok=True)
+
+        # Cache-freshness reuse: a non-trivial existing zip is reused unless
+        # --force is set.
+        if not force and dest.exists() and dest.stat().st_size > 1024:
+            sha = _sha256_file(dest)
+            logger.bind(source="osf").info(
+                f"Using cached zip: {dest} (sha256={sha[:12]}...)"
+            )
+            return dest
+
+        url = resolve_zip_url(page_url, zip_url)
+        logger.bind(source="osf").info(f"Downloading ZIP: {url}")
+
+        tmp = dest.with_suffix(".zip.part")
+        if tmp.exists():
+            tmp.unlink()
+
+        resp = await self.get(url)
+        tmp.write_bytes(resp.content)
+        tmp.replace(dest)
+
+        sha = _sha256_file(dest)
+        logger.bind(source="osf").success(
+            f"Downloaded {dest} "
+            f"({dest.stat().st_size / (1024**2):.1f} MB, sha256={sha[:12]}...)"
+        )
+        return dest
+
+    async def download_all_files(
+        self, page_url: str, extract_dir: Path, force: bool
+    ) -> int:
+        """Fallback: download each OSF file individually via the client.
+
+        Used when the discovered artifact is not a ZIP. Preserves the original
+        per-file behavior, but routes the byte fetch through BaseAsyncClient.
+        """
+        files = _list_files_via_osf_api(page_url)
+        if not files:
+            raise RuntimeError("OSF API listing returned no files to download.")
+
+        extract_dir.mkdir(parents=True, exist_ok=True)
+        logger.bind(source="osf").info(
+            f"Downloading {len(files):,} file(s) from OSF into {extract_dir} ..."
+        )
+
+        n = 0
+        for rel, dl in files:
+            dest = extract_dir / rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            if dest.exists() and not force and dest.stat().st_size > 0:
+                n += 1
+                continue
+            tmp = dest.with_suffix(dest.suffix + ".part")
+            if tmp.exists():
+                tmp.unlink()
+            resp = await self.get(dl)
+            tmp.write_bytes(resp.content)
+            tmp.replace(dest)
+            n += 1
+        logger.bind(source="osf").success(f"Downloaded {n:,} files into {extract_dir}")
+        return n
 
 
 def _sha256_file(path: Path) -> str:
@@ -286,66 +374,6 @@ def resolve_zip_url(page_url: str, zip_url: str | None) -> str:
     )
 
 
-def download_zip(zip_url: str, dest: Path, force: bool) -> tuple[Path, str]:
-    dest.parent.mkdir(parents=True, exist_ok=True)
-
-    if dest.exists() and not force and dest.stat().st_size > 1024:
-        sha = _sha256_file(dest)
-        logger.info(f"Using cached zip: {dest} (sha256={sha[:12]}...)")
-        return dest, sha
-
-    tmp = dest.with_suffix(".zip.part")
-    if tmp.exists():
-        tmp.unlink()
-
-    logger.info(f"Downloading ZIP: {zip_url}")
-    req = Request(zip_url, headers={"User-Agent": "open-navigator (osf downloader)"})
-    last_err: Exception | None = None
-    for attempt in range(1, 4):
-        try:
-            with urlopen(req, timeout=300) as resp:
-                total = int(resp.headers.get("Content-Length") or 0)
-                downloaded = 0
-                with tmp.open("wb") as f:
-                    while True:
-                        chunk = resp.read(1024 * 1024)
-                        if not chunk:
-                            break
-                        f.write(chunk)
-                        downloaded += len(chunk)
-                        if total and downloaded % (20 * 1024 * 1024) < len(chunk):
-                            logger.info(
-                                f"  downloaded {downloaded / (1024**2):.0f} MB / {total / (1024**2):.0f} MB"
-                            )
-            last_err = None
-            break
-        except HTTPError as e:
-            last_err = e
-            # transient OSF errors do happen; retry a couple times
-            if e.code in (429, 500, 502, 503, 504) and attempt < 3:
-                wait = 2 * attempt
-                logger.warning(f"HTTP {e.code} from OSF (attempt {attempt}/3). Retrying in {wait}s…")
-                time.sleep(wait)
-                continue
-            raise
-        except URLError as e:
-            last_err = e
-            if attempt < 3:
-                wait = 2 * attempt
-                logger.warning(f"Network error (attempt {attempt}/3). Retrying in {wait}s…")
-                time.sleep(wait)
-                continue
-            raise
-
-    if last_err is not None:
-        raise last_err
-
-    tmp.replace(dest)
-    sha = _sha256_file(dest)
-    logger.success(f"Downloaded {dest} ({dest.stat().st_size / (1024**2):.1f} MB, sha256={sha[:12]}...)")
-    return dest, sha
-
-
 def extract_zip(zip_path: Path, extract_dir: Path, force: bool) -> int:
     extract_dir.mkdir(parents=True, exist_ok=True)
 
@@ -372,65 +400,48 @@ def extract_zip(zip_path: Path, extract_dir: Path, force: bool) -> int:
     return file_count
 
 
-def _download_one(url: str, dest: Path, force: bool) -> None:
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    if dest.exists() and not force and dest.stat().st_size > 0:
-        return
-    tmp = dest.with_suffix(dest.suffix + ".part")
-    if tmp.exists():
-        tmp.unlink()
-    req = Request(url, headers={"User-Agent": "open-navigator (osf downloader)"})
-    with urlopen(req, timeout=300) as resp:
-        with tmp.open("wb") as f:
-            shutil.copyfileobj(resp, f, length=1024 * 1024)
-    tmp.replace(dest)
-
-
-def download_all_files(page_url: str, extract_dir: Path, force: bool) -> int:
-    files = _list_files_via_osf_api(page_url)
-    if not files:
-        raise RuntimeError("OSF API listing returned no files to download.")
-
-    extract_dir.mkdir(parents=True, exist_ok=True)
-    logger.info(f"Downloading {len(files):,} file(s) from OSF into {extract_dir} ...")
-
-    n = 0
-    for rel, dl in files:
-        dest = extract_dir / rel
-        _download_one(dl, dest, force=force)
-        n += 1
-    logger.success(f"Downloaded {n:,} files into {extract_dir}")
-    return n
-
-
-def main() -> int:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Download OSF ZIP and extract into cache")
     parser.add_argument("--page-url", default=DEFAULT_PAGE_URL, help="OSF osfstorage page URL")
     parser.add_argument("--zip-url", default=None, help="Direct ZIP URL (skip discovery)")
-    parser.add_argument("--cache-dir", type=Path, default=DEFAULT_CACHE_DIR, help="Cache base directory")
+    parser.add_argument("--cache-dir", type=Path, default=CACHE_DIR, help="Cache base directory")
     parser.add_argument("--force", action="store_true", help="Re-download and re-extract even if cached")
     parser.add_argument("--no-extract", action="store_true", help="Download only; do not extract")
-    args = parser.parse_args()
+    return parser
 
+
+async def _run(args: argparse.Namespace) -> None:
     cache_dir: Path = args.cache_dir
-    zip_path = cache_dir / "osf.zip"
     extract_dir = cache_dir / "osf"
 
-    url = resolve_zip_url(args.page_url, args.zip_url)
-    downloaded_zip, _sha = download_zip(url, zip_path, force=args.force)
+    async with OsfClient() as client:
+        zip_path = await client.download(
+            force=args.force,
+            page_url=args.page_url,
+            zip_url=args.zip_url,
+            cache_dir=cache_dir,
+        )
 
-    if args.no_extract:
-        logger.info("--no-extract set; skipping unzip")
-        return 0
+        if args.no_extract:
+            logger.info("--no-extract set; skipping unzip")
+            return
 
-    try:
-        extract_zip(downloaded_zip, extract_dir, force=args.force)
-    except zipfile.BadZipFile:
-        logger.warning("Downloaded artifact was not a ZIP. Falling back to downloading all files via OSF API.")
-        download_all_files(args.page_url, extract_dir, force=args.force)
+        try:
+            extract_zip(zip_path, extract_dir, force=args.force)
+        except zipfile.BadZipFile:
+            logger.warning(
+                "Downloaded artifact was not a ZIP. "
+                "Falling back to downloading all files via OSF API."
+            )
+            await client.download_all_files(args.page_url, extract_dir, force=args.force)
+
+
+def main() -> int:
+    setup_logging()
+    args = build_parser().parse_args()
+    asyncio.run(_run(args))
     return 0
 
 
 if __name__ == "__main__":
     sys.exit(main())
-
