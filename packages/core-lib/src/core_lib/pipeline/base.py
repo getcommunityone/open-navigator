@@ -8,6 +8,7 @@ from typing import AsyncIterator, Generic, TypeVar
 
 from loguru import logger
 from pydantic import ValidationError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db.session import async_session
 from .metrics import PipelineRun
@@ -41,7 +42,9 @@ class DataSourcePipeline(ABC, Generic[R]):
     async def extract(self, ctx: PipelineContext) -> AsyncIterator[dict]: ...
 
     @abstractmethod
-    async def load_batch(self, rows: list[R], ctx: PipelineContext) -> None: ...
+    async def load_batch(
+        self, session: AsyncSession, rows: list[R], ctx: PipelineContext
+    ) -> None: ...
 
     def validate(self, raw: dict) -> R | None:
         try:
@@ -91,6 +94,6 @@ class DataSourcePipeline(ABC, Generic[R]):
         return run
 
     async def _flush(self, batch: list[R], ctx: PipelineContext, run: PipelineRun) -> None:
-        async with async_session() as _:
-            await self.load_batch(batch, ctx)
+        async with async_session() as session:
+            await self.load_batch(session, batch, ctx)
         run.loaded += len(batch)
