@@ -38,6 +38,7 @@ import MapAddressSearch, { type MapAddressResult } from '../components/MapAddres
 import CensusMapLeftRail, { type CensusMapRailSection } from '../components/CensusMapLeftRail'
 import CensusDrilldownStage, { type DrilldownView } from '../components/CensusDrilldownStage'
 import CensusDrilldownLocalView from '../components/CensusDrilldownLocalView'
+import PinnedAddressParcelCard from '../components/PinnedAddressParcelCard'
 import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
 
 const STATES_ALBERS_TOPO = 'https://cdn.jsdelivr.net/npm/us-atlas@3/states-albers-10m.json'
@@ -449,8 +450,9 @@ export default function CensusDrilldownMapPage() {
         setSelectedStateFips(fips)
         setSelectedCountyGeoid(null)
       }
-      // Address search drops the user straight into LOCAL view (Leaflet, satellite).
-      setLocalPin({ lat: r.lat, lng: r.lon, label: r.shortLabel || r.displayName, zoom: 17, basemap: 'satellite' })
+      // Address search drops the user straight into LOCAL view with the streets
+      // basemap so road context is legible; user can toggle to Satellite.
+      setLocalPin({ lat: r.lat, lng: r.lon, label: r.shortLabel || r.displayName, zoom: 17, basemap: 'streets' })
       setView('local')
     },
     [],
@@ -484,7 +486,8 @@ export default function CensusDrilldownMapPage() {
     [metricSlug, valueMode, metricLabel],
   )
 
-  const showRightAside = view !== 'local'
+  // Local view keeps the aside slot so the parcel card has somewhere to render.
+  const showRightAside = true
   const localStatus = localPin ? localPin.label : 'Click any state to drill in'
   type Crumb = { label: string; current: boolean; onClick?: () => void }
   const crumbs: Crumb[] = [
@@ -633,7 +636,9 @@ export default function CensusDrilldownMapPage() {
                       type="button"
                       onClick={() => {
                         setLocalPin(null)
-                        setView(selectedCountyGeoid ? 'county' : selectedStateFips ? 'state' : 'nation')
+                        setSelectedCountyGeoid(null)
+                        setPinnedCounty(null)
+                        setView(selectedStateFips ? 'state' : 'nation')
                       }}
                       className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-700 shadow-md hover:bg-slate-50"
                     >
@@ -723,6 +728,21 @@ export default function CensusDrilldownMapPage() {
         {/* right column — unified hover/pin readout (replaces dark floating tooltip) */}
         {showRightAside ? (
           <aside className="flex flex-col gap-3 xl:sticky xl:top-4">
+            {view === 'local' && localPin ? (
+              <PinnedAddressParcelCard
+                label={localPin.label}
+                lat={localPin.lat}
+                lng={localPin.lng}
+                onBack={() => {
+                  setLocalPin(null)
+                  setPinnedAddress(null)
+                  setSelectedCountyGeoid(null)
+                  setPinnedCounty(null)
+                  setView(selectedStateFips ? 'state' : 'nation')
+                }}
+              />
+            ) : (
+              <>
             {(() => {
               // Card precedence: a pinned county wins, then transient hover, then idle.
               const isPinned = !!pinnedCounty
@@ -907,6 +927,8 @@ export default function CensusDrilldownMapPage() {
                 </div>
               </div>
             ) : null}
+              </>
+            )}
           </aside>
         ) : null}
       </div>
