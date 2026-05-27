@@ -1,0 +1,77 @@
+version: 2
+
+models:
+  - name: dim_jurisdictions_master
+    description: |
+      Master jurisdictions golden records (MDM). One row per canonical
+      jurisdiction = GROUP BY (canonical_name, state_code, primary_type).
+      Replaces the master_jurisdictions table built by the archived
+      scripts/datasources/master_data/create_jurisdiction_master.py
+      (consolidate_to_master()).
+
+      Canonical natural key: (canonical_name, state_code, primary_type) — unique.
+      `master_jurisdiction_key` is a deterministic md5 surrogate of that key
+      (replaces the Python SERIAL `id`, which is not reproducible in a
+      declarative idempotent build).
+
+      OMITTED columns (declared in the original DDL but never populated by
+      consolidate_to_master(), which inserted only the scalar columns below):
+      alternate_names[], sub_types[], primary_website, all_websites[], domains[],
+      population, area_sq_miles, last_verified.
+    config:
+      contract:
+        enforced: true
+      materialized: table
+    columns:
+      - name: master_jurisdiction_key
+        description: "Deterministic surrogate key = md5(canonical_name, state_code, primary_type). Unique."
+        data_type: varchar(32)
+        constraints:
+          - type: not_null
+        tests:
+          - unique
+          - not_null
+      - name: nces_id
+        data_type: varchar
+      - name: fips_code
+        data_type: varchar
+      - name: geoid
+        data_type: varchar
+      - name: canonical_name
+        description: "Canonical jurisdiction name (natural-key component)."
+        data_type: varchar
+        constraints:
+          - type: not_null
+      - name: state_code
+        description: "2-letter state code (natural-key component)."
+        data_type: varchar(2)
+        constraints:
+          - type: not_null
+      - name: state
+        description: "Full state name."
+        data_type: varchar
+      - name: county
+        data_type: varchar
+      - name: city
+        data_type: varchar
+      - name: primary_type
+        description: "COALESCE(jurisdiction_type, organization_type) (natural-key component)."
+        data_type: varchar
+        constraints:
+          - type: not_null
+      - name: source_count
+        description: "Number of crosswalk edges contributing to this canonical record."
+        data_type: integer
+      - name: data_completeness_score
+        description: ">=3 sources -> 1.0; 2 -> 0.75; else 0.5."
+        data_type: decimal(3,2)
+      - name: dbt_loaded_at
+        data_type: timestamp with time zone
+        constraints:
+          - type: not_null
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - canonical_name
+            - state_code
+            - primary_type
