@@ -31,7 +31,6 @@ import zipfile
 from pathlib import Path
 from typing import Any, AsyncIterator
 
-import geopandas as gpd
 from loguru import logger
 from pydantic import Field
 from sqlalchemy import text
@@ -397,6 +396,8 @@ class CensusShapefilesPipeline(DataSourcePipeline[ShapefileRow]):
                 continue
 
             logger.info(f"Reading {shp_path.name}...")
+            import geopandas as gpd  # lazy: geopandas is an optional heavy dep
+
             gdf = gpd.read_file(shp_path)
 
             if self._limit:

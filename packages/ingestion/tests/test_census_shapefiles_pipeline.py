@@ -5,9 +5,11 @@ import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
 
-import geopandas as gpd
 import pytest
-from shapely.geometry import Polygon
+
+gpd = pytest.importorskip("geopandas")
+pytest.importorskip("shapely")
+from shapely.geometry import Polygon  # noqa: E402
 
 from ingestion.census.shapefiles import (  # noqa: E402
     TYPES,
