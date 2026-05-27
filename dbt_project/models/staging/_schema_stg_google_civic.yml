@@ -1,0 +1,99 @@
+version: 2
+
+models:
+  - name: stg_google_civic__election_record
+    description: |
+      Election-domain records staged from bronze.bronze_elections_scraped — one
+      row per bronze record, discriminated by record_type
+      (election | candidacy | ballot_measure). 1:1 with the bronze landing table
+      written by ingestion.google_civic.officials. Light cleaning + type
+      stabilization only; the c1-promotion id resolution and dedup happen in
+      int_google_civic__election_ids and the election marts.
+    config:
+      contract:
+        enforced: true
+      materialized: view
+    columns:
+      - name: bronze_record_id
+        description: "BIGSERIAL id of the bronze landing row. Unique natural key + surrogate-id fallback."
+        data_type: bigint
+        constraints:
+          - type: not_null
+        tests:
+          - unique
+          - not_null
+      - name: scrape_batch_id
+        description: "UUID (as text) of the scrape run that landed this row."
+        data_type: text
+        tests:
+          - not_null
+      - name: record_type
+        description: "Discriminator: election | candidacy | ballot_measure."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['election', 'candidacy', 'ballot_measure']
+      - name: ocd_id
+        description: "Source-provided stable id; used as the c1 id when it fits VARCHAR(50)."
+        data_type: text
+      - name: election_name
+        data_type: text
+      - name: election_date
+        data_type: date
+      - name: election_type
+        data_type: text
+      - name: election_status
+        data_type: text
+      - name: ocd_jurisdiction_id
+        description: "OCD division id; primary source of the election division id."
+        data_type: text
+      - name: state_code
+        description: "2-letter state code, uppercased."
+        data_type: varchar(2)
+      - name: jurisdiction_id
+        data_type: text
+      - name: candidate_name
+        data_type: text
+      - name: candidate_party
+        data_type: text
+      - name: candidate_post
+        description: "Office/post the candidacy contests; drives contest grouping."
+        data_type: text
+      - name: candidate_status
+        data_type: text
+      - name: candidate_vote_count
+        data_type: bigint
+      - name: candidate_vote_percent
+        data_type: double precision
+      - name: measure_title
+        data_type: text
+      - name: measure_summary
+        data_type: text
+      - name: measure_classification
+        data_type: text
+      - name: measure_yes_count
+        data_type: bigint
+      - name: measure_no_count
+        data_type: bigint
+      - name: measure_outcome
+        data_type: text
+      - name: source_url
+        data_type: text
+      - name: source_name
+        data_type: text
+      - name: parent_election_id
+        description: "Parent civic election id pulled from raw_row->>'election_id' (candidacy / ballot_measure rows)."
+        data_type: text
+      - name: raw_row
+        description: "Original JSONB payload; carries links / sources / parent election id."
+        data_type: jsonb
+      - name: source_ingested_at
+        description: "loaded_at from the bronze landing table."
+        data_type: timestamp with time zone
+      - name: dbt_loaded_at
+        data_type: timestamp with time zone
+        constraints:
+          - type: not_null
