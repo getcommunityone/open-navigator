@@ -1332,7 +1332,7 @@ function DrillPanel({
                     <td className="px-3 py-2 font-mono text-[10px] text-[var(--jmq-text-muted)]">{r.geoid ?? '—'}</td>
                     {variant === 'youtube' ? (
                       <td className="max-w-[14rem] break-all px-3 py-2 font-mono text-[10px] text-[var(--jmq-text-muted)]">
-                        {'primary_website_url' in r && r.primary_website_url ? r.primary_website_url : '—'}
+                        {(r as { primary_website_url?: string | null }).primary_website_url || '—'}
                       </td>
                     ) : null}
                     <td className="px-3 py-2 font-mono text-[10px]">{r.acs_population_tier ?? '—'}</td>
