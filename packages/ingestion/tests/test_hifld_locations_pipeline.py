@@ -1,23 +1,24 @@
-"""Unit tests for the HIFLD locations pipeline refactor."""
+"""Unit tests for the HIFLD locations pipeline refactor (slimmed: RAW landing).
+
+The org_type classification and FIELD_MAP column normalization moved to dbt
+(stg_hifld__location); this loader now only lands the raw HIFLD record into
+bronze.bronze_locations, so the tests assert the raw shape.
+"""
 from __future__ import annotations
 
 import asyncio
-import sys
 from datetime import datetime, timezone
-from pathlib import Path
 
 import pandas as pd
 import pytest
 
 
 from ingestion.hifld.locations import (  # noqa: E402
-    FIELD_MAP,
     HifldLocationsPipeline,
     LocationRow,
-    _opt_float,
+    _jsonable,
+    _raw_source_id,
     _truncate,
-    map_organization_type,
-    normalize_field_names,
 )
 from core_lib.pipeline.schemas import PipelineContext  # noqa: E402
 
@@ -37,58 +38,46 @@ def test_truncate_handles_none_nan_and_not_available():
     assert _truncate("", 10) is None
 
 
-def test_opt_float_handles_invalid_inputs():
-    assert _opt_float("3.14") == 3.14
-    assert _opt_float(2) == 2.0
-    assert _opt_float(None) is None
-    assert _opt_float(float("nan")) is None
-    assert _opt_float("garbage") is None
+def test_jsonable_coerces_cells():
+    assert _jsonable(None) is None
+    assert _jsonable(float("nan")) is None
+    assert _jsonable("x") == "x"
+    assert _jsonable(3) == 3
+    assert _jsonable(pd.Timestamp("2020-01-01")) == "2020-01-01 00:00:00"
 
 
-def test_map_organization_type_dispatches_on_dataset_name():
-    assert map_organization_type("Hospitals.parquet", {}) == "hospital"
-    assert map_organization_type("Schools", {}) == "school"
-    assert map_organization_type("Worship", {}) == "place_of_worship"
-    assert map_organization_type("Fire_Stations", {}) == "fire_station"
-    assert map_organization_type("Government", {}) == "government_building"
-    assert map_organization_type("Unknown", {}) == "other"
-
-
-def test_map_organization_type_uses_row_TYPE_for_law_enforcement():
-    assert map_organization_type("Law_Enforcement", {"TYPE": "State Police"}) == "state_police"
-    assert map_organization_type("Law_Enforcement", {}) == "law_enforcement"
-
-
-def test_normalize_field_names_renames_known_columns():
-    df = pd.DataFrame({"FACNAME": ["x"], "ZIP_CODE": ["12345"], "LAT": [34.0], "LON": [-118.0], "OTHER": [1]})
-    n = normalize_field_names(df)
-    assert "name" in n.columns
-    assert "zip" in n.columns
-    assert "latitude" in n.columns
-    assert "longitude" in n.columns
-    assert "OTHER" in n.columns  # unknown column unchanged
-
-
-def test_field_map_covers_common_variants():
-    for canonical in ("name", "address", "city", "state", "zip", "county",
-                      "latitude", "longitude", "telephone", "website", "source_id"):
-        assert canonical in FIELD_MAP.values()
+def test_raw_source_id_picks_first_candidate_case_insensitive():
+    assert _raw_source_id({"OBJECTID": 101}) == "101"
+    assert _raw_source_id({"fid": 7}) == "7"  # case-insensitive
+    assert _raw_source_id({"FACILITY_ID": "abc"}) == "abc"
+    # FID wins over OBJECTID (candidate order)
+    assert _raw_source_id({"OBJECTID": 2, "FID": 9}) == "9"
+    assert _raw_source_id({"NAME": "x"}) is None
 
 
 # -- pipeline shape --------------------------------------------------------
 
-def test_location_row_requires_organization_type_and_source_dataset():
+def test_location_row_requires_source_dataset_and_raw_record():
     r = LocationRow(
         source="hifld", source_version="Hospitals", natural_key="Hospitals:42",
-        source_id="42", name="General Hospital", organization_type="hospital",
-        source_dataset="Hospitals",
+        source_id="42", source_dataset="Hospitals",
+        raw_record={"FACNAME": "General Hospital"},
     )
-    assert r.organization_type == "hospital"
+    assert r.source_dataset == "Hospitals"
+    assert r.raw_record == {"FACNAME": "General Hospital"}
 
+    # empty raw_record is rejected
     with pytest.raises(Exception):
         LocationRow(
             source="hifld", source_version="x", natural_key="x:1",
-            organization_type="", source_dataset="x",
+            source_dataset="x", raw_record={},
+        )
+
+    # missing source_dataset is rejected
+    with pytest.raises(Exception):
+        LocationRow(
+            source="hifld", source_version="x", natural_key="x:1",
+            raw_record={"NAME": "y"},
         )
 
 
@@ -99,7 +88,7 @@ def test_pipeline_metadata():
     assert p.row_schema is LocationRow
 
 
-def test_extract_reads_parquet_and_yields_validated_rows(tmp_path):
+def test_extract_lands_raw_records(tmp_path):
     df = pd.DataFrame({
         "FACNAME": ["St. Mary Hospital", "City Clinic"],
         "ADDRESS": ["1 Main St", "2 Elm St"],
@@ -109,13 +98,12 @@ def test_extract_reads_parquet_and_yields_validated_rows(tmp_path):
         "LAT": [42.36, 42.37],
         "LON": [-71.06, -71.10],
         "OBJECTID": [101, 102],
-        # extra fields not in STANDARD_FIELDS — should land in additional_info
         "STATUS": ["OPEN", "OPEN"],
     })
     parquet = tmp_path / "Hospitals.parquet"
     df.to_parquet(parquet)
 
-    p = HifldLocationsPipeline(parquet_file=parquet, org_type_override="hospital")
+    p = HifldLocationsPipeline(parquet_file=parquet)
 
     async def collect():
         return [r async for r in p.extract(_ctx())]
@@ -123,12 +111,17 @@ def test_extract_reads_parquet_and_yields_validated_rows(tmp_path):
     extracted = asyncio.run(collect())
     assert len(extracted) == 2
     first = extracted[0]
-    assert first["name"] == "St. Mary Hospital"
-    assert first["organization_type"] == "hospital"
-    assert first["state"] == "MA"
+    # Raw, un-normalized: original column names preserved verbatim in raw_record.
+    assert first["source_dataset"] == "Hospitals"
     assert first["source_id"] == "101"
-    assert first["additional_info"] == {"STATUS": "OPEN"}
-    # All extracted rows must validate
+    assert first["natural_key"] == "Hospitals:101"
+    assert first["raw_record"]["FACNAME"] == "St. Mary Hospital"
+    assert first["raw_record"]["STATE"] == "MA"
+    assert first["raw_record"]["STATUS"] == "OPEN"
+    # No derived columns leaked into the raw landing.
+    assert "organization_type" not in first
+    assert "name" not in first
+    # All extracted rows must validate.
     for raw in extracted:
         row_obj = p.validate(raw)
         assert row_obj is not None
