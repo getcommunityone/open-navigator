@@ -3,8 +3,8 @@
 Load Pa11y-CI or axe-core NDJSON/JSON results into ``bronze.bronze_jurisdiction_website_accessibility``.
 
 Usage:
-  .venv/bin/python -m scripts.accessibility.persist_results --ensure-ddl
-  .venv/bin/python -m scripts.accessibility.persist_results \\
+  .venv/bin/python -m accessibility.persist_results --ensure-ddl
+  .venv/bin/python -m accessibility.persist_results \\
       --input data/cache/accessibility/results-axe.ndjson --scanner axe
 """
 from __future__ import annotations
@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, Iterator, List, Optional
 
-_ROOT = Path(__file__).resolve().parents[2]
+_ROOT = Path(__file__).resolve().parents[4]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
@@ -31,7 +31,7 @@ except ModuleNotFoundError as exc:
     print("Install psycopg2-binary: pip install -r requirements.txt", file=sys.stderr)
     sys.exit(1)
 
-from scripts.accessibility._int_websites import BRONZE_ACCESSIBILITY_TABLE
+from accessibility._int_websites import BRONZE_ACCESSIBILITY_TABLE
 from scripts.database.target_database_url import resolve_target_database_url
 
 _DDL_PATH = Path(__file__).resolve().parent / "sql" / "bronze_jurisdiction_website_accessibility.sql"

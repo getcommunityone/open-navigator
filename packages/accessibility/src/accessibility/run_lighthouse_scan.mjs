@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Lighthouse (Chrome Launcher) batch runner for jurisdiction homepages.
- * Writes NDJSON for scripts.accessibility.persist_lighthouse_results.
+ * Writes NDJSON for accessibility.persist_lighthouse_results.
  *
  * Reuse the **same urls.json batch_id** as axe so rows join in
  * public.v_jurisdiction_audits_axe_lighthouse.
@@ -244,7 +244,7 @@ async function main() {
 
   console.log(`Wrote NDJSON to ${outPath}`);
   console.log(
-    `Persist: python -m scripts.accessibility.persist_lighthouse_results --ensure-ddl --input ${outPath}`
+    `Persist: python -m accessibility.persist_lighthouse_results --ensure-ddl --input ${outPath}`
   );
 }
 

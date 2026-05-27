@@ -3,7 +3,7 @@
 Load veraPDF NDJSON into ``bronze.bronze_jurisdiction_pdf_verapdf``.
 
 Usage:
-  .venv/bin/python -m scripts.accessibility.persist_verapdf_results --ensure-ddl \\
+  .venv/bin/python -m accessibility.persist_verapdf_results --ensure-ddl \\
       --input data/cache/accessibility/verapdf-<batch>.ndjson
 """
 from __future__ import annotations
@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterator, List
 
-_ROOT = Path(__file__).resolve().parents[2]
+_ROOT = Path(__file__).resolve().parents[4]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 

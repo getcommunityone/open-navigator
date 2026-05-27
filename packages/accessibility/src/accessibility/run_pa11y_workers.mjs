@@ -199,7 +199,7 @@ async function main() {
     JSON.stringify({ batch_id: batchId, results: merged }, null, 2)
   );
   console.log(`Wrote ${merged.length} result(s) to ${mergedPath}`);
-  console.log(`Persist: python -m scripts.accessibility.persist_results --scanner pa11y --input ${mergedPath}`);
+  console.log(`Persist: python -m accessibility.persist_results --scanner pa11y --input ${mergedPath}`);
 }
 
 main().catch((err) => {

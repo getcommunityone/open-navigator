@@ -17,17 +17,17 @@ Engines:
 
 - Postgres with `intermediate.int_jurisdiction_websites` built
 - Python deps: `pip install -r requirements.txt`
-- Node 18+ in `scripts/accessibility/`:
+- Node 18+ in `packages/accessibility/src/accessibility/`:
 
 ```bash
-cd scripts/accessibility && npm install
+cd packages/accessibility/src/accessibility && npm install
 npx puppeteer browsers install chrome   # axe / Pa11y need Chromium
 ```
 
 ## Quick start (one state)
 
 ```bash
-./scripts/accessibility/run_accessibility_scan.sh --engine axe --state AL
+./packages/accessibility/src/accessibility/run_accessibility_scan.sh --engine axe --state AL
 ```
 
 This exports URLs → runs axe with default concurrency 5 → upserts bronze rows.
@@ -37,21 +37,21 @@ This exports URLs → runs axe with default concurrency 5 → upserts bronze row
 ### 1. Export URL manifest (one row per `jurisdiction_id`)
 
 ```bash
-.venv/bin/python -m scripts.accessibility.export_urls --state AL \
+.venv/bin/python -m accessibility.export_urls --state AL \
   --out data/cache/accessibility/urls-al.json
 ```
 
 Sharding for large batches (Lambda / parallel hosts):
 
 ```bash
-.venv/bin/python -m scripts.accessibility.export_urls --limit 50 --offset 0 --batch-id shard-0
-.venv/bin/python -m scripts.accessibility.export_urls --limit 50 --offset 50 --batch-id shard-1
+.venv/bin/python -m accessibility.export_urls --limit 50 --offset 0 --batch-id shard-0
+.venv/bin/python -m accessibility.export_urls --limit 50 --offset 50 --batch-id shard-1
 ```
 
 ### 2a. axe-core + Puppeteer
 
 ```bash
-cd scripts/accessibility
+cd packages/accessibility/src/accessibility
 AXE_CONCURRENCY=10 node run_axe_scan.mjs \
   --urls ../../data/cache/accessibility/urls-al.json
 ```
@@ -59,7 +59,7 @@ AXE_CONCURRENCY=10 node run_axe_scan.mjs \
 ### 2b. Pa11y-CI (parallel chunks)
 
 ```bash
-cd scripts/accessibility
+cd packages/accessibility/src/accessibility
 PA11YCI_CONCURRENCY=8 WORKER_POOL_SIZE=6 WORKER_CHUNK_SIZE=25 \
   node run_pa11y_workers.mjs --urls ../../data/cache/accessibility/urls-al.json
 ```
@@ -71,7 +71,7 @@ Runs **sequentially on one Chrome** per process (heavy). Scale with **Export sha
 From the **repository root**:
 
 ```bash
-cd scripts/accessibility
+cd packages/accessibility/src/accessibility
 # Optional: LIGHTHOUSE_CATEGORIES=accessibility,performance,best-practices
 node run_lighthouse_scan.mjs --urls ../../data/cache/accessibility/urls-al.json
 ```
@@ -79,13 +79,13 @@ node run_lighthouse_scan.mjs --urls ../../data/cache/accessibility/urls-al.json
 ### 3. Persist to Postgres
 
 ```bash
-.venv/bin/python -m scripts.accessibility.persist_results --ensure-ddl \
+.venv/bin/python -m accessibility.persist_results --ensure-ddl \
   --scanner axe --input data/cache/accessibility/axe-<batch>.ndjson
 
-.venv/bin/python -m scripts.accessibility.persist_results --ensure-ddl \
+.venv/bin/python -m accessibility.persist_results --ensure-ddl \
   --scanner pa11y --input data/cache/accessibility/pa11y-<batch>/pa11y-results-merged.json
 
-.venv/bin/python -m scripts.accessibility.persist_lighthouse_results --ensure-ddl \
+.venv/bin/python -m accessibility.persist_lighthouse_results --ensure-ddl \
   --input data/cache/accessibility/lighthouse-<batch>.ndjson
 ```
 
@@ -117,7 +117,7 @@ LIMIT 50;
 ## Scale (~20k sites)
 
 - **Local**: raise `AXE_CONCURRENCY` or `PA11YCI_CONCURRENCY` + `WORKER_POOL_SIZE`; export in shards (`--limit` / `--offset`).
-- **Lambda**: use `scripts/accessibility/lambda_handler.py` — fan out Step Functions with `{ "offset": N, "limit": 50, "engine": "axe" }` per invocation. Use a **container image** with Chromium; 10–50 URLs per function finishes the full batch in minutes.
+- **Lambda**: use `packages/accessibility/src/accessibility/lambda_handler.py` — fan out Step Functions with `{ "offset": N, "limit": 50, "engine": "axe" }` per invocation. Use a **container image** with Chromium; 10–50 URLs per function finishes the full batch in minutes.
 - **Worker pool**: `run_pa11y_workers.mjs` already spawns multiple `pa11y-ci` child processes; axe uses an in-process concurrency pool.
 - **Lighthouse**: one Chrome instance per runner, **sequential** URL audits (`run_lighthouse_scan.mjs`). Scale horizontally with **`export_urls` shards** + `{ "engine": "lighthouse" }` in `lambda_handler.py`. Run **after** axe on the same manifest if you want fewer wasted Lighthouse runs on dead URLs (or run both in parallel shards if rate limits allow).
 
@@ -176,14 +176,14 @@ Open-source CLI validator for **machine-verifiable** PDF accessibility. Discover
 ### Quick start
 
 ```bash
-./scripts/accessibility/run_verapdf_scan.sh --state AL --max-pdfs-per-site 3
+./packages/accessibility/src/accessibility/run_verapdf_scan.sh --state AL --max-pdfs-per-site 3
 ```
 
 Or step-by-step:
 
 ```bash
 # 1. Crawl homepages for PDF links
-.venv/bin/python -m scripts.accessibility.export_pdf_urls --state AL \
+.venv/bin/python -m accessibility.export_pdf_urls --state AL \
   --out data/cache/accessibility/pdf-urls-al.json
 
 # 2. Validate (Docker wraps veraPDF by default)
@@ -194,18 +194,18 @@ VERAPDF_FLAVOURS=ua1 docker run --rm \
 
 # Local (veraPDF installed on host):
 VERAPDF_USE_DOCKER=false VERAPDF_BIN=verapdf \
-  .venv/bin/python -m scripts.accessibility.run_verapdf_scan \
+  .venv/bin/python -m accessibility.run_verapdf_scan \
   --manifest data/cache/accessibility/pdf-urls-al.json
 
 # 3. Persist
-.venv/bin/python -m scripts.accessibility.persist_verapdf_results --ensure-ddl \
+.venv/bin/python -m accessibility.persist_verapdf_results --ensure-ddl \
   --input data/cache/accessibility/verapdf-<batch>.ndjson
 ```
 
 ### Docker worker (Lambda-friendly)
 
 ```bash
-docker build -f scripts/accessibility/docker/Dockerfile.verapdf-worker -t open-navigator/verapdf-worker .
+docker build -f packages/accessibility/src/accessibility/docker/Dockerfile.verapdf-worker -t open-navigator/verapdf-worker .
 docker compose -f docker-compose.verapdf.example.yml run --rm verapdf-worker --state AL --limit 50
 ```
 

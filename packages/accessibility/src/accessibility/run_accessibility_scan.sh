@@ -2,18 +2,18 @@
 # Export int_jurisdiction_websites URLs → run axe / Pa11y / Lighthouse → persist to Postgres bronze.
 #
 # Examples:
-#   ./scripts/accessibility/run_accessibility_scan.sh --engine axe --state AL
-#   ./scripts/accessibility/run_accessibility_scan.sh --engine pa11y --limit 500
-#   ./scripts/accessibility/run_accessibility_scan.sh --engine lighthouse --state AL
-#   PA11YCI_CONCURRENCY=10 WORKER_POOL_SIZE=6 ./scripts/accessibility/run_accessibility_scan.sh --engine pa11y
+#   ./packages/accessibility/src/accessibility/run_accessibility_scan.sh --engine axe --state AL
+#   ./packages/accessibility/src/accessibility/run_accessibility_scan.sh --engine pa11y --limit 500
+#   ./packages/accessibility/src/accessibility/run_accessibility_scan.sh --engine lighthouse --state AL
+#   PA11YCI_CONCURRENCY=10 WORKER_POOL_SIZE=6 ./packages/accessibility/src/accessibility/run_accessibility_scan.sh --engine pa11y
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 ROOT="$SCRIPT_DIR"
-while [[ "$ROOT" != "/" && ! -f "$ROOT/scripts/accessibility/export_urls.py" ]]; do
+while [[ "$ROOT" != "/" && ! -f "$ROOT/packages/accessibility/src/accessibility/export_urls.py" ]]; do
   ROOT="$(dirname "$ROOT")"
 done
-if [[ ! -f "$ROOT/scripts/accessibility/export_urls.py" ]]; then
+if [[ ! -f "$ROOT/packages/accessibility/src/accessibility/export_urls.py" ]]; then
   echo "error: could not find open-navigator repo root from $SCRIPT_DIR" >&2
   exit 1
 fi
@@ -57,11 +57,11 @@ else
   exit 1
 fi
 
-ACC_DIR="$ROOT/scripts/accessibility"
+ACC_DIR="$ROOT/packages/accessibility/src/accessibility"
 mkdir -p "$(dirname "$URLS_FILE")"
 
 if [[ "$SKIP_EXPORT" -eq 0 ]]; then
-  EXPORT_ARGS=( -m scripts.accessibility.export_urls --out "$URLS_FILE" )
+  EXPORT_ARGS=( -m accessibility.export_urls --out "$URLS_FILE" )
   [[ -n "$STATE" ]] && EXPORT_ARGS+=( --state "$STATE" )
   [[ -n "$LIMIT" ]] && EXPORT_ARGS+=( --limit "$LIMIT" )
   [[ "$OFFSET" -gt 0 ]] && EXPORT_ARGS+=( --offset "$OFFSET" )
@@ -108,11 +108,11 @@ esac
 
 if [[ "$SKIP_PERSIST" -eq 0 ]]; then
   if [[ "$ENGINE" == "lighthouse" ]]; then
-    "$PY" -m scripts.accessibility.persist_lighthouse_results \
+    "$PY" -m accessibility.persist_lighthouse_results \
       --input "$RESULT_FILE" \
       --ensure-ddl
   else
-    "$PY" -m scripts.accessibility.persist_results \
+    "$PY" -m accessibility.persist_results \
       --scanner "$ENGINE" \
       --input "$RESULT_FILE" \
       --ensure-ddl
