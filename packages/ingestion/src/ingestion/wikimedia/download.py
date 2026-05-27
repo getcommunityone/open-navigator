@@ -1,6 +1,10 @@
-#!/usr/bin/env python3
-"""
-Download U.S. state silhouette SVGs from Wikimedia Commons into ``data/cache/wikimedia/``.
+"""Download U.S. state silhouette SVGs from Wikimedia Commons into ``data/cache/wikimedia/``.
+
+Ported from scripts/wikimedia/download_state_silhouettes.py to
+core_lib.http.BaseAsyncClient (retries, rate limiting, structured logs). This
+module is DOWNLOAD-ONLY; the frontend-publish sync (scripts/frontend/sync_*.sh)
+stays out of scope. The pure title-resolution / validation helpers are preserved
+verbatim from the original script.
 
 For each state we fetch **both** Commons variants when available:
 
@@ -12,32 +16,44 @@ For each state we fetch **both** Commons variants when available:
 ``{USPS}_silhouette.svg`` is a copy of the locator file when present, else the state
 outline, for backward compatibility with older sync paths.
 
-Usage (repo root):
+Two Commons hosts are fetched, both via the BaseAsyncClient with absolute URLs:
+  * ``https://commons.wikimedia.org/w/api.php`` — imageinfo JSON queries.
+  * ``https://upload.wikimedia.org/...`` — the SVG bytes (absolute ``url`` from imageinfo).
 
-  python3 scripts/wikimedia/download_state_silhouettes.py
-  python3 scripts/wikimedia/download_state_silhouettes.py --only GA TX
-  python3 scripts/wikimedia/download_state_silhouettes.py --dry-run
-  python3 scripts/wikimedia/download_state_silhouettes.py --us-only
+Usage:
+    python -m ingestion.wikimedia.download
+    python -m ingestion.wikimedia.download --only GA TX
+    python -m ingestion.wikimedia.download --dry-run
+    python -m ingestion.wikimedia.download --us-only
+    python -m ingestion.wikimedia.download --force
 """
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import re
 import shutil
-import sys
-import time
-import urllib.error
 import urllib.parse
-import urllib.request
+from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+from loguru import logger
+
+from core_lib.http import BaseAsyncClient, HttpClientConfig
+from core_lib.logging import setup_logging
+
 
 UA = (
     "Mozilla/5.0 (compatible; OpenNavigatorWikiSilhouettes/1.0; "
     "+https://github.com/getcommunityone/open-navigator-for-engagement)"
 )
+_COMMONS_BASE_URL = "https://commons.wikimedia.org"
 COMMONS_API = "https://commons.wikimedia.org/w/api.php"
+
+CACHE_DIR = Path("data/cache/wikimedia")
+_MAX_CACHE_AGE_S = 7 * 24 * 60 * 60  # reuse a cache file younger than 7 days
 
 # National default for hero when no state is selected (not a USPS code).
 US_SILHOUETTE_COMMONS = "File:United States of America.svg"
@@ -109,28 +125,9 @@ _BAD_SUBSTR = frozenset(
 )
 
 
-def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[2]
-
-
-def _commons_api_get(params: dict[str, Any], sleep_s: float) -> dict[str, Any]:
-    time.sleep(sleep_s)
-    url = COMMONS_API + "?" + urllib.parse.urlencode(params)
-    req = urllib.request.Request(
-        url,
-        headers={"User-Agent": UA, "Accept": "application/json"},
-    )
-    for attempt in range(6):
-        try:
-            with urllib.request.urlopen(req, timeout=120) as resp:
-                return json.loads(resp.read().decode("utf-8"))
-        except urllib.error.HTTPError as exc:
-            if exc.code == 429 and attempt < 5:
-                time.sleep(3.0 + attempt * 2.0)
-                continue
-            raise
-    raise RuntimeError("unreachable")
-
+# ---------------------------------------------------------------------------
+# Pure helpers (preserved verbatim from the original script)
+# ---------------------------------------------------------------------------
 
 def _slug(title: str) -> str:
     return re.sub(r"\s+", "_", title.strip())
@@ -151,48 +148,6 @@ def _is_valid_silhouette(file_title: str, info: dict[str, Any]) -> bool:
     if expected not in url and expected not in desc:
         return False
     return True
-
-
-def _imageinfo_for_titles(
-    titles: list[str],
-    sleep_s: float,
-) -> dict[str, dict[str, Any]]:
-    out: dict[str, dict[str, Any]] = {}
-    for i in range(0, len(titles), 40):
-        chunk = titles[i : i + 40]
-        data = _commons_api_get(
-            {
-                "action": "query",
-                "format": "json",
-                "redirects": "1",
-                "prop": "imageinfo",
-                "titles": "|".join(chunk),
-                "iiprop": "url|timestamp|mime|descriptionurl",
-            },
-            sleep_s if i == 0 else 0.85,
-        )
-        pages = data.get("query", {}).get("pages", {})
-        for _pid, page in pages.items():
-            if page.get("missing"):
-                continue
-            ii = (page.get("imageinfo") or [None])[0]
-            if ii:
-                out[page["title"]] = {**ii, "_page_title": page["title"]}
-        for redirect in data.get("query", {}).get("redirects", []):
-            src = redirect.get("from")
-            dst = redirect.get("to")
-            if src and dst and dst in out and src not in out:
-                out[src] = out[dst]
-    return out
-
-
-def _commons_fetch_binary(url: str, referer: str) -> bytes:
-    req = urllib.request.Request(
-        url,
-        headers={"User-Agent": UA, "Accept": "*/*", "Referer": referer},
-    )
-    with urllib.request.urlopen(req, timeout=120) as resp:
-        return resp.read()
 
 
 def _resolve_locator_title(
@@ -226,10 +181,7 @@ def _variant_meta(
     body_len: int | None = None,
     dry_run: bool = False,
 ) -> dict[str, Any]:
-    referer = info.get("descriptionurl") or (
-        "https://commons.wikimedia.org/wiki/"
-        + urllib.parse.quote(file_title.replace(" ", "_"))
-    )
+    referer = _referer_for(file_title, info)
     meta: dict[str, Any] = {
         "commons_title": file_title.replace("File:", ""),
         "commons_url": referer,
@@ -245,7 +197,84 @@ def _variant_meta(
     return meta
 
 
-def _download_variant(
+def _referer_for(file_title: str, info: dict[str, Any]) -> str:
+    return info.get("descriptionurl") or (
+        "https://commons.wikimedia.org/wiki/"
+        + urllib.parse.quote(file_title.replace(" ", "_"))
+    )
+
+
+def _is_fresh(path: Path) -> bool:
+    return path.exists() and (datetime.now().timestamp() - path.stat().st_mtime) < _MAX_CACHE_AGE_S
+
+
+# ---------------------------------------------------------------------------
+# HTTP client (BaseAsyncClient subclass)
+# ---------------------------------------------------------------------------
+
+class WikimediaSilhouettesClient(BaseAsyncClient):
+    """BaseAsyncClient for the Commons imageinfo API + upload.wikimedia.org bytes.
+
+    base_url is the commons.wikimedia.org host; the imageinfo API endpoint and the
+    upload.wikimedia.org binary URLs are different paths/hosts, so all requests
+    pass absolute URLs to ``get()``. The rate limiter throttles the per-file loop.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            HttpClientConfig(
+                base_url=_COMMONS_BASE_URL,
+                source="wikimedia",
+                timeout_s=120.0,
+                rate_limit_per_sec=2.0,  # courteous throttle across many asset fetches
+                rate_limit_burst=2,
+                default_headers={"User-Agent": UA, "Accept": "*/*"},
+            )
+        )
+
+    async def imageinfo_for_titles(self, titles: list[str]) -> dict[str, dict[str, Any]]:
+        """Resolve imageinfo (url/mime/timestamp) for Commons file titles, chunked by 40."""
+        out: dict[str, dict[str, Any]] = {}
+        for i in range(0, len(titles), 40):
+            chunk = titles[i : i + 40]
+            resp = await self.get(
+                COMMONS_API,
+                params={
+                    "action": "query",
+                    "format": "json",
+                    "redirects": "1",
+                    "prop": "imageinfo",
+                    "titles": "|".join(chunk),
+                    "iiprop": "url|timestamp|mime|descriptionurl",
+                },
+                headers={"Accept": "application/json"},
+            )
+            data = resp.json()
+            pages = data.get("query", {}).get("pages", {})
+            for _pid, page in pages.items():
+                if page.get("missing"):
+                    continue
+                ii = (page.get("imageinfo") or [None])[0]
+                if ii:
+                    out[page["title"]] = {**ii, "_page_title": page["title"]}
+            for redirect in data.get("query", {}).get("redirects", []):
+                src = redirect.get("from")
+                dst = redirect.get("to")
+                if src and dst and dst in out and src not in out:
+                    out[src] = out[dst]
+        return out
+
+    async def fetch_binary(self, url: str, referer: str) -> bytes:
+        resp = await self.get(url, headers={"Referer": referer})
+        return resp.content
+
+
+# ---------------------------------------------------------------------------
+# Download orchestration + cache freshness (mirrors ingestion.gsa.download)
+# ---------------------------------------------------------------------------
+
+async def _download_variant(
+    client: WikimediaSilhouettesClient,
     out_dir: Path,
     *,
     usps: str,
@@ -253,89 +282,88 @@ def _download_variant(
     info: dict[str, Any],
     strategy: str,
     local_name: str,
+    force: bool,
     dry_run: bool,
-) -> dict[str, Any] | None:
-    url = info["url"]
-    referer = info.get("descriptionurl") or (
-        "https://commons.wikimedia.org/wiki/"
-        + urllib.parse.quote(file_title.replace(" ", "_"))
-    )
+) -> tuple[dict[str, Any] | None, Path | None]:
     dest = out_dir / local_name
+    bound = logger.bind(source="wikimedia", usps=usps)
 
     if dry_run:
-        print(
-            f"  {usps}: would download {file_title.replace('File:', '')} "
-            f"-> {local_name} ({strategy})"
-        )
-        return _variant_meta(
-            file_title,
-            info,
-            strategy=strategy,
-            local_file=local_name,
-            dry_run=True,
+        bound.info(f"would download {file_title.replace('File:', '')} -> {local_name} ({strategy})")
+        return (
+            _variant_meta(file_title, info, strategy=strategy, local_file=local_name, dry_run=True),
+            None,
         )
 
+    if not force and _is_fresh(dest):
+        bound.info(f"cache_hit {dest}")
+        return (
+            _variant_meta(file_title, info, strategy=strategy, local_file=local_name,
+                          body_len=dest.stat().st_size),
+            dest,
+        )
+
+    referer = _referer_for(file_title, info)
     try:
-        body = _commons_fetch_binary(url, referer)
+        body = await client.fetch_binary(info["url"], referer)
         dest.write_bytes(body)
     except Exception as exc:  # noqa: BLE001
-        print(f"  {usps}: FAIL {local_name} ({exc})", file=sys.stderr)
-        return None
+        bound.warning(f"FAIL {local_name} ({exc})")
+        return None, None
 
-    print(
-        f"  {usps}: {file_title.replace('File:', '')} -> {local_name} ({strategy})"
-    )
-    return _variant_meta(
-        file_title,
-        info,
-        strategy=strategy,
-        local_file=local_name,
-        body_len=len(body),
+    bound.info(f"{file_title.replace('File:', '')} -> {local_name} ({strategy})")
+    return (
+        _variant_meta(file_title, info, strategy=strategy, local_file=local_name, body_len=len(body)),
+        dest,
     )
 
 
-def download_us_silhouette(
+async def download_us_silhouette(
+    client: WikimediaSilhouettesClient,
     out_dir: Path,
-    sleep_s: float,
+    *,
+    force: bool,
     dry_run: bool,
-) -> bool:
+) -> Path | None:
     """Download the contiguous + AK/HI U.S. outline used as the national hero default."""
     out_dir.mkdir(parents=True, exist_ok=True)
-    infos = _imageinfo_for_titles([US_SILHOUETTE_COMMONS], sleep_s)
-    info = infos.get(US_SILHOUETTE_COMMONS)
-    if not info or info.get("mime") != "image/svg+xml":
-        print(f"  US: SKIP ({US_SILHOUETTE_COMMONS} not found)", file=sys.stderr)
-        return False
-
-    url = info["url"]
-    referer = info.get("descriptionurl") or (
-        "https://commons.wikimedia.org/wiki/"
-        + urllib.parse.quote(US_SILHOUETTE_COMMONS.replace(" ", "_"))
-    )
+    bound = logger.bind(source="wikimedia", usps="US")
     dest = out_dir / US_SILHOUETTE_LOCAL
 
-    if dry_run:
-        print(f"  US: would download {US_SILHOUETTE_COMMONS} -> {US_SILHOUETTE_LOCAL}")
-        return True
+    if not dry_run and not force and _is_fresh(dest):
+        bound.info(f"cache_hit {dest}")
+        return dest
 
+    infos = await client.imageinfo_for_titles([US_SILHOUETTE_COMMONS])
+    info = infos.get(US_SILHOUETTE_COMMONS)
+    if not info or info.get("mime") != "image/svg+xml":
+        bound.warning(f"SKIP ({US_SILHOUETTE_COMMONS} not found)")
+        return None
+
+    if dry_run:
+        bound.info(f"would download {US_SILHOUETTE_COMMONS} -> {US_SILHOUETTE_LOCAL}")
+        return None
+
+    referer = _referer_for(US_SILHOUETTE_COMMONS, info)
     try:
-        body = _commons_fetch_binary(url, referer)
+        body = await client.fetch_binary(info["url"], referer)
         dest.write_bytes(body)
     except Exception as exc:  # noqa: BLE001
-        print(f"  US: FAIL ({exc})", file=sys.stderr)
-        return False
+        bound.warning(f"FAIL ({exc})")
+        return None
 
-    print(f"  US: {US_SILHOUETTE_COMMONS.replace('File:', '')} -> {US_SILHOUETTE_LOCAL}")
-    time.sleep(sleep_s)
-    return True
+    bound.info(f"{US_SILHOUETTE_COMMONS.replace('File:', '')} -> {US_SILHOUETTE_LOCAL}")
+    return dest
 
 
-def download_state_silhouettes(
+async def download_state_silhouettes(
+    client: WikimediaSilhouettesClient,
     out_dir: Path,
-    sleep_s: float,
+    *,
     only_usps: set[str] | None,
+    force: bool,
     dry_run: bool,
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], list[Path]]:
     out_dir.mkdir(parents=True, exist_ok=True)
     selected = [(c, n) for c, n in STATES if only_usps is None or c in only_usps]
 
@@ -351,14 +379,16 @@ def download_state_silhouettes(
             seen.add(t)
             unique_titles.append(t)
 
-    print(f"Resolving {len(unique_titles)} Commons file title(s)...")
-    infos = _imageinfo_for_titles(unique_titles, sleep_s)
+    bound = logger.bind(source="wikimedia")
+    bound.info(f"Resolving {len(unique_titles)} Commons file title(s)...")
+    infos = await client.imageinfo_for_titles(unique_titles)
 
     manifest: dict[str, Any] = {
         "source": "Wikimedia Commons",
         "default_variant": "locator",
         "files": {},
     }
+    written: list[Path] = []
     ok = 0
     for usps, name in selected:
         entry: dict[str, Any] = {"state_name": name, "variants": {}}
@@ -368,40 +398,32 @@ def download_state_silhouettes(
         if not locator_resolved and not state_resolved:
             entry["error"] = "No suitable silhouette SVG found on Commons."
             manifest["files"][usps] = entry
-            print(f"  {usps}: SKIP (no file)", file=sys.stderr)
+            bound.warning(f"{usps}: SKIP (no file)")
             continue
 
         if locator_resolved:
             file_title, strategy = locator_resolved
-            meta = _download_variant(
-                out_dir,
-                usps=usps,
-                file_title=file_title,
-                info=infos[file_title],
-                strategy=strategy,
-                local_name=f"{usps}_silhouette_locator.svg",
-                dry_run=dry_run,
+            meta, path = await _download_variant(
+                client, out_dir, usps=usps, file_title=file_title, info=infos[file_title],
+                strategy=strategy, local_name=f"{usps}_silhouette_locator.svg",
+                force=force, dry_run=dry_run,
             )
             if meta:
                 entry["variants"]["locator"] = meta
-                if not dry_run:
-                    time.sleep(sleep_s)
+            if path:
+                written.append(path)
 
         if state_resolved:
             file_title, strategy = state_resolved
-            meta = _download_variant(
-                out_dir,
-                usps=usps,
-                file_title=file_title,
-                info=infos[file_title],
-                strategy=strategy,
-                local_name=f"{usps}_silhouette_state.svg",
-                dry_run=dry_run,
+            meta, path = await _download_variant(
+                client, out_dir, usps=usps, file_title=file_title, info=infos[file_title],
+                strategy=strategy, local_name=f"{usps}_silhouette_state.svg",
+                force=force, dry_run=dry_run,
             )
             if meta:
                 entry["variants"]["state"] = meta
-                if not dry_run:
-                    time.sleep(sleep_s)
+            if path:
+                written.append(path)
 
         if not entry["variants"]:
             entry["error"] = "Download failed for all variants."
@@ -421,38 +443,62 @@ def download_state_silhouettes(
             legacy = out_dir / f"{usps}_silhouette.svg"
             shutil.copy2(out_dir / default_local, legacy)
             entry["legacy_local_file"] = legacy.name
+            written.append(legacy)
 
         manifest["files"][usps] = entry
         ok += 1
 
-    manifest_path = out_dir / "_manifest.json"
     if not dry_run:
+        manifest_path = out_dir / "_manifest.json"
         manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-        print(f"Wrote {manifest_path}")
+        written.append(manifest_path)
+        bound.info(f"Wrote {manifest_path}")
 
-    print(f"Done: {ok}/{len(selected)} state silhouette(s)")
-    return manifest
+    bound.info(f"Done: {ok}/{len(selected)} state silhouette(s)")
+    return manifest, written
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--out",
-        type=Path,
-        default=_repo_root() / "data/cache/wikimedia",
-        help="Output directory (default: data/cache/wikimedia)",
+async def download(
+    *,
+    force: bool = False,
+    only: set[str] | None = None,
+    dry_run: bool = False,
+    us_only: bool = False,
+    no_us: bool = False,
+) -> list[Path]:
+    """Fetch state silhouette SVGs into the wikimedia cache; reuse fresh files unless force.
+
+    Returns the list of cache file Paths written (or reused). Mirrors the
+    ingestion.gsa.download cache-freshness contract, per file.
+    """
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    written: list[Path] = []
+    async with WikimediaSilhouettesClient() as client:
+        if us_only:
+            path = await download_us_silhouette(client, CACHE_DIR, force=force, dry_run=dry_run)
+            if path:
+                written.append(path)
+            return written
+        if not no_us:
+            path = await download_us_silhouette(client, CACHE_DIR, force=force, dry_run=dry_run)
+            if path:
+                written.append(path)
+        _manifest, state_paths = await download_state_silhouettes(
+            client, CACHE_DIR, only_usps=only, force=force, dry_run=dry_run
+        )
+        written.extend(state_paths)
+    return written
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Download U.S. state silhouette SVGs from Wikimedia Commons into data/cache/wikimedia/"
     )
     parser.add_argument(
         "--only",
         nargs="+",
         metavar="USPS",
         help="Limit to these USPS codes (e.g. GA TX)",
-    )
-    parser.add_argument(
-        "--sleep",
-        type=float,
-        default=1.0,
-        help="Seconds to sleep between Commons API / download requests",
     )
     parser.add_argument(
         "--dry-run",
@@ -469,15 +515,24 @@ def main() -> int:
         action="store_true",
         help="Skip national U.S. silhouette when downloading states",
     )
-    args = parser.parse_args()
+    parser.add_argument("--force", action="store_true", help="Re-download even if a fresh cache exists")
+    return parser
+
+
+def main() -> int:
+    setup_logging()
+    args = build_parser().parse_args()
     only = {x.upper() for x in args.only} if args.only else None
-    if args.us_only:
-        download_us_silhouette(args.out, args.sleep, args.dry_run)
-        return 0
-    if not args.no_us:
-        download_us_silhouette(args.out, args.sleep, args.dry_run)
-    if not args.us_only:
-        download_state_silhouettes(args.out, args.sleep, only, args.dry_run)
+    paths = asyncio.run(
+        download(
+            force=args.force,
+            only=only,
+            dry_run=args.dry_run,
+            us_only=args.us_only,
+            no_us=args.no_us,
+        )
+    )
+    logger.info(f"wikimedia cache: {len(paths)} file(s) written")
     return 0
 
 
