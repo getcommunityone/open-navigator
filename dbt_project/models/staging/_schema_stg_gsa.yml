@@ -60,6 +60,7 @@ models:
 
       - name: dbt_loaded_at
         description: "Timestamp this staging model was materialized."
-        data_type: timestamp
+        # current_timestamp returns timestamptz in Postgres; contract must match.
+        data_type: timestamp with time zone
         constraints:
           - type: not_null
