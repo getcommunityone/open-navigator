@@ -1,0 +1,218 @@
+version: 2
+
+# Wikidata jurisdiction enrichment — staging contracts + tests.
+#
+# These models replace the SEED + ENRICHMENT-staging parts of the archived
+# scripts/datasources/wikidata/load_jurisdictions_wikidata.py:
+#   * stg_wikidata__jurisdiction_* : SEED the *_wikidata base rows from the
+#     census source('bronze', 'bronze_jurisdictions_*') tables (the Python
+#     _seed_wikidata_table copy, now a pure dbt transformation).
+#   * stg_wikidata__enrichment     : normalize the cached Wikidata enrichment
+#     rows fetched by ingestion.wikidata.download.
+# The APPLY (UPDATE-on-geoid) is int_wikidata__jurisdictions_enriched.
+#
+# Contracts enforced per dbt_project/CONVENTIONS.md §2.1. dbt_loaded_at is
+# `timestamp with time zone` (current_timestamp is timestamptz in Postgres).
+
+models:
+  - name: stg_wikidata__jurisdiction_counties
+    description: |
+      SEED rows for bronze_jurisdictions_counties_wikidata: 1 row per county
+      GEOID, copied from census bronze_jurisdictions_counties. Wikidata
+      enrichment is JOINed downstream in int_wikidata__jurisdictions_enriched.
+    config:
+      contract:
+        enforced: true
+      materialized: view
+    columns:
+      - name: geoid
+        description: "5-digit county GEOID (digits only). Primary key / join key."
+        data_type: varchar(5)
+        constraints:
+          - type: not_null
+        tests:
+          - unique
+          - not_null
+      - name: state_code
+        description: "2-letter USPS code, uppercased."
+        data_type: varchar(2)
+        tests:
+          - not_null
+      - name: jurisdiction_type
+        description: "Constant 'county'."
+        data_type: varchar(20)
+        tests:
+          - accepted_values:
+              values: ['county']
+      - name: ansicode
+        description: "8-digit ANSI/GNIS code."
+        data_type: varchar(20)
+      - name: jurisdiction_name
+        description: "County name."
+        data_type: varchar(255)
+      - name: aland_sqmi
+        description: "Land area (sq mi)."
+        data_type: double precision
+      - name: awater_sqmi
+        description: "Water area (sq mi)."
+        data_type: double precision
+      - name: latitude
+        description: "Internal point latitude."
+        data_type: double precision
+      - name: longitude
+        description: "Internal point longitude."
+        data_type: double precision
+      - name: source_ingested_at
+        description: "Census ingestion timestamp from bronze."
+        data_type: timestamp
+      - name: dbt_loaded_at
+        description: "When this staging model was materialized."
+        data_type: timestamp with time zone
+        constraints:
+          - type: not_null
+
+  - name: stg_wikidata__jurisdiction_municipalities
+    description: |
+      SEED rows for bronze_jurisdictions_municipalities_wikidata: 1 row per place
+      GEOID, copied from census bronze_jurisdictions_municipalities.
+    config:
+      contract:
+        enforced: true
+      materialized: view
+    columns:
+      - name: geoid
+        description: "7-digit place GEOID (digits only). Primary key / join key."
+        data_type: varchar(7)
+        constraints:
+          - type: not_null
+        tests:
+          - unique
+          - not_null
+      - name: state_code
+        description: "2-letter USPS code, uppercased."
+        data_type: varchar(2)
+        tests:
+          - not_null
+      - name: jurisdiction_type
+        description: "Constant 'city' (municipalities table covers cities/towns)."
+        data_type: varchar(20)
+        tests:
+          - accepted_values:
+              values: ['city']
+      - name: ansicode
+        description: "8-digit ANSI/GNIS code (matches Wikidata P590 for places)."
+        data_type: varchar(20)
+      - name: jurisdiction_name
+        description: "Place name."
+        data_type: varchar(255)
+      - name: lsad
+        description: "Legal/Statistical Area Description code."
+        data_type: varchar(10)
+      - name: funcstat
+        description: "Functional status."
+        data_type: varchar(10)
+      - name: aland_sqmi
+        data_type: double precision
+      - name: awater_sqmi
+        data_type: double precision
+      - name: latitude
+        data_type: double precision
+      - name: longitude
+        data_type: double precision
+      - name: source_ingested_at
+        data_type: timestamp
+      - name: dbt_loaded_at
+        data_type: timestamp with time zone
+        constraints:
+          - type: not_null
+
+  - name: stg_wikidata__jurisdiction_school_districts
+    description: |
+      SEED rows for bronze_jurisdictions_school_districts_wikidata: 1 row per
+      district GEOID, copied from census bronze_jurisdictions_school_districts.
+    config:
+      contract:
+        enforced: true
+      materialized: view
+    columns:
+      - name: geoid
+        description: "7-digit school-district GEOID (digits only). Primary key / join key."
+        data_type: varchar(7)
+        constraints:
+          - type: not_null
+        tests:
+          - unique
+          - not_null
+      - name: state_code
+        description: "2-letter USPS code, uppercased."
+        data_type: varchar(2)
+        tests:
+          - not_null
+      - name: jurisdiction_type
+        description: "Constant 'school_district'."
+        data_type: varchar(20)
+        tests:
+          - accepted_values:
+              values: ['school_district']
+      - name: jurisdiction_name
+        description: "District name."
+        data_type: varchar(255)
+      - name: lograde
+        description: "Lowest grade served."
+        data_type: varchar(10)
+      - name: higrade
+        description: "Highest grade served."
+        data_type: varchar(10)
+      - name: aland_sqmi
+        data_type: double precision
+      - name: awater_sqmi
+        data_type: double precision
+      - name: latitude
+        data_type: double precision
+      - name: longitude
+        data_type: double precision
+      - name: source_ingested_at
+        data_type: timestamp
+      - name: dbt_loaded_at
+        data_type: timestamp with time zone
+        constraints:
+          - type: not_null
+
+  - name: stg_wikidata__enrichment
+    description: |
+      Normalized Wikidata enrichment rows from
+      bronze.bronze_jurisdiction_wikidata_enrichment (fetched by
+      ingestion.wikidata.download). 1 row per (state_code, jurisdiction_type,
+      wikidata_id). Identifier columns (fips_code/fips_alt/gnis_id/nces_id) are
+      reconciled to the seed GEOID in int_wikidata__jurisdictions_enriched.
+
+      Contract is NOT enforced here: this model depends on a source table that a
+      small needs-human cache-loader still has to land (see FLAG in _staging.yml),
+      so types are stabilized via casts rather than pinned, to avoid a contract
+      build failure masking the missing-source failure.
+    config:
+      contract:
+        enforced: false
+      materialized: view
+    columns:
+      - name: wikidata_id
+        description: "Wikidata Q-item id. Natural-key component."
+        tests:
+          - not_null
+      - name: state_code
+        description: "2-letter USPS code, uppercased."
+      - name: jurisdiction_type
+        description: "county | city | school_district."
+        tests:
+          - accepted_values:
+              values: ['county', 'city', 'school_district']
+      - name: fips_code
+        description: "P774/P882 FIPS identifier (digits only)."
+      - name: gnis_id
+        description: "P590 GNIS id (digits only); matches Census ansicode for places."
+      - name: nces_id
+        description: "P6545 NCES district id (digits only)."
+      - name: official_website
+        description: "P856 official website URL."
+      - name: dbt_loaded_at
+        description: "When this staging model was materialized."

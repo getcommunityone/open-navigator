@@ -569,6 +569,73 @@ sources:
           - name: wikidata_fetched_at
             description: "When Wikidata fields were last fetched"
 
+      - name: bronze_jurisdiction_wikidata_enrichment
+        description: |
+          Wikidata enrichment rows fetched by ingestion.wikidata.download (the
+          FETCH layer that replaced the WDQS/wbgetentities HTTP path of the
+          archived load_jurisdictions_wikidata.py). One row per
+          (state_code, jurisdiction_type, wikidata_id). Carries the Wikidata
+          join identifiers (fips_code, fips_alt, gnis_id, nces_id) and the
+          enrichment payload (official_website, social, population, etc.). Read
+          by stg_wikidata__enrichment and reconciled to the seeded *_wikidata
+          GEOID in int_wikidata__jurisdictions_enriched.
+
+          NEEDS-HUMAN (loader): ingestion.wikidata.download writes this data to
+          data/cache/wikidata/<usps>/wikidata_enrichment_<type>.json. A small
+          bronze loader (cache JSON -> this table, analogous to
+          ingestion.gsa.domains landing the GSA CSV) still has to be written so
+          dbt has a relation to read. Until that loader lands AND a row exists,
+          `dbt build` of stg_wikidata__enrichment / int_wikidata__jurisdictions_enriched
+          will fail with "relation does not exist". The seed-only staging models
+          (stg_wikidata__jurisdiction_*) build independently of this source.
+        columns:
+          - name: wikidata_id
+            description: "Wikidata Q-item id. Natural-key component."
+          - name: state_code
+            description: "2-letter USPS code. Natural-key component."
+          - name: jurisdiction_type
+            description: "county | city | school_district. Natural-key component."
+          - name: item_label
+            description: "English Wikidata label of the item."
+          - name: fips_code
+            description: "P774/P882 FIPS identifier (digits only)."
+          - name: fips_alt
+            description: "P3006 alternate FIPS identifier (digits only)."
+          - name: gnis_id
+            description: "P590 GNIS feature id (digits only); matches Census ansicode for places."
+          - name: nces_id
+            description: "P6545 NCES district id (digits only)."
+          - name: official_website
+            description: "P856 official website URL."
+          - name: official_image_url
+            description: "P18 image (Commons FilePath URL)."
+          - name: page_banner_image
+            description: "P948 page banner image."
+          - name: locator_map_image
+            description: "P242 locator map image."
+          - name: youtube_channel_id
+            description: "P2397 YouTube channel id."
+          - name: facebook_username
+            description: "P2013 Facebook username."
+          - name: twitter_username
+            description: "P2002 Twitter/X username."
+          - name: population
+            description: "P1082 population."
+          - name: area_sq_km
+            description: "P2046 area (sq km)."
+          - name: per_capita_income
+            description: "P3529 per-capita income."
+          - name: number_of_households
+            description: "P1538 number of households."
+          - name: median_age
+            description: "P1310 median age."
+          - name: latitude
+            description: "P625 latitude."
+          - name: longitude
+            description: "P625 longitude."
+          - name: fetched_at
+            description: "When ingestion.wikidata.download fetched the row (ISO-8601)."
+
       - name: bronze_jurisdictions_states_scraped
         description: |
           State-level discovery output from ``scripts/discovery/jurisdiction_discovery_pipeline.py``

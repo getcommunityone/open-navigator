@@ -544,3 +544,46 @@ models:
         description: "True if county FIPS was successfully matched"
         tests:
           - not_null
+
+  - name: int_wikidata__jurisdictions_enriched
+    description: |
+      APPLY step for the Wikidata enrichment: LEFT JOINs the seeded *_wikidata
+      base rows (stg_wikidata__jurisdiction_*) to the cached Wikidata enrichment
+      (stg_wikidata__enrichment) on the reconciled GEOID — replacing the Python
+      "UPDATE bronze_jurisdictions_*_wikidata SET ... WHERE geoid = ..." from the
+      archived load_jurisdictions_wikidata.py. One row per (jurisdiction_type,
+      geoid); unmatched seed rows carry NULL enrichment (== a NULL wikidata_id
+      row after a partial run). county / city / school_district only.
+
+      FLAG: identifier-clean matching only. The Python loader's fuzzy
+      name-matching + wbsearchentities entity-search recovery is NOT reproduced
+      here (stays a scraper in scripts/). State-level descriptive metadata is
+      also not modeled yet (FETCH bulk-maps only the three GEOID types).
+    columns:
+      - name: geoid
+        description: "Census GEOID (5-digit county, 7-digit municipality/school district)."
+        tests:
+          - not_null
+      - name: state_code
+        description: "2-letter USPS code."
+        tests:
+          - not_null
+      - name: jurisdiction_type
+        description: "county | city | school_district."
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['county', 'city', 'school_district']
+      - name: wikidata_id
+        description: "Matched Wikidata Q-item id (NULL when unmatched)."
+      - name: official_website
+        description: "P856 official website (NULL when unmatched)."
+      - name: dbt_loaded_at
+        description: "When this model was materialized."
+        tests:
+          - not_null
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - jurisdiction_type
+            - geoid
