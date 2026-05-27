@@ -1,136 +1,41 @@
 #!/usr/bin/env python3
-"""
-Load cached USCM « Meet the Mayors » scrape JSON into bronze.
+"""USCM "Meet the Mayors" pipeline: load cached scrape JSON into bronze.
 
-Expects output from ``download_uscm_mayors.py`` (``data/cache/uscm/meet_the_mayors_us_*.json``).
+Ported from load_uscm_mayors_to_bronze.py to the core_lib DataSourcePipeline
+contract.
 
-Database URL: NEON_DATABASE_URL_DEV / NEON_DATABASE_URL / OPEN_NAVIGATOR_DATABASE_URL —
-see ``scripts/database/target_database_url.py``.
-
-Table:
-    bronze.bronze_jurisdictions_municipalities_uscm — one row per municipality mayor card from USCM.
+Expects output from download_uscm_mayors.py
+(``data/cache/uscm/meet_the_mayors_us_*.json``).
 
 Usage:
-    ./.venv/bin/python scripts/datasources/uscm/load_uscm_mayors_to_bronze.py
-    ./.venv/bin/python scripts/datasources/uscm/load_uscm_mayors_to_bronze.py --file data/cache/uscm/meet_the_mayors_us_20260510.json
-    ./.venv/bin/python scripts/datasources/uscm/load_uscm_mayors_to_bronze.py --truncate --dry-run
+    python -m scripts.datasources.uscm.mayors_pipeline
+    python scripts/datasources/uscm/mayors_pipeline.py --truncate
+    python scripts/datasources/uscm/mayors_pipeline.py \\
+        --file data/cache/uscm/meet_the_mayors_us_20260510.json
+
+Configuration:
+    NEON_DATABASE_URL_DEV / NEON_DATABASE_URL / DATABASE_URL via core_lib.db.
 """
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
-import os
-import sys
+from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, AsyncIterator
 
-_ROOT = Path(__file__).resolve().parent.parent.parent.parent
-_VENV_REEXEC = "_OPEN_NAVIGATOR_USCM_LOAD_VENV_REEXEC"
+from pydantic import Field
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from core_lib.db import async_session
+from core_lib.logging import setup_logging
+from core_lib.pipeline import DataSourcePipeline, PipelineContext, RawRow
 
-def _in_project_venv() -> bool:
-    px = Path(sys.prefix).resolve()
-    return px in {
-        (_ROOT / ".venv").resolve(),
-        (_ROOT / ".venv-dbt").resolve(),
-    }
-
-
-def _maybe_reexec_with_project_venv() -> None:
-    if os.environ.get(_VENV_REEXEC) == "1":
-        return
-    if _in_project_venv():
-        return
-    for name in (".venv", ".venv-dbt"):
-        vpy = _ROOT / name / "bin" / "python"
-        if vpy.is_file():
-            os.environ[_VENV_REEXEC] = "1"
-            os.execv(str(vpy), [str(vpy)] + sys.argv)
-
-
-try:
-    import psycopg2
-    from psycopg2.extras import execute_batch
-    from dotenv import load_dotenv
-    from loguru import logger
-except ImportError:
-    _maybe_reexec_with_project_venv()
-    print(
-        "Need psycopg2-binary, python-dotenv, loguru. "
-        "cd repo root && ./.venv/bin/pip install -r requirements.txt",
-        file=sys.stderr,
-    )
-    sys.exit(1)
-
-sys.path.insert(0, str(_ROOT))
-
-load_dotenv(_ROOT / ".env")
-load_dotenv()
-
-from scripts.database.target_database_url import resolve_target_database_url
-
-DATABASE_URL = resolve_target_database_url()
 
 CACHE_DIR = Path("data/cache/uscm")
-
 BRONZE_TABLE = "bronze.bronze_jurisdictions_municipalities_uscm"
-
-CREATE_SQL = f"""
-    CREATE SCHEMA IF NOT EXISTS bronze;
-
-    CREATE TABLE IF NOT EXISTS {BRONZE_TABLE} (
-        state_code           VARCHAR(2) NOT NULL,
-        municipality_name    VARCHAR(255) NOT NULL,
-        mayor_name           VARCHAR(255),
-        population           INTEGER,
-        mayor_photo_url      TEXT,
-        city_website         VARCHAR(500),
-        bio_url              VARCHAR(500),
-        next_election_raw    VARCHAR(255),
-        phone                VARCHAR(80),
-        email                VARCHAR(255),
-        search_term_used     VARCHAR(120),
-        source_url           VARCHAR(500),
-        scraped_at           TIMESTAMPTZ,
-        raw_json             JSONB,
-        ingestion_date       TIMESTAMPTZ DEFAULT NOW(),
-        PRIMARY KEY (state_code, municipality_name)
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_bjmuscm_state ON {BRONZE_TABLE}(state_code);
-"""
-
-UPSERT_SQL = f"""
-    INSERT INTO {BRONZE_TABLE}
-        (state_code, municipality_name, mayor_name, population, mayor_photo_url,
-         city_website, bio_url, next_election_raw, phone, email,
-         search_term_used, source_url, scraped_at, raw_json)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb)
-    ON CONFLICT (state_code, municipality_name) DO UPDATE SET
-        mayor_name           = EXCLUDED.mayor_name,
-        population           = EXCLUDED.population,
-        mayor_photo_url      = EXCLUDED.mayor_photo_url,
-        city_website         = EXCLUDED.city_website,
-        bio_url              = EXCLUDED.bio_url,
-        next_election_raw    = EXCLUDED.next_election_raw,
-        phone                = EXCLUDED.phone,
-        email                = EXCLUDED.email,
-        search_term_used     = EXCLUDED.search_term_used,
-        source_url           = EXCLUDED.source_url,
-        scraped_at           = EXCLUDED.scraped_at,
-        raw_json             = EXCLUDED.raw_json,
-        ingestion_date       = NOW()
-"""
-
-
-def _database_url_source_label() -> str:
-    if (os.getenv("OPEN_NAVIGATOR_DATABASE_URL") or "").strip():
-        return "OPEN_NAVIGATOR_DATABASE_URL"
-    if (os.getenv("NEON_DATABASE_URL_DEV") or "").strip():
-        return "NEON_DATABASE_URL_DEV"
-    if (os.getenv("NEON_DATABASE_URL") or "").strip():
-        return "NEON_DATABASE_URL"
-    return "default local (localhost:5433/open_navigator)"
 
 
 def _str(val: Any, maxlen: int | None = None) -> str | None:
@@ -150,6 +55,8 @@ def _int(val: Any) -> int | None:
 
 
 def find_latest_cache() -> Path | None:
+    if not CACHE_DIR.exists():
+        return None
     paths = sorted(
         CACHE_DIR.glob("meet_the_mayors_us_*.json"),
         key=lambda p: p.stat().st_mtime,
@@ -158,135 +65,190 @@ def find_latest_cache() -> Path | None:
     return paths[0] if paths else None
 
 
-def parse_scrape_payload(raw: dict[str, Any]) -> tuple[list[tuple], dict[str, Any]]:
-    """Return (db_rows, meta)."""
-    meta = {
-        "scraped_at": raw.get("scraped_at"),
-        "source_url": raw.get("source_url"),
-        "mayor_count": raw.get("mayor_count"),
-    }
-    mayors = raw.get("mayors")
-    if not isinstance(mayors, list):
-        return [], meta
+class MayorRow(RawRow):
+    """One USCM mayor card, validated before upsert into bronze."""
 
-    scraped_at = raw.get("scraped_at")
-    source_url = _str(raw.get("source_url"), 500)
+    state_code: str = Field(min_length=2, max_length=2)
+    municipality_name: str = Field(min_length=1, max_length=255)
+    mayor_name: str | None = Field(default=None, max_length=255)
+    population: int | None = None
+    mayor_photo_url: str | None = None
+    city_website: str | None = Field(default=None, max_length=500)
+    bio_url: str | None = Field(default=None, max_length=500)
+    next_election_raw: str | None = Field(default=None, max_length=255)
+    phone: str | None = Field(default=None, max_length=80)
+    email: str | None = Field(default=None, max_length=255)
+    search_term_used: str | None = Field(default=None, max_length=120)
+    source_url: str | None = Field(default=None, max_length=500)
+    scraped_at: str | None = None  # passthrough (timestamptz-castable)
+    raw_json: dict[str, Any] = Field(default_factory=dict)
 
-    rows: list[tuple] = []
-    for m in mayors:
-        if not isinstance(m, dict):
-            continue
-        state_code = _str(m.get("state_code"), 2)
-        municipality_name = _str(m.get("municipality_name"), 255)
-        if not state_code or not municipality_name:
-            continue
-        slim_raw = {k: v for k, v in m.items() if k != "raw_card_html"}
-        rows.append(
-            (
-                state_code.upper(),
-                municipality_name,
-                _str(m.get("mayor_name"), 255),
-                _int(m.get("population")),
-                _str(m.get("mayor_photo_url"), None),
-                _str(m.get("city_website"), 500),
-                _str(m.get("bio_url"), 500),
-                _str(m.get("next_election_raw"), 255),
-                _str(m.get("phone"), 80),
-                _str(m.get("email"), 255),
-                _str(m.get("search_term_used"), 120),
-                source_url,
-                scraped_at,
-                json.dumps(slim_raw),
+
+_CREATE_SQL = text(
+    f"""
+    CREATE SCHEMA IF NOT EXISTS bronze;
+    CREATE TABLE IF NOT EXISTS {BRONZE_TABLE} (
+        state_code           VARCHAR(2) NOT NULL,
+        municipality_name    VARCHAR(255) NOT NULL,
+        mayor_name           VARCHAR(255),
+        population           INTEGER,
+        mayor_photo_url      TEXT,
+        city_website         VARCHAR(500),
+        bio_url              VARCHAR(500),
+        next_election_raw    VARCHAR(255),
+        phone                VARCHAR(80),
+        email                VARCHAR(255),
+        search_term_used     VARCHAR(120),
+        source_url           VARCHAR(500),
+        scraped_at           TIMESTAMPTZ,
+        raw_json             JSONB,
+        ingestion_date       TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (state_code, municipality_name)
+    );
+    CREATE INDEX IF NOT EXISTS idx_bjmuscm_state ON {BRONZE_TABLE}(state_code);
+    """
+)
+_TRUNCATE_SQL = text(f"TRUNCATE TABLE {BRONZE_TABLE}")
+_UPSERT_SQL = text(
+    f"""
+    INSERT INTO {BRONZE_TABLE} (
+        state_code, municipality_name, mayor_name, population, mayor_photo_url,
+        city_website, bio_url, next_election_raw, phone, email,
+        search_term_used, source_url, scraped_at, raw_json
+    )
+    VALUES (
+        :state_code, :municipality_name, :mayor_name, :population, :mayor_photo_url,
+        :city_website, :bio_url, :next_election_raw, :phone, :email,
+        :search_term_used, :source_url, :scraped_at, CAST(:raw_json AS jsonb)
+    )
+    ON CONFLICT (state_code, municipality_name) DO UPDATE SET
+        mayor_name = EXCLUDED.mayor_name,
+        population = EXCLUDED.population,
+        mayor_photo_url = EXCLUDED.mayor_photo_url,
+        city_website = EXCLUDED.city_website,
+        bio_url = EXCLUDED.bio_url,
+        next_election_raw = EXCLUDED.next_election_raw,
+        phone = EXCLUDED.phone,
+        email = EXCLUDED.email,
+        search_term_used = EXCLUDED.search_term_used,
+        source_url = EXCLUDED.source_url,
+        scraped_at = EXCLUDED.scraped_at,
+        raw_json = EXCLUDED.raw_json,
+        ingestion_date = NOW()
+    """
+)
+
+
+class UscmMayorsPipeline(DataSourcePipeline[MayorRow]):
+    source = "uscm_mayors"
+    batch_size = 2_000
+    row_schema = MayorRow
+
+    def __init__(self, *, json_path: Path | None = None):
+        self._json_path = json_path
+
+    async def extract(self, ctx: PipelineContext) -> AsyncIterator[dict]:
+        path = self._json_path or find_latest_cache()
+        if path is None or not path.is_file():
+            raise FileNotFoundError(
+                f"No USCM cache file. Run download_uscm_mayors.py first or pass --file. "
+                f"Expected under {CACHE_DIR}/meet_the_mayors_us_*.json"
             )
-        )
-    return rows, meta
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        mayors = raw.get("mayors")
+        if not isinstance(mayors, list):
+            return
+        scraped_at = raw.get("scraped_at")
+        source_url = _str(raw.get("source_url"), 500)
+        for m in mayors:
+            if not isinstance(m, dict):
+                continue
+            state_code = _str(m.get("state_code"), 2)
+            municipality_name = _str(m.get("municipality_name"), 255)
+            if not state_code or not municipality_name:
+                continue
+            slim_raw = {k: v for k, v in m.items() if k != "raw_card_html"}
+            state_code = state_code.upper()
+            yield {
+                "source": self.source,
+                "source_version": path.stem,
+                "natural_key": f"{state_code}:{municipality_name}",
+                "state_code": state_code,
+                "municipality_name": municipality_name,
+                "mayor_name": _str(m.get("mayor_name"), 255),
+                "population": _int(m.get("population")),
+                "mayor_photo_url": _str(m.get("mayor_photo_url")),
+                "city_website": _str(m.get("city_website"), 500),
+                "bio_url": _str(m.get("bio_url"), 500),
+                "next_election_raw": _str(m.get("next_election_raw"), 255),
+                "phone": _str(m.get("phone"), 80),
+                "email": _str(m.get("email"), 255),
+                "search_term_used": _str(m.get("search_term_used"), 120),
+                "source_url": source_url,
+                "scraped_at": scraped_at,
+                "raw_json": slim_raw,
+            }
+
+    async def load_batch(
+        self,
+        session: AsyncSession,
+        rows: list[MayorRow],
+        ctx: PipelineContext,
+    ) -> None:
+        params = []
+        for r in rows:
+            params.append({
+                "state_code": r.state_code,
+                "municipality_name": r.municipality_name,
+                "mayor_name": r.mayor_name,
+                "population": r.population,
+                "mayor_photo_url": r.mayor_photo_url,
+                "city_website": r.city_website,
+                "bio_url": r.bio_url,
+                "next_election_raw": r.next_election_raw,
+                "phone": r.phone,
+                "email": r.email,
+                "search_term_used": r.search_term_used,
+                "source_url": r.source_url,
+                "scraped_at": r.scraped_at,
+                "raw_json": json.dumps(r.raw_json),
+            })
+        await session.execute(_UPSERT_SQL, params)
 
 
-def load_to_postgres(
-    records: list[tuple],
-    *,
-    dry_run: bool,
-    truncate: bool,
-) -> dict[str, Any]:
-    conn = psycopg2.connect(DATABASE_URL)
-    conn.autocommit = False
-    cur = conn.cursor()
+async def _prepare_target(truncate: bool) -> None:
+    async with async_session() as session:
+        # CREATE SCHEMA + CREATE TABLE + CREATE INDEX combined; SQLAlchemy text()
+        # supports multiple statements only when no params — split for safety.
+        for stmt in str(_CREATE_SQL.text).split(";"):
+            s = stmt.strip()
+            if s:
+                await session.execute(text(s))
+        if truncate:
+            await session.execute(_TRUNCATE_SQL)
 
-    cur.execute(CREATE_SQL)
-    conn.commit()
 
-    if truncate:
-        cur.execute(f"SELECT COUNT(*) FROM {BRONZE_TABLE}")
-        before = cur.fetchone()[0]
-        cur.execute(f"TRUNCATE TABLE {BRONZE_TABLE}")
-        conn.commit()
-        logger.info(f"Truncated {BRONZE_TABLE} ({before:,} rows prior)")
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description=f"Load USCM Meet the Mayors JSON into {BRONZE_TABLE}"
+    )
+    parser.add_argument("--file", type=Path,
+                        help="meet_the_mayors_us_*.json path (default: newest in cache)")
+    parser.add_argument("--truncate", action="store_true",
+                        help=f"TRUNCATE {BRONZE_TABLE} before loading")
+    return parser
 
-    if dry_run:
-        logger.warning("DRY RUN — no data written. Sample:")
-        for row in records[:3]:
-            logger.info(f"  {row[:4]}…")
-        cur.close()
-        conn.close()
-        return {"parsed": len(records), "loaded": 0}
 
-    if records:
-        execute_batch(cur, UPSERT_SQL, records, page_size=2000)
-        conn.commit()
-        cur.execute(f"SELECT COUNT(*) FROM {BRONZE_TABLE}")
-        total = cur.fetchone()[0]
-        logger.success(
-            f"Upserted {len(records):,} rows → {BRONZE_TABLE} (table total: {total:,})"
-        )
-    else:
-        logger.warning("No mayor rows to load.")
-
-    cur.close()
-    conn.close()
-    return {"parsed": len(records), "loaded": len(records)}
+async def _run(args: argparse.Namespace) -> None:
+    await _prepare_target(args.truncate)
+    pipeline = UscmMayorsPipeline(json_path=args.file)
+    await pipeline.run()
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Load USCM Meet the Mayors JSON into bronze_jurisdictions_municipalities_uscm"
-    )
-    parser.add_argument(
-        "--file",
-        type=Path,
-        help="Path to meet_the_mayors_us_*.json (default: newest under data/cache/uscm/)",
-    )
-    parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--truncate", action="store_true")
-    args = parser.parse_args()
-
-    cache_file = args.file
-    if cache_file is None:
-        cache_file = find_latest_cache()
-    if cache_file is None or not cache_file.is_file():
-        logger.error(
-            f"No cache file. Run download_uscm_mayors.py first or pass --file. "
-            f"Expected under {CACHE_DIR}/meet_the_mayors_us_*.json"
-        )
-        sys.exit(1)
-
-    logger.info("=" * 70)
-    logger.info(f"USCM Meet the Mayors → {BRONZE_TABLE}")
-    logger.info("=" * 70)
-    logger.info(
-        f"Database: {_database_url_source_label()} → {DATABASE_URL.split('@')[-1]}"
-    )
-    logger.info(f"Cache file: {cache_file}")
-
-    raw = json.loads(cache_file.read_text(encoding="utf-8"))
-    rows, meta = parse_scrape_payload(raw)
-    logger.info(f"Meta: scraped_at={meta.get('scraped_at')}, mayor_count={meta.get('mayor_count')}")
-    logger.info(f"Rows parsed for load: {len(rows):,}")
-
-    stats = load_to_postgres(rows, dry_run=args.dry_run, truncate=args.truncate)
-    logger.info("SUMMARY")
-    for k, v in stats.items():
-        logger.info(f"  {k}: {v:,}")
-    logger.success("Done.")
+    setup_logging()
+    args = build_parser().parse_args()
+    asyncio.run(_run(args))
 
 
 if __name__ == "__main__":
