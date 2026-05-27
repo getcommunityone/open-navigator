@@ -23,8 +23,8 @@ RUN npm install && npm run build
 # Copy backend
 WORKDIR /app
 COPY api/ ./api/
-COPY agents/ ./agents/
-COPY config/ ./config/
+COPY packages/agents/agents/ ./agents/
+COPY packages/core/config/ ./config/
 COPY pipeline/ ./pipeline/
 COPY visualization/ ./visualization/
 COPY databricks/ ./databricks/

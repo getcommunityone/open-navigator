@@ -52,6 +52,10 @@ RUN cd /app/frontend && npm ci
 # Copy application code (now npm ci layer is cached)
 COPY . .
 
+# Install workspace kernel packages so config/agents/models import as
+# top-level modules at runtime (--no-deps keeps the dependency closure unchanged).
+RUN pip install --no-cache-dir --no-deps ./packages/core ./packages/datamodels ./packages/agents
+
 # Copy built static files from docs stage
 COPY --from=docs-builder /build/build /app/static/docs
 

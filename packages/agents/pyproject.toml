@@ -1,0 +1,24 @@
+[project]
+name = "communityone-agents"
+version = "0.1.0"
+description = "LLM agents shared across CommunityOne apps and services."
+requires-python = ">=3.11"
+dependencies = [
+    "communityone-core",
+    "beautifulsoup4>=4.12.2",
+    "python-dotenv>=1.0.0",
+    "duckdb>=0.9.0",
+    "langchain>=0.1.0",
+    "loguru>=0.7.2",
+    "mlflow>=2.9.0",
+    "pandas>=2.1.4",
+    "pydantic>=2.5.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# Import name stays `agents` during the migration so no call sites change.
+[tool.hatch.build.targets.wheel]
+packages = ["agents"]

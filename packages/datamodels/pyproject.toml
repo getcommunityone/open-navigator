@@ -1,0 +1,14 @@
+[project]
+name = "communityone-datamodels"
+version = "0.1.0"
+description = "Shared data models for CommunityOne."
+requires-python = ">=3.11"
+dependencies = []
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# Import name stays `models` during the migration so no call sites change.
+[tool.hatch.build.targets.wheel]
+packages = ["models"]
