@@ -1,0 +1,80 @@
+version: 2
+
+models:
+  - name: int_powerbi__measure_with_jurisdiction
+    description: |
+      Power BI ballot measures with resolved state_code / jurisdiction_id /
+      ocd_id. Replaces the layering inversion the loader used to perform — it
+      QUERIED intermediate.int_jurisdictions from Python to stamp those columns.
+      Resolution is now a proper dbt JOIN: this model refs stg_powerbi__ballot_measure
+      and int_jurisdictions (state rows). Matching mirrors resolve_state_jurisdiction()
+      (2-letter code, else state/jurisdiction name) and ocd_id mirrors
+      _ocd_id_for_state() (prefer an Open States ocd-division/ id, else synthesize
+      ocd-division/country:us/state:<lower(code)>).
+    config:
+      contract:
+        enforced: true
+      materialized: table
+    columns:
+      - name: bronze_id
+        description: "BIGSERIAL id from the bronze landing table. Unique — one row per source measure."
+        data_type: bigint
+        constraints:
+          - type: not_null
+        tests:
+          - unique
+          - not_null
+      - name: scrape_batch_id
+        description: "UUID of the loader run that landed the row."
+        data_type: uuid
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: measure_id
+        data_type: text
+      - name: measure_title
+        data_type: text
+      - name: measure_summary
+        data_type: text
+      - name: measure_type
+        data_type: text
+      - name: state_code
+        description: "Resolved 2-letter state code (from int_jurisdictions when matched, else the CSV code)."
+        data_type: varchar(2)
+      - name: state
+        description: "State display name (CSV name, falling back to the resolved canonical state name)."
+        data_type: text
+      - name: jurisdiction_id
+        description: "Resolved canonical jurisdiction_id from int_jurisdictions (NULL when unmatched)."
+        data_type: text
+      - name: ocd_id
+        description: "OCD division id (Open States ocd-division/ id when present, else synthesized from state_code)."
+        data_type: text
+      - name: jurisdiction_name
+        data_type: text
+      - name: election_date
+        data_type: date
+      - name: election_year
+        description: "Calendar year label as VARCHAR(4)."
+        data_type: varchar(4)
+      - name: outcome
+        data_type: text
+      - name: yes_count
+        data_type: bigint
+      - name: no_count
+        data_type: bigint
+      - name: yes_percent
+        data_type: double precision
+      - name: source_url
+        data_type: text
+      - name: source_csv_path
+        data_type: text
+      - name: scraped_at
+        data_type: timestamp with time zone
+      - name: dbt_loaded_at
+        # Same Postgres `current_timestamp` → `timestamptz` mismatch as the
+        # staging contract; align so the table CREATE doesn't abort.
+        data_type: timestamp with time zone
+        constraints:
+          - type: not_null
