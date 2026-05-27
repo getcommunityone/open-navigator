@@ -2,6 +2,43 @@
 
 Scripts for querying Wikidata (WDQS), enriching Open Navigator bronze tables, and validating YouTube channels.
 
+> ## DECOMPOSED (2026-05): `load_jurisdictions_wikidata.py` no longer runs here
+>
+> The 4,159-line `load_jurisdictions_wikidata.py` monolith was an
+> **enrichment** job (live WDQS/SPARQL + `wbgetentities` -> UPDATE pre-seeded
+> `bronze.bronze_jurisdictions_*_wikidata` rows). It has been split into clean
+> layers; the happy path is now **FETCH (downloader) + `dbt build`**:
+>
+> | Layer | Where it lives now |
+> |-------|--------------------|
+> | **FETCH** — WDQS/SPARQL GET + `wbgetentities` GET, JSON cache to `data/cache/wikidata/<usps>/` | `packages/ingestion/src/ingestion/wikidata/download.py` (`core_lib.http.BaseAsyncClient`). Run `python -m ingestion.wikidata.download --states AL,GA --types county,city`. |
+> | **SEED** — copy census `bronze_jurisdictions_*` into the `*_wikidata` base rows | dbt `stg_wikidata__jurisdiction_{counties,municipalities,school_districts}` |
+> | **APPLY** — UPDATE `*_wikidata` from cached enrichment, keyed on geoid (now a JOIN) | dbt `stg_wikidata__enrichment` + `int_wikidata__jurisdictions_enriched` |
+>
+> There is **no clean raw-INSERT LAND** layer — Wikidata was always
+> UPDATE-enrichment on pre-seeded census rows, so SEED + APPLY together are the
+> land+derive.
+>
+> The monolith was archived to
+> `archive/datasources/wikidata/load_jurisdictions_wikidata.py`. The file at
+> this path is now a **thin deprecated shim** that re-exports the irreducible
+> helpers (so the scrapers below still import them). Do **not** run its old CLI.
+>
+> **Still scrapers/utilities here (NOT translatable to dbt — flagged):**
+> `hydrate_municipality_websites_from_wikidata.py`,
+> `hydrate_county_websites_from_wikidata.py` (live `wbgetentities` hydration of
+> QID-but-no-website rows, resume-driven), `discover_municipality_website_gaps.py`
+> (Postgres gap discovery), `geography_qid_cache.py` / `parquet_qid_lookup.py`
+> (fuzzy / identifier literal->QID resolution), `wikidata_entity_search.py`
+> (`wbsearchentities` fuzzy county recovery), and the archived
+> `CheckpointManager` / county-gap discovery / bespoke WDQS quota client.
+>
+> **NEEDS-HUMAN (dbt build):** a small bronze cache-loader
+> (`data/cache/wikidata/*.json` -> `bronze.bronze_jurisdiction_wikidata_enrichment`,
+> analogous to `ingestion.gsa.domains`) must land before
+> `stg_wikidata__enrichment` / `int_wikidata__jurisdictions_enriched` can build;
+> the seed staging models build independently.
+
 ## Caching (important)
 
 | Layer | What it is |
