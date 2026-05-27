@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Reusable core library for open-navigator ingestion pipelines and FastAPI services."
 requires-python = ">=3.11"
 dependencies = [
-    "httpx>=0.25",
+    "httpx[http2]>=0.25",
     "tenacity>=8.2",
     "aiolimiter>=1.1",
     "sqlalchemy>=2.0",
