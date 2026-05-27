@@ -117,7 +117,30 @@ export default function CensusDrilldownMapPage() {
     zoom: number
     basemap: 'streets' | 'satellite'
   } | null>(null)
-  const [pinnedAddress, setPinnedAddress] = useState<{ lat: number; lng: number; label: string } | null>(null)
+  const [pinnedAddress, setPinnedAddress] = useState<{
+    lat: number
+    lng: number
+    label: string
+    /** Full Nominatim display_name — used to search bronze.bronze_addresses for matches. */
+    queryString?: string
+    stateCode?: string | null
+  } | null>(null)
+  /** Result of the property-pin click → /api/addresses/search lookup. */
+  const [propertyLookup, setPropertyLookup] = useState<{
+    status: 'idle' | 'loading' | 'ok' | 'error'
+    query: string
+    matches: Array<{
+      id: number
+      owner_name: string | null
+      situs_full: string | null
+      city: string | null
+      state_abbr: string | null
+      parcel_number_formatted: string | null
+      appraised_value: number | null
+      data_source: string
+    }>
+    error?: string
+  }>({ status: 'idle', query: '', matches: [] })
   const [pinnedCounty, setPinnedCounty] = useState<{
     geoid: string
     name: string
@@ -444,7 +467,14 @@ export default function CensusDrilldownMapPage() {
   const onPickAddress = useCallback(
     (r: MapAddressResult) => {
       const fips = r.stateCode ? USPS_TO_FIPS2[r.stateCode] ?? null : null
-      setPinnedAddress({ lat: r.lat, lng: r.lon, label: r.shortLabel || r.displayName })
+      setPinnedAddress({
+        lat: r.lat,
+        lng: r.lon,
+        label: r.shortLabel || r.displayName,
+        queryString: r.shortLabel || r.displayName,
+        stateCode: r.stateCode,
+      })
+      setPropertyLookup({ status: 'idle', query: '', matches: [] })
       if (fips) {
         setSelectedStateFips(fips)
         setSelectedCountyGeoid(null)
@@ -455,6 +485,33 @@ export default function CensusDrilldownMapPage() {
     },
     [],
   )
+
+  const fetchPropertyDetails = useCallback(async () => {
+    if (!pinnedAddress?.queryString) return
+    const q = pinnedAddress.queryString
+    setPropertyLookup({ status: 'loading', query: q, matches: [] })
+    try {
+      const params = new URLSearchParams({ q })
+      if (pinnedAddress.stateCode) params.set('state', pinnedAddress.stateCode)
+      params.set('limit', '5')
+      const res = await fetch(`/api/addresses/search?${params.toString()}`)
+      if (!res.ok) {
+        const detail = res.status === 503 ? 'bronze.bronze_addresses not loaded' : `HTTP ${res.status}`
+        setPropertyLookup({ status: 'error', query: q, matches: [], error: detail })
+        return
+      }
+      const json = await res.json()
+      const matches = Array.isArray(json?.addresses) ? json.addresses : []
+      setPropertyLookup({ status: 'ok', query: q, matches })
+    } catch (err) {
+      setPropertyLookup({
+        status: 'error',
+        query: q,
+        matches: [],
+        error: err instanceof Error ? err.message : 'fetch failed',
+      })
+    }
+  }, [pinnedAddress])
 
   // When dropping into local view from a county click, use the county centroid.
   const enterLocalAtCountyCentroid = useCallback(() => {
@@ -621,13 +678,14 @@ export default function CensusDrilldownMapPage() {
         <div className="flex min-w-0 flex-col gap-2">
           <div className="rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
             {view === 'local' && localPin ? (
-              <div className="h-[560px] w-full">
+              <div className="relative h-[560px] w-full">
                 <CensusDrilldownLocalView
                   key={`local-${localPin.basemap}`}
                   center={{ lat: localPin.lat, lng: localPin.lng }}
                   zoom={localPin.zoom}
                   label={localPin.label}
                   initialBasemap={localPin.basemap}
+                  onMarkerClick={fetchPropertyDetails}
                   topLeftSlot={
                     <button
                       type="button"
@@ -642,6 +700,67 @@ export default function CensusDrilldownMapPage() {
                     </button>
                   }
                 />
+                {propertyLookup.status !== 'idle' ? (
+                  <div className="pointer-events-auto absolute right-3 bottom-3 z-[500] w-[300px] max-w-[calc(100%-1.5rem)] rounded-lg border border-slate-300 bg-white p-3 shadow-xl">
+                    <div className="flex items-start gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                          Property details
+                        </div>
+                        <div className="mt-0.5 truncate text-[12px] text-slate-700" title={propertyLookup.query}>
+                          {propertyLookup.query}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setPropertyLookup({ status: 'idle', query: '', matches: [] })}
+                        className="-mr-1 -mt-1 rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                        aria-label="Close property details"
+                      >
+                        <XMarkIcon className="h-4 w-4" />
+                      </button>
+                    </div>
+                    {propertyLookup.status === 'loading' ? (
+                      <div className="mt-2 text-[12px] text-slate-500">Looking up parcel records…</div>
+                    ) : null}
+                    {propertyLookup.status === 'error' ? (
+                      <div className="mt-2 text-[12px] text-rose-700">
+                        Lookup failed: {propertyLookup.error}
+                      </div>
+                    ) : null}
+                    {propertyLookup.status === 'ok' && propertyLookup.matches.length === 0 ? (
+                      <div className="mt-2 text-[12px] leading-snug text-slate-600">
+                        No matching parcel in <code>bronze.bronze_addresses</code>. Coverage is limited
+                        to counties whose Esri parcel layer has been harvested — most haven't yet.
+                      </div>
+                    ) : null}
+                    {propertyLookup.status === 'ok' && propertyLookup.matches.length > 0 ? (
+                      <ul className="mt-2 space-y-2 text-[12px]">
+                        {propertyLookup.matches.map((m) => (
+                          <li key={m.id} className="rounded border border-slate-200 bg-slate-50/60 p-2">
+                            <div className="font-semibold text-slate-900">
+                              {m.situs_full || m.owner_name || `Parcel ${m.parcel_number_formatted ?? m.id}`}
+                            </div>
+                            {m.owner_name && m.situs_full ? (
+                              <div className="text-[11px] text-slate-600">Owner: {m.owner_name}</div>
+                            ) : null}
+                            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-slate-600">
+                              {m.parcel_number_formatted ? <span>Parcel {m.parcel_number_formatted}</span> : null}
+                              {m.appraised_value != null ? (
+                                <span>${m.appraised_value.toLocaleString()}</span>
+                              ) : null}
+                              {m.city || m.state_abbr ? (
+                                <span>
+                                  {[m.city, m.state_abbr].filter(Boolean).join(', ')}
+                                </span>
+                              ) : null}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             ) : (
               <CensusDrilldownStage

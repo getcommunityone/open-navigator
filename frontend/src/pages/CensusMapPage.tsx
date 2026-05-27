@@ -2992,9 +2992,7 @@ function CensusMapPage() {
                                         transform={`translate(${xy[0]},${xy[1]})`}
                                         style={{ pointerEvents: 'none' }}
                                       >
-                                        <circle r={11} fill="rgba(244, 63, 94, 0.18)" />
-                                        <circle r={6.5} fill="#f43f5e" stroke="#ffffff" strokeWidth={2} />
-                                        <circle r={2.2} fill="#ffffff" />
+                                        <circle r={2} fill="#0f172a" />
                                       </g>
                                     )
                                   })()
@@ -3395,7 +3393,10 @@ function CensusMapPage() {
                         if (num == null || f.geometry == null) return null
                         const ll = featureLatLng(f)
                         if (!ll) return null
-                        const r = bubbleRadiusPx(num, countyBubbleExtent.min, countyBubbleExtent.max, scale, 2.5, 16)
+                        // Smaller cap than the legend (4..22) on purpose: state-fit views
+                        // jam many counties into a narrow frame, and a 16px-radius disk
+                        // covers a whole county at that scale. 2..9 keeps neighbors visible.
+                        const r = bubbleRadiusPx(num, countyBubbleExtent.min, countyBubbleExtent.max, scale, 2, 9)
                         const bt =
                           metricToDisplayT(num, countyBubbleExtent.min, countyBubbleExtent.max, scale) ?? 0
                         const name = String(p?.NAME ?? id)

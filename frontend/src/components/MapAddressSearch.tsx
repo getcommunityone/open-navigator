@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import { nominatimUsStateCode } from '../utils/stateMapping'
 
+/** Smallest geographic unit the search result actually identifies. */
+export type MapAddressGranularity = 'state' | 'county' | 'place' | 'address'
+
 export interface MapAddressResult {
   displayName: string
   shortLabel: string
@@ -10,6 +13,8 @@ export interface MapAddressResult {
   stateCode: string | null
   county: string
   city: string
+  /** Classifies the Nominatim hit so callers can route to the right map tier. */
+  granularity: MapAddressGranularity
 }
 
 interface MapAddressSearchProps {
@@ -27,6 +32,47 @@ interface NominatimSuggestion {
   lon: string
   display_name: string
   address?: Record<string, unknown>
+  /** Nominatim's coarse classification ("state", "county", "city", "house"…). */
+  addresstype?: string
+  /** Coarse OSM class ("boundary", "place", "building"…). */
+  class?: string
+  /** Finer-grained OSM type within the class ("administrative", "city"…). */
+  type?: string
+}
+
+/**
+ * Classify a Nominatim hit into the smallest tier our map can route to.
+ *
+ * - `state`   when the result IS a state (e.g. "Georgia")
+ * - `county`  when the result IS a county (e.g. "Tuscaloosa County")
+ * - `place`   when the result is a city/town/village/CDP (e.g. "Tuscaloosa")
+ * - `address` when there's a house number, road, or anything finer-grained
+ *
+ * Nominatim's `addresstype` is the primary signal; we fall back to inspecting
+ * the parsed `address` object for ambiguous cases (e.g. a hit on a city named
+ * the same as its county).
+ */
+function classifyGranularity(s: NominatimSuggestion): MapAddressGranularity {
+  const at = (s.addresstype ?? '').toLowerCase()
+  const cls = (s.class ?? '').toLowerCase()
+  const typ = (s.type ?? '').toLowerCase()
+  if (at === 'state') return 'state'
+  if (at === 'county') return 'county'
+  if (at === 'city' || at === 'town' || at === 'village' || at === 'hamlet' || at === 'municipality') {
+    return 'place'
+  }
+  // Boundary-class results without an addresstype: lean on type for state/county.
+  if (cls === 'boundary' && typ === 'administrative') {
+    const addr = s.address ?? {}
+    if ((addr as Record<string, unknown>).state && !(addr as Record<string, unknown>).county) return 'state'
+    if ((addr as Record<string, unknown>).county) return 'county'
+  }
+  // Anything with a house number or road is definitely an address.
+  const a = (s.address ?? {}) as Record<string, unknown>
+  if (a.house_number || a.road || a.building || a.amenity) return 'address'
+  // Place-class hits (neighborhood, suburb…) collapse to the parent place.
+  if (cls === 'place') return 'place'
+  return 'address'
 }
 
 function shortLabelFromAddress(addr: Record<string, unknown> | undefined, fallback: string): string {
@@ -121,6 +167,7 @@ export default function MapAddressSearch({
         (s.address?.municipality as string) ||
         '').trim()
     const shortLabel = shortLabelFromAddress(s.address, s.display_name)
+    const granularity = classifyGranularity(s)
     setValue(shortLabel)
     setOpen(false)
     setSuggestions([])
@@ -132,6 +179,7 @@ export default function MapAddressSearch({
       stateCode,
       county,
       city,
+      granularity,
     })
   }
 

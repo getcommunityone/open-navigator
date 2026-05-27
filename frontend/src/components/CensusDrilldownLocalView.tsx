@@ -13,6 +13,8 @@ interface LocalViewProps {
   topLeftSlot?: React.ReactNode
   /** Basemap to show first. Defaults to 'satellite'. */
   initialBasemap?: Basemap
+  /** Fires when the user clicks the dropped pin — page handles details lookup. */
+  onMarkerClick?: () => void
 }
 
 /**
@@ -34,6 +36,7 @@ export default function CensusDrilldownLocalView({
   label,
   topLeftSlot,
   initialBasemap = 'satellite',
+  onMarkerClick,
 }: LocalViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<L.Map | null>(null)
@@ -141,11 +144,14 @@ export default function CensusDrilldownLocalView({
       markerRef.current.setLatLng([center.lat, center.lng])
     } else {
       markerRef.current = L.circleMarker([center.lat, center.lng], {
-        radius: 8,
-        color: '#fff',
-        weight: 2,
+        // Small enough to not dominate a house-scale aerial, big enough for
+        // the click target (Leaflet's hit detection has a few px slop too).
+        radius: 4,
+        color: '#ffffff',
+        weight: 1,
         fillColor: '#b8442c',
-        fillOpacity: 1,
+        fillOpacity: 0.95,
+        className: 'cursor-pointer',
       }).addTo(map)
     }
     if (label) {
@@ -153,7 +159,12 @@ export default function CensusDrilldownLocalView({
     } else {
       markerRef.current.unbindTooltip()
     }
-  }, [center.lat, center.lng, label])
+    // Rebind click on every update so the latest onMarkerClick closure is used.
+    markerRef.current.off('click')
+    if (onMarkerClick) {
+      markerRef.current.on('click', () => onMarkerClick())
+    }
+  }, [center.lat, center.lng, label, onMarkerClick])
 
   return (
     <div className="relative h-full w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-200 shadow-sm">
