@@ -27,7 +27,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
-_ROOT = Path(__file__).resolve().parents[2]
+_ROOT = Path(__file__).resolve().parents[4]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
@@ -37,16 +37,16 @@ def _persist_cmd(
 ) -> Tuple[str, List[str]]:
     if engine == "verapdf":
         return (
-            "scripts.accessibility.persist_verapdf_results",
+            "accessibility.persist_verapdf_results",
             ["--input", str(result_path), "--ensure-ddl"],
         )
     if engine == "lighthouse":
         return (
-            "scripts.accessibility.persist_lighthouse_results",
+            "accessibility.persist_lighthouse_results",
             ["--input", str(result_path), "--batch-id", batch_id, "--ensure-ddl"],
         )
     return (
-        "scripts.accessibility.persist_results",
+        "accessibility.persist_results",
         ["--scanner", engine, "--input", str(result_path), "--batch-id", batch_id, "--ensure-ddl"],
     )
 
@@ -62,7 +62,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     cache = _ROOT / "tmp" / "accessibility" / batch_id
     cache.mkdir(parents=True, exist_ok=True)
     py = os.environ.get("LAMBDA_PYTHON", sys.executable)
-    acc_dir = _ROOT / "scripts" / "accessibility"
+    acc_dir = _ROOT / "packages" / "accessibility" / "src" / "accessibility"
     node = os.environ.get("NODE_BIN", "node")
 
     if engine == "verapdf":
@@ -70,7 +70,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         export_pdf = [
             py,
             "-m",
-            "scripts.accessibility.export_pdf_urls",
+            "accessibility.export_pdf_urls",
             "--out",
             str(manifest),
             "--limit",
@@ -88,7 +88,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             [
                 py,
                 "-m",
-                "scripts.accessibility.run_verapdf_scan",
+                "accessibility.run_verapdf_scan",
                 "--manifest",
                 str(manifest),
                 "--out",
@@ -102,7 +102,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         export_html = [
             py,
             "-m",
-            "scripts.accessibility.export_urls",
+            "accessibility.export_urls",
             "--out",
             str(urls_file),
             "--limit",

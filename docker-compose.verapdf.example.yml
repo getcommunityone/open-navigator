@@ -10,7 +10,7 @@ services:
   verapdf-worker:
     build:
       context: .
-      dockerfile: scripts/accessibility/docker/Dockerfile.verapdf-worker
+      dockerfile: packages/accessibility/src/accessibility/docker/Dockerfile.verapdf-worker
     image: open-navigator/verapdf-worker:latest
     env_file:
       - .env
@@ -24,4 +24,4 @@ services:
     entrypoint:
       - python3
       - -m
-      - scripts.accessibility.docker_entrypoint
+      - accessibility.docker_entrypoint

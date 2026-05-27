@@ -6,9 +6,9 @@ Writes a JSON array for Pa11y-CI / axe batch runners (one URL per ``jurisdiction
 using the same source-priority order as discovery).
 
 Usage:
-  .venv/bin/python -m scripts.accessibility.export_urls --state AL
-  .venv/bin/python -m scripts.accessibility.export_urls --limit 500 --offset 1000 --batch-id shard-2
-  .venv/bin/python -m scripts.accessibility.export_urls --out data/cache/accessibility/urls.json
+  .venv/bin/python -m accessibility.export_urls --state AL
+  .venv/bin/python -m accessibility.export_urls --limit 500 --offset 1000 --batch-id shard-2
+  .venv/bin/python -m accessibility.export_urls --out data/cache/accessibility/urls.json
 """
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
-_ROOT = Path(__file__).resolve().parents[2]
+_ROOT = Path(__file__).resolve().parents[4]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
@@ -34,7 +34,7 @@ except ModuleNotFoundError as exc:
     print("Install psycopg2-binary: pip install -r requirements.txt", file=sys.stderr)
     sys.exit(1)
 
-from scripts.accessibility._int_websites import (
+from accessibility._int_websites import (
     INT_JURISDICTION_WEBSITES_TABLE,
     WEBSITE_SOURCE_PRIORITY_ORDER_SQL,
 )

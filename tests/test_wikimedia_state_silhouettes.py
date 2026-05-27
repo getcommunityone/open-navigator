@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from scripts.wikimedia.download_state_silhouettes import (
+from ingestion.wikimedia.download import (
     _resolve_locator_title,
     _resolve_state_title,
 )

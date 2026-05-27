@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * axe-core + Puppeteer batch scanner for jurisdiction homepages.
- * Writes NDJSON for scripts.accessibility.persist_results.
+ * Writes NDJSON for accessibility.persist_results.
  *
  * Usage:
  *   node run_axe_scan.mjs --urls ../../data/cache/accessibility/urls.json
@@ -164,7 +164,7 @@ async function main() {
   out.end();
   console.log(`Wrote NDJSON to ${outPath}`);
   console.log(
-    `Persist: python -m scripts.accessibility.persist_results --scanner axe --input ${outPath} --ensure-ddl`
+    `Persist: python -m accessibility.persist_results --scanner axe --input ${outPath} --ensure-ddl`
   );
 }
 

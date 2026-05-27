@@ -291,10 +291,10 @@ From the repo root, after `int_jurisdiction_websites` is built and `.env` has a 
 
 ```bash
 # HTML: WCAG-oriented violations (axe) for Alabama pilot jurisdictions
-./scripts/accessibility/run_accessibility_scan.sh --engine axe --state AL
+./packages/accessibility/src/accessibility/run_accessibility_scan.sh --engine axe --state AL
 
 # Optional: PDF/UA on agenda/minutes PDFs discovered on those homepages
-./scripts/accessibility/run_verapdf_scan.sh --state AL --max-pdfs-per-site 3
+./packages/accessibility/src/accessibility/run_verapdf_scan.sh --state AL --max-pdfs-per-site 3
 ```
 
 **Video reveal:** Side-by-side—**Tuscaloosa County** vs **City of Tuscaloosa** homepage URLs, sorted by `violation_count` in SQL or a simple chart. Call out one concrete failure (missing form label, low contrast, empty link text) and tie it to a real task (“pay court costs,” “download tonight’s agenda PDF”).
@@ -1075,7 +1075,7 @@ Short talks, product stories, and case studies that show how **data + maps + hum
 
 - **Headline:** Test **your** city’s `.gov` homepage
 - **Subline:** axe + Pa11y scan · violation count by jurisdiction
-- **CTA:** Run `./scripts/accessibility/run_accessibility_scan.sh --state AL`
+- **CTA:** Run `./packages/accessibility/src/accessibility/run_accessibility_scan.sh --state AL`
 
 **Interactive annual report**
 

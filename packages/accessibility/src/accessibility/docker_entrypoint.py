@@ -7,7 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-_ROOT = Path(__file__).resolve().parents[2]
+_ROOT = Path(__file__).resolve().parents[4]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
@@ -30,7 +30,7 @@ def main() -> None:
     disc = [
         py,
         "-m",
-        "scripts.accessibility.export_pdf_urls",
+        "accessibility.export_pdf_urls",
         "--out",
         str(manifest),
         "--max-pdfs-per-site",
@@ -50,14 +50,14 @@ def main() -> None:
 
     batch_id = json.loads(manifest.read_text(encoding="utf-8")).get("batch_id", "docker")
     out = cache / f"verapdf-{batch_id}.ndjson"
-    scan = [py, "-m", "scripts.accessibility.run_verapdf_scan", "--manifest", str(manifest), "--out", str(out)]
+    scan = [py, "-m", "accessibility.run_verapdf_scan", "--manifest", str(manifest), "--out", str(out)]
     if args.limit:
         scan.extend(["--limit", str(args.limit)])
     subprocess.run(scan, check=True, cwd=str(_ROOT))
 
     if not args.no_persist:
         subprocess.run(
-            [py, "-m", "scripts.accessibility.persist_verapdf_results", "--input", str(out), "--ensure-ddl"],
+            [py, "-m", "accessibility.persist_verapdf_results", "--input", str(out), "--ensure-ddl"],
             check=True,
             cwd=str(_ROOT),
         )
