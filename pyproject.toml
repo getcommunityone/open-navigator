@@ -1,0 +1,12 @@
+# uv workspace root (virtual — not itself a buildable package).
+# Phase 1 of the monorepo migration: only the shared kernel packages are
+# members. apps/ (FastAPI, web) and services/ (ingestion, discovery) join
+# in later phases. The dbt project stays a standalone uv project because its
+# protobuf/pathspec pins conflict with the main resolution (see requirements-dbt.txt).
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.uv.sources]
+communityone-core = { workspace = true }
+communityone-agents = { workspace = true }
+communityone-datamodels = { workspace = true }

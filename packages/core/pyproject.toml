@@ -1,0 +1,17 @@
+[project]
+name = "communityone-core"
+version = "0.1.0"
+description = "Shared configuration and settings for CommunityOne."
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# Import name stays `config` during the migration so no call sites change.
+[tool.hatch.build.targets.wheel]
+packages = ["config"]
