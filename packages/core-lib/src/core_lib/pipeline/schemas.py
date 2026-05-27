@@ -1,10 +1,14 @@
 """Pydantic envelopes for pipeline rows and per-run context."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 class RawRow(BaseModel):
@@ -13,7 +17,7 @@ class RawRow(BaseModel):
 
     source: str
     source_version: str
-    ingested_at: datetime = Field(default_factory=datetime.utcnow)
+    ingested_at: datetime = Field(default_factory=_utcnow)
     natural_key: str
 
 
