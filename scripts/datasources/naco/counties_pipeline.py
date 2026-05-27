@@ -1,165 +1,55 @@
 #!/usr/bin/env python3
-"""
-Load cached NACo county data into bronze jurisdictions NACo tables.
+"""NACo counties pipeline: load cached NACo county JSON into bronze.
 
-Run scrape_naco_counties.py first to populate the cache.
+Ported from load_naco_to_bronze.py to the core_lib DataSourcePipeline contract.
 
-Database URL resolution matches the rest of the repo: NEON_DATABASE_URL_DEV,
-NEON_DATABASE_URL, OPEN_NAVIGATOR_DATABASE_URL — see scripts/database/target_database_url.py.
+Run scrape_naco_counties.py first to populate the cache
+(data/cache/naco/naco_counties_<STATE>_<YYYYMMDD>.json).
 
-Tables created:
-    bronze.bronze_jurisdictions_counties_naco   — one row per county (NACo County Explorer)
-    bronze.bronze_jurisdictions_officials_naco  — one row per county official
+Tables created (DDL preserved from the legacy loader):
+    bronze.bronze_jurisdictions_counties_naco   - one row per county (NACo County Explorer)
+    bronze.bronze_jurisdictions_officials_naco  - one row per county official
+
+This pipeline ingests the counties table; the officials table DDL is preserved
+and ensured here so the legacy schema stays intact.
 
 Legacy rename: migrations/015_rename_bronze_naco_jurisdictions.sql from bronze_naco_*.
 
 Usage:
-    ./.venv/bin/python scripts/datasources/naco/load_naco_to_bronze.py
-    python3 scripts/datasources/naco/load_naco_to_bronze.py --states AL,GA
-    python3 scripts/datasources/naco/load_naco_to_bronze.py --date 20260510
-    python3 scripts/datasources/naco/load_naco_to_bronze.py --truncate
-    python3 scripts/datasources/naco/load_naco_to_bronze.py --dry-run
+    python -m scripts.datasources.naco.counties_pipeline
+    python scripts/datasources/naco/counties_pipeline.py --states AL,GA
+    python scripts/datasources/naco/counties_pipeline.py --date 20260510
+    python scripts/datasources/naco/counties_pipeline.py --truncate
+
+Configuration:
+    NEON_DATABASE_URL_DEV / NEON_DATABASE_URL / DATABASE_URL via core_lib.db
+    (replaces hardcoded psycopg2 / localhost:5433).
 """
-import sys
+from __future__ import annotations
+
 import argparse
+import asyncio
 import json
-import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, AsyncIterator
 
-_ROOT = Path(__file__).resolve().parent.parent.parent.parent
-_VENV_REEXEC = "_OPEN_NAVIGATOR_NACO_VENV_REEXEC"
+from pydantic import Field
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from core_lib.db import async_session
+from core_lib.logging import setup_logging
+from core_lib.pipeline import DataSourcePipeline, PipelineContext, RawRow
 
-def _in_project_venv() -> bool:
-    px = Path(sys.prefix).resolve()
-    return px in {
-        (_ROOT / ".venv").resolve(),
-        (_ROOT / ".venv-dbt").resolve(),
-    }
-
-
-def _maybe_reexec_with_project_venv() -> None:
-    if os.environ.get(_VENV_REEXEC) == "1":
-        return
-    if _in_project_venv():
-        return
-    for name in (".venv", ".venv-dbt"):
-        vpy = _ROOT / name / "bin" / "python"
-        if vpy.is_file():
-            os.environ[_VENV_REEXEC] = "1"
-            os.execv(str(vpy), [str(vpy)] + sys.argv)
-
-
-try:
-    import psycopg2
-    from psycopg2.extras import execute_batch
-    from dotenv import load_dotenv
-    from loguru import logger
-except ImportError:
-    _maybe_reexec_with_project_venv()
-    hints = [
-        "NACo loader needs psycopg2-binary, python-dotenv, loguru (see requirements.txt).",
-        "Install dependencies, then retry:",
-        f"  cd {_ROOT}",
-        "  ./.venv/bin/pip install -r requirements.txt",
-        "  ./.venv/bin/python scripts/datasources/naco/load_naco_to_bronze.py   # add your flags, e.g. --states AL,GA,MA",
-    ]
-    print("\n".join(hints), file=sys.stderr)
-    sys.exit(1)
-
-sys.path.insert(0, str(_ROOT))
-
-# Load repo .env from project root first (works even when cwd is elsewhere)
-load_dotenv(_ROOT / ".env")
-load_dotenv()
-
-from scripts.database.target_database_url import resolve_target_database_url
-
-DATABASE_URL = resolve_target_database_url()
-
-
-def _database_url_source_label() -> str:
-    """Which env input won (same order as target_database_url.resolve_target_database_url)."""
-    if (os.getenv("OPEN_NAVIGATOR_DATABASE_URL") or "").strip():
-        return "OPEN_NAVIGATOR_DATABASE_URL"
-    if (os.getenv("NEON_DATABASE_URL_DEV") or "").strip():
-        return "NEON_DATABASE_URL_DEV"
-    if (os.getenv("NEON_DATABASE_URL") or "").strip():
-        return "NEON_DATABASE_URL"
-    return "default local (localhost:5433/open_navigator)"
 
 CACHE_DIR = Path("data/cache/naco")
 
 BRONZE_NACO_COUNTIES = "bronze.bronze_jurisdictions_counties_naco"
 BRONZE_NACO_OFFICIALS = "bronze.bronze_jurisdictions_officials_naco"
 
-CREATE_COUNTIES_SQL = f"""
-    CREATE SCHEMA IF NOT EXISTS bronze;
 
-    CREATE TABLE IF NOT EXISTS {BRONZE_NACO_COUNTIES} (
-        naco_id             VARCHAR(50),
-        county_name         VARCHAR(255),
-        state_code          VARCHAR(2),
-        fips_code           VARCHAR(5),
-        website             VARCHAR(500),
-        phone               VARCHAR(50),
-        email               VARCHAR(255),
-        population          INTEGER,
-        area_sq_miles       NUMERIC(12, 2),
-        county_seat         VARCHAR(255),
-        raw_json            JSONB,
-        ingestion_date      TIMESTAMP DEFAULT NOW(),
-        PRIMARY KEY (state_code, county_name)
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_bjcnc_state ON {BRONZE_NACO_COUNTIES}(state_code);
-    CREATE INDEX IF NOT EXISTS idx_bjcnc_fips  ON {BRONZE_NACO_COUNTIES}(fips_code);
-"""
-
-CREATE_OFFICIALS_SQL = f"""
-    CREATE TABLE IF NOT EXISTS {BRONZE_NACO_OFFICIALS} (
-        id                  SERIAL PRIMARY KEY,
-        state_code          VARCHAR(2),
-        county_name         VARCHAR(255),
-        fips_code           VARCHAR(5),
-        official_name       VARCHAR(255),
-        title               VARCHAR(255),
-        email               VARCHAR(255),
-        phone               VARCHAR(50),
-        raw_json            JSONB,
-        ingestion_date      TIMESTAMP DEFAULT NOW()
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_bjcno_state  ON {BRONZE_NACO_OFFICIALS}(state_code);
-    CREATE INDEX IF NOT EXISTS idx_bjcno_fips   ON {BRONZE_NACO_OFFICIALS}(fips_code);
-    CREATE INDEX IF NOT EXISTS idx_bjcno_county ON {BRONZE_NACO_OFFICIALS}(state_code, county_name);
-"""
-
-UPSERT_COUNTY_SQL = f"""
-    INSERT INTO {BRONZE_NACO_COUNTIES}
-        (naco_id, county_name, state_code, fips_code, website, phone, email,
-         population, area_sq_miles, county_seat, raw_json)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-    ON CONFLICT (state_code, county_name) DO UPDATE SET
-        naco_id        = EXCLUDED.naco_id,
-        fips_code      = EXCLUDED.fips_code,
-        website        = EXCLUDED.website,
-        phone          = EXCLUDED.phone,
-        email          = EXCLUDED.email,
-        population     = EXCLUDED.population,
-        area_sq_miles  = EXCLUDED.area_sq_miles,
-        county_seat    = EXCLUDED.county_seat,
-        raw_json       = EXCLUDED.raw_json,
-        ingestion_date = NOW()
-"""
-
-INSERT_OFFICIAL_SQL = f"""
-    INSERT INTO {BRONZE_NACO_OFFICIALS}
-        (state_code, county_name, fips_code, official_name, title, email, phone, raw_json)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-"""
+# --- Pure helpers (preserved verbatim from the legacy loader) -----------------
 
 
 def _str(val: Any, maxlen: int | None = None) -> str | None:
@@ -287,7 +177,7 @@ def parse_officials(raw: dict[str, Any]) -> list[tuple]:
 
 def find_cache_files(date_str: str | None, states: list[str] | None) -> list[Path]:
     """Locate county JSON cache files matching date + state filters."""
-    pattern = f"naco_counties_*.json"
+    pattern = "naco_counties_*.json"
     all_files = sorted(CACHE_DIR.glob(pattern))
 
     if date_str:
@@ -306,168 +196,242 @@ def find_officials_cache_files(date_str: str | None) -> list[Path]:
     officials_dir = CACHE_DIR / "officials"
     if not officials_dir.exists():
         return []
-    pattern = f"naco_officials_*.json"
+    pattern = "naco_officials_*.json"
     files = sorted(officials_dir.glob(pattern))
     if date_str:
         files = [f for f in files if date_str in f.name]
     return files
 
 
-def _connect_postgres():
-    try:
-        return psycopg2.connect(DATABASE_URL)
-    except psycopg2.OperationalError as e:
-        tail = DATABASE_URL.split("@")[-1] if "@" in DATABASE_URL else DATABASE_URL
-        logger.error(f"PostgreSQL connection failed ({tail}): {e}")
-        if ":5432/" in DATABASE_URL or ":5432" in tail:
-            logger.error(
-                "Connection URL uses port 5432. For local Docker, open_navigator is often on 5433; "
-                "NEON_DATABASE_URL_DEV in .env should match your actual server. "
-                "See scripts/database/target_database_url.py for resolution order."
+# --- Row schema ---------------------------------------------------------------
+
+
+class CountyRow(RawRow):
+    """One NACo county row, validated before upsert into the counties table."""
+
+    naco_id: str | None = Field(default=None, max_length=50)
+    county_name: str = Field(min_length=1, max_length=255)
+    state_code: str = Field(min_length=1, max_length=2)
+    fips_code: str | None = Field(default=None, max_length=5)
+    website: str | None = Field(default=None, max_length=500)
+    phone: str | None = Field(default=None, max_length=50)
+    email: str | None = Field(default=None, max_length=255)
+    population: int | None = None
+    area_sq_miles: float | None = None
+    county_seat: str | None = Field(default=None, max_length=255)
+    raw_json: dict[str, Any] = Field(default_factory=dict)
+
+
+# --- DDL (one statement per text(); preserved from the legacy loader) ---------
+
+_CREATE_SCHEMA_SQL = text("CREATE SCHEMA IF NOT EXISTS bronze")
+
+_CREATE_COUNTIES_SQL = text(
+    f"""
+    CREATE TABLE IF NOT EXISTS {BRONZE_NACO_COUNTIES} (
+        naco_id             VARCHAR(50),
+        county_name         VARCHAR(255),
+        state_code          VARCHAR(2),
+        fips_code           VARCHAR(5),
+        website             VARCHAR(500),
+        phone               VARCHAR(50),
+        email               VARCHAR(255),
+        population          INTEGER,
+        area_sq_miles       NUMERIC(12, 2),
+        county_seat         VARCHAR(255),
+        raw_json            JSONB,
+        ingestion_date      TIMESTAMP DEFAULT NOW(),
+        PRIMARY KEY (state_code, county_name)
+    )
+    """
+)
+
+_CREATE_OFFICIALS_SQL = text(
+    f"""
+    CREATE TABLE IF NOT EXISTS {BRONZE_NACO_OFFICIALS} (
+        id                  SERIAL PRIMARY KEY,
+        state_code          VARCHAR(2),
+        county_name         VARCHAR(255),
+        fips_code           VARCHAR(5),
+        official_name       VARCHAR(255),
+        title               VARCHAR(255),
+        email               VARCHAR(255),
+        phone               VARCHAR(50),
+        raw_json            JSONB,
+        ingestion_date      TIMESTAMP DEFAULT NOW()
+    )
+    """
+)
+
+_CREATE_INDEXES_SQL = (
+    text(f"CREATE INDEX IF NOT EXISTS idx_bjcnc_state ON {BRONZE_NACO_COUNTIES}(state_code)"),
+    text(f"CREATE INDEX IF NOT EXISTS idx_bjcnc_fips  ON {BRONZE_NACO_COUNTIES}(fips_code)"),
+    text(f"CREATE INDEX IF NOT EXISTS idx_bjcno_state  ON {BRONZE_NACO_OFFICIALS}(state_code)"),
+    text(f"CREATE INDEX IF NOT EXISTS idx_bjcno_fips   ON {BRONZE_NACO_OFFICIALS}(fips_code)"),
+    text(f"CREATE INDEX IF NOT EXISTS idx_bjcno_county ON {BRONZE_NACO_OFFICIALS}(state_code, county_name)"),
+)
+
+_TRUNCATE_SQL = text(f"TRUNCATE TABLE {BRONZE_NACO_COUNTIES}")
+
+_UPSERT_SQL = text(
+    f"""
+    INSERT INTO {BRONZE_NACO_COUNTIES}
+        (naco_id, county_name, state_code, fips_code, website, phone, email,
+         population, area_sq_miles, county_seat, raw_json)
+    VALUES
+        (:naco_id, :county_name, :state_code, :fips_code, :website, :phone, :email,
+         :population, :area_sq_miles, :county_seat, CAST(:raw_json AS jsonb))
+    ON CONFLICT (state_code, county_name) DO UPDATE SET
+        naco_id        = EXCLUDED.naco_id,
+        fips_code      = EXCLUDED.fips_code,
+        website        = EXCLUDED.website,
+        phone          = EXCLUDED.phone,
+        email          = EXCLUDED.email,
+        population     = EXCLUDED.population,
+        area_sq_miles  = EXCLUDED.area_sq_miles,
+        county_seat    = EXCLUDED.county_seat,
+        raw_json       = EXCLUDED.raw_json,
+        ingestion_date = NOW()
+    """
+)
+
+
+class NacoCountiesPipeline(DataSourcePipeline[CountyRow]):
+    source = "naco_counties"
+    batch_size = 2_000
+    row_schema = CountyRow
+
+    def __init__(
+        self,
+        *,
+        path: Path | None = None,
+        date_str: str | None = None,
+        states: list[str] | None = None,
+        limit: int | None = None,
+    ):
+        self._path = path
+        self._date_str = date_str
+        self._states = states
+        self._limit = limit
+
+    def _discover(self) -> list[Path]:
+        if self._path is not None:
+            return [self._path]
+        files = find_cache_files(self._date_str, self._states)
+        if not files:
+            raise FileNotFoundError(
+                f"No NACo cache files found in {CACHE_DIR} for "
+                f"date={self._date_str}, states={self._states}. "
+                "Run scrape_naco_counties.py first."
             )
-        else:
-            logger.error(
-                "Check POSTGRES_PASSWORD and that the server is listening on the host:port above."
-            )
-        raise
+        return files
+
+    async def extract(self, ctx: PipelineContext) -> AsyncIterator[dict]:
+        emitted = 0
+        for cache_file in self._discover():
+            raw_list = json.loads(cache_file.read_text())
+            for raw in raw_list:
+                if self._limit is not None and emitted >= self._limit:
+                    return
+                if not isinstance(raw, dict):
+                    continue
+                if raw.get("_fallback"):
+                    # Raw HTML fallback - no structured data to parse yet
+                    continue
+                row = parse_county(raw)
+                if row is None:
+                    continue
+                (
+                    naco_id, county_name, state_code, fips_code, website, phone,
+                    email, population, area_sq_miles, county_seat, _raw_json,
+                ) = row
+                yield {
+                    "source": self.source,
+                    "source_version": cache_file.stem,
+                    "natural_key": f"{state_code}:{county_name}",
+                    "naco_id": naco_id,
+                    "county_name": county_name,
+                    "state_code": state_code,
+                    "fips_code": fips_code,
+                    "website": website,
+                    "phone": phone,
+                    "email": email,
+                    "population": population,
+                    "area_sq_miles": area_sq_miles,
+                    "county_seat": county_seat,
+                    "raw_json": raw,
+                }
+                emitted += 1
+
+    async def load_batch(
+        self,
+        session: AsyncSession,
+        rows: list[CountyRow],
+        ctx: PipelineContext,
+    ) -> None:
+        params = [
+            {
+                "naco_id": r.naco_id,
+                "county_name": r.county_name,
+                "state_code": r.state_code,
+                "fips_code": r.fips_code,
+                "website": r.website,
+                "phone": r.phone,
+                "email": r.email,
+                "population": r.population,
+                "area_sq_miles": r.area_sq_miles,
+                "county_seat": r.county_seat,
+                "raw_json": json.dumps(r.raw_json),
+            }
+            for r in rows
+        ]
+        await session.execute(_UPSERT_SQL, params)
 
 
-def load_to_postgres(
-    county_records: list[tuple],
-    official_records: list[tuple],
-    dry_run: bool = False,
-    truncate: bool = False,
-) -> dict[str, int]:
-    conn = _connect_postgres()
-    cur = conn.cursor()
-
-    cur.execute(CREATE_COUNTIES_SQL)
-    cur.execute(CREATE_OFFICIALS_SQL)
-    conn.commit()
-
-    if truncate:
-        cur.execute(f"SELECT COUNT(*) FROM {BRONZE_NACO_COUNTIES}")
-        before_c = cur.fetchone()[0]
-        cur.execute(f"SELECT COUNT(*) FROM {BRONZE_NACO_OFFICIALS}")
-        before_o = cur.fetchone()[0]
-        cur.execute(
-            f"TRUNCATE TABLE {BRONZE_NACO_COUNTIES}, {BRONZE_NACO_OFFICIALS}"
-        )
-        conn.commit()
-        logger.info(
-            f"Truncated {BRONZE_NACO_COUNTIES} ({before_c:,} rows) and "
-            f"{BRONZE_NACO_OFFICIALS} ({before_o:,} rows)"
-        )
-
-    stats = {"counties_parsed": len(county_records), "officials_parsed": len(official_records)}
-
-    if dry_run:
-        logger.warning("DRY RUN — no data written. First 3 county records:")
-        for row in county_records[:3]:
-            logger.info(f"  {row[:5]}…")
-        cur.close()
-        conn.close()
-        stats.update({"counties_loaded": 0, "officials_loaded": 0})
-        return stats
-
-    if county_records:
-        execute_batch(cur, UPSERT_COUNTY_SQL, county_records, page_size=2000)
-        conn.commit()
-        cur.execute(f"SELECT COUNT(*) FROM {BRONZE_NACO_COUNTIES}")
-        total_c = cur.fetchone()[0]
-        logger.success(
-            f"Upserted {len(county_records):,} counties → {BRONZE_NACO_COUNTIES} "
-            f"(table total: {total_c:,})"
-        )
-    else:
-        logger.warning("No county records to load.")
-        total_c = 0
-
-    if official_records:
-        execute_batch(cur, INSERT_OFFICIAL_SQL, official_records, page_size=2000)
-        conn.commit()
-        cur.execute(f"SELECT COUNT(*) FROM {BRONZE_NACO_OFFICIALS}")
-        total_o = cur.fetchone()[0]
-        logger.success(
-            f"Inserted {len(official_records):,} officials → {BRONZE_NACO_OFFICIALS} "
-            f"(table total: {total_o:,})"
-        )
-    else:
-        logger.info("No official records found (run scrape with --details to collect them).")
-        total_o = 0
-
-    cur.close()
-    conn.close()
-    stats.update({"counties_loaded": len(county_records), "officials_loaded": len(official_records)})
-    return stats
+async def _prepare_target(truncate: bool) -> None:
+    async with async_session() as session:
+        await session.execute(_CREATE_SCHEMA_SQL)
+        await session.execute(_CREATE_COUNTIES_SQL)
+        await session.execute(_CREATE_OFFICIALS_SQL)
+        for idx in _CREATE_INDEXES_SQL:
+            await session.execute(idx)
+        if truncate:
+            await session.execute(_TRUNCATE_SQL)
 
 
-def main():
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Load cached NACo county data into bronze_jurisdictions_*_naco tables"
+        description="Load cached NACo county data into bronze.bronze_jurisdictions_counties_naco"
     )
-    parser.add_argument("--states", type=str, help="Comma-separated state codes to load (e.g., AL,GA,MA)")
-    parser.add_argument("--date", type=str, help="Cache date to load (YYYYMMDD). Default: today.")
-    parser.add_argument("--dry-run", action="store_true", help="Parse only, do not write to database")
-    parser.add_argument("--truncate", action="store_true", help="TRUNCATE tables before loading")
-    args = parser.parse_args()
+    parser.add_argument(
+        "--states", type=str, help="Comma-separated state codes to load (e.g., AL,GA,MA)"
+    )
+    parser.add_argument(
+        "--date", type=str, help="Cache date to load (YYYYMMDD). Default: today."
+    )
+    parser.add_argument(
+        "--truncate", action="store_true", help="TRUNCATE table before loading"
+    )
+    parser.add_argument("--limit", type=int, help="Limit records (for testing)")
+    return parser
 
-    logger.info("=" * 70)
-    logger.info(
-        f"NACo cache → {BRONZE_NACO_COUNTIES} / {BRONZE_NACO_OFFICIALS.split('.')[-1]}"
-    )
-    logger.info("=" * 70)
-    logger.info(
-        f"Database: {_database_url_source_label()} → {DATABASE_URL.split('@')[-1]}"
-    )
 
+async def _run(args: argparse.Namespace) -> None:
+    await _prepare_target(args.truncate)
     date_str = args.date or datetime.now().strftime("%Y%m%d")
-    state_filter = [s.strip().upper() for s in args.states.split(",")] if args.states else None
-
-    county_files = find_cache_files(date_str, state_filter)
-    if not county_files:
-        logger.error(
-            f"No cache files found in {CACHE_DIR} for date={date_str}, states={state_filter}. "
-            "Run scrape_naco_counties.py first."
-        )
-        sys.exit(1)
-
-    logger.info(f"Found {len(county_files)} county cache file(s)")
-
-    county_records: list[tuple] = []
-    for cache_file in county_files:
-        raw_list = json.loads(cache_file.read_text())
-        for raw in raw_list:
-            if raw.get("_fallback"):
-                # Raw HTML fallback — skip, no structured data to parse yet
-                logger.warning(f"Skipping fallback HTML entry in {cache_file.name}")
-                continue
-            row = parse_county(raw)
-            if row:
-                county_records.append(row)
-
-    officials_files = find_officials_cache_files(date_str)
-    official_records: list[tuple] = []
-    for off_file in officials_files:
-        raw = json.loads(off_file.read_text())
-        official_records.extend(parse_officials(raw))
-
-    logger.info(f"County records parsed  : {len(county_records):,}")
-    logger.info(f"Official records parsed: {len(official_records):,}")
-
-    stats = load_to_postgres(
-        county_records,
-        official_records,
-        dry_run=args.dry_run,
-        truncate=args.truncate,
+    states = (
+        [s.strip().upper() for s in args.states.split(",")] if args.states else None
     )
+    pipeline = NacoCountiesPipeline(
+        date_str=date_str, states=states, limit=args.limit
+    )
+    await pipeline.run()
 
-    logger.info("=" * 70)
-    logger.info("SUMMARY")
-    logger.info("=" * 70)
-    for k, v in stats.items():
-        logger.info(f"  {k}: {v:,}")
-    logger.success("Done.")
+
+def main() -> None:
+    setup_logging()
+    args = build_parser().parse_args()
+    asyncio.run(_run(args))
 
 
 if __name__ == "__main__":
