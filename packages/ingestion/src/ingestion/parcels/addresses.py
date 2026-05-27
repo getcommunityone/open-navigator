@@ -1,114 +1,162 @@
 #!/usr/bin/env python3
-"""
-Load parcel attribute CSV (Esri harvest) into bronze.bronze_addresses.
+"""Parcel addresses pipeline: load Esri parcel-attribute CSV into bronze.bronze_addresses.
+
+Ported from load_parcel_addresses_to_bronze.py to the core_lib
+DataSourcePipeline contract.
+
+Data source: county Esri parcel feature services, harvested to CSV under
+data/cache/parcels/<state>/<county>_attrs.csv. Localized Esri column names are
+normalized to a small canonical vocabulary before bronze load.
 
 Usage:
-    .venv/bin/python scripts/datasources/parcels/load_parcel_addresses_to_bronze.py \\
+    python -m scripts.datasources.parcels.addresses \\
         --csv data/cache/parcels/al/tuscaloosa_county_attrs.csv \\
         --state AL \\
         --county-fips 01125 \\
         --county-name Tuscaloosa \\
         --dataset al_tuscaloosa_county_parcels \\
-        --esri-endpoint "https://services.arcgis.com/AWzSDaKZ41uuVges/ArcGIS/rest/services/Parcels/FeatureServer/0"
+        --esri-endpoint "https://services.arcgis.com/.../FeatureServer/0"
 
-    .venv/bin/python scripts/datasources/parcels/load_parcel_addresses_to_bronze.py --truncate ...
+    python scripts/datasources/parcels/addresses.py --truncate ...
+
+Configuration:
+    NEON_DATABASE_URL_DEV / NEON_DATABASE_URL / DATABASE_URL via core_lib.db
+    (replaces hardcoded psycopg2 connection to the local target database).
 """
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
-import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, AsyncIterator, Iterable
 
 import pandas as pd
-import psycopg2
-from loguru import logger
-from psycopg2.extras import Json, execute_batch
+from pydantic import Field
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[3]
-if str(_PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(_PROJECT_ROOT))
+from core_lib.db import async_session
+from core_lib.logging import setup_logging
+from core_lib.pipeline import DataSourcePipeline, PipelineContext, RawRow
 
-from scripts.database.target_database_url import resolve_target_database_url  # noqa: E402
-
-_SCRIPT_DIR = Path(__file__).resolve().parent
-if str(_SCRIPT_DIR) not in sys.path:
-    sys.path.insert(0, str(_SCRIPT_DIR))
-from field_mappings import normalize_column_names  # noqa: E402
 
 BRONZE_TABLE = "bronze.bronze_addresses"
-BATCH_SIZE = 5000
 
-CREATE_SQL = """
-    CREATE SCHEMA IF NOT EXISTS bronze;
-    CREATE TABLE IF NOT EXISTS bronze.bronze_addresses (
-        id                      BIGSERIAL PRIMARY KEY,
-        source_dataset          TEXT          NOT NULL,
-        source_record_id        TEXT          NOT NULL,
-        state_code              CHAR(2)       NOT NULL,
-        county_fips             VARCHAR(5),
-        county_name             TEXT,
-        jurisdiction_id         TEXT,
-        owner_name              TEXT,
-        situs_location          TEXT,
-        street_number           TEXT,
-        street_line1            TEXT,
-        street_line2            TEXT,
-        city                    TEXT,
-        state_abbr              CHAR(2),
-        postal_code             VARCHAR(10),
-        situs_full              TEXT,
-        parcel_number           TEXT,
-        parcel_number_formatted TEXT,
-        appraised_value         BIGINT,
-        tax_class               TEXT,
-        data_source             TEXT          NOT NULL DEFAULT 'esri_parcel',
-        esri_endpoint           TEXT,
-        raw_attributes          JSONB         NOT NULL DEFAULT '{}'::jsonb,
-        loaded_at               TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
-        CONSTRAINT uq_bronze_addresses_source UNIQUE (source_dataset, source_record_id)
-    );
-    CREATE INDEX IF NOT EXISTS idx_bronze_addresses_state_county
-        ON bronze.bronze_addresses (state_code, county_fips);
-    CREATE INDEX IF NOT EXISTS idx_bronze_addresses_jurisdiction_id
-        ON bronze.bronze_addresses (jurisdiction_id)
-        WHERE jurisdiction_id IS NOT NULL;
-"""
 
-INSERT_SQL = f"""
-    INSERT INTO {BRONZE_TABLE} (
-        source_dataset, source_record_id, state_code, county_fips, county_name,
-        jurisdiction_id, owner_name, situs_location, street_number, street_line1,
-        street_line2, city, state_abbr, postal_code, situs_full, parcel_number,
-        parcel_number_formatted, appraised_value, tax_class, data_source,
-        esri_endpoint, raw_attributes
-    ) VALUES (
-        %(source_dataset)s, %(source_record_id)s, %(state_code)s, %(county_fips)s,
-        %(county_name)s, %(jurisdiction_id)s, %(owner_name)s, %(situs_location)s,
-        %(street_number)s, %(street_line1)s, %(street_line2)s, %(city)s,
-        %(state_abbr)s, %(postal_code)s, %(situs_full)s, %(parcel_number)s,
-        %(parcel_number_formatted)s, %(appraised_value)s, %(tax_class)s,
-        %(data_source)s, %(esri_endpoint)s, %(raw_attributes)s
-    )
-    ON CONFLICT (source_dataset, source_record_id) DO UPDATE SET
-        owner_name = EXCLUDED.owner_name,
-        situs_location = EXCLUDED.situs_location,
-        street_number = EXCLUDED.street_number,
-        street_line1 = EXCLUDED.street_line1,
-        street_line2 = EXCLUDED.street_line2,
-        city = EXCLUDED.city,
-        state_abbr = EXCLUDED.state_abbr,
-        postal_code = EXCLUDED.postal_code,
-        situs_full = EXCLUDED.situs_full,
-        parcel_number = EXCLUDED.parcel_number,
-        parcel_number_formatted = EXCLUDED.parcel_number_formatted,
-        appraised_value = EXCLUDED.appraised_value,
-        tax_class = EXCLUDED.tax_class,
-        esri_endpoint = EXCLUDED.esri_endpoint,
-        raw_attributes = EXCLUDED.raw_attributes,
-        loaded_at = NOW()
-"""
+# ---------------------------------------------------------------------------
+# Canonical parcel-attribute names and county-specific Esri field aliases.
+#
+# Vendored verbatim from scripts/datasources/parcels/field_mappings.py so the
+# package is self-contained (no dependency on the scripts/ tree). Counties
+# rarely share column names; map localized fields to a small standard
+# vocabulary before bronze load.
+# ---------------------------------------------------------------------------
+
+# canonical_name -> source aliases (first match wins, case-insensitive)
+CANONICAL_ALIASES: dict[str, tuple[str, ...]] = {
+    "parcel_id": (
+        "PARCEL_ID",
+        "PARCELID",
+        "PIN",
+        "APN",
+        "PROP_ID",
+        "PROP_ID_NUM",
+        "GEOPIN",
+        "pclnum",
+        "PCNUM_FMT",
+        "PARCEL",
+        "PARCEL_NUM",
+        "ppin",
+    ),
+    "situs_address": (
+        "SITUS_ADDRESS",
+        "SITUS_ADDR",
+        "PROP_ADR",
+        "PROP_ADDR",
+        "LOC_ADDR",
+        "SITE_ADDR",
+        "PHY_ADDR",
+        "PROPERTY_ADDRESS",
+        "pcliLocati",
+        "ADDRESS",
+        "SITEADDRESS",
+    ),
+    "owner_primary": (
+        "OWNER_NAME",
+        "OWNER1",
+        "OWN_NAME",
+        "PR_OWNER",
+        "M_OWNER",
+        "OWNER",
+        "TAX_OWNER",
+        "pcloNAME",
+        "NAME1",
+        "OWNERNAMES",
+    ),
+    "owner_secondary": (
+        "OWNER2",
+        "CO_OWNER",
+        "SECONDARY_OWNER",
+    ),
+    "legal_description": (
+        "LEGAL_DESC",
+        "LEGAL_DESCRIPTION",
+        "LEGAL",
+        "LDESC",
+    ),
+    "appraised_improvement_value": (
+        "IMPR_VAL",
+        "IMP_VALUE",
+        "BLDG_APPRAISAL",
+        "IMPROVEMENT_VALUE",
+        "BLDG_VAL",
+    ),
+    "appraised_land_value": (
+        "LAND_VAL",
+        "LAND_VALUE",
+        "LAND_APPRAISAL",
+    ),
+    "appraised_total_value": (
+        "TOTAL_VAL",
+        "TOTAL_VALUE",
+        "APPRAISED_VALUE",
+        "APPR_VAL",
+        "TOT_VAL",
+        "ASSESSED_VALUE",
+        "TOTAL_APPR",
+        "appraised",
+        "TOTALAPPR",
+        "APPR_TOTAL",
+    ),
+    "tax_class": ("TaxClass", "TAX_CLASS", "CLASS", "PROP_CLASS"),
+}
+
+
+def build_rename_map(columns: Iterable[str]) -> dict[str, str]:
+    """Map raw Esri column names to canonical names where an alias is recognized."""
+    upper_to_orig = {str(c).upper(): str(c) for c in columns}
+    renames: dict[str, str] = {}
+    for canonical, aliases in CANONICAL_ALIASES.items():
+        for alias in aliases:
+            orig = upper_to_orig.get(alias.upper())
+            if orig is not None and orig not in renames:
+                renames[orig] = canonical
+                break
+    return renames
+
+
+def normalize_column_names(df: pd.DataFrame) -> pd.DataFrame:
+    """Return a copy with recognized parcel fields renamed to canonical names."""
+    renames = build_rename_map(df.columns)
+    if not renames:
+        return df.copy()
+    return df.rename(columns=renames)
+
+
+# ---------------------------------------------------------------------------
+# Pure helpers (preserved verbatim from the legacy loader).
+# ---------------------------------------------------------------------------
 
 
 def _clean_str(val: Any) -> str | None:
@@ -215,81 +263,223 @@ def row_to_record(
         "tax_class": _first_str(row, "tax_class", "TaxClass", "TAX_CLASS", "PROP_CLASS"),
         "data_source": "esri_parcel",
         "esri_endpoint": esri_endpoint,
-        "raw_attributes": Json({k: (None if pd.isna(v) else v) for k, v in row.items()}),
+        "raw_attributes": {k: (None if pd.isna(v) else v) for k, v in row.items()},
     }
 
 
-def load_csv_to_bronze(
-    csv_path: Path,
-    *,
-    db_url: str,
-    source_dataset: str,
-    state_code: str,
-    county_fips: str | None,
-    county_name: str | None,
-    jurisdiction_id: str | None,
-    esri_endpoint: str | None,
-    truncate: bool,
-    dry_run: bool,
-    limit: int | None,
-) -> int:
-    logger.info("Reading {}", csv_path)
-    df = pd.read_csv(csv_path, dtype=str, low_memory=False)
-    df = normalize_column_names(df)
-    if limit:
-        df = df.head(limit)
-    logger.info("Prepared {:,} rows for {}", len(df), BRONZE_TABLE)
+# ---------------------------------------------------------------------------
+# Row schema (nullability mirrors the bronze.bronze_addresses DDL).
+# ---------------------------------------------------------------------------
 
-    if dry_run:
-        sample = row_to_record(
-            df.iloc[0].to_dict(),
-            source_dataset=source_dataset,
-            state_code=state_code,
-            county_fips=county_fips,
-            county_name=county_name,
-            jurisdiction_id=jurisdiction_id,
-            esri_endpoint=esri_endpoint,
-        )
-        logger.info("Dry-run sample: {}", json.dumps({k: v for k, v in sample.items() if k != "raw_attributes"}, default=str))
-        return len(df)
 
-    conn = psycopg2.connect(db_url)
-    try:
-        with conn.cursor() as cur:
-            cur.execute(CREATE_SQL)
-            if truncate:
-                logger.warning("Truncating {} for dataset {}", BRONZE_TABLE, source_dataset)
-                cur.execute(f"DELETE FROM {BRONZE_TABLE} WHERE source_dataset = %s", (source_dataset,))
-            conn.commit()
+class ParcelAddressRow(RawRow):
+    """One parcel address row, validated before upsert."""
 
-        records = [
-            row_to_record(
+    source_dataset: str = Field(min_length=1)
+    source_record_id: str = Field(min_length=1)
+    state_code: str = Field(min_length=1, max_length=2)
+    county_fips: str | None = Field(default=None, max_length=5)
+    county_name: str | None = None
+    jurisdiction_id: str | None = None
+    owner_name: str | None = None
+    situs_location: str | None = None
+    street_number: str | None = None
+    street_line1: str | None = None
+    street_line2: str | None = None
+    city: str | None = None
+    state_abbr: str | None = Field(default=None, max_length=2)
+    postal_code: str | None = Field(default=None, max_length=10)
+    situs_full: str | None = None
+    parcel_number: str | None = None
+    parcel_number_formatted: str | None = None
+    appraised_value: int | None = None
+    tax_class: str | None = None
+    data_source: str = Field(default="esri_parcel", min_length=1)
+    esri_endpoint: str | None = None
+    raw_attributes: dict[str, Any] = Field(default_factory=dict)
+
+
+_CREATE_SCHEMA_SQL = text("CREATE SCHEMA IF NOT EXISTS bronze")
+
+_CREATE_TABLE_SQL = text(
+    """
+    CREATE TABLE IF NOT EXISTS bronze.bronze_addresses (
+        id                      BIGSERIAL PRIMARY KEY,
+        source_dataset          TEXT          NOT NULL,
+        source_record_id        TEXT          NOT NULL,
+        state_code              CHAR(2)       NOT NULL,
+        county_fips             VARCHAR(5),
+        county_name             TEXT,
+        jurisdiction_id         TEXT,
+        owner_name              TEXT,
+        situs_location          TEXT,
+        street_number           TEXT,
+        street_line1            TEXT,
+        street_line2            TEXT,
+        city                    TEXT,
+        state_abbr              CHAR(2),
+        postal_code             VARCHAR(10),
+        situs_full              TEXT,
+        parcel_number           TEXT,
+        parcel_number_formatted TEXT,
+        appraised_value         BIGINT,
+        tax_class               TEXT,
+        data_source             TEXT          NOT NULL DEFAULT 'esri_parcel',
+        esri_endpoint           TEXT,
+        raw_attributes          JSONB         NOT NULL DEFAULT '{}'::jsonb,
+        loaded_at               TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+        CONSTRAINT uq_bronze_addresses_source UNIQUE (source_dataset, source_record_id)
+    )
+    """
+)
+
+_CREATE_INDEXES_SQL = (
+    text(
+        """
+        CREATE INDEX IF NOT EXISTS idx_bronze_addresses_state_county
+            ON bronze.bronze_addresses (state_code, county_fips)
+        """
+    ),
+    text(
+        """
+        CREATE INDEX IF NOT EXISTS idx_bronze_addresses_jurisdiction_id
+            ON bronze.bronze_addresses (jurisdiction_id)
+            WHERE jurisdiction_id IS NOT NULL
+        """
+    ),
+)
+
+# The legacy loader deletes only the rows for the dataset being (re)loaded,
+# not the entire table; preserve that scoped behavior.
+_DELETE_DATASET_SQL = text(
+    f"DELETE FROM {BRONZE_TABLE} WHERE source_dataset = :source_dataset"
+)
+
+_UPSERT_SQL = text(
+    f"""
+    INSERT INTO {BRONZE_TABLE} (
+        source_dataset, source_record_id, state_code, county_fips, county_name,
+        jurisdiction_id, owner_name, situs_location, street_number, street_line1,
+        street_line2, city, state_abbr, postal_code, situs_full, parcel_number,
+        parcel_number_formatted, appraised_value, tax_class, data_source,
+        esri_endpoint, raw_attributes
+    ) VALUES (
+        :source_dataset, :source_record_id, :state_code, :county_fips,
+        :county_name, :jurisdiction_id, :owner_name, :situs_location,
+        :street_number, :street_line1, :street_line2, :city,
+        :state_abbr, :postal_code, :situs_full, :parcel_number,
+        :parcel_number_formatted, :appraised_value, :tax_class,
+        :data_source, :esri_endpoint, CAST(:raw_attributes AS jsonb)
+    )
+    ON CONFLICT (source_dataset, source_record_id) DO UPDATE SET
+        owner_name = EXCLUDED.owner_name,
+        situs_location = EXCLUDED.situs_location,
+        street_number = EXCLUDED.street_number,
+        street_line1 = EXCLUDED.street_line1,
+        street_line2 = EXCLUDED.street_line2,
+        city = EXCLUDED.city,
+        state_abbr = EXCLUDED.state_abbr,
+        postal_code = EXCLUDED.postal_code,
+        situs_full = EXCLUDED.situs_full,
+        parcel_number = EXCLUDED.parcel_number,
+        parcel_number_formatted = EXCLUDED.parcel_number_formatted,
+        appraised_value = EXCLUDED.appraised_value,
+        tax_class = EXCLUDED.tax_class,
+        esri_endpoint = EXCLUDED.esri_endpoint,
+        raw_attributes = EXCLUDED.raw_attributes,
+        loaded_at = NOW()
+    """
+)
+
+
+class ParcelAddressesPipeline(DataSourcePipeline[ParcelAddressRow]):
+    source = "parcels_addresses"
+    batch_size = 5_000
+    row_schema = ParcelAddressRow
+
+    def __init__(
+        self,
+        *,
+        path: Path | None = None,
+        limit: int | None = None,
+        source_dataset: str | None = None,
+        state_code: str | None = None,
+        county_fips: str | None = None,
+        county_name: str | None = None,
+        jurisdiction_id: str | None = None,
+        esri_endpoint: str | None = None,
+    ):
+        self._path = path
+        self._limit = limit
+        self._source_dataset = source_dataset
+        self._state_code = state_code
+        self._county_fips = county_fips
+        self._county_name = county_name
+        self._jurisdiction_id = jurisdiction_id
+        self._esri_endpoint = esri_endpoint
+
+    def _discover_path(self) -> Path:
+        if self._path is None:
+            raise FileNotFoundError("No parcel CSV path provided (--csv).")
+        path = Path(self._path)
+        if not path.is_file():
+            raise FileNotFoundError(f"CSV not found: {path}")
+        return path
+
+    async def extract(self, ctx: PipelineContext) -> AsyncIterator[dict]:
+        path = self._discover_path()
+        df = pd.read_csv(path, dtype=str, low_memory=False)
+        df = normalize_column_names(df)
+        if self._limit:
+            df = df.head(self._limit)
+        for row in df.to_dict(orient="records"):
+            record = row_to_record(
                 row,
-                source_dataset=source_dataset,
-                state_code=state_code,
-                county_fips=county_fips,
-                county_name=county_name,
-                jurisdiction_id=jurisdiction_id,
-                esri_endpoint=esri_endpoint,
+                source_dataset=self._source_dataset or "",
+                state_code=self._state_code or "",
+                county_fips=self._county_fips,
+                county_name=self._county_name,
+                jurisdiction_id=self._jurisdiction_id,
+                esri_endpoint=self._esri_endpoint,
             )
-            for row in df.to_dict(orient="records")
-        ]
+            yield {
+                "source": self.source,
+                "source_version": path.stem,
+                "natural_key": f"{record['source_dataset']}:{record['source_record_id']}",
+                **record,
+            }
 
-        with conn.cursor() as cur:
-            for start in range(0, len(records), BATCH_SIZE):
-                batch = records[start : start + BATCH_SIZE]
-                execute_batch(cur, INSERT_SQL, batch, page_size=1000)
-                logger.info("Inserted {:,} / {:,}", min(start + BATCH_SIZE, len(records)), len(records))
-            conn.commit()
-    finally:
-        conn.close()
+    async def load_batch(
+        self,
+        session: AsyncSession,
+        rows: list[ParcelAddressRow],
+        ctx: PipelineContext,
+    ) -> None:
+        params = []
+        for r in rows:
+            d = r.model_dump()
+            d["raw_attributes"] = json.dumps(d.get("raw_attributes") or {}, default=str)
+            # RawRow envelope fields are not part of the INSERT; drop them.
+            for k in ("source", "source_version", "natural_key", "ingested_at"):
+                d.pop(k, None)
+            params.append(d)
+        await session.execute(_UPSERT_SQL, params)
 
-    logger.success("Loaded {:,} rows into {}", len(df), BRONZE_TABLE)
-    return len(df)
+
+async def _prepare_target(truncate: bool, source_dataset: str | None = None) -> None:
+    async with async_session() as session:
+        await session.execute(_CREATE_SCHEMA_SQL)
+        await session.execute(_CREATE_TABLE_SQL)
+        for idx in _CREATE_INDEXES_SQL:
+            await session.execute(idx)
+        if truncate and source_dataset:
+            await session.execute(_DELETE_DATASET_SQL, {"source_dataset": source_dataset})
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description="Load parcel CSV into bronze.bronze_addresses")
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Load parcel CSV into bronze.bronze_addresses"
+    )
     parser.add_argument("--csv", type=Path, required=True)
     parser.add_argument("--state", required=True, help="2-letter state code (e.g. AL)")
     parser.add_argument("--county-fips", help="5-digit county FIPS (e.g. 01125)")
@@ -301,35 +491,38 @@ def main() -> int:
     )
     parser.add_argument("--jurisdiction-id", help="e.g. county_01125 (default: county_<fips>)")
     parser.add_argument("--esri-endpoint", help="Originating Esri layer URL")
-    parser.add_argument("--truncate", action="store_true", help="Delete existing rows for this dataset first")
-    parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--truncate", action="store_true",
+        help="Delete existing rows for this dataset first",
+    )
     parser.add_argument("--limit", type=int, default=None)
-    args = parser.parse_args()
+    return parser
 
-    csv_path = args.csv.resolve()
-    if not csv_path.is_file():
-        logger.error("CSV not found: {}", csv_path)
-        return 1
 
+async def _run(args: argparse.Namespace) -> None:
     jurisdiction_id = args.jurisdiction_id
     if not jurisdiction_id and args.county_fips:
         jurisdiction_id = f"county_{args.county_fips}"
 
-    load_csv_to_bronze(
-        csv_path,
-        db_url=resolve_target_database_url(),
+    await _prepare_target(args.truncate, source_dataset=args.dataset)
+    pipeline = ParcelAddressesPipeline(
+        path=args.csv,
+        limit=args.limit,
         source_dataset=args.dataset,
         state_code=args.state.upper(),
         county_fips=args.county_fips,
         county_name=args.county_name,
         jurisdiction_id=jurisdiction_id,
         esri_endpoint=args.esri_endpoint,
-        truncate=args.truncate,
-        dry_run=args.dry_run,
-        limit=args.limit,
     )
-    return 0
+    await pipeline.run()
+
+
+def main() -> None:
+    setup_logging()
+    args = build_parser().parse_args()
+    asyncio.run(_run(args))
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    main()
