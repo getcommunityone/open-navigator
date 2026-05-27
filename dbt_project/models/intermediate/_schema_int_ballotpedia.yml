@@ -1,0 +1,95 @@
+version: 2
+
+models:
+  - name: int_ballotpedia__measure_resolved
+    description: |
+      Ballotpedia measures with state_code + ocd_division_id resolved and
+      filtered to the in-scope election years (2025, 2026). Replaces the Python
+      loader's _state_code_from_name / _resolve_ocd_division_id and the
+      election-year filter, reading stg_ballotpedia__measure.
+
+      MISSING LOOKUP (human TODO): precise SUB-STATE OCD division ids (formerly
+      from find_ocd_match) have no dbt crosswalk yet — sub-state rows without an
+      explicit ocd_division_id fall back to the STATE division id and are flagged
+      via ocd_match_pending. See the model header for how to add the crosswalk.
+    config:
+      contract:
+        enforced: true
+      materialized: table
+    columns:
+      - name: measure_id
+        description: "Stable measure id. Unique — one resolved row per measure."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - unique
+          - not_null
+      - name: ocd_division_id
+        description: "Explicit OCD division id, else the state division id built from state_code."
+        data_type: text
+      - name: state_code
+        description: "2-letter state code: raw code upper-cased, else resolved from state name."
+        data_type: varchar(2)
+      - name: ocd_match_pending
+        description: "TRUE when a sub-state row could only fall back to the state OCD id (precise match TODO)."
+        data_type: boolean
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: jurisdiction_id
+        data_type: varchar(255)
+      - name: jurisdiction_name
+        data_type: varchar(255)
+      - name: jurisdiction_type
+        data_type: varchar(100)
+      - name: scope
+        data_type: varchar(50)
+      - name: election_date
+        data_type: varchar(50)
+      - name: election_year
+        description: "4-digit election year; filtered to (2025, 2026)."
+        data_type: varchar(4)
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['2025', '2026']
+      - name: measure_number
+        data_type: varchar(255)
+      - name: measure_title
+        data_type: varchar(1000)
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: full_text
+        data_type: text
+      - name: summary_text
+        data_type: varchar(4000)
+      - name: measure_type
+        data_type: varchar(255)
+      - name: subject_areas
+        data_type: varchar(1000)
+      - name: yes_votes
+        data_type: bigint
+      - name: no_votes
+        data_type: bigint
+      - name: passed
+        data_type: boolean
+      - name: source_url
+        data_type: varchar(1000)
+      - name: measure_page_url
+        data_type: varchar(1000)
+      - name: source_json_path
+        data_type: text
+      - name: source_ingested_at
+        data_type: timestamp with time zone
+      - name: dbt_loaded_at
+        # Same Postgres current_timestamp -> timestamptz alignment as staging.
+        data_type: timestamp with time zone
+        constraints:
+          - type: not_null

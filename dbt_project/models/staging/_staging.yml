@@ -902,30 +902,34 @@ sources:
 
       - name: bronze_ballot_measures_ballotpedia
         description: |
-          Ballot measures scraped from Ballotpedia.org (state and jurisdiction pages).
-          Loaded by scripts/datasources/ballotpedia/load_ballotpedia_measures_to_bronze.py.
-          NIST-aligned columns consumed by bronze_ballot_measures_nist.sql.
+          Ballot measures scraped from Ballotpedia.org (state and jurisdiction
+          pages) — RAW landing (dbt-slimmed). One row per measure_id; the full
+          raw measure JSON object (merged with the file envelope) lands in
+          raw_row. All derived columns — title coalescing, vote/passed/year
+          regex parsing, state-code + OCD resolution, and the election-year
+          filter — are derived downstream (stg_ballotpedia__measure +
+          int_ballotpedia__measure_resolved), NOT in Python.
+          Loaded by ingestion.ballotpedia.measures.
+
+          HUMAN TODO (schema drift): models/bronze/bronze_ballot_measures_nist.sql
+          still reads the OLD flat NIST columns (ocd_division_id, measure_title,
+          election_date, yes_votes, scraped_at, ...) straight off this source —
+          those columns no longer exist here. Repoint that model's
+          `ballotpedia_measures` CTE at int_ballotpedia__measure_resolved (which
+          now provides ocd_division_id, measure_title, election_date, votes,
+          passed, etc.); `scraped_at` becomes source_ingested_at / loaded_at.
+          Until then `dbt build` of bronze_ballot_measures_nist will fail.
         columns:
           - name: measure_id
-            description: "Stable source record id (ocd-ballotmeasure/UUID)"
-          - name: ocd_division_id
-            description: "OCD Division ID for GpUnit linkage"
-          - name: state_code
-          - name: jurisdiction_id
-          - name: jurisdiction_name
-          - name: election_date
-          - name: election_year
-            description: "Calendar year label as VARCHAR(4)"
-          - name: measure_number
-          - name: measure_title
-          - name: full_text
-          - name: summary_text
-          - name: measure_type
-          - name: yes_votes
-          - name: no_votes
-          - name: passed
-          - name: source_url
-          - name: scraped_at
+            description: "Stable source record id (ocd-ballotmeasure/UUID or explicit). Natural key."
+          - name: scrape_batch_id
+            description: "UUID per loader run."
+          - name: raw_row
+            description: "Full raw Ballotpedia measure JSON object merged with the snapshot envelope (JSONB). Source of all derived columns."
+          - name: source_json_path
+            description: "Path of the cache snapshot the row came from."
+          - name: loaded_at
+            description: "When the row was landed."
 
       - name: bronze_ballot_measures_powerbi
         description: |
