@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""NTEE codes pipeline: load cached parquet into cause_ntee.
+"""NTEE codes pipeline: land cached parquet into cause_ntee (RAW only).
 
 Ported from load_to_postgres.py to the core_lib DataSourcePipeline contract.
 
@@ -8,6 +8,12 @@ nonprofit organizations by their mission and activities.
 
 Data source: IRS Publication 557 + NCCS (National Center for Charitable
 Statistics), materialized to data/gold/causes_ntee_codes.parquet (196 codes).
+
+The hierarchical `cause_breadcrumb` (root > ... > leaf parent-chain path) is
+no longer derived in Python. The loader lands only the raw code rows
+(code, name, parent_code, cause_type, code_source); the recursive parent-chain
+walk is derived downstream in dbt (int_ntee__breadcrumb) — see
+dbt_project/CONVENTIONS.md.
 
 Usage:
     python -m scripts.datasources.ntee.codes_pipeline
@@ -68,46 +74,13 @@ def _safe_str(val: Any, maxlen: int | None = None) -> str | None:
     return s[:maxlen] if maxlen else s
 
 
-def build_breadcrumb(
-    code: str,
-    parent_code: Any,
-    code_lookup: dict[str, str],
-    parent_lookup: dict[str, Any],
-) -> str:
-    """Build hierarchical breadcrumb path by walking up the parent chain.
-
-    Preserved from the original loader; the dataframe lookups are replaced by
-    plain dicts so the helper is pure and unit-testable.
-    """
-    if _is_missing(parent_code):
-        # Top level - just the name
-        return code_lookup.get(code, code)
-
-    # Build path: traverse up the parent chain
-    path: list[str] = []
-    current = parent_code
-
-    # Traverse up to 5 levels to avoid infinite loops
-    for _ in range(5):
-        if _is_missing(current):
-            break
-        if current in code_lookup:
-            path.insert(0, code_lookup[current])
-        # Find parent of current
-        nxt = parent_lookup.get(current)
-        if not _is_missing(nxt):
-            current = nxt
-        else:
-            break
-
-    # Add current code's name
-    path.append(code_lookup.get(code, code))
-
-    return " > ".join(path)
-
-
 class NteeCodesRow(RawRow):
-    """One NTEE classification code, validated before upsert."""
+    """One NTEE classification code, validated before upsert.
+
+    Lands the RAW code row only. The hierarchical `cause_breadcrumb` is no
+    longer carried here — it is derived downstream in dbt (int_ntee__breadcrumb)
+    via a recursive CTE over parent_code.
+    """
 
     code: str = Field(min_length=1, max_length=100)
     name: str = Field(min_length=1)
@@ -116,7 +89,6 @@ class NteeCodesRow(RawRow):
     parent_code: str | None = Field(default=None, max_length=100)
     category: str | None = Field(default=None, max_length=100)
     subcategory: str | None = Field(default=None, max_length=100)
-    cause_breadcrumb: str | None = None
     code_source: str = Field(min_length=1, max_length=50)
 
 
@@ -130,7 +102,6 @@ _CREATE_TABLE_SQL = text(
         parent_code VARCHAR(100),
         category VARCHAR(100),
         subcategory VARCHAR(100),
-        cause_breadcrumb TEXT,
         source VARCHAR(50) NOT NULL,
         last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
@@ -155,15 +126,15 @@ _UPSERT_SQL = text(
     """
     INSERT INTO cause_ntee
         (code, name, description, cause_type, parent_code,
-         category, subcategory, cause_breadcrumb, source, last_updated)
+         category, subcategory, source, last_updated)
     VALUES
         (:code, :name, :description, :cause_type, :parent_code,
-         :category, :subcategory, :cause_breadcrumb, :code_source, CURRENT_TIMESTAMP)
+         :category, :subcategory, :code_source, CURRENT_TIMESTAMP)
     ON CONFLICT (code) DO UPDATE SET
-        name             = EXCLUDED.name,
-        description      = EXCLUDED.description,
-        cause_breadcrumb = EXCLUDED.cause_breadcrumb,
-        last_updated     = CURRENT_TIMESTAMP
+        name         = EXCLUDED.name,
+        description  = EXCLUDED.description,
+        parent_code  = EXCLUDED.parent_code,
+        last_updated = CURRENT_TIMESTAMP
     """
 )
 
@@ -181,16 +152,6 @@ class NteeCodesPipeline(DataSourcePipeline[NteeCodesRow]):
         path = self._path or find_latest_parquet()
         df = pd.read_parquet(path)
 
-        # Lookups used to build hierarchical breadcrumbs (preserved behavior).
-        code_lookup = {
-            row["ntee_code"]: row.get("description", "")
-            for _, row in df.iterrows()
-        }
-        parent_lookup = {
-            row["ntee_code"]: row.get("parent_code")
-            for _, row in df.iterrows()
-        }
-
         emitted = 0
         for _, row in df.iterrows():
             if self._limit is not None and emitted >= self._limit:
@@ -200,6 +161,9 @@ class NteeCodesPipeline(DataSourcePipeline[NteeCodesRow]):
                 continue
             description = _safe_str(row.get("description"))
             parent_code = _safe_str(row.get("parent_code"), 100)
+            # RAW landing only — the hierarchical cause_breadcrumb is derived
+            # downstream in dbt (int_ntee__breadcrumb) via a recursive CTE over
+            # parent_code. No in-memory parent/code lookups here.
             yield {
                 "source": self.source,
                 "source_version": path.stem,
@@ -211,9 +175,6 @@ class NteeCodesPipeline(DataSourcePipeline[NteeCodesRow]):
                 "parent_code": parent_code,
                 "category": _safe_str(row.get("ntee_type"), 100),
                 "subcategory": None,
-                "cause_breadcrumb": build_breadcrumb(
-                    code, row.get("parent_code"), code_lookup, parent_lookup
-                ),
                 "code_source": "irs",
             }
             emitted += 1
@@ -233,7 +194,6 @@ class NteeCodesPipeline(DataSourcePipeline[NteeCodesRow]):
                 "parent_code": r.parent_code,
                 "category": r.category,
                 "subcategory": r.subcategory,
-                "cause_breadcrumb": r.cause_breadcrumb,
                 "code_source": r.code_source,
             }
             for r in rows
