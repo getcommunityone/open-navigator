@@ -15,10 +15,9 @@ from ingestion.naco.counties import (  # noqa: E402
     NacoCountiesPipeline,
     _int,
     _float,
-    _population_from_naco_display,
     _str,
     find_cache_files,
-    parse_county,
+    natural_key_for,
 )
 from core_lib.pipeline.schemas import PipelineContext  # noqa: E402
 
@@ -36,38 +35,42 @@ def test_pure_helpers_str_int_float():
     assert _int("nope") is None
     assert _float("3.5") == 3.5
     assert _float(None) is None
-    assert _population_from_naco_display("1,234,567") == 1234567
-    assert _population_from_naco_display(None) is None
 
 
-def test_parse_county_basic_and_null():
-    row = parse_county({"name": "Madison", "state": "al", "fips": "01089"})
-    assert row is not None
-    assert row[1] == "Madison"
-    assert row[2] == "AL"  # uppercased
-    assert row[3] == "01089"
-    # Missing county/state -> None
-    assert parse_county({"name": "X"}) is None
-    assert parse_county({"state": "AL"}) is None
+def test_natural_key_for_basic_and_null():
+    # state_code + county_name alias-coalescing for the bronze key only.
+    assert natural_key_for({"name": "Madison", "state": "al"}) == ("AL", "Madison")
+    assert natural_key_for(
+        {"county_name": "Jefferson", "state_code": "ga"}
+    ) == ("GA", "Jefferson")
+    assert natural_key_for(
+        {"countyName": "Cobb", "stateCode": "ga"}
+    ) == ("GA", "Cobb")
+    # Missing county or state -> None (row is dropped, as parse_county did).
+    assert natural_key_for({"name": "X"}) is None
+    assert natural_key_for({"state": "AL"}) is None
 
 
 def test_county_row_schema_accepts_valid():
+    # Slimmed raw shape: natural key components + the full raw JSON object.
     r = CountyRow(
         source="naco_counties",
         source_version="naco_counties_AL_20260510",
         natural_key="AL:Madison",
-        naco_id="123",
         county_name="Madison",
         state_code="AL",
-        fips_code="01089",
-        website="https://madison.gov",
-        population=400000,
-        area_sq_miles=806.1,
-        raw_json={"name": "Madison"},
+        raw_json={
+            "name": "Madison",
+            "state": "AL",
+            "fips": "01089",
+            "population": 400000,
+        },
     )
     assert r.county_name == "Madison"
     assert r.state_code == "AL"
-    assert r.population == 400000
+    # Derived columns are no longer on the row; the full object lands verbatim.
+    assert r.raw_json["population"] == 400000
+    assert r.raw_json["fips"] == "01089"
 
 
 def test_county_row_schema_rejects_bad_state_and_empty_name():
@@ -142,7 +145,7 @@ def test_extract_roundtrip_and_validates(tmp_path):
         json.dumps([
             {"name": "Madison", "state": "AL", "fips": "01089", "population": 400000},
             {"name": "X", "_fallback": True},  # fallback -> skipped
-            {"state": "AL"},  # missing name -> dropped by parse_county
+            {"state": "AL"},  # missing name -> dropped (no usable natural key)
             {"name": "Jefferson", "state": "al", "fips": "01073"},
         ])
     )
@@ -158,9 +161,19 @@ def test_extract_roundtrip_and_validates(tmp_path):
     assert extracted[0]["natural_key"] == "AL:Madison"
     assert extracted[0]["source"] == "naco_counties"
     assert extracted[0]["source_version"] == "naco_counties_AL_20260510"
+    # RAW JSON lands verbatim — derived fields (population/fips) are NOT parsed
+    # in Python anymore, they ride along inside raw_json for dbt to extract.
     assert extracted[0]["raw_json"]["name"] == "Madison"
+    assert extracted[0]["raw_json"]["population"] == 400000
+    assert extracted[0]["raw_json"]["fips"] == "01089"
+    # Only the natural-key columns + raw_json are emitted (slimmed shape).
+    assert set(extracted[0]) == {
+        "source", "source_version", "natural_key",
+        "county_name", "state_code", "raw_json",
+    }
     assert extracted[1]["county_name"] == "Jefferson"
     assert extracted[1]["state_code"] == "AL"  # uppercased
+    assert extracted[1]["raw_json"]["state"] == "al"  # raw value preserved
 
     # All extracted rows validate cleanly through the schema
     for raw in extracted:
