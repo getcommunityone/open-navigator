@@ -956,6 +956,56 @@ sources:
           - name: contest_name
           - name: ingested_at
 
+      - name: bronze_elections_scraped
+        description: |
+          Election-domain rows landed by ingestion.google_civic.officials (and
+          other election sources). One physical row per record, discriminated by
+          record_type IN ('election', 'candidacy', 'ballot_measure'). The legacy
+          c1 promotion (scripts/datasources/openstates/sync_elections_to_c1.py:
+          upsert_divisions/elections/candidate_contests/candidacies/ballot_measures)
+          is reproduced in dbt: stg_google_civic__election_record ->
+          int_google_civic__election_ids -> dim_election_divisions / fct_elections /
+          dim_candidate_contests / fct_candidacies / fct_ballot_measures.
+          DDL: migration 047_create_bronze_elections_scraped.
+        columns:
+          - name: id
+            description: "BIGSERIAL primary key of the bronze landing row. Natural key + surrogate-id fallback."
+          - name: scrape_batch_id
+            description: "UUID of the scrape run that landed this row."
+          - name: record_type
+            description: "Discriminator: election | candidacy | ballot_measure (CHECK-constrained in DDL)."
+          - name: ocd_id
+            description: "Source-provided stable id (ocd-.../uuid5). Used as the c1 id when it fits VARCHAR(50)."
+          - name: election_name
+          - name: election_date
+          - name: election_type
+          - name: election_status
+          - name: ocd_jurisdiction_id
+            description: "OCD division id; primary source of c1_division.id."
+          - name: state_code
+            description: "2-letter state code (CHAR(2))."
+          - name: jurisdiction_id
+          - name: candidate_name
+          - name: candidate_party
+          - name: candidate_post
+            description: "Office/post the candidacy contests; drives contest grouping."
+          - name: candidate_status
+          - name: candidate_vote_count
+          - name: candidate_vote_percent
+          - name: measure_title
+          - name: measure_summary
+          - name: measure_classification
+          - name: measure_yes_count
+          - name: measure_no_count
+          - name: measure_outcome
+          - name: source_url
+          - name: source_name
+          - name: raw_row
+            description: "JSONB original payload; carries parent election_id, links, sources for candidacies/measures."
+          - name: scraped_at
+          - name: loaded_at
+            description: "When the row was landed."
+
   - name: gold_runtime
     description: "Runtime gold tables in public schema (ACS joins for mapping quality marts)"
     database: open_navigator

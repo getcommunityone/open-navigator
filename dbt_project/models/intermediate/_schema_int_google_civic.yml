@@ -1,0 +1,109 @@
+version: 2
+
+models:
+  - name: int_google_civic__election_ids
+    description: |
+      Keystone intermediate: resolves the shared c1 election id + dedupe_key for
+      every bronze election-domain record, plus the truncated division_id /
+      jurisdiction_id. Reproduces _election_id() (3 branches) and the
+      fit/fallback resolution from
+      scripts/datasources/openstates/sync_elections_to_c1.py so that
+      dim_election_divisions / fct_elections / dim_candidate_contests /
+      fct_candidacies / fct_ballot_measures_civic all agree on the same election
+      id. Grain: one row per bronze_record_id (unchanged from staging).
+    config:
+      contract:
+        enforced: true
+      materialized: table
+    columns:
+      - name: bronze_record_id
+        description: "BIGSERIAL id of the bronze landing row. Unique."
+        data_type: bigint
+        constraints:
+          - type: not_null
+        tests:
+          - unique
+          - not_null
+      - name: scrape_batch_id
+        data_type: text
+      - name: record_type
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['election', 'candidacy', 'ballot_measure']
+      - name: ocd_id
+        data_type: text
+      - name: election_id
+        description: "Resolved c1 election id (value-fits path of fit_c1_id; bronze-id surrogate fallback)."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: dedupe_key
+        description: "c1 election dedupe_key (verbatim from _dedupe_key); NULL when all key parts empty."
+        data_type: text
+      - name: parent_election_id
+        data_type: text
+      - name: election_name
+        data_type: text
+      - name: election_date
+        data_type: date
+      - name: election_type
+        data_type: text
+      - name: election_status
+        data_type: text
+      - name: election_jurisdiction
+        description: "jurisdiction_id or ocd_jurisdiction_id; the dedupe-key jurisdiction component."
+        data_type: text
+      - name: ocd_jurisdiction_id
+        data_type: text
+      - name: division_id
+        description: "truncate(ocd_jurisdiction_id or jurisdiction_id, 300) — the c1_division id."
+        data_type: varchar(300)
+      - name: fit_jurisdiction_id
+        description: "truncate(jurisdiction_id, 300)."
+        data_type: varchar(300)
+      - name: state_code
+        data_type: varchar(2)
+      - name: jurisdiction_id
+        data_type: text
+      - name: candidate_name
+        data_type: text
+      - name: candidate_party
+        data_type: text
+      - name: candidate_post
+        data_type: text
+      - name: candidate_status
+        data_type: text
+      - name: candidate_vote_count
+        data_type: bigint
+      - name: candidate_vote_percent
+        data_type: double precision
+      - name: measure_title
+        data_type: text
+      - name: measure_summary
+        data_type: text
+      - name: measure_classification
+        data_type: text
+      - name: measure_yes_count
+        data_type: bigint
+      - name: measure_no_count
+        data_type: bigint
+      - name: measure_outcome
+        data_type: text
+      - name: source_url
+        data_type: text
+      - name: source_name
+        data_type: text
+      - name: raw_row
+        data_type: jsonb
+      - name: source_ingested_at
+        data_type: timestamp with time zone
+      - name: dbt_loaded_at
+        data_type: timestamp with time zone
+        constraints:
+          - type: not_null
