@@ -1,38 +1,48 @@
 #!/usr/bin/env python3
-"""
-Load Census TIGER/Line Shapefiles into bronze geometry tables.
+"""Census TIGER/Line shapefiles pipeline: load cached shapefiles into bronze geometry tables.
+
+Ported from load_census_shapefiles.py to the core_lib DataSourcePipeline contract.
 
 Reads cached shapefiles from data/cache/census/shapefiles/{year}/ and loads into:
-  states    → bronze.bronze_geo_states
-  counties  → bronze.bronze_geo_counties
-  places    → bronze.bronze_geo_places
-  zcta      → bronze.bronze_geo_zcta
+  states    -> bronze.bronze_geo_states
+  counties  -> bronze.bronze_geo_counties
+  places    -> bronze.bronze_geo_places
+  zcta      -> bronze.bronze_geo_zcta
 
 Geometry is stored as WKT text (EPSG:4269 / NAD83, as shipped by Census).
 Run download_census_shapefiles.py first to populate the cache.
 
 Usage:
-    python scripts/datasources/census/load_census_shapefiles.py
-    python scripts/datasources/census/load_census_shapefiles.py --year 2023
-    python scripts/datasources/census/load_census_shapefiles.py --types states counties
-    python scripts/datasources/census/load_census_shapefiles.py --truncate
-    python scripts/datasources/census/load_census_shapefiles.py --dry-run
-    python scripts/datasources/census/load_census_shapefiles.py --limit 100
+    python -m ingestion.census.shapefiles
+    python -m ingestion.census.shapefiles --year 2023
+    python -m ingestion.census.shapefiles --types states counties
+    python -m ingestion.census.shapefiles --truncate
+    python -m ingestion.census.shapefiles --limit 100
+
+Configuration:
+    NEON_DATABASE_URL_DEV / NEON_DATABASE_URL / DATABASE_URL via core_lib.db
+    (replaces hardcoded postgresql://postgres:password@localhost:5433/open_navigator).
 """
+from __future__ import annotations
+
 import argparse
-import os
+import asyncio
 import zipfile
 from pathlib import Path
+from typing import Any, AsyncIterator
 
 import geopandas as gpd
-import psycopg2
-from psycopg2.extras import execute_batch
 from loguru import logger
+from pydantic import Field
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from core_lib.db import async_session
+from core_lib.logging import setup_logging
+from core_lib.pipeline import DataSourcePipeline, PipelineContext, RawRow
 
 
 CACHE_DIR = Path("data/cache/census/shapefiles")
-POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "password")
-DATABASE_URL = f"postgresql://postgres:{POSTGRES_PASSWORD}@localhost:5433/open_navigator"
 BATCH_SIZE = 500
 
 # ZIP filename patterns per type (formatted with year)
@@ -43,12 +53,15 @@ ZIP_PATTERNS = {
     "zcta":     "tl_{year}_us_zcta520.zip",
 }
 
-TYPES = {
+# Per-type config: target table, geoid source column, DDL (split into a CREATE
+# TABLE statement plus separate CREATE INDEX statements), the upsert SQL, and a
+# row_fn producing the bound-parameter dict for a single GeoDataFrame row.
+TYPES: dict[str, dict[str, Any]] = {
     "states": {
         "table": "bronze.bronze_geo_states",
         "geoid_col": "GEOID",
-        "ddl": """
-            CREATE SCHEMA IF NOT EXISTS bronze;
+        "create_table": text(
+            """
             CREATE TABLE IF NOT EXISTS bronze.bronze_geo_states (
                 geoid          VARCHAR(2)    PRIMARY KEY,
                 statefp        VARCHAR(2),
@@ -62,13 +75,17 @@ TYPES = {
                 geom_wkt       TEXT,
                 vintage_year   VARCHAR(4),
                 ingestion_date TIMESTAMP DEFAULT NOW()
-            );
-        """,
-        "insert": """
+            )
+            """
+        ),
+        "indexes": (),
+        "upsert": text(
+            """
             INSERT INTO bronze.bronze_geo_states
                 (geoid, statefp, statens, geoidfq, stusps, name, lsad, aland, awater,
                  geom_wkt, vintage_year)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            VALUES (:geoid, :statefp, :statens, :geoidfq, :stusps, :name, :lsad,
+                    :aland, :awater, :geom_wkt, :vintage_year)
             ON CONFLICT (geoid) DO UPDATE SET
                 statefp        = EXCLUDED.statefp,
                 statens        = EXCLUDED.statens,
@@ -81,22 +98,28 @@ TYPES = {
                 geom_wkt       = EXCLUDED.geom_wkt,
                 vintage_year   = EXCLUDED.vintage_year,
                 ingestion_date = NOW()
-        """,
-        "row_fn": lambda row, year: (
-            row["GEOID"], row["STATEFP"], row.get("STATENS"), row.get("GEOIDFQ"),
-            row["STUSPS"], row["NAME"], row.get("LSAD"),
-            int(row["ALAND"]) if row["ALAND"] is not None else None,
-            int(row["AWATER"]) if row["AWATER"] is not None else None,
-            row["geometry"].wkt if row["geometry"] is not None else None,
-            str(year),
+            """
         ),
+        "row_fn": lambda row, year: {
+            "geoid": row["GEOID"],
+            "statefp": row["STATEFP"],
+            "statens": row.get("STATENS"),
+            "geoidfq": row.get("GEOIDFQ"),
+            "stusps": row["STUSPS"],
+            "name": row["NAME"],
+            "lsad": row.get("LSAD"),
+            "aland": int(row["ALAND"]) if row["ALAND"] is not None else None,
+            "awater": int(row["AWATER"]) if row["AWATER"] is not None else None,
+            "geom_wkt": row["geometry"].wkt if row["geometry"] is not None else None,
+            "vintage_year": str(year),
+        },
     },
 
     "counties": {
         "table": "bronze.bronze_geo_counties",
         "geoid_col": "GEOID",
-        "ddl": """
-            CREATE SCHEMA IF NOT EXISTS bronze;
+        "create_table": text(
+            """
             CREATE TABLE IF NOT EXISTS bronze.bronze_geo_counties (
                 geoid          VARCHAR(5)    PRIMARY KEY,
                 statefp        VARCHAR(2),
@@ -113,15 +136,21 @@ TYPES = {
                 geom_wkt       TEXT,
                 vintage_year   VARCHAR(4),
                 ingestion_date TIMESTAMP DEFAULT NOW()
-            );
-            CREATE INDEX IF NOT EXISTS idx_bgco_statefp ON bronze.bronze_geo_counties(statefp);
-            CREATE INDEX IF NOT EXISTS idx_bgco_stusps  ON bronze.bronze_geo_counties(stusps);
-        """,
-        "insert": """
+            )
+            """
+        ),
+        "indexes": (
+            text("CREATE INDEX IF NOT EXISTS idx_bgco_statefp ON bronze.bronze_geo_counties(statefp)"),
+            text("CREATE INDEX IF NOT EXISTS idx_bgco_stusps  ON bronze.bronze_geo_counties(stusps)"),
+        ),
+        "upsert": text(
+            """
             INSERT INTO bronze.bronze_geo_counties
                 (geoid, statefp, countyfp, countyns, geoidfq, name, namelsad,
                  stusps, state_name, lsad, aland, awater, geom_wkt, vintage_year)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            VALUES (:geoid, :statefp, :countyfp, :countyns, :geoidfq, :name,
+                    :namelsad, :stusps, :state_name, :lsad, :aland, :awater,
+                    :geom_wkt, :vintage_year)
             ON CONFLICT (geoid) DO UPDATE SET
                 statefp        = EXCLUDED.statefp,
                 countyfp       = EXCLUDED.countyfp,
@@ -137,23 +166,31 @@ TYPES = {
                 geom_wkt       = EXCLUDED.geom_wkt,
                 vintage_year   = EXCLUDED.vintage_year,
                 ingestion_date = NOW()
-        """,
-        "row_fn": lambda row, year: (
-            row["GEOID"], row["STATEFP"], row.get("COUNTYFP"), row.get("COUNTYNS"),
-            row.get("GEOIDFQ"), row["NAME"], row.get("NAMELSAD"),
-            row.get("STUSPS"), row.get("STATE_NAME"), row.get("LSAD"),
-            int(row["ALAND"]) if row["ALAND"] is not None else None,
-            int(row["AWATER"]) if row["AWATER"] is not None else None,
-            row["geometry"].wkt if row["geometry"] is not None else None,
-            str(year),
+            """
         ),
+        "row_fn": lambda row, year: {
+            "geoid": row["GEOID"],
+            "statefp": row["STATEFP"],
+            "countyfp": row.get("COUNTYFP"),
+            "countyns": row.get("COUNTYNS"),
+            "geoidfq": row.get("GEOIDFQ"),
+            "name": row["NAME"],
+            "namelsad": row.get("NAMELSAD"),
+            "stusps": row.get("STUSPS"),
+            "state_name": row.get("STATE_NAME"),
+            "lsad": row.get("LSAD"),
+            "aland": int(row["ALAND"]) if row["ALAND"] is not None else None,
+            "awater": int(row["AWATER"]) if row["AWATER"] is not None else None,
+            "geom_wkt": row["geometry"].wkt if row["geometry"] is not None else None,
+            "vintage_year": str(year),
+        },
     },
 
     "places": {
         "table": "bronze.bronze_geo_places",
         "geoid_col": "GEOID",
-        "ddl": """
-            CREATE SCHEMA IF NOT EXISTS bronze;
+        "create_table": text(
+            """
             CREATE TABLE IF NOT EXISTS bronze.bronze_geo_places (
                 geoid          VARCHAR(7)    PRIMARY KEY,
                 statefp        VARCHAR(2),
@@ -170,15 +207,21 @@ TYPES = {
                 geom_wkt       TEXT,
                 vintage_year   VARCHAR(4),
                 ingestion_date TIMESTAMP DEFAULT NOW()
-            );
-            CREATE INDEX IF NOT EXISTS idx_bgpl_statefp ON bronze.bronze_geo_places(statefp);
-            CREATE INDEX IF NOT EXISTS idx_bgpl_stusps  ON bronze.bronze_geo_places(stusps);
-        """,
-        "insert": """
+            )
+            """
+        ),
+        "indexes": (
+            text("CREATE INDEX IF NOT EXISTS idx_bgpl_statefp ON bronze.bronze_geo_places(statefp)"),
+            text("CREATE INDEX IF NOT EXISTS idx_bgpl_stusps  ON bronze.bronze_geo_places(stusps)"),
+        ),
+        "upsert": text(
+            """
             INSERT INTO bronze.bronze_geo_places
                 (geoid, statefp, placefp, placens, geoidfq, name, namelsad,
                  stusps, state_name, lsad, aland, awater, geom_wkt, vintage_year)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            VALUES (:geoid, :statefp, :placefp, :placens, :geoidfq, :name,
+                    :namelsad, :stusps, :state_name, :lsad, :aland, :awater,
+                    :geom_wkt, :vintage_year)
             ON CONFLICT (geoid) DO UPDATE SET
                 statefp        = EXCLUDED.statefp,
                 placefp        = EXCLUDED.placefp,
@@ -194,23 +237,31 @@ TYPES = {
                 geom_wkt       = EXCLUDED.geom_wkt,
                 vintage_year   = EXCLUDED.vintage_year,
                 ingestion_date = NOW()
-        """,
-        "row_fn": lambda row, year: (
-            row["GEOID"], row["STATEFP"], row.get("PLACEFP"), row.get("PLACENS"),
-            row.get("GEOIDFQ"), row["NAME"], row.get("NAMELSAD"),
-            row.get("STUSPS"), row.get("STATE_NAME"), row.get("LSAD"),
-            int(row["ALAND"]) if row["ALAND"] is not None else None,
-            int(row["AWATER"]) if row["AWATER"] is not None else None,
-            row["geometry"].wkt if row["geometry"] is not None else None,
-            str(year),
+            """
         ),
+        "row_fn": lambda row, year: {
+            "geoid": row["GEOID"],
+            "statefp": row["STATEFP"],
+            "placefp": row.get("PLACEFP"),
+            "placens": row.get("PLACENS"),
+            "geoidfq": row.get("GEOIDFQ"),
+            "name": row["NAME"],
+            "namelsad": row.get("NAMELSAD"),
+            "stusps": row.get("STUSPS"),
+            "state_name": row.get("STATE_NAME"),
+            "lsad": row.get("LSAD"),
+            "aland": int(row["ALAND"]) if row["ALAND"] is not None else None,
+            "awater": int(row["AWATER"]) if row["AWATER"] is not None else None,
+            "geom_wkt": row["geometry"].wkt if row["geometry"] is not None else None,
+            "vintage_year": str(year),
+        },
     },
 
     "zcta": {
         "table": "bronze.bronze_geo_zcta",
         "geoid_col": "GEOID20",
-        "ddl": """
-            CREATE SCHEMA IF NOT EXISTS bronze;
+        "create_table": text(
+            """
             CREATE TABLE IF NOT EXISTS bronze.bronze_geo_zcta (
                 geoid20        VARCHAR(5)    PRIMARY KEY,
                 zcta5ce20      VARCHAR(5),
@@ -225,13 +276,18 @@ TYPES = {
                 geom_wkt       TEXT,
                 vintage_year   VARCHAR(4),
                 ingestion_date TIMESTAMP DEFAULT NOW()
-            );
-        """,
-        "insert": """
+            )
+            """
+        ),
+        "indexes": (),
+        "upsert": text(
+            """
             INSERT INTO bronze.bronze_geo_zcta
                 (geoid20, zcta5ce20, geoidfq20, classfp20, mtfcc20, funcstat20,
                  aland20, awater20, intptlat20, intptlon20, geom_wkt, vintage_year)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            VALUES (:geoid20, :zcta5ce20, :geoidfq20, :classfp20, :mtfcc20,
+                    :funcstat20, :aland20, :awater20, :intptlat20, :intptlon20,
+                    :geom_wkt, :vintage_year)
             ON CONFLICT (geoid20) DO UPDATE SET
                 zcta5ce20      = EXCLUDED.zcta5ce20,
                 geoidfq20      = EXCLUDED.geoidfq20,
@@ -245,17 +301,22 @@ TYPES = {
                 geom_wkt       = EXCLUDED.geom_wkt,
                 vintage_year   = EXCLUDED.vintage_year,
                 ingestion_date = NOW()
-        """,
-        "row_fn": lambda row, year: (
-            row["GEOID20"], row.get("ZCTA5CE20"), row.get("GEOIDFQ20"),
-            row.get("CLASSFP20"), row.get("MTFCC20"), row.get("FUNCSTAT20"),
-            int(row["ALAND20"]) if row.get("ALAND20") is not None else None,
-            int(row["AWATER20"]) if row.get("AWATER20") is not None else None,
-            float(row["INTPTLAT20"]) if row.get("INTPTLAT20") is not None else None,
-            float(row["INTPTLON20"]) if row.get("INTPTLON20") is not None else None,
-            row["geometry"].wkt if row["geometry"] is not None else None,
-            str(year),
+            """
         ),
+        "row_fn": lambda row, year: {
+            "geoid20": row["GEOID20"],
+            "zcta5ce20": row.get("ZCTA5CE20"),
+            "geoidfq20": row.get("GEOIDFQ20"),
+            "classfp20": row.get("CLASSFP20"),
+            "mtfcc20": row.get("MTFCC20"),
+            "funcstat20": row.get("FUNCSTAT20"),
+            "aland20": int(row["ALAND20"]) if row.get("ALAND20") is not None else None,
+            "awater20": int(row["AWATER20"]) if row.get("AWATER20") is not None else None,
+            "intptlat20": float(row["INTPTLAT20"]) if row.get("INTPTLAT20") is not None else None,
+            "intptlon20": float(row["INTPTLON20"]) if row.get("INTPTLON20") is not None else None,
+            "geom_wkt": row["geometry"].wkt if row["geometry"] is not None else None,
+            "vintage_year": str(year),
+        },
     },
 }
 
@@ -287,76 +348,123 @@ def find_shp(year: int, shapefile_type: str) -> Path | None:
     return shp_files[0]
 
 
-def load_shapefile(
-    shapefile_type: str,
-    year: int,
-    conn,
-    truncate: bool = False,
-    dry_run: bool = False,
-    limit: int | None = None,
-) -> dict:
-    cfg = TYPES[shapefile_type]
-    table = cfg["table"]
+class ShapefileRow(RawRow):
+    """One Census TIGER/Line geometry row, validated before upsert.
 
-    logger.info(f"--- {shapefile_type.upper()} → {table} ---")
+    The four shapefile types (states / counties / places / zcta) target distinct
+    bronze tables with disjoint column sets, so this envelope carries the type
+    discriminator + resolved target table plus the ordered upsert parameter dict
+    (column name -> value). Geometry is stored as WKT text in `values["geom_wkt"]`.
+    """
 
-    shp_path = find_shp(year, shapefile_type)
-    if shp_path is None:
-        return {"type": shapefile_type, "ok": False, "loaded": 0, "skipped": 0}
-
-    logger.info(f"Reading {shp_path.name}...")
-    gdf = gpd.read_file(shp_path)
-
-    if limit:
-        gdf = gdf.head(limit)
-
-    total = len(gdf)
-    logger.info(f"Rows: {total:,}  |  CRS: {gdf.crs}")
-
-    if dry_run:
-        logger.info(f"[dry-run] Would load {total:,} rows into {table}")
-        return {"type": shapefile_type, "ok": True, "loaded": 0, "skipped": total}
-
-    cur = conn.cursor()
-
-    # Create table
-    cur.execute(cfg["ddl"])
-
-    if truncate:
-        cur.execute(f"TRUNCATE TABLE {table}")
-        logger.info(f"Truncated {table}")
-
-    conn.commit()
-
-    # Build rows
-    row_fn = cfg["row_fn"]
-    rows = [row_fn(row, year) for _, row in gdf.iterrows()]
-
-    execute_batch(cur, cfg["insert"], rows, page_size=BATCH_SIZE)
-    conn.commit()
-    cur.close()
-
-    logger.success(f"Loaded {total:,} rows → {table}")
-    return {"type": shapefile_type, "ok": True, "loaded": total, "skipped": 0}
+    shapefile_type: str = Field(min_length=1)
+    table: str = Field(min_length=1)
+    values: dict[str, Any]
 
 
-def main() -> int:
+class CensusShapefilesPipeline(DataSourcePipeline[ShapefileRow]):
+    source = "census_shapefiles"
+    batch_size = BATCH_SIZE
+    row_schema = ShapefileRow
+
+    def __init__(
+        self,
+        *,
+        year: int = 2025,
+        types: list[str] | None = None,
+        path: Path | None = None,
+        limit: int | None = None,
+    ):
+        self._year = year
+        self._types = types or list(TYPES.keys())
+        self._path = path
+        self._limit = limit
+
+    def _resolve_shp(self, shapefile_type: str) -> Path | None:
+        """Resolve the .shp path for a type, honoring an explicit override path."""
+        if self._path is not None:
+            return self._path
+        return find_shp(self._year, shapefile_type)
+
+    async def extract(self, ctx: PipelineContext) -> AsyncIterator[dict]:
+        for shapefile_type in self._types:
+            cfg = TYPES[shapefile_type]
+            table = cfg["table"]
+            logger.info(f"--- {shapefile_type.upper()} -> {table} ---")
+
+            shp_path = self._resolve_shp(shapefile_type)
+            if shp_path is None:
+                continue
+
+            logger.info(f"Reading {shp_path.name}...")
+            gdf = gpd.read_file(shp_path)
+
+            if self._limit:
+                gdf = gdf.head(self._limit)
+
+            total = len(gdf)
+            logger.info(f"Rows: {total:,}  |  CRS: {gdf.crs}")
+
+            row_fn = cfg["row_fn"]
+            geoid_col = cfg["geoid_col"]
+            for _, row in gdf.iterrows():
+                values = row_fn(row, self._year)
+                yield {
+                    "source": self.source,
+                    "source_version": str(self._year),
+                    "natural_key": f"{shapefile_type}:{row[geoid_col]}",
+                    "shapefile_type": shapefile_type,
+                    "table": table,
+                    "values": values,
+                }
+
+    async def load_batch(
+        self,
+        session: AsyncSession,
+        rows: list[ShapefileRow],
+        ctx: PipelineContext,
+    ) -> None:
+        # Group by shapefile type so each upsert runs against its own table with
+        # a homogeneous parameter set (executemany under the hood).
+        by_type: dict[str, list[dict[str, Any]]] = {}
+        for r in rows:
+            by_type.setdefault(r.shapefile_type, []).append(r.values)
+        for shapefile_type, params in by_type.items():
+            await session.execute(TYPES[shapefile_type]["upsert"], params)
+
+
+_CREATE_SCHEMA_SQL = text("CREATE SCHEMA IF NOT EXISTS bronze")
+
+
+async def _prepare_target(types: list[str], truncate: bool) -> None:
+    async with async_session() as session:
+        await session.execute(_CREATE_SCHEMA_SQL)
+        for shapefile_type in types:
+            cfg = TYPES[shapefile_type]
+            await session.execute(cfg["create_table"])
+            for idx in cfg["indexes"]:
+                await session.execute(idx)
+            if truncate:
+                await session.execute(text(f"TRUNCATE TABLE {cfg['table']}"))
+
+
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Load Census TIGER/Line shapefiles into bronze geometry tables",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   Load all types for default year (2025):
-    python scripts/datasources/census/load_census_shapefiles.py
+    python -m ingestion.census.shapefiles
 
   Load 2023 states and counties:
-    python scripts/datasources/census/load_census_shapefiles.py --year 2023 --types states counties
+    python -m ingestion.census.shapefiles --year 2023 --types states counties
 
   Truncate and reload:
-    python scripts/datasources/census/load_census_shapefiles.py --truncate
+    python -m ingestion.census.shapefiles --truncate
 
-  Preview without writing:
-    python scripts/datasources/census/load_census_shapefiles.py --dry-run
+  Load only the first 100 rows (testing):
+    python -m ingestion.census.shapefiles --limit 100
         """,
     )
     parser.add_argument("--year", type=int, default=2025, help="Shapefile vintage year (default: 2025)")
@@ -366,56 +474,28 @@ Examples:
         help="Shapefile types to load (default: all)",
     )
     parser.add_argument("--truncate", action="store_true", help="TRUNCATE table before loading")
-    parser.add_argument("--dry-run", action="store_true", help="Parse files but skip DB writes")
     parser.add_argument("--limit", type=int, default=None, help="Load only the first N rows (for testing)")
-    args = parser.parse_args()
+    return parser
 
+
+async def _run(args: argparse.Namespace) -> None:
     logger.info("=" * 70)
     logger.info("CENSUS SHAPEFILE LOADER")
-    logger.info(f"  year={args.year}  types={args.types}  truncate={args.truncate}  dry_run={args.dry_run}")
+    logger.info(f"  year={args.year}  types={args.types}  truncate={args.truncate}")
     logger.info("=" * 70)
 
-    conn = None if args.dry_run else psycopg2.connect(DATABASE_URL)
+    await _prepare_target(args.types, args.truncate)
+    pipeline = CensusShapefilesPipeline(
+        year=args.year, types=args.types, limit=args.limit
+    )
+    await pipeline.run()
 
-    results = []
-    for shapefile_type in args.types:
-        try:
-            result = load_shapefile(
-                shapefile_type, args.year, conn,
-                truncate=args.truncate,
-                dry_run=args.dry_run,
-                limit=args.limit,
-            )
-        except Exception as e:
-            logger.error(f"{shapefile_type}: {e}")
-            if conn:
-                conn.rollback()
-            results.append({"type": shapefile_type, "ok": False, "loaded": 0, "skipped": 0})
-            continue
-        results.append(result)
 
-    if conn:
-        conn.close()
-
-    logger.info("")
-    logger.info("=" * 70)
-    logger.info("SUMMARY")
-    logger.info("=" * 70)
-    failed = 0
-    for r in results:
-        status = "OK" if r["ok"] else "FAIL"
-        logger.info(f"  {status:<6}  {r['type']:<10}  loaded={r['loaded']:>8,}  skipped={r['skipped']:>8,}")
-        if not r["ok"]:
-            failed += 1
-
-    if failed:
-        logger.error(f"{failed} type(s) failed")
-        return 1
-
-    logger.success("Done")
-    return 0
+def main() -> None:
+    setup_logging()
+    args = build_parser().parse_args()
+    asyncio.run(_run(args))
 
 
 if __name__ == "__main__":
-    import sys
-    sys.exit(main())
+    main()
