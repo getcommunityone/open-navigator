@@ -1,0 +1,26 @@
+{
+  "default_plate": "AL_latest.png",
+  "by_usps": {
+    "AK": "AK_latest.png",
+    "AL": "AL_latest.png",
+    "AR": "AR_latest.jpg",
+    "AS": "AS_latest.png",
+    "AZ": "AZ_latest.jpg",
+    "CA": "CA_latest.jpg",
+    "CO": "CO_latest.jpg",
+    "CZ": "CZ_latest.jpg",
+    "DC": "DC_latest.jpg",
+    "DE": "DE_latest.jpg",
+    "FL": "FL_latest.jpg",
+    "GA": "GA_latest.jpg",
+    "GU": "GU_latest.png",
+    "HI": "HI_latest.jpg",
+    "IA": "IA_latest.jpg",
+    "ID": "ID_latest.jpg",
+    "IL": "IL_latest.jpg",
+    "IN": "IN_latest.jpg",
+    "KS": "KS_latest.jpg",
+    "KY": "KY_latest.jpg",
+    "LA": "LA_latest.jpg"
+  }
+}
