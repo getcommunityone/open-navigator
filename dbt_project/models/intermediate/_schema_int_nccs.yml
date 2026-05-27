@@ -47,6 +47,8 @@ models:
       - name: source_ingested_at
         data_type: timestamp
       - name: dbt_loaded_at
-        data_type: timestamp
+        # Same Postgres `current_timestamp` → `timestamptz` mismatch as the
+        # staging contract; align so the table CREATE doesn't abort.
+        data_type: timestamp with time zone
         constraints:
           - type: not_null
