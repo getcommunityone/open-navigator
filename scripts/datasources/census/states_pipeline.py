@@ -1,21 +1,37 @@
 #!/usr/bin/env python3
 """
-Load US States into bronze_jurisdictions table.
+Census states pipeline: load all US states into bronze_jurisdictions.
 
-This script populates bronze_jurisdictions with state-level records,
-enabling state matching in the master data management system.
+Ported from load_census_states.py to the core_lib DataSourcePipeline contract:
+- Extract: the hardcoded US_STATES roster (50 states + DC + PR).
+- Validate: each row through the StateRow pydantic schema.
+- Load: framework-managed async session upserts into bronze_jurisdictions.
 
-**Database**: open_navigator_bronze (bronze layer)
-**Table**: bronze_jurisdictions
+Run:
+    python -m scripts.datasources.census.states_pipeline
+    # or:
+    python scripts/datasources/census/states_pipeline.py
 
-Data source: Census Bureau FIPS codes + jurisdictions_wikidata
+Configuration:
+    Connection target comes from NEON_DATABASE_URL_DEV / NEON_DATABASE_URL /
+    DATABASE_URL (resolved by core_lib.db.engine), replacing the previous
+    hardcoded localhost:5433 / open_navigator_bronze credentials.
 """
+from __future__ import annotations
 
-import psycopg2
-from psycopg2.extras import execute_values
+import asyncio
+from typing import AsyncIterator
+
+from pydantic import Field
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from core_lib.logging import setup_logging
+from core_lib.pipeline import DataSourcePipeline, PipelineContext, RawRow
+
 
 # All 50 states + DC + PR with FIPS codes
-US_STATES = [
+US_STATES: list[tuple[str, str, str]] = [
     ('AL', 'Alabama', '01'),
     ('AK', 'Alaska', '02'),
     ('AZ', 'Arizona', '04'),
@@ -71,95 +87,68 @@ US_STATES = [
 ]
 
 
-def get_connection():
-    """Create database connection to bronze layer."""
-    return psycopg2.connect(
-        host="localhost",
-        port=5433,
-        database="open_navigator_bronze",
-        user="postgres",
-        password="password"
-    )
+class StateRow(RawRow):
+    """One US state, validated before upsert into bronze_jurisdictions."""
+
+    state_code: str = Field(min_length=2, max_length=2)
+    state_name: str = Field(min_length=1)
+    fips_code: str = Field(min_length=2, max_length=2)
+    geoid: str = Field(min_length=2, max_length=2)  # = fips_code for states
 
 
-def load_states_to_bronze_jurisdictions():
-    """Load all US states into bronze_jurisdictions table."""
-    conn = get_connection()
-    cur = conn.cursor()
-    
-    print(f"Loading {len(US_STATES)} states into bronze_jurisdictions...")
-    
-    # Prepare records for bulk insert
-    records = []
-    for state_code, state_name, fips_code in US_STATES:
-        # GEOID for states is the 2-digit FIPS code
-        geoid = fips_code
-        
-        records.append((
-            state_name,           # name
-            'state',              # type
-            state_code,           # state_code
-            state_name,           # state (same as name for states)
-            'All',                # county ('All' for states - prevents duplicates)
-            geoid,                # geoid (2-digit FIPS)
-            fips_code,            # fips_code
-            None,                 # ncsid (NULL for states - only for cities)
-            None,                 # ansicode (NULL for states - only for cities)
-            None,                 # population (can enrich later)
-            None,                 # area_sq_miles (can enrich later)
-            'census_fips'         # source
-        ))
-    
-    # Insert with ON CONFLICT to handle duplicates
-    insert_query = """
-        INSERT INTO bronze_jurisdictions (
-            name,
-            type,
-            state_code,
-            state,
-            county,
-            geoid,
-            fips_code,
-            ncsid,
-            ansicode,
-            population,
-            area_sq_miles,
-            source
-        ) VALUES %s
-        ON CONFLICT (name, type, state_code, county) DO UPDATE
-        SET geoid = EXCLUDED.geoid,
-            fips_code = EXCLUDED.fips_code,
-            ncsid = EXCLUDED.ncsid,
-            ansicode = EXCLUDED.ansicode,
-            source = EXCLUDED.source
-        RETURNING id
+_UPSERT_SQL = text(
     """
-    
-    execute_values(cur, insert_query, records, page_size=1000)
-    inserted_ids = cur.fetchall()
-    
-    conn.commit()
-    
-    print(f"✅ Successfully loaded {len(inserted_ids)} states")
-    
-    # Verify insertion
-    cur.execute("""
-        SELECT state_code, name, geoid, fips_code
-        FROM bronze_jurisdictions
-        WHERE type = 'state'
-        ORDER BY state_code
-    """)
-    
-    states = cur.fetchall()
-    print(f"\nVerification: {len(states)} states in bronze_jurisdictions:")
-    for state_code, name, geoid, fips in states[:5]:
-        print(f"  {state_code}: {name} (GEOID: {geoid}, FIPS: {fips})")
-    if len(states) > 5:
-        print(f"  ... and {len(states) - 5} more")
-    
-    cur.close()
-    conn.close()
+    INSERT INTO bronze_jurisdictions (
+        name, type, state_code, state, county, geoid, fips_code,
+        ncsid, ansicode, population, area_sq_miles, source
+    )
+    VALUES (
+        :state_name, 'state', :state_code, :state_name, 'All',
+        :geoid, :fips_code, NULL, NULL, NULL, NULL, 'census_fips'
+    )
+    ON CONFLICT (name, type, state_code, county) DO UPDATE
+    SET geoid = EXCLUDED.geoid,
+        fips_code = EXCLUDED.fips_code,
+        source = EXCLUDED.source
+    """
+)
+
+
+class CensusStatesPipeline(DataSourcePipeline[StateRow]):
+    source = "census_states"
+    batch_size = 100  # 52 rows total; one batch comfortably
+    row_schema = StateRow
+
+    async def extract(self, ctx: PipelineContext) -> AsyncIterator[dict]:
+        for state_code, state_name, fips in US_STATES:
+            yield {
+                "source": self.source,
+                "source_version": "2024",
+                "natural_key": f"state:{state_code}",
+                "state_code": state_code,
+                "state_name": state_name,
+                "fips_code": fips,
+                "geoid": fips,
+            }
+
+    async def load_batch(
+        self,
+        session: AsyncSession,
+        rows: list[StateRow],
+        ctx: PipelineContext,
+    ) -> None:
+        params = [
+            {
+                "state_code": r.state_code,
+                "state_name": r.state_name,
+                "fips_code": r.fips_code,
+                "geoid": r.geoid,
+            }
+            for r in rows
+        ]
+        await session.execute(_UPSERT_SQL, params)
 
 
 if __name__ == "__main__":
-    load_states_to_bronze_jurisdictions()
+    setup_logging()
+    asyncio.run(CensusStatesPipeline().run())
