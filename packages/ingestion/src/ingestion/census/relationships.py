@@ -1,492 +1,364 @@
 #!/usr/bin/env python3
-"""
-Load Census Geographic Relationship Files to Bronze Database
+"""Census relationship-files pipeline: load ZCTA->county / ZCTA->place into bronze.
 
-Loads Census Bureau relationship files into bronze database tables:
-1. bronze_jurisdictions_zip_county - ZIP Code to County mappings
-2. bronze_jurisdictions_zip_place - ZIP Code to City/Place mappings
+Ported from load_census_relationships.py to the core_lib DataSourcePipeline
+contract.
 
-These tables enable:
-- Looking up which county a ZIP code belongs to
-- Looking up which city/town a ZIP code belongs to
-- Handling multi-county and multi-city ZIP codes
+Loads Census Bureau 2020 geographic relationship files into two bronze tables:
 
-Prerequisites:
-    Run download_census_relationships.py first to download the data files
+1. bronze_jurisdictions_zip_county - ZIP Code (ZCTA) to County mappings
+2. bronze_jurisdictions_zip_place  - ZIP Code (ZCTA) to City/Place mappings
+
+These enable looking up which county/city a ZIP code belongs to (including
+multi-county and multi-city ZIPs).
+
+**Source**: US Census Bureau 2020 ZCTA relationship files (pipe-delimited).
+Downloaded by download_census_relationships.py into
+data/cache/census_relationships/{zcta_county,zcta_place}.txt.
 
 Usage:
-    python scripts/datasources/census/load_census_relationships.py
-    python scripts/datasources/census/load_census_relationships.py --types zcta_county
-    python scripts/datasources/census/load_census_relationships.py --verify-only
+    python -m ingestion.census.relationships
+    python -m ingestion.census.relationships --types zcta_county
+    python -m ingestion.census.relationships --limit 100 --truncate
+
+Configuration:
+    NEON_DATABASE_URL_DEV / NEON_DATABASE_URL / DATABASE_URL via core_lib.db
+    (replaces hardcoded psycopg2 / localhost:5433 / open_navigator_bronze).
 """
-import psycopg2
-from psycopg2.extras import execute_batch
-import pandas as pd
-from pathlib import Path
-from loguru import logger
+from __future__ import annotations
+
 import argparse
-import os
-from typing import Optional, List
+import asyncio
+import csv
+from pathlib import Path
+from typing import AsyncIterator
 
+from pydantic import Field
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
-# Bronze database connection
-POSTGRES_PASSWORD = os.getenv('POSTGRES_PASSWORD', 'password')
-BRONZE_DATABASE_URL = f'postgresql://postgres:{POSTGRES_PASSWORD}@localhost:5433/open_navigator_bronze'
+from core_lib.db import async_session
+from core_lib.logging import setup_logging
+from core_lib.pipeline import DataSourcePipeline, PipelineContext, RawRow
+
 
 # Cache directory (where download script saves files)
 CACHE_DIR = Path("data/cache/census_relationships")
 
+# Relationship types handled by this loader.
+RELATIONSHIP_TYPES = ("zcta_county", "zcta_place")
 
-def create_bronze_jurisdictions_zip_county_table():
+_INPUT_FILES = {
+    "zcta_county": "zcta_county.txt",
+    "zcta_place": "zcta_place.txt",
+}
+
+_SOURCE_FILE_LABELS = {
+    "zcta_county": "Census 2020 ZCTA-County Relationship File",
+    "zcta_place": "Census 2020 ZCTA-Place Relationship File",
+}
+
+# (zcta column, geoid column, name column) for each relationship file.
+_FILE_COLUMNS = {
+    "zcta_county": ("GEOID_ZCTA5_20", "GEOID_COUNTY_20", "NAMELSAD_COUNTY_20"),
+    "zcta_place": ("GEOID_ZCTA5_20", "GEOID_PLACE_20", "NAMELSAD_PLACE_20"),
+}
+
+
+# --- Pure helpers (preserved from the legacy loader) --------------------------
+
+
+def safe_str(val) -> str:
+    """Return a stripped string, mapping missing/NaN to empty string.
+
+    Mirrors the legacy pandas-based helper: NaN -> '' (the file was read as
+    str, so missing values surfaced as the literal "nan").
     """
-    Create bronze_jurisdictions_zip_county table for ZIP to county relationships.
-    
-    This table stores which counties each ZIP code overlaps with, including
-    the area of overlap. Multiple rows per ZIP code indicate multi-county ZIPs.
+    if val is None:
+        return ""
+    s = str(val).strip()
+    if s.lower() == "nan":
+        return ""
+    return s
+
+
+def safe_int(val) -> int | None:
+    """Parse an area field to int, returning None on bad/empty input."""
+    try:
+        return int(float(val)) if val not in (None, "") else None
+    except (ValueError, TypeError):
+        return None
+
+
+# --- Row schema ---------------------------------------------------------------
+
+
+class RelationshipRow(RawRow):
+    """One ZCTA->county or ZCTA->place relationship, validated before upsert.
+
+    A single schema covers both target tables; ``relationship_type`` selects
+    which one. Constraints mirror the legacy zip_county / zip_place column
+    types: zcta VARCHAR(10) NOT NULL, geoid VARCHAR(5|7) NOT NULL, name
+    VARCHAR(255) nullable, state_fips VARCHAR(2) nullable, area columns BIGINT
+    nullable.
     """
-    conn = psycopg2.connect(BRONZE_DATABASE_URL)
-    cur = conn.cursor()
-    
-    logger.info("📋 Creating bronze_jurisdictions_zip_county table...")
-    
-    cur.execute("""
-        DROP TABLE IF EXISTS bronze_jurisdictions_zip_county CASCADE;
-        
-        CREATE TABLE bronze_jurisdictions_zip_county (
-            zcta VARCHAR(10) NOT NULL,
-            county_geoid VARCHAR(5) NOT NULL,
-            county_name VARCHAR(255),
-            state_fips VARCHAR(2),
-            arealand_part BIGINT,
-            areawater_part BIGINT,
-            source_file VARCHAR(255),
-            ingestion_date TIMESTAMP DEFAULT NOW(),
-            PRIMARY KEY (zcta, county_geoid)
-        );
-        
-        CREATE INDEX idx_bronze_jurisdictions_zip_county_zcta ON bronze_jurisdictions_zip_county(zcta);
-        CREATE INDEX idx_bronze_jurisdictions_zip_county_geoid ON bronze_jurisdictions_zip_county(county_geoid);
-        CREATE INDEX idx_bronze_jurisdictions_zip_county_state ON bronze_jurisdictions_zip_county(state_fips);
-        
-        COMMENT ON TABLE bronze_jurisdictions_zip_county IS 'Census ZCTA (ZIP Code) to County relationships - shows which counties each ZIP overlaps';
-        COMMENT ON COLUMN bronze_jurisdictions_zip_county.zcta IS '5-digit ZIP Code Tabulation Area';
-        COMMENT ON COLUMN bronze_jurisdictions_zip_county.county_geoid IS '5-digit county FIPS code (state+county)';
-        COMMENT ON COLUMN bronze_jurisdictions_zip_county.state_fips IS '2-digit state FIPS code (first 2 of county GEOID)';
-        COMMENT ON COLUMN bronze_jurisdictions_zip_county.arealand_part IS 'Land area of overlap in square meters';
-        COMMENT ON COLUMN bronze_jurisdictions_zip_county.areawater_part IS 'Water area of overlap in square meters';
-    """)
-    
-    conn.commit()
-    logger.success("✅ Table created")
-    conn.close()
+
+    relationship_type: str = Field(min_length=1)
+    zcta: str = Field(min_length=1, max_length=10)
+    geoid: str = Field(min_length=1, max_length=7)
+    name: str | None = Field(default=None, max_length=255)
+    state_fips: str | None = Field(default=None, max_length=2)
+    arealand_part: int | None = None
+    areawater_part: int | None = None
+    source_file: str | None = Field(default=None, max_length=255)
 
 
-def create_bronze_jurisdictions_zip_place_table():
+# --- DDL / target prep --------------------------------------------------------
+#
+# Faithful port of the legacy create_*_table() functions: each target table is
+# dropped and recreated, then its three indexes are applied. The original
+# issued one multi-statement string per table; here each statement is a
+# separate text() call (DROP / CREATE TABLE / each CREATE INDEX), preserving
+# the DDL verbatim.
+
+_DROP_ZIP_COUNTY_SQL = text("DROP TABLE IF EXISTS bronze_jurisdictions_zip_county CASCADE")
+
+_CREATE_ZIP_COUNTY_SQL = text(
     """
-    Create bronze_jurisdictions_zip_place table for ZIP to city/place relationships.
-    
-    This table stores which cities/places each ZIP code overlaps with, including
-    the area of overlap. Multiple rows per ZIP code indicate multi-city ZIPs.
+    CREATE TABLE bronze_jurisdictions_zip_county (
+        zcta VARCHAR(10) NOT NULL,
+        county_geoid VARCHAR(5) NOT NULL,
+        county_name VARCHAR(255),
+        state_fips VARCHAR(2),
+        arealand_part BIGINT,
+        areawater_part BIGINT,
+        source_file VARCHAR(255),
+        ingestion_date TIMESTAMP DEFAULT NOW(),
+        PRIMARY KEY (zcta, county_geoid)
+    )
     """
-    conn = psycopg2.connect(BRONZE_DATABASE_URL)
-    cur = conn.cursor()
-    
-    logger.info("📋 Creating bronze_jurisdictions_zip_place table...")
-    
-    cur.execute("""
-        DROP TABLE IF EXISTS bronze_jurisdictions_zip_place CASCADE;
-        
-        CREATE TABLE bronze_jurisdictions_zip_place (
-            zcta VARCHAR(10) NOT NULL,
-            place_geoid VARCHAR(7) NOT NULL,
-            place_name VARCHAR(255),
-            state_fips VARCHAR(2),
-            arealand_part BIGINT,
-            areawater_part BIGINT,
-            source_file VARCHAR(255),
-            ingestion_date TIMESTAMP DEFAULT NOW(),
-            PRIMARY KEY (zcta, place_geoid)
-        );
-        
-        CREATE INDEX idx_bronze_jurisdictions_zip_place_zcta ON bronze_jurisdictions_zip_place(zcta);
-        CREATE INDEX idx_bronze_jurisdictions_zip_place_geoid ON bronze_jurisdictions_zip_place(place_geoid);
-        CREATE INDEX idx_bronze_jurisdictions_zip_place_state ON bronze_jurisdictions_zip_place(state_fips);
-        
-        COMMENT ON TABLE bronze_jurisdictions_zip_place IS 'Census ZCTA (ZIP Code) to Place (city/town) relationships - shows which cities each ZIP overlaps';
-        COMMENT ON COLUMN bronze_jurisdictions_zip_place.zcta IS '5-digit ZIP Code Tabulation Area';
-        COMMENT ON COLUMN bronze_jurisdictions_zip_place.place_geoid IS '7-digit place FIPS code (state+place)';
-        COMMENT ON COLUMN bronze_jurisdictions_zip_place.state_fips IS '2-digit state FIPS code (first 2 of place GEOID)';
-        COMMENT ON COLUMN bronze_jurisdictions_zip_place.arealand_part IS 'Land area of overlap in square meters';
-        COMMENT ON COLUMN bronze_jurisdictions_zip_place.areawater_part IS 'Water area of overlap in square meters';
-    """)
-    
-    conn.commit()
-    logger.success("✅ Table created")
-    conn.close()
+)
 
+_CREATE_ZIP_COUNTY_INDEXES_SQL = (
+    text("CREATE INDEX idx_bronze_jurisdictions_zip_county_zcta ON bronze_jurisdictions_zip_county(zcta)"),
+    text("CREATE INDEX idx_bronze_jurisdictions_zip_county_geoid ON bronze_jurisdictions_zip_county(county_geoid)"),
+    text("CREATE INDEX idx_bronze_jurisdictions_zip_county_state ON bronze_jurisdictions_zip_county(state_fips)"),
+)
 
-def load_zcta_county_data():
-    """Load ZCTA to county relationship data into bronze_jurisdictions_zip_county table."""
-    input_file = CACHE_DIR / "zcta_county.txt"
-    
-    if not input_file.exists():
-        logger.error(f"❌ File not found: {input_file}")
-        logger.info("   Run: python scripts/datasources/census/download_census_relationships.py")
-        return False
-    
-    logger.info(f"📊 Processing ZCTA to county data from {input_file}...")
-    
-    # Read pipe-delimited file
-    df = pd.read_csv(input_file, sep='|', dtype=str, low_memory=False)
-    
-    logger.info(f"   Loaded {len(df):,} rows")
-    logger.info(f"   Columns: {len(df.columns)}")
-    
-    # Extract relevant columns
-    # Column names: GEOID_ZCTA5_20, GEOID_COUNTY_20, NAMELSAD_COUNTY_20, AREALAND_PART, AREAWATER_PART
-    records = []
-    
-    # Helper to safely get string values
-    def safe_str(val):
-        if pd.isna(val):
-            return ''
-        return str(val).strip()
-    
-    for _, row in df.iterrows():
-        zcta = safe_str(row.get('GEOID_ZCTA5_20', ''))
-        county_geoid = safe_str(row.get('GEOID_COUNTY_20', ''))
-        county_name = safe_str(row.get('NAMELSAD_COUNTY_20', ''))
-        
-        # Skip empty rows
-        if not zcta or not county_geoid:
-            continue
-        
-        # Extract state FIPS (first 2 digits of county GEOID)
-        state_fips = county_geoid[:2] if len(county_geoid) >= 2 else None
-        
-        # Convert area to int
-        def safe_int(val):
-            try:
-                return int(float(val)) if pd.notna(val) and val else None
-            except:
-                return None
-        
-        arealand_part = safe_int(row.get('AREALAND_PART'))
-        areawater_part = safe_int(row.get('AREAWATER_PART'))
-        
-        records.append((
-            zcta,
-            county_geoid,
-            county_name,
-            state_fips,
-            arealand_part,
-            areawater_part,
-            'Census 2020 ZCTA-County Relationship File'
-        ))
-    
-    if not records:
-        logger.error("❌ No valid records to insert")
-        return False
-    
-    logger.info(f"💾 Inserting {len(records):,} ZCTA-county relationships...")
-    
-    conn = psycopg2.connect(BRONZE_DATABASE_URL)
-    cur = conn.cursor()
-    
-    insert_query = """
-        INSERT INTO bronze_jurisdictions_zip_county 
+_TRUNCATE_ZIP_COUNTY_SQL = text("TRUNCATE TABLE bronze_jurisdictions_zip_county")
+
+_DROP_ZIP_PLACE_SQL = text("DROP TABLE IF EXISTS bronze_jurisdictions_zip_place CASCADE")
+
+_CREATE_ZIP_PLACE_SQL = text(
+    """
+    CREATE TABLE bronze_jurisdictions_zip_place (
+        zcta VARCHAR(10) NOT NULL,
+        place_geoid VARCHAR(7) NOT NULL,
+        place_name VARCHAR(255),
+        state_fips VARCHAR(2),
+        arealand_part BIGINT,
+        areawater_part BIGINT,
+        source_file VARCHAR(255),
+        ingestion_date TIMESTAMP DEFAULT NOW(),
+        PRIMARY KEY (zcta, place_geoid)
+    )
+    """
+)
+
+_CREATE_ZIP_PLACE_INDEXES_SQL = (
+    text("CREATE INDEX idx_bronze_jurisdictions_zip_place_zcta ON bronze_jurisdictions_zip_place(zcta)"),
+    text("CREATE INDEX idx_bronze_jurisdictions_zip_place_geoid ON bronze_jurisdictions_zip_place(place_geoid)"),
+    text("CREATE INDEX idx_bronze_jurisdictions_zip_place_state ON bronze_jurisdictions_zip_place(state_fips)"),
+)
+
+_TRUNCATE_ZIP_PLACE_SQL = text("TRUNCATE TABLE bronze_jurisdictions_zip_place")
+
+_UPSERT_ZIP_COUNTY_SQL = text(
+    """
+    INSERT INTO bronze_jurisdictions_zip_county
         (zcta, county_geoid, county_name, state_fips, arealand_part, areawater_part, source_file)
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
-        ON CONFLICT (zcta, county_geoid) DO UPDATE SET
-            county_name = EXCLUDED.county_name,
-            state_fips = EXCLUDED.state_fips,
-            arealand_part = EXCLUDED.arealand_part,
-            areawater_part = EXCLUDED.areawater_part,
-            source_file = EXCLUDED.source_file,
-            ingestion_date = NOW()
+    VALUES
+        (:zcta, :geoid, :name, :state_fips, :arealand_part, :areawater_part, :source_file)
+    ON CONFLICT (zcta, county_geoid) DO UPDATE SET
+        county_name = EXCLUDED.county_name,
+        state_fips = EXCLUDED.state_fips,
+        arealand_part = EXCLUDED.arealand_part,
+        areawater_part = EXCLUDED.areawater_part,
+        source_file = EXCLUDED.source_file,
+        ingestion_date = NOW()
     """
-    
-    execute_batch(cur, insert_query, records, page_size=5000)
-    conn.commit()
-    
-    logger.success(f"✅ Inserted {len(records):,} ZCTA-county relationships")
-    
-    # Show stats
-    cur.execute("""
-        SELECT 
-            COUNT(DISTINCT zcta) as unique_zctas,
-            COUNT(*) as total_relationships,
-            COUNT(*) FILTER (WHERE arealand_part IS NOT NULL) as with_area_data
-        FROM bronze_jurisdictions_zip_county
-    """)
-    
-    stats = cur.fetchone()
-    logger.info(f"📊 Table statistics:")
-    logger.info(f"   Unique ZCTAs: {stats[0]:,}")
-    logger.info(f"   Total relationships: {stats[1]:,}")
-    logger.info(f"   With area data: {stats[2]:,}")
-    logger.info(f"   Avg counties per ZIP: {stats[1] / stats[0]:.2f}")
-    
-    conn.close()
-    return True
+)
 
-
-def load_zcta_place_data():
-    """Load ZCTA to place (city) relationship data into bronze_jurisdictions_zip_place table."""
-    input_file = CACHE_DIR / "zcta_place.txt"
-    
-    if not input_file.exists():
-        logger.error(f"❌ File not found: {input_file}")
-        logger.info("   Run: python scripts/datasources/census/download_census_relationships.py")
-        return False
-    
-    logger.info(f"📊 Processing ZCTA to place data from {input_file}...")
-    
-    # Read pipe-delimited file
-    df = pd.read_csv(input_file, sep='|', dtype=str, low_memory=False)
-    
-    logger.info(f"   Loaded {len(df):,} rows")
-    logger.info(f"   Columns: {len(df.columns)}")
-    
-    # Extract relevant columns
-    # Column names: GEOID_ZCTA5_20, GEOID_PLACE_20, NAMELSAD_PLACE_20, AREALAND_PART, AREAWATER_PART
-    records = []
-    
-    # Helper to safely get string values
-    def safe_str(val):
-        if pd.isna(val):
-            return ''
-        return str(val).strip()
-    
-    for _, row in df.iterrows():
-        zcta = safe_str(row.get('GEOID_ZCTA5_20', ''))
-        place_geoid = safe_str(row.get('GEOID_PLACE_20', ''))
-        place_name = safe_str(row.get('NAMELSAD_PLACE_20', ''))
-        
-        # Skip empty rows
-        if not zcta or not place_geoid:
-            continue
-        
-        # Extract state FIPS (first 2 digits of place GEOID)
-        state_fips = place_geoid[:2] if len(place_geoid) >= 2 else None
-        
-        # Convert area to int
-        def safe_int(val):
-            try:
-                return int(float(val)) if pd.notna(val) and val else None
-            except:
-                return None
-        
-        arealand_part = safe_int(row.get('AREALAND_PART'))
-        areawater_part = safe_int(row.get('AREAWATER_PART'))
-        
-        records.append((
-            zcta,
-            place_geoid,
-            place_name,
-            state_fips,
-            arealand_part,
-            areawater_part,
-            'Census 2020 ZCTA-Place Relationship File'
-        ))
-    
-    if not records:
-        logger.error("❌ No valid records to insert")
-        return False
-    
-    logger.info(f"💾 Inserting {len(records):,} ZCTA-place relationships...")
-    
-    conn = psycopg2.connect(BRONZE_DATABASE_URL)
-    cur = conn.cursor()
-    
-    insert_query = """
-        INSERT INTO bronze_jurisdictions_zip_place 
+_UPSERT_ZIP_PLACE_SQL = text(
+    """
+    INSERT INTO bronze_jurisdictions_zip_place
         (zcta, place_geoid, place_name, state_fips, arealand_part, areawater_part, source_file)
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
-        ON CONFLICT (zcta, place_geoid) DO UPDATE SET
-            place_name = EXCLUDED.place_name,
-            state_fips = EXCLUDED.state_fips,
-            arealand_part = EXCLUDED.arealand_part,
-            areawater_part = EXCLUDED.areawater_part,
-            source_file = EXCLUDED.source_file,
-            ingestion_date = NOW()
+    VALUES
+        (:zcta, :geoid, :name, :state_fips, :arealand_part, :areawater_part, :source_file)
+    ON CONFLICT (zcta, place_geoid) DO UPDATE SET
+        place_name = EXCLUDED.place_name,
+        state_fips = EXCLUDED.state_fips,
+        arealand_part = EXCLUDED.arealand_part,
+        areawater_part = EXCLUDED.areawater_part,
+        source_file = EXCLUDED.source_file,
+        ingestion_date = NOW()
     """
-    
-    execute_batch(cur, insert_query, records, page_size=5000)
-    conn.commit()
-    
-    logger.success(f"✅ Inserted {len(records):,} ZCTA-place relationships")
-    
-    # Show stats
-    cur.execute("""
-        SELECT 
-            COUNT(DISTINCT zcta) as unique_zctas,
-            COUNT(*) as total_relationships,
-            COUNT(*) FILTER (WHERE arealand_part IS NOT NULL) as with_area_data
-        FROM bronze_jurisdictions_zip_place
-    """)
-    
-    stats = cur.fetchone()
-    logger.info(f"📊 Table statistics:")
-    logger.info(f"   Unique ZCTAs: {stats[0]:,}")
-    logger.info(f"   Total relationships: {stats[1]:,}")
-    logger.info(f"   With area data: {stats[2]:,}")
-    logger.info(f"   Avg places per ZIP: {stats[1] / stats[0]:.2f}")
-    
-    conn.close()
-    return True
+)
+
+_UPSERT_BY_TYPE = {
+    "zcta_county": _UPSERT_ZIP_COUNTY_SQL,
+    "zcta_place": _UPSERT_ZIP_PLACE_SQL,
+}
 
 
-def verify_data_quality():
-    """Run data quality checks on loaded relationship data."""
-    conn = psycopg2.connect(BRONZE_DATABASE_URL)
-    cur = conn.cursor()
-    
-    logger.info("=" * 80)
-    logger.info("🔍 DATA QUALITY VERIFICATION")
-    logger.info("=" * 80)
-    
-    checks_passed = []
-    checks_failed = []
-    
-    # Check 1: ZCTA-County table exists and has data
-    try:
-        cur.execute("SELECT COUNT(*) FROM bronze_jurisdictions_zip_county")
-        county_count = cur.fetchone()[0]
-        
-        if county_count > 50000:
-            checks_passed.append(f"✅ ZCTA-County: {county_count:,} relationships")
-        else:
-            checks_failed.append(f"❌ ZCTA-County: {county_count:,} (expected >50,000)")
-    except Exception as e:
-        checks_failed.append(f"❌ ZCTA-County table error: {e}")
-    
-    # Check 2: ZCTA-Place table exists and has data
-    try:
-        cur.execute("SELECT COUNT(*) FROM bronze_jurisdictions_zip_place")
-        place_count = cur.fetchone()[0]
-        
-        if place_count > 200000:
-            checks_passed.append(f"✅ ZCTA-Place: {place_count:,} relationships")
-        else:
-            checks_failed.append(f"❌ ZCTA-Place: {place_count:,} (expected >200,000)")
-    except Exception as e:
-        checks_failed.append(f"❌ ZCTA-Place table error: {e}")
-    
-    # Check 3: Sample lookups
-    try:
-        # Check if common ZCTAs exist
-        cur.execute("""
-            SELECT zcta, county_name, state_fips
-            FROM bronze_jurisdictions_zip_county
-            WHERE zcta IN ('02101', '10001', '90210', '60601')
-            ORDER BY zcta
-        """)
-        samples = cur.fetchall()
-        
-        if len(samples) >= 3:
-            checks_passed.append(f"✅ Sample ZCTAs found: {len(samples)}")
-            for zcta, county, state in samples[:3]:
-                logger.info(f"   • ZIP {zcta} → {county} ({state})")
-        else:
-            checks_failed.append(f"⚠️  Only {len(samples)} sample ZCTAs found")
-    except Exception as e:
-        checks_failed.append(f"❌ Sample lookup error: {e}")
-    
-    # Print results
-    logger.info("")
-    for check in checks_passed:
-        logger.info(check)
-    for check in checks_failed:
-        logger.warning(check)
-    logger.info("=" * 80)
-    
-    if checks_failed:
-        logger.warning(f"⚠️  {len(checks_failed)} checks failed")
-    else:
-        logger.success(f"✅ All {len(checks_passed)} quality checks passed!")
-    
-    conn.close()
-    return len(checks_failed) == 0
+class CensusRelationshipsPipeline(DataSourcePipeline[RelationshipRow]):
+    source = "census_relationships"
+    batch_size = 5_000  # legacy execute_batch page_size
+    row_schema = RelationshipRow
+
+    def __init__(
+        self,
+        *,
+        path: Path | None = None,
+        limit: int | None = None,
+        types: list[str] | None = None,
+    ):
+        # ``path`` overrides discovery for a single file (paired with a single
+        # ``types`` entry); otherwise files are discovered under CACHE_DIR.
+        self._path = path
+        self._limit = limit
+        self._types = list(types) if types else list(RELATIONSHIP_TYPES)
+
+    def _input_path(self, rel_type: str) -> Path:
+        if self._path is not None:
+            return self._path
+        return CACHE_DIR / _INPUT_FILES[rel_type]
+
+    async def extract(self, ctx: PipelineContext) -> AsyncIterator[dict]:
+        for rel_type in self._types:
+            input_file = self._input_path(rel_type)
+            if not input_file.exists():
+                raise FileNotFoundError(
+                    f"File not found: {input_file}. "
+                    "Run download_census_relationships.py first."
+                )
+
+            zcta_col, geoid_col, name_col = _FILE_COLUMNS[rel_type]
+            source_label = _SOURCE_FILE_LABELS[rel_type]
+
+            emitted = 0
+            with input_file.open("r", encoding="utf-8", newline="") as handle:
+                reader = csv.DictReader(handle, delimiter="|")
+                for row in reader:
+                    if self._limit is not None and emitted >= self._limit:
+                        break
+
+                    zcta = safe_str(row.get(zcta_col, ""))
+                    geoid = safe_str(row.get(geoid_col, ""))
+                    name = safe_str(row.get(name_col, ""))
+
+                    # Skip empty rows (mirrors legacy guard)
+                    if not zcta or not geoid:
+                        continue
+
+                    # Extract state FIPS (first 2 digits of geoid)
+                    state_fips = geoid[:2] if len(geoid) >= 2 else None
+
+                    arealand_part = safe_int(row.get("AREALAND_PART"))
+                    areawater_part = safe_int(row.get("AREAWATER_PART"))
+
+                    yield {
+                        "source": self.source,
+                        "source_version": "2020",
+                        "natural_key": f"{rel_type}:{zcta}:{geoid}",
+                        "relationship_type": rel_type,
+                        "zcta": zcta,
+                        "geoid": geoid,
+                        "name": name or None,
+                        "state_fips": state_fips,
+                        "arealand_part": arealand_part,
+                        "areawater_part": areawater_part,
+                        "source_file": source_label,
+                    }
+                    emitted += 1
+
+    async def load_batch(
+        self,
+        session: AsyncSession,
+        rows: list[RelationshipRow],
+        ctx: PipelineContext,
+    ) -> None:
+        # A batch may mix relationship types; route each to the right table.
+        by_type: dict[str, list[dict]] = {}
+        for r in rows:
+            by_type.setdefault(r.relationship_type, []).append(
+                {
+                    "zcta": r.zcta,
+                    "geoid": r.geoid,
+                    "name": r.name,
+                    "state_fips": r.state_fips,
+                    "arealand_part": r.arealand_part,
+                    "areawater_part": r.areawater_part,
+                    "source_file": r.source_file,
+                }
+            )
+        for rel_type, params in by_type.items():
+            await session.execute(_UPSERT_BY_TYPE[rel_type], params)
 
 
-def main():
-    """Main execution function."""
+async def _prepare_target(truncate: bool, types: list[str] | None = None) -> None:
+    # Faithful to the legacy create_*_table() functions: drop + recreate each
+    # target table and its indexes. Optional TRUNCATE clears rows after
+    # (re)creation (a no-op on a freshly created table, kept for symmetry with
+    # the other pipelines' --truncate contract).
+    rel_types = list(types) if types else list(RELATIONSHIP_TYPES)
+    async with async_session() as session:
+        if "zcta_county" in rel_types:
+            await session.execute(_DROP_ZIP_COUNTY_SQL)
+            await session.execute(_CREATE_ZIP_COUNTY_SQL)
+            for idx in _CREATE_ZIP_COUNTY_INDEXES_SQL:
+                await session.execute(idx)
+            if truncate:
+                await session.execute(_TRUNCATE_ZIP_COUNTY_SQL)
+        if "zcta_place" in rel_types:
+            await session.execute(_DROP_ZIP_PLACE_SQL)
+            await session.execute(_CREATE_ZIP_PLACE_SQL)
+            for idx in _CREATE_ZIP_PLACE_INDEXES_SQL:
+                await session.execute(idx)
+            if truncate:
+                await session.execute(_TRUNCATE_ZIP_PLACE_SQL)
+
+
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Load Census Geographic Relationship Files to Bronze Database"
+        description="Load Census Geographic Relationship Files to bronze tables"
     )
     parser.add_argument(
-        '--types',
-        nargs='+',
-        choices=['zcta_county', 'zcta_place'],
-        help='Relationship types to load (default: all)'
+        "--types",
+        nargs="+",
+        choices=list(RELATIONSHIP_TYPES),
+        help="Relationship types to load (default: all)",
     )
+    parser.add_argument("--limit", type=int, help="Limit records per file (for testing)")
     parser.add_argument(
-        '--verify-only',
-        action='store_true',
-        help='Only run verification checks (no loading)'
+        "--truncate", action="store_true",
+        help="TRUNCATE tables after (re)creation (recommended for full reloads)",
     )
-    
-    args = parser.parse_args()
-    
-    logger.info("=" * 80)
-    logger.info("🗄️  CENSUS RELATIONSHIP DATA LOAD TO BRONZE")
-    logger.info("=" * 80)
-    logger.info(f"Target database: open_navigator_bronze")
-    logger.info("")
-    
-    if args.verify_only:
-        verify_data_quality()
-        return
-    
-    # Determine which tables to load
-    load_county = not args.types or 'zcta_county' in args.types
-    load_place = not args.types or 'zcta_place' in args.types
-    
-    success_count = 0
-    total_count = 0
-    
-    try:
-        # Load ZCTA to County
-        if load_county:
-            total_count += 1
-            logger.info("-" * 80)
-            create_bronze_jurisdictions_zip_county_table()
-            if load_zcta_county_data():
-                success_count += 1
-            logger.info("")
-        
-        # Load ZCTA to Place
-        if load_place:
-            total_count += 1
-            logger.info("-" * 80)
-            create_bronze_jurisdictions_zip_place_table()
-            if load_zcta_place_data():
-                success_count += 1
-            logger.info("")
-        
-        # Verify data quality
-        logger.info("-" * 80)
-        quality_ok = verify_data_quality()
-        
-        logger.info("")
-        logger.info("=" * 80)
-        if success_count == total_count and quality_ok:
-            logger.success("✅ RELATIONSHIP DATA LOAD COMPLETE!")
-        else:
-            logger.warning(f"⚠️  Loaded {success_count}/{total_count} tables")
-        logger.info("=" * 80)
-        logger.info("")
-        logger.info("Next steps:")
-        logger.info("  1. Create dbt silver models to identify primary county/place per ZIP")
-        logger.info("  2. Use in API for ZIP code lookups and filtering")
-        logger.info("  3. Enrich nonprofit data with ZIP→county/city mappings")
-        logger.info("")
-        
-    except Exception as e:
-        logger.error(f"❌ Load failed: {e}")
-        raise
+    return parser
 
 
-if __name__ == '__main__':
+async def _run(args: argparse.Namespace) -> None:
+    types = args.types or list(RELATIONSHIP_TYPES)
+    await _prepare_target(args.truncate, types)
+    pipeline = CensusRelationshipsPipeline(limit=args.limit, types=types)
+    await pipeline.run()
+
+
+def main() -> None:
+    setup_logging()
+    args = build_parser().parse_args()
+    asyncio.run(_run(args))
+
+
+if __name__ == "__main__":
     main()
