@@ -2,6 +2,27 @@
 """
 Load YouTube Events to bronze.bronze_events_youtube
 
+DECOMPOSITION NOTE (medallion refactor):
+    This file is the FETCH layer — the live data acquisition (YouTube Data API,
+    yt-dlp video catalog, yt-dlp subtitle download, youtube-transcript-api
+    captions). That machinery is irreducible scraping and INTENTIONALLY stays a
+    scraper here; it is not a plain REST GET and does not fit BaseAsyncClient.
+    The YouTubeEventsLoader class below is kept intact (sibling scripts such as
+    load_youtube_for_jurisdiction.py, backfill_jurisdiction_transcripts.py,
+    download_tuscaloosa_city_meeting_audio.py, and scrape_priority_states.py
+    still import it).
+
+    The LAND layer (thin loader for PRE-COLLECTED records) now lives at
+        packages/ingestion/src/ingestion/youtube/events.py
+    a DataSourcePipeline that reads JSON/JSONL out of data/cache/youtube/ and
+    lands raw rows into bronze.bronze_events_youtube (+ transcripts into
+    bronze.bronze_events_text_ai) with a stable SHA-based event_id.
+
+    The DERIVE layer (title->meeting-date parsing, jurisdiction/channel
+    classification, dedup) moves DOWNSTREAM to dbt:
+        dbt_project/models/staging/stg_youtube__event.sql (+ _schema_stg_youtube.yml)
+    No derivation happens in the LAND loader.
+
 This script:
 1. Reads YouTube channels from bronze.bronze_events_youtube (existing videos with channel data)
 2. For each channel, fetches new videos using YouTube API or yt-dlp fallback
