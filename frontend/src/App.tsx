@@ -29,11 +29,29 @@ import UnifiedSearch from './pages/UnifiedSearch'
 import JurisdictionsSearch from './pages/JurisdictionsSearch'
 import PolicyMap from './pages/PolicyMap'
 import CensusMapPage from './pages/CensusMapPage'
+import CensusDrilldownMapPage from './pages/CensusDrilldownMapPage'
 import DataExplorerLayout from './components/DataExplorerLayout'
 import DataExplorerScorecardPage from './pages/DataExplorerScorecardPage'
 import BillDetail from './pages/BillDetail'
 import NotFound from './pages/NotFound'
 import { DATA_EXPLORER_MAP_BASE } from './utils/dataExplorerPaths'
+
+/** Old route-based drill-down (`/map/state/13/...`, `/map/place/13/...`) is now in-page;
+ * redirect those bookmarks to the unified `/map/us/{vintage}/{metric}` entry. */
+function LegacyStatePlaceRedirect() {
+  const { vintage, metric } = useParams<{ vintage: string; metric: string }>()
+  const { search } = useLocation()
+  const v = vintage ?? '2024'
+  const m = metric ?? 'median_household_income'
+  return <Navigate to={`${DATA_EXPLORER_MAP_BASE}/us/${v}/${m}${search}`} replace />
+}
+
+/** `/map-v2/...` was the staging URL while the new page lived alongside the old one. */
+function MapV2AliasRedirect() {
+  const { pathname, search } = useLocation()
+  const next = pathname.replace(/^\/data-explorer\/map-v2/, DATA_EXPLORER_MAP_BASE)
+  return <Navigate to={`${next}${search}`} replace />
+}
 
 /** Old bookmarked URLs used `/census-map/county/...`; national view is now state-level under Data explorer. */
 function CensusCountyAliasRedirect() {
@@ -116,10 +134,17 @@ function App() {
           <Route path="jurisdiction-quality" element={<JurisdictionMappingQualityPage />} />
           <Route path="lighthouse-report" element={<LighthouseReportPage />} />
           <Route path="batch-jobs" element={<BatchJobStatusPage />} />
-          <Route path="map/us/:vintage/:metric" element={<CensusMapPage />} />
-          <Route path="map/state/:stateFips/:vintage/:metric" element={<CensusMapPage />} />
-          <Route path="map/place/:stateFips/:vintage/:metric" element={<CensusMapPage />} />
+          <Route path="map/us/:vintage/:metric" element={<CensusDrilldownMapPage />} />
+          <Route path="map/state/:stateFips/:vintage/:metric" element={<LegacyStatePlaceRedirect />} />
+          <Route path="map/place/:stateFips/:vintage/:metric" element={<LegacyStatePlaceRedirect />} />
           <Route path="map" element={<DataExplorerMapDefaultRedirect />} />
+          {/* Legacy staging URLs while the drilldown lived alongside the old page.
+              Anyone with a bookmark to /map-v2/... lands on the canonical /map/... now. */}
+          <Route path="map-v2/*" element={<MapV2AliasRedirect />} />
+          {/* Old CensusMapPage retained at `/map-legacy/...` for one-click rollback if needed. */}
+          <Route path="map-legacy/us/:vintage/:metric" element={<CensusMapPage />} />
+          <Route path="map-legacy/state/:stateFips/:vintage/:metric" element={<CensusMapPage />} />
+          <Route path="map-legacy/place/:stateFips/:vintage/:metric" element={<CensusMapPage />} />
         </Route>
         <Route path="bill/:billId" element={<BillDetail />} />
         <Route path="documents" element={<Documents />} />

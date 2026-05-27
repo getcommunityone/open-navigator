@@ -76,6 +76,8 @@ import {
 import { CensusRaceBarChart } from '../components/CensusRaceBarChart'
 import { GiniIncomeInequalityLetterLegend } from '../components/GiniInequalityReadout'
 import { InfoHelpTrigger } from '../components/InfoHelpTrigger'
+import MapAddressSearch, { type MapAddressResult } from '../components/MapAddressSearch'
+import CensusMapLeftRail, { type CensusMapRailSection } from '../components/CensusMapLeftRail'
 import { censusMapPathPrefix, mapPathPlace, mapPathState, mapPathUs } from '../utils/dataExplorerPaths'
 
 const STATES_TOPO = 'https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json'
@@ -138,6 +140,10 @@ const FIPS2_TO_USPS: Record<string, string> = {
   '45': 'SC', '46': 'SD', '47': 'TN', '48': 'TX', '49': 'UT', '50': 'VT', '51': 'VA', '53': 'WA',
   '54': 'WV', '55': 'WI', '56': 'WY', '72': 'PR',
 }
+
+const USPS_TO_FIPS2: Record<string, string> = Object.fromEntries(
+  Object.entries(FIPS2_TO_USPS).map(([fips, usps]) => [usps, fips]),
+)
 
 /** Topo / Census ids may be 1 or "01"; normalize to 2-digit state FIPS for routes and JSON keys. */
 function normalizeStateFips(raw: unknown): string | null {
@@ -650,6 +656,7 @@ function CensusMapAdvancedMapOptionsFlyout({
   setValueMode,
   focusSection,
   onConsumedFocusSection,
+  yearControls,
 }: {
   open: boolean
   onClose: () => void
@@ -661,8 +668,20 @@ function CensusMapAdvancedMapOptionsFlyout({
   valueMode: CensusValueMode
   setValueMode: (m: CensusValueMode) => void
   /** When opening from a toolbar affordance, scroll this block into view. */
-  focusSection?: 'view' | 'scale' | 'values' | null
+  focusSection?: 'year' | 'view' | 'scale' | 'values' | null
   onConsumedFocusSection?: () => void
+  /** When provided, renders an in-flyout Year + Play section above the other sections. */
+  yearControls?: {
+    vintages: string[]
+    displayVintage: string
+    singleVintage: boolean
+    showPlay: boolean
+    playing: boolean
+    setPlaying: (v: boolean) => void
+    onVintageChange: (v: string) => void
+    onBeginPlay?: () => void
+    yearHelp: string
+  }
 }) {
   useEffect(() => {
     if (!open) return
@@ -681,11 +700,13 @@ function CensusMapAdvancedMapOptionsFlyout({
   useEffect(() => {
     if (!open || !focusSection) return
     const id =
-      focusSection === 'view'
-        ? 'census-advanced-section-view'
-        : focusSection === 'scale'
-          ? 'census-advanced-section-scale'
-          : 'census-advanced-section-values'
+      focusSection === 'year'
+        ? 'census-advanced-section-year'
+        : focusSection === 'view'
+          ? 'census-advanced-section-view'
+          : focusSection === 'scale'
+            ? 'census-advanced-section-scale'
+            : 'census-advanced-section-values'
     const t = window.setTimeout(() => {
       document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
       onConsumedFocusSection?.()
@@ -723,6 +744,27 @@ function CensusMapAdvancedMapOptionsFlyout({
           </button>
         </div>
         <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain p-3">
+          {yearControls ? (
+            <div
+              id="census-advanced-section-year"
+              className="rounded-lg border border-slate-200 bg-slate-50/50 p-3 scroll-mt-3"
+            >
+              <div className="mb-2">
+                <LabelWithInfo label="Year (ACS end year)" help={yearControls.yearHelp} />
+              </div>
+              <VintageAndPlayControls
+                vintages={yearControls.vintages}
+                displayVintage={yearControls.displayVintage}
+                singleVintage={yearControls.singleVintage}
+                showPlay={yearControls.showPlay}
+                playing={yearControls.playing}
+                setPlaying={yearControls.setPlaying}
+                onVintageChange={yearControls.onVintageChange}
+                onBeginPlay={yearControls.onBeginPlay}
+                yearHelp={yearControls.yearHelp}
+              />
+            </div>
+          ) : null}
           <div id="census-advanced-section-view" className="rounded-lg border border-slate-200 bg-slate-50/50 p-3 scroll-mt-3">
             <div className="mb-2">
               <LabelWithInfo
@@ -1614,7 +1656,17 @@ function CensusMapPage() {
   }
 
   const [advancedMapOptionsOpen, setAdvancedMapOptionsOpen] = useState(false)
-  const [advancedFocusSection, setAdvancedFocusSection] = useState<'view' | 'scale' | 'values' | null>(null)
+  const [advancedFocusSection, setAdvancedFocusSection] = useState<'year' | 'view' | 'scale' | 'values' | null>(null)
+  const [pinnedAddress, setPinnedAddress] = useState<{
+    displayName: string
+    shortLabel: string
+    lat: number
+    lon: number
+    stateCode: string | null
+    stateFips: string | null
+    county: string
+    city: string
+  } | null>(null)
   const [censusOnboardingDismissed, setCensusOnboardingDismissed] = useState(() => {
     if (typeof window === 'undefined') return false
     try {
@@ -2729,30 +2781,65 @@ function CensusMapPage() {
         setScale={setScale}
         valueMode={valueMode}
         setValueMode={setValueMode}
+        yearControls={
+          mode === 'us'
+            ? {
+                vintages,
+                displayVintage,
+                singleVintage,
+                showPlay,
+                playing,
+                setPlaying,
+                onVintageChange,
+                onBeginPlay: () => setAnimIndex(0),
+                yearHelp: `${CENSUS_MAP_UI_HELP.year}\n\n${metricFullHelp}`,
+              }
+            : undefined
+        }
       />
 
       {mode === 'us' && wrapExplorerMap(
         <div className="flex min-w-0 flex-col gap-3">
-          <CensusExplorerFilterBar
-            metricFullHelp={metricFullHelp}
-            metricChoices={selectableMetrics}
-            metricSlug={metricSlug}
-            onMetricChange={onMetricChange}
-            vintages={vintages}
-            displayVintage={displayVintage}
-            singleVintage={singleVintage}
-            showPlay={showPlay}
-            playing={playing}
-            setPlaying={setPlaying}
-            onVintageChange={onVintageChange}
-            onBeginPlay={() => setAnimIndex(0)}
-            yearHelp={`${CENSUS_MAP_UI_HELP.year}\n\n${metricFullHelp}`}
-            onOpenAdvanced={(section) => {
-              setAdvancedFocusSection(section)
-              setAdvancedMapOptionsOpen(true)
-            }}
-          />
-          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(300px,26rem)] gap-3 items-start">
+          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-end sm:gap-3">
+            <div className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm sm:max-w-md">
+              <CensusMetricToolbarControl
+                metricFullHelp={metricFullHelp}
+                metrics={selectableMetrics}
+                metricSlug={metricSlug}
+                onPickMetric={onMetricChange}
+                unconstrainedWidth
+              />
+            </div>
+            <div className="min-w-0 flex-1 sm:max-w-lg">
+              <MapAddressSearch
+                onPick={(r: MapAddressResult) => {
+                  const fips = r.stateCode ? USPS_TO_FIPS2[r.stateCode] ?? null : null
+                  setPinnedAddress({
+                    displayName: r.displayName,
+                    shortLabel: r.shortLabel,
+                    lat: r.lat,
+                    lon: r.lon,
+                    stateCode: r.stateCode,
+                    stateFips: fips,
+                    county: r.county,
+                    city: r.city,
+                  })
+                }}
+                onClear={() => setPinnedAddress(null)}
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 xl:grid-cols-[auto_minmax(0,1fr)_minmax(300px,26rem)] gap-3 items-start">
+          <div className="hidden xl:block xl:sticky xl:top-4">
+            <CensusMapLeftRail
+              activeSection={advancedMapOptionsOpen ? advancedFocusSection : null}
+              yearBadge={displayVintage}
+              onOpen={(section: CensusMapRailSection) => {
+                setAdvancedFocusSection(section)
+                setAdvancedMapOptionsOpen(true)
+              }}
+            />
+          </div>
           <div
             className="flex min-w-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"
             role="region"
@@ -2895,6 +2982,23 @@ function CensusMapPage() {
                                     </g>
                                   )
                                 })}
+                              {pinnedAddress
+                                ? (() => {
+                                    const xy = safeProjectScreen(projection, [pinnedAddress.lon, pinnedAddress.lat])
+                                    if (!xy) return null
+                                    return (
+                                      <g
+                                        key="address-pin"
+                                        transform={`translate(${xy[0]},${xy[1]})`}
+                                        style={{ pointerEvents: 'none' }}
+                                      >
+                                        <circle r={11} fill="rgba(244, 63, 94, 0.18)" />
+                                        <circle r={6.5} fill="#f43f5e" stroke="#ffffff" strokeWidth={2} />
+                                        <circle r={2.2} fill="#ffffff" />
+                                      </g>
+                                    )
+                                  })()
+                                : null}
                             </>
                           )
                           }}
@@ -2973,6 +3077,82 @@ function CensusMapPage() {
           </div>
 
           <aside className="flex flex-col gap-4 xl:sticky xl:top-4">
+            {pinnedAddress ? (() => {
+              const fips = pinnedAddress.stateFips
+              const stRow = fips ? statePayload?.values?.[fips] : undefined
+              const stName =
+                (stRow as { NAME?: string } | undefined)?.NAME ??
+                (pinnedAddress.stateCode ? STATE_CODE_TO_NAME[pinnedAddress.stateCode] : null) ??
+                pinnedAddress.stateCode ??
+                'Selected location'
+              const rawVal =
+                stRow && (stRow as Record<string, unknown>)[metricSlug] != null
+                  ? ((stRow as Record<string, unknown>)[metricSlug] as number)
+                  : null
+              const metricLabel = currentMetricMeta?.label ?? metricSlug
+              const rank = fips ? stateRankByGeoid.get(fips) : null
+              return (
+                <div className="rounded-lg border border-rose-200 bg-white p-3 shadow-sm">
+                  <div className="flex items-start gap-2">
+                    <span
+                      className="mt-0.5 inline-block h-3 w-3 shrink-0 rounded-full border-2 border-white bg-rose-500 shadow ring-2 ring-rose-200"
+                      aria-hidden
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[10px] font-semibold uppercase tracking-wide text-rose-700">
+                        Pinned address
+                      </div>
+                      <div className="mt-0.5 truncate text-sm font-semibold text-slate-900" title={pinnedAddress.displayName}>
+                        {pinnedAddress.shortLabel || pinnedAddress.displayName}
+                      </div>
+                      {pinnedAddress.county || pinnedAddress.city ? (
+                        <div className="mt-0.5 text-[11px] text-slate-500">
+                          {[pinnedAddress.city, pinnedAddress.county && `${pinnedAddress.county} County`, stName]
+                            .filter(Boolean)
+                            .join(' · ')}
+                        </div>
+                      ) : null}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setPinnedAddress(null)}
+                      className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#354F52] focus-visible:ring-offset-1"
+                      aria-label="Clear pin"
+                    >
+                      <XMarkIcon className="h-4 w-4" />
+                    </button>
+                  </div>
+                  {rawVal != null ? (
+                    <div className="mt-2.5 rounded-md border border-slate-100 bg-slate-50/80 px-2.5 py-2">
+                      <div className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
+                        {stName} · {metricLabel}
+                      </div>
+                      <div className="mt-0.5 text-base font-semibold text-slate-900 tabular-nums">
+                        {formatMetricValue(metricSlug, rawVal, metrics, valueMode)}
+                      </div>
+                      {rank ? (
+                        <div className="mt-0.5 text-[11px] text-slate-500">
+                          Ranked #{rank.rank} of {rank.total} states
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <div className="mt-2.5 rounded-md border border-dashed border-slate-200 bg-slate-50/60 px-2.5 py-2 text-[11px] text-slate-500">
+                      State value not available for this metric/year.
+                    </div>
+                  )}
+                  {fips ? (
+                    <button
+                      type="button"
+                      onClick={() => navigate(mapPathState(fips, displayVintage, metricSlug))}
+                      className="mt-2.5 inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-[#354F52] px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-[#2c4346] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#354F52] focus-visible:ring-offset-2"
+                    >
+                      Open {stName} county view →
+                    </button>
+                  ) : null}
+                </div>
+              )
+            })() : null}
             {stateTrends && usTrendSubject ? (
               <div
                 onMouseEnter={() => {
