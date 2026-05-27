@@ -1,109 +1,52 @@
 #!/usr/bin/env python3
-"""
-Load Ballotpedia ballot-measure JSON snapshots into ``bronze.bronze_ballot_measures_ballotpedia``.
+"""Ballotpedia ballot-measure pipeline: load cached JSON snapshots into bronze.
 
-Reads timestamped JSON files produced by ``download_ballotpedia_measures.py`` (and
-compatible snapshots written by the Google Civic loader path), maps fields into the
-NIST-aligned bronze columns, resolves ``ocd_division_id`` via OCD crosswalk, and
-stores the full measure dict in ``raw_row``.
+Ported from load_ballotpedia_measures_to_bronze.py to the core_lib
+DataSourcePipeline contract.
+
+Reads timestamped JSON files produced by ``download_ballotpedia_measures.py``
+(and compatible snapshots written by the Google Civic loader path), maps fields
+into the NIST-aligned bronze columns, resolves ``ocd_division_id`` via the OCD
+crosswalk, and stores the full measure dict in ``raw_row``. The target table
+``bronze.bronze_ballot_measures_ballotpedia`` is append-only (BIGSERIAL PK); each
+run gets a fresh ``scrape_batch_id``.
 
 By default only measures with ``election_year`` in **2025** or **2026** are loaded.
 
-Usage
------
-    python scripts/datasources/ballotpedia/load_ballotpedia_measures_to_bronze.py
-    python scripts/datasources/ballotpedia/load_ballotpedia_measures_to_bronze.py --truncate
-    python scripts/datasources/ballotpedia/load_ballotpedia_measures_to_bronze.py \\
-        --years 2025,2026 --cache-dir data/cache/ballotpedia
+Usage:
+    python -m scripts.datasources.ballotpedia.measures_pipeline
+    python scripts/datasources/ballotpedia/measures_pipeline.py --truncate
+    python scripts/datasources/ballotpedia/measures_pipeline.py \\
+        --years 2025,2026 --cache-dir data/cache/ballotpedia --limit 10
+
+Configuration:
+    NEON_DATABASE_URL_DEV / NEON_DATABASE_URL / DATABASE_URL via core_lib.db
+    (replaces hardcoded postgresql://postgres:password@localhost:5433).
 """
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
-import os
 import re
-import sys
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, AsyncIterator
 
-import psycopg2
-from dotenv import load_dotenv
-from loguru import logger
-from psycopg2.extras import Json, execute_batch
+from pydantic import Field
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
-_ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(_ROOT))
-load_dotenv(_ROOT / ".env")
+from core_lib.db import async_session
+from core_lib.logging import setup_logging
+from core_lib.pipeline import DataSourcePipeline, PipelineContext, RawRow
 
-CACHE_DIR = _ROOT / "data" / "cache" / "ballotpedia"
+
+CACHE_DIR = Path("data/cache/ballotpedia")
 DEFAULT_ELECTION_YEARS = ("2025", "2026")
-POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "password")
-DATABASE_URL = (
-    os.getenv("NEON_DATABASE_URL_DEV", "").strip()
-    or os.getenv("OPEN_NAVIGATOR_DATABASE_URL", "").strip()
-    or f"postgresql://postgres:{POSTGRES_PASSWORD}@localhost:5433/open_navigator"
-)
 
-TABLE = "bronze.bronze_ballot_measures_ballotpedia"
 _UUID_NS = uuid.UUID("b1ed9a39-f6a5-44f7-8e4b-5e0f58d4c0da")
-
-CREATE_TABLE_SQL = """
-    CREATE SCHEMA IF NOT EXISTS bronze;
-    CREATE TABLE IF NOT EXISTS bronze.bronze_ballot_measures_ballotpedia (
-        id                  BIGSERIAL PRIMARY KEY,
-        scrape_batch_id     UUID NOT NULL,
-        measure_id          TEXT NOT NULL,
-        ocd_division_id     TEXT,
-        state_code          CHAR(2),
-        jurisdiction_id     TEXT,
-        jurisdiction_name   TEXT,
-        jurisdiction_type   TEXT,
-        election_date       DATE,
-        election_year       VARCHAR(4),
-        measure_number      TEXT,
-        measure_title       TEXT NOT NULL,
-        full_text           TEXT,
-        summary_text        TEXT,
-        measure_type        TEXT,
-        subject_areas       TEXT,
-        yes_votes           BIGINT,
-        no_votes            BIGINT,
-        passed              BOOLEAN,
-        source_url          TEXT,
-        measure_page_url    TEXT,
-        raw_row             JSONB NOT NULL DEFAULT '{}'::JSONB,
-        source_json_path    TEXT,
-        scraped_at          TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        loaded_at           TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE INDEX IF NOT EXISTS idx_bbmb_ocd    ON bronze.bronze_ballot_measures_ballotpedia (ocd_division_id);
-    CREATE INDEX IF NOT EXISTS idx_bbmb_state  ON bronze.bronze_ballot_measures_ballotpedia (state_code);
-    CREATE INDEX IF NOT EXISTS idx_bbmb_jur    ON bronze.bronze_ballot_measures_ballotpedia (jurisdiction_id);
-    CREATE INDEX IF NOT EXISTS idx_bbmb_date   ON bronze.bronze_ballot_measures_ballotpedia (election_date);
-    CREATE INDEX IF NOT EXISTS idx_bbmb_year   ON bronze.bronze_ballot_measures_ballotpedia (election_year);
-    CREATE INDEX IF NOT EXISTS idx_bbmb_batch  ON bronze.bronze_ballot_measures_ballotpedia (scrape_batch_id);
-    CREATE INDEX IF NOT EXISTS idx_bbmb_mid    ON bronze.bronze_ballot_measures_ballotpedia (measure_id);
-"""
-
-INSERT_SQL = """
-    INSERT INTO bronze.bronze_ballot_measures_ballotpedia (
-        scrape_batch_id, measure_id, ocd_division_id,
-        state_code, jurisdiction_id, jurisdiction_name, jurisdiction_type,
-        election_date, election_year, measure_number,
-        measure_title, full_text, summary_text, measure_type, subject_areas,
-        yes_votes, no_votes, passed,
-        source_url, measure_page_url, raw_row, source_json_path, scraped_at
-    ) VALUES (
-        %s, %s, %s,
-        %s, %s, %s, %s,
-        %s, %s, %s,
-        %s, %s, %s, %s, %s,
-        %s, %s, %s,
-        %s, %s, %s, %s, %s
-    )
-"""
 
 _PASSED_RE = re.compile(r"\b(?:pass(?:ed|es|ing)?|approv(?:ed|es|al)|adopt(?:ed|s)?|yes)\b", re.I)
 _FAILED_RE = re.compile(r"\b(?:fail(?:ed|s|ure)?|defeat(?:ed|s)?|reject(?:ed|s)?|no)\b", re.I)
@@ -115,6 +58,9 @@ _VOTE_PAIR_RE = re.compile(
 _CACHE_DEDUPE_RE = re.compile(r"^(?P<prefix>.+_ballot_measures(?:_\d{4})?)_\d{8}T", re.I)
 
 
+# --------------------------------------------------------------------------- #
+# Pure helpers (preserved verbatim from the original loader)
+# --------------------------------------------------------------------------- #
 def _parse_years(raw: str | None) -> frozenset[str]:
     if not raw or not raw.strip():
         return frozenset(DEFAULT_ELECTION_YEARS)
@@ -295,7 +241,22 @@ def _normalize_measure(
     }
 
 
-def _iter_cache_files(cache_dir: Path) -> list[Path]:
+def _load_json(path: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(data, list):
+        return {}, data
+    measures = data.get("measures") or data.get("ballot_measures") or []
+    if not measures and isinstance(data.get("measure_title"), str):
+        measures = [data]
+    return data if isinstance(data, dict) else {}, measures
+
+
+def find_latest_cache_files(cache_dir: Path) -> list[Path]:
+    """Discover newest ballot-measure JSON snapshots, de-duped per prefix.
+
+    Raises FileNotFoundError when no matching snapshots exist (mirrors the
+    original loader's parse_cache guard).
+    """
     patterns = ("*_ballot_measures_*.json", "*_ballot_measures.json")
     skip_dirs = {"fetch_debug", "playwright_debug"}
     files: list[Path] = []
@@ -313,164 +274,233 @@ def _iter_cache_files(cache_dir: Path) -> list[Path]:
             continue
         seen.add(key)
         ordered.append(path)
-    return sorted(ordered, key=lambda p: p.stat().st_mtime)
-
-
-def _load_json(path: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    data = json.loads(path.read_text(encoding="utf-8"))
-    if isinstance(data, list):
-        return {}, data
-    measures = data.get("measures") or data.get("ballot_measures") or []
-    if not measures and isinstance(data.get("measure_title"), str):
-        measures = [data]
-    return data if isinstance(data, dict) else {}, measures
-
-
-def parse_cache(
-    cache_dir: Path,
-    *,
-    years: frozenset[str],
-    limit_files: int | None = None,
-) -> tuple[list[tuple], uuid.UUID, int, int]:
-    files = _iter_cache_files(cache_dir)
-    if limit_files:
-        files = files[:limit_files]
-    if not files:
+    if not ordered:
         raise FileNotFoundError(
             f"No ballot-measures JSON under {cache_dir}. "
             "Run download_ballotpedia_measures.py first."
         )
-
-    batch_id = uuid.uuid4()
-    records: list[tuple] = []
-    source_measures = 0
-    skipped_year = 0
-
-    for path in files:
-        envelope, measures = _load_json(path)
-        source_measures += len(measures)
-        for measure in measures:
-            row = _normalize_measure(measure, envelope=envelope, source_path=path)
-            if not row:
-                continue
-            election_year = row.get("election_year")
-            if election_year not in years:
-                skipped_year += 1
-                continue
-            records.append((
-                str(batch_id),
-                row["measure_id"],
-                row["ocd_division_id"],
-                row["state_code"],
-                row["jurisdiction_id"],
-                row["jurisdiction_name"],
-                row["jurisdiction_type"],
-                row["election_date"],
-                row["election_year"],
-                row["measure_number"],
-                row["measure_title"],
-                row["full_text"],
-                row["summary_text"],
-                row["measure_type"],
-                row["subject_areas"],
-                row["yes_votes"],
-                row["no_votes"],
-                row["passed"],
-                row["source_url"],
-                row["measure_page_url"],
-                Json(row["raw_row"]),
-                row["source_json_path"],
-                row["scraped_at"],
-            ))
-
-    return records, batch_id, source_measures, skipped_year
+    return sorted(ordered, key=lambda p: p.stat().st_mtime)
 
 
-def load(
-    records: list[tuple],
-    *,
-    dry_run: bool,
-    truncate: bool,
-) -> int:
-    conn = psycopg2.connect(DATABASE_URL)
-    cur = conn.cursor()
-    cur.execute(CREATE_TABLE_SQL)
-    conn.commit()
+# --------------------------------------------------------------------------- #
+# Row schema
+# --------------------------------------------------------------------------- #
+class BallotMeasureRow(RawRow):
+    """One Ballotpedia ballot measure, validated before insert."""
 
-    if truncate:
-        cur.execute(f"SELECT COUNT(*) FROM {TABLE}")
-        before = cur.fetchone()[0]
-        cur.execute(f"TRUNCATE TABLE {TABLE} RESTART IDENTITY")
-        conn.commit()
-        logger.info("Truncated {} ({:,} rows removed)", TABLE, before)
-
-    if dry_run:
-        logger.warning("DRY RUN — first 3 records:")
-        for r in records[:3]:
-            logger.info("  {}", r[:6])
-        cur.close()
-        conn.close()
-        return 0
-
-    execute_batch(cur, INSERT_SQL, records, page_size=500)
-    conn.commit()
-
-    cur.execute(f"SELECT COUNT(*) FROM {TABLE}")
-    total = cur.fetchone()[0]
-    cur.execute(f"SELECT COUNT(*) FROM {TABLE} WHERE ocd_division_id IS NOT NULL")
-    with_ocd = cur.fetchone()[0]
-    logger.success("Inserted {:,} rows → {} (table total: {:,}, with ocd_division_id: {:,})",
-                   len(records), TABLE, total, with_ocd)
-
-    cur.execute(f"""
-        SELECT state_code, COUNT(*) AS cnt
-        FROM {TABLE}
-        WHERE state_code IS NOT NULL
-        GROUP BY state_code ORDER BY cnt DESC LIMIT 10
-    """)
-    for sc, cnt in cur.fetchall():
-        logger.info("  {}: {:,}", sc, cnt)
-
-    cur.close()
-    conn.close()
-    return total
+    scrape_batch_id: str
+    measure_id: str = Field(min_length=1)
+    ocd_division_id: str | None = None
+    state_code: str | None = Field(default=None, max_length=2)
+    jurisdiction_id: str | None = None
+    jurisdiction_name: str | None = None
+    jurisdiction_type: str | None = None
+    election_date: str | None = None
+    election_year: str | None = Field(default=None, max_length=4)
+    measure_number: str | None = None
+    measure_title: str = Field(min_length=1)
+    full_text: str | None = None
+    summary_text: str | None = None
+    measure_type: str | None = None
+    subject_areas: str | None = None
+    yes_votes: int | None = None
+    no_votes: int | None = None
+    passed: bool | None = None
+    source_url: str | None = None
+    measure_page_url: str | None = None
+    raw_row: dict[str, Any] = Field(default_factory=dict)
+    source_json_path: str | None = None
+    scraped_at: datetime | None = None
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--cache-dir", type=Path, default=CACHE_DIR)
+_CREATE_SCHEMA_SQL = text("CREATE SCHEMA IF NOT EXISTS bronze")
+
+_CREATE_TABLE_SQL = text(
+    """
+    CREATE TABLE IF NOT EXISTS bronze.bronze_ballot_measures_ballotpedia (
+        id                  BIGSERIAL PRIMARY KEY,
+        scrape_batch_id     UUID NOT NULL,
+        measure_id          TEXT NOT NULL,
+        ocd_division_id     TEXT,
+        state_code          CHAR(2),
+        jurisdiction_id     TEXT,
+        jurisdiction_name   TEXT,
+        jurisdiction_type   TEXT,
+        election_date       DATE,
+        election_year       VARCHAR(4),
+        measure_number      TEXT,
+        measure_title       TEXT NOT NULL,
+        full_text           TEXT,
+        summary_text        TEXT,
+        measure_type        TEXT,
+        subject_areas       TEXT,
+        yes_votes           BIGINT,
+        no_votes            BIGINT,
+        passed              BOOLEAN,
+        source_url          TEXT,
+        measure_page_url    TEXT,
+        raw_row             JSONB NOT NULL DEFAULT '{}'::JSONB,
+        source_json_path    TEXT,
+        scraped_at          TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        loaded_at           TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+    """
+)
+
+_CREATE_INDEXES_SQL = (
+    text("CREATE INDEX IF NOT EXISTS idx_bbmb_ocd   ON bronze.bronze_ballot_measures_ballotpedia (ocd_division_id)"),
+    text("CREATE INDEX IF NOT EXISTS idx_bbmb_state ON bronze.bronze_ballot_measures_ballotpedia (state_code)"),
+    text("CREATE INDEX IF NOT EXISTS idx_bbmb_jur   ON bronze.bronze_ballot_measures_ballotpedia (jurisdiction_id)"),
+    text("CREATE INDEX IF NOT EXISTS idx_bbmb_date  ON bronze.bronze_ballot_measures_ballotpedia (election_date)"),
+    text("CREATE INDEX IF NOT EXISTS idx_bbmb_year  ON bronze.bronze_ballot_measures_ballotpedia (election_year)"),
+    text("CREATE INDEX IF NOT EXISTS idx_bbmb_batch ON bronze.bronze_ballot_measures_ballotpedia (scrape_batch_id)"),
+    text("CREATE INDEX IF NOT EXISTS idx_bbmb_mid   ON bronze.bronze_ballot_measures_ballotpedia (measure_id)"),
+)
+
+_TRUNCATE_SQL = text("TRUNCATE TABLE bronze.bronze_ballot_measures_ballotpedia RESTART IDENTITY")
+
+_INSERT_SQL = text(
+    """
+    INSERT INTO bronze.bronze_ballot_measures_ballotpedia (
+        scrape_batch_id, measure_id, ocd_division_id,
+        state_code, jurisdiction_id, jurisdiction_name, jurisdiction_type,
+        election_date, election_year, measure_number,
+        measure_title, full_text, summary_text, measure_type, subject_areas,
+        yes_votes, no_votes, passed,
+        source_url, measure_page_url, raw_row, source_json_path, scraped_at
+    ) VALUES (
+        :scrape_batch_id, :measure_id, :ocd_division_id,
+        :state_code, :jurisdiction_id, :jurisdiction_name, :jurisdiction_type,
+        :election_date, :election_year, :measure_number,
+        :measure_title, :full_text, :summary_text, :measure_type, :subject_areas,
+        :yes_votes, :no_votes, :passed,
+        :source_url, :measure_page_url, CAST(:raw_row AS JSONB), :source_json_path, :scraped_at
+    )
+    """
+)
+
+
+class BallotpediaMeasuresPipeline(DataSourcePipeline[BallotMeasureRow]):
+    source = "ballotpedia_measures"
+    batch_size = 500
+    row_schema = BallotMeasureRow
+
+    def __init__(
+        self,
+        *,
+        path: Path | None = None,
+        limit: int | None = None,
+        years: frozenset[str] | None = None,
+    ):
+        self._cache_dir = path
+        self._limit = limit
+        self._years = years if years is not None else frozenset(DEFAULT_ELECTION_YEARS)
+        self._batch_id = str(uuid.uuid4())
+
+    async def extract(self, ctx: PipelineContext) -> AsyncIterator[dict]:
+        cache_dir = self._cache_dir or CACHE_DIR
+        files = find_latest_cache_files(cache_dir)
+        if self._limit:
+            files = files[: self._limit]
+
+        for path in files:
+            envelope, measures = _load_json(path)
+            for measure in measures:
+                row = _normalize_measure(measure, envelope=envelope, source_path=path)
+                if not row:
+                    continue
+                if row.get("election_year") not in self._years:
+                    continue
+                yield {
+                    "source": self.source,
+                    "source_version": self._batch_id,
+                    "natural_key": row["measure_id"],
+                    "scrape_batch_id": self._batch_id,
+                    **row,
+                }
+
+    async def load_batch(
+        self,
+        session: AsyncSession,
+        rows: list[BallotMeasureRow],
+        ctx: PipelineContext,
+    ) -> None:
+        params = [
+            {
+                "scrape_batch_id": r.scrape_batch_id,
+                "measure_id": r.measure_id,
+                "ocd_division_id": r.ocd_division_id,
+                "state_code": r.state_code,
+                "jurisdiction_id": r.jurisdiction_id,
+                "jurisdiction_name": r.jurisdiction_name,
+                "jurisdiction_type": r.jurisdiction_type,
+                "election_date": r.election_date,
+                "election_year": r.election_year,
+                "measure_number": r.measure_number,
+                "measure_title": r.measure_title,
+                "full_text": r.full_text,
+                "summary_text": r.summary_text,
+                "measure_type": r.measure_type,
+                "subject_areas": r.subject_areas,
+                "yes_votes": r.yes_votes,
+                "no_votes": r.no_votes,
+                "passed": r.passed,
+                "source_url": r.source_url,
+                "measure_page_url": r.measure_page_url,
+                "raw_row": json.dumps(r.raw_row),
+                "source_json_path": r.source_json_path,
+                "scraped_at": r.scraped_at,
+            }
+            for r in rows
+        ]
+        await session.execute(_INSERT_SQL, params)
+
+
+async def _prepare_target(truncate: bool) -> None:
+    async with async_session() as session:
+        await session.execute(_CREATE_SCHEMA_SQL)
+        await session.execute(_CREATE_TABLE_SQL)
+        for idx in _CREATE_INDEXES_SQL:
+            await session.execute(idx)
+        if truncate:
+            await session.execute(_TRUNCATE_SQL)
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Load cached Ballotpedia ballot-measure JSON into "
+        "bronze.bronze_ballot_measures_ballotpedia",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("--cache-dir", type=Path, default=CACHE_DIR,
+                        help="Directory of cached ballot-measure JSON")
     parser.add_argument(
         "--years",
         default=",".join(DEFAULT_ELECTION_YEARS),
         help=f"Comma-separated election years to load (default: {','.join(DEFAULT_ELECTION_YEARS)})",
     )
     parser.add_argument("--limit", type=int, help="Limit number of cache files to read")
-    parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--truncate", action="store_true")
-    args = parser.parse_args()
+    parser.add_argument(
+        "--truncate", action="store_true",
+        help="TRUNCATE table before loading (recommended for full reloads)",
+    )
+    return parser
 
+
+async def _run(args: argparse.Namespace) -> None:
     years = _parse_years(args.years)
-
-    logger.info("=" * 70)
-    logger.info("Ballotpedia measures → {}", TABLE)
-    logger.info("Election years: {}", ", ".join(sorted(years)))
-    logger.info("=" * 70)
-
-    records, batch_id, source_measures, skipped_year = parse_cache(
-        args.cache_dir, years=years, limit_files=args.limit,
+    await _prepare_target(args.truncate)
+    pipeline = BallotpediaMeasuresPipeline(
+        path=args.cache_dir, limit=args.limit, years=years,
     )
-    logger.info(
-        "batch_id={} | {} cache measure(s) → {} bronze row(s) (skipped {} outside years)",
-        batch_id, source_measures, len(records), skipped_year,
-    )
+    await pipeline.run()
 
-    if not records:
-        logger.error("No measures parsed from cache — nothing to load")
-        return 1
 
-    load(records, dry_run=args.dry_run, truncate=args.truncate)
-    return 0
+def main() -> None:
+    setup_logging()
+    args = build_parser().parse_args()
+    asyncio.run(_run(args))
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()
