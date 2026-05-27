@@ -8,6 +8,23 @@ sources:
     tables:
       - name: bronze_organizations_nonprofits_nccs_history
         description: "NCCS Unified BMF organization-years (raw history), landed by ingestion.nccs.bulk. One row per (ein, org_year_last)."
+      - name: bronze_locations
+        description: |
+          HIFLD infrastructure locations (RAW), landed by ingestion.hifld.locations.
+          One row per (source_dataset, source_id). Source column-name normalization
+          (FIELD_MAP) and organization_type classification were moved out of Python
+          into stg_hifld__location; the original record is preserved in raw_record JSONB.
+        columns:
+          - name: source_id
+            description: "Best-effort source record id (FID/ID/OBJECTID/FACILITY_ID). Natural-key component."
+          - name: source_dataset
+            description: "Originating HIFLD parquet stem (e.g. Hospitals, Fire_Stations). Drives organization_type."
+          - name: data_source
+            description: "Constant 'HIFLD'."
+          - name: raw_record
+            description: "JSONB of every source column, verbatim (un-normalized HIFLD field names)."
+          - name: loaded_at
+            description: "When the row was landed."
       - name: bronze_contacts
         description: "People extracted from meeting transcripts via AI"
         columns:
@@ -312,14 +329,22 @@ sources:
             description: "When record was loaded"
 
       - name: bronze_jurisdictions_counties_naco
-        description: "NACo County Explorer county enrichment (websites, seats, demographics JSON). Loaded by scripts/datasources/naco/load_naco_to_bronze.py."
+        description: |
+          NACo County Explorer county enrichment — RAW landing (dbt-slimmed).
+          One row per (state_code, county_name); the full NACo county JSON object
+          lands in raw_json. All enrichment columns (naco_id, fips_code, website,
+          county_seat, population, area_sq_miles, phone, email) are derived
+          downstream in stg_naco__county from raw_json, not in Python.
+          Loaded by ingestion.naco.counties.
         columns:
-          - name: naco_id
-          - name: county_name
           - name: state_code
-          - name: fips_code
-          - name: website
+            description: "2-letter state code. Natural-key component."
+          - name: county_name
+            description: "County name. Natural-key component."
           - name: raw_json
+            description: "Full raw NACo county JSON object (JSONB). Source of all derived columns."
+          - name: ingestion_date
+            description: "When the row was landed/last updated."
 
       - name: bronze_jurisdictions_officials_naco
         description: "NACo county officials (when scrape collects them). Companion to bronze_jurisdictions_counties_naco."

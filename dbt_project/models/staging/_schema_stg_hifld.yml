@@ -1,0 +1,81 @@
+version: 2
+
+models:
+  - name: stg_hifld__location
+    description: |
+      HIFLD infrastructure locations — one row per (source_dataset, source_id).
+      1:1 with bronze.bronze_locations (RAW landing from ingestion.hifld.locations).
+
+      Does the FIELD_MAP column-name normalization (coalescing inconsistent HIFLD
+      source columns out of raw_record JSONB) and the organization_type
+      classification (ported from the old Python map_organization_type heuristic)
+      in SQL — see dbt_project/CONVENTIONS.md.
+
+      Contract enforced: if the upstream loader changes the raw landing shape, this
+      model's build fails before any downstream mart sees the drift.
+    config:
+      contract:
+        enforced: true
+      materialized: view
+    columns:
+      - name: source_id
+        description: "Best-effort source record id (FID/ID/OBJECTID/FACILITY_ID). Natural-key component (may be NULL)."
+        data_type: varchar(100)
+      - name: source_dataset
+        description: "Originating HIFLD parquet stem. Natural-key component; drives organization_type."
+        data_type: varchar(200)
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: organization_type
+        description: |
+          Classified from source_dataset (and raw TYPE for law enforcement).
+          Static branches: place_of_worship, school, hospital, fire_station,
+          government_building, other. Law-enforcement rows take the lowercased,
+          underscore-joined raw TYPE value (open-ended), so accepted_values is not
+          asserted here.
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: name
+        description: "Facility name (coalesced NAME/FACNAME/FACILITY_NAME/SCHOOL_NAME/HOSPITAL_NAME)."
+        data_type: varchar(500)
+      - name: address
+        description: "Street address (coalesced ADDRESS/STREET/ADDR/LOCATION)."
+        data_type: varchar(500)
+      - name: city
+        description: "City (coalesced CITY/CITYNAME)."
+        data_type: varchar(200)
+      - name: state
+        description: "2-letter state code (coalesced STATE/ST/STATE_ABBR), uppercased."
+        data_type: varchar(2)
+      - name: zip
+        description: "Postal code (coalesced ZIP/ZIPCODE/ZIP_CODE)."
+        data_type: varchar(10)
+      - name: county
+        description: "County (coalesced COUNTY/COUNTYNAME)."
+        data_type: varchar(200)
+      - name: latitude
+        description: "Latitude (coalesced LATITUDE/LAT/Y)."
+        data_type: double precision
+      - name: longitude
+        description: "Longitude (coalesced LONGITUDE/LON/LONG/X)."
+        data_type: double precision
+      - name: telephone
+        description: "Phone (coalesced TELEPHONE/PHONE/TEL)."
+        data_type: varchar(50)
+      - name: website
+        description: "Website (coalesced WEBSITE/URL/WEB)."
+        data_type: varchar(500)
+      - name: source_ingested_at
+        description: "loaded_at from the bronze landing table."
+        data_type: timestamp
+      - name: dbt_loaded_at
+        # current_timestamp in Postgres returns `timestamp with time zone`;
+        # the contract has to match or dbt aborts the view creation.
+        data_type: timestamp with time zone
+        constraints:
+          - type: not_null
