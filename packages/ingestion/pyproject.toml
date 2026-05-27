@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "communityone-ingestion"
+version = "0.1.0"
+description = "Data-source ingestion pipelines (scripts/datasources/* ports) built on core-lib."
+requires-python = ">=3.11"
+dependencies = [
+    "core-lib",
+    "pandas>=2.1",
+    "pyarrow>=14",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.uv.sources]
+core-lib = { workspace = true }
