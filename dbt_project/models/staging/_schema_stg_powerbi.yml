@@ -1,0 +1,76 @@
+version: 2
+
+models:
+  - name: stg_powerbi__ballot_measure
+    description: |
+      Power BI ballot measures — one row per bronze raw row. 1:1 with
+      bronze.bronze_ballot_measures_powerbi (RAW landing from
+      ingestion.powerbi.ballot_measures). Reproduces the former Python loader
+      derivation in SQL against raw_row JSONB: the COLUMN_ALIASES header→column
+      mapping (lowercase + strip non-alphanumerics, first-alias-wins) and the
+      _coerce_* parsing (int / float-with-%-strip / 4-digit year / date).
+      State/jurisdiction/OCD resolution is NOT done here — see
+      int_powerbi__measure_with_jurisdiction.
+    config:
+      contract:
+        enforced: true
+      materialized: view
+    columns:
+      - name: bronze_id
+        description: "BIGSERIAL id from the bronze landing table. Unique per row."
+        data_type: bigint
+        constraints:
+          - type: not_null
+        tests:
+          - unique
+          - not_null
+      - name: scrape_batch_id
+        description: "UUID of the loader run that landed the row."
+        data_type: uuid
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: measure_id
+        data_type: text
+      - name: measure_title
+        data_type: text
+      - name: measure_summary
+        data_type: text
+      - name: measure_type
+        data_type: text
+      - name: state_code
+        description: "2-letter state code from the CSV, kept only when a clean 2-letter code; else NULL."
+        data_type: varchar(2)
+      - name: state
+        description: "State name / label from the CSV."
+        data_type: text
+      - name: jurisdiction_name
+        data_type: text
+      - name: election_date
+        description: "Parsed election date (NULL when the raw value is not date-shaped)."
+        data_type: date
+      - name: election_year
+        description: "Calendar year label as VARCHAR(4) (4-digit token, else 1900..2100 int)."
+        data_type: varchar(4)
+      - name: outcome
+        data_type: text
+      - name: yes_count
+        data_type: bigint
+      - name: no_count
+        data_type: bigint
+      - name: yes_percent
+        data_type: double precision
+      - name: source_url
+        data_type: text
+      - name: source_csv_path
+        data_type: text
+      - name: scraped_at
+        description: "scraped_at from the bronze landing table."
+        data_type: timestamp with time zone
+      - name: dbt_loaded_at
+        # `current_timestamp` in Postgres returns `timestamp with time zone`;
+        # the contract has to match or dbt aborts the view creation.
+        data_type: timestamp with time zone
+        constraints:
+          - type: not_null

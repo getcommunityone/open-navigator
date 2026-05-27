@@ -929,22 +929,27 @@ sources:
 
       - name: bronze_ballot_measures_powerbi
         description: |
-          Ballot measures scraped from a public Power BI dashboard (~9,670 rows).
-          Loaded by scripts/datasources/powerbi_ballot_measures/load_powerbi_ballot_measures_to_bronze.py.
+          Ballot measures scraped from a public Power BI dashboard (~9,670 rows) —
+          RAW landing (dbt-slimmed). One row per scraped CSV row; the full source
+          row lands verbatim in raw_row JSONB. All derived columns (measure_id,
+          measure_title, election_year/date, percent, outcome, etc.) are mapped +
+          parsed downstream in stg_powerbi__ballot_measure from raw_row, and the
+          state/jurisdiction/OCD resolution (formerly a Python query against
+          intermediate.int_jurisdictions) becomes a proper dbt JOIN in
+          int_powerbi__measure_with_jurisdiction. Loaded by ingestion.powerbi.ballot_measures.
         columns:
-          - name: measure_id
-          - name: measure_title
-          - name: state_code
-          - name: jurisdiction_id
-          - name: ocd_id
-          - name: election_date
-          - name: election_year
-            description: "Calendar year label as VARCHAR(4)"
-          - name: outcome
-          - name: yes_count
-          - name: no_count
-          - name: source_url
+          - name: id
+            description: "BIGSERIAL surrogate primary key."
+          - name: scrape_batch_id
+            description: "UUID stamped per loader run; groups rows from one CSV load."
+          - name: raw_row
+            description: "Full raw Power BI CSV row (JSONB), verbatim. Source of all derived columns."
+          - name: source_csv_path
+            description: "Path of the CSV the row was loaded from."
           - name: scraped_at
+            description: "When the row was scraped/landed."
+          - name: loaded_at
+            description: "When the row was loaded."
 
       - name: bronze_vip_ballot_measures
         description: "VIP CDF ballot measures (placeholder — populated when VIP feeds are ingested)"
