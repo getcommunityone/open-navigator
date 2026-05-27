@@ -7,11 +7,12 @@ Data source: NCCS (National Center for Charitable Statistics) Unified BMF
 (Business Master File), downloaded by scripts/datasources/nccs/download_nccs_bulk.py
 into data/cache/nccs/unified-bmf/v1.2/ (a full file plus per-state shards).
 
-Two bronze tables are populated from the single validated row stream:
+Lands the raw history table only:
   * bronze.bronze_organizations_nonprofits_nccs_history  (all versions,
     UNIQUE(ein, org_year_last))
-  * bronze.bronze_organizations_nonprofits_nccs          (current/most-recent
-    per EIN, UNIQUE(ein); most-recent-wins handled by the ON CONFLICT UPDATE)
+
+The "current / most-recent per EIN" view is derived downstream in dbt
+(int_nccs__current_orgs), not computed in Python — see dbt_project/CONVENTIONS.md.
 
 Usage:
     python -m scripts.datasources.nccs.bulk_pipeline
@@ -266,83 +267,13 @@ _CREATE_HISTORY_TABLE_SQL = text(
     """
 )
 
-_CREATE_CURRENT_TABLE_SQL = text(
-    """
-    CREATE TABLE IF NOT EXISTS bronze.bronze_organizations_nonprofits_nccs (
-        id SERIAL PRIMARY KEY,
-        ein2 VARCHAR(20),
-        ein VARCHAR(20) NOT NULL,
-        ntee_irs VARCHAR(20),
-        ntee_nccs VARCHAR(20),
-        nteev2 VARCHAR(20),
-        nccs_level_1 VARCHAR(100),
-        nccs_level_2 VARCHAR(100),
-        nccs_level_3 VARCHAR(100),
-        f990_org_addr_city VARCHAR(100),
-        f990_org_addr_state VARCHAR(2),
-        f990_org_addr_zip VARCHAR(20),
-        f990_org_addr_street VARCHAR(255),
-        census_cbsa_fips VARCHAR(20),
-        census_cbsa_name VARCHAR(200),
-        census_block_fips VARCHAR(20),
-        census_urban_area VARCHAR(200),
-        census_state_abbr VARCHAR(2),
-        census_county_name VARCHAR(100),
-        org_addr_full TEXT,
-        org_addr_match VARCHAR(200),
-        latitude DOUBLE PRECISION,
-        longitude DOUBLE PRECISION,
-        geocoder_score DOUBLE PRECISION,
-        geocoder_match VARCHAR(100),
-        bmf_subsection_code VARCHAR(20),
-        bmf_status_code VARCHAR(20),
-        bmf_pf_filing_req_code VARCHAR(20),
-        bmf_organization_code VARCHAR(20),
-        bmf_income_code VARCHAR(20),
-        bmf_group_exempt_num VARCHAR(20),
-        bmf_foundation_code VARCHAR(20),
-        bmf_filing_req_code VARCHAR(20),
-        bmf_deductibility_code VARCHAR(20),
-        bmf_classification_code VARCHAR(20),
-        bmf_asset_code VARCHAR(20),
-        bmf_affiliation_code VARCHAR(20),
-        org_ruling_date VARCHAR(20),
-        org_fiscal_year VARCHAR(4),
-        org_ruling_year VARCHAR(4),
-        org_year_first VARCHAR(4),
-        org_year_last VARCHAR(4),
-        org_year_count INTEGER,
-        org_pers_ico TEXT,
-        org_name_sec TEXT,
-        org_name_current TEXT,
-        org_fiscal_period VARCHAR(20),
-        f990_total_revenue_recent BIGINT,
-        f990_total_income_recent BIGINT,
-        f990_total_assets_recent BIGINT,
-        f990_total_expenses_recent BIGINT,
-        loaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(ein)
-    )
-    """
-)
-
 _CREATE_INDEXES_SQL = (
     text("CREATE INDEX IF NOT EXISTS idx_bronze_nccs_hist_ein ON bronze.bronze_organizations_nonprofits_nccs_history(ein)"),
     text("CREATE INDEX IF NOT EXISTS idx_bronze_nccs_hist_year ON bronze.bronze_organizations_nonprofits_nccs_history(org_year_last)"),
     text("CREATE INDEX IF NOT EXISTS idx_bronze_nccs_hist_state ON bronze.bronze_organizations_nonprofits_nccs_history(f990_org_addr_state)"),
-    text("CREATE INDEX IF NOT EXISTS idx_bronze_nccs_state ON bronze.bronze_organizations_nonprofits_nccs(f990_org_addr_state)"),
-    text("CREATE INDEX IF NOT EXISTS idx_bronze_nccs_city ON bronze.bronze_organizations_nonprofits_nccs(f990_org_addr_city, f990_org_addr_state)"),
-    text("CREATE INDEX IF NOT EXISTS idx_bronze_nccs_ntee ON bronze.bronze_organizations_nonprofits_nccs(ntee_nccs)"),
-    text("CREATE INDEX IF NOT EXISTS idx_bronze_nccs_ntee_irs ON bronze.bronze_organizations_nonprofits_nccs(ntee_irs)"),
-    text("CREATE INDEX IF NOT EXISTS idx_bronze_nccs_level1 ON bronze.bronze_organizations_nonprofits_nccs(nccs_level_1)"),
-    text("CREATE INDEX IF NOT EXISTS idx_bronze_nccs_county ON bronze.bronze_organizations_nonprofits_nccs(census_county_name, census_state_abbr)"),
-    text("CREATE INDEX IF NOT EXISTS idx_bronze_nccs_name ON bronze.bronze_organizations_nonprofits_nccs USING gin(to_tsvector('english', org_name_current))"),
-    text("CREATE INDEX IF NOT EXISTS idx_bronze_nccs_lat ON bronze.bronze_organizations_nonprofits_nccs(latitude) WHERE latitude IS NOT NULL"),
-    text("CREATE INDEX IF NOT EXISTS idx_bronze_nccs_lon ON bronze.bronze_organizations_nonprofits_nccs(longitude) WHERE longitude IS NOT NULL"),
 )
 
 _TRUNCATE_HISTORY_SQL = text("TRUNCATE TABLE bronze.bronze_organizations_nonprofits_nccs_history")
-_TRUNCATE_CURRENT_SQL = text("TRUNCATE TABLE bronze.bronze_organizations_nonprofits_nccs")
 
 _INSERT_COLUMNS = ", ".join(COLUMNS)
 _INSERT_PLACEHOLDERS = ", ".join(f":{c}" for c in COLUMNS)
@@ -360,27 +291,6 @@ _UPSERT_HISTORY_SQL = text(
         loaded_at = CURRENT_TIMESTAMP
     """
 )
-
-_UPSERT_CURRENT_SQL = text(
-    f"""
-    INSERT INTO bronze.bronze_organizations_nonprofits_nccs
-        ({_INSERT_COLUMNS})
-    VALUES
-        ({_INSERT_PLACEHOLDERS})
-    ON CONFLICT (ein) DO UPDATE SET
-        org_name_current = EXCLUDED.org_name_current,
-        f990_org_addr_city = EXCLUDED.f990_org_addr_city,
-        f990_org_addr_state = EXCLUDED.f990_org_addr_state,
-        ntee_nccs = EXCLUDED.ntee_nccs,
-        latitude = EXCLUDED.latitude,
-        longitude = EXCLUDED.longitude,
-        f990_total_revenue_recent = EXCLUDED.f990_total_revenue_recent,
-        f990_total_assets_recent = EXCLUDED.f990_total_assets_recent,
-        org_year_last = EXCLUDED.org_year_last,
-        loaded_at = CURRENT_TIMESTAMP
-    """
-)
-
 
 class NccsBulkPipeline(DataSourcePipeline[NccsBulkRow]):
     source = "nccs_bulk"
@@ -436,31 +346,21 @@ class NccsBulkPipeline(DataSourcePipeline[NccsBulkRow]):
         rows: list[NccsBulkRow],
         ctx: PipelineContext,
     ) -> None:
-        # History: every version, deduped on (ein, org_year_last) via ON CONFLICT.
+        # Land every version into history (deduped on (ein, org_year_last)).
+        # The "current / most-recent per EIN" view is derived downstream in dbt
+        # (int_nccs__current_orgs), not computed in Python here.
         history_params = [{c: getattr(r, c) for c in COLUMNS} for r in rows]
         await session.execute(_UPSERT_HISTORY_SQL, history_params)
-
-        # Current: most-recent record per EIN within this batch. Keep the row
-        # with the largest org_year_last so later years win on ON CONFLICT (ein).
-        latest: dict[str, dict] = {}
-        for r in rows:
-            params = {c: getattr(r, c) for c in COLUMNS}
-            existing = latest.get(r.ein)
-            if existing is None or (params["org_year_last"] or "") >= (existing["org_year_last"] or ""):
-                latest[r.ein] = params
-        await session.execute(_UPSERT_CURRENT_SQL, list(latest.values()))
 
 
 async def _prepare_target(truncate: bool) -> None:
     async with async_session() as session:
         await session.execute(_CREATE_SCHEMA_SQL)
         await session.execute(_CREATE_HISTORY_TABLE_SQL)
-        await session.execute(_CREATE_CURRENT_TABLE_SQL)
         for idx in _CREATE_INDEXES_SQL:
             await session.execute(idx)
         if truncate:
             await session.execute(_TRUNCATE_HISTORY_SQL)
-            await session.execute(_TRUNCATE_CURRENT_SQL)
 
 
 def build_parser() -> argparse.ArgumentParser:

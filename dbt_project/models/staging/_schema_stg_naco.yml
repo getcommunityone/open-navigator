@@ -1,0 +1,61 @@
+version: 2
+
+models:
+  - name: stg_naco__county
+    description: |
+      NACo County Explorer counties — one row per (state_code, county_name).
+      1:1 with bronze.bronze_jurisdictions_counties_naco (RAW landing from
+      ingestion.naco.counties). Reproduces the former Python parse_county()
+      derivation in SQL against raw_json JSONB: multi-alias coalescing, the
+      nested naco_get_county.county block (gated on .found), digit-stripped
+      population, numeric Land_Area extraction, and website/seat fallbacks.
+    config:
+      contract:
+        enforced: true
+      materialized: view
+    columns:
+      - name: state_code
+        description: "2-letter state code, uppercased. Natural-key component."
+        data_type: varchar(2)
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: county_name
+        description: "County name. Natural-key component."
+        data_type: varchar(255)
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: naco_id
+        description: "NACo county id (id OR naco_id alias)."
+        data_type: varchar(50)
+      - name: fips_code
+        description: "5-digit county FIPS (fips OR fips_code OR geoid alias)."
+        data_type: varchar(5)
+      - name: website
+        description: "County website (website/url/countyWebsite, fallback inner.County_Website)."
+        data_type: varchar(500)
+      - name: phone
+        data_type: varchar(50)
+      - name: email
+        data_type: varchar(255)
+      - name: population
+        description: "Population: top-level population, else digit-stripped Population_Level, else pop."
+        data_type: integer
+      - name: area_sq_miles
+        description: "Land area in sq miles (area aliases, else numeric of inner.Land_Area)."
+        data_type: numeric(12, 2)
+      - name: county_seat
+        description: "County seat (county_seat/countySeat/seat, fallback inner.County_Seat)."
+        data_type: varchar(255)
+      - name: source_ingested_at
+        description: "ingestion_date from the bronze landing table."
+        data_type: timestamp
+      - name: dbt_loaded_at
+        # `current_timestamp` in Postgres returns `timestamp with time zone`;
+        # the contract has to match or dbt aborts the view creation.
+        data_type: timestamp with time zone
+        constraints:
+          - type: not_null

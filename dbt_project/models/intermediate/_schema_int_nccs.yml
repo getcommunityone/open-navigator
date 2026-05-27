@@ -1,0 +1,54 @@
+version: 2
+
+models:
+  - name: int_nccs__current_orgs
+    description: |
+      Current (most-recent) NCCS organization per EIN — the dedup that
+      ingestion.nccs.bulk used to compute in Python (dual-write to a "current"
+      table), now derived here from stg_nccs__organization via
+      latest_per_natural_key(ein, org_year_last).
+    config:
+      contract:
+        enforced: true
+      materialized: table
+    columns:
+      - name: ein
+        description: "Employer Identification Number. Unique — one current row per org."
+        data_type: varchar(20)
+        constraints:
+          - type: not_null
+        tests:
+          - unique
+          - not_null
+      - name: ntee_irs
+        data_type: varchar(20)
+      - name: ntee_nccs
+        data_type: varchar(20)
+      - name: nccs_level_1
+        data_type: varchar(100)
+      - name: org_name_current
+        data_type: text
+      - name: city
+        data_type: varchar(100)
+      - name: state_code
+        data_type: varchar(2)
+      - name: org_year_first
+        data_type: varchar(4)
+      - name: org_year_last
+        data_type: varchar(4)
+      - name: latitude
+        data_type: double precision
+      - name: longitude
+        data_type: double precision
+      - name: total_revenue_recent
+        data_type: bigint
+      - name: total_assets_recent
+        data_type: bigint
+      - name: source_ingested_at
+        data_type: timestamp
+      - name: dbt_loaded_at
+        # Same Postgres `current_timestamp` → `timestamptz` mismatch as the
+        # staging contract; align so the table CREATE doesn't abort.
+        data_type: timestamp with time zone
+        constraints:
+          - type: not_null

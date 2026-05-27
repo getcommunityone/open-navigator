@@ -1,0 +1,50 @@
+version: 2
+
+models:
+  - name: int_ntee__breadcrumb
+    description: |
+      NTEE codes with their hierarchical cause_breadcrumb — the parent-chain
+      path (root > ... > leaf) that ingestion.ntee.codes used to compute in
+      Python (build_breadcrumb). Now derived here from stg_ntee__code via a
+      recursive CTE walking parent_code up to the taxonomy root. One row per code.
+    config:
+      contract:
+        enforced: true
+      materialized: table
+    columns:
+      - name: code
+        description: "NTEE code. Unique — one row per code."
+        data_type: varchar(100)
+        constraints:
+          - type: not_null
+        tests:
+          - unique
+          - not_null
+      - name: name
+        data_type: text
+      - name: description
+        data_type: text
+      - name: cause_type
+        data_type: varchar(20)
+      - name: parent_code
+        data_type: varchar(100)
+      - name: category
+        data_type: varchar(100)
+      - name: subcategory
+        data_type: varchar(100)
+      - name: code_source
+        data_type: varchar(50)
+      - name: cause_breadcrumb
+        description: |
+          Hierarchical path of code names from the taxonomy root to this code,
+          joined with ' > '. Reproduces build_breadcrumb: a root code yields just
+          its own name; deeper codes yield 'Root > ... > Parent > This'.
+        data_type: text
+      - name: source_ingested_at
+        data_type: timestamp
+      - name: dbt_loaded_at
+        # Same Postgres `current_timestamp` -> `timestamptz` mismatch as staging;
+        # align so the table CREATE doesn't abort.
+        data_type: timestamp with time zone
+        constraints:
+          - type: not_null

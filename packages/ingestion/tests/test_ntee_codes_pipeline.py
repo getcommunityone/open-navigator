@@ -15,7 +15,6 @@ from ingestion.ntee.codes import (  # noqa: E402
     NteeCodesRow,
     _is_missing,
     _safe_str,
-    build_breadcrumb,
     find_latest_parquet,
 )
 from core_lib.pipeline.schemas import PipelineContext  # noqa: E402
@@ -47,19 +46,6 @@ def test_is_missing():
     assert _is_missing("A20") is False
 
 
-def test_build_breadcrumb_top_level_returns_name():
-    code_lookup = {"A": "Arts"}
-    parent_lookup = {"A": None}
-    assert build_breadcrumb("A", None, code_lookup, parent_lookup) == "Arts"
-
-
-def test_build_breadcrumb_walks_parent_chain():
-    code_lookup = {"A": "Arts", "A20": "Arts Multipurpose", "A23": "Cultural"}
-    parent_lookup = {"A": None, "A20": "A", "A23": "A20"}
-    bc = build_breadcrumb("A23", "A20", code_lookup, parent_lookup)
-    assert bc == "Arts > Arts Multipurpose > Cultural"
-
-
 def test_ntee_row_schema_enforces_max_lengths():
     r = NteeCodesRow(
         source="ntee_codes",
@@ -72,7 +58,6 @@ def test_ntee_row_schema_enforces_max_lengths():
         parent_code="A",
         category="major",
         subcategory=None,
-        cause_breadcrumb="Arts > Arts Multipurpose",
         code_source="irs",
     )
     assert r.code == "A20"
@@ -157,11 +142,13 @@ def test_extract_yields_validated_rows(tmp_path):
     assert extracted[0]["code"] == "A"
     assert extracted[0]["cause_type"] == "ntee"
     assert extracted[0]["code_source"] == "irs"
-    assert extracted[0]["cause_breadcrumb"] == "Arts"
+    assert extracted[0]["parent_code"] is None
     assert extracted[1]["code"] == "A20"
-    assert extracted[1]["cause_breadcrumb"] == "Arts > Arts Multipurpose"
+    assert extracted[1]["parent_code"] == "A"
     assert extracted[1]["natural_key"] == "A20"
     assert extracted[1]["source_version"] == "causes_ntee_codes"
+    # RAW landing only — no derived cause_breadcrumb in the extracted row.
+    assert "cause_breadcrumb" not in extracted[1]
 
     for raw in extracted:
         assert p.validate(raw) is not None

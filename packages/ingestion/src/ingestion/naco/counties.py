@@ -1,17 +1,24 @@
 #!/usr/bin/env python3
-"""NACo counties pipeline: load cached NACo county JSON into bronze.
+"""NACo counties pipeline: land cached NACo county JSON RAW into bronze.
 
-Ported from load_naco_to_bronze.py to the core_lib DataSourcePipeline contract.
+Ported from load_naco_to_bronze.py to the core_lib DataSourcePipeline contract,
+then dbt-slimmed: this loader lands the RAW NACo county JSON object plus the
+natural-key columns ONLY. The multi-alias coalescing / digit-stripping /
+numeric-extraction derivation (formerly ``parse_county``) now lives in dbt:
+    dbt_project/models/staging/stg_naco__county.sql
+which reads ``raw_json`` JSONB and reproduces those columns in SQL.
+See dbt_project/CONVENTIONS.md.
 
 Run scrape_naco_counties.py first to populate the cache
 (data/cache/naco/naco_counties_<STATE>_<YYYYMMDD>.json).
 
 Tables created (DDL preserved from the legacy loader):
-    bronze.bronze_jurisdictions_counties_naco   - one row per county (NACo County Explorer)
+    bronze.bronze_jurisdictions_counties_naco   - one row per county (NACo County Explorer), RAW shape
     bronze.bronze_jurisdictions_officials_naco  - one row per county official
 
 This pipeline ingests the counties table; the officials table DDL is preserved
-and ensured here so the legacy schema stays intact.
+and ensured here so the legacy schema stays intact (officials parsing is left
+intact / separable per the task scope).
 
 Legacy rename: migrations/015_rename_bronze_naco_jurisdictions.sql from bronze_naco_*.
 
@@ -49,7 +56,13 @@ BRONZE_NACO_COUNTIES = "bronze.bronze_jurisdictions_counties_naco"
 BRONZE_NACO_OFFICIALS = "bronze.bronze_jurisdictions_officials_naco"
 
 
-# --- Pure helpers (preserved verbatim from the legacy loader) -----------------
+# --- Pure helpers (tiny coercers; preserved from the legacy loader) -----------
+#
+# NOTE: the heavy derivation (``parse_county``, ``_population_from_naco_display``,
+# ``_naco_profile_county_block`` and the alias-coalescing it drove) has been moved
+# OUT of this loader and into dbt: dbt_project/models/staging/stg_naco__county.sql
+# now reads ``raw_json`` JSONB and reproduces those columns in SQL. The helpers
+# below remain only because the still-Python ``parse_officials`` path uses them.
 
 
 def _str(val: Any, maxlen: int | None = None) -> str | None:
@@ -75,27 +88,13 @@ def _float(val: Any) -> float | None:
         return None
 
 
-def _naco_profile_county_block(raw: dict[str, Any]) -> dict[str, Any]:
-    """``county`` object inside cached ``naco_get_county`` from ce.naco.org ``/get/county``."""
-    pkg = raw.get("naco_get_county")
-    if not isinstance(pkg, dict) or not pkg.get("found"):
-        return {}
-    inner = pkg.get("county")
-    return inner if isinstance(inner, dict) else {}
+def natural_key_for(raw: dict[str, Any]) -> tuple[str, str] | None:
+    """Return ``(state_code, county_name)`` for a raw county dict, or None.
 
-
-def _population_from_naco_display(val: Any) -> int | None:
-    if val is None:
-        return None
-    pl = str(val).strip().replace(",", "")
-    digits = "".join(c for c in pl if c.isdigit())
-    return _int(digits) if digits else None
-
-
-def parse_county(raw: dict[str, Any]) -> tuple | None:
-    """Convert a raw NACo county JSON dict into a DB row tuple."""
-    inner = _naco_profile_county_block(raw)
-
+    Only the minimal alias-coalescing needed to build the bronze natural key
+    (state_code + county_name). All other derivation lives in dbt. Rows that
+    lack either key component are dropped here exactly as ``parse_county`` did.
+    """
     county_name = _str(
         raw.get("name") or raw.get("county_name") or raw.get("countyName"), 255
     )
@@ -104,40 +103,7 @@ def parse_county(raw: dict[str, Any]) -> tuple | None:
     )
     if not county_name or not state_code:
         return None
-
-    population = raw.get("population")
-    if population is None:
-        population = _population_from_naco_display(inner.get("Population_Level"))
-    if population is None:
-        population = raw.get("pop")
-
-    area = raw.get("area_sq_miles") or raw.get("area") or raw.get("areaSqMiles")
-    if area is None and inner.get("Land_Area") is not None:
-        land = str(inner.get("Land_Area")).strip().replace(",", "")
-        land_num = "".join(c for c in land if c in ".0123456789")
-        area = _float(land_num) if land_num else None
-
-    website = raw.get("website") or raw.get("url") or raw.get("countyWebsite")
-    if website is None:
-        website = inner.get("County_Website")
-
-    county_seat = raw.get("county_seat") or raw.get("countySeat") or raw.get("seat")
-    if county_seat is None:
-        county_seat = inner.get("County_Seat")
-
-    return (
-        _str(raw.get("id") or raw.get("naco_id"), 50),
-        county_name,
-        state_code.upper(),
-        _str(raw.get("fips") or raw.get("fips_code") or raw.get("geoid"), 5),
-        _str(website, 500),
-        _str(raw.get("phone") or raw.get("phoneNumber"), 50),
-        _str(raw.get("email") or raw.get("contactEmail"), 255),
-        _int(population),
-        _float(area),
-        _str(county_seat, 255),
-        json.dumps(raw),
-    )
+    return state_code.upper(), county_name
 
 
 def parse_officials(raw: dict[str, Any]) -> list[tuple]:
@@ -207,18 +173,16 @@ def find_officials_cache_files(date_str: str | None) -> list[Path]:
 
 
 class CountyRow(RawRow):
-    """One NACo county row, validated before upsert into the counties table."""
+    """One RAW NACo county row, validated before upsert into the counties table.
 
-    naco_id: str | None = Field(default=None, max_length=50)
+    Slimmed shape: only the natural-key components (state_code + county_name)
+    plus the full raw NACo county JSON object. Everything else
+    (naco_id / fips_code / website / phone / email / population / area /
+    county_seat) is now derived downstream in dbt from ``raw_json``.
+    """
+
     county_name: str = Field(min_length=1, max_length=255)
     state_code: str = Field(min_length=1, max_length=2)
-    fips_code: str | None = Field(default=None, max_length=5)
-    website: str | None = Field(default=None, max_length=500)
-    phone: str | None = Field(default=None, max_length=50)
-    email: str | None = Field(default=None, max_length=255)
-    population: int | None = None
-    area_sq_miles: float | None = None
-    county_seat: str | None = Field(default=None, max_length=255)
     raw_json: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -229,17 +193,9 @@ _CREATE_SCHEMA_SQL = text("CREATE SCHEMA IF NOT EXISTS bronze")
 _CREATE_COUNTIES_SQL = text(
     f"""
     CREATE TABLE IF NOT EXISTS {BRONZE_NACO_COUNTIES} (
-        naco_id             VARCHAR(50),
-        county_name         VARCHAR(255),
-        state_code          VARCHAR(2),
-        fips_code           VARCHAR(5),
-        website             VARCHAR(500),
-        phone               VARCHAR(50),
-        email               VARCHAR(255),
-        population          INTEGER,
-        area_sq_miles       NUMERIC(12, 2),
-        county_seat         VARCHAR(255),
-        raw_json            JSONB,
+        state_code          VARCHAR(2)   NOT NULL,
+        county_name         VARCHAR(255) NOT NULL,
+        raw_json            JSONB        NOT NULL,
         ingestion_date      TIMESTAMP DEFAULT NOW(),
         PRIMARY KEY (state_code, county_name)
     )
@@ -265,7 +221,6 @@ _CREATE_OFFICIALS_SQL = text(
 
 _CREATE_INDEXES_SQL = (
     text(f"CREATE INDEX IF NOT EXISTS idx_bjcnc_state ON {BRONZE_NACO_COUNTIES}(state_code)"),
-    text(f"CREATE INDEX IF NOT EXISTS idx_bjcnc_fips  ON {BRONZE_NACO_COUNTIES}(fips_code)"),
     text(f"CREATE INDEX IF NOT EXISTS idx_bjcno_state  ON {BRONZE_NACO_OFFICIALS}(state_code)"),
     text(f"CREATE INDEX IF NOT EXISTS idx_bjcno_fips   ON {BRONZE_NACO_OFFICIALS}(fips_code)"),
     text(f"CREATE INDEX IF NOT EXISTS idx_bjcno_county ON {BRONZE_NACO_OFFICIALS}(state_code, county_name)"),
@@ -276,20 +231,10 @@ _TRUNCATE_SQL = text(f"TRUNCATE TABLE {BRONZE_NACO_COUNTIES}")
 _UPSERT_SQL = text(
     f"""
     INSERT INTO {BRONZE_NACO_COUNTIES}
-        (naco_id, county_name, state_code, fips_code, website, phone, email,
-         population, area_sq_miles, county_seat, raw_json)
+        (state_code, county_name, raw_json)
     VALUES
-        (:naco_id, :county_name, :state_code, :fips_code, :website, :phone, :email,
-         :population, :area_sq_miles, :county_seat, CAST(:raw_json AS jsonb))
+        (:state_code, :county_name, CAST(:raw_json AS jsonb))
     ON CONFLICT (state_code, county_name) DO UPDATE SET
-        naco_id        = EXCLUDED.naco_id,
-        fips_code      = EXCLUDED.fips_code,
-        website        = EXCLUDED.website,
-        phone          = EXCLUDED.phone,
-        email          = EXCLUDED.email,
-        population     = EXCLUDED.population,
-        area_sq_miles  = EXCLUDED.area_sq_miles,
-        county_seat    = EXCLUDED.county_seat,
         raw_json       = EXCLUDED.raw_json,
         ingestion_date = NOW()
     """
@@ -338,27 +283,19 @@ class NacoCountiesPipeline(DataSourcePipeline[CountyRow]):
                 if raw.get("_fallback"):
                     # Raw HTML fallback - no structured data to parse yet
                     continue
-                row = parse_county(raw)
-                if row is None:
+                key = natural_key_for(raw)
+                if key is None:
+                    # No usable state_code + county_name -> cannot key the row.
                     continue
-                (
-                    naco_id, county_name, state_code, fips_code, website, phone,
-                    email, population, area_sq_miles, county_seat, _raw_json,
-                ) = row
+                state_code, county_name = key
                 yield {
                     "source": self.source,
                     "source_version": cache_file.stem,
                     "natural_key": f"{state_code}:{county_name}",
-                    "naco_id": naco_id,
                     "county_name": county_name,
                     "state_code": state_code,
-                    "fips_code": fips_code,
-                    "website": website,
-                    "phone": phone,
-                    "email": email,
-                    "population": population,
-                    "area_sq_miles": area_sq_miles,
-                    "county_seat": county_seat,
+                    # Land the full raw NACo county object verbatim; dbt derives
+                    # all enrichment columns from this JSONB downstream.
                     "raw_json": raw,
                 }
                 emitted += 1
@@ -371,16 +308,8 @@ class NacoCountiesPipeline(DataSourcePipeline[CountyRow]):
     ) -> None:
         params = [
             {
-                "naco_id": r.naco_id,
-                "county_name": r.county_name,
                 "state_code": r.state_code,
-                "fips_code": r.fips_code,
-                "website": r.website,
-                "phone": r.phone,
-                "email": r.email,
-                "population": r.population,
-                "area_sq_miles": r.area_sq_miles,
-                "county_seat": r.county_seat,
+                "county_name": r.county_name,
                 "raw_json": json.dumps(r.raw_json),
             }
             for r in rows

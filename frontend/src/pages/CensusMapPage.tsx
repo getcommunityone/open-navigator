@@ -2489,9 +2489,12 @@ function CensusMapPage() {
       const isHL = leaderboardPinnedId != null && gid === leaderboardPinnedId
       return {
         fillColor: colorFromT(t),
+        // pinned county pops on small screens via a thicker amber stroke + dashed
+        // inner ring (the dashArray reads through any neighbor that overpaints).
         color: isHL ? '#b45309' : '#334155',
-        weight: isHL ? 3 : 0.5,
-        fillOpacity: 0.88,
+        weight: isHL ? 4.5 : 0.5,
+        dashArray: isHL ? '0' : undefined,
+        fillOpacity: isHL ? 0.96 : 0.88,
       }
     },
     [scale, countyChoroExtent.min, countyChoroExtent.max, countyDisplayByGeoid, leaderboardPinnedId],
@@ -2508,8 +2511,8 @@ function CensusMapPage() {
       return {
         fillColor: colorFromT(t),
         color: isHL ? '#b45309' : '#334155',
-        weight: isHL ? 3 : 0.5,
-        fillOpacity: 0.88,
+        weight: isHL ? 4.5 : 0.5,
+        fillOpacity: isHL ? 0.96 : 0.88,
       }
     },
     [scale, placeChoroExtent.min, placeChoroExtent.max, placeDisplayByGeoid, leaderboardPinnedId],
@@ -2734,6 +2737,28 @@ function CensusMapPage() {
         nestedInDataExplorer ? 'mx-auto w-full min-w-0 space-y-2.5' : 'mx-auto w-full max-w-[1600px] p-4 md:p-6'
       }
     >
+      {/* Mobile-only sticky reset chip — on small screens the "Back to US map"
+          link is buried in the filter bar and scrolls off; this anchored pill
+          keeps the way out always reachable. Hidden on >=md where the inline
+          green button is already on-screen. */}
+      {(mode === 'place' || mode === 'stateCounty') && stateFips ? (
+        <div className="sticky top-0 z-30 -mx-1 mb-2 flex items-center gap-2 border-b border-slate-200/80 bg-white/95 px-2 py-1.5 shadow-sm backdrop-blur md:hidden">
+          <Link
+            to={mapPathUs(mapPrefix, effectiveVintage, metricSlug, searchParams.toString())}
+            className="inline-flex items-center gap-1.5 rounded-md bg-[#354F52] px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[#354F52] focus-visible:ring-offset-2"
+            aria-label="Back to US map"
+          >
+            <ArrowLeftIcon className="h-4 w-4 shrink-0" aria-hidden />
+            US map
+          </Link>
+          {stateName ? (
+            <span className="min-w-0 truncate text-[12px] font-medium text-slate-700">
+              {stateName}
+              {mode === 'place' ? ' · places' : ' · counties'}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
       {!nestedInDataExplorer ? (
         <header className="mb-3 max-w-[60rem] border-b border-slate-200/80 pb-3">
           <h1 className="text-xl font-semibold text-slate-900">Census explorer</h1>
