@@ -1,83 +1,45 @@
 #!/usr/bin/env python3
-"""
-Load GSA .gov Domain List into bronze.bronze_gov_domains
+"""GSA .gov domains pipeline: load cached CSV into bronze.bronze_gov_domains.
 
-Reads a previously downloaded CSV from the cache and upserts records into
-the bronze.bronze_gov_domains PostgreSQL table. Run download_gsa_domains.py first.
+Ported from load_gsa_domains_to_postgres.py to the core_lib
+DataSourcePipeline contract.
 
-Data Source: https://github.com/cisagov/dotgov-data
+Data source: cisagov/dotgov-data (https://github.com/cisagov/dotgov-data),
+downloaded by scripts/datasources/gsa/download_gsa_domains.py into
+data/cache/gsa/dotgov_domains_*.csv.
 
 Usage:
-    python scripts/datasources/gsa/load_gsa_domains_to_postgres.py
-    python scripts/datasources/gsa/load_gsa_domains_to_postgres.py --truncate
-    python scripts/datasources/gsa/load_gsa_domains_to_postgres.py --file data/cache/gsa/dotgov_domains_20260507.csv
-    python scripts/datasources/gsa/load_gsa_domains_to_postgres.py --limit 100 --dry-run
+    python -m scripts.datasources.gsa.domains_pipeline
+    python scripts/datasources/gsa/domains_pipeline.py --truncate
+    python scripts/datasources/gsa/domains_pipeline.py \\
+        --file data/cache/gsa/dotgov_domains_20260507.csv --limit 100
+
+Configuration:
+    NEON_DATABASE_URL_DEV / NEON_DATABASE_URL / DATABASE_URL via core_lib.db
+    (replaces hardcoded postgresql://postgres:password@localhost:5433).
 """
-import sys
+from __future__ import annotations
+
 import argparse
-import os
+import asyncio
+import csv
 from pathlib import Path
+from typing import AsyncIterator
 
-import pandas as pd
-import psycopg2
-from psycopg2.extras import execute_batch
-from loguru import logger
+from pydantic import Field
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+from core_lib.db import async_session
+from core_lib.logging import setup_logging
+from core_lib.pipeline import DataSourcePipeline, PipelineContext, RawRow
 
 
 CACHE_DIR = Path("data/cache/gsa")
-POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "password")
-DATABASE_URL = f"postgresql://postgres:{POSTGRES_PASSWORD}@localhost:5433/open_navigator"
 
 # Known approximate bounds for .gov domain counts (cisagov/dotgov-data)
 EXPECTED_MIN = 5_000
 EXPECTED_MAX = 15_000
-
-MIGRATE_TABLE_SQL = """
-    DO $$
-    BEGIN
-        IF EXISTS (
-            SELECT 1 FROM information_schema.tables
-            WHERE table_schema = 'public' AND table_name = 'bronze_bronze_gov_domains'
-        ) THEN
-            CREATE SCHEMA IF NOT EXISTS bronze;
-            ALTER TABLE public.bronze_bronze_gov_domains SET SCHEMA bronze;
-            ALTER TABLE bronze.bronze_bronze_gov_domains RENAME TO bronze_gov_domains;
-        END IF;
-    END
-    $$;
-"""
-
-CREATE_TABLE_SQL = """
-    CREATE SCHEMA IF NOT EXISTS bronze;
-    CREATE TABLE IF NOT EXISTS bronze.bronze_gov_domains (
-        domain_name         VARCHAR(255) PRIMARY KEY,
-        domain_type         VARCHAR(50),
-        agency              VARCHAR(255),
-        organization        VARCHAR(255),
-        city                VARCHAR(100),
-        state               VARCHAR(2),
-        security_contact    VARCHAR(255),
-        ingestion_date      TIMESTAMP DEFAULT NOW()
-    );
-    CREATE INDEX IF NOT EXISTS idx_bgd_domain_type ON bronze.bronze_gov_domains(domain_type);
-    CREATE INDEX IF NOT EXISTS idx_bgd_state       ON bronze.bronze_gov_domains(state);
-"""
-
-INSERT_SQL = """
-    INSERT INTO bronze.bronze_gov_domains
-        (domain_name, domain_type, agency, organization, city, state, security_contact)
-    VALUES (%s, %s, %s, %s, %s, %s, %s)
-    ON CONFLICT (domain_name) DO UPDATE SET
-        domain_type      = EXCLUDED.domain_type,
-        agency           = EXCLUDED.agency,
-        organization     = EXCLUDED.organization,
-        city             = EXCLUDED.city,
-        state            = EXCLUDED.state,
-        security_contact = EXCLUDED.security_contact,
-        ingestion_date   = NOW()
-"""
 
 
 def find_latest_csv() -> Path:
@@ -90,8 +52,8 @@ def find_latest_csv() -> Path:
     return csvs[0]
 
 
-def safe_str(val, maxlen=None):
-    if pd.isna(val):
+def _safe_str(val: str | None, maxlen: int | None = None) -> str | None:
+    if val is None:
         return None
     s = str(val).strip()
     if not s:
@@ -99,139 +61,172 @@ def safe_str(val, maxlen=None):
     return s[:maxlen] if maxlen else s
 
 
-def parse_csv(csv_path: Path, limit: int = None) -> list[tuple]:
-    logger.info(f"Parsing {csv_path}...")
-    df = pd.read_csv(csv_path, dtype=str, low_memory=False)
-    df.columns = [c.strip() for c in df.columns]
-    logger.info(f"Columns: {list(df.columns)}")
-    logger.info(f"Raw rows in CSV: {len(df):,}")
+class DomainRow(RawRow):
+    """One .gov domain row, validated before upsert."""
 
-    if limit:
-        df = df.head(limit)
-
-    col_map = {c: c.strip().lower().replace(" ", "_") for c in df.columns}
-    df = df.rename(columns=col_map)
-
-    # Sanity-check source before building records
-    null_domain_count = df["domain_name"].isna().sum() if "domain_name" in df.columns else len(df)
-    dup_domain_count = df["domain_name"].duplicated().sum() if "domain_name" in df.columns else 0
-    if null_domain_count:
-        logger.warning(f"  {null_domain_count:,} rows have NULL domain_name — will be dropped")
-    if dup_domain_count:
-        logger.warning(f"  {dup_domain_count:,} duplicate domain_name values in source — ON CONFLICT will keep last write")
-
-    records = [
-        (
-            safe_str(row.get("domain_name"), 255),
-            safe_str(row.get("domain_type"), 50),
-            safe_str(row.get("organization_name"), 255),
-            safe_str(row.get("suborganization_name"), 255),
-            safe_str(row.get("city"), 100),
-            safe_str(row.get("state"), 2),
-            safe_str(row.get("security_contact_email"), 255),
-        )
-        for _, row in df.iterrows()
-    ]
-
-    records = [r for r in records if r[0]]
-    logger.info(f"Prepared {len(records):,} domain records (after dropping nulls)")
-    return records
+    domain_name: str = Field(min_length=1, max_length=255)
+    domain_type: str | None = Field(default=None, max_length=50)
+    agency: str | None = Field(default=None, max_length=255)
+    organization: str | None = Field(default=None, max_length=255)
+    city: str | None = Field(default=None, max_length=100)
+    state: str | None = Field(default=None, max_length=2)
+    security_contact: str | None = Field(default=None, max_length=255)
 
 
-def sanity_check(cur, source_count: int, limit: int = None) -> bool:
-    cur.execute("SELECT COUNT(*) FROM bronze.bronze_gov_domains")
-    table_count = cur.fetchone()[0]
+# Pre-migration: the legacy table used to live at public.bronze_bronze_gov_domains.
+# Move it under bronze schema and rename if present.
+_MIGRATE_SQL = text(
+    """
+    DO $$
+    BEGIN
+        IF EXISTS (
+            SELECT 1 FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'bronze_bronze_gov_domains'
+        ) THEN
+            CREATE SCHEMA IF NOT EXISTS bronze;
+            ALTER TABLE public.bronze_bronze_gov_domains SET SCHEMA bronze;
+            ALTER TABLE bronze.bronze_bronze_gov_domains RENAME TO bronze_gov_domains;
+        END IF;
+    END
+    $$;
+    """
+)
 
-    if limit:
-        logger.info(f"Post-load table count: {table_count:,} (limit mode — skipping range check)")
-        return True
+_CREATE_SCHEMA_SQL = text("CREATE SCHEMA IF NOT EXISTS bronze")
 
-    ok = EXPECTED_MIN <= table_count <= EXPECTED_MAX
-    status = "OK" if ok else "FAIL"
-    logger.info(
-        f"Sanity check [{status}]: table={table_count:,}, "
-        f"source={source_count:,}, "
-        f"expected={EXPECTED_MIN:,}–{EXPECTED_MAX:,}"
+_CREATE_TABLE_SQL = text(
+    """
+    CREATE TABLE IF NOT EXISTS bronze.bronze_gov_domains (
+        domain_name         VARCHAR(255) PRIMARY KEY,
+        domain_type         VARCHAR(50),
+        agency              VARCHAR(255),
+        organization        VARCHAR(255),
+        city                VARCHAR(100),
+        state               VARCHAR(2),
+        security_contact    VARCHAR(255),
+        ingestion_date      TIMESTAMP DEFAULT NOW()
     )
-    if not ok:
-        logger.error(
-            f"Row count {table_count:,} is outside expected range "
-            f"[{EXPECTED_MIN:,}, {EXPECTED_MAX:,}]. "
-            "Consider running with --truncate to clear stale data."
-        )
-    return ok
+    """
+)
+
+_CREATE_INDEXES_SQL = (
+    text("CREATE INDEX IF NOT EXISTS idx_bgd_domain_type ON bronze.bronze_gov_domains(domain_type)"),
+    text("CREATE INDEX IF NOT EXISTS idx_bgd_state       ON bronze.bronze_gov_domains(state)"),
+)
+
+_TRUNCATE_SQL = text("TRUNCATE TABLE bronze.bronze_gov_domains")
+
+_UPSERT_SQL = text(
+    """
+    INSERT INTO bronze.bronze_gov_domains
+        (domain_name, domain_type, agency, organization, city, state, security_contact)
+    VALUES
+        (:domain_name, :domain_type, :agency, :organization, :city, :state, :security_contact)
+    ON CONFLICT (domain_name) DO UPDATE SET
+        domain_type      = EXCLUDED.domain_type,
+        agency           = EXCLUDED.agency,
+        organization     = EXCLUDED.organization,
+        city             = EXCLUDED.city,
+        state            = EXCLUDED.state,
+        security_contact = EXCLUDED.security_contact,
+        ingestion_date   = NOW()
+    """
+)
 
 
-def load_to_postgres(records: list[tuple], dry_run: bool = False, truncate: bool = False, limit: int = None) -> int:
-    conn = psycopg2.connect(DATABASE_URL)
-    cur = conn.cursor()
+class GsaDomainsPipeline(DataSourcePipeline[DomainRow]):
+    source = "gsa_domains"
+    batch_size = 5_000
+    row_schema = DomainRow
 
-    cur.execute(MIGRATE_TABLE_SQL)
-    conn.commit()
-    cur.execute(CREATE_TABLE_SQL)
-    conn.commit()
+    def __init__(self, *, csv_path: Path | None = None, limit: int | None = None):
+        self._csv_path = csv_path
+        self._limit = limit
 
-    if truncate:
-        cur.execute("SELECT COUNT(*) FROM bronze.bronze_gov_domains")
-        before = cur.fetchone()[0]
-        cur.execute("TRUNCATE TABLE bronze.bronze_gov_domains")
-        conn.commit()
-        logger.info(f"Truncated bronze.bronze_gov_domains ({before:,} rows removed)")
+    async def extract(self, ctx: PipelineContext) -> AsyncIterator[dict]:
+        path = self._csv_path or find_latest_csv()
+        emitted = 0
+        with path.open("r", encoding="utf-8", newline="") as handle:
+            reader = csv.DictReader(handle)
+            # Normalize headers to snake_case lower
+            reader.fieldnames = [
+                (h or "").strip().lower().replace(" ", "_") for h in (reader.fieldnames or [])
+            ]
+            for row in reader:
+                if self._limit is not None and emitted >= self._limit:
+                    return
+                domain_name = _safe_str(row.get("domain_name"), 255)
+                if not domain_name:
+                    continue
+                yield {
+                    "source": self.source,
+                    "source_version": path.stem,
+                    "natural_key": domain_name.lower(),
+                    "domain_name": domain_name,
+                    "domain_type": _safe_str(row.get("domain_type"), 50),
+                    "agency": _safe_str(row.get("organization_name"), 255),
+                    "organization": _safe_str(row.get("suborganization_name"), 255),
+                    "city": _safe_str(row.get("city"), 100),
+                    "state": _safe_str(row.get("state"), 2),
+                    "security_contact": _safe_str(row.get("security_contact_email"), 255),
+                }
+                emitted += 1
 
-    if dry_run:
-        logger.warning("DRY RUN — skipping INSERT, showing first 5 records:")
-        for r in records[:5]:
-            logger.info(f"  {r}")
-        cur.close()
-        conn.close()
-        return 0
-
-    execute_batch(cur, INSERT_SQL, records, page_size=5000)
-    conn.commit()
-
-    cur.execute("SELECT COUNT(*) FROM bronze.bronze_gov_domains")
-    total = cur.fetchone()[0]
-    logger.success(f"Upserted {len(records):,} domains → bronze.bronze_gov_domains (table total: {total:,})")
-
-    sanity_check(cur, source_count=len(records), limit=limit)
-
-    cur.execute("""
-        SELECT domain_type, COUNT(*) AS cnt
-        FROM bronze.bronze_gov_domains
-        GROUP BY domain_type
-        ORDER BY cnt DESC
-        LIMIT 10
-    """)
-    logger.info("Breakdown by domain type:")
-    for domain_type, cnt in cur.fetchall():
-        logger.info(f"  {domain_type or '(unknown)'}: {cnt:,}")
-
-    cur.close()
-    conn.close()
-    return len(records)
+    async def load_batch(
+        self,
+        session: AsyncSession,
+        rows: list[DomainRow],
+        ctx: PipelineContext,
+    ) -> None:
+        params = [
+            {
+                "domain_name": r.domain_name,
+                "domain_type": r.domain_type,
+                "agency": r.agency,
+                "organization": r.organization,
+                "city": r.city,
+                "state": r.state,
+                "security_contact": r.security_contact,
+            }
+            for r in rows
+        ]
+        await session.execute(_UPSERT_SQL, params)
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Load cached GSA .gov domain CSV into bronze.bronze_gov_domains")
-    parser.add_argument("--file", type=str, help="Path to CSV file (default: latest in data/cache/gsa/)")
+async def _prepare_target(truncate: bool) -> None:
+    async with async_session() as session:
+        await session.execute(_MIGRATE_SQL)
+        await session.execute(_CREATE_SCHEMA_SQL)
+        await session.execute(_CREATE_TABLE_SQL)
+        for idx in _CREATE_INDEXES_SQL:
+            await session.execute(idx)
+        if truncate:
+            await session.execute(_TRUNCATE_SQL)
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Load cached GSA .gov domain CSV into bronze.bronze_gov_domains"
+    )
+    parser.add_argument("--file", type=Path, help="Path to CSV (default: latest in data/cache/gsa/)")
     parser.add_argument("--limit", type=int, help="Limit records (for testing)")
-    parser.add_argument("--dry-run", action="store_true", help="Parse only, do not write to database")
-    parser.add_argument("--truncate", action="store_true", help="TRUNCATE table before loading (recommended for full reloads)")
-    args = parser.parse_args()
+    parser.add_argument(
+        "--truncate", action="store_true",
+        help="TRUNCATE table before loading (recommended for full reloads)",
+    )
+    return parser
 
-    logger.info("=" * 70)
-    logger.info("GSA .gov Domains → bronze.bronze_gov_domains")
-    logger.info("=" * 70)
 
-    csv_path = Path(args.file) if args.file else find_latest_csv()
-    logger.info(f"Source: {csv_path}")
+async def _run(args: argparse.Namespace) -> None:
+    await _prepare_target(args.truncate)
+    pipeline = GsaDomainsPipeline(csv_path=args.file, limit=args.limit)
+    await pipeline.run()
 
-    records = parse_csv(csv_path, limit=args.limit)
-    load_to_postgres(records, dry_run=args.dry_run, truncate=args.truncate, limit=args.limit)
 
-    logger.success("=" * 70)
-    logger.success("Done.")
-    logger.success("=" * 70)
+def main() -> None:
+    setup_logging()
+    args = build_parser().parse_args()
+    asyncio.run(_run(args))
 
 
 if __name__ == "__main__":
