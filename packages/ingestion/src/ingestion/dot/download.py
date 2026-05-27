@@ -1,55 +1,56 @@
 #!/usr/bin/env python3
-"""
-Phase-1 downloader: State DOT public involvement / hearings portal pages.
+"""Download-only: State DOT public involvement / hearings portal pages.
 
 Reads the markdown table in ``dot.txt`` (State | markdown link | hearings note),
-maps state names to USPS codes, fetches each primary portal URL, and writes:
+maps state names to USPS codes, and fetches each primary portal URL into the
+local cache:
 
-  data/cache/dot_public_involvement/{USPS}/public_involvement.html
-  data/cache/dot_public_involvement/_manifest.json   (last run summary)
+  data/cache/dot/{USPS}/public_involvement.html  (or .pdf when the portal is a PDF)
+  data/cache/dot/{USPS}/source.json              (per-state fetch metadata)
 
-Optional: ``--pdfs`` discovers same-origin ``<a href=*.pdf>`` links on the saved
-HTML (cap per state / max bytes) for offline notice packs.
+The state pages span many different hosts, so requests use a hostless
+``base_url`` and absolute URLs are passed straight to the client. A modest
+rate limit is applied because the run loops over ~50 states.
 
-This does not replace per-site adapters (Granicus, ArcGIS Hub, etc.); it is the
-seed + snapshot step for a hybrid pipeline (see script docstring / repo docs).
+This module is download-only. Loading the snapshots into the database is the
+job of ``ingestion.dot.events``.
 
-Usage (repo root):
-
-  python scripts/datasources/dot/download_state_dot_public_pages.py --all
-  python scripts/datasources/dot/download_state_dot_public_pages.py --states AL TX GA
-  python scripts/datasources/dot/download_state_dot_public_pages.py --all --pdfs --max-pdf-mb 6
-
-After a successful download, discover linked schedule/calendar pages and (optionally) pull dates::
-
-  python scripts/datasources/dot/extract_dot_event_candidates_from_cache.py --states AL --fetch
+Usage:
+    python -m ingestion.dot.download --all
+    python -m ingestion.dot.download --states AL TX GA
+    python -m ingestion.dot.download --states AL --force
 """
 from __future__ import annotations
 
 import argparse
+import asyncio
 import hashlib
 import json
 import re
-import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qsl, urljoin, urlparse, urlencode, urlunparse
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
-import httpx
-from bs4 import BeautifulSoup
+from core_lib.http import BaseAsyncClient, HttpClientConfig
+from core_lib.logging import setup_logging
 from loguru import logger
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+
+# dot.txt is shipped alongside this module (the registry of state -> portal URL).
 DEFAULT_DOT_MD = Path(__file__).resolve().parent / "dot.txt"
-CACHE_ROOT = REPO_ROOT / "data" / "cache" / "dot_public_involvement"
+CACHE_DIR = Path("data/cache/dot")
+
+# Consider a cached file fresh for this long before re-fetching.
+CACHE_MAX_AGE_S = 7 * 24 * 60 * 60  # 7 days
 
 USER_AGENT = (
     "OpenNavigatorDotResearch/1.0 (+https://github.com/getcommunityone/open-navigator-for-engagement; "
     "state DOT public involvement snapshots)"
 )
 
-# Full state / DC name → USPS (must match rows in dot.txt first column)
+# Full state / DC name -> USPS (must match rows in dot.txt first column)
 STATE_NAME_TO_USPS: dict[str, str] = {
     "Alabama": "AL",
     "Alaska": "AK",
@@ -155,183 +156,143 @@ def sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def fetch_url(
-    client: httpx.Client,
-    url: str,
-    timeout: float,
-) -> tuple[int | None, str | None, bytes]:
-    try:
-        r = client.get(url, timeout=timeout, follow_redirects=True)
-        body = r.content
-        ctype = r.headers.get("content-type", "").split(";")[0].strip().lower() or None
-        return r.status_code, ctype, body
-    except Exception as e:
-        logger.error("GET failed {}: {}", url, e)
-        return None, None, b""
+def load_registry(dot_md: Path = DEFAULT_DOT_MD) -> dict[str, dict[str, Any]]:
+    """Parse the markdown table and index rows by USPS code."""
+    rows = parse_dot_markdown_table(dot_md)
+    if not rows:
+        raise ValueError(f"No rows parsed from {dot_md}")
+    return {r["state_usps"]: r for r in rows}
 
 
-def same_registrable_domain(a: str, b: str) -> bool:
-    """Loose same-host check for PDF harvesting (portal host vs link host)."""
-    return urlparse(a).netloc.lower() == urlparse(b).netloc.lower()
+def _primary_path(usps: str, url: str) -> Path:
+    """Cache path for a state's primary snapshot (.pdf for PDF portals, else .html)."""
+    is_pdf = url.lower().split("?")[0].endswith(".pdf")
+    suffix = "pdf" if is_pdf else "html"
+    return CACHE_DIR / usps / f"public_involvement.{suffix}"
 
 
-def harvest_pdf_links(html_path: Path, base_url: str, limit: int) -> list[str]:
-    raw = html_path.read_bytes()
-    soup = BeautifulSoup(raw, "html.parser")
-    out: list[str] = []
-    for a in soup.find_all("a", href=True):
-        href = a["href"].strip()
-        if not href.lower().endswith(".pdf"):
-            continue
-        full = urljoin(base_url, href)
-        if not same_registrable_domain(full, base_url):
-            continue
-        if full not in out:
-            out.append(full)
-        if len(out) >= limit:
-            break
-    return out
+def _is_fresh(path: Path, max_age_s: float = CACHE_MAX_AGE_S) -> bool:
+    """True if ``path`` exists, is non-empty, and was modified within ``max_age_s``."""
+    if not path.is_file():
+        return False
+    if path.stat().st_size == 0:
+        return False
+    return (time.time() - path.stat().st_mtime) <= max_age_s
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser(description="Download state DOT public involvement portal pages (Phase 1).")
-    ap.add_argument("--dot-md", type=Path, default=DEFAULT_DOT_MD, help="Markdown table source (default: dot.txt beside this script)")
-    ap.add_argument("--cache", type=Path, default=CACHE_ROOT, help="Output cache directory")
-    ap.add_argument("--states", nargs="*", help="USPS codes to fetch (e.g. AL TX). Default: none unless --all")
-    ap.add_argument("--all", action="store_true", help="Fetch all states in the table")
-    ap.add_argument("--timeout", type=float, default=45.0)
-    ap.add_argument("--pdfs", action="store_true", help="Also download same-origin .pdf links found in HTML (capped)")
-    ap.add_argument("--max-pdfs", type=int, default=12, help="Max PDFs per state when --pdfs")
-    ap.add_argument("--max-pdf-mb", type=float, default=8.0)
-    ap.add_argument("--dry-run", action="store_true")
-    args = ap.parse_args()
+def _select_states(
+    registry: dict[str, dict[str, Any]],
+    states: list[str] | None,
+) -> list[str]:
+    """Resolve the list of USPS codes to fetch (all when ``states`` is None)."""
+    available = sorted(registry)
+    if not states:
+        return available
+    selected = [s.strip().upper() for s in states if s.strip()]
+    bad = [s for s in selected if s not in registry]
+    if bad:
+        raise ValueError(f"Unknown USPS codes (not in table): {bad}")
+    return selected
 
-    if not args.dot_md.is_file():
-        logger.error("Missing table file: {}", args.dot_md)
-        return 1
 
-    registry = parse_dot_markdown_table(args.dot_md)
-    if not registry:
-        logger.error("No rows parsed from {}", args.dot_md)
-        return 1
+async def download(
+    *,
+    force: bool = False,
+    states: list[str] | None = None,
+    dot_md: Path = DEFAULT_DOT_MD,
+    **params: Any,
+) -> list[Path]:
+    """Fetch each state's DOT public-involvement portal page into ``CACHE_DIR``.
 
-    want = {r["state_usps"].upper() for r in registry}
-    if args.all:
-        selected = sorted(want)
-    elif args.states:
-        selected = [s.strip().upper() for s in args.states if s.strip()]
-        bad = [s for s in selected if s not in want]
-        if bad:
-            logger.error("Unknown USPS codes (not in table): {}", bad)
-            return 1
-    else:
-        logger.error("Specify --all or --states AL GA ...")
-        return 1
+    Each portal lives on its own host, so absolute URLs are passed to the
+    rate-limited client. Returns the list of primary snapshot paths written
+    (or reused from a fresh cache when ``force`` is False).
+    """
+    registry = load_registry(dot_md)
+    selected = _select_states(registry, states)
 
-    rows_by_usps = {r["state_usps"]: r for r in registry}
-    args.cache.mkdir(parents=True, exist_ok=True)
+    config = HttpClientConfig(
+        base_url="",
+        source="dot",
+        timeout_s=45.0,
+        rate_limit_per_sec=5.0,
+        default_headers={
+            "User-Agent": USER_AGENT,
+            "Accept": "text/html,application/xhtml+xml,application/pdf;q=0.9,*/*;q=0.8",
+        },
+    )
 
-    manifest_rows: list[dict[str, Any]] = []
-    max_pdf_bytes = int(args.max_pdf_mb * 1024 * 1024)
-
-    headers = {"User-Agent": USER_AGENT, "Accept": "text/html,application/xhtml+xml,application/pdf;q=0.9,*/*;q=0.8"}
-
-    if args.dry_run:
+    written: list[Path] = []
+    async with BaseAsyncClient(config) as client:
         for usps in selected:
-            r = rows_by_usps[usps]
-            logger.info("[dry-run] {} {} -> {}", usps, r["state_name"], r["public_involvement_url"])
-        return 0
-
-    with httpx.Client(headers=headers, verify=True) as client:
-        for usps in selected:
-            rec = rows_by_usps[usps]
+            rec = registry[usps]
             url = rec["public_involvement_url"]
-            out_dir = args.cache / usps
-            out_dir.mkdir(parents=True, exist_ok=True)
+            primary = _primary_path(usps, url)
 
-            status, ctype, body = fetch_url(client, url, args.timeout)
-            entry: dict[str, Any] = {
-                "state_usps": usps,
-                "state_name": rec["state_name"],
-                "url": url,
-                "fetched_at": datetime.now(timezone.utc).isoformat(),
-                "http_status": status,
-                "content_type": ctype,
-                "bytes": len(body),
-                "sha256": sha256_bytes(body) if body else None,
-                "primary_path": None,
-                "pdf_paths": [],
-                "error": None,
-            }
-
-            if status is None or not body:
-                entry["error"] = "empty_or_failed"
-                manifest_rows.append(entry)
-                logger.warning("{} fetch failed", usps)
+            if not force and _is_fresh(primary):
+                logger.info("{} cache hit, skip fetch -> {}", usps, primary)
+                written.append(primary)
                 continue
 
-            is_pdf = (ctype == "application/pdf") or url.lower().split("?")[0].endswith(".pdf")
-            if is_pdf:
-                primary = out_dir / "public_involvement.pdf"
-                primary.write_bytes(body)
-                entry["primary_path"] = str(primary.relative_to(REPO_ROOT))
-                logger.info("{} saved PDF {} bytes -> {}", usps, len(body), primary)
-            else:
-                primary = out_dir / "public_involvement.html"
-                primary.write_bytes(body)
-                entry["primary_path"] = str(primary.relative_to(REPO_ROOT))
-                meta = out_dir / "source.json"
-                meta.write_text(
-                    json.dumps(
-                        {
-                            "state_usps": usps,
-                            "state_name": rec["state_name"],
-                            "portal_label": rec["portal_label"],
-                            "source_url": url,
-                            "hearings_note": rec["hearings_note"],
-                            "http_status": status,
-                            "content_type": ctype,
-                            "fetched_at": entry["fetched_at"],
-                        },
-                        indent=2,
-                    ),
-                    encoding="utf-8",
-                )
-                logger.info("{} saved HTML {} bytes -> {}", usps, len(body), primary)
+            try:
+                resp = await client.get(url)
+            except Exception as exc:  # noqa: BLE001 - one bad state shouldn't abort the run
+                logger.error("{} fetch failed {}: {}", usps, url, exc)
+                continue
 
-                if args.pdfs and not is_pdf:
-                    pdfs = harvest_pdf_links(primary, url, args.max_pdfs)
-                    for i, pdf_url in enumerate(pdfs):
-                        ps, pct, pdata = fetch_url(client, pdf_url, args.timeout)
-                        if ps != 200 or not pdata:
-                            logger.warning("{} skip PDF {} status={}", usps, pdf_url, ps)
-                            continue
-                        if len(pdata) > max_pdf_bytes:
-                            logger.warning("{} skip PDF too large {} {}", usps, pdf_url, len(pdata))
-                            continue
-                        safe = re.sub(r"[^\w.\-]+", "_", urlparse(pdf_url).path.split("/")[-1])[:120] or f"document_{i}.pdf"
-                        if not safe.lower().endswith(".pdf"):
-                            safe += ".pdf"
-                        pdf_path = out_dir / "pdfs" / safe
-                        pdf_path.parent.mkdir(parents=True, exist_ok=True)
-                        pdf_path.write_bytes(pdata)
-                        rel = str(pdf_path.relative_to(REPO_ROOT))
-                        entry["pdf_paths"].append({"url": pdf_url, "path": rel, "bytes": len(pdata)})
-                        logger.info("{} saved PDF {}", usps, rel)
+            body = resp.content
+            if not body:
+                logger.warning("{} empty body from {}", usps, url)
+                continue
 
-            manifest_rows.append(entry)
+            ctype = resp.headers.get("content-type", "").split(";")[0].strip().lower() or None
+            primary.parent.mkdir(parents=True, exist_ok=True)
+            primary.write_bytes(body)
 
-    manifest = {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-        "source_table": str(args.dot_md.relative_to(REPO_ROOT)),
-        "cache_root": str(args.cache.relative_to(REPO_ROOT)),
-        "rows": manifest_rows,
-    }
-    man_path = args.cache / "_manifest.json"
-    man_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
-    logger.info("Wrote manifest {}", man_path)
-    return 0
+            meta = {
+                "state_usps": usps,
+                "state_name": rec["state_name"],
+                "portal_label": rec["portal_label"],
+                "source_url": url,
+                "hearings_note": rec["hearings_note"],
+                "http_status": resp.status_code,
+                "content_type": ctype,
+                "bytes": len(body),
+                "sha256": sha256_bytes(body),
+                "fetched_at": datetime.now(timezone.utc).isoformat(),
+            }
+            (primary.parent / "source.json").write_text(
+                json.dumps(meta, indent=2), encoding="utf-8"
+            )
+            logger.info("{} saved {} bytes -> {}", usps, len(body), primary)
+            written.append(primary)
+
+    return written
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Download state DOT public involvement portal pages (download-only).",
+    )
+    parser.add_argument(
+        "--states",
+        nargs="*",
+        help="USPS codes to fetch (e.g. AL TX GA). Default: all states in the table.",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Re-download even when a fresh cached snapshot exists.",
+    )
+    return parser
+
+
+def main() -> None:
+    setup_logging()
+    args = build_parser().parse_args()
+    paths = asyncio.run(download(force=args.force, states=args.states))
+    logger.info("Wrote/reused {} state snapshot(s)", len(paths))
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()
