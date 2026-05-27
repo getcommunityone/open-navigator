@@ -1,38 +1,45 @@
 #!/usr/bin/env python3
-"""
-Load Census Gazetteer data into bronze jurisdiction tables.
+"""Census Gazetteer pipeline: load cached CSVs into bronze jurisdiction tables.
+
+Ported from load_census_gazetteer.py to the core_lib DataSourcePipeline
+contract.
 
 Reads cached CSVs from data/cache/census/gazetteer/ and loads into:
-  states                → bronze.bronze_jurisdictions_states
-  counties              → bronze.bronze_jurisdictions_counties
-  municipalities        → bronze.bronze_jurisdictions_municipalities
-  school_districts      → bronze.bronze_jurisdictions_school_districts  (unified only)
-  townships             → bronze.bronze_jurisdictions_townships
-  zcta                  → bronze.bronze_jurisdictions_zcta
+  states                -> bronze.bronze_jurisdictions_states
+  counties              -> bronze.bronze_jurisdictions_counties
+  municipalities        -> bronze.bronze_jurisdictions_municipalities
+  school_districts      -> bronze.bronze_jurisdictions_school_districts  (unified only)
+  townships             -> bronze.bronze_jurisdictions_townships
+  zcta                  -> bronze.bronze_jurisdictions_zcta
 
 Run download_census_gazetteer.py first to populate the cache.
 
 Usage:
-    python3 scripts/datasources/census/load_census_gazetteer.py
-    python3 scripts/datasources/census/load_census_gazetteer.py --types counties municipalities
-    NEON_DATABASE_URL_DEV='postgresql://…' python3 scripts/…/load_census_gazetteer.py --filter-usps AL,GA
+    python -m ingestion.census.gazetteer
+    python -m ingestion.census.gazetteer --types counties municipalities
+    python -m ingestion.census.gazetteer --filter-usps AL,GA
 
-URL resolution: scripts/database/target_database_url.py (Neon URLs take precedence unless OPEN_NAVIGATOR_DATABASE_URL overrides).
+Configuration:
+    NEON_DATABASE_URL_DEV / NEON_DATABASE_URL / DATABASE_URL via core_lib.db
+    (replaces hardcoded psycopg2 / target_database_url resolution).
 """
+from __future__ import annotations
+
 import argparse
-import os
-import sys
+import asyncio
+from decimal import Decimal
 from pathlib import Path
+from typing import AsyncIterator
 
 import pandas as pd
-import psycopg2
-from psycopg2.extras import execute_batch
 from loguru import logger
+from pydantic import Field
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[3]
-if str(_PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(_PROJECT_ROOT))
-from scripts.database.target_database_url import resolve_target_database_url  # noqa: E402
+from core_lib.db import async_session
+from core_lib.logging import setup_logging
+from core_lib.pipeline import DataSourcePipeline, PipelineContext, RawRow
 
 
 CACHE_DIR = Path("data/cache/census/gazetteer")
@@ -43,8 +50,9 @@ TYPES = {
         "table": "bronze.bronze_jurisdictions_states",
         "cache_file": "states.csv",
         "geoid_len": 2,
-        "ddl": """
-            CREATE SCHEMA IF NOT EXISTS bronze;
+        "ddl": [
+            "CREATE SCHEMA IF NOT EXISTS bronze",
+            """
             CREATE TABLE IF NOT EXISTS bronze.bronze_jurisdictions_states (
                 geoid           VARCHAR(2)    PRIMARY KEY,
                 usps            VARCHAR(2),
@@ -61,15 +69,17 @@ TYPES = {
                 jurisdiction_type       bronze.jurisdiction_type_enum      NOT NULL DEFAULT 'state',
                 jurisdiction_id_source bronze.jurisdiction_id_source_enum NOT NULL DEFAULT 'usps',
                 UNIQUE (jurisdiction_id)
-            );
-            CREATE INDEX IF NOT EXISTS idx_bjs_usps            ON bronze.bronze_jurisdictions_states(usps);
-            CREATE INDEX IF NOT EXISTS idx_bjs_coords          ON bronze.bronze_jurisdictions_states(intptlat, intptlong);
-            CREATE INDEX IF NOT EXISTS idx_bjs_jurisdiction_id ON bronze.bronze_jurisdictions_states(jurisdiction_id);
-        """,
+            )
+            """,
+            "CREATE INDEX IF NOT EXISTS idx_bjs_usps            ON bronze.bronze_jurisdictions_states(usps)",
+            "CREATE INDEX IF NOT EXISTS idx_bjs_coords          ON bronze.bronze_jurisdictions_states(intptlat, intptlong)",
+            "CREATE INDEX IF NOT EXISTS idx_bjs_jurisdiction_id ON bronze.bronze_jurisdictions_states(jurisdiction_id)",
+        ],
+        "columns": ["geoid", "usps", "ansicode", "name", "aland", "awater", "aland_sqmi", "awater_sqmi", "intptlat", "intptlong"],
         "insert": """
             INSERT INTO bronze.bronze_jurisdictions_states
                 (geoid, usps, ansicode, name, aland, awater, aland_sqmi, awater_sqmi, intptlat, intptlong)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (:geoid, :usps, :ansicode, :name, :aland, :awater, :aland_sqmi, :awater_sqmi, :intptlat, :intptlong)
             ON CONFLICT (geoid) DO UPDATE SET
                 usps           = EXCLUDED.usps,
                 ansicode       = EXCLUDED.ansicode,
@@ -87,8 +97,9 @@ TYPES = {
         "table": "bronze.bronze_jurisdictions_counties",
         "cache_file": "counties.csv",
         "geoid_len": 5,
-        "ddl": """
-            CREATE SCHEMA IF NOT EXISTS bronze;
+        "ddl": [
+            "CREATE SCHEMA IF NOT EXISTS bronze",
+            """
             CREATE TABLE IF NOT EXISTS bronze.bronze_jurisdictions_counties (
                 geoid           VARCHAR(5)    PRIMARY KEY,
                 usps            VARCHAR(2),
@@ -105,15 +116,17 @@ TYPES = {
                 jurisdiction_type       bronze.jurisdiction_type_enum      NOT NULL DEFAULT 'county',
                 jurisdiction_id_source bronze.jurisdiction_id_source_enum NOT NULL DEFAULT 'county_fips',
                 UNIQUE (jurisdiction_id)
-            );
-            CREATE INDEX IF NOT EXISTS idx_bjc_usps            ON bronze.bronze_jurisdictions_counties(usps);
-            CREATE INDEX IF NOT EXISTS idx_bjc_coords          ON bronze.bronze_jurisdictions_counties(intptlat, intptlong);
-            CREATE INDEX IF NOT EXISTS idx_bjc_jurisdiction_id ON bronze.bronze_jurisdictions_counties(jurisdiction_id);
-        """,
+            )
+            """,
+            "CREATE INDEX IF NOT EXISTS idx_bjc_usps            ON bronze.bronze_jurisdictions_counties(usps)",
+            "CREATE INDEX IF NOT EXISTS idx_bjc_coords          ON bronze.bronze_jurisdictions_counties(intptlat, intptlong)",
+            "CREATE INDEX IF NOT EXISTS idx_bjc_jurisdiction_id ON bronze.bronze_jurisdictions_counties(jurisdiction_id)",
+        ],
+        "columns": ["geoid", "usps", "ansicode", "name", "aland", "awater", "aland_sqmi", "awater_sqmi", "intptlat", "intptlong"],
         "insert": """
             INSERT INTO bronze.bronze_jurisdictions_counties
                 (geoid, usps, ansicode, name, aland, awater, aland_sqmi, awater_sqmi, intptlat, intptlong)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (:geoid, :usps, :ansicode, :name, :aland, :awater, :aland_sqmi, :awater_sqmi, :intptlat, :intptlong)
             ON CONFLICT (geoid) DO UPDATE SET
                 usps           = EXCLUDED.usps,
                 ansicode       = EXCLUDED.ansicode,
@@ -131,8 +144,9 @@ TYPES = {
         "table": "bronze.bronze_jurisdictions_municipalities",
         "cache_file": "municipalities.csv",
         "geoid_len": 7,
-        "ddl": """
-            CREATE SCHEMA IF NOT EXISTS bronze;
+        "ddl": [
+            "CREATE SCHEMA IF NOT EXISTS bronze",
+            """
             CREATE TABLE IF NOT EXISTS bronze.bronze_jurisdictions_municipalities (
                 geoid           VARCHAR(7)    PRIMARY KEY,
                 usps            VARCHAR(2),
@@ -151,17 +165,19 @@ TYPES = {
                 jurisdiction_type       bronze.jurisdiction_type_enum      NOT NULL DEFAULT 'municipality',
                 jurisdiction_id_source bronze.jurisdiction_id_source_enum NOT NULL DEFAULT 'place_geoid',
                 UNIQUE (jurisdiction_id)
-            );
-            CREATE INDEX IF NOT EXISTS idx_bjm_usps            ON bronze.bronze_jurisdictions_municipalities(usps);
-            CREATE INDEX IF NOT EXISTS idx_bjm_lsad            ON bronze.bronze_jurisdictions_municipalities(lsad);
-            CREATE INDEX IF NOT EXISTS idx_bjm_funcstat        ON bronze.bronze_jurisdictions_municipalities(funcstat);
-            CREATE INDEX IF NOT EXISTS idx_bjm_coords          ON bronze.bronze_jurisdictions_municipalities(intptlat, intptlong);
-            CREATE INDEX IF NOT EXISTS idx_bjm_jurisdiction_id ON bronze.bronze_jurisdictions_municipalities(jurisdiction_id);
-        """,
+            )
+            """,
+            "CREATE INDEX IF NOT EXISTS idx_bjm_usps            ON bronze.bronze_jurisdictions_municipalities(usps)",
+            "CREATE INDEX IF NOT EXISTS idx_bjm_lsad            ON bronze.bronze_jurisdictions_municipalities(lsad)",
+            "CREATE INDEX IF NOT EXISTS idx_bjm_funcstat        ON bronze.bronze_jurisdictions_municipalities(funcstat)",
+            "CREATE INDEX IF NOT EXISTS idx_bjm_coords          ON bronze.bronze_jurisdictions_municipalities(intptlat, intptlong)",
+            "CREATE INDEX IF NOT EXISTS idx_bjm_jurisdiction_id ON bronze.bronze_jurisdictions_municipalities(jurisdiction_id)",
+        ],
+        "columns": ["geoid", "usps", "ansicode", "name", "lsad", "funcstat", "aland", "awater", "aland_sqmi", "awater_sqmi", "intptlat", "intptlong"],
         "insert": """
             INSERT INTO bronze.bronze_jurisdictions_municipalities
                 (geoid, usps, ansicode, name, lsad, funcstat, aland, awater, aland_sqmi, awater_sqmi, intptlat, intptlong)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (:geoid, :usps, :ansicode, :name, :lsad, :funcstat, :aland, :awater, :aland_sqmi, :awater_sqmi, :intptlat, :intptlong)
             ON CONFLICT (geoid) DO UPDATE SET
                 usps           = EXCLUDED.usps,
                 ansicode       = EXCLUDED.ansicode,
@@ -181,8 +197,9 @@ TYPES = {
         "table": "bronze.bronze_jurisdictions_school_districts",
         "cache_file": "school_districts_unified.csv",
         "geoid_len": 7,
-        "ddl": """
-            CREATE SCHEMA IF NOT EXISTS bronze;
+        "ddl": [
+            "CREATE SCHEMA IF NOT EXISTS bronze",
+            """
             CREATE TABLE IF NOT EXISTS bronze.bronze_jurisdictions_school_districts (
                 geoid           VARCHAR(7)    PRIMARY KEY,
                 usps            VARCHAR(2),
@@ -200,15 +217,17 @@ TYPES = {
                 jurisdiction_type       bronze.jurisdiction_type_enum      NOT NULL DEFAULT 'school_district',
                 jurisdiction_id_source bronze.jurisdiction_id_source_enum NOT NULL DEFAULT 'school_district_geoid',
                 UNIQUE (jurisdiction_id)
-            );
-            CREATE INDEX IF NOT EXISTS idx_bjsd_usps            ON bronze.bronze_jurisdictions_school_districts(usps);
-            CREATE INDEX IF NOT EXISTS idx_bjsd_coords          ON bronze.bronze_jurisdictions_school_districts(intptlat, intptlong);
-            CREATE INDEX IF NOT EXISTS idx_bjsd_jurisdiction_id ON bronze.bronze_jurisdictions_school_districts(jurisdiction_id);
-        """,
+            )
+            """,
+            "CREATE INDEX IF NOT EXISTS idx_bjsd_usps            ON bronze.bronze_jurisdictions_school_districts(usps)",
+            "CREATE INDEX IF NOT EXISTS idx_bjsd_coords          ON bronze.bronze_jurisdictions_school_districts(intptlat, intptlong)",
+            "CREATE INDEX IF NOT EXISTS idx_bjsd_jurisdiction_id ON bronze.bronze_jurisdictions_school_districts(jurisdiction_id)",
+        ],
+        "columns": ["geoid", "usps", "name", "lograde", "higrade", "aland", "awater", "aland_sqmi", "awater_sqmi", "intptlat", "intptlong"],
         "insert": """
             INSERT INTO bronze.bronze_jurisdictions_school_districts
                 (geoid, usps, name, lograde, higrade, aland, awater, aland_sqmi, awater_sqmi, intptlat, intptlong)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (:geoid, :usps, :name, :lograde, :higrade, :aland, :awater, :aland_sqmi, :awater_sqmi, :intptlat, :intptlong)
             ON CONFLICT (geoid) DO UPDATE SET
                 usps           = EXCLUDED.usps,
                 name           = EXCLUDED.name,
@@ -227,8 +246,9 @@ TYPES = {
         "table": "bronze.bronze_jurisdictions_townships",
         "cache_file": "townships.csv",
         "geoid_len": 10,
-        "ddl": """
-            CREATE SCHEMA IF NOT EXISTS bronze;
+        "ddl": [
+            "CREATE SCHEMA IF NOT EXISTS bronze",
+            """
             CREATE TABLE IF NOT EXISTS bronze.bronze_jurisdictions_townships (
                 geoid          VARCHAR(10)   PRIMARY KEY,
                 usps           VARCHAR(2),
@@ -242,15 +262,17 @@ TYPES = {
                 intptlat       NUMERIC(11, 8),
                 intptlong      NUMERIC(12, 8),
                 ingestion_date TIMESTAMP DEFAULT NOW()
-            );
-            CREATE INDEX IF NOT EXISTS idx_bjt_usps     ON bronze.bronze_jurisdictions_townships(usps);
-            CREATE INDEX IF NOT EXISTS idx_bjt_funcstat ON bronze.bronze_jurisdictions_townships(funcstat);
-            CREATE INDEX IF NOT EXISTS idx_bjt_coords   ON bronze.bronze_jurisdictions_townships(intptlat, intptlong);
-        """,
+            )
+            """,
+            "CREATE INDEX IF NOT EXISTS idx_bjt_usps     ON bronze.bronze_jurisdictions_townships(usps)",
+            "CREATE INDEX IF NOT EXISTS idx_bjt_funcstat ON bronze.bronze_jurisdictions_townships(funcstat)",
+            "CREATE INDEX IF NOT EXISTS idx_bjt_coords   ON bronze.bronze_jurisdictions_townships(intptlat, intptlong)",
+        ],
+        "columns": ["geoid", "usps", "ansicode", "name", "funcstat", "aland", "awater", "aland_sqmi", "awater_sqmi", "intptlat", "intptlong"],
         "insert": """
             INSERT INTO bronze.bronze_jurisdictions_townships
                 (geoid, usps, ansicode, name, funcstat, aland, awater, aland_sqmi, awater_sqmi, intptlat, intptlong)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (:geoid, :usps, :ansicode, :name, :funcstat, :aland, :awater, :aland_sqmi, :awater_sqmi, :intptlat, :intptlong)
             ON CONFLICT (geoid) DO UPDATE SET
                 usps           = EXCLUDED.usps,
                 ansicode       = EXCLUDED.ansicode,
@@ -269,8 +291,9 @@ TYPES = {
         "table": "bronze.bronze_jurisdictions_zcta",
         "cache_file": "zcta.csv",
         "geoid_len": 5,
-        "ddl": """
-            CREATE SCHEMA IF NOT EXISTS bronze;
+        "ddl": [
+            "CREATE SCHEMA IF NOT EXISTS bronze",
+            """
             CREATE TABLE IF NOT EXISTS bronze.bronze_jurisdictions_zcta (
                 geoid          VARCHAR(5)    PRIMARY KEY,
                 aland          BIGINT,
@@ -280,13 +303,15 @@ TYPES = {
                 intptlat       NUMERIC(11, 8),
                 intptlong      NUMERIC(12, 8),
                 ingestion_date TIMESTAMP DEFAULT NOW()
-            );
-            CREATE INDEX IF NOT EXISTS idx_bjz_coords ON bronze.bronze_jurisdictions_zcta(intptlat, intptlong);
-        """,
+            )
+            """,
+            "CREATE INDEX IF NOT EXISTS idx_bjz_coords ON bronze.bronze_jurisdictions_zcta(intptlat, intptlong)",
+        ],
+        "columns": ["geoid", "aland", "awater", "aland_sqmi", "awater_sqmi", "intptlat", "intptlong"],
         "insert": """
             INSERT INTO bronze.bronze_jurisdictions_zcta
                 (geoid, aland, awater, aland_sqmi, awater_sqmi, intptlat, intptlong)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            VALUES (:geoid, :aland, :awater, :aland_sqmi, :awater_sqmi, :intptlat, :intptlong)
             ON CONFLICT (geoid) DO UPDATE SET
                 aland          = EXCLUDED.aland,
                 awater         = EXCLUDED.awater,
@@ -298,14 +323,6 @@ TYPES = {
         """,
     },
 }
-
-
-def _apply_ddl_statements(cursor, ddl: str) -> None:
-    """psycopg2 cannot execute multi-statement strings; split on ';'."""
-    for chunk in ddl.split(";"):
-        stmt = chunk.strip()
-        if stmt:
-            cursor.execute(stmt + ";")
 
 
 def _filter_gazetteer_df(df: pd.DataFrame, jtype: str, filter_usps: set[str], include_zcta: bool):
@@ -331,12 +348,6 @@ def _filter_gazetteer_df(df: pd.DataFrame, jtype: str, filter_usps: set[str], in
     return df.loc[normalized.isin(filter_usps)].copy()
 
 
-def get_connection(database_url: str | None = None):
-    """Connect to Postgres (defaults to Neon / OPEN_NAVIGATOR_DATABASE_URL resolution)."""
-    url = database_url or resolve_target_database_url()
-    return psycopg2.connect(url)
-
-
 def safe_int(val):
     try:
         return int(float(val)) if pd.notna(val) else None
@@ -360,9 +371,10 @@ def safe_str(val, maxlen=None):
     return s[:maxlen] if maxlen else s
 
 
-def build_records(df: pd.DataFrame, jtype: str) -> list:
+def build_records(df: pd.DataFrame, jtype: str) -> list[dict]:
+    """Map a Gazetteer DataFrame to per-column dicts keyed by the target columns."""
     geoid_len = TYPES[jtype]["geoid_len"]
-    records = []
+    records: list[dict] = []
 
     for _, row in df.iterrows():
         raw_geoid = safe_str(row.get("GEOID"))
@@ -370,120 +382,185 @@ def build_records(df: pd.DataFrame, jtype: str) -> list:
             continue
         geoid = raw_geoid.zfill(geoid_len)
 
-        common = (
-            safe_int(row.get("ALAND")),
-            safe_int(row.get("AWATER")),
-            safe_float(row.get("ALAND_SQMI")),
-            safe_float(row.get("AWATER_SQMI")),
-            safe_float(row.get("INTPTLAT")),
-            safe_float(row.get("INTPTLONG")),
-        )
+        common = {
+            "aland": safe_int(row.get("ALAND")),
+            "awater": safe_int(row.get("AWATER")),
+            "aland_sqmi": safe_float(row.get("ALAND_SQMI")),
+            "awater_sqmi": safe_float(row.get("AWATER_SQMI")),
+            "intptlat": safe_float(row.get("INTPTLAT")),
+            "intptlong": safe_float(row.get("INTPTLONG")),
+        }
 
         if jtype == "states":
-            records.append((
-                geoid,
-                safe_str(row.get("USPS"), 2),
-                safe_str(row.get("ANSICODE"), 8),
-                safe_str(row.get("NAME"), 255),
-                *common,
-            ))
+            records.append({
+                "geoid": geoid,
+                "usps": safe_str(row.get("USPS"), 2),
+                "ansicode": safe_str(row.get("ANSICODE"), 8),
+                "name": safe_str(row.get("NAME"), 255),
+                **common,
+            })
         elif jtype == "counties":
-            records.append((
-                geoid,
-                safe_str(row.get("USPS"), 2),
-                safe_str(row.get("ANSICODE"), 8),
-                safe_str(row.get("NAME"), 255),
-                *common,
-            ))
+            records.append({
+                "geoid": geoid,
+                "usps": safe_str(row.get("USPS"), 2),
+                "ansicode": safe_str(row.get("ANSICODE"), 8),
+                "name": safe_str(row.get("NAME"), 255),
+                **common,
+            })
         elif jtype == "municipalities":
-            records.append((
-                geoid,
-                safe_str(row.get("USPS"), 2),
-                safe_str(row.get("ANSICODE"), 8),
-                safe_str(row.get("NAME"), 255),
-                safe_str(row.get("LSAD"), 5),
-                safe_str(row.get("FUNCSTAT"), 1),
-                *common,
-            ))
+            records.append({
+                "geoid": geoid,
+                "usps": safe_str(row.get("USPS"), 2),
+                "ansicode": safe_str(row.get("ANSICODE"), 8),
+                "name": safe_str(row.get("NAME"), 255),
+                "lsad": safe_str(row.get("LSAD"), 5),
+                "funcstat": safe_str(row.get("FUNCSTAT"), 1),
+                **common,
+            })
         elif jtype == "school_districts":
-            records.append((
-                geoid,
-                safe_str(row.get("USPS"), 2),
-                safe_str(row.get("NAME"), 255),
-                safe_str(row.get("LOGRADE"), 5),
-                safe_str(row.get("HIGRADE"), 5),
-                *common,
-            ))
+            records.append({
+                "geoid": geoid,
+                "usps": safe_str(row.get("USPS"), 2),
+                "name": safe_str(row.get("NAME"), 255),
+                "lograde": safe_str(row.get("LOGRADE"), 5),
+                "higrade": safe_str(row.get("HIGRADE"), 5),
+                **common,
+            })
         elif jtype == "townships":
-            records.append((
-                geoid,
-                safe_str(row.get("USPS"), 2),
-                safe_str(row.get("ANSICODE"), 8),
-                safe_str(row.get("NAME"), 255),
-                safe_str(row.get("FUNCSTAT"), 1),
-                *common,
-            ))
+            records.append({
+                "geoid": geoid,
+                "usps": safe_str(row.get("USPS"), 2),
+                "ansicode": safe_str(row.get("ANSICODE"), 8),
+                "name": safe_str(row.get("NAME"), 255),
+                "funcstat": safe_str(row.get("FUNCSTAT"), 1),
+                **common,
+            })
         elif jtype == "zcta":
-            records.append((geoid, *common))
+            records.append({"geoid": geoid, **common})
 
     return records
 
 
-def load_type(
-    jtype: str,
-    limit: int = None,
-    filter_usps: set[str] | None = None,
-    include_zcta: bool = False,
-    database_url: str | None = None,
-) -> int:
-    cfg = TYPES[jtype]
-    cache_file = CACHE_DIR / cfg["cache_file"]
+class GazetteerRow(RawRow):
+    """One Census Gazetteer jurisdiction row, validated before upsert.
 
-    if not cache_file.exists():
-        logger.error(f"Cache file not found: {cache_file}. Run download_census_gazetteer.py first.")
-        return 0
+    Columns span every jurisdiction type; only the columns relevant to a
+    given type are populated (the rest stay None). Field constraints mirror
+    the bronze DDL column types (VARCHAR(n) -> max_length, NUMERIC -> Decimal).
+    """
 
-    logger.info(f"Reading {jtype} from {cache_file}...")
-    df = pd.read_csv(cache_file, dtype=str, low_memory=False)
-    df.columns = [c.strip() for c in df.columns]
-    if filter_usps:
-        df = _filter_gazetteer_df(df, jtype, filter_usps, include_zcta)
-        logger.info(f"After USPS filter {sorted(filter_usps)}: {len(df):,} {jtype} row(s)")
-    if limit:
-        df = df.head(limit)
-
-    records = build_records(df, jtype)
-    logger.info(f"Prepared {len(records):,} {jtype} records")
-
-    conn = get_connection(database_url=database_url)
-    cur = conn.cursor()
-    _apply_ddl_statements(cur, cfg["ddl"])
-    conn.commit()
-
-    execute_batch(cur, cfg["insert"], records, page_size=5000)
-    conn.commit()
-
-    cur.execute(f"SELECT COUNT(*) FROM {cfg['table']}")
-    total = cur.fetchone()[0]
-    logger.success(f"Loaded {len(records):,} {jtype} → {cfg['table']} (total in table: {total:,})")
-
-    cur.close()
-    conn.close()
-    return len(records)
+    jtype: str = Field(min_length=1)
+    geoid: str = Field(min_length=1, max_length=10)
+    usps: str | None = Field(default=None, max_length=2)
+    ansicode: str | None = Field(default=None, max_length=8)
+    name: str | None = Field(default=None, max_length=255)
+    lsad: str | None = Field(default=None, max_length=5)
+    funcstat: str | None = Field(default=None, max_length=1)
+    lograde: str | None = Field(default=None, max_length=5)
+    higrade: str | None = Field(default=None, max_length=5)
+    aland: int | None = None
+    awater: int | None = None
+    aland_sqmi: Decimal | None = None
+    awater_sqmi: Decimal | None = None
+    intptlat: Decimal | None = None
+    intptlong: Decimal | None = None
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Load Census Gazetteer CSVs into bronze tables")
+class CensusGazetteerPipeline(DataSourcePipeline[GazetteerRow]):
+    source = "census_gazetteer"
+    batch_size = 5_000
+    row_schema = GazetteerRow
+
+    def __init__(
+        self,
+        *,
+        path: Path | None = None,
+        limit: int | None = None,
+        types: list[str] | None = None,
+        filter_usps: set[str] | None = None,
+        include_zcta: bool = False,
+    ):
+        self._path = path
+        self._limit = limit
+        self._types = types or list(TYPES.keys())
+        self._filter_usps = filter_usps
+        self._include_zcta = include_zcta
+
+    def _cache_file(self, jtype: str) -> Path:
+        if self._path is not None:
+            return self._path
+        return CACHE_DIR / TYPES[jtype]["cache_file"]
+
+    async def extract(self, ctx: PipelineContext) -> AsyncIterator[dict]:
+        for jtype in self._types:
+            cache_file = self._cache_file(jtype)
+            if not cache_file.exists():
+                logger.error(
+                    f"Cache file not found: {cache_file}. Run download_census_gazetteer.py first."
+                )
+                continue
+
+            logger.info(f"Reading {jtype} from {cache_file}...")
+            df = pd.read_csv(cache_file, dtype=str, low_memory=False)
+            df.columns = [c.strip() for c in df.columns]
+            if self._filter_usps:
+                df = _filter_gazetteer_df(df, jtype, self._filter_usps, self._include_zcta)
+                logger.info(
+                    f"After USPS filter {sorted(self._filter_usps)}: {len(df):,} {jtype} row(s)"
+                )
+            if self._limit:
+                df = df.head(self._limit)
+
+            records = build_records(df, jtype)
+            logger.info(f"Prepared {len(records):,} {jtype} records")
+
+            for rec in records:
+                yield {
+                    "source": self.source,
+                    "source_version": jtype,
+                    "natural_key": f"{jtype}:{rec['geoid']}",
+                    "jtype": jtype,
+                    **rec,
+                }
+
+    async def load_batch(
+        self,
+        session: AsyncSession,
+        rows: list[GazetteerRow],
+        ctx: PipelineContext,
+    ) -> None:
+        # Rows of different types route to different tables; group by jtype.
+        by_type: dict[str, list[GazetteerRow]] = {}
+        for r in rows:
+            by_type.setdefault(r.jtype, []).append(r)
+
+        for jtype, group in by_type.items():
+            cfg = TYPES[jtype]
+            cols = cfg["columns"]
+            params = [{col: getattr(r, col) for col in cols} for r in group]
+            await session.execute(text(cfg["insert"]), params)
+
+
+async def _prepare_target(truncate: bool, types: list[str] | None = None) -> None:
+    target_types = types or list(TYPES.keys())
+    async with async_session() as session:
+        for jtype in target_types:
+            cfg = TYPES[jtype]
+            for stmt in cfg["ddl"]:
+                await session.execute(text(stmt))
+            if truncate:
+                await session.execute(text(f"TRUNCATE TABLE {cfg['table']}"))
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Load Census Gazetteer CSVs into bronze jurisdiction tables"
+    )
     parser.add_argument(
         "--types", nargs="+", choices=list(TYPES.keys()), default=list(TYPES.keys()),
         help="Types to load (default: all)",
     )
     parser.add_argument("--limit", type=int, help="Limit records per type (for testing)")
-    parser.add_argument(
-        "--database-url",
-        default="",
-        help="Override Postgres URL (default: NEON_* / OPEN_NAVIGATOR_DATABASE_URL / localhost)",
-    )
     parser.add_argument(
         "--filter-usps",
         default="",
@@ -494,40 +571,32 @@ def main():
         action="store_true",
         help="When using --filter-usps, still load full ZCTA file (national, not USPS scoped).",
     )
-    args = parser.parse_args()
+    parser.add_argument(
+        "--truncate", action="store_true",
+        help="TRUNCATE tables before loading (recommended for full reloads)",
+    )
+    return parser
 
+
+async def _run(args: argparse.Namespace) -> None:
     filter_usps: set[str] = set()
     if args.filter_usps.strip():
         filter_usps = {x.strip().upper() for x in args.filter_usps.split(",") if x.strip()}
 
-    db_url = args.database_url.strip() or None
-    resolved = resolve_target_database_url()
-    masked = resolved.split("@", 1)
-    preview = masked[1] if len(masked) == 2 else resolved
-    logger.info(f"Target database host/snippet: ...@{preview}")
+    await _prepare_target(args.truncate, types=args.types)
+    pipeline = CensusGazetteerPipeline(
+        limit=args.limit,
+        types=args.types,
+        filter_usps=filter_usps if filter_usps else None,
+        include_zcta=args.include_zcta_national,
+    )
+    await pipeline.run()
 
-    logger.info("=" * 70)
-    logger.info("Census Gazetteer → Bronze Jurisdiction Tables")
-    logger.info("=" * 70)
-    logger.info(f"Types: {', '.join(args.types)}")
-    if filter_usps:
-        logger.info(f"Filter USPS: {', '.join(sorted(filter_usps))}")
-    if args.limit:
-        logger.warning(f"Limit: {args.limit} records per type (test mode)")
 
-    total = 0
-    for jtype in args.types:
-        total += load_type(
-            jtype,
-            limit=args.limit,
-            filter_usps=filter_usps if filter_usps else None,
-            include_zcta=args.include_zcta_national,
-            database_url=db_url,
-        )
-
-    logger.success("=" * 70)
-    logger.success(f"Done. {total:,} total records loaded across {len(args.types)} type(s).")
-    logger.success("=" * 70)
+def main() -> None:
+    setup_logging()
+    args = build_parser().parse_args()
+    asyncio.run(_run(args))
 
 
 if __name__ == "__main__":
