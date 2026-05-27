@@ -1,220 +1,264 @@
 #!/usr/bin/env python3
-"""
-Load Counties into PostgreSQL jurisdiction table
+"""Jurisdictions counties pipeline: load gold parquet into the jurisdiction table.
 
-This script loads county data from data/gold/jurisdictions_counties.parquet
-and adds them to the jurisdiction table alongside cities.
+Ported from load_counties_to_postgres.py to the core_lib
+DataSourcePipeline contract.
+
+Data source: data/gold/jurisdictions_counties.parquet (Census county shapes,
+columns NAME / USPS / GEOID / download_date). Counties are upserted into the
+shared `jurisdiction` table alongside cities.
 
 Usage:
-    python scripts/datasources/jurisdictions/load_counties_to_postgres.py
-    python scripts/datasources/jurisdictions/load_counties_to_postgres.py --states AL,GA,IN
+    python -m ingestion.jurisdictions.counties
+    python -m ingestion.jurisdictions.counties --states AL,GA,IN
+    python -m ingestion.jurisdictions.counties \\
+        --file data/gold/jurisdictions_counties.parquet --limit 100
+
+Configuration:
+    NEON_DATABASE_URL_DEV / NEON_DATABASE_URL / DATABASE_URL via core_lib.db
+    (replaces hardcoded postgresql://postgres:password@localhost:5433).
 """
-import os
-import sys
+from __future__ import annotations
+
 import argparse
+import asyncio
+import re
 from pathlib import Path
-from datetime import datetime
+from typing import AsyncIterator, Optional
+
 import pandas as pd
-import psycopg2
-from psycopg2.extras import execute_batch
-from loguru import logger
-from dotenv import load_dotenv
+from pydantic import Field
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
-# Load environment variables
-load_dotenv()
-
-# Database connection
-DATABASE_URL = os.getenv('NEON_DATABASE_URL_DEV', 'postgresql://postgres:password@localhost:5433/open_navigator')
-
-# Source parquet file
-COUNTIES_FILE = Path('data/gold/jurisdictions_counties.parquet')
+from core_lib.db import async_session
+from core_lib.logging import setup_logging
+from core_lib.pipeline import DataSourcePipeline, PipelineContext, RawRow
 
 
-def load_counties(conn, counties_file: Path, states_filter: list = None, batch_size: int = 1000):
-    """Load counties from jurisdictions_counties.parquet."""
-    
-    logger.info(f"Loading counties from {counties_file.name}...")
-    
-    # Read parquet file
-    df = pd.read_parquet(counties_file)
-    logger.info(f"  Total counties in file: {len(df):,}")
-    
-    # Filter to specific states if provided
-    if states_filter:
-        df = df[df['USPS'].isin(states_filter)]
-        logger.info(f"  Filtered to {len(df):,} counties in states: {', '.join(states_filter)}")
-    
-    # Prepare records for insertion
-    records = []
-    for _, row in df.iterrows():
-        jurisdiction_name = row['NAME'].replace(' County', '').strip()
-        from scripts.jurisdictions.jurisdiction_id import jurisdiction_id_from_name_geoid
+# Source parquet file (gold layer).
+COUNTIES_FILE = Path("data/gold/jurisdictions_counties.parquet")
 
-        jurisdiction_id = jurisdiction_id_from_name_geoid(
-            row['NAME'], str(row['GEOID']), jurisdiction_type="county"
-        )
-        
-        record = {
-            'jurisdiction_id': jurisdiction_id,
-            'jurisdiction_name': jurisdiction_name,
-            'state_code': row['USPS'],
-            'state': row['USPS'],
-            'jurisdiction_type': 'county',
-            'population': 0,  # Counties file doesn't have population
-            'discovery_timestamp': pd.to_datetime(row['download_date']) if pd.notna(row.get('download_date')) else pd.Timestamp.now(),
-            'website_url': None,  # Will be discovered later
-            'youtube_channel_count': 0,
-            'youtube_channels': '[]',
-            'meeting_platform_count': 0,
-            'meeting_platforms': '[]',
-            'social_media': '{}',
-            'agenda_portal_count': 0,
-            'status': 'pending_discovery'
-        }
-        records.append(record)
-    
-    logger.info(f"  Prepared {len(records):,} county records")
-    
-    # Insert into database
-    insert_query = """
-        INSERT INTO jurisdiction (
-            jurisdiction_id, name, state_code, state, type,
-            population, discovery_timestamp, website_url,
-            youtube_channel_count, youtube_channels,
-            meeting_platform_count, meeting_platforms,
-            social_media, agenda_portal_count, discovery_status,
-            source
-        ) VALUES (
-            %(jurisdiction_id)s, %(jurisdiction_name)s, %(state_code)s, %(state)s, %(jurisdiction_type)s,
-            %(population)s, %(discovery_timestamp)s, %(website_url)s,
-            %(youtube_channel_count)s, %(youtube_channels)s::jsonb,
-            %(meeting_platform_count)s, %(meeting_platforms)s::jsonb,
-            %(social_media)s::jsonb, %(agenda_portal_count)s, %(status)s,
-            'discovery'
-        )
-        ON CONFLICT (jurisdiction_id) 
-        DO UPDATE SET
-            name = EXCLUDED.name,
-            state = EXCLUDED.state,
-            type = EXCLUDED.type,
-            last_updated = CURRENT_TIMESTAMP
+# Default development states when --states is not provided (preserved from loader).
+DEFAULT_STATES = ["AL", "GA", "IN", "MA", "WA", "WI"]
+
+
+# --- pure helpers (canonical jurisdiction_id slug logic, preserved from
+# scripts/jurisdictions/jurisdiction_id.py so the loader is self-contained) ---
+
+_UNICODE_SPACE_RE = re.compile(r"[\u00a0\u2000-\u200a\u202f\u205f\u3000]+")
+_PLACE_OF_PREFIX_RE = re.compile(
+    r"^(?:city|town|village|borough|township|county)\s+of\s+",
+    re.I,
+)
+_PLACE_LSAD_SUFFIX_RE = re.compile(
+    r"\s+(?:city|town|village|county|borough|cdp|municipality|township|parish|ccd)\s*$",
+    re.I,
+)
+_NON_SLUG_RE = re.compile(r"[^a-z0-9]+")
+_SLUG_MAX_LEN = 56
+
+
+def normalize_place_label_for_slug(name: str) -> str:
+    """Census-style place name with LSAD / ``City of`` prefixes removed."""
+    n = _UNICODE_SPACE_RE.sub(" ", (name or "").strip())
+    n = _PLACE_OF_PREFIX_RE.sub("", n)
+    n = _PLACE_LSAD_SUFFIX_RE.sub("", n).strip()
+    return re.sub(r"\s+", " ", n).strip()
+
+
+def place_slug_for_jurisdiction_id(name: str, *, max_length: int = _SLUG_MAX_LEN) -> str:
+    """Lowercase snake_case slug used as the prefix in ``{slug}_{geoid}`` ids."""
+    label = normalize_place_label_for_slug(name)
+    slug = _NON_SLUG_RE.sub("_", label.lower()).strip("_")
+    return slug[:max_length].strip("_")
+
+
+def jurisdiction_id_from_name_geoid(
+    name: str,
+    geoid: str,
+    *,
+    jurisdiction_type: Optional[str] = None,
+) -> str:
+    """Build canonical ``{slug}_{geoid}`` jurisdiction_id."""
+    g = str(geoid or "").strip().replace("-", "")
+    if not g or not g.isdigit():
+        return ""
+    jt = (jurisdiction_type or "").lower()
+    if jt == "state" and len(g) == 2:
+        return ""
+    slug = place_slug_for_jurisdiction_id(name or g)
+    return f"{slug}_{g}"
+
+
+class CountyRow(RawRow):
+    """One county jurisdiction row, validated before upsert."""
+
+    model_config = RawRow.model_config | {"arbitrary_types_allowed": True}
+
+    jurisdiction_id: str = Field(min_length=1)
+    jurisdiction_name: str = Field(min_length=1)
+    state_code: str | None = Field(default=None, max_length=2)
+    state: str | None = Field(default=None, max_length=2)
+    jurisdiction_type: str = Field(default="county")
+    population: int = 0
+    discovery_timestamp: pd.Timestamp
+    website_url: str | None = None
+    youtube_channel_count: int = 0
+    youtube_channels: str = "[]"
+    meeting_platform_count: int = 0
+    meeting_platforms: str = "[]"
+    social_media: str = "{}"
+    agenda_portal_count: int = 0
+    status: str = "pending_discovery"
+
+
+_INSERT_SQL = text(
     """
-    
-    cursor = conn.cursor()
-    inserted = 0
-    
-    try:
-        for i in range(0, len(records), batch_size):
-            batch = records[i:i + batch_size]
-            execute_batch(cursor, insert_query, batch, page_size=batch_size)
-            inserted += len(batch)
-            conn.commit()
-            
-            if i % 100 == 0 and i > 0:
-                logger.info(f"  Inserted {i:,} / {len(records):,} counties...")
-        
-        logger.success(f"  ✓ Inserted/updated {inserted:,} counties")
-        return inserted
-        
-    except Exception as e:
-        conn.rollback()
-        logger.error(f"  ✗ Error inserting counties: {e}")
-        raise
-    finally:
-        cursor.close()
-
-
-def main():
-    """Main loading function."""
-    parser = argparse.ArgumentParser(description='Load counties into jurisdiction')
-    parser.add_argument(
-        '--states',
-        type=str,
-        help='Comma-separated list of state codes (e.g., AL,GA,IN,MA,MT,WA,WI)'
+    INSERT INTO jurisdiction (
+        jurisdiction_id, name, state_code, state, type,
+        population, discovery_timestamp, website_url,
+        youtube_channel_count, youtube_channels,
+        meeting_platform_count, meeting_platforms,
+        social_media, agenda_portal_count, discovery_status,
+        source
+    ) VALUES (
+        :jurisdiction_id, :jurisdiction_name, :state_code, :state, :jurisdiction_type,
+        :population, :discovery_timestamp, :website_url,
+        :youtube_channel_count, CAST(:youtube_channels AS jsonb),
+        :meeting_platform_count, CAST(:meeting_platforms AS jsonb),
+        CAST(:social_media AS jsonb), :agenda_portal_count, :status,
+        'discovery'
     )
-    args = parser.parse_args()
-    
-    logger.info("=" * 80)
-    logger.info("COUNTIES → JURISDICTIONS_DETAILS_SEARCH LOADER")
-    logger.info("=" * 80)
-    logger.info(f"Source: {COUNTIES_FILE}")
-    logger.info(f"Database: {DATABASE_URL.split('@')[1] if '@' in DATABASE_URL else 'localhost'}")
-    logger.info("")
-    
-    # Parse states filter
-    states_filter = None
+    ON CONFLICT (jurisdiction_id)
+    DO UPDATE SET
+        name = EXCLUDED.name,
+        state = EXCLUDED.state,
+        type = EXCLUDED.type,
+        last_updated = CURRENT_TIMESTAMP
+    """
+)
+
+
+class JurisdictionsCountiesPipeline(DataSourcePipeline[CountyRow]):
+    source = "jurisdictions_counties"
+    batch_size = 1_000
+    row_schema = CountyRow
+
+    def __init__(
+        self,
+        *,
+        path: Path | None = None,
+        states: list[str] | None = None,
+        limit: int | None = None,
+    ):
+        self._path = path
+        self._states = states
+        self._limit = limit
+
+    async def extract(self, ctx: PipelineContext) -> AsyncIterator[dict]:
+        path = self._path or COUNTIES_FILE
+        df = pd.read_parquet(path)
+
+        if self._states:
+            df = df[df["USPS"].isin(self._states)]
+
+        emitted = 0
+        for _, row in df.iterrows():
+            if self._limit is not None and emitted >= self._limit:
+                return
+            jurisdiction_name = row["NAME"].replace(" County", "").strip()
+            jurisdiction_id = jurisdiction_id_from_name_geoid(
+                row["NAME"], str(row["GEOID"]), jurisdiction_type="county"
+            )
+            discovery_timestamp = (
+                pd.to_datetime(row["download_date"])
+                if pd.notna(row.get("download_date"))
+                else pd.Timestamp.now()
+            )
+            yield {
+                "source": self.source,
+                "source_version": path.stem,
+                "natural_key": jurisdiction_id,
+                "jurisdiction_id": jurisdiction_id,
+                "jurisdiction_name": jurisdiction_name,
+                "state_code": row["USPS"],
+                "state": row["USPS"],
+                "jurisdiction_type": "county",
+                "population": 0,
+                "discovery_timestamp": discovery_timestamp,
+                "website_url": None,
+                "youtube_channel_count": 0,
+                "youtube_channels": "[]",
+                "meeting_platform_count": 0,
+                "meeting_platforms": "[]",
+                "social_media": "{}",
+                "agenda_portal_count": 0,
+                "status": "pending_discovery",
+            }
+            emitted += 1
+
+    async def load_batch(
+        self,
+        session: AsyncSession,
+        rows: list[CountyRow],
+        ctx: PipelineContext,
+    ) -> None:
+        params = [
+            {
+                "jurisdiction_id": r.jurisdiction_id,
+                "jurisdiction_name": r.jurisdiction_name,
+                "state_code": r.state_code,
+                "state": r.state,
+                "jurisdiction_type": r.jurisdiction_type,
+                "population": r.population,
+                "discovery_timestamp": r.discovery_timestamp.to_pydatetime(),
+                "website_url": r.website_url,
+                "youtube_channel_count": r.youtube_channel_count,
+                "youtube_channels": r.youtube_channels,
+                "meeting_platform_count": r.meeting_platform_count,
+                "meeting_platforms": r.meeting_platforms,
+                "social_media": r.social_media,
+                "agenda_portal_count": r.agenda_portal_count,
+                "status": r.status,
+            }
+            for r in rows
+        ]
+        await session.execute(_INSERT_SQL, params)
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Load counties into jurisdiction")
+    parser.add_argument(
+        "--file",
+        type=Path,
+        help="Path to parquet (default: data/gold/jurisdictions_counties.parquet)",
+    )
+    parser.add_argument(
+        "--states",
+        type=str,
+        help="Comma-separated list of state codes (e.g., AL,GA,IN,MA,MT,WA,WI)",
+    )
+    parser.add_argument("--limit", type=int, help="Limit records (for testing)")
+    return parser
+
+
+async def _run(args: argparse.Namespace) -> None:
     if args.states:
-        states_filter = [s.strip().upper() for s in args.states.split(',')]
-        logger.info(f"Filtering to states: {', '.join(states_filter)}")
+        states = [s.strip().upper() for s in args.states.split(",")]
     else:
-        # Default to development states
-        states_filter = ['AL', 'GA', 'IN', 'MA', 'WA', 'WI']
-        logger.info(f"Using development states: {', '.join(states_filter)}")
-    
-    # Check if file exists
-    if not COUNTIES_FILE.exists():
-        logger.error(f"Counties file not found: {COUNTIES_FILE}")
-        return 1
-    
-    # Connect to database
-    logger.info("Connecting to database...")
-    try:
-        conn = psycopg2.connect(DATABASE_URL)
-        logger.success("✓ Connected")
-    except Exception as e:
-        logger.error(f"✗ Database connection failed: {e}")
-        return 1
-    
-    start_time = datetime.now()
-    
-    try:
-        # Load counties
-        inserted = load_counties(conn, COUNTIES_FILE, states_filter=states_filter)
-        
-        # Get final stats
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT 
-                COUNT(*) as total,
-                COUNT(*) FILTER (WHERE jurisdiction_type = 'city') as cities,
-                COUNT(*) FILTER (WHERE jurisdiction_type = 'county') as counties,
-                COUNT(DISTINCT state) as states
-            FROM jurisdiction
-        """)
-        stats = cursor.fetchone()
-        cursor.close()
-        
-        duration = (datetime.now() - start_time).total_seconds()
-        
-        logger.info("")
-        logger.success("=" * 80)
-        logger.success("✓ COUNTIES LOADED")
-        logger.success("=" * 80)
-        logger.info(f"Counties loaded: {inserted:,}")
-        logger.info("")
-        logger.info("Database totals:")
-        logger.info(f"  Total jurisdictions: {stats[0]:,}")
-        logger.info(f"  - Cities: {stats[1]:,}")
-        logger.info(f"  - Counties: {stats[2]:,}")
-        logger.info(f"  States: {stats[3]}")
-        logger.info(f"Duration: {duration:.1f} seconds")
-        logger.info("")
-        
-        logger.info("Next steps:")
-        logger.info("1. Re-run LocalView enrichment to match counties:")
-        logger.info("   python scripts/datasources/localview/enrich_from_localview.py")
-        logger.info("2. Query counties: SELECT * FROM jurisdiction WHERE jurisdiction_type='county' AND state='AL'")
-        
-        return 0
-        
-    except Exception as e:
-        logger.error(f"✗ Loading failed: {e}")
-        import traceback
-        traceback.print_exc()
-        return 1
-    finally:
-        conn.close()
+        states = list(DEFAULT_STATES)
+    pipeline = JurisdictionsCountiesPipeline(
+        path=args.file, states=states, limit=args.limit
+    )
+    await pipeline.run()
 
 
-if __name__ == '__main__':
-    sys.exit(main())
+def main() -> None:
+    setup_logging()
+    args = build_parser().parse_args()
+    asyncio.run(_run(args))
+
+
+if __name__ == "__main__":
+    main()
