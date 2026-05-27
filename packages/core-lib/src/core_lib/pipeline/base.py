@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import uuid
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import AsyncIterator, Generic, TypeVar
 
 from loguru import logger
@@ -56,7 +56,7 @@ class DataSourcePipeline(ABC, Generic[R]):
     async def run(self, **params) -> PipelineRun:
         ctx = PipelineContext(
             run_id=uuid.uuid4().hex,
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(timezone.utc),
             params=params,
         )
         run = PipelineRun(run_id=ctx.run_id, source=self.source, started_at=ctx.started_at)
@@ -83,7 +83,7 @@ class DataSourcePipeline(ABC, Generic[R]):
             bound.exception("pipeline_failed")
             raise
         finally:
-            run.finished_at = datetime.utcnow()
+            run.finished_at = datetime.now(timezone.utc)
             bound.bind(
                 extracted=run.extracted,
                 validated=run.validated,
