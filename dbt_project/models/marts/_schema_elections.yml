@@ -1,0 +1,301 @@
+version: 2
+
+models:
+  # ---------------------------------------------------------------------------
+  # c1_division
+  # ---------------------------------------------------------------------------
+  - name: dim_election_divisions
+    description: |
+      Election divisions (c1_division surface). Reproduces upsert_divisions()
+      from scripts/datasources/openstates/sync_elections_to_c1.py: one row per
+      division_id (= ocd_jurisdiction_id or jurisdiction_id, truncated to 300),
+      classification 'jurisdiction'.
+    config:
+      contract:
+        enforced: true
+      materialized: table
+    columns:
+      - name: id
+        description: "Division id (= truncated ocd_jurisdiction_id / jurisdiction_id). PK."
+        data_type: varchar(300)
+        constraints:
+          - type: not_null
+        tests:
+          - unique
+          - not_null
+      - name: name
+        data_type: varchar(500)
+      - name: classification
+        description: "Always 'jurisdiction'."
+        data_type: text
+        tests:
+          - accepted_values:
+              values: ['jurisdiction']
+      - name: parent_id
+        description: "Always NULL (no division hierarchy in this promotion)."
+        data_type: text
+      - name: jurisdiction_id
+        data_type: varchar(300)
+      - name: state_code
+        data_type: varchar(2)
+      - name: extras
+        description: "{\"source\": source_name}."
+        data_type: json
+      - name: dbt_loaded_at
+        data_type: timestamp with time zone
+        constraints:
+          - type: not_null
+
+  # ---------------------------------------------------------------------------
+  # c1_election
+  # ---------------------------------------------------------------------------
+  - name: fct_elections
+    description: |
+      Elections (c1_election surface). Reproduces upsert_elections() +
+      _election_rows_for_upsert(): one row per resolved election_id, preferring
+      an actual record_type='election' row when the group has one.
+      DEFERRED: c1_electionsource child rows (_source_rows) are NOT built here —
+      they belong in a separate fct_election_sources long-format mart (raw_row
+      'sources' array is preserved in the `sources` column for that follow-up).
+    config:
+      contract:
+        enforced: true
+      materialized: table
+    columns:
+      - name: id
+        description: "Resolved c1 election id. PK."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - unique
+          - not_null
+      - name: legacy_id
+        description: "bronze_record_id of the representative bronze row."
+        data_type: bigint
+      - name: name
+        data_type: text
+      - name: election_date
+        data_type: date
+      - name: election_type
+        data_type: text
+      - name: election_status
+        data_type: text
+      - name: jurisdiction_id
+        data_type: varchar(300)
+      - name: division_id
+        description: "FK to dim_election_divisions.id (when present)."
+        data_type: varchar(300)
+      - name: state_code
+        data_type: varchar(2)
+      - name: dedupe_key
+        data_type: varchar(500)
+      - name: source
+        data_type: varchar(100)
+      - name: source_url
+        data_type: text
+      - name: links
+        data_type: jsonb
+      - name: sources
+        data_type: jsonb
+      - name: extras
+        data_type: jsonb
+      - name: dbt_loaded_at
+        data_type: timestamp with time zone
+        constraints:
+          - type: not_null
+
+  # ---------------------------------------------------------------------------
+  # c1_candidatecontest
+  # ---------------------------------------------------------------------------
+  - name: dim_candidate_contests
+    description: |
+      Candidate contests (c1_candidatecontest surface). Reproduces
+      upsert_candidate_contests(): one row per contest group_key
+      (= dedupe_key(election_id, candidate_post, candidate_party)).
+      DEVIATION: contest id = 'ocd-cc/' || md5(contest_key) (Python uuid5 has no
+      SQL equivalent); fct_candidacies recomputes the identical id so the FK holds.
+    config:
+      contract:
+        enforced: true
+      materialized: table
+    columns:
+      - name: id
+        description: "Contest id ('ocd-cc/' || md5(dedupe_key)). PK."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - unique
+          - not_null
+      - name: legacy_id
+        data_type: bigint
+      - name: election_id
+        description: "FK to fct_elections.id."
+        data_type: text
+        tests:
+          - relationships:
+              to: ref('fct_elections')
+              field: id
+      - name: name
+        data_type: text
+      - name: office
+        data_type: text
+      - name: status
+        data_type: text
+      - name: jurisdiction_id
+        data_type: varchar(300)
+      - name: state_code
+        data_type: varchar(2)
+      - name: dedupe_key
+        data_type: varchar(500)
+      - name: source
+        data_type: varchar(100)
+      - name: source_url
+        data_type: text
+      - name: extras
+        data_type: jsonb
+      - name: dbt_loaded_at
+        data_type: timestamp with time zone
+        constraints:
+          - type: not_null
+
+  # ---------------------------------------------------------------------------
+  # c1_candidacy
+  # ---------------------------------------------------------------------------
+  - name: fct_candidacies
+    description: |
+      Candidacies (c1_candidacy surface). Reproduces upsert_candidacies(): one
+      row per candidacy after collapsing rows that share a dedupe_key.
+    config:
+      contract:
+        enforced: true
+      materialized: table
+    columns:
+      - name: id
+        description: "Candidacy id (fit_c1_id of ocd_id; bronze-id/dedupe-key fallback). PK."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - unique
+          - not_null
+      - name: legacy_id
+        data_type: bigint
+      - name: election_id
+        description: "FK to fct_elections.id."
+        data_type: text
+        tests:
+          - relationships:
+              to: ref('fct_elections')
+              field: id
+      - name: contest_id
+        description: "FK to dim_candidate_contests.id."
+        data_type: text
+        tests:
+          - relationships:
+              to: ref('dim_candidate_contests')
+              field: id
+      - name: contest_name
+        data_type: text
+      - name: person_name
+        data_type: text
+      - name: person_id
+        data_type: text
+      - name: party
+        data_type: text
+      - name: status
+        data_type: text
+      - name: vote_count
+        data_type: bigint
+      - name: vote_percent
+        data_type: double precision
+      - name: jurisdiction_id
+        data_type: varchar(300)
+      - name: state_code
+        data_type: varchar(2)
+      - name: dedupe_key
+        data_type: varchar(500)
+      - name: source
+        data_type: varchar(100)
+      - name: source_url
+        data_type: text
+      - name: extras
+        data_type: jsonb
+      - name: raw_row
+        data_type: jsonb
+      - name: dbt_loaded_at
+        data_type: timestamp with time zone
+        constraints:
+          - type: not_null
+
+  # ---------------------------------------------------------------------------
+  # c1_ballotmeasure
+  # ---------------------------------------------------------------------------
+  - name: fct_ballot_measures_civic
+    description: |
+      Ballot measures from the election scrape (c1_ballotmeasure surface).
+      Reproduces upsert_ballot_measures(): one row per measure after collapsing
+      rows that share a dedupe_key. Named *_civic to avoid colliding with the
+      existing NIST/VIP ballot_measures mart.
+      DEFERRED: c1_ballotmeasuresource child rows (_source_rows) are NOT built
+      here — a separate fct_ballot_measure_sources mart follow-up (raw_row is
+      preserved for it).
+    config:
+      contract:
+        enforced: true
+      materialized: table
+    columns:
+      - name: id
+        description: "Measure id (fit_c1_id of ocd_id; bronze-id/dedupe-key fallback). PK."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - unique
+          - not_null
+      - name: legacy_id
+        data_type: bigint
+      - name: election_id
+        description: "FK to fct_elections.id."
+        data_type: text
+        tests:
+          - relationships:
+              to: ref('fct_elections')
+              field: id
+      - name: name
+        data_type: text
+      - name: title
+        data_type: text
+      - name: summary
+        data_type: text
+      - name: classification
+        data_type: text
+      - name: status
+        data_type: text
+      - name: result
+        data_type: text
+      - name: yes_votes
+        data_type: bigint
+      - name: no_votes
+        data_type: bigint
+      - name: yes_percentage
+        data_type: double precision
+      - name: jurisdiction_id
+        data_type: varchar(300)
+      - name: state_code
+        data_type: varchar(2)
+      - name: dedupe_key
+        data_type: varchar(500)
+      - name: source
+        data_type: varchar(100)
+      - name: source_url
+        data_type: text
+      - name: extras
+        data_type: jsonb
+      - name: raw_row
+        data_type: jsonb
+      - name: dbt_loaded_at
+        data_type: timestamp with time zone
+        constraints:
+          - type: not_null
