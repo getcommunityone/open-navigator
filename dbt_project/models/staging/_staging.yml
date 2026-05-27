@@ -1001,6 +1001,109 @@ sources:
           - name: last_updated
             description: "Upsert timestamp."
 
+  # NOTE: Master Data Management (MDM) inputs. These three tables are the
+  # PURE-TRANSFORMATION inputs the archived
+  # scripts/datasources/master_data/create_jurisdiction_master.py read directly
+  # (it connected to `public` with no search_path override). They are NOT bronze
+  # raw landings and are NOT existing dbt models — `organization_location`,
+  # `jurisdictions_wikidata`, and `jurisdiction` are all produced by OTHER
+  # pipelines (HIFLD fold, wikidata loader, census serving table) and land in
+  # `public`. We therefore declare them as sources (NOT ref()) here, and the MDM
+  # model chain (int_master__*, dim_jurisdictions_master) reads them via
+  # source('mdm_inputs', ...). FLAG: the existing int_jurisdictions* / the
+  # jurisdictions.sql mart are a DIFFERENT lineage (built from bronze census +
+  # wikidata bronze tables); they do NOT share grain or keys with the
+  # public.jurisdiction serving table this MDM pipeline consolidates.
+  - name: mdm_inputs
+    description: |
+      Master-data-management input tables in the PUBLIC schema. Inputs to the
+      jurisdiction-consolidation chain (domain_registry -> crosswalk ->
+      master_jurisdictions) that was ported from
+      scripts/datasources/master_data/create_jurisdiction_master.py into dbt.
+    database: open_navigator
+    schema: public
+    tables:
+      - name: organization_location
+        description: |
+          HIFLD-style organization/location roster (schools, hospitals, law
+          enforcement, etc.). ~328k rows. Rich website / phone / lat-lon data
+          used as the bridge in most crosswalk strategies.
+        columns:
+          - name: id
+            description: "Source primary key (organization_location.id)."
+          - name: source_id
+            description: "External id from the originating dataset; for school_district rows this is the NCES id."
+          - name: name
+            description: "Organization name."
+          - name: organization_type
+            description: "Classification: school_district / county / city / town / village / township / hospital / etc."
+          - name: city
+            description: "City."
+          - name: state
+            description: "2-letter state code (joins to jurisdiction.state_code / wikidata.state_code)."
+          - name: county
+            description: "County name."
+          - name: telephone
+            description: "Phone (free-form; normalized to digits for matching)."
+          - name: website
+            description: "Website URL (domain extracted for matching)."
+          - name: latitude
+            description: "WGS84 latitude (proximity matching)."
+          - name: longitude
+            description: "WGS84 longitude (proximity matching)."
+      - name: jurisdictions_wikidata
+        description: |
+          Wikidata jurisdiction enrichment (~431 rows). Carries official_website,
+          nces_id, geoid, fips_code, lat/lon.
+        columns:
+          - name: id
+            description: "Source primary key (jurisdictions_wikidata.id)."
+          - name: jurisdiction_name
+            description: "Jurisdiction name."
+          - name: jurisdiction_type
+            description: "state / county / city / town / school_district."
+          - name: state_code
+            description: "2-letter state code."
+          - name: official_website
+            description: "Official website URL (domain extracted for matching)."
+          - name: nces_id
+            description: "NCES school-district id (matches organization_location.source_id)."
+          - name: geoid
+            description: "Census GEOID."
+          - name: fips_code
+            description: "County/state FIPS."
+          - name: latitude
+            description: "WGS84 latitude (proximity matching)."
+          - name: longitude
+            description: "WGS84 longitude (proximity matching)."
+      - name: jurisdiction
+        description: |
+          Census-derived jurisdiction serving table (~85k rows). Has geoid,
+          fips_code, name, type, state_code, full state name, website_url,
+          gov_domains JSONB. NOTE: this is the public serving table, distinct
+          from the bronze-census int_jurisdictions* lineage.
+        columns:
+          - name: id
+            description: "Source primary key (jurisdiction.id)."
+          - name: name
+            description: "Jurisdiction name."
+          - name: type
+            description: "city / county / township / school_district."
+          - name: state_code
+            description: "2-letter state code."
+          - name: state
+            description: "Full state name."
+          - name: county
+            description: "County name."
+          - name: geoid
+            description: "Census GEOID."
+          - name: fips_code
+            description: "County/state FIPS."
+          - name: website_url
+            description: "Website URL (domain extracted for matching)."
+          - name: gov_domains
+            description: "JSONB array/object of associated .gov domains (matched with the ? operator)."
+
 models:
   - name: stg_bronze_contacts
     description: "Staged and cleaned bronze contacts with normalized names"
