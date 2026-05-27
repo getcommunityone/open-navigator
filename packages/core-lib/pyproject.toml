@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "core-lib"
+version = "0.1.0"
+description = "Reusable core library for open-navigator ingestion pipelines and FastAPI services."
+requires-python = ">=3.11"
+dependencies = [
+    "httpx[http2]>=0.25",
+    "tenacity>=8.2",
+    "aiolimiter>=1.1",
+    "sqlalchemy>=2.0",
+    "asyncpg>=0.29",
+    "pydantic>=2.10,<3",
+    "pydantic-settings>=2.6,<3",
+    "loguru>=0.7",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
