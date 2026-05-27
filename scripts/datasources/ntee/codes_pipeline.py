@@ -1,288 +1,281 @@
 #!/usr/bin/env python3
-"""
-Load NTEE codes from parquet file into PostgreSQL
+"""NTEE codes pipeline: load cached parquet into cause_ntee.
 
-This script loads the National Taxonomy of Exempt Entities (NTEE) codes
-used to classify nonprofit organizations by their mission and activities.
+Ported from load_to_postgres.py to the core_lib DataSourcePipeline contract.
 
-Data source: IRS Publication 557 + NCCS (National Center for Charitable Statistics)
-Input: data/gold/causes_ntee_codes.parquet (196 codes)
-Output: cause_ntee table in PostgreSQL (cause_type='ntee')
+The National Taxonomy of Exempt Entities (NTEE) codes classify tax-exempt
+nonprofit organizations by their mission and activities.
+
+Data source: IRS Publication 557 + NCCS (National Center for Charitable
+Statistics), materialized to data/gold/causes_ntee_codes.parquet (196 codes).
 
 Usage:
-    # Load to local database
-    python scripts/datasources/ntee/load_to_postgres.py
-    
-    # Load to Neon (production)
-    python scripts/datasources/ntee/load_to_postgres.py --neon
-    
-    # Load to custom database
-    python scripts/datasources/ntee/load_to_postgres.py --db-url postgresql://user:pass@host:port/dbname
-    
-    # Show what would be loaded without loading
-    python scripts/datasources/ntee/load_to_postgres.py --dry-run
+    python -m scripts.datasources.ntee.codes_pipeline
+    python scripts/datasources/ntee/codes_pipeline.py --truncate
+    python scripts/datasources/ntee/codes_pipeline.py \\
+        --file data/gold/causes_ntee_codes.parquet --limit 50
+
+Configuration:
+    NEON_DATABASE_URL_DEV / NEON_DATABASE_URL / DATABASE_URL via core_lib.db
+    (replaces hardcoded postgresql://postgres:password@localhost:5433 and the
+    legacy --neon / --db-url flags).
 """
+from __future__ import annotations
 
-import os
-import sys
-from pathlib import Path
-from datetime import datetime
 import argparse
+import asyncio
+from pathlib import Path
+from typing import Any, AsyncIterator
 
-# Add project root to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
-
-import psycopg2
-from psycopg2.extras import execute_values
 import pandas as pd
-from loguru import logger
-from dotenv import load_dotenv
+from pydantic import Field
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
-# Load environment variables
-load_dotenv()
-
-# Default database URLs
-POSTGRES_PASSWORD = os.getenv('POSTGRES_PASSWORD', 'password')
-LOCAL_DATABASE_URL = os.getenv('LOCAL_DATABASE_URL', f'postgresql://postgres:{POSTGRES_PASSWORD}@localhost:5433/open_navigator')
-NEON_DATABASE_URL = os.getenv('NEON_DATABASE_URL_DEV', os.getenv('NEON_DATABASE_URL'))
-
-# Paths
-PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
-GOLD_DIR = PROJECT_ROOT / "data" / "gold"
-NTEE_FILE = GOLD_DIR / "causes_ntee_codes.parquet"
+from core_lib.db import async_session
+from core_lib.logging import setup_logging
+from core_lib.pipeline import DataSourcePipeline, PipelineContext, RawRow
 
 
-def create_table(conn):
-    """Create cause_ntee table if it doesn't exist"""
-    
-    logger.info("Creating cause_ntee table if needed...")
-    
-    with conn.cursor() as cursor:
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS cause_ntee (
-                code VARCHAR(100) PRIMARY KEY,
-                name TEXT NOT NULL,
-                description TEXT,
-                cause_type VARCHAR(20) NOT NULL,
-                parent_code VARCHAR(100),
-                category VARCHAR(100),
-                subcategory VARCHAR(100),
-                cause_breadcrumb TEXT,
-                source VARCHAR(50) NOT NULL,
-                last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        
-        # Create indexes
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_cause_ntee_type 
-            ON cause_ntee(cause_type)
-        """)
-        
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_cause_ntee_name_search 
-            ON cause_ntee USING gin(to_tsvector('english', name))
-        """)
-        
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_cause_ntee_description_search 
-            ON cause_ntee USING gin(to_tsvector('english', description))
-        """)
-    
-    conn.commit()
-    logger.success("✅ Table created/verified")
+GOLD_DIR = Path("data/gold")
 
 
-def load_ntee_codes(cursor, dry_run=False):
-    """Load NTEE codes from parquet file"""
-    
-    if not NTEE_FILE.exists():
-        logger.error(f"❌ NTEE codes file not found: {NTEE_FILE}")
-        logger.info("\n💡 To generate NTEE codes data, run:")
-        logger.info("   python scripts/datasources/ntee/generate_ntee_codes.py")
-        return 0
-    
-    logger.info(f"Reading NTEE codes from {NTEE_FILE}...")
-    df = pd.read_parquet(NTEE_FILE)
-    
-    logger.info(f"Found {len(df)} NTEE codes")
-    logger.info(f"Columns: {df.columns.tolist()}")
-    
-    # Show sample data
-    logger.info("\nSample codes:")
-    for idx, row in df.head(5).iterrows():
-        logger.info(f"  {row['ntee_code']:5} - {row['description']}")
-    
-    if dry_run:
-        logger.info(f"\n[DRY RUN] Would load {len(df)} NTEE codes")
-        return len(df)
-    
-    # Build lookup dictionary for breadcrumb creation
-    code_lookup = {row['ntee_code']: row['description'] for _, row in df.iterrows()}
-    
-    def build_breadcrumb(code, parent_code):
-        """Build hierarchical breadcrumb path"""
-        if pd.isna(parent_code) or not parent_code:
-            # Top level - just the name
-            return code_lookup.get(code, code)
-        
-        # Build path: traverse up the parent chain
-        path = []
-        current = parent_code
-        
-        # Traverse up to 5 levels to avoid infinite loops
-        for _ in range(5):
-            if pd.isna(current) or not current:
-                break
-            if current in code_lookup:
-                path.insert(0, code_lookup[current])
-            # Find parent of current
-            parent_row = df[df['ntee_code'] == current]
-            if len(parent_row) > 0 and not pd.isna(parent_row.iloc[0].get('parent_code')):
-                current = parent_row.iloc[0]['parent_code']
-            else:
-                break
-        
-        # Add current code's name
-        path.append(code_lookup.get(code, code))
-        
-        return ' > '.join(path)
-    
-    # Prepare records for insertion
-    records = [
-        (
-            row['ntee_code'],                                                    # code
-            row.get('description', ''),                                         # name
-            row.get('description', ''),                                         # description
-            'ntee',                                                             # cause_type
-            row.get('parent_code'),                                             # parent_code
-            row.get('ntee_type'),                                               # category
-            None,                                                               # subcategory
-            build_breadcrumb(row['ntee_code'], row.get('parent_code')),        # cause_breadcrumb
-            'irs',                                                              # source
-            datetime.now()                                                      # last_updated
-        ) 
-        for _, row in df.iterrows()
-    ]
-    
-    logger.info(f"Loading {len(records)} NTEE codes into database...")
-    
-    execute_values(cursor, """
-        INSERT INTO cause_ntee (code, name, description, cause_type, parent_code, category, subcategory, cause_breadcrumb, source, last_updated)
-        VALUES %s
-        ON CONFLICT (code) DO UPDATE SET 
-            name = EXCLUDED.name,
-            description = EXCLUDED.description,
-            cause_breadcrumb = EXCLUDED.cause_breadcrumb,
-            last_updated = EXCLUDED.last_updated
-    """, records)
-    
-    logger.success(f"✅ Loaded {len(records)} NTEE codes")
-    return len(records)
+def find_latest_parquet() -> Path:
+    files = sorted(GOLD_DIR.glob("causes_ntee_codes*.parquet"), reverse=True)
+    if not files:
+        raise FileNotFoundError(
+            f"No NTEE codes parquet found in {GOLD_DIR}. "
+            "Run scripts/datasources/ntee/generate_ntee_codes.py first."
+        )
+    return files[0]
 
 
-def verify_data(conn):
-    """Verify loaded data"""
-    
-    cursor = conn.cursor()
-    
-    # Count total records
-    cursor.execute("SELECT COUNT(*) FROM cause_ntee WHERE cause_type = 'ntee'")
-    total = cursor.fetchone()[0]
-    
-    # Get sample records
-    cursor.execute("SELECT code, name FROM cause_ntee WHERE cause_type = 'ntee' ORDER BY code LIMIT 5")
-    samples = cursor.fetchall()
-    
-    logger.info("\n" + "=" * 70)
-    logger.info("VERIFICATION")
-    logger.info("=" * 70)
-    logger.info(f"Total NTEE codes in database: {total}")
-    logger.info("\nSample records:")
-    for code, desc in samples:
-        logger.info(f"  {code:5} - {desc}")
-    logger.info("=" * 70)
-    
-    return total
+def _is_missing(val: Any) -> bool:
+    """True for None / NaN / empty-string values (pandas-friendly)."""
+    if val is None:
+        return True
+    if isinstance(val, float) and pd.isna(val):
+        return True
+    return str(val).strip() == ""
 
 
-def main():
+def _safe_str(val: Any, maxlen: int | None = None) -> str | None:
+    if _is_missing(val):
+        return None
+    s = str(val).strip()
+    if not s:
+        return None
+    return s[:maxlen] if maxlen else s
+
+
+def build_breadcrumb(
+    code: str,
+    parent_code: Any,
+    code_lookup: dict[str, str],
+    parent_lookup: dict[str, Any],
+) -> str:
+    """Build hierarchical breadcrumb path by walking up the parent chain.
+
+    Preserved from the original loader; the dataframe lookups are replaced by
+    plain dicts so the helper is pure and unit-testable.
+    """
+    if _is_missing(parent_code):
+        # Top level - just the name
+        return code_lookup.get(code, code)
+
+    # Build path: traverse up the parent chain
+    path: list[str] = []
+    current = parent_code
+
+    # Traverse up to 5 levels to avoid infinite loops
+    for _ in range(5):
+        if _is_missing(current):
+            break
+        if current in code_lookup:
+            path.insert(0, code_lookup[current])
+        # Find parent of current
+        nxt = parent_lookup.get(current)
+        if not _is_missing(nxt):
+            current = nxt
+        else:
+            break
+
+    # Add current code's name
+    path.append(code_lookup.get(code, code))
+
+    return " > ".join(path)
+
+
+class NteeCodesRow(RawRow):
+    """One NTEE classification code, validated before upsert."""
+
+    code: str = Field(min_length=1, max_length=100)
+    name: str = Field(min_length=1)
+    description: str | None = None
+    cause_type: str = Field(min_length=1, max_length=20)
+    parent_code: str | None = Field(default=None, max_length=100)
+    category: str | None = Field(default=None, max_length=100)
+    subcategory: str | None = Field(default=None, max_length=100)
+    cause_breadcrumb: str | None = None
+    code_source: str = Field(min_length=1, max_length=50)
+
+
+_CREATE_TABLE_SQL = text(
+    """
+    CREATE TABLE IF NOT EXISTS cause_ntee (
+        code VARCHAR(100) PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        cause_type VARCHAR(20) NOT NULL,
+        parent_code VARCHAR(100),
+        category VARCHAR(100),
+        subcategory VARCHAR(100),
+        cause_breadcrumb TEXT,
+        source VARCHAR(50) NOT NULL,
+        last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """
+)
+
+_CREATE_INDEXES_SQL = (
+    text("CREATE INDEX IF NOT EXISTS idx_cause_ntee_type ON cause_ntee(cause_type)"),
+    text(
+        "CREATE INDEX IF NOT EXISTS idx_cause_ntee_name_search "
+        "ON cause_ntee USING gin(to_tsvector('english', name))"
+    ),
+    text(
+        "CREATE INDEX IF NOT EXISTS idx_cause_ntee_description_search "
+        "ON cause_ntee USING gin(to_tsvector('english', description))"
+    ),
+)
+
+_TRUNCATE_SQL = text("TRUNCATE TABLE cause_ntee")
+
+_UPSERT_SQL = text(
+    """
+    INSERT INTO cause_ntee
+        (code, name, description, cause_type, parent_code,
+         category, subcategory, cause_breadcrumb, source, last_updated)
+    VALUES
+        (:code, :name, :description, :cause_type, :parent_code,
+         :category, :subcategory, :cause_breadcrumb, :code_source, CURRENT_TIMESTAMP)
+    ON CONFLICT (code) DO UPDATE SET
+        name             = EXCLUDED.name,
+        description      = EXCLUDED.description,
+        cause_breadcrumb = EXCLUDED.cause_breadcrumb,
+        last_updated     = CURRENT_TIMESTAMP
+    """
+)
+
+
+class NteeCodesPipeline(DataSourcePipeline[NteeCodesRow]):
+    source = "ntee_codes"
+    batch_size = 1_000
+    row_schema = NteeCodesRow
+
+    def __init__(self, *, path: Path | None = None, limit: int | None = None):
+        self._path = path
+        self._limit = limit
+
+    async def extract(self, ctx: PipelineContext) -> AsyncIterator[dict]:
+        path = self._path or find_latest_parquet()
+        df = pd.read_parquet(path)
+
+        # Lookups used to build hierarchical breadcrumbs (preserved behavior).
+        code_lookup = {
+            row["ntee_code"]: row.get("description", "")
+            for _, row in df.iterrows()
+        }
+        parent_lookup = {
+            row["ntee_code"]: row.get("parent_code")
+            for _, row in df.iterrows()
+        }
+
+        emitted = 0
+        for _, row in df.iterrows():
+            if self._limit is not None and emitted >= self._limit:
+                return
+            code = _safe_str(row.get("ntee_code"), 100)
+            if not code:
+                continue
+            description = _safe_str(row.get("description"))
+            parent_code = _safe_str(row.get("parent_code"), 100)
+            yield {
+                "source": self.source,
+                "source_version": path.stem,
+                "natural_key": code,
+                "code": code,
+                "name": description or code,
+                "description": description,
+                "cause_type": "ntee",
+                "parent_code": parent_code,
+                "category": _safe_str(row.get("ntee_type"), 100),
+                "subcategory": None,
+                "cause_breadcrumb": build_breadcrumb(
+                    code, row.get("parent_code"), code_lookup, parent_lookup
+                ),
+                "code_source": "irs",
+            }
+            emitted += 1
+
+    async def load_batch(
+        self,
+        session: AsyncSession,
+        rows: list[NteeCodesRow],
+        ctx: PipelineContext,
+    ) -> None:
+        params = [
+            {
+                "code": r.code,
+                "name": r.name,
+                "description": r.description,
+                "cause_type": r.cause_type,
+                "parent_code": r.parent_code,
+                "category": r.category,
+                "subcategory": r.subcategory,
+                "cause_breadcrumb": r.cause_breadcrumb,
+                "code_source": r.code_source,
+            }
+            for r in rows
+        ]
+        await session.execute(_UPSERT_SQL, params)
+
+
+async def _prepare_target(truncate: bool) -> None:
+    async with async_session() as session:
+        await session.execute(_CREATE_TABLE_SQL)
+        for idx in _CREATE_INDEXES_SQL:
+            await session.execute(idx)
+        if truncate:
+            await session.execute(_TRUNCATE_SQL)
+
+
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description='Load NTEE codes into PostgreSQL'
+        description="Load NTEE codes parquet into cause_ntee"
     )
-    
     parser.add_argument(
-        '--neon',
-        action='store_true',
-        help='Load to Neon cloud database instead of local'
+        "--file", type=Path, help="Path to parquet (default: latest in data/gold/)"
     )
-    
+    parser.add_argument("--limit", type=int, help="Limit records (for testing)")
     parser.add_argument(
-        '--db-url',
-        type=str,
-        help='Custom database URL'
+        "--truncate", action="store_true",
+        help="TRUNCATE table before loading (recommended for full reloads)",
     )
-    
-    parser.add_argument(
-        '--dry-run',
-        action='store_true',
-        help='Show what would be loaded without actually loading'
-    )
-    
-    args = parser.parse_args()
-    
-    # Determine database URL
-    if args.db_url:
-        db_url = args.db_url
-    elif args.neon:
-        if not NEON_DATABASE_URL:
-            logger.error("❌ NEON_DATABASE_URL not set in environment")
-            return 1
-        db_url = NEON_DATABASE_URL
-    else:
-        db_url = LOCAL_DATABASE_URL
-    
-    logger.info("=" * 70)
-    logger.info("LOAD NTEE CODES TO POSTGRESQL")
-    logger.info("=" * 70)
-    if not args.dry_run:
-        logger.info(f"Database: {db_url[:60]}...")
-    logger.info(f"NTEE file: {NTEE_FILE}")
-    logger.info("")
-    
-    try:
-        if args.dry_run:
-            # Just read and show data
-            cursor = None
-            load_ntee_codes(cursor, dry_run=True)
-            return 0
-        
-        # Connect to database
-        conn = psycopg2.connect(db_url)
-        logger.success("✅ Connected to database")
-        
-        # Create table
-        create_table(conn)
-        
-        # Load data
-        cursor = conn.cursor()
-        count = load_ntee_codes(cursor)
-        conn.commit()
-        
-        # Verify
-        verify_data(conn)
-        
-        conn.close()
-        logger.success("\n🎉 NTEE codes loaded successfully!")
-        
-        return 0
-        
-    except Exception as e:
-        logger.error(f"\n❌ Load failed: {e}")
-        import traceback
-        logger.error(traceback.format_exc())
-        return 1
+    return parser
 
 
-if __name__ == '__main__':
-    sys.exit(main())
+async def _run(args: argparse.Namespace) -> None:
+    await _prepare_target(args.truncate)
+    pipeline = NteeCodesPipeline(path=args.file, limit=args.limit)
+    await pipeline.run()
+
+
+def main() -> None:
+    setup_logging()
+    args = build_parser().parse_args()
+    asyncio.run(_run(args))
+
+
+if __name__ == "__main__":
+    main()
