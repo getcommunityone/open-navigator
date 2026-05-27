@@ -7,7 +7,7 @@
         to the code itself when unknown (the Python `ELSE jc.state_code`).
 
         Usage:
-            {{ state_code_to_name('state_code') }}
+            {% raw %}{{ state_code_to_name('state_code') }}{% endraw %}
     */
     case upper(trim({{ state_code_column }}))
         when 'AL' then 'Alabama'
