@@ -100,7 +100,7 @@ CENSUS_ACS_STATE_FIPS: tuple[str, ...] = (
 # parent.parent = .../open-navigator (project root)
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from scripts.datasources.census.load_acs import ACSDataIngestion
+from ingestion.census.acs import ACSDataIngestion
 from loguru import logger
 import httpx
 
