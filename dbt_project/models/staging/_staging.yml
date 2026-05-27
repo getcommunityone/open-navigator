@@ -902,49 +902,58 @@ sources:
 
       - name: bronze_ballot_measures_ballotpedia
         description: |
-          Ballot measures scraped from Ballotpedia.org (state and jurisdiction pages).
-          Loaded by scripts/datasources/ballotpedia/load_ballotpedia_measures_to_bronze.py.
-          NIST-aligned columns consumed by bronze_ballot_measures_nist.sql.
+          Ballot measures scraped from Ballotpedia.org (state and jurisdiction
+          pages) — RAW landing (dbt-slimmed). One row per measure_id; the full
+          raw measure JSON object (merged with the file envelope) lands in
+          raw_row. All derived columns — title coalescing, vote/passed/year
+          regex parsing, state-code + OCD resolution, and the election-year
+          filter — are derived downstream (stg_ballotpedia__measure +
+          int_ballotpedia__measure_resolved), NOT in Python.
+          Loaded by ingestion.ballotpedia.measures.
+
+          HUMAN TODO (schema drift): models/bronze/bronze_ballot_measures_nist.sql
+          still reads the OLD flat NIST columns (ocd_division_id, measure_title,
+          election_date, yes_votes, scraped_at, ...) straight off this source —
+          those columns no longer exist here. Repoint that model's
+          `ballotpedia_measures` CTE at int_ballotpedia__measure_resolved (which
+          now provides ocd_division_id, measure_title, election_date, votes,
+          passed, etc.); `scraped_at` becomes source_ingested_at / loaded_at.
+          Until then `dbt build` of bronze_ballot_measures_nist will fail.
         columns:
           - name: measure_id
-            description: "Stable source record id (ocd-ballotmeasure/UUID)"
-          - name: ocd_division_id
-            description: "OCD Division ID for GpUnit linkage"
-          - name: state_code
-          - name: jurisdiction_id
-          - name: jurisdiction_name
-          - name: election_date
-          - name: election_year
-            description: "Calendar year label as VARCHAR(4)"
-          - name: measure_number
-          - name: measure_title
-          - name: full_text
-          - name: summary_text
-          - name: measure_type
-          - name: yes_votes
-          - name: no_votes
-          - name: passed
-          - name: source_url
-          - name: scraped_at
+            description: "Stable source record id (ocd-ballotmeasure/UUID or explicit). Natural key."
+          - name: scrape_batch_id
+            description: "UUID per loader run."
+          - name: raw_row
+            description: "Full raw Ballotpedia measure JSON object merged with the snapshot envelope (JSONB). Source of all derived columns."
+          - name: source_json_path
+            description: "Path of the cache snapshot the row came from."
+          - name: loaded_at
+            description: "When the row was landed."
 
       - name: bronze_ballot_measures_powerbi
         description: |
-          Ballot measures scraped from a public Power BI dashboard (~9,670 rows).
-          Loaded by scripts/datasources/powerbi_ballot_measures/load_powerbi_ballot_measures_to_bronze.py.
+          Ballot measures scraped from a public Power BI dashboard (~9,670 rows) —
+          RAW landing (dbt-slimmed). One row per scraped CSV row; the full source
+          row lands verbatim in raw_row JSONB. All derived columns (measure_id,
+          measure_title, election_year/date, percent, outcome, etc.) are mapped +
+          parsed downstream in stg_powerbi__ballot_measure from raw_row, and the
+          state/jurisdiction/OCD resolution (formerly a Python query against
+          intermediate.int_jurisdictions) becomes a proper dbt JOIN in
+          int_powerbi__measure_with_jurisdiction. Loaded by ingestion.powerbi.ballot_measures.
         columns:
-          - name: measure_id
-          - name: measure_title
-          - name: state_code
-          - name: jurisdiction_id
-          - name: ocd_id
-          - name: election_date
-          - name: election_year
-            description: "Calendar year label as VARCHAR(4)"
-          - name: outcome
-          - name: yes_count
-          - name: no_count
-          - name: source_url
+          - name: id
+            description: "BIGSERIAL surrogate primary key."
+          - name: scrape_batch_id
+            description: "UUID stamped per loader run; groups rows from one CSV load."
+          - name: raw_row
+            description: "Full raw Power BI CSV row (JSONB), verbatim. Source of all derived columns."
+          - name: source_csv_path
+            description: "Path of the CSV the row was loaded from."
           - name: scraped_at
+            description: "When the row was scraped/landed."
+          - name: loaded_at
+            description: "When the row was loaded."
 
       - name: bronze_vip_ballot_measures
         description: "VIP CDF ballot measures (placeholder — populated when VIP feeds are ingested)"
@@ -955,6 +964,56 @@ sources:
           - name: ballot_measure_identifier
           - name: contest_name
           - name: ingested_at
+
+      - name: bronze_elections_scraped
+        description: |
+          Election-domain rows landed by ingestion.google_civic.officials (and
+          other election sources). One physical row per record, discriminated by
+          record_type IN ('election', 'candidacy', 'ballot_measure'). The legacy
+          c1 promotion (scripts/datasources/openstates/sync_elections_to_c1.py:
+          upsert_divisions/elections/candidate_contests/candidacies/ballot_measures)
+          is reproduced in dbt: stg_google_civic__election_record ->
+          int_google_civic__election_ids -> dim_election_divisions / fct_elections /
+          dim_candidate_contests / fct_candidacies / fct_ballot_measures.
+          DDL: migration 047_create_bronze_elections_scraped.
+        columns:
+          - name: id
+            description: "BIGSERIAL primary key of the bronze landing row. Natural key + surrogate-id fallback."
+          - name: scrape_batch_id
+            description: "UUID of the scrape run that landed this row."
+          - name: record_type
+            description: "Discriminator: election | candidacy | ballot_measure (CHECK-constrained in DDL)."
+          - name: ocd_id
+            description: "Source-provided stable id (ocd-.../uuid5). Used as the c1 id when it fits VARCHAR(50)."
+          - name: election_name
+          - name: election_date
+          - name: election_type
+          - name: election_status
+          - name: ocd_jurisdiction_id
+            description: "OCD division id; primary source of c1_division.id."
+          - name: state_code
+            description: "2-letter state code (CHAR(2))."
+          - name: jurisdiction_id
+          - name: candidate_name
+          - name: candidate_party
+          - name: candidate_post
+            description: "Office/post the candidacy contests; drives contest grouping."
+          - name: candidate_status
+          - name: candidate_vote_count
+          - name: candidate_vote_percent
+          - name: measure_title
+          - name: measure_summary
+          - name: measure_classification
+          - name: measure_yes_count
+          - name: measure_no_count
+          - name: measure_outcome
+          - name: source_url
+          - name: source_name
+          - name: raw_row
+            description: "JSONB original payload; carries parent election_id, links, sources for candidacies/measures."
+          - name: scraped_at
+          - name: loaded_at
+            description: "When the row was landed."
 
   - name: gold_runtime
     description: "Runtime gold tables in public schema (ACS joins for mapping quality marts)"
@@ -1000,6 +1059,109 @@ sources:
             description: "Code source provenance (e.g. 'irs')."
           - name: last_updated
             description: "Upsert timestamp."
+
+  # NOTE: Master Data Management (MDM) inputs. These three tables are the
+  # PURE-TRANSFORMATION inputs the archived
+  # scripts/datasources/master_data/create_jurisdiction_master.py read directly
+  # (it connected to `public` with no search_path override). They are NOT bronze
+  # raw landings and are NOT existing dbt models — `organization_location`,
+  # `jurisdictions_wikidata`, and `jurisdiction` are all produced by OTHER
+  # pipelines (HIFLD fold, wikidata loader, census serving table) and land in
+  # `public`. We therefore declare them as sources (NOT ref()) here, and the MDM
+  # model chain (int_master__*, dim_jurisdictions_master) reads them via
+  # source('mdm_inputs', ...). FLAG: the existing int_jurisdictions* / the
+  # jurisdictions.sql mart are a DIFFERENT lineage (built from bronze census +
+  # wikidata bronze tables); they do NOT share grain or keys with the
+  # public.jurisdiction serving table this MDM pipeline consolidates.
+  - name: mdm_inputs
+    description: |
+      Master-data-management input tables in the PUBLIC schema. Inputs to the
+      jurisdiction-consolidation chain (domain_registry -> crosswalk ->
+      master_jurisdictions) that was ported from
+      scripts/datasources/master_data/create_jurisdiction_master.py into dbt.
+    database: open_navigator
+    schema: public
+    tables:
+      - name: organization_location
+        description: |
+          HIFLD-style organization/location roster (schools, hospitals, law
+          enforcement, etc.). ~328k rows. Rich website / phone / lat-lon data
+          used as the bridge in most crosswalk strategies.
+        columns:
+          - name: id
+            description: "Source primary key (organization_location.id)."
+          - name: source_id
+            description: "External id from the originating dataset; for school_district rows this is the NCES id."
+          - name: name
+            description: "Organization name."
+          - name: organization_type
+            description: "Classification: school_district / county / city / town / village / township / hospital / etc."
+          - name: city
+            description: "City."
+          - name: state
+            description: "2-letter state code (joins to jurisdiction.state_code / wikidata.state_code)."
+          - name: county
+            description: "County name."
+          - name: telephone
+            description: "Phone (free-form; normalized to digits for matching)."
+          - name: website
+            description: "Website URL (domain extracted for matching)."
+          - name: latitude
+            description: "WGS84 latitude (proximity matching)."
+          - name: longitude
+            description: "WGS84 longitude (proximity matching)."
+      - name: jurisdictions_wikidata
+        description: |
+          Wikidata jurisdiction enrichment (~431 rows). Carries official_website,
+          nces_id, geoid, fips_code, lat/lon.
+        columns:
+          - name: id
+            description: "Source primary key (jurisdictions_wikidata.id)."
+          - name: jurisdiction_name
+            description: "Jurisdiction name."
+          - name: jurisdiction_type
+            description: "state / county / city / town / school_district."
+          - name: state_code
+            description: "2-letter state code."
+          - name: official_website
+            description: "Official website URL (domain extracted for matching)."
+          - name: nces_id
+            description: "NCES school-district id (matches organization_location.source_id)."
+          - name: geoid
+            description: "Census GEOID."
+          - name: fips_code
+            description: "County/state FIPS."
+          - name: latitude
+            description: "WGS84 latitude (proximity matching)."
+          - name: longitude
+            description: "WGS84 longitude (proximity matching)."
+      - name: jurisdiction
+        description: |
+          Census-derived jurisdiction serving table (~85k rows). Has geoid,
+          fips_code, name, type, state_code, full state name, website_url,
+          gov_domains JSONB. NOTE: this is the public serving table, distinct
+          from the bronze-census int_jurisdictions* lineage.
+        columns:
+          - name: id
+            description: "Source primary key (jurisdiction.id)."
+          - name: name
+            description: "Jurisdiction name."
+          - name: type
+            description: "city / county / township / school_district."
+          - name: state_code
+            description: "2-letter state code."
+          - name: state
+            description: "Full state name."
+          - name: county
+            description: "County name."
+          - name: geoid
+            description: "Census GEOID."
+          - name: fips_code
+            description: "County/state FIPS."
+          - name: website_url
+            description: "Website URL (domain extracted for matching)."
+          - name: gov_domains
+            description: "JSONB array/object of associated .gov domains (matched with the ? operator)."
 
 models:
   - name: stg_bronze_contacts

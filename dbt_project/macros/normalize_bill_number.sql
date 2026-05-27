@@ -8,7 +8,7 @@
             'S.B. 456' -> 'SB456'
             
         Usage:
-            {{ normalize_bill_number('official_number') }}
+            {% raw %}{{ normalize_bill_number('official_number') }}{% endraw %}
     */
     UPPER(
         REGEXP_REPLACE(

@@ -8,7 +8,7 @@
         - Collapse multiple spaces
         
         Usage:
-            {{ normalize_name('full_name') }}
+            {% raw %}{{ normalize_name('full_name') }}{% endraw %}
     */
     TRIM(
         REGEXP_REPLACE(

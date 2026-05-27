@@ -1,0 +1,88 @@
+version: 2
+
+models:
+  - name: stg_ballotpedia__measure
+    description: |
+      Ballotpedia ballot measures — one row per measure_id. 1:1 with
+      bronze.bronze_ballot_measures_ballotpedia (RAW landing from
+      ingestion.ballotpedia.measures). Reproduces the former Python
+      _normalize_measure() field derivation in SQL against raw_row JSONB:
+      multi-alias title/number/summary/type coalescing, regex vote-pair
+      extraction from the outcome text, 4-digit election-year extraction, and
+      pass/fail classification of the outcome. State-code + OCD resolution and
+      the election-year filter are downstream in int_ballotpedia__measure_resolved.
+    config:
+      contract:
+        enforced: true
+      materialized: view
+    columns:
+      - name: measure_id
+        description: "Stable measure id (ocd-ballotmeasure/UUID or explicit). Natural key."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - unique
+          - not_null
+      - name: measure_title
+        description: "Coalesced title: measure_title OR measure_name OR title."
+        data_type: varchar(1000)
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: jurisdiction_id
+        data_type: varchar(255)
+      - name: jurisdiction_name
+        data_type: varchar(255)
+      - name: jurisdiction_type
+        data_type: varchar(100)
+      - name: scope
+        description: "Measure scope (e.g. 'state'); drives OCD resolution downstream."
+        data_type: varchar(50)
+      - name: election_date
+        data_type: varchar(50)
+      - name: election_year
+        description: "4-digit year from explicit year/election_year alias, else parsed from the title."
+        data_type: varchar(4)
+      - name: measure_number
+        data_type: varchar(255)
+      - name: full_text
+        data_type: text
+      - name: summary_text
+        data_type: varchar(4000)
+      - name: measure_type
+        data_type: varchar(255)
+      - name: subject_areas
+        data_type: varchar(1000)
+      - name: yes_votes
+        description: "Explicit yes_votes, else group 1 of the yes/no outcome regex (digits only)."
+        data_type: bigint
+      - name: no_votes
+        description: "Explicit no_votes, else group 2 of the yes/no outcome regex (digits only)."
+        data_type: bigint
+      - name: passed
+        description: "Explicit passed flag, else outcome-text classification (true/false/null)."
+        data_type: boolean
+      - name: source_url
+        data_type: varchar(1000)
+      - name: measure_page_url
+        data_type: varchar(1000)
+      - name: state_raw
+        description: "Raw state alias (state_code OR state) — a 2-letter code or a state name; resolved downstream."
+        data_type: text
+      - name: ocd_division_id_raw
+        description: "Explicit ocd_division_id from the source, if any; preferred downstream."
+        data_type: text
+      - name: source_json_path
+        description: "Path of the cache snapshot the row came from."
+        data_type: text
+      - name: source_ingested_at
+        description: "loaded_at from the bronze landing table."
+        data_type: timestamp with time zone
+      - name: dbt_loaded_at
+        # `current_timestamp` in Postgres returns `timestamp with time zone`;
+        # the contract has to match or dbt aborts the view creation.
+        data_type: timestamp with time zone
+        constraints:
+          - type: not_null

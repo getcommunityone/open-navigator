@@ -1,0 +1,141 @@
+version: 2
+
+models:
+  - name: stg_mdm__organization_location
+    description: |
+      Staging for public.organization_location (MDM input). 1:1 with the source;
+      adds normalized `domain` (from website) and `phone_digits` columns used by
+      the jurisdiction-consolidation chain.
+    config:
+      contract:
+        enforced: true
+      materialized: view
+    columns:
+      - name: org_location_id
+        description: "Source primary key. Unique."
+        data_type: integer
+        constraints:
+          - type: not_null
+        tests:
+          - unique
+          - not_null
+      - name: source_id
+        description: "External id; NCES id for school_district rows."
+        data_type: varchar
+      - name: org_name
+        data_type: varchar
+      - name: organization_type
+        data_type: varchar
+      - name: city
+        data_type: varchar
+      - name: state_code
+        data_type: varchar(2)
+      - name: county
+        data_type: varchar
+      - name: telephone
+        data_type: varchar
+      - name: website
+        data_type: text
+      - name: latitude
+        data_type: double precision
+      - name: longitude
+        data_type: double precision
+      - name: domain
+        description: "Normalized domain from website (extract_domain equivalent)."
+        data_type: varchar
+      - name: phone_digits
+        description: "Phone reduced to digits only; matching uses >= 10 digits."
+        data_type: varchar
+      - name: dbt_loaded_at
+        data_type: timestamp with time zone
+        constraints:
+          - type: not_null
+
+  - name: stg_mdm__jurisdictions_wikidata
+    description: |
+      Staging for public.jurisdictions_wikidata (MDM input). Adds normalized
+      `domain` from official_website.
+    config:
+      contract:
+        enforced: true
+      materialized: view
+    columns:
+      - name: wikidata_id
+        description: "Source primary key. Unique."
+        data_type: integer
+        constraints:
+          - type: not_null
+        tests:
+          - unique
+          - not_null
+      - name: jurisdiction_name
+        data_type: varchar
+      - name: jurisdiction_type
+        data_type: varchar
+      - name: state_code
+        data_type: varchar(2)
+      - name: official_website
+        data_type: text
+      - name: nces_id
+        data_type: varchar
+      - name: geoid
+        data_type: varchar
+      - name: fips_code
+        data_type: varchar
+      - name: latitude
+        data_type: double precision
+      - name: longitude
+        data_type: double precision
+      - name: domain
+        description: "Normalized domain from official_website."
+        data_type: varchar
+      - name: dbt_loaded_at
+        data_type: timestamp with time zone
+        constraints:
+          - type: not_null
+
+  - name: stg_mdm__jurisdiction
+    description: |
+      Staging for public.jurisdiction (MDM input; census serving table). Aliases
+      `type` -> `jurisdiction_type`; adds normalized `domain` from website_url.
+      FLAG: source has no phone column, so the Python phone-matching strategy is
+      not reproducible here (see int_master__crosswalk deferred list).
+    config:
+      contract:
+        enforced: true
+      materialized: view
+    columns:
+      - name: jurisdiction_id
+        description: "Source primary key. Unique."
+        data_type: integer
+        constraints:
+          - type: not_null
+        tests:
+          - unique
+          - not_null
+      - name: jurisdiction_name
+        data_type: text
+      - name: jurisdiction_type
+        data_type: varchar
+      - name: state_code
+        data_type: varchar(2)
+      - name: state_name
+        data_type: varchar
+      - name: county
+        data_type: varchar
+      - name: geoid
+        data_type: varchar
+      - name: fips_code
+        data_type: varchar
+      - name: website_url
+        data_type: text
+      - name: gov_domains
+        description: "JSONB of associated .gov domains."
+        data_type: jsonb
+      - name: domain
+        description: "Normalized domain from website_url."
+        data_type: varchar
+      - name: dbt_loaded_at
+        data_type: timestamp with time zone
+        constraints:
+          - type: not_null

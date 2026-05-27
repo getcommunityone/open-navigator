@@ -1,0 +1,132 @@
+version: 2
+
+models:
+  - name: int_master__domain_registry
+    description: |
+      Normalized domain registry (MDM). One row per domain, unioned from
+      organization_location, jurisdictions_wikidata, jurisdiction. Reproduces
+      populate_domain_registry() from the archived create_jurisdiction_master.py.
+      Precedence on collision: organization_location > jurisdictions_wikidata >
+      jurisdiction (the Python's ON CONFLICT DO NOTHING first-loaded-wins).
+    config:
+      contract:
+        enforced: true
+      materialized: table
+    columns:
+      - name: domain
+        description: "Normalized domain. Unique natural key."
+        data_type: varchar
+        constraints:
+          - type: not_null
+        tests:
+          - unique
+          - not_null
+      - name: source_table
+        description: "Winning source table for this domain."
+        data_type: varchar
+        tests:
+          - accepted_values:
+              values: ['organization_location', 'jurisdictions_wikidata', 'jurisdiction']
+      - name: source_id
+        data_type: integer
+      - name: source_url
+        data_type: text
+      - name: jurisdiction_name
+        data_type: varchar
+      - name: state_code
+        data_type: varchar(2)
+      - name: city
+        data_type: varchar
+      - name: organization_type
+        data_type: varchar
+      - name: confidence_score
+        data_type: decimal(3,2)
+      - name: dbt_loaded_at
+        data_type: timestamp with time zone
+        constraints:
+          - type: not_null
+
+  - name: int_master__crosswalk
+    description: |
+      Jurisdiction crosswalk (MDM). One row per (source-pair, match_method),
+      union of the translated matching strategies from
+      create_jurisdiction_master.py. Same grain as the Python INSERTs (not
+      deduplicated; consolidation happens in dim_jurisdictions_master).
+
+      STRATEGY MAP — 12 strategies, translated vs deferred:
+        1.  nces_id_exact          TRANSLATED
+        2.  geoid_exact            TRANSLATED
+        3.  name_normalized        TRANSLATED (skips pairs already matched by geoid)
+        4.  phone_exact            DEFERRED — public.jurisdiction has no phone column
+                                   (the Python joined jd.phone, which does not exist;
+                                   phone lives only on the contact table).
+        5.  city_state_normalized  TRANSLATED
+        6a. city_geographic        TRANSLATED
+        6b. city_geographic_details TRANSLATED
+        7.  proximity_1mile        TRANSLATED (lateral nearest within 0.015 deg;
+                                   only org rows not already matched to wikidata)
+        8.  domain_exact           TRANSLATED (faithful to Python: HAVING > 1 over the
+                                   DEDUPED registry yields ~0 rows by construction;
+                                   real cross-source domain linking is strategies 9/10)
+        9.  domain_orgloc_wikidata TRANSLATED
+        10. domain_orgloc_details  TRANSLATED (website_url path; the JSONB
+                                   gov_domains fallback branch is DEFERRED — it only
+                                   ran in the Python when no website column existed,
+                                   which is not the case for public.jurisdiction)
+        11. name_state_type        TRANSLATED
+        12. fuzzy_name             DEFERRED — Python difflib.SequenceMatcher ratio;
+                                   not SQL-expressible with built-ins and also
+                                   disabled in the Python main().
+    config:
+      contract:
+        enforced: false
+      materialized: table
+    columns:
+      - name: crosswalk_id
+        description: "Surrogate row id for this crosswalk edge. Unique."
+        tests:
+          - unique
+          - not_null
+      - name: org_location_id
+        description: "organization_location.id (nullable)."
+      - name: wikidata_id
+        description: "jurisdictions_wikidata.id (nullable)."
+      - name: jurisdiction_ref_id
+        description: "jurisdiction.id — the Python `search_id` (nullable)."
+      - name: details_search_id
+        description: "jurisdiction.id used as the Python `details_search_id` (nullable)."
+      - name: match_method
+        description: "Which strategy produced this edge."
+        tests:
+          - accepted_values:
+              values:
+                - nces_id_exact
+                - geoid_exact
+                - name_normalized
+                - city_state_normalized
+                - city_geographic
+                - city_geographic_details
+                - proximity_1mile
+                - domain_exact
+                - domain_orgloc_wikidata
+                - domain_orgloc_details
+                - name_state_type
+      - name: match_confidence
+        description: "0.0-1.0 confidence copied verbatim from the Python strategy."
+
+  - name: int_master__crosswalk_enriched
+    description: |
+      Crosswalk + full_state_name (MDM). Reproduces the enriched_crosswalk CTE in
+      consolidate_to_master(): full state name via jurisdiction.state_name, else
+      the state_code_to_name macro lookup.
+    config:
+      contract:
+        enforced: false
+      materialized: table
+    columns:
+      - name: crosswalk_id
+        tests:
+          - unique
+          - not_null
+      - name: full_state_name
+        description: "Resolved full state name."
