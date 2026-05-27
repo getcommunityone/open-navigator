@@ -49,6 +49,8 @@ models:
         description: "loaded_at from the bronze history table."
         data_type: timestamp
       - name: dbt_loaded_at
-        data_type: timestamp
+        # `current_timestamp` in Postgres returns `timestamp with time zone`;
+        # the contract has to match or dbt aborts the view creation.
+        data_type: timestamp with time zone
         constraints:
           - type: not_null

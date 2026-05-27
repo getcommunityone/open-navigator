@@ -253,14 +253,6 @@ sources:
           - name: f990_total_revenue_recent
           - name: f990_total_assets_recent
       
-      - name: bronze_organizations_nonprofits_nccs_history
-        description: "Historical NCCS nonprofit data for time-series analysis"
-        columns:
-          - name: ein
-          - name: year
-          - name: total_revenue
-          - name: total_assets
-      
       - name: bronze_jurisdictions
         description: "Master list of jurisdictions (cities, counties, states)"
         columns:
