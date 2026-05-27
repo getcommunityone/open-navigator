@@ -1,0 +1,56 @@
+version: 2
+
+models:
+  - name: stg_nccs__organization
+    description: |
+      NCCS Unified BMF organization-years — one row per (ein, org_year_last).
+      1:1 with bronze.bronze_organizations_nonprofits_nccs_history (raw landing
+      from ingestion.nccs.bulk). Light cleaning + type stabilization only.
+    config:
+      contract:
+        enforced: true
+      materialized: view
+    columns:
+      - name: ein
+        description: "Employer Identification Number. Natural-key component."
+        data_type: varchar(20)
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: ntee_irs
+        data_type: varchar(20)
+      - name: ntee_nccs
+        data_type: varchar(20)
+      - name: nccs_level_1
+        data_type: varchar(100)
+      - name: org_name_current
+        description: "Most recent organization name for this version."
+        data_type: text
+      - name: city
+        data_type: varchar(100)
+      - name: state_code
+        description: "2-letter org address state, uppercased + trimmed."
+        data_type: varchar(2)
+      - name: org_year_first
+        data_type: varchar(4)
+      - name: org_year_last
+        description: "Latest filing year for this version. Natural-key component."
+        data_type: varchar(4)
+      - name: latitude
+        data_type: double precision
+      - name: longitude
+        data_type: double precision
+      - name: total_revenue_recent
+        data_type: bigint
+      - name: total_assets_recent
+        data_type: bigint
+      - name: source_ingested_at
+        description: "loaded_at from the bronze history table."
+        data_type: timestamp
+      - name: dbt_loaded_at
+        # `current_timestamp` in Postgres returns `timestamp with time zone`;
+        # the contract has to match or dbt aborts the view creation.
+        data_type: timestamp with time zone
+        constraints:
+          - type: not_null

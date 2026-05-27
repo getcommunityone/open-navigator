@@ -6,6 +6,8 @@ sources:
     database: open_navigator  # Single database with schemas
     schema: bronze  # Bronze schema for raw data
     tables:
+      - name: bronze_organizations_nonprofits_nccs_history
+        description: "NCCS Unified BMF organization-years (raw history), landed by ingestion.nccs.bulk. One row per (ein, org_year_last)."
       - name: bronze_contacts
         description: "People extracted from meeting transcripts via AI"
         columns:
@@ -250,14 +252,6 @@ sources:
             description: "Census Core Based Statistical Area"
           - name: f990_total_revenue_recent
           - name: f990_total_assets_recent
-      
-      - name: bronze_organizations_nonprofits_nccs_history
-        description: "Historical NCCS nonprofit data for time-series analysis"
-        columns:
-          - name: ein
-          - name: year
-          - name: total_revenue
-          - name: total_assets
       
       - name: bronze_jurisdictions
         description: "Master list of jurisdictions (cities, counties, states)"
