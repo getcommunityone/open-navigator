@@ -6,4 +6,5 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
-exec python3 "${ROOT}/scripts/wikicommons/download_wikicommons_assets.py" "$@"
+# Ported to packages/ingestion (BaseAsyncClient). Run the module form.
+exec python3 -m ingestion.wikicommons.download "$@"

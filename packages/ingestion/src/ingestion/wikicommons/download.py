@@ -1,41 +1,51 @@
-#!/usr/bin/env python3
-"""
-Download reference imagery from **Wikimedia Commons** only (no third-party sites).
+"""Download reference imagery from **Wikimedia Commons** into ``data/cache/wikicommons/``.
 
-Default output: ``data/cache/wikicommons/``.
+Ported from scripts/wikicommons/download_wikicommons_assets.py to
+core_lib.http.BaseAsyncClient (retries, rate limiting, structured logs). This
+module is DOWNLOAD-ONLY; the frontend-publish sync (scripts/frontend/sync_*.sh)
+stays out of scope. The pure category/flag/plate helpers are preserved verbatim.
 
 1. **State / territory flags** — one hero file per USPS as ``{USPS}_colors_hero.{ext}`` from
-   ``Category:SVG flags of states of the United States`` (direct ``File:`` members per state
-   category; picks a canonical ``Flag of …`` SVG when possible).
-
+   per-state ``SVG flags of …`` categories (picks a canonical ``Flag of …`` SVG when possible).
 2. **License plates** — recursive walk of ``Category:License plates of the United States by state``
-   → ``{USPS}_{year}.{ext}`` plus ``{USPS}_latest.{ext}`` (same behavior as the earlier Commons-only export step).
+   → ``{USPS}_{year}.{ext}`` plus ``{USPS}_latest.{ext}``.
 
-Usage (repo root):
+Two Commons hosts are fetched, both via BaseAsyncClient with absolute URLs:
+  * ``https://commons.wikimedia.org/w/api.php`` — categorymembers + imageinfo JSON queries.
+  * ``https://upload.wikimedia.org/...`` — the image bytes (absolute ``url`` from imageinfo).
 
-  python3 scripts/wikicommons/download_wikicommons_assets.py
-  python3 scripts/wikicommons/download_wikicommons_assets.py --only AK TX
-  python3 scripts/wikicommons/download_wikicommons_assets.py --skip-flags
-  python3 scripts/wikicommons/download_wikicommons_assets.py --skip-plates
+Usage:
+    python -m ingestion.wikicommons.download
+    python -m ingestion.wikicommons.download --only AK TX
+    python -m ingestion.wikicommons.download --skip-flags
+    python -m ingestion.wikicommons.download --skip-plates
+    python -m ingestion.wikicommons.download --force
 """
 from __future__ import annotations
 
 import argparse
+import asyncio
 import datetime as dt
 import json
 import re
 import shutil
-import sys
-import time
-import urllib.error
 import urllib.parse
-import urllib.request
 from pathlib import Path
 from typing import Any
 
+from loguru import logger
+
+from core_lib.http import BaseAsyncClient, HttpClientConfig
+from core_lib.logging import setup_logging
+
+
 UA = "Mozilla/5.0 (compatible; OpenNavigatorWikiCommons/1.0; +https://github.com/getcommunityone/open-navigator-for-engagement)"
+_COMMONS_BASE_URL = "https://commons.wikimedia.org"
 COMMONS_API = "https://commons.wikimedia.org/w/api.php"
 COMMONS_UA = UA + " (Wikimedia-Commons-assets)"
+
+CACHE_DIR = Path("data/cache/wikicommons")
+_MAX_CACHE_AGE_S = 7 * 24 * 60 * 60  # reuse a cache file younger than 7 days
 
 FLAGS_INDEX_URL = "https://commons.wikimedia.org/wiki/Category:SVG_flags_of_states_of_the_United_States"
 
@@ -149,62 +159,9 @@ _FLAG_TITLE_BAD_SUBSTR = frozenset(
 )
 
 
-def _commons_api_get(params: dict[str, Any], sleep_s: float) -> dict[str, Any]:
-    time.sleep(sleep_s)
-    url = COMMONS_API + "?" + urllib.parse.urlencode(params)
-    req = urllib.request.Request(
-        url,
-        headers={
-            "User-Agent": COMMONS_UA,
-            "Accept": "application/json",
-        },
-    )
-    with urllib.request.urlopen(req, timeout=120) as resp:
-        return json.loads(resp.read().decode("utf-8"))
-
-
-def _iter_category_members(
-    cmtitle: str,
-    cmtype: str,
-    sleep_s: float,
-) -> list[dict[str, Any]]:
-    out: list[dict[str, Any]] = []
-    cont: dict[str, str] = {}
-    while True:
-        p: dict[str, Any] = {
-            "action": "query",
-            "format": "json",
-            "formatversion": "2",
-            "list": "categorymembers",
-            "cmtitle": cmtitle,
-            "cmtype": cmtype,
-            "cmlimit": "500",
-        }
-        p.update(cont)
-        data = _commons_api_get(p, sleep_s)
-        out.extend(data["query"]["categorymembers"])
-        if "continue" not in data:
-            break
-        cont = {k: v for k, v in data["continue"].items()}
-    return out
-
-
-def _collect_file_titles_recursive(
-    root_cat: str,
-    sleep_s: float,
-    seen_categories: set[str],
-    acc: list[str],
-) -> None:
-    if root_cat in seen_categories:
-        return
-    seen_categories.add(root_cat)
-    for m in _iter_category_members(root_cat, "file|subcat", sleep_s):
-        t = m["title"]
-        if t.startswith("Category:"):
-            _collect_file_titles_recursive(t, sleep_s, seen_categories, acc)
-        elif t.startswith("File:"):
-            acc.append(t)
-
+# ---------------------------------------------------------------------------
+# Pure helpers (preserved verbatim from the original script)
+# ---------------------------------------------------------------------------
 
 def _ext_from_file_title(file_title: str) -> str:
     name = file_title.split(":", 1)[-1]
@@ -259,45 +216,6 @@ def _pick_canonical_flag_file(file_titles: list[str], core: str) -> str | None:
     return candidates[0][1]
 
 
-def _commons_fetch_binary(url: str, referer: str) -> bytes:
-    req = urllib.request.Request(
-        url,
-        headers={
-            "User-Agent": COMMONS_UA,
-            "Accept": "*/*",
-            "Referer": referer,
-        },
-    )
-    with urllib.request.urlopen(req, timeout=120) as resp:
-        return resp.read()
-
-
-def _imageinfo_for_titles(
-    titles: list[str],
-    sleep_s: float,
-) -> dict[str, dict[str, Any]]:
-    out: dict[str, dict[str, Any]] = {}
-    for i in range(0, len(titles), 40):
-        chunk = titles[i : i + 40]
-        time.sleep(sleep_s)
-        p = {
-            "action": "query",
-            "format": "json",
-            "prop": "imageinfo",
-            "titles": "|".join(chunk),
-            "iiprop": "url|timestamp|mime",
-        }
-        data = _commons_api_get(p, 0.0)
-        for _pid, page in data["query"]["pages"].items():
-            if page.get("missing"):
-                continue
-            ii = page.get("imageinfo")
-            if not ii:
-                continue
-            out[page["title"]] = ii[0]
-    return out
-
-
 def _parse_ts(ts: str) -> dt.datetime:
     try:
         return dt.datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc)
@@ -316,19 +234,124 @@ def _plate_year_label(file_title: str, upload_ts: str) -> str:
     return "unknown"
 
 
-def download_commons_state_flags(
+def _is_fresh(path: Path) -> bool:
+    return path.exists() and (dt.datetime.now().timestamp() - path.stat().st_mtime) < _MAX_CACHE_AGE_S
+
+
+# ---------------------------------------------------------------------------
+# HTTP client (BaseAsyncClient subclass)
+# ---------------------------------------------------------------------------
+
+class WikiCommonsAssetsClient(BaseAsyncClient):
+    """BaseAsyncClient for the Commons categorymembers/imageinfo API + image bytes.
+
+    base_url is commons.wikimedia.org; the API endpoint and the
+    upload.wikimedia.org binary URLs are different paths/hosts, so all requests
+    pass absolute URLs to ``get()``. The rate limiter throttles the (potentially
+    large) plate-download loop, replacing the original ``--sleep`` delays.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            HttpClientConfig(
+                base_url=_COMMONS_BASE_URL,
+                source="wikicommons",
+                timeout_s=120.0,
+                rate_limit_per_sec=2.0,  # courteous throttle across many plate fetches
+                rate_limit_burst=2,
+                default_headers={"User-Agent": COMMONS_UA, "Accept": "*/*"},
+            )
+        )
+
+    async def _api_get(self, params: dict[str, Any]) -> dict[str, Any]:
+        resp = await self.get(
+            COMMONS_API, params=params, headers={"Accept": "application/json"}
+        )
+        return resp.json()
+
+    async def iter_category_members(self, cmtitle: str, cmtype: str) -> list[dict[str, Any]]:
+        out: list[dict[str, Any]] = []
+        cont: dict[str, str] = {}
+        while True:
+            p: dict[str, Any] = {
+                "action": "query",
+                "format": "json",
+                "formatversion": "2",
+                "list": "categorymembers",
+                "cmtitle": cmtitle,
+                "cmtype": cmtype,
+                "cmlimit": "500",
+            }
+            p.update(cont)
+            data = await self._api_get(p)
+            out.extend(data["query"]["categorymembers"])
+            if "continue" not in data:
+                break
+            cont = {k: v for k, v in data["continue"].items()}
+        return out
+
+    async def collect_file_titles_recursive(
+        self, root_cat: str, seen_categories: set[str], acc: list[str]
+    ) -> None:
+        if root_cat in seen_categories:
+            return
+        seen_categories.add(root_cat)
+        for m in await self.iter_category_members(root_cat, "file|subcat"):
+            t = m["title"]
+            if t.startswith("Category:"):
+                await self.collect_file_titles_recursive(t, seen_categories, acc)
+            elif t.startswith("File:"):
+                acc.append(t)
+
+    async def imageinfo_for_titles(self, titles: list[str]) -> dict[str, dict[str, Any]]:
+        out: dict[str, dict[str, Any]] = {}
+        for i in range(0, len(titles), 40):
+            chunk = titles[i : i + 40]
+            data = await self._api_get(
+                {
+                    "action": "query",
+                    "format": "json",
+                    "prop": "imageinfo",
+                    "titles": "|".join(chunk),
+                    "iiprop": "url|timestamp|mime",
+                }
+            )
+            for _pid, page in data["query"]["pages"].items():
+                if page.get("missing"):
+                    continue
+                ii = page.get("imageinfo")
+                if not ii:
+                    continue
+                out[page["title"]] = ii[0]
+        return out
+
+    async def fetch_binary(self, url: str, referer: str) -> bytes:
+        resp = await self.get(url, headers={"Referer": referer})
+        return resp.content
+
+
+# ---------------------------------------------------------------------------
+# Download orchestration + cache freshness (mirrors ingestion.gsa.download)
+# ---------------------------------------------------------------------------
+
+async def download_commons_state_flags(
+    client: WikiCommonsAssetsClient,
     out: Path,
-    sleep_s: float,
+    *,
     only_usps: set[str] | None,
-) -> dict[str, Any]:
+    force: bool,
+) -> tuple[dict[str, Any], list[Path]]:
     """One ``{USPS}_colors_hero.svg`` (or other image ext) per area from per-state SVG flag categories."""
     by_usps: dict[str, Any] = {}
+    written: list[Path] = []
+    bound = logger.bind(source="wikicommons")
 
     for svg_short, usps in sorted(SVG_FLAGS_CAT_TO_USPS.items(), key=lambda kv: kv[1]):
         if only_usps is not None and usps not in only_usps:
             continue
         cat = f"Category:{svg_short}"
-        files = [x["title"] for x in _iter_category_members(cat, "file", sleep_s) if x["title"].startswith("File:")]
+        members = await client.iter_category_members(cat, "file")
+        files = [x["title"] for x in members if x["title"].startswith("File:")]
         core = svg_short.removeprefix("SVG flags of ").strip()
         pick = _pick_canonical_flag_file(files, core)
         if not pick:
@@ -337,27 +360,33 @@ def download_commons_state_flags(
                 "error": "No suitable Flag of … .svg file in category (or category missing).",
                 "candidates": files[:12],
             }
-            print(f"  Flags {usps}: SKIP (no canonical SVG)", file=sys.stderr)
+            bound.warning(f"Flags {usps}: SKIP (no canonical SVG)")
             continue
-        infos = _imageinfo_for_titles([pick], sleep_s)
+        ext = _ext_from_file_title(pick) or ".svg"
+        fn = f"{usps}_colors_hero{ext}"
+        dst = out / fn
+
+        if not force and _is_fresh(dst):
+            bound.info(f"Flags {usps}: cache_hit {dst}")
+            by_usps[usps] = {"filename": fn, "category": cat, "file_title": pick}
+            written.append(dst)
+            continue
+
+        infos = await client.imageinfo_for_titles([pick])
         info = infos.get(pick)
         if not info or not info.get("url"):
             by_usps[usps] = {"category": cat, "error": "imageinfo missing", "file_title": pick}
-            print(f"  Flags {usps}: SKIP (no imageinfo)", file=sys.stderr)
+            bound.warning(f"Flags {usps}: SKIP (no imageinfo)")
             continue
         mime = info.get("mime") or ""
         if not mime.startswith("image/"):
             by_usps[usps] = {"category": cat, "error": f"not an image ({mime})", "file_title": pick}
             continue
-        ext = _ext_from_file_title(pick) or ".svg"
-        fn = f"{usps}_colors_hero{ext}"
-        dst = out / fn
         try:
-            time.sleep(sleep_s)
-            dst.write_bytes(_commons_fetch_binary(info["url"], FLAGS_INDEX_URL + "/"))
-        except (urllib.error.HTTPError, urllib.error.URLError, OSError) as e:
+            dst.write_bytes(await client.fetch_binary(info["url"], FLAGS_INDEX_URL + "/"))
+        except Exception as e:  # noqa: BLE001
             by_usps[usps] = {"category": cat, "error": str(e), "file_title": pick}
-            print(f"  Flags {usps}: WARN {e}", file=sys.stderr)
+            bound.warning(f"Flags {usps}: WARN {e}")
             continue
         wiki_title = pick.replace(" ", "_")
         by_usps[usps] = {
@@ -369,22 +398,23 @@ def download_commons_state_flags(
             "mime": mime,
             "upload_timestamp": info.get("timestamp"),
         }
-        print(f"  Flags {usps} ← {pick}")
+        written.append(dst)
+        bound.info(f"Flags {usps} <- {pick}")
 
-    return {
-        "index_category_url": FLAGS_INDEX_URL,
-        "by_usps": by_usps,
-    }
+    return {"index_category_url": FLAGS_INDEX_URL, "by_usps": by_usps}, written
 
 
-def download_commons_license_plates(
+async def download_commons_license_plates(
+    client: WikiCommonsAssetsClient,
     out: Path,
-    sleep_s: float,
+    *,
     only_usps: set[str] | None,
-) -> dict[str, Any]:
+    force: bool,
+) -> tuple[dict[str, Any], list[Path]]:
+    bound = logger.bind(source="wikicommons")
     roots: list[tuple[str, str]] = []
     unmapped: list[str] = []
-    for m in _iter_category_members(PLATES_PARENT, "subcat", sleep_s):
+    for m in await client.iter_category_members(PLATES_PARENT, "subcat"):
         t = m["title"]
         short = t.removeprefix("Category:")
         usps = _LICENSE_PLATE_CAT_TO_USPS.get(short)
@@ -396,10 +426,11 @@ def download_commons_license_plates(
         roots.append((t, usps))
 
     by_usps: dict[str, Any] = {}
+    written: list[Path] = []
     for root_cat, usps in sorted(roots, key=lambda x: x[1]):
         seen_cats: set[str] = set()
         file_titles: list[str] = []
-        _collect_file_titles_recursive(root_cat, sleep_s, seen_cats, file_titles)
+        await client.collect_file_titles_recursive(root_cat, seen_cats, file_titles)
         file_titles = list(dict.fromkeys(file_titles))
         if not file_titles:
             by_usps[usps] = {
@@ -410,7 +441,7 @@ def download_commons_license_plates(
             }
             continue
 
-        infos = _imageinfo_for_titles(file_titles, sleep_s)
+        infos = await client.imageinfo_for_titles(file_titles)
         rows: list[dict[str, Any]] = []
         for ft in file_titles:
             info = infos.get(ft)
@@ -451,13 +482,16 @@ def download_commons_license_plates(
             stem = f"{base}_{n + 1}" if n > 0 else base
             fn = stem + r["ext"]
             dst = out / fn
-            try:
-                time.sleep(sleep_s)
-                data = _commons_fetch_binary(r["url"], PLATES_PARENT_URL + "/")
-                dst.write_bytes(data)
-            except (urllib.error.HTTPError, urllib.error.URLError, OSError) as e:
-                print(f"  {usps} WARN: could not save {fn} from {r['file_title']}: {e}", file=sys.stderr)
-                continue
+            if not force and _is_fresh(dst):
+                bound.info(f"  {usps} cache_hit {dst}")
+            else:
+                try:
+                    data = await client.fetch_binary(r["url"], PLATES_PARENT_URL + "/")
+                    dst.write_bytes(data)
+                except Exception as e:  # noqa: BLE001
+                    bound.warning(f"  {usps} WARN: could not save {fn} from {r['file_title']}: {e}")
+                    continue
+            written.append(dst)
             try:
                 ysort = int(year) if year.isdigit() else 0
             except ValueError:
@@ -482,68 +516,54 @@ def download_commons_license_plates(
             _, ext, src_path = best
             latest_fn = f"{usps}_latest{ext}"
             shutil.copyfile(src_path, out / latest_fn)
+            written.append(out / latest_fn)
 
         by_usps[usps] = {
             "root_category": root_cat,
             "latest_filename": latest_fn,
             "files": saved,
         }
-        print(f"  Plates {usps}: {len(saved)} files → latest {latest_fn or '—'}")
+        bound.info(f"Plates {usps}: {len(saved)} files -> latest {latest_fn or '—'}")
 
     return {
         "parent_category_url": PLATES_PARENT_URL,
         "parent_category": PLATES_PARENT,
         "unmapped_subcategories": [u.removeprefix("Category:") for u in unmapped],
         "by_usps": by_usps,
-    }
+    }, written
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--out-dir",
-        type=Path,
-        default=Path("data/cache/wikicommons"),
-        help="Output directory (default: data/cache/wikicommons)",
-    )
-    parser.add_argument(
-        "--sleep",
-        type=float,
-        default=0.85,
-        help="Seconds between HTTP requests (default: 0.85)",
-    )
-    parser.add_argument(
-        "--only",
-        nargs="*",
-        metavar="USPS",
-        help="Only these USPS codes (e.g. AL TX DC PR).",
-    )
-    parser.add_argument(
-        "--skip-flags",
-        action="store_true",
-        help="Skip SVG state flag heroes.",
-    )
-    parser.add_argument(
-        "--skip-plates",
-        action="store_true",
-        help="Skip license plate downloads.",
-    )
-    args = parser.parse_args()
-    out: Path = args.out_dir
-    out.mkdir(parents=True, exist_ok=True)
+async def download(
+    *,
+    force: bool = False,
+    only: set[str] | None = None,
+    skip_flags: bool = False,
+    skip_plates: bool = False,
+) -> list[Path]:
+    """Fetch Commons flags + license plates into the wikicommons cache.
 
-    only = {u.upper() for u in args.only} if args.only else None
-
+    Reuses fresh cached files unless ``force``. Returns the list of cache Paths
+    written (or reused). Mirrors the ingestion.gsa.download cache-freshness
+    contract, per file.
+    """
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    written: list[Path] = []
     flags_manifest: dict[str, Any] | None = None
     plates_manifest: dict[str, Any] | None = None
 
-    if not args.skip_flags:
-        print("Downloading Wikimedia Commons SVG state flags …", flush=True)
-        flags_manifest = download_commons_state_flags(out, args.sleep, only)
-
-    if not args.skip_plates:
-        print("Downloading Wikimedia Commons license plates …", flush=True)
-        plates_manifest = download_commons_license_plates(out, args.sleep, only)
+    async with WikiCommonsAssetsClient() as client:
+        if not skip_flags:
+            logger.bind(source="wikicommons").info("Downloading Wikimedia Commons SVG state flags …")
+            flags_manifest, paths = await download_commons_state_flags(
+                client, CACHE_DIR, only_usps=only, force=force
+            )
+            written.extend(paths)
+        if not skip_plates:
+            logger.bind(source="wikicommons").info("Downloading Wikimedia Commons license plates …")
+            plates_manifest, paths = await download_commons_license_plates(
+                client, CACHE_DIR, only_usps=only, force=force
+            )
+            written.extend(paths)
 
     manifest: dict[str, Any] = {
         "source": "Wikimedia Commons only",
@@ -558,9 +578,37 @@ def main() -> int:
     if plates_manifest is not None:
         manifest["commons_license_plates"] = plates_manifest
 
-    mpath = out / "_manifest.json"
+    mpath = CACHE_DIR / "_manifest.json"
     mpath.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-    print(f"Wrote {mpath}")
+    written.append(mpath)
+    logger.bind(source="wikicommons").info(f"Wrote {mpath}")
+    return written
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Download Wikimedia Commons flags + license plates into data/cache/wikicommons/"
+    )
+    parser.add_argument(
+        "--only",
+        nargs="*",
+        metavar="USPS",
+        help="Only these USPS codes (e.g. AL TX DC PR).",
+    )
+    parser.add_argument("--skip-flags", action="store_true", help="Skip SVG state flag heroes.")
+    parser.add_argument("--skip-plates", action="store_true", help="Skip license plate downloads.")
+    parser.add_argument("--force", action="store_true", help="Re-download even if a fresh cache exists")
+    return parser
+
+
+def main() -> int:
+    setup_logging()
+    args = build_parser().parse_args()
+    only = {u.upper() for u in args.only} if args.only else None
+    paths = asyncio.run(
+        download(force=args.force, only=only, skip_flags=args.skip_flags, skip_plates=args.skip_plates)
+    )
+    logger.info(f"wikicommons cache: {len(paths)} file(s) written")
     return 0
 
 
