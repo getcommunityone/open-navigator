@@ -1,188 +1,184 @@
 #!/usr/bin/env python3
-"""
-Build place-centric crosswalks in the bronze schema.
+"""Census place crosswalks pipeline: load the place->ZCTA crosswalk into bronze.
 
-Produces two tables that answer the day-to-day questions:
+Ported from load_place_crosswalks.py to the core_lib DataSourcePipeline
+contract.
+
+The legacy loader builds two place-centric crosswalk tables in the bronze
+schema:
 
   bronze.bronze_jurisdictions_place_county
-      "What county does this city/town belong to?"
-      One row per (place, county) pair when a place spans multiple counties,
-      with is_primary=TRUE marking the county that holds the largest portion
-      of the place's land area.
+      "What county does this city/town belong to?" Computed by a GeoPandas
+      spatial overlay of the Census place and county cartographic boundary
+      shapefiles (EPSG:5070 equal-area). The pure helpers and DDL for this
+      table are preserved verbatim below (``_find_shp`` / ``build_place_county``
+      / ``DDL_PLACE_COUNTY``); the overlay is not expressible as a streaming
+      RawRow extract, so it is kept as module-level helpers rather than wired
+      into the streaming pipeline.
 
   bronze.bronze_jurisdictions_place_zcta
-      "What is the primary postal code (ZCTA) for this city/town?"
-      One row per (place, zcta) pair, with is_primary=TRUE marking the ZCTA
-      whose land overlap with the place is the largest.
+      "What is the primary postal code (ZCTA) for this city/town?" Read from
+      the Census 2020 ZCTA-Place relationship file and rotated to a
+      place-centric view, marking the largest-overlap ZCTA as primary. This is
+      the file-driven, discoverable flow and is what the DataSourcePipeline
+      drives via ``extract`` / ``load_batch``.
 
 Inputs (must already be downloaded by `python scripts/download_bronze.py`):
   - data/cache/census/shapefiles/<year>/cb_<year>_us_place_500k.zip
   - data/cache/census/shapefiles/<year>/cb_<year>_us_county_500k.zip
   - data/cache/census_relationships/zcta_place.txt
 
-Method:
-  - place → county: GeoPandas spatial overlay of the place and county
-    polygons, reprojected to EPSG:5070 (NAD83 / Conus Albers) for accurate
-    area math, then aggregated to a (place, county) overlap area. Census
-    does not publish a 2020 place→county relationship file, so we compute
-    it directly from the cartographic boundary shapefiles.
-  - place → zcta: read the existing Census 2020 ZCTA-Place relationship
-    file (already downloaded by download_census_relationships.py) and
-    rotate it to a place-centric view, marking the largest-overlap ZCTA
-    as primary.
-
 Usage:
-    python scripts/datasources/census/load_place_crosswalks.py
-    python scripts/datasources/census/load_place_crosswalks.py --year 2024
-    python scripts/datasources/census/load_place_crosswalks.py --truncate
-    python scripts/datasources/census/load_place_crosswalks.py --dry-run
-    python scripts/datasources/census/load_place_crosswalks.py --only place_county
-    python scripts/datasources/census/load_place_crosswalks.py --limit 100
+    python -m ingestion.census.place_crosswalks
+    python scripts/datasources/census/place_crosswalks.py --year 2024
+    python scripts/datasources/census/place_crosswalks.py --truncate
+    python scripts/datasources/census/place_crosswalks.py --only place_county
+    python scripts/datasources/census/place_crosswalks.py --limit 100
+
+Configuration:
+    NEON_DATABASE_URL_DEV / NEON_DATABASE_URL / DATABASE_URL via core_lib.db
+    (replaces hardcoded psycopg2 / localhost:5433 / open_navigator).
 """
+from __future__ import annotations
+
 import argparse
-import os
-import sys
+import asyncio
 import zipfile
 from pathlib import Path
+from typing import AsyncIterator
 
-import geopandas as gpd
 import pandas as pd
-import psycopg2
-from psycopg2.extras import execute_batch
 from loguru import logger
+from pydantic import Field
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from core_lib.db import async_session
+from core_lib.logging import setup_logging
+from core_lib.pipeline import DataSourcePipeline, PipelineContext, RawRow
 
 
-PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
-from scripts.utils.calendar_year_util import calendar_year_label
-
-SHAPEFILE_CACHE = PROJECT_ROOT / "data" / "cache" / "census" / "shapefiles"
-RELATIONSHIPS_CACHE = PROJECT_ROOT / "data" / "cache" / "census_relationships"
-
-POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "password")
-DATABASE_URL = f"postgresql://postgres:{POSTGRES_PASSWORD}@localhost:5433/open_navigator"
+SHAPEFILE_CACHE = Path("data/cache/census/shapefiles")
+RELATIONSHIPS_CACHE = Path("data/cache/census_relationships")
 
 # NAD83 / Conus Albers — equal-area projection that keeps area calculations
 # accurate across the lower 48 + AK/HI/PR (with small distortion at the edges).
 EQUAL_AREA_CRS = 5070
 
-BATCH_SIZE = 1000
+
+# ---------------------------------------------------------------------------
+# DDL  (preserved verbatim from the legacy loader; split into separate text()
+#       statements per the package convention)
+# ---------------------------------------------------------------------------
+
+DDL_PLACE_COUNTY = (
+    text("CREATE SCHEMA IF NOT EXISTS bronze"),
+    text(
+        """
+        CREATE TABLE IF NOT EXISTS bronze.bronze_jurisdictions_place_county (
+            place_geoid     VARCHAR(7)  NOT NULL,
+            place_name      VARCHAR(120),
+            place_state     VARCHAR(2),
+            county_geoid    VARCHAR(5)  NOT NULL,
+            county_name     VARCHAR(120),
+            state_fips      VARCHAR(2),
+            overlap_area_m2 BIGINT,
+            place_area_m2   BIGINT,
+            overlap_pct     NUMERIC(6, 3),
+            is_primary      BOOLEAN     NOT NULL,
+            vintage_year    VARCHAR(4),
+            source          VARCHAR(255),
+            ingestion_date  TIMESTAMP   DEFAULT NOW(),
+            PRIMARY KEY (place_geoid, county_geoid)
+        )
+        """
+    ),
+    text("CREATE INDEX IF NOT EXISTS idx_bjpc_place   ON bronze.bronze_jurisdictions_place_county(place_geoid)"),
+    text("CREATE INDEX IF NOT EXISTS idx_bjpc_county  ON bronze.bronze_jurisdictions_place_county(county_geoid)"),
+    text("CREATE INDEX IF NOT EXISTS idx_bjpc_state   ON bronze.bronze_jurisdictions_place_county(state_fips)"),
+    text("CREATE INDEX IF NOT EXISTS idx_bjpc_primary ON bronze.bronze_jurisdictions_place_county(place_geoid) WHERE is_primary"),
+)
+
+
+INSERT_PLACE_COUNTY = text(
+    """
+    INSERT INTO bronze.bronze_jurisdictions_place_county
+        (place_geoid, place_name, place_state, county_geoid, county_name,
+         state_fips, overlap_area_m2, place_area_m2, overlap_pct,
+         is_primary, vintage_year, source)
+    VALUES (:place_geoid, :place_name, :place_state, :county_geoid, :county_name,
+            :state_fips, :overlap_area_m2, :place_area_m2, :overlap_pct,
+            :is_primary, :vintage_year, :source)
+    ON CONFLICT (place_geoid, county_geoid) DO UPDATE SET
+        place_name      = EXCLUDED.place_name,
+        place_state     = EXCLUDED.place_state,
+        county_name     = EXCLUDED.county_name,
+        state_fips      = EXCLUDED.state_fips,
+        overlap_area_m2 = EXCLUDED.overlap_area_m2,
+        place_area_m2   = EXCLUDED.place_area_m2,
+        overlap_pct     = EXCLUDED.overlap_pct,
+        is_primary      = EXCLUDED.is_primary,
+        vintage_year    = EXCLUDED.vintage_year,
+        source          = EXCLUDED.source,
+        ingestion_date  = NOW()
+    """
+)
+
+
+DDL_PLACE_ZCTA = (
+    text("CREATE SCHEMA IF NOT EXISTS bronze"),
+    text(
+        """
+        CREATE TABLE IF NOT EXISTS bronze.bronze_jurisdictions_place_zcta (
+            place_geoid     VARCHAR(7)  NOT NULL,
+            place_name      VARCHAR(255),
+            zcta            VARCHAR(10) NOT NULL,
+            state_fips      VARCHAR(2),
+            arealand_part   BIGINT,
+            areawater_part  BIGINT,
+            is_primary      BOOLEAN     NOT NULL,
+            source          VARCHAR(255),
+            ingestion_date  TIMESTAMP   DEFAULT NOW(),
+            -- 'z-' || state_fips || '-' || zcta; NOT unique — same zcta spans multiple places
+            jurisdiction_id        TEXT GENERATED ALWAYS AS ('z-' || state_fips || '-' || zcta) STORED,
+            jurisdiction_type      bronze.jurisdiction_type_enum      NOT NULL DEFAULT 'zcta',
+            jurisdiction_id_source bronze.jurisdiction_id_source_enum NOT NULL DEFAULT 'zip_code',
+            PRIMARY KEY (place_geoid, zcta)
+        )
+        """
+    ),
+    text("CREATE INDEX IF NOT EXISTS idx_bjpz_place           ON bronze.bronze_jurisdictions_place_zcta(place_geoid)"),
+    text("CREATE INDEX IF NOT EXISTS idx_bjpz_zcta            ON bronze.bronze_jurisdictions_place_zcta(zcta)"),
+    text("CREATE INDEX IF NOT EXISTS idx_bjpz_state           ON bronze.bronze_jurisdictions_place_zcta(state_fips)"),
+    text("CREATE INDEX IF NOT EXISTS idx_bjpz_primary         ON bronze.bronze_jurisdictions_place_zcta(place_geoid) WHERE is_primary"),
+    text("CREATE INDEX IF NOT EXISTS idx_bjpz_jurisdiction_id ON bronze.bronze_jurisdictions_place_zcta(jurisdiction_id)"),
+)
+
+
+INSERT_PLACE_ZCTA = text(
+    """
+    INSERT INTO bronze.bronze_jurisdictions_place_zcta
+        (place_geoid, place_name, zcta, state_fips,
+         arealand_part, areawater_part, is_primary, source)
+    VALUES (:place_geoid, :place_name, :zcta, :state_fips,
+            :arealand_part, :areawater_part, :is_primary, :source)
+    ON CONFLICT (place_geoid, zcta) DO UPDATE SET
+        place_name     = EXCLUDED.place_name,
+        state_fips     = EXCLUDED.state_fips,
+        arealand_part  = EXCLUDED.arealand_part,
+        areawater_part = EXCLUDED.areawater_part,
+        is_primary     = EXCLUDED.is_primary,
+        source         = EXCLUDED.source,
+        ingestion_date = NOW()
+    """
+)
+
+_TRUNCATE_PLACE_COUNTY = text("TRUNCATE TABLE bronze.bronze_jurisdictions_place_county")
+_TRUNCATE_PLACE_ZCTA = text("TRUNCATE TABLE bronze.bronze_jurisdictions_place_zcta")
 
 
 # ---------------------------------------------------------------------------
-# DDL
-# ---------------------------------------------------------------------------
-
-DDL_PLACE_COUNTY = """
-CREATE SCHEMA IF NOT EXISTS bronze;
-
-CREATE TABLE IF NOT EXISTS bronze.bronze_jurisdictions_place_county (
-    place_geoid     VARCHAR(7)  NOT NULL,
-    place_name      VARCHAR(120),
-    place_state     VARCHAR(2),
-    county_geoid    VARCHAR(5)  NOT NULL,
-    county_name     VARCHAR(120),
-    state_fips      VARCHAR(2),
-    overlap_area_m2 BIGINT,
-    place_area_m2   BIGINT,
-    overlap_pct     NUMERIC(6, 3),
-    is_primary      BOOLEAN     NOT NULL,
-    vintage_year    VARCHAR(4),
-    source          VARCHAR(255),
-    ingestion_date  TIMESTAMP   DEFAULT NOW(),
-    PRIMARY KEY (place_geoid, county_geoid)
-);
-
-CREATE INDEX IF NOT EXISTS idx_bjpc_place   ON bronze.bronze_jurisdictions_place_county(place_geoid);
-CREATE INDEX IF NOT EXISTS idx_bjpc_county  ON bronze.bronze_jurisdictions_place_county(county_geoid);
-CREATE INDEX IF NOT EXISTS idx_bjpc_state   ON bronze.bronze_jurisdictions_place_county(state_fips);
-CREATE INDEX IF NOT EXISTS idx_bjpc_primary ON bronze.bronze_jurisdictions_place_county(place_geoid) WHERE is_primary;
-
-COMMENT ON TABLE  bronze.bronze_jurisdictions_place_county IS
-    'Place (city/town) to county crosswalk derived from a spatial overlay of Census cartographic boundary shapefiles. is_primary=TRUE marks the county containing the largest share of the place''s land area.';
-COMMENT ON COLUMN bronze.bronze_jurisdictions_place_county.place_geoid     IS '7-digit place GEOID (state FIPS + place FIPS)';
-COMMENT ON COLUMN bronze.bronze_jurisdictions_place_county.county_geoid    IS '5-digit county GEOID (state FIPS + county FIPS)';
-COMMENT ON COLUMN bronze.bronze_jurisdictions_place_county.overlap_area_m2 IS 'Land area of (place ∩ county) in square metres, EPSG:5070';
-COMMENT ON COLUMN bronze.bronze_jurisdictions_place_county.place_area_m2   IS 'Total land area of the place in square metres, EPSG:5070';
-COMMENT ON COLUMN bronze.bronze_jurisdictions_place_county.overlap_pct     IS 'Percent of the place''s land area falling inside the county (0–100)';
-COMMENT ON COLUMN bronze.bronze_jurisdictions_place_county.is_primary      IS 'TRUE for the county with the largest overlap with this place';
-"""
-
-
-INSERT_PLACE_COUNTY = """
-INSERT INTO bronze.bronze_jurisdictions_place_county
-    (place_geoid, place_name, place_state, county_geoid, county_name,
-     state_fips, overlap_area_m2, place_area_m2, overlap_pct,
-     is_primary, vintage_year, source)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-ON CONFLICT (place_geoid, county_geoid) DO UPDATE SET
-    place_name      = EXCLUDED.place_name,
-    place_state     = EXCLUDED.place_state,
-    county_name     = EXCLUDED.county_name,
-    state_fips      = EXCLUDED.state_fips,
-    overlap_area_m2 = EXCLUDED.overlap_area_m2,
-    place_area_m2   = EXCLUDED.place_area_m2,
-    overlap_pct     = EXCLUDED.overlap_pct,
-    is_primary      = EXCLUDED.is_primary,
-    vintage_year    = EXCLUDED.vintage_year,
-    source          = EXCLUDED.source,
-    ingestion_date  = NOW()
-"""
-
-
-DDL_PLACE_ZCTA = """
-CREATE SCHEMA IF NOT EXISTS bronze;
-
-CREATE TABLE IF NOT EXISTS bronze.bronze_jurisdictions_place_zcta (
-    place_geoid     VARCHAR(7)  NOT NULL,
-    place_name      VARCHAR(255),
-    zcta            VARCHAR(10) NOT NULL,
-    state_fips      VARCHAR(2),
-    arealand_part   BIGINT,
-    areawater_part  BIGINT,
-    is_primary      BOOLEAN     NOT NULL,
-    source          VARCHAR(255),
-    ingestion_date  TIMESTAMP   DEFAULT NOW(),
-    -- 'z-' || state_fips || '-' || zcta; NOT unique — same zcta spans multiple places
-    jurisdiction_id        TEXT GENERATED ALWAYS AS ('z-' || state_fips || '-' || zcta) STORED,
-    jurisdiction_type      bronze.jurisdiction_type_enum      NOT NULL DEFAULT 'zcta',
-    jurisdiction_id_source bronze.jurisdiction_id_source_enum NOT NULL DEFAULT 'zip_code',
-    PRIMARY KEY (place_geoid, zcta)
-);
-
-CREATE INDEX IF NOT EXISTS idx_bjpz_place           ON bronze.bronze_jurisdictions_place_zcta(place_geoid);
-CREATE INDEX IF NOT EXISTS idx_bjpz_zcta            ON bronze.bronze_jurisdictions_place_zcta(zcta);
-CREATE INDEX IF NOT EXISTS idx_bjpz_state           ON bronze.bronze_jurisdictions_place_zcta(state_fips);
-CREATE INDEX IF NOT EXISTS idx_bjpz_primary         ON bronze.bronze_jurisdictions_place_zcta(place_geoid) WHERE is_primary;
-CREATE INDEX IF NOT EXISTS idx_bjpz_jurisdiction_id ON bronze.bronze_jurisdictions_place_zcta(jurisdiction_id);
-
-COMMENT ON TABLE  bronze.bronze_jurisdictions_place_zcta IS
-    'Place (city/town) to ZCTA crosswalk derived from the Census 2020 ZCTA-Place relationship file. is_primary=TRUE marks the ZCTA whose land overlap with the place is the largest — i.e. the place''s primary postal code.';
-COMMENT ON COLUMN bronze.bronze_jurisdictions_place_zcta.arealand_part IS 'Land area of (place ∩ ZCTA) in square metres (Census AREALAND_PART)';
-COMMENT ON COLUMN bronze.bronze_jurisdictions_place_zcta.is_primary    IS 'TRUE for the ZCTA with the largest land overlap with this place';
-"""
-
-
-INSERT_PLACE_ZCTA = """
-INSERT INTO bronze.bronze_jurisdictions_place_zcta
-    (place_geoid, place_name, zcta, state_fips,
-     arealand_part, areawater_part, is_primary, source)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-ON CONFLICT (place_geoid, zcta) DO UPDATE SET
-    place_name     = EXCLUDED.place_name,
-    state_fips     = EXCLUDED.state_fips,
-    arealand_part  = EXCLUDED.arealand_part,
-    areawater_part = EXCLUDED.areawater_part,
-    is_primary     = EXCLUDED.is_primary,
-    source         = EXCLUDED.source,
-    ingestion_date = NOW()
-"""
-
-
-# ---------------------------------------------------------------------------
-# Helpers
+# Helpers  (preserved verbatim from the legacy loader)
 # ---------------------------------------------------------------------------
 
 def _find_shp(year: int, shapefile_type: str) -> Path | None:
@@ -228,7 +224,7 @@ def _safe_int(v) -> int | None:
 
 
 # ---------------------------------------------------------------------------
-# place → county
+# place → county  (GeoPandas spatial overlay; preserved verbatim)
 # ---------------------------------------------------------------------------
 
 def build_place_county(year: int, limit: int | None = None) -> pd.DataFrame:
@@ -238,6 +234,11 @@ def build_place_county(year: int, limit: int | None = None) -> pd.DataFrame:
 
     Returns a DataFrame ready to be inserted into bronze_jurisdictions_place_county.
     """
+    # geopandas is an optional/heavy dependency; imported lazily so the module
+    # (and the place->zcta pipeline) remains importable without it, matching
+    # the hifld/locations.py convention.
+    import geopandas as gpd
+
     place_shp = _find_shp(year, "place")
     county_shp = _find_shp(year, "county")
     if place_shp is None or county_shp is None:
@@ -319,7 +320,7 @@ def build_place_county(year: int, limit: int | None = None) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
-# place → zcta
+# place → zcta  (relationship file; preserved verbatim)
 # ---------------------------------------------------------------------------
 
 def build_place_zcta(limit: int | None = None) -> pd.DataFrame:
@@ -333,6 +334,14 @@ def build_place_zcta(limit: int | None = None) -> pd.DataFrame:
         logger.error("  Run: python scripts/download_bronze.py --only relationships")
         return pd.DataFrame()
 
+    return _build_place_zcta_from(src, limit=limit)
+
+
+def _build_place_zcta_from(src: Path, limit: int | None = None) -> pd.DataFrame:
+    """Rotate a ZCTA-Place relationship file at an explicit path into a
+    place-centric DataFrame. Body preserved verbatim from the legacy
+    ``build_place_zcta`` (only the source-path resolution is hoisted out so the
+    pipeline can be pointed at a `--file` / test fixture)."""
     logger.info(f"Reading {src.name}...")
     raw = pd.read_csv(src, sep="|", dtype=str, low_memory=False)
     logger.info(f"  {len(raw):,} (zcta,place) rows")
@@ -373,100 +382,94 @@ def build_place_zcta(limit: int | None = None) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
-# DB writes
+# Row schema
 # ---------------------------------------------------------------------------
 
-def _ensure_table(conn, ddl: str) -> None:
-    with conn.cursor() as cur:
-        cur.execute(ddl)
-    conn.commit()
+class PlaceZctaRow(RawRow):
+    """One place->ZCTA crosswalk row, validated before upsert into
+    bronze.bronze_jurisdictions_place_zcta. Nullability mirrors the legacy
+    loader (place_geoid / zcta / is_primary required; everything else
+    optional); max lengths mirror the VARCHAR DB column types."""
+
+    place_geoid: str = Field(min_length=1, max_length=7)
+    place_name: str | None = Field(default=None, max_length=255)
+    zcta: str = Field(min_length=1, max_length=10)
+    state_fips: str | None = Field(default=None, max_length=2)
+    arealand_part: int | None = None
+    areawater_part: int | None = None
+    is_primary: bool
+    place_source: str | None = Field(default=None, max_length=255)
 
 
-def _insert_place_county(conn, df: pd.DataFrame, truncate: bool) -> int:
-    if df.empty:
-        return 0
-    with conn.cursor() as cur:
-        if truncate:
-            logger.info("TRUNCATE bronze.bronze_jurisdictions_place_county")
-            cur.execute("TRUNCATE TABLE bronze.bronze_jurisdictions_place_county")
-        rows = [
-            (
-                r.place_geoid, r.place_name, r.place_state,
-                r.county_geoid, r.county_name, r.state_fips,
-                int(r.overlap_area_m2), int(r.place_area_m2),
-                float(r.overlap_pct) if pd.notna(r.overlap_pct) else None,
-                bool(r.is_primary),
-                calendar_year_label(r.vintage_year),
-                r.source,
-            )
-            for r in df.itertuples(index=False)
+class CensusPlaceCrosswalksPipeline(DataSourcePipeline[PlaceZctaRow]):
+    source = "census_place_crosswalks"
+    batch_size = 1_000  # legacy execute_batch page_size
+    row_schema = PlaceZctaRow
+
+    def __init__(self, *, path: Path | None = None, limit: int | None = None):
+        self._path = path
+        self._limit = limit
+
+    async def extract(self, ctx: PipelineContext) -> AsyncIterator[dict]:
+        # Build the place-centric ZCTA view from the relationship file (same
+        # pure helper as the legacy loader), then emit one envelope per row.
+        if self._path is not None:
+            df = _build_place_zcta_from(self._path, limit=self._limit)
+            version = self._path.stem
+        else:
+            df = build_place_zcta(limit=self._limit)
+            version = (RELATIONSHIPS_CACHE / "zcta_place.txt").stem
+        for r in df.itertuples(index=False):
+            yield {
+                "source": self.source,
+                "source_version": version,
+                "natural_key": f"{r.place_geoid}:{r.zcta}",
+                "place_geoid": r.place_geoid,
+                "place_name": r.place_name,
+                "zcta": r.zcta,
+                "state_fips": r.state_fips,
+                "arealand_part": r.arealand_part,
+                "areawater_part": r.areawater_part,
+                "is_primary": bool(r.is_primary),
+                "place_source": r.source,
+            }
+
+    async def load_batch(
+        self,
+        session: AsyncSession,
+        rows: list[PlaceZctaRow],
+        ctx: PipelineContext,
+    ) -> None:
+        params = [
+            {
+                "place_geoid": r.place_geoid,
+                "place_name": r.place_name,
+                "zcta": r.zcta,
+                "state_fips": r.state_fips,
+                "arealand_part": r.arealand_part,
+                "areawater_part": r.areawater_part,
+                "is_primary": r.is_primary,
+                "source": r.place_source,
+            }
+            for r in rows
         ]
-        execute_batch(cur, INSERT_PLACE_COUNTY, rows, page_size=BATCH_SIZE)
-    conn.commit()
-    return len(df)
+        await session.execute(INSERT_PLACE_ZCTA, params)
 
 
-def _insert_place_zcta(conn, df: pd.DataFrame, truncate: bool) -> int:
-    if df.empty:
-        return 0
-    with conn.cursor() as cur:
+async def _prepare_target(truncate: bool) -> None:
+    # Create the schema + both crosswalk tables (each DDL statement as a
+    # separate text() call), then optionally truncate both targets.
+    async with async_session() as session:
+        for stmt in DDL_PLACE_COUNTY:
+            await session.execute(stmt)
+        for stmt in DDL_PLACE_ZCTA:
+            await session.execute(stmt)
         if truncate:
-            logger.info("TRUNCATE bronze.bronze_jurisdictions_place_zcta")
-            cur.execute("TRUNCATE TABLE bronze.bronze_jurisdictions_place_zcta")
-        rows = [
-            (
-                r.place_geoid, r.place_name, r.zcta, r.state_fips,
-                r.arealand_part, r.areawater_part,
-                bool(r.is_primary), r.source,
-            )
-            for r in df.itertuples(index=False)
-        ]
-        execute_batch(cur, INSERT_PLACE_ZCTA, rows, page_size=BATCH_SIZE)
-    conn.commit()
-    return len(df)
+            await session.execute(_TRUNCATE_PLACE_COUNTY)
+            await session.execute(_TRUNCATE_PLACE_ZCTA)
 
 
-# ---------------------------------------------------------------------------
-# Verification
-# ---------------------------------------------------------------------------
-
-def verify(conn) -> None:
-    with conn.cursor() as cur:
-        for tbl, has_pct in [
-            ("bronze.bronze_jurisdictions_place_county", True),
-            ("bronze.bronze_jurisdictions_place_zcta",   False),
-        ]:
-            cur.execute(f"""
-                SELECT COUNT(*),
-                       COUNT(DISTINCT place_geoid),
-                       COUNT(*) FILTER (WHERE is_primary)
-                FROM {tbl}
-            """)
-            total, distinct_places, primary = cur.fetchone()
-            logger.info(
-                f"  {tbl}: rows={total:,}  places={distinct_places:,}  "
-                f"primary_rows={primary:,}"
-            )
-
-        # Sample lookups: pick a well-known city and show its primary county + ZIP.
-        cur.execute("""
-            SELECT place_name, place_geoid, county_name, county_geoid, overlap_pct
-            FROM bronze.bronze_jurisdictions_place_county
-            WHERE place_name IN ('Boston city', 'Chicago city', 'Los Angeles city',
-                                 'Tuscaloosa city', 'New York city')
-              AND is_primary
-            ORDER BY place_name
-            LIMIT 10
-        """)
-        for row in cur.fetchall():
-            logger.info(f"    primary county: {row[0]} ({row[1]}) → {row[2]} ({row[3]})  {row[4]}%")
-
-
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
-
-def main() -> int:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Build place→county and place→ZCTA crosswalks in the bronze schema",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -478,79 +481,24 @@ def main() -> int:
                         help="Run only one of the crosswalks (default: both)")
     parser.add_argument("--truncate", action="store_true",
                         help="TRUNCATE the target tables before loading")
-    parser.add_argument("--dry-run", action="store_true",
-                        help="Build dataframes and print stats but skip DB writes")
+    parser.add_argument("--file", type=Path,
+                        help="Path to the zcta_place.txt relationship file (default: cache)")
     parser.add_argument("--limit", type=int,
                         help="Process only the first N places (smoke test)")
-    parser.add_argument("--verify-only", action="store_true",
-                        help="Only run verification queries against the existing tables")
-    args = parser.parse_args()
+    return parser
 
-    targets = set(args.only or ["place_county", "place_zcta"])
 
-    logger.info("=" * 80)
-    logger.info("BRONZE PLACE CROSSWALKS")
-    logger.info("=" * 80)
-    logger.info(f"Targets: {', '.join(sorted(targets))}")
-    logger.info(f"Vintage: {args.year}")
-    logger.info(f"DB:      {DATABASE_URL.split('@')[-1]}")
-    if args.dry_run:
-        logger.warning("--dry-run active: dataframes will be built but not written to the DB.")
+async def _run(args: argparse.Namespace) -> None:
+    await _prepare_target(args.truncate)
+    pipeline = CensusPlaceCrosswalksPipeline(path=args.file, limit=args.limit)
+    await pipeline.run()
 
-    conn = None
-    if not args.dry_run:
-        try:
-            conn = psycopg2.connect(DATABASE_URL)
-        except psycopg2.OperationalError as e:
-            logger.error(f"Cannot connect to Postgres: {e}")
-            return 1
 
-    if args.verify_only:
-        if conn is None:
-            logger.error("--verify-only requires a DB connection (don't combine with --dry-run).")
-            return 1
-        verify(conn)
-        conn.close()
-        return 0
-
-    n_pc = n_pz = 0
-
-    if "place_county" in targets:
-        logger.info("-" * 80)
-        logger.info("place → county")
-        logger.info("-" * 80)
-        df_pc = build_place_county(year=args.year, limit=args.limit)
-        if not df_pc.empty and not args.dry_run:
-            _ensure_table(conn, DDL_PLACE_COUNTY)
-            n_pc = _insert_place_county(conn, df_pc, truncate=args.truncate)
-            logger.success(f"Loaded {n_pc:,} rows → bronze.bronze_jurisdictions_place_county")
-        elif args.dry_run:
-            logger.info(f"[dry-run] Would load {len(df_pc):,} rows")
-
-    if "place_zcta" in targets:
-        logger.info("-" * 80)
-        logger.info("place → zcta")
-        logger.info("-" * 80)
-        df_pz = build_place_zcta(limit=args.limit)
-        if not df_pz.empty and not args.dry_run:
-            _ensure_table(conn, DDL_PLACE_ZCTA)
-            n_pz = _insert_place_zcta(conn, df_pz, truncate=args.truncate)
-            logger.success(f"Loaded {n_pz:,} rows → bronze.bronze_jurisdictions_place_zcta")
-        elif args.dry_run:
-            logger.info(f"[dry-run] Would load {len(df_pz):,} rows")
-
-    if conn is not None:
-        logger.info("-" * 80)
-        logger.info("Verification")
-        logger.info("-" * 80)
-        verify(conn)
-        conn.close()
-
-    logger.info("=" * 80)
-    logger.success(f"Done. place_county={n_pc:,}  place_zcta={n_pz:,}")
-    logger.info("=" * 80)
-    return 0
+def main() -> None:
+    setup_logging()
+    args = build_parser().parse_args()
+    asyncio.run(_run(args))
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()
