@@ -1,0 +1,65 @@
+version: 2
+
+models:
+  - name: stg_gsa__domains
+    description: |
+      GSA .gov domain registry — one row per registered .gov domain.
+
+      Reference example for Stage 3 conventions (dbt_project/CONVENTIONS.md).
+      Demonstrates contract enforcement: column data_types are pinned at the
+      database level; if the upstream loader (scripts/datasources/gsa/domains_pipeline.py)
+      changes a column type, this model's build will fail before any downstream
+      mart sees the drift.
+
+    config:
+      contract:
+        enforced: true
+      materialized: view
+
+    columns:
+      - name: domain_name
+        description: "Registered .gov domain. Lowercased natural key."
+        data_type: varchar(255)
+        constraints:
+          - type: not_null
+        tests:
+          - unique
+          - not_null
+
+      - name: domain_type
+        description: "Federal / City / County / State / Tribal / etc."
+        data_type: varchar(50)
+
+      - name: agency
+        description: "Federal agency or parent organization (was 'organization_name' upstream)."
+        data_type: varchar(255)
+
+      - name: organization
+        description: "Sub-organization (was 'suborganization_name' upstream)."
+        data_type: varchar(255)
+
+      - name: city
+        description: "Registrant city."
+        data_type: varchar(100)
+
+      - name: state_code
+        description: "2-letter state code, uppercased + trimmed."
+        data_type: varchar(2)
+        tests:
+          - dbt_expectations.expect_column_value_lengths_to_equal:
+              value: 2
+              row_condition: "state_code is not null"
+
+      - name: security_contact
+        description: "Security contact email."
+        data_type: varchar(255)
+
+      - name: source_ingested_at
+        description: "Timestamp from the bronze loader."
+        data_type: timestamp
+
+      - name: dbt_loaded_at
+        description: "Timestamp this staging model was materialized."
+        data_type: timestamp
+        constraints:
+          - type: not_null
