@@ -11,6 +11,7 @@ members = [
     "communityone-agents",
     "communityone-core",
     "communityone-datamodels",
+    "communityone-ingestion",
     "core-lib",
 ]
 
@@ -526,6 +527,23 @@ requires-dist = [
 name = "communityone-datamodels"
 version = "0.1.0"
 source = { editable = "packages/datamodels" }
+
+[[package]]
+name = "communityone-ingestion"
+version = "0.1.0"
+source = { editable = "packages/ingestion" }
+dependencies = [
+    { name = "core-lib" },
+    { name = "pandas" },
+    { name = "pyarrow" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "core-lib", editable = "packages/core-lib" },
+    { name = "pandas", specifier = ">=2.1" },
+    { name = "pyarrow", specifier = ">=14" },
+]
 
 [[package]]
 name = "contourpy"
