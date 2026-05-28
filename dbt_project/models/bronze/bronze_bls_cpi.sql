@@ -8,7 +8,9 @@
 
 -- Bronze BLS CPI passthrough — exposes bronze.bronze_bls_cpi as a dbt model
 -- so staging / intermediate models can ref() it. Data is populated by the
--- loader script (scripts/datasources/bls/load_bls_cpi.py), not by dbt.
+-- ingestion.bls.cpi pipeline (FETCH→data/cache/bls/, LAND→bronze; a thin
+-- shim at scripts/datasources/bls/load_bls_cpi.py is preserved for back-
+-- compat), not by dbt.
 
 SELECT
     series_id,

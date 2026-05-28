@@ -5,7 +5,8 @@
 -- national series (default CUUR0000SA0, CPI-U NSA, all items, U.S. city avg)
 -- applied uniformly to every geography, so cross-place "real dollar"
 -- comparisons stay coherent. Loaded by:
---   scripts/datasources/bls/load_bls_cpi.py
+--   python -m ingestion.bls.cpi             (FETCH→data/cache/bls/, LAND→bronze)
+--   scripts/datasources/bls/load_bls_cpi.py (thin shim — same flags)
 --
 -- Apply:
 --   ./scripts/deployment/neon/psql_resolved.sh -v ON_ERROR_STOP=1 \
