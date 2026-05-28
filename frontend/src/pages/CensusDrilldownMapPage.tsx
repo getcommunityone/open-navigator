@@ -463,29 +463,18 @@ export default function CensusDrilldownMapPage() {
     const rows = zctaMetricsPayload?.values
     if (!rows || !metricSlug) return out
     for (const [zcta, row] of Object.entries(rows)) {
-      const raw = typeof row[metricSlug] === 'number' && Number.isFinite(row[metricSlug]) ? row[metricSlug] : null
+      const cell = row[metricSlug]
+      // Census ACS uses -666666666 (and similar large-negative sentinels) for
+      // "estimate not available". Treat those as null so they don't anchor the
+      // low end of the choropleth ramp and wash everything else out.
+      const raw =
+        typeof cell === 'number' && Number.isFinite(cell) && cell > -1e9 ? cell : null
       // For now treat valueMode === 'raw' only — yoy/vs_natl need prior-vintage
       // ZCTA data which isn't ingested yet. Falls back to raw cleanly.
       out[zcta] = raw
     }
     return out
   }, [zctaMetricsPayload, metricSlug])
-
-  const zctaChoroExtent = useMemo(() => {
-    const vals = Object.values(zctaDisplayByZcta).filter(
-      (x): x is number => typeof x === 'number' && Number.isFinite(x),
-    )
-    if (!vals.length) return { min: 0, max: 1 }
-    return quantileExtent(vals)
-  }, [zctaDisplayByZcta])
-
-  const zctaBubbleExtent = useMemo(() => {
-    const vals = Object.values(zctaDisplayByZcta).filter(
-      (x): x is number => typeof x === 'number' && Number.isFinite(x),
-    )
-    if (vals.length >= 2) return minMaxExtent(vals)
-    return { min: 0, max: 1 }
-  }, [zctaDisplayByZcta])
 
   const zctaRankByZcta = useMemo(() => {
     const direction = censusMetricRankDirection(metricSlug)

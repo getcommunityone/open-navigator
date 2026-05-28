@@ -651,10 +651,35 @@ export default function CensusDrilldownStage({
         {/* bubbles overlay — lives inside the zoomed <g>, so radii are
             counter-scaled by 1/zoomK to keep a constant on-screen footprint
             (same trick as the ZIP labels and pinned marker). Without this the
-            county-tier bubbles balloon to many times the polygon they sit on. */}
+            county-tier bubbles balloon to many times the polygon they sit on.
+            ZIP-tier ZCTAs are raw lng/lat (projectedPath) while state/county
+            tiles are pre-projected (path) — pick the right path per tier. */}
         {viz === 'bubble' && states ? (
           <g className="bubbles-layer" pointerEvents="none">
-            {(view === 'state' || view === 'county') && countiesInState
+            {view === 'zip' && zctasInCounty
+              ? zctasInCounty.map((f) => {
+                  const zid = String(f.id ?? (f.properties as { GEOID20?: string; ZCTA5CE20?: string })?.GEOID20 ?? '')
+                  if (!zid) return null
+                  const v = zctaDisplayByZcta[zid]
+                  if (v == null) return null
+                  const c = projectedPath.centroid(f as never)
+                  if (!c || !Number.isFinite(c[0])) return null
+                  const r = bubbleRadiusPx(v, zctaBubbleExtent.min, zctaBubbleExtent.max, scale, 2, 12) / zoomK
+                  const t =
+                    metricToDisplayT(v, zctaBubbleExtent.min, zctaBubbleExtent.max, scale) ?? 0
+                  return (
+                    <circle
+                      key={`bz-${zid}`}
+                      cx={c[0]}
+                      cy={c[1]}
+                      r={r}
+                      fill={bubbleFillFromT(t, 0.86)}
+                      stroke="#fff"
+                      strokeWidth={0.5 / zoomK}
+                    />
+                  )
+                })
+              : (view === 'state' || view === 'county') && countiesInState
               ? countiesInState.map((f) => {
                   const gid = geoid5(f.id as string | number)
                   const v = countyDisplayByGeoid[gid]

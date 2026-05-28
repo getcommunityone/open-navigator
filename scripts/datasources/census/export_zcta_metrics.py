@@ -56,14 +56,36 @@ _REPO_ROOT = Path(__file__).resolve().parents[3]
 
 # Shared metric definitions — copied here rather than imported to keep this
 # script callable from the venv without ``packages/ingestion`` on sys.path.
-# Keep in sync with METRICS in export_census_map_static.py for the slugs used.
+# Slugs must match METRICS in export_census_map_static.py so the frontend can
+# look up a value with the same key at every drilldown tier.
+#
+# Subject tables (S-prefix, e.g. S0801) are not published at the ZCTA level —
+# the Census API returns 404 and ``_fetch_zcta_table`` skips them gracefully,
+# so the ZIP tier falls back to neutral fill for those metrics. Keep them in
+# the list anyway to make the slug parity explicit.
 METRICS: list[dict[str, Any]] = [
-    {"slug": "median_household_income", "table": "B19013", "estimate_col": "B19013_001E"},
-    {"slug": "median_home_value",       "table": "B25077", "estimate_col": "B25077_001E"},
-    {"slug": "median_gross_rent",       "table": "B25064", "estimate_col": "B25064_001E"},
-    {"slug": "per_capita_income",       "table": "B19301", "estimate_col": "B19301_001E"},
-    {"slug": "total_population",        "table": "B01003", "estimate_col": "B01003_001E"},
-    {"slug": "total_housing_units",     "table": "B25001", "estimate_col": "B25001_001E"},
+    {"slug": "median_household_income",                            "table": "B19013", "estimate_col": "B19013_001E"},
+    {"slug": "median_home_value",                                  "table": "B25077", "estimate_col": "B25077_001E"},
+    {"slug": "median_gross_rent",                                  "table": "B25064", "estimate_col": "B25064_001E"},
+    {"slug": "per_capita_income",                                  "table": "B19301", "estimate_col": "B19301_001E"},
+    {"slug": "total_population",                                   "table": "B01003", "estimate_col": "B01003_001E"},
+    {"slug": "median_age",                                         "table": "B01002", "estimate_col": "B01002_001E"},
+    {"slug": "gini_income_inequality",                             "table": "B19083", "estimate_col": "B19083_001E"},
+    {"slug": "median_gross_rent_pct_hhincome",                     "table": "B25071", "estimate_col": "B25071_001E"},
+    {"slug": "travel_time_to_work_minutes",                        "table": "S0801",  "estimate_col": "S0801_C01_046E"},
+    {"slug": "housing_units",                                      "table": "B25001", "estimate_col": "B25001_001E"},
+    {"slug": "poverty_universe",                                   "table": "B17001", "estimate_col": "B17001_001E"},
+    {"slug": "labor_force",                                        "table": "B23025", "estimate_col": "B23025_003E"},
+    {"slug": "sex_by_age_table_total",                             "table": "B01001", "estimate_col": "B01001_001E"},
+    {"slug": "race_table_total",                                   "table": "B02001", "estimate_col": "B02001_001E"},
+    {"slug": "hispanic_latino_by_race_total",                      "table": "B03002", "estimate_col": "B03002_001E"},
+    {"slug": "population_income_below_poverty_level",              "table": "B17001", "estimate_col": "B17001_002E"},
+    {"slug": "employed_civilian",                                  "table": "B23025", "estimate_col": "B23025_004E"},
+    {"slug": "unemployed_civilian",                                "table": "B23025", "estimate_col": "B23025_005E"},
+    {"slug": "health_insurance_civilian_noninstitutional_total",   "table": "B27001", "estimate_col": "B27001_001E"},
+    {"slug": "health_insurance_under19_table_total",               "table": "B27010", "estimate_col": "B27010_001E"},
+    {"slug": "population_25_and_over_education_universe",          "table": "B15003", "estimate_col": "B15003_001E"},
+    {"slug": "school_enrollment_total",                            "table": "B14001", "estimate_col": "B14001_001E"},
 ]
 
 DEFAULT_ACS_DIR = _REPO_ROOT / "data" / "cache" / "acs"
@@ -132,26 +154,41 @@ async def _fetch_zcta_table(
     *,
     table: str,
     year: int,
-    estimate_col: str,
+    estimate_cols: list[str],
     api_key: Optional[str],
 ) -> pd.DataFrame:
-    """One ACS5 ZCTA table → DataFrame. Cached at ``data/cache/acs/{table}_zcta_us_{year}.parquet``."""
+    """One ACS5 ZCTA table → DataFrame.
+
+    All ``estimate_cols`` for a table are fetched in a single Census API call
+    and cached together at ``data/cache/acs/{table}_zcta_us_{year}.parquet``.
+    Fetching per-column would issue one request per slug (B23025 alone has 3),
+    burning rate-limit quota and producing inconsistent caches when slugs are
+    added later — the cached parquet would only hold the first column fetched.
+    """
     cache_path = DEFAULT_ACS_DIR / f"{table}_zcta_us_{year}.parquet"
     if cache_path.exists():
-        return pd.read_parquet(cache_path)
+        cached = pd.read_parquet(cache_path)
+        if all(c in cached.columns for c in estimate_cols):
+            return cached
+        # Cache is missing one or more newly-requested columns. Fall through to
+        # re-fetch with the full set so all slugs sharing this table resolve.
+        logger.info(f"  cache miss on cols for {table}: refetching")
 
     url = f"{_CENSUS_BASE}/{year}/acs/acs5"
     params: dict[str, str] = {
-        "get": f"{estimate_col},NAME",
+        "get": f"{','.join(estimate_cols)},NAME",
         "for": "zip code tabulation area:*",
     }
     if api_key:
         params["key"] = api_key
 
-    logger.info(f"GET {url}  table={table}  year={year}  (~33k rows)")
+    logger.info(f"GET {url}  table={table}  cols={estimate_cols}  year={year}  (~33k rows)")
     resp = await client.get(url, params=params, timeout=120.0)
-    if resp.status_code == 404:
-        logger.warning(f"{table} not available at ZCTA for ACS5 {year}: 404")
+    # Census returns 404 for unknown geographies and 400 for valid geographies
+    # that simply don't publish this table (Subject S-tables aren't released at
+    # ZCTA). Both mean "skip this metric" rather than fail the whole export.
+    if resp.status_code in (400, 404):
+        logger.warning(f"{table} not available at ZCTA for ACS5 {year}: HTTP {resp.status_code}")
         return pd.DataFrame()
     resp.raise_for_status()
     payload = resp.json()
@@ -160,9 +197,10 @@ async def _fetch_zcta_table(
     header, *rows = payload
     df = pd.DataFrame(rows, columns=header)
 
-    # Coerce variable col to numeric; leave NAME and zip code field as strings.
-    if estimate_col in df.columns:
-        df[estimate_col] = pd.to_numeric(df[estimate_col], errors="coerce")
+    # Coerce variable cols to numeric; leave NAME and zip code field as strings.
+    for c in estimate_cols:
+        if c in df.columns:
+            df[c] = pd.to_numeric(df[c], errors="coerce")
 
     cache_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(cache_path, index=False)
@@ -171,30 +209,39 @@ async def _fetch_zcta_table(
 
 
 async def fetch_all_metrics(year: int, force: bool) -> dict[str, pd.DataFrame]:
-    """Return ``{table_code: DataFrame}`` for every ZCTA-available metric."""
+    """Return ``{table_code: DataFrame}`` for every ZCTA-available metric.
+
+    Groups slugs by ACS table so each table is fetched once with all the
+    estimate columns its slugs need (vs once per slug).
+    """
     load_dotenv(_REPO_ROOT / ".env")
     api_key = os.getenv("CENSUS_API_KEY", "").strip() or None
     if not api_key:
         logger.warning("No CENSUS_API_KEY in .env — rate-limited to 500 reqs/day")
 
+    cols_by_table: dict[str, list[str]] = defaultdict(list)
+    for m in METRICS:
+        if m["estimate_col"] not in cols_by_table[m["table"]]:
+            cols_by_table[m["table"]].append(m["estimate_col"])
+
     if force:
-        for m in METRICS:
-            p = DEFAULT_ACS_DIR / f"{m['table']}_zcta_us_{year}.parquet"
+        for table in cols_by_table:
+            p = DEFAULT_ACS_DIR / f"{table}_zcta_us_{year}.parquet"
             if p.exists():
                 p.unlink()
 
     out: dict[str, pd.DataFrame] = {}
     async with httpx.AsyncClient() as client:
-        for m in METRICS:
+        for table, cols in cols_by_table.items():
             df = await _fetch_zcta_table(
                 client,
-                table=m["table"],
+                table=table,
                 year=year,
-                estimate_col=m["estimate_col"],
+                estimate_cols=cols,
                 api_key=api_key,
             )
             if not df.empty:
-                out[m["table"]] = df
+                out[table] = df
     return out
 
 
