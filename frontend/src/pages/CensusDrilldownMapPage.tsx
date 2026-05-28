@@ -464,11 +464,13 @@ export default function CensusDrilldownMapPage() {
     if (!rows || !metricSlug) return out
     for (const [zcta, row] of Object.entries(rows)) {
       const cell = row[metricSlug]
-      // Census ACS uses -666666666 (and similar large-negative sentinels) for
-      // "estimate not available". Treat those as null so they don't anchor the
-      // low end of the choropleth ramp and wash everything else out.
+      // Census ACS uses -666666666 / -555555555 / -333333333 / -222222222 for
+      // "estimate not available / suppressed". Treat any large-magnitude
+      // negative as null so they don't anchor the low end of the choropleth
+      // ramp and wash everything else out. -1e7 is comfortably below any real
+      // metric value (rent %, gini, etc) but above every sentinel.
       const raw =
-        typeof cell === 'number' && Number.isFinite(cell) && cell > -1e9 ? cell : null
+        typeof cell === 'number' && Number.isFinite(cell) && cell > -1e7 ? cell : null
       // For now treat valueMode === 'raw' only — yoy/vs_natl need prior-vintage
       // ZCTA data which isn't ingested yet. Falls back to raw cleanly.
       out[zcta] = raw
@@ -537,6 +539,44 @@ export default function CensusDrilldownMapPage() {
       return null
     }
   }, [zctaTopo, localCountyFeature, localPin])
+
+  /**
+   * ZCTA5 ids whose centroid is inside the currently drilled county. Used to
+   * scope the ZIP-tier bubble/choro extents to the visible polygons so the
+   * dozen ZIPs of one county actually span the size/color scale — without
+   * this the extent runs across all ~650 ZCTAs in the state and every
+   * in-county ZIP collapses to ~the same bubble radius. Null when no county
+   * is drilled in: callers should fall back to the statewide extent.
+   */
+  const zctaIdsInCounty = useMemo<Set<string> | null>(() => {
+    if (!localCountyFeature || !localZctaFeatures) return null
+    const ids = new Set<string>()
+    for (const f of localZctaFeatures) {
+      const z = String(f.id ?? (f.properties as { GEOID20?: string })?.GEOID20 ?? '').trim()
+      if (z) ids.add(z)
+    }
+    return ids.size ? ids : null
+  }, [localCountyFeature, localZctaFeatures])
+
+  const zctaChoroExtent = useMemo(() => {
+    const entries = Object.entries(zctaDisplayByZcta)
+    const scoped = zctaIdsInCounty ? entries.filter(([z]) => zctaIdsInCounty.has(z)) : entries
+    const vals = scoped
+      .map(([, v]) => v)
+      .filter((x): x is number => typeof x === 'number' && Number.isFinite(x))
+    if (!vals.length) return { min: 0, max: 1 }
+    return quantileExtent(vals)
+  }, [zctaDisplayByZcta, zctaIdsInCounty])
+
+  const zctaBubbleExtent = useMemo(() => {
+    const entries = Object.entries(zctaDisplayByZcta)
+    const scoped = zctaIdsInCounty ? entries.filter(([z]) => zctaIdsInCounty.has(z)) : entries
+    const vals = scoped
+      .map(([, v]) => v)
+      .filter((x): x is number => typeof x === 'number' && Number.isFinite(x))
+    if (vals.length >= 2) return minMaxExtent(vals)
+    return { min: 0, max: 1 }
+  }, [zctaDisplayByZcta, zctaIdsInCounty])
 
   // ── flyout / left rail state ──────────────────────────────────────────────
   const [advancedMapOptionsOpen, setAdvancedMapOptionsOpen] = useState(false)

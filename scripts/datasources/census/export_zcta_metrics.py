@@ -94,14 +94,17 @@ DEFAULT_ZCTA_COUNTY_REL = _REPO_ROOT / "data" / "cache" / "census_relationships"
 
 
 def _parse_stat(raw: Any) -> Optional[float]:
-    """Census API returns sentinels (negative, ``-666666666``) for suppressed cells."""
+    """Census API returns sentinels (``-666666666`` "no estimate",
+    ``-555555555`` median falls in open-ended interval, etc.) for suppressed
+    cells. They're large-magnitude negatives well below any real metric value,
+    so any value below -1e6 is a sentinel."""
     if raw is None or (isinstance(raw, float) and pd.isna(raw)):
         return None
     try:
         v = float(raw)
     except (TypeError, ValueError):
         return None
-    if v <= -1e9:
+    if v <= -1e6:
         return None
     return v
 
