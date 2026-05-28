@@ -148,6 +148,25 @@ YOUTUBE_COVERAGE_SUMMARY_SQL = f"""
     ) golden_cnt ON TRUE
 """
 
+# Per-state rollup: same join shape as YOUTUBE_COVERAGE_SUMMARY_SQL, grouped by state_code.
+# Replaces the static ``youtube_entity_state_rollup`` block in jurisdiction_mapping_quality.json
+# for the dashboard — JSON goes stale whenever int_events_channels is reloaded.
+YOUTUBE_STATE_ROLLUP_SQL = f"""
+    SELECT
+        UPPER(BTRIM(a.state_code::text)) AS state_code,
+        COUNT(*)::bigint AS total_jurisdictions,
+        COUNT(*) FILTER (WHERE COALESCE(golden_cnt.n_golden_channel_rows, 0) > 0)::bigint
+            AS with_youtube_channel
+    FROM public.jurisdiction_mapping_analysis a
+    LEFT JOIN LATERAL (
+        SELECT COUNT(*)::bigint AS n_golden_channel_rows
+        FROM intermediate.int_events_channels g
+        WHERE {_GOLDEN_MATCH}
+          AND g.youtube_channel_url IS NOT NULL
+          AND BTRIM(g.youtube_channel_url) <> ''
+    ) golden_cnt ON TRUE
+"""
+
 YOUTUBE_DIAGNOSTICS_ROW_SQL = f"""
     SELECT
         a.jurisdiction_id::text AS jurisdiction_id,
@@ -155,6 +174,7 @@ YOUTUBE_DIAGNOSTICS_ROW_SQL = f"""
         a.state_code::text AS state_code,
         a.jurisdiction_type::text AS jurisdiction_type,
         a.geoid::text AS geoid,
+        a.acs_total_population::bigint AS acs_total_population,
         a.primary_website_url::text AS primary_website_url,
         COALESCE(a.has_primary_website, FALSE) AS has_primary_website,
         (COALESCE(golden_cnt.n_golden_channel_rows, 0) > 0) AS has_youtube_channel,

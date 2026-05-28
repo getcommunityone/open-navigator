@@ -30,8 +30,7 @@ export default function AddressLookup({ onLocationFound, initialAddress = '', co
     }
 
     try {
-      // Same-origin proxy (api/routes/geocode.py): avoids Nominatim CORS and
-      // honors its rate-limit policy server-side.
+      // Same-origin proxy (api/routes/geocode.py) — avoids Nominatim CORS.
       const response = await fetch(
         `/api/geocode/search?q=${encodeURIComponent(query)}&limit=5`,
       )
@@ -100,10 +99,19 @@ export default function AddressLookup({ onLocationFound, initialAddress = '', co
     setShowSuggestions(false)
 
     try {
-      // Same-origin proxy (api/routes/geocode.py): avoids Nominatim CORS and
-      // honors its rate-limit policy server-side.
+      // Use Nominatim (OpenStreetMap) geocoding service
       const response = await fetch(
-        `/api/geocode/search?q=${encodeURIComponent(addressToLookup)}&limit=5`,
+        `https://nominatim.openstreetmap.org/search?` +
+        `q=${encodeURIComponent(addressToLookup)}&` +
+        `format=json&` +
+        `addressdetails=1&` +
+        `countrycodes=us&` +
+        `limit=5`,
+        {
+          headers: {
+            'User-Agent': 'CommunityOne-Navigator/1.0'
+          }
+        }
       )
 
       if (!response.ok) {
@@ -275,9 +283,18 @@ export default function AddressLookup({ onLocationFound, initialAddress = '', co
         const { latitude, longitude } = position.coords
 
         try {
-          // Reverse geocode via same-origin proxy (api/routes/geocode.py).
+          // Reverse geocode using Nominatim
           const response = await fetch(
-            `/api/geocode/reverse?lat=${latitude}&lon=${longitude}`,
+            `https://nominatim.openstreetmap.org/reverse?` +
+            `lat=${latitude}&` +
+            `lon=${longitude}&` +
+            `format=json&` +
+            `addressdetails=1`,
+            {
+              headers: {
+                'User-Agent': 'CommunityOne-Navigator/1.0'
+              }
+            }
           )
 
           if (!response.ok) {

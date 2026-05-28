@@ -32,7 +32,10 @@ import {
   type MissingYoutubeDrillParams,
 } from '../../api/jurisdictionMappingMissingYoutube'
 import { DATA_EXPLORER_MAP_BASE } from '../../utils/dataExplorerPaths'
-import { fetchYoutubeChannelCoverage } from '../../api/jurisdictionMappingYoutubeDiagnostics'
+import {
+  fetchYoutubeChannelCoverage,
+  fetchYoutubeStateRollup,
+} from '../../api/jurisdictionMappingYoutubeDiagnostics'
 import { formatCompactNumber, formatFullNumber } from '../../utils/formatCompact'
 import CountyYoutubeDiagnosticsSection from './CountyYoutubeDiagnosticsSection'
 import StateYoutubeCategorySection from './StateYoutubeCategorySection'
@@ -2164,6 +2167,17 @@ export default function EntityQualityDashboard({
     staleTime: 60_000,
   })
 
+  // Per-state YouTube rollup falls back to FastAPI when the static JSON section is
+  // missing or empty (the JSON goes stale whenever int_events_channels is reloaded).
+  // We always fetch when the entity supports YouTube — selection logic in the
+  // youtubeRollup memo below prefers JSON when present and uses the API otherwise.
+  const { data: liveYoutubeStateRollup } = useQuery({
+    queryKey: ['youtube-state-rollup', youtubeDiagEntity],
+    queryFn: ({ signal }) => fetchYoutubeStateRollup(youtubeDiagEntity!, signal),
+    enabled: youtubeDiagEntity != null,
+    staleTime: 60_000,
+  })
+
   const metrics = useMemo(() => {
     if (entity === 'state') return stateGovMetrics(stateQualityRows)
     if (filteredRollupRow) return metricsFromRollupRow(filteredRollupRow)
@@ -2250,11 +2264,16 @@ export default function EntityQualityDashboard({
   const youtubeRollup = useMemo(() => {
     if (!YOUTUBE_ENTITY_KEYS.has(entity)) return []
     const roll = data.youtube_entity_state_rollup
-    if (!roll) return []
-    const rows = roll[ENTITY_YOUTUBE_ROLLUP_KEY[entity as Exclude<EntityKey, 'state' | 'schools'>]] ?? []
+    const jsonRows = roll
+      ? roll[ENTITY_YOUTUBE_ROLLUP_KEY[entity as Exclude<EntityKey, 'state' | 'schools'>]] ?? []
+      : []
+    // Prefer the live FastAPI rollup when the static JSON section is empty (its
+    // export depends on int_events_channels being populated when dbt last ran).
+    const rows: YoutubeStateRollupRow[] =
+      jsonRows.length > 0 ? jsonRows : liveYoutubeStateRollup?.rows ?? []
     if (!stateFilter) return rows
     return rows.filter((r) => r.state_code === stateFilter)
-  }, [data.youtube_entity_state_rollup, entity, stateFilter])
+  }, [data.youtube_entity_state_rollup, entity, stateFilter, liveYoutubeStateRollup])
 
   const insight = useMemo(() => {
     const { total, withUrl, pct } = metrics
@@ -2890,9 +2909,9 @@ export default function EntityQualityDashboard({
               {YOUTUBE_ENTITY_KEYS.has(entity) ? (
             youtubeRollup.length === 0 ? (
               <div className="jmq-placeholder">
-                <strong>No YouTube state rollup in JSON</strong>
-                Re-run dbt + <code>export_jurisdiction_mapping_quality_json.py</code> after{' '}
-                <code>intermediate.int_events_channels</code> is populated.
+                <strong>No YouTube state rollup available</strong>
+                Live FastAPI rollup returned no rows for this entity. Check{' '}
+                <code>intermediate.int_events_channels</code> has data, then refresh.
               </div>
             ) : (
               <EntityStateRollupSection

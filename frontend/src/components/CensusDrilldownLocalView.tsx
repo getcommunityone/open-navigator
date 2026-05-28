@@ -15,6 +15,10 @@ interface LocalViewProps {
   initialBasemap?: Basemap
   /** Fires when the user clicks the dropped pin — page handles details lookup. */
   onMarkerClick?: () => void
+  /** Drilled-from county boundary (lng/lat GeoJSON) — toggled via the overlay control. */
+  countyOutline?: GeoJSON.Feature | null
+  /** ZCTA (ZIP) boundaries in/around the county (lng/lat GeoJSON) — toggled via the control. */
+  zctaOutlines?: GeoJSON.Feature[] | null
 }
 
 /**
@@ -37,12 +41,19 @@ export default function CensusDrilldownLocalView({
   topLeftSlot,
   initialBasemap = 'satellite',
   onMarkerClick,
+  countyOutline = null,
+  zctaOutlines = null,
 }: LocalViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<L.Map | null>(null)
   const markerRef = useRef<L.CircleMarker | null>(null)
   const layersRef = useRef<{ streets?: L.TileLayer; satellite?: L.TileLayer; active?: L.TileLayer }>({})
+  const countyLayerRef = useRef<L.GeoJSON | null>(null)
+  const zctaLayerRef = useRef<L.GeoJSON | null>(null)
   const [basemap, setBasemap] = useState<Basemap>(initialBasemap)
+  // Outline overlays are opt-in (off by default — keeps the aerial clean).
+  const [showCounty, setShowCounty] = useState(false)
+  const [showZip, setShowZip] = useState(false)
   const [tileStatus, setTileStatus] = useState<'loading' | 'ok' | 'partial' | 'failed'>('loading')
   const tileErrCountRef = useRef(0)
   const tileLoadCountRef = useRef(0)
@@ -166,6 +177,52 @@ export default function CensusDrilldownLocalView({
     }
   }, [center.lat, center.lng, label, onMarkerClick])
 
+  // County outline overlay — add/remove with the toggle. Non-interactive so it
+  // never steals the pin click; amber dashed to match the SVG map's county accent.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    if (countyLayerRef.current) {
+      map.removeLayer(countyLayerRef.current)
+      countyLayerRef.current = null
+    }
+    if (showCounty && countyOutline) {
+      countyLayerRef.current = L.geoJSON(countyOutline as never, {
+        interactive: false,
+        style: { color: '#b45309', weight: 2.5, dashArray: '6 4', fill: false },
+      }).addTo(map)
+    }
+  }, [showCounty, countyOutline])
+
+  // ZCTA (ZIP) outlines overlay — cyan thin strokes, labels at each centroid.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    if (zctaLayerRef.current) {
+      map.removeLayer(zctaLayerRef.current)
+      zctaLayerRef.current = null
+    }
+    if (showZip && zctaOutlines && zctaOutlines.length) {
+      zctaLayerRef.current = L.geoJSON(
+        { type: 'FeatureCollection', features: zctaOutlines } as never,
+        {
+          interactive: false,
+          style: { color: '#0e7490', weight: 1.25, fillColor: '#06b6d4', fillOpacity: 0.05 },
+          onEachFeature: (feat, layer) => {
+            const zid = String((feat as GeoJSON.Feature).id ?? '')
+            if (zid) {
+              layer.bindTooltip(zid, {
+                permanent: true,
+                direction: 'center',
+                className: 'zcta-outline-label',
+              })
+            }
+          },
+        },
+      ).addTo(map)
+    }
+  }, [showZip, zctaOutlines])
+
   return (
     <div className="relative h-full w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-200 shadow-sm">
       <div ref={containerRef} className="absolute inset-0" />
@@ -189,6 +246,46 @@ export default function CensusDrilldownLocalView({
         >
           Satellite
         </button>
+      </div>
+
+      {/* Boundary overlay toggles — show county and/or ZIP outlines over the
+          aerial/streets basemap. Each disabled until its geometry is available. */}
+      <div className="absolute right-3 top-12 z-[400] flex flex-col gap-1 rounded-md border border-slate-300 bg-white/95 p-1.5 shadow-md">
+        <div className="px-1 text-[9px] font-semibold uppercase tracking-wide text-slate-400">Outlines</div>
+        <label
+          className={`flex items-center gap-1.5 rounded px-1.5 py-1 text-[11px] font-semibold ${
+            countyOutline ? 'cursor-pointer text-slate-700 hover:bg-slate-50' : 'cursor-not-allowed text-slate-300'
+          }`}
+          title={countyOutline ? 'Toggle county boundary' : 'County boundary unavailable'}
+        >
+          <input
+            type="checkbox"
+            checked={showCounty && !!countyOutline}
+            disabled={!countyOutline}
+            onChange={(e) => setShowCounty(e.target.checked)}
+            className="h-3.5 w-3.5 accent-[#b45309]"
+          />
+          <span className="inline-block h-0 w-3 border-t-2 border-dashed border-[#b45309]" aria-hidden />
+          County
+        </label>
+        <label
+          className={`flex items-center gap-1.5 rounded px-1.5 py-1 text-[11px] font-semibold ${
+            zctaOutlines && zctaOutlines.length
+              ? 'cursor-pointer text-slate-700 hover:bg-slate-50'
+              : 'cursor-not-allowed text-slate-300'
+          }`}
+          title={zctaOutlines && zctaOutlines.length ? 'Toggle ZIP (ZCTA) boundaries' : 'ZIP boundaries unavailable'}
+        >
+          <input
+            type="checkbox"
+            checked={showZip && !!(zctaOutlines && zctaOutlines.length)}
+            disabled={!(zctaOutlines && zctaOutlines.length)}
+            onChange={(e) => setShowZip(e.target.checked)}
+            className="h-3.5 w-3.5 accent-[#0e7490]"
+          />
+          <span className="inline-block h-0 w-3 border-t-2 border-[#0e7490]" aria-hidden />
+          ZIP codes
+        </label>
       </div>
       {tileStatus === 'failed' ? (
         <div className="pointer-events-auto absolute bottom-6 left-1/2 z-[400] -translate-x-1/2 rounded-md border border-rose-200 bg-white px-3 py-2 text-[12px] text-slate-800 shadow-lg">

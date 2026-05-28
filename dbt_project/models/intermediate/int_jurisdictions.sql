@@ -286,7 +286,13 @@ municipalities AS (
         m.geoid                                                         AS fips_code,
         LEFT(m.geoid, 2)                                                AS state_fips_code,
         m.usps                                                          AS state_code,
-        m.name,
+        -- Strip the trailing Census LSAD descriptor from the display name. Bronze
+        -- (system of record) is unchanged and the LSAD code is still in m.lsad.
+        -- Trailing-only anchor preserves embedded "City"/"Town": 'Alexander City city'
+        -- → 'Alexander City'. Same descriptor set used by the OpenStates slug join
+        -- above and by normalize_jurisdiction_label_for_match(), so website / channel
+        -- matching is unaffected.
+        REGEXP_REPLACE(m.name, '\s+(city|town|village|borough|cdp)$', '', 'gi') AS name,
         'municipality'                                                  AS jurisdiction_type,
         m.ansicode,
         m.lsad,
@@ -336,7 +342,10 @@ townships AS (
         t.geoid                         AS fips_code,
         LEFT(t.geoid, 2)                AS state_fips_code,
         t.usps                          AS state_code,
-        t.name,
+        -- Same trailing-LSAD strip as the municipalities CTE above (e.g. 'X township'
+        -- → 'X'). jurisdiction_id is still derived from the raw t.name so legacy ids
+        -- stay stable.
+        REGEXP_REPLACE(t.name, '\s+(city|town|village|borough|cdp|township)$', '', 'gi') AS name,
         'township'                      AS jurisdiction_type,
         t.ansicode,
         NULL::VARCHAR(5)                AS lsad,

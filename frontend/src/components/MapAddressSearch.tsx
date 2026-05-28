@@ -124,9 +124,10 @@ export default function MapAddressSearch({
     }
     setLoading(true)
     try {
+      // Same-origin proxy (api/routes/geocode.py) — avoids Nominatim CORS and
+      // honors its 1 req/s policy via server-side throttle + cache.
       const r = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&countrycodes=us&limit=6`,
-        { headers: { 'User-Agent': 'CommunityOne-Navigator/1.0' } },
+        `/api/geocode/search?q=${encodeURIComponent(query)}&limit=6`,
       )
       if (!r.ok) return
       const raw: NominatimSuggestion[] = await r.json()

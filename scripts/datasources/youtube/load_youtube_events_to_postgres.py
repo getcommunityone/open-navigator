@@ -97,9 +97,8 @@ from youtube_transcript_api._errors import (
 )
 import yt_dlp
 
-# Import YouTube scraper (handles API and yt-dlp fallback)
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'localview'))
-from scrape_youtube_channels import MunicipalYouTubeScraper
+# YouTube scraper (handles API and yt-dlp fallback) — lives in the localview datasource.
+from scripts.datasources.localview.scrape_youtube_channels import MunicipalYouTubeScraper
 
 from scripts.datasources.youtube.channel_about_links import (
     ensure_bronze_events_channels_link_columns,

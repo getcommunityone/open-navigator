@@ -34,6 +34,7 @@ export type YoutubeChannelDiagnosticsRow = {
   state_code: string
   jurisdiction_type: string
   geoid?: string | null
+  acs_total_population?: number | null
   primary_website_url?: string | null
   has_primary_website?: boolean
   has_youtube_channel: boolean
@@ -71,6 +72,39 @@ export type YoutubeChannelCoverageResponse = {
   with_youtube_channel: number
   pct_with_youtube_channel: number
   source: string
+}
+
+export type YoutubeStateRollupRow = {
+  state_code: string
+  total_jurisdictions: number
+  with_youtube_channel: number
+  pct_with_youtube_channel: number | null
+}
+
+export type YoutubeStateRollupResponse = {
+  entity: string
+  rows: YoutubeStateRollupRow[]
+  source: string
+}
+
+export async function fetchYoutubeStateRollup(
+  entity: YoutubeDiagnosticsEntity,
+  signal?: AbortSignal,
+): Promise<YoutubeStateRollupResponse> {
+  const u = new URL('/api/jurisdiction-mapping/youtube-state-rollup', window.location.origin)
+  u.searchParams.set('entity', entity)
+  const res = await fetch(u.toString(), { credentials: 'include', signal })
+  if (!res.ok) {
+    let detail = `HTTP ${res.status}`
+    try {
+      const body = (await res.json()) as { detail?: string }
+      if (body.detail) detail = body.detail
+    } catch {
+      /* ignore */
+    }
+    throw new Error(detail)
+  }
+  return (await res.json()) as YoutubeStateRollupResponse
 }
 
 export async function fetchYoutubeChannelCoverage(

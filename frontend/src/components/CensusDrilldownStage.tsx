@@ -84,6 +84,8 @@ interface StageProps {
   pinnedCountyGeoid?: string | null
   /** Highlight the pinned ZCTA polygon. */
   pinnedZcta?: string | null
+  /** ZIP view only: draw the drilled-from county's boundary over the ZCTAs. */
+  showCountyOutline?: boolean
   /** Optional state rank by FIPS — passed through to onHoverInfo for the aside card. */
   stateRankById?: Record<string, { rank: number; total: number } | null>
   /** Optional county rank by GEOID — passed through to onHoverInfo for the aside card. */
@@ -167,6 +169,7 @@ export default function CensusDrilldownStage({
   pinnedLngLat = null,
   pinnedCountyGeoid = null,
   pinnedZcta = null,
+  showCountyOutline = false,
   stateRankById,
   countyRankByGeoid,
   zctaRankByZcta,
@@ -180,6 +183,12 @@ export default function CensusDrilldownStage({
    * the whole page if we did.
    */
   const [hoveredId, setHoveredId] = useState<string | null>(null)
+  /**
+   * Current zoom scale. Always-on ZIP labels live inside the zoomed <g>, so we
+   * counter-scale their font by 1/k to keep them a constant on-screen size.
+   * Updated only when k actually changes (pure pans don't trigger a re-render).
+   */
+  const [zoomK, setZoomK] = useState(1)
   const gRef = useRef<SVGGElement | null>(null)
   const zoomBehaviorRef = useRef<ReturnType<typeof d3zoom> | null>(null)
 
@@ -271,6 +280,8 @@ export default function CensusDrilldownStage({
       .clickDistance(10)
       .on('zoom', (event) => {
         select(gEl).attr('transform', event.transform.toString())
+        const k = event.transform.k
+        setZoomK((prev) => (Math.abs(prev - k) > 1e-3 ? k : prev))
       })
     zoomBehaviorRef.current = z
     select(svgEl).call(z).on('dblclick.zoom', null)
@@ -312,11 +323,18 @@ export default function CensusDrilldownStage({
     }
     const boundsPath = targetIsLngLat ? projectedPath : path
     const [[x0, y0], [x1, y1]] = boundsPath.bounds(targetFeature as never) as [[number, number], [number, number]]
-    const k = Math.min(150, 0.9 / Math.max((x1 - x0) / W, (y1 - y0) / H))
+    // Pad the county bbox slightly so the ZIP boundaries don't kiss the SVG
+    // edge when we land — gives the postal grid a little breathing room.
+    const pad = view === 'zip' && !selectedZcta ? 0.82 : 0.9
+    const k = Math.min(150, pad / Math.max((x1 - x0) / W, (y1 - y0) / H))
     const tx = W / 2 - k * ((x0 + x1) / 2)
     const ty = H / 2 - k * ((y0 + y1) / 2)
     const next = zoomIdentity.translate(tx, ty).scale(k) as ZoomTransform
-    select(svgEl).transition().duration(900).call(z.transform as never, next)
+    // d3-zoom interpolates transforms with interpolateZoom (van Wijk) by
+    // default — the long duration when first entering the ZIP tier makes the
+    // county-bbox flight read as cinematic; a pinned ZCTA gets a snappier hop.
+    const duration = view === 'zip' ? (selectedZcta ? 800 : 1250) : 900
+    select(svgEl).transition().duration(duration).call(z.transform as never, next)
   }, [view, selectedStateFips, selectedCountyGeoid, selectedZcta, states, countiesInState, zctasInCounty])
 
   // --- fill / bubble helpers (depend on viz + scale + extents) ---
@@ -544,6 +562,63 @@ export default function CensusDrilldownStage({
           </g>
         ) : null}
 
+        {/* county outline (opt-in) — draw the drilled-from county's boundary
+            over the ZCTAs so the user can see which ZIPs fall in/near it.
+            County geometry is pre-projected → plain `path`. */}
+        {view === 'zip' && showCountyOutline && selectedCountyFeature ? (
+          <path
+            d={path(selectedCountyFeature as never) ?? ''}
+            pointerEvents="none"
+            style={{
+              fill: 'none',
+              stroke: '#b45309',
+              strokeWidth: 1.6,
+              strokeLinejoin: 'round',
+              strokeDasharray: '4 3',
+              vectorEffect: 'non-scaling-stroke',
+            }}
+          />
+        ) : null}
+
+        {/* always-on ZIP code labels — one per ZCTA, centered. Inside the zoomed
+            <g>, so font + halo are counter-scaled by 1/k to read at a constant
+            on-screen size. White halo (paint-order stroke) keeps them legible
+            over any choropleth fill. */}
+        {view === 'zip' && zctasInCounty ? (
+          <g className="zcta-labels" pointerEvents="none">
+            {zctasInCounty.map((f) => {
+              const zid = String(f.id ?? (f.properties as { GEOID20?: string })?.GEOID20 ?? '')
+              if (!zid) return null
+              const c = projectedPath.centroid(f as never)
+              if (!c || !Number.isFinite(c[0]) || !Number.isFinite(c[1])) return null
+              // Counter-scale to a constant ~14px on-screen size (10px read too
+              // small per user feedback). Stays readable at any zoom level.
+              const fontSize = 14 / zoomK
+              return (
+                <text
+                  key={`lbl-${zid}`}
+                  x={c[0]}
+                  y={c[1]}
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                  style={{
+                    fontSize,
+                    fontFamily: 'inherit',
+                    fontWeight: 600,
+                    fill: '#0f172a',
+                    stroke: '#ffffff',
+                    strokeWidth: fontSize * 0.32,
+                    strokeLinejoin: 'round',
+                    paintOrder: 'stroke',
+                  }}
+                >
+                  {zid}
+                </text>
+              )
+            })}
+          </g>
+        ) : null}
+
         {/* hover overlay — re-render the cursor's polygon as a top stroke so
             neighbor polygons can't paint over its shared edges. Fill stays
             transparent (the base layer already has the choropleth color). */}
@@ -621,13 +696,17 @@ export default function CensusDrilldownStage({
           </g>
         ) : null}
 
-        {/* pinned address marker — projected through Albers */}
+        {/* pinned address marker — projected through Albers. Lives inside the
+            zoomed <g>, so counter-scale by 1/k (same trick as the ZIP labels)
+            to keep a constant on-screen size; without this it balloons at the
+            high zoom levels the ZIP tier reaches. */}
         {pinnedLngLat
           ? (() => {
               const xy = ALBERS([pinnedLngLat.lng, pinnedLngLat.lat])
               if (!xy || !Number.isFinite(xy[0])) return null
+              const s = 1 / zoomK
               return (
-                <g transform={`translate(${xy[0]},${xy[1]})`} pointerEvents="none">
+                <g transform={`translate(${xy[0]},${xy[1]}) scale(${s})`} pointerEvents="none">
                   <circle r={11} fill="rgba(244, 63, 94, 0.18)" />
                   <circle r={6.5} fill="#f43f5e" stroke="#ffffff" strokeWidth={2} />
                   <circle r={2.2} fill="#ffffff" />

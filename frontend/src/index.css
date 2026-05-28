@@ -750,3 +750,20 @@ body {
   padding: 16px 18px;
   border-top: 1px solid var(--jmq-border);
 }
+
+/* ZCTA (ZIP) outline labels on the Leaflet local view — strip the default
+   tooltip bubble so the bare number floats over the aerial like the SVG map. */
+.leaflet-tooltip.zcta-outline-label {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  color: #0e7490;
+  font-weight: 700;
+  font-size: 11px;
+  text-shadow:
+    0 0 2px #fff, 0 0 2px #fff, 0 0 2px #fff, 0 0 2px #fff;
+}
+.leaflet-tooltip.zcta-outline-label::before {
+  display: none; /* hide the tooltip arrow */
+}

@@ -36,11 +36,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-_LOCALVIEW = _REPO_ROOT / "scripts" / "localview"
-if str(_LOCALVIEW) not in sys.path:
-    sys.path.insert(0, str(_LOCALVIEW))
-
-from scrape_youtube_channels import MunicipalYouTubeScraper  # noqa: E402
+from scripts.datasources.localview.scrape_youtube_channels import MunicipalYouTubeScraper  # noqa: E402
 
 from scripts.datasources.youtube.download_audio_to_drive import (  # noqa: E402
     DEFAULT_YOUTUBE_AUDIO_OUTPUT_DIR,

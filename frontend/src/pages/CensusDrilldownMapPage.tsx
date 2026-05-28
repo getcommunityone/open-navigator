@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { feature as topoFeature } from 'topojson-client'
+import { geoCentroid, geoContains } from 'd3-geo'
 import {
   ArrowLeftIcon,
   PauseIcon,
@@ -42,6 +44,8 @@ import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
 
 const STATES_ALBERS_TOPO = 'https://cdn.jsdelivr.net/npm/us-atlas@3/states-albers-10m.json'
 const COUNTIES_ALBERS_TOPO = 'https://cdn.jsdelivr.net/npm/us-atlas@3/counties-albers-10m.json'
+// Unprojected (lng/lat) counties — for the Leaflet local-view county outline overlay.
+const COUNTIES_LL_TOPO = 'https://cdn.jsdelivr.net/npm/us-atlas@3/counties-10m.json'
 
 const FIPS2_TO_USPS: Record<string, string> = {
   '01': 'AL', '02': 'AK', '04': 'AZ', '05': 'AR', '06': 'CA', '08': 'CO', '09': 'CT', '10': 'DE',
@@ -181,6 +185,9 @@ export default function CensusDrilldownMapPage() {
   const setViz = (v) => setQP('viz', v, 'filled')
   const setScale = (v) => setQP('scale', v, 'linear')
   const setValueMode = (v) => setQP('valueMode', v, 'raw')
+  // ZIP view: overlay the drilled-from county boundary. Off by default.
+  const showCountyOutline = searchParams.get('zipOutline') === '1'
+  const setShowCountyOutline = (on: boolean) => setQP('zipOutline', on ? '1' : '0', '0')
 
   // ── data: manifest + state metrics + state trends + albers topology ───────
   const { data: manifest } = useQuery({
@@ -277,7 +284,26 @@ export default function CensusDrilldownMapPage() {
       if (!r.ok) throw new Error('zcta topo')
       return r.json()
     },
-    enabled: !!selectedStateFips && view === 'zip',
+    // Also loaded for 'local' (Leaflet) view, where the ZCTA tile (raw lng/lat)
+    // backs the optional ZIP-outline overlay.
+    enabled: !!selectedStateFips && (view === 'zip' || view === 'local'),
+    staleTime: 1000 * 60 * 60,
+    retry: false,
+  })
+
+  /**
+   * Lng/lat counties topology — only the Leaflet local view needs it (the SVG
+   * tiers use the Albers-projected us-atlas counties). Lazy-loaded when the
+   * county-outline overlay can be shown, cached for the session.
+   */
+  const { data: countiesLLTopo } = useQuery({
+    queryKey: ['us-atlas-counties-lnglat'],
+    queryFn: async () => {
+      const r = await fetch(COUNTIES_LL_TOPO)
+      if (!r.ok) throw new Error('counties lng/lat topo')
+      return r.json()
+    },
+    enabled: view === 'local' && !!selectedCountyGeoid,
     staleTime: 1000 * 60 * 60,
     retry: false,
   })
@@ -468,6 +494,55 @@ export default function CensusDrilldownMapPage() {
     return out
   }, [zctaDisplayByZcta, metricSlug])
 
+  // ── lng/lat geometry for the Leaflet local-view outline overlays ──────────
+  /** Selected county as an unprojected GeoJSON feature (for the Leaflet overlay). */
+  const localCountyFeature = useMemo<GeoJSON.Feature | null>(() => {
+    if (!countiesLLTopo || !selectedCountyGeoid) return null
+    try {
+      const obj = (countiesLLTopo.objects as Record<string, unknown>).counties
+      const feats = (topoFeature(countiesLLTopo as never, obj as never) as never).features as GeoJSON.Feature[]
+      const want = String(selectedCountyGeoid).padStart(5, '0')
+      return feats.find((f) => String(f.id).padStart(5, '0') === want) ?? null
+    } catch {
+      return null
+    }
+  }, [countiesLLTopo, selectedCountyGeoid])
+
+  /**
+   * ZCTAs (lng/lat) for the local-view overlay: those whose centroid falls in
+   * the selected county, or — when no county is selected (address-search entry)
+   * — those within ~0.4° of the pin, so the overlay never dumps the whole
+   * state's ~600 polygons onto Leaflet.
+   */
+  const localZctaFeatures = useMemo<GeoJSON.Feature[] | null>(() => {
+    if (!zctaTopo) return null
+    try {
+      const obj = (zctaTopo.objects as Record<string, unknown>).zctas
+      if (!obj) return null
+      const feats = (topoFeature(zctaTopo as never, obj as never) as never).features as GeoJSON.Feature[]
+      if (localCountyFeature) {
+        return feats.filter((f) => {
+          const c = geoCentroid(f as never)
+          return Number.isFinite(c[0]) && geoContains(localCountyFeature as never, c)
+        })
+      }
+      if (localPin) {
+        const R = 0.4 // degrees ~25-30mi; bounds the overlay around the pin
+        return feats.filter((f) => {
+          const c = geoCentroid(f as never)
+          return (
+            Number.isFinite(c[0]) &&
+            Math.abs(c[0] - localPin.lng) <= R &&
+            Math.abs(c[1] - localPin.lat) <= R
+          )
+        })
+      }
+      return null
+    } catch {
+      return null
+    }
+  }, [zctaTopo, localCountyFeature, localPin])
+
   // ── flyout / left rail state ──────────────────────────────────────────────
   const [advancedMapOptionsOpen, setAdvancedMapOptionsOpen] = useState(false)
   const [advancedFocusSection, setAdvancedFocusSection] = useState<CensusMapRailSection | null>(null)
@@ -508,8 +583,11 @@ export default function CensusDrilldownMapPage() {
       lngLat: { lng: number; lat: number } | null
       feature: GeoJSON.Feature
     }) => {
-      // Click locks the info card; explicit CTAs inside the card handle the
-      // drill (street view today; ZIP and school zones once those layers exist).
+      // A county click drills straight into the ZIP tier: pin the info card,
+      // promote the geoid so the Stage's zoom effect has a target feature, and
+      // switch to 'zip' — the Stage then flies a van Wijk zoom to the county
+      // bbox and reveals the ZCTA boundaries as the per-state tile loads.
+      // (Street-view / school-zone CTAs still live in the pinned card.)
       setPinnedCounty({
         geoid: info.geoid,
         name: info.name,
@@ -517,6 +595,10 @@ export default function CensusDrilldownMapPage() {
         rank: info.rank,
         lngLat: info.lngLat,
       })
+      setPinnedZcta(null)
+      setSelectedCountyGeoid(info.geoid)
+      setLocalPin(null)
+      setView('zip')
     },
     [],
   )
@@ -680,6 +762,18 @@ export default function CensusDrilldownMapPage() {
       onClick: goCounty,
     })
   }
+  if (view === 'zip') {
+    // "ZIP codes" = the whole county's ZCTAs; clickable to re-frame when a
+    // single ZCTA is pinned (goZip clears the pin and zooms back to county).
+    crumbs.push({
+      label: 'ZIP codes',
+      current: !pinnedZcta,
+      onClick: goZip,
+    })
+    if (pinnedZcta) {
+      crumbs.push({ label: `ZIP ${pinnedZcta.zcta}`, current: true })
+    }
+  }
   if (view === 'local') {
     crumbs.push({ label: 'Address', current: true })
   }
@@ -795,7 +889,19 @@ export default function CensusDrilldownMapPage() {
 
         {/* center: stage + legend */}
         <div className="flex min-w-0 flex-col gap-2">
-          <div className="rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
+          <div className="relative rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
+            {/* ZIP view: opt-in county boundary overlay (off by default). */}
+            {view === 'zip' ? (
+              <label className="absolute left-3 top-3 z-10 inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-slate-300 bg-white/95 px-2 py-1 text-[11px] font-medium text-slate-700 shadow-sm backdrop-blur hover:bg-white">
+                <input
+                  type="checkbox"
+                  checked={showCountyOutline}
+                  onChange={(e) => setShowCountyOutline(e.target.checked)}
+                  className="h-3.5 w-3.5 rounded border-slate-300 text-[#354F52] focus:ring-[#354F52]"
+                />
+                County outline
+              </label>
+            ) : null}
             {view === 'local' && localPin ? (
               <div className="relative h-[560px] w-full">
                 <CensusDrilldownLocalView
@@ -805,6 +911,8 @@ export default function CensusDrilldownMapPage() {
                   label={localPin.label}
                   initialBasemap={localPin.basemap}
                   onMarkerClick={fetchPropertyDetails}
+                  countyOutline={localCountyFeature}
+                  zctaOutlines={localZctaFeatures}
                   topLeftSlot={
                     <button
                       type="button"
@@ -908,6 +1016,7 @@ export default function CensusDrilldownMapPage() {
                 pinnedLngLat={pinnedAddress ? { lng: pinnedAddress.lng, lat: pinnedAddress.lat } : null}
                 pinnedCountyGeoid={pinnedCounty?.geoid ?? null}
                 pinnedZcta={pinnedZcta?.zcta ?? null}
+                showCountyOutline={showCountyOutline}
                 stateRankById={stateRankById}
                 countyRankByGeoid={countyRankByGeoid}
                 zctaRankByZcta={zctaRankByZcta}
@@ -1010,7 +1119,9 @@ export default function CensusDrilldownMapPage() {
                             ? 'Pinned'
                             : showing!.kind === 'state'
                               ? 'Hovered state'
-                              : 'Hovered county'}
+                              : showing!.kind === 'zip'
+                                ? 'Hovered ZIP'
+                                : 'Hovered county'}
                       </div>
                       <div className="mt-0.5 text-sm font-semibold leading-snug text-slate-900">
                         {idle
@@ -1020,7 +1131,7 @@ export default function CensusDrilldownMapPage() {
                           : (
                             <>
                               {showing!.name}
-                              {showing!.kind === 'county' && stateName ? (
+                              {(showing!.kind === 'county' || showing!.kind === 'zip') && stateName ? (
                                 <span className="text-slate-500">, {stateName}</span>
                               ) : null}
                             </>
@@ -1071,14 +1182,25 @@ export default function CensusDrilldownMapPage() {
                       >
                         Drill down to street view
                       </button>
-                      <button
-                        type="button"
-                        onClick={goZip}
-                        title="Show ZCTA (ZIP) boundaries within this county. Requires running scripts/frontend/prep_zcta_tiles.sh to generate per-state ZCTA topology."
-                        className="inline-flex items-center justify-center gap-1.5 rounded-md bg-[#354F52] px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white shadow-sm hover:bg-[#2c4346]"
-                      >
-                        Drill down to ZIP
-                      </button>
+                      {view === 'zip' && pinnedZcta ? (
+                        <button
+                          type="button"
+                          onClick={goZip}
+                          title="Zoom back out to show every ZIP in this county."
+                          className="inline-flex items-center justify-center gap-1.5 rounded-md bg-[#354F52] px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white shadow-sm hover:bg-[#2c4346]"
+                        >
+                          Re-frame all county ZIPs
+                        </button>
+                      ) : view !== 'zip' ? (
+                        <button
+                          type="button"
+                          onClick={goZip}
+                          title="Show ZCTA (ZIP) boundaries within this county. Requires running scripts/frontend/prep_zcta_tiles.sh to generate per-state ZCTA topology."
+                          className="inline-flex items-center justify-center gap-1.5 rounded-md bg-[#354F52] px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white shadow-sm hover:bg-[#2c4346]"
+                        >
+                          Drill down to ZIP
+                        </button>
+                      ) : null}
                       <button
                         type="button"
                         disabled
@@ -1103,7 +1225,7 @@ export default function CensusDrilldownMapPage() {
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <div className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">
-                      Hovering {hoverInfo.kind === 'state' ? 'state' : 'county'}
+                      Hovering {hoverInfo.kind === 'state' ? 'state' : hoverInfo.kind === 'zip' ? 'ZIP' : 'county'}
                     </div>
                     <div className="mt-0.5 truncate text-[13px] font-medium leading-snug text-slate-900">
                       {hoverInfo.name}

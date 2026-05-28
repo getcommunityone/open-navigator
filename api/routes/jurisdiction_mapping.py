@@ -319,6 +319,7 @@ class YoutubeChannelDiagnosticsRow(BaseModel):
     state_code: str
     jurisdiction_type: str
     geoid: Optional[str] = None
+    acs_total_population: Optional[int] = None
     primary_website_url: Optional[str] = None
     has_primary_website: bool = False
     has_youtube_channel: bool = False
@@ -341,6 +342,27 @@ class YoutubeChannelCoverageResponse(BaseModel):
     total: int
     with_youtube_channel: int
     pct_with_youtube_channel: float
+    source: str = Field(
+        default="live_int_events_channels",
+        description="Counts join intermediate.int_events_channels (not stale JSON export).",
+    )
+
+
+class YoutubeStateRollupRow(BaseModel):
+    state_code: str
+    total_jurisdictions: int
+    with_youtube_channel: int
+    pct_with_youtube_channel: Optional[float] = None
+
+
+class YoutubeStateRollupResponse(BaseModel):
+    """
+    Per-state YouTube channel coverage for one entity slice. Replaces the static
+    ``youtube_entity_state_rollup`` block in ``jurisdiction_mapping_quality.json``,
+    which goes stale whenever ``int_events_channels`` is reloaded.
+    """
+    entity: str
+    rows: List[YoutubeStateRollupRow]
     source: str = Field(
         default="live_int_events_channels",
         description="Counts join intermediate.int_events_channels (not stale JSON export).",
@@ -397,6 +419,7 @@ def _diag_row_to_model(row: Any) -> YoutubeChannelDiagnosticsRow:
         state_code=str(d["state_code"]),
         jurisdiction_type=str(d["jurisdiction_type"]),
         geoid=d.get("geoid"),
+        acs_total_population=(int(d["acs_total_population"]) if d.get("acs_total_population") is not None else None),
         primary_website_url=d.get("primary_website_url"),
         has_primary_website=bool(d.get("has_primary_website")),
         has_youtube_channel=bool(d.get("has_youtube_channel")),
@@ -475,6 +498,73 @@ async def youtube_channel_coverage(
         raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         logger.exception("youtube_channel_coverage failed")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.get("/youtube-state-rollup", response_model=YoutubeStateRollupResponse)
+async def youtube_state_rollup(
+    entity: str = Query(..., description="counties, cities, or towns"),
+):
+    """
+    Per-state YouTube channel coverage for one entity slice.
+
+    Live source-of-truth for the dashboard's per-state rollup. Replaces the
+    static ``youtube_entity_state_rollup`` block in ``jurisdiction_mapping_quality.json``,
+    which goes stale whenever ``intermediate.int_events_channels`` is reloaded.
+    """
+    from scripts.datasources.jurisdictions.youtube_channel_diagnostics import (
+        YOUTUBE_STATE_ROLLUP_SQL,
+        build_youtube_coverage_where_asyncpg,
+    )
+
+    entity_key = entity.strip().lower()
+    if entity_key not in VALID_ENTITIES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"entity must be one of: {', '.join(sorted(VALID_ENTITIES))}",
+        )
+    if entity_key in {"state", "schools"}:
+        raise HTTPException(
+            status_code=400,
+            detail="YouTube state rollup applies to counties and municipalities only.",
+        )
+
+    try:
+        # No state filter — we want every state grouped.
+        where_sql, where_params, _ = build_youtube_coverage_where_asyncpg(
+            entity_key,
+            state_code=None,
+            param_start=1,
+        )
+        pool = await get_db_pool()
+        async with pool.acquire() as conn:
+            rows_raw = await conn.fetch(
+                f"""
+                {YOUTUBE_STATE_ROLLUP_SQL}
+                WHERE {where_sql}
+                GROUP BY 1
+                ORDER BY 1
+                """,
+                *where_params,
+            )
+        rows: List[YoutubeStateRollupRow] = []
+        for r in rows_raw:
+            total = int(r["total_jurisdictions"] or 0)
+            with_ch = int(r["with_youtube_channel"] or 0)
+            pct = round(100.0 * with_ch / total, 2) if total > 0 else None
+            rows.append(
+                YoutubeStateRollupRow(
+                    state_code=str(r["state_code"]),
+                    total_jurisdictions=total,
+                    with_youtube_channel=with_ch,
+                    pct_with_youtube_channel=pct,
+                )
+            )
+        return YoutubeStateRollupResponse(entity=entity_key, rows=rows)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception as e:
+        logger.exception("youtube_state_rollup failed")
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 

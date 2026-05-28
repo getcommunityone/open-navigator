@@ -26,6 +26,14 @@ function fmtTitle(n: number): string | undefined {
   return formatFullNumber(n)
 }
 
+/** ACS total_population → display in thousands. Sub-1k → one decimal so small towns
+ *  still round-trip distinguishably (412 → "0.4k"); ≥1k → integer thousands (30245 → "30k"). */
+function fmtPopK(n: number | null | undefined): string {
+  if (n == null) return '—'
+  if (n < 1000) return `${(n / 1000).toFixed(1)}k`
+  return `${Math.round(n / 1000).toLocaleString()}k`
+}
+
 function entityForDashboard(entity: string): YoutubeDiagnosticsEntity | null {
   if (entity === 'counties' || entity === 'cities' || entity === 'towns') return entity
   return null
@@ -34,6 +42,44 @@ function entityForDashboard(entity: string): YoutubeDiagnosticsEntity | null {
 function matchesFocusCounty(name: string): boolean {
   const n = name.toLowerCase()
   return GA_FOCUS_COUNTIES.some((c) => n.includes(c.toLowerCase()))
+}
+
+type SortKey = 'name' | 'acs_total_population' | 'n_candidates' | 'n_bronze_videos'
+type SortDir = 'asc' | 'desc'
+
+type ColumnDef = { label: string; sortKey?: SortKey; align?: 'left' | 'right' }
+
+const COLUMNS: ColumnDef[] = [
+  { label: 'Jurisdiction', sortKey: 'name' },
+  { label: 'Pop (k)', sortKey: 'acs_total_population', align: 'right' },
+  { label: 'Website' },
+  { label: 'YouTube channel' },
+  { label: 'Candidates', sortKey: 'n_candidates', align: 'right' },
+  { label: 'Bronze videos', sortKey: 'n_bronze_videos', align: 'right' },
+  { label: 'Why videos missing' },
+]
+
+/** Stable comparator: nulls always sort to the bottom regardless of direction
+ *  (so a desc sort on population still surfaces the biggest places first, not the
+ *  un-mapped ones).  Falls back to name asc to keep equal-valued rows deterministic. */
+function compareRows(
+  a: YoutubeChannelDiagnosticsRow,
+  b: YoutubeChannelDiagnosticsRow,
+  key: SortKey,
+  dir: SortDir,
+): number {
+  const av = key === 'name' ? a.name : (a[key] as number | null | undefined)
+  const bv = key === 'name' ? b.name : (b[key] as number | null | undefined)
+  const aNull = av == null || (typeof av === 'number' && Number.isNaN(av))
+  const bNull = bv == null || (typeof bv === 'number' && Number.isNaN(bv))
+  if (aNull && bNull) return a.name.localeCompare(b.name)
+  if (aNull) return 1
+  if (bNull) return -1
+  let cmp: number
+  if (typeof av === 'string' && typeof bv === 'string') cmp = av.localeCompare(bv)
+  else cmp = (av as number) - (bv as number)
+  if (cmp === 0) return a.name.localeCompare(b.name)
+  return dir === 'asc' ? cmp : -cmp
 }
 
 function PrimaryWebsiteLink({ url }: { url: string | null | undefined }) {
@@ -154,6 +200,19 @@ export default function CountyYoutubeDiagnosticsSection({
   const [search, setSearch] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [onlyGaps, setOnlyGaps] = useState(true)
+  // Default: largest places first — directly serves "focus on highest pops".
+  const [sortBy, setSortBy] = useState<SortKey>('acs_total_population')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
+
+  function onHeaderClick(key: SortKey) {
+    if (sortBy === key) {
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortBy(key)
+      // Numeric defaults to desc (biggest first); name defaults to asc.
+      setSortDir(key === 'name' ? 'asc' : 'desc')
+    }
+  }
 
   const effectiveState = stateFilter.trim().toUpperCase() || 'GA'
   const effectiveSearch = search.trim()
@@ -189,13 +248,16 @@ export default function CountyYoutubeDiagnosticsSection({
         list = [...focusOk, ...list.filter((r) => !focusIds.has(r.jurisdiction_id))]
       }
     }
-    if (effectiveState === 'GA' && !effectiveSearch) {
-      const focus = list.filter((r) => matchesFocusCounty(r.name))
-      const rest = list.filter((r) => !matchesFocusCounty(r.name))
+    // Sort first, then apply GA-focus pinning only for the default name sort so a
+    // user-chosen sort (e.g. pop desc) isn't fighting the pinned focus list.
+    const sorted = [...list].sort((a, b) => compareRows(a, b, sortBy, sortDir))
+    if (sortBy === 'name' && effectiveState === 'GA' && !effectiveSearch) {
+      const focus = sorted.filter((r) => matchesFocusCounty(r.name))
+      const rest = sorted.filter((r) => !matchesFocusCounty(r.name))
       return [...focus, ...rest]
     }
-    return list
-  }, [data?.rows, onlyGaps, effectiveState, effectiveSearch])
+    return sorted
+  }, [data?.rows, onlyGaps, effectiveState, effectiveSearch, sortBy, sortDir])
 
   const summary = useMemo(() => {
     const all = data?.rows ?? []
@@ -305,29 +367,34 @@ export default function CountyYoutubeDiagnosticsSection({
             <table className="w-full border-collapse text-xs">
               <thead className="bg-[var(--jmq-surface2)]">
                 <tr>
-                  {[
-                    'County / jurisdiction',
-                    'Website',
-                    'YouTube channel',
-                    'Candidates',
-                    'Bronze videos',
-                    'Why videos missing',
-                  ].map(
-                    (h) => (
+                  {COLUMNS.map((col) => {
+                    const sortable = !!col.sortKey
+                    const active = sortable && col.sortKey === sortBy
+                    const arrow = active ? (sortDir === 'asc' ? ' ↑' : ' ↓') : sortable ? ' ↕' : ''
+                    const alignClass = col.align === 'right' ? 'text-right' : 'text-left'
+                    return (
                       <th
-                        key={h}
-                        className="border-b border-[var(--jmq-border)] px-3 py-2 text-left font-mono text-[10px] font-semibold uppercase tracking-wide text-[var(--jmq-text-muted)]"
+                        key={col.label}
+                        scope="col"
+                        aria-sort={
+                          active ? (sortDir === 'asc' ? 'ascending' : 'descending') : sortable ? 'none' : undefined
+                        }
+                        className={`border-b border-[var(--jmq-border)] px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-wide ${alignClass} ${
+                          active ? 'text-[var(--jmq-text)]' : 'text-[var(--jmq-text-muted)]'
+                        } ${sortable ? 'cursor-pointer select-none hover:text-[var(--jmq-text)]' : ''}`}
+                        onClick={sortable ? () => onHeaderClick(col.sortKey!) : undefined}
                       >
-                        {h}
+                        {col.label}
+                        <span className="text-[var(--jmq-text-muted)]">{arrow}</span>
                       </th>
-                    ),
-                  )}
+                    )
+                  })}
                 </tr>
               </thead>
               <tbody>
                 {rows.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-3 py-8 text-center text-[var(--jmq-text-muted)]">
+                    <td colSpan={COLUMNS.length} className="px-3 py-8 text-center text-[var(--jmq-text-muted)]">
                       No rows match this filter.
                     </td>
                   </tr>
@@ -353,6 +420,12 @@ export default function CountyYoutubeDiagnosticsSection({
                               ) : null}
                             </div>
                             <div className="font-mono text-[10px] text-[var(--jmq-text-muted)]">{r.geoid ?? '—'}</div>
+                          </td>
+                          <td
+                            className="px-3 py-2 text-right font-mono"
+                            title={r.acs_total_population != null ? fmtTitle(r.acs_total_population) : undefined}
+                          >
+                            {fmtPopK(r.acs_total_population)}
                           </td>
                           <td className="max-w-[14rem] px-3 py-2 font-mono text-[10px]">
                             <PrimaryWebsiteLink url={r.primary_website_url} />
@@ -390,7 +463,7 @@ export default function CountyYoutubeDiagnosticsSection({
                         </tr>
                         {open ? (
                           <tr>
-                            <td colSpan={6} className="p-0">
+                            <td colSpan={COLUMNS.length} className="p-0">
                               <DiagnosticsRowDetail row={r} />
                             </td>
                           </tr>
