@@ -472,71 +472,19 @@ async def fetch_stats_from_neon(
                 """
                 result = await conn.fetchrow(query, state_val, f"%{city}%")
                 
-                # If not in jurisdiction_state_aggregate, query jurisdiction directly
+                # If not in jurisdiction_state_aggregate, fall through to the
+                # shared helper which counts directly off `jurisdiction` /
+                # `contact` and is safe when those tables don't exist on Neon
+                # (the helper returns None instead of raising).
                 if not result:
                     logger.info(f"City '{city}' not in jurisdiction_state_aggregate, querying jurisdiction directly")
-                    
-                    jur_cols = await _get_table_columns(conn, "jurisdiction")
-                    jur_state_pred = _state_usps_match_sql(jur_cols, "$1")
-                    
-                    # Count jurisdictions for this city
-                    jurisdiction_query = f"""
-                        SELECT COUNT(DISTINCT id) as count
-                        FROM jurisdiction
-                        WHERE ({jur_state_pred})
-                          AND name ILIKE $2
-                    """
-                    jur_result = await conn.fetchrow(
-                        jurisdiction_query,
-                        state_val,
-                        f"%{city}%",
+                    helper_result = await _fetch_location_stats_from_jurisdiction(
+                        conn,
+                        state_val=state_val,
+                        city=city,
                     )
-                    jurisdictions = jur_result['count'] if jur_result else 0
-                    
-                    # Count school districts
-                    school_query = f"""
-                        SELECT COUNT(*) as count
-                        FROM jurisdiction
-                        WHERE type = 'school_district'
-                          AND ({jur_state_pred})
-                          AND name ILIKE $2
-                    """
-                    school_result = await conn.fetchrow(
-                        school_query,
-                        state_val,
-                        f"%{city}%",
-                    )
-                    school_districts = school_result['count'] if school_result else 0
-                    
-                    # Count contacts
-                    contact_cols = await _get_table_columns(conn, "contact")
-                    contact_state_pred = _state_usps_match_sql(contact_cols, "$1")
-                    contact_query = f"""
-                        SELECT COUNT(*) as count
-                        FROM contact
-                        WHERE ({contact_state_pred})
-                    """
-                    contact_result = await conn.fetchrow(contact_query, state_val)
-                    contacts = contact_result['count'] if contact_result else 0
-                    
-                    # Return constructed stats
-                    if jurisdictions > 0 or contacts > 0:
-                        return {
-                            'level': 'city',
-                            'state': state,
-                            'county': None,
-                            'city': city,
-                            'jurisdictions_count': jurisdictions,
-                            'school_districts_count': school_districts,
-                            'nonprofits_count': 0,
-                            'events_count': 0,
-                            'bills_count': 0,
-                            'contacts_count': contacts,
-                            'total_revenue': 0,
-                            'total_assets': 0,
-                            'last_updated': datetime.now(),
-                            'source': 'database'  # Queried from database tables
-                        }
+                    if helper_result is not None:
+                        return helper_result
                 
                 # Still no data? Fall back to state-level
                 if not result and state:

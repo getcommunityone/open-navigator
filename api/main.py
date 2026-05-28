@@ -1400,7 +1400,7 @@ async def startup_event():
 @app.on_event("shutdown")
 async def shutdown_event():
     """Cleanup on shutdown."""
-    logger.info("Shutting down CommunityOne Open Navigatory API")
+    logger.info("Shutting down CommunityOne Open Navigator API")
 
 
 if __name__ == "__main__":
