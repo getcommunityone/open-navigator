@@ -1170,7 +1170,7 @@ sources:
           - name: loaded_at
           - name: last_updated
 
-      - name: bronze_tpc_government_finance
+      - name: bronze_jurisdiction_tpc
         description: >
           TPC / Urban Institute republication of the Census Bureau Annual
           Survey of State and Local Government Finances + Census of
@@ -1209,7 +1209,7 @@ sources:
           one row per (dataset, variable_code) with label / concept /
           predicate_type / group / limit. The dictionary for the State
           and Local Government Finance survey TPC re-publishes in
-          ``bronze_tpc_government_finance``, so dbt can join
+          ``bronze_jurisdiction_tpc``, so dbt can join
           ``raw_record->>key`` to a human label without a separate
           vendored lookup. Landed by
           ``ingestion.census.govsstatefin_variables``

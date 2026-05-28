@@ -5,7 +5,7 @@ The Census Bureau publishes a per-dataset variables.json metadata file that
 maps every column in the survey to a human label, concept group, predicate
 type, and any enumerated values. For the State and Local Government Finance
 time series (govsstatefin) that codebook is the dictionary for the ~300
-finance variables TPC re-publishes in ``bronze.bronze_tpc_government_finance``
+finance variables TPC re-publishes in ``bronze.bronze_jurisdiction_tpc``
 — so once both bronze tables are loaded, dbt can join ``raw_record->>key``
 to a human-readable label without a separate vendored lookup.
 

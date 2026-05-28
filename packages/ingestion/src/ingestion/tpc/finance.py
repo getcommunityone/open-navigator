@@ -23,7 +23,7 @@ Pipeline shape (mirrors ingestion.bls.cpi):
      auto-unzipped into ``data/cache/tpc/<gov_type>/*.csv``. Skips re-download
      when the zip is already cached unless ``--refresh``.
   2. LAND: stream each CSV row → ``BronzeTpcGovFinanceRow`` → upsert into
-     ``bronze.bronze_tpc_government_finance``. Stable hot keys (id, name,
+     ``bronze.bronze_jurisdiction_tpc``. Stable hot keys (id, name,
      state, gov_type, fiscal_year, population) are extracted; everything else
      is preserved verbatim in ``raw_record`` JSONB so staging models can
      normalize the wide variable space later without re-loading bronze.
@@ -308,11 +308,12 @@ class TpcGovernmentFinanceRow(RawRow):
 
 _CREATE_SCHEMA_SQL = text("CREATE SCHEMA IF NOT EXISTS bronze")
 
-# Idempotent — matches migration 078 exactly. Re-running is a no-op against a
-# DB that already applied the migration.
+# Idempotent — matches migrations 078 + 080 (table renamed to
+# bronze_jurisdiction_tpc) exactly. Re-running is a no-op against a DB that
+# already applied them.
 _CREATE_TABLE_SQL = text(
     """
-    CREATE TABLE IF NOT EXISTS bronze.bronze_tpc_government_finance (
+    CREATE TABLE IF NOT EXISTS bronze.bronze_jurisdiction_tpc (
         id_code        VARCHAR(64)   NOT NULL,
         name           TEXT,
         state_fips     CHAR(2),
@@ -332,15 +333,15 @@ _CREATE_TABLE_SQL = text(
 _CREATE_INDEXES_SQL = (
     text(
         "CREATE INDEX IF NOT EXISTS idx_btpc_state_gov "
-        "ON bronze.bronze_tpc_government_finance (state_fips, gov_type)"
+        "ON bronze.bronze_jurisdiction_tpc (state_fips, gov_type)"
     ),
     text(
         "CREATE INDEX IF NOT EXISTS idx_btpc_year "
-        "ON bronze.bronze_tpc_government_finance (fiscal_year)"
+        "ON bronze.bronze_jurisdiction_tpc (fiscal_year)"
     ),
     text(
         "CREATE INDEX IF NOT EXISTS idx_btpc_state_code "
-        "ON bronze.bronze_tpc_government_finance (state_code) "
+        "ON bronze.bronze_jurisdiction_tpc (state_code) "
         "WHERE state_code IS NOT NULL"
     ),
 )
@@ -359,21 +360,21 @@ _ENSURE_PK_SQL = text(
     BEGIN
         IF NOT EXISTS (
             SELECT 1 FROM pg_constraint
-            WHERE conrelid = 'bronze.bronze_tpc_government_finance'::regclass
+            WHERE conrelid = 'bronze.bronze_jurisdiction_tpc'::regclass
               AND contype = 'p'
         ) THEN
-            ALTER TABLE bronze.bronze_tpc_government_finance
+            ALTER TABLE bronze.bronze_jurisdiction_tpc
                 ADD PRIMARY KEY (gov_type, id_code, fiscal_year);
         END IF;
     END $$;
     """
 )
 
-_TRUNCATE_SQL = text("TRUNCATE TABLE bronze.bronze_tpc_government_finance")
+_TRUNCATE_SQL = text("TRUNCATE TABLE bronze.bronze_jurisdiction_tpc")
 
 _UPSERT_SQL = text(
     """
-    INSERT INTO bronze.bronze_tpc_government_finance
+    INSERT INTO bronze.bronze_jurisdiction_tpc
         (id_code, name, state_fips, state_code, gov_type, fiscal_year,
          population, raw_record, source_file, loaded_at, last_updated)
     VALUES
@@ -505,7 +506,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
             "Load TPC Government Finance data into "
-            "bronze.bronze_tpc_government_finance"
+            "bronze.bronze_jurisdiction_tpc"
         )
     )
     parser.add_argument(

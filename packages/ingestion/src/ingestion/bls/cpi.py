@@ -191,7 +191,9 @@ def melt_bls_response(body: dict[str, Any], *, source_version: str) -> Iterable[
             except (TypeError, ValueError, KeyError):
                 logger.warning("Skipping unparsable BLS row: {}", d)
                 continue
-            year = int(d["year"])
+            # Validate it's a real year, but carry it as a 4-char string to
+            # match the VARCHAR(4) bronze column.
+            year = str(int(d["year"]))
             period = str(d["period"])
             footnotes = "; ".join(
                 (f.get("text") or "")
@@ -215,7 +217,7 @@ class BlsCpiRow(RawRow):
     """One CPI observation (monthly or annual-average), validated before upsert."""
 
     series_id: str = Field(min_length=1, max_length=32)
-    year: int
+    year: str = Field(min_length=1, max_length=4)
     period: str = Field(min_length=1, max_length=8)
     period_name: str | None = Field(default=None, max_length=32)
     value: float
@@ -224,13 +226,14 @@ class BlsCpiRow(RawRow):
 
 _CREATE_SCHEMA_SQL = text("CREATE SCHEMA IF NOT EXISTS bronze")
 
-# Idempotent: matches the shape applied by migration 077. Re-running this is
-# a no-op against a DB that already has the table from the migration.
+# Idempotent: matches the shape applied by migrations 077 + 081 (year widened
+# to VARCHAR(4)). Re-running this is a no-op against a DB that already has the
+# table from the migrations.
 _CREATE_TABLE_SQL = text(
     """
     CREATE TABLE IF NOT EXISTS bronze.bronze_bls_cpi (
         series_id    VARCHAR(32)   NOT NULL,
-        year         INTEGER       NOT NULL,
+        year         VARCHAR(4)    NOT NULL,
         period       VARCHAR(8)    NOT NULL,
         period_name  TEXT,
         value        NUMERIC(10,3) NOT NULL,

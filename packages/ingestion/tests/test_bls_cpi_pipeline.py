@@ -111,7 +111,7 @@ def test_melt_response_yields_expected_rows() -> None:
     assert len(rows) == 3
     annual = next(r for r in rows if r["period"] == "M13")
     assert annual["series_id"] == "CUUR0000SA0"
-    assert annual["year"] == 2024
+    assert annual["year"] == "2024"
     assert annual["value"] == pytest.approx(313.689)
     assert annual["period_name"] == "Annual"
     assert annual["natural_key"] == "CUUR0000SA0:2024:M13"
@@ -137,7 +137,7 @@ def test_bls_cpi_row_schema_accepts_valid() -> None:
         source_version="t",
         natural_key="CUUR0000SA0:2024:M13",
         series_id="CUUR0000SA0",
-        year=2024,
+        year="2024",
         period="M13",
         period_name="Annual",
         value=313.689,
@@ -154,7 +154,7 @@ def test_bls_cpi_row_schema_rejects_oversized_period() -> None:
             source_version="t",
             natural_key="x",
             series_id="CUUR0000SA0",
-            year=2024,
+            year="2024",
             period="M13_TOO_LONG_FIELD",  # > 8 chars
             period_name="Annual",
             value=1.0,

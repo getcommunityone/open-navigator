@@ -1,7 +1,7 @@
 -- Migration: bronze.bronze_census_finance_variables — Census Bureau
 -- ``timeseries/govsstatefin`` variables codebook (the dictionary for the
 -- State and Local Government Finance survey that TPC re-publishes in
--- bronze.bronze_tpc_government_finance).
+-- bronze.bronze_jurisdiction_tpc).
 --
 -- One row per (dataset, variable_code). raw_record JSONB carries the
 -- variable's metadata blob verbatim so downstream joins can recover any
@@ -57,6 +57,6 @@ CREATE INDEX IF NOT EXISTS idx_bcfv_group
     WHERE var_group IS NOT NULL;
 
 COMMENT ON TABLE bronze.bronze_census_finance_variables IS
-    'Census Bureau timeseries/govsstatefin variables codebook (dataset/variable_code → label/concept/predicate_type/group). The dictionary for the State and Local Government Finance survey that TPC re-publishes in bronze.bronze_tpc_government_finance. Source: api.census.gov/data/timeseries/govsstatefin/variables.json.';
+    'Census Bureau timeseries/govsstatefin variables codebook (dataset/variable_code → label/concept/predicate_type/group). The dictionary for the State and Local Government Finance survey that TPC re-publishes in bronze.bronze_jurisdiction_tpc. Source: api.census.gov/data/timeseries/govsstatefin/variables.json.';
 
 COMMIT;

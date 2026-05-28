@@ -7,7 +7,7 @@
 }}
 
 -- Bronze TPC Government Finance passthrough — exposes
--- bronze.bronze_tpc_government_finance as a dbt model so staging /
+-- bronze.bronze_jurisdiction_tpc as a dbt model so staging /
 -- intermediate models can ref() it. Data is populated by the
 -- ingestion.tpc.finance pipeline (FETCH→data/cache/tpc/, LAND→bronze; a
 -- thin shim at scripts/datasources/tpc/load_tpc_finance.py is preserved for
@@ -29,7 +29,7 @@ SELECT
     source_file,
     loaded_at,
     last_updated
-FROM {{ source('bronze', 'bronze_tpc_government_finance') }}
+FROM {{ source('bronze', 'bronze_jurisdiction_tpc') }}
 
 {% if target.name == 'neon_init' %}
 WHERE 1 = 0

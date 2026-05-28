@@ -14,7 +14,7 @@
 -- at scripts/datasources/census/download_census_finance_variables.py), not
 -- by dbt.
 --
--- Pairs with bronze_tpc_government_finance: the variable_code values in
+-- Pairs with bronze_jurisdiction_tpc: the variable_code values in
 -- this codebook map to the keys inside that table's raw_record JSONB.
 
 SELECT

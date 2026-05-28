@@ -22,7 +22,7 @@ CREATE SCHEMA IF NOT EXISTS bronze;
 
 CREATE TABLE IF NOT EXISTS bronze.bronze_bls_cpi (
     series_id    VARCHAR(32)   NOT NULL,
-    year         INTEGER       NOT NULL,
+    year         VARCHAR(4)    NOT NULL,
     -- BLS period codes: M01..M12 = months, M13 = annual average (returned
     -- only when the request sets annualaverage=true). Quarterly / semi-annual
     -- series use Q01..Q04 / S01..S02 — VARCHAR(8) accommodates them too.
