@@ -1426,6 +1426,20 @@ export default function CensusDrilldownMapPage() {
               // surface it on top — but keep the county pin's drill CTAs reachable
               // via the breadcrumb (cliking the county crumb re-frames).
               const isPinned = !!pinnedPlace || !!pinnedCounty
+              // State-tier fallback: once a state is drilled into, keep its
+              // KPI in the card so it doesn't vanish whenever the cursor
+              // leaves the county layer. Mirrors how the county tier always
+              // shows the pinned-county KPI.
+              const stateFallback =
+                view === 'state' && selectedStateFips
+                  ? {
+                      kind: 'state' as const,
+                      id: selectedStateFips,
+                      name: stateName ?? selectedStateFips,
+                      value: stateDisplayById[selectedStateFips] ?? null,
+                      rank: stateRankById[selectedStateFips] ?? null,
+                    }
+                  : null
               const showing = pinnedPlace
                 ? {
                     kind: 'place' as const,
@@ -1442,7 +1456,7 @@ export default function CensusDrilldownMapPage() {
                       value: pinnedCounty.value,
                       rank: pinnedCounty.rank,
                     }
-                  : hoverInfo
+                  : (hoverInfo ?? stateFallback)
               const idle = !showing
               const accent = isPinned
                 ? 'border-amber-300 ring-2 ring-amber-100/70'
