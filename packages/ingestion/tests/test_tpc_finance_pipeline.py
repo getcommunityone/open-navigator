@@ -111,6 +111,43 @@ def test_row_to_bronze_handles_legacy_id4_year4_columns() -> None:
     assert out["population"] == 1300000
 
 
+def test_row_to_bronze_handles_government_finance_database_columns() -> None:
+    """The "Government Finance Database" release keys rows on GOVSid (Census
+    Government ID), with FIPSid as the fallback when GOVSid is blank, and
+    carries the 2-digit state FIPS in FIPS_Code_State. None of these were in
+    FIELD_MAP originally, so every row was dropped (id_code unmatched) and the
+    bronze table loaded empty — this guards that regression. State_Code is the
+    Census alphabetical state code (AL=1), which diverges from FIPS, and must
+    NOT be treated as state_fips."""
+    # GOVSid blank → FIPSid is the identifier (the common case in this release).
+    row = {
+        "GOVSid": "",
+        "FIPSid": "00012041203910",
+        "Year4": "2022",
+        "State_Code": "1",  # Census alpha code, NOT FIPS — must be ignored
+        "Type_Code": "2",
+        "Name": "PETREY TOWN",
+        "FIPS_Code_State": "01",
+        "Population": "57",
+    }
+    out = row_to_bronze_dict(row, gov_type="other", source_file="gfd.csv")
+    assert out is not None
+    assert out["id_code"] == "00012041203910"
+    assert out["state_fips"] == "01"  # from FIPS_Code_State, not State_Code
+    assert out["state_code"] == "AL"  # back-filled from FIPS '01'
+    assert out["fiscal_year"] == 2022
+    assert out["population"] == 57
+
+    # GOVSid present → it wins over FIPSid (canonical Census identifier).
+    out2 = row_to_bronze_dict(
+        {"GOVSid": "01002000200000", "FIPSid": "00012041203910", "Year4": "2021"},
+        gov_type="other",
+        source_file="gfd.csv",
+    )
+    assert out2 is not None
+    assert out2["id_code"] == "01002000200000"
+
+
 def test_row_to_bronze_postal_overrides_fips_when_present() -> None:
     """When both numeric FIPS and 2-letter postal are present, postal wins
     (it's more specific to TPC's "human-friendly" releases)."""

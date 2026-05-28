@@ -341,6 +341,30 @@ _CREATE_INDEXES_SQL = (
     ),
 )
 
+# The UPSERT below relies on the (gov_type, id_code, fiscal_year) primary key as
+# its ON CONFLICT arbiter. Migration 078 creates that PK, but the bronze
+# passthrough dbt model (materialized='table', same relation) rebuilds the table
+# via CTAS on every `dbt run`, which silently drops the PK (and indexes). The
+# CREATE INDEX statements above are already self-healing; the PK is not, because
+# it lives inside CREATE TABLE IF NOT EXISTS, which no-ops once the table exists.
+# So re-establish it idempotently here — Postgres has no ADD CONSTRAINT IF NOT
+# EXISTS, hence the pg_constraint guard.
+_ENSURE_PK_SQL = text(
+    """
+    DO $$
+    BEGIN
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conrelid = 'bronze.bronze_tpc_government_finance'::regclass
+              AND contype = 'p'
+        ) THEN
+            ALTER TABLE bronze.bronze_tpc_government_finance
+                ADD PRIMARY KEY (gov_type, id_code, fiscal_year);
+        END IF;
+    END $$;
+    """
+)
+
 _TRUNCATE_SQL = text("TRUNCATE TABLE bronze.bronze_tpc_government_finance")
 
 _UPSERT_SQL = text(
@@ -468,6 +492,7 @@ async def _prepare_target(truncate: bool) -> None:
         await session.execute(_CREATE_TABLE_SQL)
         for idx in _CREATE_INDEXES_SQL:
             await session.execute(idx)
+        await session.execute(_ENSURE_PK_SQL)
         if truncate:
             await session.execute(_TRUNCATE_SQL)
 
