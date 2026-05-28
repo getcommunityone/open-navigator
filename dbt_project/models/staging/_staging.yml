@@ -1170,6 +1170,39 @@ sources:
           - name: loaded_at
           - name: last_updated
 
+      - name: bronze_tpc_government_finance
+        description: >
+          TPC / Urban Institute republication of the Census Bureau Annual
+          Survey of State and Local Government Finances + Census of
+          Governments, 1977 onward. One row per ``(gov_type, id_code,
+          fiscal_year)``. ~300 finance variables per row carried verbatim
+          in ``raw_record`` JSONB so staging models can normalize the
+          schema drift TPC reconciled without re-loading bronze. Landed by
+          ``ingestion.tpc.finance`` (FETCH→``data/cache/tpc/``,
+          LAND→bronze; thin shim at
+          ``scripts/datasources/tpc/load_tpc_finance.py``).
+        columns:
+          - name: id_code
+            description: "TPC government identifier (natural key, source-defined)."
+          - name: name
+            description: "Government name (e.g. 'Travis County')."
+          - name: state_fips
+            description: "Numeric Census state FIPS (e.g. '06' for California)."
+          - name: state_code
+            description: "2-letter postal, back-filled from state_fips when only FIPS is in source."
+          - name: gov_type
+            description: "One of: state, county, city, school_district, special_district, other."
+          - name: fiscal_year
+            description: "Fiscal year of the observation."
+          - name: population
+            description: "Reported population when the source CSV exposes it; null otherwise."
+          - name: raw_record
+            description: "JSONB of the source CSV row verbatim — full TPC variable set."
+          - name: source_file
+            description: "Originating CSV filename (provenance)."
+          - name: loaded_at
+          - name: last_updated
+
   - name: gold_runtime
     description: "Runtime gold tables in public schema (ACS joins for mapping quality marts)"
     database: open_navigator
