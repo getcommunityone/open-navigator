@@ -5,8 +5,15 @@
 #   ./scripts/datasources/youtube/run_load_youtube_events_terminal.sh
 #
 # Optional env:
-#   STATES=AL,GA,IN,MA,WA,WI
+#   STATES=ALL                   # 50 states + DC + PR (see ALL_US_STATES below)
+#   STATES=AL,GA,IN,MA,WA,WI     # or any comma-separated list
 #   CHANNEL_SOURCE=auto          # golden intermediate.int_events_channels when set
+#   CHANNEL_SOURCE=counties-scraped   # bronze_jurisdictions_counties_scraped
+#   CHANNEL_SOURCE=municipalities-scraped
+#
+# All states, catalog only (no captions):
+#   STATES=ALL MAX_VIDEOS=100 SKIP_TRANSCRIPTS=1 WORKERS=4 \
+#     ./scripts/datasources/youtube/run_load_youtube_events_terminal.sh
 #   MAX_VIDEOS=100
 #   MAX_TRANSCRIPTS=4
 #   WORKERS=1
@@ -28,7 +35,16 @@ set -a
 set +a
 export PYTHONUNBUFFERED=1
 
-STATES="${STATES:-AL,GA,IN,MA,WA,WI}"
+# 50 states + DC + PR (matches packages/ingestion/.../census/states.py US_STATES)
+ALL_US_STATES="AK,AL,AR,AZ,CA,CO,CT,DE,DC,FL,GA,HI,ID,IL,IN,IA,KS,KY,LA,ME,MD,MA,MI,MN,MS,MO,MT,NE,NV,NH,NJ,NM,NY,NC,ND,OH,OK,OR,PA,PR,RI,SC,SD,TN,TX,UT,VT,VA,WA,WV,WI,WY"
+
+_raw_states="${STATES:-ALL}"
+if [[ "$_raw_states" == "ALL" || "$_raw_states" == "all" ]]; then
+  STATES="$ALL_US_STATES"
+else
+  STATES="$_raw_states"
+fi
+unset _raw_states
 CHANNEL_SOURCE="${CHANNEL_SOURCE:-auto}"
 MAX_VIDEOS="${MAX_VIDEOS:-100}"
 MAX_TRANSCRIPTS="${MAX_TRANSCRIPTS:-4}"
