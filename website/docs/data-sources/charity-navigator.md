@@ -1,5 +1,8 @@
 ---
 sidebar_position: 6
+title: Charity Navigator API
+description: Enrich nonprofit profiles with independent Charity Navigator star ratings, mission statements, websites, and active advisories.
+tags: [data-source, nonprofits, commercial, api]
 ---
 
 # Charity Navigator API
@@ -7,6 +10,18 @@ sidebar_position: 6
 **Powered by Charity Navigator**
 
 Enrich nonprofit profiles with independent ratings, mission statements, and organizational metrics from Charity Navigator's comprehensive database.
+
+:::info At a glance
+| | |
+|---|---|
+| **Provider** | Charity Navigator, Inc. |
+| **Coverage** | U.S. registered nonprofits — all 1.9M with basics; ~200K rated |
+| **Update cadence** | Annual rating refresh |
+| **License** | Charity Navigator API Terms — attribution & link-back required (see "Legal & Compliance" below and the [Legal index](../legal/index.md)) |
+| **Cost** | Free, capped at 1,000 API calls/day |
+| **Access method** | GraphQL — `https://api.charitynavigator.org/graphql` (Bearer token) |
+| **Our pipeline** | On-demand enrichment keyed by EIN; cached locally before merge into gold nonprofit tables |
+:::
 
 ## Overview
 
