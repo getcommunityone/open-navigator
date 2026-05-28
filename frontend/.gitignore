@@ -7,6 +7,10 @@ dist/
 # Build output
 api/static/
 
+# Generated API contract (regenerate with `npm run gen:api`)
+openapi.json
+src/lib/api.types.ts
+
 # Environment
 .env
 .env.local
