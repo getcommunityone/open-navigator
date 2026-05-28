@@ -9,7 +9,7 @@ data/cache/parcels/<state>/<county>_attrs.csv. Localized Esri column names are
 normalized to a small canonical vocabulary before bronze load.
 
 Usage:
-    python -m scripts.datasources.parcels.addresses \\
+    python -m ingestion.arcgis.addresses \\
         --csv data/cache/parcels/al/tuscaloosa_county_attrs.csv \\
         --state AL \\
         --county-fips 01125 \\
@@ -17,7 +17,7 @@ Usage:
         --dataset al_tuscaloosa_county_parcels \\
         --esri-endpoint "https://services.arcgis.com/.../FeatureServer/0"
 
-    python scripts/datasources/parcels/addresses.py --truncate ...
+    python -m ingestion.arcgis.addresses --truncate ...
 
 Configuration:
     NEON_DATABASE_URL_DEV / NEON_DATABASE_URL / DATABASE_URL via core_lib.db
@@ -49,7 +49,7 @@ BRONZE_TABLE = "bronze.bronze_addresses"
 #
 # Vendored verbatim from scripts/datasources/parcels/field_mappings.py so the
 # package is self-contained (no dependency on the scripts/ tree). Counties
-# rarely share column names; map localized fields to a small standard
+# rarely share column names; map localized Esri fields to a small standard
 # vocabulary before bronze load.
 # ---------------------------------------------------------------------------
 
@@ -392,8 +392,8 @@ _UPSERT_SQL = text(
 )
 
 
-class ParcelAddressesPipeline(DataSourcePipeline[ParcelAddressRow]):
-    source = "parcels_addresses"
+class ArcgisAddressesPipeline(DataSourcePipeline[ParcelAddressRow]):
+    source = "arcgis_addresses"
     batch_size = 5_000
     row_schema = ParcelAddressRow
 
@@ -505,7 +505,7 @@ async def _run(args: argparse.Namespace) -> None:
         jurisdiction_id = f"county_{args.county_fips}"
 
     await _prepare_target(args.truncate, source_dataset=args.dataset)
-    pipeline = ParcelAddressesPipeline(
+    pipeline = ArcgisAddressesPipeline(
         path=args.csv,
         limit=args.limit,
         source_dataset=args.dataset,

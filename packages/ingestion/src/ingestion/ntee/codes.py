@@ -7,21 +7,25 @@ nonprofit organizations by their mission and activities.
 Source-of-truth resolution order:
     1. Explicit ``--file`` argument.
     2. ``data/cache/ntee/causes_ntee_codes.{csv,parquet}`` (operator-managed).
-    3. Vendored seed CSV (``seed_ntee_codes.csv``) — 26-row major-group subset,
+    3. Auto-downloaded HuggingFace parquet
+       (``CommunityOne/reference-causes-ntee-codes``; disable with --no-download).
+    4. Vendored seed CSV (``seed_ntee_codes.csv``) — 26-row major-group subset,
        sufficient for local smoke tests but NOT the full 196-code production
-       taxonomy. Drop the full file into the cache dir for production loads.
+       taxonomy.
 
 Provenance: IRS Publication 557 + NCCS (National Center for Charitable
-Statistics). No upstream URL is hardcoded — NCCS does not publish the code
-table as a stable downloadable file under their bulk-data manifest.
+Statistics), curated and republished on HuggingFace. NCCS does not publish
+the code table as a stable downloadable file under their bulk-data manifest,
+so the HF mirror is the canonical upstream for this loader.
 
 The hierarchical ``cause_breadcrumb`` (root > ... > leaf parent-chain path) is
 derived downstream in dbt (``int_ntee__breadcrumb``) via a recursive CTE over
 ``parent_code``; the loader lands only the raw code rows.
 
 Usage:
-    python -m ingestion.ntee.codes
+    python -m ingestion.ntee.codes                 # fetch + load
     python -m ingestion.ntee.codes --truncate
+    python -m ingestion.ntee.codes --no-download   # use cache or vendored seed
     python -m ingestion.ntee.codes --file data/cache/ntee/causes_ntee_codes.csv --limit 50
 
 Configuration:
@@ -47,13 +51,61 @@ from core_lib.pipeline import DataSourcePipeline, PipelineContext, RawRow
 CACHE_DIR = Path("data/cache/ntee")
 VENDORED_CSV = Path(__file__).parent / "seed_ntee_codes.csv"
 
+# HuggingFace dataset that mirrors the legacy data/gold/causes_ntee_codes.parquet.
+HF_REPO_ID = "CommunityOne/reference-causes-ntee-codes"
+HF_FILENAME = "causes_ntee_codes.parquet"
 
-def resolve_source_path(explicit: Path | None = None) -> Path:
-    """Pick the source file in explicit → cache → vendored precedence order.
+
+def download_from_hf(cache_dir: Path = CACHE_DIR) -> Path | None:
+    """Download the NTEE codes parquet from HuggingFace into the cache.
+
+    Returns the local path on success, ``None`` if the download fails. Failures
+    are logged at warning level — the pipeline falls back to the vendored seed.
+    """
+    try:
+        from huggingface_hub import hf_hub_download  # lazy: optional dep
+    except ImportError:
+        from loguru import logger
+
+        logger.warning(
+            "huggingface_hub not installed; skipping HF download. "
+            "Install with `pip install huggingface_hub` or use --no-download."
+        )
+        return None
+
+    from loguru import logger
+
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        downloaded = hf_hub_download(
+            repo_id=HF_REPO_ID,
+            filename=HF_FILENAME,
+            repo_type="dataset",
+            local_dir=str(cache_dir),
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(f"HuggingFace download failed ({HF_REPO_ID}): {exc}")
+        return None
+
+    target = cache_dir / HF_FILENAME
+    src = Path(downloaded)
+    if src != target:
+        src.replace(target)
+    logger.success(f"Downloaded NTEE codes → {target}")
+    return target
+
+
+def resolve_source_path(
+    explicit: Path | None = None,
+    *,
+    allow_download: bool = True,
+) -> Path:
+    """Pick the source file in explicit → cache → HF → vendored precedence order.
 
     Operators bootstrap production by dropping the full 196-row taxonomy at
-    ``data/cache/ntee/causes_ntee_codes.{parquet,csv}``. Tests and local dev
-    fall through to the vendored 26-row seed CSV.
+    ``data/cache/ntee/causes_ntee_codes.{parquet,csv}``. Otherwise the canonical
+    HuggingFace parquet is fetched (unless ``allow_download=False``). Tests and
+    local dev fall through to the vendored 26-row seed CSV.
     """
     if explicit is not None:
         return explicit
@@ -63,6 +115,10 @@ def resolve_source_path(explicit: Path | None = None) -> Path:
     ):
         if candidate.exists():
             return candidate
+    if allow_download:
+        downloaded = download_from_hf()
+        if downloaded is not None:
+            return downloaded
     return VENDORED_CSV
 
 
@@ -153,14 +209,24 @@ _MIGRATE_SQL = text(
             SELECT 1 FROM information_schema.tables
             WHERE table_schema = 'public' AND table_name = 'cause_ntee'
         ) THEN
+            -- The legacy public.cause_ntee in dev/prod predates the combined
+            -- NTEE+EveryOrg design and only has columns: code, description,
+            -- category, subcategory, source, last_updated. Map what exists and
+            -- literal-fill the rest (name <- description, cause_type <- 'ntee').
             INSERT INTO bronze.bronze_ntee_codes
                 (code, name, description, cause_type, parent_code,
                  category, subcategory, code_source, ingestion_date)
             SELECT
-                code, name, description, cause_type, parent_code,
-                category, subcategory, source, COALESCE(last_updated, NOW())
+                code,
+                COALESCE(description, code)   AS name,
+                description,
+                'ntee'                        AS cause_type,
+                NULL                          AS parent_code,
+                category,
+                subcategory,
+                COALESCE(source, 'irs')       AS code_source,
+                COALESCE(last_updated, NOW()) AS ingestion_date
             FROM public.cause_ntee
-            WHERE cause_type = 'ntee'
             ON CONFLICT (code) DO NOTHING;
         END IF;
     END
@@ -228,12 +294,19 @@ class NteeCodesPipeline(DataSourcePipeline[NteeCodesRow]):
     batch_size = 1_000
     row_schema = NteeCodesRow
 
-    def __init__(self, *, path: Path | None = None, limit: int | None = None):
+    def __init__(
+        self,
+        *,
+        path: Path | None = None,
+        limit: int | None = None,
+        allow_download: bool = True,
+    ):
         self._path = path
         self._limit = limit
+        self._allow_download = allow_download
 
     async def extract(self, ctx: PipelineContext) -> AsyncIterator[dict]:
-        path = resolve_source_path(self._path)
+        path = resolve_source_path(self._path, allow_download=self._allow_download)
         rows = _read_rows(path)
 
         emitted = 0
@@ -306,12 +379,20 @@ def build_parser() -> argparse.ArgumentParser:
         "--truncate", action="store_true",
         help="TRUNCATE table before loading (recommended for full reloads)",
     )
+    parser.add_argument(
+        "--no-download", action="store_true",
+        help="Skip the HuggingFace download step; use cache or vendored seed only.",
+    )
     return parser
 
 
 async def _run(args: argparse.Namespace) -> None:
     await _prepare_target(args.truncate)
-    pipeline = NteeCodesPipeline(path=args.file, limit=args.limit)
+    pipeline = NteeCodesPipeline(
+        path=args.file,
+        limit=args.limit,
+        allow_download=not args.no_download,
+    )
     await pipeline.run()
 
 

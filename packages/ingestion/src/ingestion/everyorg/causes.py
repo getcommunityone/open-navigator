@@ -1,19 +1,25 @@
 #!/usr/bin/env python3
 """EveryOrg causes pipeline: land curated cause taxonomy into bronze.bronze_everyorg_causes.
 
-Every.org does not expose a public "list all causes" endpoint, so the source
-of truth for this pipeline is a vendored YAML file (`causes.yaml`) shipped
-alongside the loader. Operators can override with a CSV or parquet placed at
-`data/cache/everyorg/causes.{csv,parquet}` — useful for one-time bootstrap
-from the legacy `data/gold/causes_everyorg_causes.parquet` until that path is
-removed elsewhere.
+Every.org does not expose a public "list all causes" endpoint, so the canonical
+upstream source is the parquet we maintain on HuggingFace:
+``CommunityOne/reference-causes-everyorg-causes``. On a fresh checkout this
+file is downloaded into ``data/cache/everyorg/`` on first run.
+
+Source-of-truth resolution order:
+    1. Explicit ``--file`` argument.
+    2. ``data/cache/everyorg/causes.{csv,parquet}`` (operator-managed).
+    3. Auto-downloaded HuggingFace parquet (default; disable with --no-download).
+    4. Vendored seed YAML — small representative subset, sufficient for smoke
+       tests but not the full ~39-cause production taxonomy.
 
 Schema mirrors the columns the legacy parquet carried (cause_id, cause_name,
 description, icon, category, parent_id, popularity_rank).
 
 Usage:
-    python -m ingestion.everyorg.causes
+    python -m ingestion.everyorg.causes                 # fetch + load
     python -m ingestion.everyorg.causes --truncate
+    python -m ingestion.everyorg.causes --no-download   # use cache or vendored
     python -m ingestion.everyorg.causes --file data/cache/everyorg/causes.csv
 
 Configuration:
@@ -39,19 +45,69 @@ from core_lib.pipeline import DataSourcePipeline, PipelineContext, RawRow
 CACHE_DIR = Path("data/cache/everyorg")
 VENDORED_YAML = Path(__file__).parent / "causes.yaml"
 
+# HuggingFace dataset that mirrors the legacy data/gold/causes_everyorg_causes.parquet.
+HF_REPO_ID = "CommunityOne/reference-causes-everyorg-causes"
+HF_FILENAME = "causes_everyorg_causes.parquet"
 
-def resolve_source_path(explicit: Path | None = None) -> Path:
-    """Pick the source file in cache → vendored YAML precedence order.
+
+def download_from_hf(cache_dir: Path = CACHE_DIR) -> Path | None:
+    """Download the EveryOrg causes parquet from HuggingFace into the cache.
+
+    Returns the local path on success, ``None`` if the download fails (no
+    network, missing huggingface_hub, dataset not published, etc.). Failures
+    are logged at warning level — the pipeline falls back to the vendored YAML.
+    """
+    try:
+        from huggingface_hub import hf_hub_download  # lazy: optional dep
+    except ImportError:
+        logger.warning(
+            "huggingface_hub not installed; skipping HF download. "
+            "Install with `pip install huggingface_hub` or use --no-download."
+        )
+        return None
+
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        downloaded = hf_hub_download(
+            repo_id=HF_REPO_ID,
+            filename=HF_FILENAME,
+            repo_type="dataset",
+            local_dir=str(cache_dir),
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(f"HuggingFace download failed ({HF_REPO_ID}): {exc}")
+        return None
+
+    # Normalize to the path the resolver looks for.
+    target = cache_dir / "causes.parquet"
+    src = Path(downloaded)
+    if src != target:
+        src.replace(target)
+    logger.success(f"Downloaded EveryOrg causes → {target}")
+    return target
+
+
+def resolve_source_path(
+    explicit: Path | None = None,
+    *,
+    allow_download: bool = True,
+) -> Path:
+    """Pick the source file in explicit → cache → HF → vendored YAML order.
 
     Operators can drop a CSV or parquet at data/cache/everyorg/causes.{csv,parquet}
-    to override the vendored taxonomy without modifying the package. When no
-    override is present, fall back to the vendored YAML.
+    to override the upstream. When neither override nor cache is present, the
+    canonical HuggingFace parquet is fetched (unless ``allow_download=False``).
+    Falls back to the vendored YAML only when everything else fails.
     """
     if explicit is not None:
         return explicit
     for candidate in (CACHE_DIR / "causes.parquet", CACHE_DIR / "causes.csv"):
         if candidate.exists():
             return candidate
+    if allow_download:
+        downloaded = download_from_hf()
+        if downloaded is not None:
+            return downloaded
     return VENDORED_YAML
 
 
@@ -162,12 +218,19 @@ class EveryorgCausesPipeline(DataSourcePipeline[EveryorgCauseRow]):
     batch_size = 100
     row_schema = EveryorgCauseRow
 
-    def __init__(self, *, path: Path | None = None, limit: int | None = None):
+    def __init__(
+        self,
+        *,
+        path: Path | None = None,
+        limit: int | None = None,
+        allow_download: bool = True,
+    ):
         self._path = path
         self._limit = limit
+        self._allow_download = allow_download
 
     async def extract(self, ctx: PipelineContext) -> AsyncIterator[dict]:
-        path = resolve_source_path(self._path)
+        path = resolve_source_path(self._path, allow_download=self._allow_download)
         rows = _read_rows(path)
 
         emitted = 0
@@ -238,12 +301,20 @@ def build_parser() -> argparse.ArgumentParser:
         "--truncate", action="store_true",
         help="TRUNCATE table before loading (recommended for full reloads)",
     )
+    parser.add_argument(
+        "--no-download", action="store_true",
+        help="Skip the HuggingFace download step; use cache or vendored YAML only.",
+    )
     return parser
 
 
 async def _run(args: argparse.Namespace) -> None:
     await _prepare_target(args.truncate)
-    pipeline = EveryorgCausesPipeline(path=args.file, limit=args.limit)
+    pipeline = EveryorgCausesPipeline(
+        path=args.file,
+        limit=args.limit,
+        allow_download=not args.no_download,
+    )
     await pipeline.run()
 
 

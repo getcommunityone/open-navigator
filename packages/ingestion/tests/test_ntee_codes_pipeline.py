@@ -139,9 +139,33 @@ def test_resolve_source_path_cache_dir_preferred(tmp_path, monkeypatch):
 def test_resolve_source_path_falls_back_to_vendored(tmp_path, monkeypatch):
     import ingestion.ntee.codes as cp
 
-    # Empty cache dir → vendored CSV.
+    # Empty cache dir + downloads disabled → vendored CSV.
     monkeypatch.setattr(cp, "CACHE_DIR", tmp_path)
-    assert resolve_source_path() == VENDORED_CSV
+    assert resolve_source_path(allow_download=False) == VENDORED_CSV
+
+
+def test_resolve_source_path_uses_hf_when_cache_empty(tmp_path, monkeypatch):
+    """When cache is empty and downloads are allowed, the HF helper is invoked."""
+    import ingestion.ntee.codes as cp
+
+    monkeypatch.setattr(cp, "CACHE_DIR", tmp_path)
+    fake_download = tmp_path / "causes_ntee_codes.parquet"
+
+    def _fake_hf(cache_dir=cp.CACHE_DIR):
+        fake_download.write_bytes(b"stub")
+        return fake_download
+
+    monkeypatch.setattr(cp, "download_from_hf", _fake_hf)
+    assert resolve_source_path(allow_download=True) == fake_download
+
+
+def test_resolve_source_path_falls_back_when_hf_fails(tmp_path, monkeypatch):
+    """HF download returning None → fall through to vendored CSV."""
+    import ingestion.ntee.codes as cp
+
+    monkeypatch.setattr(cp, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(cp, "download_from_hf", lambda cache_dir=cp.CACHE_DIR: None)
+    assert resolve_source_path(allow_download=True) == VENDORED_CSV
 
 
 def test_resolve_source_path_prefers_parquet_over_csv(tmp_path, monkeypatch):

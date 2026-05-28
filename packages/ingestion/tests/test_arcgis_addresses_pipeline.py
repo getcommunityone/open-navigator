@@ -1,4 +1,4 @@
-"""Unit tests for the parcels addresses pipeline refactor."""
+"""Unit tests for the arcgis addresses pipeline refactor."""
 from __future__ import annotations
 
 import asyncio
@@ -7,9 +7,9 @@ from datetime import datetime, timezone
 import pytest
 
 
-from ingestion.parcels.addresses import (  # noqa: E402
+from ingestion.arcgis.addresses import (  # noqa: E402
+    ArcgisAddressesPipeline,
     ParcelAddressRow,
-    ParcelAddressesPipeline,
     _build_situs_full,
     _clean_int,
     _clean_str,
@@ -92,7 +92,7 @@ def test_row_to_record_shapes_record():
 
 def test_parcel_address_row_schema_accepts_and_rejects():
     r = ParcelAddressRow(
-        source="parcels_addresses",
+        source="arcgis_addresses",
         source_version="tuscaloosa_county_attrs",
         natural_key="ds:P-1",
         source_dataset="ds",
@@ -109,7 +109,7 @@ def test_parcel_address_row_schema_accepts_and_rejects():
     # state_code must be max 2 chars
     with pytest.raises(Exception):
         ParcelAddressRow(
-            source="parcels_addresses",
+            source="arcgis_addresses",
             source_version="v",
             natural_key="ds:P-1",
             source_dataset="ds",
@@ -120,7 +120,7 @@ def test_parcel_address_row_schema_accepts_and_rejects():
     # source_record_id is required (min_length=1)
     with pytest.raises(Exception):
         ParcelAddressRow(
-            source="parcels_addresses",
+            source="arcgis_addresses",
             source_version="v",
             natural_key="ds:",
             source_dataset="ds",
@@ -130,18 +130,18 @@ def test_parcel_address_row_schema_accepts_and_rejects():
 
 
 def test_pipeline_metadata():
-    p = ParcelAddressesPipeline()
-    assert p.source == "parcels_addresses"
+    p = ArcgisAddressesPipeline()
+    assert p.source == "arcgis_addresses"
     assert p.batch_size == 5000
     assert p.row_schema is ParcelAddressRow
 
 
 def test_discover_path_raises_when_missing(tmp_path):
-    p = ParcelAddressesPipeline(path=tmp_path / "nope.csv")
+    p = ArcgisAddressesPipeline(path=tmp_path / "nope.csv")
     with pytest.raises(FileNotFoundError):
         p._discover_path()
 
-    p2 = ParcelAddressesPipeline()
+    p2 = ArcgisAddressesPipeline()
     with pytest.raises(FileNotFoundError):
         p2._discover_path()
 
@@ -153,7 +153,7 @@ def test_extract_roundtrip_and_validate(tmp_path):
         "P-1,Jane Doe,5 Oak Ave,Tuscaloosa,35401\n"
         "P-2,John Smith,6 Elm St,Tuscaloosa,35402\n"
     )
-    p = ParcelAddressesPipeline(
+    p = ArcgisAddressesPipeline(
         path=csv_path,
         source_dataset="al_tuscaloosa_county_parcels",
         state_code="AL",
@@ -168,7 +168,7 @@ def test_extract_roundtrip_and_validate(tmp_path):
 
     extracted = asyncio.run(collect())
     assert len(extracted) == 2
-    assert extracted[0]["source"] == "parcels_addresses"
+    assert extracted[0]["source"] == "arcgis_addresses"
     assert extracted[0]["source_record_id"] == "P-1"
     assert extracted[0]["state_code"] == "AL"
     assert extracted[0]["natural_key"] == "al_tuscaloosa_county_parcels:P-1"
@@ -187,7 +187,7 @@ def test_extract_limit_caps_rows(tmp_path):
         lines.append(f"P-{i},Owner{i}")
     csv_path.write_text("\n".join(lines) + "\n")
 
-    p = ParcelAddressesPipeline(
+    p = ArcgisAddressesPipeline(
         path=csv_path,
         limit=3,
         source_dataset="ds",
