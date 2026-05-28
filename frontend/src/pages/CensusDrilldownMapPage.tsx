@@ -761,6 +761,7 @@ export default function CensusDrilldownMapPage() {
         lngLat: info.lngLat,
       })
       setPinnedZcta(null)
+      setPinnedPlace(null)
       setSelectedCountyGeoid(info.geoid)
       setLocalPin(null)
       setView('zip')
@@ -778,6 +779,26 @@ export default function CensusDrilldownMapPage() {
     }) => {
       setPinnedZcta({
         zcta: info.zcta,
+        value: info.value,
+        rank: info.rank,
+        lngLat: info.lngLat,
+      })
+    },
+    [],
+  )
+
+  const onPickPlace = useCallback(
+    (info: {
+      geoid: string
+      name: string
+      value: number | null
+      rank: { rank: number; total: number } | null
+      lngLat: { lng: number; lat: number } | null
+      feature: GeoJSON.Feature
+    }) => {
+      setPinnedPlace({
+        geoid: info.geoid,
+        name: info.name,
         value: info.value,
         rank: info.rank,
         lngLat: info.lngLat,
@@ -805,6 +826,7 @@ export default function CensusDrilldownMapPage() {
     setLocalPin(null)
     setPinnedCounty(null)
     setPinnedZcta(null)
+    setPinnedPlace(null)
     setView('nation')
   }, [])
   const goState = useCallback(() => {
@@ -812,10 +834,12 @@ export default function CensusDrilldownMapPage() {
     setLocalPin(null)
     setPinnedCounty(null)
     setPinnedZcta(null)
+    setPinnedPlace(null)
     setView('state')
   }, [])
   const goCounty = useCallback(() => {
     setLocalPin(null)
+    setPinnedPlace(null)
     setView('county')
   }, [])
   const goZip = useCallback(() => {
@@ -827,7 +851,17 @@ export default function CensusDrilldownMapPage() {
     if (pinnedCounty) setSelectedCountyGeoid(pinnedCounty.geoid)
     setLocalPin(null)
     setPinnedZcta(null)
+    setPinnedPlace(null)
     setView('zip')
+  }, [pinnedCounty])
+
+  /** Drill from a pinned county into the cities/towns tier. Same pattern as goZip. */
+  const goPlace = useCallback(() => {
+    if (pinnedCounty) setSelectedCountyGeoid(pinnedCounty.geoid)
+    setLocalPin(null)
+    setPinnedZcta(null)
+    setPinnedPlace(null)
+    setView('place')
   }, [pinnedCounty])
 
   const onPickAddress = useCallback(
@@ -841,6 +875,7 @@ export default function CensusDrilldownMapPage() {
         stateCode: r.stateCode,
       })
       setPropertyLookup({ status: 'idle', query: '', matches: [] })
+      setPinnedPlace(null)
       if (fips) {
         setSelectedStateFips(fips)
         setSelectedCountyGeoid(null)
@@ -937,6 +972,16 @@ export default function CensusDrilldownMapPage() {
     })
     if (pinnedZcta) {
       crumbs.push({ label: `ZIP ${pinnedZcta.zcta}`, current: true })
+    }
+  }
+  if (view === 'place') {
+    crumbs.push({
+      label: 'Cities & towns',
+      current: !pinnedPlace,
+      onClick: goPlace,
+    })
+    if (pinnedPlace) {
+      crumbs.push({ label: pinnedPlace.name, current: true })
     }
   }
   if (view === 'local') {
@@ -1055,8 +1100,8 @@ export default function CensusDrilldownMapPage() {
         {/* center: stage + legend */}
         <div className="flex min-w-0 flex-col gap-2">
           <div className="relative rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
-            {/* ZIP view: opt-in county boundary overlay (off by default). */}
-            {view === 'zip' ? (
+            {/* ZIP / places views: opt-in county boundary overlay (off by default). */}
+            {view === 'zip' || view === 'place' ? (
               <label className="absolute left-3 top-3 z-10 inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-slate-300 bg-white/95 px-2 py-1 text-[11px] font-medium text-slate-700 shadow-sm backdrop-blur hover:bg-white">
                 <input
                   type="checkbox"
@@ -1160,31 +1205,39 @@ export default function CensusDrilldownMapPage() {
                 statesTopo={statesTopo as never}
                 countiesTopo={countiesTopo as never}
                 zctaTopo={zctaTopo as never}
+                placesGeoJson={placesGeoJson ?? null}
                 selectedStateFips={selectedStateFips}
                 selectedCountyGeoid={selectedCountyGeoid}
                 selectedZcta={pinnedZcta?.zcta ?? null}
+                selectedPlaceGeoid={pinnedPlace?.geoid ?? null}
                 stateDisplayById={stateDisplayById}
                 countyDisplayByGeoid={countyDisplayByGeoid}
                 zctaDisplayByZcta={zctaDisplayByZcta}
+                placeDisplayByGeoid={placeDisplayByGeoid}
                 stateChoroExtent={stateChoroExtent}
                 countyChoroExtent={countyChoroExtent}
                 zctaChoroExtent={zctaChoroExtent}
+                placeChoroExtent={placeChoroExtent}
                 stateBubbleExtent={stateBubbleExtent}
                 countyBubbleExtent={countyBubbleExtent}
                 zctaBubbleExtent={zctaBubbleExtent}
+                placeBubbleExtent={placeBubbleExtent}
                 scale={scale}
                 viz={viz}
                 onPickState={onPickState}
                 onPickCounty={onPickCounty}
                 onPickZcta={onPickZcta}
+                onPickPlace={onPickPlace}
                 onResetToNation={goNation}
                 pinnedLngLat={pinnedAddress ? { lng: pinnedAddress.lng, lat: pinnedAddress.lat } : null}
                 pinnedCountyGeoid={pinnedCounty?.geoid ?? null}
                 pinnedZcta={pinnedZcta?.zcta ?? null}
+                pinnedPlaceGeoid={pinnedPlace?.geoid ?? null}
                 showCountyOutline={showCountyOutline}
                 stateRankById={stateRankById}
                 countyRankByGeoid={countyRankByGeoid}
                 zctaRankByZcta={zctaRankByZcta}
+                placeRankByGeoid={placeRankByGeoid}
                 onHoverInfo={setHoverInfo}
               />
             )}
@@ -1202,11 +1255,15 @@ export default function CensusDrilldownMapPage() {
                   ? zctaTopo
                     ? `${stateName} · ${Object.keys(zctaDisplayByZcta).length || 'ZCTA'} polygons · click a ZIP to pin`
                     : `${stateName} · ZIP tiles not generated for this state yet — run scripts/frontend/prep_zcta_tiles.sh`
-                  : view === 'county'
-                    ? `${countyName ?? selectedCountyGeoid} · click any county or address to go deeper`
-                    : view === 'state'
-                      ? `${stateName} · click any county`
-                      : `${Object.keys(stateDisplayById).length} states · click any to drill in`}
+                  : view === 'place'
+                    ? placesGeoJson
+                      ? `${stateName} · ${(placesGeoJson.features ?? []).length} cities & towns in state · click any to pin`
+                      : `${stateName} · place tiles not generated for this state yet — run scripts/datasources/census/export_census_map_static.py --place-states ${selectedStateFips ?? '??'}`
+                    : view === 'county'
+                      ? `${countyName ?? selectedCountyGeoid} · click any county or address to go deeper`
+                      : view === 'state'
+                        ? `${stateName} · click any county`
+                        : `${Object.keys(stateDisplayById).length} states · click any to drill in`}
             </span>
             {view !== 'nation' ? (
               <button
@@ -1224,8 +1281,24 @@ export default function CensusDrilldownMapPage() {
           {view !== 'local' ? (
             viz === 'filled' ? (
               <ChoroplethLegend
-                min={view === 'zip' ? zctaChoroExtent.min : view === 'nation' ? stateChoroExtent.min : countyChoroExtent.min}
-                max={view === 'zip' ? zctaChoroExtent.max : view === 'nation' ? stateChoroExtent.max : countyChoroExtent.max}
+                min={
+                  view === 'zip'
+                    ? zctaChoroExtent.min
+                    : view === 'place'
+                      ? placeChoroExtent.min
+                      : view === 'nation'
+                        ? stateChoroExtent.min
+                        : countyChoroExtent.min
+                }
+                max={
+                  view === 'zip'
+                    ? zctaChoroExtent.max
+                    : view === 'place'
+                      ? placeChoroExtent.max
+                      : view === 'nation'
+                        ? stateChoroExtent.max
+                        : countyChoroExtent.max
+                }
                 scale={scale}
                 format={fmt}
                 valueMode={valueMode}
@@ -1234,8 +1307,24 @@ export default function CensusDrilldownMapPage() {
               />
             ) : (
               <BubbleLegend
-                min={view === 'zip' ? zctaBubbleExtent.min : view === 'nation' ? stateBubbleExtent.min : countyBubbleExtent.min}
-                max={view === 'zip' ? zctaBubbleExtent.max : view === 'nation' ? stateBubbleExtent.max : countyBubbleExtent.max}
+                min={
+                  view === 'zip'
+                    ? zctaBubbleExtent.min
+                    : view === 'place'
+                      ? placeBubbleExtent.min
+                      : view === 'nation'
+                        ? stateBubbleExtent.min
+                        : countyBubbleExtent.min
+                }
+                max={
+                  view === 'zip'
+                    ? zctaBubbleExtent.max
+                    : view === 'place'
+                      ? placeBubbleExtent.max
+                      : view === 'nation'
+                        ? stateBubbleExtent.max
+                        : countyBubbleExtent.max
+                }
                 scale={scale}
                 format={fmt}
                 metricHelp={metricFullHelp}
@@ -1259,16 +1348,26 @@ export default function CensusDrilldownMapPage() {
             }`}
           >
             {(() => {
-              // Card precedence: a pinned county wins, then transient hover, then idle.
-              const isPinned = !!pinnedCounty
-              const showing = pinnedCounty
+              // Card precedence: a pinned place > pinned county > transient hover > idle.
+              // A place pin is a deeper drill than the surrounding county, so we
+              // surface it on top — but keep the county pin's drill CTAs reachable
+              // via the breadcrumb (cliking the county crumb re-frames).
+              const isPinned = !!pinnedPlace || !!pinnedCounty
+              const showing = pinnedPlace
                 ? {
-                    kind: 'county' as const,
-                    name: pinnedCounty.name,
-                    value: pinnedCounty.value,
-                    rank: pinnedCounty.rank,
+                    kind: 'place' as const,
+                    name: pinnedPlace.name,
+                    value: pinnedPlace.value,
+                    rank: pinnedPlace.rank,
                   }
-                : hoverInfo
+                : pinnedCounty
+                  ? {
+                      kind: 'county' as const,
+                      name: pinnedCounty.name,
+                      value: pinnedCounty.value,
+                      rank: pinnedCounty.rank,
+                    }
+                  : hoverInfo
               const idle = !showing
               const accent = isPinned
                 ? 'border-amber-300 ring-2 ring-amber-100/70'
@@ -1286,7 +1385,9 @@ export default function CensusDrilldownMapPage() {
                               ? 'Hovered state'
                               : showing!.kind === 'zip'
                                 ? 'Hovered ZIP'
-                                : 'Hovered county'}
+                                : showing!.kind === 'place'
+                                  ? 'Hovered city/town'
+                                  : 'Hovered county'}
                       </div>
                       <div className="mt-0.5 text-sm font-semibold leading-snug text-slate-900">
                         {idle
@@ -1296,7 +1397,7 @@ export default function CensusDrilldownMapPage() {
                           : (
                             <>
                               {showing!.name}
-                              {(showing!.kind === 'county' || showing!.kind === 'zip') && stateName ? (
+                              {(showing!.kind === 'county' || showing!.kind === 'zip' || showing!.kind === 'place') && stateName ? (
                                 <span className="text-slate-500">, {stateName}</span>
                               ) : null}
                             </>
@@ -1329,7 +1430,14 @@ export default function CensusDrilldownMapPage() {
                     {isPinned ? (
                       <button
                         type="button"
-                        onClick={() => setPinnedCounty(null)}
+                        onClick={() => {
+                          // Clear the topmost pin: a place pin sits over the
+                          // county pin in card precedence, so closing it should
+                          // reveal the county card. A second close clears the
+                          // county pin too.
+                          if (pinnedPlace) setPinnedPlace(null)
+                          else setPinnedCounty(null)
+                        }}
                         className="-mr-1 -mt-1 rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
                         aria-label="Clear pin"
                       >
@@ -1366,6 +1474,25 @@ export default function CensusDrilldownMapPage() {
                           Drill down to ZIP
                         </button>
                       ) : null}
+                      {view === 'place' && pinnedPlace ? (
+                        <button
+                          type="button"
+                          onClick={goPlace}
+                          title="Zoom back out to show every city/town in this county."
+                          className="inline-flex items-center justify-center gap-1.5 rounded-md bg-[#354F52] px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white shadow-sm hover:bg-[#2c4346]"
+                        >
+                          Re-frame all county cities
+                        </button>
+                      ) : view !== 'place' ? (
+                        <button
+                          type="button"
+                          onClick={goPlace}
+                          title="Show Census places (cities, towns, CDPs) within this county. Requires running scripts/datasources/census/export_census_map_static.py --place-states {fips} to generate per-state place GeoJSON."
+                          className="inline-flex items-center justify-center gap-1.5 rounded-md bg-[#354F52] px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white shadow-sm hover:bg-[#2c4346]"
+                        >
+                          Drill down to cities &amp; towns
+                        </button>
+                      ) : null}
                       <button
                         type="button"
                         disabled
@@ -1390,7 +1517,14 @@ export default function CensusDrilldownMapPage() {
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <div className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">
-                      Hovering {hoverInfo.kind === 'state' ? 'state' : hoverInfo.kind === 'zip' ? 'ZIP' : 'county'}
+                      Hovering{' '}
+                      {hoverInfo.kind === 'state'
+                        ? 'state'
+                        : hoverInfo.kind === 'zip'
+                          ? 'ZIP'
+                          : hoverInfo.kind === 'place'
+                            ? 'city/town'
+                            : 'county'}
                     </div>
                     <div className="mt-0.5 truncate text-[13px] font-medium leading-snug text-slate-900">
                       {hoverInfo.name}
