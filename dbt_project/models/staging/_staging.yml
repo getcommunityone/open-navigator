@@ -1071,7 +1071,7 @@ sources:
           parsed downstream in stg_powerbi__ballot_measure from raw_row, and the
           state/jurisdiction/OCD resolution (formerly a Python query against
           intermediate.int_jurisdictions) becomes a proper dbt JOIN in
-          int_powerbi__measure_with_jurisdiction. Loaded by ingestion.powerbi.ballot_measures.
+          int_powerbi__measure_with_jurisdiction. Loaded by ingestion.ncls.ballot_measures.
         columns:
           - name: id
             description: "BIGSERIAL surrogate primary key."

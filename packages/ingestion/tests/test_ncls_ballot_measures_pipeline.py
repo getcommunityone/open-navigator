@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 import pytest
 
 
-from ingestion.everyorg.ballot_measures import (  # noqa: E402
+from ingestion.ncls.ballot_measures import (  # noqa: E402
     BallotMeasureRow,
     PowerbiBallotMeasuresPipeline,
     find_latest_csv,
@@ -67,14 +67,14 @@ def test_pipeline_metadata():
 # -- discovery -------------------------------------------------------------
 
 def test_find_latest_csv_raises_when_no_files(tmp_path, monkeypatch):
-    import ingestion.everyorg.ballot_measures as bmp
+    import ingestion.ncls.ballot_measures as bmp
     monkeypatch.setattr(bmp, "CACHE_DIR", tmp_path)
     with pytest.raises(FileNotFoundError):
         find_latest_csv()
 
 
 def test_find_latest_csv_returns_most_recent(tmp_path, monkeypatch):
-    import ingestion.everyorg.ballot_measures as bmp
+    import ingestion.ncls.ballot_measures as bmp
     monkeypatch.setattr(bmp, "CACHE_DIR", tmp_path)
     (tmp_path / "ballot_measures_20260101T000000Z.csv").write_text("")
     (tmp_path / "ballot_measures_20260524T200000Z.csv").write_text("")

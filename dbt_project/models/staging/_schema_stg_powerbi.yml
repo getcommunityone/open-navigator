@@ -5,7 +5,7 @@ models:
     description: |
       Power BI ballot measures — one row per bronze raw row. 1:1 with
       bronze.bronze_ballot_measures_powerbi (RAW landing from
-      ingestion.powerbi.ballot_measures). Reproduces the former Python loader
+      ingestion.ncls.ballot_measures). Reproduces the former Python loader
       derivation in SQL against raw_row JSONB: the COLUMN_ALIASES header→column
       mapping (lowercase + strip non-alphanumerics, first-alias-wins) and the
       _coerce_* parsing (int / float-with-%-strip / 4-digit year / date).
