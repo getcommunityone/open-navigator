@@ -1170,6 +1170,81 @@ sources:
           - name: loaded_at
           - name: last_updated
 
+      - name: bronze_tpc_government_finance
+        description: >
+          TPC / Urban Institute republication of the Census Bureau Annual
+          Survey of State and Local Government Finances + Census of
+          Governments, 1977 onward. One row per ``(gov_type, id_code,
+          fiscal_year)``. ~300 finance variables per row carried verbatim
+          in ``raw_record`` JSONB so staging models can normalize the
+          schema drift TPC reconciled without re-loading bronze. Landed by
+          ``ingestion.tpc.finance`` (FETCH→``data/cache/tpc/``,
+          LAND→bronze; thin shim at
+          ``scripts/datasources/tpc/load_tpc_finance.py``).
+        columns:
+          - name: id_code
+            description: "TPC government identifier (natural key, source-defined)."
+          - name: name
+            description: "Government name (e.g. 'Travis County')."
+          - name: state_fips
+            description: "Numeric Census state FIPS (e.g. '06' for California)."
+          - name: state_code
+            description: "2-letter postal, back-filled from state_fips when only FIPS is in source."
+          - name: gov_type
+            description: "One of: state, county, city, school_district, special_district, other."
+          - name: fiscal_year
+            description: "Fiscal year of the observation."
+          - name: population
+            description: "Reported population when the source CSV exposes it; null otherwise."
+          - name: raw_record
+            description: "JSONB of the source CSV row verbatim — full TPC variable set."
+          - name: source_file
+            description: "Originating CSV filename (provenance)."
+          - name: loaded_at
+          - name: last_updated
+
+      - name: bronze_census_finance_variables
+        description: >
+          Census Bureau ``timeseries/govsstatefin`` variables codebook —
+          one row per (dataset, variable_code) with label / concept /
+          predicate_type / group / limit. The dictionary for the State
+          and Local Government Finance survey TPC re-publishes in
+          ``bronze_tpc_government_finance``, so dbt can join
+          ``raw_record->>key`` to a human label without a separate
+          vendored lookup. Landed by
+          ``ingestion.census.govsstatefin_variables``
+          (FETCH→``data/cache/census/govsstatefin_variables/<YYYYMMDD_HHMMSS>.json``,
+          LAND→bronze; every fetch writes a new timestamped snapshot for
+          audit), thin shim at
+          ``scripts/datasources/census/download_census_finance_variables.py``.
+        columns:
+          - name: dataset
+            description: "Census dataset id (e.g. 'govsstatefin'). PK part."
+          - name: variable_code
+            description: "Census variable code (e.g. 'T01', 'R01_EST'). PK part."
+          - name: label
+            description: "Human-readable label."
+          - name: concept
+            description: "Census concept grouping (e.g. 'Tax Revenue')."
+          - name: predicate_type
+            description: "Census query predicate type (int, string, fips-for, ...)."
+          - name: var_group
+            description: "Variable group (the source 'group' field; renamed to dodge SQL reservation)."
+          - name: var_limit
+            description: "Census 'limit' (the source 'limit' field; renamed for the same reason)."
+          - name: attributes
+            description: "Comma-joined attribute codes (e.g. 'T01_EST,T01_MOE'), if present."
+          - name: required
+            description: "Whether the variable is required for queries."
+          - name: source_url
+            description: "URL the snapshot was fetched from."
+          - name: snapshot_at
+            description: "UTC timestamp encoded in the snapshot filename."
+          - name: raw_record
+            description: "JSONB of the variable's metadata blob verbatim."
+          - name: loaded_at
+          - name: last_updated
+
   - name: gold_runtime
     description: "Runtime gold tables in public schema (ACS joins for mapping quality marts)"
     database: open_navigator
