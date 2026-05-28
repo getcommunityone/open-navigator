@@ -100,6 +100,12 @@ interface CountyTrendsPayload {
   vintages: string[]
   byGeoid: Record<string, Record<string, unknown>>
 }
+interface PlaceTrendsPayload {
+  geography: string
+  state: string
+  vintages: string[]
+  byGeoid: Record<string, Record<string, unknown>>
+}
 
 function pickMetric(metrics: CensusMetric[], slug: string): CensusMetric | undefined {
   return metrics.find((m) => m.slug === slug)
@@ -158,8 +164,15 @@ export default function CensusDrilldownMapPage() {
     rank: { rank: number; total: number } | null
     lngLat: { lng: number; lat: number } | null
   } | null>(null)
+  const [pinnedPlace, setPinnedPlace] = useState<{
+    geoid: string
+    name: string
+    value: number | null
+    rank: { rank: number; total: number } | null
+    lngLat: { lng: number; lat: number } | null
+  } | null>(null)
   const [hoverInfo, setHoverInfo] = useState<{
-    kind: 'state' | 'county' | 'zip'
+    kind: 'state' | 'county' | 'zip' | 'place'
     id: string
     name: string
     value: number | null
@@ -303,8 +316,48 @@ export default function CensusDrilldownMapPage() {
       if (!r.ok) throw new Error('counties lng/lat topo')
       return r.json()
     },
-    enabled: view === 'local' && !!selectedCountyGeoid,
+    enabled:
+      ((view === 'local' || view === 'place') && !!selectedCountyGeoid),
     staleTime: 1000 * 60 * 60,
+    retry: false,
+  })
+
+  /**
+   * Per-state places GeoJSON (raw lng/lat). Output of
+   * scripts/datasources/census/export_census_map_static.py --place-states.
+   * Currently only Alabama vintage 2022 is exported; we walk back through
+   * known vintages and surface null on 404 so the page renders an empty-state
+   * banner instead of failing. Lazy-loaded when the user enters the place tier.
+   */
+  const { data: placesGeoJson } = useQuery({
+    queryKey: ['places-geojson', selectedStateFips, displayVintage, vintages.join(',')],
+    queryFn: async (): Promise<GeoJSON.FeatureCollection | null> => {
+      if (!selectedStateFips) return null
+      const candidates = [displayVintage, ...vintages.slice().reverse().filter((v) => v !== displayVintage)]
+      for (const v of candidates) {
+        const r = await fetch(`/data/census-map/${v}/place_${selectedStateFips}.geojson`)
+        if (r.status === 404) continue
+        if (!r.ok) throw new Error('place geojson')
+        return r.json()
+      }
+      return null
+    },
+    enabled: !!manifest && !!selectedStateFips && (view === 'place' || view === 'local'),
+    staleTime: 1000 * 60 * 60,
+    retry: false,
+  })
+
+  /** Per-state places trends sidecar — same shape as county_trends. */
+  const { data: placeTrends } = useQuery({
+    queryKey: ['census-place-trends', selectedStateFips],
+    queryFn: async (): Promise<PlaceTrendsPayload | null> => {
+      if (!selectedStateFips) return null
+      const r = await fetch(`/data/census-map/place_trends_${selectedStateFips}.json`)
+      if (r.status === 404) return null
+      if (!r.ok) throw new Error('place trends')
+      return r.json()
+    },
+    enabled: !!manifest && !!selectedStateFips && view === 'place',
     retry: false,
   })
 
@@ -456,6 +509,83 @@ export default function CensusDrilldownMapPage() {
     if (vals.length >= 2) return minMaxExtent(vals)
     return { min: 0, max: 1 }
   }, [countyDisplayByGeoid])
+
+  // ── Place display values, extents, ranks (mirrors county pattern) ────────
+  const placeDisplayByGeoid = useMemo(() => {
+    const out: Record<string, number | null> = {}
+    if (!placeTrends?.byGeoid || !metricSlug) return out
+    const prevV = prevVintageInList(placeTrends.vintages ?? [], displayVintage)
+    const nat = nationalBaselineWithFallback(manifest?.national_ref, displayVintage, metricSlug, { stateTrends })
+    for (const [gid, row] of Object.entries(placeTrends.byGeoid)) {
+      const series = (row as Record<string, unknown>)[metricSlug]
+      const raw = trendCell(series, displayVintage)
+      let prev: number | null = null
+      if (valueMode === 'yoy' && prevV) prev = trendCell(series, prevV)
+      // Strip ACS sentinel negatives the same way the ZCTA loader does.
+      const cleaned = typeof raw === 'number' && Number.isFinite(raw) && raw > -1e7 ? raw : null
+      const g7 = String(gid).padStart(7, '0')
+      out[g7] = displayValueForMode(valueMode, cleaned, prev, nat)
+    }
+    return out
+  }, [placeTrends, metricSlug, displayVintage, valueMode, manifest?.national_ref, stateTrends])
+
+  /** Place GEOIDs whose centroid is inside the drilled-from county — scopes
+   *  the place choro/bubble extents to what the user actually sees. */
+  const placeIdsInCounty = useMemo<Set<string> | null>(() => {
+    if (!placesGeoJson || !selectedCountyGeoid || !countiesLLTopo) return null
+    try {
+      const want = String(selectedCountyGeoid).padStart(5, '0')
+      const obj = (countiesLLTopo.objects as Record<string, unknown>).counties
+      const feats = (topoFeature(countiesLLTopo as never, obj as never) as never).features as GeoJSON.Feature[]
+      const countyFeat = feats.find((f) => String(f.id).padStart(5, '0') === want)
+      if (!countyFeat) return null
+      const ids = new Set<string>()
+      for (const f of placesGeoJson.features ?? []) {
+        const c = geoCentroid(f as never)
+        if (!Number.isFinite(c[0])) continue
+        if (geoContains(countyFeat as never, c)) {
+          const gid = String(f.id ?? (f.properties as { GEOID?: string })?.GEOID ?? '').padStart(7, '0')
+          if (gid) ids.add(gid)
+        }
+      }
+      return ids.size ? ids : null
+    } catch {
+      return null
+    }
+  }, [placesGeoJson, selectedCountyGeoid, countiesLLTopo])
+
+  const placeChoroExtent = useMemo(() => {
+    const entries = Object.entries(placeDisplayByGeoid)
+    const scoped = placeIdsInCounty ? entries.filter(([g]) => placeIdsInCounty.has(g)) : entries
+    const vals = scoped
+      .map(([, v]) => v)
+      .filter((x): x is number => typeof x === 'number' && Number.isFinite(x))
+    if (!vals.length) return { min: 0, max: 1 }
+    return quantileExtent(vals)
+  }, [placeDisplayByGeoid, placeIdsInCounty])
+
+  const placeBubbleExtent = useMemo(() => {
+    const entries = Object.entries(placeDisplayByGeoid)
+    const scoped = placeIdsInCounty ? entries.filter(([g]) => placeIdsInCounty.has(g)) : entries
+    const vals = scoped
+      .map(([, v]) => v)
+      .filter((x): x is number => typeof x === 'number' && Number.isFinite(x))
+    if (vals.length >= 2) return minMaxExtent(vals)
+    return { min: 0, max: 1 }
+  }, [placeDisplayByGeoid, placeIdsInCounty])
+
+  const placeRankByGeoid = useMemo(() => {
+    const direction = censusMetricRankDirection(metricSlug)
+    const entries: [string, number][] = Object.entries(placeDisplayByGeoid)
+      .filter((entry): entry is [string, number] => typeof entry[1] === 'number' && Number.isFinite(entry[1]))
+    entries.sort((a, b) => (direction === 'lower' ? a[1] - b[1] : b[1] - a[1]))
+    const total = entries.length
+    const out: Record<string, { rank: number; total: number } | null> = {}
+    entries.forEach(([gid], i) => {
+      out[gid] = { rank: i + 1, total }
+    })
+    return out
+  }, [placeDisplayByGeoid, metricSlug])
 
   // ── ZCTA display values, extents, ranks (mirrors county pattern) ──────────
   const zctaDisplayByZcta = useMemo(() => {

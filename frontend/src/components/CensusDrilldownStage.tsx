@@ -21,7 +21,7 @@ const ALBERS = geoAlbersUsa().scale(1300).translate([W / 2, H / 2])
 const path = geoPath() // for pre-projected topojson
 const projectedPath = geoPath().projection(ALBERS) // for raw lng/lat geometries
 
-export type DrilldownView = 'nation' | 'state' | 'county' | 'zip'
+export type DrilldownView = 'nation' | 'state' | 'county' | 'place' | 'zip'
 
 interface Topo {
   type: 'Topology'
@@ -34,8 +34,16 @@ interface StageProps {
   countiesTopo: Topo | null
   /** Per-state ZCTA topology, loaded lazily when the user drills to ZIP. */
   zctaTopo?: Topo | null
+  /**
+   * Per-state Census "places" (cities, towns, CDPs) as a raw lng/lat
+   * FeatureCollection — output of `export_census_map_static.py --place-states`.
+   * Lazy-loaded when the user drills to the place tier.
+   */
+  placesGeoJson?: GeoJSON.FeatureCollection | null
   selectedStateFips: string | null
   selectedCountyGeoid: string | null
+  /** Selected 7-digit place GEOID (when view === 'place' and one is pinned). */
+  selectedPlaceGeoid?: string | null
   /** Selected 5-digit ZCTA (when view === 'zip' and one is pinned). */
   selectedZcta?: string | null
   /** Display value (raw / yoy / vs_natl) keyed by 2-digit state FIPS. */
@@ -44,14 +52,18 @@ interface StageProps {
   countyDisplayByGeoid: Record<string, number | null>
   /** Display value keyed by 5-digit ZCTA. Empty when metrics not yet ingested — layer falls back to neutral fill. */
   zctaDisplayByZcta?: Record<string, number | null>
+  /** Display value keyed by 7-digit place GEOID. */
+  placeDisplayByGeoid?: Record<string, number | null>
   /** Extents for the choropleth ramp (already percentile-clipped). */
   stateChoroExtent: { min: number; max: number }
   countyChoroExtent: { min: number; max: number }
   zctaChoroExtent?: { min: number; max: number }
+  placeChoroExtent?: { min: number; max: number }
   /** Extents for the bubble size scale. */
   stateBubbleExtent: { min: number; max: number }
   countyBubbleExtent: { min: number; max: number }
   zctaBubbleExtent?: { min: number; max: number }
+  placeBubbleExtent?: { min: number; max: number }
   scale: CensusScaleId
   viz: 'filled' | 'bubble'
   onPickState: (fips: string) => void
@@ -76,6 +88,15 @@ interface StageProps {
     lngLat: { lng: number; lat: number } | null
     feature: GeoJSON.Feature
   }) => void
+  /** Place click — same click-lock pattern as county. */
+  onPickPlace?: (info: {
+    geoid: string
+    name: string
+    value: number | null
+    rank: { rank: number; total: number } | null
+    lngLat: { lng: number; lat: number } | null
+    feature: GeoJSON.Feature
+  }) => void
   /** Click on empty SVG background — reset to nation. */
   onResetToNation: () => void
   /** Optional pinned address (lng/lat). Renders an SVG circle. */
@@ -84,6 +105,8 @@ interface StageProps {
   pinnedCountyGeoid?: string | null
   /** Highlight the pinned ZCTA polygon. */
   pinnedZcta?: string | null
+  /** Highlight the pinned place polygon. */
+  pinnedPlaceGeoid?: string | null
   /** ZIP view only: draw the drilled-from county's boundary over the ZCTAs. */
   showCountyOutline?: boolean
   /** Optional state rank by FIPS — passed through to onHoverInfo for the aside card. */
@@ -92,11 +115,13 @@ interface StageProps {
   countyRankByGeoid?: Record<string, { rank: number; total: number } | null>
   /** Optional ZCTA rank by ZCTA5. */
   zctaRankByZcta?: Record<string, { rank: number; total: number } | null>
+  /** Optional place rank by 7-digit GEOID. */
+  placeRankByGeoid?: Record<string, { rank: number; total: number } | null>
   /** Called when the cursor enters/leaves a polygon. The parent renders the
    * hover readout in its own panel (no floating tooltip — keeps the map clean). */
   onHoverInfo?: (
     info: {
-      kind: 'state' | 'county' | 'zip'
+      kind: 'state' | 'county' | 'zip' | 'place'
       id: string
       name: string
       value: number | null
@@ -148,31 +173,39 @@ export default function CensusDrilldownStage({
   statesTopo,
   countiesTopo,
   zctaTopo = null,
+  placesGeoJson = null,
   selectedStateFips,
   selectedCountyGeoid,
+  selectedPlaceGeoid = null,
   selectedZcta = null,
   stateDisplayById,
   countyDisplayByGeoid,
   zctaDisplayByZcta = {},
+  placeDisplayByGeoid = {},
   stateChoroExtent,
   countyChoroExtent,
   zctaChoroExtent = { min: 0, max: 1 },
+  placeChoroExtent = { min: 0, max: 1 },
   stateBubbleExtent,
   countyBubbleExtent,
   zctaBubbleExtent = { min: 0, max: 1 },
+  placeBubbleExtent = { min: 0, max: 1 },
   scale,
   viz,
   onPickState,
   onPickCounty,
   onPickZcta,
+  onPickPlace,
   onResetToNation,
   pinnedLngLat = null,
   pinnedCountyGeoid = null,
   pinnedZcta = null,
+  pinnedPlaceGeoid = null,
   showCountyOutline = false,
   stateRankById,
   countyRankByGeoid,
   zctaRankByZcta,
+  placeRankByGeoid,
   onHoverInfo,
 }: StageProps) {
   const svgRef = useRef<SVGSVGElement | null>(null)
@@ -267,6 +300,41 @@ export default function CensusDrilldownStage({
     })
   }, [zctasInState, selectedCountyFeature])
 
+  /** All places (lng/lat features) for the selected state. */
+  const placesInState = useMemo<GeoJSON.Feature[] | null>(() => {
+    if (!placesGeoJson) return null
+    return (placesGeoJson.features ?? []) as GeoJSON.Feature[]
+  }, [placesGeoJson])
+
+  /**
+   * Places whose centroid falls inside the selected county. Same centroid-
+   * containment trick used for ZCTAs — a Census "place" (city / town / CDP)
+   * can straddle a county line but is conceptually assigned to one county
+   * for the purpose of drilling from a pinned county into its cities/towns.
+   * Falls back to the full statewide place set when no county is drilled in.
+   */
+  const placesInCounty = useMemo<GeoJSON.Feature[] | null>(() => {
+    if (!placesInState) return null
+    if (!selectedCountyFeature) return placesInState
+    const rings = ringsOf(selectedCountyFeature.geometry)
+    if (!rings.length) return placesInState
+    return placesInState.filter((f) => {
+      const c = projectedPath.centroid(f as never)
+      if (!c || !Number.isFinite(c[0]) || !Number.isFinite(c[1])) return false
+      return pointInRings(rings, c[0], c[1])
+    })
+  }, [placesInState, selectedCountyFeature])
+
+  /** Selected place feature (for camera framing). */
+  const selectedPlaceFeature = useMemo<GeoJSON.Feature | null>(() => {
+    if (!selectedPlaceGeoid || !placesInState) return null
+    const want = String(selectedPlaceGeoid).padStart(7, '0')
+    return (
+      placesInState.find((f) => String(f.id ?? '').padStart(7, '0') === want) ??
+      null
+    )
+  }, [selectedPlaceGeoid, placesInState])
+
   /** Install d3-zoom on mount. */
   useEffect(() => {
     const svgEl = svgRef.current
@@ -315,6 +383,17 @@ export default function CensusDrilldownStage({
         targetFeature =
           countiesInState.find((f) => geoid5(f.id as string | number) === selectedCountyGeoid) ?? null
       }
+    } else if (view === 'place') {
+      // Place view: frame the pinned city/town if one is selected, else the
+      // drilled-from county. Mirrors the ZIP tier camera logic.
+      if (selectedPlaceFeature) {
+        targetFeature = selectedPlaceFeature
+        targetIsLngLat = true
+      }
+      if (!targetFeature && selectedCountyGeoid && countiesInState) {
+        targetFeature =
+          countiesInState.find((f) => geoid5(f.id as string | number) === selectedCountyGeoid) ?? null
+      }
     }
     if (!targetFeature) {
       // Nation reset.
@@ -325,7 +404,10 @@ export default function CensusDrilldownStage({
     const [[x0, y0], [x1, y1]] = boundsPath.bounds(targetFeature as never) as [[number, number], [number, number]]
     // Pad the county bbox slightly so the ZIP boundaries don't kiss the SVG
     // edge when we land — gives the postal grid a little breathing room.
-    const pad = view === 'zip' && !selectedZcta ? 0.82 : 0.9
+    const pad =
+      (view === 'zip' && !selectedZcta) || (view === 'place' && !selectedPlaceFeature)
+        ? 0.82
+        : 0.9
     const k = Math.min(150, pad / Math.max((x1 - x0) / W, (y1 - y0) / H))
     const tx = W / 2 - k * ((x0 + x1) / 2)
     const ty = H / 2 - k * ((y0 + y1) / 2)
@@ -333,9 +415,27 @@ export default function CensusDrilldownStage({
     // d3-zoom interpolates transforms with interpolateZoom (van Wijk) by
     // default — the long duration when first entering the ZIP tier makes the
     // county-bbox flight read as cinematic; a pinned ZCTA gets a snappier hop.
-    const duration = view === 'zip' ? (selectedZcta ? 800 : 1250) : 900
+    const duration =
+      view === 'zip'
+        ? selectedZcta
+          ? 800
+          : 1250
+        : view === 'place'
+          ? selectedPlaceFeature
+            ? 800
+            : 1250
+          : 900
     select(svgEl).transition().duration(duration).call(z.transform as never, next)
-  }, [view, selectedStateFips, selectedCountyGeoid, selectedZcta, states, countiesInState, zctasInCounty])
+  }, [
+    view,
+    selectedStateFips,
+    selectedCountyGeoid,
+    selectedZcta,
+    selectedPlaceFeature,
+    states,
+    countiesInState,
+    zctasInCounty,
+  ])
 
   // --- fill / bubble helpers (depend on viz + scale + extents) ---
   const stateFill = (sid: string): string => {
@@ -357,6 +457,13 @@ export default function CensusDrilldownStage({
     // outline drilldown still works without it.
     if (v == null) return 'rgba(248,250,252,0.40)'
     const t = metricToDisplayT(v, zctaChoroExtent.min, zctaChoroExtent.max, scale)
+    return colorFromT(t)
+  }
+  const placeFill = (g: string): string => {
+    if (viz === 'bubble') return 'rgba(248,250,252,0.94)'
+    const v = placeDisplayByGeoid[g]
+    if (v == null) return 'rgba(248,250,252,0.40)'
+    const t = metricToDisplayT(v, placeChoroExtent.min, placeChoroExtent.max, scale)
     return colorFromT(t)
   }
 
@@ -562,6 +669,122 @@ export default function CensusDrilldownStage({
           </g>
         ) : null}
 
+        {/* place layer — cities, towns, CDPs filtered to the drilled-from
+            county by centroid containment. Raw lng/lat → projectedPath. */}
+        {view === 'place' && placesInCounty ? (
+          <g className="places-layer">
+            {placesInCounty.map((f) => {
+              const gid = String(f.id ?? (f.properties as { GEOID?: string })?.GEOID ?? '').padStart(7, '0')
+              if (!gid || gid === '0000000') return null
+              const name = (f.properties as { NAME?: string })?.NAME ?? gid
+              const isPinned = gid === pinnedPlaceGeoid
+              const d = projectedPath(f as never) ?? ''
+              const rank = placeRankByGeoid?.[gid] ?? null
+              const value = placeDisplayByGeoid[gid] ?? null
+              return (
+                <path
+                  key={gid}
+                  d={d}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    if (!onPickPlace) return
+                    let lngLat: { lng: number; lat: number } | null = null
+                    try {
+                      const c = projectedPath.centroid(f as never)
+                      if (c && Number.isFinite(c[0]) && Number.isFinite(c[1])) {
+                        const inv = ALBERS.invert?.([c[0], c[1]])
+                        if (inv && Number.isFinite(inv[0]) && Number.isFinite(inv[1])) {
+                          lngLat = { lng: inv[0], lat: inv[1] }
+                        }
+                      }
+                    } catch {
+                      // fall through: caller handles null
+                    }
+                    onPickPlace({ geoid: gid, name, value, rank, lngLat, feature: f })
+                  }}
+                  onMouseEnter={() => {
+                    setHoveredId(gid)
+                    onHoverInfo?.({ kind: 'place', id: gid, name, value, rank })
+                  }}
+                  onMouseLeave={() => {
+                    setHoveredId((prev) => (prev === gid ? null : prev))
+                    onHoverInfo?.(null)
+                  }}
+                  style={(() => {
+                    const isHovered = hoveredId === gid
+                    return {
+                      fill: placeFill(gid),
+                      stroke: isPinned ? '#b45309' : isHovered ? '#0f172a' : '#94a3b8',
+                      strokeWidth: isPinned ? 1.2 : isHovered ? 1.4 : 0.4,
+                      cursor: 'pointer',
+                      vectorEffect: 'non-scaling-stroke',
+                      transition: CENSUS_CHORO_FILL_TRANSITION,
+                    }
+                  })()}
+                />
+              )
+            })}
+          </g>
+        ) : null}
+
+        {/* county outline for the place tier — same opt-in toggle as ZIP. */}
+        {view === 'place' && showCountyOutline && selectedCountyFeature ? (
+          <path
+            d={path(selectedCountyFeature as never) ?? ''}
+            pointerEvents="none"
+            style={{
+              fill: 'none',
+              stroke: '#b45309',
+              strokeWidth: 1.6,
+              strokeLinejoin: 'round',
+              strokeDasharray: '4 3',
+              vectorEffect: 'non-scaling-stroke',
+            }}
+          />
+        ) : null}
+
+        {/* always-on place labels — short name (drops the ", State" suffix and
+            the trailing "city/town/CDP" classifier) centered at the centroid. */}
+        {view === 'place' && placesInCounty ? (
+          <g className="place-labels" pointerEvents="none">
+            {placesInCounty.map((f) => {
+              const gid = String(f.id ?? (f.properties as { GEOID?: string })?.GEOID ?? '').padStart(7, '0')
+              if (!gid || gid === '0000000') return null
+              const rawName = (f.properties as { NAME?: string })?.NAME ?? ''
+              // "Wetumpka city, Alabama" → "Wetumpka"; "Alexander City city, Alabama" → "Alexander City"
+              const short = rawName
+                .split(',')[0]
+                .replace(/\s+(city|town|village|borough|CDP)$/i, '')
+                .trim()
+              if (!short) return null
+              const c = projectedPath.centroid(f as never)
+              if (!c || !Number.isFinite(c[0]) || !Number.isFinite(c[1])) return null
+              const fontSize = 12 / zoomK
+              return (
+                <text
+                  key={`lbl-${gid}`}
+                  x={c[0]}
+                  y={c[1]}
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                  style={{
+                    fontSize,
+                    fontFamily: 'inherit',
+                    fontWeight: 600,
+                    fill: '#0f172a',
+                    stroke: '#ffffff',
+                    strokeWidth: fontSize * 0.32,
+                    strokeLinejoin: 'round',
+                    paintOrder: 'stroke',
+                  }}
+                >
+                  {short}
+                </text>
+              )
+            })}
+          </g>
+        ) : null}
+
         {/* county outline (opt-in) — draw the drilled-from county's boundary
             over the ZCTAs so the user can see which ZIPs fall in/near it.
             County geometry is pre-projected → plain `path`. */}
@@ -625,14 +848,19 @@ export default function CensusDrilldownStage({
         {hoveredId
           ? (() => {
               const isZip = view === 'zip' && !!zctasInCounty
+              const isPlace = view === 'place' && !!placesInCounty
               const target = isZip
                 ? zctasInCounty!.find((f) => String(f.id) === hoveredId)
-                : (view === 'state' || view === 'county') && countiesInState
-                  ? countiesInState.find((f) => geoid5(f.id as string | number) === hoveredId)
-                  : states?.find((f) => fips2(f.id as string | number) === hoveredId)
+                : isPlace
+                  ? placesInCounty!.find(
+                      (f) => String(f.id ?? '').padStart(7, '0') === hoveredId,
+                    )
+                  : (view === 'state' || view === 'county') && countiesInState
+                    ? countiesInState.find((f) => geoid5(f.id as string | number) === hoveredId)
+                    : states?.find((f) => fips2(f.id as string | number) === hoveredId)
               if (!target) return null
-              // ZCTA geometries are raw lng/lat; everything else is pre-projected.
-              const d = (isZip ? projectedPath : path)(target as never) ?? ''
+              // ZCTA + place geometries are raw lng/lat; everything else is pre-projected.
+              const d = (isZip || isPlace ? projectedPath : path)(target as never) ?? ''
               return (
                 <path
                   d={d}
@@ -656,7 +884,30 @@ export default function CensusDrilldownStage({
             tiles are pre-projected (path) — pick the right path per tier. */}
         {viz === 'bubble' && states ? (
           <g className="bubbles-layer" pointerEvents="none">
-            {view === 'zip' && zctasInCounty
+            {view === 'place' && placesInCounty
+              ? placesInCounty.map((f) => {
+                  const gid = String(f.id ?? (f.properties as { GEOID?: string })?.GEOID ?? '').padStart(7, '0')
+                  if (!gid || gid === '0000000') return null
+                  const v = placeDisplayByGeoid[gid]
+                  if (v == null) return null
+                  const c = projectedPath.centroid(f as never)
+                  if (!c || !Number.isFinite(c[0])) return null
+                  const r = bubbleRadiusPx(v, placeBubbleExtent.min, placeBubbleExtent.max, scale, 2, 12) / zoomK
+                  const t =
+                    metricToDisplayT(v, placeBubbleExtent.min, placeBubbleExtent.max, scale) ?? 0
+                  return (
+                    <circle
+                      key={`bp-${gid}`}
+                      cx={c[0]}
+                      cy={c[1]}
+                      r={r}
+                      fill={bubbleFillFromT(t, 0.86)}
+                      stroke="#fff"
+                      strokeWidth={0.5 / zoomK}
+                    />
+                  )
+                })
+              : view === 'zip' && zctasInCounty
               ? zctasInCounty.map((f) => {
                   const zid = String(f.id ?? (f.properties as { GEOID20?: string; ZCTA5CE20?: string })?.GEOID20 ?? '')
                   if (!zid) return null
