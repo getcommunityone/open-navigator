@@ -574,11 +574,14 @@ export default function CensusDrilldownMapPage() {
   const goZip = useCallback(() => {
     // Drill from a pinned county into ZIP view. Keep the pinned county as the
     // initial camera anchor (the Stage frames the county bbox until a ZCTA is
-    // clicked).
+    // clicked). Promote the pin to selectedCountyGeoid so the Stage's zoom
+    // effect has a target feature — without this it falls back to a full
+    // nation reset and the ZCTA layer renders too small to see.
+    if (pinnedCounty) setSelectedCountyGeoid(pinnedCounty.geoid)
     setLocalPin(null)
     setPinnedZcta(null)
     setView('zip')
-  }, [])
+  }, [pinnedCounty])
 
   const onPickAddress = useCallback(
     (r: MapAddressResult) => {
