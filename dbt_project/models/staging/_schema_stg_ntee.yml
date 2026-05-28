@@ -3,11 +3,10 @@ version: 2
 models:
   - name: stg_ntee__code
     description: |
-      NTEE classification codes — one row per code. 1:1 with public.cause_ntee
-      (raw landing from ingestion.ntee.codes). NOTE: source is in the PUBLIC
-      schema, not bronze (see the public_raw source group in _staging.yml).
-      Light cleaning + type stabilization only; the hierarchical cause_breadcrumb
-      is derived downstream in int_ntee__breadcrumb.
+      NTEE classification codes — one row per code. 1:1 with
+      bronze.bronze_ntee_codes (raw landing from ingestion.ntee.codes). Light
+      cleaning + type stabilization only; the hierarchical cause_breadcrumb is
+      derived downstream in int_ntee__breadcrumb.
     config:
       contract:
         enforced: true
@@ -43,7 +42,7 @@ models:
         description: "Code source provenance (e.g. 'irs')."
         data_type: varchar(50)
       - name: source_ingested_at
-        description: "last_updated from the raw cause_ntee table."
+        description: "ingestion_date from bronze.bronze_ntee_codes."
         data_type: timestamp
       - name: dbt_loaded_at
         # `current_timestamp` in Postgres returns `timestamp with time zone`;

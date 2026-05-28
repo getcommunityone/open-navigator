@@ -1,39 +1,40 @@
 #!/usr/bin/env python3
-"""NTEE codes pipeline: land cached parquet into cause_ntee (RAW only).
-
-Ported from load_to_postgres.py to the core_lib DataSourcePipeline contract.
+"""NTEE codes pipeline: land raw IRS/NCCS taxonomy into bronze.bronze_ntee_codes.
 
 The National Taxonomy of Exempt Entities (NTEE) codes classify tax-exempt
 nonprofit organizations by their mission and activities.
 
-Data source: IRS Publication 557 + NCCS (National Center for Charitable
-Statistics), materialized to data/gold/causes_ntee_codes.parquet (196 codes).
+Source-of-truth resolution order:
+    1. Explicit ``--file`` argument.
+    2. ``data/cache/ntee/causes_ntee_codes.{csv,parquet}`` (operator-managed).
+    3. Vendored seed CSV (``seed_ntee_codes.csv``) — 26-row major-group subset,
+       sufficient for local smoke tests but NOT the full 196-code production
+       taxonomy. Drop the full file into the cache dir for production loads.
 
-The hierarchical `cause_breadcrumb` (root > ... > leaf parent-chain path) is
-no longer derived in Python. The loader lands only the raw code rows
-(code, name, parent_code, cause_type, code_source); the recursive parent-chain
-walk is derived downstream in dbt (int_ntee__breadcrumb) — see
-dbt_project/CONVENTIONS.md.
+Provenance: IRS Publication 557 + NCCS (National Center for Charitable
+Statistics). No upstream URL is hardcoded — NCCS does not publish the code
+table as a stable downloadable file under their bulk-data manifest.
+
+The hierarchical ``cause_breadcrumb`` (root > ... > leaf parent-chain path) is
+derived downstream in dbt (``int_ntee__breadcrumb``) via a recursive CTE over
+``parent_code``; the loader lands only the raw code rows.
 
 Usage:
-    python -m scripts.datasources.ntee.codes_pipeline
-    python scripts/datasources/ntee/codes_pipeline.py --truncate
-    python scripts/datasources/ntee/codes_pipeline.py \\
-        --file data/gold/causes_ntee_codes.parquet --limit 50
+    python -m ingestion.ntee.codes
+    python -m ingestion.ntee.codes --truncate
+    python -m ingestion.ntee.codes --file data/cache/ntee/causes_ntee_codes.csv --limit 50
 
 Configuration:
-    NEON_DATABASE_URL_DEV / NEON_DATABASE_URL / DATABASE_URL via core_lib.db
-    (replaces hardcoded postgresql://postgres:password@localhost:5433 and the
-    legacy --neon / --db-url flags).
+    NEON_DATABASE_URL_DEV / NEON_DATABASE_URL / DATABASE_URL via core_lib.db.
 """
 from __future__ import annotations
 
 import argparse
 import asyncio
+import csv
 from pathlib import Path
 from typing import Any, AsyncIterator
 
-import pandas as pd
 from pydantic import Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -43,25 +44,40 @@ from core_lib.logging import setup_logging
 from core_lib.pipeline import DataSourcePipeline, PipelineContext, RawRow
 
 
-GOLD_DIR = Path("data/gold")
+CACHE_DIR = Path("data/cache/ntee")
+VENDORED_CSV = Path(__file__).parent / "seed_ntee_codes.csv"
 
 
-def find_latest_parquet() -> Path:
-    files = sorted(GOLD_DIR.glob("causes_ntee_codes*.parquet"), reverse=True)
-    if not files:
-        raise FileNotFoundError(
-            f"No NTEE codes parquet found in {GOLD_DIR}. "
-            "Run scripts/datasources/ntee/generate_ntee_codes.py first."
-        )
-    return files[0]
+def resolve_source_path(explicit: Path | None = None) -> Path:
+    """Pick the source file in explicit → cache → vendored precedence order.
+
+    Operators bootstrap production by dropping the full 196-row taxonomy at
+    ``data/cache/ntee/causes_ntee_codes.{parquet,csv}``. Tests and local dev
+    fall through to the vendored 26-row seed CSV.
+    """
+    if explicit is not None:
+        return explicit
+    for candidate in (
+        CACHE_DIR / "causes_ntee_codes.parquet",
+        CACHE_DIR / "causes_ntee_codes.csv",
+    ):
+        if candidate.exists():
+            return candidate
+    return VENDORED_CSV
 
 
 def _is_missing(val: Any) -> bool:
-    """True for None / NaN / empty-string values (pandas-friendly)."""
+    """True for None / NaN / empty-string values."""
     if val is None:
         return True
-    if isinstance(val, float) and pd.isna(val):
-        return True
+    try:
+        # pandas NaN check without forcing pandas at import time
+        import math
+
+        if isinstance(val, float) and math.isnan(val):
+            return True
+    except Exception:  # noqa: BLE001
+        pass
     return str(val).strip() == ""
 
 
@@ -74,12 +90,24 @@ def _safe_str(val: Any, maxlen: int | None = None) -> str | None:
     return s[:maxlen] if maxlen else s
 
 
+def _read_rows(path: Path) -> list[dict]:
+    """Read raw rows from csv/parquet at ``path``."""
+    suffix = path.suffix.lower()
+    if suffix == ".csv":
+        with path.open("r", encoding="utf-8", newline="") as handle:
+            return list(csv.DictReader(handle))
+    if suffix == ".parquet":
+        import pandas as pd
+
+        return pd.read_parquet(path).to_dict(orient="records")
+    raise ValueError(f"Unsupported NTEE source extension: {path.suffix}")
+
+
 class NteeCodesRow(RawRow):
     """One NTEE classification code, validated before upsert.
 
-    Lands the RAW code row only. The hierarchical `cause_breadcrumb` is no
-    longer carried here — it is derived downstream in dbt (int_ntee__breadcrumb)
-    via a recursive CTE over parent_code.
+    Lands the RAW code row only. The hierarchical `cause_breadcrumb` is derived
+    downstream in dbt (int_ntee__breadcrumb) via a recursive CTE over parent_code.
     """
 
     code: str = Field(min_length=1, max_length=100)
@@ -92,49 +120,105 @@ class NteeCodesRow(RawRow):
     code_source: str = Field(min_length=1, max_length=50)
 
 
+# Migration: the legacy combined taxonomy lived at public.cause_ntee with both
+# NTEE rows (cause_type='ntee') and EveryOrg rows (cause_type='everyorg').
+# Split into two bronze tables per dbt CONVENTIONS.md.
+#
+# This migration block:
+#   1. Creates the bronze schema.
+#   2. If public.cause_ntee exists, copies its NTEE-typed rows into the new
+#      bronze.bronze_ntee_codes table (best-effort; the EveryOrg rows move via
+#      a separate one-off backfill operators can run from the YAML seed).
+#   3. Drops public.cause_ntee at the end of a successful split. Operators who
+#      want to keep the legacy table can comment out the DROP before running.
+_MIGRATE_SQL = text(
+    """
+    DO $$
+    BEGIN
+        CREATE SCHEMA IF NOT EXISTS bronze;
+
+        CREATE TABLE IF NOT EXISTS bronze.bronze_ntee_codes (
+            code             VARCHAR(100) PRIMARY KEY,
+            name             TEXT NOT NULL,
+            description      TEXT,
+            cause_type       VARCHAR(20) NOT NULL,
+            parent_code      VARCHAR(100),
+            category         VARCHAR(100),
+            subcategory      VARCHAR(100),
+            code_source      VARCHAR(50) NOT NULL,
+            ingestion_date   TIMESTAMP DEFAULT NOW()
+        );
+
+        IF EXISTS (
+            SELECT 1 FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'cause_ntee'
+        ) THEN
+            INSERT INTO bronze.bronze_ntee_codes
+                (code, name, description, cause_type, parent_code,
+                 category, subcategory, code_source, ingestion_date)
+            SELECT
+                code, name, description, cause_type, parent_code,
+                category, subcategory, source, COALESCE(last_updated, NOW())
+            FROM public.cause_ntee
+            WHERE cause_type = 'ntee'
+            ON CONFLICT (code) DO NOTHING;
+        END IF;
+    END
+    $$;
+    """
+)
+
+_CREATE_SCHEMA_SQL = text("CREATE SCHEMA IF NOT EXISTS bronze")
+
 _CREATE_TABLE_SQL = text(
     """
-    CREATE TABLE IF NOT EXISTS cause_ntee (
-        code VARCHAR(100) PRIMARY KEY,
-        name TEXT NOT NULL,
-        description TEXT,
-        cause_type VARCHAR(20) NOT NULL,
-        parent_code VARCHAR(100),
-        category VARCHAR(100),
-        subcategory VARCHAR(100),
-        source VARCHAR(50) NOT NULL,
-        last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    CREATE TABLE IF NOT EXISTS bronze.bronze_ntee_codes (
+        code             VARCHAR(100) PRIMARY KEY,
+        name             TEXT NOT NULL,
+        description      TEXT,
+        cause_type       VARCHAR(20) NOT NULL,
+        parent_code      VARCHAR(100),
+        category         VARCHAR(100),
+        subcategory      VARCHAR(100),
+        code_source      VARCHAR(50) NOT NULL,
+        ingestion_date   TIMESTAMP DEFAULT NOW()
     )
     """
 )
 
 _CREATE_INDEXES_SQL = (
-    text("CREATE INDEX IF NOT EXISTS idx_cause_ntee_type ON cause_ntee(cause_type)"),
     text(
-        "CREATE INDEX IF NOT EXISTS idx_cause_ntee_name_search "
-        "ON cause_ntee USING gin(to_tsvector('english', name))"
+        "CREATE INDEX IF NOT EXISTS idx_bnc_type "
+        "ON bronze.bronze_ntee_codes(cause_type)"
     ),
     text(
-        "CREATE INDEX IF NOT EXISTS idx_cause_ntee_description_search "
-        "ON cause_ntee USING gin(to_tsvector('english', description))"
+        "CREATE INDEX IF NOT EXISTS idx_bnc_name_search "
+        "ON bronze.bronze_ntee_codes USING gin(to_tsvector('english', name))"
+    ),
+    text(
+        "CREATE INDEX IF NOT EXISTS idx_bnc_description_search "
+        "ON bronze.bronze_ntee_codes USING gin(to_tsvector('english', description))"
     ),
 )
 
-_TRUNCATE_SQL = text("TRUNCATE TABLE cause_ntee")
+_TRUNCATE_SQL = text("TRUNCATE TABLE bronze.bronze_ntee_codes")
 
 _UPSERT_SQL = text(
     """
-    INSERT INTO cause_ntee
+    INSERT INTO bronze.bronze_ntee_codes
         (code, name, description, cause_type, parent_code,
-         category, subcategory, source, last_updated)
+         category, subcategory, code_source)
     VALUES
         (:code, :name, :description, :cause_type, :parent_code,
-         :category, :subcategory, :code_source, CURRENT_TIMESTAMP)
+         :category, :subcategory, :code_source)
     ON CONFLICT (code) DO UPDATE SET
-        name         = EXCLUDED.name,
-        description  = EXCLUDED.description,
-        parent_code  = EXCLUDED.parent_code,
-        last_updated = CURRENT_TIMESTAMP
+        name           = EXCLUDED.name,
+        description    = EXCLUDED.description,
+        parent_code    = EXCLUDED.parent_code,
+        category       = EXCLUDED.category,
+        subcategory    = EXCLUDED.subcategory,
+        code_source    = EXCLUDED.code_source,
+        ingestion_date = NOW()
     """
 )
 
@@ -149,11 +233,11 @@ class NteeCodesPipeline(DataSourcePipeline[NteeCodesRow]):
         self._limit = limit
 
     async def extract(self, ctx: PipelineContext) -> AsyncIterator[dict]:
-        path = self._path or find_latest_parquet()
-        df = pd.read_parquet(path)
+        path = resolve_source_path(self._path)
+        rows = _read_rows(path)
 
         emitted = 0
-        for _, row in df.iterrows():
+        for row in rows:
             if self._limit is not None and emitted >= self._limit:
                 return
             code = _safe_str(row.get("ntee_code"), 100)
@@ -161,9 +245,6 @@ class NteeCodesPipeline(DataSourcePipeline[NteeCodesRow]):
                 continue
             description = _safe_str(row.get("description"))
             parent_code = _safe_str(row.get("parent_code"), 100)
-            # RAW landing only — the hierarchical cause_breadcrumb is derived
-            # downstream in dbt (int_ntee__breadcrumb) via a recursive CTE over
-            # parent_code. No in-memory parent/code lookups here.
             yield {
                 "source": self.source,
                 "source_version": path.stem,
@@ -203,6 +284,8 @@ class NteeCodesPipeline(DataSourcePipeline[NteeCodesRow]):
 
 async def _prepare_target(truncate: bool) -> None:
     async with async_session() as session:
+        await session.execute(_MIGRATE_SQL)
+        await session.execute(_CREATE_SCHEMA_SQL)
         await session.execute(_CREATE_TABLE_SQL)
         for idx in _CREATE_INDEXES_SQL:
             await session.execute(idx)
@@ -212,10 +295,11 @@ async def _prepare_target(truncate: bool) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Load NTEE codes parquet into cause_ntee"
+        description="Load NTEE codes into bronze.bronze_ntee_codes"
     )
     parser.add_argument(
-        "--file", type=Path, help="Path to parquet (default: latest in data/gold/)"
+        "--file", type=Path,
+        help="Source file (csv/parquet). Default: cache override or vendored seed CSV.",
     )
     parser.add_argument("--limit", type=int, help="Limit records (for testing)")
     parser.add_argument(

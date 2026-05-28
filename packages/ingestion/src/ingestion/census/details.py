@@ -9,8 +9,8 @@ metadata (YouTube channels, websites, meeting platforms, social media) onto
 jurisdiction rows keyed by jurisdiction_id.
 
 Usage:
-    python -m ingestion.jurisdictions.details
-    python -m ingestion.jurisdictions.details \\
+    python -m ingestion.census.details
+    python -m ingestion.census.details \\
         --file data/gold/jurisdictions_details.parquet --limit 100
 
 Configuration:

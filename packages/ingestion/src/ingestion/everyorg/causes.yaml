@@ -1,0 +1,152 @@
+# Every.org cause taxonomy — vendored source-of-truth.
+#
+# Every.org does not expose a public "list all causes" endpoint, so this file
+# is the canonical raw source for the EveryorgCausesPipeline (loads into
+# bronze.bronze_everyorg_causes). The schema mirrors the columns the legacy
+# data/gold/causes_everyorg_causes.parquet carried.
+#
+# Provenance: https://www.every.org/causes (curated taxonomy, ~39 entries).
+#
+# Bootstrapping note: this seed lists a small representative subset of
+# Every.org's well-known cause slugs. To populate the full production
+# taxonomy with accurate popularity_rank / descriptions / icons, replace this
+# file (or drop a CSV/parquet with the same columns at
+# data/cache/everyorg/causes.{csv,parquet} — the pipeline prefers the cache
+# path when present).
+
+causes:
+  - cause_id: animals
+    cause_name: Animals
+    description: Organizations protecting and caring for animals.
+    icon: "🐾"
+    category: animals
+    parent_id: null
+    popularity_rank: 1
+
+  - cause_id: arts
+    cause_name: Arts & Culture
+    description: Organizations supporting arts, culture, and humanities.
+    icon: "🎨"
+    category: arts
+    parent_id: null
+    popularity_rank: 2
+
+  - cause_id: climate
+    cause_name: Climate
+    description: Organizations addressing climate change.
+    icon: "🌍"
+    category: environment
+    parent_id: null
+    popularity_rank: 3
+
+  - cause_id: disasters
+    cause_name: Disaster Relief
+    description: Organizations providing emergency and disaster relief.
+    icon: "🚨"
+    category: humanitarian
+    parent_id: null
+    popularity_rank: 4
+
+  - cause_id: education
+    cause_name: Education
+    description: Organizations expanding access to education.
+    icon: "📚"
+    category: education
+    parent_id: null
+    popularity_rank: 5
+
+  - cause_id: environment
+    cause_name: Environment
+    description: Organizations protecting the natural environment.
+    icon: "🌳"
+    category: environment
+    parent_id: null
+    popularity_rank: 6
+
+  - cause_id: foodbanks
+    cause_name: Food Banks
+    description: Organizations addressing hunger and food insecurity.
+    icon: "🍽️"
+    category: humanitarian
+    parent_id: null
+    popularity_rank: 7
+
+  - cause_id: health
+    cause_name: Health
+    description: Organizations advancing health and medical care.
+    icon: "⚕️"
+    category: health
+    parent_id: null
+    popularity_rank: 8
+
+  - cause_id: humanitarian
+    cause_name: Humanitarian
+    description: Organizations providing humanitarian aid.
+    icon: "🤝"
+    category: humanitarian
+    parent_id: null
+    popularity_rank: 9
+
+  - cause_id: justice
+    cause_name: Justice
+    description: Organizations advancing civil rights and justice.
+    icon: "⚖️"
+    category: justice
+    parent_id: null
+    popularity_rank: 10
+
+  - cause_id: lgbt
+    cause_name: LGBTQ+
+    description: Organizations supporting LGBTQ+ communities.
+    icon: "🏳️‍🌈"
+    category: communities
+    parent_id: null
+    popularity_rank: 11
+
+  - cause_id: mental-health
+    cause_name: Mental Health
+    description: Organizations supporting mental health and wellbeing.
+    icon: "🧠"
+    category: health
+    parent_id: health
+    popularity_rank: 12
+
+  - cause_id: religion
+    cause_name: Religion
+    description: Faith-based organizations.
+    icon: "🕊️"
+    category: religion
+    parent_id: null
+    popularity_rank: 13
+
+  - cause_id: seniors
+    cause_name: Seniors
+    description: Organizations supporting older adults.
+    icon: "👴"
+    category: communities
+    parent_id: null
+    popularity_rank: 14
+
+  - cause_id: water
+    cause_name: Clean Water
+    description: Organizations advancing access to clean water.
+    icon: "💧"
+    category: environment
+    parent_id: null
+    popularity_rank: 15
+
+  - cause_id: women
+    cause_name: Women
+    description: Organizations supporting women and girls.
+    icon: "👩"
+    category: communities
+    parent_id: null
+    popularity_rank: 16
+
+  - cause_id: youth
+    cause_name: Youth
+    description: Organizations supporting children and youth.
+    icon: "👶"
+    category: communities
+    parent_id: null
+    popularity_rank: 17

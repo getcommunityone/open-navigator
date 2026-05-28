@@ -6,6 +6,56 @@ sources:
     database: open_navigator  # Single database with schemas
     schema: bronze  # Bronze schema for raw data
     tables:
+      - name: bronze_ntee_codes
+        description: |
+          Raw NTEE classification codes — one row per `code`. Landed by
+          ingestion.ntee.codes from IRS Pub 557 + NCCS taxonomy. The hierarchical
+          `cause_breadcrumb` is derived downstream in int_ntee__breadcrumb via a
+          recursive CTE over `parent_code`.
+        columns:
+          - name: code
+            description: "NTEE code — primary key / natural key."
+          - name: name
+            description: "Human-readable code name (falls back to code if no description)."
+          - name: description
+            description: "Code description (may be null)."
+          - name: cause_type
+            description: "Always 'ntee' for this source."
+          - name: parent_code
+            description: "Parent NTEE code (null at the taxonomy root)."
+          - name: category
+            description: "NTEE type/category label (e.g. 'major', 'division')."
+          - name: subcategory
+            description: "Reserved; currently always null."
+          - name: code_source
+            description: "Provenance tag (e.g. 'irs')."
+          - name: ingestion_date
+            description: "When the row was upserted."
+
+      - name: bronze_everyorg_causes
+        description: |
+          EveryOrg curated cause taxonomy — one row per `cause_id`. Landed by
+          ingestion.everyorg.causes from a vendored YAML (or operator-supplied
+          CSV/parquet in data/cache/everyorg/). Every.org does not expose a
+          list-causes API, so the YAML is the canonical source.
+        columns:
+          - name: cause_id
+            description: "EveryOrg cause slug — primary key (e.g. 'animals', 'climate')."
+          - name: cause_name
+            description: "Display name."
+          - name: description
+            description: "Short description (may be null)."
+          - name: icon
+            description: "Emoji icon for the cause (may be null)."
+          - name: category
+            description: "Coarse grouping (e.g. 'health', 'environment')."
+          - name: parent_id
+            description: "Parent cause_id for hierarchical causes (may be null)."
+          - name: popularity_rank
+            description: "Manually-curated popularity ordering (lower = more popular)."
+          - name: ingestion_date
+            description: "When the row was upserted."
+
       - name: bronze_organizations_nonprofits_nccs_history
         description: "NCCS Unified BMF organization-years (raw history), landed by ingestion.nccs.bulk. One row per (ein, org_year_last)."
       - name: bronze_locations
@@ -1104,42 +1154,6 @@ sources:
       - name: jurisdiction_acs
         description: "ACS population / income tiers keyed by geography_type + geoid"
 
-  # NOTE: NTEE codes land in the PUBLIC schema, NOT bronze. The ingestion loader
-  # (ingestion.ntee.codes) creates `cause_ntee` with no schema qualifier, so it
-  # resolves to `public.cause_ntee`. This is the only raw source dbt reads from
-  # `public`; flagged here because every other ingestion source lives in `bronze`.
-  - name: public_raw
-    description: |
-      Raw ingestion tables that land in the PUBLIC schema (not bronze). Currently
-      only `cause_ntee` (NTEE classification codes from ingestion.ntee.codes).
-    database: open_navigator
-    schema: public
-    tables:
-      - name: cause_ntee
-        description: |
-          Raw NTEE classification codes — one row per `code`. Landed by
-          ingestion.ntee.codes WITHOUT the derived `cause_breadcrumb`; the
-          hierarchical parent-chain path is derived downstream in
-          int_ntee__breadcrumb via a recursive CTE over `parent_code`.
-        columns:
-          - name: code
-            description: "NTEE code — primary key / natural key."
-          - name: name
-            description: "Human-readable code name (falls back to code if no description)."
-          - name: description
-            description: "Code description (may be null)."
-          - name: cause_type
-            description: "Always 'ntee' for this source."
-          - name: parent_code
-            description: "Parent NTEE code (null at the taxonomy root). Walked recursively for the breadcrumb."
-          - name: category
-            description: "NTEE type/category label (ntee_type from the parquet)."
-          - name: subcategory
-            description: "Reserved; currently always null."
-          - name: source
-            description: "Code source provenance (e.g. 'irs')."
-          - name: last_updated
-            description: "Upsert timestamp."
 
   # NOTE: Master Data Management (MDM) inputs. These three tables are the
   # PURE-TRANSFORMATION inputs the archived

@@ -8,7 +8,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from ingestion.jurisdictions.details import (  # noqa: E402
+from ingestion.census.details import (  # noqa: E402
     JurisdictionsDetailsPipeline,
     JurisdictionsDetailsRow,
     _coerce_json,
@@ -132,7 +132,7 @@ def test_pipeline_metadata():
 
 
 def test_extract_raises_when_default_file_missing(tmp_path, monkeypatch):
-    import ingestion.jurisdictions.details as dp
+    import ingestion.census.details as dp
 
     monkeypatch.setattr(dp, "DETAILS_FILE", tmp_path / "does_not_exist.parquet")
     p = JurisdictionsDetailsPipeline()

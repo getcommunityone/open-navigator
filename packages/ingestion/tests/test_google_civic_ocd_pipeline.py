@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 import pytest
 
 
-from ingestion.jurisdiction_pilot.ocd import (  # noqa: E402
+from ingestion.google_civic.ocd import (  # noqa: E402
     JurisdictionOcdRow,
     JurisdictionPilotOcdPipeline,
     find_cache_dir,
@@ -133,7 +133,7 @@ def test_ocd_row_schema_rejects_empty_required_and_extra():
 
 
 def test_find_cache_dir_raises_when_missing(tmp_path, monkeypatch):
-    import ingestion.jurisdiction_pilot.ocd as op
+    import ingestion.google_civic.ocd as op
     monkeypatch.setattr(op, "CACHE_DIR", tmp_path / "missing")
     with pytest.raises(FileNotFoundError):
         find_cache_dir()

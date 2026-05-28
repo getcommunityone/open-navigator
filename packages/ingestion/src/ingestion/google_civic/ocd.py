@@ -11,9 +11,9 @@ cached at data/cache/opencivicdata/identifiers/:
   - country-us/state-*-local_gov.csv  (places / counties / council districts / wards)
 
 Usage:
-    python -m ingestion.jurisdiction_pilot.ocd
-    python -m ingestion.jurisdiction_pilot.ocd --truncate
-    python -m ingestion.jurisdiction_pilot.ocd \\
+    python -m ingestion.google_civic.ocd
+    python -m ingestion.google_civic.ocd --truncate
+    python -m ingestion.google_civic.ocd \\
         --path data/cache/opencivicdata --limit 100
 
 Configuration:

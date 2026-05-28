@@ -1,0 +1,50 @@
+version: 2
+
+models:
+  - name: stg_everyorg__cause
+    description: |
+      EveryOrg curated cause taxonomy — one row per cause_id. 1:1 with
+      bronze.bronze_everyorg_causes (raw landing from ingestion.everyorg.causes).
+      Light cleaning + type stabilization only.
+    config:
+      contract:
+        enforced: true
+      materialized: view
+    columns:
+      - name: cause_id
+        description: "EveryOrg cause slug. Natural key — one row per cause_id."
+        data_type: varchar(100)
+        constraints:
+          - type: not_null
+        tests:
+          - unique
+          - not_null
+      - name: cause_name
+        description: "Display name."
+        data_type: varchar(255)
+        constraints:
+          - type: not_null
+      - name: description
+        description: "Short description (may be null)."
+        data_type: text
+      - name: icon
+        description: "Emoji icon (may be null)."
+        data_type: varchar(20)
+      - name: category
+        description: "Coarse grouping (e.g. 'health', 'environment')."
+        data_type: varchar(100)
+      - name: parent_id
+        description: "Parent cause_id for hierarchical causes (may be null)."
+        data_type: varchar(100)
+      - name: popularity_rank
+        description: "Manually-curated popularity ordering (lower = more popular). May be null."
+        data_type: integer
+      - name: source_ingested_at
+        description: "ingestion_date from bronze.bronze_everyorg_causes."
+        data_type: timestamp
+      - name: dbt_loaded_at
+        # `current_timestamp` in Postgres returns `timestamp with time zone`;
+        # the contract has to match or dbt aborts the view creation.
+        data_type: timestamp with time zone
+        constraints:
+          - type: not_null

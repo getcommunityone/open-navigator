@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 import pandas as pd
 import pytest
 
-from ingestion.jurisdictions.counties import (  # noqa: E402
+from ingestion.census.counties_jurisdictions import (  # noqa: E402
     CountyRow,
     JurisdictionsCountiesPipeline,
     jurisdiction_id_from_name_geoid,

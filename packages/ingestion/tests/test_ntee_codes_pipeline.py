@@ -1,8 +1,8 @@
-"""Unit tests for the NTEE codes pipeline refactor."""
+"""Unit tests for the NTEE codes pipeline (bronze.bronze_ntee_codes)."""
 from __future__ import annotations
 
 import asyncio
-import sys
+import csv
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -13,15 +13,29 @@ import pytest
 from ingestion.ntee.codes import (  # noqa: E402
     NteeCodesPipeline,
     NteeCodesRow,
+    VENDORED_CSV,
     _is_missing,
     _safe_str,
-    find_latest_parquet,
+    resolve_source_path,
 )
 from core_lib.pipeline.schemas import PipelineContext  # noqa: E402
 
 
 def _ctx() -> PipelineContext:
     return PipelineContext(run_id="t", started_at=datetime.now(timezone.utc))
+
+
+def _write_csv(path: Path, rows: list[dict]) -> Path:
+    if not rows:
+        path.write_text("ntee_code,description,parent_code,ntee_type\n")
+        return path
+    fieldnames = list(rows[0].keys())
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({k: ("" if v is None else v) for k, v in row.items()})
+    return path
 
 
 def _write_parquet(path: Path, rows: list[dict]) -> Path:
@@ -49,7 +63,7 @@ def test_is_missing():
 def test_ntee_row_schema_enforces_max_lengths():
     r = NteeCodesRow(
         source="ntee_codes",
-        source_version="causes_ntee_codes",
+        source_version="bronze_ntee_codes",
         natural_key="A20",
         code="A20",
         name="Arts Multipurpose",
@@ -107,29 +121,46 @@ def test_pipeline_metadata():
     assert p.row_schema is NteeCodesRow
 
 
-def test_find_latest_parquet_raises_when_no_files(tmp_path, monkeypatch):
+def test_resolve_source_path_explicit_wins(tmp_path):
+    explicit = tmp_path / "explicit.csv"
+    explicit.write_text("ntee_code\nA\n")
+    assert resolve_source_path(explicit) == explicit
+
+
+def test_resolve_source_path_cache_dir_preferred(tmp_path, monkeypatch):
     import ingestion.ntee.codes as cp
-    monkeypatch.setattr(cp, "GOLD_DIR", tmp_path)
-    with pytest.raises(FileNotFoundError):
-        find_latest_parquet()
+
+    monkeypatch.setattr(cp, "CACHE_DIR", tmp_path)
+    cached_csv = tmp_path / "causes_ntee_codes.csv"
+    cached_csv.write_text("ntee_code,description,parent_code,ntee_type\nA,Arts,,major\n")
+    assert resolve_source_path() == cached_csv
 
 
-def test_find_latest_parquet_returns_most_recent(tmp_path, monkeypatch):
+def test_resolve_source_path_falls_back_to_vendored(tmp_path, monkeypatch):
     import ingestion.ntee.codes as cp
-    monkeypatch.setattr(cp, "GOLD_DIR", tmp_path)
-    (tmp_path / "causes_ntee_codes.parquet").write_text("")
-    (tmp_path / "causes_ntee_codes_20260101.parquet").write_text("")
-    latest = find_latest_parquet()
-    assert latest.name == "causes_ntee_codes_20260101.parquet"
+
+    # Empty cache dir → vendored CSV.
+    monkeypatch.setattr(cp, "CACHE_DIR", tmp_path)
+    assert resolve_source_path() == VENDORED_CSV
 
 
-def test_extract_yields_validated_rows(tmp_path):
-    path = _write_parquet(
-        tmp_path / "causes_ntee_codes.parquet",
+def test_resolve_source_path_prefers_parquet_over_csv(tmp_path, monkeypatch):
+    import ingestion.ntee.codes as cp
+
+    monkeypatch.setattr(cp, "CACHE_DIR", tmp_path)
+    (tmp_path / "causes_ntee_codes.csv").write_text("ntee_code\nA\n")
+    parquet = tmp_path / "causes_ntee_codes.parquet"
+    pd.DataFrame([{"ntee_code": "A"}]).to_parquet(parquet)
+    assert resolve_source_path() == parquet
+
+
+def test_extract_from_csv_yields_validated_rows(tmp_path):
+    path = _write_csv(
+        tmp_path / "causes_ntee_codes.csv",
         [
-            {"ntee_code": "A", "description": "Arts", "parent_code": None, "ntee_type": "major"},
+            {"ntee_code": "A", "description": "Arts", "parent_code": "", "ntee_type": "major"},
             {"ntee_code": "A20", "description": "Arts Multipurpose", "parent_code": "A", "ntee_type": "division"},
-            {"ntee_code": "", "description": "junk", "parent_code": None, "ntee_type": None},  # dropped
+            {"ntee_code": "", "description": "junk", "parent_code": "", "ntee_type": ""},  # dropped
         ],
     )
     p = NteeCodesPipeline(path=path)
@@ -154,12 +185,46 @@ def test_extract_yields_validated_rows(tmp_path):
         assert p.validate(raw) is not None
 
 
+def test_extract_from_parquet_yields_validated_rows(tmp_path):
+    path = _write_parquet(
+        tmp_path / "causes_ntee_codes.parquet",
+        [
+            {"ntee_code": "B", "description": "Education", "parent_code": None, "ntee_type": "major"},
+        ],
+    )
+    p = NteeCodesPipeline(path=path)
+
+    async def collect():
+        return [r async for r in p.extract(_ctx())]
+
+    extracted = asyncio.run(collect())
+    assert len(extracted) == 1
+    assert extracted[0]["code"] == "B"
+    assert extracted[0]["parent_code"] is None
+
+
+def test_extract_vendored_seed_is_loadable():
+    """The package-vendored seed CSV must be parseable and validate cleanly."""
+    p = NteeCodesPipeline(path=VENDORED_CSV)
+
+    async def collect():
+        return [r async for r in p.extract(_ctx())]
+
+    extracted = asyncio.run(collect())
+    # Seed ships 26 major-group codes (A-Z).
+    assert len(extracted) == 26
+    codes = {row["code"] for row in extracted}
+    assert codes == set("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+    for raw in extracted:
+        assert p.validate(raw) is not None
+
+
 def test_limit_caps_extracted_rows(tmp_path):
     rows = [
-        {"ntee_code": f"X{i}", "description": f"d{i}", "parent_code": None, "ntee_type": "t"}
+        {"ntee_code": f"X{i}", "description": f"d{i}", "parent_code": "", "ntee_type": "t"}
         for i in range(10)
     ]
-    path = _write_parquet(tmp_path / "causes_ntee_codes.parquet", rows)
+    path = _write_csv(tmp_path / "causes_ntee_codes.csv", rows)
     p = NteeCodesPipeline(path=path, limit=3)
 
     async def collect():

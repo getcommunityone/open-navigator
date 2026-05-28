@@ -9,9 +9,9 @@ columns NAME / USPS / GEOID / download_date). Counties are upserted into the
 shared `jurisdiction` table alongside cities.
 
 Usage:
-    python -m ingestion.jurisdictions.counties
-    python -m ingestion.jurisdictions.counties --states AL,GA,IN
-    python -m ingestion.jurisdictions.counties \\
+    python -m ingestion.census.counties_jurisdictions
+    python -m ingestion.census.counties_jurisdictions --states AL,GA,IN
+    python -m ingestion.census.counties_jurisdictions \\
         --file data/gold/jurisdictions_counties.parquet --limit 100
 
 Configuration:

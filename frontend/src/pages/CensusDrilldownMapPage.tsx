@@ -23,6 +23,8 @@ import {
   type CensusValueMode,
   displayValueForMode,
   nationalBaselineWithFallback,
+  pctChangeBetween,
+  prevVintageCalendarYearsBack,
   prevVintageInList,
   trendCell,
 } from '../utils/censusMapValueMode'
@@ -109,6 +111,50 @@ interface PlaceTrendsPayload {
 
 function pickMetric(metrics: CensusMetric[], slug: string): CensusMetric | undefined {
   return metrics.find((m) => m.slug === slug)
+}
+
+function KpiSparkline({
+  points,
+  width = 80,
+  height = 32,
+}: {
+  points: { x: number; y: number }[]
+  width?: number
+  height?: number
+}) {
+  if (points.length < 2) return null
+  const xs = points.map((p) => p.x)
+  const ys = points.map((p) => p.y)
+  const xMin = Math.min(...xs)
+  const xMax = Math.max(...xs)
+  const yMin = Math.min(...ys)
+  const yMax = Math.max(...ys)
+  const xRange = xMax - xMin || 1
+  const yRange = yMax - yMin || 1
+  const pad = 2
+  const innerW = width - pad * 2
+  const innerH = height - pad * 2
+  const xy = points.map((p) => [
+    pad + ((p.x - xMin) / xRange) * innerW,
+    pad + innerH - ((p.y - yMin) / yRange) * innerH,
+  ])
+  const d = xy
+    .map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`)
+    .join(' ')
+  const [lx, ly] = xy[xy.length - 1]
+  return (
+    <svg width={width} height={height} className="block" aria-hidden="true">
+      <path
+        d={d}
+        fill="none"
+        stroke="#0284c7"
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx={lx} cy={ly} r={2} fill="#0284c7" />
+    </svg>
+  )
 }
 
 export default function CensusDrilldownMapPage() {
@@ -511,17 +557,33 @@ export default function CensusDrilldownMapPage() {
   }, [countyDisplayByGeoid])
 
   // ── Place display values, extents, ranks (mirrors county pattern) ────────
+  // ACS place tables are currently only ingested for a sparse set of vintages
+  // (Alabama has only 2022 today). When the requested vintage has no value, we
+  // fall back to the most recent vintage in the trends file that does — without
+  // it every place renders neutral the moment the user picks a year other than
+  // 2022.
   const placeDisplayByGeoid = useMemo(() => {
     const out: Record<string, number | null> = {}
     if (!placeTrends?.byGeoid || !metricSlug) return out
-    const prevV = prevVintageInList(placeTrends.vintages ?? [], displayVintage)
+    const trendsVintages = (placeTrends.vintages ?? []).slice().sort()
+    const prevV = prevVintageInList(trendsVintages, displayVintage)
     const nat = nationalBaselineWithFallback(manifest?.national_ref, displayVintage, metricSlug, { stateTrends })
+    const olderToNewer = trendsVintages.slice().reverse()
     for (const [gid, row] of Object.entries(placeTrends.byGeoid)) {
       const series = (row as Record<string, unknown>)[metricSlug]
-      const raw = trendCell(series, displayVintage)
+      let raw = trendCell(series, displayVintage)
+      if (raw == null) {
+        for (const v of olderToNewer) {
+          if (v === displayVintage) continue
+          const candidate = trendCell(series, v)
+          if (candidate != null) {
+            raw = candidate
+            break
+          }
+        }
+      }
       let prev: number | null = null
       if (valueMode === 'yoy' && prevV) prev = trendCell(series, prevV)
-      // Strip ACS sentinel negatives the same way the ZCTA loader does.
       const cleaned = typeof raw === 'number' && Number.isFinite(raw) && raw > -1e7 ? raw : null
       const g7 = String(gid).padStart(7, '0')
       out[g7] = displayValueForMode(valueMode, cleaned, prev, nat)
@@ -1356,6 +1418,7 @@ export default function CensusDrilldownMapPage() {
               const showing = pinnedPlace
                 ? {
                     kind: 'place' as const,
+                    id: pinnedPlace.geoid,
                     name: pinnedPlace.name,
                     value: pinnedPlace.value,
                     rank: pinnedPlace.rank,
@@ -1363,6 +1426,7 @@ export default function CensusDrilldownMapPage() {
                 : pinnedCounty
                   ? {
                       kind: 'county' as const,
+                      id: pinnedCounty.geoid,
                       name: pinnedCounty.name,
                       value: pinnedCounty.value,
                       rank: pinnedCounty.rank,
@@ -1372,50 +1436,69 @@ export default function CensusDrilldownMapPage() {
               const accent = isPinned
                 ? 'border-amber-300 ring-2 ring-amber-100/70'
                 : 'border-slate-200'
+              // Trend series for the active region — drives the sparkline and
+              // the YoY / 5yr deltas. ZIP-tier and unknown regions have no
+              // multi-vintage data and fall through to a value-only readout.
+              let trendSeries: Record<string, unknown> | undefined
+              let trendVintages: string[] = []
+              if (showing?.kind === 'state' && stateTrends?.by_state) {
+                trendSeries = (stateTrends.by_state[fips2(showing.id)] as Record<string, unknown> | undefined)?.[
+                  metricSlug
+                ] as Record<string, unknown> | undefined
+                trendVintages = vintages
+              } else if (showing?.kind === 'county' && countyTrends?.byGeoid) {
+                trendSeries = (countyTrends.byGeoid[String(showing.id).padStart(5, '0')] as
+                  | Record<string, unknown>
+                  | undefined)?.[metricSlug] as Record<string, unknown> | undefined
+                trendVintages = countyTrends.vintages ?? []
+              } else if (showing?.kind === 'place' && placeTrends?.byGeoid) {
+                trendSeries = (placeTrends.byGeoid[String(showing.id).padStart(7, '0')] as
+                  | Record<string, unknown>
+                  | undefined)?.[metricSlug] as Record<string, unknown> | undefined
+                trendVintages = placeTrends.vintages ?? []
+              }
+              const rawCurrent = trendSeries ? trendCell(trendSeries, displayVintage) : null
+              const prev1y = trendVintages.length ? prevVintageInList(trendVintages, displayVintage) : null
+              const yoyPct =
+                trendSeries && prev1y ? pctChangeBetween(rawCurrent, trendCell(trendSeries, prev1y)) : null
+              const prev5y = trendVintages.length
+                ? prevVintageCalendarYearsBack(trendVintages, displayVintage, 5)
+                : null
+              const fiveYrPct =
+                trendSeries && prev5y ? pctChangeBetween(rawCurrent, trendCell(trendSeries, prev5y)) : null
+              const sparkPoints: { x: number; y: number }[] = trendSeries
+                ? trendVintages
+                    .map((v) => {
+                      const y = trendCell(trendSeries!, v)
+                      return { x: Number(v), y: typeof y === 'number' && Number.isFinite(y) ? y : NaN }
+                    })
+                    .filter(
+                      (p): p is { x: number; y: number } =>
+                        Number.isFinite(p.x) && Number.isFinite(p.y),
+                    )
+                : []
+              const hasDeltas = yoyPct != null || fiveYrPct != null
+              const showNameSuffix =
+                !!showing &&
+                (showing.kind === 'county' || showing.kind === 'zip' || showing.kind === 'place') &&
+                !!stateName
+              const clearPin = () => {
+                if (pinnedPlace) setPinnedPlace(null)
+                else setPinnedCounty(null)
+              }
               return (
                 <div className={`rounded-lg border bg-white p-3 shadow-sm transition-colors ${accent}`}>
-                  <div className="flex items-start gap-2">
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                        {idle
-                          ? 'Region details'
-                          : isPinned
-                            ? 'Pinned'
-                            : showing!.kind === 'state'
-                              ? 'Hovered state'
-                              : showing!.kind === 'zip'
-                                ? 'Hovered ZIP'
-                                : showing!.kind === 'place'
-                                  ? 'Hovered city/town'
-                                  : 'Hovered county'}
-                      </div>
-                      <div className="mt-0.5 text-sm font-semibold leading-snug text-slate-900">
-                        {idle
-                          ? view === 'nation'
+                  {idle ? (
+                    <div className="flex items-start gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                          Region details
+                        </div>
+                        <div className="mt-0.5 text-sm font-semibold leading-snug text-slate-900">
+                          {view === 'nation'
                             ? 'Hover any state for details · click to zoom'
-                            : `Hover any county in ${stateName ?? 'this state'} for details`
-                          : (
-                            <>
-                              {showing!.name}
-                              {(showing!.kind === 'county' || showing!.kind === 'zip' || showing!.kind === 'place') && stateName ? (
-                                <span className="text-slate-500">, {stateName}</span>
-                              ) : null}
-                            </>
-                          )}
-                      </div>
-                      {!idle ? (
-                        <>
-                          <div className="mt-1.5 text-[13px] tabular-nums text-slate-700">
-                            <span className="text-slate-500">{metricLabel}: </span>
-                            {formatMetricValueCompact(metricSlug, showing!.value, metrics, valueMode)}
-                          </div>
-                          {showing!.rank ? (
-                            <div className="mt-0.5 text-[11px] text-slate-500">
-                              Ranked #{showing!.rank.rank} of {showing!.rank.total}
-                            </div>
-                          ) : null}
-                        </>
-                      ) : (
+                            : `Hover any county in ${stateName ?? 'this state'} for details`}
+                        </div>
                         <div className="mt-2 text-[11px] leading-snug text-slate-500">
                           Showing{' '}
                           <span className="font-medium text-slate-700">
@@ -1425,26 +1508,67 @@ export default function CensusDrilldownMapPage() {
                           </span>{' '}
                           for {displayVintage}.
                         </div>
-                      )}
+                      </div>
                     </div>
-                    {isPinned ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          // Clear the topmost pin: a place pin sits over the
-                          // county pin in card precedence, so closing it should
-                          // reveal the county card. A second close clears the
-                          // county pin too.
-                          if (pinnedPlace) setPinnedPlace(null)
-                          else setPinnedCounty(null)
-                        }}
-                        className="-mr-1 -mt-1 rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
-                        aria-label="Clear pin"
-                      >
-                        <XMarkIcon className="h-4 w-4" />
-                      </button>
-                    ) : null}
-                  </div>
+                  ) : (
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                          {showing!.name}
+                          {showNameSuffix ? (
+                            <span className="font-normal text-slate-400">, {stateName}</span>
+                          ) : null}
+                        </div>
+                        <div className="mt-1 text-[28px] font-semibold leading-none tabular-nums text-slate-900">
+                          {showing!.value != null
+                            ? formatMetricValueCompact(metricSlug, showing!.value, metrics, valueMode)
+                            : '—'}
+                        </div>
+                        {hasDeltas ? (
+                          <div className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] tabular-nums">
+                            {yoyPct != null && prev1y != null ? (
+                              <span className={yoyPct >= 0 ? 'text-emerald-600' : 'text-rose-600'}>
+                                {yoyPct >= 0 ? '+' : ''}
+                                {yoyPct.toFixed(1)}% vs {prev1y}
+                              </span>
+                            ) : null}
+                            {yoyPct != null && fiveYrPct != null ? (
+                              <span className="text-slate-300">·</span>
+                            ) : null}
+                            {fiveYrPct != null ? (
+                              <span className={fiveYrPct >= 0 ? 'text-emerald-600' : 'text-rose-600'}>
+                                {fiveYrPct >= 0 ? '+' : ''}
+                                {fiveYrPct.toFixed(0)}% over 5yr
+                              </span>
+                            ) : null}
+                          </div>
+                        ) : null}
+                        <div className="mt-1 truncate text-[10px] uppercase tracking-wide text-slate-400">
+                          {metricLabel}
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end gap-1.5">
+                        <div className="flex items-center gap-1">
+                          {showing!.rank ? (
+                            <span className="whitespace-nowrap rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-sky-700">
+                              #{showing!.rank.rank} of {showing!.rank.total}
+                            </span>
+                          ) : null}
+                          {isPinned ? (
+                            <button
+                              type="button"
+                              onClick={clearPin}
+                              className="-mr-1 rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                              aria-label="Clear pin"
+                            >
+                              <XMarkIcon className="h-4 w-4" />
+                            </button>
+                          ) : null}
+                        </div>
+                        {sparkPoints.length >= 2 ? <KpiSparkline points={sparkPoints} /> : null}
+                      </div>
+                    </div>
+                  )}
                   {isPinned ? (
                     <div className="mt-3 flex flex-col gap-1.5 border-t border-slate-100 pt-2.5">
                       <button
