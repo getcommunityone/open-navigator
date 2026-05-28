@@ -11,8 +11,9 @@
 --   ./scripts/deployment/neon/psql_resolved.sh -v ON_ERROR_STOP=1 \
 --     -f scripts/deployment/neon/migrations/077_create_bronze_bls_cpi.sql
 --
--- AFTER applying: run dbt to build the bronze passthrough + staging view:
---   ./scripts/dbt.sh run --select bronze_bls_cpi stg_bls__cpi_annual
+-- AFTER applying: load data, then build the staging view:
+--   python scripts/datasources/bls/load_bls_cpi.py
+--   ./scripts/dbt.sh run --select stg_bls__cpi_annual
 
 BEGIN;
 
