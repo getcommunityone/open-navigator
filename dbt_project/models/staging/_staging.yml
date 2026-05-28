@@ -1146,6 +1146,29 @@ sources:
           - name: loaded_at
             description: "When the row was landed."
 
+      - name: bronze_bls_cpi
+        description: >
+          BLS Consumer Price Index observations (monthly + annual average).
+          One national series applied uniformly to every geography by the
+          frontend real-dollar toggle. Default series: CUUR0000SA0 (CPI-U
+          NSA all items U.S. city avg). Loaded by
+          ``scripts/datasources/bls/load_bls_cpi.py``.
+        columns:
+          - name: series_id
+            description: "BLS series identifier (e.g. CUUR0000SA0)."
+          - name: year
+            description: "Calendar year."
+          - name: period
+            description: "BLS period code: M01..M12 = months; M13 = annual average."
+          - name: period_name
+            description: "Human-readable period name (January, ..., Annual)."
+          - name: value
+            description: "Observed index value."
+          - name: footnotes
+            description: "Concatenated footnote text from the BLS response, if any."
+          - name: loaded_at
+          - name: last_updated
+
   - name: gold_runtime
     description: "Runtime gold tables in public schema (ACS joins for mapping quality marts)"
     database: open_navigator

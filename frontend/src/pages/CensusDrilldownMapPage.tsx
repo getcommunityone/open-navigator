@@ -43,6 +43,10 @@ import CensusMapLeftRail, { type CensusMapRailSection } from '../components/Cens
 import CensusDrilldownStage, { type DrilldownView } from '../components/CensusDrilldownStage'
 import CensusDrilldownLocalView from '../components/CensusDrilldownLocalView'
 import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
+import { deflate, isDollarMetric, peakYearOf } from '../utils/inflation'
+import { useInflationToggle } from '../hooks/useInflationToggle'
+import { useCpiAnnual } from '../hooks/useCpiAnnual'
+import InflationToggle from '../components/InflationToggle'
 
 const STATES_ALBERS_TOPO = 'https://cdn.jsdelivr.net/npm/us-atlas@3/states-albers-10m.json'
 const COUNTIES_ALBERS_TOPO = 'https://cdn.jsdelivr.net/npm/us-atlas@3/counties-albers-10m.json'
@@ -247,6 +251,13 @@ export default function CensusDrilldownMapPage() {
   // ZIP view: overlay the drilled-from county boundary. Off by default.
   const showCountyOutline = searchParams.get('zipOutline') === '1'
   const setShowCountyOutline = (on: boolean) => setQP('zipOutline', on ? '1' : '0', '0')
+
+  // ── inflation toggle (Nominal / Real) — only the pinned/hover KPI card
+  //    deflates; leaderboards, choropleth, and narrative copy stay nominal.
+  //    Scope is intentionally narrow to match the mockup; widening it would
+  //    require plumbing CPI through every dollar surface on the page.
+  const { mode: inflationMode, setMode: setInflationMode } = useInflationToggle()
+  const cpi = useCpiAnnual()
 
   // ── data: manifest + state metrics + state trends + albers topology ───────
   const { data: manifest } = useQuery({
@@ -1477,7 +1488,52 @@ export default function CensusDrilldownMapPage() {
                         Number.isFinite(p.x) && Number.isFinite(p.y),
                     )
                 : []
-              const hasDeltas = yoyPct != null || fiveYrPct != null
+              // ── Inflation toggle overrides (Real mode) ─────────────────
+              // Only deflate when the metric is dollars AND we're showing
+              // the raw value (yoy/vs_natl modes are already percentages,
+              // so the toggle is hidden in those modes). When CPI hasn't
+              // loaded yet we silently fall back to nominal — better a
+              // correct nominal number than a confusing dash.
+              const dollarMetric = isDollarMetric(metricSlug)
+              const toggleActive = dollarMetric && valueMode === 'raw'
+              const cpiByYear = cpi.data?.by_year
+              const cpiLatestYear = cpi.data?.latest_year
+              const realMode = toggleActive && inflationMode === 'real' && !!cpiByYear && cpiLatestYear != null
+              const displayValue = realMode
+                ? deflate(showing?.value ?? null, displayVintage, cpiLatestYear, cpiByYear) ??
+                  (showing?.value ?? null)
+                : (showing?.value ?? null)
+              const yoyPctEff =
+                realMode && prev1y && trendSeries
+                  ? pctChangeBetween(
+                      deflate(rawCurrent, displayVintage, cpiLatestYear, cpiByYear),
+                      deflate(trendCell(trendSeries, prev1y), prev1y, cpiLatestYear, cpiByYear),
+                    )
+                  : yoyPct
+              const fiveYrPctEff =
+                realMode && prev5y && trendSeries
+                  ? pctChangeBetween(
+                      deflate(rawCurrent, displayVintage, cpiLatestYear, cpiByYear),
+                      deflate(trendCell(trendSeries, prev5y), prev5y, cpiLatestYear, cpiByYear),
+                    )
+                  : fiveYrPct
+              const sparkPointsEff = realMode
+                ? sparkPoints.map((p) => {
+                    const dy = deflate(p.y, p.x, cpiLatestYear, cpiByYear)
+                    return { x: p.x, y: dy ?? p.y }
+                  })
+                : sparkPoints
+              const hasDeltasEff = yoyPctEff != null || fiveYrPctEff != null
+              const peakYear = toggleActive ? peakYearOf(sparkPointsEff, displayVintage) : null
+              const footnoteBits: string[] = []
+              if (toggleActive) {
+                footnoteBits.push(
+                  realMode ? `real, in ${cpiLatestYear} dollars` : 'nominal',
+                )
+                if (peakYear != null) footnoteBits.push(`peaked in ${peakYear}`)
+              }
+              const inflationFootnote = footnoteBits.join(' · ')
+
               const showNameSuffix =
                 !!showing &&
                 (showing.kind === 'county' || showing.kind === 'zip' || showing.kind === 'place') &&
@@ -1520,25 +1576,25 @@ export default function CensusDrilldownMapPage() {
                           ) : null}
                         </div>
                         <div className="mt-1 text-[28px] font-semibold leading-none tabular-nums text-slate-900">
-                          {showing!.value != null
-                            ? formatMetricValueCompact(metricSlug, showing!.value, metrics, valueMode)
+                          {displayValue != null
+                            ? formatMetricValueCompact(metricSlug, displayValue, metrics, valueMode)
                             : '—'}
                         </div>
-                        {hasDeltas ? (
+                        {hasDeltasEff ? (
                           <div className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] tabular-nums">
-                            {yoyPct != null && prev1y != null ? (
-                              <span className={yoyPct >= 0 ? 'text-emerald-600' : 'text-rose-600'}>
-                                {yoyPct >= 0 ? '+' : ''}
-                                {yoyPct.toFixed(1)}% vs {prev1y}
+                            {yoyPctEff != null && prev1y != null ? (
+                              <span className={yoyPctEff >= 0 ? 'text-emerald-600' : 'text-rose-600'}>
+                                {yoyPctEff >= 0 ? '+' : ''}
+                                {yoyPctEff.toFixed(1)}% vs {prev1y}
                               </span>
                             ) : null}
-                            {yoyPct != null && fiveYrPct != null ? (
+                            {yoyPctEff != null && fiveYrPctEff != null ? (
                               <span className="text-slate-300">·</span>
                             ) : null}
-                            {fiveYrPct != null ? (
-                              <span className={fiveYrPct >= 0 ? 'text-emerald-600' : 'text-rose-600'}>
-                                {fiveYrPct >= 0 ? '+' : ''}
-                                {fiveYrPct.toFixed(0)}% over 5yr
+                            {fiveYrPctEff != null ? (
+                              <span className={fiveYrPctEff >= 0 ? 'text-emerald-600' : 'text-rose-600'}>
+                                {fiveYrPctEff >= 0 ? '+' : ''}
+                                {fiveYrPctEff.toFixed(0)}% over 5yr
                               </span>
                             ) : null}
                           </div>
@@ -1546,8 +1602,20 @@ export default function CensusDrilldownMapPage() {
                         <div className="mt-1 truncate text-[10px] uppercase tracking-wide text-slate-400">
                           {metricLabel}
                         </div>
+                        {inflationFootnote ? (
+                          <div className="mt-0.5 truncate text-[10px] text-slate-400">
+                            {inflationFootnote}
+                          </div>
+                        ) : null}
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-1.5">
+                        {toggleActive ? (
+                          <InflationToggle
+                            mode={inflationMode}
+                            onChange={setInflationMode}
+                            ariaLabel={metricLabel}
+                          />
+                        ) : null}
                         <div className="flex items-center gap-1">
                           {showing!.rank ? (
                             <span className="whitespace-nowrap rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-sky-700">
@@ -1565,7 +1633,7 @@ export default function CensusDrilldownMapPage() {
                             </button>
                           ) : null}
                         </div>
-                        {sparkPoints.length >= 2 ? <KpiSparkline points={sparkPoints} /> : null}
+                        {sparkPointsEff.length >= 2 ? <KpiSparkline points={sparkPointsEff} /> : null}
                       </div>
                     </div>
                   )}

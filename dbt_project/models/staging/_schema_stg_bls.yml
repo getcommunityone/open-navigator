@@ -1,0 +1,31 @@
+version: 2
+
+models:
+  - name: stg_bls__cpi_annual
+    description: >
+      Annual-average BLS Consumer Price Index, one row per (series_id, year).
+      Built on bronze.bronze_bls_cpi. Surfaces BLS's official annual-average
+      row (period='M13') when present, and a >=6-month monthly mean when not,
+      with from_official_annual flagging which lens applied. Default series is
+      CUUR0000SA0 (CPI-U NSA all items U.S. city average) — the inflation
+      deflator the frontend real-dollar toggle consumes uniformly across all
+      geographies.
+    columns:
+      - name: series_id
+        description: "BLS series identifier (e.g. CUUR0000SA0)."
+        tests:
+          - not_null
+      - name: year
+        description: "Calendar year."
+        tests:
+          - not_null
+      - name: index_value
+        description: "Annual-average CPI index value (NUMERIC)."
+        tests:
+          - not_null
+      - name: from_official_annual
+        description: >
+          TRUE when sourced from BLS's annual-average row (period='M13');
+          FALSE when computed from a >=6-month monthly fallback.
+        tests:
+          - not_null
