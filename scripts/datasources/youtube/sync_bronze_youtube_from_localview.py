@@ -2,6 +2,15 @@
 """
 Sync bronze.bronze_events_youtube from LocalView bronze + optional channel map.
 
+⚠️ DEPRECATION NOTICE:
+This in-place UPDATE has been superseded by the dbt model
+``int_youtube__events`` (dbt_project/models/intermediate/int_youtube__events.sql),
+which derives the same LocalView-enriched geography + channel_id as a SELECT on
+``stg_youtube__event`` instead of mutating the bronze landing table. Read enriched
+YouTube events from ``intermediate.int_youtube__events`` rather than re-running this
+script. Kept for now only as an operational fallback; remove once consumers point
+at the model.
+
 After ``bronze.bronze_events_localview`` is refreshed (e.g. ``load_localview_to_postgres.py``),
 run this to push matching geography and channel identifiers onto existing YouTube rows
 where ``y.video_id = lv.datasource_id`` (LocalView rows use ``datasource = 'localview'``).
