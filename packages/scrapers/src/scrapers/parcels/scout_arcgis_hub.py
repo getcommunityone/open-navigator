@@ -6,10 +6,10 @@ Paginates https://hub.arcgis.com/api/v3/datasets and keeps FeatureServer/MapServ
 layer URLs suitable for attribute-only extraction.
 
 Usage:
-    python scripts/datasources/parcels/scout_arcgis_hub.py --pages 5 \\
+    python packages/scrapers/src/scrapers/parcels/scout_arcgis_hub.py --pages 5 \\
         --output data/cache/parcels/hub_discovered_endpoints.csv
 
-    python scripts/datasources/parcels/scout_arcgis_hub.py --pages 2 --validate --validate-limit 20
+    python packages/scrapers/src/scrapers/parcels/scout_arcgis_hub.py --pages 2 --validate --validate-limit 20
 """
 from __future__ import annotations
 

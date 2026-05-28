@@ -3,8 +3,8 @@
 Rewrite ``data/cache/leagueofcities/*/cities.json`` — set junk ``website`` values to null.
 
 Usage (repo root):
-  .venv/bin/python scripts/datasources/leagueofcities/sanitize_league_cache_websites.py
-  .venv/bin/python scripts/datasources/leagueofcities/sanitize_league_cache_websites.py --states AL
+  .venv/bin/python packages/scrapers/src/scrapers/leagueofcities/sanitize_league_cache_websites.py
+  .venv/bin/python packages/scrapers/src/scrapers/leagueofcities/sanitize_league_cache_websites.py --states AL
 """
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ _ROOT = Path(__file__).resolve().parents[3]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from scripts.datasources.leagueofcities.league_website_sanitize import sanitize_league_website
+from scrapers.leagueofcities.league_website_sanitize import sanitize_league_website
 
 CACHE = _ROOT / "data" / "cache" / "leagueofcities"
 

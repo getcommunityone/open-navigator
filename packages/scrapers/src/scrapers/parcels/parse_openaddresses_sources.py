@@ -6,8 +6,8 @@ OpenAddresses maintains per-jurisdiction JSON under sources/us/. This script wal
 configs and emits a flat seed CSV for extract_parcel_attributes.py.
 
 Usage:
-    python scripts/datasources/parcels/parse_openaddresses_sources.py --clone
-    python scripts/datasources/parcels/parse_openaddresses_sources.py \\
+    python packages/scrapers/src/scrapers/parcels/parse_openaddresses_sources.py --clone
+    python packages/scrapers/src/scrapers/parcels/parse_openaddresses_sources.py \\
         --repo-path data/cache/openaddresses/openaddresses \\
         --layer-types parcels \\
         --validate \\

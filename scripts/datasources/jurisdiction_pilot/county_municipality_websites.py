@@ -14,7 +14,7 @@ from urllib.parse import urlparse, urljoin
 import requests
 from bs4 import BeautifulSoup
 
-from scripts.datasources.ballotpedia.ballotpedia_integration import BallotpediaDiscovery
+from scrapers.ballotpedia.ballotpedia_integration import BallotpediaDiscovery
 from scripts.datasources.jurisdiction_pilot.http_fetch import BROWSER_USER_AGENT
 
 logger = logging.getLogger(__name__)

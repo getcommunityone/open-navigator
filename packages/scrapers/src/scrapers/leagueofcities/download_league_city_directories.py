@@ -33,10 +33,10 @@ The process exits with code 1 if any state still fails after retries.
 
 Usage (repo root)::
 
-  python scripts/datasources/leagueofcities/download_league_city_directories.py --all
-  python scripts/datasources/leagueofcities/download_league_city_directories.py --states AL TX
-  python scripts/datasources/leagueofcities/download_league_city_directories.py --all --save-html
-  python scripts/datasources/leagueofcities/download_league_city_directories.py --all --max-attempts 4
+  python packages/scrapers/src/scrapers/leagueofcities/download_league_city_directories.py --all
+  python packages/scrapers/src/scrapers/leagueofcities/download_league_city_directories.py --states AL TX
+  python packages/scrapers/src/scrapers/leagueofcities/download_league_city_directories.py --all --save-html
+  python packages/scrapers/src/scrapers/leagueofcities/download_league_city_directories.py --all --max-attempts 4
 
 If a league site fails TLS (e.g. ``SSL: UNEXPECTED_EOF_WHILE_READING``), retry with
 ``--openssl-legacy-workaround`` or, only if you understand the risk (MITM / broken cert),
@@ -1076,7 +1076,7 @@ def extract_armunileague_member_directory(
     return []
 
 
-from scripts.datasources.leagueofcities.league_website_sanitize import (
+from scrapers.leagueofcities.league_website_sanitize import (
     fix_double_scheme_url,
     sanitize_league_website,
 )

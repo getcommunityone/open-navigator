@@ -8,9 +8,9 @@ Expects output from download_uscm_mayors.py
 (``data/cache/uscm/meet_the_mayors_us_*.json``).
 
 Usage:
-    python -m scripts.datasources.uscm.mayors_pipeline
-    python scripts/datasources/uscm/mayors_pipeline.py --truncate
-    python scripts/datasources/uscm/mayors_pipeline.py \\
+    python -m scrapers.uscm.download_uscm_mayors  (FETCH); python -m ingestion.uscm.mayors  (LAND)
+    python -m ingestion.uscm.mayors --truncate
+    python -m ingestion.uscm.mayors \\
         --file data/cache/uscm/meet_the_mayors_us_20260510.json
 
 Configuration:

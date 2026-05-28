@@ -5,7 +5,7 @@ Validate a parcel seed CSV (from OpenAddresses or Hub scouts) before full attrib
 Appends ok, queryable, capabilities, and error columns via ?f=json layer metadata checks.
 
 Usage:
-    python scripts/datasources/parcels/validate_parcel_seeds.py \\
+    python packages/scrapers/src/scrapers/parcels/validate_parcel_seeds.py \\
         --input data/cache/parcels/openaddresses_esri_seeds.csv \\
         --url-column esri_endpoint \\
         --output data/cache/parcels/openaddresses_esri_seeds_validated.csv

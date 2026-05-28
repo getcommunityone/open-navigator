@@ -7,11 +7,11 @@ address, legal description, etc.) are transferred. There is no nationwide free
 parcel layer; each jurisdiction publishes its own REST endpoint (see README).
 
 Usage:
-    python scripts/datasources/parcels/extract_parcel_attributes.py \\
+    python packages/scrapers/src/scrapers/parcels/extract_parcel_attributes.py \\
         --url "https://gis.example.gov/arcgis/rest/services/Parcels/FeatureServer/0/query" \\
         --output data/cache/parcels/example_county.csv
 
-    python scripts/datasources/parcels/extract_parcel_attributes.py \\
+    python packages/scrapers/src/scrapers/parcels/extract_parcel_attributes.py \\
         --url "https://gis.example.gov/.../FeatureServer/0" \\
         --normalize-fields \\
         --list-fields

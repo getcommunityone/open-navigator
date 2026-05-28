@@ -47,7 +47,7 @@ BRONZE_TABLE = "bronze.bronze_addresses"
 # ---------------------------------------------------------------------------
 # Canonical parcel-attribute names and county-specific Esri field aliases.
 #
-# Vendored verbatim from scripts/datasources/parcels/field_mappings.py so the
+# Vendored verbatim from packages/scrapers/src/scrapers/parcels/field_mappings.py so the
 # package is self-contained (no dependency on the scripts/ tree). Counties
 # rarely share column names; map localized Esri fields to a small standard
 # vocabulary before bronze load.

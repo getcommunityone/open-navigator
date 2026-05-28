@@ -18,11 +18,11 @@ After capture, the script:
 
 Usage
 -----
-    python scripts/datasources/powerbi_ballot_measures/download_powerbi_ballot_measures.py \
+    python packages/scrapers/src/scrapers/powerbi_ballot_measures/download_powerbi_ballot_measures.py \
         --expected-count 9670
 
     # Re-parse already-captured raw payloads without re-scraping:
-    python scripts/datasources/powerbi_ballot_measures/download_powerbi_ballot_measures.py \
+    python packages/scrapers/src/scrapers/powerbi_ballot_measures/download_powerbi_ballot_measures.py \
         --parse-only --expected-count 9670
 """
 from __future__ import annotations

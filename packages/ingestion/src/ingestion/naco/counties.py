@@ -23,10 +23,10 @@ intact / separable per the task scope).
 Legacy rename: migrations/015_rename_bronze_naco_jurisdictions.sql from bronze_naco_*.
 
 Usage:
-    python -m scripts.datasources.naco.counties_pipeline
-    python scripts/datasources/naco/counties_pipeline.py --states AL,GA
-    python scripts/datasources/naco/counties_pipeline.py --date 20260510
-    python scripts/datasources/naco/counties_pipeline.py --truncate
+    python -m scrapers.naco.scrape_counties  (FETCH); python -m ingestion.naco.counties  (LAND)
+    python -m ingestion.naco.counties --states AL,GA
+    python -m ingestion.naco.counties --date 20260510
+    python -m ingestion.naco.counties --truncate
 
 Configuration:
     NEON_DATABASE_URL_DEV / NEON_DATABASE_URL / DATABASE_URL via core_lib.db

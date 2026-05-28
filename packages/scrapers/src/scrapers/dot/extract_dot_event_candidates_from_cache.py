@@ -15,9 +15,9 @@ therefore often contains **no** embedded event rows. This script:
 
 Usage (repo root)::
 
-  .venv/bin/python scripts/datasources/dot/extract_dot_event_candidates_from_cache.py --states AL
-  .venv/bin/python scripts/datasources/dot/extract_dot_event_candidates_from_cache.py --states AL --fetch
-  .venv/bin/python scripts/datasources/dot/extract_dot_event_candidates_from_cache.py --all --fetch --max-fetch 10
+  .venv/bin/python packages/scrapers/src/scrapers/dot/extract_dot_event_candidates_from_cache.py --states AL
+  .venv/bin/python packages/scrapers/src/scrapers/dot/extract_dot_event_candidates_from_cache.py --states AL --fetch
+  .venv/bin/python packages/scrapers/src/scrapers/dot/extract_dot_event_candidates_from_cache.py --all --fetch --max-fetch 10
 """
 from __future__ import annotations
 
@@ -159,7 +159,7 @@ def process_state(
     }
 
     if out["portal_looks_like_404"]:
-        out["hint"] = "Seed URL returned a 404-style page — update scripts/datasources/dot/dot.txt and re-run download_state_dot_public_pages.py"
+        out["hint"] = "Seed URL returned a 404-style page — update packages/scrapers/src/scrapers/dot/dot.txt and re-run download_state_dot_public_pages.py"
 
     if not fetch or not out["discovered_event_links"]:
         return out

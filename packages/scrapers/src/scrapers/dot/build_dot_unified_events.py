@@ -17,8 +17,8 @@ Output
 
 Usage (repo root)::
 
-  .venv/bin/python scripts/datasources/dot/build_dot_unified_events.py --states WY AL
-  .venv/bin/python scripts/datasources/dot/build_dot_unified_events.py --all
+  .venv/bin/python packages/scrapers/src/scrapers/dot/build_dot_unified_events.py --states WY AL
+  .venv/bin/python packages/scrapers/src/scrapers/dot/build_dot_unified_events.py --all
 """
 from __future__ import annotations
 

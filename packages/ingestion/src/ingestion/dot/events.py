@@ -9,8 +9,8 @@ event into bronze.bronze_dot_public_events. Requires migration
 021_create_bronze_dot_public_events.sql to have been applied.
 
 Usage:
-    python -m scripts.datasources.dot.events_pipeline
-    python scripts/datasources/dot/events_pipeline.py \\
+    python -m scrapers.dot.build_dot_unified_events  (FETCH); python -m ingestion.dot.events  (LAND)
+    python -m ingestion.dot.events \\
         --jsonl data/cache/dot_public_involvement/unified_events.jsonl
 
 Configuration:

@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "communityone-scrapers"
+version = "0.1.0"
+description = "Web scrapers / crawlers that FETCH raw source data into data/cache for the communityone-ingestion pipelines to LAND into bronze. Kept separate from ingestion because crawling (httpx / BeautifulSoup / Playwright) does not fit the DataSourcePipeline cache->bronze contract and pulls heavier, optional dependencies."
+requires-python = ">=3.11"
+dependencies = [
+    "core-lib",
+    "httpx>=0.27",
+    "beautifulsoup4>=4.12",
+    "loguru>=0.7",
+]
+
+# Heavier / source-specific crawler stacks are opt-in so the base library stays
+# light. Install with e.g. `uv pip install -e 'packages/scrapers[browser]'`.
+[project.optional-dependencies]
+browser = ["playwright>=1.40", "playwright-stealth>=1.0"]
+spark = ["pyspark>=3.5", "delta-spark>=3.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.uv.sources]
+core-lib = { workspace = true }

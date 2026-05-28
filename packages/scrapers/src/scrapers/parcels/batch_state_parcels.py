@@ -3,9 +3,9 @@
 Extract and load parcel attributes for all counties in a state (OpenAddresses + manual overrides).
 
 Usage:
-    .venv/bin/python scripts/datasources/parcels/batch_state_parcels.py --state AL
-    .venv/bin/python scripts/datasources/parcels/batch_state_parcels.py --state AL --skip-extract
-    .venv/bin/python scripts/datasources/parcels/batch_state_parcels.py --state AL --counties Jefferson,Shelby
+    .venv/bin/python packages/scrapers/src/scrapers/parcels/batch_state_parcels.py --state AL
+    .venv/bin/python packages/scrapers/src/scrapers/parcels/batch_state_parcels.py --state AL --skip-extract
+    .venv/bin/python packages/scrapers/src/scrapers/parcels/batch_state_parcels.py --state AL --counties Jefferson,Shelby
 """
 from __future__ import annotations
 
@@ -31,7 +31,10 @@ if str(_SCRIPT_DIR) not in sys.path:
 
 from esri_endpoints import validate_esri_layer  # noqa: E402
 from extract_parcel_attributes import extract_parcel_attributes  # noqa: E402
-from load_parcel_addresses_to_bronze import load_csv_to_bronze  # noqa: E402
+# The inline CSV->bronze loader was ported out of this scraper into the LAND
+# pipeline `ingestion.arcgis.addresses` (reads data/cache/parcels). This batch
+# tool now covers FETCH/extract only; run it with --skip-load and land via
+# `python -m ingestion.arcgis.addresses`.
 
 from scripts.database.target_database_url import resolve_target_database_url  # noqa: E402
 
@@ -175,21 +178,12 @@ def run_batch(
                 rec["csv_rows"] = sum(1 for _ in open(csv_path, encoding="utf-8")) - 1
 
             if not skip_load and csv_path.is_file():
-                n = load_csv_to_bronze(
-                    csv_path,
-                    db_url=db_url,
-                    source_dataset=dataset,
-                    state_code=state_upper,
-                    county_fips=geoid,
-                    county_name=county,
-                    jurisdiction_id=f"county_{geoid}" if geoid else None,
-                    esri_endpoint=endpoint,
-                    truncate=True,
-                    dry_run=False,
-                    limit=None,
+                raise NotImplementedError(
+                    "Inline bronze loading was removed from this scraper when the "
+                    "loader was ported to ingestion.arcgis.addresses. Re-run with "
+                    "skip_load=True (FETCH/extract only), then LAND the extracted "
+                    "CSVs in data/cache/parcels/ via: python -m ingestion.arcgis.addresses"
                 )
-                rec["bronze_rows"] = n
-                rec["status"] = "ok"
             elif skip_load:
                 rec["status"] = "extract_only"
 

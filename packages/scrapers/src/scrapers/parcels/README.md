@@ -31,14 +31,14 @@ The [OpenAddresses](https://github.com/openaddresses/openaddresses) repo lists t
 
 ```bash
 # Sparse-clone sources/us only (~fast), parse parcel layers, validate first 30
-python scripts/datasources/parcels/parse_openaddresses_sources.py \
+python packages/scrapers/src/scrapers/parcels/parse_openaddresses_sources.py \
   --clone \
   --layer-types parcels \
   --validate --validate-limit 30 \
   --output data/cache/parcels/openaddresses_esri_seeds.csv
 
 # Re-run after you already have a checkout at data/cache/openaddresses/openaddresses
-python scripts/datasources/parcels/parse_openaddresses_sources.py \
+python packages/scrapers/src/scrapers/parcels/parse_openaddresses_sources.py \
   --repo-path data/cache/openaddresses/openaddresses
 ```
 
@@ -49,12 +49,12 @@ Output columns include `state`, `county`, `layer_type`, `esri_endpoint`, `source
 Discover layers not yet in OpenAddresses via [Hub datasets API](https://hub.arcgis.com/api/v3/datasets):
 
 ```bash
-python scripts/datasources/parcels/scout_arcgis_hub.py \
+python packages/scrapers/src/scrapers/parcels/scout_arcgis_hub.py \
   --pages 10 \
   --query parcels \
   --output data/cache/parcels/hub_discovered_endpoints.csv
 
-python scripts/datasources/parcels/scout_arcgis_hub.py \
+python packages/scrapers/src/scrapers/parcels/scout_arcgis_hub.py \
   --pages 3 --validate --validate-limit 25
 ```
 
@@ -65,7 +65,7 @@ Non-Esri Hub items (Experience pages, vector tile-only entries) are skipped auto
 Government endpoints go offline often. Validation hits the layer root with `?f=json` and requires `Query` in `capabilities`:
 
 ```bash
-python scripts/datasources/parcels/validate_parcel_seeds.py \
+python packages/scrapers/src/scrapers/parcels/validate_parcel_seeds.py \
   --input data/cache/parcels/openaddresses_esri_seeds.csv \
   --url-column esri_endpoint \
   --queryable-only \
@@ -75,11 +75,11 @@ python scripts/datasources/parcels/validate_parcel_seeds.py \
 ## Attribute extraction
 
 ```bash
-python scripts/datasources/parcels/extract_parcel_attributes.py \
+python packages/scrapers/src/scrapers/parcels/extract_parcel_attributes.py \
   --url "https://jccgis.jccal.org/server/rest/services/Basemap/Parcels/MapServer/0" \
   --output data/cache/parcels/jefferson_al_parcels.csv
 
-python scripts/datasources/parcels/extract_parcel_attributes.py \
+python packages/scrapers/src/scrapers/parcels/extract_parcel_attributes.py \
   --url "https://..." \
   --max-records 100 \
   --list-fields \
@@ -108,7 +108,7 @@ Migration: `scripts/deployment/neon/migrations/074_create_bronze_addresses.sql`
 ```bash
 ./scripts/deployment/neon/psql_resolved.sh -f scripts/deployment/neon/migrations/074_create_bronze_addresses.sql
 
-.venv/bin/python scripts/datasources/parcels/load_parcel_addresses_to_bronze.py \
+.venv/bin/python packages/scrapers/src/scrapers/parcels/load_parcel_addresses_to_bronze.py \
   --csv data/cache/parcels/al/tuscaloosa_county_attrs.csv \
   --state AL --county-fips 01125 --county-name Tuscaloosa \
   --dataset al_tuscaloosa_county_parcels \
@@ -123,7 +123,7 @@ Typed columns: `owner_name`, `situs_full`, `appraised_value`, `parcel_number_for
 Uses OpenAddresses `sources/us/al/*.json` parcel layers plus `seeds/al_manual_overrides.json` (Tuscaloosa).
 
 ```bash
-.venv/bin/python scripts/datasources/parcels/batch_state_parcels.py --state AL
+.venv/bin/python packages/scrapers/src/scrapers/parcels/batch_state_parcels.py --state AL
 ```
 
 Progress log: `data/cache/parcels/al/_batch_run.log` — manifest: `data/cache/parcels/al/_batch_manifest.json`.

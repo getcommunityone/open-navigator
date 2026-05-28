@@ -13,15 +13,15 @@ By default only **2025** and **2026** election years are scraped (``--years 2025
 
 Usage
 -----
-    python scripts/datasources/ballotpedia/download_ballotpedia_measures.py \\
+    python packages/scrapers/src/scrapers/ballotpedia/download_ballotpedia_measures.py \\
         --states AL,GA,IN,MA
 
-    python scripts/datasources/ballotpedia/download_ballotpedia_measures.py \\
+    python packages/scrapers/src/scrapers/ballotpedia/download_ballotpedia_measures.py \\
         --states AL --years 2025,2026 --include-jurisdictions --limit-per-state 10
 
     # Headed browser when headless keeps getting challenged:
     BALLOTPEDIA_PLAYWRIGHT_HEADLESS_MODE=headed \\
-        python scripts/datasources/ballotpedia/download_ballotpedia_measures.py --states AL
+        python packages/scrapers/src/scrapers/ballotpedia/download_ballotpedia_measures.py --states AL
 """
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ from loguru import logger
 _ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(_ROOT))
 
-from scripts.datasources.ballotpedia.ballotpedia_integration import BallotpediaDiscovery
+from scrapers.ballotpedia.ballotpedia_integration import BallotpediaDiscovery
 
 CACHE_DIR = _ROOT / "data" / "cache" / "ballotpedia"
 DEFAULT_STATES = ("AL", "GA", "IN", "MA", "WA", "WI")

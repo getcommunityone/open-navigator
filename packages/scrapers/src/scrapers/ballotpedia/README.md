@@ -14,10 +14,10 @@ Scripts for scraping Ballotpedia ballot measures and loading them into bronze.
 
 ```bash
 # Scrape (defaults: 6 priority states × 2025 + 2026)
-python scripts/datasources/ballotpedia/download_ballotpedia_measures.py
+python packages/scrapers/src/scrapers/ballotpedia/download_ballotpedia_measures.py
 
 # Load bronze (defaults: election years 2025, 2026 only)
-python scripts/datasources/ballotpedia/load_ballotpedia_measures_to_bronze.py --truncate
+python packages/scrapers/src/scrapers/ballotpedia/load_ballotpedia_measures_to_bronze.py --truncate
 
 # Apply DDL (Neon)
 ./scripts/deployment/neon/psql_resolved.sh -f scripts/deployment/neon/migrations/057_create_bronze_ballot_measures_ballotpedia.sql
@@ -37,7 +37,7 @@ If headless scrapes keep failing, try headed mode:
 
 ```bash
 BALLOTPEDIA_PLAYWRIGHT_HEADLESS_MODE=headed \
-  python scripts/datasources/ballotpedia/download_ballotpedia_measures.py --states AL
+  python packages/scrapers/src/scrapers/ballotpedia/download_ballotpedia_measures.py --states AL
 ```
 
 ## Troubleshooting `challenge_blocked` / HTTP 202
@@ -52,13 +52,13 @@ Ballotpedia returns **HTTP 202** to httpx, so the scraper uses **Playwright by d
 2. **Rate limiting** — wait 10–15 minutes between bulk runs, or increase delay between states:
    ```bash
    BALLOTPEDIA_STATE_DELAY=30 \
-     ./.venv/bin/python scripts/datasources/ballotpedia/download_ballotpedia_measures.py
+     ./.venv/bin/python packages/scrapers/src/scrapers/ballotpedia/download_ballotpedia_measures.py
    ```
 
 3. **WSL / headless blocks** — use headed mode with a display, or system Chrome:
    ```bash
    BALLOTPEDIA_PLAYWRIGHT_CHANNEL=chrome BALLOTPEDIA_PLAYWRIGHT_HEADLESS_MODE=headed \
-     ./.venv/bin/python scripts/datasources/ballotpedia/download_ballotpedia_measures.py --states AL
+     ./.venv/bin/python packages/scrapers/src/scrapers/ballotpedia/download_ballotpedia_measures.py --states AL
    ```
 
 4. **Inspect failures** — check `data/cache/ballotpedia/playwright_debug/*.html` and the matching `fetch_debug/*.json` (the `error` field now includes the Playwright exception when present).

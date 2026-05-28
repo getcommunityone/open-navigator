@@ -20,13 +20,13 @@ Fields collected:
 
 Usage:
     # Prefer project venv (has httpx, loguru from requirements.txt):
-    ./.venv/bin/python scripts/datasources/naco/scrape_naco_counties.py
-    python3 scripts/datasources/naco/scrape_naco_counties.py --states AL,GA,MA
-    python3 scripts/datasources/naco/scrape_naco_counties.py --force
-    python3 scripts/datasources/naco/scrape_naco_counties.py --limit 10
-    ./.venv/bin/python scripts/datasources/naco/scrape_naco_counties.py --skip-profiles   # registry only
-    ./.venv/bin/python scripts/datasources/naco/scrape_naco_counties.py --incremental     # only missing/stale profiles
-    ./.venv/bin/python scripts/datasources/naco/scrape_naco_counties.py --incremental --profile-max-age-days 30
+    ./.venv/bin/python -m scrapers.naco.scrape_counties
+    python3 -m scrapers.naco.scrape_counties --states AL,GA,MA
+    python3 -m scrapers.naco.scrape_counties --force
+    python3 -m scrapers.naco.scrape_counties --limit 10
+    ./.venv/bin/python -m scrapers.naco.scrape_counties --skip-profiles   # registry only
+    ./.venv/bin/python -m scrapers.naco.scrape_counties --incremental     # only missing/stale profiles
+    ./.venv/bin/python -m scrapers.naco.scrape_counties --incremental --profile-max-age-days 30
 """
 import os
 import sys
@@ -75,7 +75,7 @@ except ImportError:
         "Install dependencies, then retry:",
         f"  cd {_ROOT}",
         "  ./.venv/bin/pip install -r requirements.txt",
-        "  ./.venv/bin/python scripts/datasources/naco/scrape_naco_counties.py   # add your flags, e.g. --states AL,GA,MA",
+        "  ./.venv/bin/python -m scrapers.naco.scrape_counties   # add your flags, e.g. --states AL,GA,MA",
     ]
     print("\n".join(hints), file=sys.stderr)
     sys.exit(1)

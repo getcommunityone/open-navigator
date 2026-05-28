@@ -10,9 +10,9 @@ Results are HTML blocks per mayor under ``<ul>`` with photo URLs on ``secure.usm
 Caches JSON under ``data/cache/uscm/``. Load with ``load_uscm_mayors_to_bronze.py``.
 
 Usage:
-    ./.venv/bin/python scripts/datasources/uscm/download_uscm_mayors.py
-    ./.venv/bin/python scripts/datasources/uscm/download_uscm_mayors.py --states MA,TX
-    ./.venv/bin/python scripts/datasources/uscm/download_uscm_mayors.py --delay 2.0
+    ./.venv/bin/python packages/scrapers/src/scrapers/uscm/download_uscm_mayors.py
+    ./.venv/bin/python packages/scrapers/src/scrapers/uscm/download_uscm_mayors.py --states MA,TX
+    ./.venv/bin/python packages/scrapers/src/scrapers/uscm/download_uscm_mayors.py --delay 2.0
 """
 from __future__ import annotations
 
@@ -64,7 +64,7 @@ except ImportError:
 
 sys.path.insert(0, str(_ROOT))
 
-from scripts.datasources.uscm.state_names import ALL_STATE_CODES, STATE_FULL_NAME
+from scrapers.uscm.state_names import ALL_STATE_CODES, STATE_FULL_NAME
 
 MEET_THE_MAYORS_URL = "https://www.usmayors.org/mayors/meet-the-mayors/"
 CACHE_DIR = Path("data/cache/uscm")

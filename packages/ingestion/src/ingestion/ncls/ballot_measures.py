@@ -25,9 +25,9 @@ the post-load count against ``--expected-count`` (default 9670 — the headline
 KPI on the source dashboard).
 
 Usage:
-    python -m scripts.datasources.powerbi_ballot_measures.ballot_measures_pipeline
-    python scripts/datasources/powerbi_ballot_measures/ballot_measures_pipeline.py --truncate
-    python scripts/datasources/powerbi_ballot_measures/ballot_measures_pipeline.py \\
+    python -m scrapers.powerbi_ballot_measures.download_powerbi_ballot_measures  (FETCH); python -m ingestion.ncls.ballot_measures  (LAND)
+    python -m ingestion.ncls.ballot_measures --truncate
+    python -m ingestion.ncls.ballot_measures \\
         --file data/cache/ncls/ballot_measures_20260524T200000Z.csv \\
         --expected-count 9670
 

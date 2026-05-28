@@ -17,9 +17,9 @@ CLI/flags. The target table ``bronze.bronze_ballot_measures_ballotpedia`` is
 append-only (BIGSERIAL PK); each run gets a fresh ``scrape_batch_id``.
 
 Usage:
-    python -m scripts.datasources.ballotpedia.measures_pipeline
-    python scripts/datasources/ballotpedia/measures_pipeline.py --truncate
-    python scripts/datasources/ballotpedia/measures_pipeline.py \\
+    python -m scrapers.ballotpedia.download_ballotpedia_measures  (FETCH); python -m ingestion.ballotpedia.measures  (LAND)
+    python -m ingestion.ballotpedia.measures --truncate
+    python -m ingestion.ballotpedia.measures \\
         --cache-dir data/cache/ballotpedia --limit 10
 
 Configuration:
