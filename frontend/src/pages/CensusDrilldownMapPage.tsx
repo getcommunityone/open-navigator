@@ -148,8 +148,14 @@ export default function CensusDrilldownMapPage() {
     rank: { rank: number; total: number } | null
     lngLat: { lng: number; lat: number } | null
   } | null>(null)
+  const [pinnedZcta, setPinnedZcta] = useState<{
+    zcta: string
+    value: number | null
+    rank: { rank: number; total: number } | null
+    lngLat: { lng: number; lat: number } | null
+  } | null>(null)
   const [hoverInfo, setHoverInfo] = useState<{
-    kind: 'state' | 'county'
+    kind: 'state' | 'county' | 'zip'
     id: string
     name: string
     value: number | null
@@ -255,6 +261,45 @@ export default function CensusDrilldownMapPage() {
   }, [manifest])
   const displayVintage = vintageParam || manifest?.vintage || vintages[vintages.length - 1] || '2024'
   const yearHelp = `${CENSUS_MAP_UI_HELP.year}\n\n${metricFullHelp}`
+
+  /**
+   * Per-state ZCTA topology — lazy-loaded only after the user clicks
+   * "Drill down to ZIP". Output of scripts/frontend/prep_zcta_tiles.sh.
+   * Returns null on 404 so the layer renders nothing if a state hasn't been
+   * prepped yet (rather than blocking the page).
+   */
+  const { data: zctaTopo } = useQuery({
+    queryKey: ['zcta-topo', selectedStateFips],
+    queryFn: async () => {
+      if (!selectedStateFips) return null
+      const r = await fetch(`/data/zctas/state-${selectedStateFips}.json`)
+      if (r.status === 404) return null
+      if (!r.ok) throw new Error('zcta topo')
+      return r.json()
+    },
+    enabled: !!selectedStateFips && view === 'zip',
+    staleTime: 1000 * 60 * 60,
+    retry: false,
+  })
+
+  /**
+   * Per-ZCTA metric values for the current vintage. Optional file — when not
+   * present the layer falls back to a neutral fill while the user can still
+   * navigate. Produced by a future scripts/datasources/census/
+   * export_zcta_metrics.py (not yet implemented).
+   */
+  const { data: zctaMetricsPayload } = useQuery({
+    queryKey: ['zcta-metrics', selectedStateFips, displayVintage],
+    queryFn: async (): Promise<{ values: Record<string, Record<string, number | null>> } | null> => {
+      if (!selectedStateFips) return null
+      const r = await fetch(`/data/census-map/${displayVintage}/zcta_metrics_${selectedStateFips}.json`)
+      if (r.status === 404) return null
+      if (!r.ok) throw new Error('zcta metrics')
+      return r.json()
+    },
+    enabled: !!selectedStateFips && view === 'zip',
+    retry: false,
+  })
 
   const selectableMetrics = useMemo(
     () => metrics.filter((m) => !CENSUS_EXPLORER_HIDDEN_METRIC_SLUGS.has(m.slug)),
@@ -380,6 +425,49 @@ export default function CensusDrilldownMapPage() {
     return { min: 0, max: 1 }
   }, [countyDisplayByGeoid])
 
+  // ── ZCTA display values, extents, ranks (mirrors county pattern) ──────────
+  const zctaDisplayByZcta = useMemo(() => {
+    const out: Record<string, number | null> = {}
+    const rows = zctaMetricsPayload?.values
+    if (!rows || !metricSlug) return out
+    for (const [zcta, row] of Object.entries(rows)) {
+      const raw = typeof row[metricSlug] === 'number' && Number.isFinite(row[metricSlug]) ? row[metricSlug] : null
+      // For now treat valueMode === 'raw' only — yoy/vs_natl need prior-vintage
+      // ZCTA data which isn't ingested yet. Falls back to raw cleanly.
+      out[zcta] = raw
+    }
+    return out
+  }, [zctaMetricsPayload, metricSlug])
+
+  const zctaChoroExtent = useMemo(() => {
+    const vals = Object.values(zctaDisplayByZcta).filter(
+      (x): x is number => typeof x === 'number' && Number.isFinite(x),
+    )
+    if (!vals.length) return { min: 0, max: 1 }
+    return quantileExtent(vals)
+  }, [zctaDisplayByZcta])
+
+  const zctaBubbleExtent = useMemo(() => {
+    const vals = Object.values(zctaDisplayByZcta).filter(
+      (x): x is number => typeof x === 'number' && Number.isFinite(x),
+    )
+    if (vals.length >= 2) return minMaxExtent(vals)
+    return { min: 0, max: 1 }
+  }, [zctaDisplayByZcta])
+
+  const zctaRankByZcta = useMemo(() => {
+    const direction = censusMetricRankDirection(metricSlug)
+    const entries: [string, number][] = Object.entries(zctaDisplayByZcta)
+      .filter((entry): entry is [string, number] => typeof entry[1] === 'number' && Number.isFinite(entry[1]))
+    entries.sort((a, b) => (direction === 'lower' ? a[1] - b[1] : b[1] - a[1]))
+    const total = entries.length
+    const out: Record<string, { rank: number; total: number } | null> = {}
+    entries.forEach(([zid], i) => {
+      out[zid] = { rank: i + 1, total }
+    })
+    return out
+  }, [zctaDisplayByZcta, metricSlug])
+
   // ── flyout / left rail state ──────────────────────────────────────────────
   const [advancedMapOptionsOpen, setAdvancedMapOptionsOpen] = useState(false)
   const [advancedFocusSection, setAdvancedFocusSection] = useState<CensusMapRailSection | null>(null)
@@ -433,6 +521,24 @@ export default function CensusDrilldownMapPage() {
     [],
   )
 
+  const onPickZcta = useCallback(
+    (info: {
+      zcta: string
+      value: number | null
+      rank: { rank: number; total: number } | null
+      lngLat: { lng: number; lat: number } | null
+      feature: GeoJSON.Feature
+    }) => {
+      setPinnedZcta({
+        zcta: info.zcta,
+        value: info.value,
+        rank: info.rank,
+        lngLat: info.lngLat,
+      })
+    },
+    [],
+  )
+
   const drillPinnedCountyToStreet = useCallback(() => {
     if (!pinnedCounty?.lngLat) return
     // CTA label says "street view" — match it: open with the streets basemap selected.
@@ -451,17 +557,27 @@ export default function CensusDrilldownMapPage() {
     setSelectedCountyGeoid(null)
     setLocalPin(null)
     setPinnedCounty(null)
+    setPinnedZcta(null)
     setView('nation')
   }, [])
   const goState = useCallback(() => {
     setSelectedCountyGeoid(null)
     setLocalPin(null)
     setPinnedCounty(null)
+    setPinnedZcta(null)
     setView('state')
   }, [])
   const goCounty = useCallback(() => {
     setLocalPin(null)
     setView('county')
+  }, [])
+  const goZip = useCallback(() => {
+    // Drill from a pinned county into ZIP view. Keep the pinned county as the
+    // initial camera anchor (the Stage frames the county bbox until a ZCTA is
+    // clicked).
+    setLocalPin(null)
+    setPinnedZcta(null)
+    setView('zip')
   }, [])
 
   const onPickAddress = useCallback(
@@ -767,23 +883,31 @@ export default function CensusDrilldownMapPage() {
                 view={view as DrilldownView}
                 statesTopo={statesTopo as never}
                 countiesTopo={countiesTopo as never}
+                zctaTopo={zctaTopo as never}
                 selectedStateFips={selectedStateFips}
                 selectedCountyGeoid={selectedCountyGeoid}
+                selectedZcta={pinnedZcta?.zcta ?? null}
                 stateDisplayById={stateDisplayById}
                 countyDisplayByGeoid={countyDisplayByGeoid}
+                zctaDisplayByZcta={zctaDisplayByZcta}
                 stateChoroExtent={stateChoroExtent}
                 countyChoroExtent={countyChoroExtent}
+                zctaChoroExtent={zctaChoroExtent}
                 stateBubbleExtent={stateBubbleExtent}
                 countyBubbleExtent={countyBubbleExtent}
+                zctaBubbleExtent={zctaBubbleExtent}
                 scale={scale}
                 viz={viz}
                 onPickState={onPickState}
                 onPickCounty={onPickCounty}
+                onPickZcta={onPickZcta}
                 onResetToNation={goNation}
                 pinnedLngLat={pinnedAddress ? { lng: pinnedAddress.lng, lat: pinnedAddress.lat } : null}
                 pinnedCountyGeoid={pinnedCounty?.geoid ?? null}
+                pinnedZcta={pinnedZcta?.zcta ?? null}
                 stateRankById={stateRankById}
                 countyRankByGeoid={countyRankByGeoid}
+                zctaRankByZcta={zctaRankByZcta}
                 onHoverInfo={setHoverInfo}
               />
             )}
@@ -797,11 +921,15 @@ export default function CensusDrilldownMapPage() {
             <span className="min-w-0 flex-1 truncate text-slate-100">
               {view === 'local'
                 ? localStatus
-                : view === 'county'
-                  ? `${countyName ?? selectedCountyGeoid} · click any county or address to go deeper`
-                  : view === 'state'
-                    ? `${stateName} · click any county`
-                    : `${Object.keys(stateDisplayById).length} states · click any to drill in`}
+                : view === 'zip'
+                  ? zctaTopo
+                    ? `${stateName} · ${Object.keys(zctaDisplayByZcta).length || 'ZCTA'} polygons · click a ZIP to pin`
+                    : `${stateName} · ZIP tiles not generated for this state yet — run scripts/frontend/prep_zcta_tiles.sh`
+                  : view === 'county'
+                    ? `${countyName ?? selectedCountyGeoid} · click any county or address to go deeper`
+                    : view === 'state'
+                      ? `${stateName} · click any county`
+                      : `${Object.keys(stateDisplayById).length} states · click any to drill in`}
             </span>
             {view !== 'nation' ? (
               <button
@@ -819,8 +947,8 @@ export default function CensusDrilldownMapPage() {
           {view !== 'local' ? (
             viz === 'filled' ? (
               <ChoroplethLegend
-                min={view === 'nation' ? stateChoroExtent.min : countyChoroExtent.min}
-                max={view === 'nation' ? stateChoroExtent.max : countyChoroExtent.max}
+                min={view === 'zip' ? zctaChoroExtent.min : view === 'nation' ? stateChoroExtent.min : countyChoroExtent.min}
+                max={view === 'zip' ? zctaChoroExtent.max : view === 'nation' ? stateChoroExtent.max : countyChoroExtent.max}
                 scale={scale}
                 format={fmt}
                 valueMode={valueMode}
@@ -829,8 +957,8 @@ export default function CensusDrilldownMapPage() {
               />
             ) : (
               <BubbleLegend
-                min={view === 'nation' ? stateBubbleExtent.min : countyBubbleExtent.min}
-                max={view === 'nation' ? stateBubbleExtent.max : countyBubbleExtent.max}
+                min={view === 'zip' ? zctaBubbleExtent.min : view === 'nation' ? stateBubbleExtent.min : countyBubbleExtent.min}
+                max={view === 'zip' ? zctaBubbleExtent.max : view === 'nation' ? stateBubbleExtent.max : countyBubbleExtent.max}
                 scale={scale}
                 format={fmt}
                 metricHelp={metricFullHelp}
@@ -931,14 +1059,11 @@ export default function CensusDrilldownMapPage() {
                       </button>
                       <button
                         type="button"
-                        disabled
-                        title="ZIP tier needs ZCTA polygons + per-ZIP metric pivot — not yet ingested."
-                        className="inline-flex cursor-not-allowed items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500"
+                        onClick={goZip}
+                        title="Show ZCTA (ZIP) boundaries within this county. Requires running scripts/frontend/prep_zcta_tiles.sh to generate per-state ZCTA topology."
+                        className="inline-flex items-center justify-center gap-1.5 rounded-md bg-[#354F52] px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white shadow-sm hover:bg-[#2c4346]"
                       >
                         Drill down to ZIP
-                        <span className="ml-2 rounded bg-slate-200 px-1 py-px text-[9px] font-medium normal-case tracking-normal text-slate-600">
-                          Soon
-                        </span>
                       </button>
                       <button
                         type="button"

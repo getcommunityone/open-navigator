@@ -21,7 +21,7 @@ const ALBERS = geoAlbersUsa().scale(1300).translate([W / 2, H / 2])
 const path = geoPath() // for pre-projected topojson
 const projectedPath = geoPath().projection(ALBERS) // for raw lng/lat geometries
 
-export type DrilldownView = 'nation' | 'state' | 'county'
+export type DrilldownView = 'nation' | 'state' | 'county' | 'zip'
 
 interface Topo {
   type: 'Topology'
@@ -32,18 +32,26 @@ interface StageProps {
   view: DrilldownView
   statesTopo: Topo | null
   countiesTopo: Topo | null
+  /** Per-state ZCTA topology, loaded lazily when the user drills to ZIP. */
+  zctaTopo?: Topo | null
   selectedStateFips: string | null
   selectedCountyGeoid: string | null
+  /** Selected 5-digit ZCTA (when view === 'zip' and one is pinned). */
+  selectedZcta?: string | null
   /** Display value (raw / yoy / vs_natl) keyed by 2-digit state FIPS. */
   stateDisplayById: Record<string, number | null>
   /** Display value keyed by 5-digit county GEOID. */
   countyDisplayByGeoid: Record<string, number | null>
+  /** Display value keyed by 5-digit ZCTA. Empty when metrics not yet ingested — layer falls back to neutral fill. */
+  zctaDisplayByZcta?: Record<string, number | null>
   /** Extents for the choropleth ramp (already percentile-clipped). */
   stateChoroExtent: { min: number; max: number }
   countyChoroExtent: { min: number; max: number }
+  zctaChoroExtent?: { min: number; max: number }
   /** Extents for the bubble size scale. */
   stateBubbleExtent: { min: number; max: number }
   countyBubbleExtent: { min: number; max: number }
+  zctaBubbleExtent?: { min: number; max: number }
   scale: CensusScaleId
   viz: 'filled' | 'bubble'
   onPickState: (fips: string) => void
@@ -60,21 +68,33 @@ interface StageProps {
     lngLat: { lng: number; lat: number } | null
     feature: GeoJSON.Feature
   }) => void
+  /** ZIP click — same click-lock pattern as county. */
+  onPickZcta?: (info: {
+    zcta: string
+    value: number | null
+    rank: { rank: number; total: number } | null
+    lngLat: { lng: number; lat: number } | null
+    feature: GeoJSON.Feature
+  }) => void
   /** Click on empty SVG background — reset to nation. */
   onResetToNation: () => void
   /** Optional pinned address (lng/lat). Renders an SVG circle. */
   pinnedLngLat?: { lng: number; lat: number } | null
   /** Highlight the pinned county polygon (when the click-locked card is open). */
   pinnedCountyGeoid?: string | null
+  /** Highlight the pinned ZCTA polygon. */
+  pinnedZcta?: string | null
   /** Optional state rank by FIPS — passed through to onHoverInfo for the aside card. */
   stateRankById?: Record<string, { rank: number; total: number } | null>
   /** Optional county rank by GEOID — passed through to onHoverInfo for the aside card. */
   countyRankByGeoid?: Record<string, { rank: number; total: number } | null>
+  /** Optional ZCTA rank by ZCTA5. */
+  zctaRankByZcta?: Record<string, { rank: number; total: number } | null>
   /** Called when the cursor enters/leaves a polygon. The parent renders the
    * hover readout in its own panel (no floating tooltip — keeps the map clean). */
   onHoverInfo?: (
     info: {
-      kind: 'state' | 'county'
+      kind: 'state' | 'county' | 'zip'
       id: string
       name: string
       value: number | null
@@ -97,23 +117,31 @@ export default function CensusDrilldownStage({
   view,
   statesTopo,
   countiesTopo,
+  zctaTopo = null,
   selectedStateFips,
   selectedCountyGeoid,
+  selectedZcta = null,
   stateDisplayById,
   countyDisplayByGeoid,
+  zctaDisplayByZcta = {},
   stateChoroExtent,
   countyChoroExtent,
+  zctaChoroExtent = { min: 0, max: 1 },
   stateBubbleExtent,
   countyBubbleExtent,
+  zctaBubbleExtent = { min: 0, max: 1 },
   scale,
   viz,
   onPickState,
   onPickCounty,
+  onPickZcta,
   onResetToNation,
   pinnedLngLat = null,
   pinnedCountyGeoid = null,
+  pinnedZcta = null,
   stateRankById,
   countyRankByGeoid,
+  zctaRankByZcta,
   onHoverInfo,
 }: StageProps) {
   const svgRef = useRef<SVGSVGElement | null>(null)
@@ -161,6 +189,21 @@ export default function CensusDrilldownStage({
     }
   }, [countiesTopo, selectedStateFips])
 
+  /**
+   * ZCTAs from the lazy-loaded per-state topology. Output of
+   * scripts/frontend/prep_zcta_tiles.sh writes `objects.zctas` with id=GEOID20.
+   */
+  const zctasInState = useMemo(() => {
+    if (!zctaTopo) return null
+    try {
+      const obj = (zctaTopo.objects as Record<string, unknown>).zctas
+      if (!obj) return null
+      return feature(zctaTopo as never, obj as never).features as GeoJSON.Feature[]
+    } catch {
+      return null
+    }
+  }, [zctaTopo])
+
   /** Install d3-zoom on mount. */
   useEffect(() => {
     const svgEl = svgRef.current
@@ -193,6 +236,16 @@ export default function CensusDrilldownStage({
     } else if (view === 'county' && selectedCountyGeoid && countiesInState) {
       targetFeature =
         countiesInState.find((f) => geoid5(f.id as string | number) === selectedCountyGeoid) ?? null
+    } else if (view === 'zip') {
+      // ZIP view: stay framed on the selected ZCTA if one is pinned, else fall
+      // back to the county the user drilled from (keeps the camera anchored).
+      if (selectedZcta && zctasInState) {
+        targetFeature = zctasInState.find((f) => String(f.id) === selectedZcta) ?? null
+      }
+      if (!targetFeature && selectedCountyGeoid && countiesInState) {
+        targetFeature =
+          countiesInState.find((f) => geoid5(f.id as string | number) === selectedCountyGeoid) ?? null
+      }
     }
     if (!targetFeature) {
       // Nation reset.
@@ -205,7 +258,7 @@ export default function CensusDrilldownStage({
     const ty = H / 2 - k * ((y0 + y1) / 2)
     const next = zoomIdentity.translate(tx, ty).scale(k) as ZoomTransform
     select(svgEl).transition().duration(900).call(z.transform as never, next)
-  }, [view, selectedStateFips, selectedCountyGeoid, states, countiesInState])
+  }, [view, selectedStateFips, selectedCountyGeoid, selectedZcta, states, countiesInState, zctasInState])
 
   // --- fill / bubble helpers (depend on viz + scale + extents) ---
   const stateFill = (sid: string): string => {
@@ -218,6 +271,15 @@ export default function CensusDrilldownStage({
     if (viz === 'bubble') return 'rgba(248,250,252,0.94)'
     const v = countyDisplayByGeoid[gid]
     const t = metricToDisplayT(v, countyChoroExtent.min, countyChoroExtent.max, scale)
+    return colorFromT(t)
+  }
+  const zctaFill = (z: string): string => {
+    if (viz === 'bubble') return 'rgba(248,250,252,0.94)'
+    const v = zctaDisplayByZcta[z]
+    // Neutral fill when per-ZCTA metric data hasn't been ingested yet — the
+    // outline drilldown still works without it.
+    if (v == null) return 'rgba(248,250,252,0.40)'
+    const t = metricToDisplayT(v, zctaChoroExtent.min, zctaChoroExtent.max, scale)
     return colorFromT(t)
   }
 
@@ -364,15 +426,75 @@ export default function CensusDrilldownStage({
           </g>
         ) : null}
 
+        {/* ZIP layer — only when view === 'zip' and the per-state ZCTA topology
+            has been lazy-loaded by the page. Renders under the hover overlay so
+            its strokes don't shadow neighbor edges. */}
+        {view === 'zip' && zctasInState ? (
+          <g className="zctas-layer">
+            {zctasInState.map((f) => {
+              const zid = String(f.id ?? (f.properties as { GEOID20?: string; ZCTA5CE20?: string })?.GEOID20 ?? '')
+              if (!zid) return null
+              const isPinned = zid === pinnedZcta
+              const d = path(f as never) ?? ''
+              const rank = zctaRankByZcta?.[zid] ?? null
+              const value = zctaDisplayByZcta[zid] ?? null
+              return (
+                <path
+                  key={zid}
+                  d={d}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    if (!onPickZcta) return
+                    let lngLat: { lng: number; lat: number } | null = null
+                    try {
+                      const c = path.centroid(f as never)
+                      if (c && Number.isFinite(c[0]) && Number.isFinite(c[1])) {
+                        const inv = ALBERS.invert?.([c[0], c[1]])
+                        if (inv && Number.isFinite(inv[0]) && Number.isFinite(inv[1])) {
+                          lngLat = { lng: inv[0], lat: inv[1] }
+                        }
+                      }
+                    } catch {
+                      // fall through: caller handles null
+                    }
+                    onPickZcta({ zcta: zid, value, rank, lngLat, feature: f })
+                  }}
+                  onMouseEnter={() => {
+                    setHoveredId(zid)
+                    onHoverInfo?.({ kind: 'zip', id: zid, name: zid, value, rank })
+                  }}
+                  onMouseLeave={() => {
+                    setHoveredId((prev) => (prev === zid ? null : prev))
+                    onHoverInfo?.(null)
+                  }}
+                  style={(() => {
+                    const isHovered = hoveredId === zid
+                    return {
+                      fill: zctaFill(zid),
+                      stroke: isPinned ? '#b45309' : isHovered ? '#0f172a' : '#94a3b8',
+                      strokeWidth: isPinned ? 1.2 : isHovered ? 1.4 : 0.3,
+                      cursor: 'pointer',
+                      vectorEffect: 'non-scaling-stroke',
+                      transition: CENSUS_CHORO_FILL_TRANSITION,
+                    }
+                  })()}
+                />
+              )
+            })}
+          </g>
+        ) : null}
+
         {/* hover overlay — re-render the cursor's polygon as a top stroke so
             neighbor polygons can't paint over its shared edges. Fill stays
             transparent (the base layer already has the choropleth color). */}
         {hoveredId
           ? (() => {
               const target =
-                (view === 'state' || view === 'county') && countiesInState
-                  ? countiesInState.find((f) => geoid5(f.id as string | number) === hoveredId)
-                  : states?.find((f) => fips2(f.id as string | number) === hoveredId)
+                view === 'zip' && zctasInState
+                  ? zctasInState.find((f) => String(f.id) === hoveredId)
+                  : (view === 'state' || view === 'county') && countiesInState
+                    ? countiesInState.find((f) => geoid5(f.id as string | number) === hoveredId)
+                    : states?.find((f) => fips2(f.id as string | number) === hoveredId)
               if (!target) return null
               const d = path(target as never) ?? ''
               return (
