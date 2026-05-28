@@ -26,6 +26,7 @@
     "date-fns": "^2.30.0",
     "framer-motion": "^11.18.2",
     "leaflet": "^1.9.4",
+    "openapi-fetch": "^0.17.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-leaflet": "^4.2.1",
