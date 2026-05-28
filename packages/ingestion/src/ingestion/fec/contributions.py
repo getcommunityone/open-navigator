@@ -12,10 +12,10 @@ Loads into bronze.bronze_campaigns_contributions via the framework-managed
 async session.
 
 Usage:
-    python -m scripts.datasources.fec.contributions_pipeline
-    python scripts/datasources/fec/contributions_pipeline.py
-    python scripts/datasources/fec/contributions_pipeline.py --truncate
-    python scripts/datasources/fec/contributions_pipeline.py \\
+    python -m ingestion.fec.contributions
+    python -m ingestion.fec.contributions
+    python -m ingestion.fec.contributions --truncate
+    python -m ingestion.fec.contributions \\
         --input-dir data/cache/fec_data/bulk-downloads/contributions-by-individuals/2026/by_date \\
         --limit-files 2 --limit-rows 1000
 

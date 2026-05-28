@@ -82,6 +82,9 @@ export default function Layout() {
   const isDataExplorerSection =
     location.pathname === '/data-explorer' || location.pathname.startsWith('/data-explorer/')
   const useExploreQuickNavSidebar = isExplorePage || isDataExplorerSection
+  // Data explorer needs the full width for its map/scorecard layout, so the
+  // app-wide sidebar is collapsed on desktop here (still reachable on mobile).
+  const hideSidebarOnDesktop = isDataExplorerSection
   const navigate = useNavigate()
   const [searchQuery, setSearchQuery] = useState('')
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -421,7 +424,7 @@ export default function Layout() {
         fixed top-16 inset-y-0 left-0 border-r border-gray-200 z-40
         transform transition-transform duration-200 ease-in-out
         ${useExploreQuickNavSidebar ? 'w-72 bg-slate-300' : 'w-64 bg-white'}
-        ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+        ${mobileMenuOpen ? 'translate-x-0' : hideSidebarOnDesktop ? '-translate-x-full' : '-translate-x-full md:translate-x-0'}
       `}
       >
         {useExploreQuickNavSidebar ? (
@@ -559,7 +562,7 @@ export default function Layout() {
 
       {/* Main content */}
       <div
-        className={`flex w-full min-w-0 min-h-[calc(100dvh-5rem)] flex-col bg-slate-300 pt-16 ${useExploreQuickNavSidebar ? 'md:pl-72' : 'md:pl-64'}`}
+        className={`flex w-full min-w-0 min-h-[calc(100dvh-5rem)] flex-col bg-slate-300 pt-16 ${hideSidebarOnDesktop ? 'md:pl-0' : useExploreQuickNavSidebar ? 'md:pl-72' : 'md:pl-64'}`}
       >
         {/* Auth Error Banner - Mobile Friendly */}
         {authError && (
