@@ -7,6 +7,10 @@ dist/
 # Build output
 api/static/
 
+# OpenAPI schema dump (intermediate; api.types.ts IS committed)
+# CI regenerates and diffs api.types.ts to gate backend/frontend drift.
+openapi.json
+
 # Environment
 .env
 .env.local

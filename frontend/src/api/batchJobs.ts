@@ -1,4 +1,4 @@
-import api from '../lib/api'
+import { apiTyped } from '../lib/apiClient'
 
 export type BatchJobsTotals = {
   batches: number
@@ -100,16 +100,19 @@ export async function fetchBatchJobsDashboard(
   refreshFiles = false,
   detail: BatchJobsDetailLevel = 'summary',
 ): Promise<BatchJobsDashboardPayload> {
-  const res = await api.get<BatchJobsDashboardPayload>('/batch-jobs', {
+  const { data, error } = await apiTyped.GET('/api/batch-jobs/', {
     params: {
-      refresh_files: refreshFiles,
-      enrich_bronze: false,
-      detail,
-      batch_limit: 25,
+      query: {
+        refresh_files: refreshFiles,
+        enrich_bronze: false,
+        detail,
+        batch_limit: 25,
+      },
     },
     signal: AbortSignal.timeout(30_000),
   })
-  return res.data
+  if (error) throw error
+  return data as BatchJobsDashboardPayload
 }
 
 export type FailedVideosListPayload = {
@@ -129,35 +132,40 @@ export async function fetchFailedVideos(
   batchId?: string,
   limit = 500,
 ): Promise<FailedVideosListPayload> {
-  const res = await api.get<FailedVideosListPayload>('/batch-jobs/failed-videos', {
+  const { data, error } = await apiTyped.GET('/api/batch-jobs/failed-videos', {
     params: {
-      ...(batchId ? { batch_id: batchId } : {}),
-      limit,
+      query: { ...(batchId ? { batch_id: batchId } : {}), limit },
     },
     signal: AbortSignal.timeout(60_000),
   })
-  return res.data
+  if (error) throw error
+  return data as FailedVideosListPayload
 }
 
 export async function fetchBatchJurisdictions(
   batchId: string,
   stateCode: string,
 ): Promise<BatchJurisdictionRun[]> {
-  const res = await api.get<{ jurisdictions: BatchJurisdictionRun[] }>(
-    `/batch-jobs/${encodeURIComponent(batchId)}/jurisdictions`,
-    { params: { state: stateCode.toUpperCase() } },
+  const { data, error } = await apiTyped.GET(
+    '/api/batch-jobs/{batch_id}/jurisdictions',
+    { params: { path: { batch_id: batchId }, query: { state: stateCode.toUpperCase() } } },
   )
-  return res.data.jurisdictions ?? []
+  if (error) throw error
+  return (data.jurisdictions ?? []) as BatchJurisdictionRun[]
 }
 
 export async function fetchBatchJobDetail(
   batchId: string,
   includeVideos: 'all' | 'failed_only' | 'none' | 'running' = 'all',
 ): Promise<BatchJob> {
-  const res = await api.get<BatchJob>(`/batch-jobs/${encodeURIComponent(batchId)}`, {
-    params: { enrich_bronze: false, include_videos: includeVideos },
+  const { data, error } = await apiTyped.GET('/api/batch-jobs/{batch_id}', {
+    params: {
+      path: { batch_id: batchId },
+      query: { enrich_bronze: false, include_videos: includeVideos },
+    },
   })
-  return res.data
+  if (error) throw error
+  return data as BatchJob
 }
 
 /** Attach on-demand jurisdiction rows to a summary-only batch row. */

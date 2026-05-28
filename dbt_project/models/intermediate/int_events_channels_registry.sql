@@ -140,6 +140,41 @@ channels_bronze AS (
     GROUP BY channel_id
 ),
 
+/*
+Junk classification (ported from the legacy load_youtube_channels_bronze.py
+--auto-flag pass). Conservative title-only heuristics: obvious non-government
+channels (major news networks, YouTube auto-topic channels, music/entertainment).
+flag_reason mirrors the script's reason buckets; flagged_as_junk is simply
+"a reason was assigned". Downstream events_channels_search drops these
+(WHERE NOT flagged_as_junk) and int_events_channels_enriched excludes them
+from government inference.
+*/
+channel_junk AS (
+    SELECT
+        channel_id,
+        CASE
+            WHEN channel_title IS NULL THEN NULL
+            WHEN channel_title ILIKE '%cnn%'
+              OR channel_title ILIKE '%fox news%'
+              OR channel_title ILIKE '%msnbc%'
+              OR channel_title ILIKE '%nbc news%'
+              OR channel_title ILIKE '%abc news%'
+              OR channel_title ILIKE '%cbs news%'
+                THEN 'Major news network (not municipal government)'
+            WHEN channel_title ILIKE '%- topic%'
+                THEN 'YouTube auto-generated topic channel'
+            WHEN channel_title ILIKE '%vevo%'
+                THEN 'Music video platform'
+            WHEN channel_title ILIKE '%last week tonight%'
+              OR channel_title ILIKE '%john oliver%'
+              OR channel_title ILIKE '%daily show%'
+              OR channel_title ILIKE '%stephen colbert%'
+                THEN 'Entertainment/comedy show'
+            ELSE NULL
+        END AS flag_reason
+    FROM channels_bronze
+),
+
 channel_event_state_counts AS (
     SELECT
         channel_id,
@@ -758,8 +793,8 @@ SELECT
     -- Quality indicators
     NULL::BOOLEAN AS is_verified,
     NULL::BOOLEAN AS is_government,
-    FALSE         AS flagged_as_junk,
-    NULL::TEXT    AS flag_reason,
+    (cj.flag_reason IS NOT NULL) AS flagged_as_junk,
+    cj.flag_reason                AS flag_reason,
 
     -- Timestamps
     lm.loaded_at,
@@ -769,6 +804,7 @@ FROM base_channels bc
 LEFT JOIN channel_urls cu ON bc.channel_id = cu.channel_id
 LEFT JOIN localview_meta lm ON bc.channel_id = lm.channel_id
 LEFT JOIN channels_bronze bec ON bc.channel_id = bec.channel_id
+LEFT JOIN channel_junk cj ON bc.channel_id = cj.channel_id
 LEFT JOIN jurisdictions_by_channel jbc ON bc.channel_id = jbc.channel_id
 LEFT JOIN homepage_jurisdictions_non_fuzzy hjn ON bc.channel_id = hjn.channel_id
 LEFT JOIN event_name_jurisdictions enj ON bc.channel_id = enj.channel_id

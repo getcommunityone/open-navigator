@@ -8,7 +8,10 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "gen:api:schema": "python ../scripts/api/export_openapi.py --out openapi.json",
+    "gen:api:types": "openapi-typescript openapi.json --output src/lib/api.types.ts",
+    "gen:api": "npm run gen:api:schema && npm run gen:api:types"
   },
   "dependencies": {
     "@headlessui/react": "^1.7.17",
@@ -23,6 +26,7 @@
     "date-fns": "^2.30.0",
     "framer-motion": "^11.18.2",
     "leaflet": "^1.9.4",
+    "openapi-fetch": "^0.17.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-leaflet": "^4.2.1",
@@ -45,6 +49,7 @@
     "eslint": "^8.55.0",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.5",
+    "openapi-typescript": "^7.13.0",
     "postcss": "^8.4.32",
     "tailwindcss": "^3.3.6",
     "typescript": "^5.2.2",
