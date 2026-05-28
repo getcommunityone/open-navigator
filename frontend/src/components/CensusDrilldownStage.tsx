@@ -648,7 +648,10 @@ export default function CensusDrilldownStage({
             })()
           : null}
 
-        {/* bubbles overlay */}
+        {/* bubbles overlay — lives inside the zoomed <g>, so radii are
+            counter-scaled by 1/zoomK to keep a constant on-screen footprint
+            (same trick as the ZIP labels and pinned marker). Without this the
+            county-tier bubbles balloon to many times the polygon they sit on. */}
         {viz === 'bubble' && states ? (
           <g className="bubbles-layer" pointerEvents="none">
             {(view === 'state' || view === 'county') && countiesInState
@@ -658,7 +661,7 @@ export default function CensusDrilldownStage({
                   if (v == null) return null
                   const c = path.centroid(f as never)
                   if (!c || !Number.isFinite(c[0])) return null
-                  const r = bubbleRadiusPx(v, countyBubbleExtent.min, countyBubbleExtent.max, scale, 2, 14)
+                  const r = bubbleRadiusPx(v, countyBubbleExtent.min, countyBubbleExtent.max, scale, 2, 14) / zoomK
                   const t =
                     metricToDisplayT(v, countyBubbleExtent.min, countyBubbleExtent.max, scale) ?? 0
                   return (
@@ -669,7 +672,7 @@ export default function CensusDrilldownStage({
                       r={r}
                       fill={bubbleFillFromT(t, 0.86)}
                       stroke="#fff"
-                      strokeWidth={0.5}
+                      strokeWidth={0.5 / zoomK}
                     />
                   )
                 })
@@ -679,7 +682,7 @@ export default function CensusDrilldownStage({
                   if (v == null) return null
                   const c = path.centroid(f as never)
                   if (!c || !Number.isFinite(c[0])) return null
-                  const r = bubbleRadiusPx(v, stateBubbleExtent.min, stateBubbleExtent.max, scale, 4, 20)
+                  const r = bubbleRadiusPx(v, stateBubbleExtent.min, stateBubbleExtent.max, scale, 4, 20) / zoomK
                   const t = metricToDisplayT(v, stateBubbleExtent.min, stateBubbleExtent.max, scale) ?? 0
                   return (
                     <circle
@@ -689,7 +692,7 @@ export default function CensusDrilldownStage({
                       r={r}
                       fill={bubbleFillFromT(t, 0.86)}
                       stroke="#fff"
-                      strokeWidth={0.6}
+                      strokeWidth={0.6 / zoomK}
                     />
                   )
                 })}
