@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "type-check": "tsc --noEmit",
-    "gen:api:schema": "python ../scripts/api/export_openapi.py --out openapi.json",
+    "gen:api:schema": "python ../scripts/frontend/export_openapi.py --out openapi.json",
     "gen:api:types": "openapi-typescript openapi.json --output src/lib/api.types.ts",
     "gen:api": "npm run gen:api:schema && npm run gen:api:types"
   },

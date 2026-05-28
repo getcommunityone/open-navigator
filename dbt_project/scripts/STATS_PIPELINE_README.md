@@ -90,7 +90,7 @@ Sync stats from bronze to production:
 ```bash
 cd /home/developer/projects/open-navigator
 source .venv/bin/activate
-python scripts/dbt/export_stats_to_open_navigator.py
+python dbt_project/scripts/export_stats_to_open_navigator.py
 ```
 
 **What this does:**
@@ -299,7 +299,7 @@ dbt run --target dev     # For other models
 cd dbt_project && dbt run --target bronze --select stg_bronze_decisions+
 
 # 2. Export to production
-cd .. && python scripts/dbt/export_stats_to_open_navigator.py
+cd .. && python dbt_project/scripts/export_stats_to_open_navigator.py
 
 # 3. Verify
 psql -h localhost -p 5433 -U postgres -d open_navigator -c \
@@ -311,7 +311,7 @@ psql -h localhost -p 5433 -U postgres -d open_navigator -c \
 1. Create model in `dbt_project/models/`
 2. Update `_staging.yml`, `_intermediate.yml`, or `_marts.yml`
 3. Run: `dbt run --target bronze --select your_model+`
-4. Export if needed: `python scripts/dbt/export_stats_to_open_navigator.py`
+4. Export if needed: `python dbt_project/scripts/export_stats_to_open_navigator.py`
 
 ## Troubleshooting
 

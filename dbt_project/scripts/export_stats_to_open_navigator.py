@@ -6,7 +6,7 @@ This syncs the dbt-generated stats from open_navigator (bronze schema) to the
 production-ready open_navigator database for fast queries.
 
 Usage:
-    python scripts/dbt/export_stats_to_open_navigator.py
+    python dbt_project/scripts/export_stats_to_open_navigator.py
 """
 
 import psycopg2
