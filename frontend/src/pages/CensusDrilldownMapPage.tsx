@@ -264,6 +264,11 @@ export default function CensusDrilldownMapPage() {
   // ZIP view: overlay the drilled-from county boundary. Off by default.
   const showCountyOutline = searchParams.get('zipOutline') === '1'
   const setShowCountyOutline = (on: boolean) => setQP('zipOutline', on ? '1' : '0', '0')
+  // Opt-in ZIP boundary overlay for the place tier. Lets the user see which
+  // ZCTAs each city overlaps — useful for delivery / service-area work.
+  const showZipOutlineInPlace = searchParams.get('placeZipOutline') === '1'
+  const setShowZipOutlineInPlace = (on: boolean) =>
+    setQP('placeZipOutline', on ? '1' : '0', '0')
 
   // ── inflation toggle (Nominal / Real) — only the pinned/hover KPI card
   //    deflates; leaderboards, choropleth, and narrative copy stay nominal.
@@ -368,8 +373,11 @@ export default function CensusDrilldownMapPage() {
       return r.json()
     },
     // Also loaded for 'local' (Leaflet) view, where the ZCTA tile (raw lng/lat)
-    // backs the optional ZIP-outline overlay.
-    enabled: !!selectedStateFips && (view === 'zip' || view === 'local'),
+    // backs the optional ZIP-outline overlay — and for the 'place' view when
+    // the user opts into the ZIP-outline overlay there.
+    enabled:
+      !!selectedStateFips &&
+      (view === 'zip' || view === 'local' || (view === 'place' && showZipOutlineInPlace)),
     staleTime: 1000 * 60 * 60,
     retry: false,
   })
@@ -585,39 +593,61 @@ export default function CensusDrilldownMapPage() {
   }, [countyDisplayByGeoid])
 
   // ── Place display values, extents, ranks (mirrors county pattern) ────────
-  // ACS place tables are currently only ingested for a sparse set of vintages
-  // (Alabama has only 2022 today). When the requested vintage has no value, we
-  // fall back to the most recent vintage in the trends file that does — without
-  // it every place renders neutral the moment the user picks a year other than
-  // 2022.
+  // Two data sources, in priority order:
+  //   1. ``place_trends_{fips}.json`` — multi-year sidecar built when the
+  //      exporter runs with multiple ``--year`` values. Best for YoY mode.
+  //   2. ``place_{fips}.geojson`` feature properties — single-vintage values
+  //      embedded in the GeoJSON itself. Used as a fallback when the trends
+  //      sidecar is absent (Georgia today: only the single 2022 vintage was
+  //      exported, so no sidecar exists). Without this fallback every place
+  //      in such a state renders neutral.
   const placeDisplayByGeoid = useMemo(() => {
     const out: Record<string, number | null> = {}
-    if (!placeTrends?.byGeoid || !metricSlug) return out
-    const trendsVintages = (placeTrends.vintages ?? []).slice().sort()
-    const prevV = prevVintageInList(trendsVintages, displayVintage)
+    if (!metricSlug) return out
     const nat = nationalBaselineWithFallback(manifest?.national_ref, displayVintage, metricSlug, { stateTrends })
-    const olderToNewer = trendsVintages.slice().reverse()
-    for (const [gid, row] of Object.entries(placeTrends.byGeoid)) {
-      const series = (row as Record<string, unknown>)[metricSlug]
-      let raw = trendCell(series, displayVintage)
-      if (raw == null) {
-        for (const v of olderToNewer) {
-          if (v === displayVintage) continue
-          const candidate = trendCell(series, v)
-          if (candidate != null) {
-            raw = candidate
-            break
+    // (1) Trends sidecar — preferred when present.
+    if (placeTrends?.byGeoid) {
+      const trendsVintages = (placeTrends.vintages ?? []).slice().sort()
+      const prevV = prevVintageInList(trendsVintages, displayVintage)
+      const olderToNewer = trendsVintages.slice().reverse()
+      for (const [gid, row] of Object.entries(placeTrends.byGeoid)) {
+        const series = (row as Record<string, unknown>)[metricSlug]
+        let raw = trendCell(series, displayVintage)
+        if (raw == null) {
+          for (const v of olderToNewer) {
+            if (v === displayVintage) continue
+            const candidate = trendCell(series, v)
+            if (candidate != null) {
+              raw = candidate
+              break
+            }
           }
         }
+        let prev: number | null = null
+        if (valueMode === 'yoy' && prevV) prev = trendCell(series, prevV)
+        const cleaned = typeof raw === 'number' && Number.isFinite(raw) && raw > -1e7 ? raw : null
+        const g7 = String(gid).padStart(7, '0')
+        out[g7] = displayValueForMode(valueMode, cleaned, prev, nat)
       }
-      let prev: number | null = null
-      if (valueMode === 'yoy' && prevV) prev = trendCell(series, prevV)
-      const cleaned = typeof raw === 'number' && Number.isFinite(raw) && raw > -1e7 ? raw : null
-      const g7 = String(gid).padStart(7, '0')
-      out[g7] = displayValueForMode(valueMode, cleaned, prev, nat)
+    }
+    // (2) GeoJSON feature-property fallback — covers states whose trends
+    //     sidecar wasn't built, and metric slugs absent from the sidecar
+    //     even when present. Only fills entries the trends pass didn't.
+    if (placesGeoJson?.features) {
+      for (const f of placesGeoJson.features) {
+        const gid = String(f.id ?? (f.properties as { GEOID?: string })?.GEOID ?? '').padStart(7, '0')
+        if (!gid || out[gid] != null) continue
+        const raw = (f.properties as Record<string, unknown> | null)?.[metricSlug]
+        const cleaned = typeof raw === 'number' && Number.isFinite(raw) && raw > -1e7 ? raw : null
+        if (cleaned == null) continue
+        // YoY can't be derived from a single embedded vintage — skip in that
+        // mode rather than pretend; cleaned vs raw mode + vs_natl still work.
+        if (valueMode === 'yoy') continue
+        out[gid] = displayValueForMode(valueMode, cleaned, null, nat)
+      }
     }
     return out
-  }, [placeTrends, metricSlug, displayVintage, valueMode, manifest?.national_ref, stateTrends])
+  }, [placeTrends, placesGeoJson, metricSlug, displayVintage, valueMode, manifest?.national_ref, stateTrends])
 
   /** Place GEOIDs whose polygon overlaps the drilled-from county. A pure
    *  centroid test misses multi-county cities — Atlanta straddles Fulton +
@@ -1203,17 +1233,30 @@ export default function CensusDrilldownMapPage() {
         {/* center: stage + legend */}
         <div className="flex min-w-0 flex-col gap-2">
           <div className="relative rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
-            {/* ZIP / places views: opt-in county boundary overlay (off by default). */}
+            {/* ZIP / places views: opt-in boundary overlays. Both off by default. */}
             {view === 'zip' || view === 'place' ? (
-              <label className="absolute left-3 top-3 z-10 inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-slate-300 bg-white/95 px-2 py-1 text-[11px] font-medium text-slate-700 shadow-sm backdrop-blur hover:bg-white">
-                <input
-                  type="checkbox"
-                  checked={showCountyOutline}
-                  onChange={(e) => setShowCountyOutline(e.target.checked)}
-                  className="h-3.5 w-3.5 rounded border-slate-300 text-[#354F52] focus:ring-[#354F52]"
-                />
-                County outline
-              </label>
+              <div className="absolute left-3 top-3 z-10 flex flex-col gap-1">
+                <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-slate-300 bg-white/95 px-2 py-1 text-[11px] font-medium text-slate-700 shadow-sm backdrop-blur hover:bg-white">
+                  <input
+                    type="checkbox"
+                    checked={showCountyOutline}
+                    onChange={(e) => setShowCountyOutline(e.target.checked)}
+                    className="h-3.5 w-3.5 rounded border-slate-300 text-[#354F52] focus:ring-[#354F52]"
+                  />
+                  County outline
+                </label>
+                {view === 'place' ? (
+                  <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-slate-300 bg-white/95 px-2 py-1 text-[11px] font-medium text-slate-700 shadow-sm backdrop-blur hover:bg-white">
+                    <input
+                      type="checkbox"
+                      checked={showZipOutlineInPlace}
+                      onChange={(e) => setShowZipOutlineInPlace(e.target.checked)}
+                      className="h-3.5 w-3.5 rounded border-slate-300 text-[#354F52] focus:ring-[#354F52]"
+                    />
+                    ZIP outlines
+                  </label>
+                ) : null}
+              </div>
             ) : null}
             {view === 'local' && localPin ? (
               <div className="relative h-[560px] w-full">
@@ -1338,6 +1381,7 @@ export default function CensusDrilldownMapPage() {
                 pinnedZcta={pinnedZcta?.zcta ?? null}
                 pinnedPlaceGeoid={pinnedPlace?.geoid ?? null}
                 showCountyOutline={showCountyOutline}
+                showZipOutlineInPlace={showZipOutlineInPlace}
                 stateRankById={stateRankById}
                 countyRankByGeoid={countyRankByGeoid}
                 zctaRankByZcta={zctaRankByZcta}

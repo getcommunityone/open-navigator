@@ -115,6 +115,9 @@ interface StageProps {
   pinnedPlaceGeoid?: string | null
   /** ZIP view only: draw the drilled-from county's boundary over the ZCTAs. */
   showCountyOutline?: boolean
+  /** Place view: overlay the ZCTA outlines on top of the city polygons so the
+   *  user can see which ZIPs each city covers. */
+  showZipOutlineInPlace?: boolean
   /** Optional state rank by FIPS — passed through to onHoverInfo for the aside card. */
   stateRankById?: Record<string, { rank: number; total: number } | null>
   /** Optional county rank by GEOID — passed through to onHoverInfo for the aside card. */
@@ -209,6 +212,7 @@ export default function CensusDrilldownStage({
   pinnedZcta = null,
   pinnedPlaceGeoid = null,
   showCountyOutline = false,
+  showZipOutlineInPlace = false,
   stateRankById,
   countyRankByGeoid,
   zctaRankByZcta,
@@ -453,6 +457,11 @@ export default function CensusDrilldownStage({
 
   // --- fill / bubble helpers (depend on viz + scale + extents) ---
   const stateFill = (sid: string): string => {
+    // Sub-state tiers (ZIP / place): the state polygon sits beneath the
+    // ZCTAs/places and would otherwise show its statewide choropleth color
+    // through every gap, washing out the per-feature fills. Force white so
+    // the layer above reads with maximum contrast.
+    if (view === 'zip' || view === 'place') return '#ffffff'
     if (viz === 'bubble') return 'rgba(248,250,252,0.94)'
     const v = stateDisplayById[sid]
     const t = metricToDisplayT(v, stateChoroExtent.min, stateChoroExtent.max, scale)
@@ -757,6 +766,66 @@ export default function CensusDrilldownStage({
               vectorEffect: 'non-scaling-stroke',
             }}
           />
+        ) : null}
+
+        {/* ZIP outline overlay for the place tier — opt-in. Renders the same
+            county-scoped ZCTA set as the ZIP view, but stroke-only so the
+            place fills underneath stay visible. ZCTA labels follow so the
+            user can read the ZIP code, not just the boundary. */}
+        {view === 'place' && showZipOutlineInPlace && zctasInCounty ? (
+          <g className="zip-outline-overlay" pointerEvents="none">
+            {zctasInCounty.map((f) => {
+              const z = String(f.id ?? '')
+              const d = projectedPath(f as never) ?? ''
+              if (!d) return null
+              return (
+                <path
+                  key={`zip-outline-${z}`}
+                  d={d}
+                  style={{
+                    fill: 'none',
+                    stroke: '#475569',
+                    strokeWidth: 0.6,
+                    strokeDasharray: '2 2',
+                    strokeLinejoin: 'round',
+                    vectorEffect: 'non-scaling-stroke',
+                  }}
+                />
+              )
+            })}
+          </g>
+        ) : null}
+        {view === 'place' && showZipOutlineInPlace && zctasInCounty ? (
+          <g className="zip-outline-labels" pointerEvents="none">
+            {zctasInCounty.map((f) => {
+              const z = String(f.id ?? '')
+              if (!z) return null
+              const c = projectedPath.centroid(f as never)
+              if (!c || !Number.isFinite(c[0]) || !Number.isFinite(c[1])) return null
+              const fontSize = 9 / zoomK
+              return (
+                <text
+                  key={`zip-lbl-${z}`}
+                  x={c[0]}
+                  y={c[1]}
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                  style={{
+                    fontSize,
+                    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                    fontWeight: 600,
+                    fill: '#475569',
+                    stroke: '#ffffff',
+                    strokeWidth: fontSize * 0.5,
+                    strokeLinejoin: 'round',
+                    paintOrder: 'stroke',
+                  }}
+                >
+                  {z}
+                </text>
+              )
+            })}
+          </g>
         ) : null}
 
         {/* always-on place labels — short name (drops the ", State" suffix and
