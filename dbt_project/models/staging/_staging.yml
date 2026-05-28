@@ -1151,8 +1151,9 @@ sources:
           BLS Consumer Price Index observations (monthly + annual average).
           One national series applied uniformly to every geography by the
           frontend real-dollar toggle. Default series: CUUR0000SA0 (CPI-U
-          NSA all items U.S. city avg). Loaded by
-          ``scripts/datasources/bls/load_bls_cpi.py``.
+          NSA all items U.S. city avg). Landed by
+          ``ingestion.bls.cpi`` (FETCH→``data/cache/bls/``, LAND→bronze;
+          thin shim at ``scripts/datasources/bls/load_bls_cpi.py``).
         columns:
           - name: series_id
             description: "BLS series identifier (e.g. CUUR0000SA0)."
