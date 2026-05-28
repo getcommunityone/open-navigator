@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS bronze.bronze_events_text_ai (
     
     -- Link to event (will join to bronze_event.datasource_id or production event.id)
     event_id INTEGER,             -- Foreign key to production event (if loaded)
-    video_id VARCHAR(20) NOT NULL,  -- YouTube video ID (unique identifier)
+    video_id VARCHAR(64) NOT NULL,  -- YouTube video ID (normally 11 chars, but live/broadcast IDs can be longer)
     
     -- Transcript data
     raw_text TEXT,                -- Full transcript as plain text

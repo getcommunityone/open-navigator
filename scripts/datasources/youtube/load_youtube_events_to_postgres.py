@@ -454,7 +454,7 @@ class YouTubeEventsLoader:
                 CREATE TABLE IF NOT EXISTS bronze.bronze_events_text_ai (
                     id SERIAL PRIMARY KEY,
                     event_id INTEGER,
-                    video_id VARCHAR(20) NOT NULL,
+                    video_id VARCHAR(64) NOT NULL,
                     raw_text TEXT,
                     segments JSONB,
                     language VARCHAR(10),

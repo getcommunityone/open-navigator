@@ -15,7 +15,7 @@ COMMENT ON COLUMN bronze.bronze_events_youtube.primary_leg_ids IS
 CREATE TABLE IF NOT EXISTS bronze.bronze_bills (
     source_event_id_leg_id TEXT PRIMARY KEY,
     source_event_id INTEGER NOT NULL,
-    video_id VARCHAR(20),
+    video_id VARCHAR(64),
     source_ai_model VARCHAR(100) NOT NULL DEFAULT 'gemini-2.5-flash-lite',
     leg_id VARCHAR(255) NOT NULL,
     leg_type VARCHAR(100),
@@ -43,7 +43,7 @@ CREATE INDEX IF NOT EXISTS idx_bronze_bills_event_id
 CREATE TABLE IF NOT EXISTS bronze.bronze_meeting_item_legislation (
     id SERIAL PRIMARY KEY,
     source_event_id INTEGER NOT NULL,
-    video_id VARCHAR(20) NOT NULL,
+    video_id VARCHAR(64) NOT NULL,
     source_ai_model VARCHAR(100) NOT NULL DEFAULT 'gemini-2.5-flash-lite',
     item_id VARCHAR(32) NOT NULL,
     item_kind VARCHAR(16) NOT NULL CHECK (item_kind IN ('uncontested', 'decision')),
@@ -63,7 +63,7 @@ CREATE INDEX IF NOT EXISTS idx_bronze_meeting_item_leg_leg
 CREATE TABLE IF NOT EXISTS bronze.bronze_policy_decisions (
     id SERIAL PRIMARY KEY,
     source_event_id INTEGER NOT NULL,
-    video_id VARCHAR(20) NOT NULL,
+    video_id VARCHAR(64) NOT NULL,
     source_ai_model VARCHAR(100) NOT NULL DEFAULT 'gemini-2.5-flash-lite',
     decision_id VARCHAR(32) NOT NULL,
     subject_id VARCHAR(255),
@@ -80,7 +80,7 @@ CREATE INDEX IF NOT EXISTS idx_bronze_policy_decisions_video
 
 -- Extend dbt-created bronze.bronze_bills when table already exists
 ALTER TABLE bronze.bronze_bills
-    ADD COLUMN IF NOT EXISTS video_id VARCHAR(20),
+    ADD COLUMN IF NOT EXISTS video_id VARCHAR(64),
     ADD COLUMN IF NOT EXISTS agenda_labels JSONB NOT NULL DEFAULT '[]'::jsonb,
     ADD COLUMN IF NOT EXISTS analysis_cache_path TEXT;
 

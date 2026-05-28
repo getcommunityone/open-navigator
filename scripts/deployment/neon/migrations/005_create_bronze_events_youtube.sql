@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS bronze.bronze_events_youtube (
     
     -- Event identification
     event_id INTEGER NOT NULL UNIQUE,  -- Generated from video_id hash
-    video_id VARCHAR(20) NOT NULL UNIQUE,  -- YouTube video ID (e.g., "dQw4w9WgXcQ")
+    video_id VARCHAR(64) NOT NULL UNIQUE,  -- YouTube video ID (normally 11 chars, but live/broadcast IDs can be longer)
     
     -- Event details
     event_date DATE,
