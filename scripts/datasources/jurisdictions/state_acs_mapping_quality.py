@@ -199,7 +199,7 @@ def _cache_state_parquet(acs_dir: Path, table: str, df: pd.DataFrame, year: int)
 
 async def _fetch_state_acs_metrics_api(acs_dir: Path, year: int, cache_parquets: bool) -> dict[str, dict[str, Optional[float]]]:
     """Pull B01003 + B19013 for ``for=state:*`` from the Census API when parquets are absent."""
-    from scripts.datasources.census.load_acs import ACSDataIngestion
+    from ingestion.census.acs import ACSDataIngestion
 
     acs = ACSDataIngestion(data_dir=acs_dir)
     out: dict[str, dict[str, Optional[float]]] = {}

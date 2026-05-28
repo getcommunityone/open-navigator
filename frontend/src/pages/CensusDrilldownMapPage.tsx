@@ -36,6 +36,7 @@ import {
   censusChoroLegendSemantics,
   censusMapShowOfficialCensusLabel,
 } from '../utils/censusDataDictionary'
+import { ringsOfGeom, ringsOverlap } from '../utils/ringOverlap'
 import { ChoroplethLegend, BubbleLegend } from '../components/CensusMapLegends'
 import { InfoHelpTrigger } from '../components/InfoHelpTrigger'
 import MapAddressSearch, { type MapAddressResult } from '../components/MapAddressSearch'
@@ -70,6 +71,18 @@ function fips2(raw) {
   if (raw == null) return ''
   const s = String(raw).replace(/\D/g, '')
   return s.length <= 2 ? s.padStart(2, '0') : s.slice(-2).padStart(2, '0')
+}
+
+/**
+ * Treat a fetch response as "real JSON" only if the server actually labels it
+ * that way. Vite's dev server serves the SPA shell (200 + text/html) for any
+ * unmatched path under public/, which would otherwise pose as a successful
+ * 200 to vintage-fallback loops and short-circuit them on r.json() parse.
+ */
+function isJsonResponse(r: Response): boolean {
+  if (r.status === 404) return false
+  const ct = r.headers.get('content-type') ?? ''
+  return ct.includes('json') || ct.includes('geo+json')
 }
 
 interface CensusMetric {
@@ -393,7 +406,11 @@ export default function CensusDrilldownMapPage() {
       const candidates = [displayVintage, ...vintages.slice().reverse().filter((v) => v !== displayVintage)]
       for (const v of candidates) {
         const r = await fetch(`/data/census-map/${v}/place_${selectedStateFips}.geojson`)
-        if (r.status === 404) continue
+        // Treat "not really there" the same as 404. Vite's dev server serves
+        // the SPA shell (200 + text/html) for any unmatched path under public/,
+        // so a missing per-vintage file would otherwise short-circuit the
+        // fallback to a vintage that *is* exported.
+        if (!isJsonResponse(r)) continue
         if (!r.ok) throw new Error('place geojson')
         return r.json()
       }
@@ -433,7 +450,7 @@ export default function CensusDrilldownMapPage() {
       const candidates = [displayVintage, ...vintages.slice().reverse().filter((v) => v !== displayVintage)]
       for (const v of candidates) {
         const r = await fetch(`/data/census-map/${v}/zcta_metrics_${selectedStateFips}.json`)
-        if (r.status === 404) continue
+        if (!isJsonResponse(r)) continue
         if (!r.ok) throw new Error('zcta metrics')
         return r.json()
       }
@@ -602,8 +619,12 @@ export default function CensusDrilldownMapPage() {
     return out
   }, [placeTrends, metricSlug, displayVintage, valueMode, manifest?.national_ref, stateTrends])
 
-  /** Place GEOIDs whose centroid is inside the drilled-from county — scopes
-   *  the place choro/bubble extents to what the user actually sees. */
+  /** Place GEOIDs whose polygon overlaps the drilled-from county. A pure
+   *  centroid test misses multi-county cities — Atlanta straddles Fulton +
+   *  DeKalb + Clayton + Cobb, so pinning DeKalb used to hide the city
+   *  entirely. We include any place whose polygon intersects the county, and
+   *  pass this set down to the stage as the rendering filter so the choro
+   *  extent and the rendered set stay in sync. */
   const placeIdsInCounty = useMemo<Set<string> | null>(() => {
     if (!placesGeoJson || !selectedCountyGeoid || !countiesLLTopo) return null
     try {
@@ -612,14 +633,23 @@ export default function CensusDrilldownMapPage() {
       const feats = (topoFeature(countiesLLTopo as never, obj as never) as never).features as GeoJSON.Feature[]
       const countyFeat = feats.find((f) => String(f.id).padStart(5, '0') === want)
       if (!countyFeat) return null
+      const countyRings = ringsOfGeom(countyFeat.geometry)
+      if (!countyRings.length) return null
       const ids = new Set<string>()
       for (const f of placesGeoJson.features ?? []) {
+        const gid = String(f.id ?? (f.properties as { GEOID?: string })?.GEOID ?? '').padStart(7, '0')
+        if (!gid) continue
+        // Centroid fast path — most places resolve here.
         const c = geoCentroid(f as never)
-        if (!Number.isFinite(c[0])) continue
-        if (geoContains(countyFeat as never, c)) {
-          const gid = String(f.id ?? (f.properties as { GEOID?: string })?.GEOID ?? '').padStart(7, '0')
-          if (gid) ids.add(gid)
+        if (Number.isFinite(c[0]) && geoContains(countyFeat as never, c)) {
+          ids.add(gid)
+          continue
         }
+        // Multi-county fallback: include the place if its polygon actually
+        // overlaps the county. The bbox prefilter inside ringsOverlap keeps
+        // this cheap for the ~600 statewide places (most fail bbox quickly).
+        const placeRings = ringsOfGeom(f.geometry)
+        if (placeRings.length && ringsOverlap(placeRings, countyRings)) ids.add(gid)
       }
       return ids.size ? ids : null
     } catch {
@@ -1287,6 +1317,7 @@ export default function CensusDrilldownMapPage() {
                 countyDisplayByGeoid={countyDisplayByGeoid}
                 zctaDisplayByZcta={zctaDisplayByZcta}
                 placeDisplayByGeoid={placeDisplayByGeoid}
+                placeIdsInCounty={placeIdsInCounty}
                 stateChoroExtent={stateChoroExtent}
                 countyChoroExtent={countyChoroExtent}
                 zctaChoroExtent={zctaChoroExtent}
@@ -1690,14 +1721,32 @@ export default function CensusDrilldownMapPage() {
                           Re-frame all county cities
                         </button>
                       ) : view !== 'place' ? (
-                        <button
-                          type="button"
-                          onClick={goPlace}
-                          title="Show Census places (cities, towns, CDPs) within this county. Requires running scripts/datasources/census/export_census_map_static.py --place-states {fips} to generate per-state place GeoJSON."
-                          className="inline-flex items-center justify-center gap-1.5 rounded-md bg-[#354F52] px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white shadow-sm hover:bg-[#2c4346]"
-                        >
-                          Drill down to cities &amp; towns
-                        </button>
+                        (() => {
+                          const stateHasPlaceData =
+                            !!selectedStateFips && (manifest?.place_states ?? []).includes(selectedStateFips)
+                          return stateHasPlaceData ? (
+                            <button
+                              type="button"
+                              onClick={goPlace}
+                              title="Show Census places (cities, towns, CDPs) within this county."
+                              className="inline-flex items-center justify-center gap-1.5 rounded-md bg-[#354F52] px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white shadow-sm hover:bg-[#2c4346]"
+                            >
+                              Drill down to cities &amp; towns
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled
+                              title={`Place GeoJSON not exported for this state yet — run scripts/datasources/census/export_census_map_static.py --fetch --place-states ${selectedStateFips ?? '{fips}'} --year 2022`}
+                              className="inline-flex cursor-not-allowed items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500"
+                            >
+                              Drill down to cities &amp; towns
+                              <span className="ml-2 rounded bg-slate-200 px-1 py-px text-[9px] font-medium normal-case tracking-normal text-slate-600">
+                                Soon
+                              </span>
+                            </button>
+                          )
+                        })()
                       ) : null}
                       <button
                         type="button"

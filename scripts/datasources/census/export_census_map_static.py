@@ -48,7 +48,7 @@ from loguru import logger
 # Project root on sys.path (same pattern as download_census_acs_data.py)
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from scripts.datasources.census.load_acs import ACSDataIngestion  # noqa: E402
+from ingestion.census.acs import ACSDataIngestion  # noqa: E402
 from scripts.datasources.census.download_census_acs_data import DEFAULT_DOWNLOAD_TABLES  # noqa: E402
 
 # One choropleth value per slug; ``estimate_col`` resolved via ``_estimate_col_for_table``.
@@ -829,6 +829,20 @@ def main() -> int:
 
     national_ref = build_national_reference(args.acs_dir, exported_years)
 
+    # Reflect on-disk reality, not just this run. A partial re-run (e.g.
+    # ``--place-states 13``) used to overwrite the manifest with only the FIPS
+    # processed this time, silently dropping previously-exported states from
+    # the frontend's place-tier gate. Scan every vintage directory for
+    # ``place_{fips}.geojson`` and union with what was just written.
+    place_states_on_disk: set[str] = set(place_states_union)
+    for vintage_dir in args.out_dir.iterdir() if args.out_dir.exists() else []:
+        if not vintage_dir.is_dir():
+            continue
+        for f in vintage_dir.glob("place_*.geojson"):
+            stem = f.stem
+            if stem.startswith("place_") and len(stem) == len("place_") + 2:
+                place_states_on_disk.add(stem.removeprefix("place_"))
+
     manifest = {
         "vintage": top_vintage,
         "vintages": vintages_str,
@@ -836,7 +850,7 @@ def main() -> int:
         "county_topo_cdn": "https://cdn.jsdelivr.net/npm/us-atlas@3/counties-10m.json",
         "state_topo_cdn": "https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json",
         "metrics": METRICS,
-        "place_states": sorted(place_states_union),
+        "place_states": sorted(place_states_on_disk),
         "paths": paths,
         "national_ref": national_ref,
     }

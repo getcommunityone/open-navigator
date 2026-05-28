@@ -74,11 +74,15 @@ export function metricToDisplayT(
   }
 }
 
-/** Multi-stop ramp (readable light end → sky → blue → navy). Low end avoids near-white so fills read on white map panels. */
+/** Multi-stop ramp (readable light end → sky → blue → navy). Low end is darker
+ *  than typical sequential blues so the floor of the scale still reads against
+ *  the pale-blue map panel — otherwise the lowest-bucket places (e.g.
+ *  Tuscaloosa city in a Tuscaloosa-County drill-down) fade into the
+ *  background and look unfilled. */
 const CHORO_RGB_STOPS: { t: number; rgb: [number, number, number] }[] = [
-  { t: 0, rgb: [196, 208, 231] },
-  { t: 0.12, rgb: [206, 218, 244] },
-  { t: 0.28, rgb: [191, 219, 254] },
+  { t: 0, rgb: [170, 184, 210] },
+  { t: 0.12, rgb: [176, 195, 224] },
+  { t: 0.28, rgb: [165, 198, 236] },
   { t: 0.44, rgb: [125, 211, 252] },
   { t: 0.58, rgb: [56, 189, 248] },
   { t: 0.72, rgb: [59, 130, 246] },

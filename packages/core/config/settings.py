@@ -6,9 +6,13 @@ from typing import List, Optional
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Resolve ``.env`` from repo root so CLI scripts work regardless of cwd
-# (``config/settings.py`` → parent = ``config/``, parent.parent = project root).
-_REPO_ROOT = Path(__file__).resolve().parent.parent
+# Resolve ``.env`` from repo root so CLI scripts work regardless of cwd.
+# Post-monorepo: this file lives at ``packages/core/config/settings.py``, so
+# the repo root is four levels up (``parents[3]``). Pre-monorepo it was two
+# levels up — the old ``parent.parent`` silently pointed at ``packages/core/``
+# and pydantic loaded nothing, so every script that depends on settings.*
+# secrets (CENSUS_API_KEY, OPENAI_API_KEY, etc.) silently saw ``None``.
+_REPO_ROOT = Path(__file__).resolve().parents[3]
 _DOTENV = _REPO_ROOT / ".env"
 
 

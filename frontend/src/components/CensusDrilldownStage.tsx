@@ -54,6 +54,12 @@ interface StageProps {
   zctaDisplayByZcta?: Record<string, number | null>
   /** Display value keyed by 7-digit place GEOID. */
   placeDisplayByGeoid?: Record<string, number | null>
+  /** GEOIDs of places whose polygon overlaps the drilled-from county. The
+   *  parent computes this with polygon-intersect (not just centroid) so
+   *  multi-county cities (Atlanta) appear when any of their counties is
+   *  pinned. When provided, the stage uses it as the rendering filter
+   *  instead of the legacy centroid containment fallback. */
+  placeIdsInCounty?: Set<string> | null
   /** Extents for the choropleth ramp (already percentile-clipped). */
   stateChoroExtent: { min: number; max: number }
   countyChoroExtent: { min: number; max: number }
@@ -182,6 +188,7 @@ export default function CensusDrilldownStage({
   countyDisplayByGeoid,
   zctaDisplayByZcta = {},
   placeDisplayByGeoid = {},
+  placeIdsInCounty = null,
   stateChoroExtent,
   countyChoroExtent,
   zctaChoroExtent = { min: 0, max: 1 },
@@ -307,15 +314,22 @@ export default function CensusDrilldownStage({
   }, [placesGeoJson])
 
   /**
-   * Places whose centroid falls inside the selected county. Same centroid-
-   * containment trick used for ZCTAs — a Census "place" (city / town / CDP)
-   * can straddle a county line but is conceptually assigned to one county
-   * for the purpose of drilling from a pinned county into its cities/towns.
-   * Falls back to the full statewide place set when no county is drilled in.
+   * Places to render in the place tier. Prefers the parent-supplied GEOID
+   * set (which uses polygon-intersect — handles multi-county cities like
+   * Atlanta). Falls back to centroid containment in projected coords when
+   * the parent doesn't pass the set, and to the full statewide list when
+   * no county is drilled in.
    */
   const placesInCounty = useMemo<GeoJSON.Feature[] | null>(() => {
     if (!placesInState) return null
     if (!selectedCountyFeature) return placesInState
+    if (placeIdsInCounty) {
+      const filtered = placesInState.filter((f) => {
+        const gid = String(f.id ?? (f.properties as { GEOID?: string })?.GEOID ?? '').padStart(7, '0')
+        return placeIdsInCounty.has(gid)
+      })
+      return filtered.length ? filtered : placesInState
+    }
     const rings = ringsOf(selectedCountyFeature.geometry)
     if (!rings.length) return placesInState
     return placesInState.filter((f) => {
@@ -323,7 +337,7 @@ export default function CensusDrilldownStage({
       if (!c || !Number.isFinite(c[0]) || !Number.isFinite(c[1])) return false
       return pointInRings(rings, c[0], c[1])
     })
-  }, [placesInState, selectedCountyFeature])
+  }, [placesInState, selectedCountyFeature, placeIdsInCounty])
 
   /** Selected place feature (for camera framing). */
   const selectedPlaceFeature = useMemo<GeoJSON.Feature | null>(() => {
@@ -502,6 +516,7 @@ export default function CensusDrilldownStage({
             return (
               <path
                 key={sid || (f as { rsmKey?: string }).rsmKey || (f.properties as { name?: string })?.name}
+                data-fips={sid}
                 d={d}
                 onClick={(e) => {
                   e.stopPropagation()
@@ -567,6 +582,7 @@ export default function CensusDrilldownStage({
               return (
                 <path
                   key={gid}
+                  data-geoid={gid}
                   d={d}
                   onClick={(e) => {
                     e.stopPropagation()
