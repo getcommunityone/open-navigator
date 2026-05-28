@@ -309,19 +309,25 @@ export default function CensusDrilldownMapPage() {
   })
 
   /**
-   * Per-ZCTA metric values for the current vintage. Optional file — when not
-   * present the layer falls back to a neutral fill while the user can still
-   * navigate. Produced by a future scripts/datasources/census/
-   * export_zcta_metrics.py (not yet implemented).
+   * Per-ZCTA metric values for the current vintage. The exporter
+   * (scripts/datasources/census/export_zcta_metrics.py) currently only
+   * publishes a single vintage of files; when the requested vintage is missing
+   * we walk back through the manifest's vintage list and use the most recent
+   * one that does have a file. Without this fallback every non-exported
+   * vintage drops to the neutral fill and the ZIP tier looks unshaded.
    */
   const { data: zctaMetricsPayload } = useQuery({
-    queryKey: ['zcta-metrics', selectedStateFips, displayVintage],
+    queryKey: ['zcta-metrics', selectedStateFips, displayVintage, vintages.join(',')],
     queryFn: async (): Promise<{ values: Record<string, Record<string, number | null>> } | null> => {
       if (!selectedStateFips) return null
-      const r = await fetch(`/data/census-map/${displayVintage}/zcta_metrics_${selectedStateFips}.json`)
-      if (r.status === 404) return null
-      if (!r.ok) throw new Error('zcta metrics')
-      return r.json()
+      const candidates = [displayVintage, ...vintages.slice().reverse().filter((v) => v !== displayVintage)]
+      for (const v of candidates) {
+        const r = await fetch(`/data/census-map/${v}/zcta_metrics_${selectedStateFips}.json`)
+        if (r.status === 404) continue
+        if (!r.ok) throw new Error('zcta metrics')
+        return r.json()
+      }
+      return null
     },
     enabled: !!selectedStateFips && view === 'zip',
     retry: false,
