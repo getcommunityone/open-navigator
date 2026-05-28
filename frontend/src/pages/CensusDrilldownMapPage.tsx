@@ -972,7 +972,18 @@ export default function CensusDrilldownMapPage() {
 
         {/* right column — unified hover/pin readout (replaces dark floating tooltip) */}
         {showRightAside ? (
-          <aside className="flex flex-col gap-3 xl:sticky xl:top-4">
+          <aside
+            className={`flex flex-col gap-3 xl:sticky xl:top-4 ${
+              // Mobile (<xl) has no hover affordance and the aside otherwise
+              // stacks below a tall map — a tapped county's drill CTAs end up
+              // off-screen. When a county is pinned, dock the aside as a bottom
+              // sheet so "Drill down to ZIP" is immediately reachable. Desktop
+              // keeps the sticky sidebar (all sheet styles reset at xl:).
+              pinnedCounty
+                ? 'fixed inset-x-0 bottom-0 z-40 max-h-[70vh] overflow-y-auto rounded-t-2xl border-t border-slate-200 bg-white/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-2xl backdrop-blur xl:inset-x-auto xl:bottom-auto xl:z-auto xl:max-h-none xl:overflow-visible xl:rounded-none xl:border-0 xl:bg-transparent xl:p-0 xl:shadow-none xl:backdrop-blur-none'
+                : ''
+            }`}
+          >
             {(() => {
               // Card precedence: a pinned county wins, then transient hover, then idle.
               const isPinned = !!pinnedCounty
