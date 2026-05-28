@@ -19,7 +19,7 @@ and applies it uniformly to every geography — see ``frontend/src/utils/inflati
 with
 
 source as (
-    select * from {{ source('bronze', 'bronze_bls_cpi') }}
+    select * from {{ ref('bronze_bls_cpi') }}
 ),
 
 annual_explicit as (

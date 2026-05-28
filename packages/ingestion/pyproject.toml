@@ -11,6 +11,7 @@ dependencies = [
     "core-lib",
     "pandas>=2.1",
     "pyarrow>=14",
+    "zipfile-deflate64>=0.2",
 ]
 
 [tool.setuptools.packages.find]

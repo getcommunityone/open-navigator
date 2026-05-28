@@ -18,7 +18,9 @@ from ingestion.bls.cpi import (  # noqa: E402
     BlsCpiRow,
     cache_path_for,
     chunk_windows,
+    fetch_window,
     melt_bls_response,
+    _is_invalid_key_response,
     _window_must_refetch,
 )
 from core_lib.pipeline.schemas import PipelineContext  # noqa: E402
@@ -157,6 +159,77 @@ def test_bls_cpi_row_schema_rejects_oversized_period() -> None:
             period_name="Annual",
             value=1.0,
         )
+
+
+def test_is_invalid_key_response_discriminates() -> None:
+    # The exact rejection BLS returns for a bad key → retry keyless.
+    assert _is_invalid_key_response(
+        "REQUEST_NOT_PROCESSED",
+        ["The key:abc provided by the User is invalid. Please provide a proper key"],
+    )
+    # A successful request is never an invalid-key case.
+    assert not _is_invalid_key_response("REQUEST_SUCCEEDED", [])
+    # Other not-processed failures (e.g. rate limit) aren't fixed by dropping
+    # the key, so they must not trigger the keyless retry.
+    assert not _is_invalid_key_response(
+        "REQUEST_NOT_PROCESSED",
+        ["Request could not be serviced, as the daily threshold has been reached."],
+    )
+
+
+def test_fetch_window_retries_unregistered_on_invalid_key(tmp_path: Path) -> None:
+    """A rejected registered key falls back to an unregistered (keyless)
+    request rather than crashing the run, since BLS serves the same series
+    without a key (at a lower rate limit)."""
+
+    class _FakeResponse:
+        def __init__(self, body: dict) -> None:
+            self._body = body
+
+        def raise_for_status(self) -> None:
+            pass
+
+        def json(self) -> dict:
+            return self._body
+
+    class _FakeClient:
+        """Rejects any request carrying a registrationkey; succeeds without."""
+
+        def __init__(self) -> None:
+            self.payloads: list[dict] = []
+
+        async def post(self, url: str, *, json: dict, timeout: int) -> _FakeResponse:
+            self.payloads.append(json)
+            if "registrationkey" in json:
+                return _FakeResponse(
+                    {
+                        "status": "REQUEST_NOT_PROCESSED",
+                        "message": ["The key:bad provided by the User is invalid."],
+                    }
+                )
+            return _FakeResponse({"status": "REQUEST_SUCCEEDED", "Results": {"series": []}})
+
+    import asyncio
+
+    client = _FakeClient()
+    path = asyncio.run(
+        fetch_window(
+            client,  # type: ignore[arg-type]
+            "CUUR0000SA0",
+            2020,
+            2020,
+            "bad-key",
+            cache_dir=tmp_path,
+        )
+    )
+    # Two POSTs: first with the key (rejected), then keyless (succeeds).
+    assert len(client.payloads) == 2
+    assert "registrationkey" in client.payloads[0]
+    assert "registrationkey" not in client.payloads[1]
+    # The successful (keyless) body is what gets cached.
+    assert path.exists()
+    cached = json.loads(path.read_text())
+    assert cached["status"] == "REQUEST_SUCCEEDED"
 
 
 def test_no_fetch_with_missing_cache_raises(tmp_path: Path) -> None:

@@ -30,6 +30,7 @@ import {
 } from '../utils/dataExplorerScorecardHelpers'
 import type { TrendArrowPack } from '../utils/dataExplorerScorecardHelpers'
 import { formatMetricValueDisplay, type CensusMetricFormatRow } from '../utils/censusMapTransforms'
+import { CENSUS_METRIC_GROUPS } from '../utils/censusMetricGroups'
 import { prevVintageForScorecardTrend } from '../utils/censusMapValueMode'
 import {
   CENSUS_REGION_LABEL,
@@ -96,38 +97,9 @@ function scorecardTrendCompareCaption(years: 1 | 3 | 5, displayVintage: string, 
   return `Rolling ${years}-year window: ACS 5-year estimates from survey ending ${vy} to ending ${displayVintage} (${years} years between end-years; each value is a full 5-year pooled rolling estimate).`
 }
 
-const SCORECARD_GROUPS: { id: string; title: string; slugs: string[] }[] = [
-  {
-    id: 'income',
-    title: 'Income & inequality',
-    slugs: ['median_household_income', 'per_capita_income', 'gini_income_inequality'],
-  },
-  {
-    id: 'housing',
-    title: 'Housing',
-    slugs: ['median_home_value', 'median_gross_rent', 'median_gross_rent_pct_hhincome', 'housing_units'],
-  },
-  {
-    id: 'people',
-    title: 'Population & age',
-    slugs: ['total_population', 'median_age'],
-  },
-  {
-    id: 'poverty_insurance',
-    title: 'Poverty',
-    slugs: ['population_income_below_poverty_level'],
-  },
-  {
-    id: 'education',
-    title: 'Education & enrollment',
-    slugs: ['school_enrollment_total'],
-  },
-  {
-    id: 'work',
-    title: 'Work & commute',
-    slugs: ['travel_time_to_work_minutes', 'labor_force', 'employed_civilian', 'unemployed_civilian'],
-  },
-]
+// Topic taxonomy lives in ../utils/censusMetricGroups so the map's metric
+// browser sidebar groups the same slugs the same way (single source of truth).
+const SCORECARD_GROUPS = CENSUS_METRIC_GROUPS
 
 const US_STATE_OPTIONS: { fips: string; code: string }[] = [
   { fips: '01', code: 'AL' },

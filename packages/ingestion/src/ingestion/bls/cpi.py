@@ -83,6 +83,22 @@ def _build_request_payload(
     return payload
 
 
+def _is_invalid_key_response(status: str | None, messages: Iterable[str]) -> bool:
+    """True when BLS rejected the request specifically because the supplied
+    registration key is invalid.
+
+    Distinguished from rate-limit / malformed-series failures: those are not
+    fixed by dropping the key, whereas an invalid-key rejection is — BLS still
+    serves the data unregistered (25 req/day shared per-IP). BLS reports this as
+    ``status=REQUEST_NOT_PROCESSED`` with a message like "The key:... provided
+    by the User is invalid."
+    """
+    if status != "REQUEST_NOT_PROCESSED":
+        return False
+    blob = " ".join(m for m in messages if m).lower()
+    return "key" in blob and "invalid" in blob
+
+
 def _window_must_refetch(end_year: int, today: dt.date | None = None) -> bool:
     """Trailing windows that include the current calendar year are never
     "complete" — BLS publishes the annual average only after December — so
@@ -115,17 +131,35 @@ async def fetch_window(
         )
         return path
 
-    payload = _build_request_payload(series_id, start_year, end_year, registration_key)
     logger.info(
         "BLS fetch: series={} window={}-{} (cache={}, refresh={})",
         series_id, start_year, end_year, path.exists(), refresh,
     )
-    r = await client.post(BLS_ENDPOINT, json=payload, timeout=60)
-    r.raise_for_status()
-    body = r.json()
+
+    async def _post(key: str | None) -> dict[str, Any]:
+        payload = _build_request_payload(series_id, start_year, end_year, key)
+        r = await client.post(BLS_ENDPOINT, json=payload, timeout=60)
+        r.raise_for_status()
+        return r.json()
+
+    body = await _post(registration_key)
     status = body.get("status")
-    if status != "REQUEST_SUCCEEDED":
+    messages = body.get("message", [])
+    # A bad registered key shouldn't kill the run: BLS serves the same series
+    # unregistered (25 req/day shared per-IP), and the default window is a
+    # single request. Retry keyless once, loudly, so the run completes while
+    # still flagging that BLS_API_KEY needs fixing to restore the 500/day quota.
+    if registration_key and _is_invalid_key_response(status, messages):
+        logger.warning(
+            "BLS rejected the registration key as invalid; retrying unregistered "
+            "(25 req/day shared per-IP cap). Fix BLS_API_KEY to restore the "
+            "registered 500/day quota. messages={}",
+            messages,
+        )
+        body = await _post(None)
+        status = body.get("status")
         messages = body.get("message", [])
+    if status != "REQUEST_SUCCEEDED":
         raise RuntimeError(
             f"BLS request failed: status={status}, messages={messages}"
         )

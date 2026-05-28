@@ -53,10 +53,10 @@ import argparse
 import asyncio
 import csv
 import json
-import zipfile
 from pathlib import Path
 from typing import Any, AsyncIterator, Iterable
 
+import zipfile_deflate64 as zipfile
 from loguru import logger
 from pydantic import Field
 from sqlalchemy import text
@@ -82,9 +82,17 @@ KNOWN_GOV_TYPES: tuple[str, ...] = (
 # FIELD_MAP — TPC's column names have drifted across releases (`ID4` vs `ID`,
 # `Year4` vs `Year` vs `fiscal_year`, etc.). We coalesce by trying each key in
 # order; whichever appears in the row first wins.
-_ID_KEYS = ("ID", "id", "ID4", "id4", "GovID", "Government_ID", "gov_id", "tpc_id")
+# GOVSid (Census Government ID) is the canonical identifier in the "Government
+# Finance Database" release; FIPSid is its FIPS-derived sibling and the
+# fallback for the ~2% of rows where GOVSid is blank. Both must come before the
+# older "ID"/"ID4" names so we don't drop every row of a modern bundle.
+_ID_KEYS = ("GOVSid", "FIPSid", "ID", "id", "ID4", "id4", "GovID", "Government_ID", "gov_id", "tpc_id")
 _NAME_KEYS = ("Name", "NAME", "name", "Name4", "name4", "GovName", "Government_Name")
-_STATE_FIPS_KEYS = ("State", "STATE", "state", "State4", "state4", "STATEFIPS", "state_fips")
+# FIPS_Code_State carries the zero-padded 2-digit state FIPS ("01") in the
+# Government Finance Database. We deliberately do NOT fall back to State_Code:
+# that column is the Census GOVS alphabetical state code (AL=1, AK=2, …), which
+# diverges from FIPS past Arkansas — treating it as FIPS would write wrong codes.
+_STATE_FIPS_KEYS = ("FIPS_Code_State", "State", "STATE", "state", "State4", "state4", "STATEFIPS", "state_fips")
 _STATE_POSTAL_KEYS = ("StateAbbrev", "state_postal", "STATE_ABBR", "state_abbr", "StateCode")
 _YEAR_KEYS = ("Year", "YEAR", "year", "Year4", "year4", "fiscal_year", "FY")
 _POPULATION_KEYS = ("Population", "POPULATION", "population", "Pop", "pop", "Pop4")

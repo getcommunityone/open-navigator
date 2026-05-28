@@ -4,19 +4,32 @@ import {
   CalendarDaysIcon,
   MapIcon,
   SwatchIcon,
+  ViewColumnsIcon,
 } from '@heroicons/react/24/outline'
 
 export type CensusMapRailSection = 'year' | 'view' | 'scale' | 'values'
 
 interface CensusMapLeftRailProps {
   activeSection: CensusMapRailSection | null
-  onOpen: (section: CensusMapRailSection) => void
+  /**
+   * Open a display control. ``anchorRect`` is the clicked button's viewport
+   * rect, so callers that render the control as a rail-anchored popover can
+   * position it; callers using a drawer can ignore it.
+   */
+  onOpen: (section: CensusMapRailSection, anchorRect?: DOMRect) => void
   /** Tag shown next to the year icon, e.g. "2024". Truncated if long. */
   yearBadge?: string
   /** Resets the map to the nation view. Disabled when already there. */
   onReset?: () => void
   /** True if there's anywhere to reset to (i.e. user has zoomed in). */
   canReset?: boolean
+  /**
+   * When provided, renders a bottom toggle for the adjacent metric panel.
+   * ``metricPanelOpen`` drives the icon direction. Omit on surfaces without a
+   * metric browser (the icon simply doesn't render).
+   */
+  onToggleMetricPanel?: () => void
+  metricPanelOpen?: boolean
 }
 
 interface RailItem {
@@ -39,6 +52,8 @@ export default function CensusMapLeftRail({
   yearBadge,
   onReset,
   canReset = false,
+  onToggleMetricPanel,
+  metricPanelOpen = true,
 }: CensusMapLeftRailProps) {
   return (
     <nav
@@ -72,7 +87,7 @@ export default function CensusMapLeftRail({
           <button
             key={it.id}
             type="button"
-            onClick={() => onOpen(it.id)}
+            onClick={(e) => onOpen(it.id, e.currentTarget.getBoundingClientRect())}
             title={`${it.label} — ${it.hint}`}
             aria-label={`${it.label}: ${it.hint}`}
             className={`group relative flex w-12 flex-col items-center gap-0.5 rounded-lg px-1.5 py-2 text-[10px] font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#354F52] focus-visible:ring-offset-1 ${
@@ -95,6 +110,23 @@ export default function CensusMapLeftRail({
           </button>
         )
       })}
+      {onToggleMetricPanel ? (
+        <>
+          <div className="mt-auto" aria-hidden />
+          <div className="my-0.5 h-px bg-slate-200" aria-hidden />
+          <button
+            type="button"
+            onClick={onToggleMetricPanel}
+            title={metricPanelOpen ? 'Hide metric list' : 'Show metric list'}
+            aria-label={metricPanelOpen ? 'Hide metric list' : 'Show metric list'}
+            aria-pressed={metricPanelOpen}
+            className="group relative flex w-12 flex-col items-center gap-0.5 rounded-lg px-1.5 py-2 text-[10px] font-semibold text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#354F52] focus-visible:ring-offset-1"
+          >
+            <ViewColumnsIcon className="h-5 w-5" aria-hidden />
+            <span className="leading-none">{metricPanelOpen ? 'Hide' : 'Metrics'}</span>
+          </button>
+        </>
+      ) : null}
     </nav>
   )
 }
