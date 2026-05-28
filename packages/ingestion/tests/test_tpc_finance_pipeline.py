@@ -137,6 +137,9 @@ def test_row_to_bronze_handles_government_finance_database_columns() -> None:
     assert out["state_code"] == "AL"  # back-filled from FIPS '01'
     assert out["fiscal_year"] == "2022"
     assert out["population"] == 57
+    # Type_Code='2' overrides the filename-derived 'other' → city.
+    assert out["gov_type"] == "city"
+    assert out["natural_key"].startswith("city:")
 
     # GOVSid present → it wins over FIPSid (canonical Census identifier).
     out2 = row_to_bronze_dict(
@@ -146,6 +149,31 @@ def test_row_to_bronze_handles_government_finance_database_columns() -> None:
     )
     assert out2 is not None
     assert out2["id_code"] == "01002000200000"
+    # No Type_Code → falls back to the caller's filename-derived gov_type.
+    assert out2["gov_type"] == "other"
+
+
+def test_type_code_maps_to_gov_type() -> None:
+    """The combined GFD release classifies each row by numeric Type_Code, which
+    overrides the filename guess. Unknown codes / blanks fall back to 'other'."""
+    cases = {
+        "0": "state",
+        "1": "county",
+        "2": "city",
+        "3": "township",
+        "4": "special_district",
+        "5": "school_district",
+        "6": "other",   # outside the Census code map
+        "": "other",    # summary/blank rows
+    }
+    for code, expected in cases.items():
+        out = row_to_bronze_dict(
+            {"GOVSid": "X", "Year4": "2020", "Type_Code": code},
+            gov_type="other",
+            source_file="gfd.csv",
+        )
+        assert out is not None
+        assert out["gov_type"] == expected, f"Type_Code={code!r}"
 
 
 def test_row_to_bronze_postal_overrides_fips_when_present() -> None:

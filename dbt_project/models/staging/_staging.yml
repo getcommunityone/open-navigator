@@ -1191,7 +1191,7 @@ sources:
           - name: state_code
             description: "2-letter postal, back-filled from state_fips when only FIPS is in source."
           - name: gov_type
-            description: "One of: state, county, city, school_district, special_district, other."
+            description: "Derived from Census Type_Code: state, county, city, township, school_district, special_district, or other."
           - name: fiscal_year
             description: "Fiscal year of the observation."
           - name: population

@@ -75,9 +75,26 @@ KNOWN_GOV_TYPES: tuple[str, ...] = (
     "state",
     "county",
     "city",
+    "township",
     "school_district",
     "special_district",
 )
+
+# The "Government Finance Database" / Census release ships every government
+# type in one combined CSV, distinguished by the numeric `Type_Code` column
+# (Census Bureau Classification Manual coding) — NOT by filename. When present,
+# it is the authoritative gov_type; the filename heuristic only applies to the
+# older per-type bundles that lack this column. Codes outside this map (e.g. an
+# occasional '6', or blanks on summary rows) fall back to 'other'.
+_TYPE_CODE_KEYS = ("Type_Code", "type_code", "TypeCode", "Type")
+_TYPE_CODE_TO_GOV_TYPE = {
+    "0": "state",
+    "1": "county",
+    "2": "city",
+    "3": "township",
+    "4": "special_district",
+    "5": "school_district",
+}
 
 # FIELD_MAP — TPC's column names have drifted across releases (`ID4` vs `ID`,
 # `Year4` vs `Year` vs `fiscal_year`, etc.). We coalesce by trying each key in
@@ -234,7 +251,16 @@ def row_to_bronze_dict(
     un-parseable — those rows are skipped with a debug log rather than
     failing the whole batch, because TPC bundles occasionally include
     summary/total rows that legitimately have no id_code.
+
+    ``gov_type`` is the caller's best guess (from the filename / subdir). When
+    the row carries a ``Type_Code`` (the combined "Government Finance Database"
+    release), that authoritative per-row classification overrides it; the
+    filename guess only survives for older per-type bundles without the column.
     """
+    tc_raw = _first_match(row, _TYPE_CODE_KEYS)
+    if tc_raw is not None:
+        gov_type = _TYPE_CODE_TO_GOV_TYPE.get(str(tc_raw).strip(), "other")
+
     id_code_raw = _first_match(row, _ID_KEYS)
     year_raw = _first_match(row, _YEAR_KEYS)
     if not id_code_raw or not year_raw:

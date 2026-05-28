@@ -39,9 +39,11 @@ CREATE TABLE IF NOT EXISTS bronze.bronze_tpc_government_finance (
     -- 2-letter postal code, back-filled from state_fips when only FIPS is
     -- present in the source CSV. Indexed for cross-source joins.
     state_code     CHAR(2),
-    -- One of: 'state', 'county', 'city', 'school_district',
-    -- 'special_district', or 'other'. Part of the PK because id_code is
-    -- not guaranteed unique across government types.
+    -- One of: 'state', 'county', 'city', 'township', 'school_district',
+    -- 'special_district', or 'other'. Derived from the row's Census
+    -- Type_Code in the combined GFD release (filename heuristic otherwise).
+    -- Part of the PK because id_code is not guaranteed unique across
+    -- government types.
     gov_type       VARCHAR(32)   NOT NULL,
     fiscal_year    VARCHAR(4)    NOT NULL,
     population     BIGINT,
