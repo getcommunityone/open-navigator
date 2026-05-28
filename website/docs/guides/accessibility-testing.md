@@ -31,8 +31,8 @@ This guide covers **how to read these docs**, **what each engine does**, and **e
 | Location | Contents |
 |----------|----------|
 | This page (`website/docs/guides/accessibility-testing.md`) | User-facing runbook |
-| `scripts/accessibility/README.md` | Maintainer notes (env vars, file layout) |
-| `scripts/accessibility/*.py`, `*.mjs`, `*.sh` | Implementations |
+| `packages/accessibility/src/accessibility/README.md` | Maintainer notes (env vars, file layout) |
+| `packages/accessibility/src/accessibility/*.py`, `*.mjs`, `*.sh` | Implementations |
 
 ---
 
@@ -66,7 +66,7 @@ HTML tools check **WCAG-oriented** issues in the DOM. veraPDF checks **machine-v
 4. **HTML scans only — Node 18+:**
 
    ```bash
-   cd scripts/accessibility && npm install
+   cd packages/accessibility/src/accessibility && npm install
    npx puppeteer browsers install chrome
    ```
 
@@ -86,7 +86,7 @@ Run everything from the **repository root** (`open-navigator/`).
 ### HTML: axe on one state
 
 ```bash
-./scripts/accessibility/run_accessibility_scan.sh --engine axe --state AL
+./packages/accessibility/src/accessibility/run_accessibility_scan.sh --engine axe --state AL
 ```
 
 Exports URLs → scans with axe (default concurrency 5) → upserts `bronze.bronze_jurisdiction_website_accessibility`.
@@ -95,13 +95,13 @@ Exports URLs → scans with axe (default concurrency 5) → upserts `bronze.bron
 
 ```bash
 PA11YCI_CONCURRENCY=8 WORKER_POOL_SIZE=6 \
-  ./scripts/accessibility/run_accessibility_scan.sh --engine pa11y --state AL
+  ./packages/accessibility/src/accessibility/run_accessibility_scan.sh --engine pa11y --state AL
 ```
 
 ### PDF: veraPDF on one state
 
 ```bash
-./scripts/accessibility/run_verapdf_scan.sh --state AL --max-pdfs-per-site 3
+./packages/accessibility/src/accessibility/run_verapdf_scan.sh --state AL --max-pdfs-per-site 3
 ```
 
 Discovers PDFs on homepages → validates with PDF/UA profile `ua1` by default → upserts `bronze.bronze_jurisdiction_pdf_verapdf`.
@@ -115,15 +115,15 @@ Discovers PDFs on homepages → validates with PDF/UA profile `ua1` by default �
 One canonical URL per `jurisdiction_id` (same source priority as jurisdiction discovery):
 
 ```bash
-.venv/bin/python -m scripts.accessibility.export_urls --state AL \
+.venv/bin/python -m accessibility.export_urls --state AL \
   --out data/cache/accessibility/urls-al.json
 ```
 
 **Sharding** for large batches (~20k sites):
 
 ```bash
-.venv/bin/python -m scripts.accessibility.export_urls --limit 50 --offset 0 --batch-id shard-0
-.venv/bin/python -m scripts.accessibility.export_urls --limit 50 --offset 50 --batch-id shard-1
+.venv/bin/python -m accessibility.export_urls --limit 50 --offset 0 --batch-id shard-0
+.venv/bin/python -m accessibility.export_urls --limit 50 --offset 50 --batch-id shard-1
 ```
 
 ### 2. Run a scanner
@@ -131,7 +131,7 @@ One canonical URL per `jurisdiction_id` (same source priority as jurisdiction di
 **axe-core + Puppeteer:**
 
 ```bash
-cd scripts/accessibility
+cd packages/accessibility/src/accessibility
 AXE_CONCURRENCY=10 node run_axe_scan.mjs \
   --urls ../../data/cache/accessibility/urls-al.json
 ```
@@ -139,7 +139,7 @@ AXE_CONCURRENCY=10 node run_axe_scan.mjs \
 **Pa11y-CI (worker pool):**
 
 ```bash
-cd scripts/accessibility
+cd packages/accessibility/src/accessibility
 PA11YCI_CONCURRENCY=8 WORKER_POOL_SIZE=6 WORKER_CHUNK_SIZE=25 \
   node run_pa11y_workers.mjs --urls ../../data/cache/accessibility/urls-al.json
 ```
@@ -147,10 +147,10 @@ PA11YCI_CONCURRENCY=8 WORKER_POOL_SIZE=6 WORKER_CHUNK_SIZE=25 \
 ### 3. Persist to Postgres
 
 ```bash
-.venv/bin/python -m scripts.accessibility.persist_results --ensure-ddl \
+.venv/bin/python -m accessibility.persist_results --ensure-ddl \
   --scanner axe --input data/cache/accessibility/axe-<batch-id>.ndjson
 
-.venv/bin/python -m scripts.accessibility.persist_results --ensure-ddl \
+.venv/bin/python -m accessibility.persist_results --ensure-ddl \
   --scanner pa11y --input data/cache/accessibility/pa11y-<batch-id>/pa11y-results-merged.json
 ```
 
@@ -178,7 +178,7 @@ psql "$OPEN_NAVIGATOR_DATABASE_URL" -v ON_ERROR_STOP=1 \
 ### 1. Discover PDF links on homepages
 
 ```bash
-.venv/bin/python -m scripts.accessibility.export_pdf_urls --state AL \
+.venv/bin/python -m accessibility.export_pdf_urls --state AL \
   --out data/cache/accessibility/pdf-urls-al.json \
   --max-pdfs-per-site 3
 ```
@@ -190,14 +190,14 @@ Use `--from-manifest path.json` to skip crawling if you already have a PDF URL l
 **Default (Docker wraps veraPDF):**
 
 ```bash
-.venv/bin/python -m scripts.accessibility.run_verapdf_scan \
+.venv/bin/python -m accessibility.run_verapdf_scan \
   --manifest data/cache/accessibility/pdf-urls-al.json
 ```
 
 **Multiple profiles** (e.g. PDF/UA-1 and PDF/UA-2):
 
 ```bash
-VERAPDF_FLAVOURS=ua1,ua2 .venv/bin/python -m scripts.accessibility.run_verapdf_scan \
+VERAPDF_FLAVOURS=ua1,ua2 .venv/bin/python -m accessibility.run_verapdf_scan \
   --manifest data/cache/accessibility/pdf-urls-al.json
 ```
 
@@ -205,14 +205,14 @@ VERAPDF_FLAVOURS=ua1,ua2 .venv/bin/python -m scripts.accessibility.run_verapdf_s
 
 ```bash
 VERAPDF_USE_DOCKER=false VERAPDF_BIN=verapdf \
-  .venv/bin/python -m scripts.accessibility.run_verapdf_scan \
+  .venv/bin/python -m accessibility.run_verapdf_scan \
   --manifest data/cache/accessibility/pdf-urls-al.json
 ```
 
 ### 3. Persist PDF results
 
 ```bash
-.venv/bin/python -m scripts.accessibility.persist_verapdf_results --ensure-ddl \
+.venv/bin/python -m accessibility.persist_verapdf_results --ensure-ddl \
   --input data/cache/accessibility/verapdf-<batch-id>.ndjson
 ```
 
@@ -237,7 +237,7 @@ psql "$OPEN_NAVIGATOR_DATABASE_URL" -v ON_ERROR_STOP=1 \
 ### Docker worker (batch / Lambda-style)
 
 ```bash
-docker build -f scripts/accessibility/docker/Dockerfile.verapdf-worker \
+docker build -f packages/accessibility/src/accessibility/docker/Dockerfile.verapdf-worker \
   -t open-navigator/verapdf-worker .
 
 docker compose -f docker-compose.verapdf.example.yml run --rm verapdf-worker \
@@ -254,7 +254,7 @@ Inside the image, `VERAPDF_USE_DOCKER=false` — the `verapdf` CLI is already on
 |----------|-------------|
 | Raise concurrency (`AXE_CONCURRENCY`, `PA11YCI_CONCURRENCY`, `WORKER_POOL_SIZE`) | Single powerful machine |
 | `--limit` / `--offset` shards | Multiple machines or cron jobs |
-| `scripts/accessibility/lambda_handler.py` | AWS Lambda + Step Functions |
+| `packages/accessibility/src/accessibility/lambda_handler.py` | AWS Lambda + Step Functions |
 
 **Lambda event examples:**
 

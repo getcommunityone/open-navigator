@@ -1,5 +1,5 @@
 -- veraPDF validation results (PDF/UA, PDF/A) for jurisdiction-linked PDFs.
--- Applied by: python -m scripts.accessibility.persist_verapdf_results --ensure-ddl
+-- Applied by: python -m accessibility.persist_verapdf_results --ensure-ddl
 
 CREATE SCHEMA IF NOT EXISTS bronze;
 

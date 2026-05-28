@@ -1,5 +1,5 @@
 -- Lighthouse navigation audits for jurisdiction homepages (paired with axe via batch_id).
--- Applied by: python -m scripts.accessibility.persist_lighthouse_results --ensure-ddl
+-- Applied by: python -m accessibility.persist_lighthouse_results --ensure-ddl
 -- Neon mirror: scripts/deployment/neon/migrations/034_create_bronze_jurisdiction_website_lighthouse.sql
 
 CREATE SCHEMA IF NOT EXISTS bronze;

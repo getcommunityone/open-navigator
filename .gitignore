@@ -25,7 +25,7 @@ wheels/
 node_modules/
 
 # Lighthouse / chrome-launcher on WSL: bogus Windows TEMP can become a single directory name under cwd
-scripts/accessibility/C*
+packages/accessibility/src/accessibility/C*
 
 # Virtual environments
 venv/

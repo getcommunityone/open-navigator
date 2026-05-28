@@ -5,10 +5,10 @@ Download PDFs and validate with veraPDF (PDF/UA, PDF/A) — CLI or Docker.
 Reads ``export_pdf_urls.py`` manifest; writes NDJSON for ``persist_verapdf_results``.
 
 Usage:
-  .venv/bin/python -m scripts.accessibility.run_verapdf_scan \\
+  .venv/bin/python -m accessibility.run_verapdf_scan \\
       --manifest data/cache/accessibility/pdf-urls.json
   VERAPDF_FLAVOURS=ua1,ua2 VERAPDF_WORKERS=4 \\
-      .venv/bin/python -m scripts.accessibility.run_verapdf_scan --manifest ...
+      .venv/bin/python -m accessibility.run_verapdf_scan --manifest ...
 """
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-_ROOT = Path(__file__).resolve().parents[2]
+_ROOT = Path(__file__).resolve().parents[4]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
@@ -33,7 +33,7 @@ except ModuleNotFoundError:
     print("Install httpx: pip install -r requirements.txt", file=sys.stderr)
     sys.exit(1)
 
-from scripts.accessibility.verapdf_cli import run_verapdf, summarize_validation_report
+from accessibility.verapdf_cli import run_verapdf, summarize_validation_report
 
 _UA = (
     os.getenv("ACCESSIBILITY_USER_AGENT")
@@ -204,7 +204,7 @@ def main() -> None:
 
     print(f"Wrote NDJSON to {out_path}")
     print(
-        f"Persist: .venv/bin/python -m scripts.accessibility.persist_verapdf_results "
+        f"Persist: .venv/bin/python -m accessibility.persist_verapdf_results "
         f"--input {out_path} --ensure-ddl"
     )
 

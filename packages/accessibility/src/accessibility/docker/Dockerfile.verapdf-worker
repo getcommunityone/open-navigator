@@ -1,7 +1,7 @@
 # veraPDF batch worker: official CLI + Python scan scripts (no nested Docker).
 #
 # Build (repo root):
-#   docker build -f scripts/accessibility/docker/Dockerfile.verapdf-worker \
+#   docker build -f packages/accessibility/src/accessibility/docker/Dockerfile.verapdf-worker \
 #     -t open-navigator/verapdf-worker .
 #
 # Run (mount repo data + .env):
@@ -24,11 +24,11 @@ COPY requirements.txt /app/requirements.txt
 RUN python3 -m pip install --no-cache-dir \
     httpx psycopg2-binary python-dotenv loguru
 
-COPY scripts/accessibility /app/scripts/accessibility
+COPY packages/accessibility/src/accessibility /app/packages/accessibility/src/accessibility
 COPY scripts/database /app/scripts/database
 
 ENV VERAPDF_USE_DOCKER=false \
     VERAPDF_BIN=verapdf \
-    PYTHONPATH=/app
+    PYTHONPATH=/app/packages/accessibility/src:/app
 
-ENTRYPOINT ["python3", "-m", "scripts.accessibility.docker_entrypoint"]
+ENTRYPOINT ["python3", "-m", "accessibility.docker_entrypoint"]

@@ -6,8 +6,8 @@ Writes a JSON manifest for ``run_verapdf_scan.py``. Each row is one PDF candidat
 (``jurisdiction_id`` may repeat when multiple PDFs are found on the same site).
 
 Usage:
-  .venv/bin/python -m scripts.accessibility.export_pdf_urls --state AL --max-pdfs-per-site 3
-  .venv/bin/python -m scripts.accessibility.export_pdf_urls --from-manifest data/pdfs.json
+  .venv/bin/python -m accessibility.export_pdf_urls --state AL --max-pdfs-per-site 3
+  .venv/bin/python -m accessibility.export_pdf_urls --from-manifest data/pdfs.json
 """
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from urllib.parse import urljoin, urlparse
 
-_ROOT = Path(__file__).resolve().parents[2]
+_ROOT = Path(__file__).resolve().parents[4]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
@@ -32,7 +32,7 @@ except ModuleNotFoundError:
     print("Install httpx: pip install -r requirements.txt", file=sys.stderr)
     sys.exit(1)
 
-from scripts.accessibility.export_urls import fetch_url_jobs
+from accessibility.export_urls import fetch_url_jobs
 
 _DEFAULT_OUT = _ROOT / "data" / "cache" / "accessibility" / "pdf-urls.json"
 _PDF_HREF = re.compile(

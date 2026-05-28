@@ -13,23 +13,25 @@ Scripts here download **attribution-friendly** imagery from [Wikimedia Commons](
 
 ## Run
 
-From the **repository root**:
+The downloader was ported to `packages/ingestion` on `core_lib.http.BaseAsyncClient`
+(retries, rate limiting, structured logs). Run the module from the **repository root**:
 
 ```bash
-chmod +x scripts/wikicommons/download_wikicommons_assets.sh   # once
+python -m ingestion.wikicommons.download
+# or the thin wrapper (now just exec's the module):
 ./scripts/wikicommons/download_wikicommons_assets.sh
 ```
 
 Options:
 
 ```text
---out-dir PATH   Output directory (default: data/cache/wikicommons)
---sleep SECONDS  Delay between requests (default: 0.85)
 --only AL TX …   Limit to these USPS codes (handy for testing)
 --skip-flags     Only license plates
 --skip-plates    Only state flags
+--force          Re-download even if a fresh cache exists (per-file freshness reuse otherwise)
 ```
 
-Requirements: **Python 3** stdlib only (`urllib`).
+Requirements: the `communityone-ingestion` package and its deps (`core-lib`, `httpx`).
+Output: `data/cache/wikicommons/` (cache dir is fixed; per-file cache-freshness reuse).
 
 The former `scripts/state_symbols/` flow (State Symbols USA) has been **removed**; all assets here are Commons-only.
