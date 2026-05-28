@@ -7,9 +7,9 @@ dist/
 # Build output
 api/static/
 
-# Generated API contract (regenerate with `npm run gen:api`)
+# OpenAPI schema dump (intermediate; api.types.ts IS committed)
+# CI regenerates and diffs api.types.ts to gate backend/frontend drift.
 openapi.json
-src/lib/api.types.ts
 
 # Environment
 .env

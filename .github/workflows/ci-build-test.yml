@@ -122,9 +122,12 @@ jobs:
           python -c "from api.app import app; print('✅ API app imports successfully')"
 
   # Test 5: API contract types (OpenAPI -> TypeScript)
-  # Regenerates the frontend's strict API types from the live FastAPI schema
-  # (api.app:app) and type-checks them, so a backend contract change that would
-  # break the typed frontend client is caught here rather than at runtime.
+  # Regenerates frontend/src/lib/api.types.ts from the live FastAPI schema
+  # (api.app:app) and type-checks the *regenerated* file against the frontend
+  # consumers. A backend contract change that would break a typed call site
+  # (wrong path, missing field, renamed param) fails CI here rather than at
+  # runtime. The committed api.types.ts is a snapshot for local DX/IDE; refresh
+  # it locally with `npm run gen:api` when you touch the backend contract.
   api-types:
     name: API Types (OpenAPI -> TypeScript)
     runs-on: ubuntu-latest
@@ -158,17 +161,20 @@ jobs:
           cd frontend
           npm ci
 
-      - name: Generate API types from the FastAPI schema
+      - name: Regenerate API types from the FastAPI schema
         run: |
           cd frontend
           npm run gen:api
+          test -s src/lib/api.types.ts || { echo "::error::api.types.ts was not generated"; exit 1; }
 
-      - name: Verify generated types compile
+      - name: Type-check regenerated types against the frontend consumers
         run: |
           cd frontend
-          test -s src/lib/api.types.ts || { echo "api.types.ts was not generated"; exit 1; }
-          npx tsc --noEmit
-          echo "Generated API types compile against the frontend project"
+          if ! npx tsc --noEmit; then
+            echo "::error::Frontend consumers no longer match the FastAPI schema. Update the typed call site, or refresh src/lib/api.types.ts locally with 'npm run gen:api' and commit."
+            exit 1
+          fi
+          echo "Regenerated API types are compatible with all frontend consumers"
 
   # Test 4: Docker Build (Full Integration Test)
   docker-build:

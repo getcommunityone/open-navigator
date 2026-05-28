@@ -1,4 +1,5 @@
 import api from '../lib/api'
+import { apiTyped } from '../lib/apiClient'
 
 export type BatchJobsTotals = {
   batches: number
@@ -143,11 +144,16 @@ export async function fetchBatchJurisdictions(
   batchId: string,
   stateCode: string,
 ): Promise<BatchJurisdictionRun[]> {
-  const res = await api.get<{ jurisdictions: BatchJurisdictionRun[] }>(
-    `/batch-jobs/${encodeURIComponent(batchId)}/jurisdictions`,
-    { params: { state: stateCode.toUpperCase() } },
+  // Typed against the generated OpenAPI contract: the path, the `batch_id`
+  // path param and the required `state` query param are checked at compile
+  // time. The result is bridged to the existing hand type while batchJobs.ts
+  // is migrated incrementally (see lib/apiClient.ts).
+  const { data, error } = await apiTyped.GET(
+    '/api/batch-jobs/{batch_id}/jurisdictions',
+    { params: { path: { batch_id: batchId }, query: { state: stateCode.toUpperCase() } } },
   )
-  return res.data.jurisdictions ?? []
+  if (error) throw error
+  return (data.jurisdictions ?? []) as BatchJurisdictionRun[]
 }
 
 export async function fetchBatchJobDetail(
