@@ -240,8 +240,12 @@ def row_to_bronze_dict(
     if not id_code_raw or not year_raw:
         return None
     try:
-        fiscal_year = int(str(year_raw).strip())
+        # Validate it's a real (numeric) year, but carry it as a 4-char string
+        # to match the VARCHAR(4) bronze column.
+        fiscal_year = str(int(str(year_raw).strip()))
     except (TypeError, ValueError):
+        return None
+    if len(fiscal_year) != 4:
         return None
 
     state_fips: str | None = None
@@ -296,7 +300,7 @@ class TpcGovernmentFinanceRow(RawRow):
     state_fips: str | None = Field(default=None, max_length=2)
     state_code: str | None = Field(default=None, max_length=2)
     gov_type: str = Field(min_length=1, max_length=32)
-    fiscal_year: int
+    fiscal_year: str = Field(min_length=1, max_length=4)
     population: int | None = None
     raw_record: dict
     source_file: str = Field(min_length=1, max_length=255)
@@ -314,7 +318,7 @@ _CREATE_TABLE_SQL = text(
         state_fips     CHAR(2),
         state_code     CHAR(2),
         gov_type       VARCHAR(32)   NOT NULL,
-        fiscal_year    INTEGER       NOT NULL,
+        fiscal_year    VARCHAR(4)    NOT NULL,
         population     BIGINT,
         raw_record     JSONB         NOT NULL,
         source_file    TEXT          NOT NULL,

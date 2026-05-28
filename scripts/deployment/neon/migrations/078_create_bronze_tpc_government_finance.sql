@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS bronze.bronze_tpc_government_finance (
     -- 'special_district', or 'other'. Part of the PK because id_code is
     -- not guaranteed unique across government types.
     gov_type       VARCHAR(32)   NOT NULL,
-    fiscal_year    INTEGER       NOT NULL,
+    fiscal_year    VARCHAR(4)    NOT NULL,
     population     BIGINT,
     raw_record     JSONB         NOT NULL,
     source_file    TEXT          NOT NULL,

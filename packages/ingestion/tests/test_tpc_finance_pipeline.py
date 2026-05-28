@@ -83,7 +83,7 @@ def test_row_to_bronze_handles_modern_column_names() -> None:
     assert out["state_fips"] == "01"
     assert out["state_code"] == "AL"  # back-filled from FIPS
     assert out["gov_type"] == "state"
-    assert out["fiscal_year"] == 2022
+    assert out["fiscal_year"] == "2022"
     assert out["population"] == 5074000
     assert out["natural_key"] == "state:AL_001_2022:2022"
     # raw_record carries every column verbatim, including the extracted ones.
@@ -106,7 +106,7 @@ def test_row_to_bronze_handles_legacy_id4_year4_columns() -> None:
     assert out["id_code"] == "TX_county_201"
     assert out["state_fips"] == "48"
     assert out["state_code"] == "TX"
-    assert out["fiscal_year"] == 2019
+    assert out["fiscal_year"] == "2019"
     # Scientific-notation population string → int via float cast.
     assert out["population"] == 1300000
 
@@ -135,7 +135,7 @@ def test_row_to_bronze_handles_government_finance_database_columns() -> None:
     assert out["id_code"] == "00012041203910"
     assert out["state_fips"] == "01"  # from FIPS_Code_State, not State_Code
     assert out["state_code"] == "AL"  # back-filled from FIPS '01'
-    assert out["fiscal_year"] == 2022
+    assert out["fiscal_year"] == "2022"
     assert out["population"] == 57
 
     # GOVSid present → it wins over FIPSid (canonical Census identifier).
@@ -190,12 +190,12 @@ def test_tpc_row_schema_accepts_valid() -> None:
         state_fips="01",
         state_code="AL",
         gov_type="state",
-        fiscal_year=2022,
+        fiscal_year="2022",
         population=5_000_000,
         raw_record={"T01": "1234"},
         source_file="state.csv",
     )
-    assert r.fiscal_year == 2022
+    assert r.fiscal_year == "2022"
     assert r.raw_record["T01"] == "1234"
 
 
@@ -207,7 +207,7 @@ def test_tpc_row_schema_rejects_oversized_state_code() -> None:
             natural_key="x",
             id_code="x",
             gov_type="state",
-            fiscal_year=2022,
+            fiscal_year="2022",
             raw_record={},
             source_file="x.csv",
             state_code="CALIFORNIA",  # > 2 chars
