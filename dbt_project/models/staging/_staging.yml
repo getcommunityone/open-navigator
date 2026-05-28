@@ -1203,6 +1203,48 @@ sources:
           - name: loaded_at
           - name: last_updated
 
+      - name: bronze_census_finance_variables
+        description: >
+          Census Bureau ``timeseries/govsstatefin`` variables codebook —
+          one row per (dataset, variable_code) with label / concept /
+          predicate_type / group / limit. The dictionary for the State
+          and Local Government Finance survey TPC re-publishes in
+          ``bronze_tpc_government_finance``, so dbt can join
+          ``raw_record->>key`` to a human label without a separate
+          vendored lookup. Landed by
+          ``ingestion.census.govsstatefin_variables``
+          (FETCH→``data/cache/census/govsstatefin_variables/<YYYYMMDD_HHMMSS>.json``,
+          LAND→bronze; every fetch writes a new timestamped snapshot for
+          audit), thin shim at
+          ``scripts/datasources/census/download_census_finance_variables.py``.
+        columns:
+          - name: dataset
+            description: "Census dataset id (e.g. 'govsstatefin'). PK part."
+          - name: variable_code
+            description: "Census variable code (e.g. 'T01', 'R01_EST'). PK part."
+          - name: label
+            description: "Human-readable label."
+          - name: concept
+            description: "Census concept grouping (e.g. 'Tax Revenue')."
+          - name: predicate_type
+            description: "Census query predicate type (int, string, fips-for, ...)."
+          - name: var_group
+            description: "Variable group (the source 'group' field; renamed to dodge SQL reservation)."
+          - name: var_limit
+            description: "Census 'limit' (the source 'limit' field; renamed for the same reason)."
+          - name: attributes
+            description: "Comma-joined attribute codes (e.g. 'T01_EST,T01_MOE'), if present."
+          - name: required
+            description: "Whether the variable is required for queries."
+          - name: source_url
+            description: "URL the snapshot was fetched from."
+          - name: snapshot_at
+            description: "UTC timestamp encoded in the snapshot filename."
+          - name: raw_record
+            description: "JSONB of the variable's metadata blob verbatim."
+          - name: loaded_at
+          - name: last_updated
+
   - name: gold_runtime
     description: "Runtime gold tables in public schema (ACS joins for mapping quality marts)"
     database: open_navigator
