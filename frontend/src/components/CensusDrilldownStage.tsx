@@ -113,6 +113,34 @@ function geoid5(id: string | number | undefined): string {
   return String(id).padStart(5, '0')
 }
 
+/** Flatten a (Multi)Polygon geometry into a flat list of coordinate rings. */
+function ringsOf(geom: GeoJSON.Geometry | null | undefined): number[][][] {
+  if (!geom) return []
+  if (geom.type === 'Polygon') return geom.coordinates as number[][][]
+  if (geom.type === 'MultiPolygon') return (geom.coordinates as number[][][][]).flat()
+  return []
+}
+
+/**
+ * Even-odd point-in-polygon (ray casting) over a flat ring list. Exterior +
+ * hole rings together give correct containment for polygons-with-holes and
+ * non-overlapping multipolygons — matches the SVG fill rule geoPath uses.
+ */
+function pointInRings(rings: number[][][], x: number, y: number): boolean {
+  let inside = false
+  for (const ring of rings) {
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const xi = ring[i][0]
+      const yi = ring[i][1]
+      const xj = ring[j][0]
+      const yj = ring[j][1]
+      const intersect = yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi
+      if (intersect) inside = !inside
+    }
+  }
+  return inside
+}
+
 export default function CensusDrilldownStage({
   view,
   statesTopo,
@@ -204,6 +232,32 @@ export default function CensusDrilldownStage({
     }
   }, [zctaTopo])
 
+  /** The county the user drilled from (pre-projected geometry). */
+  const selectedCountyFeature = useMemo(() => {
+    if (!selectedCountyGeoid || !countiesInState) return null
+    return countiesInState.find((f) => geoid5(f.id as string | number) === selectedCountyGeoid) ?? null
+  }, [selectedCountyGeoid, countiesInState])
+
+  /**
+   * ZCTAs whose centroid falls inside the selected county. The state tile holds
+   * ~650 ZCTAs but a county only touches a few dozen — filtering here cuts the
+   * rendered DOM nodes (and hover/zoom work) by ~10-20x. Centroid containment
+   * matches the prep script's state-assignment heuristic; ZCTAs that straddle a
+   * county line are assigned to whichever county holds their centroid. Falls
+   * back to the full state set if no county is selected.
+   */
+  const zctasInCounty = useMemo(() => {
+    if (!zctasInState) return null
+    if (!selectedCountyFeature) return zctasInState
+    const rings = ringsOf(selectedCountyFeature.geometry)
+    if (!rings.length) return zctasInState
+    return zctasInState.filter((f) => {
+      const c = projectedPath.centroid(f as never)
+      if (!c || !Number.isFinite(c[0]) || !Number.isFinite(c[1])) return false
+      return pointInRings(rings, c[0], c[1])
+    })
+  }, [zctasInState, selectedCountyFeature])
+
   /** Install d3-zoom on mount. */
   useEffect(() => {
     const svgEl = svgRef.current
@@ -231,6 +285,9 @@ export default function CensusDrilldownStage({
     const z = zoomBehaviorRef.current
     if (!svgEl || !z) return
     let targetFeature: GeoJSON.Feature | null = null
+    // ZCTA tiles are raw lng/lat (need ALBERS); state/county tiles are
+    // pre-projected. Track which so we measure the bbox with the right path.
+    let targetIsLngLat = false
     if (view === 'state' && selectedStateFips && states) {
       targetFeature = states.find((f) => fips2(f.id as string | number) === selectedStateFips) ?? null
     } else if (view === 'county' && selectedCountyGeoid && countiesInState) {
@@ -239,8 +296,9 @@ export default function CensusDrilldownStage({
     } else if (view === 'zip') {
       // ZIP view: stay framed on the selected ZCTA if one is pinned, else fall
       // back to the county the user drilled from (keeps the camera anchored).
-      if (selectedZcta && zctasInState) {
-        targetFeature = zctasInState.find((f) => String(f.id) === selectedZcta) ?? null
+      if (selectedZcta && zctasInCounty) {
+        targetFeature = zctasInCounty.find((f) => String(f.id) === selectedZcta) ?? null
+        if (targetFeature) targetIsLngLat = true
       }
       if (!targetFeature && selectedCountyGeoid && countiesInState) {
         targetFeature =
@@ -252,13 +310,14 @@ export default function CensusDrilldownStage({
       select(svgEl).transition().duration(750).call(z.transform as never, zoomIdentity)
       return
     }
-    const [[x0, y0], [x1, y1]] = path.bounds(targetFeature as never) as [[number, number], [number, number]]
+    const boundsPath = targetIsLngLat ? projectedPath : path
+    const [[x0, y0], [x1, y1]] = boundsPath.bounds(targetFeature as never) as [[number, number], [number, number]]
     const k = Math.min(150, 0.9 / Math.max((x1 - x0) / W, (y1 - y0) / H))
     const tx = W / 2 - k * ((x0 + x1) / 2)
     const ty = H / 2 - k * ((y0 + y1) / 2)
     const next = zoomIdentity.translate(tx, ty).scale(k) as ZoomTransform
     select(svgEl).transition().duration(900).call(z.transform as never, next)
-  }, [view, selectedStateFips, selectedCountyGeoid, selectedZcta, states, countiesInState, zctasInState])
+  }, [view, selectedStateFips, selectedCountyGeoid, selectedZcta, states, countiesInState, zctasInCounty])
 
   // --- fill / bubble helpers (depend on viz + scale + extents) ---
   const stateFill = (sid: string): string => {
@@ -429,13 +488,14 @@ export default function CensusDrilldownStage({
         {/* ZIP layer — only when view === 'zip' and the per-state ZCTA topology
             has been lazy-loaded by the page. Renders under the hover overlay so
             its strokes don't shadow neighbor edges. */}
-        {view === 'zip' && zctasInState ? (
+        {view === 'zip' && zctasInCounty ? (
           <g className="zctas-layer">
-            {zctasInState.map((f) => {
+            {zctasInCounty.map((f) => {
               const zid = String(f.id ?? (f.properties as { GEOID20?: string; ZCTA5CE20?: string })?.GEOID20 ?? '')
               if (!zid) return null
               const isPinned = zid === pinnedZcta
-              const d = path(f as never) ?? ''
+              // ZCTA geometries are raw lng/lat — project through ALBERS.
+              const d = projectedPath(f as never) ?? ''
               const rank = zctaRankByZcta?.[zid] ?? null
               const value = zctaDisplayByZcta[zid] ?? null
               return (
@@ -447,7 +507,7 @@ export default function CensusDrilldownStage({
                     if (!onPickZcta) return
                     let lngLat: { lng: number; lat: number } | null = null
                     try {
-                      const c = path.centroid(f as never)
+                      const c = projectedPath.centroid(f as never)
                       if (c && Number.isFinite(c[0]) && Number.isFinite(c[1])) {
                         const inv = ALBERS.invert?.([c[0], c[1]])
                         if (inv && Number.isFinite(inv[0]) && Number.isFinite(inv[1])) {
@@ -489,14 +549,15 @@ export default function CensusDrilldownStage({
             transparent (the base layer already has the choropleth color). */}
         {hoveredId
           ? (() => {
-              const target =
-                view === 'zip' && zctasInState
-                  ? zctasInState.find((f) => String(f.id) === hoveredId)
-                  : (view === 'state' || view === 'county') && countiesInState
-                    ? countiesInState.find((f) => geoid5(f.id as string | number) === hoveredId)
-                    : states?.find((f) => fips2(f.id as string | number) === hoveredId)
+              const isZip = view === 'zip' && !!zctasInCounty
+              const target = isZip
+                ? zctasInCounty!.find((f) => String(f.id) === hoveredId)
+                : (view === 'state' || view === 'county') && countiesInState
+                  ? countiesInState.find((f) => geoid5(f.id as string | number) === hoveredId)
+                  : states?.find((f) => fips2(f.id as string | number) === hoveredId)
               if (!target) return null
-              const d = path(target as never) ?? ''
+              // ZCTA geometries are raw lng/lat; everything else is pre-projected.
+              const d = (isZip ? projectedPath : path)(target as never) ?? ''
               return (
                 <path
                   d={d}
