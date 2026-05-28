@@ -172,7 +172,7 @@ def tuscaloosa_youtube_audio_dir(
     audio_root: Path = DEFAULT_YOUTUBE_AUDIO_ROOT,
 ) -> Path:
     """``…/youtube_audio/al/city_of_tuscaloosa_uc74dczs0b3mhdhuhp2zgrpa`` (117+ Opus files)."""
-    from scripts.datasources.youtube.download_audio_to_drive import channel_cache_dir_name
+    from scrapers.youtube.download_audio_to_drive import channel_cache_dir_name
 
     dir_name = channel_cache_dir_name(TUSCALOOSA_CHANNEL_TITLE, TUSCALOOSA_CHANNEL_ID)
     return audio_root / TUSCALOOSA_STATE.lower() / dir_name
@@ -999,7 +999,7 @@ def run_pipeline(args: argparse.Namespace) -> None:
             if getattr(args, "only_has_transcript", False):
                 hint = (
                     " (no rows with bronze_events_text_ai.has_transcript — "
-                    "run scripts/datasources/youtube/backfill_jurisdiction_transcripts.py first)"
+                    "run packages/scrapers/src/scrapers/youtube/backfill_jurisdiction_transcripts.py first)"
                 )
             raise SystemExit(f"No bronze videos for {jurisdiction_id}{hint}")
         if args.dry_run:
@@ -1011,7 +1011,7 @@ def run_pipeline(args: argparse.Namespace) -> None:
                 )
             return
 
-        from scripts.datasources.youtube.backfill_jurisdiction_transcripts import (
+        from scrapers.youtube.backfill_jurisdiction_transcripts import (
             fetch_video_row,
             write_local_from_bronze,
         )

@@ -64,10 +64,10 @@ from dotenv import load_dotenv
 # Add parent directory to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 
-from scripts.datasources.wikidata.wikidata_integration import WikidataQuery
-from scripts.datasources.wikidata.geography_qid_cache import GeographyQidCache, norm_lit
-from scripts.datasources.wikidata import wikidata_hybrid_sql as _wikidata_hybrid_sql
-from scripts.datasources.wikidata.wikidata_wbget_claims import (
+from scrapers.wikidata.wikidata_integration import WikidataQuery
+from scrapers.wikidata.geography_qid_cache import GeographyQidCache, norm_lit
+from scrapers.wikidata import wikidata_hybrid_sql as _wikidata_hybrid_sql
+from scrapers.wikidata.wikidata_wbget_claims import (
     collect_state_related_qids,
     entities_response_to_rows,
     entity_en_label,
@@ -173,7 +173,7 @@ def _wikidata_mapping_cache_warm_db() -> bool:
 
 
 def _wikidata_fips_gnis_parquet_path() -> Path:
-    from scripts.datasources.wikidata.parquet_qid_lookup import resolve_fips_gnis_parquet_path
+    from scrapers.wikidata.parquet_qid_lookup import resolve_fips_gnis_parquet_path
 
     return resolve_fips_gnis_parquet_path()
 
@@ -193,7 +193,7 @@ def _wikidata_skip_bulk_wdqs() -> bool:
 
 
 def _postgres_fips_gnis_map_has_rows(conn) -> bool:
-    from scripts.datasources.wikidata.parquet_qid_lookup import _postgres_lookup_table_ready
+    from scrapers.wikidata.parquet_qid_lookup import _postgres_lookup_table_ready
 
     if not _postgres_lookup_table_ready(conn):
         return False
@@ -2529,7 +2529,7 @@ class JurisdictionsWikiDataLoader:
         ``state_q_code`` reserved for future P131 tightening.
         """
         _ = state_q_code
-        from scripts.datasources.wikidata import wikidata_entity_search as wes
+        from scrapers.wikidata import wikidata_entity_search as wes
 
         if not (display_name or "").strip():
             return None
@@ -2607,7 +2607,7 @@ class JurisdictionsWikiDataLoader:
     @staticmethod
     def _county_mapping_row_matches_geoid_literals(mr: Dict, lits: Set[str]) -> bool:
         """True if SPARQL binding ?fips/?fipsAlt/?gnis overlaps GEOID literal alternates."""
-        from scripts.datasources.wikidata.geography_qid_cache import norm_lit
+        from scrapers.wikidata.geography_qid_cache import norm_lit
 
         got: Set[str] = set()
         for k in ("fips", "fipsAlt", "gnis"):
@@ -2626,7 +2626,7 @@ class JurisdictionsWikiDataLoader:
         mr: Dict, fips_lits: Set[str], gnis_lits: Set[str]
     ) -> bool:
         """True if SPARQL binding ?fips/?gnis overlaps municipality literal sets."""
-        from scripts.datasources.wikidata.geography_qid_cache import norm_lit
+        from scrapers.wikidata.geography_qid_cache import norm_lit
 
         got: Set[str] = set()
         for k in ("fips", "gnis"):
@@ -2647,7 +2647,7 @@ class JurisdictionsWikiDataLoader:
     @staticmethod
     def _school_mapping_row_matches_literals(mr: Dict, lits: Set[str]) -> bool:
         """True if binding ?nces/?fips/?gnis overlaps school GEOID/NCES literal alternates."""
-        from scripts.datasources.wikidata.geography_qid_cache import norm_lit
+        from scrapers.wikidata.geography_qid_cache import norm_lit
 
         got: Set[str] = set()
         for k in ("nces", "fips", "gnis"):
@@ -4081,7 +4081,7 @@ async def main():
         and _wikidata_warm_from_parquet_enabled()
         and _wikidata_fips_gnis_parquet_path().is_file()
     ):
-        from scripts.datasources.wikidata.parquet_qid_lookup import warm_geography_qid_cache_from_parquet
+        from scrapers.wikidata.parquet_qid_lookup import warm_geography_qid_cache_from_parquet
 
         pq = _wikidata_fips_gnis_parquet_path()
         logger.info(f"Warming geography Q-id cache from parquet: {pq}")

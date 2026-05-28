@@ -82,7 +82,7 @@ def test_place_slug_strips_city_suffix():
 
 
 def test_extract_channel_id_from_subscribe_endpoint_html():
-    from scripts.datasources.youtube.load_youtube_events_to_postgres import (
+    from scrapers.youtube.load_youtube_events_to_postgres import (
         YouTubeEventsLoader,
     )
 

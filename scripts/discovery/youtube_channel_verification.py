@@ -8,7 +8,7 @@ from __future__ import annotations
 import re
 from typing import Any, Mapping, Optional
 
-from scripts.datasources.youtube.pattern_match_gate import (
+from scrapers.youtube.pattern_match_gate import (
     has_meeting_signal,
     is_pattern_match_discovery,
     passes_pattern_match_gate,

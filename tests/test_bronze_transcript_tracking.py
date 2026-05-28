@@ -6,7 +6,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from scripts.datasources.youtube.bronze_transcript_tracking import (
+from scrapers.youtube.bronze_transcript_tracking import (
     ensure_bronze_youtube_transcript_columns,
     record_transcript_download_error,
     record_transcript_download_success,
@@ -21,7 +21,7 @@ def test_transcript_path_for_storage_relative():
         f.parent.mkdir(parents=True)
         f.write_text("{}", encoding="utf-8")
         # Patch _REPO_ROOT by using path under a fake repo root
-        import scripts.datasources.youtube.bronze_transcript_tracking as mod
+        import scrapers.youtube.bronze_transcript_tracking as mod
 
         old = mod._REPO_ROOT
         mod._REPO_ROOT = repo

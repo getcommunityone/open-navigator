@@ -1,6 +1,6 @@
 """YouTube channel page HTML parsing (shared pilot + loader)."""
 
-from scripts.datasources.youtube.youtube_channel_page import (
+from scrapers.youtube.youtube_channel_page import (
     extract_channel_id_from_youtube_html,
     extract_channel_title_from_youtube_html,
 )

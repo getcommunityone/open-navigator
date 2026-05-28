@@ -28,7 +28,7 @@ GEOIDs) or when `int_localview_channel_geography` has no row for the channel.
 
 `channel_title`, `channel_description`, `subscriber_count`, `video_count`, `view_count`,
 `channel_external_links`: from `bronze_events_channels` when present (loaders +
-`scripts/datasources/youtube/channel_about_links.py` About-tab scrape); otherwise NULL where not joined.
+`packages/scrapers/src/scrapers/youtube/channel_about_links.py` About-tab scrape); otherwise NULL where not joined.
 */
 
 WITH localview_channels AS (

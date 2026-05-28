@@ -4,7 +4,7 @@
     Staging: county *_wikidata SEED rows.
 
     Replaces the Python SEED step in
-    scripts/datasources/wikidata/load_jurisdictions_wikidata.py
+    packages/scrapers/src/scrapers/wikidata/load_jurisdictions_wikidata.py
     (_seed_wikidata_table('county'): copy bronze_jurisdictions_counties ->
     bronze_jurisdictions_counties_wikidata, keyed on geoid). That copy is a pure
     TRANSFORMATION, so it lives here, not in Python.

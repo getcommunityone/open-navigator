@@ -8,7 +8,7 @@ Ported from load_census_states.py to the core_lib DataSourcePipeline contract:
 - Load: framework-managed async session upserts into bronze_jurisdictions.
 
 Run:
-    python -m scripts.datasources.census.states_pipeline
+    python -m ingestion.census.states
     # or:
     python scripts/datasources/census/states_pipeline.py
 

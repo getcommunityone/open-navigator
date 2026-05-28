@@ -273,28 +273,28 @@ Total : 419 files,  117703 codes, 6182 comments, 25283 blanks, all 149168 lines
 | [scripts/datasources/powerbi\_ballot\_measures/download\_powerbi\_ballot\_measures.py](/scripts/datasources/powerbi_ballot_measures/download_powerbi_ballot_measures.py) | Python | 368 | 46 | 56 | 470 |
 | [scripts/datasources/powerbi\_ballot\_measures/load\_powerbi\_ballot\_measures\_to\_bronze.py](/scripts/datasources/powerbi_ballot_measures/load_powerbi_ballot_measures_to_bronze.py) | Python | 358 | 157 | 52 | 567 |
 | [scripts/datasources/social\_media/social\_media\_discovery.py](/scripts/datasources/social_media/social_media_discovery.py) | Python | 1 | 0 | 1 | 2 |
-| [scripts/datasources/wikidata/load\_channels.py](/scripts/datasources/wikidata/load_channels.py) | Python | -49 | 5 | -4 | -48 |
-| [scripts/datasources/wikidata/load\_jurisdictions\_wikidata.py](/scripts/datasources/wikidata/load_jurisdictions_wikidata.py) | Python | 27 | 0 | 0 | 27 |
-| [scripts/datasources/youtube/BYPASS\_IP\_BLOCK.md](/scripts/datasources/youtube/BYPASS_IP_BLOCK.md) | Markdown | 11 | 0 | 7 | 18 |
-| [scripts/datasources/youtube/analyze\_channels.py](/scripts/datasources/youtube/analyze_channels.py) | Python | 1 | 0 | 0 | 1 |
-| [scripts/datasources/youtube/backfill\_jurisdiction\_transcripts.py](/scripts/datasources/youtube/backfill_jurisdiction_transcripts.py) | Python | 370 | 2 | 25 | 397 |
-| [scripts/datasources/youtube/batch\_job\_dashboard.py](/scripts/datasources/youtube/batch_job_dashboard.py) | Python | 844 | 110 | 71 | 1,025 |
-| [scripts/datasources/youtube/batch\_job\_db.py](/scripts/datasources/youtube/batch_job_db.py) | Python | 423 | 296 | 52 | 771 |
-| [scripts/datasources/youtube/batch\_job\_status.py](/scripts/datasources/youtube/batch_job_status.py) | Python | 1,235 | 118 | 160 | 1,513 |
-| [scripts/datasources/youtube/bronze\_transcript\_tracking.py](/scripts/datasources/youtube/bronze_transcript_tracking.py) | Python | 73 | 40 | 14 | 127 |
-| [scripts/datasources/youtube/clear\_pattern\_match\_youtube\_primaries.sql](/scripts/datasources/youtube/clear_pattern_match_youtube_primaries.sql) | MS SQL | 17 | 5 | 5 | 27 |
-| [scripts/datasources/youtube/fetch\_transcript\_playwright.py](/scripts/datasources/youtube/fetch_transcript_playwright.py) | Python | 295 | 31 | 44 | 370 |
-| [scripts/datasources/youtube/load\_youtube\_events\_to\_postgres.py](/scripts/datasources/youtube/load_youtube_events_to_postgres.py) | Python | 1,306 | 122 | 75 | 1,503 |
-| [scripts/datasources/youtube/pattern\_match\_gate.py](/scripts/datasources/youtube/pattern_match_gate.py) | Python | 157 | 20 | 24 | 201 |
-| [scripts/datasources/youtube/policy\_transcript\_cache.py](/scripts/datasources/youtube/policy_transcript_cache.py) | Python | 100 | 17 | 22 | 139 |
-| [scripts/datasources/youtube/repair\_scraped\_youtube\_channels.py](/scripts/datasources/youtube/repair_scraped_youtube_channels.py) | Python | 237 | 247 | 35 | 519 |
-| [scripts/datasources/youtube/run\_load\_youtube\_events\_terminal.sh](/scripts/datasources/youtube/run_load_youtube_events_terminal.sh) | Shell Script | 42 | 23 | 4 | 69 |
-| [scripts/datasources/youtube/run\_priority\_states\_last\_n.sh](/scripts/datasources/youtube/run_priority_states_last_n.sh) | Shell Script | 92 | 12 | 4 | 108 |
-| [scripts/datasources/youtube/transcript\_api\_client.py](/scripts/datasources/youtube/transcript_api_client.py) | Python | 482 | 67 | 63 | 612 |
-| [scripts/datasources/youtube/verify\_webshare\_proxy.py](/scripts/datasources/youtube/verify_webshare_proxy.py) | Python | 33 | 2 | 11 | 46 |
-| [scripts/datasources/youtube/youtube\_channel\_discovery.py](/scripts/datasources/youtube/youtube_channel_discovery.py) | Python | 212 | -12 | 27 | 227 |
-| [scripts/datasources/youtube/youtube\_channel\_page.py](/scripts/datasources/youtube/youtube_channel_page.py) | Python | 255 | 19 | 31 | 305 |
-| [scripts/datasources/youtube/youtube\_loader\_logging.py](/scripts/datasources/youtube/youtube_loader_logging.py) | Python | 86 | 14 | 21 | 121 |
+| [packages/scrapers/src/scrapers/wikidata/load\_channels.py](/packages/scrapers/src/scrapers/wikidata/load_channels.py) | Python | -49 | 5 | -4 | -48 |
+| [packages/scrapers/src/scrapers/wikidata/load\_jurisdictions\_wikidata.py](/packages/scrapers/src/scrapers/wikidata/load_jurisdictions_wikidata.py) | Python | 27 | 0 | 0 | 27 |
+| [packages/scrapers/src/scrapers/youtube/BYPASS\_IP\_BLOCK.md](/packages/scrapers/src/scrapers/youtube/BYPASS_IP_BLOCK.md) | Markdown | 11 | 0 | 7 | 18 |
+| [packages/scrapers/src/scrapers/youtube/analyze\_channels.py](/packages/scrapers/src/scrapers/youtube/analyze_channels.py) | Python | 1 | 0 | 0 | 1 |
+| [packages/scrapers/src/scrapers/youtube/backfill\_jurisdiction\_transcripts.py](/packages/scrapers/src/scrapers/youtube/backfill_jurisdiction_transcripts.py) | Python | 370 | 2 | 25 | 397 |
+| [packages/scrapers/src/scrapers/youtube/batch\_job\_dashboard.py](/packages/scrapers/src/scrapers/youtube/batch_job_dashboard.py) | Python | 844 | 110 | 71 | 1,025 |
+| [packages/scrapers/src/scrapers/youtube/batch\_job\_db.py](/packages/scrapers/src/scrapers/youtube/batch_job_db.py) | Python | 423 | 296 | 52 | 771 |
+| [packages/scrapers/src/scrapers/youtube/batch\_job\_status.py](/packages/scrapers/src/scrapers/youtube/batch_job_status.py) | Python | 1,235 | 118 | 160 | 1,513 |
+| [packages/scrapers/src/scrapers/youtube/bronze\_transcript\_tracking.py](/packages/scrapers/src/scrapers/youtube/bronze_transcript_tracking.py) | Python | 73 | 40 | 14 | 127 |
+| [packages/scrapers/src/scrapers/youtube/clear\_pattern\_match\_youtube\_primaries.sql](/packages/scrapers/src/scrapers/youtube/clear_pattern_match_youtube_primaries.sql) | MS SQL | 17 | 5 | 5 | 27 |
+| [packages/scrapers/src/scrapers/youtube/fetch\_transcript\_playwright.py](/packages/scrapers/src/scrapers/youtube/fetch_transcript_playwright.py) | Python | 295 | 31 | 44 | 370 |
+| [packages/scrapers/src/scrapers/youtube/load\_youtube\_events\_to\_postgres.py](/packages/scrapers/src/scrapers/youtube/load_youtube_events_to_postgres.py) | Python | 1,306 | 122 | 75 | 1,503 |
+| [packages/scrapers/src/scrapers/youtube/pattern\_match\_gate.py](/packages/scrapers/src/scrapers/youtube/pattern_match_gate.py) | Python | 157 | 20 | 24 | 201 |
+| [packages/scrapers/src/scrapers/youtube/policy\_transcript\_cache.py](/packages/scrapers/src/scrapers/youtube/policy_transcript_cache.py) | Python | 100 | 17 | 22 | 139 |
+| [packages/scrapers/src/scrapers/youtube/repair\_scraped\_youtube\_channels.py](/packages/scrapers/src/scrapers/youtube/repair_scraped_youtube_channels.py) | Python | 237 | 247 | 35 | 519 |
+| [packages/scrapers/src/scrapers/youtube/run\_load\_youtube\_events\_terminal.sh](/packages/scrapers/src/scrapers/youtube/run_load_youtube_events_terminal.sh) | Shell Script | 42 | 23 | 4 | 69 |
+| [packages/scrapers/src/scrapers/youtube/run\_priority\_states\_last\_n.sh](/packages/scrapers/src/scrapers/youtube/run_priority_states_last_n.sh) | Shell Script | 92 | 12 | 4 | 108 |
+| [packages/scrapers/src/scrapers/youtube/transcript\_api\_client.py](/packages/scrapers/src/scrapers/youtube/transcript_api_client.py) | Python | 482 | 67 | 63 | 612 |
+| [packages/scrapers/src/scrapers/youtube/verify\_webshare\_proxy.py](/packages/scrapers/src/scrapers/youtube/verify_webshare_proxy.py) | Python | 33 | 2 | 11 | 46 |
+| [packages/scrapers/src/scrapers/youtube/youtube\_channel\_discovery.py](/packages/scrapers/src/scrapers/youtube/youtube_channel_discovery.py) | Python | 212 | -12 | 27 | 227 |
+| [packages/scrapers/src/scrapers/youtube/youtube\_channel\_page.py](/packages/scrapers/src/scrapers/youtube/youtube_channel_page.py) | Python | 255 | 19 | 31 | 305 |
+| [packages/scrapers/src/scrapers/youtube/youtube\_loader\_logging.py](/packages/scrapers/src/scrapers/youtube/youtube_loader_logging.py) | Python | 86 | 14 | 21 | 121 |
 | [scripts/deployment/neon/migrate.py](/scripts/deployment/neon/migrate.py) | Python | -2 | 0 | 0 | -2 |
 | [scripts/deployment/neon/migrations/049\_rename\_organization\_to\_c1\_and\_contact\_to\_person.sql](/scripts/deployment/neon/migrations/049_rename_organization_to_c1_and_contact_to_person.sql) | MS SQL | 50 | 31 | 16 | 97 |
 | [scripts/deployment/neon/migrations/050\_fold\_organization\_nonprofit\_into\_c1\_organization.sql](/scripts/deployment/neon/migrations/050_fold_organization_nonprofit_into_c1_organization.sql) | MS SQL | 99 | 41 | 15 | 155 |

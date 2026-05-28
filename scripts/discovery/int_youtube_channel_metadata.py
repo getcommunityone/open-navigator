@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 from typing import Any, Mapping
 
-from scripts.datasources.youtube.youtube_channel_page import is_junk_channel_title
+from scrapers.youtube.youtube_channel_page import is_junk_channel_title
 
 CREATE_TABLE_SQL = """
 CREATE SCHEMA IF NOT EXISTS intermediate;

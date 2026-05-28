@@ -1,6 +1,6 @@
 """pattern_match acceptance and primary-selection guards."""
 
-from scripts.datasources.youtube.pattern_match_gate import (
+from scrapers.youtube.pattern_match_gate import (
     passes_pattern_match_gate,
     references_state,
 )

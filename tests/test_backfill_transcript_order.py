@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from scripts.datasources.youtube.backfill_jurisdiction_transcripts import (
+from scrapers.youtube.backfill_jurisdiction_transcripts import (
     sort_backfill_rows,
 )
 

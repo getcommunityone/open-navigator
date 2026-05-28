@@ -171,8 +171,8 @@ Total : 639 files,  107686 codes, 5438 comments, 24033 blanks, all 137157 lines
 | scripts/datasources/powerbi_ballot_measures | 1 | -358 | -157 | -52 | -567 |
 | scripts/datasources/tpc | 2 | 4 | 19 | 4 | 27 |
 | scripts/datasources/uscm | 1 | -218 | -59 | -17 | -294 |
-| scripts/datasources/wikidata | 4 | -2,621 | -1,528 | -187 | -4,336 |
-| scripts/datasources/youtube | 4 | 3 | 38 | 0 | 41 |
+| packages/scrapers/src/scrapers/wikidata | 4 | -2,621 | -1,528 | -187 | -4,336 |
+| packages/scrapers/src/scrapers/youtube | 4 | 3 | 38 | 0 | 41 |
 | scripts/dbt | 4 | -788 | -45 | -158 | -991 |
 | scripts/deployment | 6 | 154 | 135 | 41 | 330 |
 | scripts/deployment/neon | 6 | 154 | 135 | 41 | 330 |

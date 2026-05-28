@@ -47,7 +47,7 @@ from scripts.datasources.ma_pilot.jurisdictions import (  # noqa: E402
     MAJurisdiction,
 )
 from scripts.datasources.ma_pilot.mayor_boost import is_mayor_seed_url, tag_mayor_rows  # noqa: E402
-from scripts.datasources.youtube.youtube_channel_discovery import (  # noqa: E402
+from scrapers.youtube.youtube_channel_discovery import (  # noqa: E402
     YouTubeChannelDiscovery,
 )
 from scripts.discovery.contact_directory_heuristics import (  # noqa: E402

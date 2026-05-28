@@ -25,7 +25,7 @@ from scripts.discovery.election_extract_from_html import (
     merge_election_bundles,
     probe_election_path_urls,
 )
-from scripts.datasources.openstates.sync_elections_to_c1 import sync_jurisdiction_elections_to_c1
+from pipeline.openstates.sync_elections_to_c1 import sync_jurisdiction_elections_to_c1
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ def _stable_key(*parts: str | None) -> str:
 
 
 def _stable_id(prefix: str, key: str) -> str:
-    from scripts.datasources.openstates.sync_elections_to_c1 import make_ocd_id
+    from pipeline.openstates.sync_elections_to_c1 import make_ocd_id
 
     return make_ocd_id(prefix, key)
 

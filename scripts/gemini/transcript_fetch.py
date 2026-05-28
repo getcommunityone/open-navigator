@@ -2,7 +2,7 @@
 Fetch YouTube captions (free) for transcript-first analysis.
 
 Uses [youtube-transcript-api](https://github.com/jdepoix/youtube-transcript-api) via
-``scripts.datasources.youtube.transcript_api_client``.
+``scrapers.youtube.transcript_api_client``.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ def fetch_youtube_transcript(
 
     ``segments`` items: ``{text, start, duration}`` (seconds).
     """
-    from scripts.datasources.youtube.transcript_api_client import fetch_transcript_from_api
+    from scrapers.youtube.transcript_api_client import fetch_transcript_from_api
 
     vid = (video_id or "").strip()
     if not vid:

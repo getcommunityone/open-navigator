@@ -586,7 +586,7 @@ def _result_to_scraped_row(
     homepage_final = websites[0].get("final_url") if websites else None
     from scripts.discovery.youtube_primary_channel import pick_primary_youtube_channel
     from scripts.datasources.jurisdiction_pilot.youtube_channel_enrich import enrich_channel
-    from scripts.datasources.youtube.pattern_match_gate import (
+    from scrapers.youtube.pattern_match_gate import (
         is_pattern_match_discovery,
         passes_pattern_match_gate,
     )

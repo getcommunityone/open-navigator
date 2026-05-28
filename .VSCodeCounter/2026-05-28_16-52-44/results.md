@@ -219,10 +219,10 @@ Summary / [Details](details.md) / [Diff Summary](diff.md) / [Diff Details](diff-
 | scripts/datasources/uscm | 6 | 598 | 78 | 139 | 815 |
 | scripts/datasources/vendorsearch | 2 | 308 | 25 | 71 | 404 |
 | scripts/datasources/voter_data | 2 | 173 | 143 | 54 | 370 |
-| scripts/datasources/wikidata | 26 | 4,826 | 1,499 | 632 | 6,957 |
-| scripts/datasources/youtube | 59 | 18,110 | 3,248 | 2,101 | 23,459 |
-| scripts/datasources/youtube (Files) | 58 | 18,086 | 3,242 | 2,096 | 23,424 |
-| scripts/datasources/youtube/sql | 1 | 24 | 6 | 5 | 35 |
+| packages/scrapers/src/scrapers/wikidata | 26 | 4,826 | 1,499 | 632 | 6,957 |
+| packages/scrapers/src/scrapers/youtube | 59 | 18,110 | 3,248 | 2,101 | 23,459 |
+| packages/scrapers/src/scrapers/youtube (Files) | 58 | 18,086 | 3,242 | 2,096 | 23,424 |
+| packages/scrapers/src/scrapers/youtube/sql | 1 | 24 | 6 | 5 | 35 |
 | scripts/deployment | 123 | 7,789 | 2,071 | 1,759 | 11,619 |
 | scripts/deployment (Files) | 9 | 565 | 74 | 129 | 768 |
 | scripts/deployment/neon | 114 | 7,224 | 1,997 | 1,630 | 10,851 |

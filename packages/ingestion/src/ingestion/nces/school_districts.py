@@ -7,7 +7,7 @@ DataSourcePipeline contract.
 Data source: National Center for Education Statistics (NCES) Common Core of
 Data (CCD), Local Education Agency (School District) Universe Survey,
 https://nces.ed.gov/ccd/. Cached CSVs are produced by
-scripts/datasources/nces/download_nces.py into data/cache/nces/:
+python -m scrapers.nces.download into data/cache/nces/:
     nces_directory.csv, nces_membership.csv, nces_staff.csv
 
 Three bronze tables are populated from the single validated row stream
@@ -22,9 +22,9 @@ Incremental modes:
     * --states AL,TX limits upserts to those USPS codes (only touched rows change).
 
 Usage:
-    python -m scripts.datasources.nces.school_districts
-    python scripts/datasources/nces/school_districts.py --states TX,CA
-    python scripts/datasources/nces/school_districts.py --datasets directory
+    python -m ingestion.nces.school_districts
+    python -m ingestion.nces.school_districts --states TX,CA
+    python -m ingestion.nces.school_districts --datasets directory
 
 Configuration:
     NEON_DATABASE_URL_DEV / NEON_DATABASE_URL / DATABASE_URL via core_lib.db
@@ -273,7 +273,7 @@ def find_nces_files(cache_dir: Path, datasets: set[str]) -> dict[str, Path]:
         if not p.is_file():
             raise FileNotFoundError(
                 f"Missing cache file {p}. "
-                "Run scripts/datasources/nces/download_nces.py first."
+                "Run python -m scrapers.nces.download first."
             )
     return wanted
 
@@ -450,13 +450,13 @@ class NcesSchoolDistrictsPipeline(DataSourcePipeline[NcesSchoolDistrictRow]):
     def _resolve_school_year(self) -> str:
         if self._school_year:
             return self._school_year
-        from scripts.datasources.nces.download_nces import NCESSchoolDistrictIngestion
+        from scrapers.nces.download import NCESSchoolDistrictIngestion
 
         meta = NCESSchoolDistrictIngestion().get_nces_files()
         return meta.get("school_year") or "2024-25"
 
     async def extract(self, ctx: PipelineContext) -> AsyncIterator[dict]:
-        from scripts.datasources.nces.download_nces import NCESSchoolDistrictIngestion
+        from scrapers.nces.download import NCESSchoolDistrictIngestion
 
         ingestion = NCESSchoolDistrictIngestion()
         paths = find_nces_files(self._cache_dir, self._datasets)

@@ -116,7 +116,7 @@ from scripts.datasources.jurisdiction_pilot.google_civic_youtube import (  # noq
 from scripts.datasources.jurisdiction_pilot.website_youtube_search import (  # noqa: E402
     search_multiple_queries,
 )
-from scripts.datasources.youtube.youtube_channel_discovery import (  # noqa: E402
+from scrapers.youtube.youtube_channel_discovery import (  # noqa: E402
     YouTubeChannelDiscovery,
 )
 from scripts.discovery.bronze_persons_scraped_persist import (  # noqa: E402
@@ -137,7 +137,7 @@ from scripts.discovery.youtube_primary_channel import (  # noqa: E402
     _channel_url,
     pick_primary_youtube_channel,
 )
-from scripts.datasources.youtube.youtube_channel_page import canonical_channel_url  # noqa: E402
+from scrapers.youtube.youtube_channel_page import canonical_channel_url  # noqa: E402
 from scripts.discovery.contact_directory_heuristics import (  # noqa: E402
     classify_contact_directory_page,
 )
@@ -840,7 +840,7 @@ def _discover_youtube(
             session=session,
             cookies_file=cookies_file,
         )
-        from scripts.datasources.youtube.pattern_match_gate import (
+        from scrapers.youtube.pattern_match_gate import (
             is_pattern_match_discovery,
         )
 
@@ -963,7 +963,7 @@ def _load_youtube_events_for_primary(
     cookies_file: str | None,
 ) -> int:
     """Catalog videos/streams for the promoted primary channel; returns rows written."""
-    from scripts.datasources.youtube.load_youtube_events_to_postgres import YouTubeEventsLoader
+    from scrapers.youtube.load_youtube_events_to_postgres import YouTubeEventsLoader
 
     loader = YouTubeEventsLoader(
         database_url=database_url,

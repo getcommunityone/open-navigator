@@ -1,6 +1,6 @@
 """Wikidata jurisdiction enrichment FETCH layer.
 
-The legacy monolith scripts/datasources/wikidata/load_jurisdictions_wikidata.py
+The legacy monolith packages/scrapers/src/scrapers/wikidata/load_jurisdictions_wikidata.py
 was an enrichment job: it ran live WDQS/SPARQL + Wikibase ``wbgetentities``
 queries and UPDATE-ed pre-seeded ``bronze.bronze_jurisdictions_*_wikidata``
 tables (keyed on geoid).
@@ -19,7 +19,7 @@ That monolith has been decomposed into three layers:
        * intermediate ``int_wikidata__jurisdictions_enriched`` LEFT JOINs the
          seed to the enrichment on geoid (the UPDATE-on-geoid becomes a JOIN).
   3. Irreducible scraping / resume / fuzzy-match utilities stay in
-     ``scripts/datasources/wikidata/`` (see that dir's README).
+     ``packages/scrapers/src/scrapers/wikidata/`` (see that dir's README).
 """
 
 from .download import (

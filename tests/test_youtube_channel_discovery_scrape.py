@@ -2,7 +2,7 @@
 
 import pytest
 
-from scripts.datasources.youtube.youtube_channel_discovery import YouTubeChannelDiscovery
+from scrapers.youtube.youtube_channel_discovery import YouTubeChannelDiscovery
 
 
 def test_extract_youtube_from_commission_page_html():

@@ -74,7 +74,7 @@ Once the script completes, your Neon database is ready!
    - Paste your Neon connection string
 
 2. Run the YouTube events loader:
-   - Open `scripts/datasources/youtube/load_youtube_events_colab.ipynb`
+   - Open `packages/scrapers/src/scrapers/youtube/load_youtube_events_colab.ipynb`
    - Run the cells to fetch new YouTube videos
 
 ## Troubleshooting

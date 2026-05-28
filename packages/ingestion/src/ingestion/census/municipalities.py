@@ -24,7 +24,7 @@ Gazetteer columns of interest:
 - INTPTLAT / INTPTLONG: internal point   -> latitude / longitude
 
 Usage:
-    python -m scripts.datasources.census.municipalities
+    python -m scrapers.census.download_census_municipalities (FETCH); python -m ingestion.census.municipalities (LAND)
     python scripts/datasources/census/municipalities.py \\
         --csv data/cache/census/municipalities_20240101.csv
     python scripts/datasources/census/municipalities.py --limit 100

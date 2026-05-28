@@ -4,7 +4,7 @@
 -- ``intermediate.int_events_channels`` (1,444 rows). The only column that was uniquely
 -- populated in ECS but not in the intermediate base table — ``is_government`` — was
 -- backfilled into intermediate.int_events_channels in a prior step (944 UPDATEs). The
--- two callers (``scripts/datasources/youtube/analyze_channels.py`` and
+-- two callers (``packages/scrapers/src/scrapers/youtube/analyze_channels.py`` and
 -- ``scripts/datasources/gemini/load_meeting_transcripts.py``) were repointed at
 -- ``intermediate.int_events_channels_enriched`` (a VIEW that already exposes the
 -- quality_score / activity_status / event_count etc. that ECS had).

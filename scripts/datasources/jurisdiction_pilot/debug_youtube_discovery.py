@@ -34,7 +34,7 @@ from scripts.datasources.jurisdiction_pilot.website_youtube_search import (  # n
 from scripts.datasources.jurisdiction_pilot.youtube_channel_enrich import (  # noqa: E402
     enrich_channel,
 )
-from scripts.datasources.youtube.pattern_match_gate import (  # noqa: E402
+from scrapers.youtube.pattern_match_gate import (  # noqa: E402
     passes_pattern_match_gate,
 )
 

@@ -8,7 +8,7 @@
 
 -- Bronze YouTube Events Table
 -- Purpose: Store raw YouTube video data from government channels
--- Source: Loaded via scripts/datasources/youtube/load_youtube_events_to_postgres.py
+-- Source: Loaded via packages/scrapers/src/scrapers/youtube/load_youtube_events_to_postgres.py
 -- Target: Can be deployed to local or Neon (cloud) database
 
 -- This model creates the table structure in the target database

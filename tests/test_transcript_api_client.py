@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from unittest.mock import MagicMock, patch
 
-from scripts.datasources.youtube.transcript_api_client import (
+from scrapers.youtube.transcript_api_client import (
     _fetched_to_payload,
     build_proxy_config,
     build_youtube_transcript_api,
@@ -93,7 +93,7 @@ def test_resolve_ytdlp_proxy_url_prefers_explicit():
     },
     clear=False,
 )
-@patch("scripts.datasources.youtube.transcript_api_client.WebshareProxyConfig")
+@patch("scrapers.youtube.transcript_api_client.WebshareProxyConfig")
 def test_build_proxy_config_webshare_country_filter(mock_webshare: MagicMock):
     build_proxy_config()
     mock_webshare.assert_called_once_with(
@@ -104,7 +104,7 @@ def test_build_proxy_config_webshare_country_filter(mock_webshare: MagicMock):
     )
 
 
-@patch("scripts.datasources.youtube.transcript_api_client.WebshareProxyConfig")
+@patch("scrapers.youtube.transcript_api_client.WebshareProxyConfig")
 @patch.dict(
     os.environ,
     {"PROXY_USER_NAME": "ws_user", "PROXY_PASSWORD": "ws_pass"},
@@ -121,7 +121,7 @@ def test_build_proxy_config_prefers_webshare(mock_webshare: MagicMock):
     assert cfg is mock_webshare.return_value
 
 
-@patch("scripts.datasources.youtube.transcript_api_client.WebshareProxyConfig")
+@patch("scrapers.youtube.transcript_api_client.WebshareProxyConfig")
 @patch.dict(
     os.environ,
     {
@@ -149,7 +149,7 @@ def test_resolve_ytdlp_proxy_url_webshare_opt_out():
     assert resolve_ytdlp_proxy_url() is None
 
 
-@patch("scripts.datasources.youtube.transcript_api_client.WebshareProxyConfig")
+@patch("scrapers.youtube.transcript_api_client.WebshareProxyConfig")
 @patch.dict(
     os.environ,
     {
@@ -164,8 +164,8 @@ def test_resolve_ytdlp_proxy_url_webshare_explicit_opt_in(mock_webshare: MagicMo
     assert "webshare.io" in (resolve_ytdlp_proxy_url() or "")
 
 
-@patch("scripts.datasources.youtube.transcript_api_client.YouTubeTranscriptApi")
-@patch("scripts.datasources.youtube.transcript_api_client.build_proxy_config")
+@patch("scrapers.youtube.transcript_api_client.YouTubeTranscriptApi")
+@patch("scrapers.youtube.transcript_api_client.build_proxy_config")
 def test_build_youtube_transcript_api_passes_proxy_config(
     mock_proxy_cfg: MagicMock,
     mock_api: MagicMock,
@@ -179,7 +179,7 @@ def test_build_youtube_transcript_api_passes_proxy_config(
 
 
 @patch(
-    "scripts.datasources.youtube.transcript_api_client.fetch_transcript_bundle",
+    "scrapers.youtube.transcript_api_client.fetch_transcript_bundle",
     return_value={
         "video_id": "vid1",
         "raw_text": "hi",

@@ -3,7 +3,7 @@ version: 2
 # Wikidata jurisdiction enrichment — staging contracts + tests.
 #
 # These models replace the SEED + ENRICHMENT-staging parts of the archived
-# scripts/datasources/wikidata/load_jurisdictions_wikidata.py:
+# packages/scrapers/src/scrapers/wikidata/load_jurisdictions_wikidata.py:
 #   * stg_wikidata__jurisdiction_* : SEED the *_wikidata base rows from the
 #     census source('bronze', 'bronze_jurisdictions_*') tables (the Python
 #     _seed_wikidata_table copy, now a pure dbt transformation).

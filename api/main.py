@@ -945,7 +945,7 @@ async def search_nonprofits(
     Example: /nonprofits?location=Tuscaloosa,AL&keyword=dental&ntee_code=E
     """
     try:
-        from scripts.datasources.irs.nonprofit_discovery import NonprofitDiscovery
+        from scrapers.irs.nonprofit_discovery import NonprofitDiscovery
         
         discovery = NonprofitDiscovery()
         results = []
@@ -1104,7 +1104,7 @@ async def bulk_ingest_nonprofits(
     Caches ProPublica API results for offline use.
     """
     try:
-        from scripts.datasources.irs.nonprofit_discovery import NonprofitDiscovery
+        from scrapers.irs.nonprofit_discovery import NonprofitDiscovery
         
         discovery = NonprofitDiscovery()
         orgs = discovery.search_propublica(state=state, ntee_code=ntee_code)

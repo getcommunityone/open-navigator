@@ -21,7 +21,7 @@ Override the base path with env `FEC_DATA_DIR` or `--base-dir`.
 ```bash
 ./scripts/datasources/fec/run_bulk_download.sh
 # or
-.venv/bin/python scripts/datasources/fec/load_fec_bulk.py --resume
+.venv/bin/python scripts/datasources/fec/python -m ingestion.fec.bulk --resume
 ```
 
 ## Data Source
@@ -34,7 +34,7 @@ Override the base path with env `FEC_DATA_DIR` or `--base-dir`.
 
 ## Scripts
 
-### `load_fec_bulk.py`
+### `python -m ingestion.fec.bulk`
 Download all FEC bulk data files and organize them by year and type.
 
 **Features:**
@@ -50,10 +50,10 @@ Download all FEC bulk data files and organize them by year and type.
 ./scripts/datasources/fec/run_bulk_download.sh
 
 # Download specific years / types
-.venv/bin/python scripts/datasources/fec/load_fec_bulk.py --resume --years 2022,2024 --types indiv,cn,cm
+.venv/bin/python scripts/datasources/fec/python -m ingestion.fec.bulk --resume --years 2022,2024 --types indiv,cn,cm
 
 # Dry run (show what would be downloaded)
-.venv/bin/python scripts/datasources/fec/load_fec_bulk.py --dry-run
+.venv/bin/python scripts/datasources/fec/python -m ingestion.fec.bulk --dry-run
 ```
 
 **File Types:**

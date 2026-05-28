@@ -77,7 +77,7 @@ imported symbols into `packages/ingestion`, repoint callers) before retiring.
 |---|---|
 | **nces** | `packages/ingestion/.../nces/school_districts.py` imports `scripts.datasources.nces.download_nces.NCESSchoolDistrictIngestion` — the *new* module wraps the *old* one |
 | **irs** | `api/app.py`, `api/main.py`, `pipeline/create_nonprofits_gold_tables.py` import `scripts.datasources.irs.nonprofit_discovery.NonprofitDiscovery` |
-| **youtube** | `api/routes/batch_jobs.py` imports many `scripts.datasources.youtube.batch_job_*` modules; 17 test files import youtube scripts (18,450 LOC — largest) |
+| **youtube** | `api/routes/batch_jobs.py` imports many `api.batch_jobs.batch_job_*` modules; 17 test files import youtube scripts (18,450 LOC — largest) |
 | **openstates** | `pipeline/create_contacts_gold_tables.py` imports `scripts.datasources.openstates.openstates_sources`; several `.sh` runners + tests |
 | **census** | operator entrypoint `scripts/deployment/neon/run_bronze_jurisdictions_to_cloud.sh` invokes `load_census_gazetteer.py` |
 | **fec** | `scripts/datasources/fec/run_bulk_download.sh` invokes `load_fec_bulk.py` |

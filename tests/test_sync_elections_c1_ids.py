@@ -1,6 +1,6 @@
 """c1 election sync id/dedupe_key length guards."""
 
-from scripts.datasources.openstates.sync_elections_to_c1 import (
+from pipeline.openstates.sync_elections_to_c1 import (
     BronzeElectionRow,
     _C1_LIMITS,
     _ON_CONFLICT_DEDUPE_KEY,

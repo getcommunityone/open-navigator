@@ -246,7 +246,7 @@ models:
   - name: int_youtube__events
     description: >
       LocalView-enriched YouTube meeting events, one row per video_id. Declarative
-      replacement for scripts/datasources/youtube/sync_bronze_youtube_from_localview.py:
+      replacement for packages/scrapers/src/scrapers/youtube/sync_bronze_youtube_from_localview.py:
       instead of UPDATE-ing geography onto bronze.bronze_events_youtube in place, this
       model derives it as a SELECT on stg_youtube__event, preferring LocalView geography
       (jurisdiction_name/type, city, state_code, state, meeting_type) when present and

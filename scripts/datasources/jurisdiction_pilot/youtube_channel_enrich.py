@@ -80,7 +80,7 @@ def fetch_channel_html(
     cookies_file: str | None = None,
 ) -> tuple[str, str]:
     """Return ``(html, final_url)`` from the channel About/home page."""
-    from scripts.datasources.youtube.youtube_channel_page import fetch_youtube_channel_page
+    from scrapers.youtube.youtube_channel_page import fetch_youtube_channel_page
 
     return fetch_youtube_channel_page(
         channel_url,
@@ -357,8 +357,8 @@ def enrich_channel(
     Fetch the channel page; resolve ``UC…`` id, title, description, external links,
     back-link flag, and ``official_meeting_confidence``. Returns a new merged dict.
     """
-    from scripts.datasources.youtube.channel_about_links import parse_channel_about_page
-    from scripts.datasources.youtube.youtube_channel_page import (
+    from scrapers.youtube.channel_about_links import parse_channel_about_page
+    from scrapers.youtube.youtube_channel_page import (
         canonical_channel_url,
         extract_channel_id_from_youtube_html,
         extract_channel_title_from_youtube_html,

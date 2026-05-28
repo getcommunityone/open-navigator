@@ -611,14 +611,14 @@ Total : 639 files,  107686 codes, 5438 comments, 24033 blanks, all 137157 lines
 | [scripts/datasources/tpc/\_\_init\_\_.py](/scripts/datasources/tpc/__init__.py) | Python | 0 | 0 | 1 | 1 |
 | [scripts/datasources/tpc/load\_tpc\_finance.py](/scripts/datasources/tpc/load_tpc_finance.py) | Python | 4 | 19 | 3 | 26 |
 | [scripts/datasources/uscm/load\_uscm\_mayors\_to\_bronze.py](/scripts/datasources/uscm/load_uscm_mayors_to_bronze.py) | Python | -218 | -59 | -17 | -294 |
-| [scripts/datasources/wikidata/README.md](/scripts/datasources/wikidata/README.md) | Markdown | 36 | 0 | 1 | 37 |
-| [scripts/datasources/wikidata/cleanup\_bad\_counties.py](/scripts/datasources/wikidata/cleanup_bad_counties.py) | Python | -111 | -21 | -18 | -150 |
-| [scripts/datasources/wikidata/fix\_fips\_codes.py](/scripts/datasources/wikidata/fix_fips_codes.py) | Python | -111 | -21 | -25 | -157 |
-| [scripts/datasources/wikidata/load\_jurisdictions\_wikidata.py](/scripts/datasources/wikidata/load_jurisdictions_wikidata.py) | Python | -2,435 | -1,486 | -145 | -4,066 |
-| [scripts/datasources/youtube/download\_tuscaloosa\_city\_meeting\_audio.py](/scripts/datasources/youtube/download_tuscaloosa_city_meeting_audio.py) | Python | -3 | 0 | -1 | -4 |
-| [scripts/datasources/youtube/load\_youtube\_events\_to\_postgres.py](/scripts/datasources/youtube/load_youtube_events_to_postgres.py) | Python | -1 | 21 | 0 | 20 |
-| [scripts/datasources/youtube/run\_load\_youtube\_events\_terminal.sh](/scripts/datasources/youtube/run_load_youtube_events_terminal.sh) | Shell Script | 7 | 8 | 1 | 16 |
-| [scripts/datasources/youtube/sync\_bronze\_youtube\_from\_localview.py](/scripts/datasources/youtube/sync_bronze_youtube_from_localview.py) | Python | 0 | 9 | 0 | 9 |
+| [packages/scrapers/src/scrapers/wikidata/README.md](/packages/scrapers/src/scrapers/wikidata/README.md) | Markdown | 36 | 0 | 1 | 37 |
+| [packages/scrapers/src/scrapers/wikidata/cleanup\_bad\_counties.py](/packages/scrapers/src/scrapers/wikidata/cleanup_bad_counties.py) | Python | -111 | -21 | -18 | -150 |
+| [packages/scrapers/src/scrapers/wikidata/fix\_fips\_codes.py](/packages/scrapers/src/scrapers/wikidata/fix_fips_codes.py) | Python | -111 | -21 | -25 | -157 |
+| [packages/scrapers/src/scrapers/wikidata/load\_jurisdictions\_wikidata.py](/packages/scrapers/src/scrapers/wikidata/load_jurisdictions_wikidata.py) | Python | -2,435 | -1,486 | -145 | -4,066 |
+| [packages/scrapers/src/scrapers/youtube/download\_tuscaloosa\_city\_meeting\_audio.py](/packages/scrapers/src/scrapers/youtube/download_tuscaloosa_city_meeting_audio.py) | Python | -3 | 0 | -1 | -4 |
+| [packages/scrapers/src/scrapers/youtube/load\_youtube\_events\_to\_postgres.py](/packages/scrapers/src/scrapers/youtube/load_youtube_events_to_postgres.py) | Python | -1 | 21 | 0 | 20 |
+| [packages/scrapers/src/scrapers/youtube/run\_load\_youtube\_events\_terminal.sh](/packages/scrapers/src/scrapers/youtube/run_load_youtube_events_terminal.sh) | Shell Script | 7 | 8 | 1 | 16 |
+| [packages/scrapers/src/scrapers/youtube/sync\_bronze\_youtube\_from\_localview.py](/packages/scrapers/src/scrapers/youtube/sync_bronze_youtube_from_localview.py) | Python | 0 | 9 | 0 | 9 |
 | [scripts/dbt/README.md](/scripts/dbt/README.md) | Markdown | -265 | 0 | -83 | -348 |
 | [scripts/dbt/export\_stats\_to\_open\_navigator.py](/scripts/dbt/export_stats_to_open_navigator.py) | Python | -108 | -21 | -29 | -158 |
 | [scripts/dbt/rebuild\_stats\_aggregates\_fixed.py](/scripts/dbt/rebuild_stats_aggregates_fixed.py) | Python | -201 | -12 | -22 | -235 |

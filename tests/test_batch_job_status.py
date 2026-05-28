@@ -6,12 +6,12 @@ import json
 import tempfile
 from pathlib import Path
 
-from scripts.datasources.youtube.batch_job_status import (
+from api.batch_jobs.batch_job_status import (
     BatchJobStore,
     _recompute_summary,
     new_batch_id,
 )
-from scripts.datasources.youtube.batch_job_dashboard import build_dashboard_data
+from api.batch_jobs.batch_job_dashboard import build_dashboard_data
 
 
 def test_batch_lifecycle_and_summary():
@@ -95,7 +95,7 @@ def test_dashboard_build_no_refresh():
             stats={"ok": 2},
         )
 
-        import scripts.datasources.youtube.batch_job_status as mod
+        import api.batch_jobs.batch_job_status as mod
 
         old = mod.jobs_dir
         mod.jobs_dir = lambda: root  # type: ignore[assignment]
@@ -135,7 +135,7 @@ def test_auto_finish_when_all_target_jurisdictions_done():
 
 
 def test_last_batch_activity_not_now_when_jurisdiction_timestamps_missing():
-    from scripts.datasources.youtube.batch_job_status import (
+    from api.batch_jobs.batch_job_status import (
         BatchJob,
         JurisdictionRun,
         batch_inactivity_seconds,
@@ -171,7 +171,7 @@ def test_last_batch_activity_not_now_when_jurisdiction_timestamps_missing():
 def test_stale_cancel_after_inactivity():
     from datetime import datetime, timedelta, timezone
 
-    from scripts.datasources.youtube.batch_job_status import (
+    from api.batch_jobs.batch_job_status import (
         JurisdictionRun,
         _recompute_summary,
         batch_inactivity_seconds,
@@ -205,7 +205,7 @@ def test_stale_cancel_after_inactivity():
 
 
 def test_state_progress_started_and_completed():
-    from scripts.datasources.youtube.batch_job_status import (
+    from api.batch_jobs.batch_job_status import (
         BatchJob,
         JurisdictionRun,
         _recompute_summary,

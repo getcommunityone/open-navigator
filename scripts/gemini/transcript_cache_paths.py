@@ -289,7 +289,7 @@ def lookup_jurisdiction_place_name(jurisdiction_id: str) -> Optional[str]:
 
 
 def _place_slug_for_folder(name: str) -> str:
-    from scripts.datasources.youtube.download_audio_to_drive import slug_snake_case
+    from scrapers.youtube.download_audio_to_drive import slug_snake_case
 
     label = _normalize_place_name_for_match(name) or _collapse_unicode_spaces(name)
     return slug_snake_case(label, max_length=56)
@@ -301,7 +301,7 @@ def _legacy_place_slug_for_folder(name: str) -> str:
 
     Kept only for ``jurisdiction_cache_folder_aliases`` so older cache dirs resolve.
     """
-    from scripts.datasources.youtube.download_audio_to_drive import slug_snake_case
+    from scrapers.youtube.download_audio_to_drive import slug_snake_case
 
     collapsed = _collapse_unicode_spaces(name).lower()
     return slug_snake_case(collapsed, max_length=56)
@@ -2149,7 +2149,7 @@ def remove_redundant_transcript_files(
     Drop duplicate ``.caption_raw_data.json`` / ``.caption_formatted.json`` when the
     main transcript JSON already holds (or should hold) that payload.
     """
-    from scripts.datasources.youtube.policy_transcript_cache import (
+    from scrapers.youtube.policy_transcript_cache import (
         policy_transcript_sidecar_path,
     )
 

@@ -836,93 +836,93 @@ Total : 1542 files,  420982 codes, 46788 comments, 75905 blanks, all 543675 line
 | [scripts/datasources/vendorsearch/vendor\_meeting\_portal\_search.py](/scripts/datasources/vendorsearch/vendor_meeting_portal_search.py) | Python | 259 | 25 | 38 | 322 |
 | [scripts/datasources/voter\_data/README.md](/scripts/datasources/voter_data/README.md) | Markdown | 4 | 0 | 4 | 8 |
 | [scripts/datasources/voter\_data/voter\_data\_integration.py](/scripts/datasources/voter_data/voter_data_integration.py) | Python | 169 | 143 | 50 | 362 |
-| [scripts/datasources/wikidata/README.md](/scripts/datasources/wikidata/README.md) | Markdown | 199 | 0 | 61 | 260 |
-| [scripts/datasources/wikidata/cleanup\_bad\_counties.py](/scripts/datasources/wikidata/cleanup_bad_counties.py) | Python | 111 | 21 | 18 | 150 |
-| [scripts/datasources/wikidata/discover\_municipality\_website\_gaps.py](/scripts/datasources/wikidata/discover_municipality_website_gaps.py) | Python | 59 | 2 | 15 | 76 |
-| [scripts/datasources/wikidata/export\_bronze\_to\_json.py](/scripts/datasources/wikidata/export_bronze_to_json.py) | Python | 190 | 226 | 10 | 426 |
-| [scripts/datasources/wikidata/fix\_fips\_codes.py](/scripts/datasources/wikidata/fix_fips_codes.py) | Python | 111 | 21 | 25 | 157 |
-| [scripts/datasources/wikidata/generate\_mapping\_report.sql](/scripts/datasources/wikidata/generate_mapping_report.sql) | MS SQL | 108 | 13 | 10 | 131 |
-| [scripts/datasources/wikidata/geography\_qid\_cache.py](/scripts/datasources/wikidata/geography_qid_cache.py) | Python | 129 | 8 | 23 | 160 |
-| [scripts/datasources/wikidata/hydrate\_county\_websites\_from\_wikidata.py](/scripts/datasources/wikidata/hydrate_county_websites_from_wikidata.py) | Python | 45 | 166 | 8 | 219 |
-| [scripts/datasources/wikidata/hydrate\_municipality\_websites\_from\_wikidata.py](/scripts/datasources/wikidata/hydrate_municipality_websites_from_wikidata.py) | Python | 46 | 169 | 9 | 224 |
-| [scripts/datasources/wikidata/load\_channels.py](/scripts/datasources/wikidata/load_channels.py) | Python | 449 | 200 | 44 | 693 |
-| [scripts/datasources/wikidata/load\_jurisdictions\_wikidata.py](/scripts/datasources/wikidata/load_jurisdictions_wikidata.py) | Python | 2,484 | 1,524 | 152 | 4,160 |
-| [scripts/datasources/wikidata/load\_jurisdictions\_wikidata\_colab.ipynb](/scripts/datasources/wikidata/load_jurisdictions_wikidata_colab.ipynb) | JSON | 468 | 0 | 1 | 469 |
-| [scripts/datasources/wikidata/materialize\_bronze\_jurisdictions\_wikidata\_tables.py](/scripts/datasources/wikidata/materialize_bronze_jurisdictions_wikidata_tables.py) | Python | 289 | 39 | 38 | 366 |
-| [scripts/datasources/wikidata/parquet\_qid\_lookup.py](/scripts/datasources/wikidata/parquet_qid_lookup.py) | Python | 221 | 73 | 34 | 328 |
-| [scripts/datasources/wikidata/run\_hydrate\_county\_websites.sh](/scripts/datasources/wikidata/run_hydrate_county_websites.sh) | Shell Script | 11 | 9 | 5 | 25 |
-| [scripts/datasources/wikidata/run\_hydrate\_municipality\_websites.sh](/scripts/datasources/wikidata/run_hydrate_municipality_websites.sh) | Shell Script | 11 | 10 | 5 | 26 |
-| [scripts/datasources/wikidata/run\_load\_jurisdictions\_wikidata.sh](/scripts/datasources/wikidata/run_load_jurisdictions_wikidata.sh) | Shell Script | 8 | 3 | 4 | 15 |
-| [scripts/datasources/wikidata/run\_municipality\_websites\_gap\_states.sh](/scripts/datasources/wikidata/run_municipality_websites_gap_states.sh) | Shell Script | 76 | 14 | 15 | 105 |
-| [scripts/datasources/wikidata/run\_wikidata\_happy\_path.sh](/scripts/datasources/wikidata/run_wikidata_happy_path.sh) | Shell Script | 8 | 11 | 4 | 23 |
-| [scripts/datasources/wikidata/run\_wikidata\_priority\_states\_background.sh](/scripts/datasources/wikidata/run_wikidata_priority_states_background.sh) | Shell Script | 37 | 16 | 8 | 61 |
-| [scripts/datasources/wikidata/validate\_channels\_wikidata.py](/scripts/datasources/wikidata/validate_channels_wikidata.py) | Python | 193 | 35 | 50 | 278 |
-| [scripts/datasources/wikidata/warm\_geography\_cache\_from\_parquet.py](/scripts/datasources/wikidata/warm_geography_cache_from_parquet.py) | Python | 87 | 21 | 20 | 128 |
-| [scripts/datasources/wikidata/wikidata\_entity\_search.py](/scripts/datasources/wikidata/wikidata_entity_search.py) | Python | 71 | 10 | 11 | 92 |
-| [scripts/datasources/wikidata/wikidata\_fips\_gnis\_extract\_colab.ipynb](/scripts/datasources/wikidata/wikidata_fips_gnis_extract_colab.ipynb) | JSON | 348 | 0 | 0 | 348 |
-| [scripts/datasources/wikidata/wikidata\_fips\_gnis\_extract\_local.py](/scripts/datasources/wikidata/wikidata_fips_gnis_extract_local.py) | Python | 326 | 68 | 68 | 462 |
-| [scripts/datasources/wikidata/wikidata\_hybrid\_sql.py](/scripts/datasources/wikidata/wikidata_hybrid_sql.py) | Python | 88 | 56 | 3 | 147 |
-| [scripts/datasources/wikidata/wikidata\_integration.py](/scripts/datasources/wikidata/wikidata_integration.py) | Python | 937 | 295 | 100 | 1,332 |
-| [scripts/datasources/wikidata/wikidata\_wbget\_claims.py](/scripts/datasources/wikidata/wikidata_wbget_claims.py) | Python | 337 | 17 | 78 | 432 |
-| [scripts/datasources/youtube/BRONZE\_MIGRATION.md](/scripts/datasources/youtube/BRONZE_MIGRATION.md) | Markdown | 125 | 0 | 32 | 157 |
-| [scripts/datasources/youtube/BYPASS\_IP\_BLOCK.md](/scripts/datasources/youtube/BYPASS_IP_BLOCK.md) | Markdown | 130 | 0 | 47 | 177 |
-| [scripts/datasources/youtube/CHANNEL\_SANITY\_CHECK.md](/scripts/datasources/youtube/CHANNEL_SANITY_CHECK.md) | Markdown | 179 | 0 | 45 | 224 |
-| [scripts/datasources/youtube/README\_AUDIO\_DOWNLOAD.md](/scripts/datasources/youtube/README_AUDIO_DOWNLOAD.md) | Markdown | 142 | 0 | 38 | 180 |
-| [scripts/datasources/youtube/analyze\_channels.py](/scripts/datasources/youtube/analyze_channels.py) | Python | 74 | 125 | 18 | 217 |
-| [scripts/datasources/youtube/audit\_ga\_jurisdiction\_youtube\_gaps.sql](/scripts/datasources/youtube/audit_ga_jurisdiction_youtube_gaps.sql) | MS SQL | 103 | 19 | 9 | 131 |
-| [scripts/datasources/youtube/audit\_ga\_jurisdiction\_youtube\_gaps\_minimal.sql](/scripts/datasources/youtube/audit_ga_jurisdiction_youtube_gaps_minimal.sql) | MS SQL | 29 | 4 | 4 | 37 |
-| [scripts/datasources/youtube/audit\_ga\_youtube\_download\_filters.sql](/scripts/datasources/youtube/audit_ga_youtube_download_filters.sql) | MS SQL | 255 | 23 | 9 | 287 |
-| [scripts/datasources/youtube/audit\_localview\_youtube\_bronze\_overlap.sql](/scripts/datasources/youtube/audit_localview_youtube_bronze_overlap.sql) | MS SQL | 80 | 17 | 13 | 110 |
-| [scripts/datasources/youtube/audit\_youtube\_jurisdiction\_coverage.sql](/scripts/datasources/youtube/audit_youtube_jurisdiction_coverage.sql) | MS SQL | 327 | 18 | 25 | 370 |
-| [scripts/datasources/youtube/backfill\_bronze\_youtube\_publish\_dates.py](/scripts/datasources/youtube/backfill_bronze_youtube_publish_dates.py) | Python | 484 | 53 | 46 | 583 |
-| [scripts/datasources/youtube/backfill\_jurisdiction\_transcripts.py](/scripts/datasources/youtube/backfill_jurisdiction_transcripts.py) | Python | 1,425 | 130 | 120 | 1,675 |
-| [scripts/datasources/youtube/backfill\_transcripts.py](/scripts/datasources/youtube/backfill_transcripts.py) | Python | 333 | 47 | 82 | 462 |
-| [scripts/datasources/youtube/batch\_job\_dashboard.py](/scripts/datasources/youtube/batch_job_dashboard.py) | Python | 844 | 110 | 71 | 1,025 |
-| [scripts/datasources/youtube/batch\_job\_db.py](/scripts/datasources/youtube/batch_job_db.py) | Python | 423 | 296 | 52 | 771 |
-| [scripts/datasources/youtube/batch\_job\_status.py](/scripts/datasources/youtube/batch_job_status.py) | Python | 1,235 | 118 | 160 | 1,513 |
-| [scripts/datasources/youtube/bronze\_transcript\_tracking.py](/scripts/datasources/youtube/bronze_transcript_tracking.py) | Python | 73 | 40 | 14 | 127 |
-| [scripts/datasources/youtube/channel\_about\_links.py](/scripts/datasources/youtube/channel_about_links.py) | Python | 573 | 196 | 81 | 850 |
-| [scripts/datasources/youtube/clear\_pattern\_match\_youtube\_primaries.sql](/scripts/datasources/youtube/clear_pattern_match_youtube_primaries.sql) | MS SQL | 17 | 5 | 5 | 27 |
-| [scripts/datasources/youtube/dedupe\_meeting\_videos.py](/scripts/datasources/youtube/dedupe_meeting_videos.py) | Python | 210 | 15 | 43 | 268 |
-| [scripts/datasources/youtube/download\_audio\_colab.ipynb](/scripts/datasources/youtube/download_audio_colab.ipynb) | JSON | 1,191 | 0 | 0 | 1,191 |
-| [scripts/datasources/youtube/download\_audio\_colab\_example.py](/scripts/datasources/youtube/download_audio_colab_example.py) | Python | 24 | 68 | 28 | 120 |
-| [scripts/datasources/youtube/download\_audio\_to\_drive.py](/scripts/datasources/youtube/download_audio_to_drive.py) | Python | 1,114 | 532 | 56 | 1,702 |
-| [scripts/datasources/youtube/download\_tuscaloosa\_city\_meeting\_audio.py](/scripts/datasources/youtube/download_tuscaloosa_city_meeting_audio.py) | Python | 225 | 28 | 34 | 287 |
-| [scripts/datasources/youtube/download\_youtube\_audio\_al.sh](/scripts/datasources/youtube/download_youtube_audio_al.sh) | Shell Script | 6 | 5 | 1 | 12 |
-| [scripts/datasources/youtube/download\_youtube\_audio\_ga.sh](/scripts/datasources/youtube/download_youtube_audio_ga.sh) | Shell Script | 6 | 8 | 1 | 15 |
-| [scripts/datasources/youtube/download\_youtube\_audio\_in.sh](/scripts/datasources/youtube/download_youtube_audio_in.sh) | Shell Script | 6 | 5 | 1 | 12 |
-| [scripts/datasources/youtube/download\_youtube\_audio\_mt.sh](/scripts/datasources/youtube/download_youtube_audio_mt.sh) | Shell Script | 6 | 4 | 1 | 11 |
-| [scripts/datasources/youtube/fetch\_transcript\_playwright.py](/scripts/datasources/youtube/fetch_transcript_playwright.py) | Python | 295 | 31 | 44 | 370 |
-| [scripts/datasources/youtube/link\_youtube\_bronze\_from\_localview\_apply.sql](/scripts/datasources/youtube/link_youtube_bronze_from_localview_apply.sql) | MS SQL | 86 | 6 | 8 | 100 |
-| [scripts/datasources/youtube/link\_youtube\_bronze\_from\_localview\_preview.sql](/scripts/datasources/youtube/link_youtube_bronze_from_localview_preview.sql) | MS SQL | 91 | 6 | 6 | 103 |
-| [scripts/datasources/youtube/load\_channel\_candidates\_to\_catalog.py](/scripts/datasources/youtube/load_channel_candidates_to_catalog.py) | Python | 119 | 9 | 17 | 145 |
-| [scripts/datasources/youtube/load\_missing\_county\_channels.py](/scripts/datasources/youtube/load_missing_county_channels.py) | Python | 285 | 7 | 38 | 330 |
-| [scripts/datasources/youtube/load\_youtube\_channels\_bronze.py](/scripts/datasources/youtube/load_youtube_channels_bronze.py) | Python | 356 | 45 | 65 | 466 |
-| [scripts/datasources/youtube/load\_youtube\_events\_colab.ipynb](/scripts/datasources/youtube/load_youtube_events_colab.ipynb) | JSON | 775 | 0 | 1 | 776 |
-| [scripts/datasources/youtube/load\_youtube\_events\_to\_postgres.py](/scripts/datasources/youtube/load_youtube_events_to_postgres.py) | Python | 2,812 | 328 | 305 | 3,445 |
-| [scripts/datasources/youtube/load\_youtube\_for\_jurisdiction.py](/scripts/datasources/youtube/load_youtube_for_jurisdiction.py) | Python | 164 | 19 | 18 | 201 |
-| [scripts/datasources/youtube/normalize\_youtube\_jurisdiction\_ids.py](/scripts/datasources/youtube/normalize_youtube_jurisdiction_ids.py) | Python | 326 | 53 | 55 | 434 |
-| [scripts/datasources/youtube/pattern\_match\_gate.py](/scripts/datasources/youtube/pattern_match_gate.py) | Python | 157 | 20 | 24 | 201 |
-| [scripts/datasources/youtube/policy\_transcript\_cache.py](/scripts/datasources/youtube/policy_transcript_cache.py) | Python | 100 | 17 | 22 | 139 |
-| [scripts/datasources/youtube/repair\_scraped\_youtube\_channels.py](/scripts/datasources/youtube/repair_scraped_youtube_channels.py) | Python | 237 | 247 | 35 | 519 |
-| [scripts/datasources/youtube/run\_audit\_ga\_jurisdiction\_youtube\_gaps.sh](/scripts/datasources/youtube/run_audit_ga_jurisdiction_youtube_gaps.sh) | Shell Script | 39 | 3 | 8 | 50 |
-| [scripts/datasources/youtube/run\_audit\_ga\_youtube\_download\_filters.sh](/scripts/datasources/youtube/run_audit_ga_youtube_download_filters.sh) | Shell Script | 17 | 10 | 6 | 33 |
-| [scripts/datasources/youtube/run\_audit\_localview\_youtube\_bronze\_overlap.sh](/scripts/datasources/youtube/run_audit_localview_youtube_bronze_overlap.sh) | Shell Script | 21 | 4 | 7 | 32 |
-| [scripts/datasources/youtube/run\_audit\_youtube\_jurisdiction\_coverage.sh](/scripts/datasources/youtube/run_audit_youtube_jurisdiction_coverage.sh) | Shell Script | 23 | 6 | 9 | 38 |
-| [scripts/datasources/youtube/run\_backfill\_bronze\_youtube\_publish\_dates.sh](/scripts/datasources/youtube/run_backfill_bronze_youtube_publish_dates.sh) | Shell Script | 9 | 12 | 5 | 26 |
-| [scripts/datasources/youtube/run\_link\_youtube\_bronze\_from\_localview.sh](/scripts/datasources/youtube/run_link_youtube_bronze_from_localview.sh) | Shell Script | 23 | 8 | 8 | 39 |
-| [scripts/datasources/youtube/run\_load\_youtube\_events\_terminal.sh](/scripts/datasources/youtube/run_load_youtube_events_terminal.sh) | Shell Script | 42 | 23 | 4 | 69 |
-| [scripts/datasources/youtube/run\_priority\_states\_channel\_pipeline.sh](/scripts/datasources/youtube/run_priority_states_channel_pipeline.sh) | Shell Script | 121 | 31 | 21 | 173 |
-| [scripts/datasources/youtube/run\_priority\_states\_last\_n.sh](/scripts/datasources/youtube/run_priority_states_last_n.sh) | Shell Script | 413 | 40 | 29 | 482 |
-| [scripts/datasources/youtube/setup\_channels\_bronze.sh](/scripts/datasources/youtube/setup_channels_bronze.sh) | Shell Script | 49 | 8 | 9 | 66 |
-| [scripts/datasources/youtube/sql/preview\_bronze\_youtube\_blank\_publish\_dates.sql](/scripts/datasources/youtube/sql/preview_bronze_youtube_blank_publish_dates.sql) | MS SQL | 24 | 6 | 5 | 35 |
-| [scripts/datasources/youtube/sync\_bronze\_youtube\_from\_localview.py](/scripts/datasources/youtube/sync_bronze_youtube_from_localview.py) | Python | 65 | 103 | 10 | 178 |
-| [scripts/datasources/youtube/test\_cobb\_county\_scrape.py](/scripts/datasources/youtube/test_cobb_county_scrape.py) | Python | 37 | 2 | 13 | 52 |
-| [scripts/datasources/youtube/transcript\_api\_client.py](/scripts/datasources/youtube/transcript_api_client.py) | Python | 515 | 79 | 73 | 667 |
-| [scripts/datasources/youtube/verify\_webshare\_proxy.py](/scripts/datasources/youtube/verify_webshare_proxy.py) | Python | 33 | 2 | 11 | 46 |
-| [scripts/datasources/youtube/youtube\_channel\_discovery.py](/scripts/datasources/youtube/youtube_channel_discovery.py) | Python | 893 | 186 | 157 | 1,236 |
-| [scripts/datasources/youtube/youtube\_channel\_page.py](/scripts/datasources/youtube/youtube_channel_page.py) | Python | 255 | 19 | 31 | 305 |
-| [scripts/datasources/youtube/youtube\_loader\_logging.py](/scripts/datasources/youtube/youtube_loader_logging.py) | Python | 86 | 14 | 21 | 121 |
+| [packages/scrapers/src/scrapers/wikidata/README.md](/packages/scrapers/src/scrapers/wikidata/README.md) | Markdown | 199 | 0 | 61 | 260 |
+| [packages/scrapers/src/scrapers/wikidata/cleanup\_bad\_counties.py](/packages/scrapers/src/scrapers/wikidata/cleanup_bad_counties.py) | Python | 111 | 21 | 18 | 150 |
+| [packages/scrapers/src/scrapers/wikidata/discover\_municipality\_website\_gaps.py](/packages/scrapers/src/scrapers/wikidata/discover_municipality_website_gaps.py) | Python | 59 | 2 | 15 | 76 |
+| [packages/scrapers/src/scrapers/wikidata/export\_bronze\_to\_json.py](/packages/scrapers/src/scrapers/wikidata/export_bronze_to_json.py) | Python | 190 | 226 | 10 | 426 |
+| [packages/scrapers/src/scrapers/wikidata/fix\_fips\_codes.py](/packages/scrapers/src/scrapers/wikidata/fix_fips_codes.py) | Python | 111 | 21 | 25 | 157 |
+| [packages/scrapers/src/scrapers/wikidata/generate\_mapping\_report.sql](/packages/scrapers/src/scrapers/wikidata/generate_mapping_report.sql) | MS SQL | 108 | 13 | 10 | 131 |
+| [packages/scrapers/src/scrapers/wikidata/geography\_qid\_cache.py](/packages/scrapers/src/scrapers/wikidata/geography_qid_cache.py) | Python | 129 | 8 | 23 | 160 |
+| [packages/scrapers/src/scrapers/wikidata/hydrate\_county\_websites\_from\_wikidata.py](/packages/scrapers/src/scrapers/wikidata/hydrate_county_websites_from_wikidata.py) | Python | 45 | 166 | 8 | 219 |
+| [packages/scrapers/src/scrapers/wikidata/hydrate\_municipality\_websites\_from\_wikidata.py](/packages/scrapers/src/scrapers/wikidata/hydrate_municipality_websites_from_wikidata.py) | Python | 46 | 169 | 9 | 224 |
+| [packages/scrapers/src/scrapers/wikidata/load\_channels.py](/packages/scrapers/src/scrapers/wikidata/load_channels.py) | Python | 449 | 200 | 44 | 693 |
+| [packages/scrapers/src/scrapers/wikidata/load\_jurisdictions\_wikidata.py](/packages/scrapers/src/scrapers/wikidata/load_jurisdictions_wikidata.py) | Python | 2,484 | 1,524 | 152 | 4,160 |
+| [packages/scrapers/src/scrapers/wikidata/load\_jurisdictions\_wikidata\_colab.ipynb](/packages/scrapers/src/scrapers/wikidata/load_jurisdictions_wikidata_colab.ipynb) | JSON | 468 | 0 | 1 | 469 |
+| [packages/scrapers/src/scrapers/wikidata/materialize\_bronze\_jurisdictions\_wikidata\_tables.py](/packages/scrapers/src/scrapers/wikidata/materialize_bronze_jurisdictions_wikidata_tables.py) | Python | 289 | 39 | 38 | 366 |
+| [packages/scrapers/src/scrapers/wikidata/parquet\_qid\_lookup.py](/packages/scrapers/src/scrapers/wikidata/parquet_qid_lookup.py) | Python | 221 | 73 | 34 | 328 |
+| [packages/scrapers/src/scrapers/wikidata/run\_hydrate\_county\_websites.sh](/packages/scrapers/src/scrapers/wikidata/run_hydrate_county_websites.sh) | Shell Script | 11 | 9 | 5 | 25 |
+| [packages/scrapers/src/scrapers/wikidata/run\_hydrate\_municipality\_websites.sh](/packages/scrapers/src/scrapers/wikidata/run_hydrate_municipality_websites.sh) | Shell Script | 11 | 10 | 5 | 26 |
+| [packages/scrapers/src/scrapers/wikidata/run\_load\_jurisdictions\_wikidata.sh](/packages/scrapers/src/scrapers/wikidata/run_load_jurisdictions_wikidata.sh) | Shell Script | 8 | 3 | 4 | 15 |
+| [packages/scrapers/src/scrapers/wikidata/run\_municipality\_websites\_gap\_states.sh](/packages/scrapers/src/scrapers/wikidata/run_municipality_websites_gap_states.sh) | Shell Script | 76 | 14 | 15 | 105 |
+| [packages/scrapers/src/scrapers/wikidata/run\_wikidata\_happy\_path.sh](/packages/scrapers/src/scrapers/wikidata/run_wikidata_happy_path.sh) | Shell Script | 8 | 11 | 4 | 23 |
+| [packages/scrapers/src/scrapers/wikidata/run\_wikidata\_priority\_states\_background.sh](/packages/scrapers/src/scrapers/wikidata/run_wikidata_priority_states_background.sh) | Shell Script | 37 | 16 | 8 | 61 |
+| [packages/scrapers/src/scrapers/wikidata/validate\_channels\_wikidata.py](/packages/scrapers/src/scrapers/wikidata/validate_channels_wikidata.py) | Python | 193 | 35 | 50 | 278 |
+| [packages/scrapers/src/scrapers/wikidata/warm\_geography\_cache\_from\_parquet.py](/packages/scrapers/src/scrapers/wikidata/warm_geography_cache_from_parquet.py) | Python | 87 | 21 | 20 | 128 |
+| [packages/scrapers/src/scrapers/wikidata/wikidata\_entity\_search.py](/packages/scrapers/src/scrapers/wikidata/wikidata_entity_search.py) | Python | 71 | 10 | 11 | 92 |
+| [packages/scrapers/src/scrapers/wikidata/wikidata\_fips\_gnis\_extract\_colab.ipynb](/packages/scrapers/src/scrapers/wikidata/wikidata_fips_gnis_extract_colab.ipynb) | JSON | 348 | 0 | 0 | 348 |
+| [packages/scrapers/src/scrapers/wikidata/wikidata\_fips\_gnis\_extract\_local.py](/packages/scrapers/src/scrapers/wikidata/wikidata_fips_gnis_extract_local.py) | Python | 326 | 68 | 68 | 462 |
+| [packages/scrapers/src/scrapers/wikidata/wikidata\_hybrid\_sql.py](/packages/scrapers/src/scrapers/wikidata/wikidata_hybrid_sql.py) | Python | 88 | 56 | 3 | 147 |
+| [packages/scrapers/src/scrapers/wikidata/wikidata\_integration.py](/packages/scrapers/src/scrapers/wikidata/wikidata_integration.py) | Python | 937 | 295 | 100 | 1,332 |
+| [packages/scrapers/src/scrapers/wikidata/wikidata\_wbget\_claims.py](/packages/scrapers/src/scrapers/wikidata/wikidata_wbget_claims.py) | Python | 337 | 17 | 78 | 432 |
+| [packages/scrapers/src/scrapers/youtube/BRONZE\_MIGRATION.md](/packages/scrapers/src/scrapers/youtube/BRONZE_MIGRATION.md) | Markdown | 125 | 0 | 32 | 157 |
+| [packages/scrapers/src/scrapers/youtube/BYPASS\_IP\_BLOCK.md](/packages/scrapers/src/scrapers/youtube/BYPASS_IP_BLOCK.md) | Markdown | 130 | 0 | 47 | 177 |
+| [packages/scrapers/src/scrapers/youtube/CHANNEL\_SANITY\_CHECK.md](/packages/scrapers/src/scrapers/youtube/CHANNEL_SANITY_CHECK.md) | Markdown | 179 | 0 | 45 | 224 |
+| [packages/scrapers/src/scrapers/youtube/README\_AUDIO\_DOWNLOAD.md](/packages/scrapers/src/scrapers/youtube/README_AUDIO_DOWNLOAD.md) | Markdown | 142 | 0 | 38 | 180 |
+| [packages/scrapers/src/scrapers/youtube/analyze\_channels.py](/packages/scrapers/src/scrapers/youtube/analyze_channels.py) | Python | 74 | 125 | 18 | 217 |
+| [packages/scrapers/src/scrapers/youtube/audit\_ga\_jurisdiction\_youtube\_gaps.sql](/packages/scrapers/src/scrapers/youtube/audit_ga_jurisdiction_youtube_gaps.sql) | MS SQL | 103 | 19 | 9 | 131 |
+| [packages/scrapers/src/scrapers/youtube/audit\_ga\_jurisdiction\_youtube\_gaps\_minimal.sql](/packages/scrapers/src/scrapers/youtube/audit_ga_jurisdiction_youtube_gaps_minimal.sql) | MS SQL | 29 | 4 | 4 | 37 |
+| [packages/scrapers/src/scrapers/youtube/audit\_ga\_youtube\_download\_filters.sql](/packages/scrapers/src/scrapers/youtube/audit_ga_youtube_download_filters.sql) | MS SQL | 255 | 23 | 9 | 287 |
+| [packages/scrapers/src/scrapers/youtube/audit\_localview\_youtube\_bronze\_overlap.sql](/packages/scrapers/src/scrapers/youtube/audit_localview_youtube_bronze_overlap.sql) | MS SQL | 80 | 17 | 13 | 110 |
+| [packages/scrapers/src/scrapers/youtube/audit\_youtube\_jurisdiction\_coverage.sql](/packages/scrapers/src/scrapers/youtube/audit_youtube_jurisdiction_coverage.sql) | MS SQL | 327 | 18 | 25 | 370 |
+| [packages/scrapers/src/scrapers/youtube/backfill\_bronze\_youtube\_publish\_dates.py](/packages/scrapers/src/scrapers/youtube/backfill_bronze_youtube_publish_dates.py) | Python | 484 | 53 | 46 | 583 |
+| [packages/scrapers/src/scrapers/youtube/backfill\_jurisdiction\_transcripts.py](/packages/scrapers/src/scrapers/youtube/backfill_jurisdiction_transcripts.py) | Python | 1,425 | 130 | 120 | 1,675 |
+| [packages/scrapers/src/scrapers/youtube/backfill\_transcripts.py](/packages/scrapers/src/scrapers/youtube/backfill_transcripts.py) | Python | 333 | 47 | 82 | 462 |
+| [packages/scrapers/src/scrapers/youtube/batch\_job\_dashboard.py](/packages/scrapers/src/scrapers/youtube/batch_job_dashboard.py) | Python | 844 | 110 | 71 | 1,025 |
+| [packages/scrapers/src/scrapers/youtube/batch\_job\_db.py](/packages/scrapers/src/scrapers/youtube/batch_job_db.py) | Python | 423 | 296 | 52 | 771 |
+| [packages/scrapers/src/scrapers/youtube/batch\_job\_status.py](/packages/scrapers/src/scrapers/youtube/batch_job_status.py) | Python | 1,235 | 118 | 160 | 1,513 |
+| [packages/scrapers/src/scrapers/youtube/bronze\_transcript\_tracking.py](/packages/scrapers/src/scrapers/youtube/bronze_transcript_tracking.py) | Python | 73 | 40 | 14 | 127 |
+| [packages/scrapers/src/scrapers/youtube/channel\_about\_links.py](/packages/scrapers/src/scrapers/youtube/channel_about_links.py) | Python | 573 | 196 | 81 | 850 |
+| [packages/scrapers/src/scrapers/youtube/clear\_pattern\_match\_youtube\_primaries.sql](/packages/scrapers/src/scrapers/youtube/clear_pattern_match_youtube_primaries.sql) | MS SQL | 17 | 5 | 5 | 27 |
+| [packages/scrapers/src/scrapers/youtube/dedupe\_meeting\_videos.py](/packages/scrapers/src/scrapers/youtube/dedupe_meeting_videos.py) | Python | 210 | 15 | 43 | 268 |
+| [packages/scrapers/src/scrapers/youtube/download\_audio\_colab.ipynb](/packages/scrapers/src/scrapers/youtube/download_audio_colab.ipynb) | JSON | 1,191 | 0 | 0 | 1,191 |
+| [packages/scrapers/src/scrapers/youtube/download\_audio\_colab\_example.py](/packages/scrapers/src/scrapers/youtube/download_audio_colab_example.py) | Python | 24 | 68 | 28 | 120 |
+| [packages/scrapers/src/scrapers/youtube/download\_audio\_to\_drive.py](/packages/scrapers/src/scrapers/youtube/download_audio_to_drive.py) | Python | 1,114 | 532 | 56 | 1,702 |
+| [packages/scrapers/src/scrapers/youtube/download\_tuscaloosa\_city\_meeting\_audio.py](/packages/scrapers/src/scrapers/youtube/download_tuscaloosa_city_meeting_audio.py) | Python | 225 | 28 | 34 | 287 |
+| [packages/scrapers/src/scrapers/youtube/download\_youtube\_audio\_al.sh](/packages/scrapers/src/scrapers/youtube/download_youtube_audio_al.sh) | Shell Script | 6 | 5 | 1 | 12 |
+| [packages/scrapers/src/scrapers/youtube/download\_youtube\_audio\_ga.sh](/packages/scrapers/src/scrapers/youtube/download_youtube_audio_ga.sh) | Shell Script | 6 | 8 | 1 | 15 |
+| [packages/scrapers/src/scrapers/youtube/download\_youtube\_audio\_in.sh](/packages/scrapers/src/scrapers/youtube/download_youtube_audio_in.sh) | Shell Script | 6 | 5 | 1 | 12 |
+| [packages/scrapers/src/scrapers/youtube/download\_youtube\_audio\_mt.sh](/packages/scrapers/src/scrapers/youtube/download_youtube_audio_mt.sh) | Shell Script | 6 | 4 | 1 | 11 |
+| [packages/scrapers/src/scrapers/youtube/fetch\_transcript\_playwright.py](/packages/scrapers/src/scrapers/youtube/fetch_transcript_playwright.py) | Python | 295 | 31 | 44 | 370 |
+| [packages/scrapers/src/scrapers/youtube/link\_youtube\_bronze\_from\_localview\_apply.sql](/packages/scrapers/src/scrapers/youtube/link_youtube_bronze_from_localview_apply.sql) | MS SQL | 86 | 6 | 8 | 100 |
+| [packages/scrapers/src/scrapers/youtube/link\_youtube\_bronze\_from\_localview\_preview.sql](/packages/scrapers/src/scrapers/youtube/link_youtube_bronze_from_localview_preview.sql) | MS SQL | 91 | 6 | 6 | 103 |
+| [packages/scrapers/src/scrapers/youtube/load\_channel\_candidates\_to\_catalog.py](/packages/scrapers/src/scrapers/youtube/load_channel_candidates_to_catalog.py) | Python | 119 | 9 | 17 | 145 |
+| [packages/scrapers/src/scrapers/youtube/load\_missing\_county\_channels.py](/packages/scrapers/src/scrapers/youtube/load_missing_county_channels.py) | Python | 285 | 7 | 38 | 330 |
+| [packages/scrapers/src/scrapers/youtube/load\_youtube\_channels\_bronze.py](/packages/scrapers/src/scrapers/youtube/load_youtube_channels_bronze.py) | Python | 356 | 45 | 65 | 466 |
+| [packages/scrapers/src/scrapers/youtube/load\_youtube\_events\_colab.ipynb](/packages/scrapers/src/scrapers/youtube/load_youtube_events_colab.ipynb) | JSON | 775 | 0 | 1 | 776 |
+| [packages/scrapers/src/scrapers/youtube/load\_youtube\_events\_to\_postgres.py](/packages/scrapers/src/scrapers/youtube/load_youtube_events_to_postgres.py) | Python | 2,812 | 328 | 305 | 3,445 |
+| [packages/scrapers/src/scrapers/youtube/load\_youtube\_for\_jurisdiction.py](/packages/scrapers/src/scrapers/youtube/load_youtube_for_jurisdiction.py) | Python | 164 | 19 | 18 | 201 |
+| [packages/scrapers/src/scrapers/youtube/normalize\_youtube\_jurisdiction\_ids.py](/packages/scrapers/src/scrapers/youtube/normalize_youtube_jurisdiction_ids.py) | Python | 326 | 53 | 55 | 434 |
+| [packages/scrapers/src/scrapers/youtube/pattern\_match\_gate.py](/packages/scrapers/src/scrapers/youtube/pattern_match_gate.py) | Python | 157 | 20 | 24 | 201 |
+| [packages/scrapers/src/scrapers/youtube/policy\_transcript\_cache.py](/packages/scrapers/src/scrapers/youtube/policy_transcript_cache.py) | Python | 100 | 17 | 22 | 139 |
+| [packages/scrapers/src/scrapers/youtube/repair\_scraped\_youtube\_channels.py](/packages/scrapers/src/scrapers/youtube/repair_scraped_youtube_channels.py) | Python | 237 | 247 | 35 | 519 |
+| [packages/scrapers/src/scrapers/youtube/run\_audit\_ga\_jurisdiction\_youtube\_gaps.sh](/packages/scrapers/src/scrapers/youtube/run_audit_ga_jurisdiction_youtube_gaps.sh) | Shell Script | 39 | 3 | 8 | 50 |
+| [packages/scrapers/src/scrapers/youtube/run\_audit\_ga\_youtube\_download\_filters.sh](/packages/scrapers/src/scrapers/youtube/run_audit_ga_youtube_download_filters.sh) | Shell Script | 17 | 10 | 6 | 33 |
+| [packages/scrapers/src/scrapers/youtube/run\_audit\_localview\_youtube\_bronze\_overlap.sh](/packages/scrapers/src/scrapers/youtube/run_audit_localview_youtube_bronze_overlap.sh) | Shell Script | 21 | 4 | 7 | 32 |
+| [packages/scrapers/src/scrapers/youtube/run\_audit\_youtube\_jurisdiction\_coverage.sh](/packages/scrapers/src/scrapers/youtube/run_audit_youtube_jurisdiction_coverage.sh) | Shell Script | 23 | 6 | 9 | 38 |
+| [packages/scrapers/src/scrapers/youtube/run\_backfill\_bronze\_youtube\_publish\_dates.sh](/packages/scrapers/src/scrapers/youtube/run_backfill_bronze_youtube_publish_dates.sh) | Shell Script | 9 | 12 | 5 | 26 |
+| [packages/scrapers/src/scrapers/youtube/run\_link\_youtube\_bronze\_from\_localview.sh](/packages/scrapers/src/scrapers/youtube/run_link_youtube_bronze_from_localview.sh) | Shell Script | 23 | 8 | 8 | 39 |
+| [packages/scrapers/src/scrapers/youtube/run\_load\_youtube\_events\_terminal.sh](/packages/scrapers/src/scrapers/youtube/run_load_youtube_events_terminal.sh) | Shell Script | 42 | 23 | 4 | 69 |
+| [packages/scrapers/src/scrapers/youtube/run\_priority\_states\_channel\_pipeline.sh](/packages/scrapers/src/scrapers/youtube/run_priority_states_channel_pipeline.sh) | Shell Script | 121 | 31 | 21 | 173 |
+| [packages/scrapers/src/scrapers/youtube/run\_priority\_states\_last\_n.sh](/packages/scrapers/src/scrapers/youtube/run_priority_states_last_n.sh) | Shell Script | 413 | 40 | 29 | 482 |
+| [packages/scrapers/src/scrapers/youtube/setup\_channels\_bronze.sh](/packages/scrapers/src/scrapers/youtube/setup_channels_bronze.sh) | Shell Script | 49 | 8 | 9 | 66 |
+| [packages/scrapers/src/scrapers/youtube/sql/preview\_bronze\_youtube\_blank\_publish\_dates.sql](/packages/scrapers/src/scrapers/youtube/sql/preview_bronze_youtube_blank_publish_dates.sql) | MS SQL | 24 | 6 | 5 | 35 |
+| [packages/scrapers/src/scrapers/youtube/sync\_bronze\_youtube\_from\_localview.py](/packages/scrapers/src/scrapers/youtube/sync_bronze_youtube_from_localview.py) | Python | 65 | 103 | 10 | 178 |
+| [packages/scrapers/src/scrapers/youtube/test\_cobb\_county\_scrape.py](/packages/scrapers/src/scrapers/youtube/test_cobb_county_scrape.py) | Python | 37 | 2 | 13 | 52 |
+| [packages/scrapers/src/scrapers/youtube/transcript\_api\_client.py](/packages/scrapers/src/scrapers/youtube/transcript_api_client.py) | Python | 515 | 79 | 73 | 667 |
+| [packages/scrapers/src/scrapers/youtube/verify\_webshare\_proxy.py](/packages/scrapers/src/scrapers/youtube/verify_webshare_proxy.py) | Python | 33 | 2 | 11 | 46 |
+| [packages/scrapers/src/scrapers/youtube/youtube\_channel\_discovery.py](/packages/scrapers/src/scrapers/youtube/youtube_channel_discovery.py) | Python | 893 | 186 | 157 | 1,236 |
+| [packages/scrapers/src/scrapers/youtube/youtube\_channel\_page.py](/packages/scrapers/src/scrapers/youtube/youtube_channel_page.py) | Python | 255 | 19 | 31 | 305 |
+| [packages/scrapers/src/scrapers/youtube/youtube\_loader\_logging.py](/packages/scrapers/src/scrapers/youtube/youtube_loader_logging.py) | Python | 86 | 14 | 21 | 121 |
 | [scripts/dbt-root.sh](/scripts/dbt-root.sh) | Shell Script | 5 | 8 | 1 | 14 |
 | [scripts/dbt.sh](/scripts/dbt.sh) | Shell Script | 5 | 8 | 1 | 14 |
 | [scripts/dbt/README.md](/scripts/dbt/README.md) | Markdown | 265 | 0 | 83 | 348 |

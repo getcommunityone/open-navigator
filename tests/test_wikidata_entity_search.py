@@ -19,9 +19,9 @@ _root = Path(__file__).resolve().parents[1]
 if str(_root) not in sys.path:
     sys.path.insert(0, str(_root))
 
-from scripts.datasources.wikidata import wikidata_entity_search as wes
-from scripts.datasources.wikidata import wikidata_hybrid_sql
-from scripts.datasources.wikidata.load_jurisdictions_wikidata import (
+from scrapers.wikidata import wikidata_entity_search as wes
+from scrapers.wikidata import wikidata_hybrid_sql
+from scrapers.wikidata.load_jurisdictions_wikidata import (
     _batched_sorted_literals,
     _municipality_wd_literal_sets,
 )
@@ -142,7 +142,7 @@ async def test_live_wbsearchentities_kent_delaware_smoke() -> None:
     from dotenv import load_dotenv
 
     load_dotenv()
-    from scripts.datasources.wikidata.wikidata_integration import WikidataQuery
+    from scrapers.wikidata.wikidata_integration import WikidataQuery
 
     wd = WikidataQuery()
     hits = await wd.wikibase_search_entities("Kent County, Delaware", limit=8)

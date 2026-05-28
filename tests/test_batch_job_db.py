@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
-from scripts.datasources.youtube.batch_job_status import (
+from api.batch_jobs.batch_job_status import (
     BatchJobStore,
     new_batch_id,
 )
@@ -35,7 +35,7 @@ def test_sync_batch_job_to_db_roundtrip(jobs_root):
         pending_videos=2,
     )
 
-    from scripts.datasources.youtube.batch_job_db import (
+    from api.batch_jobs.batch_job_db import (
         list_batch_jobs_from_db,
         load_batch_job_from_db,
     )
@@ -54,7 +54,7 @@ def test_build_dashboard_prefers_database(jobs_root):
     if not url:
         pytest.skip("No Postgres URL configured")
 
-    from scripts.datasources.youtube.batch_job_dashboard import build_dashboard_data
+    from api.batch_jobs.batch_job_dashboard import build_dashboard_data
 
     with patch.dict(os.environ, {"BATCH_JOBS_USE_DB": "1"}):
         payload = build_dashboard_data(refresh_files=False, enrich_bronze=False)

@@ -7,7 +7,7 @@
     LAND loader ingestion.youtube.events (which lands pre-collected video records
     verbatim — title, published_at, channel metadata — with NO derivation). This
     model reproduces the derivation that used to live in the Python scraper/loader
-    (scripts/datasources/youtube/load_youtube_events_to_postgres.py):
+    (packages/scrapers/src/scrapers/youtube/load_youtube_events_to_postgres.py):
 
       - event_date: parsed from the meeting TITLE (e.g. "Council Meeting
         9/23/2024" -> 2024-09-23), mirroring extract_meeting_date_from_title /

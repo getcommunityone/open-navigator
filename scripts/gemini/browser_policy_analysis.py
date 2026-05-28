@@ -399,7 +399,7 @@ def fetch_videos(
         )
 
     if dedupe_duplicate_meetings and not video_id and len(out) > 1:
-        from scripts.datasources.youtube.dedupe_meeting_videos import (
+        from scrapers.youtube.dedupe_meeting_videos import (
             dedupe_meeting_rows,
             log_duplicate_skips,
         )

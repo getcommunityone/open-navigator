@@ -1,6 +1,6 @@
 """Tests for duplicate meeting upload selection."""
 
-from scripts.datasources.youtube.dedupe_meeting_videos import (
+from scrapers.youtube.dedupe_meeting_videos import (
     cluster_duplicate_meetings,
     dedupe_meeting_rows,
     dedupe_video_id_map,

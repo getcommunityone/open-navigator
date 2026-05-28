@@ -171,7 +171,7 @@ sources:
           Raw YouTube video data from government channels. Landed by the LAND
           loader ingestion.youtube.events (pre-collected JSON/JSONL out of
           data/cache/youtube/, emitted by the FETCH scraper
-          scripts/datasources/youtube/load_youtube_events_to_postgres.py). The
+          packages/scrapers/src/scrapers/youtube/load_youtube_events_to_postgres.py). The
           loader lands records VERBATIM with NO derivation: event_date /
           event_time are NULL here — the meeting date is DERIVED from the title
           downstream in stg_youtube__event, along with channel_type
@@ -225,7 +225,7 @@ sources:
           - name: channel_description
             description: >
               Channel About description from public /about HTML (when scraped by
-              scripts/datasources/youtube/channel_about_links.py).
+              packages/scrapers/src/scrapers/youtube/channel_about_links.py).
           - name: channel_external_links
             description: >
               JSON array of outbound links: About-tab featured links plus http(s)/www URLs
@@ -571,7 +571,7 @@ sources:
       - name: bronze_jurisdictions_states_wikidata
         description: |
           US state rows from Census `bronze_jurisdictions_states` plus Wikidata (QID, official site, social, YouTube, etc.).
-          Populated by scripts/datasources/wikidata/load_jurisdictions_wikidata.py (not legacy public.jurisdictions_wikidata).
+          Populated by packages/scrapers/src/scrapers/wikidata/load_jurisdictions_wikidata.py (not legacy public.jurisdictions_wikidata).
         columns:
           - name: geoid
             description: "State GEOID — primary key"
@@ -585,7 +585,7 @@ sources:
       - name: bronze_jurisdictions_counties_wikidata
         description: |
           County rows aligned to `bronze_jurisdictions_counties` plus Wikidata enrichment.
-          Loaded by scripts/datasources/wikidata/load_jurisdictions_wikidata.py.
+          Loaded by packages/scrapers/src/scrapers/wikidata/load_jurisdictions_wikidata.py.
         columns:
           - name: geoid
             description: "5-digit county GEOID — primary key"
@@ -599,7 +599,7 @@ sources:
       - name: bronze_jurisdictions_municipalities_wikidata
         description: |
           Place/municipality rows aligned to `bronze_jurisdictions_municipalities` plus Wikidata enrichment.
-          Loaded by scripts/datasources/wikidata/load_jurisdictions_wikidata.py.
+          Loaded by packages/scrapers/src/scrapers/wikidata/load_jurisdictions_wikidata.py.
         columns:
           - name: geoid
             description: "7-digit place GEOID — primary key"
@@ -617,7 +617,7 @@ sources:
       - name: bronze_jurisdictions_school_districts_wikidata
         description: |
           School district rows aligned to `bronze_jurisdictions_school_districts` plus Wikidata enrichment.
-          Loaded by scripts/datasources/wikidata/load_jurisdictions_wikidata.py.
+          Loaded by packages/scrapers/src/scrapers/wikidata/load_jurisdictions_wikidata.py.
         columns:
           - name: geoid
             description: "7-digit school district GEOID — primary key"

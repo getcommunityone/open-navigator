@@ -17,7 +17,7 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from scripts.datasources.irs.nonprofit_discovery import (
+from scrapers.irs.nonprofit_discovery import (
     NonprofitDiscovery,
     discover_tuscaloosa_nonprofits
 )

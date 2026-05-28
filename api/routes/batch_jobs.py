@@ -124,7 +124,7 @@ def _sanitize_dashboard_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
 
 async def _latest_dashboard_revision_async() -> Optional[str]:
     try:
-        from scripts.datasources.youtube.batch_job_db import latest_dashboard_revision
+        from api.batch_jobs.batch_job_db import latest_dashboard_revision
 
         return await asyncio.to_thread(latest_dashboard_revision)
     except Exception:
@@ -157,7 +157,7 @@ def _load_dashboard(
     detail: str = "full",
     batch_limit: int = 25,
 ) -> Dict[str, Any]:
-    from scripts.datasources.youtube.batch_job_dashboard import (
+    from api.batch_jobs.batch_job_dashboard import (
         VideoPayloadMode,
         build_dashboard_data,
         build_dashboard_summary,
@@ -288,7 +288,7 @@ async def list_failed_videos(
     batch_limit: int = Query(25, ge=1, le=100),
 ) -> FailedVideosListResponse:
     """Per-video failure log extracted from batch payloads (not summary counts only)."""
-    from scripts.datasources.youtube.batch_job_db import list_failed_videos_from_db
+    from api.batch_jobs.batch_job_db import list_failed_videos_from_db
 
     try:
         payload = await asyncio.to_thread(
@@ -317,7 +317,7 @@ async def list_batch_jurisdictions(
     state: str = Query(..., min_length=2, max_length=2, description="USPS state code"),
 ) -> BatchJurisdictionsResponse:
     """Slim jurisdiction rows for one state (loaded on demand; no per-video arrays)."""
-    from scripts.datasources.youtube.batch_job_dashboard import (
+    from api.batch_jobs.batch_job_dashboard import (
         build_batch_state_jurisdictions,
     )
 
@@ -335,7 +335,7 @@ async def list_batch_jurisdictions(
             detail=f"Batch jurisdictions failed: {exc}",
         ) from exc
     if not rows:
-        from scripts.datasources.youtube.batch_job_db import load_batch_job_from_db
+        from api.batch_jobs.batch_job_db import load_batch_job_from_db
 
         if await asyncio.to_thread(load_batch_job_from_db, batch_id) is None:
             raise HTTPException(status_code=404, detail=f"Batch not found: {batch_id}")
@@ -359,18 +359,18 @@ async def get_batch_job(
     ),
 ) -> BatchJobModel:
     def _build_job() -> Dict[str, Any]:
-        from scripts.datasources.youtube.batch_job_db import (
+        from api.batch_jobs.batch_job_db import (
             enrich_jobs_from_bronze,
             load_batch_job_from_db,
         )
-        from scripts.datasources.youtube.batch_job_status import (
+        from api.batch_jobs.batch_job_status import (
             BatchJobStore,
             _recompute_summary,
             apply_batch_lifecycle,
             count_policy_files_for_jurisdiction,
             expand_batch_job_plan,
         )
-        from scripts.datasources.youtube.batch_job_dashboard import _POLICY_CACHE
+        from api.batch_jobs.batch_job_dashboard import _POLICY_CACHE
 
         job = load_batch_job_from_db(batch_id)
         if job is None:
@@ -396,7 +396,7 @@ async def get_batch_job(
                 )
         d = job.to_dict()
         if include_videos in ("none", "failed_only", "running"):
-            from scripts.datasources.youtube.batch_job_dashboard import slim_batch_dict
+            from api.batch_jobs.batch_job_dashboard import slim_batch_dict
 
             mode = include_videos if include_videos != "running" else "running"
             d = slim_batch_dict(d, video_mode=mode)  # type: ignore[arg-type]

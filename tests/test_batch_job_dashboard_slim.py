@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from scripts.datasources.youtube.batch_job_dashboard import (
+from api.batch_jobs.batch_job_dashboard import (
     _totals_from_batch_summaries,
     pipeline_activity_at_from_batches,
     slim_batch_dict,

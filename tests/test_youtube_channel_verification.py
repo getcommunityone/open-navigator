@@ -1,6 +1,6 @@
 """YouTube channel verification and county discovery guards."""
 
-from scripts.datasources.youtube.youtube_channel_discovery import YouTubeChannelDiscovery
+from scrapers.youtube.youtube_channel_discovery import YouTubeChannelDiscovery
 from scripts.discovery.youtube_channel_verification import (
     qualifies_for_bronze_jurisdiction_youtube,
     rejection_reason_for_channel,

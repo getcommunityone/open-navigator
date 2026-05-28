@@ -7,7 +7,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Tuple
 
 from scripts.discovery.youtube_channel_purpose import is_meeting_primary_purpose
-from scripts.datasources.youtube.pattern_match_gate import (
+from scrapers.youtube.pattern_match_gate import (
     PATTERN_MATCH_PRIMARY_MIN_OFFICIAL_CONFIDENCE,
     is_pattern_match_discovery,
 )

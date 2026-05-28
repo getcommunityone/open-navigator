@@ -59,7 +59,7 @@ echo ""
 #         Works even without jurisdictions_wikidata loaded — wikidata columns
 #         will simply be NULL until that data is loaded.
 # ─────────────────────────────────────────────────────────────────────────────
-WIKIDATA_SCRIPT="${ROOT}/scripts/datasources/wikidata/materialize_bronze_jurisdictions_wikidata_tables.py"
+WIKIDATA_SCRIPT="${ROOT}/packages/scrapers/src/scrapers/wikidata/materialize_bronze_jurisdictions_wikidata_tables.py"
 echo "==> [2/3] Re-materializing _wikidata tables (picks up new prefixed jurisdiction_id values) …"
 WIKIDATA_EXISTS=$(psql "$DB_URL" -tAc "SELECT to_regclass('public.jurisdictions_wikidata')")
 if [[ "$WIKIDATA_EXISTS" == "jurisdictions_wikidata" ]]; then

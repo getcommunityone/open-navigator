@@ -40,7 +40,7 @@ export GEMINI_FLASH_LITE_MODEL=gemini-2.5-flash-lite   # optional override
 **1. Refresh channel catalog in Postgres** (needs `YOUTUBE_API_KEY` in `.env`):
 
 ```bash
-.venv/bin/python scripts/datasources/youtube/load_youtube_for_jurisdiction.py \
+.venv/bin/python packages/scrapers/src/scrapers/youtube/load_youtube_for_jurisdiction.py \
   --jurisdiction-id municipality_0177256 \
   --jurisdiction-name Tuscaloosa \
   --state AL \
@@ -51,13 +51,13 @@ export GEMINI_FLASH_LITE_MODEL=gemini-2.5-flash-lite   # optional override
 Or the Tuscaloosa-specific helper (title filter `committee` / `meeting`):
 
 ```bash
-.venv/bin/python scripts/datasources/youtube/download_tuscaloosa_city_meeting_audio.py --catalog-only
+.venv/bin/python packages/scrapers/src/scrapers/youtube/download_tuscaloosa_city_meeting_audio.py --catalog-only
 ```
 
 **2. (Optional) Download Opus for WhisperX diarization** — newest `event_date` / `published_at` first:
 
 ```bash
-.venv/bin/python scripts/datasources/youtube/download_tuscaloosa_city_meeting_audio.py --download-only --limit 5
+.venv/bin/python packages/scrapers/src/scrapers/youtube/download_tuscaloosa_city_meeting_audio.py --download-only --limit 5
 ```
 
 **3. Transcripts / policy from bronze, newest `last_updated` first:**

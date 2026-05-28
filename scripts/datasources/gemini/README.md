@@ -371,7 +371,7 @@ python scripts/datasources/gemini/analyze_meeting_transcripts.py --delay 10.0
 #### 1. Load Meeting Videos
 ```bash
 # First, get meeting videos with transcripts
-python scripts/datasources/youtube/load_youtube_events_to_postgres.py \
+python packages/scrapers/src/scrapers/youtube/load_youtube_events_to_postgres.py \
   --states AL,GA,IN,MA,WA,WI \
   --skip-transcripts \
   --max-videos 100
@@ -380,7 +380,7 @@ python scripts/datasources/youtube/load_youtube_events_to_postgres.py \
 #### 2. Get Transcripts (later, when needed)
 ```bash
 # Fetch transcripts for stored videos
-python scripts/datasources/youtube/load_youtube_events_to_postgres.py \
+python packages/scrapers/src/scrapers/youtube/load_youtube_events_to_postgres.py \
   --states AL,GA,IN,MA,WA,WI \
   --max-videos 10  # Just most recent ones
 ```

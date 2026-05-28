@@ -22,7 +22,7 @@ Guide for migrating `events_channels_search` from direct production loading to t
 ### Before (Current)
 
 ```
-scripts/datasources/youtube/load_channels.py
+packages/scrapers/src/scrapers/youtube/load_channels.py
     ↓ (direct write)
 events_channels_search (production table)
 ```
@@ -30,7 +30,7 @@ events_channels_search (production table)
 ### After (New)
 
 ```
-scripts/datasources/youtube/load_youtube_channels_bronze.py
+packages/scrapers/src/scrapers/youtube/load_youtube_channels_bronze.py
     ↓ (write to bronze)
 bronze_events_channels (bronze table)
     ↓ (Foreign Data Wrapper)
@@ -82,12 +82,12 @@ Use the new bronze loading script:
 
 ```bash
 # Load channels for specific states
-python scripts/datasources/youtube/load_youtube_channels_bronze.py \
+python packages/scrapers/src/scrapers/youtube/load_youtube_channels_bronze.py \
   --states AL,GA,IN,MA,WA,WI \
   --auto-flag
 
 # Or all states
-python scripts/datasources/youtube/load_youtube_channels_bronze.py --auto-flag
+python packages/scrapers/src/scrapers/youtube/load_youtube_channels_bronze.py --auto-flag
 ```
 
 **Flags:**
@@ -263,7 +263,7 @@ If issues arise, rollback to old process:
 
 ```bash
 # 1. Stop using new loading script
-# Use old script: scripts/datasources/youtube/load_channels.py
+# Use old script: packages/scrapers/src/scrapers/youtube/load_channels.py
 
 # 2. Drop dbt-generated table
 psql -h localhost -p 5433 -U postgres -d open_navigator \
@@ -282,10 +282,10 @@ Run bronze loading + dbt weekly:
 
 ```bash
 #!/bin/bash
-# scripts/datasources/youtube/update_channels_weekly.sh
+# packages/scrapers/src/scrapers/youtube/update_channels_weekly.sh
 
 # Load new channels to bronze
-python scripts/datasources/youtube/load_youtube_channels_bronze.py --auto-flag
+python packages/scrapers/src/scrapers/youtube/load_youtube_channels_bronze.py --auto-flag
 
 # Refresh production table via dbt
 cd dbt_project

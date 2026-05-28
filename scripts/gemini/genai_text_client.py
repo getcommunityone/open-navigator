@@ -22,9 +22,45 @@ _RETRY_DELAY_RE = re.compile(
     re.IGNORECASE,
 )
 
+_TRANSIENT_NETWORK_MARKERS = (
+    "SERVER DISCONNECTED",
+    "CONNECTION RESET",
+    "CONNECTION REFUSED",
+    "CONNECTION ERROR",
+    "READ TIMEOUT",
+    "READ TIMED OUT",
+    "WRITE TIMEOUT",
+    "TIMEOUT",
+    "BROKEN PIPE",
+    "REMOTE PROTOCOL",
+    "ECONNRESET",
+    "ETIMEDOUT",
+    "NETWORK UNREACHABLE",
+)
+
+
+def is_genai_transient_network_error(exc: BaseException) -> bool:
+    """HTTP client disconnects/timeouts — retry with shorter backoff."""
+    exc_name = type(exc).__name__.upper()
+    if any(
+        token in exc_name
+        for token in (
+            "TIMEOUT",
+            "PROTOCOL",
+            "CONNECT",
+            "NETWORK",
+            "DISCONNECT",
+        )
+    ):
+        return True
+    msg = str(exc).upper()
+    return any(marker in msg for marker in _TRANSIENT_NETWORK_MARKERS)
+
 
 def is_genai_retryable(exc: BaseException) -> bool:
-    """429 quota and transient 503/502 overload — retry with backoff."""
+    """429/503/502 quota/overload and transient network disconnects — retry with backoff."""
+    if is_genai_transient_network_error(exc):
+        return True
     msg = str(exc).upper()
     if any(
         token in msg
@@ -72,7 +108,9 @@ def _genai_http_code(exc: BaseException) -> Optional[int]:
 
 
 def classify_genai_error(exc: BaseException) -> str:
-    """Short category for logs (quota vs overload vs gateway)."""
+    """Short category for logs (quota vs overload vs gateway vs network)."""
+    if is_genai_transient_network_error(exc):
+        return "transient network disconnect"
     code = _genai_http_code(exc)
     msg = str(exc).upper()
     if code == 429 or "RESOURCE_EXHAUSTED" in msg or "QUOTA" in msg:
@@ -108,6 +146,9 @@ def genai_quota_retry_delay_seconds(exc: BaseException, attempt: int) -> float:
     m = _RETRY_DELAY_RE.search(msg)
     if m:
         return max(float(m.group(1)), 1.0)
+    if is_genai_transient_network_error(exc):
+        base = float(os.environ.get("GOVERNANCE_GENAI_NETWORK_RETRY_BASE_SECONDS", "5"))
+        return base * (1.0 + 0.5 * attempt)
     base = float(os.environ.get("GOVERNANCE_GENAI_QUOTA_RETRY_BASE_SECONDS", "30"))
     return base * (1.0 + 0.2 * attempt)
 

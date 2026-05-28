@@ -1,6 +1,6 @@
 """Wikidata jurisdiction enrichment downloader (FETCH layer).
 
-Ported from scripts/datasources/wikidata/load_jurisdictions_wikidata.py +
+Ported from packages/scrapers/src/scrapers/wikidata/load_jurisdictions_wikidata.py +
 wikidata_integration.WikidataQuery to core_lib.http.BaseAsyncClient. This module
 is download-only: it runs the live WDQS/SPARQL HTTP GET (``?query=...&format=json``)
 and the Wikibase ``wbgetentities`` HTTP GET (``w/api.php``), shapes the responses
@@ -13,7 +13,7 @@ from this cached enrichment, keyed on geoid) are TRANSFORMATIONS and live in dbt
 (stg_wikidata__* + int_wikidata__jurisdictions_enriched), NOT here. See
 ingestion/wikidata/__init__.py and dbt_project/models/staging/_schema_stg_wikidata.yml.
 
-What this FETCH layer does NOT do (left in scripts/datasources/wikidata/ and FLAGGED):
+What this FETCH layer does NOT do (left in packages/scrapers/src/scrapers/wikidata/ and FLAGGED):
   * Postgres seeding / UPDATE / incremental-merge / coverage queries (-> dbt).
   * Census-literal -> Wikidata-QID *resolution* that needs the bronze GEOID list,
     fuzzy name matching (wbsearchentities entity-search), county-gap discovery,

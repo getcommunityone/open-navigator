@@ -42,10 +42,10 @@ if str(Path(__file__).parent.parent.parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from scripts.discovery.url_discovery_agent import URLDiscoveryAgent
-from scripts.datasources.youtube.youtube_channel_discovery import YouTubeChannelDiscovery
+from scrapers.youtube.youtube_channel_discovery import YouTubeChannelDiscovery
 from scripts.datasources.social_media.social_media_discovery import SocialMediaDiscovery
 from scripts.discovery.platform_detector import detect_platform
-from scripts.datasources.wikidata.wikidata_integration import WikidataQuery
+from scrapers.wikidata.wikidata_integration import WikidataQuery
 import httpx
 
 from scripts.discovery.scrape_http import async_get_with_vpn_bypass, make_scrape_async_client

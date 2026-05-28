@@ -147,7 +147,7 @@ uploaded = files.upload()
 %cd /content/drive/MyDrive/open-navigator
 
 # Load recent videos (last 180 days)
-!python scripts/datasources/youtube/load_youtube_events_to_postgres.py \
+!python packages/scrapers/src/scrapers/youtube/load_youtube_events_to_postgres.py \
   --days 180 \
   --max-videos 200 \
   --skip-transcripts \
@@ -187,19 +187,19 @@ uploaded = files.upload()
 !pip install -q yt-dlp
 
 # Download audio from recent videos (last 30 days)
-!python scripts/datasources/youtube/download_audio_to_drive.py \
+!python packages/scrapers/src/scrapers/youtube/download_audio_to_drive.py \
   --output-dir /content/drive/MyDrive/CommunityOne/youtube_audio \
   --days 30 \
   --limit 50
 
 # Download from specific channels
-!python scripts/datasources/youtube/download_audio_to_drive.py \
+!python packages/scrapers/src/scrapers/youtube/download_audio_to_drive.py \
   --output-dir /content/drive/MyDrive/CommunityOne/youtube_audio \
   --channels "City of Seattle,Portland" \
   --limit 100
 
 # Download from specific states
-!python scripts/datasources/youtube/download_audio_to_drive.py \
+!python packages/scrapers/src/scrapers/youtube/download_audio_to_drive.py \
   --output-dir /content/drive/MyDrive/CommunityOne/youtube_audio \
   --states AL,MA,WI \
   --limit 200
@@ -489,7 +489,7 @@ os.environ['GEMINI_API_KEY'] = userdata.get('GEMINI_API_KEY')
 
 # 6. Run data processing
 print("🚀 Starting data load...")
-!python scripts/datasources/youtube/load_youtube_events_to_postgres.py \
+!python packages/scrapers/src/scrapers/youtube/load_youtube_events_to_postgres.py \
   --days 30 \
   --max-videos 100 \
   --skip-transcripts

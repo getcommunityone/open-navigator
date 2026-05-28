@@ -1095,7 +1095,7 @@ def render_markdown(
     lines.append("Round-robin pipeline (catalog → captions → analyze):")
     lines.append("")
     lines.append("```bash")
-    lines.append("N=2 COOKIES=youtube_cookies.txt ./scripts/datasources/youtube/run_priority_states_last_n.sh each")
+    lines.append("N=2 COOKIES=youtube_cookies.txt ./packages/scrapers/src/scrapers/youtube/run_priority_states_last_n.sh each")
     lines.append("```")
     lines.append("")
     return "\n".join(lines)

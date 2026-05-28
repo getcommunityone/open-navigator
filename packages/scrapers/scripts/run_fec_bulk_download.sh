@@ -22,4 +22,4 @@ LOG="$LOG_DIR/fec_bulk_download_$(date +%Y%m%dT%H%M%S).log"
 echo "FEC bulk download → $FEC_DATA_DIR"
 echo "Log: $LOG"
 
-exec "$PYTHON" scripts/datasources/fec/load_fec_bulk.py --resume "$@" 2>&1 | tee -a "$LOG"
+exec "$PYTHON" -m ingestion.fec.bulk --resume "$@" 2>&1 | tee -a "$LOG"

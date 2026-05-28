@@ -264,7 +264,7 @@ WHERE video_url IS NOT NULL;
 
 ### Current Scripts to Update
 
-1. **scripts/datasources/youtube/load_youtube_events_to_postgres.py**
+1. **packages/scrapers/src/scrapers/youtube/load_youtube_events_to_postgres.py**
    - Change: Insert to `bronze_event` instead of `event`
    - Change: Insert to `bronze_events_text_ai` instead of `events_text_search`
 
@@ -279,7 +279,7 @@ WHERE video_url IS NOT NULL;
 
 ```bash
 # Run updated loader script
-python scripts/datasources/youtube/load_youtube_events_to_postgres.py --states AL,MA
+python packages/scrapers/src/scrapers/youtube/load_youtube_events_to_postgres.py --states AL,MA
 
 # Run dbt to update production tables
 cd dbt_project

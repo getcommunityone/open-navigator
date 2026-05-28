@@ -80,9 +80,9 @@ python scripts/maintenance/clear_notebook_outputs.py
 # Edit notebook in Colab, run cells with secrets
 # Before committing:
 python scripts/maintenance/clear_notebook_outputs.py \
-  scripts/datasources/youtube/load_youtube_events_colab.ipynb
+  packages/scrapers/src/scrapers/youtube/load_youtube_events_colab.ipynb
 
-git add scripts/datasources/youtube/load_youtube_events_colab.ipynb
+git add packages/scrapers/src/scrapers/youtube/load_youtube_events_colab.ipynb
 git commit -m "Update YouTube loading notebook"
 git push  # Pre-push hook automatically checks for outputs
 ```

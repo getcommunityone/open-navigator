@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """YouTube events pipeline: land PRE-COLLECTED video records into bronze.
 
-Decomposed out of scripts/datasources/youtube/load_youtube_events_to_postgres.py
+Decomposed out of packages/scrapers/src/scrapers/youtube/load_youtube_events_to_postgres.py
 (a ~3,400-line scraper+loader+transform monolith) into the core_lib
 DataSourcePipeline contract.
 
@@ -21,7 +21,7 @@ What this module deliberately does NOT do:
   * It does NOT fetch from YouTube. The live acquisition (YouTube Data API,
     yt-dlp catalog + subtitle download, youtube-transcript-api captions) is
     irreducible scraping that stays a scraper at
-    scripts/datasources/youtube/load_youtube_events_to_postgres.py
+    packages/scrapers/src/scrapers/youtube/load_youtube_events_to_postgres.py
     (the YouTubeEventsLoader class). That code emits the JSON/JSONL this
     pipeline consumes.
   * It does NO derivation. The legacy loader derived event_date from the
@@ -76,7 +76,7 @@ def find_record_files() -> list[Path]:
         raise FileNotFoundError(
             f"No pre-collected YouTube records found in {CACHE_DIR}. "
             "Run the scraper "
-            "(scripts/datasources/youtube/load_youtube_events_to_postgres.py) "
+            "(packages/scrapers/src/scrapers/youtube/load_youtube_events_to_postgres.py) "
             "to emit JSON/JSONL first."
         )
     return files

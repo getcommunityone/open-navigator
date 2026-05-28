@@ -2,7 +2,7 @@
 """
 FEC Bulk Data Unzipper (High-Performance Edition)
 
-Unzips all FEC bulk data files downloaded by load_fec_bulk.py
+Unzips all FEC bulk data files downloaded by python -m ingestion.fec.bulk
 from data/cache/fec_data/bulk-downloads/ to data/cache/fec_data/unzipped/
 
 Supports multiple extraction methods for maximum speed:
@@ -160,7 +160,7 @@ class FECBulkUnzipper:
         # Validate source directory exists
         if not self.bulk_dir.exists():
             logger.error(f"❌ Source directory not found: {self.bulk_dir}")
-            logger.info("💡 Run load_fec_bulk.py first to download FEC data")
+            logger.info("💡 Run python -m ingestion.fec.bulk first to download FEC data")
             sys.exit(1)
         
         # Create destination directory

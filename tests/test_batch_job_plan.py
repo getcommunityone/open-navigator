@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from scripts.datasources.youtube.batch_job_status import (
+from api.batch_jobs.batch_job_status import (
     BatchJob,
     JurisdictionRun,
     expand_batch_job_plan,
@@ -28,7 +28,7 @@ def test_expand_batch_job_plan_merges_pending(monkeypatch):
         ]
 
     monkeypatch.setattr(
-        "scripts.datasources.youtube.batch_job_status.fetch_batch_plan_jurisdictions",
+        "api.batch_jobs.batch_job_status.fetch_batch_plan_jurisdictions",
         fake_plan,
     )
     job = BatchJob(
@@ -64,7 +64,7 @@ def test_expand_preserves_completed_when_ids_differ_by_type(monkeypatch):
         ]
 
     monkeypatch.setattr(
-        "scripts.datasources.youtube.batch_job_status.fetch_batch_plan_jurisdictions",
+        "api.batch_jobs.batch_job_status.fetch_batch_plan_jurisdictions",
         fake_plan,
     )
     job = BatchJob(
@@ -100,18 +100,18 @@ def test_expand_upgrades_legacy_prefixed_row_from_plan(monkeypatch):
         ]
 
     monkeypatch.setattr(
-        "scripts.datasources.youtube.batch_job_status.fetch_batch_plan_jurisdictions",
+        "api.batch_jobs.batch_job_status.fetch_batch_plan_jurisdictions",
         fake_plan,
     )
     monkeypatch.setattr(
-        "scripts.datasources.youtube.batch_job_status.fetch_batch_plan_jurisdictions_cached",
+        "api.batch_jobs.batch_job_status.fetch_batch_plan_jurisdictions_cached",
         fake_plan,
     )
     monkeypatch.setattr(
-        "scripts.datasources.youtube.batch_job_status._lookup_jurisdiction_name_from_db",
+        "api.batch_jobs.batch_job_status._lookup_jurisdiction_name_from_db",
         lambda *_a, **_k: "Chilton County",
     )
-    from scripts.datasources.youtube import batch_job_status as mod
+    from scrapers.youtube import batch_job_status as mod
 
     mod._fetch_batch_plan_cached.cache_clear()
     job = BatchJob(
@@ -185,7 +185,7 @@ def test_fetch_batch_plan_drops_legacy_prefixed_ids(monkeypatch):
 
     monkeypatch.setattr(psycopg2, "connect", fake_connect)
     monkeypatch.setattr(
-        "scripts.datasources.youtube.batch_job_status._batch_database_url",
+        "api.batch_jobs.batch_job_status._batch_database_url",
         lambda: "postgresql://fake",
     )
 

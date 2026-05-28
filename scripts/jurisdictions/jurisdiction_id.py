@@ -11,7 +11,7 @@ import functools
 import re
 from typing import Optional, Tuple
 
-from scripts.datasources.youtube.download_audio_to_drive import slug_snake_case
+from scrapers.youtube.download_audio_to_drive import slug_snake_case
 
 # Legacy: municipality_0101852, county_01097, school_district_0103360
 _TYPED_JURISDICTION_ID_RE = re.compile(

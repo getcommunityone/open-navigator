@@ -276,7 +276,7 @@ class ContactsGoldTableCreator:
         logger.info("Creating contacts_state_legislators gold table...")
         
         try:
-            from scripts.datasources.openstates.openstates_sources import get_api_key, OPENSTATES_API_BASE
+            from scrapers.openstates.openstates_sources import get_api_key, OPENSTATES_API_BASE
             import requests
         except ImportError:
             logger.error("requests library not installed. Install with: pip install requests")

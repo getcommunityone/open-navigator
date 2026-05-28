@@ -6,13 +6,13 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from scripts.datasources.youtube.policy_transcript_cache import (
+from scrapers.youtube.policy_transcript_cache import (
     policy_transcript_sidecar_path,
     policy_transcript_sidecar_paths,
     resolve_policy_transcripts_dir,
     write_policy_transcript_cache,
 )
-from scripts.datasources.youtube.transcript_api_client import fetch_transcript_bundle
+from scrapers.youtube.transcript_api_client import fetch_transcript_bundle
 
 
 def test_policy_transcript_sidecar_path():
@@ -62,7 +62,7 @@ def test_write_policy_transcript_cache(tmp_path: Path):
     assert not (out.parent / f"{out.stem}.caption_formatted.json").exists()
 
 
-@patch("scripts.datasources.youtube.transcript_api_client.build_youtube_transcript_api")
+@patch("scrapers.youtube.transcript_api_client.build_youtube_transcript_api")
 def test_fetch_transcript_bundle_single_preserve_formatting_call(mock_build: MagicMock):
     snippet = MagicMock(text="<i>hi</i>", start=0.0, duration=1.0)
     fetched = MagicMock(

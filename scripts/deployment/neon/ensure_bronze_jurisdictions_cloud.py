@@ -4,7 +4,7 @@ Create / repair bronze Census gazetteer + jurisdiction *_wikidata tables on Post
 
 Idempotent DDL only — **no pg_dump**. Run before:
   - scripts/datasources/census/load_census_gazetteer.py
-  - scripts/datasources/wikidata/load_jurisdictions_wikidata.py
+  - packages/scrapers/src/scrapers/wikidata/load_jurisdictions_wikidata.py
 
 Usage:
   .venv/bin/python scripts/deployment/neon/ensure_bronze_jurisdictions_cloud.py
@@ -30,7 +30,7 @@ if str(PROJECT_ROOT) not in sys.path:
 load_dotenv(PROJECT_ROOT / ".env")
 
 from scripts.database.target_database_url import resolve_target_database_url  # noqa: E402
-from scripts.datasources.census.load_census_gazetteer import TYPES as GAZETTEER_TYPES  # noqa: E402
+from ingestion.census.gazetteer import TYPES as GAZETTEER_TYPES  # noqa: E402
 
 
 _SEED_MAPPING = (
@@ -184,7 +184,7 @@ def main() -> None:
             logger.info(
                 "Next: populate rows — "
                 ".venv/bin/python scripts/datasources/census/load_census_gazetteer.py … "
-                "then scripts/datasources/wikidata/… "
+                "then packages/scrapers/src/scrapers/wikidata/… "
             )
     finally:
         conn.close()

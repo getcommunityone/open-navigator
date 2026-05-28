@@ -71,8 +71,8 @@ Total : 419 files,  117703 codes, 6182 comments, 25283 blanks, all 149168 lines
 | scripts/datasources/parcels/seeds | 2 | 17 | 0 | 2 | 19 |
 | scripts/datasources/powerbi_ballot_measures | 3 | 726 | 204 | 109 | 1,039 |
 | scripts/datasources/social_media | 1 | 1 | 0 | 1 | 2 |
-| scripts/datasources/wikidata | 2 | -22 | 5 | -4 | -21 |
-| scripts/datasources/youtube | 20 | 6,271 | 1,133 | 695 | 8,099 |
+| packages/scrapers/src/scrapers/wikidata | 2 | -22 | 5 | -4 | -21 |
+| packages/scrapers/src/scrapers/youtube | 20 | 6,271 | 1,133 | 695 | 8,099 |
 | scripts/deployment | 29 | 1,593 | 356 | 293 | 2,242 |
 | scripts/deployment/neon | 29 | 1,593 | 356 | 293 | 2,242 |
 | scripts/deployment/neon (Files) | 1 | -2 | 0 | 0 | -2 |

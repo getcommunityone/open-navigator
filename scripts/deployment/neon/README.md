@@ -62,7 +62,7 @@ Wikidata enrichment after rows exist:
 
 ```bash
 WIKIDATA_INCREMENTAL_MERGE=1 \
-  .venv/bin/python scripts/datasources/wikidata/load_jurisdictions_wikidata.py --priority-states
+  .venv/bin/python packages/scrapers/src/scrapers/wikidata/load_jurisdictions_wikidata.py --priority-states
 ```
 
 Prerequisite gazetteer cache: `scripts/datasources/census/download_census_gazetteer.py`.

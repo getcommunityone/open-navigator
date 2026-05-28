@@ -160,10 +160,10 @@ Summary / [Details](details.md) / [Diff Summary](diff.md) / [Diff Details](diff-
 | scripts/datasources/uscm | 7 | 816 | 137 | 156 | 1,109 |
 | scripts/datasources/vendorsearch | 2 | 308 | 25 | 71 | 404 |
 | scripts/datasources/voter_data | 2 | 173 | 143 | 54 | 370 |
-| scripts/datasources/wikidata | 28 | 7,447 | 3,027 | 819 | 11,293 |
-| scripts/datasources/youtube | 59 | 18,107 | 3,210 | 2,101 | 23,418 |
-| scripts/datasources/youtube (Files) | 58 | 18,083 | 3,204 | 2,096 | 23,383 |
-| scripts/datasources/youtube/sql | 1 | 24 | 6 | 5 | 35 |
+| packages/scrapers/src/scrapers/wikidata | 28 | 7,447 | 3,027 | 819 | 11,293 |
+| packages/scrapers/src/scrapers/youtube | 59 | 18,107 | 3,210 | 2,101 | 23,418 |
+| packages/scrapers/src/scrapers/youtube (Files) | 58 | 18,083 | 3,204 | 2,096 | 23,383 |
+| packages/scrapers/src/scrapers/youtube/sql | 1 | 24 | 6 | 5 | 35 |
 | scripts/dbt | 4 | 788 | 45 | 158 | 991 |
 | scripts/deployment | 117 | 7,635 | 1,936 | 1,718 | 11,289 |
 | scripts/deployment (Files) | 9 | 565 | 74 | 129 | 768 |

@@ -168,8 +168,8 @@ Directories
 | scripts/datasources/powerbi_ballot_measures                                                                                        |          1 |       -358 |       -157 |        -52 |       -567 |
 | scripts/datasources/tpc                                                                                                            |          2 |          4 |         19 |          4 |         27 |
 | scripts/datasources/uscm                                                                                                           |          1 |       -218 |        -59 |        -17 |       -294 |
-| scripts/datasources/wikidata                                                                                                       |          4 |     -2,621 |     -1,528 |       -187 |     -4,336 |
-| scripts/datasources/youtube                                                                                                        |          4 |          3 |         38 |          0 |         41 |
+| packages/scrapers/src/scrapers/wikidata                                                                                                       |          4 |     -2,621 |     -1,528 |       -187 |     -4,336 |
+| packages/scrapers/src/scrapers/youtube                                                                                                        |          4 |          3 |         38 |          0 |         41 |
 | scripts/dbt                                                                                                                        |          4 |       -788 |        -45 |       -158 |       -991 |
 | scripts/deployment                                                                                                                 |          6 |        154 |        135 |         41 |        330 |
 | scripts/deployment/neon                                                                                                            |          6 |        154 |        135 |         41 |        330 |
@@ -789,14 +789,14 @@ Files
 | /home/developer/projects/open-navigator/scripts/datasources/tpc/__init__.py                                                        | Python           |          0 |          0 |          1 |          1 |
 | /home/developer/projects/open-navigator/scripts/datasources/tpc/load_tpc_finance.py                                                | Python           |          4 |         19 |          3 |         26 |
 | /home/developer/projects/open-navigator/scripts/datasources/uscm/load_uscm_mayors_to_bronze.py                                     | Python           |       -218 |        -59 |        -17 |       -294 |
-| /home/developer/projects/open-navigator/scripts/datasources/wikidata/README.md                                                     | Markdown         |         36 |          0 |          1 |         37 |
-| /home/developer/projects/open-navigator/scripts/datasources/wikidata/cleanup_bad_counties.py                                       | Python           |       -111 |        -21 |        -18 |       -150 |
-| /home/developer/projects/open-navigator/scripts/datasources/wikidata/fix_fips_codes.py                                             | Python           |       -111 |        -21 |        -25 |       -157 |
-| /home/developer/projects/open-navigator/scripts/datasources/wikidata/load_jurisdictions_wikidata.py                                | Python           |     -2,435 |     -1,486 |       -145 |     -4,066 |
-| /home/developer/projects/open-navigator/scripts/datasources/youtube/download_tuscaloosa_city_meeting_audio.py                      | Python           |         -3 |          0 |         -1 |         -4 |
-| /home/developer/projects/open-navigator/scripts/datasources/youtube/load_youtube_events_to_postgres.py                             | Python           |         -1 |         21 |          0 |         20 |
-| /home/developer/projects/open-navigator/scripts/datasources/youtube/run_load_youtube_events_terminal.sh                            | Shell Script     |          7 |          8 |          1 |         16 |
-| /home/developer/projects/open-navigator/scripts/datasources/youtube/sync_bronze_youtube_from_localview.py                          | Python           |          0 |          9 |          0 |          9 |
+| /home/developer/projects/open-navigator/packages/scrapers/src/scrapers/wikidata/README.md                                                     | Markdown         |         36 |          0 |          1 |         37 |
+| /home/developer/projects/open-navigator/packages/scrapers/src/scrapers/wikidata/cleanup_bad_counties.py                                       | Python           |       -111 |        -21 |        -18 |       -150 |
+| /home/developer/projects/open-navigator/packages/scrapers/src/scrapers/wikidata/fix_fips_codes.py                                             | Python           |       -111 |        -21 |        -25 |       -157 |
+| /home/developer/projects/open-navigator/packages/scrapers/src/scrapers/wikidata/load_jurisdictions_wikidata.py                                | Python           |     -2,435 |     -1,486 |       -145 |     -4,066 |
+| /home/developer/projects/open-navigator/packages/scrapers/src/scrapers/youtube/download_tuscaloosa_city_meeting_audio.py                      | Python           |         -3 |          0 |         -1 |         -4 |
+| /home/developer/projects/open-navigator/packages/scrapers/src/scrapers/youtube/load_youtube_events_to_postgres.py                             | Python           |         -1 |         21 |          0 |         20 |
+| /home/developer/projects/open-navigator/packages/scrapers/src/scrapers/youtube/run_load_youtube_events_terminal.sh                            | Shell Script     |          7 |          8 |          1 |         16 |
+| /home/developer/projects/open-navigator/packages/scrapers/src/scrapers/youtube/sync_bronze_youtube_from_localview.py                          | Python           |          0 |          9 |          0 |          9 |
 | /home/developer/projects/open-navigator/scripts/dbt/README.md                                                                      | Markdown         |       -265 |          0 |        -83 |       -348 |
 | /home/developer/projects/open-navigator/scripts/dbt/export_stats_to_open_navigator.py                                              | Python           |       -108 |        -21 |        -29 |       -158 |
 | /home/developer/projects/open-navigator/scripts/dbt/rebuild_stats_aggregates_fixed.py                                              | Python           |       -201 |        -12 |        -22 |       -235 |

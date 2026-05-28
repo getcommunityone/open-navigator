@@ -11,7 +11,7 @@
 #   - scripts/datasources/meetingbank/load_meetingbank.py
 #   - scripts/datasources/cityscrapers/city_scrapers_urls.py
 #   - scripts/datasources/nces/load_nces.py
-#   - scripts/datasources/wikidata/wikidata_integration.py
+#   - packages/scrapers/src/scrapers/wikidata/wikidata_integration.py
 #   - scripts/datasources/google_civic/google_civic_integration.py
 #   - scripts/datasources/dbpedia/dbpedia_integration.py
 #   - scripts/datasources/ballotpedia/ballotpedia_integration.py

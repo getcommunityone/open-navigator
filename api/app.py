@@ -325,7 +325,7 @@ async def search_nonprofits(
     Example: /api/nonprofits?location=Tuscaloosa,AL&keyword=dental&ntee_code=E
     """
     try:
-        from scripts.datasources.irs.nonprofit_discovery import NonprofitDiscovery
+        from scrapers.irs.nonprofit_discovery import NonprofitDiscovery
         
         discovery = NonprofitDiscovery()
         results = []
@@ -568,7 +568,7 @@ async def ingest_nonprofits(
     Example: POST /api/data/ingest/nonprofits?state=AL&ntee_codes=E&ntee_codes=E20
     """
     try:
-        from scripts.datasources.irs.nonprofit_discovery import NonprofitDiscovery
+        from scrapers.irs.nonprofit_discovery import NonprofitDiscovery
         
         discovery = NonprofitDiscovery()
         ntee_list = ntee_codes or ["E"]  # Default to health

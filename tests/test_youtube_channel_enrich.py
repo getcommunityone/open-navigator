@@ -4,7 +4,7 @@ from scripts.datasources.jurisdiction_pilot.youtube_channel_enrich import (
     jurisdiction_website_back_links,
     score_official_meeting_channel,
 )
-from scripts.datasources.youtube.youtube_channel_page import (
+from scrapers.youtube.youtube_channel_page import (
     extract_channel_title_from_youtube_html,
     fetch_latest_upload_date_from_rss,
     is_junk_channel_title,
