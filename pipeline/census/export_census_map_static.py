@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import time
 import json
 import re
 import statistics
@@ -567,19 +568,36 @@ async def _ensure_parquets(
         cache_file = acs_dir / f"{table}_{geography}_{state}_{year}.parquet"
         if cache_file.exists():
             return
-        try:
-            await acs.download_acs_data_api(table, geography, state, year=year)
-        except httpx.HTTPStatusError as e:
-            # 400 (detail tables) and 404 (subject tables, e.g. S0801 via /subject)
-            # both mean "this group isn't published for this vintage" on early ACS
-            # 5-year releases — skip rather than abort the whole multi-year export.
-            if e.response.status_code in (400, 404):
-                logger.warning(
-                    f"--fetch: skip {table} {geography} state={state!r} year={year} "
-                    f"(HTTP {e.response.status_code} — table often absent for early ACS 5-year vintages)"
-                )
+        for attempt in range(1, 6):
+            try:
+                await acs.download_acs_data_api(table, geography, state, year=year)
                 return
-            raise
+            except httpx.HTTPStatusError as e:
+                # 400 (detail tables) and 404 (subject tables, e.g. S0801 via /subject)
+                # both mean "this group isn't published for this vintage" on early ACS
+                # 5-year releases — skip rather than abort the whole multi-year export.
+                if e.response.status_code in (400, 404):
+                    logger.warning(
+                        f"--fetch: skip {table} {geography} state={state!r} year={year} "
+                        f"(HTTP {e.response.status_code} — table often absent for early ACS 5-year vintages)"
+                    )
+                    return
+                raise
+            except httpx.TransportError as e:
+                # Transient network error (DNS blip, reset). Retry with backoff;
+                # this is uncached so a later run would re-fetch anyway.
+                wait = min(2**attempt, 30)
+                logger.warning(
+                    f"--fetch: transient error on {table} {geography} state={state!r} "
+                    f"year={year} (attempt {attempt}/5): {e!r} — retrying in {wait}s"
+                )
+                await asyncio.sleep(wait)
+        # Exhausted retries: log and continue so one flaky table doesn't kill the
+        # whole run — the cache-skip makes a follow-up run fill the gap.
+        logger.error(
+            f"--fetch: gave up on {table} {geography} state={state!r} year={year} "
+            f"after 5 attempts (transient errors)"
+        )
 
     logger.info(f"--fetch: downloading county tables {tables} …")
     for t in tables:
@@ -608,10 +626,31 @@ def _download_place_shapefile(year: int, state_fips: str, dest_dir: Path) -> Pat
         logger.info(f"Using cached Tiger ZIP {zip_path.name}")
     else:
         logger.info(f"Downloading {url}")
-        with httpx.Client(timeout=120.0, follow_redirects=True) as client:
-            r = client.get(url)
-            r.raise_for_status()
-            zip_path.write_bytes(r.content)
+        # Retry transient network errors (DNS blips, resets) with backoff so one
+        # hiccup doesn't abort a 50-state run. Write to a .part file then rename
+        # so an interrupted download never leaves a corrupt cached zip behind.
+        last_err: Exception | None = None
+        for attempt in range(1, 6):
+            try:
+                with httpx.Client(timeout=120.0, follow_redirects=True) as client:
+                    r = client.get(url)
+                    r.raise_for_status()
+                tmp = zip_path.with_suffix(".zip.part")
+                tmp.write_bytes(r.content)
+                tmp.replace(zip_path)
+                break
+            except httpx.TransportError as e:
+                last_err = e
+                wait = min(2**attempt, 30)
+                logger.warning(
+                    f"TIGER download failed for state {state_fips} "
+                    f"(attempt {attempt}/5): {e!r} — retrying in {wait}s"
+                )
+                time.sleep(wait)
+        else:
+            raise RuntimeError(
+                f"TIGER place shapefile for state {state_fips} failed after 5 attempts"
+            ) from last_err
     extract_root = dest_dir / f"cb_{year}_{state_fips}_place_500k"
     shp = extract_root / f"cb_{year}_{state_fips}_place_500k.shp"
     if shp.exists():
