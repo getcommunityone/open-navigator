@@ -1,7 +1,32 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ChevronLeftIcon, ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline'
+import {
+  AcademicCapIcon,
+  BanknotesIcon,
+  BriefcaseIcon,
+  ChevronLeftIcon,
+  HomeModernIcon,
+  LifebuoyIcon,
+  MinusIcon,
+  PlusIcon,
+  Squares2X2Icon,
+  UsersIcon,
+} from '@heroicons/react/24/outline'
 import { InfoHelpTrigger } from './InfoHelpTrigger'
 import { groupMetricsForBrowser, groupIdForMetric } from '../utils/censusMetricGroups'
+
+/**
+ * Leading glyph per metric group, keyed by the taxonomy's group id
+ * (../utils/censusMetricGroups). Anything without an explicit entry — including
+ * the trailing "Other measures" bucket — falls back to a neutral grid icon.
+ */
+const GROUP_ICONS: Record<string, typeof BanknotesIcon> = {
+  income: BanknotesIcon,
+  housing: HomeModernIcon,
+  people: UsersIcon,
+  poverty_insurance: LifebuoyIcon,
+  education: AcademicCapIcon,
+  work: BriefcaseIcon,
+}
 
 interface CensusMetricBrowserPanelProps {
   metrics: ReadonlyArray<{ slug: string; label: string }>
@@ -56,26 +81,28 @@ export default function CensusMetricBrowserPanel({
           <ChevronLeftIcon className="h-4 w-4" />
         </button>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2">
+      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain p-2">
         {groups.map((g) => {
           const isOpen = !!open[g.id]
+          const Icon = GROUP_ICONS[g.id] ?? Squares2X2Icon
           return (
-            <div key={g.id}>
+            <div key={g.id} className="overflow-hidden rounded-lg border border-slate-200">
               <button
                 type="button"
                 onClick={() => setOpen((prev) => ({ ...prev, [g.id]: !prev[g.id] }))}
-                className="flex w-full items-center justify-between rounded-md px-2 py-2 text-left text-[13px] font-semibold text-slate-800 hover:bg-slate-100"
+                className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-[13px] font-semibold text-slate-800 hover:bg-slate-50"
                 aria-expanded={isOpen}
               >
-                <span>{g.title}</span>
+                <Icon className="h-[18px] w-[18px] shrink-0 text-slate-500" aria-hidden />
+                <span className="min-w-0 flex-1 truncate">{g.title}</span>
                 {isOpen ? (
-                  <ChevronDownIcon className="h-4 w-4 text-slate-400" aria-hidden />
+                  <MinusIcon className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
                 ) : (
-                  <ChevronRightIcon className="h-4 w-4 text-slate-400" aria-hidden />
+                  <PlusIcon className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
                 )}
               </button>
               {isOpen ? (
-                <ul className="mb-1">
+                <ul className="border-t border-slate-200 p-1.5">
                   {g.metrics.map((m) => {
                     const selected = m.slug === metricSlug
                     return (
@@ -84,7 +111,7 @@ export default function CensusMetricBrowserPanel({
                           type="button"
                           onClick={() => onPick(m.slug)}
                           aria-current={selected ? 'true' : undefined}
-                          className={`block w-full rounded-md px-2 py-1.5 pl-5 text-left text-[12.5px] leading-snug ${
+                          className={`block w-full rounded-md px-2 py-1.5 pl-3.5 text-left text-[12.5px] leading-snug ${
                             selected
                               ? 'bg-[#354F52] font-medium text-white'
                               : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'

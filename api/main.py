@@ -171,11 +171,15 @@ async def log_requests(request: Request, call_next):
 static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend", "public")
 if os.path.exists(static_dir):
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
-    census_map_dir = Path(static_dir) / "data" / "census-map"
-    if census_map_dir.is_dir():
-        app.mount("/data/census-map", StaticFiles(directory=census_map_dir), name="census_map_public")
+    # Serve the whole public /data tree the way Vite does in dev. Besides the
+    # census-map marts this covers the per-state ZCTA (ZIP) tiles under
+    # /data/zctas (the lowest drilldown tier) and the jurisdiction-quality
+    # snapshot — mounting only /data/census-map left those paths 404ing.
+    data_dir = Path(static_dir) / "data"
+    if data_dir.is_dir():
+        app.mount("/data", StaticFiles(directory=data_dir), name="public_data")
     else:
-        logger.warning(f"Census map static bundle missing (expected {census_map_dir})")
+        logger.warning(f"Public data bundle missing (expected {data_dir})")
 else:
     logger.warning(f"Static directory not found: {static_dir}")
 

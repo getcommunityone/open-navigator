@@ -671,13 +671,16 @@ if static_dir.exists():
     # Mount static files (JS, CSS, images)
     app.mount("/assets", StaticFiles(directory=static_dir / "assets"), name="assets")
 
-    # ACS map / scorecard JSON (same paths as Vite dev: /data/census-map/...)
+    # Public /data tree, served the same paths as Vite dev. Covers the ACS
+    # map/scorecard marts (/data/census-map), the per-state ZCTA (ZIP) tiles
+    # (/data/zctas — the lowest drilldown tier), and the jurisdiction-quality
+    # snapshot. Mounting only /data/census-map left the others 404ing.
     frontend_public = Path(__file__).parent.parent / "frontend" / "public"
-    census_map_dir = frontend_public / "data" / "census-map"
-    if census_map_dir.is_dir():
-        app.mount("/data/census-map", StaticFiles(directory=census_map_dir), name="census_map_public")
+    data_dir = frontend_public / "data"
+    if data_dir.is_dir():
+        app.mount("/data", StaticFiles(directory=data_dir), name="public_data")
     else:
-        logger.warning(f"Census map static bundle missing (expected {census_map_dir})")
+        logger.warning(f"Public data bundle missing (expected {data_dir})")
 
     # Serve index.html for all non-API routes (SPA routing)
     @app.get("/{full_path:path}")
