@@ -402,10 +402,16 @@ export default function CensusDrilldownStage({
           countiesInState.find((f) => geoid5(f.id as string | number) === selectedCountyGeoid) ?? null
       }
     } else if (view === 'place') {
-      // Place view: frame the pinned city/town if one is selected, else the
-      // drilled-from county. Mirrors the ZIP tier camera logic.
+      // Place view: frame the pinned city/town if one is selected. Otherwise
+      // frame the cities/towns *themselves* (their combined extent) rather than
+      // the whole county — places are small and scattered, so county-bbox
+      // framing leaves them tiny amid rural white space. Falls back to the
+      // county, then nation, when no place geometry is loaded yet.
       if (selectedPlaceFeature) {
         targetFeature = selectedPlaceFeature
+        targetIsLngLat = true
+      } else if (placesInCounty && placesInCounty.length) {
+        targetFeature = { type: 'FeatureCollection', features: placesInCounty } as never
         targetIsLngLat = true
       }
       if (!targetFeature && selectedCountyGeoid && countiesInState) {
@@ -453,6 +459,7 @@ export default function CensusDrilldownStage({
     states,
     countiesInState,
     zctasInCounty,
+    placesInCounty,
   ])
 
   // --- fill / bubble helpers (depend on viz + scale + extents) ---

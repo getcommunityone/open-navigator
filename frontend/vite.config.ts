@@ -12,6 +12,10 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    // WSL2's inotify often misses edits made from the Linux side, so HMR never
+    // fires and the browser keeps serving the build from when Vite started.
+    // Polling reliably picks up changes (slightly higher idle CPU is the trade).
+    watch: { usePolling: true, interval: 200 },
     proxy: {
       '/api': {
         target: 'http://localhost:8000',

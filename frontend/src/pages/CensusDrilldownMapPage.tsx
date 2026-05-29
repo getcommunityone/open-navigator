@@ -1682,7 +1682,7 @@ export default function CensusDrilldownMapPage() {
                             <span className="font-normal text-slate-400">, {stateName}</span>
                           ) : null}
                         </div>
-                        <div className="mt-1 text-[28px] font-semibold leading-none tabular-nums text-slate-900">
+                        <div className="mt-1 text-[36px] font-bold leading-none tabular-nums text-slate-900">
                           {displayValue != null
                             ? formatMetricValueCompact(metricSlug, displayValue, metrics, valueMode)
                             : '—'}
@@ -1706,7 +1706,7 @@ export default function CensusDrilldownMapPage() {
                             ) : null}
                           </div>
                         ) : null}
-                        <div className="mt-1 truncate text-[10px] uppercase tracking-wide text-slate-400">
+                        <div className="mt-1.5 truncate text-[11px] font-semibold uppercase tracking-wide text-slate-600">
                           {metricLabel}
                         </div>
                         {inflationFootnote ? (
@@ -1717,11 +1717,24 @@ export default function CensusDrilldownMapPage() {
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-1.5">
                         {toggleActive ? (
-                          <InflationToggle
-                            mode={inflationMode}
-                            onChange={setInflationMode}
-                            ariaLabel={metricLabel}
-                          />
+                          <div className="flex items-center gap-1">
+                            <InflationToggle
+                              mode={inflationMode}
+                              onChange={setInflationMode}
+                              ariaLabel={metricLabel}
+                            />
+                            <InfoHelpTrigger
+                              topic="Real vs nominal dollars"
+                              align="right"
+                              help={
+                                `Nominal: dollar figures exactly as reported for each year — not adjusted for inflation.\n\n` +
+                                `Real: every year's value is restated in ${cpiLatestYear ?? 'the latest'} dollars so amounts are comparable over time. ` +
+                                `We deflate using the BLS Consumer Price Index (CPI-U, U.S. city average, all items).\n\n` +
+                                `Formula: real = nominal × (CPI in ${cpiLatestYear ?? 'latest year'} ÷ CPI in that year). ` +
+                                `Only this card deflates; the map shading and rankings stay nominal.`
+                              }
+                            />
+                          </div>
                         ) : null}
                         <div className="flex items-center gap-1">
                           {showing!.rank ? (
