@@ -162,15 +162,25 @@ def list_batch_jobs_from_db(*, limit: int = 100) -> List[BatchJob]:
     return jobs
 
 
-def policy_event_counts_24h(conn: Any) -> Dict[str, int]:
+def policy_event_counts_24h(conn: Any) -> Dict[str, Any]:
     """
-    Count analysis/report events stamped on bronze_events_youtube in the last 24h.
+    Count analysis/report events stamped on bronze_events_youtube in the last 24h,
+    plus the most recent analysis/report timestamp of all time.
 
     Uses the per-event columns from migration 083 (``policy_analysis_at`` /
-    ``policy_report_at`` + their ``*_error`` siblings). Returns zeros if the
+    ``policy_report_at`` + their ``*_error`` siblings). The ``last_*_at`` values
+    drive the dashboard's "ago" cards and, unlike the batch ``updated_at`` clock,
+    reflect standalone analyze runs too. Returns zeros/empty strings if the
     columns do not exist yet (migration not applied).
     """
-    out = {"analysis": 0, "reports": 0, "analysis_errors": 0, "reports_errors": 0}
+    out: Dict[str, Any] = {
+        "analysis": 0,
+        "reports": 0,
+        "analysis_errors": 0,
+        "reports_errors": 0,
+        "last_analysis_at": "",
+        "last_report_at": "",
+    }
     try:
         with conn.cursor() as cur:
             cur.execute(
@@ -189,7 +199,9 @@ def policy_event_counts_24h(conn: Any) -> Dict[str, int]:
                     COUNT(*) FILTER (
                         WHERE policy_report_error IS NOT NULL
                           AND last_updated >= now() - interval '24 hours'
-                    )::int AS reports_errors
+                    )::int AS reports_errors,
+                    MAX(policy_analysis_at) AS last_analysis_at,
+                    MAX(policy_report_at) AS last_report_at
                 FROM bronze.bronze_events_youtube
                 """
             )
@@ -199,6 +211,8 @@ def policy_event_counts_24h(conn: Any) -> Dict[str, int]:
             out["reports"] = int(row[1] or 0)
             out["analysis_errors"] = int(row[2] or 0)
             out["reports_errors"] = int(row[3] or 0)
+            out["last_analysis_at"] = row[4].isoformat() if row[4] is not None else ""
+            out["last_report_at"] = row[5].isoformat() if row[5] is not None else ""
     except Exception as exc:
         # Columns missing (pre-083) or transient DB error — degrade to zeros so the
         # dashboard falls back to the disk-scan counters.
@@ -273,6 +287,9 @@ def aggregate_dashboard_totals_from_db(*, limit: int = 30) -> Dict[str, Any]:
         "files_reports_recent": int(recent_events.get("reports") or 0),
         "files_analysis_errors_recent": int(recent_events.get("analysis_errors") or 0),
         "files_reports_errors_recent": int(recent_events.get("reports_errors") or 0),
+        # Most recent analysis/report stamp (all time) for the dashboard "ago" cards.
+        "last_analysis_at": recent_events.get("last_analysis_at") or "",
+        "last_report_at": recent_events.get("last_report_at") or "",
     }
     last_updated = row.get("last_updated")
     totals["last_activity_at"] = (

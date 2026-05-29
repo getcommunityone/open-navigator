@@ -1147,6 +1147,27 @@ export default function BatchJobStatusPage() {
     () => (lastActivityIso ? formatUpdatedAt(lastActivityIso) : null),
     [lastActivityIso],
   )
+  // Analyze/report runs don't touch the batch tracker (see "Last batch step"), so
+  // these "ago" cards read the most recent policy stamps instead — the real signal
+  // that the analyze pipeline is alive, including standalone/parallel runs.
+  const lastAnalysisIso = data?.totals.last_analysis_at?.trim() || null
+  const lastReportIso = data?.totals.last_report_at?.trim() || null
+  const lastAnalysisAgo = useMemo(
+    () => (lastAnalysisIso ? formatAgoCompact(lastAnalysisIso, agoClockMs) : null),
+    [lastAnalysisIso, agoClockMs],
+  )
+  const lastReportAgo = useMemo(
+    () => (lastReportIso ? formatAgoCompact(lastReportIso, agoClockMs) : null),
+    [lastReportIso, agoClockMs],
+  )
+  const lastAnalysisAbsolute = useMemo(
+    () => (lastAnalysisIso ? formatUpdatedAt(lastAnalysisIso) : null),
+    [lastAnalysisIso],
+  )
+  const lastReportAbsolute = useMemo(
+    () => (lastReportIso ? formatUpdatedAt(lastReportIso) : null),
+    [lastReportIso],
+  )
 
   const runningTiming = useMemo(
     () => aggregateRunningFileTiming(data?.batches ?? []),
@@ -1217,14 +1238,36 @@ export default function BatchJobStatusPage() {
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
             {lastActivityIso && lastUpdateAgo ? (
               <SummaryCard
-                label="Last progress"
+                label="Last batch step"
                 value={lastUpdateAgo}
                 title={
                   lastUpdateAbsolute?.title
-                    ? `${lastUpdateAbsolute.title} · last jurisdiction or video step (not the same clock as Current file)${
+                    ? `${lastUpdateAbsolute.title} · last catalog/captions batch step (NOT the analyze pipeline — see Last analysis/report)${
                         data.source === 'database' ? ' · from database' : ''
                       }`
-                    : 'Last jurisdiction or video step (not the same clock as Current file)'
+                    : 'Last catalog/captions batch step (NOT the analyze pipeline — see Last analysis/report)'
+                }
+              />
+            ) : null}
+            {lastAnalysisIso && lastAnalysisAgo ? (
+              <SummaryCard
+                label="Last analysis"
+                value={lastAnalysisAgo}
+                title={
+                  lastAnalysisAbsolute?.title
+                    ? `${lastAnalysisAbsolute.title} · most recent AI analysis written (policy_analysis_at; includes standalone/parallel analyze runs)`
+                    : 'Most recent AI analysis written (includes standalone/parallel analyze runs)'
+                }
+              />
+            ) : null}
+            {lastReportIso && lastReportAgo ? (
+              <SummaryCard
+                label="Last report"
+                value={lastReportAgo}
+                title={
+                  lastReportAbsolute?.title
+                    ? `${lastReportAbsolute.title} · most recent report generated (policy_report_at; includes standalone/parallel analyze runs)`
+                    : 'Most recent report generated (includes standalone/parallel analyze runs)'
                 }
               />
             ) : null}
@@ -1389,13 +1432,13 @@ export default function BatchJobStatusPage() {
             <SummaryCard
               label="Reports progress"
               value={
-                data.totals.files_analysis > 0
-                  ? `${Math.round((data.totals.files_reports / data.totals.files_analysis) * 100)}%`
+                data.totals.files_transcripts_disk > 0
+                  ? `${Math.round((data.totals.files_reports / data.totals.files_transcripts_disk) * 100)}%`
                   : '—'
               }
               title={`${formatCompactNumber(data.totals.files_reports)} of ${formatCompactNumber(
-                data.totals.files_analysis,
-              )} analyses have a generated report on disk`}
+                data.totals.files_transcripts_disk ?? 0,
+              )} transcripts have a generated report on disk (same denominator as Analysis progress, so the two read as one funnel — not reports÷analyses)`}
             />
             <SummaryCard
               label="Analysis (24h)"

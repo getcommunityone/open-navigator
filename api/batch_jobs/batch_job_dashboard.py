@@ -276,6 +276,8 @@ def build_dashboard_summary(*, limit: int = 30) -> Dict[str, Any]:
                     "files_reports_recent",
                     "files_analysis_errors_recent",
                     "files_reports_errors_recent",
+                    "last_analysis_at",
+                    "last_report_at",
                     "transcript_hours",
                 )
                 if k in sql_totals
@@ -579,6 +581,8 @@ def _override_recent_counts_from_events(payload: Dict[str, Any]) -> None:
         totals["files_reports_recent"] = int(counts.get("reports") or 0)
         totals["files_analysis_errors_recent"] = int(counts.get("analysis_errors") or 0)
         totals["files_reports_errors_recent"] = int(counts.get("reports_errors") or 0)
+        totals["last_analysis_at"] = counts.get("last_analysis_at") or ""
+        totals["last_report_at"] = counts.get("last_report_at") or ""
     except Exception as exc:
         import logging
 
