@@ -7,6 +7,8 @@ import { feature as topoFeature } from 'topojson-client'
 import { geoCentroid, geoContains } from 'd3-geo'
 import {
   ArrowLeftIcon,
+  PauseIcon,
+  PlayIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline'
 import {
@@ -14,6 +16,7 @@ import {
   formatMetricValueDisplay,
   minMaxExtent,
   quantileExtent,
+  CENSUS_SCALES,
   type CensusScaleId,
 } from '../utils/censusMapTransforms'
 import {
@@ -38,7 +41,6 @@ import { ChoroplethLegend, BubbleLegend } from '../components/CensusMapLegends'
 import { InfoHelpTrigger } from '../components/InfoHelpTrigger'
 import MapAddressSearch, { type MapAddressResult } from '../components/MapAddressSearch'
 import CensusMapLeftRail, { type CensusMapRailSection } from '../components/CensusMapLeftRail'
-import CensusMapDisplayPopover from '../components/CensusMapDisplayPopover'
 import CensusMetricBrowserPanel from '../components/CensusMetricBrowserPanel'
 import CensusDrilldownStage, { type DrilldownView } from '../components/CensusDrilldownStage'
 import CensusDrilldownLocalView from '../components/CensusDrilldownLocalView'
@@ -840,11 +842,9 @@ export default function CensusDrilldownMapPage() {
     return { min: 0, max: 1 }
   }, [zctaDisplayByZcta, zctaIdsInCounty])
 
-  // ── display popover / left rail state ─────────────────────────────────────
+  // ── display drawer / left rail state ──────────────────────────────────────
   const [advancedMapOptionsOpen, setAdvancedMapOptionsOpen] = useState(false)
   const [advancedFocusSection, setAdvancedFocusSection] = useState<CensusMapRailSection | null>(null)
-  // Viewport rect of the rail icon that opened the popover (anchors it).
-  const [displayPopoverAnchor, setDisplayPopoverAnchor] = useState<DOMRect | null>(null)
   // Persistent metric browser beside the rail (desktop). Mobile keeps the
   // header dropdown, so this only governs the xl+ sidebar.
   const [metricPanelOpen, setMetricPanelOpen] = useState(true)
@@ -1166,14 +1166,14 @@ export default function CensusDrilldownMapPage() {
 
   return (
     <div className="mx-auto w-full min-w-0 space-y-2.5">
-      {/* display controls — compact popover anchored to the left rail */}
-      <CensusMapDisplayPopover
-        section={advancedMapOptionsOpen ? advancedFocusSection : null}
-        anchorRect={displayPopoverAnchor}
+      {/* display controls — full-height drawer docked on the right */}
+      <CensusMapOptionsFlyout
+        open={advancedMapOptionsOpen}
+        focusSection={advancedFocusSection}
+        onConsumedFocusSection={() => setAdvancedFocusSection(null)}
         onClose={() => {
           setAdvancedMapOptionsOpen(false)
           setAdvancedFocusSection(null)
-          setDisplayPopoverAnchor(null)
         }}
         viz={viz}
         setViz={setViz}
@@ -1220,16 +1220,14 @@ export default function CensusDrilldownMapPage() {
           <CensusMapLeftRail
             activeSection={advancedMapOptionsOpen ? advancedFocusSection : null}
             yearBadge={displayVintage}
-            onOpen={(section, rect) => {
-              // Toggle: clicking the same rail icon while the popover is open
-              // dismisses it, so the rail acts like a tabbed sidebar.
+            onOpen={(section) => {
+              // Toggle: clicking the same rail icon while the drawer is open
+              // dismisses it; clicking a different icon re-focuses that section.
               if (advancedMapOptionsOpen && advancedFocusSection === section) {
                 setAdvancedMapOptionsOpen(false)
                 setAdvancedFocusSection(null)
-                setDisplayPopoverAnchor(null)
               } else {
                 setAdvancedFocusSection(section)
-                setDisplayPopoverAnchor(rect ?? null)
                 setAdvancedMapOptionsOpen(true)
               }
             }}
@@ -1946,6 +1944,210 @@ function MetricPicker({
           </option>
         ))}
       </select>
+    </div>
+  )
+}
+
+/**
+ * Full-height display-options drawer docked on the right. Every rail icon opens
+ * this same panel — all controls (Year, Map view, Color spread, Numbers) stay
+ * visible together, and the clicked section is scrolled into view. Non-modal:
+ * the map stays fully visible and interactive while options are adjusted.
+ */
+function CensusMapOptionsFlyout({
+  open,
+  onClose,
+  focusSection,
+  onConsumedFocusSection,
+  viz,
+  setViz,
+  scale,
+  setScale,
+  valueMode,
+  setValueMode,
+  vintages,
+  displayVintage,
+  onVintageChange,
+  yearHelp,
+  metricFullHelp,
+  playing,
+  setPlaying,
+}: {
+  open: boolean
+  onClose: () => void
+  focusSection: CensusMapRailSection | null
+  onConsumedFocusSection: () => void
+  viz: 'filled' | 'bubble'
+  setViz: (v: 'filled' | 'bubble') => void
+  scale: CensusScaleId
+  setScale: (s: CensusScaleId) => void
+  valueMode: CensusValueMode
+  setValueMode: (m: CensusValueMode) => void
+  vintages: string[]
+  displayVintage: string
+  onVintageChange: (year: string) => void
+  yearHelp: string
+  metricFullHelp: string
+  playing: boolean
+  setPlaying: (v: boolean) => void
+}) {
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, onClose])
+
+  useEffect(() => {
+    if (!open || !focusSection) return
+    const id = `drilldown-section-${focusSection}`
+    const t = window.setTimeout(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      onConsumedFocusSection()
+    }, 40)
+    return () => window.clearTimeout(t)
+  }, [open, focusSection, onConsumedFocusSection])
+
+  if (!open || typeof document === 'undefined') return null
+  return (
+    // Non-modal panel: the map stays fully visible and interactive while the
+    // user adjusts options. The panel itself catches pointer events; the rest
+    // of the screen is unobstructed.
+    <div className="pointer-events-none fixed inset-0 z-[200] flex justify-end">
+      <div
+        className="pointer-events-auto relative z-10 flex h-full w-[min(100vw,22rem)] flex-col border-l border-slate-200 bg-white shadow-2xl"
+        role="dialog"
+        aria-label="Map display options"
+      >
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200 px-3 py-2.5">
+          <h2 className="text-sm font-semibold text-slate-900">Map display options</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+            aria-label="Close"
+          >
+            <XMarkIcon className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain p-3">
+          <div id="drilldown-section-year" className="rounded-lg border border-slate-200 bg-slate-50/50 p-3">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Year
+              </span>
+              {vintages.length >= 2 ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!playing) {
+                      // Begin from the oldest year so the user sees the full sweep.
+                      const oldest = vintages[0]
+                      if (oldest && oldest !== displayVintage) onVintageChange(oldest)
+                    }
+                    setPlaying(!playing)
+                  }}
+                  className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-700 shadow-sm hover:bg-slate-50"
+                  aria-pressed={playing}
+                  title={
+                    playing
+                      ? 'Pause auto-advance'
+                      : 'Play years: cycle from the oldest vintage to the newest'
+                  }
+                >
+                  {playing ? <PauseIcon className="h-3.5 w-3.5" /> : <PlayIcon className="h-3.5 w-3.5" />}
+                  {playing ? 'Pause' : 'Play years'}
+                </button>
+              ) : null}
+            </div>
+            <div className="flex flex-wrap items-center gap-1" role="group" aria-label="ACS vintage">
+              {vintages.map((y) => {
+                const active = y === displayVintage
+                return (
+                  <button
+                    key={y}
+                    type="button"
+                    onClick={() => {
+                      if (playing) setPlaying(false)
+                      onVintageChange(y)
+                    }}
+                    className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold tabular-nums ${
+                      active
+                        ? 'border-[#354F52] bg-[#354F52] text-white'
+                        : 'border-slate-300 bg-white text-slate-800 hover:bg-slate-50'
+                    }`}
+                  >
+                    {y}
+                  </button>
+                )
+              })}
+            </div>
+            <p className="mt-2 text-[10px] leading-snug text-slate-500 whitespace-pre-wrap">
+              {yearHelp}
+            </p>
+          </div>
+          <div id="drilldown-section-view" className="rounded-lg border border-slate-200 bg-slate-50/50 p-3">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Map view
+            </div>
+            <div className="flex overflow-hidden rounded-md border border-slate-200">
+              <button
+                type="button"
+                onClick={() => setViz('filled')}
+                className={`flex-1 px-3 py-2 text-xs font-medium ${
+                  viz === 'filled' ? 'bg-[#354F52] text-white' : 'bg-white text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                Filled map
+              </button>
+              <button
+                type="button"
+                onClick={() => setViz('bubble')}
+                className={`flex-1 border-l border-slate-200 px-3 py-2 text-xs font-medium ${
+                  viz === 'bubble' ? 'bg-[#354F52] text-white' : 'bg-white text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                Bubbles
+              </button>
+            </div>
+          </div>
+          <div id="drilldown-section-scale" className="rounded-lg border border-slate-200 bg-slate-50/50 p-3">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Color spread
+            </div>
+            <select
+              className="w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-xs text-slate-900 shadow-sm"
+              value={scale}
+              onChange={(e) => setScale(e.target.value as CensusScaleId)}
+            >
+              {CENSUS_SCALES.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div id="drilldown-section-values" className="rounded-lg border border-slate-200 bg-slate-50/50 p-3">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              What numbers are on the map
+            </div>
+            <select
+              className="w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-xs shadow-sm"
+              value={valueMode}
+              onChange={(e) => setValueMode(e.target.value as CensusValueMode)}
+            >
+              <option value="raw">ACS value</option>
+              <option value="yoy">% change vs prior year</option>
+              <option value="vs_natl">% vs national benchmark</option>
+            </select>
+            <p className="mt-2 text-[10px] leading-snug text-slate-500 whitespace-pre-wrap">
+              {metricFullHelp}
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
