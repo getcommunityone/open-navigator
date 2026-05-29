@@ -39,6 +39,11 @@ class BatchJobsTotals(BaseModel):
     bronze_download_rows: int = 0
     files_analysis: int = 0
     files_reports: int = 0
+    # Rolling 24h throughput from per-event bronze stamps (migration 083).
+    files_analysis_recent: int = 0
+    files_reports_recent: int = 0
+    files_analysis_errors_recent: int = 0
+    files_reports_errors_recent: int = 0
 
 
 class VideoResultModel(BaseModel):
