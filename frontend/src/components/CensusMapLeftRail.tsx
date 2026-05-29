@@ -2,9 +2,10 @@ import {
   AdjustmentsHorizontalIcon,
   ArrowUturnLeftIcon,
   CalendarDaysIcon,
+  ChevronDoubleLeftIcon,
+  ChevronDoubleRightIcon,
   MapIcon,
   SwatchIcon,
-  ViewColumnsIcon,
 } from '@heroicons/react/24/outline'
 
 export type CensusMapRailSection = 'year' | 'view' | 'scale' | 'values'
@@ -112,6 +113,8 @@ export default function CensusMapLeftRail({
       })}
       {onToggleMetricPanel ? (
         <>
+          {/* Spacer pushes the panel toggle to the bottom, separating it from
+              the display controls above so it reads as a sidebar collapse. */}
           <div className="mt-auto" aria-hidden />
           <div className="my-0.5 h-px bg-slate-200" aria-hidden />
           <button
@@ -120,9 +123,17 @@ export default function CensusMapLeftRail({
             title={metricPanelOpen ? 'Hide metric list' : 'Show metric list'}
             aria-label={metricPanelOpen ? 'Hide metric list' : 'Show metric list'}
             aria-pressed={metricPanelOpen}
-            className="group relative flex w-12 flex-col items-center gap-0.5 rounded-lg px-1.5 py-2 text-[10px] font-semibold text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#354F52] focus-visible:ring-offset-1"
+            className={`group relative flex w-12 flex-col items-center gap-0.5 rounded-lg px-1.5 py-2 text-[10px] font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#354F52] focus-visible:ring-offset-1 ${
+              metricPanelOpen
+                ? 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                : 'bg-[#354F52] text-white shadow-inner hover:bg-[#2b4042]'
+            }`}
           >
-            <ViewColumnsIcon className="h-5 w-5" aria-hidden />
+            {metricPanelOpen ? (
+              <ChevronDoubleLeftIcon className="h-5 w-5" aria-hidden />
+            ) : (
+              <ChevronDoubleRightIcon className="h-5 w-5" aria-hidden />
+            )}
             <span className="leading-none">{metricPanelOpen ? 'Hide' : 'Metrics'}</span>
           </button>
         </>

@@ -64,7 +64,7 @@ export default function CensusMetricBrowserPanel({
   }, [activeThemeId])
 
   return (
-    <div className="flex h-full w-60 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+    <div className="flex h-full w-72 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <div className="flex items-center justify-between gap-2 border-b border-slate-200 px-3 py-2.5">
         <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-900">
           Metrics
@@ -89,7 +89,7 @@ export default function CensusMetricBrowserPanel({
               <button
                 type="button"
                 onClick={() => setOpen((prev) => ({ ...prev, [t.id]: !prev[t.id] }))}
-                className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-[13px] font-semibold text-slate-800 hover:bg-slate-50"
+                className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm font-semibold text-slate-800 hover:bg-slate-50"
                 aria-expanded={isOpen}
               >
                 <Icon className="h-[18px] w-[18px] shrink-0 text-slate-500" aria-hidden />
@@ -110,7 +110,7 @@ export default function CensusMetricBrowserPanel({
                   ) : (
                     t.groups.map((g) => (
                       <div key={g.id} className="mb-1 last:mb-0">
-                        <div className="px-2 pb-0.5 pt-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                        <div className="px-2 pb-0.5 pt-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                           {g.shortTitle ?? g.title}
                         </div>
                         <ul>
@@ -122,7 +122,7 @@ export default function CensusMetricBrowserPanel({
                                   type="button"
                                   onClick={() => onPick(m.slug)}
                                   aria-current={selected ? 'true' : undefined}
-                                  className={`block w-full rounded-md px-2 py-1.5 text-left text-[12.5px] leading-snug ${
+                                  className={`block w-full rounded-md px-2 py-2 text-left text-sm leading-snug ${
                                     selected
                                       ? 'bg-indigo-100 font-medium text-indigo-900'
                                       : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
