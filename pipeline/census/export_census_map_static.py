@@ -563,10 +563,13 @@ async def _ensure_parquets(
         try:
             await acs.download_acs_data_api(table, geography, state, year=year)
         except httpx.HTTPStatusError as e:
-            if e.response.status_code == 400:
+            # 400 (detail tables) and 404 (subject tables, e.g. S0801 via /subject)
+            # both mean "this group isn't published for this vintage" on early ACS
+            # 5-year releases — skip rather than abort the whole multi-year export.
+            if e.response.status_code in (400, 404):
                 logger.warning(
                     f"--fetch: skip {table} {geography} state={state!r} year={year} "
-                    f"(HTTP 400 — table often absent for early ACS 5-year vintages)"
+                    f"(HTTP {e.response.status_code} — table often absent for early ACS 5-year vintages)"
                 )
                 return
             raise

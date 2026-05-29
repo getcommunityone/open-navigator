@@ -1676,7 +1676,7 @@ export default function CensusDrilldownMapPage() {
                   ) : (
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                        <div className="truncate text-[12px] font-semibold uppercase tracking-[0.08em] text-slate-500">
                           {showing!.name}
                           {showNameSuffix ? (
                             <span className="font-normal text-slate-400">, {stateName}</span>
@@ -1688,7 +1688,7 @@ export default function CensusDrilldownMapPage() {
                             : '—'}
                         </div>
                         {hasDeltasEff ? (
-                          <div className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] tabular-nums">
+                          <div className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[13px] font-medium tabular-nums">
                             {yoyPctEff != null && prev1y != null ? (
                               <span className={yoyPctEff >= 0 ? 'text-emerald-600' : 'text-rose-600'}>
                                 {yoyPctEff >= 0 ? '+' : ''}
@@ -1706,11 +1706,11 @@ export default function CensusDrilldownMapPage() {
                             ) : null}
                           </div>
                         ) : null}
-                        <div className="mt-1.5 truncate text-[11px] font-semibold uppercase tracking-wide text-slate-600">
+                        <div className="mt-1.5 text-[13px] font-semibold uppercase tracking-wide text-slate-600">
                           {metricLabel}
                         </div>
                         {inflationFootnote ? (
-                          <div className="mt-0.5 truncate text-[10px] text-slate-400">
+                          <div className="mt-0.5 text-[12px] text-slate-400">
                             {inflationFootnote}
                           </div>
                         ) : null}
