@@ -560,6 +560,13 @@ async def _ensure_parquets(
     tables = list({m["table"] for m in METRICS})
 
     async def _fetch_one(table: str, geography: str, state: str) -> None:
+        # Incremental + resumable: skip tables already cached on disk (same
+        # filename pattern download_acs_data_api writes), so a re-run or a big
+        # --all-place-states pass only fetches what's missing instead of
+        # re-downloading the whole national dataset (and survives interruption).
+        cache_file = acs_dir / f"{table}_{geography}_{state}_{year}.parquet"
+        if cache_file.exists():
+            return
         try:
             await acs.download_acs_data_api(table, geography, state, year=year)
         except httpx.HTTPStatusError as e:
