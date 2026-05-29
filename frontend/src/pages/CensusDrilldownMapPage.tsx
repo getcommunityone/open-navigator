@@ -1211,7 +1211,7 @@ export default function CensusDrilldownMapPage() {
       <div
         className={`grid gap-3 ${
           showRightAside
-            ? 'grid-cols-1 xl:grid-cols-[auto_minmax(0,1fr)_minmax(300px,24rem)] items-start'
+            ? 'grid-cols-1 xl:grid-cols-[auto_minmax(0,1fr)_minmax(260px,19rem)] items-start'
             : 'grid-cols-1 xl:grid-cols-[auto_minmax(0,1fr)] items-start'
         }`}
       >
