@@ -20,6 +20,9 @@
 #   COOKIES=youtube_cookies.txt
 #   DELAY=10
 #   MAX_JURISDICTIONS=50   — cap per run (round-robin order preserved)
+#   PARALLEL=4             — analyze step only: run up to N jurisdictions at once
+#                            (each is its own Gemini process; ceiling is the API rate
+#                            limit, not CPU). Default 1 = sequential. Output interleaves.
 #   NO_CLEAR_TOMBSTONES=1  — pass --no-clear-tombstones (avoid retrying old permanent misses)
 #   NO_TOMBSTONES=1        — pass --no-tombstones (do not write new tombstone:* rows)
 #   NO_PREFER_UNTRIED=1    — pass --no-prefer-untried (retry order by date only)
@@ -62,6 +65,10 @@ COOKIES="${COOKIES:-youtube_cookies.txt}"
 DELAY="${DELAY:-10}"
 STEP="${1:-all}"
 MAX_JURISDICTIONS="${MAX_JURISDICTIONS:-}"
+PARALLEL="${PARALLEL:-1}"
+if ! [[ "$PARALLEL" =~ ^[0-9]+$ ]] || (( PARALLEL < 1 )); then
+  PARALLEL=1
+fi
 PROXY_ARG="${PROXY:-${YOUTUBE_TRANSCRIPT_PROXY:-}}"
 
 if [[ ! -x "$PYTHON" ]]; then
@@ -341,27 +348,45 @@ run_captions() {
   echo "=== Captions complete: processed=$processed success=$success failed=$failed target=$target_total ==="
 }
 
+analyze_one() {
+  local st="$1" jid="$2" name="$3"
+  echo "=== Analyze ($N newest): $st — $name ($jid) ==="
+  local -a ana_args=(
+    --newest "$N"
+    --jurisdiction-id "$jid"
+    --state "$st"
+  )
+  if [[ -n "${DRY_RUN:-}" ]]; then
+    ana_args+=(--dry-run)
+  fi
+  local ec=0
+  "$PYTHON" scripts/gemini/meeting_transcript_policy.py "${ana_args[@]}" || ec=$?
+  if (( ec != 0 )); then
+    if (( ec == 1 )); then
+      echo "WARN: analyze skipped for $jid (usually no captions yet — run: $0 captions)" >&2
+    else
+      echo "WARN: analyze failed for $jid (exit $ec)" >&2
+    fi
+  fi
+}
+
 run_analyze() {
   local jid st name
+  local running=0
   while IFS=$'\t' read -r st jid name _jtype; do
-    echo "=== Analyze ($N newest): $st — $name ($jid) ==="
-    local -a ana_args=(
-      --newest "$N"
-      --jurisdiction-id "$jid"
-      --state "$st"
-    )
-    if [[ -n "${DRY_RUN:-}" ]]; then
-      ana_args+=(--dry-run)
-    fi
-    if ! "$PYTHON" scripts/gemini/meeting_transcript_policy.py "${ana_args[@]}"; then
-      ec=$?
-      if [[ $ec -eq 1 ]]; then
-        echo "WARN: analyze skipped for $jid (usually no captions yet — run: $0 captions)" >&2
-      else
-        echo "WARN: analyze failed for $jid (exit $ec)" >&2
+    if (( PARALLEL > 1 )); then
+      analyze_one "$st" "$jid" "$name" &
+      if (( ++running >= PARALLEL )); then
+        wait -n
+        (( running-=1 ))
       fi
+    else
+      analyze_one "$st" "$jid" "$name"
     fi
   done < <(export STATES DATABASE_URL="${DATABASE_URL:-}" ROUND_ROBIN="${ROUND_ROBIN:-1}"; list_jurisdictions)
+  if (( PARALLEL > 1 )); then
+    wait
+  fi
 }
 
 # One jurisdiction at a time (round-robin list order): catalog (optional) → captions → analyze.
