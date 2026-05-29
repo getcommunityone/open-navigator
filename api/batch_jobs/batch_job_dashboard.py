@@ -105,6 +105,8 @@ def _totals_from_batch_summaries(batches: List[Dict[str, Any]]) -> Dict[str, Any
         "bronze_download_rows": 0,
         "files_analysis": 0,
         "files_reports": 0,
+        "files_analysis_recent": 0,
+        "files_reports_recent": 0,
     }
     planned_states: set[str] = set()
     started_states: set[str] = set()
@@ -144,6 +146,8 @@ def _totals_from_batch_summaries(batches: List[Dict[str, Any]]) -> Dict[str, Any
         totals["bronze_download_rows"] += int(s.get("bronze_download_rows") or 0)
         totals["files_analysis"] += int(s.get("files_analysis") or 0)
         totals["files_reports"] += int(s.get("files_reports") or 0)
+        totals["files_analysis_recent"] += int(s.get("files_analysis_recent") or 0)
+        totals["files_reports_recent"] += int(s.get("files_reports_recent") or 0)
         transcript_seconds += float(s.get("transcript_seconds") or 0)
 
     totals["states_planned"] = len(planned_states)
@@ -268,6 +272,10 @@ def build_dashboard_summary(*, limit: int = 30) -> Dict[str, Any]:
                     "bronze_download_rows",
                     "files_analysis",
                     "files_reports",
+                    "files_analysis_recent",
+                    "files_reports_recent",
+                    "files_analysis_errors_recent",
+                    "files_reports_errors_recent",
                     "transcript_hours",
                 )
                 if k in sql_totals
@@ -416,6 +424,8 @@ def _aggregate_jobs(
         "bronze_download_rows": 0,
         "files_analysis": 0,
         "files_reports": 0,
+        "files_analysis_recent": 0,
+        "files_reports_recent": 0,
     }
     planned_states: set[str] = set()
     started_states: set[str] = set()
@@ -519,6 +529,8 @@ def _aggregate_jobs(
             totals["bronze_download_rows"] += int(s.get("bronze_download_rows") or 0)
             totals["files_analysis"] += int(s.get("files_analysis") or 0)
             totals["files_reports"] += int(s.get("files_reports") or 0)
+            totals["files_analysis_recent"] += int(s.get("files_analysis_recent") or 0)
+            totals["files_reports_recent"] += int(s.get("files_reports_recent") or 0)
             transcript_seconds += float(s.get("transcript_seconds") or 0)
     finally:
         if bronze_conn is not None:
@@ -544,6 +556,35 @@ def _aggregate_jobs(
         "source": "database",
         "detail": "full",
     }
+
+
+def _override_recent_counts_from_events(payload: Dict[str, Any]) -> None:
+    """
+    Replace the batch-scoped disk-scan 24h counters with per-event bronze stamps
+    (migration 083), so standalone runs are counted too. Best-effort: leaves the
+    disk-scan values in place if the DB/columns are unavailable.
+    """
+    totals = payload.get("totals")
+    if not isinstance(totals, dict):
+        return
+    try:
+        from api.batch_jobs.batch_job_db import (
+            get_db_connection,
+            policy_event_counts_24h,
+        )
+
+        with get_db_connection() as conn:
+            counts = policy_event_counts_24h(conn)
+        totals["files_analysis_recent"] = int(counts.get("analysis") or 0)
+        totals["files_reports_recent"] = int(counts.get("reports") or 0)
+        totals["files_analysis_errors_recent"] = int(counts.get("analysis_errors") or 0)
+        totals["files_reports_errors_recent"] = int(counts.get("reports_errors") or 0)
+    except Exception as exc:
+        import logging
+
+        logging.getLogger(__name__).debug(
+            "recent-event count override skipped: %s", exc
+        )
 
 
 def build_dashboard_data(
@@ -595,6 +636,7 @@ def build_dashboard_data(
                 payload = _aggregate_jobs(
                     jobs, enrich_transcript_from_bronze=enrich_bronze
                 )
+                _override_recent_counts_from_events(payload)
                 if video_mode != "all":
                     payload["batches"] = [
                         slim_batch_dict(b, video_mode=video_mode)
@@ -810,6 +852,8 @@ def render_html(payload: Dict[str, Any]) -> str:
         ['Bronze download rows', t.bronze_download_rows],
         ['Analysis on disk', t.files_analysis],
         ['Reports on disk', t.files_reports],
+        ['Analysis (24h)', t.files_analysis_recent],
+        ['Reports (24h)', t.files_reports_recent],
       ];
       document.getElementById('global-cards').innerHTML = cards.map(([l,v]) =>
         `<div class="card"><div class="label">${{l}}</div><div class="value">${{v}}</div></div>`

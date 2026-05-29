@@ -988,6 +988,7 @@ def _recompute_summary(job: BatchJob) -> None:
         eta_seconds = (elapsed / processed) * remaining
 
     disk = {"transcripts": 0, "analysis": 0, "reports": 0}
+    recent = {"analysis": 0, "reports": 0}
     bronze_download_rows = 0
     for j in job.jurisdictions:
         fc = j.file_counts or {}
@@ -996,6 +997,8 @@ def _recompute_summary(job: BatchJob) -> None:
         )
         disk["analysis"] += _disk_file_count(fc, "analysis_disk", "analysis")
         disk["reports"] += _disk_file_count(fc, "reports_disk", "reports")
+        recent["analysis"] += int(fc.get("analysis_recent") or 0)
+        recent["reports"] += int(fc.get("reports_recent") or 0)
         bronze_download_rows += int(fc.get("bronze_download_rows") or 0)
 
     files_processed = v_ok + v_fail + v_tomb + v_empty + v_rl
@@ -1042,6 +1045,10 @@ def _recompute_summary(job: BatchJob) -> None:
         "files_transcripts_disk": disk["transcripts"],
         "files_analysis": disk["analysis"],
         "files_reports": disk["reports"],
+        # Rolling 24h throughput: analyses summarised / reports generated whose
+        # files were last written within the past day (mtime-based).
+        "files_analysis_recent": recent["analysis"],
+        "files_reports_recent": recent["reports"],
         # Bronze rows with transcript_download_at (lifetime per jurisdiction).
         "bronze_download_rows": bronze_download_rows,
         "transcript_seconds": round(transcript_seconds_from_job_videos(job), 1),
@@ -1322,6 +1329,10 @@ def policy_disk_file_counts(scanned: Dict[str, int]) -> Dict[str, int]:
         "transcripts_disk": int(scanned.get("transcripts") or 0),
         "analysis_disk": int(scanned.get("analysis") or 0),
         "reports_disk": int(scanned.get("reports") or 0),
+        # Rolling 24h throughput (mtime within the last day); 0 when the scanner
+        # couldn't attribute per-jurisdiction stats (legacy fallback path).
+        "analysis_recent": int(scanned.get("analysis_recent") or 0),
+        "reports_recent": int(scanned.get("reports_recent") or 0),
     }
 
 
@@ -1339,7 +1350,13 @@ def count_policy_files_for_jurisdiction(
         scan_jurisdiction_cache,
     )
 
-    counts = {"transcripts": 0, "analysis": 0, "reports": 0}
+    counts = {
+        "transcripts": 0,
+        "analysis": 0,
+        "reports": 0,
+        "analysis_recent": 0,
+        "reports_recent": 0,
+    }
     if not cache_root.is_dir():
         return counts
     by_jid = scan_jurisdiction_cache(cache_root)
@@ -1348,6 +1365,8 @@ def count_policy_files_for_jurisdiction(
         counts["transcripts"] = st.transcripts
         counts["analysis"] = st.analysis_json
         counts["reports"] = st.reports_md
+        counts["analysis_recent"] = st.analysis_recent
+        counts["reports_recent"] = st.reports_recent
         return counts
 
     state = (state_code or "").upper()

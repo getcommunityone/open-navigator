@@ -64,6 +64,53 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+
+def _db_events_enabled(args: "argparse.Namespace") -> bool:
+    """Whether to stamp analysis/report outcomes onto bronze_events_youtube."""
+    if getattr(args, "no_db_events", False):
+        return False
+    return os.getenv("POLICY_RECORD_DB_EVENTS", "1").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+        "off",
+    )
+
+
+def _rel_to_repo(path: Path) -> str:
+    """Repo-relative path string, falling back to the absolute path."""
+    try:
+        return str(path.resolve().relative_to(_REPO_ROOT))
+    except ValueError:
+        return str(path)
+
+
+def _record_policy_event_safe(
+    video_id: str,
+    *,
+    stage: str,
+    ok: bool,
+    path: Optional[Path] = None,
+    error: Optional[str] = None,
+    database_url: Optional[str] = None,
+) -> None:
+    """Thin best-effort wrapper around ``record_policy_event`` (never raises)."""
+    if not (video_id or "").strip():
+        return
+    try:
+        from scripts.gemini.persist_policy_analysis_bronze import record_policy_event
+
+        record_policy_event(
+            video_id,
+            stage=stage,
+            ok=ok,
+            path=_rel_to_repo(path) if path is not None else None,
+            error=error,
+            database_url_override=database_url or _database_url(None),
+        )
+    except Exception as exc:  # tracking must never break the pipeline
+        logger.warning("policy event record skipped for {} ({}): {}", video_id, stage, exc)
+
 from scripts.gemini.browser_policy_analysis import (  # noqa: E402
     DEFAULT_JURISDICTION_ID,
     DEFAULT_PROMPT_PART_1,
@@ -338,6 +385,8 @@ def save_transcript_policy_output(
     persist_bronze: bool = False,
     database_url: Optional[str] = None,
     state_code: Optional[str] = None,
+    record_db_events: bool = False,
+    defer_report_event: bool = False,
 ) -> Path:
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     jid = video.jurisdiction_id
@@ -409,6 +458,17 @@ def save_transcript_policy_output(
         encoding="utf-8",
     )
 
+    if record_db_events:
+        analysis_error = analysis_payload.get("_error") if isinstance(analysis_payload, dict) else None
+        _record_policy_event_safe(
+            video.video_id,
+            stage="analysis",
+            ok=not analysis_error,
+            path=analysis_path,
+            error=str(analysis_error) if analysis_error else None,
+            database_url=database_url,
+        )
+
     if persist_bronze and json_parsed and not analysis_payload.get("_error"):
         from scripts.gemini.persist_policy_analysis_bronze import (
             persist_policy_analysis_bronze,
@@ -440,6 +500,16 @@ def save_transcript_policy_output(
             "# Report unavailable\n\n"
             "Part 1 JSON-only run; use ``policy_analysis_part_2`` separately if needed.\n",
             encoding="utf-8",
+        )
+
+    if record_db_events and not defer_report_event:
+        _record_policy_event_safe(
+            video.video_id,
+            stage="report",
+            ok=bool(report_body),
+            path=report_md_path if report_body else None,
+            error=None if report_body else "No Part 2 report markdown produced (Part 1 JSON-only run)",
+            database_url=database_url,
         )
 
     has_diagrams = False
@@ -610,11 +680,19 @@ def run_part2_for_analysis_file(
             str(data.get("_error") or "no decisions[]")[:240],
         )
     markdown = generate_part2_markdown(data, args, api_key, analysis_path=analysis_path)
-    return write_part2_report(
+    report_path = write_part2_report(
         analysis_path,
         markdown,
         validate_mermaid=not getattr(args, "no_validate_mermaid", False),
     )
+    if _db_events_enabled(args):
+        _record_policy_event_safe(
+            _video_id_from_analysis_path(analysis_path),
+            stage="report",
+            ok=True,
+            path=report_path,
+        )
+    return report_path
 
 
 def _video_id_from_analysis_path(path: Path) -> str:
@@ -681,6 +759,13 @@ def run_part2_only_batch(args: argparse.Namespace, api_key: str) -> None:
             run_part2_for_analysis_file(path, args, api_key)
         except Exception as exc:
             logger.exception("Part 2 failed for {}: {}", path.name, exc)
+            if _db_events_enabled(args):
+                _record_policy_event_safe(
+                    _video_id_from_analysis_path(path),
+                    stage="report",
+                    ok=False,
+                    error=str(exc),
+                )
             if args.stop_on_error:
                 raise
 
@@ -914,6 +999,8 @@ def process_one_video(
         persist_bronze=getattr(args, "persist_bronze", False),
         database_url=_database_url(getattr(args, "database_url", None) or None),
         state_code=state_code,
+        record_db_events=_db_events_enabled(args),
+        defer_report_event=args.run_part_2,
     )
     if args.run_part_2 and analysis_path is not None:
         try:
@@ -928,18 +1015,36 @@ def process_one_video(
                     video_id,
                     str(analysis.get("_error") or "no decisions[]")[:240],
                 )
-            write_part2_report(
-                analysis_path,
-                generate_part2_markdown(
-                    analysis, args, api_key, analysis_path=analysis_path
-                ),
-                validate_mermaid=not getattr(args, "no_validate_mermaid", False),
-            )
+            try:
+                report_path = write_part2_report(
+                    analysis_path,
+                    generate_part2_markdown(
+                        analysis, args, api_key, analysis_path=analysis_path
+                    ),
+                    validate_mermaid=not getattr(args, "no_validate_mermaid", False),
+                )
+                if _db_events_enabled(args):
+                    _record_policy_event_safe(
+                        video_id, stage="report", ok=True, path=report_path
+                    )
+            except Exception as exc:
+                if _db_events_enabled(args):
+                    _record_policy_event_safe(
+                        video_id, stage="report", ok=False, error=str(exc)
+                    )
+                raise
         else:
             logger.error(
                 "Skipping Part 2 for {} — Part 1 JSON invalid (re-run Part 1 or check 02_analysis/)",
                 video_id,
             )
+            if _db_events_enabled(args):
+                _record_policy_event_safe(
+                    video_id,
+                    stage="report",
+                    ok=False,
+                    error="Skipped Part 2 — Part 1 JSON invalid",
+                )
     return analysis_path
 
 
@@ -1090,6 +1195,10 @@ def run_pipeline(args: argparse.Namespace) -> None:
                 )
             except Exception as exc:
                 logger.exception("Failed {}: {}", video.video_id, exc)
+                if _db_events_enabled(args):
+                    _record_policy_event_safe(
+                        video.video_id, stage="analysis", ok=False, error=str(exc)
+                    )
                 if args.stop_on_error:
                     raise
         return
@@ -1297,6 +1406,12 @@ def main() -> None:
         "--persist-bronze",
         action="store_true",
         help="Upsert bronze.bronze_bills / item legislation links after Part 1 (needs migration 018)",
+    )
+    parser.add_argument(
+        "--no-db-events",
+        action="store_true",
+        help="Disable best-effort recording of analysis/report outcomes onto "
+        "bronze_events_youtube (also via POLICY_RECORD_DB_EVENTS=0; needs migration 083)",
     )
     args = parser.parse_args()
     run_pipeline(args)

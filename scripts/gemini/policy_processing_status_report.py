@@ -57,6 +57,11 @@ class JurisdictionCacheStats:
     transcripts: int = 0
     analysis_json: int = 0
     reports_md: int = 0
+    # Files whose mtime falls within the rolling recency window (default 24h),
+    # i.e. analyses summarised / reports generated "recently". Used by the batch
+    # dashboard to show throughput rather than only the all-time on-disk totals.
+    analysis_recent: int = 0
+    reports_recent: int = 0
     latest_mtime: float = 0.0
     recent_touch_min: float = 0.0
     meeting_durations_sec: List[float] = field(default_factory=list)
@@ -225,17 +230,19 @@ def _touch_file_stats(
     *,
     stats: JurisdictionCacheStats,
     stale_cutoff: float,
-) -> None:
+) -> float:
+    """Fold ``path``'s mtime into ``stats``; return that mtime (0.0 on error)."""
     try:
         mtime = path.stat().st_mtime
     except OSError:
-        return
+        return 0.0
     stats.latest_mtime = max(stats.latest_mtime, mtime)
     if mtime >= stale_cutoff:
         if stats.recent_touch_min <= 0:
             stats.recent_touch_min = mtime
         else:
             stats.recent_touch_min = min(stats.recent_touch_min, mtime)
+    return mtime
 
 
 def _tally_channel_dirs(
@@ -245,6 +252,7 @@ def _tally_channel_dirs(
     cache_type: str,
     *,
     stale_cutoff: float,
+    recent_cutoff: float,
     by_jid: Optional[Dict[str, JurisdictionCacheStats]] = None,
 ) -> CacheCounts:
     """Count transcripts/analysis/reports; optionally accumulate per-jurisdiction stats."""
@@ -275,7 +283,9 @@ def _tally_channel_dirs(
                 counts.analysis_json += 1
                 if jstats:
                     jstats.analysis_json += 1
-                    _touch_file_stats(p, stats=jstats, stale_cutoff=stale_cutoff)
+                    m = _touch_file_stats(p, stats=jstats, stale_cutoff=stale_cutoff)
+                    if m >= recent_cutoff:
+                        jstats.analysis_recent += 1
         rp_dir = ch / _DIR_REPORTS
         if rp_dir.is_dir():
             for p in rp_dir.glob("*.md"):
@@ -284,7 +294,9 @@ def _tally_channel_dirs(
                 counts.reports_md += 1
                 if jstats:
                     jstats.reports_md += 1
-                    _touch_file_stats(p, stats=jstats, stale_cutoff=stale_cutoff)
+                    m = _touch_file_stats(p, stats=jstats, stale_cutoff=stale_cutoff)
+                    if m >= recent_cutoff:
+                        jstats.reports_recent += 1
         runs_dir = ch / _DIR_RUNS
         if runs_dir.is_dir() and jstats:
             for p in runs_dir.glob("*.meta.json"):
@@ -365,8 +377,16 @@ def scan_jurisdiction_cache(
     cache_root: Path,
     *,
     stale_minutes: int = _DEFAULT_STALE_MINUTES,
+    recent_minutes: int = 24 * 60,
 ) -> Dict[str, JurisdictionCacheStats]:
-    stale_cutoff = (_utc_now() - timedelta(minutes=stale_minutes)).timestamp()
+    """Scan the policy cache per jurisdiction.
+
+    ``recent_minutes`` defines the rolling window (default 24h) used to populate
+    ``analysis_recent`` / ``reports_recent`` from each file's mtime.
+    """
+    now = _utc_now().timestamp()
+    stale_cutoff = now - stale_minutes * 60
+    recent_cutoff = now - recent_minutes * 60
     by_jid: Dict[str, JurisdictionCacheStats] = {}
     for state, cache_type, jdir, channels in _iter_cache_jurisdiction_dirs(cache_root):
         _tally_channel_dirs(
@@ -375,6 +395,7 @@ def scan_jurisdiction_cache(
             channels,
             cache_type,
             stale_cutoff=stale_cutoff,
+            recent_cutoff=recent_cutoff,
             by_jid=by_jid,
         )
     return by_jid
@@ -391,7 +412,13 @@ def scan_policy_cache(cache_root: Path) -> Tuple[Dict[str, CacheCounts], Dict[st
     stale_cutoff = 0.0
     for state, cache_type, jdir, channels in _iter_cache_jurisdiction_dirs(cache_root):
         counts = _tally_channel_dirs(
-            state, jdir, channels, cache_type, stale_cutoff=stale_cutoff, by_jid=None
+            state,
+            jdir,
+            channels,
+            cache_type,
+            stale_cutoff=stale_cutoff,
+            recent_cutoff=0.0,
+            by_jid=None,
         )
         st = by_state[state]
         if counts.jurisdictions:

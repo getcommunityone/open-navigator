@@ -113,9 +113,10 @@ export default function CensusMapLeftRail({
       })}
       {onToggleMetricPanel ? (
         <>
-          {/* Spacer pushes the panel toggle to the bottom, separating it from
-              the display controls above so it reads as a sidebar collapse. */}
-          <div className="mt-auto" aria-hidden />
+          {/* Kept directly under the display controls (no ``mt-auto`` spacer):
+              the rail is full viewport height, so pushing this to the bottom
+              would shove it below the fold where it can't be reached to expand
+              the panel again. */}
           <div className="my-0.5 h-px bg-slate-200" aria-hidden />
           <button
             type="button"

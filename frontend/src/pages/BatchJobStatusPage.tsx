@@ -1375,6 +1375,44 @@ export default function BatchJobStatusPage() {
               value={formatCompactNumber(data.totals.files_reports)}
               title={metricCountTitle(data.totals.files_reports, 'Report files')}
             />
+            <SummaryCard
+              label="Analysis progress"
+              value={
+                data.totals.files_transcripts_disk > 0
+                  ? `${Math.round((data.totals.files_analysis / data.totals.files_transcripts_disk) * 100)}%`
+                  : '—'
+              }
+              title={`${formatCompactNumber(data.totals.files_analysis)} of ${formatCompactNumber(
+                data.totals.files_transcripts_disk ?? 0,
+              )} transcripts have an AI analysis on disk`}
+            />
+            <SummaryCard
+              label="Reports progress"
+              value={
+                data.totals.files_analysis > 0
+                  ? `${Math.round((data.totals.files_reports / data.totals.files_analysis) * 100)}%`
+                  : '—'
+              }
+              title={`${formatCompactNumber(data.totals.files_reports)} of ${formatCompactNumber(
+                data.totals.files_analysis,
+              )} analyses have a generated report on disk`}
+            />
+            <SummaryCard
+              label="Analysis (24h)"
+              value={formatCompactNumber(data.totals.files_analysis_recent ?? 0)}
+              title={
+                metricCountTitle(data.totals.files_analysis_recent, 'AI analyses') ??
+                'AI summary analyses written in the last 24 hours (by file mtime)'
+              }
+            />
+            <SummaryCard
+              label="Reports (24h)"
+              value={formatCompactNumber(data.totals.files_reports_recent ?? 0)}
+              title={
+                metricCountTitle(data.totals.files_reports_recent, 'Reports') ??
+                'Reports generated in the last 24 hours (by file mtime)'
+              }
+            />
           </div>
 
           {showFailedVideos && !effectiveJurisdictionId && (

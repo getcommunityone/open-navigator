@@ -234,6 +234,71 @@ def persist_policy_analysis_bronze(
     return stats
 
 
+_POLICY_EVENT_STAGES = {"analysis", "report"}
+
+
+def record_policy_event(
+    video_id: str,
+    *,
+    stage: str,
+    ok: bool,
+    path: Optional[str] = None,
+    error: Optional[str] = None,
+    database_url_override: Optional[str] = None,
+) -> bool:
+    """
+    Best-effort: stamp a policy ``analysis``/``report`` outcome onto the bronze event row.
+
+    On success sets ``policy_<stage>_at = now()`` (+ path) and clears the error; on
+    failure sets ``policy_<stage>_error`` and leaves the success timestamp untouched.
+    Keyed by ``video_id`` (same as ``persist_policy_analysis_bronze``). Swallows all
+    errors so it never breaks the pipeline. Returns True when a row was updated.
+    """
+    import psycopg2
+
+    vid = (video_id or "").strip()
+    if not vid:
+        return False
+    if stage not in _POLICY_EVENT_STAGES:
+        logger.warning("record_policy_event: unknown stage {!r}", stage)
+        return False
+
+    if ok:
+        set_clause = (
+            f"policy_{stage}_at = %s, "
+            f"policy_{stage}_path = %s, "
+            f"policy_{stage}_error = NULL, "
+            "last_updated = CURRENT_TIMESTAMP"
+        )
+        params = [datetime.now(timezone.utc), path, vid]
+    else:
+        set_clause = (
+            f"policy_{stage}_error = %s, last_updated = CURRENT_TIMESTAMP"
+        )
+        params = [(error or "unknown error")[:2000], vid]
+
+    try:
+        conn = psycopg2.connect(database_url(database_url_override))
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"UPDATE bronze.bronze_events_youtube SET {set_clause} WHERE video_id = %s",
+                    params,
+                )
+                updated = bool(cur.rowcount)
+            conn.commit()
+        finally:
+            conn.close()
+        if not updated:
+            logger.debug(
+                "record_policy_event: no bronze row for video_id={} (stage={})", vid, stage
+            )
+        return updated
+    except Exception as exc:  # never break the pipeline on a tracking write
+        logger.warning("record_policy_event failed for {} ({}): {}", vid, stage, exc)
+        return False
+
+
 def resolve_event_id_for_video(database_url_str: str, video_id: str) -> Optional[int]:
     import psycopg2
 

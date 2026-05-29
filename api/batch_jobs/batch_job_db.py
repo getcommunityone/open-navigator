@@ -162,6 +162,51 @@ def list_batch_jobs_from_db(*, limit: int = 100) -> List[BatchJob]:
     return jobs
 
 
+def policy_event_counts_24h(conn: Any) -> Dict[str, int]:
+    """
+    Count analysis/report events stamped on bronze_events_youtube in the last 24h.
+
+    Uses the per-event columns from migration 083 (``policy_analysis_at`` /
+    ``policy_report_at`` + their ``*_error`` siblings). Returns zeros if the
+    columns do not exist yet (migration not applied).
+    """
+    out = {"analysis": 0, "reports": 0, "analysis_errors": 0, "reports_errors": 0}
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    COUNT(*) FILTER (
+                        WHERE policy_analysis_at >= now() - interval '24 hours'
+                    )::int AS analysis,
+                    COUNT(*) FILTER (
+                        WHERE policy_report_at >= now() - interval '24 hours'
+                    )::int AS reports,
+                    COUNT(*) FILTER (
+                        WHERE policy_analysis_error IS NOT NULL
+                          AND last_updated >= now() - interval '24 hours'
+                    )::int AS analysis_errors,
+                    COUNT(*) FILTER (
+                        WHERE policy_report_error IS NOT NULL
+                          AND last_updated >= now() - interval '24 hours'
+                    )::int AS reports_errors
+                FROM bronze.bronze_events_youtube
+                """
+            )
+            row = cur.fetchone()
+        if row:
+            out["analysis"] = int(row[0] or 0)
+            out["reports"] = int(row[1] or 0)
+            out["analysis_errors"] = int(row[2] or 0)
+            out["reports_errors"] = int(row[3] or 0)
+    except Exception as exc:
+        # Columns missing (pre-083) or transient DB error — degrade to zeros so the
+        # dashboard falls back to the disk-scan counters.
+        conn.rollback()
+        logger.debug("policy_event_counts_24h unavailable: %s", exc)
+    return out
+
+
 def aggregate_dashboard_totals_from_db(*, limit: int = 30) -> Dict[str, Any]:
     """Sum numeric fields from ``summary`` JSONB across recent batches (no payload)."""
     with get_db_connection() as conn:
@@ -202,6 +247,7 @@ def aggregate_dashboard_totals_from_db(*, limit: int = 30) -> Dict[str, Any]:
                 (limit,),
             )
             row = cur.fetchone() or {}
+            recent_events = policy_event_counts_24h(conn)
     totals = {
         "batches": int(row.get("batches") or 0),
         "running": int(row.get("running") or 0),
@@ -221,6 +267,12 @@ def aggregate_dashboard_totals_from_db(*, limit: int = 30) -> Dict[str, Any]:
         "bronze_download_rows": int(row.get("bronze_download_rows") or 0),
         "files_analysis": int(row.get("files_analysis") or 0),
         "files_reports": int(row.get("files_reports") or 0),
+        # Rolling 24h throughput from per-event bronze stamps (migration 083); covers
+        # both batch and standalone runs, unlike the batch-scoped disk-scan counters.
+        "files_analysis_recent": int(recent_events.get("analysis") or 0),
+        "files_reports_recent": int(recent_events.get("reports") or 0),
+        "files_analysis_errors_recent": int(recent_events.get("analysis_errors") or 0),
+        "files_reports_errors_recent": int(recent_events.get("reports_errors") or 0),
     }
     last_updated = row.get("last_updated")
     totals["last_activity_at"] = (

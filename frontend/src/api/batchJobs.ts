@@ -19,6 +19,10 @@ export type BatchJobsTotals = {
   bronze_download_rows: number
   files_analysis: number
   files_reports: number
+  /** Analyses summarised in the last 24h (file mtime within the rolling window). */
+  files_analysis_recent?: number
+  /** Reports generated in the last 24h (file mtime within the rolling window). */
+  files_reports_recent?: number
 }
 
 export type BatchVideoResult = {
