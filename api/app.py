@@ -9,6 +9,9 @@ from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
+
+from api.static_cache import CachedStaticFiles
 from pydantic import BaseModel, Field
 from loguru import logger
 import os
@@ -35,6 +38,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Compress responses (notably the large /data JSON marts — county_metrics is
+# ~2.6MB, jurisdiction_mapping_quality ~6.6MB; both compress ~5-10x).
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # Initialize components
 orchestrator = OrchestratorAgent()
@@ -678,7 +685,7 @@ if static_dir.exists():
     frontend_public = Path(__file__).parent.parent / "frontend" / "public"
     data_dir = frontend_public / "data"
     if data_dir.is_dir():
-        app.mount("/data", StaticFiles(directory=data_dir), name="public_data")
+        app.mount("/data", CachedStaticFiles(directory=data_dir), name="public_data")
     else:
         logger.warning(f"Public data bundle missing (expected {data_dir})")
 

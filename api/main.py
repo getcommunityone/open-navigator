@@ -16,8 +16,10 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Query, BackgroundTasks, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.openapi.docs import get_swagger_ui_html
+from api.static_cache import CachedStaticFiles
 from pydantic import BaseModel, Field
 from loguru import logger
 import os
@@ -113,6 +115,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Compress responses (notably the large /data JSON marts — county_metrics is
+# ~2.6MB, jurisdiction_mapping_quality ~6.6MB; both compress ~5-10x).
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
 # Request logging middleware
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
@@ -177,7 +183,7 @@ if os.path.exists(static_dir):
     # snapshot — mounting only /data/census-map left those paths 404ing.
     data_dir = Path(static_dir) / "data"
     if data_dir.is_dir():
-        app.mount("/data", StaticFiles(directory=data_dir), name="public_data")
+        app.mount("/data", CachedStaticFiles(directory=data_dir), name="public_data")
     else:
         logger.warning(f"Public data bundle missing (expected {data_dir})")
 else:
