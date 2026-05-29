@@ -885,11 +885,12 @@ export default function CensusDrilldownMapPage() {
       lngLat: { lng: number; lat: number } | null
       feature: GeoJSON.Feature
     }) => {
-      // A county click drills straight into the ZIP tier: pin the info card,
-      // promote the geoid so the Stage's zoom effect has a target feature, and
-      // switch to 'zip' — the Stage then flies a van Wijk zoom to the county
-      // bbox and reveals the ZCTA boundaries as the per-state tile loads.
-      // (Street-view / school-zone CTAs still live in the pinned card.)
+      // A county click drills straight into the CITIES & TOWNS (place) tier:
+      // pin the info card, promote the geoid so the Stage's zoom effect has a
+      // target feature, and switch to 'place' — the Stage flies a van Wijk zoom
+      // to the county bbox and reveals the place boundaries as the per-state
+      // tile loads. (ZIP / street-view / school-zone CTAs still live in the
+      // pinned card for users who want to go deeper.)
       setPinnedCounty({
         geoid: info.geoid,
         name: info.name,
@@ -901,7 +902,7 @@ export default function CensusDrilldownMapPage() {
       setPinnedPlace(null)
       setSelectedCountyGeoid(info.geoid)
       setLocalPin(null)
-      setView('zip')
+      setView('place')
     },
     [],
   )
