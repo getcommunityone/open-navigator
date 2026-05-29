@@ -276,6 +276,7 @@ def build_dashboard_summary(*, limit: int = 30) -> Dict[str, Any]:
                     "files_reports_recent",
                     "files_analysis_errors_recent",
                     "files_reports_errors_recent",
+                    "last_transcript_at",
                     "last_analysis_at",
                     "last_report_at",
                     "transcript_hours",
@@ -562,9 +563,10 @@ def _aggregate_jobs(
 
 def _override_recent_counts_from_events(payload: Dict[str, Any]) -> None:
     """
-    Replace the batch-scoped disk-scan 24h counters with per-event bronze stamps
-    (migration 083), so standalone runs are counted too. Best-effort: leaves the
-    disk-scan values in place if the DB/columns are unavailable.
+    Replace the batch-scoped disk-scan counters with the live per-event bronze
+    stamps (migration 083): the 24h throughput, the all-time pipeline totals (so
+    progress % is de-duplicated and current), and the per-step "ago" timestamps.
+    Best-effort: leaves the disk-scan values in place if the DB/columns are missing.
     """
     totals = payload.get("totals")
     if not isinstance(totals, dict):
@@ -581,6 +583,16 @@ def _override_recent_counts_from_events(payload: Dict[str, Any]) -> None:
         totals["files_reports_recent"] = int(counts.get("reports") or 0)
         totals["files_analysis_errors_recent"] = int(counts.get("analysis_errors") or 0)
         totals["files_reports_errors_recent"] = int(counts.get("reports_errors") or 0)
+        transcripts_total = int(counts.get("transcripts_total") or 0)
+        analysis_total = int(counts.get("analysis_total") or 0)
+        reports_total = int(counts.get("reports_total") or 0)
+        if transcripts_total > 0:
+            totals["files_transcripts_disk"] = transcripts_total
+        if analysis_total > 0:
+            totals["files_analysis"] = analysis_total
+        if reports_total > 0:
+            totals["files_reports"] = reports_total
+        totals["last_transcript_at"] = counts.get("last_transcript_at") or ""
         totals["last_analysis_at"] = counts.get("last_analysis_at") or ""
         totals["last_report_at"] = counts.get("last_report_at") or ""
     except Exception as exc:

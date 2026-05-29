@@ -44,7 +44,8 @@ class BatchJobsTotals(BaseModel):
     files_reports_recent: int = 0
     files_analysis_errors_recent: int = 0
     files_reports_errors_recent: int = 0
-    # Most recent analysis/report stamp (all time) for the "ago" cards.
+    # Most recent stamp per step (all time) for the "ago" cards.
+    last_transcript_at: str = ""
     last_analysis_at: str = ""
     last_report_at: str = ""
 

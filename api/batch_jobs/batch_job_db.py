@@ -164,20 +164,28 @@ def list_batch_jobs_from_db(*, limit: int = 100) -> List[BatchJob]:
 
 def policy_event_counts_24h(conn: Any) -> Dict[str, Any]:
     """
-    Count analysis/report events stamped on bronze_events_youtube in the last 24h,
-    plus the most recent analysis/report timestamp of all time.
+    Pipeline counts from the per-event bronze stamps (migration 083):
 
-    Uses the per-event columns from migration 083 (``policy_analysis_at`` /
-    ``policy_report_at`` + their ``*_error`` siblings). The ``last_*_at`` values
-    drive the dashboard's "ago" cards and, unlike the batch ``updated_at`` clock,
-    reflect standalone analyze runs too. Returns zeros/empty strings if the
-    columns do not exist yet (migration not applied).
+    - ``analysis`` / ``reports`` / ``*_errors`` — events in the last 24h.
+    - ``*_total`` — all-time count of transcripts/analyses/reports (one live,
+      de-duplicated source for the "on disk" cards and progress %, instead of
+      summing per-batch disk scans, which double-counts transcripts across
+      overlapping batches and goes stale for analysis/reports).
+    - ``last_*_at`` — most recent stamp per step; drives the "ago" cards and,
+      unlike the batch ``updated_at`` clock, reflects standalone analyze runs.
+
+    Returns zeros/empty strings if the columns do not exist yet (migration not
+    applied), so the dashboard falls back to the batch-summary counters.
     """
     out: Dict[str, Any] = {
         "analysis": 0,
         "reports": 0,
         "analysis_errors": 0,
         "reports_errors": 0,
+        "transcripts_total": 0,
+        "analysis_total": 0,
+        "reports_total": 0,
+        "last_transcript_at": "",
         "last_analysis_at": "",
         "last_report_at": "",
     }
@@ -200,6 +208,13 @@ def policy_event_counts_24h(conn: Any) -> Dict[str, Any]:
                         WHERE policy_report_error IS NOT NULL
                           AND last_updated >= now() - interval '24 hours'
                     )::int AS reports_errors,
+                    COUNT(*) FILTER (WHERE transcript_download_at IS NOT NULL)::int
+                        AS transcripts_total,
+                    COUNT(*) FILTER (WHERE policy_analysis_at IS NOT NULL)::int
+                        AS analysis_total,
+                    COUNT(*) FILTER (WHERE policy_report_at IS NOT NULL)::int
+                        AS reports_total,
+                    MAX(transcript_download_at) AS last_transcript_at,
                     MAX(policy_analysis_at) AS last_analysis_at,
                     MAX(policy_report_at) AS last_report_at
                 FROM bronze.bronze_events_youtube
@@ -211,8 +226,12 @@ def policy_event_counts_24h(conn: Any) -> Dict[str, Any]:
             out["reports"] = int(row[1] or 0)
             out["analysis_errors"] = int(row[2] or 0)
             out["reports_errors"] = int(row[3] or 0)
-            out["last_analysis_at"] = row[4].isoformat() if row[4] is not None else ""
-            out["last_report_at"] = row[5].isoformat() if row[5] is not None else ""
+            out["transcripts_total"] = int(row[4] or 0)
+            out["analysis_total"] = int(row[5] or 0)
+            out["reports_total"] = int(row[6] or 0)
+            out["last_transcript_at"] = row[7].isoformat() if row[7] is not None else ""
+            out["last_analysis_at"] = row[8].isoformat() if row[8] is not None else ""
+            out["last_report_at"] = row[9].isoformat() if row[9] is not None else ""
     except Exception as exc:
         # Columns missing (pre-083) or transient DB error — degrade to zeros so the
         # dashboard falls back to the disk-scan counters.
@@ -287,10 +306,24 @@ def aggregate_dashboard_totals_from_db(*, limit: int = 30) -> Dict[str, Any]:
         "files_reports_recent": int(recent_events.get("reports") or 0),
         "files_analysis_errors_recent": int(recent_events.get("analysis_errors") or 0),
         "files_reports_errors_recent": int(recent_events.get("reports_errors") or 0),
-        # Most recent analysis/report stamp (all time) for the dashboard "ago" cards.
+        # Most recent stamp per step (all time) for the dashboard "ago" cards.
+        "last_transcript_at": recent_events.get("last_transcript_at") or "",
         "last_analysis_at": recent_events.get("last_analysis_at") or "",
         "last_report_at": recent_events.get("last_report_at") or "",
     }
+    # Prefer the live, de-duplicated bronze-stamp totals for the pipeline cards and
+    # progress %: summing per-batch disk scans inflates transcripts (overlapping
+    # batches) and goes stale for analysis/reports. Only override when the stamps
+    # have data, so a pre-083 DB still shows the batch-summary fallback.
+    transcripts_total = int(recent_events.get("transcripts_total") or 0)
+    analysis_total = int(recent_events.get("analysis_total") or 0)
+    reports_total = int(recent_events.get("reports_total") or 0)
+    if transcripts_total > 0:
+        totals["files_transcripts_disk"] = transcripts_total
+    if analysis_total > 0:
+        totals["files_analysis"] = analysis_total
+    if reports_total > 0:
+        totals["files_reports"] = reports_total
     last_updated = row.get("last_updated")
     totals["last_activity_at"] = (
         last_updated.isoformat() if last_updated is not None else ""

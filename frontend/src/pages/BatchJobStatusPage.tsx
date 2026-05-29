@@ -1150,8 +1150,17 @@ export default function BatchJobStatusPage() {
   // Analyze/report runs don't touch the batch tracker (see "Last batch step"), so
   // these "ago" cards read the most recent policy stamps instead — the real signal
   // that the analyze pipeline is alive, including standalone/parallel runs.
+  const lastTranscriptIso = data?.totals.last_transcript_at?.trim() || null
   const lastAnalysisIso = data?.totals.last_analysis_at?.trim() || null
   const lastReportIso = data?.totals.last_report_at?.trim() || null
+  const lastTranscriptAgo = useMemo(
+    () => (lastTranscriptIso ? formatAgoCompact(lastTranscriptIso, agoClockMs) : null),
+    [lastTranscriptIso, agoClockMs],
+  )
+  const lastTranscriptAbsolute = useMemo(
+    () => (lastTranscriptIso ? formatUpdatedAt(lastTranscriptIso) : null),
+    [lastTranscriptIso],
+  )
   const lastAnalysisAgo = useMemo(
     () => (lastAnalysisIso ? formatAgoCompact(lastAnalysisIso, agoClockMs) : null),
     [lastAnalysisIso, agoClockMs],
@@ -1246,6 +1255,17 @@ export default function BatchJobStatusPage() {
                         data.source === 'database' ? ' · from database' : ''
                       }`
                     : 'Last catalog/captions batch step (NOT the analyze pipeline — see Last analysis/report)'
+                }
+              />
+            ) : null}
+            {lastTranscriptIso && lastTranscriptAgo ? (
+              <SummaryCard
+                label="Last transcript"
+                value={lastTranscriptAgo}
+                title={
+                  lastTranscriptAbsolute?.title
+                    ? `${lastTranscriptAbsolute.title} · most recent transcript downloaded (transcript_download_at)`
+                    : 'Most recent transcript downloaded (transcript_download_at)'
                 }
               />
             ) : null}
@@ -1385,11 +1405,11 @@ export default function BatchJobStatusPage() {
               }
             />
             <SummaryCard
-              label="Transcripts on disk"
+              label="Transcripts"
               value={formatCompactNumber(data.totals.files_transcripts_disk ?? 0)}
               title={
-                metricCountTitle(data.totals.files_transcripts_disk, 'Transcript files') ??
-                'JSON files under 01_transcripts/ in the policy cache (all time, per jurisdiction folder)'
+                metricCountTitle(data.totals.files_transcripts_disk, 'Transcripts') ??
+                'Distinct videos with a downloaded transcript (bronze transcript_download_at, all time) — the denominator for analysis/report progress'
               }
             />
             <SummaryCard
@@ -1409,14 +1429,20 @@ export default function BatchJobStatusPage() {
               }
             />
             <SummaryCard
-              label="Analysis on disk"
+              label="Analyses"
               value={formatCompactNumber(data.totals.files_analysis)}
-              title={metricCountTitle(data.totals.files_analysis, 'Analysis files')}
+              title={
+                metricCountTitle(data.totals.files_analysis, 'Analyses') ??
+                'Videos with an AI analysis (bronze policy_analysis_at, all time, live)'
+              }
             />
             <SummaryCard
-              label="Reports on disk"
+              label="Reports"
               value={formatCompactNumber(data.totals.files_reports)}
-              title={metricCountTitle(data.totals.files_reports, 'Report files')}
+              title={
+                metricCountTitle(data.totals.files_reports, 'Reports') ??
+                'Videos with a generated report (bronze policy_report_at, all time, live)'
+              }
             />
             <SummaryCard
               label="Analysis progress"
@@ -1427,7 +1453,7 @@ export default function BatchJobStatusPage() {
               }
               title={`${formatCompactNumber(data.totals.files_analysis)} of ${formatCompactNumber(
                 data.totals.files_transcripts_disk ?? 0,
-              )} transcripts have an AI analysis on disk`}
+              )} transcripts have an AI analysis (live bronze stamps)`}
             />
             <SummaryCard
               label="Reports progress"
@@ -1438,7 +1464,7 @@ export default function BatchJobStatusPage() {
               }
               title={`${formatCompactNumber(data.totals.files_reports)} of ${formatCompactNumber(
                 data.totals.files_transcripts_disk ?? 0,
-              )} transcripts have a generated report on disk (same denominator as Analysis progress, so the two read as one funnel — not reports÷analyses)`}
+              )} transcripts have a generated report (live bronze stamps; same denominator as Analysis progress, so the two read as one funnel — not reports÷analyses)`}
             />
             <SummaryCard
               label="Analysis (24h)"
