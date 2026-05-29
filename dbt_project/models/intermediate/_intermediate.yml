@@ -439,7 +439,7 @@ models:
       
       **Actual enrichment:**
       This is a documentation model. Actual enrichment is done via SQL script:
-      `scripts/datasources/census/enrich_nonprofits_with_county_fips.sql`
+      `pipeline/census/enrich_nonprofits_with_county_fips.sql`
       
       Used to:
       - Add county_fips column to bronze_organizations_nonprofits
@@ -492,7 +492,7 @@ models:
       Jurisdictions with normalized names and linking metadata.
       Prepares data for matching with external databases and building gold layer.
       
-      Replaces: scripts/datasources/census/link_cities_counties_to_search.py
+      Replaces: pipeline/census/link_cities_counties_to_search.py
     columns:
       - name: id
         description: Primary key

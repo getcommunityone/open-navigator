@@ -7,7 +7,7 @@ models:
       every bronze election-domain record, plus the truncated division_id /
       jurisdiction_id. Reproduces _election_id() (3 branches) and the
       fit/fallback resolution from
-      scripts/datasources/openstates/sync_elections_to_c1.py so that
+      pipeline/openstates/sync_elections_to_c1.py so that
       dim_election_divisions / fct_elections / dim_candidate_contests /
       fct_candidacies / fct_ballot_measures_civic all agree on the same election
       id. Grain: one row per bronze_record_id (unchanged from staging).

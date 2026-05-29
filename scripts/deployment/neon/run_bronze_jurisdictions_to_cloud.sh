@@ -2,7 +2,7 @@
 # Selectively push Census gazetteer + jurisdiction bronze DDL to Postgres (typically Neon).
 # No pg_dump: applies idempotent DDL then runs CSV loaders via resolve_target_database_url.
 #
-# Prereqs: download CSVs →  python scripts/datasources/census/download_census_gazetteer.py
+# Prereqs: download CSVs →  python -m scrapers.census.download_census_gazetteer
 #
 # Usage:
 #   Set NEON_DATABASE_URL_DEV (or NEON_DATABASE_URL / OPEN_NAVIGATOR_DATABASE_URL) in .env, then:
@@ -31,4 +31,4 @@ fi
 
 "${PY}" "${ROOT}/scripts/deployment/neon/ensure_bronze_jurisdictions_cloud.py" --schema-only
 
-exec "${PY}" "${ROOT}/scripts/datasources/census/load_census_gazetteer.py" "$@"
+exec "${PY}" -m ingestion.census.gazetteer "$@"

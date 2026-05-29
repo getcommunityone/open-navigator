@@ -526,7 +526,7 @@ sources:
       - name: bronze_jurisdictions_openstates
         description: |
           Snapshot of Open States ``opencivicdata_jurisdiction``. Loaded via
-          scripts/datasources/openstates/map_openstates_jurisdiction_ids.py (migration 014). Used by
+          pipeline/openstates/map_openstates_jurisdiction_ids.py (migration 014). Used by
           ``int_jurisdictions`` to attach ``open_states_jurisdiction_id``.
         columns:
           - name: id
@@ -1101,7 +1101,7 @@ sources:
           Election-domain rows landed by ingestion.google_civic.officials (and
           other election sources). One physical row per record, discriminated by
           record_type IN ('election', 'candidacy', 'ballot_measure'). The legacy
-          c1 promotion (scripts/datasources/openstates/sync_elections_to_c1.py:
+          c1 promotion (pipeline/openstates/sync_elections_to_c1.py:
           upsert_divisions/elections/candidate_contests/candidacies/ballot_measures)
           is reproduced in dbt: stg_google_civic__election_record ->
           int_google_civic__election_ids -> dim_election_divisions / fct_elections /
@@ -1216,7 +1216,7 @@ sources:
           (FETCH→``data/cache/census/govsstatefin_variables/<YYYYMMDD_HHMMSS>.json``,
           LAND→bronze; every fetch writes a new timestamped snapshot for
           audit), thin shim at
-          ``scripts/datasources/census/download_census_finance_variables.py``.
+          ``scrapers/census/download_census_finance_variables.py``.
         columns:
           - name: dataset
             description: "Census dataset id (e.g. 'govsstatefin'). PK part."

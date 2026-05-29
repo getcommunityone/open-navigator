@@ -7,7 +7,7 @@ models:
   - name: dim_election_divisions
     description: |
       Election divisions (c1_division surface). Reproduces upsert_divisions()
-      from scripts/datasources/openstates/sync_elections_to_c1.py: one row per
+      from pipeline/openstates/sync_elections_to_c1.py: one row per
       division_id (= ocd_jurisdiction_id or jurisdiction_id, truncated to 300),
       classification 'jurisdiction'.
     config:

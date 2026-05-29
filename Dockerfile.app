@@ -25,6 +25,9 @@ WORKDIR /app
 COPY api/ ./api/
 COPY packages/agents/agents/ ./agents/
 COPY packages/core/config/ ./config/
+# scrapers.* is imported by api (scrapers.irs.nonprofit_discovery) and pipeline
+# (scrapers.irs / scrapers.openstates); flatten its src to a top-level package.
+COPY packages/scrapers/src/scrapers/ ./scrapers/
 COPY pipeline/ ./pipeline/
 COPY visualization/ ./visualization/
 COPY databricks/ ./databricks/
