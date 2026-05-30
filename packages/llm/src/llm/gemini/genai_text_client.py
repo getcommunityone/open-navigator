@@ -380,16 +380,19 @@ def resolve_gemini_api_keys(*, env_path: Optional[os.PathLike[str]] = None) -> l
         if not k or k in seen:
             continue
         seen.add(k)
-        # AI Studio keys always start with "AIza". OAuth access tokens ("AQ.…",
-        # "ya29.…") get mistakenly merged in via GEMINI_API_KEYS; passing them as
-        # x-goog-api-key makes Google drop the connection (RemoteProtocolError) and
-        # they expire hourly — so they poison the rotation pool. Drop them here.
-        if not k.startswith("AIza"):
+        # Reject OAuth tokens that get mistakenly merged into the key pool: access
+        # tokens ("AQ.…", "ya29.…") and refresh tokens ("1//…"). Sent as
+        # x-goog-api-key they make Google drop the connection (RemoteProtocolError)
+        # and they expire hourly — so they poison rotation. We deliberately do NOT
+        # require any prefix for real keys: Google API keys are not guaranteed to
+        # start with "AIza", so anything that is not a known OAuth-token format is
+        # kept as-is.
+        if k.startswith(("AQ.", "ya29.", "1//")):
             dropped += 1
             logger.warning(
-                "Ignoring non-AI-Studio Gemini credential in pool (prefix {!r}…) — "
-                "only keys starting with 'AIza' are valid api keys; OAuth tokens are not",
-                k[:4],
+                "Ignoring OAuth-token credential in Gemini key pool (prefix {!r}…) — "
+                "it is not an API key and Google rejects it",
+                k[:5],
             )
             continue
         out.append(k)

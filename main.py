@@ -233,7 +233,7 @@ def discover_jurisdictions(limit: Optional[int], state: Optional[str], jurisdict
     logger.info(f"Starting jurisdiction discovery (limit={limit}, state={state}, type={jurisdiction_type})")
     
     try:
-        from scripts.discovery.discovery_pipeline import DiscoveryPipeline
+        from scripts.discovery.jurisdiction_discovery_pipeline import DiscoveryPipeline
     except ImportError:
         click.echo("❌ Discovery modules not available!")
         return

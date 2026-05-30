@@ -49,7 +49,7 @@ except ModuleNotFoundError as exc:
         raise
     psycopg2 = None  # type: ignore[misc,assignment]
 
-from scripts.discovery.archive.comprehensive_discovery_pipeline import (
+from scrapers.discovery.comprehensive_discovery_pipeline import (
     ComprehensiveDiscoveryPipeline,
 )
 
