@@ -345,10 +345,27 @@ def _write_launches(launches: List[Dict[str, Any]]) -> None:
 
 def _pid_alive(pid: Any) -> bool:
     try:
-        os.kill(int(pid), 0)  # signal 0 = liveness probe
-        return True
-    except (OSError, TypeError, ValueError):
+        p = int(pid)
+    except (TypeError, ValueError):
         return False
+    try:
+        os.kill(p, 0)  # signal 0 = exists (but zombies pass this too)
+    except OSError:
+        return False
+    # A finished-but-unreaped child shows as a zombie ("Z"/"X"); treat it as dead
+    # so a completed launch doesn't pin the dashboard at "running" forever.
+    try:
+        with open(f"/proc/{p}/stat") as fh:
+            state = fh.read().split(") ", 1)[1][:1]
+        if state in ("Z", "X"):
+            try:
+                os.waitpid(p, os.WNOHANG)  # reap if it's our child
+            except (ChildProcessError, OSError):
+                pass
+            return False
+    except (FileNotFoundError, IndexError):
+        pass
+    return True
 
 
 def _dashboard_runtime() -> "tuple[int, str]":
