@@ -57,16 +57,17 @@ _TABLE_COLUMN_FALLBACKS: Dict[str, frozenset] = {
             "last_updated",
         }
     ),
-    "jurisdiction": frozenset(
+    # public.c1_jurisdiction (migration 048): type→classification, state column is
+    # ``state`` (no state_code), varchar PK ``id`` (old int PK is now ``legacy_id``).
+    "c1_jurisdiction": frozenset(
         {
             "id",
+            "legacy_id",
             "name",
-            "type",
-            "state_code",
+            "classification",
             "state",
             "county",
             "geoid",
-            "jurisdiction_id",
         }
     ),
     "contact": frozenset(
@@ -195,7 +196,7 @@ async def _fetch_location_stats_from_jurisdiction(
 
     jurisdiction_query = f"""
         SELECT COUNT(DISTINCT id) AS count
-        FROM jurisdiction
+        FROM c1_jurisdiction
         WHERE ({jur_state_pred}){name_filter}
     """
     jur_result = await conn.fetchrow(jurisdiction_query, *params)
@@ -203,8 +204,8 @@ async def _fetch_location_stats_from_jurisdiction(
 
     school_query = f"""
         SELECT COUNT(*) AS count
-        FROM jurisdiction
-        WHERE type = 'school_district'
+        FROM c1_jurisdiction
+        WHERE classification = 'school_district'
           AND ({jur_state_pred}){name_filter}
     """
     school_result = await conn.fetchrow(school_query, *params)
