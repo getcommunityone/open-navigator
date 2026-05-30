@@ -130,16 +130,16 @@ Upload state-specific datasets to HuggingFace for public access:
 
 ```bash
 # Upload all states
-python scripts/upload_state_splits_to_hf.py --all
+python -m hosting.huggingface state-splits --all
 
 # Upload Alabama only
-python scripts/upload_state_splits_to_hf.py --state AL
+python -m hosting.huggingface state-splits --state AL
 
 # Upload multiple states
-python scripts/upload_state_splits_to_hf.py --states AL AK AZ CA
+python -m hosting.huggingface state-splits --states AL AK AZ CA
 
 # Dry run
-python scripts/upload_state_splits_to_hf.py --all --dry-run
+python -m hosting.huggingface state-splits --all --dry-run
 ```
 
 This creates state-specific repos on HuggingFace:

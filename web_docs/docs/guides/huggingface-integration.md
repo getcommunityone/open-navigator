@@ -51,7 +51,7 @@ pip install huggingface_hub datasets pyarrow
 cd /home/developer/projects/open-navigator
 
 # Upload all 4 nonprofit tables
-python scripts/upload_nonprofits_to_hf.py --all
+python -m hosting.huggingface nonprofits
 
 # Output:
 # ✅ Logged in to Hugging Face
@@ -261,7 +261,7 @@ self.repo_name = repo_name or "YOUR_USERNAME/YOUR_DATASET_NAME"
 
 Then upload:
 ```bash
-python scripts/upload_nonprofits_to_hf.py --all --repo "your-username/nonprofits"
+python -m hosting.huggingface nonprofits --repo "your-username/nonprofits"
 ```
 
 ### Update React Components
@@ -325,7 +325,7 @@ python scripts/create_all_gold_tables.py --nonprofits-only --use-irs --download-
 
 ## 🎉 Next Steps
 
-1. **Upload datasets:** `python scripts/upload_nonprofits_to_hf.py --all`
+1. **Upload datasets:** `python -m hosting.huggingface nonprofits`
 2. **Test API:** Visit https://huggingface.co/datasets/CommunityOne/one-nonprofits
 3. **Update React app:** Use `NonprofitsHF.tsx` example
 4. **Add features:**

@@ -20,7 +20,7 @@ echo ""
 
 # Check 1: Frontend TypeScript type checking
 echo "📝 Check 1/$TOTAL_CHECKS: Frontend TypeScript type checking..."
-cd frontend
+cd web_app
 if npx tsc --noEmit > /tmp/tsc-output.log 2>&1; then
     echo "✅ TypeScript types OK"
     CHECKS_PASSED=$((CHECKS_PASSED + 1))
@@ -36,7 +36,7 @@ echo ""
 
 # Check 2: Frontend build test
 echo "🏗️  Check 2/$TOTAL_CHECKS: Frontend build test..."
-cd frontend
+cd web_app
 if npm run build > /tmp/frontend-build.log 2>&1; then
     echo "✅ Frontend builds successfully"
     CHECKS_PASSED=$((CHECKS_PASSED + 1))
@@ -52,7 +52,7 @@ echo ""
 
 # Check 3: Documentation build test
 echo "📚 Check 3/$TOTAL_CHECKS: Documentation build test..."
-cd website
+cd web_docs
 if npm run build > /tmp/docs-build.log 2>&1; then
     echo "✅ Documentation builds successfully"
     CHECKS_PASSED=$((CHECKS_PASSED + 1))

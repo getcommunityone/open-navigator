@@ -105,7 +105,7 @@ Filters out false positives:
 ### 📅 Next Steps
 1. Wait for extraction to complete (~60 min)
 2. Verify results with `python scripts/manage_contacts.py stats`
-3. Upload to HuggingFace: `python scripts/upload_meetings_to_hf.py --contacts`
+3. Upload to HuggingFace: `python -m hosting.huggingface contacts`
 
 ## 📁 **Files Created**
 
@@ -270,7 +270,7 @@ contacts = pd.read_parquet('data/gold/contacts_local_officials.parquet')
 
 ```bash
 # Upload contacts tables to HuggingFace
-python scripts/upload_meetings_to_hf.py --contacts
+python -m hosting.huggingface contacts
 
 # Creates:
 # - CommunityOne/one-contacts-local-officials

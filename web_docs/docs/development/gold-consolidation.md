@@ -128,16 +128,16 @@ python scripts/data/rebuild_consolidated_gold.py --dry-run
 ### Upload to HuggingFace
 ```bash
 # Upload all consolidated files
-python scripts/huggingface/upload_consolidated_gold.py
+python -m hosting.huggingface gold
 
 # Upload specific file
-python scripts/huggingface/upload_consolidated_gold.py --file bills_bills.parquet
+python -m hosting.huggingface gold --file bills_bills.parquet
 
 # Test with row limit
-python scripts/huggingface/upload_consolidated_gold.py --max-rows 1000
+python -m hosting.huggingface gold --max-rows 1000
 
 # Skip large files
-python scripts/huggingface/upload_consolidated_gold.py --skip-large
+python -m hosting.huggingface gold --skip-large
 ```
 
 ## Querying Consolidated Data
