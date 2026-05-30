@@ -154,36 +154,49 @@ def genai_quota_retry_delay_seconds(exc: BaseException, attempt: int) -> float:
 
 
 def call_with_genai_quota_retry(fn: Callable[[], T], *, label: str = "Gemini") -> T:
-    max_retries = max(1, int(os.environ.get("GOVERNANCE_GENAI_QUOTA_RETRIES", "5")))
+    # Transient network disconnects (RemoteProtocolError etc.) get a larger budget
+    # than quota errors: they're cheap to retry and a flaky window usually clears
+    # within a minute, whereas quota waits are long. Tracked with separate counters.
+    quota_retries = max(1, int(os.environ.get("GOVERNANCE_GENAI_QUOTA_RETRIES", "5")))
+    net_retries = max(1, int(os.environ.get("GOVERNANCE_GENAI_NETWORK_RETRIES", "12")))
     buffer = float(os.environ.get("GOVERNANCE_GENAI_QUOTA_RETRY_BUFFER_SECONDS", "1.0"))
-    last_exc: BaseException | None = None
-    for attempt in range(max_retries):
+    quota_used = 0
+    net_used = 0
+    while True:
         try:
             return fn()
         except Exception as exc:
-            last_exc = exc
             if not is_genai_retryable(exc):
                 logger.error("{}: non-retryable API failure — {}", label, describe_genai_error(exc))
                 raise
-            if attempt >= max_retries - 1:
+            transient = is_genai_transient_network_error(exc)
+            if transient:
+                net_used += 1
+                used, limit = net_used, net_retries
+            else:
+                quota_used += 1
+                used, limit = quota_used, quota_retries
+            if used >= limit:
+                kind = "network disconnect" if transient else "quota/server"
                 logger.error(
-                    "{}: gave up after {} attempt(s) — {}",
+                    "{}: gave up after {} {} attempt(s) — {}",
                     label,
-                    max_retries,
+                    limit,
+                    kind,
                     describe_genai_error(exc),
                 )
                 raise RuntimeError(
-                    f"{label}: failed after {max_retries} attempt(s) ({classify_genai_error(exc)}). "
+                    f"{label}: failed after {limit} attempt(s) ({classify_genai_error(exc)}). "
                     f"{describe_genai_error(exc)}"
                 ) from exc
-            delay = genai_quota_retry_delay_seconds(exc, attempt) + buffer
+            delay = genai_quota_retry_delay_seconds(exc, used) + buffer
             logger.warning(
                 "{}: {} — sleeping {:.0f}s, retry {}/{} ({})",
                 label,
                 classify_genai_error(exc),
                 delay,
-                attempt + 2,
-                max_retries,
+                used + 1,
+                limit,
                 describe_genai_error(exc, max_len=160),
             )
             time.sleep(delay)
