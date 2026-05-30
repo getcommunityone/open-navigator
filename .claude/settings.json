@@ -6,7 +6,21 @@
       "Bash(dbt test *)",
       "Bash(dbt compile *)",
       "Bash(dbt ls *)",
-      "Bash(pg_isready *)"
+      "Bash(pg_isready *)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git show*)",
+      "Bash(git branch*)",
+      "Bash(git ls-files*)",
+      "Bash(ls*)",
+      "Bash(rg*)",
+      "Bash(find*)",
+      "Bash(uv run pytest*)",
+      "Bash(uv run ruff*)",
+      "Bash(pytest*)",
+      "Bash(ruff*)",
+      "Bash(uv sync*)"
     ]
   }
 }
