@@ -1641,10 +1641,17 @@ export default function CensusDrilldownMapPage() {
               }
               const inflationFootnote = footnoteBits.join(' · ')
 
+              // ACS place/county NAMEs already include the state (e.g. "Marbury CDP,
+              // Alabama"), so only append the state suffix when the name doesn't
+              // already end with it — otherwise we render "…, Alabama, Alabama".
+              const showingName = typeof showing?.name === 'string' ? showing.name.trim() : ''
+              const nameAlreadyHasState =
+                !!stateName && showingName.toLowerCase().endsWith(`, ${stateName.trim().toLowerCase()}`)
               const showNameSuffix =
                 !!showing &&
                 (showing.kind === 'county' || showing.kind === 'zip' || showing.kind === 'place') &&
-                !!stateName
+                !!stateName &&
+                !nameAlreadyHasState
               const clearPin = () => {
                 if (pinnedPlace) setPinnedPlace(null)
                 else setPinnedCounty(null)
