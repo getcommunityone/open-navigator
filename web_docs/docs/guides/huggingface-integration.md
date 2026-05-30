@@ -8,7 +8,7 @@ sidebar_position: 9
 
 You now have **3 new files** to push your 1.9M+ nonprofit datasets to HuggingFace and query them from React:
 
-1. **`scripts/upload_nonprofits_to_hf.py`** - Upload script
+1. **`packages/hosting` (`python -m hosting.huggingface nonprofits`)** - Upload tooling
 2. **`frontend/src/utils/huggingface.ts`** - TypeScript API client
 3. **`frontend/src/pages/NonprofitsHF.tsx`** - Example React page
 4. **`website/docs/guides/huggingface-datasets.md`** - Complete documentation

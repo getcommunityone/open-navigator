@@ -81,29 +81,21 @@ python scripts/upload_to_huggingface.py \
 # https://huggingface.co/datasets/YOUR_USERNAME/oral-health-policy-data
 ```
 
-**For meeting PDFs (extract text first!):**
+**For tabular meeting/gold data:**
 
 ```bash
-# DON'T upload individual PDFs!
-# Instead, extract text and save as Parquet
+# DON'T upload individual PDFs! Extract text into a parquet/CSV first,
+# then publish the single tabular file. The hosting CLI publishes parquet
+# files from data/gold/ (one HuggingFace dataset per file):
+python -m hosting.huggingface gold --file meetings_calendar.parquet
 
-# 1. Create a file with PDF URLs (one per line)
-cat > pdf_urls.txt << EOF
-https://tuscaloosaal.suiteonemedia.com/agenda1.pdf
-https://tuscaloosaal.suiteonemedia.com/agenda2.pdf
-...
-EOF
-
-# 2. Process PDFs to Parquet (extracts text, deletes PDFs)
-python scripts/upload_to_huggingface.py \
-    --repo "YOUR_USERNAME/oral-health-policy-data" \
-    --process-pdfs pdf_urls.txt
-
-# 3. Upload the Parquet file (1 file, not thousands!)
-python scripts/upload_to_huggingface.py \
-    --repo "YOUR_USERNAME/oral-health-policy-data" \
-    --meetings meetings_processed.parquet
+# Or publish the standard meeting gold tables in one go:
+python -m hosting.huggingface meetings
 ```
+
+> The legacy `--process-pdfs` PDF-text-extraction helper was an oral-health
+> one-off and is not part of `hosting.huggingface`; extract PDF text in your
+> ingestion pipeline and land a parquet file before publishing.
 
 ---
 
