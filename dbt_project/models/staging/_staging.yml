@@ -1552,10 +1552,10 @@ models:
           - accepted_values:
               values: ['ok', 'recovered', 'missing', 'invalid']
       - name: invalid_reason
-        description: "ui_label | role_only | markup_or_file | sentence (only when name_quality='invalid')."
+        description: "non_latin | markup_or_file | has_digits | org_or_place | ui_label | role_only | not_capitalized | sentence (only when name_quality='invalid')."
         tests:
           - accepted_values:
-              values: ['ui_label', 'role_only', 'markup_or_file', 'sentence']
+              values: ['non_latin', 'markup_or_file', 'has_digits', 'org_or_place', 'ui_label', 'role_only', 'not_capitalized', 'sentence']
       - name: is_usable_person
         description: "TRUE when name_quality IN ('ok','recovered')."
         tests:

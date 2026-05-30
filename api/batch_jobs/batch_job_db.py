@@ -249,10 +249,29 @@ PIPELINE_STAGES = ("discover", "videos", "transcripts", "analyses", "reports")
 def _stage_timing(conn: Any) -> Dict[str, Any]:
     """Per-stage cadence: median seconds between recent completions (~throughput
     per file) and the most recent output file path. Column names are fixed (not
-    user input), so the f-string is safe. Empty on pre-083 DBs."""
+    user input), so the f-string is safe. Empty on pre-083 DBs.
+
+    ``avg_seconds`` is the median gap between *completed* rows, so it freezes
+    during a stall — no new row means no new gap, and gaps >= 1h are filtered
+    out anyway. To keep ``/hr`` and ETA honest, we also return:
+
+    - ``stale_seconds``: the open trailing gap (``now() - last_at``), i.e. how
+      long we have already been waiting for the next completion.
+    - ``effective_seconds``: ``max(avg_seconds, stale_seconds)`` — once the next
+      file is overdue, the best estimate of the current per-file pace is at
+      least how long we have waited. It degrades while stalled and snaps back to
+      ``avg_seconds`` the moment a file lands. Consumers showing a live rate for
+      an idle (not-running) stage should ignore ``stale_seconds``.
+    """
 
     def _one(ts_col: str, path_col: str) -> Dict[str, Any]:
-        out = {"avg_seconds": None, "last_path": "", "last_at": ""}
+        out: Dict[str, Any] = {
+            "avg_seconds": None,
+            "last_path": "",
+            "last_at": "",
+            "stale_seconds": None,
+            "effective_seconds": None,
+        }
         try:
             with conn.cursor() as cur:
                 cur.execute(
@@ -266,12 +285,16 @@ def _stage_timing(conn: Any) -> Dict[str, Any]:
                     gaps AS (
                         SELECT EXTRACT(EPOCH FROM (ts - LAG(ts) OVER (ORDER BY ts))) AS gap
                         FROM recent
+                    ),
+                    latest AS (
+                        SELECT ts, path FROM recent ORDER BY ts DESC LIMIT 1
                     )
                     SELECT
                         (SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY gap)
                            FROM gaps WHERE gap > 0 AND gap < 3600) AS med_gap,
-                        (SELECT path FROM recent ORDER BY ts DESC LIMIT 1) AS last_path,
-                        (SELECT ts FROM recent ORDER BY ts DESC LIMIT 1) AS last_at
+                        (SELECT path FROM latest) AS last_path,
+                        (SELECT ts FROM latest) AS last_at,
+                        EXTRACT(EPOCH FROM (now() - (SELECT ts FROM latest))) AS stale_seconds
                     """
                 )
                 row = cur.fetchone()
@@ -279,6 +302,15 @@ def _stage_timing(conn: Any) -> Dict[str, Any]:
                 out["avg_seconds"] = round(float(row[0]), 1) if row[0] is not None else None
                 out["last_path"] = str(row[1] or "")
                 out["last_at"] = row[2].isoformat() if row[2] is not None else ""
+                out["stale_seconds"] = (
+                    round(float(row[3]), 1) if row[3] is not None else None
+                )
+                avg = out["avg_seconds"]
+                stale = out["stale_seconds"]
+                if avg is not None:
+                    out["effective_seconds"] = (
+                        round(max(avg, stale), 1) if stale is not None else avg
+                    )
         except Exception:
             conn.rollback()
         return out

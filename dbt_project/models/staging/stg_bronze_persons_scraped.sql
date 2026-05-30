@@ -20,10 +20,14 @@ name_quality:
   - invalid   : not a person (see invalid_reason)
 
 invalid_reason (only when name_quality = 'invalid'):
-  - ui_label       : page chrome ("Email", "Contact Us", "Staff Directory", ...)
-  - role_only      : a bare role with no person ("Mayor", "Commissioner", ...)
-  - markup_or_file : HTML/markup, a URL/path, or an image/file name
-  - sentence       : a paragraph / blurb (too long or too many words)
+  - non_latin       : non-Latin script (Thai/CJK/Cyrillic/Arabic/...) — translate-widget or spam
+  - markup_or_file  : HTML/markup, a URL/path, or an image/file name
+  - has_digits      : contains a digit or underscore (usernames, dated headings)
+  - org_or_place    : an org / place / building, not a person ("City of Rockmart", "City Hall")
+  - ui_label        : page chrome / CTA / nav / language switcher ("Get In Touch", "Bill Pay", "German")
+  - role_only       : a bare role with no person ("Mayor", "City Clerk", ...)
+  - not_capitalized : all-lowercase Latin text — template/markup debris ("end news-entries")
+  - sentence        : a paragraph / blurb (too long or too many words)
 
 Source: bronze_persons_scraped (open_navigator.bronze schema)
 */
@@ -45,7 +49,18 @@ cleaned AS (
                 )
             ),
             ''
-        ) AS name_destripped
+        ) AS name_destripped,
+        -- Normalized probe for anchored label/role matching: strip leading and
+        -- trailing non-alphanumerics (zero-width spaces, "+ ", "​", "- ", ":")
+        -- and collapse internal whitespace, so chrome like "+ READ MORE" or
+        -- "​ Mayor" still matches the ^anchored patterns below. Latin only —
+        -- non-Latin scripts are caught earlier and left untouched here.
+        BTRIM(
+            REGEXP_REPLACE(
+                REGEXP_REPLACE(name, '^[^[:alnum:]]+|[^[:alnum:]]+$', '', 'g'),
+                '\s+', ' ', 'g'
+            )
+        ) AS name_probe
     FROM source
 ),
 
@@ -54,17 +69,55 @@ classified AS (
         *,
         CASE
             WHEN name IS NULL OR BTRIM(name) = '' THEN 'missing'
-            -- HTML / markup / URL-path / image or document file name
+
+            -- Non-Latin script (Thai, CJK, Japanese kana, Hangul, Cyrillic,
+            -- Arabic, Hebrew). In a US municipal dataset these are translate-
+            -- widget text or spam, never an officer's name.
+            WHEN name ~ '[ก-๿一-鿿぀-ヿ가-힣Ѐ-ӿ؀-ۿ֐-׿]' THEN 'invalid_non_latin'
+
+            -- HTML / markup / URL-path / image or document file name, logo
+            -- alt-text ("AKML Logo white"), or bare image/layout debris
+            -- ("Image", "Header Triangle") — these only ever name an asset.
             WHEN name ~ '[<>{}|/\\@]'
-                 OR name ~* '\.(png|jpe?g|gif|webp|svg|pdf)\s*$' THEN 'invalid_markup_or_file'
-            -- Page chrome / call-to-action labels
-            WHEN name ~* '^(e-?mail|contact|staff directory|directory|menu|home|search|read more|learn more|click here|view profile|for immediate release|covid)\M'
-                 OR name ~* '(contact us|contact info|contact information|contact me|contact by email|email us|email the webmaster|email webmaster|our office|mayor''s office|staff directory)' THEN 'invalid_ui_label'
-            -- A bare role title with no personal name
-            WHEN name ~* '^(mayor|commissioner|council ?member|councilman|councilwoman|councilor|councillor|alderman|alderwoman|clerk|treasurer|board of [a-z]+|department of [a-z]+|chair(man|woman|person)?|director|trustee|supervisor|sheriff|assessor)\s*$' THEN 'invalid_role_only'
+                 OR name ~* '\.(png|jpe?g|gif|webp|svg|pdf)\s*$'
+                 OR name ~* '\m(logo|header|footer|banner|thumbnail|placeholder|icon)\M'
+                 OR name_probe ~* '^image$' THEN 'invalid_markup_or_file'
+
+            -- Contains a digit or underscore: usernames ("admin_CoNS2025"),
+            -- dated announcements ("Meeting Time Change 05-Mar-2025"). Real
+            -- personal names carry no Arabic numerals or underscores.
+            WHEN name ~ '[0-9_]' THEN 'invalid_has_digits'
+
+            -- Org / place / building / governing body, not a person
+            -- ("City of Rockmart", "The City of Weaver Alabama", "City Hall",
+            -- "City Council", "PVPC Team", "Village Improvement Fund").
+            WHEN name_probe ~* '^(the\s+)?(city|town|village|borough|township|county|municipality|district)\s+(of|hall)\M'
+                 OR name_probe ~* '\m(city|town|village|county|municipal|board)\s+(hall|council|commission|administration|government|building|board|department|office)\M'
+                 OR name_probe ~* '\m(community center|public library|police department|fire department)\M'
+                 OR name_probe ~* '\m(team|fund|authority|association|foundation|chamber|committee|coalition|partnership|corporation)$' THEN 'invalid_org_or_place'
+
+            -- Page chrome / call-to-action / nav labels / language switcher.
+            -- Matched against name_probe so leading symbols ("+ READ MORE",
+            -- "​ Mayor", "Click to ...") don't defeat the ^anchor.
+            WHEN name_probe ~* '^(e-?mail|contact|create email|staff directory|directory|departments?|divisions?|visitors?|residents?|business(es)?|government|services|resources|menu|home|search|read more|learn more|click|view profile|for immediate release|covid|log ?in|log ?out|sign ?up|sign ?in|register|subscribe|newsletter|translate|select language|skip to|back to top|share this|print|sitemap|accessibility|privacy policy|terms of use|faqs?|how do i|notify me|quick links|helpful links|related links|online services|open records?|records? request|pay ?(online|bill|your bill)?|bill pay|state of the city|stay informed|stay connected|stay up to date|get in touch|get involved|follow us|view all|see all|more info|read on|in this section|news|announcements?|events?|calendar|agendas?)\M'
+                 OR name_probe ~* '\m(contact us|contact info|contact information|contact me|contact by email|email us|email the webmaster|email webmaster|our office|mayor''s office|staff directory|news[- ]entries?)\M'
+                 OR name_probe ~* '^(facebook|twitter|instagram|youtube|linkedin|nextdoor|pinterest|flickr|vimeo|tiktok|social media)$'
+                 OR name_probe ~* '^(english|spanish|german|french|chinese|simplified chinese|traditional chinese|vietnamese|korean|japanese|tagalog|russian|arabic|portuguese|italian|polish|hindi|haitian creole|hmong|somali|ukrainian|farsi|persian)$' THEN 'invalid_ui_label'
+
+            -- A bare role / title with no personal name, with optional rank or
+            -- jurisdiction prefix and an optional trailing qualifier
+            -- ("Mayor", "City Clerk", "Executive Assistant", "Council Member -
+            -- President", "Mayor Pro Tem").
+            WHEN name_probe ~* '^((deputy|assistant|asst\.?|interim|acting|chief|senior|sr\.?|jr\.?|executive|finance|public works|city|town|county|village|borough|township|vice|first|second)\s+)*(mayor|vice[ -]?mayor|commissioner|council ?member|councilman|councilwoman|councilor|councillor|alderman|alderwoman|alderperson|clerk|treasurer|manager|administrator|attorney|prosecutor|engineer|planner|coordinator|secretary|recorder|auditor|assessor|marshal|sheriff|supervisor|superintendent|trustee|director|chair(man|woman|person)?|president|assistant|board of [a-z ]+|department of [a-z ]+|office of [a-z ]+)(\s*[-,]?\s*(pro[ -]?tem|president|vice[ -]?president|chair(man|woman|person)?|secretary|treasurer|elect))?\s*$' THEN 'invalid_role_only'
+
+            -- All-lowercase Latin text — scraped names are Title/UPPER case, so
+            -- bare lowercase is template/markup debris ("end news-entries").
+            WHEN name ~ '[a-z]' AND name !~ '[A-Z]' THEN 'invalid_not_capitalized'
+
             -- A sentence / blurb rather than a name
             WHEN LENGTH(name) > 60
                  OR ARRAY_LENGTH(REGEXP_SPLIT_TO_ARRAY(BTRIM(name), '\s+'), 1) > 8 THEN 'invalid_sentence'
+
             -- A prefix was stripped and a plausible name remained
             WHEN name_destripped IS DISTINCT FROM name AND name_destripped ~ '\S' THEN 'recovered'
             ELSE 'ok'

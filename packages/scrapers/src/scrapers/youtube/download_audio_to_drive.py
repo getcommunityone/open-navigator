@@ -206,9 +206,6 @@ def _yt_dlp_youtube_ejs_opts() -> Dict[str, Any]:
     }
 
 
-# Load environment variables
-load_dotenv()
-
 # Title heuristics: government proceedings (not exhaustive; tune as you see false positives/negatives).
 _MEETING_TITLE_SQL = dedent(
     """
@@ -1397,6 +1394,9 @@ def _explicit_database_url_on_cli(argv: List[str]) -> bool:
 
 def main():
     """Main entry point."""
+    # Load .env here (CLI entrypoint) rather than at import time: importing this
+    # module as a library must not mutate os.environ for unrelated callers/tests.
+    load_dotenv()
     parser = argparse.ArgumentParser(
         description="Download YouTube audio from bronze_events_youtube to Google Drive"
     )

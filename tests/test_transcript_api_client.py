@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from scrapers.youtube.transcript_api_client import (
     _fetched_to_payload,
     build_proxy_config,
@@ -19,6 +21,35 @@ from scrapers.youtube.transcript_api_client import (
     resolve_ytdlp_proxy_url,
     webshare_enabled,
 )
+
+# Env vars transcript_api_client reads for proxy/caption routing. Importing the
+# scrapers/llm packages triggers a module-level load_dotenv() (download_audio_to_drive),
+# which pulls the developer's real .env into os.environ. The proxy tests below use
+# patch.dict(..., clear=False) and assert *default* behavior, so any leaked value
+# (e.g. YOUTUBE_YTDLP_USE_WEBSHARE=0, WEBSHARE_RETRIES_WHEN_BLOCKED=2) flips them.
+# Clear them before every test so each test controls exactly the env it sets.
+_PROXY_ENV_VARS = (
+    "PROXY_FILTER_IP_LOCATIONS",
+    "PROXY_PASSWORD",
+    "PROXY_USER_NAME",
+    "WEBSHARE_FILTER_IP_LOCATIONS",
+    "WEBSHARE_PROXY_PASSWORD",
+    "WEBSHARE_PROXY_USERNAME",
+    "WEBSHARE_RETRIES_WHEN_BLOCKED",
+    "YOUTUBE_COOKIES",
+    "YOUTUBE_COOKIES_FILE",
+    "YOUTUBE_HTTPS_PROXY",
+    "YOUTUBE_HTTP_PROXY",
+    "YOUTUBE_TRANSCRIPT_PROXY",
+    "YOUTUBE_USE_WEBSHARE",
+    "YOUTUBE_YTDLP_USE_WEBSHARE",
+)
+
+
+@pytest.fixture(autouse=True)
+def _clear_proxy_env(monkeypatch: pytest.MonkeyPatch):
+    for name in _PROXY_ENV_VARS:
+        monkeypatch.delenv(name, raising=False)
 
 
 def test_fetched_to_payload_builds_segments():
