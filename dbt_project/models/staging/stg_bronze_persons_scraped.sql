@@ -75,9 +75,13 @@ classified AS (
             -- widget text or spam, never an officer's name.
             WHEN name ~ '[ก-๿一-鿿぀-ヿ가-힣Ѐ-ӿ؀-ۿ֐-׿]' THEN 'invalid_non_latin'
 
-            -- HTML / markup / URL-path / image or document file name
+            -- HTML / markup / URL-path / image or document file name, logo
+            -- alt-text ("AKML Logo white"), or bare image/layout debris
+            -- ("Image", "Header Triangle") — these only ever name an asset.
             WHEN name ~ '[<>{}|/\\@]'
-                 OR name ~* '\.(png|jpe?g|gif|webp|svg|pdf)\s*$' THEN 'invalid_markup_or_file'
+                 OR name ~* '\.(png|jpe?g|gif|webp|svg|pdf)\s*$'
+                 OR name ~* '\m(logo|header|footer|banner|thumbnail|placeholder|icon)\M'
+                 OR name_probe ~* '^image$' THEN 'invalid_markup_or_file'
 
             -- Contains a digit or underscore: usernames ("admin_CoNS2025"),
             -- dated announcements ("Meeting Time Change 05-Mar-2025"). Real
@@ -85,19 +89,26 @@ classified AS (
             WHEN name ~ '[0-9_]' THEN 'invalid_has_digits'
 
             -- Org / place / building / governing body, not a person
-            -- ("City of Rockmart", "City Hall", "City Council", "City Administration").
-            WHEN BTRIM(name) ~* '^(city|town|village|borough|township|county|municipality|district)\s+(of|hall)\M'
-                 OR BTRIM(name) ~* '\m(city|town|village|county|municipal|board)\s+(hall|council|commission|administration|government|building|board|department|office)\M'
-                 OR BTRIM(name) ~* '\m(community center|public library|police department|fire department)\M' THEN 'invalid_org_or_place'
+            -- ("City of Rockmart", "The City of Weaver Alabama", "City Hall",
+            -- "City Council", "PVPC Team", "Village Improvement Fund").
+            WHEN name_probe ~* '^(the\s+)?(city|town|village|borough|township|county|municipality|district)\s+(of|hall)\M'
+                 OR name_probe ~* '\m(city|town|village|county|municipal|board)\s+(hall|council|commission|administration|government|building|board|department|office)\M'
+                 OR name_probe ~* '\m(community center|public library|police department|fire department)\M'
+                 OR name_probe ~* '\m(team|fund|authority|association|foundation|chamber|committee|coalition|partnership|corporation)$' THEN 'invalid_org_or_place'
 
-            -- Page chrome / call-to-action / nav labels / language switcher
-            WHEN BTRIM(name) ~* '^(e-?mail|contact|staff directory|directory|menu|home|search|read more|learn more|click here|view profile|for immediate release|covid|log ?in|log ?out|sign ?up|sign ?in|register|subscribe|newsletter|translate|select language|skip to|back to top|share this|print|sitemap|accessibility|privacy policy|terms of use|faqs?|how do i|notify me|quick links|helpful links|related links|online services|pay ?(online|bill|your bill)?|bill pay|state of the city|stay informed|stay connected|stay up to date|get in touch|get involved|follow us|view all|see all|more info|read on|in this section|news|announcements?|events?|calendar|agendas?)\M'
-                 OR BTRIM(name) ~* '\m(contact us|contact info|contact information|contact me|contact by email|email us|email the webmaster|email webmaster|our office|mayor''s office|staff directory|news[- ]entries?)\M'
-                 OR BTRIM(name) ~* '^(english|spanish|german|french|chinese|simplified chinese|traditional chinese|vietnamese|korean|japanese|tagalog|russian|arabic|portuguese|italian|polish|hindi|haitian creole|hmong|somali|ukrainian|farsi|persian)$' THEN 'invalid_ui_label'
+            -- Page chrome / call-to-action / nav labels / language switcher.
+            -- Matched against name_probe so leading symbols ("+ READ MORE",
+            -- "​ Mayor", "Click to ...") don't defeat the ^anchor.
+            WHEN name_probe ~* '^(e-?mail|contact|create email|staff directory|directory|departments?|divisions?|visitors?|residents?|business(es)?|government|services|resources|menu|home|search|read more|learn more|click|view profile|for immediate release|covid|log ?in|log ?out|sign ?up|sign ?in|register|subscribe|newsletter|translate|select language|skip to|back to top|share this|print|sitemap|accessibility|privacy policy|terms of use|faqs?|how do i|notify me|quick links|helpful links|related links|online services|open records?|records? request|pay ?(online|bill|your bill)?|bill pay|state of the city|stay informed|stay connected|stay up to date|get in touch|get involved|follow us|view all|see all|more info|read on|in this section|news|announcements?|events?|calendar|agendas?)\M'
+                 OR name_probe ~* '\m(contact us|contact info|contact information|contact me|contact by email|email us|email the webmaster|email webmaster|our office|mayor''s office|staff directory|news[- ]entries?)\M'
+                 OR name_probe ~* '^(facebook|twitter|instagram|youtube|linkedin|nextdoor|pinterest|flickr|vimeo|tiktok|social media)$'
+                 OR name_probe ~* '^(english|spanish|german|french|chinese|simplified chinese|traditional chinese|vietnamese|korean|japanese|tagalog|russian|arabic|portuguese|italian|polish|hindi|haitian creole|hmong|somali|ukrainian|farsi|persian)$' THEN 'invalid_ui_label'
 
             -- A bare role / title with no personal name, with optional rank or
-            -- jurisdiction prefix ("Mayor", "City Clerk", "Deputy Treasurer").
-            WHEN BTRIM(name) ~* '^((deputy|assistant|asst\.?|interim|acting|chief|senior|sr\.?|jr\.?|city|town|county|village|borough|township|vice|first|second)\s+)*(mayor|vice[ -]?mayor|commissioner|council ?member|councilman|councilwoman|councilor|councillor|alderman|alderwoman|alderperson|clerk|treasurer|manager|administrator|attorney|prosecutor|engineer|planner|coordinator|secretary|recorder|auditor|assessor|marshal|sheriff|supervisor|superintendent|trustee|director|chair(man|woman|person)?|president|board of [a-z ]+|department of [a-z ]+|office of [a-z ]+)\s*$' THEN 'invalid_role_only'
+            -- jurisdiction prefix and an optional trailing qualifier
+            -- ("Mayor", "City Clerk", "Executive Assistant", "Council Member -
+            -- President", "Mayor Pro Tem").
+            WHEN name_probe ~* '^((deputy|assistant|asst\.?|interim|acting|chief|senior|sr\.?|jr\.?|executive|finance|public works|city|town|county|village|borough|township|vice|first|second)\s+)*(mayor|vice[ -]?mayor|commissioner|council ?member|councilman|councilwoman|councilor|councillor|alderman|alderwoman|alderperson|clerk|treasurer|manager|administrator|attorney|prosecutor|engineer|planner|coordinator|secretary|recorder|auditor|assessor|marshal|sheriff|supervisor|superintendent|trustee|director|chair(man|woman|person)?|president|assistant|board of [a-z ]+|department of [a-z ]+|office of [a-z ]+)(\s*[-,]?\s*(pro[ -]?tem|president|vice[ -]?president|chair(man|woman|person)?|secretary|treasurer|elect))?\s*$' THEN 'invalid_role_only'
 
             -- All-lowercase Latin text — scraped names are Title/UPPER case, so
             -- bare lowercase is template/markup debris ("end news-entries").
