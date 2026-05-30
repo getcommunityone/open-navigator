@@ -6,21 +6,21 @@ Runs the AI enrichment pipeline in sequence: analyze meeting transcripts with
 Gemini, then merge bronze AI extractions to production tables.
 
 Steps (run in order):
-  1. analyze  — Meeting Transcripts (Gemini AI)  → scripts/datasources/gemini/load_meeting_transcripts.py
-  2. merge    — Bronze → Production              → scripts/datasources/gemini/merge_bronze_to_production.py
+  1. analyze  — Meeting Transcripts (Gemini AI)  → llm/enrichment/load_meeting_transcripts.py
+  2. merge    — Bronze → Production              → llm/enrichment/merge_bronze_to_production.py
 
 MOA synthesis (moa_synthesize.py) is per-event and must be run separately:
-  .venv/bin/python scripts/datasources/gemini/moa_synthesize.py --event-id <id> --aggregator claude-opus
+  .venv/bin/python -m llm.enrichment.moa_synthesize --event-id <id> --aggregator claude-opus
 
 Usage:
-    python scripts/enrich_ai.py                          # all steps, priority states
-    python scripts/enrich_ai.py --states MA,WI,GA        # specific states
-    python scripts/enrich_ai.py --all-states             # every state with known channels
-    python scripts/enrich_ai.py --only analyze           # analysis only, skip merge
-    python scripts/enrich_ai.py --skip merge             # skip merge
-    python scripts/enrich_ai.py --dry-run                # no API calls or DB writes
-    python scripts/enrich_ai.py --force                  # re-analyze already-processed meetings
-    python scripts/enrich_ai.py --model gemini-2.5-flash --meetings-per-channel 10
+    python -m llm.enrichment.load_enriched_events_ai                          # all steps, priority states
+    python -m llm.enrichment.load_enriched_events_ai --states MA,WI,GA        # specific states
+    python -m llm.enrichment.load_enriched_events_ai --all-states             # every state with known channels
+    python -m llm.enrichment.load_enriched_events_ai --only analyze           # analysis only, skip merge
+    python -m llm.enrichment.load_enriched_events_ai --skip merge             # skip merge
+    python -m llm.enrichment.load_enriched_events_ai --dry-run                # no API calls or DB writes
+    python -m llm.enrichment.load_enriched_events_ai --force                  # re-analyze already-processed meetings
+    python -m llm.enrichment.load_enriched_events_ai --model gemini-2.5-flash --meetings-per-channel 10
 """
 import sys
 import os
@@ -34,11 +34,11 @@ from pathlib import Path
 import psycopg2
 from loguru import logger
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parents[5]))
 from scripts.utils.log_sync import sync_logs, MACHINE_ID
 
 
-PROJECT_ROOT = Path(__file__).parent.parent
+PROJECT_ROOT = Path(__file__).parents[5]
 LOG_ROOT = PROJECT_ROOT / "logs" / "enrich_ai"
 
 _PG_PASSWORD = os.getenv("POSTGRES_PASSWORD", "password")
@@ -48,14 +48,14 @@ STEPS = [
     {
         "key": "analyze",
         "label": "Meeting Transcripts (Gemini AI)",
-        "script": "scripts/datasources/gemini/load_meeting_transcripts.py",
+        "module": "llm.enrichment.load_meeting_transcripts",
         "supports_dry_run": True,
         "tables": ["bronze.bronze_events_analysis_ai"],
     },
     {
         "key": "merge",
         "label": "Bronze → Production Merge",
-        "script": "scripts/datasources/gemini/merge_bronze_to_production.py",
+        "module": "llm.enrichment.merge_bronze_to_production",
         "supports_dry_run": True,
         # Production tables live in Neon (separate DB); count bronze side as proxy
         "tables": ["bronze.bronze_events_analysis_ai"],
@@ -115,7 +115,7 @@ def run_step(step: dict, extra_args: list[str], dry_run: bool, log_dir: Path) ->
     tables = step.get("tables", [])
     before = count_rows(tables)
 
-    cmd = [sys.executable, step["script"]]
+    cmd = [sys.executable, "-m", step["module"]]
     cmd.extend(extra_args)
     if dry_run and step["supports_dry_run"]:
         cmd.append("--dry-run")
@@ -228,7 +228,7 @@ def print_summary(results: list[dict], started_at: datetime, log_dir: Path) -> N
     if not any(r.get("skipped") for r in results if r["key"] == "merge"):
         logger.info("")
         logger.info("  Next step for per-event synthesis:")
-        logger.info("  .venv/bin/python scripts/datasources/gemini/moa_synthesize.py \\")
+        logger.info("  .venv/bin/python -m llm.enrichment.moa_synthesize \\")
         logger.info("      --event-id <id> --aggregator claude-opus")
 
 

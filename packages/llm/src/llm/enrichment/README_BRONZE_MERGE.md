@@ -35,10 +35,10 @@ Run AI analysis on meeting transcripts:
 
 ```bash
 # Extract from events_text_ai to bronze tables
-python scripts/datasources/gemini/load_meeting_transcripts_bronze.py
+python -m llm.enrichment.load_meeting_transcripts_bronze
 
 # Check what was extracted
-python scripts/datasources/gemini/load_meeting_transcripts_bronze.py --create-tables-only
+python -m llm.enrichment.load_meeting_transcripts_bronze --create-tables-only
 ```
 
 **Bronze tables created:**
@@ -54,10 +54,10 @@ Preview what would be merged:
 
 ```bash
 # Dry run - show what would happen
-python scripts/datasources/gemini/merge_bronze_to_production.py --dry-run
+python -m llm.enrichment.merge_bronze_to_production --dry-run
 
 # Dry run for contacts only
-python scripts/datasources/gemini/merge_bronze_to_production.py --entity contacts --dry-run
+python -m llm.enrichment.merge_bronze_to_production --entity contacts --dry-run
 ```
 
 ### 4. Run Actual Merge
@@ -66,10 +66,10 @@ Merge with entity resolution:
 
 ```bash
 # Merge contacts only
-python scripts/datasources/gemini/merge_bronze_to_production.py --entity contacts
+python -m llm.enrichment.merge_bronze_to_production --entity contacts
 
 # Merge all entities (contacts, organizations, bills)
-python scripts/datasources/gemini/merge_bronze_to_production.py --all
+python -m llm.enrichment.merge_bronze_to_production --all
 ```
 
 **Entity Resolution:**
@@ -84,7 +84,7 @@ python scripts/datasources/gemini/merge_bronze_to_production.py --all
 Generate report of records needing manual review:
 
 ```bash
-python scripts/datasources/gemini/merge_bronze_to_production.py --report-duplicates
+python -m llm.enrichment.merge_bronze_to_production --report-duplicates
 ```
 
 **What gets flagged:**
@@ -201,7 +201,7 @@ SELECT COUNT(*) FROM bronze_bills WHERE source_event_id IS NOT NULL;
 ## 📁 File Structure
 
 ```
-scripts/datasources/gemini/
+llm/enrichment/
 ├── load_meeting_transcripts_bronze.py  # Extract from events_text_ai → bronze
 ├── entity_resolution.py                # Fuzzy matching logic
 ├── merge_bronze_to_production.py       # Main merge script

@@ -3,14 +3,14 @@
 Check which models have been used in bronze_events_analysis_ai table.
 
 Usage:
-    python scripts/datasources/gemini/check_models_used.py
+    python -m llm.enrichment.check_models_used
 """
 
 import os
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+sys.path.insert(0, str(Path(__file__).parents[5]))
 
 import psycopg2
 from loguru import logger

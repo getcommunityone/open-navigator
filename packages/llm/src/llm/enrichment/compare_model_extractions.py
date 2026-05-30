@@ -7,13 +7,13 @@ to compare how different AI models extracted the same decision.
 
 Usage:
     # Compare all models for a specific event
-    python scripts/datasources/gemini/compare_model_extractions.py --event-id 192614
+    python -m llm.enrichment.compare_model_extractions --event-id 192614
     
     # Compare specific models for an event  
-    python scripts/datasources/gemini/compare_model_extractions.py --event-id 192614 --models gemini-1.5-flash gpt-4
+    python -m llm.enrichment.compare_model_extractions --event-id 192614 --models gemini-1.5-flash gpt-4
     
     # Compare across all events (summary)
-    python scripts/datasources/gemini/compare_model_extractions.py --summary
+    python -m llm.enrichment.compare_model_extractions --summary
 """
 
 import os
@@ -24,7 +24,7 @@ from typing import Dict, List, Any
 import json
 
 # Add project root to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+sys.path.insert(0, str(Path(__file__).parents[5]))
 
 import psycopg2
 from loguru import logger

@@ -14,15 +14,15 @@ This maximizes throughput by using multiple models' daily quotas:
 
 Usage:
     # Try all high-quota models for priority states
-    python scripts/datasources/gemini/analyze_with_multi_models.py --priority-states
+    python -m llm.enrichment.analyze_with_multi_models --priority-states
     
     # Try specific models
-    python scripts/datasources/gemini/analyze_with_multi_models.py \
+    python -m llm.enrichment.analyze_with_multi_models \
       --priority-states \
       --models gemini-3.1-flash-lite-preview,gemini-2.0-flash-lite
     
     # Dry run
-    python scripts/datasources/gemini/analyze_with_multi_models.py --priority-states --dry-run
+    python -m llm.enrichment.analyze_with_multi_models --priority-states --dry-run
 """
 
 import os
@@ -31,13 +31,13 @@ from pathlib import Path
 import argparse
 
 # Add project root to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+sys.path.insert(0, str(Path(__file__).parents[5]))
 
 from loguru import logger
 from dotenv import load_dotenv
 
 # Import the analyzer
-from scripts.datasources.gemini.load_meeting_transcripts import (
+from llm.enrichment.load_meeting_transcripts import (
     MeetingTranscriptAnalyzer,
     DATABASE_URL,
     GEMINI_API_KEY,
