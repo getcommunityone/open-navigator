@@ -14,7 +14,7 @@ Each completed jurisdiction is **upserted to Postgres immediately** (no waiting 
 ``psql`` step). Neon deploys may still apply ``009_create_bronze_jurisdictions_scraped.sql`` (same DDL).
 
 Resolves DB URL from ``.env`` / env (``NEON_DATABASE_URL_DEV`` first, then ``OPEN_NAVIGATOR_*``, ``NEON_*``, ``DATABASE_URL``),
-then falls back to local Postgres (see ``scripts.database.target_database_url``).
+then falls back to local Postgres (see ``core_lib.db``).
 
 Usage:
   .venv/bin/python -m scripts.discovery.jurisdiction_discovery_pipeline --state AL
@@ -73,7 +73,7 @@ def resolve_database_url() -> str:
     )
     if url:
         return url
-    from scripts.database.target_database_url import resolve_target_database_url
+    from core_lib.db import resolve_target_database_url
 
     return resolve_target_database_url()
 

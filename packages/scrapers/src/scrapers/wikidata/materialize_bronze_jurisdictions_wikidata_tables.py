@@ -30,7 +30,7 @@ _ROOT = Path(__file__).resolve().parents[3]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from scripts.database.target_database_url import resolve_target_database_url  # noqa: E402
+from core_lib.db import resolve_target_database_url  # noqa: E402
 
 
 load_dotenv()

@@ -33,7 +33,7 @@ def _use_db() -> bool:
 def get_db_connection():
     import psycopg2
 
-    from scripts.database.target_database_url import resolve_target_database_url
+    from core_lib.db import resolve_target_database_url
 
     url = resolve_target_database_url()
     for bad in ("&channel_binding=require", "channel_binding=require&", "channel_binding=require"):

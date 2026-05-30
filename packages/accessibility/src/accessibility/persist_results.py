@@ -32,7 +32,7 @@ except ModuleNotFoundError as exc:
     sys.exit(1)
 
 from accessibility._int_websites import BRONZE_ACCESSIBILITY_TABLE
-from scripts.database.target_database_url import resolve_target_database_url
+from core_lib.db import resolve_target_database_url
 
 _DDL_PATH = Path(__file__).resolve().parent / "sql" / "bronze_jurisdiction_website_accessibility.sql"
 

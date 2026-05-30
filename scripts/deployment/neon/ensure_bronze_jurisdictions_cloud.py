@@ -11,7 +11,7 @@ Usage:
   DATABASE_URL='postgresql://...' .venv/bin/python ... --gazetteer-types states counties
   OPEN_NAVIGATOR_DATABASE_URL='postgresql://...' .venv/bin/python ... --schema-only
 
-Env for URL resolution: scripts/database/target_database_url.py
+Env for URL resolution: core_lib.db.resolve_target_database_url
 """
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 load_dotenv(PROJECT_ROOT / ".env")
 
-from scripts.database.target_database_url import resolve_target_database_url  # noqa: E402
+from core_lib.db import resolve_target_database_url  # noqa: E402
 from ingestion.census.gazetteer import TYPES as GAZETTEER_TYPES  # noqa: E402
 
 

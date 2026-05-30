@@ -36,7 +36,7 @@ from extract_parcel_attributes import extract_parcel_attributes  # noqa: E402
 # tool now covers FETCH/extract only; run it with --skip-load and land via
 # `python -m ingestion.arcgis.addresses`.
 
-from scripts.database.target_database_url import resolve_target_database_url  # noqa: E402
+from core_lib.db import resolve_target_database_url  # noqa: E402
 
 OA_ROOT = _PROJECT_ROOT / "data/cache/openaddresses/openaddresses/sources/us"
 CACHE_STATE = _PROJECT_ROOT / "data/cache/parcels"

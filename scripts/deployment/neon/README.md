@@ -53,7 +53,7 @@ For **`bronze.bronze_jurisdictions_*`** and **`bronze.bronze_jurisdictions_*_wik
 
 | Step | Script |
 |------|--------|
-| Resolve URL | `OPEN_NAVIGATOR_DATABASE_URL` **first**, else `NEON_DATABASE_URL_DEV` → `NEON_DATABASE_URL` → local docker (`scripts/database/target_database_url.py`) |
+| Resolve URL | `OPEN_NAVIGATOR_DATABASE_URL` **first**, else `NEON_DATABASE_URL_DEV` → `NEON_DATABASE_URL` → local docker (`core_lib.db.resolve_target_database_url`) |
 | Schema + empty `*_wikidata` mirrors | `python scripts/deployment/neon/ensure_bronze_jurisdictions_cloud.py --schema-only` |
 | Load Census CSVs → bronze | Same URL + `python scripts/datasources/census/load_census_gazetteer.py` (+ optional `--filter-usps AL,GA`) |
 | One-shot orchestrator | `./scripts/deployment/neon/run_bronze_jurisdictions_to_cloud.sh` (+ pass-through Gazetteer CLI args) |

@@ -38,7 +38,7 @@ from accessibility._int_websites import (
     INT_JURISDICTION_WEBSITES_TABLE,
     WEBSITE_SOURCE_PRIORITY_ORDER_SQL,
 )
-from scripts.database.target_database_url import resolve_target_database_url
+from core_lib.db import resolve_target_database_url
 
 _DEFAULT_OUT = _ROOT / "data" / "cache" / "accessibility" / "urls.json"
 
