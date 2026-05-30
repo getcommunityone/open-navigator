@@ -292,7 +292,9 @@ async def list_batch_jobs(
 # misuse: a fixed argv (no shell), an allowlisted step, validated state codes, a
 # single-run guard (won't double-launch), and an opt-out kill switch.
 _LAUNCH_SCRIPT = "packages/scrapers/scripts/youtube_run_priority_states_last_n.sh"
-_LAUNCH_STEPS = ("catalog", "captions", "analyze", "each", "all")
+# Stage 0 (discover) runs a different, per-state script; the rest run the wrapper.
+_DISCOVER_SCRIPT = "packages/scrapers/src/scrapers/youtube/load_missing_county_channels.py"
+_LAUNCH_STEPS = ("discover", "catalog", "captions", "analyze", "each", "all")
 _STATE_RE = re.compile(r"^[A-Z]{2}$")
 
 
@@ -400,9 +402,29 @@ async def launch_pipeline(req: LaunchRequest) -> LaunchResponse:
         )
 
     root = _repo_root()
-    script = root / _LAUNCH_SCRIPT
-    if not script.is_file():
-        raise HTTPException(status_code=500, detail=f"launch script missing: {script}")
+    env = dict(os.environ)
+    if step == "discover":
+        # Stage 0 runs the per-state channel-discovery script (one state only).
+        if len(states) != 1:
+            raise HTTPException(
+                status_code=400, detail="discover requires exactly one state (scope to a state first)."
+            )
+        target = root / _DISCOVER_SCRIPT
+        if not target.is_file():
+            raise HTTPException(status_code=500, detail=f"discover script missing: {target}")
+        import sys as _sys
+
+        argv = [_sys.executable, str(target), "--state", states[0]]
+    else:
+        script = root / _LAUNCH_SCRIPT
+        if not script.is_file():
+            raise HTTPException(status_code=500, detail=f"launch script missing: {script}")
+        env["BATCH_STATUS"] = "1"
+        env["N"] = str(n)
+        env["PARALLEL"] = str(parallel)
+        if states:
+            env["STATES"] = ",".join(states)
+        argv = ["bash", str(script), step]  # fixed argv, no shell
 
     import datetime as _dt
 
@@ -411,17 +433,10 @@ async def launch_pipeline(req: LaunchRequest) -> LaunchResponse:
     stamp = _dt.datetime.now().strftime("%Y%m%d_%H%M%S")
     log_path = log_dir / f"launch_{step}_{stamp}.log"
 
-    env = dict(os.environ)
-    env["BATCH_STATUS"] = "1"
-    env["N"] = str(n)
-    env["PARALLEL"] = str(parallel)
-    if states:
-        env["STATES"] = ",".join(states)
-
     try:
         logf = open(log_path, "ab")
         proc = subprocess.Popen(
-            ["bash", str(script), step],  # fixed argv, no shell
+            argv,
             cwd=str(root),
             env=env,
             stdout=logf,

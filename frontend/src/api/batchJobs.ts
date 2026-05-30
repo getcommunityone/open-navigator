@@ -75,7 +75,7 @@ export type BatchJob = {
   jurisdictions: BatchJurisdictionRun[]
 }
 
-export type PipelineStage = 'videos' | 'transcripts' | 'analyses' | 'reports'
+export type PipelineStage = 'discover' | 'videos' | 'transcripts' | 'analyses' | 'reports'
 
 /** One (scope, stage) row. ``scope`` is a 2-letter state code or ``ALL`` (rollup). */
 export type StageReportRow = {

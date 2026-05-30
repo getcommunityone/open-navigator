@@ -1297,12 +1297,34 @@ export default function BatchJobStatusPage() {
               else next.delete('state')
               setSearchParams(next, { replace: true })
             }
-            const stageList: PipelineStage[] = ['videos', 'transcripts', 'analyses', 'reports']
+            const stageList: PipelineStage[] = [
+              'discover',
+              'videos',
+              'transcripts',
+              'analyses',
+              'reports',
+            ]
             const stageLabel: Record<PipelineStage, string> = {
+              discover: 'Discover',
               videos: 'Videos',
               transcripts: 'Transcripts',
               analyses: 'Analyses',
               reports: 'Reports',
+            }
+            // Which runnable step each stage's "Run" button kicks off.
+            const stageStep: Record<PipelineStage, string> = {
+              discover: 'discover',
+              videos: 'catalog',
+              transcripts: 'captions',
+              analyses: 'analyze',
+              reports: 'analyze',
+            }
+            const stepDesc: Record<PipelineStage, string> = {
+              discover: 'discover channels (scrape sites / search YouTube)',
+              videos: 'catalog — list videos on the channel',
+              transcripts: 'captions — download transcripts',
+              analyses: 'analyze — Gemini policy analysis',
+              reports: 'analyze — regenerates reports too',
             }
             type Def = {
               n: number
@@ -1314,6 +1336,15 @@ export default function BatchJobStatusPage() {
               failTitle: string
             }
             const defs: Def[] = [
+              {
+                n: 0,
+                stage: 'discover',
+                unit: 'jurisdictions',
+                sub: 'channel discovery — scrape county sites / search YouTube',
+                pill: true,
+                drill: null,
+                failTitle: 'Jurisdictions still missing a YouTube channel',
+              },
               {
                 n: 1,
                 stage: 'videos',
@@ -1348,7 +1379,7 @@ export default function BatchJobStatusPage() {
                 failTitle: 'Report errors (bronze policy_report_error)',
               },
             ]
-            const cols = 'grid grid-cols-[1.5fr_0.9fr_2fr_auto] items-center gap-3'
+            const cols = 'grid grid-cols-[1.4fr_0.8fr_1.7fr_auto_auto] items-center gap-3'
             const ls = launchStatus
             const canLaunch =
               !!ls?.enabled && !ls?.busy && !launching && data.totals.running === 0
@@ -1383,11 +1414,11 @@ export default function BatchJobStatusPage() {
                       <button
                         type="button"
                         disabled={!canLaunch}
-                        onClick={() => runLaunch('analyze', launchScopeStates)}
+                        onClick={() => runLaunch('all', launchScopeStates)}
                         title={
                           ls.busy
                             ? 'A run is already active — wait for it to finish'
-                            : `Re-kick the analyze step${scope !== 'ALL' ? ` for ${scope}` : ' (all states)'} in parallel`
+                            : `Run the full pipeline (catalog → captions → analyze)${scope !== 'ALL' ? ` for ${scope}` : ' (all states)'}`
                         }
                         className="inline-flex items-center gap-1 rounded-md bg-[#354F52] px-2.5 py-1.5 text-xs font-semibold uppercase tracking-wide text-white shadow-sm hover:bg-[#2c4346] disabled:cursor-not-allowed disabled:opacity-50"
                       >
@@ -1395,7 +1426,7 @@ export default function BatchJobStatusPage() {
                           ? 'Launching…'
                           : ls.busy
                             ? 'Running…'
-                            : `↻ Re-kick analyze${scope !== 'ALL' ? ` · ${scope}` : ''}`}
+                            : `▶ Run all${scope !== 'ALL' ? ` · ${scope}` : ''}`}
                       </button>
                     ) : null}
                     {stateOpts.length > 0 ? (
@@ -1427,6 +1458,7 @@ export default function BatchJobStatusPage() {
                   <div>Last activity</div>
                   <div>Progress</div>
                   <div className="text-right">Failed</div>
+                  <div className="text-right">Run</div>
                 </div>
                 {defs.map((st) => {
                   const r = rowFor(scope, st.stage)
@@ -1494,6 +1526,25 @@ export default function BatchJobStatusPage() {
                         ) : (
                           <span className="text-xs text-slate-400">0</span>
                         )}
+                      </div>
+                      <div className="text-right">
+                        {ls?.enabled ? (
+                          <button
+                            type="button"
+                            disabled={
+                              !canLaunch || (st.stage === 'discover' && scope === 'ALL')
+                            }
+                            onClick={() => runLaunch(stageStep[st.stage], launchScopeStates)}
+                            title={
+                              st.stage === 'discover' && scope === 'ALL'
+                                ? 'Scope to one state first to discover its channels'
+                                : `Run ${stepDesc[st.stage]}${scope !== 'ALL' ? ` · ${scope}` : ''}`
+                            }
+                            className="rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            ▶ Run
+                          </button>
+                        ) : null}
                       </div>
                     </div>
                   )

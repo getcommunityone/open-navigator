@@ -243,7 +243,7 @@ def policy_event_counts_24h(conn: Any) -> Dict[str, Any]:
 # Pipeline stages, in funnel order. Each (scope, stage) pair is one report row,
 # so adding a metric is a field and adding a dimension (state, later jurisdiction)
 # is more rows — not more columns.
-PIPELINE_STAGES = ("videos", "transcripts", "analyses", "reports")
+PIPELINE_STAGES = ("discover", "videos", "transcripts", "analyses", "reports")
 
 
 def pipeline_stage_report(conn: Any) -> Dict[str, Any]:
@@ -289,7 +289,49 @@ def pipeline_stage_report(conn: Any) -> Dict[str, Any]:
         logger.debug("pipeline_stage_report unavailable: %s", exc)
         return out
 
-    def _stage_rows(scope: str, rec: Dict[str, Any]) -> List[Dict[str, Any]]:
+    # Stage 0 (channel discovery) lives in the scraped-jurisdiction tables, not in
+    # bronze_events_youtube: per state, how many jurisdictions have a YouTube channel
+    # found (done) out of all scraped (total); failed = still missing a channel.
+    discover_by_state: Dict[str, Dict[str, Any]] = {}
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT usps AS st,
+                    COUNT(*)::int AS total,
+                    COUNT(*) FILTER (
+                        WHERE COALESCE(NULLIF(youtube_channel_id, ''),
+                                       NULLIF(youtube_channel_url, '')) IS NOT NULL
+                    )::int AS done,
+                    MAX(discovered_at) AS last_at
+                FROM (
+                    SELECT usps, youtube_channel_id, youtube_channel_url, discovered_at
+                      FROM bronze.bronze_jurisdictions_counties_scraped
+                    UNION ALL
+                    SELECT usps, youtube_channel_id, youtube_channel_url, discovered_at
+                      FROM bronze.bronze_jurisdictions_municipalities_scraped
+                ) j
+                WHERE COALESCE(usps, '') <> ''
+                GROUP BY usps
+                """
+            )
+            for st, total, done, last_at in cur.fetchall():
+                discover_by_state[str(st)] = {
+                    "total": int(total), "done": int(done), "last_at": _iso(last_at)
+                }
+    except Exception:
+        conn.rollback()  # scraped tables absent — discover stage degrades to zeros
+
+    def _discover_row(scope: str, disc: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        d = disc or {"total": 0, "done": 0, "last_at": ""}
+        return {
+            "scope": scope, "stage": "discover", "done": d["done"], "total": d["total"],
+            "failed": max(0, d["total"] - d["done"]), "last_at": d["last_at"],
+        }
+
+    def _stage_rows(
+        scope: str, rec: Dict[str, Any], disc: Optional[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         ok = int(rec["vids_ok"])
         fail = int(rec["vids_fail"])
         attempted = ok + fail
@@ -297,6 +339,7 @@ def pipeline_stage_report(conn: Any) -> Dict[str, Any]:
         # done / total / failed / last_at per stage. Transcripts/analyses/reports
         # are denominated by the videos that got a transcript (the funnel input).
         return [
+            _discover_row(scope, disc),
             {"scope": scope, "stage": "videos", "done": ok, "total": attempted,
              "failed": fail, "last_at": lv},
             {"scope": scope, "stage": "transcripts", "done": ok, "total": ok,
@@ -327,9 +370,16 @@ def pipeline_stage_report(conn: Any) -> Dict[str, Any]:
         # Only surface states that have entered the pipeline (any attempted video).
         if int(rec["vids_ok"]) + int(rec["vids_fail"]) > 0 and st != "??":
             states.append(st)
-            rows.extend(_stage_rows(st, rec))
+            rows.extend(_stage_rows(st, rec, discover_by_state.get(st)))
 
-    rows = _stage_rows("ALL", {**totals, **last}) + rows
+    disc_all = {"total": 0, "done": 0, "last_at": ""}
+    for st in states:
+        d = discover_by_state.get(st)
+        if d:
+            disc_all["total"] += d["total"]
+            disc_all["done"] += d["done"]
+            disc_all["last_at"] = _max_iso(disc_all["last_at"], d["last_at"])
+    rows = _stage_rows("ALL", {**totals, **last}, disc_all) + rows
     out["states"] = sorted(states)
     out["rows"] = rows
     return out
