@@ -85,7 +85,7 @@ export default function DataExplorerLayout() {
                     ? 'Scores and warnings are read from the latest `bronze.bronze_jurisdiction_website_lighthouse` row for the URL you enter (after accessibility lighthouse ingest).'
                     : onBatchJobs
                       ? 'Live caption/analyze batch progress from Postgres (`bronze.youtube_batch_job_runs`) via SSE. Click a jurisdiction for per-video outcomes.'
-                      : 'Mapping rates use NACo, USCM, NCES directory, GSA .gov, Wikidata, and overrides — snapshot from `frontend/public/data/jurisdiction_mapping_quality.json`.'}
+                      : 'Mapping rates use NACo, USCM, NCES directory, GSA .gov, Wikidata, and overrides — snapshot from `web_app/public/data/jurisdiction_mapping_quality.json`.'}
             </p>
           )}
         </header>

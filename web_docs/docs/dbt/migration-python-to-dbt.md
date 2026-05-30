@@ -1,3 +1,7 @@
+---
+sidebar_position: 5
+---
+
 # Migrating JSONB Extraction from Python to dbt
 
 ## Overview

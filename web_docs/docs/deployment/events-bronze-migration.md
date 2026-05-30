@@ -309,4 +309,4 @@ dbt run --select event events_text_search
 
 See also:
 - [YouTube Channels Bronze Migration](youtube-channels-bronze-migration.md)
-- [dbt Quick Reference](../dbt_project/QUICK_REFERENCE.md)
+- [dbt Quick Reference](../dbt/quick-reference.md)

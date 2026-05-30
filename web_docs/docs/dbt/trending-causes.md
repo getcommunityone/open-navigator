@@ -6,7 +6,28 @@ sidebar_position: 2
 
 ## Overview
 
-The dbt project now includes models to load `jurisdiction_state_aggregate` table with trending causes based on decisions from the last 90 days.
+The dbt project includes models to load `jurisdiction_state_aggregate` table with **location-specific trending causes** based on decisions from the last 90 days.
+
+✨ **NEW:** The frontend now displays trending causes dynamically based on the selected geography (national, state, county, or city level).
+
+## Quick Start
+
+```bash
+# Update trending causes data (runs all required dbt models)
+./scripts/data/update_trending_causes.sh
+
+# Or manually:
+cd dbt_project
+dbt run --select stg_bronze_decisions int_trending_causes_by_jurisdiction jurisdiction_state_aggregate
+```
+
+## How It Works
+
+1. **User selects a location** in the frontend (e.g., "Mobile, AL")
+2. **Frontend queries** `/api/stats?state=AL&city=Mobile`
+3. **API returns** stats with `trending_causes` JSONB field
+4. **Frontend displays** the top trending causes for that location in the last 90 days
+5. **Fallback:** If no location-specific causes exist, shows global trending causes from `/api/trending`
 
 ## Models Created
 
@@ -48,25 +69,66 @@ ALTER TABLE jurisdiction_state_aggregate ADD COLUMN IF NOT EXISTS trending_cause
 
 ## Trending Causes JSON Structure
 
+The `trending_causes` JSONB column contains different structures depending on the aggregation level:
+
+### City Level (Jurisdiction-Specific)
 ```json
-{
-  "jurisdiction": "Mobile",
-  "causes": [
-    {
-      "cause": "Education and Workforce",
-      "code": "COFOG-09",
-      "decision_count": 5,
-      "topics": 3,
-      "most_recent": "2024-05-22",
-      "rank": 1,
-      "sample_headlines": [
-        "MPS highlights literacy strategies...",
-        "Board approves new curriculum...",
-        "Teacher hiring approved..."
-      ]
-    }
-  ]
-}
+[
+  {
+    "cause": "Education and Workforce",
+    "code": "COFOG-09",
+    "decision_count": 5,
+    "topics": 3,
+    "most_recent": "2024-05-22",
+    "rank": 1,
+    "sample_headlines": [
+      "MPS highlights literacy strategies...",
+      "Board approves new curriculum...",
+      "Teacher hiring approved..."
+    ]
+  },
+  {
+    "cause": "Health",
+    "code": "COFOG-07",
+    "decision_count": 3,
+    "topics": 2,
+    "most_recent": "2024-05-20",
+    "rank": 2,
+    "sample_headlines": [...]
+  }
+]
+```
+
+### State Level (Aggregated Across State)
+```json
+[
+  {
+    "cause": "Education and Workforce",
+    "decision_count": 127,
+    "jurisdictions": 15
+  },
+  {
+    "cause": "Health",
+    "decision_count": 89,
+    "jurisdictions": 12
+  }
+]
+```
+
+### National Level (Aggregated Across Nation)
+```json
+[
+  {
+    "cause": "Education and Workforce",
+    "decision_count": 1543,
+    "states": 42
+  },
+  {
+    "cause": "Infrastructure",
+    "decision_count": 1201,
+    "states": 38
+  }
+]
 ```
 
 ## Usage
@@ -74,7 +136,10 @@ ALTER TABLE jurisdiction_state_aggregate ADD COLUMN IF NOT EXISTS trending_cause
 ### Running the Models
 
 ```bash
-# Navigate to dbt directory
+# Quick update (recommended)
+./scripts/data/update_trending_causes.sh
+
+# Or step-by-step:
 cd dbt_project
 
 # Install dependencies
@@ -93,37 +158,51 @@ dbt run
 dbt test
 ```
 
-### Querying Results
+### Verifying the Data
+
+After running the models, verify trending causes are populated:
 
 ```sql
--- Get trending causes for a state
+-- Check city-level trending causes
 SELECT 
-  state,
+  city,
+  state_code,
+  jsonb_array_length(trending_causes) as cause_count,
   trending_causes
+FROM jurisdiction_state_aggregate
+WHERE level = 'city' 
+  AND trending_causes IS NOT NULL
+  AND city ILIKE '%Mobile%'
+LIMIT 1;
+
+-- See top causes for a state
+SELECT 
+  state_code,
+  jsonb_pretty(trending_causes) as causes
 FROM jurisdiction_state_aggregate
 WHERE level = 'state' 
   AND state_code = 'AL';
 
--- Get top causes across all jurisdictions
-SELECT 
-  city,
-  jsonb_array_elements(trending_causes) as cause
-FROM jurisdiction_state_aggregate
-WHERE level = 'jurisdiction'
-  AND trending_causes IS NOT NULL;
-  
--- Extract specific cause details
-SELECT 
-  city,
-  cause_data->>'cause' as cause_name,
-  (cause_data->>'decision_count')::int as decisions,
-  cause_data->>'most_recent' as latest_decision
-FROM jurisdiction_state_aggregate,
-  jsonb_array_elements(trending_causes) as cause_data
-WHERE level = 'jurisdiction'
-  AND state_code = 'AL'
-ORDER BY (cause_data->>'decision_count')::int DESC;
+-- National trending causes
+SELECT jsonb_pretty(trending_causes) 
+FROM jurisdiction_state_aggregate 
+WHERE level = 'national';
 ```
+
+### Testing in the Frontend
+
+1. Start the application:
+   ```bash
+   ./start-all.sh
+   ```
+
+2. Open http://localhost:5173
+
+3. Search for a location (e.g., "Mobile, AL")
+
+4. Observe the trending topics bar at the top - it should show location-specific causes
+
+5. Switch to different locations and see the trending causes update dynamically
 
 ## Integration with Python Scripts
 
@@ -155,8 +234,8 @@ subprocess.run(['dbt', 'run', '--select', 'jurisdiction_state_aggregate'],
 ### Source Configuration
 
 Sources are defined in `models/staging/_staging.yml`:
-- Database: `open_navigator_bronze`
-- Schema: `public`
+- Database: `open_navigator`
+- Schema: `bronze`
 
 ## Data Quality Tests
 

@@ -1,3 +1,7 @@
+---
+sidebar_position: 4
+---
+
 # dbt conventions and governance (Stage 3 blueprint)
 
 This document is the governance blueprint for the `open_navigator_dbt` project. It defines naming, directory layout, model contracts, intermediate decomposition patterns, and the rule for how the FastAPI app talks to the database.

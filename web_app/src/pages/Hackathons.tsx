@@ -189,7 +189,7 @@ export default function Hackathons() {
         <p className="text-sm text-gray-500 mt-4">
           More pitch ideas (TikTok summaries, accessibility checker, interactive annual reports, voice profiles):{' '}
           <a
-            href="https://github.com/getcommunityone/open-navigator-for-engagement/blob/main/website/docs/guides/hackathon-video-submission-ideas.md"
+            href="https://github.com/getcommunityone/open-navigator-for-engagement/blob/main/web_docs/docs/guides/hackathon-video-submission-ideas.md"
             className="text-primary-600 hover:underline"
             target="_blank"
             rel="noopener noreferrer"

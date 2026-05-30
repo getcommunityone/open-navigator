@@ -324,7 +324,7 @@ python scripts/manage_contacts.py extract --batch-size 10000
 
 ```bash
 # After extraction completes
-python scripts/upload_meetings_to_hf.py --contacts
+python -m hosting.huggingface contacts
 ```
 
 ### 4. Create Search Index

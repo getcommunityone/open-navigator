@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "communityone-hosting"
+version = "0.1.0"
+description = "Hosting/publishing tooling for Open Navigator — publish gold datasets to HuggingFace Datasets and deploy the app to HuggingFace Spaces. Ported from scripts/huggingface/ as a proper library + unified CLI."
+requires-python = ">=3.11"
+dependencies = [
+    "huggingface-hub>=0.23",
+    "datasets>=2.18",
+    "pandas>=2.1",
+    "pyarrow>=14",
+    "loguru>=0.7",
+    "python-dotenv>=1.0",
+]
+
+# Optional extras only needed by the PDF -> parquet helper.
+[project.optional-dependencies]
+pdf = ["httpx>=0.27", "pypdf>=4.0"]
+
+[project.scripts]
+on-hf = "hosting.huggingface.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

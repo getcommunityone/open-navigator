@@ -798,7 +798,7 @@ export default function DataExplorerScorecardPage() {
         <p className="mt-2 text-sm text-slate-700">
           The app could not read <code className="rounded bg-slate-100 px-1 text-xs">/data/census-map/state_trends.json</code>.
           If you run the API server, ensure the census bundle exists under{' '}
-          <code className="rounded bg-slate-100 px-1 text-xs">frontend/public/data/census-map/</code> and that the server exposes it (see{' '}
+          <code className="rounded bg-slate-100 px-1 text-xs">web_app/public/data/census-map/</code> and that the server exposes it (see{' '}
           <code className="rounded bg-slate-100 px-1 text-xs">/data/census-map</code> mount in the FastAPI app).
         </p>
         <p className="mt-2 text-xs text-red-700">{trendsErr instanceof Error ? trendsErr.message : String(trendsErr)}</p>
