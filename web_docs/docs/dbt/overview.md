@@ -266,9 +266,9 @@ dbt run --full-refresh --select contact_ai
 
 ## 🔗 Related Documentation
 
-- [dbt ETL Strategy](../website/docs/development/dbt-etl-strategy.md) - Full architecture guide
-- [Bronze to Production Merge](../website/docs/development/bronze-to-production-merge.md) - Merge strategy
-- [Data Sources](../docs/DATA_SOURCES.md) - All data sources
+- [dbt ETL Strategy](../development/dbt-etl-strategy.md) - Full architecture guide
+- [Bronze to Production Merge](../development/bronze-to-production-merge.md) - Merge strategy
+- [Data Sources](https://github.com/getcommunityone/open-navigator/blob/main/docs/DATA_SOURCES.md) - All data sources
 
 ## ⏭️ Next Steps
 

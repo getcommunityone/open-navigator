@@ -69,5 +69,5 @@ Before running a demo:
 
 1. Activate the environment (`source .venv/bin/activate`).
 2. Set the required API keys / environment variables (an FEC key from
-   <https://api.data.gov/signup/> is needed for political-contribution demos).
+   [api.data.gov/signup](https://api.data.gov/signup/) is needed for political-contribution demos).
 3. Download any source data via the loaders in `scripts/datasources/`.
