@@ -23,17 +23,18 @@ def clean_key_env(monkeypatch):
     return monkeypatch
 
 
-def test_resolve_gemini_api_keys_drops_non_aistudio_credentials(clean_key_env):
-    # Only "AIza…" strings are valid AI Studio api keys. OAuth access tokens
-    # ("AQ.…", "ya29.…") get mistakenly merged via GEMINI_API_KEYS and must be
-    # dropped, otherwise they poison the rotation pool (connection drops + hourly
-    # expiry). env_path points nowhere so the real .env is not loaded.
-    clean_key_env.setenv("GEMINI_API_KEYS", "AIzaGOOD, AQ.Ab8RN6Bogus ya29.OauthToken")
-    clean_key_env.setenv("GEMINI_API_KEY", "AIzaGOOD2")
+def test_resolve_gemini_api_keys_keeps_all_key_formats(clean_key_env):
+    # Regression: "AQ.…" strings are a valid Gemini API key format (verified live
+    # that they authenticate via x-goog-api-key, HTTP 200) — NOT OAuth tokens. An
+    # earlier version wrongly dropped every non-"AIza" key and silently emptied the
+    # pool. resolve_gemini_api_keys must keep keys of any format, only de-duplicating.
+    # env_path points nowhere so the real .env is not loaded.
+    clean_key_env.setenv("GEMINI_API_KEYS", "AIzaClassic, AQ.NewFormatKey")
+    clean_key_env.setenv("GEMINI_API_KEY", "AIzaSingle")
 
     keys = resolve_gemini_api_keys(env_path="/nonexistent/.env")
 
-    assert keys == ["AIzaGOOD", "AIzaGOOD2"]
+    assert keys == ["AIzaClassic", "AQ.NewFormatKey", "AIzaSingle"]
 
 
 def test_resolve_gemini_api_keys_dedupes_and_preserves_order(clean_key_env):

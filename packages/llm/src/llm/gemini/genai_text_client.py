@@ -375,29 +375,15 @@ def resolve_gemini_api_keys(*, env_path: Optional[os.PathLike[str]] = None) -> l
     raw += [os.getenv(f"GEMINI_API_KEY_{i}") or "" for i in range(1, 11)]
     out: list[str] = []
     seen: set[str] = set()
-    dropped = 0
     for k in (_strip_api_key(x) for x in raw):
-        if not k or k in seen:
-            continue
-        seen.add(k)
-        # Reject OAuth tokens that get mistakenly merged into the key pool: access
-        # tokens ("AQ.…", "ya29.…") and refresh tokens ("1//…"). Sent as
-        # x-goog-api-key they make Google drop the connection (RemoteProtocolError)
-        # and they expire hourly — so they poison rotation. We deliberately do NOT
-        # require any prefix for real keys: Google API keys are not guaranteed to
-        # start with "AIza", so anything that is not a known OAuth-token format is
-        # kept as-is.
-        if k.startswith(("AQ.", "ya29.", "1//")):
-            dropped += 1
-            logger.warning(
-                "Ignoring OAuth-token credential in Gemini key pool (prefix {!r}…) — "
-                "it is not an API key and Google rejects it",
-                k[:5],
-            )
-            continue
-        out.append(k)
-    if dropped:
-        logger.warning("Dropped {} invalid Gemini credential(s) from rotation pool", dropped)
+        # No prefix filtering. Both "AIza…" (classic, 39 chars) and "AQ.…" strings
+        # are valid Gemini API keys — verified live that an AQ. key authenticates via
+        # x-goog-api-key (HTTP 200). An invalid/expired key surfaces at call time as a
+        # clean 401 (non-retryable), which is the right layer to handle it — not a
+        # brittle prefix guess that also drops perfectly good keys.
+        if k and k not in seen:
+            seen.add(k)
+            out.append(k)
     return out
 
 

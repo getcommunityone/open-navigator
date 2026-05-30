@@ -1,0 +1,159 @@
+version: 2
+
+# AI-extraction event_* marts: entities the LLM pulled out of analyzed meeting
+# events, promoted from bronze.bronze_*_from_ai into public. Each is native
+# range-partitioned by extracted_at (monthly) via a bootstrap_<model>
+# run-operation and APPEND-loaded. See macros/event_extractions.sql.
+#
+# Shared shape per model: extraction_key (stable dedup key, not_null + unique),
+# id (md5 surrogate, not_null), c1_event_id (resolved canonical OCD event,
+# relationships test at warn since bridge coverage is incomplete by design),
+# extracted_at (partition key, not_null).
+
+models:
+  - name: event_person
+    description: "AI-extracted people mentioned in analyzed events. One row per (analysis, person); partitioned by extracted_at."
+    config:
+      tags: ['marts', 'event-extraction', 'ai']
+    columns:
+      - name: extraction_key
+        description: "Stable dedup key (source_event_id || '_' || person_id)."
+        data_tests: [not_null, unique]
+      - name: id
+        description: "md5 surrogate of extraction_key — FK target for downstream models."
+        data_tests: [not_null]
+      - name: c1_event_id
+        description: "Resolved canonical OCD event id (nullable until the event is promoted)."
+        data_tests:
+          - relationships:
+              arguments: {to: "source('civic_core', 'c1_event')", field: id}
+              config: {severity: warn}
+      - name: extracted_at
+        description: "Partition key — when the AI extraction was produced."
+        data_tests: [not_null]
+
+  - name: event_decision
+    description: "AI-extracted decisions/actions (scalar cols typed, narrative blocks JSONB). One row per (analysis, decision); partitioned by extracted_at."
+    config:
+      tags: ['marts', 'event-extraction', 'ai']
+    columns:
+      - name: extraction_key
+        description: "Stable dedup key (source_event_id || '_' || decision_id)."
+        data_tests: [not_null, unique]
+      - name: id
+        description: "md5 surrogate of extraction_key — FK target for downstream models."
+        data_tests: [not_null]
+      - name: c1_event_id
+        description: "Resolved canonical OCD event id (nullable until the event is promoted)."
+        data_tests:
+          - relationships:
+              arguments: {to: "source('civic_core', 'c1_event')", field: id}
+              config: {severity: warn}
+      - name: extracted_at
+        description: "Partition key — when the AI extraction was produced."
+        data_tests: [not_null]
+
+  - name: event_place
+    description: "AI-extracted/geocoded places. One row per (analysis, place); event jurisdiction in state_code/state, place's own location in place_* cols. Partitioned by extracted_at."
+    config:
+      tags: ['marts', 'event-extraction', 'ai']
+    columns:
+      - name: extraction_key
+        description: "Stable dedup key (source_event_id || '_' || place_id)."
+        data_tests: [not_null, unique]
+      - name: id
+        description: "md5 surrogate of extraction_key — FK target for downstream models."
+        data_tests: [not_null]
+      - name: c1_event_id
+        description: "Resolved canonical OCD event id (nullable until the event is promoted)."
+        data_tests:
+          - relationships:
+              arguments: {to: "source('civic_core', 'c1_event')", field: id}
+              config: {severity: warn}
+      - name: extracted_at
+        description: "Partition key — when the AI extraction was produced."
+        data_tests: [not_null]
+
+  - name: event_financial_item
+    description: "AI-extracted dollar amounts/items. One row per (analysis, financial_item); partitioned by extracted_at."
+    config:
+      tags: ['marts', 'event-extraction', 'ai']
+    columns:
+      - name: extraction_key
+        description: "Stable dedup key (source_event_id || '_' || financial_item_id)."
+        data_tests: [not_null, unique]
+      - name: id
+        description: "md5 surrogate of extraction_key — FK target for downstream models."
+        data_tests: [not_null]
+      - name: c1_event_id
+        description: "Resolved canonical OCD event id (nullable until the event is promoted)."
+        data_tests:
+          - relationships:
+              arguments: {to: "source('civic_core', 'c1_event')", field: id}
+              config: {severity: warn}
+      - name: extracted_at
+        description: "Partition key — when the AI extraction was produced."
+        data_tests: [not_null]
+
+  - name: event_topic
+    description: "AI-extracted themes/topics (COFOG + NTEE classified). One row per (analysis, decision); partitioned by extracted_at."
+    config:
+      tags: ['marts', 'event-extraction', 'ai']
+    columns:
+      - name: extraction_key
+        description: "Stable dedup key (source_event_id || '_' || decision_id)."
+        data_tests: [not_null, unique]
+      - name: id
+        description: "md5 surrogate of extraction_key — FK target for downstream models."
+        data_tests: [not_null]
+      - name: c1_event_id
+        description: "Resolved canonical OCD event id (nullable until the event is promoted)."
+        data_tests:
+          - relationships:
+              arguments: {to: "source('civic_core', 'c1_event')", field: id}
+              config: {severity: warn}
+      - name: extracted_at
+        description: "Partition key — when the AI extraction was produced."
+        data_tests: [not_null]
+
+  - name: event_organization
+    description: "AI-extracted organizations, AGGREGATED to one row per org (normalized name + state) across events. Resolves first/last-seen events instead of a single c1_event_id. Partitioned by extracted_at."
+    config:
+      tags: ['marts', 'event-extraction', 'ai']
+    columns:
+      - name: extraction_key
+        description: "Stable key (org_name_normalized_state_code) — already unique per org+state."
+        data_tests: [not_null, unique]
+      - name: id
+        description: "md5 surrogate of extraction_key — FK target for downstream models."
+        data_tests: [not_null]
+      - name: last_c1_event_id
+        description: "Resolved canonical OCD event id for the most recent event the org was seen in (nullable)."
+        data_tests:
+          - relationships:
+              arguments: {to: "source('civic_core', 'c1_event')", field: id}
+              config: {severity: warn}
+      - name: extracted_at
+        description: "Partition key — when the AI extraction was produced."
+        data_tests: [not_null]
+
+  - name: event_bill
+    description: "AI-referenced legislation/bills (year is a calendar-year string). One row per (analysis, leg ref); partitioned by extracted_at."
+    config:
+      tags: ['marts', 'event-extraction', 'ai']
+    columns:
+      - name: extraction_key
+        description: "Stable dedup key (source_event_id || '_' || leg_id)."
+        data_tests: [not_null, unique]
+      - name: id
+        description: "md5 surrogate of extraction_key — FK target for downstream models."
+        data_tests: [not_null]
+      - name: c1_event_id
+        description: "Resolved canonical OCD event id (nullable until the event is promoted)."
+        data_tests:
+          - relationships:
+              arguments: {to: "source('civic_core', 'c1_event')", field: id}
+              config: {severity: warn}
+      - name: extracted_at
+        description: "Partition key — when the AI extraction was produced."
+        data_tests: [not_null]
