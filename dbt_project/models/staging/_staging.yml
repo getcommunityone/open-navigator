@@ -1396,31 +1396,6 @@ sources:
             description: "JSONB array/object of associated .gov domains (matched with the ? operator)."
 
 models:
-  - name: stg_bronze_contacts
-    description: "Staged and cleaned bronze contacts with normalized names"
-    columns:
-      - name: bronze_contact_id
-        description: "Original bronze table ID"
-        tests:
-          - unique
-          - not_null
-      - name: full_name
-        description: "Original full name"
-        tests:
-          - not_null
-      - name: full_name_normalized
-        description: "Lowercase, trimmed name for matching"
-        tests:
-          - not_null
-      - name: source_event_id
-        description: "Link to source meeting/event"
-      - name: wikidata_qid
-        description: "Wikidata entity ID if available"
-      - name: extracted_at
-        description: "When this was extracted"
-        tests:
-          - not_null
-  
   - name: stg_bronze_decisions
     description: "Staged and cleaned bronze decisions with recent decision flags"
     columns:
@@ -1450,12 +1425,6 @@ models:
         tests:
           - not_null
           
-  - name: stg_bronze_organizations_meetings
-    description: "Staged bronze organizations from meetings (deduplicated)"
-    
-  - name: stg_bronze_bills
-    description: "Staged bronze bills"
-  
   - name: stg_bronze_events_cdp
     description: |
       Staged and cleaned Council Data Project (CDP) events.
