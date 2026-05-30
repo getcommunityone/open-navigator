@@ -13,8 +13,9 @@ Mapping a cache file → a table row:
   - The structured analysis is the ``02_analysis/<meeting_id>.json`` file itself.
   - Per-meeting metadata (video_id, video_url, gemini_model, generated_at) lives in
     the sibling ``04_runs/<meeting_id>.meta.json``.
-  - ``event_id`` is the integer soft key the table shares with ``public.c1_event``
-    (its ``legacy_id``); we resolve it by matching the YouTube ``video_id``.
+  - ``event_id`` is resolved from ``bronze.bronze_events_youtube`` (which carries
+    both ``video_id`` and ``event_id``, one row per scraped video) by matching the
+    YouTube ``video_id``.
 
 Rows are upserted on ``(event_id, analysis_type, ai_model)`` — the same conflict
 target ``load_meeting_transcripts.save_analysis`` uses — so a backfill followed by
@@ -91,21 +92,29 @@ def load_meta(analysis_path: Path) -> Optional[dict[str, Any]]:
 
 
 def build_video_to_event_map(conn) -> dict[str, int]:
-    """Map YouTube video_id → c1_event.legacy_id for event_id resolution."""
+    """Map YouTube video_id → event_id via bronze.bronze_events_youtube.
+
+    Both video_id and its owning event_id live on bronze_events_youtube (one row
+    per scraped video). An earlier version resolved through ``public.c1_event``
+    by extracting the id from ``video_url``, but that column is unpopulated, so
+    every lookup missed. bronze_events_youtube is the table that actually carries
+    video_id, so we join on it directly (no URL parsing needed).
+    """
     mapping: dict[str, int] = {}
     try:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT legacy_id, video_url FROM public.c1_event "
-                "WHERE video_url IS NOT NULL AND legacy_id IS NOT NULL"
+                "SELECT video_id, event_id FROM bronze.bronze_events_youtube "
+                "WHERE video_id IS NOT NULL AND event_id IS NOT NULL"
             )
-            for legacy_id, video_url in cur.fetchall():
-                vid = extract_video_id(video_url)
-                if vid:
-                    mapping[vid] = legacy_id
+            for video_id, event_id in cur.fetchall():
+                mapping[video_id] = event_id
     except psycopg2.Error as exc:
         conn.rollback()
-        logger.error("Could not read public.c1_event ({}). event_id resolution unavailable.", exc)
+        logger.error(
+            "Could not read bronze.bronze_events_youtube ({}). "
+            "event_id resolution unavailable.", exc
+        )
     return mapping
 
 
@@ -182,7 +191,7 @@ def run(cache_root: Path = CACHE_ROOT, database_url: str = DATABASE_URL,
 
     conn = psycopg2.connect(database_url)
     video_to_event = build_video_to_event_map(conn)
-    logger.info("Resolved {:,} video_id → event_id mappings from c1_event", len(video_to_event))
+    logger.info("Resolved {:,} video_id → event_id mappings from bronze_events_youtube", len(video_to_event))
 
     stats = {"discovered": len(files), "loaded": 0, "skipped_no_meta": 0,
              "skipped_no_video": 0, "skipped_no_event": 0, "errors": 0}

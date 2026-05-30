@@ -112,7 +112,10 @@ class StageReportRow(BaseModel):
 class StageReport(BaseModel):
     states: List[str] = Field(default_factory=list)
     rows: List[StageReportRow] = Field(default_factory=list)
-    # Per-stage cadence/last-file: {stage: {avg_seconds, last_path, last_at}}.
+    # Per-stage cadence/last-file:
+    # {stage: {avg_seconds, last_path, last_at, stale_seconds, effective_seconds}}.
+    # effective_seconds = max(avg_seconds, stale_seconds) so /hr and ETA reflect a
+    # stall in progress, not just the historical pace between completions.
     timing: Dict[str, Any] = Field(default_factory=dict)
 
 

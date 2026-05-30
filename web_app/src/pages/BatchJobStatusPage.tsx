@@ -1619,6 +1619,29 @@ export default function BatchJobStatusPage() {
                   const running = runningStages.has(st.stage)
                   const expanded = expandedStage === st.stage
                   const tm = data.stage_report?.timing?.[st.stage]
+                  // Live pace: avg_seconds is the median gap between *completed*
+                  // files, so it freezes during a stall (no new gap is ever
+                  // recorded). Once a running stage is overdue for its next
+                  // completion, our best estimate of the current pace is at
+                  // least how long we've already been waiting — fold the open
+                  // trailing gap in so /hr and ETA degrade every clock tick and
+                  // recover the moment a file lands.
+                  const avgSecs = tm?.avg_seconds && tm.avg_seconds > 0 ? tm.avg_seconds : null
+                  const lastAtMs = tm?.last_at ? Date.parse(tm.last_at) : NaN
+                  const sinceLastSecs = Number.isFinite(lastAtMs)
+                    ? Math.max(0, (agoClockMs - lastAtMs) / 1000)
+                    : null
+                  const effectiveSecs =
+                    avgSecs == null
+                      ? null
+                      : running && sinceLastSecs != null
+                        ? Math.max(avgSecs, sinceLastSecs)
+                        : avgSecs
+                  const stalled =
+                    running &&
+                    avgSecs != null &&
+                    sinceLastSecs != null &&
+                    sinceLastSecs > avgSecs * 3
                   return (
                     <Fragment key={st.stage}>
                     <div className={`${cols} border-t border-slate-100 px-4 py-3`}>
@@ -1719,16 +1742,22 @@ export default function BatchJobStatusPage() {
                       <div className="border-t border-slate-100 bg-slate-50 px-4 py-3 text-xs text-slate-600">
                         <div className="flex flex-wrap gap-x-6 gap-y-1">
                           <span>
-                            avg <b className="text-slate-800">{fmtSecs(tm?.avg_seconds)}</b>/file
-                            {tm?.avg_seconds && tm.avg_seconds > 0
-                              ? ` · ${Math.round(3600 / tm.avg_seconds)}/hr`
-                              : ''}
+                            avg <b className="text-slate-800">{fmtSecs(avgSecs)}</b>/file
+                            {effectiveSecs ? ` · ${Math.round(3600 / effectiveSecs)}/hr` : ''}
+                            {stalled ? (
+                              <span
+                                className="ml-1 font-semibold text-amber-600"
+                                title="No new completions — /hr and ETA now reflect the time since the last file, not the historical pace"
+                              >
+                                · stalled
+                              </span>
+                            ) : null}
                           </span>
-                          {tm?.avg_seconds && tm.avg_seconds > 0 && total - done > 0 ? (
+                          {effectiveSecs && total - done > 0 ? (
                             <span>
                               ETA{' '}
-                              <b className="text-slate-800">
-                                {fmtEta((total - done) / (3600 / tm.avg_seconds))}
+                              <b className={stalled ? 'text-amber-600' : 'text-slate-800'}>
+                                {fmtEta(((total - done) * effectiveSecs) / 3600)}
                               </b>{' '}
                               for {formatCompactNumber(total - done)} left
                             </span>
