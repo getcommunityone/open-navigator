@@ -128,8 +128,13 @@ derived as (
                 when lower(coalesce(jurisdiction_name, '') || ' ' || coalesce(title, '')) ~ '\m(school|district|education)\M' then 'school'
                 when lower(coalesce(jurisdiction_name, '') || ' ' || coalesce(title, '')) ~ '\m(city|town|village|municipal)\M' then 'municipal'
             end,
-            nullif(channel_type_raw, 'unknown'),
-            channel_type_raw,
+            -- Source labels 'municipality' (noun) leak through the raw fallback;
+            -- normalize to the accepted-values set the contract expects.
+            case
+                when channel_type_raw = 'unknown'      then null
+                when channel_type_raw = 'municipality' then 'municipal'
+                else channel_type_raw
+            end,
             'unknown'
         )                                                    as channel_type
     from renamed

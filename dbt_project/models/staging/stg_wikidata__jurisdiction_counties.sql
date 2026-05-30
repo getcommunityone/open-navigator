@@ -27,8 +27,8 @@ renamed as (
         upper(nullif(trim(usps), ''))                as state_code,
         nullif(trim(ansicode::text), '')             as ansicode,
         nullif(trim(name), '')                       as county_name,
-        aland_sqmi                                   as aland_sqmi,
-        awater_sqmi                                  as awater_sqmi,
+        aland_sqmi::double precision                 as aland_sqmi,
+        awater_sqmi::double precision                as awater_sqmi,
         intptlat::double precision                   as latitude,
         intptlong::double precision                  as longitude,
         ingestion_date                               as source_ingested_at

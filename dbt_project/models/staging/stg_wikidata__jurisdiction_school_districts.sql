@@ -27,8 +27,8 @@ renamed as (
         nullif(trim(name), '')                       as district_name,
         nullif(trim(lograde), '')                    as lograde,
         nullif(trim(higrade), '')                    as higrade,
-        aland_sqmi                                   as aland_sqmi,
-        awater_sqmi                                  as awater_sqmi,
+        aland_sqmi::double precision                 as aland_sqmi,
+        awater_sqmi::double precision                as awater_sqmi,
         intptlat::double precision                   as latitude,
         intptlong::double precision                  as longitude,
         ingestion_date                               as source_ingested_at
