@@ -1,6 +1,36 @@
 version: 2
 
 models:
+  - name: int_persons_scraped
+    description: >
+      Usable scraped persons, deduplicated to one row per person per
+      jurisdiction. First downstream consumer of the name-quality
+      classification in stg_bronze_persons_scraped: filters to
+      is_usable_person and collapses duplicate scrapes, keeping the most
+      complete row (prefers email, then phone, then most recent scrape).
+    columns:
+      - name: person_key
+        description: "Surrogate key: hash of (jurisdiction_id, normalized name). Grain of this model."
+        tests:
+          - unique
+          - not_null
+      - name: jurisdiction_id
+        description: "Canonical {slug}_{geoid} jurisdiction id."
+      - name: name
+        description: "Cleaned/recovered person name (never null or junk — staging already filtered)."
+        tests:
+          - not_null
+      - name: name_key
+        description: "Normalized name used for the dedup partition."
+        tests:
+          - not_null
+      - name: has_email
+        description: "TRUE when the surviving row carries an email."
+      - name: source_row_count
+        description: "How many raw usable rows collapsed into this person (>=1)."
+        tests:
+          - not_null
+
   - name: int_jurisdictions
     description: >
       Unified silver jurisdictions table — union of Census Gazetteer counties,
