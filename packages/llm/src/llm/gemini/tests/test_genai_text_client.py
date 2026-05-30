@@ -1,0 +1,71 @@
+"""Tests for the AI Studio text client: key-pool sanitizing and retry give-up typing."""
+
+import pytest
+
+from llm.gemini import genai_text_client as m
+from llm.gemini.genai_text_client import (
+    GenAITransientGiveUp,
+    call_with_genai_quota_retry,
+    resolve_gemini_api_keys,
+)
+
+_KEY_ENV_VARS = (
+    ["GEMINI_API_KEYS", "GEMINI_API_KEY", "GOOGLE_API_KEY"]
+    + [f"GEMINI_API_KEY_{i}" for i in range(1, 11)]
+)
+
+
+@pytest.fixture
+def clean_key_env(monkeypatch):
+    """Strip every Gemini key env var so tests see only what they set."""
+    for var in _KEY_ENV_VARS:
+        monkeypatch.delenv(var, raising=False)
+    return monkeypatch
+
+
+def test_resolve_gemini_api_keys_drops_non_aistudio_credentials(clean_key_env):
+    # Only "AIza…" strings are valid AI Studio api keys. OAuth access tokens
+    # ("AQ.…", "ya29.…") get mistakenly merged via GEMINI_API_KEYS and must be
+    # dropped, otherwise they poison the rotation pool (connection drops + hourly
+    # expiry). env_path points nowhere so the real .env is not loaded.
+    clean_key_env.setenv("GEMINI_API_KEYS", "AIzaGOOD, AQ.Ab8RN6Bogus ya29.OauthToken")
+    clean_key_env.setenv("GEMINI_API_KEY", "AIzaGOOD2")
+
+    keys = resolve_gemini_api_keys(env_path="/nonexistent/.env")
+
+    assert keys == ["AIzaGOOD", "AIzaGOOD2"]
+
+
+def test_resolve_gemini_api_keys_dedupes_and_preserves_order(clean_key_env):
+    clean_key_env.setenv("GEMINI_API_KEYS", "AIzaA AIzaB AIzaA")
+    clean_key_env.setenv("GEMINI_API_KEY", "AIzaB")
+
+    assert resolve_gemini_api_keys(env_path="/nonexistent/.env") == ["AIzaA", "AIzaB"]
+
+
+def test_transient_network_giveup_raises_distinct_subtype(monkeypatch):
+    monkeypatch.setattr(m.time, "sleep", lambda *_a, **_k: None)
+    monkeypatch.setenv("GOVERNANCE_GENAI_NETWORK_RETRIES", "2")
+
+    def _fn():
+        raise RuntimeError("Server disconnected without sending a response.")
+
+    # Transient infra give-ups raise the dedicated type so batch callers skip-and-continue,
+    # while remaining a RuntimeError so existing `except RuntimeError` handlers still catch it.
+    with pytest.raises(GenAITransientGiveUp):
+        call_with_genai_quota_retry(_fn, label="test", key_pool_size=1)
+    assert issubclass(GenAITransientGiveUp, RuntimeError)
+
+
+def test_quota_giveup_raises_plain_runtimeerror(monkeypatch):
+    monkeypatch.setattr(m.time, "sleep", lambda *_a, **_k: None)
+    monkeypatch.setenv("GOVERNANCE_GENAI_QUOTA_RETRIES", "2")
+
+    def _fn():
+        raise RuntimeError("RESOURCE_EXHAUSTED: 429 quota exceeded")
+
+    # Real quota/server give-ups stay plain RuntimeError (NOT the transient subtype),
+    # so --stop-on-error still halts on them.
+    with pytest.raises(RuntimeError) as excinfo:
+        call_with_genai_quota_retry(_fn, label="test", key_pool_size=1)
+    assert not isinstance(excinfo.value, GenAITransientGiveUp)

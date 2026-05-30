@@ -17,6 +17,16 @@ from loguru import logger
 
 T = TypeVar("T")
 
+
+class GenAITransientGiveUp(RuntimeError):
+    """Raised when retries are exhausted on a *transient infra* failure (network
+    disconnect / server timeout) rather than a real data/logic error.
+
+    Batch callers should treat this as "skip this item and continue" even when a
+    ``--stop-on-error`` flag is set: Google flaking is not a reason to abort a
+    whole run. Genuine errors raise plain exceptions and still honour stop-on-error.
+    """
+
 _RETRY_IN_RE = re.compile(r"retry in\s+([\d.]+)\s*s", re.IGNORECASE)
 _RETRY_DELAY_RE = re.compile(
     r"""retryDelay['"]?\s*[:=]\s*['"]?(\d+(?:\.\d+)?)s?""",
@@ -197,10 +207,15 @@ def call_with_genai_quota_retry(
                     kind,
                     describe_genai_error(exc),
                 )
-                raise RuntimeError(
+                detail = (
                     f"{label}: failed after {limit} attempt(s) ({classify_genai_error(exc)}). "
                     f"{describe_genai_error(exc)}"
-                ) from exc
+                )
+                # Transient infra give-ups get a distinct type so batch callers can
+                # skip-and-continue without aborting the run on a Google-side flake.
+                if transient:
+                    raise GenAITransientGiveUp(detail) from exc
+                raise RuntimeError(detail) from exc
             # Quota/429 with more keys to try: rotate to the next key fast (a fresh
             # key likely still has quota) instead of sleeping the full backoff. Only
             # back off long once we've cycled the whole pool — i.e. every key is
@@ -360,10 +375,26 @@ def resolve_gemini_api_keys(*, env_path: Optional[os.PathLike[str]] = None) -> l
     raw += [os.getenv(f"GEMINI_API_KEY_{i}") or "" for i in range(1, 11)]
     out: list[str] = []
     seen: set[str] = set()
+    dropped = 0
     for k in (_strip_api_key(x) for x in raw):
-        if k and k not in seen:
-            seen.add(k)
-            out.append(k)
+        if not k or k in seen:
+            continue
+        seen.add(k)
+        # AI Studio keys always start with "AIza". OAuth access tokens ("AQ.…",
+        # "ya29.…") get mistakenly merged in via GEMINI_API_KEYS; passing them as
+        # x-goog-api-key makes Google drop the connection (RemoteProtocolError) and
+        # they expire hourly — so they poison the rotation pool. Drop them here.
+        if not k.startswith("AIza"):
+            dropped += 1
+            logger.warning(
+                "Ignoring non-AI-Studio Gemini credential in pool (prefix {!r}…) — "
+                "only keys starting with 'AIza' are valid api keys; OAuth tokens are not",
+                k[:4],
+            )
+            continue
+        out.append(k)
+    if dropped:
+        logger.warning("Dropped {} invalid Gemini credential(s) from rotation pool", dropped)
     return out
 
 
