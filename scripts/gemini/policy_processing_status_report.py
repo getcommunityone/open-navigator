@@ -8,6 +8,7 @@ Combines Postgres (bronze YouTube + text_ai + public.jurisdiction) with on-disk
 Usage (repo root):
   .venv/bin/python scripts/gemini/policy_processing_status_report.py
   .venv/bin/python scripts/gemini/policy_processing_status_report.py --states AL,GA,IN
+  .venv/bin/python scripts/gemini/policy_processing_status_report.py --all-states
   .venv/bin/python scripts/gemini/policy_processing_status_report.py -o docs/policy_processing_status.md
 """
 
@@ -16,6 +17,7 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import sys
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -25,6 +27,9 @@ from typing import Any, DefaultDict, Dict, Iterable, List, Optional, Set, Tuple
 from dotenv import load_dotenv
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]  # repo root (…/scripts/gemini/ → …/)
+# Allow ``scripts.*`` imports when run as a file (not just ``python -m``).
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 _DEFAULT_CACHE = _REPO_ROOT / "data" / "cache" / "gemini_transcript_policy"
 _DEFAULT_OUT = _REPO_ROOT / "data" / "reports" / "policy_processing_status.md"
 _PRIORITY_STATES = ("AL", "GA", "IN", "MA", "MT", "WA", "WI")
@@ -122,23 +127,34 @@ def _database_url() -> Optional[str]:
     )
 
 
-def _jurisdiction_state_sql(conn) -> str:
-    """Column on ``public.jurisdiction`` for USPS code (``state_code`` or ``state``)."""
+# Canonical jurisdiction table is ``public.c1_jurisdiction`` (state column ``state``,
+# type column ``classification``). Legacy ``public.jurisdiction`` (``state_code``/``type``)
+# is still supported as a fallback.
+_JURISDICTION_TABLE_CANDIDATES = ("c1_jurisdiction", "jurisdiction")
+
+
+def _jurisdiction_table_meta(conn) -> Tuple[str, str, str]:
+    """Resolve ``(table, state_col, type_col)`` for the public jurisdiction table."""
     with conn.cursor() as cur:
-        cur.execute(
-            """
-            SELECT column_name
-            FROM information_schema.columns
-            WHERE table_schema = 'public' AND table_name = 'jurisdiction'
-              AND column_name IN ('state_code', 'state')
-            ORDER BY CASE column_name WHEN 'state_code' THEN 0 ELSE 1 END
-            LIMIT 1
-            """
-        )
-        row = cur.fetchone()
-    if not row:
-        raise RuntimeError("public.jurisdiction has no state_code/state column")
-    return str(row[0])
+        for table in _JURISDICTION_TABLE_CANDIDATES:
+            cur.execute(
+                """
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema = 'public' AND table_name = %s
+                """,
+                (table,),
+            )
+            cols = {r[0] for r in cur.fetchall()}
+            if not cols:
+                continue
+            state_col = "state_code" if "state_code" in cols else ("state" if "state" in cols else None)
+            type_col = "type" if "type" in cols else ("classification" if "classification" in cols else None)
+            if state_col and type_col:
+                return table, state_col, type_col
+    raise RuntimeError(
+        "No public.c1_jurisdiction or public.jurisdiction table with state/type columns found"
+    )
 
 
 def _map_jurisdiction_type(raw: str) -> str:
@@ -433,6 +449,34 @@ def scan_policy_cache(cache_root: Path) -> Tuple[Dict[str, CacheCounts], Dict[st
     return by_state, jids_with_cache
 
 
+def fetch_states_with_data() -> List[str]:
+    """Distinct USPS state codes present in bronze YouTube — the DB universe.
+
+    Used by ``--all-states`` so the report covers every state that actually has
+    data, not just the priority dev set.
+    """
+    import psycopg2
+
+    url = _database_url()
+    if not url:
+        raise SystemExit("Set NEON_DATABASE_URL or DATABASE_URL in .env")
+
+    found: Set[str] = set()
+    with psycopg2.connect(url) as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT DISTINCT UPPER(state_code) AS sc
+            FROM bronze.bronze_events_youtube
+            WHERE state_code IS NOT NULL AND BTRIM(state_code) <> ''
+            """
+        )
+        for row in cur.fetchall():
+            sc = (row[0] or "").strip().upper()
+            if re.fullmatch(r"[A-Z]{2}", sc):
+                found.add(sc)
+    return sorted(found)
+
+
 def fetch_db_rollups(states: List[str]) -> Dict[str, StateRollup]:
     import psycopg2
     from psycopg2.extras import RealDictCursor
@@ -444,13 +488,13 @@ def fetch_db_rollups(states: List[str]) -> Dict[str, StateRollup]:
     rollups: Dict[str, StateRollup] = {s: StateRollup(state_code=s) for s in states}
 
     with psycopg2.connect(url) as conn, conn.cursor(cursor_factory=RealDictCursor) as cur:
-        state_col = _jurisdiction_state_sql(conn)
+        table, state_col, type_col = _jurisdiction_table_meta(conn)
         cur.execute(
             f"""
             SELECT UPPER({state_col}) AS state_code,
-                   type,
+                   {type_col} AS type,
                    COUNT(*)::bigint AS n
-            FROM jurisdiction
+            FROM {table}
             WHERE UPPER({state_col}) = ANY(%s)
             GROUP BY 1, 2
             ORDER BY 1, 2
@@ -871,9 +915,18 @@ def render_markdown(
     lines.append("| Metric | Value |")
     lines.append("|--------|-------|")
     lines.append(f"| Last activity (DB or cache) | {_format_dt(timing.last_activity_utc)} |")
+    _priority_set = set(_PRIORITY_STATES)
+    _prio_rows = [p for p in progress if p.state_code in _priority_set]
+    _prio_total = len(_prio_rows)
+    _prio_done = sum(1 for p in _prio_rows if p.cache_reports >= target_videos)
     lines.append(
-        f"| Jurisdictions complete (≥{target_videos} reports) | "
-        f"{timing.completed_jurisdictions:,} / {timing.total_jurisdictions:,} |"
+        f"| Jurisdictions complete (≥{target_videos} reports) — all states shown | "
+        f"{timing.completed_jurisdictions:,} / {timing.total_jurisdictions:,} "
+        f"({_pct(timing.completed_jurisdictions, timing.total_jurisdictions)}) |"
+    )
+    lines.append(
+        f"| Jurisdictions complete (≥{target_videos} reports) — priority states ⭐ | "
+        f"{_prio_done:,} / {_prio_total:,} ({_pct(_prio_done, _prio_total)}) |"
     )
     lines.append(
         f"| Avg time per jurisdiction (completed samples) | "
@@ -971,6 +1024,12 @@ def render_markdown(
     lines.append("## Per-state summary")
     lines.append("")
     lines.append(
+        "⭐ = priority dev state. **Report %** = reports ÷ analysis JSON "
+        "(falls back to ÷ transcripts). The **Priority subtotal** and **All states total** "
+        "rows give completion against each universe."
+    )
+    lines.append("")
+    lines.append(
         "| State | Municipalities | Counties | School dist. | YT places | YT channels | "
         "YT videos | Bronze transcript | Disk T / A / R | Report % |"
     )
@@ -979,37 +1038,52 @@ def render_markdown(
         "----------|-------------------|----------------|----------|"
     )
 
+    priority_set = set(_PRIORITY_STATES)
+    has_non_priority = any(st not in priority_set for st in states)
     totals = StateRollup(state_code="ALL")
+    priority_totals = StateRollup(state_code="PRIORITY")
     for st in states:
         r = rollups.get(st) or StateRollup(state_code=st)
         c = cache_by_state.get(st) or CacheCounts()
         report_pct = _pct(c.reports_md, c.analysis_json) if c.analysis_json else _pct(c.reports_md, c.transcripts)
+        st_label = f"{st} ⭐" if st in priority_set else st
         lines.append(
-            f"| {st} | {r.municipalities:,} | {r.counties:,} | {r.school_districts:,} | "
+            f"| {st_label} | {r.municipalities:,} | {r.counties:,} | {r.school_districts:,} | "
             f"{r.youtube_jurisdictions:,} | {r.youtube_channels:,} | {r.youtube_videos:,} | "
             f"{r.bronze_has_transcript:,} ({_pct(r.bronze_has_transcript, r.youtube_videos)}) | "
             f"{c.transcripts:,} / {c.analysis_json:,} / {c.reports_md:,} | {report_pct} |"
         )
-        totals.municipalities += r.municipalities
-        totals.counties += r.counties
-        totals.school_districts += r.school_districts
-        totals.youtube_jurisdictions += r.youtube_jurisdictions
-        totals.youtube_channels += r.youtube_channels
-        totals.youtube_videos += r.youtube_videos
-        totals.bronze_has_transcript += r.bronze_has_transcript
-        totals.cache.transcripts += c.transcripts
-        totals.cache.analysis_json += c.analysis_json
-        totals.cache.reports_md += c.reports_md
-        totals.cache.jurisdictions += c.jurisdictions
-        totals.cache.channels += c.channels
+        accumulators = [totals] + ([priority_totals] if st in priority_set else [])
+        for tot in accumulators:
+            tot.municipalities += r.municipalities
+            tot.counties += r.counties
+            tot.school_districts += r.school_districts
+            tot.youtube_jurisdictions += r.youtube_jurisdictions
+            tot.youtube_channels += r.youtube_channels
+            tot.youtube_videos += r.youtube_videos
+            tot.bronze_has_transcript += r.bronze_has_transcript
+            tot.cache.transcripts += c.transcripts
+            tot.cache.analysis_json += c.analysis_json
+            tot.cache.reports_md += c.reports_md
+            tot.cache.jurisdictions += c.jurisdictions
+            tot.cache.channels += c.channels
 
-    lines.append(
-        f"| **Total** | {totals.municipalities:,} | {totals.counties:,} | {totals.school_districts:,} | "
-        f"{totals.youtube_jurisdictions:,} | {totals.youtube_channels:,} | {totals.youtube_videos:,} | "
-        f"{totals.bronze_has_transcript:,} | "
-        f"{totals.cache.transcripts:,} / {totals.cache.analysis_json:,} / {totals.cache.reports_md:,} | "
-        f"{_pct(totals.cache.reports_md, totals.cache.analysis_json)} |"
-    )
+    def _total_row(label: str, t: StateRollup) -> str:
+        pct = (
+            _pct(t.cache.reports_md, t.cache.analysis_json)
+            if t.cache.analysis_json
+            else _pct(t.cache.reports_md, t.cache.transcripts)
+        )
+        return (
+            f"| {label} | {t.municipalities:,} | {t.counties:,} | {t.school_districts:,} | "
+            f"{t.youtube_jurisdictions:,} | {t.youtube_channels:,} | {t.youtube_videos:,} | "
+            f"{t.bronze_has_transcript:,} ({_pct(t.bronze_has_transcript, t.youtube_videos)}) | "
+            f"{t.cache.transcripts:,} / {t.cache.analysis_json:,} / {t.cache.reports_md:,} | {pct} |"
+        )
+
+    if has_non_priority:
+        lines.append(_total_row("**Priority subtotal** ⭐", priority_totals))
+    lines.append(_total_row("**All states total**" if has_non_priority else "**Total**", totals))
     lines.append("")
 
     lines.append("## Videos per year (bronze YouTube)")
@@ -1137,6 +1211,13 @@ def main() -> int:
         help="Comma-separated state codes (default: priority dev states)",
     )
     parser.add_argument(
+        "--all-states",
+        action="store_true",
+        help="Include every state present in the database (bronze YouTube), not just "
+        "the priority dev states. Priority states are still flagged ⭐ and broken out "
+        "as a subtotal.",
+    )
+    parser.add_argument(
         "--cache-dir",
         type=Path,
         default=_DEFAULT_CACHE,
@@ -1163,8 +1244,16 @@ def main() -> int:
         help="Treat cache writes within this many minutes as in-progress (default: 30)",
     )
     args = parser.parse_args()
-    states = [s.strip().upper() for s in args.states.split(",") if s.strip()]
     cache_root = args.cache_dir.resolve()
+
+    explicit = [s.strip().upper() for s in args.states.split(",") if s.strip()]
+    if args.all_states:
+        # Universe of states comes from the database; priority states are always
+        # listed first (then every other DB state, alphabetically).
+        discovered = set(fetch_states_with_data()) | set(explicit)
+        states = list(_PRIORITY_STATES) + sorted(discovered - set(_PRIORITY_STATES))
+    else:
+        states = explicit
 
     cache_by_state, _ = scan_policy_cache(cache_root)
     rollups = fetch_db_rollups(states)

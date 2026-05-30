@@ -175,11 +175,11 @@ async def _fetch_location_stats_from_jurisdiction(
     county: Optional[str] = None,
     city: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
-    """Build minimal stats from ``public.jurisdiction`` when aggregate table is missing."""
-    jur_cols = await _get_table_columns(conn, "jurisdiction")
+    """Build minimal stats from ``public.c1_jurisdiction`` when aggregate table is missing."""
+    jur_cols = await _get_table_columns(conn, "c1_jurisdiction")
     if not jur_cols:
         return None
-    if not await _aggregate_table_exists(conn, "jurisdiction"):
+    if not await _aggregate_table_exists(conn, "c1_jurisdiction"):
         return None
 
     jur_state_pred = _state_usps_match_sql(jur_cols, "$1")
