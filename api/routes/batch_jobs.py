@@ -323,15 +323,30 @@ def _launch_meta_path() -> Path:
     return _repo_root() / "data" / "cache" / "batch_jobs" / "launch.json"
 
 
-def _alive_launch() -> Optional[Dict[str, Any]]:
-    """The active launch's meta ({pid, step, states}) if its process is still
-    alive, else None (no launch, or stale file = the run stopped/got stuck)."""
+def _read_launches() -> List[Dict[str, Any]]:
+    """All tracked launches: list of {pid, step, states, started_at}."""
     try:
-        meta = json.loads(_launch_meta_path().read_text())
-        os.kill(int(meta["pid"]), 0)  # signal 0 = liveness probe
-        return meta
-    except (OSError, ValueError, KeyError, TypeError, FileNotFoundError):
-        return None
+        data = json.loads(_launch_meta_path().read_text())
+    except (OSError, ValueError, FileNotFoundError):
+        return []
+    if isinstance(data, dict):  # legacy single-launch file
+        return [data]
+    return [m for m in data if isinstance(m, dict)] if isinstance(data, list) else []
+
+
+def _write_launches(launches: List[Dict[str, Any]]) -> None:
+    try:
+        _launch_meta_path().write_text(json.dumps(launches))
+    except Exception:
+        pass
+
+
+def _pid_alive(pid: Any) -> bool:
+    try:
+        os.kill(int(pid), 0)  # signal 0 = liveness probe
+        return True
+    except (OSError, TypeError, ValueError):
+        return False
 
 
 def _dashboard_runtime() -> "tuple[int, str]":
@@ -373,17 +388,23 @@ def _launch_stalled(live: Dict[str, Any], freshest: str) -> bool:
     return age is not None and age > _LAUNCH_STALL_SECONDS
 
 
-def _terminate_launch(live: Dict[str, Any]) -> None:
-    """Best-effort kill of a stalled launch's process group, then clear the meta."""
+def _kill_launch(meta: Dict[str, Any]) -> None:
+    """Best-effort SIGTERM to a launch's process group."""
     try:
-        pid = int(live["pid"])
-        os.killpg(os.getpgid(pid), signal.SIGTERM)
+        os.killpg(os.getpgid(int(meta["pid"])), signal.SIGTERM)
     except Exception:
         pass
-    try:
-        _launch_meta_path().unlink(missing_ok=True)
-    except Exception:
-        pass
+
+
+def _classify_launches(freshest: str) -> "tuple[List[Dict[str, Any]], List[Dict[str, Any]]]":
+    """(running, stalled) metas among live launches; dead ones are ignored."""
+    running: List[Dict[str, Any]] = []
+    stalled: List[Dict[str, Any]] = []
+    for m in _read_launches():
+        if not _pid_alive(m.get("pid")):
+            continue
+        (stalled if _launch_stalled(m, freshest) else running).append(m)
+    return running, stalled
 
 
 class LaunchRequest(BaseModel):
@@ -396,11 +417,10 @@ class LaunchRequest(BaseModel):
 class LaunchStatusResponse(BaseModel):
     enabled: bool
     busy: bool = False
-    stalled: bool = False
     running: int = 0
-    launch_pid: Optional[int] = None
-    launch_step: str = ""
-    launch_states: List[str] = Field(default_factory=list)
+    # Per-step concurrency: different steps may run at once; the same step may not.
+    running_steps: List[str] = Field(default_factory=list)
+    stalled_steps: List[str] = Field(default_factory=list)
     steps: List[str] = Field(default_factory=lambda: list(_LAUNCH_STEPS))
 
 
@@ -415,20 +435,17 @@ class LaunchResponse(BaseModel):
 
 @router.get("/launch", response_model=LaunchStatusResponse)
 async def launch_status() -> LaunchStatusResponse:
-    """Whether the dashboard re-kick button should be enabled / shown as busy."""
-    running, freshest = await asyncio.to_thread(_dashboard_runtime)
-    live = _alive_launch()
-    stalled = bool(live and _launch_stalled(live, freshest))
-    # A stalled launch (alive but no activity for >1h) counts as timed-out, not
-    # busy, so the buttons re-enable. The POST handler reaps it on next launch.
+    """Per-step running/stalled state for the dashboard's Run buttons."""
+    running_rows, freshest = await asyncio.to_thread(_dashboard_runtime)
+    running, stalled = _classify_launches(freshest)
+    running_steps = sorted({str(m.get("step") or "") for m in running} - {""})
+    stalled_steps = sorted({str(m.get("step") or "") for m in stalled} - {""})
     return LaunchStatusResponse(
         enabled=_launch_enabled(),
-        running=running,
-        stalled=stalled,
-        launch_pid=(int(live["pid"]) if live else None),
-        launch_step=(str(live.get("step") or "") if live and not stalled else ""),
-        launch_states=(list(live.get("states") or []) if live and not stalled else []),
-        busy=running > 0 or (live is not None and not stalled),
+        running=running_rows,
+        running_steps=running_steps,
+        stalled_steps=stalled_steps,
+        busy=running_rows > 0 or bool(running_steps),
     )
 
 
@@ -451,20 +468,27 @@ async def launch_pipeline(req: LaunchRequest) -> LaunchResponse:
     n = max(1, min(2000, int(req.n or 10)))
     parallel = max(1, min(8, int(req.parallel or 1)))
 
-    # Single-run guard: a running batch row blocks; a live launch blocks unless
-    # it has stalled (>1h no activity), in which case we reap it and proceed.
-    running, freshest = await asyncio.to_thread(_dashboard_runtime)
-    if running > 0:
-        raise HTTPException(status_code=409, detail="A batch run is already active — wait for it.")
-    live = _alive_launch()
-    if live is not None:
-        if _launch_stalled(live, freshest):
-            _terminate_launch(live)
-        else:
-            raise HTTPException(
-                status_code=409,
-                detail="A run is already active — wait for it to finish or cancel it.",
-            )
+    # Per-step guard: different steps may run concurrently; the same step (or a
+    # full-pipeline run) may not overlap. Reap dead/stalled launches first.
+    _, freshest = await asyncio.to_thread(_dashboard_runtime)
+    kept: List[Dict[str, Any]] = []
+    for m in _read_launches():
+        if not _pid_alive(m.get("pid")):
+            continue
+        if _launch_stalled(m, freshest):
+            _kill_launch(m)  # reap the stalled run, free the slot
+            continue
+        kept.append(m)
+    running_steps = {str(m.get("step")) for m in kept}
+    if (
+        step in running_steps
+        or (step in ("all", "each") and running_steps)
+        or (running_steps & {"all", "each"})
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail=f"A conflicting run is already active ({', '.join(sorted(running_steps))}).",
+        )
 
     root = _repo_root()
     env = dict(os.environ)
@@ -514,15 +538,16 @@ async def launch_pipeline(req: LaunchRequest) -> LaunchResponse:
         raise HTTPException(status_code=500, detail=f"launch failed: {exc}") from exc
 
     try:
-        _launch_meta_path().write_text(
-            json.dumps(
+        _write_launches(
+            kept
+            + [
                 {
                     "pid": proc.pid,
                     "step": step,
                     "states": states,
                     "started_at": _dt.datetime.now(_dt.timezone.utc).isoformat(),
                 }
-            )
+            ]
         )
     except Exception:
         pass

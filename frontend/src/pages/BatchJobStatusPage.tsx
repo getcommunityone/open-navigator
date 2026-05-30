@@ -1383,11 +1383,9 @@ export default function BatchJobStatusPage() {
             const cols =
               'grid grid-cols-[1.4fr_0.8fr_minmax(0,1.7fr)_4.5rem_4.5rem] items-center gap-3'
             const ls = launchStatus
-            const canLaunch =
-              !!ls?.enabled && !ls?.busy && !launching && data.totals.running === 0
             const launchScopeStates = scope === 'ALL' ? [] : [scope]
-            // Which stages the in-flight launch is working on (its script step maps
-            // to one or more stages), so each row can show a live "running" marker.
+            // Each running step maps to the stage(s) it advances. Different steps
+            // run concurrently, so we union them for the live "running" markers.
             const stepStages: Record<string, PipelineStage[]> = {
               discover: ['discover'],
               catalog: ['videos'],
@@ -1396,22 +1394,39 @@ export default function BatchJobStatusPage() {
               all: ['discover', 'videos', 'transcripts', 'analyses', 'reports'],
               each: ['discover', 'videos', 'transcripts', 'analyses', 'reports'],
             }
-            const runningStep = ls?.busy ? ls.launch_step || '' : ''
-            const runningStages = new Set<PipelineStage>(
-              runningStep ? stepStages[runningStep] ?? [] : [],
+            const runningSteps = new Set(ls?.running_steps ?? [])
+            const stalledSteps = new Set(ls?.stalled_steps ?? [])
+            const runningStages = new Set<PipelineStage>()
+            runningSteps.forEach((s) =>
+              (stepStages[s] ?? []).forEach((g) => runningStages.add(g)),
             )
-            const isActive = data.totals.running > 0 || !!ls?.busy
+            const anyFullRun = runningSteps.has('all') || runningSteps.has('each')
+            // A stage's Run is allowed unless its step (or a full-pipeline run) is
+            // already running — so e.g. Discover can launch while Analyze runs.
+            const canRunStage = (g: PipelineStage) =>
+              !!ls?.enabled &&
+              !launching &&
+              !runningSteps.has(stageStep[g]) &&
+              !anyFullRun &&
+              !(g === 'discover' && scope === 'ALL')
+            const canRunAll =
+              !!ls?.enabled &&
+              !launching &&
+              runningSteps.size === 0 &&
+              data.totals.running === 0
+            const isActive = data.totals.running > 0 || runningSteps.size > 0
+            const anyStalled = stalledSteps.size > 0
             // Header "last activity" = the freshest per-step stamp for this scope,
             // not the stale batch-step clock.
             const freshestIso = stageList
               .map((s) => rowFor(scope, s)?.last_at || '')
               .reduce((a, b) => (a > b ? a : b), '')
             const freshestAgo = agoFromIso(freshestIso)
-            const statusText = ls?.stalled ? 'Stalled' : isActive ? 'Running' : 'Idle'
-            const statusDot = ls?.stalled
-              ? 'bg-amber-500'
-              : isActive
-                ? 'bg-emerald-500'
+            const statusText = isActive ? 'Running' : anyStalled ? 'Stalled' : 'Idle'
+            const statusDot = isActive
+              ? 'bg-emerald-500'
+              : anyStalled
+                ? 'bg-amber-500'
                 : 'bg-slate-400'
             return (
               <>
@@ -1420,7 +1435,7 @@ export default function BatchJobStatusPage() {
                   <div className="flex flex-wrap items-center gap-1.5 text-sm">
                     <span
                       className={`inline-block h-2.5 w-2.5 rounded-full ${statusDot} ${
-                        ls?.busy ? 'animate-pulse' : ''
+                        isActive ? 'animate-pulse' : ''
                       }`}
                     />
                     <span className="font-semibold text-slate-800">{statusText}</span>
@@ -1428,14 +1443,10 @@ export default function BatchJobStatusPage() {
                       <span className="text-slate-500">· last activity {freshestAgo}</span>
                     ) : null}
                     <span className="text-slate-500">
-                      {ls?.busy && runningStep
-                        ? `· running ${runningStep}${
-                            ls.launch_states && ls.launch_states.length
-                              ? ` · ${ls.launch_states.join(',')}`
-                              : ''
-                          }`
-                        : ls?.stalled
-                          ? '· timed out — no activity for 1h'
+                      {runningSteps.size > 0
+                        ? `· running ${[...runningSteps].join(', ')}`
+                        : anyStalled
+                          ? `· ${[...stalledSteps].join(', ')} timed out (no activity 1h)`
                           : `· ${formatCompactNumber(data.totals.running)} running`}
                     </span>
                     {scope !== 'ALL' ? (
@@ -1448,20 +1459,16 @@ export default function BatchJobStatusPage() {
                     {ls?.enabled ? (
                       <button
                         type="button"
-                        disabled={!canLaunch}
+                        disabled={!canRunAll}
                         onClick={() => runLaunch('all', launchScopeStates)}
                         title={
-                          ls.busy
-                            ? 'A run is already active — wait for it to finish'
+                          runningSteps.size > 0
+                            ? 'Finish the running step(s) before a full-pipeline run'
                             : `Run the full pipeline (catalog → captions → analyze)${scope !== 'ALL' ? ` for ${scope}` : ' (all states)'}`
                         }
                         className="inline-flex items-center gap-1 rounded-md bg-[#354F52] px-2.5 py-1.5 text-xs font-semibold uppercase tracking-wide text-white shadow-sm hover:bg-[#2c4346] disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        {launching
-                          ? 'Launching…'
-                          : ls.busy
-                            ? 'Running…'
-                            : `▶ Run all${scope !== 'ALL' ? ` · ${scope}` : ''}`}
+                        {launching ? 'Launching…' : `▶ Run all${scope !== 'ALL' ? ` · ${scope}` : ''}`}
                       </button>
                     ) : null}
                     {stateOpts.length > 0 ? (
@@ -1576,18 +1583,18 @@ export default function BatchJobStatusPage() {
                         {ls?.enabled ? (
                           <button
                             type="button"
-                            disabled={
-                              !canLaunch || (st.stage === 'discover' && scope === 'ALL')
-                            }
+                            disabled={!canRunStage(st.stage)}
                             onClick={() => runLaunch(stageStep[st.stage], launchScopeStates)}
                             title={
-                              st.stage === 'discover' && scope === 'ALL'
-                                ? 'Scope to one state first to discover its channels'
-                                : `Run ${stepDesc[st.stage]}${scope !== 'ALL' ? ` · ${scope}` : ''}`
+                              runningSteps.has(stageStep[st.stage])
+                                ? `${stageStep[st.stage]} is already running`
+                                : st.stage === 'discover' && scope === 'ALL'
+                                  ? 'Scope to one state first to discover its channels'
+                                  : `Run ${stepDesc[st.stage]}${scope !== 'ALL' ? ` · ${scope}` : ''}`
                             }
                             className="rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
                           >
-                            ▶ Run
+                            {running ? '· · ·' : '▶ Run'}
                           </button>
                         ) : null}
                       </div>

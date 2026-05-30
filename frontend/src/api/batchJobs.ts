@@ -108,13 +108,11 @@ export type BatchJobsDashboardPayload = {
 export type LaunchStatus = {
   enabled: boolean
   busy: boolean
-  /** Live but no activity for >1h — timed out; launching is re-enabled. */
-  stalled?: boolean
   running: number
-  launch_pid?: number | null
-  /** The step of the currently-running dashboard launch (e.g. "analyze"). */
-  launch_step?: string
-  launch_states?: string[]
+  /** Steps currently running — different steps can run concurrently. */
+  running_steps: string[]
+  /** Live but stalled (>1h no activity) — re-launchable. */
+  stalled_steps: string[]
   steps: string[]
 }
 
@@ -150,8 +148,8 @@ export async function launchPipeline(body: {
   if (!r.ok) {
     let detail = `HTTP ${r.status}`
     try {
-      const j = (await r.json()) as { detail?: string }
-      if (j?.detail) detail = j.detail
+      const j = (await r.json()) as { error?: string; detail?: string }
+      if (j?.error || j?.detail) detail = (j.error || j.detail) as string
     } catch {
       /* ignore */
     }
