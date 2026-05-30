@@ -69,7 +69,7 @@ events as (
 
 select
     -- keys
-    md5(dd.source_event_id_decision_id)         as id,
+    md5(dd.source_event_id_decision_id)         as event_decision_id,
     dd.source_event_id_decision_id              as extraction_key,
     dd.source_event_id                          as analysis_id,
     a.legacy_event_id,

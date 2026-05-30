@@ -48,7 +48,7 @@ select 1;
 {% macro bootstrap_event_person() %}
   {% set ddl %}
     create table if not exists public.event_person (
-        id                            text        not null,
+        event_person_id               text        not null,
         extraction_key                text        not null,
         analysis_id                   integer,
         legacy_event_id               integer,
@@ -60,13 +60,18 @@ select 1;
         city                          varchar(100),
         person_id                     text,
         full_name                     text,
+        display_name                  text,
         role                          text,
         is_lobbyist                   boolean,
         appeared_as                   text,
         source_ai_model               varchar(100),
         extracted_at                  timestamp   not null,
-        primary key (extraction_key, extracted_at)
+        primary key (event_person_id, extracted_at),
+        unique (extraction_key, extracted_at)
     ) partition by range (extracted_at);
+
+    -- migrate pre-existing installs created before display_name was added
+    alter table public.event_person add column if not exists display_name text;
 
     create index if not exists ix_event_person_c1_event  on public.event_person (c1_event_id);
     create index if not exists ix_event_person_state      on public.event_person (state_code);
@@ -81,7 +86,7 @@ select 1;
 {% macro bootstrap_event_decision() %}
   {% set ddl %}
     create table if not exists public.event_decision (
-        id                       text        not null,
+        event_decision_id        text        not null,
         extraction_key           text        not null,
         analysis_id              integer,
         legacy_event_id          integer,
@@ -111,7 +116,8 @@ select 1;
         diagram_mindmap_lines    jsonb,
         source_ai_model          varchar(100),
         extracted_at             timestamp   not null,
-        primary key (extraction_key, extracted_at)
+        primary key (event_decision_id, extracted_at),
+        unique (extraction_key, extracted_at)
     ) partition by range (extracted_at);
 
     create index if not exists ix_event_decision_c1_event  on public.event_decision (c1_event_id);
@@ -127,7 +133,7 @@ select 1;
 {% macro bootstrap_event_place() %}
   {% set ddl %}
     create table if not exists public.event_place (
-        id                   text        not null,
+        event_place_id       text        not null,
         extraction_key       text        not null,
         analysis_id          integer,
         legacy_event_id      integer,
@@ -153,7 +159,8 @@ select 1;
         mention_count        integer,
         source_ai_model      varchar(100),
         extracted_at         timestamp   not null,
-        primary key (extraction_key, extracted_at)
+        primary key (event_place_id, extracted_at),
+        unique (extraction_key, extracted_at)
     ) partition by range (extracted_at);
     create index if not exists ix_event_place_c1_event  on public.event_place (c1_event_id);
     create index if not exists ix_event_place_state      on public.event_place (state_code);
@@ -168,7 +175,7 @@ select 1;
 {% macro bootstrap_event_financial_item() %}
   {% set ddl %}
     create table if not exists public.event_financial_item (
-        id                       text        not null,
+        event_financial_item_id  text        not null,
         extraction_key           text        not null,
         analysis_id              integer,
         legacy_event_id          integer,
@@ -186,7 +193,8 @@ select 1;
         funding_source           text,
         source_ai_model          varchar(100),
         extracted_at             timestamp   not null,
-        primary key (extraction_key, extracted_at)
+        primary key (event_financial_item_id, extracted_at),
+        unique (extraction_key, extracted_at)
     ) partition by range (extracted_at);
     create index if not exists ix_event_financial_item_c1_event  on public.event_financial_item (c1_event_id);
     create index if not exists ix_event_financial_item_state      on public.event_financial_item (state_code);
@@ -201,7 +209,7 @@ select 1;
 {% macro bootstrap_event_topic() %}
   {% set ddl %}
     create table if not exists public.event_topic (
-        id                            text        not null,
+        event_topic_id                text        not null,
         extraction_key                text        not null,
         analysis_id                   integer,
         legacy_event_id               integer,
@@ -216,7 +224,8 @@ select 1;
         headline                      text,
         source_ai_model               varchar(100),
         extracted_at                  timestamp   not null,
-        primary key (extraction_key, extracted_at)
+        primary key (event_topic_id, extracted_at),
+        unique (extraction_key, extracted_at)
     ) partition by range (extracted_at);
     create index if not exists ix_event_topic_c1_event  on public.event_topic (c1_event_id);
     create index if not exists ix_event_topic_state      on public.event_topic (state_code);
@@ -231,7 +240,7 @@ select 1;
 {% macro bootstrap_event_bill() %}
   {% set ddl %}
     create table if not exists public.event_bill (
-        id                   text        not null,
+        event_bill_id        text        not null,
         extraction_key       text        not null,
         analysis_id          integer,
         legacy_event_id      integer,
@@ -249,7 +258,8 @@ select 1;
         relevance            text,
         source_ai_model      varchar(100),
         extracted_at         timestamp   not null,
-        primary key (extraction_key, extracted_at)
+        primary key (event_bill_id, extracted_at),
+        unique (extraction_key, extracted_at)
     ) partition by range (extracted_at);
     create index if not exists ix_event_bill_c1_event  on public.event_bill (c1_event_id);
     create index if not exists ix_event_bill_state      on public.event_bill (state_code);
@@ -300,4 +310,123 @@ select 1;
   {% do run_query(ddl) %}
   {% do run_query(ensure_event_partitions('public.event_organization')) %}
   {{ log("bootstrapped partitioned table public.event_organization (+ monthly partitions)", info=True) }}
+{% endmacro %}
+
+
+{% macro bootstrap_event_meeting() %}
+  {# Meeting-level PARENT of the AI-extraction family. NON-partitioned on purpose:
+     a single-column PK (event_meeting_id) is required so the partitioned child
+     tables can declare a FOREIGN KEY into it (a partitioned table cannot be a
+     single-column FK target). One row per analysis; event_meeting_id == the
+     bronze analysis id, which is exactly the children's analysis_id. #}
+  {% set ddl %}
+    create table if not exists public.event_meeting (
+        event_meeting_id     integer     not null,
+        legacy_event_id      integer,
+        c1_event_id          varchar(50),
+        state_code           varchar(2),
+        state                text,
+        jurisdiction_name    varchar(200),
+        jurisdiction_type    varchar(50),
+        city                 varchar(100),
+        meeting_id           text,
+        body_name            text,
+        meeting_date         text,
+        event_date           text,
+        jurisdiction         text,
+        meeting_summary      text,
+        agenda_summary       text,
+        session_info         jsonb,
+        video_id             varchar(50),
+        source_ai_model      varchar(100),
+        extracted_at         timestamp   not null,
+        primary key (event_meeting_id)
+    );
+
+    -- Canonical event link. c1_event.legacy_id is the real PK; c1_event.id only
+    -- carries a unique INDEX (not a constraint) so it can't be an FK target.
+    do $$ begin
+      if not exists (
+          select 1 from pg_constraint
+          where conname = 'event_meeting_c1_event_fk'
+            and conrelid = 'public.event_meeting'::regclass
+      ) then
+        alter table public.event_meeting
+          add constraint event_meeting_c1_event_fk
+          foreign key (legacy_event_id) references public.c1_event(legacy_id);
+      end if;
+    end $$;
+
+    create index if not exists ix_event_meeting_c1_event  on public.event_meeting (c1_event_id);
+    create index if not exists ix_event_meeting_legacy    on public.event_meeting (legacy_event_id);
+    create index if not exists ix_event_meeting_state     on public.event_meeting (state_code);
+    create index if not exists ix_event_meeting_extracted on public.event_meeting (extracted_at);
+  {% endset %}
+  {% do run_query(ddl) %}
+  {{ log("bootstrapped table public.event_meeting", info=True) }}
+{% endmacro %}
+
+
+{% macro migrate_event_extraction_keys() %}
+  {# One-shot, idempotent migration for ALREADY-POPULATED child tables. Renames
+     the surrogate key id -> event_<entity>_id, moves the PK onto it, preserves
+     the extraction_key dedup guarantee as a UNIQUE, and adds the FK into the
+     event_meeting parent. `bootstrap_event_meeting` + a build of event_meeting
+     MUST run first (the FK target must exist and be populated). Safe to re-run. #}
+  {% set tables = [
+      ('event_person',         'event_person_id'),
+      ('event_decision',       'event_decision_id'),
+      ('event_place',          'event_place_id'),
+      ('event_financial_item', 'event_financial_item_id'),
+      ('event_topic',          'event_topic_id'),
+      ('event_bill',           'event_bill_id')
+  ] %}
+  {% for tbl, idcol in tables %}
+  {% set sql %}
+  do $$
+  declare
+    old_pk text;
+  begin
+    -- 1. rename surrogate key column: id -> {{ idcol }}
+    if exists (select 1 from information_schema.columns
+               where table_schema='public' and table_name='{{ tbl }}' and column_name='id')
+       and not exists (select 1 from information_schema.columns
+               where table_schema='public' and table_name='{{ tbl }}' and column_name='{{ idcol }}') then
+      execute 'alter table public.{{ tbl }} rename column id to {{ idcol }}';
+    end if;
+
+    -- 2. move PK onto ({{ idcol }}, extracted_at) if it isn't already there
+    if not exists (
+        select 1
+        from pg_index i
+        join pg_attribute a on a.attrelid = i.indrelid and a.attnum = any(i.indkey)
+        where i.indrelid = 'public.{{ tbl }}'::regclass and i.indisprimary and a.attname = '{{ idcol }}'
+    ) then
+      select conname into old_pk from pg_constraint
+        where conrelid = 'public.{{ tbl }}'::regclass and contype = 'p' limit 1;
+      if old_pk is not null then
+        execute 'alter table public.{{ tbl }} drop constraint ' || quote_ident(old_pk);
+      end if;
+      execute 'alter table public.{{ tbl }} add constraint {{ tbl }}_pkey primary key ({{ idcol }}, extracted_at)';
+    end if;
+
+    -- 3. preserve the extraction_key dedup guarantee as a UNIQUE
+    if not exists (select 1 from pg_constraint
+                   where conname = '{{ tbl }}_extraction_key_uniq'
+                     and conrelid = 'public.{{ tbl }}'::regclass) then
+      execute 'alter table public.{{ tbl }} add constraint {{ tbl }}_extraction_key_uniq unique (extraction_key, extracted_at)';
+    end if;
+
+    -- 4. FK into the event_meeting parent
+    if not exists (select 1 from pg_constraint
+                   where conname = '{{ tbl }}_event_meeting_fk'
+                     and conrelid = 'public.{{ tbl }}'::regclass) then
+      execute 'alter table public.{{ tbl }} add constraint {{ tbl }}_event_meeting_fk '
+              'foreign key (analysis_id) references public.event_meeting(event_meeting_id)';
+    end if;
+  end $$;
+  {% endset %}
+  {% do run_query(sql) %}
+  {{ log("migrated keys + constraints on public." ~ tbl, info=True) }}
+  {% endfor %}
 {% endmacro %}

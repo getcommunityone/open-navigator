@@ -71,7 +71,7 @@ events as (
 
 select
     -- keys
-    md5(p.source_event_id_person_id)            as id,              -- surrogate FK target
+    md5(p.source_event_id_person_id)            as event_person_id, -- surrogate PK
     p.source_event_id_person_id                 as extraction_key,  -- stable dedup key
     p.source_event_id                           as analysis_id,
     a.legacy_event_id,
@@ -87,6 +87,10 @@ select
     -- person attributes
     p.person_id,
     p.full_name,
+    -- best available human-readable name: the AI's parsed full_name when it
+    -- could resolve one, else the verbatim mention (e.g. "Commissioner Gruber").
+    -- appeared_as is always populated, so this is never null.
+    coalesce(p.full_name, p.appeared_as)        as display_name,
     p.role,
     p.is_lobbyist,
     p.appeared_as,

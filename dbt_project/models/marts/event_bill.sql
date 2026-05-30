@@ -47,7 +47,7 @@ events as (
 )
 
 select
-    md5(s.source_event_id_leg_id)               as id,
+    md5(s.source_event_id_leg_id)               as event_bill_id,
     s.source_event_id_leg_id                    as extraction_key,
     s.source_event_id                           as analysis_id,
     a.legacy_event_id,
