@@ -90,8 +90,8 @@ def verify_deprecated_scripts():
     logger.info("🔍 Checking deprecated scripts...")
     
     deprecated_files = [
-        'packages/scrapers/src/scrapers/census/link_cities_counties_to_search.py',
-        'packages/scrapers/src/scrapers/census/fix_geoid_format.py'
+        'archive/datasources/census/link_cities_counties_to_search.py',
+        'archive/datasources/census/fix_geoid_format.py'
     ]
     
     for file_path in deprecated_files:

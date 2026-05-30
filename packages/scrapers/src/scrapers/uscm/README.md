@@ -20,7 +20,7 @@ Track current and incoming mayors for U.S. cities:
 
 ## 📁 Scripts
 
-- `scrape_mayor_elections.py` — scrape election results (election-results page)
+- `scrape_mayor_elections.py` — **archived** (`archive/datasources/uscm/`): wrote mayor data to the dropped `c1_jurisdiction` columns (`current_mayor`, …) post migration 048. Use the Meet the Mayors → bronze path below instead.
 - `download_uscm_mayors.py` — download the Meet the Mayors directory by state (POST search); writes `data/cache/uscm/meet_the_mayors_us_YYYYMMDD.json`
 - `load_uscm_mayors_to_bronze.py` — load that JSON into `bronze.bronze_jurisdictions_municipalities_uscm`
 - `state_names.py` — USPS → full state name (required by the Meet the Mayors search form)
