@@ -13,43 +13,43 @@ confirm Gemini loads (and sign in if needed).
 Examples::
 
     # List Tuscaloosa videos that would be sent (no browser)
-    python scripts/gemini/browser_policy_analysis.py --dry-run
+    python -m llm.gemini.browser_policy_analysis --dry-run
 
     # Analyze the most recently updated video only
-    python scripts/gemini/browser_policy_analysis.py --limit 1
+    python -m llm.gemini.browser_policy_analysis --limit 1
 
     # One specific video
-    python scripts/gemini/browser_policy_analysis.py --video-id dQw4w9WgXcQ
+    python -m llm.gemini.browser_policy_analysis --video-id dQw4w9WgXcQ
 
     # Debug blank page / login (no prompt sent)
-    python scripts/gemini/browser_policy_analysis.py --open-only --pause-after-open
+    python -m llm.gemini.browser_policy_analysis --open-only --pause-after-open
 
     # Recommended on WSL: start Chrome yourself, then attach (avoids about:blank + profile locks)
     google-chrome --remote-debugging-port=9222
-    python scripts/gemini/browser_policy_analysis.py --cdp-url http://127.0.0.1:9222 --open-only --pause-after-open
+    python -m llm.gemini.browser_policy_analysis --cdp-url http://127.0.0.1:9222 --open-only --pause-after-open
 
     # Or isolated Playwright Chromium profile (sign into Google once)
-    python scripts/gemini/browser_policy_analysis.py --fresh-profile --open-only --pause-after-open
+    python -m llm.gemini.browser_policy_analysis --fresh-profile --open-only --pause-after-open
 
     # Loop URLs in one Gemini tab (reloads gemini.google.com between videos)
-    python scripts/gemini/browser_policy_analysis.py --fresh-profile --limit 3
+    python -m llm.gemini.browser_policy_analysis --fresh-profile --limit 3
 
     # With CDP (Chrome already running with --remote-debugging-port=9222)
-    python scripts/gemini/browser_policy_analysis.py --cdp-url http://127.0.0.1:9222 --limit 5
+    python -m llm.gemini.browser_policy_analysis --cdp-url http://127.0.0.1:9222 --limit 5
 
     # WSL: point at Windows Chrome user data (optional)
     export GEMINI_CHROME_USER_DATA_DIR='/mnt/c/Users/You/AppData/Local/Google/Chrome/User Data'
     export GEMINI_CHROME_PROFILE_NAME='Default'
-    python scripts/gemini/browser_policy_analysis.py --limit 3
+    python -m llm.gemini.browser_policy_analysis --limit 3
 
     # Default: two-part prompts (JSON in part 1, Smart Brevity report in part 2, same chat)
-    python scripts/gemini/browser_policy_analysis.py --fresh-profile --video-id ajsME66iXbY --select-model "3.1 Pro"
+    python -m llm.gemini.browser_policy_analysis --fresh-profile --video-id ajsME66iXbY --select-model "3.1 Pro"
 
     # Legacy single combined prompt
-    python scripts/gemini/browser_policy_analysis.py --fresh-profile --video-id ajsME66iXbY --prompt-file prompts/policy_analysis.md
+    python -m llm.gemini.browser_policy_analysis --fresh-profile --video-id ajsME66iXbY --prompt-file prompts/policy_analysis.md
 
     # Use Gemini 3.1 Pro (requires Pro/Ultra in your Google account; pick in UI or automate)
-    python scripts/gemini/browser_policy_analysis.py --fresh-profile --select-model "3.1 Pro" --gemini-model "3.1 Pro" --limit 1
+    python -m llm.gemini.browser_policy_analysis --fresh-profile --select-model "3.1 Pro" --gemini-model "3.1 Pro" --limit 1
 """
 
 from __future__ import annotations
@@ -69,7 +69,7 @@ from typing import Any, List, Optional, Sequence
 from dotenv import load_dotenv
 from loguru import logger
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+_REPO_ROOT = Path(__file__).resolve().parents[5]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
@@ -373,7 +373,7 @@ def fetch_videos(
     finally:
         conn.close()
 
-    from scripts.gemini.transcript_cache_paths import resolve_meeting_event_date
+    from llm.gemini.transcript_cache_paths import resolve_meeting_event_date
 
     out: List[VideoRow] = []
     for r in rows:
@@ -520,7 +520,7 @@ def _normalize_part1_analysis(parsed: dict[str, Any]) -> dict[str, Any]:
             u_seq += 1
             continue
         d.pop("decision_profile", None)
-        from scripts.gemini.mermaid_diagrams import normalize_decision_diagrams
+        from llm.gemini.mermaid_diagrams import normalize_decision_diagrams
 
         normalize_decision_diagrams(d)
         kept.append(d)
@@ -2204,7 +2204,7 @@ def _run_filename_prefix(ts: str) -> str:
 
 def _output_stem(video: VideoRow, *, prompt_tag: str, model_tag: str, ts: str) -> str:
     """Audio-aligned basename + video_id + prompt/model tags (see ``policy_output_stem``)."""
-    from scripts.gemini.transcript_cache_paths import policy_output_stem
+    from llm.gemini.transcript_cache_paths import policy_output_stem
 
     _ = ts  # run time lives in ``*_meta.json`` ``generated_at``, not the filename
     return policy_output_stem(

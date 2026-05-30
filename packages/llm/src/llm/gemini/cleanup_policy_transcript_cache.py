@@ -8,11 +8,11 @@ Fix policy transcript cache filenames and remove duplicate caption sidecars.
 
 Usage (repo root)::
 
-    .venv/bin/python scripts/gemini/cleanup_policy_transcript_cache.py --dry-run
-    .venv/bin/python scripts/gemini/cleanup_policy_transcript_cache.py
+    .venv/bin/python -m llm.gemini.cleanup_policy_transcript_cache --dry-run
+    .venv/bin/python -m llm.gemini.cleanup_policy_transcript_cache
 
     # One channel folder:
-    .venv/bin/python scripts/gemini/cleanup_policy_transcript_cache.py \\
+    .venv/bin/python -m llm.gemini.cleanup_policy_transcript_cache \\
         --channel-root data/cache/gemini_transcript_policy/IN/county/adams_18001/UChLPCfjJNqdeaJmFc61OoOw
 """
 
@@ -24,11 +24,11 @@ from pathlib import Path
 
 from loguru import logger
 
-_REPO = Path(__file__).resolve().parents[2]
+_REPO = Path(__file__).resolve().parents[5]
 if str(_REPO) not in sys.path:
     sys.path.insert(0, str(_REPO))
 
-from scripts.gemini.transcript_cache_paths import (  # noqa: E402
+from llm.gemini.transcript_cache_paths import (  # noqa: E402
     cleanup_policy_transcript_cache_tree,
     fix_policy_cache_dates_from_title,
     remove_redundant_transcript_files,

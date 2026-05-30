@@ -1,7 +1,7 @@
 """
 Write YouTube captions under ``data/cache/gemini_transcript_policy`` (standard layout).
 
-See ``scripts/gemini/transcript_cache_paths.py`` for
+See ``llm/gemini/transcript_cache_paths.py`` for
 ``{state}/{type}/{place_slug}_{geoid}/{channel_id}/01_transcripts/YYYY-MM-DD_<title>.json``.
 """
 
@@ -11,7 +11,7 @@ import json
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Union
 
-from scripts.gemini.transcript_cache_paths import (
+from llm.gemini.transcript_cache_paths import (
     resolve_meeting_event_date,
     transcript_cache_path,
     transcripts_dir,

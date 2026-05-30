@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from scripts.gemini.transcript_cache_paths import (
+from llm.gemini.transcript_cache_paths import (
     cache_type_segment,
     canonical_jurisdiction_root,
     find_jurisdiction_root,
@@ -26,11 +26,11 @@ from scripts.gemini.transcript_cache_paths import (
 def test_lookup_does_not_call_resolve_canonical(monkeypatch):
     """Regression: lookup and resolve must not call each other (RecursionError)."""
     monkeypatch.setattr(
-        "scripts.gemini.transcript_cache_paths.resolve_canonical_jurisdiction_id",
+        "llm.gemini.transcript_cache_paths.resolve_canonical_jurisdiction_id",
         lambda *_: (_ for _ in ()).throw(AssertionError("lookup must not resolve")),
     )
     monkeypatch.setattr(
-        "scripts.gemini.transcript_cache_paths._fetch_place_name_from_db",
+        "llm.gemini.transcript_cache_paths._fetch_place_name_from_db",
         lambda jid: "Anniston city" if "0101852" in jid else None,
     )
     lookup_jurisdiction_place_name.cache_clear()
@@ -39,15 +39,15 @@ def test_lookup_does_not_call_resolve_canonical(monkeypatch):
 
 def test_resolve_canonical_uses_fetch_not_lookup(monkeypatch):
     monkeypatch.setattr(
-        "scripts.gemini.transcript_cache_paths._fetch_place_name_from_db",
+        "llm.gemini.transcript_cache_paths._fetch_place_name_from_db",
         lambda jid: "Anniston city" if jid == "municipality_0101852" else None,
     )
     monkeypatch.setattr(
-        "scripts.gemini.transcript_cache_paths.lookup_canonical_jurisdiction_id_from_bronze",
+        "llm.gemini.transcript_cache_paths.lookup_canonical_jurisdiction_id_from_bronze",
         lambda *a, **k: "",
     )
     monkeypatch.setattr(
-        "scripts.gemini.transcript_cache_paths.lookup_jurisdiction_place_name",
+        "llm.gemini.transcript_cache_paths.lookup_jurisdiction_place_name",
         lambda *_: (_ for _ in ()).throw(AssertionError("resolve must not lookup")),
     )
     assert resolve_canonical_jurisdiction_id("municipality_0101852") == "anniston_0101852"
@@ -55,7 +55,7 @@ def test_resolve_canonical_uses_fetch_not_lookup(monkeypatch):
 
 def test_cache_type_segment_from_typed_id(monkeypatch):
     monkeypatch.setattr(
-        "scripts.gemini.transcript_cache_paths.resolve_canonical_jurisdiction_id",
+        "llm.gemini.transcript_cache_paths.resolve_canonical_jurisdiction_id",
         lambda jid: jid,
     )
     assert cache_type_segment("municipality_0177256") == "municipality"
@@ -66,7 +66,7 @@ def test_cache_type_segment_from_typed_id(monkeypatch):
 
 def test_jurisdiction_cache_folder_name_strips_nbsp_city_suffix(monkeypatch):
     monkeypatch.setattr(
-        "scripts.gemini.transcript_cache_paths.resolve_canonical_jurisdiction_id",
+        "llm.gemini.transcript_cache_paths.resolve_canonical_jurisdiction_id",
         lambda jid: jid,
     )
     # Census / DB names sometimes use a non-breaking space before ``city``.
@@ -82,11 +82,11 @@ def test_jurisdiction_cache_folder_name_strips_nbsp_city_suffix(monkeypatch):
 
 def test_jurisdiction_cache_folder_aliases_include_legacy_city_slug(monkeypatch):
     monkeypatch.setattr(
-        "scripts.gemini.transcript_cache_paths.resolve_canonical_jurisdiction_id",
+        "llm.gemini.transcript_cache_paths.resolve_canonical_jurisdiction_id",
         lambda jid: jid,
     )
     monkeypatch.setattr(
-        "scripts.gemini.transcript_cache_paths.lookup_jurisdiction_place_name",
+        "llm.gemini.transcript_cache_paths.lookup_jurisdiction_place_name",
         lambda jid: None,
     )
     aliases = jurisdiction_cache_folder_aliases(
@@ -100,13 +100,13 @@ def test_jurisdiction_cache_folder_aliases_include_legacy_city_slug(monkeypatch)
 def test_jurisdiction_cache_folder_name_county_seat_not_used(monkeypatch):
     """County folders use the county slug from bronze, not the seat city ``place_name``."""
     monkeypatch.setattr(
-        "scripts.gemini.transcript_cache_paths.lookup_canonical_jurisdiction_id_from_bronze",
+        "llm.gemini.transcript_cache_paths.lookup_canonical_jurisdiction_id_from_bronze",
         lambda geoid, jtype, database_url=None: (
             "henry_01067" if geoid == "01067" and jtype == "county" else ""
         ),
     )
     monkeypatch.setattr(
-        "scripts.gemini.transcript_cache_paths.resolve_canonical_jurisdiction_id",
+        "llm.gemini.transcript_cache_paths.resolve_canonical_jurisdiction_id",
         lambda jid: jid,
     )
     assert (
@@ -121,11 +121,11 @@ def test_jurisdiction_cache_folder_name_county_seat_not_used(monkeypatch):
 
 def test_jurisdiction_cache_folder_name(monkeypatch):
     monkeypatch.setattr(
-        "scripts.gemini.transcript_cache_paths.lookup_jurisdiction_place_name",
+        "llm.gemini.transcript_cache_paths.lookup_jurisdiction_place_name",
         lambda jid: "Anniston city" if "0101852" in jid else "Dublin city",
     )
     monkeypatch.setattr(
-        "scripts.gemini.transcript_cache_paths.resolve_canonical_jurisdiction_id",
+        "llm.gemini.transcript_cache_paths.resolve_canonical_jurisdiction_id",
         lambda jid: jid if jid.startswith("municipality_") else f"municipality_{jid}",
     )
     assert jurisdiction_cache_folder_name("municipality_0101852") == "anniston_0101852"
@@ -134,15 +134,15 @@ def test_jurisdiction_cache_folder_name(monkeypatch):
 
 def test_canonical_jurisdiction_root_with_state_and_channel(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(
-        "scripts.gemini.transcript_cache_paths.lookup_jurisdiction_place_name",
+        "llm.gemini.transcript_cache_paths.lookup_jurisdiction_place_name",
         lambda jid: "Dublin city",
     )
     monkeypatch.setattr(
-        "scripts.gemini.transcript_cache_paths.resolve_canonical_jurisdiction_id",
+        "llm.gemini.transcript_cache_paths.resolve_canonical_jurisdiction_id",
         lambda jid: "municipality_1324376",
     )
     monkeypatch.setattr(
-        "scripts.gemini.transcript_cache_paths.lookup_channel_id_from_db",
+        "llm.gemini.transcript_cache_paths.lookup_channel_id_from_db",
         lambda *a, **k: "UCxxc9YlL425MrKGFzaGW27Q",
     )
     root = canonical_jurisdiction_root(
@@ -184,11 +184,11 @@ def test_migrate_policy_cache_geography(tmp_path: Path, monkeypatch):
     src = tmp_path / "5583"
     (src / "01_transcripts").mkdir(parents=True)
     monkeypatch.setattr(
-        "scripts.gemini.transcript_cache_paths.resolve_jurisdiction_geo",
+        "llm.gemini.transcript_cache_paths.resolve_jurisdiction_geo",
         lambda jid, **kw: ("GA", "municipality"),
     )
     monkeypatch.setattr(
-        "scripts.gemini.transcript_cache_paths.jurisdiction_cache_folder_name",
+        "llm.gemini.transcript_cache_paths.jurisdiction_cache_folder_name",
         lambda jid: jid,
     )
     stats = migrate_policy_cache_geography(tmp_path, dry_run=False)
@@ -199,7 +199,7 @@ def test_migrate_policy_cache_geography(tmp_path: Path, monkeypatch):
 
 def test_migrate_policy_cache_channels(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(
-        "scripts.gemini.transcript_cache_paths.jurisdiction_cache_folder_name",
+        "llm.gemini.transcript_cache_paths.jurisdiction_cache_folder_name",
         lambda jid: jid,
     )
     geo = tmp_path / "GA" / "municipality" / "5583"
@@ -210,7 +210,7 @@ def test_migrate_policy_cache_channels(tmp_path: Path, monkeypatch):
         encoding="utf-8",
     )
     monkeypatch.setattr(
-        "scripts.gemini.transcript_cache_paths.lookup_channel_id_from_db",
+        "llm.gemini.transcript_cache_paths.lookup_channel_id_from_db",
         lambda jid, vid="": "UCtestchannel1",
     )
     stats = migrate_policy_cache_channels(tmp_path, dry_run=False)
@@ -234,7 +234,7 @@ def test_migrate_policy_cache_folder_names(tmp_path: Path, monkeypatch):
     old = tmp_path / "AL" / "municipality" / "municipality_0101852"
     (old / "UCchan" / "01_transcripts").mkdir(parents=True)
     monkeypatch.setattr(
-        "scripts.gemini.transcript_cache_paths.lookup_jurisdiction_place_name",
+        "llm.gemini.transcript_cache_paths.lookup_jurisdiction_place_name",
         lambda jid: "Anniston city",
     )
     stats = migrate_policy_cache_folder_names(tmp_path, dry_run=False)
@@ -245,7 +245,7 @@ def test_migrate_policy_cache_folder_names(tmp_path: Path, monkeypatch):
 
 def test_jurisdiction_root_candidates_order(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(
-        "scripts.gemini.transcript_cache_paths.lookup_jurisdiction_place_name",
+        "llm.gemini.transcript_cache_paths.lookup_jurisdiction_place_name",
         lambda jid: "Northport city",
     )
     cands = jurisdiction_root_candidates(

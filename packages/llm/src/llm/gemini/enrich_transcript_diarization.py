@@ -10,11 +10,11 @@ then map to contact names.
 Examples::
 
     # Label all cached Tuscaloosa transcripts from contacts (fast, no GPU)
-    python scripts/gemini/enrich_transcript_diarization.py \\
+    python -m llm.gemini.enrich_transcript_diarization \\
         --jurisdiction-id municipality_0177256 --state AL
 
     # One video with WhisperX (Tuscaloosa Opus already under city channel folder)
-    python scripts/gemini/enrich_transcript_diarization.py \\
+    python -m llm.gemini.enrich_transcript_diarization \\
         --video-id zpaawfaNsQM --whisperx
 """
 
@@ -30,27 +30,27 @@ from typing import Any, Dict, List, Optional
 from dotenv import load_dotenv
 from loguru import logger
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+_REPO_ROOT = Path(__file__).resolve().parents[5]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from scripts.gemini.diarize_postprocess import (  # noqa: E402
+from llm.gemini.diarize_postprocess import (  # noqa: E402
     diarize_audio_whisperx,
     format_diarized_transcript,
     merge_caption_speakers,
 )
-from scripts.gemini.meeting_transcript_policy import (  # noqa: E402
+from llm.gemini.meeting_transcript_policy import (  # noqa: E402
     DEFAULT_OUTPUT_DIR,
     DEFAULT_YOUTUBE_AUDIO_ROOT,
     find_local_audio,
     resolve_scrape_cache_dir,
     tuscaloosa_youtube_audio_dir,
 )
-from scripts.gemini.transcript_cache_paths import (  # noqa: E402
+from llm.gemini.transcript_cache_paths import (  # noqa: E402
     iter_transcript_cache_files,
     resolve_transcript_cache_path,
 )
-from scripts.gemini.speaker_hints import (  # noqa: E402
+from llm.gemini.speaker_hints import (  # noqa: E402
     format_speaker_hints_block,
     known_speaker_names,
     label_segments_from_contacts,

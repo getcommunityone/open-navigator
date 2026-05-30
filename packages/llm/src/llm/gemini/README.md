@@ -17,10 +17,10 @@ Per-state counts: jurisdictions, YouTube catalog, bronze transcripts, on-disk
 `01_transcripts` / `02_analysis` / `03_reports`:
 
 ```bash
-.venv/bin/python scripts/gemini/policy_processing_status_report.py
+.venv/bin/python -m llm.gemini.policy_processing_status_report
 # → data/reports/policy_processing_status.md
 # Includes last updated, in-progress elapsed time, and ETA (default: 2 reports per jurisdiction)
-.venv/bin/python scripts/gemini/policy_processing_status_report.py --target-videos 2 --stale-minutes 30
+.venv/bin/python -m llm.gemini.policy_processing_status_report --target-videos 2 --stale-minutes 30
 ```
 
 ### Setup
@@ -64,30 +64,30 @@ Or the Tuscaloosa-specific helper (title filter `committee` / `meeting`):
 
 ```bash
 # List what would run (no API)
-.venv/bin/python scripts/gemini/meeting_transcript_policy.py \
+.venv/bin/python -m llm.gemini.meeting_transcript_policy \
   --from-bronze --jurisdiction-id municipality_0177256 --limit 10 --dry-run
 
 # Captions only — no GEMINI_API_KEY spend
-.venv/bin/python scripts/gemini/meeting_transcript_policy.py \
+.venv/bin/python -m llm.gemini.meeting_transcript_policy \
   --from-bronze --jurisdiction-id municipality_0177256 --state AL \
   --limit 10 --transcript-only
 
 # Captions + speaker hints + Flash-Lite policy JSON
-.venv/bin/python scripts/gemini/meeting_transcript_policy.py \
+.venv/bin/python -m llm.gemini.meeting_transcript_policy \
   --from-bronze --jurisdiction-id municipality_0177256 --state AL --limit 3
 
 # Local captions → Part 1 JSON + Part 2 Markdown (fully automated; needs GEMINI_API_KEY)
-.venv/bin/python scripts/gemini/meeting_transcript_policy.py \
+.venv/bin/python -m llm.gemini.meeting_transcript_policy \
   --from-bronze --jurisdiction-id municipality_0177256 --state AL \
   --use-local-transcript --run-part-2 --limit 5
 
 # Markdown only (you already have *_analysis.json)
-.venv/bin/python scripts/gemini/meeting_transcript_policy.py \
+.venv/bin/python -m llm.gemini.meeting_transcript_policy \
   --part-2-only --jurisdiction-id municipality_0177256 \
   --video-id zpaawfaNsQM
 
 # Same batch + WhisperX when Opus exists on disk
-.venv/bin/python scripts/gemini/meeting_transcript_policy.py \
+.venv/bin/python -m llm.gemini.meeting_transcript_policy \
   --from-bronze --jurisdiction-id municipality_0177256 --state AL \
   --limit 3 --diarize
 ```
@@ -99,29 +99,29 @@ Part 1 now asks for `presenter_person_ids`, `motion`, and `media_anchor` on each
 **Geocode places after Part 1:**
 
 ```bash
-.venv/bin/python scripts/gemini/meeting_transcript_policy.py \
+.venv/bin/python -m llm.gemini.meeting_transcript_policy \
   --video-id zpaawfaNsQM --use-local-transcript --geocode-places
 
 # Or enrich an existing analysis JSON:
-.venv/bin/python scripts/gemini/enrich_analysis_places.py \
+.venv/bin/python -m llm.gemini.enrich_analysis_places \
   data/cache/gemini_transcript_policy/municipality_0177256/*8220621518*analysis.json \
   --geocode
 ```
 The pipeline injects `=== AGENDA SEGMENT HINTS ===` from caption cues (`Mike.`, `Agenda item …`).
 
 ```bash
-.venv/bin/python scripts/gemini/meeting_transcript_policy.py \
+.venv/bin/python -m llm.gemini.meeting_transcript_policy \
   --video-id zpaawfaNsQM --jurisdiction-id municipality_0177256 --state AL \
   --use-local-transcript
 
-.venv/bin/python scripts/gemini/print_uncontested_speakers.py \
+.venv/bin/python -m llm.gemini.print_uncontested_speakers \
   data/cache/gemini_transcript_policy/municipality_0177256/*zpaawfaNsQM*analysis.json
 ```
 
 When YouTube returns **IpBlocked**, use the caption JSON you already backfilled:
 
 ```bash
-.venv/bin/python scripts/gemini/meeting_transcript_policy.py \
+.venv/bin/python -m llm.gemini.meeting_transcript_policy \
   --video-id zpaawfaNsQM \
   --jurisdiction-id municipality_0177256 \
   --state AL \
@@ -131,7 +131,7 @@ When YouTube returns **IpBlocked**, use the caption JSON you already backfilled:
 Single video:
 
 ```bash
-.venv/bin/python scripts/gemini/meeting_transcript_policy.py \
+.venv/bin/python -m llm.gemini.meeting_transcript_policy \
   --video-id ajsME66iXbY \
   --jurisdiction-id municipality_0177256 \
   --state AL
@@ -142,7 +142,7 @@ Single video:
 **Heuristic** (no audio, uses names in caption text — good for Tuscaloosa committee meetings):
 
 ```bash
-.venv/bin/python scripts/gemini/enrich_transcript_diarization.py \
+.venv/bin/python -m llm.gemini.enrich_transcript_diarization \
   --jurisdiction-id municipality_0177256 --state AL
 ```
 
@@ -163,11 +163,11 @@ Files are named `YYYY-MM-DD_<title>.opus` (not `video_id.opus`). The enrich scri
 ```bash
 export HF_TOKEN=...
 
-.venv/bin/python scripts/gemini/enrich_transcript_diarization.py \
+.venv/bin/python -m llm.gemini.enrich_transcript_diarization \
   --video-id zpaawfaNsQM --whisperx
 
 # More meetings (only where a matching Opus exists on disk)
-.venv/bin/python scripts/gemini/enrich_transcript_diarization.py \
+.venv/bin/python -m llm.gemini.enrich_transcript_diarization \
   --jurisdiction-id municipality_0177256 --whisperx --limit 5
 ```
 
@@ -192,15 +192,15 @@ One-time: `cd website && npm install`
 
 ```bash
 # All Tuscaloosa reports: repair sanitizer, then show syntax errors
-.venv/bin/python scripts/gemini/validate_mermaid_reports.py \
+.venv/bin/python -m llm.gemini.validate_mermaid_reports \
   --jurisdiction-id municipality_0177256 --repair --write-sidecars
 
 # CI gate (exit 1 if any diagram fails)
-.venv/bin/python scripts/gemini/validate_mermaid_reports.py \
+.venv/bin/python -m llm.gemini.validate_mermaid_reports \
   --jurisdiction-id municipality_0177256 --strict
 
 # Skip auto-check when generating reports
-.venv/bin/python scripts/gemini/meeting_transcript_policy.py \
+.venv/bin/python -m llm.gemini.meeting_transcript_policy \
   --part-2-only --jurisdiction-id municipality_0177256 --no-validate-mermaid
 ```
 
@@ -211,7 +211,7 @@ Mindmaps from Gemini are often a **flat list** (every node connects to the cente
 One basename per meeting (matches Opus audio). Reorganize a flat folder:
 
 ```bash
-.venv/bin/python scripts/gemini/migrate_policy_cache_layout.py \
+.venv/bin/python -m llm.gemini.migrate_policy_cache_layout \
   --jurisdiction-id municipality_0177256
 ```
 

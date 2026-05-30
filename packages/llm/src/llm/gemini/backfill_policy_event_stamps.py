@@ -14,9 +14,9 @@ Stamps only move *forward*: it uses ``GREATEST(existing, file_mtime)`` (Postgres
 
 Usage::
 
-    python scripts/gemini/backfill_policy_event_stamps.py            # whole cache
-    python scripts/gemini/backfill_policy_event_stamps.py --state MA # one state
-    python scripts/gemini/backfill_policy_event_stamps.py --dry-run  # report only
+    python -m llm.gemini.backfill_policy_event_stamps            # whole cache
+    python -m llm.gemini.backfill_policy_event_stamps --state MA # one state
+    python -m llm.gemini.backfill_policy_event_stamps --dry-run  # report only
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ from typing import Dict, List, Optional, Tuple
 
 from loguru import logger
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+_REPO_ROOT = Path(__file__).resolve().parents[5]
 import sys
 
 if str(_REPO_ROOT) not in sys.path:
@@ -36,10 +36,10 @@ if str(_REPO_ROOT) not in sys.path:
 
 import json  # noqa: E402
 
-from scripts.gemini.meeting_transcript_policy import _video_id_from_analysis_path  # noqa: E402
-from scripts.gemini.persist_policy_analysis_bronze import database_url  # noqa: E402
-from scripts.gemini.policy_processing_status_report import _DEFAULT_CACHE  # noqa: E402
-from scripts.gemini.transcript_cache_paths import (  # noqa: E402
+from llm.gemini.meeting_transcript_policy import _video_id_from_analysis_path  # noqa: E402
+from llm.gemini.persist_policy_analysis_bronze import database_url  # noqa: E402
+from llm.gemini.policy_processing_status_report import _DEFAULT_CACHE  # noqa: E402
+from llm.gemini.transcript_cache_paths import (  # noqa: E402
     report_path_for_analysis,
     video_id_from_analysis,
 )

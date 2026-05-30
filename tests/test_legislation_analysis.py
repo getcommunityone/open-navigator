@@ -1,4 +1,4 @@
-from scripts.gemini.legislation_analysis import (
+from llm.gemini.legislation_analysis import (
     build_agenda_label_to_leg_id,
     enrich_part1_legislation,
     extract_agenda_labels_from_text,

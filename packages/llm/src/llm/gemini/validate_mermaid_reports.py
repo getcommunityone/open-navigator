@@ -5,15 +5,15 @@ Validate Mermaid in Part 2 reports (single file, one jurisdiction folder, or rep
   cd website && npm install   # once
 
   # One report
-  .venv/bin/python scripts/gemini/validate_mermaid_reports.py \\
+  .venv/bin/python -m llm.gemini.validate_mermaid_reports \\
       data/cache/gemini_transcript_policy/municipality_0177256/03_reports/foo.md
 
   # All reports for Tuscaloosa (repair sanitizer, then validate)
-  .venv/bin/python scripts/gemini/validate_mermaid_reports.py \\
+  .venv/bin/python -m llm.gemini.validate_mermaid_reports \\
       --jurisdiction-id municipality_0177256 --repair
 
   # CI: exit 1 if any diagram fails
-  .venv/bin/python scripts/gemini/validate_mermaid_reports.py \\
+  .venv/bin/python -m llm.gemini.validate_mermaid_reports \\
       --jurisdiction-id municipality_0177256 --strict
 """
 
@@ -23,17 +23,17 @@ import argparse
 import sys
 from pathlib import Path
 
-_REPO = Path(__file__).resolve().parents[2]
+_REPO = Path(__file__).resolve().parents[5]
 if str(_REPO) not in sys.path:
     sys.path.insert(0, str(_REPO))
 
-from scripts.gemini.mermaid_validate import (
+from llm.gemini.mermaid_validate import (
     format_report,
     mermaid_cli_available,
     repair_and_validate_markdown,
     validate_markdown_file,
 )
-from scripts.gemini.transcript_cache_paths import DIR_REPORTS, jurisdiction_root
+from llm.gemini.transcript_cache_paths import DIR_REPORTS, jurisdiction_root
 
 _DEFAULT_CACHE = _REPO / "data/cache/gemini_transcript_policy"
 
@@ -132,7 +132,7 @@ def main() -> int:
         if not report.ok:
             failed += 1
             if args.write_sidecars:
-                from scripts.gemini.mermaid_validate import write_errors_sidecar
+                from llm.gemini.mermaid_validate import write_errors_sidecar
 
                 write_errors_sidecar(report, path.with_suffix(path.suffix + ".mermaid-errors.json"))
         print()

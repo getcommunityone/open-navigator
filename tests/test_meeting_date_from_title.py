@@ -1,4 +1,4 @@
-from scripts.gemini.transcript_cache_paths import (
+from llm.gemini.transcript_cache_paths import (
     extract_meeting_date_from_filename,
     extract_meeting_date_from_title,
     meeting_media_basename,
@@ -107,7 +107,7 @@ def test_extract_compact_yyyymmdd_prefix():
 
 
 def test_strip_compact_legacy_suffix():
-    from scripts.gemini.transcript_cache_paths import strip_meeting_date_from_title
+    from llm.gemini.transcript_cache_paths import strip_meeting_date_from_title
 
     assert (
         strip_meeting_date_from_title(

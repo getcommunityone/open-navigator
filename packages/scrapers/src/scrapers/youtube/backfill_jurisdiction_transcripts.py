@@ -57,7 +57,7 @@ from scrapers.youtube.download_audio_to_drive import (  # noqa: E402
 from scrapers.youtube.load_youtube_events_to_postgres import (  # noqa: E402
     YouTubeEventsLoader,
 )
-from scripts.gemini.transcript_cache_paths import (  # noqa: E402
+from llm.gemini.transcript_cache_paths import (  # noqa: E402
     DIR_TRANSCRIPTS,
     jurisdiction_root,
     legacy_transcript_cache_path,
@@ -817,7 +817,7 @@ def resolve_cookies_path(explicit: Optional[str]) -> Optional[str]:
 def run(args: argparse.Namespace) -> int:
     load_dotenv(_REPO_ROOT / ".env")
     db_url = _database_url(args.database_url or None)
-    from scripts.gemini.transcript_cache_paths import resolve_canonical_jurisdiction_id
+    from llm.gemini.transcript_cache_paths import resolve_canonical_jurisdiction_id
 
     jurisdiction_id = resolve_canonical_jurisdiction_id(args.jurisdiction_id.strip())
     cache_dir = Path(args.local_cache_dir).resolve()
@@ -1023,7 +1023,7 @@ def run(args: argparse.Namespace) -> int:
     pending = sort_backfill_rows(
         pending, args.order_by, prefer_untried=prefer_untried
     )
-    from scripts.gemini.policy_exclusions import filter_rows_not_excluded
+    from llm.gemini.policy_exclusions import filter_rows_not_excluded
 
     pending = filter_rows_not_excluded(
         pending, cache_dir, jurisdiction_id, state_code=state_code

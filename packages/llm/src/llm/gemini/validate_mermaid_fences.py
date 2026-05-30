@@ -7,11 +7,11 @@ import argparse
 import sys
 from pathlib import Path
 
-_REPO = Path(__file__).resolve().parents[2]
+_REPO = Path(__file__).resolve().parents[5]
 if str(_REPO) not in sys.path:
     sys.path.insert(0, str(_REPO))
 
-from scripts.gemini.mermaid_validate import (
+from llm.gemini.mermaid_validate import (
     format_report,
     mermaid_cli_available,
     repair_and_validate_markdown,

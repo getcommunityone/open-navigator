@@ -8,9 +8,9 @@ folders remain.
 
 Usage (repo root)::
 
-    .venv/bin/python scripts/gemini/migrate_policy_cache_numeric_folders.py --dry-run
-    .venv/bin/python scripts/gemini/migrate_policy_cache_numeric_folders.py
-    .venv/bin/python scripts/gemini/migrate_policy_cache_numeric_folders.py \\
+    .venv/bin/python -m llm.gemini.migrate_policy_cache_numeric_folders --dry-run
+    .venv/bin/python -m llm.gemini.migrate_policy_cache_numeric_folders
+    .venv/bin/python -m llm.gemini.migrate_policy_cache_numeric_folders \\
         --jurisdiction-id phenix_city_0159472
 """
 
@@ -24,12 +24,12 @@ from pathlib import Path
 from dotenv import load_dotenv
 from loguru import logger
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+_REPO_ROOT = Path(__file__).resolve().parents[5]
 load_dotenv(_REPO_ROOT / ".env")
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from scripts.gemini.transcript_cache_paths import (  # noqa: E402
+from llm.gemini.transcript_cache_paths import (  # noqa: E402
     build_numeric_policy_folder_mapping,
     list_numeric_policy_geo_dirs,
     load_int_jurisdictions_for_numeric_migration,

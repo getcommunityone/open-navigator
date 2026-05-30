@@ -1343,7 +1343,7 @@ def count_policy_files_for_jurisdiction(
     jurisdiction_id: str,
 ) -> Dict[str, int]:
     """Count transcript/analysis/report files under policy cache for one jurisdiction."""
-    from scripts.gemini.policy_processing_status_report import (
+    from llm.gemini.policy_processing_status_report import (
         _DIR_ANALYSIS,
         _DIR_REPORTS,
         _DIR_TRANSCRIPTS,

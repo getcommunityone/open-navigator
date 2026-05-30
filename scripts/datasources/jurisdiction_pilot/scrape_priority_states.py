@@ -244,7 +244,7 @@ _STOP = Event()
 
 def jurisdiction_output_dir(j: "Jurisdiction") -> Path:
     """Return the canonical ``scraped_meetings/{STATE}/{type}/{slug}_{geoid}/`` dir."""
-    from scripts.gemini.transcript_cache_paths import scraped_meetings_jurisdiction_dir
+    from llm.gemini.transcript_cache_paths import scraped_meetings_jurisdiction_dir
 
     return scraped_meetings_jurisdiction_dir(
         _SCRAPED_MEETINGS_ROOT,

@@ -12,14 +12,14 @@ and appends to ``05_exceptions/_excluded_videos.json``. By default also sets bro
 
 Examples::
 
-    python scripts/gemini/exclude_policy_video.py \\
+    python -m llm.gemini.exclude_policy_video \\
         --path data/cache/gemini_transcript_policy/MA/municipality/boston_2507000/UCImopNmmU11qfuWBbiXdowQ/02_analysis/2026-05-21_Haitian_Flag_Raising_2026_-_Promo.json \\
         --reason non_meeting --note "promo, not a council meeting"
 
-    python scripts/gemini/exclude_policy_video.py \\
+    python -m llm.gemini.exclude_policy_video \\
         --path data/cache/gemini_transcript_policy/GA/municipality/dublin_1324376/UCxxc9YlL425MrKGFzaGW27Q/03_reports/2026-05-20_Join_the_Club_at_Premier_Heating_&_Air_Today!.md
 
-    python scripts/gemini/exclude_policy_video.py --dry-run \\
+    python -m llm.gemini.exclude_policy_video --dry-run \\
         --path path/to/02_analysis/foo.json --path path/to/other.json
 """
 
@@ -33,11 +33,11 @@ from pathlib import Path
 from dotenv import load_dotenv
 from loguru import logger
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+_REPO_ROOT = Path(__file__).resolve().parents[5]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from scripts.gemini.policy_exclusions import (  # noqa: E402
+from llm.gemini.policy_exclusions import (  # noqa: E402
     DEFAULT_REASON,
     exclude_policy_video_at_path,
 )

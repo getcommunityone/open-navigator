@@ -8,11 +8,11 @@ import json
 import sys
 from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+_REPO_ROOT = Path(__file__).resolve().parents[5]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from scripts.gemini.browser_policy_analysis import (  # noqa: E402
+from llm.gemini.browser_policy_analysis import (  # noqa: E402
     _REPO_ROOT as REPO,
     _normalize_part1_analysis,
     _part1_json_ok,
@@ -32,7 +32,7 @@ def _stem_from_analysis_path(analysis_path: Path) -> str:
 
 def normalize_analysis_file(analysis_path: Path) -> bool:
     """Split legacy procedural_light rows into uncontested_items[] (no Gemini)."""
-    from scripts.gemini.browser_policy_analysis import _normalize_part1_analysis
+    from llm.gemini.browser_policy_analysis import _normalize_part1_analysis
 
     data = json.loads(analysis_path.read_text(encoding="utf-8"))
     if data.get("_error"):
@@ -116,7 +116,7 @@ def scrape_gemini_last_reply(
 ) -> str | None:
     from playwright.sync_api import sync_playwright
 
-    from scripts.gemini.browser_policy_analysis import (
+    from llm.gemini.browser_policy_analysis import (
         DEFAULT_GEMINI_URL,
         _extract_broad_model_reply_js,
         _extract_model_response_js,

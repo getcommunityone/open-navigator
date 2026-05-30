@@ -12,9 +12,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional, Sequence
 
-from scripts.gemini.mermaid_diagrams import repair_mermaid_fences_in_markdown
+from llm.gemini.mermaid_diagrams import repair_mermaid_fences_in_markdown
 
-_REPO = Path(__file__).resolve().parents[2]
+_REPO = Path(__file__).resolve().parents[5]
 _WEBSITE = _REPO / "website"
 _FENCE_RE = re.compile(r"```mermaid\s*\n(.*?)```", re.DOTALL | re.IGNORECASE)
 

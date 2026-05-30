@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 from loguru import logger
 
-from scripts.gemini.transcript_cache_paths import (
+from llm.gemini.transcript_cache_paths import (
     DIR_ANALYSIS,
     DIR_EXCEPTIONS,
     DIR_REPORTS,
@@ -104,7 +104,7 @@ def is_policy_video_excluded(
     if not vid:
         return False
     if channel_id:
-        from scripts.gemini.transcript_cache_paths import canonical_jurisdiction_root
+        from llm.gemini.transcript_cache_paths import canonical_jurisdiction_root
 
         root = canonical_jurisdiction_root(
             cache_dir,

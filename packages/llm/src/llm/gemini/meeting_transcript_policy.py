@@ -13,13 +13,13 @@ This does **not** open gemini.google.com or send video to the browser UI.
 
 Full pipeline (local captions → JSON + Markdown)::
 
-    python scripts/gemini/meeting_transcript_policy.py \\
+    python -m llm.gemini.meeting_transcript_policy \\
         --from-bronze --jurisdiction-id municipality_0177256 --state AL \\
         --use-local-transcript --run-part-2 --limit 5
 
 Markdown only from existing analysis JSON::
 
-    python scripts/gemini/meeting_transcript_policy.py \\
+    python -m llm.gemini.meeting_transcript_policy \\
         --part-2-only --jurisdiction-id municipality_0177256 --limit 5
 
 Examples::
@@ -27,22 +27,22 @@ Examples::
     export GEMINI_API_KEY=...   # from https://aistudio.google.com/apikey
 
     # YouTube captions only (no GPU, no HF token)
-    python scripts/gemini/meeting_transcript_policy.py \\
+    python -m llm.gemini.meeting_transcript_policy \\
         --video-id ajsME66iXbY \\
         --jurisdiction-id municipality_0177256 \\
         --state AL
 
     # Merge WhisperX speaker labels into caption lines, then Flash-Lite
-    python scripts/gemini/meeting_transcript_policy.py \\
+    python -m llm.gemini.meeting_transcript_policy \\
         --video-id ajsME66iXbY \\
         --audio-path data/cache/youtube_audio/al/tuscaloosa/ajsME66iXbY.opus \\
         --diarize
 
     # Transcript only (no API call)
-    python scripts/gemini/meeting_transcript_policy.py --video-id ajsME66iXbY --transcript-only
+    python -m llm.gemini.meeting_transcript_policy --video-id ajsME66iXbY --transcript-only
 
     # Northport: N newest meetings that already have bronze captions → analyze (Part 1 + 2)
-    python scripts/gemini/meeting_transcript_policy.py \\
+    python -m llm.gemini.meeting_transcript_policy \\
         --newest 5 --jurisdiction-id municipality_0155200 --state AL
 """
 
@@ -60,7 +60,7 @@ from typing import Any, Dict, List, Optional
 from dotenv import load_dotenv
 from loguru import logger
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+_REPO_ROOT = Path(__file__).resolve().parents[5]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
@@ -98,7 +98,7 @@ def _record_policy_event_safe(
     if not (video_id or "").strip():
         return
     try:
-        from scripts.gemini.persist_policy_analysis_bronze import record_policy_event
+        from llm.gemini.persist_policy_analysis_bronze import record_policy_event
 
         record_policy_event(
             video_id,
@@ -111,7 +111,7 @@ def _record_policy_event_safe(
     except Exception as exc:  # tracking must never break the pipeline
         logger.warning("policy event record skipped for {} ({}): {}", video_id, stage, exc)
 
-from scripts.gemini.browser_policy_analysis import (  # noqa: E402
+from llm.gemini.browser_policy_analysis import (  # noqa: E402
     DEFAULT_JURISDICTION_ID,
     DEFAULT_PROMPT_PART_1,
     DEFAULT_PROMPT_PART_2,
@@ -129,29 +129,29 @@ from scripts.gemini.browser_policy_analysis import (  # noqa: E402
     build_user_message,
     fetch_videos,
 )
-from scripts.gemini.agenda_presenter_hints import (  # noqa: E402
+from llm.gemini.agenda_presenter_hints import (  # noqa: E402
     enrich_uncontested_media_anchors,
     format_agenda_presenter_hints_block,
     segment_agenda_blocks,
 )
-from scripts.gemini.diarize_postprocess import (  # noqa: E402
+from llm.gemini.diarize_postprocess import (  # noqa: E402
     diarize_audio_whisperx,
     format_diarized_transcript,
     merge_caption_speakers,
 )
-from scripts.gemini.genai_text_client import (  # noqa: E402
+from llm.gemini.genai_text_client import (  # noqa: E402
     call_gemini_text,
     default_flash_lite_model,
     ensure_valid_gemini_api_key,
     extract_json_from_model_text,
 )
-from scripts.gemini.speaker_hints import (  # noqa: E402
+from llm.gemini.speaker_hints import (  # noqa: E402
     format_speaker_hints_block,
     known_speaker_names,
     label_segments_from_contacts,
     load_contacts_bundle,
 )
-from scripts.gemini.transcript_cache_paths import (  # noqa: E402
+from llm.gemini.transcript_cache_paths import (  # noqa: E402
     _sanitize_audio_title,
     analysis_cache_path,
     ensure_jurisdiction_layout,
@@ -166,7 +166,7 @@ from scripts.gemini.transcript_cache_paths import (  # noqa: E402
     run_meta_path,
     transcript_cache_path,
 )
-from scripts.gemini.transcript_fetch import fetch_youtube_transcript  # noqa: E402
+from llm.gemini.transcript_fetch import fetch_youtube_transcript  # noqa: E402
 
 DEFAULT_OUTPUT_DIR = _REPO_ROOT / "data" / "cache" / "gemini_transcript_policy"
 DEFAULT_YOUTUBE_AUDIO_ROOT = _REPO_ROOT / "data" / "cache" / "youtube_audio"
@@ -192,7 +192,7 @@ def coalesce_part1_analysis(data: Any) -> Dict[str, Any]:
         return out
     excerpt = data.get("document1_excerpt")
     if isinstance(excerpt, str) and excerpt.strip():
-        from scripts.gemini.genai_text_client import extract_json_from_model_text
+        from llm.gemini.genai_text_client import extract_json_from_model_text
 
         recovered = extract_json_from_model_text(excerpt)
         if isinstance(recovered, dict) and isinstance(recovered.get("meeting"), dict):
@@ -234,7 +234,7 @@ def resolve_scrape_cache_dir(
 ) -> Path:
     if explicit is not None:
         return Path(explicit).expanduser().resolve()
-    from scripts.gemini.transcript_cache_paths import cache_type_segment
+    from llm.gemini.transcript_cache_paths import cache_type_segment
 
     root = repo_root or _REPO_ROOT
     st = (state or "AL").strip().upper()
@@ -438,13 +438,13 @@ def save_transcript_policy_output(
             video_url=video.video_url or "",
         )
         if enrich_legislation:
-            from scripts.gemini.legislation_analysis import enrich_part1_legislation
+            from llm.gemini.legislation_analysis import enrich_part1_legislation
 
             analysis_payload = enrich_part1_legislation(
                 analysis_payload, agenda_blocks=agenda_blocks
             )
         if geocode_places:
-            from scripts.gemini.enrich_analysis_places import enrich_places_in_analysis
+            from llm.gemini.enrich_analysis_places import enrich_places_in_analysis
 
             analysis_payload = enrich_places_in_analysis(
                 analysis_payload,
@@ -470,7 +470,7 @@ def save_transcript_policy_output(
         )
 
     if persist_bronze and json_parsed and not analysis_payload.get("_error"):
-        from scripts.gemini.persist_policy_analysis_bronze import (
+        from llm.gemini.persist_policy_analysis_bronze import (
             persist_policy_analysis_bronze,
             resolve_event_id_for_video,
         )
@@ -622,8 +622,8 @@ def write_part2_report(
     *,
     validate_mermaid: bool = True,
 ) -> Path:
-    from scripts.gemini.mermaid_diagrams import repair_mermaid_fences_in_markdown
-    from scripts.gemini.part2_report_normalize import strip_one_big_thing_lines
+    from llm.gemini.mermaid_diagrams import repair_mermaid_fences_in_markdown
+    from llm.gemini.part2_report_normalize import strip_one_big_thing_lines
 
     report_path = report_path_for_analysis(analysis_path)
     body = strip_one_big_thing_lines(repair_mermaid_fences_in_markdown(markdown))
@@ -636,7 +636,7 @@ def write_part2_report(
 
 def _log_mermaid_validation(report_path: Path, body: str) -> None:
     try:
-        from scripts.gemini.mermaid_validate import (
+        from llm.gemini.mermaid_validate import (
             format_report,
             validate_markdown_text,
             write_errors_sidecar,
@@ -697,7 +697,7 @@ def run_part2_for_analysis_file(
 
 def _video_id_from_analysis_path(path: Path) -> str:
     """Best-effort YouTube id from filename or Part 1 JSON."""
-    from scripts.gemini.transcript_cache_paths import video_id_from_analysis
+    from llm.gemini.transcript_cache_paths import video_id_from_analysis
 
     m = re.search(r"_([A-Za-z0-9_-]{11})_", path.name)
     if m:
@@ -726,7 +726,7 @@ def _dedupe_latest_analysis_per_video(paths: List[Path]) -> List[Path]:
 
 def run_part2_only_batch(args: argparse.Namespace, api_key: str) -> None:
     """Generate Part 2 reports from existing Part 1 analysis JSON."""
-    from scripts.gemini.transcript_cache_paths import iter_analysis_files
+    from llm.gemini.transcript_cache_paths import iter_analysis_files
 
     jurisdiction_id = (args.jurisdiction_id or DEFAULT_JURISDICTION_ID).strip()
     cache_dir = Path(args.output_dir).resolve()
@@ -738,7 +738,7 @@ def run_part2_only_batch(args: argparse.Namespace, api_key: str) -> None:
     paths = iter_analysis_files(cache_dir, jurisdiction_id, state_code=state_code)
     video_filter = (args.video_id or "").strip()
     if video_filter:
-        from scripts.gemini.transcript_cache_paths import resolve_analysis_path
+        from llm.gemini.transcript_cache_paths import resolve_analysis_path
 
         one = resolve_analysis_path(
             cache_dir, jurisdiction_id, video_id=video_filter, state_code=state_code
@@ -914,7 +914,7 @@ def process_one_video(
         agenda_blocks,
         jurisdiction_id=jurisdiction_id,
     )
-    from scripts.gemini.legislation_analysis import format_pre_gemini_agenda_legislation_hints
+    from llm.gemini.legislation_analysis import format_pre_gemini_agenda_legislation_hints
 
     agenda_leg_hints = format_pre_gemini_agenda_legislation_hints(
         agenda_blocks, jurisdiction_id=jurisdiction_id
@@ -1075,7 +1075,7 @@ def run_pipeline(args: argparse.Namespace) -> None:
     if args.transcript_only and args.run_part_2:
         raise SystemExit("--transcript-only cannot be combined with --run-part-2")
 
-    from scripts.gemini.transcript_cache_paths import resolve_canonical_jurisdiction_id
+    from llm.gemini.transcript_cache_paths import resolve_canonical_jurisdiction_id
 
     jurisdiction_id = resolve_canonical_jurisdiction_id(
         (args.jurisdiction_id or DEFAULT_JURISDICTION_ID).strip()
@@ -1122,7 +1122,7 @@ def run_pipeline(args: argparse.Namespace) -> None:
         )
 
         out_dir = Path(args.output_dir).resolve()
-        from scripts.gemini.policy_exclusions import is_policy_video_excluded
+        from llm.gemini.policy_exclusions import is_policy_video_excluded
 
         for i, video in enumerate(videos, 1):
             if is_policy_video_excluded(
@@ -1160,7 +1160,7 @@ def run_pipeline(args: argparse.Namespace) -> None:
                     continue
 
             if getattr(args, "ensure_local_from_bronze", False):
-                from scripts.gemini.transcript_cache_paths import load_local_transcript_payload
+                from llm.gemini.transcript_cache_paths import load_local_transcript_payload
 
                 if load_local_transcript_payload(
                     out_dir,

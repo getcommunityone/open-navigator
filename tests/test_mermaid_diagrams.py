@@ -1,4 +1,4 @@
-from scripts.gemini.mermaid_diagrams import (
+from llm.gemini.mermaid_diagrams import (
     repair_mermaid_fences_in_markdown,
     sanitize_mindmap_mermaid,
     sanitize_timeline_mermaid,

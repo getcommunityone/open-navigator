@@ -34,7 +34,7 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from scripts.discovery.jurisdiction_discovery_pipeline import jurisdiction_pk_from_geoid  # noqa: E402
-from scripts.gemini.transcript_cache_paths import (  # noqa: E402
+from llm.gemini.transcript_cache_paths import (  # noqa: E402
     _CACHE_TYPE_FROM_TYPED_ID,
     cache_type_segment,
     jurisdiction_cache_folder_name,

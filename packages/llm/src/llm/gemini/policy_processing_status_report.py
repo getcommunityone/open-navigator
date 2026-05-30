@@ -6,10 +6,10 @@ Combines Postgres (bronze YouTube + text_ai + public.jurisdiction) with on-disk
 ``data/cache/gemini_transcript_policy/`` counts.
 
 Usage (repo root):
-  .venv/bin/python scripts/gemini/policy_processing_status_report.py
-  .venv/bin/python scripts/gemini/policy_processing_status_report.py --states AL,GA,IN
-  .venv/bin/python scripts/gemini/policy_processing_status_report.py --all-states
-  .venv/bin/python scripts/gemini/policy_processing_status_report.py -o docs/policy_processing_status.md
+  .venv/bin/python -m llm.gemini.policy_processing_status_report
+  .venv/bin/python -m llm.gemini.policy_processing_status_report --states AL,GA,IN
+  .venv/bin/python -m llm.gemini.policy_processing_status_report --all-states
+  .venv/bin/python -m llm.gemini.policy_processing_status_report -o docs/policy_processing_status.md
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ from typing import Any, DefaultDict, Dict, Iterable, List, Optional, Set, Tuple
 
 from dotenv import load_dotenv
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]  # repo root (…/scripts/gemini/ → …/)
+_REPO_ROOT = Path(__file__).resolve().parents[5]  # repo root (…/llm/gemini/ → …/)
 # Allow ``scripts.*`` imports when run as a file (not just ``python -m``).
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
@@ -378,7 +378,7 @@ def _iter_cache_jurisdiction_dirs(
             continue
         state_guess = "??"
         try:
-            from scripts.gemini.transcript_cache_paths import lookup_jurisdiction_geo_from_db
+            from llm.gemini.transcript_cache_paths import lookup_jurisdiction_geo_from_db
 
             jid = entry.name
             sg, _ = lookup_jurisdiction_geo_from_db(jid if "_" in jid else jid)
@@ -1188,7 +1188,7 @@ def render_markdown(
     lines.append("")
     lines.append("```bash")
     lines.append(
-        ".venv/bin/python scripts/gemini/policy_processing_status_report.py "
+        ".venv/bin/python -m llm.gemini.policy_processing_status_report "
         f"--target-videos {target_videos}"
     )
     lines.append("```")

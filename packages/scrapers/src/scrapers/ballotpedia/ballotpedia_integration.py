@@ -1356,7 +1356,7 @@ class BallotpediaDiscovery:
         debug_reason: str | None = None,
     ) -> Path:
         """Write a timestamped ballot-measures JSON file under the cache tree."""
-        from scripts.gemini.transcript_cache_paths import (
+        from llm.gemini.transcript_cache_paths import (
             cache_type_segment,
             jurisdiction_cache_folder_name,
         )

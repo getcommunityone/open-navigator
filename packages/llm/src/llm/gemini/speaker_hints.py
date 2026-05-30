@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional
 
 def default_scrape_cache_dir(jurisdiction_id: str, *, repo_root: Optional[Path] = None) -> Path:
     """``data/cache/scraped_meetings/.../municipality_XXXX`` from ``municipality_0177256``."""
-    root = repo_root or Path(__file__).resolve().parents[2]
+    root = repo_root or Path(__file__).resolve().parents[5]
     jid = (jurisdiction_id or "").strip()
     m = re.match(r"^municipality_(\d+)$", jid)
     if m:
@@ -104,7 +104,7 @@ def label_segments_from_contacts(
     """
     if not known_speakers:
         return
-    from scripts.gemini.diarize_postprocess import apply_name_hints_to_segments
+    from llm.gemini.diarize_postprocess import apply_name_hints_to_segments
 
     aliases = speaker_alias_index(known_speakers)
     apply_name_hints_to_segments(segments, known_speakers)

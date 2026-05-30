@@ -8,11 +8,11 @@ import json
 import sys
 from pathlib import Path
 
-_REPO = Path(__file__).resolve().parents[2]
+_REPO = Path(__file__).resolve().parents[5]
 if str(_REPO) not in sys.path:
     sys.path.insert(0, str(_REPO))
 
-from scripts.gemini.legislation_analysis import (  # noqa: E402
+from llm.gemini.legislation_analysis import (  # noqa: E402
     enrich_part1_legislation,
     validate_and_fix_legislation_refs,
 )

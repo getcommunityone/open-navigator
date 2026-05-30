@@ -255,7 +255,7 @@ def resolve_gemini_api_key(*, env_path: Optional[os.PathLike[str]] = None) -> st
     key = _strip_api_key(os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "")
     if key:
         return key
-    path = Path(env_path) if env_path is not None else Path(__file__).resolve().parents[2] / ".env"
+    path = Path(env_path) if env_path is not None else Path(__file__).resolve().parents[5] / ".env"
     if path.is_file():
         load_dotenv(path, override=True)
         key = _strip_api_key(os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "")
@@ -300,7 +300,7 @@ def ensure_valid_gemini_api_key(
     *, env_path: Optional[os.PathLike[str]] = None, model: Optional[str] = None
 ) -> str:
     """Resolve key, probe API once, and retry ``.env`` if shell env had a stale invalid key."""
-    path = Path(env_path) if env_path is not None else Path(__file__).resolve().parents[2] / ".env"
+    path = Path(env_path) if env_path is not None else Path(__file__).resolve().parents[5] / ".env"
     key = resolve_gemini_api_key(env_path=path)
     try:
         check_gemini_api_key(key, model=model)
@@ -334,7 +334,7 @@ def resolve_gemini_api_keys(*, env_path: Optional[os.PathLike[str]] = None) -> l
     ``GOOGLE_API_KEY``, and ``GEMINI_API_KEY_1``..``GEMINI_API_KEY_10``."""
     from dotenv import load_dotenv
 
-    path = Path(env_path) if env_path is not None else Path(__file__).resolve().parents[2] / ".env"
+    path = Path(env_path) if env_path is not None else Path(__file__).resolve().parents[5] / ".env"
     if path.is_file():
         load_dotenv(path)
     raw: list[str] = list(re.split(r"[,\s]+", os.getenv("GEMINI_API_KEYS") or ""))

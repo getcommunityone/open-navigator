@@ -107,7 +107,7 @@ from scrapers.youtube.youtube_loader_logging import (
     configure_youtube_loader_logging,
     log_progress,
 )
-from scripts.gemini.transcript_cache_paths import resolve_meeting_event_date
+from llm.gemini.transcript_cache_paths import resolve_meeting_event_date
 from scripts.datasources.jurisdiction_pilot.scrape_priority_states import DEFAULT_PRIORITY_STATES
 
 # Load environment variables

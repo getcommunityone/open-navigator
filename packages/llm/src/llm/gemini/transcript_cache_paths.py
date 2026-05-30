@@ -791,7 +791,7 @@ Basenames match Opus audio under `data/cache/youtube_audio/…/city_of_tuscaloos
 
 Regenerate layout from repo root::
 
-    python scripts/gemini/migrate_policy_cache_layout.py --jurisdiction-id {jurisdiction_id}
+    python -m llm.gemini.migrate_policy_cache_layout --jurisdiction-id {jurisdiction_id}
 """
 
 

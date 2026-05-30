@@ -225,7 +225,7 @@ Request a trial from the site if you embed KronoGraph in a React/JS demo page; t
 | --- | --- | --- |
 | **Timeline** | Mermaid `diagram_timeline` in `03_reports/`; `diagram_timeline_lines` in `02_analysis/` | CSV/JSON event list → KronoGraph or [Observable Plot](https://observablehq.com/plot/) |
 | **Entities** | `people[]`, `organizations[]`, `subjects[]`, stable `person_id` | Click person → filter timeline + map |
-| **Maps** | `places[]` + optional geocode (`scripts/gemini/enrich_analysis_places.py`) | Pin **711 Queen City Avenue** when user selects COA patio decision |
+| **Maps** | `places[]` + optional geocode (`packages/llm/src/llm/gemini/enrich_analysis_places.py`) | Pin **711 Queen City Avenue** when user selects COA patio decision |
 | **Playback** | `media_anchor` on uncontested + contested rows | Click event → seek YouTube at `t=` seconds |
 
 **Pilot meeting for the video:** Tuscaloosa Historic Preservation Commission (May 13, 2026)—multiple **street-address** COAs (`711 Queen City Avenue`, `1100 Queen City Avenue`, …) after `infer-missing` + `--geocode` on analysis JSON.
@@ -241,12 +241,12 @@ Request a trial from the site if you embed KronoGraph in a React/JS demo page; t
 
 ```bash
 # Places + geocode on existing Part 1 JSON
-.venv/bin/python scripts/gemini/enrich_analysis_places.py \
+.venv/bin/python -m llm.gemini.enrich_analysis_places \
   "data/cache/gemini_transcript_policy/municipality_0177256/02_analysis/2026-05-14_Tuscaloosa Historic Preservation Commission Meeting - May 13, 2026.json" \
   --jurisdiction-id municipality_0177256 --infer-missing --geocode
 
 # Optional: regenerate report with Where / place context
-.venv/bin/python scripts/gemini/meeting_transcript_policy.py \
+.venv/bin/python -m llm.gemini.meeting_transcript_policy \
   --part-2-only --jurisdiction-id municipality_0177256 --video-id _N25jQdQ4jQ
 ```
 
@@ -410,7 +410,7 @@ Build a **multimodal official profile** that links **scraped headshots**, **diar
 | --- | --- |
 | Council directory | `data/cache/scraped_meetings/.../municipality_0177256/_contact_images/contacts.json` |
 | Transcripts | `data/cache/gemini_transcript_policy/.../YYYY-MM-DD_<title>.json` (basename matches Opus in `youtube_audio/al/city_of_tuscaloosa_…/`) |
-| Speaker hints (heuristic) | `scripts/gemini/enrich_transcript_diarization.py` — names from contacts on caption segments |
+| Speaker hints (heuristic) | `packages/llm/src/llm/gemini/enrich_transcript_diarization.py` — names from contacts on caption segments |
 | Full diarization (optional) | Same script with `--whisperx` + `HF_TOKEN`; Tuscaloosa Opus already at `data/cache/youtube_audio/al/city_of_tuscaloosa_uc74dczs0b3mhdhuhp2zgrpa/` (~117 meetings, `YYYY-MM-DD_<title>.opus`) |
 | Policy + narrative | `policy_analysis_part_1.md` → `*_analysis.json` via Flash-Lite or Gemma Colab pipeline |
 
@@ -450,11 +450,11 @@ Scrape contacts → meeting transcripts (diarized) → policy JSON
 
 ```bash
 # Label transcripts with council names (fast)
-python scripts/gemini/enrich_transcript_diarization.py \
+python -m llm.gemini.enrich_transcript_diarization \
   --jurisdiction-id municipality_0177256 --state AL
 
 # WhisperX: auto-finds Opus by title in the Tuscaloosa channel folder (no video_id in filename)
-python scripts/gemini/enrich_transcript_diarization.py \
+python -m llm.gemini.enrich_transcript_diarization \
   --video-id zpaawfaNsQM --whisperx
 # → …/city_of_tuscaloosa_uc74dczs0b3mhdhuhp2zgrpa/2026-03-31_Tuscaloosa Projects Committee Meeting - Mar 31, 2026.opus
 ```

@@ -360,7 +360,7 @@ analyze_one() {
     ana_args+=(--dry-run)
   fi
   local ec=0
-  "$PYTHON" scripts/gemini/meeting_transcript_policy.py "${ana_args[@]}" || ec=$?
+  "$PYTHON" -m llm.gemini.meeting_transcript_policy "${ana_args[@]}" || ec=$?
   if (( ec != 0 )); then
     if (( ec == 1 )); then
       echo "WARN: analyze skipped for $jid (usually no captions yet — run: $0 captions)" >&2
@@ -470,7 +470,7 @@ run_each_jurisdiction() {
     )
     if [[ -n "${DRY_RUN:-}" ]]; then
       ana_args+=(--dry-run)
-    elif ! "$PYTHON" scripts/gemini/meeting_transcript_policy.py "${ana_args[@]}"; then
+    elif ! "$PYTHON" -m llm.gemini.meeting_transcript_policy "${ana_args[@]}"; then
       ec=$?
       if [[ $ec -eq 1 ]]; then
         echo "WARN: analyze skipped for $jid (usually no captions yet)" >&2

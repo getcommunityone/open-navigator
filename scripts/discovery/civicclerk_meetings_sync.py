@@ -70,7 +70,7 @@ def _civicclerk_sync_enabled() -> bool:
 
 
 def _jurisdiction_base_dir(output_root: Path, state: str, jurisdiction_id: str) -> Path:
-    from scripts.gemini.transcript_cache_paths import scraped_meetings_jurisdiction_dir
+    from llm.gemini.transcript_cache_paths import scraped_meetings_jurisdiction_dir
 
     return scraped_meetings_jurisdiction_dir(
         output_root,

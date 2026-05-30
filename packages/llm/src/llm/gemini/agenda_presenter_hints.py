@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
-from scripts.gemini.speaker_hints import speaker_alias_index
+from llm.gemini.speaker_hints import speaker_alias_index
 
 
 _AGENDA_START = re.compile(
