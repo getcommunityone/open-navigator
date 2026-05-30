@@ -22,15 +22,15 @@ from datetime import datetime
 from typing import List, Dict, Any
 from loguru import logger
 
-from extraction.accountability_dashboards import (
+from scripts.extraction.accountability_dashboards import (
     generate_all_accountability_dashboards,
     RhetoricGapMetrics,
     DeferralPattern,
     DisplacementMatrix,
     InfluenceMetrics
 )
-from extraction.decision_analyzer import DecisionAnalysisAgent, PolicyDecision
-from extraction.budget_analyzer import BudgetAnalyzer, BudgetLineItem
+from scripts.extraction.decision_analyzer import DecisionAnalysisAgent, PolicyDecision
+from scripts.extraction.budget_analyzer import BudgetAnalyzer, BudgetLineItem
 
 
 async def main():

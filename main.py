@@ -173,7 +173,7 @@ def generate_heatmap(output: str, urgency: Optional[str]):
     
     # Lazy import - only load when generating heatmap
     try:
-        from visualization.heatmap import AdvocacyHeatmap
+        from scripts.visualization.heatmap import AdvocacyHeatmap
     except ImportError:
         click.echo("❌ Visualization dependencies not installed!")
         click.echo("   Install with: pip install folium plotly")

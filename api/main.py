@@ -31,7 +31,7 @@ from agents.classifier import ClassifierAgent
 from agents.sentiment import SentimentAnalyzerAgent
 from agents.advocacy import AdvocacyWriterAgent
 from pipeline.delta_lake import DeltaLakePipeline
-from visualization.heatmap import AdvocacyHeatmap
+from scripts.visualization.heatmap import AdvocacyHeatmap
 from config import settings
 
 # Configure logging with rotation and retention

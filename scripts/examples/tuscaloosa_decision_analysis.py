@@ -22,7 +22,7 @@ import asyncio
 import json
 from loguru import logger
 
-from extraction.decision_analyzer import DecisionAnalysisAgent, PolicyDecision
+from scripts.extraction.decision_analyzer import DecisionAnalysisAgent, PolicyDecision
 
 
 async def analyze_tuscaloosa_decisions():

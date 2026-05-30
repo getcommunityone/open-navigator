@@ -9,7 +9,7 @@ from government websites and store them efficiently.
 import asyncio
 import pandas as pd
 from pathlib import Path
-from extraction.universal_extractor import UniversalDocumentExtractor
+from scripts.extraction.universal_extractor import UniversalDocumentExtractor
 from loguru import logger
 
 

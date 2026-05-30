@@ -25,9 +25,9 @@ import json
 from datetime import datetime
 from loguru import logger
 
-from extraction.decision_analyzer import DecisionAnalysisAgent
-from extraction.budget_analyzer import BudgetAnalyzer
-from extraction.temporal_analyzer import TemporalAnalyzer
+from scripts.extraction.decision_analyzer import DecisionAnalysisAgent
+from scripts.extraction.budget_analyzer import BudgetAnalyzer
+from scripts.extraction.temporal_analyzer import TemporalAnalyzer
 
 
 async def run_complete_analysis():
