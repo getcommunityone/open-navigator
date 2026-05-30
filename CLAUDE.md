@@ -1,5 +1,12 @@
 # Open Navigator Project Rules (React, FastAPI, dbt)
 
+## 🤖 Refactor Workflow
+- **Roadmap / Manager memory:** `docs/CLEANUP_ROADMAP.md` — the living backlog + status
+  for the `scripts/ → packages/` library refactor. Read it before starting cleanup work.
+- **Specialist sub-agents** (in `.claude/agents/`): route scoped work to
+  `data-dbt-specialist` (dbt/SQL/ingestion), `api-specialist` (FastAPI), or
+  `frontend-specialist` (React/Docusaurus). Cross-layer tasks get split across them.
+
 ## 🏗️ Three-Service Architecture
 1. **Documentation** (Docusaurus) - Port 3000
 2. **Main Application** (React + Vite) - Port 5173
