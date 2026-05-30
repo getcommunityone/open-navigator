@@ -374,7 +374,7 @@ cp data/media/causes/*.png frontend/public/images/causes/
 
 ```bash
 # Standard deployment
-./scripts/huggingface/safe-deploy.sh
+./packages/hosting/scripts/huggingface/safe-deploy.sh
 
 # Make sure to include generated images!
 # Either:

@@ -110,7 +110,7 @@ This will:
 ```bash
 # Upload all contacts tables
 export HF_TOKEN="hf_YOUR_TOKEN"
-python scripts/upload_meetings_to_hf.py --contacts
+python -m hosting.huggingface contacts
 
 # Or upload specific table
 python scripts/upload_meetings_to_hf.py --table local_officials

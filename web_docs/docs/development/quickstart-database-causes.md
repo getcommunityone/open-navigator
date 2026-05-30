@@ -252,7 +252,7 @@ python scripts/media/generate_all_cause_images.py --type everyorg
 
 ```bash
 # Deploy to HuggingFace Spaces
-./scripts/huggingface/safe-deploy.sh
+./packages/hosting/scripts/huggingface/safe-deploy.sh
 
 # Make sure images are included!
 # Copy them to frontend/public/images/causes/ first
