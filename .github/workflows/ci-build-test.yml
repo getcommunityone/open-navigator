@@ -27,21 +27,21 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
+          cache-dependency-path: web_app/package-lock.json
 
       - name: Install frontend dependencies
         run: |
-          cd frontend
+          cd web_app
           npm ci
 
       - name: Run TypeScript type check
         run: |
-          cd frontend
+          cd web_app
           npx tsc --noEmit
 
       - name: Build frontend
         run: |
-          cd frontend
+          cd web_app
           npm run build
 
       - name: Check build artifacts
@@ -67,21 +67,21 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: website/package-lock.json
+          cache-dependency-path: web_docs/package-lock.json
 
       - name: Install docs dependencies
         run: |
-          cd website
+          cd web_docs
           npm ci
 
       - name: Build documentation
         run: |
-          cd website
+          cd web_docs
           npm run build
 
       - name: Check build artifacts
         run: |
-          if [ ! -d "website/build" ]; then
+          if [ ! -d "web_docs/build" ]; then
             echo "❌ Docs build failed - no build directory"
             exit 1
           fi
@@ -122,7 +122,7 @@ jobs:
           python -c "from api.app import app; print('✅ API app imports successfully')"
 
   # Test 5: API contract types (OpenAPI -> TypeScript)
-  # Regenerates frontend/src/lib/api.types.ts from the live FastAPI schema
+  # Regenerates web_app/src/lib/api.types.ts from the live FastAPI schema
   # (api.app:app) and type-checks the *regenerated* file against the frontend
   # consumers. A backend contract change that would break a typed call site
   # (wrong path, missing field, renamed param) fails CI here rather than at
@@ -147,7 +147,7 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
+          cache-dependency-path: web_app/package-lock.json
 
       - name: Install backend dependencies
         run: |
@@ -158,18 +158,18 @@ jobs:
 
       - name: Install frontend dependencies
         run: |
-          cd frontend
+          cd web_app
           npm ci
 
       - name: Regenerate API types from the FastAPI schema
         run: |
-          cd frontend
+          cd web_app
           npm run gen:api
           test -s src/lib/api.types.ts || { echo "::error::api.types.ts was not generated"; exit 1; }
 
       - name: Type-check regenerated types against the frontend consumers
         run: |
-          cd frontend
+          cd web_app
           if ! npx tsc --noEmit; then
             echo "::error::Frontend consumers no longer match the FastAPI schema. Update the typed call site, or refresh src/lib/api.types.ts locally with 'npm run gen:api' and commit."
             exit 1

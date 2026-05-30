@@ -16,8 +16,8 @@ COPY requirements-cpu.txt .
 RUN pip install --no-cache-dir -r requirements-cpu.txt
 
 # Copy frontend and build
-COPY frontend/ ./frontend/
-WORKDIR /app/frontend
+COPY web_app/ ./web_app/
+WORKDIR /app/web_app
 RUN npm install && npm run build
 
 # Copy backend

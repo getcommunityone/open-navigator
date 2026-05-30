@@ -26,14 +26,14 @@ if [ ! -d ".venv" ]; then
     exit 1
 fi
 
-if [ ! -d "frontend/node_modules" ]; then
-    echo -e "${YELLOW}Installing frontend dependencies...${NC}"
-    cd frontend && npm install && cd ..
+if [ ! -d "web_app/node_modules" ]; then
+    echo -e "${YELLOW}Installing web_app dependencies...${NC}"
+    cd web_app && npm install && cd ..
 fi
 
-if [ ! -d "website/node_modules" ]; then
+if [ ! -d "web_docs/node_modules" ]; then
     echo -e "${YELLOW}Installing documentation site dependencies...${NC}"
-    cd website && npm install && cd ..
+    cd web_docs && npm install && cd ..
 fi
 
 echo -e "${GREEN}✅ Dependencies OK${NC}"
@@ -80,10 +80,10 @@ start_with_tmux() {
     tmux new-session -d -s $SESSION -n "API" "cd '$SCRIPT_DIR' && source .venv/bin/activate && echo '🔥 Starting API Backend...' && python main.py serve; read"
     
     # Create window for Dashboard
-    tmux new-window -t $SESSION -n "Dashboard" "cd '$SCRIPT_DIR/frontend' && echo '⚛️  Starting React Dashboard...' && npm run dev; read"
+    tmux new-window -t $SESSION -n "Dashboard" "cd '$SCRIPT_DIR/web_app' && echo '⚛️  Starting React Dashboard...' && npm run dev; read"
     
     # Create window for Docs
-    tmux new-window -t $SESSION -n "Docs" "cd '$SCRIPT_DIR/website' && echo '📚 Starting Documentation Site...' && npm start; read"
+    tmux new-window -t $SESSION -n "Docs" "cd '$SCRIPT_DIR/web_docs' && echo '📚 Starting Documentation Site...' && npm start; read"
     
     # Create window for logs/commands
     tmux new-window -t $SESSION -n "Shell" "cd '$SCRIPT_DIR' && source .venv/bin/activate && bash"
@@ -150,7 +150,7 @@ start_without_tmux() {
     
     # Start Dashboard
     echo -e "${BLUE}Starting React Dashboard...${NC}"
-    cd frontend
+    cd web_app
     nohup npm run dev > ../logs/dashboard.log 2>&1 &
     DASHBOARD_PID=$!
     echo $DASHBOARD_PID > ../logs/dashboard.pid
@@ -159,7 +159,7 @@ start_without_tmux() {
     
     # Start Docs
     echo -e "${BLUE}Starting Documentation Site...${NC}"
-    cd website
+    cd web_docs
     nohup npm start > ../logs/docs.log 2>&1 &
     DOCS_PID=$!
     echo $DOCS_PID > ../logs/docs.pid

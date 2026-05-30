@@ -8,13 +8,13 @@
 
 ## Repository Layout
 - `api/`: FastAPI application — entry points `api/main.py` / `api/app.py`, route handlers in `api/routes/`, Pydantic models in `api/models.py`.
-- `frontend/`: React + Vite + TypeScript app (port 5173).
-- `website/`: Docusaurus documentation site (port 3000).
+- `web_app/`: React + Vite + TypeScript app (port 5173).
+- `web_docs/`: Docusaurus documentation site (port 3000).
 - `dbt_project/`: dbt models, macros, and `schema.yml` files. Standalone uv project (its protobuf/pathspec pins conflict with the main resolution). Medallion: `bronze → staging → intermediate → marts`.
 - `packages/`: internal shared Python libraries — the **uv workspace** (`packages/*`): `core`, `core-lib`, `datamodels`, `ingestion`, `scrapers`, `llm`, `agents`, `accessibility`. This is the destination for the `scripts/ → packages/` refactor.
 - `scripts/`: **LEGACY** top-level scripts being ported into `packages/`. Do not add new code here — port instead (see Refactor Workflow).
 
-> Note: `apps/` (FastAPI, web) and `services/` are planned for a later migration phase per `pyproject.toml`; today the API lives in `api/` and the web app in `frontend/`.
+> Note: `apps/` (FastAPI, web) and `services/` are planned for a later migration phase per `pyproject.toml`; today the API lives in `api/` and the web app in `web_app/`.
 
 ## Running Locally — Three Services
 1. **Documentation** (Docusaurus) — port 3000
@@ -47,7 +47,7 @@
 - **CAUTION:** Never delete or suggest deleting `data/cache/`.
 
 ## Documentation Rules (Docusaurus)
-- **MANDATORY:** ALL docs go in `website/docs/` subdirectories.
+- **MANDATORY:** ALL docs go in `web_docs/docs/` subdirectories.
 - **Formatting:** kebab-case filenames, YAML frontmatter included, lowercase only.
 - **Root:** No `.md` files in root except `README`, `LICENSE`, and `CONTRIBUTING`.
 
@@ -64,7 +64,7 @@
   - `feat(api): add jurisdiction search endpoint`
   - `fix(bronze): handle missing state_code in census loader`
   - `chore(deps): upgrade loguru to 0.7.3`
-  - `docs(website): add FastAPI deployment guide`
+  - `docs(web_docs): add FastAPI deployment guide`
 
 ## Logging Standards (MANDATORY)
 

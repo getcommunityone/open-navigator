@@ -1,4 +1,4 @@
-.PHONY: help install install-frontend install-docs build-frontend build-docs clean test run dev dev-frontend dev-docs start-all stop-all dev-full docker-up docker-down deploy-databricks
+.PHONY: help install install-web_app install-docs build-web_app build-docs clean test run dev dev-web_app dev-docs start-all stop-all dev-full docker-up docker-down deploy-databricks
 
 help:
 	@echo "🦷 Open Navigator - Makefile Commands"
@@ -14,9 +14,9 @@ help:
 	@echo "  make run               - Start backend (production)"
 	@echo ""
 	@echo "⚛️  React Dashboard:"
-	@echo "  make install-frontend  - Install dashboard npm dependencies"
-	@echo "  make build-frontend    - Build React dashboard for production"
-	@echo "  make dev-frontend      - Start dashboard dev server"
+	@echo "  make install-web_app  - Install dashboard npm dependencies"
+	@echo "  make build-web_app    - Build React dashboard for production"
+	@echo "  make dev-web_app      - Start dashboard dev server"
 	@echo ""
 	@echo "📚 Documentation Site:"
 	@echo "  make install-docs      - Install Docusaurus dependencies"
@@ -40,31 +40,31 @@ install:
 	@chmod +x install.sh
 	@./install.sh
 
-install-frontend:
+install-web_app:
 	@echo "📦 Installing dashboard dependencies..."
-	@cd frontend && npm install
+	@cd web_app && npm install
 	@echo "✅ Dashboard dependencies installed!"
 
 install-docs:
 	@echo "📦 Installing documentation dependencies..."
-	@cd website && npm install
+	@cd web_docs && npm install
 	@echo "✅ Documentation dependencies installed!"
 
-build-frontend:
+build-web_app:
 	@echo "🔨 Building React dashboard..."
-	@cd frontend && npm run build
+	@cd web_app && npm run build
 	@echo "✅ Dashboard built to api/static/"
 
 build-docs:
 	@echo "🔨 Building documentation site..."
-	@cd website && npm run build
-	@echo "✅ Documentation built to website/build/"
+	@cd web_docs && npm run build
+	@echo "✅ Documentation built to web_docs/build/"
 
 clean:
 	@echo "🧹 Cleaning up..."
 	@rm -rf .venv venv
-	@rm -rf frontend/node_modules frontend/dist
-	@rm -rf website/node_modules website/build website/.docusaurus
+	@rm -rf web_app/node_modules web_app/dist
+	@rm -rf web_docs/node_modules web_docs/build web_docs/.docusaurus
 	@rm -rf api/static
 	@rm -rf __pycache__
 	@find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
@@ -83,7 +83,7 @@ test:
 	@echo "🧪 Running tests..."
 	@. venv/bin/activate && pytest tests/ -v
 
-run: build-frontend
+run: build-web_app
 	@echo "🚀 Starting application (production mode)..."
 	@. venv/bin/activate && uvicorn api.app:app --host 0.0.0.0 --port 8000
 
@@ -92,15 +92,15 @@ dev:
 	@echo "📡 Backend running at http://localhost:8000"
 	@. venv/bin/activate && uvicorn api.app:app --reload
 
-dev-frontend:
+dev-web_app:
 	@echo "⚛️  Starting dashboard dev server..."
 	@echo "📡 Dashboard running at http://localhost:5173"
-	@cd frontend && npm run dev
+	@cd web_app && npm run dev
 
 dev-docs:
 	@echo "📚 Starting documentation dev server..."
 	@echo "📡 Documentation running at http://localhost:3000"
-	@cd website && npm start
+	@cd web_docs && npm start
 
 start-all:
 	@echo "🚀 Starting all services with tmux..."
@@ -115,13 +115,13 @@ stop-all:
 dev-full:
 	@echo "🚀 Use 'make start-all' for better experience with tmux!"
 	@echo ""
-	@echo "Starting backend and frontend (manual)..."
+	@echo "Starting backend and web_app (manual)..."
 	@echo "📡 Backend:   http://localhost:8000"
 	@echo "📡 Dashboard: http://localhost:5173"
 	@echo "📡 Docs:      http://localhost:3000 (run 'make dev-docs' in another terminal)"
 	@echo ""
 	@. venv/bin/activate && uvicorn api.app:app --reload & \
-	cd frontend && npm run dev
+	cd web_app && npm run dev
 
 deploy-databricks:
 	@echo "☁️  Deploying to Databricks Apps..."

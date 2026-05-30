@@ -2,7 +2,7 @@
 Jurisdiction mapping quality drill-down (live Postgres).
 
 Serves full unmapped lists for the Data explorer mapping dashboard — not capped like
-``frontend/public/data/jurisdiction_mapping_quality.json``.
+``web_app/public/data/jurisdiction_mapping_quality.json``.
 """
 from __future__ import annotations
 

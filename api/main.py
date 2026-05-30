@@ -174,7 +174,7 @@ async def log_requests(request: Request, call_next):
         raise
 
 # Mount static files for logo
-static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend", "public")
+static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "web_app", "public")
 if os.path.exists(static_dir):
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
     # Serve the whole public /data tree the way Vite does in dev. Besides the

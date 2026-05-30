@@ -11,7 +11,7 @@ downloads/
 eggs/
 .eggs/
 lib/
-!frontend/src/lib/
+!web_app/src/lib/
 lib64/
 parts/
 sdist/
@@ -88,8 +88,8 @@ nohup.out
 
 # Data files
 data/
-!frontend/src/data/
-!frontend/src/data/**
+!web_app/src/data/
+!web_app/src/data/**
 .migration_backup/
 *.csv
 *.parquet
@@ -118,7 +118,7 @@ secrets/
 # OS
 Thumbs.db
 # Binary files for Docker build only (not in git)
-website/static/img/communityone_card.png
+web_docs/static/img/communityone_card.png
 data/gold_old/
 data/gold_backup_*/
 

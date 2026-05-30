@@ -15,11 +15,11 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
-frontend/dist/
-frontend/node_modules/
-website/build/
-website/node_modules/
-website/.docusaurus/
+web_app/dist/
+web_app/node_modules/
+web_docs/build/
+web_docs/node_modules/
+web_docs/.docusaurus/
 
 # Data and cache
 data/

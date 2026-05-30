@@ -682,8 +682,8 @@ if static_dir.exists():
     # map/scorecard marts (/data/census-map), the per-state ZCTA (ZIP) tiles
     # (/data/zctas — the lowest drilldown tier), and the jurisdiction-quality
     # snapshot. Mounting only /data/census-map left the others 404ing.
-    frontend_public = Path(__file__).parent.parent / "frontend" / "public"
-    data_dir = frontend_public / "data"
+    web_app_public = Path(__file__).parent.parent / "web_app" / "public"
+    data_dir = web_app_public / "data"
     if data_dir.is_dir():
         app.mount("/data", CachedStaticFiles(directory=data_dir), name="public_data")
     else:

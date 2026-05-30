@@ -8,7 +8,7 @@ WORKDIR /build
 # routeBasePath: '/' in docusaurus.config.ts prevents /docs/docs/ nesting
 ENV DOCUSAURUS_BASE_URL=/docs/
 
-COPY website/package*.json ./
+COPY web_docs/package*.json ./
 RUN npm config set fetch-retry-mintimeout 20000 && \
     npm config set fetch-retry-maxtimeout 120000 && \
     npm ci --prefer-offline --no-audit || npm install --prefer-offline --no-audit
@@ -16,7 +16,7 @@ RUN npm config set fetch-retry-mintimeout 20000 && \
 # Add cache-busting argument to force rebuild when needed
 ARG CACHE_BUST=2026-04-27-12-00-fix-double-docs-prefix
 
-COPY website/ ./
+COPY web_docs/ ./
 
 # Verify environment variable is set and build
 RUN echo "Building Docusaurus with DOCUSAURUS_BASE_URL=$DOCUSAURUS_BASE_URL" && \
@@ -46,8 +46,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # OPTIMIZATION: Copy frontend package files first for better caching
-COPY frontend/package*.json /app/frontend/
-RUN cd /app/frontend && npm ci
+COPY web_app/package*.json /app/web_app/
+RUN cd /app/web_app && npm ci
 
 # Copy application code (now npm ci layer is cached)
 COPY . .
@@ -65,7 +65,7 @@ ENV VITE_CANONICAL_DOMAIN=www.communityone.com
 ENV VITE_API_URL=/api
 # Cache bust: 2026-04-29-remove-axios
 ARG CACHE_BUST_FRONTEND=2026-04-29-remove-axios
-RUN cd /app/frontend && echo "Frontend build cache bust: $CACHE_BUST_FRONTEND" && npm run build
+RUN cd /app/web_app && echo "Frontend build cache bust: $CACHE_BUST_FRONTEND" && npm run build
 
 # Frontend is already built to /app/api/static/ via vite.config.ts
 # Create frontend directory in /app/static for nginx

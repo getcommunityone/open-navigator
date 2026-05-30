@@ -9,10 +9,10 @@ echo ""
 FAILED=false
 
 # Check 1: Frontend TypeScript
-echo "📝 Checking frontend TypeScript..."
-cd frontend
+echo "📝 Checking web_app TypeScript..."
+cd web_app
 if ! npx tsc --noEmit 2>&1 | head -20; then
-    echo "❌ TypeScript errors found in frontend/"
+    echo "❌ TypeScript errors found in web_app/"
     FAILED=true
 else
     echo "✅ Frontend TypeScript OK"
@@ -31,11 +31,11 @@ fi
 echo ""
 
 # Check 3: Frontend build (quick check)
-echo "🏗️  Testing frontend build..."
-cd frontend
+echo "🏗️  Testing web_app build..."
+cd web_app
 if ! npm run build > /dev/null 2>&1; then
     echo "❌ Frontend build failed"
-    echo "Run 'cd frontend && npm run build' to see details"
+    echo "Run 'cd web_app && npm run build' to see details"
     FAILED=true
 else
     echo "✅ Frontend builds successfully"
