@@ -53,11 +53,21 @@ financial_items_extracted AS (
         financial_data->>'subject_id' as subject_id,
         financial_data->>'event_description' as event_description,
         financial_data->>'item_description' as item_description,
-        (financial_data->>'amount')::numeric as amount,
+        -- Gemini sometimes emits free-text amounts ("1.2 to 1.3 million", "TBD").
+        -- Strip $ , and whitespace, then cast only if a clean number remains;
+        -- otherwise NULL (the raw text is preserved in amount_qualifier / notes).
+        CASE
+            WHEN regexp_replace(financial_data->>'amount', '[\s$,]', '', 'g') ~ '^-?[0-9]+(\.[0-9]+)?$'
+            THEN regexp_replace(financial_data->>'amount', '[\s$,]', '', 'g')::numeric
+        END as amount,
         financial_data->>'amount_type' as amount_type,
         financial_data->>'amount_qualifier' as amount_qualifier,
         COALESCE(financial_data->>'currency', 'USD') as currency,
-        (financial_data->>'item_date')::date as item_date,
+        -- Guard against free-text dates; only parse strict ISO YYYY-MM-DD.
+        CASE
+            WHEN financial_data->>'item_date' ~ '^\d{4}-\d{2}-\d{2}$'
+            THEN (financial_data->>'item_date')::date
+        END as item_date,
         financial_data->>'item_date_type' as item_date_type,
         financial_data->>'org_id' as org_id,
         financial_data->>'org_role' as org_role,
