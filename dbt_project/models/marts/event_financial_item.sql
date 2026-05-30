@@ -59,21 +59,11 @@ select
     e.city,
 
     s.financial_item_id,
-    s.decision_id,
-    s.subject_id,
     s.event_description,
-    s.item_description,
     s.amount,
     s.amount_type,
-    s.amount_qualifier,
     s.currency,
-    s.item_date,
-    s.item_date_type,
-    s.org_id,
-    s.org_role,
-    s.authorized_by_person_id,
     s.funding_source,
-    s.notes,
 
     s.source_ai_model,
     s.extracted_at

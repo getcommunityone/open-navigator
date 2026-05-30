@@ -63,11 +63,8 @@ select
     s.leg_type,
     s.official_number,
     s.title,
-    s.jurisdiction,
-    s.year,
     s.status,
     s.relevance,
-    s.url,
 
     s.source_ai_model,
     s.extracted_at

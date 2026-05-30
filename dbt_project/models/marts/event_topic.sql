@@ -61,17 +61,6 @@ select
 
     s.decision_id,
     s.primary_theme,
-    s.primary_theme_cofog,
-    s.secondary_theme,
-    s.secondary_theme_cofog,
-    s.ntee_code,
-    s.ntee_major_group,
-    s.ntee_category_label,
-    s.secondary_ntee_code,
-    s.secondary_ntee_major_group,
-    s.secondary_ntee_category_label,
-    s.primary_org_ids,
-    s.topic,
     s.headline,
 
     s.source_ai_model,

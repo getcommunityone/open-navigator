@@ -88,12 +88,7 @@ select
     p.person_id,
     p.full_name,
     p.role,
-    p.org_id,
-    p.party_affiliation,
     p.is_lobbyist,
-    p.lobbyist_registration_number,
-    p.lobbyist_clients,
-    p.wikidata_qid,
     p.appeared_as,
 
     -- extraction provenance
