@@ -140,6 +140,7 @@ from llm.gemini.diarize_postprocess import (  # noqa: E402
     merge_caption_speakers,
 )
 from llm.gemini.genai_text_client import (  # noqa: E402
+    GenAITransientGiveUp,
     call_gemini_text,
     default_flash_lite_model,
     ensure_valid_gemini_api_key,
@@ -757,6 +758,17 @@ def run_part2_only_batch(args: argparse.Namespace, api_key: str) -> None:
         logger.info("[{}/{}] {}", i, len(paths), path.name)
         try:
             run_part2_for_analysis_file(path, args, api_key)
+        except GenAITransientGiveUp as exc:
+            # Google-side network flake — never fatal, even with --stop-on-error.
+            logger.warning("Skip {} — transient infra give-up: {}", path.name, exc)
+            if _db_events_enabled(args):
+                _record_policy_event_safe(
+                    _video_id_from_analysis_path(path),
+                    stage="report",
+                    ok=False,
+                    error=str(exc),
+                )
+            continue
         except Exception as exc:
             logger.exception("Part 2 failed for {}: {}", path.name, exc)
             if _db_events_enabled(args):
@@ -1200,6 +1212,14 @@ def run_pipeline(args: argparse.Namespace) -> None:
                 process_one_video(
                     video, args, speaker_hints=speaker_hints, known=known, api_key=api_key
                 )
+            except GenAITransientGiveUp as exc:
+                # Google-side network flake — never fatal, even with --stop-on-error.
+                logger.warning("Skip {} — transient infra give-up: {}", video.video_id, exc)
+                if _db_events_enabled(args):
+                    _record_policy_event_safe(
+                        video.video_id, stage="analysis", ok=False, error=str(exc)
+                    )
+                continue
             except Exception as exc:
                 logger.exception("Failed {}: {}", video.video_id, exc)
                 if _db_events_enabled(args):
