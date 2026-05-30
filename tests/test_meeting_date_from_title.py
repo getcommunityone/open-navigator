@@ -98,6 +98,18 @@ def test_extract_slash_two_digit_year():
     assert extract_meeting_date_from_title("Council 3/5/25") == "2025-03-05"
 
 
+def test_extract_dot_separated_two_digit_year():
+    title = "Tuesday Public Meeting - 04.28.26"
+    assert extract_meeting_date_from_title(title) == "2026-04-28"
+    base = meeting_media_basename(title, event_date=None)
+    assert base == "2026-04-28_Tuesday_Public_Meeting"
+    assert not base.startswith("unknown-date")
+
+
+def test_extract_dot_separated_four_digit_year():
+    assert extract_meeting_date_from_title("City Council Meeting 04.28.2026") == "2026-04-28"
+
+
 def test_extract_compact_yyyymmdd_prefix():
     title = "20171107 Andalusia City Council Meeting November 7 2017"
     assert extract_meeting_date_from_title(title) == "2017-11-07"
