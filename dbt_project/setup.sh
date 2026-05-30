@@ -75,7 +75,7 @@ if dbt run --select staging; then
 else
     echo ""
     echo "⚠️  Staging models failed - this is OK if bronze tables don't exist yet"
-    echo "   Run: python ../scripts/datasources/gemini/load_meeting_transcripts_bronze.py"
+    echo "   Run: python -m llm.enrichment.load_meeting_transcripts"
 fi
 
 echo ""
@@ -84,7 +84,7 @@ echo "✅ dbt setup complete!"
 echo "=" * 70
 echo ""
 echo "Next steps:"
-echo "  1. Load bronze data: python ../scripts/datasources/gemini/load_meeting_transcripts_bronze.py"
+echo "  1. Load bronze data: python -m llm.enrichment.load_meeting_transcripts"
 echo "  2. Run dbt models: dbt run"
 echo "  3. Run tests: dbt test"
 echo "  4. View docs: dbt docs generate && dbt docs serve"
