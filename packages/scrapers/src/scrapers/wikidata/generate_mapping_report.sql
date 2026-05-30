@@ -6,6 +6,11 @@
 -- Usage:
 --   PGPASSWORD=password psql -h localhost -p 5433 -U postgres -d open_navigator \
 --   -f packages/scrapers/src/scrapers/wikidata/generate_mapping_report.sql
+--
+-- ⚠️ DEPRECATED (migration 048): queries the pre-048 ``public.jurisdiction`` table,
+-- now ``public.c1_jurisdiction``. Columns used here (state_code, type) were renamed
+-- (state_code→state, type→classification) and the old ``state`` full-name column no
+-- longer exists, so this report needs reworking against the new schema before it runs.
 
 \echo '╔══════════════════════════════════════════════════════════════════════════╗'
 \echo '║  JURISDICTION MAPPING REPORT: jurisdictions_wikidata → jurisdiction ║'

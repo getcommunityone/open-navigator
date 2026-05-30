@@ -2,6 +2,11 @@
 """
 Official Government Website Scraper
 
+⚠️ DEPRECATED (migration 048): reads the pre-048 ``public.jurisdiction`` table, now
+``public.c1_jurisdiction`` (a dbt-built mart). The columns it queries (gov_domains,
+discovery_status, state_code, jurisdiction_id) were renamed/dropped in that move, so
+this will NOT run against the current database and needs reworking against the new schema.
+
 Scrapes official .gov domains from GSA registry to extract:
 - Meeting schedules and agendas
 - Official contact information

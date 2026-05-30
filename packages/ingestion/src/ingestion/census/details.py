@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 """Jurisdictions details pipeline: load discovery/enrichment fields into jurisdiction.
 
+⚠️ DEPRECATED (migration 048): writes to the pre-048 ``public.jurisdiction`` table,
+now renamed to ``public.c1_jurisdiction`` (a dbt-built mart). The discovery columns
+it ALTERs/INSERTs (youtube_channels, website_url, meeting_platforms, social_media,
+discovery_status, in_localview, …) were dropped in that move, so this pipeline will
+NOT run against the current database and must be reworked against the new schema.
+Tracked under the "move scripts into packages as libraries" refactor.
+
 Ported from load_details_to_postgres.py to the core_lib
 DataSourcePipeline contract.
 

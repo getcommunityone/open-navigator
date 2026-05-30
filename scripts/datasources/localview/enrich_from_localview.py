@@ -2,6 +2,11 @@
 """
 Enrich jurisdiction with LocalView YouTube channel data
 
+⚠️ DEPRECATED (migration 048): ALTERs/UPDATEs the pre-048 ``public.jurisdiction`` table,
+now ``public.c1_jurisdiction`` (a dbt-built mart). The columns it writes (in_localview,
+youtube_channels, …) were dropped in that move, so this will NOT run against the current
+database and needs reworking — this enrichment now belongs in dbt (see int_youtube__events).
+
 This script:
 1. Extracts YouTube channel data from all LocalView meeting parquet files
 2. Matches LocalView jurisdictions to jurisdiction

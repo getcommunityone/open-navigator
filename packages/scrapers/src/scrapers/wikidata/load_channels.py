@@ -5,6 +5,11 @@ Load and Validate YouTube Channels
 This script loads channels from jurisdiction into intermediate.int_events_channels_registry,
 validates them against multiple sources, and flags junk channels.
 
+⚠️ DEPRECATED (migration 048): reads/UPDATEs the pre-048 ``public.jurisdiction`` table,
+now ``public.c1_jurisdiction`` (a dbt-built mart). The columns it relies on
+(youtube_channels, per_capita_income, population, …) were dropped in that move, so this
+will NOT run against the current database and needs reworking against the new schema.
+
 Features:
 1. Enriches jurisdiction with Wikidata population and metadata
 2. Matches LocalView events to YouTube channels

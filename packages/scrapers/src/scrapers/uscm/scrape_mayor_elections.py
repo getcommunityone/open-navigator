@@ -5,6 +5,11 @@ Scraper for U.S. Conference of Mayors election results.
 Extracts mayor election data from https://www.usmayors.org/elections/election-results-2/
 and updates jurisdiction with current/incoming mayor information.
 
+⚠️ DEPRECATED (migration 048): UPDATEs the pre-048 ``public.jurisdiction`` table,
+now ``public.c1_jurisdiction`` (a dbt-built mart). The mayor columns it writes
+(current_mayor, mayor_election_date, …) were dropped in that move, so this will NOT
+run against the current database and needs reworking against the new schema.
+
 Usage:
     python scrape_mayor_elections.py --states AL,GA,IN,MA,MT,WA,WI
     python scrape_mayor_elections.py --dry-run

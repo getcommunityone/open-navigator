@@ -4,6 +4,10 @@
 -- This file contains practical SQL queries for working with the master data
 -- tables created by the jurisdiction consolidation strategy.
 -- ============================================================================
+--
+-- ⚠️ DEPRECATED (migration 048): examples query the pre-048 ``public.jurisdiction``
+-- table, now ``public.c1_jurisdiction`` (type→classification, state_code→state, and the
+-- old ``details_search`` linkage was merged away). Update table/column names before use.
 
 -- ============================================================================
 -- 1. FINDING MATCHES: Get all linked data for an entity

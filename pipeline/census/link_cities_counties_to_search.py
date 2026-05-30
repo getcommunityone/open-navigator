@@ -5,6 +5,12 @@ Link Cities and Counties to jurisdiction
 This enrichment script should be migrated to dbt as a transformation model.
 Data enrichment belongs in the transformation layer (bronze → silver/gold), not in loading scripts.
 
+Also obsolete under migration 048: it relies on the pre-048 ``public.jurisdiction`` table
+having BOTH an int ``id`` and a varchar ``jurisdiction_id`` column, and self-joins/UPDATEs
+those. Migration 048 renamed the table to ``public.c1_jurisdiction``, collapsed int id →
+``legacy_id`` and ``jurisdiction_id`` → varchar ``id``, and changed ``type``→``classification``
+/ ``state_code``→``state`` — so the whole id-remapping premise no longer applies.
+
 TODO: Create dbt model: dbt_project/models/silver/silver_jurisdictions.sql
       - Match cities/counties by name + state_code
       - Update jurisdiction_id for proper linking
