@@ -25,7 +25,7 @@ sidebar_position: 5
 
 ## ✅ What Was Migrated
 
-### 1. Database Schema (scripts/deployment/neon/schema.sql)
+### 1. Database Schema (packages/hosting/src/hosting/neon/schema.sql)
 All 7 search tables updated with `state_code` + `state` columns:
 - ✅ `jurisdiction_state_aggregate`
 - ✅ `organization_nonprofit`
@@ -87,7 +87,7 @@ All existing database tables migrated using `scripts/migrate_all_state_naming.py
 **Backups Created:**
 All original files backed up with `_backup` suffix (e.g., `bills_bills_backup.parquet`)
 
-### 4. Code References (scripts/deployment/neon/migrate.py)
+### 4. Code References (packages/hosting/src/hosting/neon/migrate.py)
 All load functions updated to use new column names:
 
 **Updated Functions:**
@@ -169,17 +169,17 @@ print(df[['state_code', 'state']].head())
 ### Check Code
 ```bash
 # Verify migrate.py has no syntax errors
-python -m py_compile scripts/deployment/neon/migrate.py
+python -m py_compile packages/hosting/src/hosting/neon/migrate.py
 
 # Verify INSERT statements include both columns
-grep -n "state_code, state" scripts/deployment/neon/migrate.py
+grep -n "state_code, state" packages/hosting/src/hosting/neon/migrate.py
 ```
 
 ---
 
 ## 🎯 Next Steps
 
-1. **Test Data Loading:** Run `scripts/deployment/neon/migrate.py` to reload data with new schema
+1. **Test Data Loading:** Run `packages/hosting/src/hosting/neon/migrate.py` to reload data with new schema
 2. **Update API Queries:** Review API routes for any state filtering logic
 3. **Update Frontend:** Ensure UI displays full state names where appropriate
 4. **Update Documentation:** Document the new standard in data source docs

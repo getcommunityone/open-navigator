@@ -7,7 +7,7 @@ GEOID from the linked division id (numeric `/place:` / `/county:` / school-distr
 
 Steps:
     1. Apply DDL once: psql \"$DATABASE_URL\" -f \\
-       scripts/deployment/neon/migrations/014_create_bronze_jurisdictions_openstates.sql
+       packages/hosting/scripts/neon/migrations/014_create_bronze_jurisdictions_openstates.sql
     2. Ensure OPENSTATES_DATABASE_URL points at your Open States dump DB.
     3. Ensure NEON_DATABASE_URL_DEV or NEON_DATABASE_URL points at open_navigator (target bronze).
     4. Run this script with --migrate if the target table/migration does not exist yet.
@@ -46,7 +46,7 @@ TARGET_URL = (
     or os.getenv("DATABASE_URL")
 )
 
-MIGRATION_PATH = PROJECT_ROOT / "scripts/deployment/neon/migrations/014_create_bronze_jurisdictions_openstates.sql"
+MIGRATION_PATH = PROJECT_ROOT / "packages/hosting/scripts/neon/migrations/014_create_bronze_jurisdictions_openstates.sql"
 
 FETCH_SQL = """
     SELECT id, name, url, classification, division_id,
@@ -106,7 +106,7 @@ def sync_bronze(*, dry_run: bool) -> int:
             if cur.fetchone() is None:
                 raise SystemExit(
                     "bronze.bronze_jurisdictions_openstates is missing; run this script with --migrate "
-                    "or apply scripts/deployment/neon/migrations/014_create_bronze_jurisdictions_openstates.sql"
+                    "or apply packages/hosting/scripts/neon/migrations/014_create_bronze_jurisdictions_openstates.sql"
                 )
             cur.execute("TRUNCATE bronze.bronze_jurisdictions_openstates")
             execute_batch(

@@ -1,6 +1,6 @@
 -- Accessibility scan results for jurisdiction homepages (Pa11y-CI, axe-core).
 -- Applied by: python -m accessibility.persist_results --ensure-ddl
--- Neon mirror: scripts/deployment/neon/migrations/032_create_bronze_jurisdiction_website_accessibility.sql
+-- Neon mirror: packages/hosting/scripts/neon/migrations/032_create_bronze_jurisdiction_website_accessibility.sql
 
 CREATE SCHEMA IF NOT EXISTS bronze;
 

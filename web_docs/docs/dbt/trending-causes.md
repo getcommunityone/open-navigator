@@ -206,7 +206,7 @@ WHERE level = 'national';
 
 ## Integration with Python Scripts
 
-The existing Python migration scripts in `scripts/deployment/neon/` can now:
+The existing Python migration scripts in `packages/hosting/src/hosting/neon/` can now:
 1. Use dbt to generate jurisdiction_state_aggregate
 2. OR continue using Python aggregation
 3. Merge both approaches (Python for counts, dbt for trending causes)

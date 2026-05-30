@@ -210,4 +210,4 @@ if __name__ == '__main__':
 
 - [State Field Naming Standard](../../website/docs/development/state-field-naming-standard.md)
 - [GitHub Copilot Instructions](../../.github/copilot-instructions.md)
-- [Database Schema](../deployment/neon/schema.sql)
+- [Database Schema](../../packages/hosting/src/hosting/neon/schema.sql)

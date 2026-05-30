@@ -25,7 +25,8 @@ logger.info(f"Using: {'DEV' if NEON_DATABASE_URL_DEV else 'PROD'} database")
 
 # Paths
 SCRIPT_DIR = Path(__file__).parent
-PROJECT_ROOT = SCRIPT_DIR.parent
+# Up from neon/ → hosting/ → src/ → hosting(pkg)/ → packages/ → repo root
+PROJECT_ROOT = Path(__file__).resolve().parents[5]
 GOLD_DIR = PROJECT_ROOT / "data" / "gold"
 
 

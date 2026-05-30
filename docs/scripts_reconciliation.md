@@ -79,9 +79,9 @@ imported symbols into `packages/ingestion`, repoint callers) before retiring.
 | **irs** | `api/app.py`, `api/main.py`, `pipeline/create_nonprofits_gold_tables.py` import `scripts.datasources.irs.nonprofit_discovery.NonprofitDiscovery` |
 | **youtube** | `api/routes/batch_jobs.py` imports many `api.batch_jobs.batch_job_*` modules; 17 test files import youtube scripts (18,450 LOC — largest) |
 | **openstates** | `pipeline/create_contacts_gold_tables.py` imports `scripts.datasources.openstates.openstates_sources`; several `.sh` runners + tests |
-| **census** | operator entrypoint `scripts/deployment/neon/run_bronze_jurisdictions_to_cloud.sh` invokes `load_census_gazetteer.py` |
+| **census** | operator entrypoint `packages/hosting/scripts/neon/run_bronze_jurisdictions_to_cloud.sh` invokes `load_census_gazetteer.py` |
 | **fec** | `scripts/datasources/fec/run_bulk_download.sh` invokes `load_fec_bulk.py` |
-| **wikidata** | `scripts/deployment/neon/run_jurisdiction_id_migration.sh` invokes `materialize_bronze_jurisdictions_wikidata_tables.py` |
+| **wikidata** | `packages/hosting/scripts/neon/run_jurisdiction_id_migration.sh` invokes `materialize_bronze_jurisdictions_wikidata_tables.py` |
 
 ---
 

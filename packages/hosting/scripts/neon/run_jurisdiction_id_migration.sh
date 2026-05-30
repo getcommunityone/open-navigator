@@ -7,7 +7,7 @@
 #   3. Prints a verification report
 #
 # Usage:
-#   ./scripts/deployment/neon/run_jurisdiction_id_migration.sh
+#   ./packages/hosting/scripts/neon/run_jurisdiction_id_migration.sh
 #
 # Prereqs:
 #   - .env contains NEON_DATABASE_URL_DEV (or NEON_DATABASE_URL / OPEN_NAVIGATOR_DATABASE_URL)
@@ -15,7 +15,8 @@
 
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
+MIGRATIONS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/migrations" && pwd)"
 cd "$ROOT"
 
 PY="${ROOT}/.venv/bin/python"
@@ -43,13 +44,13 @@ echo ""
 # Step 1: Apply migration 010
 # ─────────────────────────────────────────────────────────────────────────────
 echo "==> [1/3] Running migrations …"
-psql "$DB_URL" -v ON_ERROR_STOP=1 -f "${ROOT}/scripts/deployment/neon/migrations/010_add_jurisdiction_id.sql"
+psql "$DB_URL" -v ON_ERROR_STOP=1 -f "${MIGRATIONS_DIR}/010_add_jurisdiction_id.sql"
 echo "    ✓ 010_add_jurisdiction_id applied"
-psql "$DB_URL" -v ON_ERROR_STOP=1 -f "${ROOT}/scripts/deployment/neon/migrations/011_add_jurisdiction_type_and_source.sql"
+psql "$DB_URL" -v ON_ERROR_STOP=1 -f "${MIGRATIONS_DIR}/011_add_jurisdiction_type_and_source.sql"
 echo "    ✓ 011_add_jurisdiction_type_and_source applied"
-psql "$DB_URL" -v ON_ERROR_STOP=1 -f "${ROOT}/scripts/deployment/neon/migrations/012_convert_jurisdiction_columns_to_enum.sql"
+psql "$DB_URL" -v ON_ERROR_STOP=1 -f "${MIGRATIONS_DIR}/012_convert_jurisdiction_columns_to_enum.sql"
 echo "    ✓ 012_convert_jurisdiction_columns_to_enum applied"
-psql "$DB_URL" -v ON_ERROR_STOP=1 -f "${ROOT}/scripts/deployment/neon/migrations/013_add_jurisdiction_id_prefix.sql"
+psql "$DB_URL" -v ON_ERROR_STOP=1 -f "${MIGRATIONS_DIR}/013_add_jurisdiction_id_prefix.sql"
 echo "    ✓ 013_add_jurisdiction_id_prefix applied"
 echo ""
 

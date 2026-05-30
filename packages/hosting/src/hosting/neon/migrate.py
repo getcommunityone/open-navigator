@@ -26,13 +26,14 @@ if not DATABASE_URL:
 
 logger.info(f"Using: {'DEV' if NEON_DATABASE_URL_DEV else 'PROD'} database")
 
-# Paths - relative to this script's location
+# Paths - relative to this module's location
 SCRIPT_DIR = Path(__file__).parent
-PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent  # Up from neon/ → deployment/ → scripts/ → project root
+# Up from neon/ → hosting/ → src/ → hosting(pkg)/ → packages/ → repo root
+PROJECT_ROOT = Path(__file__).resolve().parents[5]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from scripts.utils.calendar_year_util import calendar_year_label
+from scripts.utils.calendar_year_util import calendar_year_label  # noqa: E402
 
 GOLD_DIR = PROJECT_ROOT / "data" / "gold"
 SCHEMA_PATH = SCRIPT_DIR / "schema.sql"
@@ -538,7 +539,7 @@ def load_reference_data(conn):
         logger.info(f"  Loaded {len(records)} NTEE codes")
     else:
         logger.warning(f"  NTEE codes file not found: {ntee_file}")
-        logger.info(f"  To generate NTEE data, see: scripts/datasources/ntee/")
+        logger.info("  To generate NTEE data, see: scripts/datasources/ntee/")
     
     # Load EveryOrg causes into cause_ntee table
     causes_file = GOLD_DIR / "causes_everyorg_causes.parquet"

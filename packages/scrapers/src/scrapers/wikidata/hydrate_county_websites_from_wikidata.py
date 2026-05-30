@@ -35,7 +35,7 @@ if str(_ROOT) not in sys.path:
 
 load_dotenv(_ROOT / ".env")
 
-from scripts.deployment.neon.ensure_bronze_jurisdictions_cloud import ensure_wikidata_tables  # noqa: E402
+from hosting.neon.ensure_bronze_jurisdictions_cloud import ensure_wikidata_tables  # noqa: E402
 from scrapers.wikidata.load_jurisdictions_wikidata import (  # noqa: E402
     DATABASE_URL,
     PRIORITY_STATES,

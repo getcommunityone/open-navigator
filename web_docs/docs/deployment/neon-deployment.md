@@ -176,7 +176,7 @@ After successful deployment:
 1. **Load more states into Neon:**
    ```bash
    # Edit migrate.py to add more states
-   python scripts/deployment/neon/migrate.py  # loads all states
+   python packages/hosting/src/hosting/neon/migrate.py  # loads all states
    ```
 
 2. **Add automatic sync:**

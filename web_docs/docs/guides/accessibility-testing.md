@@ -168,7 +168,7 @@ LIMIT 50;
 
 ```bash
 psql "$OPEN_NAVIGATOR_DATABASE_URL" -v ON_ERROR_STOP=1 \
-  -f scripts/deployment/neon/migrations/032_create_bronze_jurisdiction_website_accessibility.sql
+  -f packages/hosting/scripts/neon/migrations/032_create_bronze_jurisdiction_website_accessibility.sql
 ```
 
 ---
@@ -231,7 +231,7 @@ LIMIT 50;
 
 ```bash
 psql "$OPEN_NAVIGATOR_DATABASE_URL" -v ON_ERROR_STOP=1 \
-  -f scripts/deployment/neon/migrations/033_create_bronze_jurisdiction_pdf_verapdf.sql
+  -f packages/hosting/scripts/neon/migrations/033_create_bronze_jurisdiction_pdf_verapdf.sql
 ```
 
 ### Docker worker (batch / Lambda-style)

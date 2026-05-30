@@ -21,8 +21,6 @@ import sys
 from pathlib import Path
 import pandas as pd
 import psycopg2
-from psycopg2.extras import execute_values
-from datetime import datetime
 from loguru import logger
 import json
 
@@ -253,11 +251,11 @@ def main():
             conn.commit()
         
         logger.success("🎉 Migration completed successfully!")
-        logger.info(f"📊 Summary:")
+        logger.info("📊 Summary:")
         logger.info(f"   - States processed: {len(states)}")
         logger.info(f"   - Map aggregates: {total_aggregates:,} rows")
-        logger.info(f"   - Space saved: Aggregates only (not storing full bills)")
-        logger.info(f"   - Drill-down: Uses parquet files for detailed queries")
+        logger.info("   - Space saved: Aggregates only (not storing full bills)")
+        logger.info("   - Drill-down: Uses parquet files for detailed queries")
         
     except Exception as e:
         logger.error(f"❌ Migration failed: {e}")

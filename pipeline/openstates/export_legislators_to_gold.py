@@ -197,7 +197,7 @@ def main():
     logger.info(f"Output directory: {STATES_DIR}")
     logger.info("")
     logger.info("Next steps:")
-    logger.info("  1. Load into Neon search: python scripts/deployment/neon/migrate.py")
+    logger.info("  1. Load into Neon search: python -m hosting.neon.migrate")
     logger.info("  2. Or upload to HuggingFace: python scripts/huggingface/upload_to_huggingface.py")
 
 

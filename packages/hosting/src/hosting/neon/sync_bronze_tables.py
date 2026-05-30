@@ -23,13 +23,12 @@ Prerequisites:
 
 import os
 import sys
-from pathlib import Path
 import psycopg2
 from psycopg2.extras import execute_batch, RealDictCursor
 from dotenv import load_dotenv
 from loguru import logger
 import argparse
-from typing import List, Optional
+from typing import List
 
 # Load environment variables
 load_dotenv()
@@ -105,7 +104,7 @@ def get_table_info(conn, table_name: str) -> dict:
 def get_columns(conn, table_name: str) -> List[str]:
     """Get column names for a table."""
     with conn.cursor() as cursor:
-        cursor.execute(f"""
+        cursor.execute("""
             SELECT column_name 
             FROM information_schema.columns 
             WHERE table_schema = 'bronze' AND table_name = %s
@@ -134,7 +133,7 @@ def sync_table(
     Returns:
         True if successful, False otherwise
     """
-    logger.info(f"")
+    logger.info("")
     logger.info(f"{'='*80}")
     logger.info(f"SYNCING: bronze.{table_name}")
     logger.info(f"{'='*80}")
@@ -158,7 +157,7 @@ def sync_table(
         logger.info(f"☁️  Neon:  {neon_info['count']:,} rows ({neon_info['size']})")
         
         if local_info['count'] == 0:
-            logger.warning(f"⏭️  Skipping: No data in local table")
+            logger.warning("⏭️  Skipping: No data in local table")
             return True
         
         # Get columns
@@ -191,7 +190,7 @@ def sync_table(
                 
                 rows = cursor.fetchall()
         else:
-            logger.info(f"📦 Full sync (copying all records)")
+            logger.info("📦 Full sync (copying all records)")
             with local_conn.cursor() as cursor:
                 cursor.execute(f"SELECT * FROM bronze.{table_name}")
                 rows = cursor.fetchall()
@@ -199,7 +198,7 @@ def sync_table(
         total_rows = len(rows)
         
         if total_rows == 0:
-            logger.success(f"✅ No new records to sync")
+            logger.success("✅ No new records to sync")
             return True
         
         logger.info(f"📥 Fetched {total_rows:,} records to sync")
@@ -234,7 +233,7 @@ def sync_table(
         # Verify
         new_neon_info = get_table_info(neon_conn, table_name)
         
-        logger.success(f"")
+        logger.success("")
         logger.success(f"✅ SYNC COMPLETE: bronze.{table_name}")
         logger.success(f"   Records synced: {total_rows:,}")
         logger.success(f"   Neon total:     {new_neon_info['count']:,} rows")

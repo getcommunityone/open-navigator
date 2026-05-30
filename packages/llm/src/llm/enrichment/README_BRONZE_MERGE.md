@@ -18,10 +18,10 @@ Add datasource tracking fields to production tables:
 
 ```bash
 # Apply migration
-psql $NEON_DATABASE_URL_DEV -f scripts/deployment/neon/migrations/001_add_datasource_fields.sql
+psql $NEON_DATABASE_URL_DEV -f packages/hosting/scripts/neon/migrations/001_add_datasource_fields.sql
 
 # If needed, rollback
-psql $NEON_DATABASE_URL_DEV -f scripts/deployment/neon/migrations/001_add_datasource_fields_rollback.sql
+psql $NEON_DATABASE_URL_DEV -f packages/hosting/scripts/neon/migrations/001_add_datasource_fields_rollback.sql
 ```
 
 **What this does:**
@@ -207,7 +207,7 @@ llm/enrichment/
 ├── merge_bronze_to_production.py       # Main merge script
 └── README.md                           # This file
 
-scripts/deployment/neon/migrations/
+packages/hosting/scripts/neon/migrations/
 ├── 001_add_datasource_fields.sql
 └── 001_add_datasource_fields_rollback.sql
 

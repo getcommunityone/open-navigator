@@ -34,7 +34,7 @@ This script automates the complete setup process:
 
 ```bash
 # From project root
-./scripts/deployment/neon/setup_youtube_tables.sh
+./packages/hosting/scripts/neon/setup_youtube_tables.sh
 ```
 
 The script will:
@@ -131,7 +131,7 @@ dbt run --select bronze_events_text_ai --target prod
 
 # 3. Sync data
 source .venv/bin/activate
-python scripts/deployment/neon/sync_bronze_tables.py \
+python -m hosting.neon.sync_bronze_tables \
   bronze_events_youtube \
   bronze_events_text_ai \
   bronze_events_channels

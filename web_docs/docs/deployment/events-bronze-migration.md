@@ -77,11 +77,11 @@ Marts Layer (dbt tables - production-ready)
 ```bash
 # Create bronze_event table
 psql -h localhost -p 5433 -U postgres -d open_navigator_bronze \
-  -f scripts/deployment/neon/migrations/003_create_bronze_event.sql
+  -f packages/hosting/scripts/neon/migrations/003_create_bronze_event.sql
 
 # Create bronze_events_text_ai table
 psql -h localhost -p 5433 -U postgres -d open_navigator_bronze \
-  -f scripts/deployment/neon/migrations/004_create_bronze_events_text_ai.sql
+  -f packages/hosting/scripts/neon/migrations/004_create_bronze_events_text_ai.sql
 ```
 
 ### Step 2: Import Foreign Tables

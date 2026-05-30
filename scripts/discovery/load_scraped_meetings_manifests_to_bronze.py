@@ -17,7 +17,7 @@ you can filter by platform stack or global crawl contacts without joining back t
 HTTP(S) URLs are **path-normalized on load** (e.g. spaces to ``%20``) so bronze stays correct even if
 an older manifest still has raw spaces in ``pdfs[].url`` — re-run this script only; no rescrape required.
 
-DDL: ``scripts/deployment/neon/migrations/020_recreate_bronze_events_meetings_scraped_link_document.sql``.
+DDL: ``packages/hosting/scripts/neon/migrations/020_recreate_bronze_events_meetings_scraped_link_document.sql``.
 
 Examples::
 

@@ -1,7 +1,7 @@
 -- Verification queries for the priority-states scrape batches.
 --
 -- Run via psql against Neon dev (NEON_DATABASE_URL_DEV):
---     ./scripts/deployment/neon/psql_resolved.sh -f scripts/datasources/jurisdiction_pilot/verify.sql
+--     ./packages/hosting/scripts/neon/psql_resolved.sh -f scripts/datasources/jurisdiction_pilot/verify.sql
 -- Or pass a specific batch:
 --     psql "$NEON_DATABASE_URL_DEV" \
 --          -v batch="'<batch-uuid>'" \

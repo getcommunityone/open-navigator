@@ -34,7 +34,7 @@ Track current and incoming mayors for U.S. cities:
 # Optional: ./.venv/bin/python packages/scrapers/src/scrapers/uscm/load_uscm_mayors_to_bronze.py --truncate
 ```
 
-If you already had data in `bronze.bronze_jurisdictions_municipalities_mayors`, apply `scripts/deployment/neon/migrations/016_rename_bronze_jurisdictions_municipalities_uscm.sql` once before relying on the new table name.
+If you already had data in `bronze.bronze_jurisdictions_municipalities_mayors`, apply `packages/hosting/scripts/neon/migrations/016_rename_bronze_jurisdictions_municipalities_uscm.sql` once before relying on the new table name.
 
 ## 🚀 Usage
 

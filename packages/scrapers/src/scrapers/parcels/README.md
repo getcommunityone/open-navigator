@@ -103,10 +103,10 @@ County field names differ (`OWNER_NAME` vs `Owner1` vs `M_OWNER`). Use `--normal
 
 ## Load to Postgres (`bronze.bronze_addresses`)
 
-Migration: `scripts/deployment/neon/migrations/074_create_bronze_addresses.sql`
+Migration: `packages/hosting/scripts/neon/migrations/074_create_bronze_addresses.sql`
 
 ```bash
-./scripts/deployment/neon/psql_resolved.sh -f scripts/deployment/neon/migrations/074_create_bronze_addresses.sql
+./packages/hosting/scripts/neon/psql_resolved.sh -f packages/hosting/scripts/neon/migrations/074_create_bronze_addresses.sql
 
 .venv/bin/python packages/scrapers/src/scrapers/parcels/load_parcel_addresses_to_bronze.py \
   --csv data/cache/parcels/al/tuscaloosa_county_attrs.csv \

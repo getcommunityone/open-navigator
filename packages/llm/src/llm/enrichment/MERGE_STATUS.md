@@ -26,7 +26,7 @@
   - Conflict resolution logic
   - Audit logging to bronze_merge_log table
   
-- ✅ Schema migration: `scripts/deployment/neon/migrations/001_add_datasource_fields.sql`
+- ✅ Schema migration: `packages/hosting/scripts/neon/migrations/001_add_datasource_fields.sql`
   - Adds datasource tracking columns
   - Creates junction tables (bills_meetings, contacts_meeting_attendance, organizations_meetings)
   - Creates merge audit log table
@@ -58,7 +58,7 @@
 ```bash
 # Run this ONCE to add datasource columns
 PGPASSWORD=password psql -h localhost -p 5433 -U postgres -d open_navigator \
-  -f scripts/deployment/neon/migrations/001_add_datasource_fields.sql
+  -f packages/hosting/scripts/neon/migrations/001_add_datasource_fields.sql
 ```
 
 **2. Run Merge (First Time)**
@@ -120,7 +120,7 @@ source .venv/bin/activate
 
 # 1. Apply migration (one-time)
 PGPASSWORD=password psql -h localhost -p 5433 -U postgres -d open_navigator \
-  -f scripts/deployment/neon/migrations/001_add_datasource_fields.sql
+  -f packages/hosting/scripts/neon/migrations/001_add_datasource_fields.sql
 
 # 2. Test merge (dry-run)
 python -m llm.enrichment.merge_bronze_to_production --dry-run --entity contacts
@@ -202,7 +202,7 @@ python -m llm.enrichment.load_meeting_transcripts_bronze
 **Fix:**
 ```bash
 PGPASSWORD=password psql -h localhost -p 5433 -U postgres -d open_navigator \
-  -f scripts/deployment/neon/migrations/001_add_datasource_fields.sql
+  -f packages/hosting/scripts/neon/migrations/001_add_datasource_fields.sql
 ```
 
 ### Issue: "Too many duplicates created"
@@ -267,8 +267,8 @@ After successful merge:
 - `llm/enrichment/load_meeting_transcripts_bronze.py` - Bronze extraction
 
 **Schema:**
-- `scripts/deployment/neon/migrations/001_add_datasource_fields.sql` - Add columns
-- `scripts/deployment/neon/migrations/001_add_datasource_fields_rollback.sql` - Undo
+- `packages/hosting/scripts/neon/migrations/001_add_datasource_fields.sql` - Add columns
+- `packages/hosting/scripts/neon/migrations/001_add_datasource_fields_rollback.sql` - Undo
 
 **Documentation:**
 - `website/docs/development/bronze-to-production-merge.md` - Full strategy

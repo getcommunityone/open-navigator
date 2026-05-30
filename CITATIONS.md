@@ -398,9 +398,9 @@ Some states require special setup or API credentials to access their legislative
 **Our implementation:**
 - Scraper core: [scripts/datasources/ballotpedia/ballotpedia_integration.py](scripts/datasources/ballotpedia/ballotpedia_integration.py) — httpx with Playwright fallback; jurisdiction and state ballot-measure page parsers.
 - Downloader: [scripts/datasources/ballotpedia/download_ballotpedia_measures.py](scripts/datasources/ballotpedia/download_ballotpedia_measures.py) — bulk-scrapes state and local ballot-measure pages into `data/cache/ballotpedia/`.
-- Bronze schema: [scripts/deployment/neon/migrations/057_create_bronze_ballot_measures_ballotpedia.sql](scripts/deployment/neon/migrations/057_create_bronze_ballot_measures_ballotpedia.sql) — NIST-aligned `bronze.bronze_ballot_measures_ballotpedia`.
+- Bronze schema: [packages/hosting/scripts/neon/migrations/057_create_bronze_ballot_measures_ballotpedia.sql](packages/hosting/scripts/neon/migrations/057_create_bronze_ballot_measures_ballotpedia.sql) — NIST-aligned `bronze.bronze_ballot_measures_ballotpedia`.
 - Loader: [scripts/datasources/ballotpedia/load_ballotpedia_measures_to_bronze.py](scripts/datasources/ballotpedia/load_ballotpedia_measures_to_bronze.py) — maps cache JSON into bronze, resolves `ocd_division_id`.
-- External links bronze: [scripts/deployment/neon/migrations/055_bronze_websites_ballotpedia.sql](scripts/deployment/neon/migrations/055_bronze_websites_ballotpedia.sql) — outbound links from Ballotpedia article pages (`bronze.bronze_websites_ballotpedia`).
+- External links bronze: [packages/hosting/scripts/neon/migrations/055_bronze_websites_ballotpedia.sql](packages/hosting/scripts/neon/migrations/055_bronze_websites_ballotpedia.sql) — outbound links from Ballotpedia article pages (`bronze.bronze_websites_ballotpedia`).
 - dbt: [dbt_project/models/bronze/bronze_ballot_measures_nist.sql](dbt_project/models/bronze/bronze_ballot_measures_nist.sql) unions Ballotpedia measures with VIP and AI-extracted sources.
 
 ### **Power BI Ballot Measures Dashboard** (public embed)
@@ -413,7 +413,7 @@ Some states require special setup or API credentials to access their legislative
 
 **Our implementation:**
 - Scraper: [scripts/datasources/powerbi_ballot_measures/download_powerbi_ballot_measures.py](scripts/datasources/powerbi_ballot_measures/download_powerbi_ballot_measures.py) — Playwright opens the embed, intercepts every `/public/reports/querydata` XHR, decodes the Power BI DSR (DataShape Result) payload into a CSV, and asserts the row count matches the dashboard KPI (default `--expected-count 9670`).
-- Bronze schema: [scripts/deployment/neon/migrations/056_create_bronze_ballot_measures_powerbi.sql](scripts/deployment/neon/migrations/056_create_bronze_ballot_measures_powerbi.sql).
+- Bronze schema: [packages/hosting/scripts/neon/migrations/056_create_bronze_ballot_measures_powerbi.sql](packages/hosting/scripts/neon/migrations/056_create_bronze_ballot_measures_powerbi.sql).
 - Loader: [scripts/datasources/powerbi_ballot_measures/load_powerbi_ballot_measures_to_bronze.py](scripts/datasources/powerbi_ballot_measures/load_powerbi_ballot_measures_to_bronze.py) — maps scraped columns into denormalized bronze columns, stores the original row as JSONB, and re-verifies post-load count against the same 9,670 KPI.
 
 ### **NIST SP 1500-100 — Election Results Reporting Common Data Format (ERR-CDF) / NIST VIP** ⭐

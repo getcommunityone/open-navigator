@@ -9,7 +9,7 @@ parcel number) rather than lat/lng radius searches.
 Used by the property-click drilldown: the frontend maps a parcel polygon (with
 its source parcel number or record id) to the full address row here.
 
-See: scripts/deployment/neon/migrations/074_create_bronze_addresses.sql
+See: packages/hosting/scripts/neon/migrations/074_create_bronze_addresses.sql
 """
 from __future__ import annotations
 
@@ -155,7 +155,7 @@ async def _ensure_table(conn) -> None:
             status_code=503,
             detail=(
                 "bronze.bronze_addresses not found. Apply migration: "
-                "scripts/deployment/neon/migrations/074_create_bronze_addresses.sql"
+                "packages/hosting/scripts/neon/migrations/074_create_bronze_addresses.sql"
             ),
         )
 

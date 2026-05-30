@@ -12,6 +12,9 @@ dependencies = [
     "httpx>=0.27",
     "beautifulsoup4>=4.12",
     "loguru>=0.7",
+    # wikidata hydrators call hosting.neon.ensure_bronze_jurisdictions_cloud
+    # to guarantee the cloud bronze tables exist before loading.
+    "communityone-hosting",
 ]
 
 # Heavier / source-specific crawler stacks are opt-in so the base library stays
@@ -25,3 +28,4 @@ where = ["src"]
 
 [tool.uv.sources]
 core-lib = { workspace = true }
+communityone-hosting = { workspace = true }

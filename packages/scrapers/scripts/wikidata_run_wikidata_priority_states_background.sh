@@ -10,7 +10,7 @@
 # Checkpoint: beside WIKIDATA_CACHE_DIR (default data/cache/wikidata/).
 #
 # Same DB URL must already have Census gazetteer bronze rows (+ *_wikidata shells):
-#   scripts/deployment/neon/run_bronze_jurisdictions_to_cloud.sh
+#   packages/hosting/scripts/neon/run_bronze_jurisdictions_to_cloud.sh
 # CSV cache first: scripts/datasources/census/download_census_gazetteer.py
 #
 set -euo pipefail
