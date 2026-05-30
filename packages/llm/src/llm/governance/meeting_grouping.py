@@ -215,7 +215,7 @@ def meeting_instance_key(
     date_s = date_s if re.fullmatch(r"\d{4}-\d{2}-\d{2}", date_s) else ""
     if not date_s:
         try:
-            from meeting_date_scope import normalize_meeting_date, parse_yyyymmdd_from_blob
+            from .meeting_date_scope import normalize_meeting_date, parse_yyyymmdd_from_blob
 
             date_s = normalize_meeting_date(parse_yyyymmdd_from_blob(path.name)) or ""
         except ImportError:
@@ -296,7 +296,7 @@ def _gather_file_evidence(
         excerpt = str(verdict.reasoning).strip()[:2000]
     if path.suffix.lower() == ".pdf":
         try:
-            from gatekeeper_triage import extract_first_pages_text
+            from .gatekeeper_triage import extract_first_pages_text
 
             page_text = extract_first_pages_text(path, pages=2).strip()
             if page_text:
@@ -381,7 +381,7 @@ def _ai_same_day_clusters(
         file_block="\n\n".join(lines),
     )
     try:
-        from gatekeeper_triage import call_gemma_triage
+        from .gatekeeper_triage import call_gemma_triage
 
         parsed, _raw = call_gemma_triage(
             client=client,
@@ -562,7 +562,7 @@ def _optional_identity_client_and_model() -> Tuple[Any, Optional[str]]:
     if not key:
         return None, None
     try:
-        from gatekeeper_triage import (
+        from .gatekeeper_triage import (
             _GEMMA_GATEKEEPER_AI_FALLBACKS,
             _build_genai_client,
             resolve_model_id,
@@ -691,14 +691,14 @@ def _path_already_in_session_folder(rel: Path) -> bool:
 def doc_type_for_path(path: Path, raw_root: Path) -> str:
     """Map a filesystem path to Gatekeeper-style document types for subfolders."""
     try:
-        from meeting_date_scope import file_media_role, jurisdiction_prefix_from_path
+        from .meeting_date_scope import file_media_role, jurisdiction_prefix_from_path
 
         role = file_media_role(path, raw_root)
         if role == "audio":
             return "meeting_audio"
         jur = jurisdiction_prefix_from_path(path, raw_root)
         if jur:
-            from meeting_date_scope import _lookup_manifest_row
+            from .meeting_date_scope import _lookup_manifest_row
 
             row = _lookup_manifest_row(path, raw_root / Path(*jur.split("/")))
             if row:
@@ -748,7 +748,7 @@ def group_paths_for_organization(
         doc_type = doc_type_for_path(path, raw_root)
         inferred_date: Optional[str] = None
         try:
-            from meeting_date_scope import infer_meeting_date_for_file, normalize_meeting_date
+            from .meeting_date_scope import infer_meeting_date_for_file, normalize_meeting_date
 
             inferred_date = infer_meeting_date_for_file(path, raw_root)
             inferred_date = normalize_meeting_date(inferred_date)
@@ -1123,7 +1123,7 @@ def resolve_meeting_dir(media_path: Path, raw_root: Path) -> Optional[Path]:
     if direct is not None:
         return direct
     try:
-        from meeting_date_scope import infer_meeting_date_for_file, jurisdiction_prefix_from_path
+        from .meeting_date_scope import infer_meeting_date_for_file, jurisdiction_prefix_from_path
     except ImportError:
         infer_meeting_date_for_file = infer_meeting_date_from_path  # type: ignore
         jurisdiction_prefix_from_path = lambda p, r: jurisdiction_prefix_from_relative(  # type: ignore
@@ -1221,7 +1221,7 @@ def collect_meeting_pdf_texts(
     Reads ``meetings/…/agenda|minutes/*.pdf`` and, when ``jurisdiction_root`` is set,
     county-root PDFs (e.g. ``2026_02_18-Agenda.pdf``) that match the session date.
     """
-    from governance_meeting_llm import extract_pdf_digital_text
+    from .governance_meeting_llm import extract_pdf_digital_text
 
     agenda_parts: List[str] = []
     minutes_parts: List[str] = []
@@ -1350,7 +1350,7 @@ def build_meeting_collateral_brief(
     )
 
     try:
-        from gatekeeper_triage import call_gemma_triage
+        from .gatekeeper_triage import call_gemma_triage
 
         if client is None:
             from google import genai

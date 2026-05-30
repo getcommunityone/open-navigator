@@ -473,7 +473,7 @@ def load_gemma_hf(
     cache_key = (repo_id, use_mm)
     if cache_key in _CACHE:
         try:
-            from colab_timed_steps import log_line
+            from .colab_timed_steps import log_line
 
             log_line(f"HF cache hit {repo_id} (needs_audio={use_mm})")
         except ImportError:
@@ -481,7 +481,7 @@ def load_gemma_hf(
         return _CACHE[cache_key]
 
     try:
-        from colab_timed_steps import log_line
+        from .colab_timed_steps import log_line
 
         log_line(
             f"HF loading {repo_id} (needs_audio={use_mm}) — "
@@ -513,7 +513,7 @@ def load_gemma_hf(
         raise exc
 
     try:
-        from colab_timed_steps import log_phase
+        from .colab_timed_steps import log_phase
 
         proc_ctx: Any = log_phase(f"HF processor {repo_id}")
     except ImportError:
@@ -543,7 +543,7 @@ def load_gemma_hf(
         else f"HF weights {repo_id} (image+text)"
     )
     try:
-        from colab_timed_steps import log_phase
+        from .colab_timed_steps import log_phase
 
         weight_ctx: Any = log_phase(weight_label)
     except ImportError:
@@ -565,7 +565,7 @@ def load_gemma_hf(
     except (ValueError, KeyError) as exc:
         _wrap_gemma4_load_error(exc)
     try:
-        from colab_timed_steps import log_line
+        from .colab_timed_steps import log_line
 
         kind = "MultimodalLM" if multimodal else "ImageTextToText"
         log_line(f"HF ready {repo_id} via {kind}")
@@ -764,7 +764,7 @@ def call_gemma_hf_multimodal(
         media_hint = f" media={','.join(parts)}"
 
     try:
-        from colab_timed_steps import log_phase
+        from .colab_timed_steps import log_phase
 
         infer_ctx: Any = log_phase(
             f"HF generate {bundle.repo_id}",

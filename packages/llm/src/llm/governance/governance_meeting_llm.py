@@ -149,7 +149,7 @@ def model_supports_video_input(model: str) -> bool:
     if mid.startswith("gemini"):
         return True
     try:
-        from gemma_hf_backend import _repo_supports_audio, resolve_hf_model_id
+        from .gemma_hf_backend import _repo_supports_audio, resolve_hf_model_id
 
         repo = resolve_hf_model_id(model or "")
         if _repo_supports_audio(repo):
@@ -161,7 +161,7 @@ def model_supports_video_input(model: str) -> bool:
 
 def demo4_uses_huggingface() -> bool:
     try:
-        from gemma_hf_backend import demo4_use_huggingface
+        from .gemma_hf_backend import demo4_use_huggingface
 
         return demo4_use_huggingface()
     except ImportError:
@@ -179,7 +179,7 @@ def resolve_demo4_model(
     """Demo 4 model: Hugging Face E2B/E4B by default, else Google AI Studio."""
     if demo4_uses_huggingface():
         try:
-            from gemma_hf_backend import resolve_demo4_hf_model
+            from .gemma_hf_backend import resolve_demo4_hf_model
 
             return resolve_demo4_hf_model()
         except ImportError as exc:
@@ -253,7 +253,7 @@ def _demo4_model_preference_order(
 ) -> List[str]:
     """Gemma first when ``GOVERNANCE_DEMO4_PREFER_GEMMA_AUDIO=1`` (default); else Gemini first."""
     try:
-        from gatekeeper_triage import (
+        from .gatekeeper_triage import (
             _GEMINI_DEMO4_AUDIO_FALLBACKS,
             _GEMMA_DEMO4_AUDIO_FALLBACKS,
         )
@@ -322,7 +322,7 @@ def list_demo4_capable_models_on_key(
 ) -> List[str]:
     """Ids on this key that Demo 4 may use for meeting audio (for §3 printout)."""
     try:
-        from gatekeeper_triage import _build_genai_client, _list_available_model_ids
+        from .gatekeeper_triage import _build_genai_client, _list_available_model_ids
 
         client = _build_genai_client(api_key)
         available = set(_list_available_model_ids(client))
@@ -353,7 +353,7 @@ def resolve_demo4_genai_model(
     """
     if client is None and api_key:
         try:
-            from gatekeeper_triage import _build_genai_client
+            from .gatekeeper_triage import _build_genai_client
 
             client = _build_genai_client(api_key)
         except Exception:
@@ -361,7 +361,7 @@ def resolve_demo4_genai_model(
 
     if client is not None:
         try:
-            from gatekeeper_triage import _list_available_model_ids
+            from .gatekeeper_triage import _list_available_model_ids
 
             available = set(_list_available_model_ids(client))
             picked = pick_demo4_model_from_available(
@@ -405,14 +405,14 @@ def demo4_models_to_try(
     """Ordered models for Demo 4 retries (HF: single E2B/E4B; Google: ids on API key)."""
     if demo4_uses_huggingface():
         try:
-            from gemma_hf_backend import resolve_demo4_hf_model
+            from .gemma_hf_backend import resolve_demo4_hf_model
 
             return [resolve_demo4_hf_model(primary)]
         except ImportError:
             return [primary] if primary else []
 
     try:
-        from gatekeeper_triage import _build_genai_client, _list_available_model_ids
+        from .gatekeeper_triage import _build_genai_client, _list_available_model_ids
     except ImportError:
         return [primary] if primary and model_accepts_demo4_audio_chunks(primary) else []
 
@@ -747,7 +747,7 @@ def select_demo4_media(
         return list(audio_paths)
 
     try:
-        from meeting_date_scope import infer_meeting_date_for_file
+        from .meeting_date_scope import infer_meeting_date_for_file
     except ImportError:
         return sorted(audio_paths, key=lambda p: p.name)[:max_files]
 
@@ -1389,7 +1389,7 @@ def transcode_video_to_opus(
     dest = (out_path or video_path.with_suffix(".opus")).resolve()
     dest.parent.mkdir(parents=True, exist_ok=True)
     try:
-        from colab_timed_steps import format_file_size, log_phase
+        from .colab_timed_steps import format_file_size, log_phase
 
         ctx: Any = log_phase(
             f"ffmpeg → Opus {video_path.name}",
@@ -1496,7 +1496,7 @@ def chunk_audio_ffmpeg(
         str(pattern),
     ]
     try:
-        from colab_timed_steps import format_file_size, log_phase
+        from .colab_timed_steps import format_file_size, log_phase
 
         seg_ctx: Any = log_phase(
             f"ffmpeg {chunk_minutes}min {fmt_l} slices",
@@ -1510,7 +1510,7 @@ def chunk_audio_ffmpeg(
         subprocess.run(cmd, check=True)
     chunks = sorted(out_dir.glob(f"{stem}_chunk_*.{fmt}"))
     try:
-        from colab_timed_steps import log_line
+        from .colab_timed_steps import log_line
 
         log_line(f"ffmpeg produced {len(chunks)} {fmt_l} chunk(s) under {out_dir.name}/")
     except ImportError:
@@ -1601,7 +1601,7 @@ def call_google_genai_multimodal(
         demo4 = True
 
     try:
-        from gemma_hf_backend import call_gemma_hf_multimodal, use_huggingface_for_model
+        from .gemma_hf_backend import call_gemma_hf_multimodal, use_huggingface_for_model
 
         if use_huggingface_for_model(model, demo4=demo4):
             hf = call_gemma_hf_multimodal(
@@ -1667,7 +1667,7 @@ def call_google_genai_multimodal(
             "`GOVERNANCE_FORCE_THINKING=1` for other Gemma ids."
         )
 
-    from genai_quota_retry import call_with_genai_quota_retry
+    from .genai_quota_retry import call_with_genai_quota_retry
 
     use_stream = os.environ.get("GOVERNANCE_GENAI_STREAM", "0").strip().lower() in (
         "1",
@@ -1766,7 +1766,7 @@ def probe_google_gemma_studio(
     from google.genai import types
 
     try:
-        from gatekeeper_triage import _list_available_model_ids, _build_genai_client
+        from .gatekeeper_triage import _list_available_model_ids, _build_genai_client
 
         client = _build_genai_client(api_key)
         available = set(_list_available_model_ids(client))
@@ -1940,7 +1940,7 @@ def transcribe_audio_with_gemma(
     tx_model = model
     if use_hf:
         try:
-            from gemma_hf_backend import resolve_transcription_hf_model
+            from .gemma_hf_backend import resolve_transcription_hf_model
 
             tx_model = resolve_transcription_hf_model()
         except ImportError:
@@ -2070,7 +2070,7 @@ def shield_review_text(
         'Return JSON: {"verdicts": {"<category>": "Yes" | "No"}, "rationale": "<one short sentence>"}'
     )
 
-    from genai_quota_retry import call_with_genai_quota_retry
+    from .genai_quota_retry import call_with_genai_quota_retry
 
     def _generate():
         return client.models.generate_content(
@@ -2295,7 +2295,7 @@ def resolve_drift_model(
     explicit = os.environ.get("GOVERNANCE_DRIFT_MODEL", "").strip()
     if explicit:
         try:
-            from gemma_hf_backend import use_huggingface_for_model
+            from .gemma_hf_backend import use_huggingface_for_model
 
             return explicit, use_huggingface_for_model(explicit, demo4=False)
         except ImportError:
@@ -2306,7 +2306,7 @@ def resolve_drift_model(
         "yes",
     ):
         try:
-            from gemma_hf_backend import resolve_demo4_hf_model
+            from .gemma_hf_backend import resolve_demo4_hf_model
 
             return resolve_demo4_hf_model(demo4_chunk_model), True
         except ImportError:
@@ -2375,7 +2375,7 @@ def policy_drift_summarize(
 
     drift_model, use_hf = resolve_drift_model(model, thinking_model=thinking_model)
     try:
-        from colab_timed_steps import log_line
+        from .colab_timed_steps import log_line
 
         backend = "Hugging Face" if use_hf else "Google AI Studio"
         log_line(f"drift pass: {drift_model!r} ({backend})", prefix="    ")

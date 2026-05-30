@@ -13,7 +13,8 @@ import sys
 from pathlib import Path
 from typing import Any, Tuple
 
-_REPO_MARKER = Path("scripts") / "colab" / "colab_paths.py"
+_REPO_MARKER = Path("packages") / "llm" / "src" / "llm" / "governance" / "colab_paths.py"
+_PKG_SRC_REL = Path("packages") / "llm" / "src"
 _DEFAULT_COLAB_CLONE = Path("/content/open-navigator")
 _CLONE_URL = "https://github.com/getcommunityone/open-navigator.git"
 _EPHEMERAL_DATA_DIR = Path("/content/_ephemeral_colab_pipeline_shell")
@@ -80,7 +81,7 @@ def discover_repo_root(
         "Could not find the open-navigator repository.\n\n"
         "What to do:\n"
         "  • Google Colab: open\n"
-        "      https://colab.research.google.com/github/getcommunityone/open-navigator/blob/main/scripts/colab/02_run_meeting_llm.ipynb\n"
+        "      https://colab.research.google.com/github/getcommunityone/open-navigator/blob/main/packages/llm/src/llm/governance/02_run_meeting_llm.ipynb\n"
         "    then re-run §1 (it clones to /content/open-navigator).\n"
         "  • Cursor / local Jupyter: in the cell below §1, set:\n"
         "      import os\n"
@@ -99,7 +100,7 @@ def bootstrap_repo(
     root = discover_repo_root(clone_if_colab=clone_if_colab)
     if set_open_navigator_root:
         os.environ.setdefault("OPEN_NAVIGATOR_ROOT", str(root))
-    for entry in (str(root), str(root / "scripts" / "colab")):
+    for entry in (str(root), str(root / _PKG_SRC_REL)):
         if entry not in sys.path:
             sys.path.insert(0, entry)
     return root
@@ -119,10 +120,8 @@ def _git_refresh(repo: Path, *, run_git_update: bool = True) -> None:
 
 def _clear_stale_imports() -> None:
     for name in list(sys.modules):
-        if name.startswith("scripts.colab") or name.startswith("scripts.utils.gdrive_paths"):
+        if name.startswith("llm.governance") or name.startswith("scripts.utils.gdrive_paths"):
             sys.modules.pop(name, None)
-    for name in ("demo_scope", "pipeline_media_scope", "colab_bootstrap"):
-        sys.modules.pop(name, None)
     stale = os.environ.pop("GOVERNANCE_PIPELINE_DATA_ROOT", None)
     if stale:
         print(f"Cleared stale GOVERNANCE_PIPELINE_DATA_ROOT={stale}")
@@ -170,7 +169,7 @@ def complete_section1_bootstrap(
     """
     repo_path = (repo or bootstrap_repo()).resolve()
     os.environ.setdefault("OPEN_NAVIGATOR_ROOT", str(repo_path))
-    for entry in (str(repo_path), str(repo_path / "scripts" / "colab")):
+    for entry in (str(repo_path), str(repo_path / _PKG_SRC_REL)):
         if entry not in sys.path:
             sys.path.insert(0, entry)
     _dotenv = repo_path / ".env"
@@ -185,7 +184,7 @@ def complete_section1_bootstrap(
     _clear_stale_imports()
     _remove_ephemeral_colab_shell()
 
-    from scripts.colab.colab_paths import maybe_mount_google_drive, setup_notebook_paths
+    from llm.governance.colab_paths import maybe_mount_google_drive, setup_notebook_paths
 
     maybe_mount_google_drive()
     try:
