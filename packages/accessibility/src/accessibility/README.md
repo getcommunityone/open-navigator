@@ -93,10 +93,10 @@ Apply DDL on Neon without Python:
 
 ```bash
 psql "$OPEN_NAVIGATOR_DATABASE_URL" -v ON_ERROR_STOP=1 \
-  -f scripts/deployment/neon/migrations/032_create_bronze_jurisdiction_website_accessibility.sql
+  -f packages/hosting/scripts/neon/migrations/032_create_bronze_jurisdiction_website_accessibility.sql
 
 psql "$OPEN_NAVIGATOR_DATABASE_URL" -v ON_ERROR_STOP=1 \
-  -f scripts/deployment/neon/migrations/034_create_bronze_jurisdiction_website_lighthouse.sql
+  -f packages/hosting/scripts/neon/migrations/034_create_bronze_jurisdiction_website_lighthouse.sql
 ```
 
 ### 4. Query merged axe + Lighthouse (same `batch_id`)
@@ -226,7 +226,7 @@ ORDER BY failed_checks DESC NULLS LAST
 LIMIT 50;
 ```
 
-DDL: `scripts/deployment/neon/migrations/033_create_bronze_jurisdiction_pdf_verapdf.sql`
+DDL: `packages/hosting/scripts/neon/migrations/033_create_bronze_jurisdiction_pdf_verapdf.sql`
 
 ## Environment
 

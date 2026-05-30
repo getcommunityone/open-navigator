@@ -66,7 +66,7 @@ echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then
     echo "Applying migration..."
     PGPASSWORD=${POSTGRES_PASSWORD:-password} psql -h localhost -p 5433 -U postgres -d open_navigator \
-        -f scripts/deployment/neon/migrations/001_add_datasource_fields.sql
+        -f packages/hosting/scripts/neon/migrations/001_add_datasource_fields.sql
     
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}✅ Migration applied successfully${NC}"

@@ -31,7 +31,7 @@ def ensure_legislation_tables(conn) -> None:
     """Apply 018 migration SQL if tables missing (idempotent)."""
     migration = (
         Path(__file__).resolve().parents[5]
-        / "scripts/deployment/neon/migrations/018_policy_legislation_linkage.sql"
+        / "packages/hosting/scripts/neon/migrations/018_policy_legislation_linkage.sql"
     )
     if migration.is_file():
         sql = migration.read_text(encoding="utf-8")

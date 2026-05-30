@@ -20,7 +20,7 @@ python packages/scrapers/src/scrapers/ballotpedia/download_ballotpedia_measures.
 python packages/scrapers/src/scrapers/ballotpedia/load_ballotpedia_measures_to_bronze.py --truncate
 
 # Apply DDL (Neon)
-./scripts/deployment/neon/psql_resolved.sh -f scripts/deployment/neon/migrations/057_create_bronze_ballot_measures_ballotpedia.sql
+./packages/hosting/scripts/neon/psql_resolved.sh -f packages/hosting/scripts/neon/migrations/057_create_bronze_ballot_measures_ballotpedia.sql
 ```
 
 ## Environment

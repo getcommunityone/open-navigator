@@ -639,7 +639,7 @@ homepage_url VARCHAR(500)  -- Use website_url instead
 3. **Neon PostgreSQL** (cloud - for production deployment)
    - Used for `contact`, `jurisdiction`, `organization_nonprofit`, `jurisdiction_state_aggregate`
    - Connection via `NEON_DATABASE_URL` or `NEON_DATABASE_URL_DEV`
-   - Managed via `scripts/deployment/neon/migrate.py` script
+   - Managed via `packages/hosting/src/hosting/neon/migrate.py` script
 
 **⚠️ CRITICAL: API Database Access Rules**
 
@@ -676,7 +676,7 @@ The legislators data flow is:
 Use these scripts:
 - `scripts/datasources/openstates/load_openstates_people.py` - Load from GitHub repo to `openstates_people` table
 - `scripts/datasources/openstates/export_openstates_to_gold.py` - Export to gold parquet files
-- `scripts/deployment/neon/migrate.py` - Load gold files into Neon `contact` table
+- `packages/hosting/src/hosting/neon/migrate.py` - Load gold files into Neon `contact` table
 
 ### ⚠️ CRITICAL: dbt Schema References
 

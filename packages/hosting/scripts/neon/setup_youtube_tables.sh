@@ -7,7 +7,7 @@
 # 3. Syncs data from local to Neon
 #
 # Usage:
-#   ./scripts/deployment/neon/setup_youtube_tables.sh
+#   ./packages/hosting/scripts/neon/setup_youtube_tables.sh
 #
 # Prerequisites:
 #   - NEON_DATABASE_URL set in .env
@@ -25,7 +25,7 @@ NC='\033[0m' # No Color
 
 # Script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
 
 echo ""
 echo "════════════════════════════════════════════════════════════════"
@@ -201,7 +201,7 @@ fi
 echo ""
 
 # Check if sync script exists
-SYNC_SCRIPT="$PROJECT_ROOT/scripts/deployment/neon/sync_bronze_tables.py"
+SYNC_SCRIPT="$PROJECT_ROOT/packages/hosting/src/hosting/neon/sync_bronze_tables.py"
 if [ ! -f "$SYNC_SCRIPT" ]; then
     echo -e "${RED}✗${NC} Sync script not found: $SYNC_SCRIPT"
     exit 1

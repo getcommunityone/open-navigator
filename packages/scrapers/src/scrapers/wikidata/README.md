@@ -75,7 +75,7 @@ These mirror Census gazetteer rows for a state and add Wikidata entity metadata 
 | `bronze.bronze_jurisdictions_municipalities_wikidata` | `bronze.bronze_jurisdictions_municipalities` | `load_jurisdictions_wikidata.py` (`city` task) |
 | `bronze.bronze_jurisdictions_school_districts_wikidata` | `bronze.bronze_jurisdictions_school_districts` | `load_jurisdictions_wikidata.py` (`school_district` task) |
 
-**Prerequisite:** rows in the base **`bronze.bronze_jurisdictions_*`** gazetteer tables. Populate locally **or directly on Neon** with `scripts/deployment/neon/run_bronze_jurisdictions_to_cloud.sh` / `ensure_bronze_jurisdictions_cloud.py` + `load_census_gazetteer.py` (see **`scripts/deployment/neon/README.md`** — selective, **no pg_dump**).
+**Prerequisite:** rows in the base **`bronze.bronze_jurisdictions_*`** gazetteer tables. Populate locally **or directly on Neon** with `packages/hosting/scripts/neon/run_bronze_jurisdictions_to_cloud.sh` / `ensure_bronze_jurisdictions_cloud.py` + `load_census_gazetteer.py` (see **`packages/hosting/src/hosting/neon/README.md`** — selective, **no pg_dump**).
 
 **Primary script:** `load_jurisdictions_wikidata.py` — writes directly into the `bronze` `*_wikidata` tables. The legacy `public.jurisdictions_wikidata` table is **not** used.
 
@@ -178,7 +178,7 @@ After rows have a `wikidata_id`, hydrate **P856 official website** via Wikibase 
 One-time DDL (idempotent):
 
 ```bash
-.venv/bin/python scripts/deployment/neon/ensure_bronze_jurisdictions_cloud.py --schema-only
+.venv/bin/python packages/hosting/src/hosting/neon/ensure_bronze_jurisdictions_cloud.py --schema-only
 # or migration 036_add_official_website_updated_at_bronze_wikidata.sql on Neon
 ```
 

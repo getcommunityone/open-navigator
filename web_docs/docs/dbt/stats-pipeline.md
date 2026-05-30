@@ -65,7 +65,7 @@ open_navigator.bronze  →  open_navigator.public  →  Neon PostgreSQL
   - Source for Neon cloud deployment
 
 - **Neon Cloud**: Production database for deployed website
-  - Synced via `scripts/deployment/neon/migrate.py`
+  - Synced via `packages/hosting/src/hosting/neon/migrate.py`
   - Optimized for HuggingFace Spaces deployment
 
 ## Workflow: Building Stats
@@ -110,7 +110,7 @@ python dbt_project/scripts/export_stats_to_open_navigator.py
 For production deployment:
 
 ```bash
-python scripts/deployment/neon/migrate.py
+python packages/hosting/src/hosting/neon/migrate.py
 ```
 
 ## Data Schema

@@ -62,7 +62,7 @@ fi
 echo "Municipality gap states: ${STATES}"
 echo "Log dir: ${ROOT}/data/logs"
 
-"$PY" "${ROOT}/scripts/deployment/neon/ensure_bronze_jurisdictions_cloud.py" --schema-only
+"$PY" -m hosting.neon.ensure_bronze_jurisdictions_cloud --schema-only
 
 export GAP_RUN_STATES="${STATES}"
 export OPEN_NAVIGATOR_ROOT="${ROOT}"

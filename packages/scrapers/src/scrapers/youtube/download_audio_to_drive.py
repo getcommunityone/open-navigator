@@ -469,7 +469,7 @@ class YouTubeAudioDownloader:
             )
 
     def _ensure_bronze_youtube_audio_columns(self, conn) -> None:
-        """Apply migration 006 columns if missing (idempotent). Matches scripts/deployment/neon/migrations/006_add_audio_tracking_fields.sql."""
+        """Apply migration 006 columns if missing (idempotent). Matches packages/hosting/scripts/neon/migrations/006_add_audio_tracking_fields.sql."""
         if self._bronze_youtube_audio_schema_ready:
             return
         cur = conn.cursor()
@@ -535,7 +535,7 @@ class YouTubeAudioDownloader:
                 logger.error(
                     "Could not ensure audio tracking columns on bronze.bronze_events_youtube. "
                     "If you use a read-only role, apply migration manually: "
-                    "scripts/deployment/neon/migrations/006_add_audio_tracking_fields.sql"
+                    "packages/hosting/scripts/neon/migrations/006_add_audio_tracking_fields.sql"
                 )
                 raise
         return conn

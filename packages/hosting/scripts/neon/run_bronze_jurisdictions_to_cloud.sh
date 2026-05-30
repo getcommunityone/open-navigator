@@ -6,14 +6,14 @@
 #
 # Usage:
 #   Set NEON_DATABASE_URL_DEV (or NEON_DATABASE_URL / OPEN_NAVIGATOR_DATABASE_URL) in .env, then:
-#     ./scripts/deployment/neon/run_bronze_jurisdictions_to_cloud.sh
+#     ./packages/hosting/scripts/neon/run_bronze_jurisdictions_to_cloud.sh
 #   Priority states subset + skip national ZCTA:
-#     ./scripts/deployment/neon/run_bronze_jurisdictions_to_cloud.sh --filter-usps AL,GA,IN,MA,MT,WA,WI
+#     ./packages/hosting/scripts/neon/run_bronze_jurisdictions_to_cloud.sh --filter-usps AL,GA,IN,MA,MT,WA,WI
 #   Gazetteer CLI flags pass through last step only (everything after `--`):
 
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 cd "$ROOT"
 
 PY="${ROOT}/.venv/bin/python"
@@ -29,6 +29,6 @@ if [[ -f "${ROOT}/.env" ]]; then
   set +a
 fi
 
-"${PY}" "${ROOT}/scripts/deployment/neon/ensure_bronze_jurisdictions_cloud.py" --schema-only
+"${PY}" -m hosting.neon.ensure_bronze_jurisdictions_cloud --schema-only
 
 exec "${PY}" -m ingestion.census.gazetteer "$@"

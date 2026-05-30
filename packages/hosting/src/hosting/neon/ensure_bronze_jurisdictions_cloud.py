@@ -7,9 +7,9 @@ Idempotent DDL only — **no pg_dump**. Run before:
   - packages/scrapers/src/scrapers/wikidata/load_jurisdictions_wikidata.py
 
 Usage:
-  .venv/bin/python scripts/deployment/neon/ensure_bronze_jurisdictions_cloud.py
-  DATABASE_URL='postgresql://...' .venv/bin/python ... --gazetteer-types states counties
-  OPEN_NAVIGATOR_DATABASE_URL='postgresql://...' .venv/bin/python ... --schema-only
+  .venv/bin/python -m hosting.neon.ensure_bronze_jurisdictions_cloud
+  DATABASE_URL='postgresql://...' .venv/bin/python -m hosting.neon.ensure_bronze_jurisdictions_cloud --gazetteer-types states counties
+  OPEN_NAVIGATOR_DATABASE_URL='postgresql://...' .venv/bin/python -m hosting.neon.ensure_bronze_jurisdictions_cloud --schema-only
 
 Env for URL resolution: core_lib.db.resolve_target_database_url
 """
@@ -23,7 +23,8 @@ import psycopg2
 from dotenv import load_dotenv
 from loguru import logger
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
+# Up from neon/ → hosting/ → src/ → hosting(pkg)/ → packages/ → repo root
+PROJECT_ROOT = Path(__file__).resolve().parents[5]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 

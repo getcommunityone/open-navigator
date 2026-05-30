@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Load Open States jurisdictions into bronze + rebuild int_jurisdictions via dbt.
 #
-# Uses the project virtualenv when present (same pattern as scripts/deployment/neon/run_jurisdiction_id_migration.sh).
+# Uses the project virtualenv when present (same pattern as packages/hosting/scripts/neon/run_jurisdiction_id_migration.sh).
 #
 # Usage:
 #   ./scripts/datasources/openstates/run_openstates_jurisdiction_mapping.sh --migrate

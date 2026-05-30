@@ -54,9 +54,9 @@ For **`bronze.bronze_jurisdictions_*`** and **`bronze.bronze_jurisdictions_*_wik
 | Step | Script |
 |------|--------|
 | Resolve URL | `OPEN_NAVIGATOR_DATABASE_URL` **first**, else `NEON_DATABASE_URL_DEV` → `NEON_DATABASE_URL` → local docker (`core_lib.db.resolve_target_database_url`) |
-| Schema + empty `*_wikidata` mirrors | `python scripts/deployment/neon/ensure_bronze_jurisdictions_cloud.py --schema-only` |
+| Schema + empty `*_wikidata` mirrors | `python -m hosting.neon.ensure_bronze_jurisdictions_cloud --schema-only` |
 | Load Census CSVs → bronze | Same URL + `python scripts/datasources/census/load_census_gazetteer.py` (+ optional `--filter-usps AL,GA`) |
-| One-shot orchestrator | `./scripts/deployment/neon/run_bronze_jurisdictions_to_cloud.sh` (+ pass-through Gazetteer CLI args) |
+| One-shot orchestrator | `./packages/hosting/scripts/neon/run_bronze_jurisdictions_to_cloud.sh` (+ pass-through Gazetteer CLI args) |
 
 Wikidata enrichment after rows exist:
 
@@ -150,7 +150,7 @@ pip install asyncpg psycopg2-binary
 
 # Run migration script
 cd /home/developer/projects/open-navigator
-python scripts/deployment/neon/migrate.py
+python -m hosting.neon.migrate
 ```
 
 **Expected output:**
@@ -276,7 +276,7 @@ GET /api/search?q=boston    →    45ms  ✅ (180x faster!)
 
 **Current**: Manual migration when needed
 ```bash
-python scripts/deployment/neon/migrate.py
+python -m hosting.neon.migrate
 ```
 
 **Future**: Automated daily sync
@@ -305,7 +305,7 @@ python scripts/deployment/neon/migrate.py
 ```bash
 # Option 1: Drop and recreate
 psql "$NEON_DATABASE_URL" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
-python scripts/deployment/neon/migrate.py
+python -m hosting.neon.migrate
 
 # Option 2: Modify schema.sql to use IF NOT EXISTS
 ```

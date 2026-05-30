@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "communityone-hosting"
 version = "0.1.0"
-description = "Hosting/publishing tooling for Open Navigator — publish gold datasets to HuggingFace Datasets and deploy the app to HuggingFace Spaces. Ported from scripts/huggingface/ as a proper library + unified CLI."
+description = "Hosting/publishing tooling for Open Navigator — publish gold datasets to HuggingFace Datasets and deploy the app to HuggingFace Spaces (hosting.huggingface), and migrate/sync the deployed warehouse into Neon cloud Postgres (hosting.neon). Ported from scripts/huggingface/ and scripts/deployment/neon/ as a proper library."
 requires-python = ">=3.11"
 dependencies = [
     "huggingface-hub>=0.23",
@@ -14,11 +14,21 @@ dependencies = [
     "pyarrow>=14",
     "loguru>=0.7",
     "python-dotenv>=1.0",
+    # hosting.neon — load/sync gold + bronze into Neon cloud Postgres
+    "psycopg2-binary>=2.9",
+    "asyncpg>=0.29",
+    "python-dateutil>=2.8",
+    "core-lib",
+    "communityone-ingestion",
 ]
 
 # Optional extras only needed by the PDF -> parquet helper.
 [project.optional-dependencies]
 pdf = ["httpx>=0.27", "pypdf>=4.0"]
+
+[tool.uv.sources]
+core-lib = { workspace = true }
+communityone-ingestion = { workspace = true }
 
 [project.scripts]
 on-hf = "hosting.huggingface.cli:main"

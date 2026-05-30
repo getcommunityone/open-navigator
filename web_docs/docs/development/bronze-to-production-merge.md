@@ -404,7 +404,7 @@ def reload_datasource(datasource_name):
 ## Related Files
 
 - Bronze extraction: `scripts/datasources/gemini/load_meeting_transcripts_bronze.py`
-- Production schema: `scripts/deployment/neon/schema.sql`
-- Production loader: `scripts/deployment/neon/migrate.py`
+- Production schema: `packages/hosting/src/hosting/neon/schema.sql`
+- Production loader: `packages/hosting/src/hosting/neon/migrate.py`
 - Entity resolution (to be created): `scripts/datasources/gemini/entity_resolution.py`
 - Merge script (to be created): `scripts/datasources/gemini/merge_bronze_to_production.py`

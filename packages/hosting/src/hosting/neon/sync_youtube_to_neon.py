@@ -18,7 +18,6 @@ Prerequisites:
 
 import os
 import sys
-from pathlib import Path
 import psycopg2
 from psycopg2.extras import execute_batch
 from dotenv import load_dotenv

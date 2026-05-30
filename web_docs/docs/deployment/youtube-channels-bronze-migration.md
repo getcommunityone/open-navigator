@@ -51,7 +51,7 @@ Run the migration in the bronze database:
 
 ```bash
 psql -h localhost -p 5433 -U postgres -d open_navigator_bronze \
-  -f scripts/deployment/neon/migrations/002_create_bronze_events_channels.sql
+  -f packages/hosting/scripts/neon/migrations/002_create_bronze_events_channels.sql
 ```
 
 ### 2. Import Foreign Table

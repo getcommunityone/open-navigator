@@ -12,7 +12,7 @@ echo ""
 # 1. Create bronze table
 echo "Step 1: Creating bronze table..."
 psql -h localhost -p 5433 -U postgres -d open_navigator_bronze \
-  -f scripts/deployment/neon/migrations/002_create_bronze_events_channels.sql
+  -f packages/hosting/scripts/neon/migrations/002_create_bronze_events_channels.sql
 
 # 2. Import foreign table
 echo ""
