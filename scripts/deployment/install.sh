@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-echo "🦷 CommunityOne Open Navigatory - Installation Script"
+echo "🦷 CommunityOne Open Navigator - Installation Script"
 echo "=================================================="
 echo ""
 

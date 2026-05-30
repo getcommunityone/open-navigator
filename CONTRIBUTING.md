@@ -1,6 +1,6 @@
-# Contributing to CommunityOne Open Navigatory
+# Contributing to CommunityOne Open Navigator
 
-Thank you for your interest in contributing to the CommunityOne Open Navigatory project!!
+Thank you for your interest in contributing to the CommunityOne Open Navigator project!!
  
 ## How to Contribute
 

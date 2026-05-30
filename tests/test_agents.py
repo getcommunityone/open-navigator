@@ -1,5 +1,5 @@
 """
-Test suite for the CommunityOne Open Navigatory system.
+Test suite for the CommunityOne Open Navigator system.
 """
 import pytest
 from agents.base import AgentRole, MessageType, AgentStatus

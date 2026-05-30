@@ -301,4 +301,4 @@ The Legistar scraper has been successfully upgraded from a non-functional HTML s
 - ✅ Scales to hundreds of cities
 - ✅ Requires minimal maintenance
 
-**Impact:** This enables the CommunityOne Open Navigatory to reliably collect meeting data from 1,000+ cities using Legistar, providing comprehensive coverage of local government policy discussions across the United States.
+**Impact:** This enables the CommunityOne Open Navigator to reliably collect meeting data from 1,000+ cities using Legistar, providing comprehensive coverage of local government policy discussions across the United States.

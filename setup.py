@@ -1,4 +1,4 @@
-"""Setup configuration for CommunityOne Open Navigatory."""
+"""Setup configuration for CommunityOne Open Navigator."""
 from setuptools import setup, find_packages
 from pathlib import Path
 

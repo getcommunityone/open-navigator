@@ -6,7 +6,7 @@ sidebar_position: 15
 
 ## 🎉 What We Built
 
-The CommunityOne Open Navigatory has been transformed from a **CLI-only tool** into a **modern full-stack web application** that deploys as a **Databricks App**.
+The CommunityOne Open Navigator has been transformed from a **CLI-only tool** into a **modern full-stack web application** that deploys as a **Databricks App**.
 
 ---
 
@@ -454,7 +454,7 @@ databricks secrets put --scope oral-health-app --key openai_key
 
 ## 🏆 Conclusion
 
-**We successfully transformed the CommunityOne Open Navigatory from a CLI tool into a production-ready web application!**
+**We successfully transformed the CommunityOne Open Navigator from a CLI tool into a production-ready web application!**
 
 ### What We Achieved
 - ✅ **35+ new files** created

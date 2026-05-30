@@ -4,7 +4,7 @@
 
 set -e
 
-echo "🚀 Building CommunityOne Open Navigatory for Databricks Apps..."
+echo "🚀 Building CommunityOne Open Navigator for Databricks Apps..."
 
 # Step 1: Build React frontend
 echo ""

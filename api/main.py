@@ -1,5 +1,5 @@
 """
-FastAPI application for the CommunityOne Open Navigatory system.
+FastAPI application for the CommunityOne Open Navigator system.
 
 Provides REST API endpoints for:
 - Initiating policy analysis workflows

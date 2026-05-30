@@ -1,7 +1,7 @@
 # Integration Guide: Reusing Open-Source Municipal Scraping Logic
 
 ## Overview
-This guide shows how to integrate proven patterns from established open-source projects into the CommunityOne Open Navigatory scraping pipeline.
+This guide shows how to integrate proven patterns from established open-source projects into the CommunityOne Open Navigator scraping pipeline.
 
 ## Current State
 ✅ **You already have:**

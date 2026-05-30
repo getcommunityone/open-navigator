@@ -1,5 +1,5 @@
 """
-Configuration settings for the CommunityOne Open Navigatory system.
+Configuration settings for the CommunityOne Open Navigator system.
 """
 from pathlib import Path
 from typing import List, Optional

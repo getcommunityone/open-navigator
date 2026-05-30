@@ -706,7 +706,7 @@ if static_dir.exists():
 @app.on_event("startup")
 async def startup_event():
     """Initialize system on startup."""
-    logger.info("Starting CommunityOne Open Navigatory application...")
+    logger.info("Starting CommunityOne Open Navigator application...")
     
     # Initialize Delta Lake if not exists
     try:

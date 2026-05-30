@@ -1,5 +1,5 @@
 """
-Main entry point for running the CommunityOne Open Navigatory system.
+Main entry point for running the CommunityOne Open Navigator system.
 """
 import asyncio
 import sys
@@ -40,7 +40,7 @@ logger.add(
 
 @click.group()
 def cli():
-    """CommunityOne Open Navigatory - Multi-agent policy analysis system."""
+    """CommunityOne Open Navigator - Multi-agent policy analysis system."""
     pass
 
 
@@ -196,7 +196,7 @@ def generate_heatmap(output: str, urgency: Optional[str]):
 @cli.command()
 def init():
     """Initialize the system (create database tables, etc.)."""
-    logger.info("Initializing CommunityOne Open Navigatory system")
+    logger.info("Initializing CommunityOne Open Navigator system")
     
     try:
         pipeline = DeltaLakePipeline()

@@ -391,7 +391,7 @@ async with YouTubeChannelDiscovery(youtube_api_key=api_key) as discovery:
 
 **Steps:**
 1. Go to https://console.cloud.google.com/
-2. Create new project → "CommunityOne Open Navigatory"
+2. Create new project → "CommunityOne Open Navigator"
 3. Enable "YouTube Data API v3"
 4. Create credentials → API Key
 5. Set environment variable:
