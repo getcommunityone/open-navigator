@@ -11,6 +11,7 @@ import {
   fetchLaunchLog,
   fetchLaunchStatus,
   launchPipeline,
+  stopPipeline,
   mergeBatchIntoDashboard,
   mergeBatchJurisdictions,
   type BatchJob,
@@ -917,6 +918,7 @@ export default function BatchJobStatusPage() {
     retry: false,
   })
   const [launching, setLaunching] = useState(false)
+  const [stopping, setStopping] = useState(false)
   const [launchMsg, setLaunchMsg] = useState<string | null>(null)
   // Parallelism = how many jurisdictions analyze at once (the main throughput
   // lever). Persisted so it survives reloads; ceiling is the Gemini quota.
@@ -944,6 +946,28 @@ export default function BatchJobStatusPage() {
       }
     },
     [refetchLaunch, refetch, parallelism],
+  )
+
+  const stopLaunch = useCallback(
+    async (step?: string) => {
+      const label = step ? `the '${step}' run` : 'all running jobs'
+      if (!window.confirm(`Stop ${label}? In-flight work checkpoints and the process exits.`)) {
+        return
+      }
+      setStopping(true)
+      setLaunchMsg(null)
+      try {
+        const res = await stopPipeline(step ? { step } : {})
+        setLaunchMsg(res.detail || 'Stop requested.')
+        void refetchLaunch()
+        window.setTimeout(() => void refetch(), 2500)
+      } catch (e) {
+        setLaunchMsg((e as Error).message || 'Stop failed')
+      } finally {
+        setStopping(false)
+      }
+    },
+    [refetchLaunch, refetch],
   )
 
   // Per-stage drill-down: expand one stage to see its live log + current file.
@@ -1541,6 +1565,17 @@ export default function BatchJobStatusPage() {
                         className="inline-flex items-center gap-1 rounded-md bg-[#354F52] px-2.5 py-1.5 text-xs font-semibold uppercase tracking-wide text-white shadow-sm hover:bg-[#2c4346] disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {launching ? 'Launching…' : `▶ Run all${scope !== 'ALL' ? ` · ${scope}` : ''}`}
+                      </button>
+                    ) : null}
+                    {ls?.enabled && (ls?.busy || runningSteps.size > 0 || stalledSteps.size > 0) ? (
+                      <button
+                        type="button"
+                        disabled={stopping}
+                        onClick={() => void stopLaunch()}
+                        title="Stop all running pipeline jobs (SIGTERM — work checkpoints and exits)"
+                        className="inline-flex items-center gap-1 rounded-md bg-rose-600 px-2.5 py-1.5 text-xs font-semibold uppercase tracking-wide text-white shadow-sm hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {stopping ? 'Stopping…' : '■ Stop all'}
                       </button>
                     ) : null}
                     {stateOpts.length > 0 ? (

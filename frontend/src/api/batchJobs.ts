@@ -184,6 +184,37 @@ export async function launchPipeline(body: {
   return (await r.json()) as LaunchResult
 }
 
+export type StopResult = {
+  stopped: number
+  steps: string[]
+  pids: number[]
+  detail: string
+}
+
+/** Stop running pipeline launch(es). Omit `step` to stop everything. */
+export async function stopPipeline(body: {
+  step?: string
+  force?: boolean
+} = {}): Promise<StopResult> {
+  const r = await fetch('/api/batch-jobs/launch/stop', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(15_000),
+  })
+  if (!r.ok) {
+    let detail = `HTTP ${r.status}`
+    try {
+      const j = (await r.json()) as { error?: string; detail?: string }
+      if (j?.error || j?.detail) detail = (j.error || j.detail) as string
+    } catch {
+      /* ignore */
+    }
+    throw new Error(detail)
+  }
+  return (await r.json()) as StopResult
+}
+
 export type BatchJobsDetailLevel = 'summary' | 'standard' | 'full'
 
 type ApiErrorBody = { detail?: string | { msg?: string }[] }

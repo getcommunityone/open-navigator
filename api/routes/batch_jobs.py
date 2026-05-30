@@ -407,12 +407,20 @@ def _launch_stalled(live: Dict[str, Any], freshest: str) -> bool:
     return age is not None and age > _LAUNCH_STALL_SECONDS
 
 
-def _kill_launch(meta: Dict[str, Any]) -> None:
-    """Best-effort SIGTERM to a launch's process group."""
+def _kill_launch(meta: Dict[str, Any], *, sig: int = signal.SIGTERM) -> None:
+    """Best-effort signal to a launch's process group (SIGTERM by default).
+
+    Launches start with ``start_new_session=True`` so the pid is its own process
+    group leader; signalling the group reaches the whole pipeline subtree.
+    """
     try:
-        os.killpg(os.getpgid(int(meta["pid"])), signal.SIGTERM)
+        os.killpg(os.getpgid(int(meta["pid"])), sig)
     except Exception:
-        pass
+        # Fall back to signalling just the pid if the group lookup fails.
+        try:
+            os.kill(int(meta["pid"]), sig)
+        except Exception:
+            pass
 
 
 def _classify_launches(freshest: str) -> "tuple[List[Dict[str, Any]], List[Dict[str, Any]]]":
@@ -583,6 +591,72 @@ async def launch_pipeline(req: LaunchRequest) -> LaunchResponse:
         states=states,
         log=rel_log,
         detail=f"Started '{step}' (pid {proc.pid}). The dashboard will update as it runs.",
+    )
+
+
+class StopRequest(BaseModel):
+    # Stop only this step's launch(es); omit/empty to stop every running launch.
+    step: Optional[str] = None
+    # SIGTERM by default (lets the pipeline exit cleanly); force = SIGKILL.
+    force: bool = False
+
+
+class StopResponse(BaseModel):
+    stopped: int = 0
+    steps: List[str] = Field(default_factory=list)
+    pids: List[int] = Field(default_factory=list)
+    detail: str = ""
+
+
+@router.post("/launch/stop", response_model=StopResponse)
+async def stop_pipeline(req: StopRequest) -> StopResponse:
+    """Stop running pipeline launch(es). Signals the detached process group so the
+    whole subtree exits. ``step`` targets one step; omit it to stop everything."""
+    if not _launch_enabled():
+        raise HTTPException(
+            status_code=403, detail="Job control disabled (set BATCH_JOBS_ALLOW_LAUNCH=1)."
+        )
+    step = (req.step or "").strip().lower()
+    if step and step not in _LAUNCH_STEPS:
+        raise HTTPException(status_code=400, detail=f"step must be one of {list(_LAUNCH_STEPS)}")
+    sig = signal.SIGKILL if req.force else signal.SIGTERM
+
+    def _do_stop() -> "tuple[List[str], List[int]]":
+        kept: List[Dict[str, Any]] = []
+        stopped_steps: List[str] = []
+        stopped_pids: List[int] = []
+        for m in _read_launches():
+            alive = _pid_alive(m.get("pid"))
+            m_step = str(m.get("step") or "")
+            if alive and (not step or m_step == step):
+                _kill_launch(m, sig=sig)
+                stopped_steps.append(m_step)
+                try:
+                    stopped_pids.append(int(m["pid"]))
+                except (KeyError, TypeError, ValueError):
+                    pass
+                continue  # drop from the tracked file — it's being stopped
+            if alive:
+                kept.append(m)  # alive but not targeted → keep tracking
+            # dead launches are dropped (reaped) either way
+        _write_launches(kept)
+        return stopped_steps, stopped_pids
+
+    stopped_steps, stopped_pids = await asyncio.to_thread(_do_stop)
+    if not stopped_pids:
+        scope = f"step '{step}'" if step else "any step"
+        return StopResponse(detail=f"No running launch found for {scope}.")
+    steps = sorted(set(s for s in stopped_steps if s))
+    how = "SIGKILL" if req.force else "SIGTERM"
+    logger.info(f"stopped pipeline launches via {how}: steps={steps} pids={stopped_pids}")
+    return StopResponse(
+        stopped=len(stopped_pids),
+        steps=steps,
+        pids=stopped_pids,
+        detail=(
+            f"Stopped {len(stopped_pids)} launch(es) ({', '.join(steps) or 'unknown'}). "
+            "The dashboard will clear as the process exits."
+        ),
     )
 
 

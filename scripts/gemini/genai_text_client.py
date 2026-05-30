@@ -140,27 +140,38 @@ def describe_genai_error(exc: BaseException, *, max_len: int = 220) -> str:
 
 
 def genai_quota_retry_delay_seconds(exc: BaseException, attempt: int) -> float:
+    # Cap every delay: a daily RESOURCE_EXHAUSTED can carry a "retry in 80000s"
+    # hint, and sleeping that long is never what we want (we'd rather rotate keys
+    # or give up). Default cap 60s, override via env.
+    cap = max(1.0, float(os.environ.get("GOVERNANCE_GENAI_QUOTA_RETRY_MAX_SECONDS", "60")))
     msg = str(exc)
     m = _RETRY_IN_RE.search(msg)
     if m:
-        return max(float(m.group(1)), 1.0)
+        return min(max(float(m.group(1)), 1.0), cap)
     m = _RETRY_DELAY_RE.search(msg)
     if m:
-        return max(float(m.group(1)), 1.0)
+        return min(max(float(m.group(1)), 1.0), cap)
     if is_genai_transient_network_error(exc):
         base = float(os.environ.get("GOVERNANCE_GENAI_NETWORK_RETRY_BASE_SECONDS", "5"))
-        return base * (1.0 + 0.5 * attempt)
+        return min(base * (1.0 + 0.5 * attempt), cap)
     base = float(os.environ.get("GOVERNANCE_GENAI_QUOTA_RETRY_BASE_SECONDS", "30"))
-    return base * (1.0 + 0.2 * attempt)
+    return min(base * (1.0 + 0.2 * attempt), cap)
 
 
-def call_with_genai_quota_retry(fn: Callable[[], T], *, label: str = "Gemini") -> T:
+def call_with_genai_quota_retry(
+    fn: Callable[[], T], *, label: str = "Gemini", key_pool_size: int = 1
+) -> T:
     # Transient network disconnects (RemoteProtocolError etc.) get a larger budget
     # than quota errors: they're cheap to retry and a flaky window usually clears
     # within a minute, whereas quota waits are long. Tracked with separate counters.
     quota_retries = max(1, int(os.environ.get("GOVERNANCE_GENAI_QUOTA_RETRIES", "5")))
+    # Each retry advances to the next key in the pool, so a 429 on one key clears by
+    # rotating. Make sure the budget covers the whole pool (plus one) — otherwise a
+    # static budget of 5 gives up mid-pool when there are more keys than that.
+    quota_retries = max(quota_retries, key_pool_size + 1)
     net_retries = max(1, int(os.environ.get("GOVERNANCE_GENAI_NETWORK_RETRIES", "12")))
     buffer = float(os.environ.get("GOVERNANCE_GENAI_QUOTA_RETRY_BUFFER_SECONDS", "1.0"))
+    rotate_delay = max(0.0, float(os.environ.get("GOVERNANCE_GENAI_KEY_ROTATE_DELAY_SECONDS", "1.0")))
     quota_used = 0
     net_used = 0
     while True:
@@ -190,7 +201,16 @@ def call_with_genai_quota_retry(fn: Callable[[], T], *, label: str = "Gemini") -
                     f"{label}: failed after {limit} attempt(s) ({classify_genai_error(exc)}). "
                     f"{describe_genai_error(exc)}"
                 ) from exc
-            delay = genai_quota_retry_delay_seconds(exc, used) + buffer
+            # Quota/429 with more keys to try: rotate to the next key fast (a fresh
+            # key likely still has quota) instead of sleeping the full backoff. Only
+            # back off long once we've cycled the whole pool — i.e. every key is
+            # quota-limited and waiting is the only option.
+            if not transient and key_pool_size > 1 and quota_used < key_pool_size:
+                delay = rotate_delay
+                detail = f"rotating key {quota_used + 1}/{key_pool_size}"
+            else:
+                delay = genai_quota_retry_delay_seconds(exc, used) + buffer
+                detail = describe_genai_error(exc, max_len=160)
             logger.warning(
                 "{}: {} — sleeping {:.0f}s, retry {}/{} ({})",
                 label,
@@ -198,12 +218,9 @@ def call_with_genai_quota_retry(fn: Callable[[], T], *, label: str = "Gemini") -
                 delay,
                 used + 1,
                 limit,
-                describe_genai_error(exc, max_len=160),
+                detail,
             )
             time.sleep(delay)
-    if last_exc is not None:
-        raise last_exc
-    raise RuntimeError(f"{label}: quota retry loop exited without result")
 
 
 @dataclass
@@ -396,7 +413,7 @@ def call_gemini_text(
             config=types.GenerateContentConfig(**config_kwargs),
         )
 
-    response = call_with_genai_quota_retry(_generate, label=model)
+    response = call_with_genai_quota_retry(_generate, label=model, key_pool_size=len(pool))
     text = (getattr(response, "text", None) or "").strip()
     if not text:
         raise RuntimeError(f"Empty response from {model}")
