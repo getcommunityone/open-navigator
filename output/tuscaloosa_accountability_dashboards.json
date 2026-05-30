@@ -1,9 +1,0 @@
-{
-  "jurisdiction": "Tuscaloosa, AL",
-  "focus_topic": "Student Health and Wellness",
-  "rhetoric_gap": "RhetoricGapMetrics(topic='Student Health and Wellness', conclusion='Verbal commitment to Student Health and Wellness is low, but fiscal priority is declining.', sentiment_density=0.0, total_mentions=10, positive_keywords=['health', 'wellness', 'wellbeing', 'dental', 'vision', 'nurse'], sample_quotes=[], budget_category='Unknown', budget_change_dollars=0, budget_change_percent=0, prior_year_amount=0, current_year_amount=0, gap_type='Neglect', underlying_rationale='Low rhetoric and declining budget - not a priority', discomfort_score=5)",
-  "deferral_pattern": null,
-  "displacement_matrix": "DisplacementMatrix(topic='2026 Capital Prioritization', conclusion=\"The Board prioritizes 'Visible Assets' (Construction) over 'Invisible Infrastructure' (Public Health).\", displacements=[], priority_pattern='Resource Constraint', strategic_inference='Limited resources force difficult choices', discomfort_score=4)",
-  "influence_radar": "InfluenceMetrics(topic='school-based dental screening', conclusion='No decisions found for this topic', public_alignment={'comments': 0, 'influence_percent': 0}, risk_legal_alignment={'memos': 0, 'influence_percent': 0, 'contact_name': 'Unknown'}, consultant_alignment={'reports': 0, 'influence_percent': 0, 'firm_name': 'Unknown'}, elected_alignment={'votes': 0, 'influence_percent': 0}, power_structure='Unknown', veto_holder='Unknown', strategic_inference='Insufficient data', discomfort_score=0)",
-  "max_discomfort_score": 5
-}
