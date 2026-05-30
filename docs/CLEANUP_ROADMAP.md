@@ -23,9 +23,14 @@ a summary — no raw file dumps bleed back.
 
 | Specialist | Owns | Spin up for |
 |---|---|---|
-| `data-dbt-specialist` | `dbt_project/`, `scripts/datasources/*`, `scripts/enrichment*`, `scripts/discovery/`, `packages/{ingestion,scrapers,datamodels,core-lib,llm}` | dbt models, SQL/JSONB logic, ingestion/scraping, the datasource ports |
+| `python-packages-specialist` | the `packages/` uv workspace (accessibility, agents, core, core-lib, datamodels, ingestion, llm, scrapers) | "where should this Python live", porting `scripts/ → packages/`, library refactors. Enforces **prefer packages, never add to scripts/** |
+| `data-dbt-specialist` | `dbt_project/`, `scripts/datasources/*`, `scripts/enrichment*`, `scripts/discovery/` | dbt models, SQL/JSONB transformation logic, data semantics |
 | `api-specialist` | `api/` (app, routes, models, auth, errors, batch_jobs) | FastAPI routes, Pydantic schemas, API DB access, OTel |
 | `frontend-specialist` | `frontend/src/`, `website/` | React/TS components, hooks, API client, Tailwind, Docusaurus |
+
+> Overlap note: Python library *structure / where code lives* → `python-packages-specialist`;
+> dbt/SQL transformation *semantics* → `data-dbt-specialist`. A datasource port touches
+> both — lead with python-packages for the move, pull in data-dbt for the SQL details.
 
 Route by file scope. A task that crosses layers gets split: the specialist flags
 out-of-scope work in its summary and hands it back to the Manager to re-route.

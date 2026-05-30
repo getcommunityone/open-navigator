@@ -4,8 +4,10 @@
 - **Roadmap / Manager memory:** `docs/CLEANUP_ROADMAP.md` — the living backlog + status
   for the `scripts/ → packages/` library refactor. Read it before starting cleanup work.
 - **Specialist sub-agents** (in `.claude/agents/`): route scoped work to
-  `data-dbt-specialist` (dbt/SQL/ingestion), `api-specialist` (FastAPI), or
-  `frontend-specialist` (React/Docusaurus). Cross-layer tasks get split across them.
+  `python-packages-specialist` (Python libraries in `packages/`; enforces
+  prefer-packages / never-add-to-`scripts/`), `data-dbt-specialist` (dbt/SQL),
+  `api-specialist` (FastAPI), or `frontend-specialist` (React/Docusaurus).
+  Cross-layer tasks get split across them.
 
 ## 🏗️ Three-Service Architecture
 1. **Documentation** (Docusaurus) - Port 3000
