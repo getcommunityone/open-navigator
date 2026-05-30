@@ -240,6 +240,112 @@ def policy_event_counts_24h(conn: Any) -> Dict[str, Any]:
     return out
 
 
+# Pipeline stages, in funnel order. Each (scope, stage) pair is one report row,
+# so adding a metric is a field and adding a dimension (state, later jurisdiction)
+# is more rows — not more columns.
+PIPELINE_STAGES = ("videos", "transcripts", "analyses", "reports")
+
+
+def pipeline_stage_report(conn: Any) -> Dict[str, Any]:
+    """
+    Long-format per-state pipeline coverage from the bronze per-event stamps.
+
+    Returns ``{"states": [...], "rows": [{scope, stage, done, total, failed,
+    last_at}, ...]}`` where ``scope`` is a 2-letter state code or ``"ALL"`` (the
+    national rollup). All four stages are derived from one ``GROUP BY state_code``
+    over ``bronze_events_youtube`` so per-state and overall numbers are consistent
+    and live (covering standalone/parallel analyze runs). Empty on pre-083 DBs.
+    """
+    out: Dict[str, Any] = {"states": [], "rows": []}
+
+    def _iso(v: Any) -> str:
+        return v.isoformat() if v is not None else ""
+
+    def _max_iso(a: str, b: str) -> str:
+        return a if a >= b else b
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    COALESCE(NULLIF(state_code, ''), '??')                     AS st,
+                    COUNT(*) FILTER (WHERE transcript_download_at IS NOT NULL)::int AS vids_ok,
+                    COUNT(*) FILTER (WHERE transcript_file_error IS NOT NULL)::int  AS vids_fail,
+                    COUNT(*) FILTER (WHERE policy_analysis_at IS NOT NULL)::int     AS analyses,
+                    COUNT(*) FILTER (WHERE policy_analysis_error IS NOT NULL)::int  AS analysis_err,
+                    COUNT(*) FILTER (WHERE policy_report_at IS NOT NULL)::int       AS reports,
+                    COUNT(*) FILTER (WHERE policy_report_error IS NOT NULL)::int    AS report_err,
+                    MAX(transcript_download_at)                                 AS last_video,
+                    MAX(policy_analysis_at)                                     AS last_analysis,
+                    MAX(policy_report_at)                                       AS last_report
+                FROM bronze.bronze_events_youtube
+                GROUP BY 1
+                """
+            )
+            db_rows = cur.fetchall()
+    except Exception as exc:
+        conn.rollback()
+        logger.debug("pipeline_stage_report unavailable: %s", exc)
+        return out
+
+    def _stage_rows(scope: str, rec: Dict[str, Any]) -> List[Dict[str, Any]]:
+        ok = int(rec["vids_ok"])
+        fail = int(rec["vids_fail"])
+        attempted = ok + fail
+        lv, la, lr = rec["last_video"], rec["last_analysis"], rec["last_report"]
+        # done / total / failed / last_at per stage. Transcripts/analyses/reports
+        # are denominated by the videos that got a transcript (the funnel input).
+        return [
+            {"scope": scope, "stage": "videos", "done": ok, "total": attempted,
+             "failed": fail, "last_at": lv},
+            {"scope": scope, "stage": "transcripts", "done": ok, "total": ok,
+             "failed": fail, "last_at": lv},
+            {"scope": scope, "stage": "analyses", "done": int(rec["analyses"]), "total": ok,
+             "failed": int(rec["analysis_err"]), "last_at": la},
+            {"scope": scope, "stage": "reports", "done": int(rec["reports"]), "total": ok,
+             "failed": int(rec["report_err"]), "last_at": lr},
+        ]
+
+    cols = ("st", "vids_ok", "vids_fail", "analyses", "analysis_err", "reports",
+            "report_err", "last_video", "last_analysis", "last_report")
+    per_state = [dict(zip(cols, r)) for r in db_rows]
+
+    rows: List[Dict[str, Any]] = []
+    states: List[str] = []
+    totals = {k: 0 for k in ("vids_ok", "vids_fail", "analyses", "analysis_err",
+                             "reports", "report_err")}
+    last = {"last_video": "", "last_analysis": "", "last_report": ""}
+    for rec in per_state:
+        st = str(rec["st"])
+        for tk in ("last_video", "last_analysis", "last_report"):
+            rec[tk] = _iso(rec[tk])
+        for nk in totals:
+            totals[nk] += int(rec[nk])
+        for tk in last:
+            last[tk] = _max_iso(last[tk], rec[tk])
+        # Only surface states that have entered the pipeline (any attempted video).
+        if int(rec["vids_ok"]) + int(rec["vids_fail"]) > 0 and st != "??":
+            states.append(st)
+            rows.extend(_stage_rows(st, rec))
+
+    rows = _stage_rows("ALL", {**totals, **last}) + rows
+    out["states"] = sorted(states)
+    out["rows"] = rows
+    return out
+
+
+def dashboard_stage_report() -> Dict[str, Any]:
+    """Open a connection and return the per-state pipeline report (empty on error)."""
+    try:
+        with get_db_connection() as conn:
+            ensure_batch_job_tables(conn)
+            return pipeline_stage_report(conn)
+    except Exception as exc:
+        logger.debug("dashboard_stage_report unavailable: %s", exc)
+        return {"states": [], "rows": []}
+
+
 def aggregate_dashboard_totals_from_db(*, limit: int = 30) -> Dict[str, Any]:
     """Sum numeric fields from ``summary`` JSONB across recent batches (no payload)."""
     with get_db_connection() as conn:

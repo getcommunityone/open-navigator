@@ -10,6 +10,10 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
+import re
+import subprocess
+from pathlib import Path
 from typing import Any, AsyncIterator, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
@@ -89,11 +93,27 @@ class BatchJobModel(BaseModel):
     jurisdictions: List[JurisdictionRunModel] = Field(default_factory=list)
 
 
+class StageReportRow(BaseModel):
+    # One (scope, stage) row. scope is a 2-letter state code or "ALL" (rollup).
+    scope: str
+    stage: str
+    done: int = 0
+    total: int = 0
+    failed: int = 0
+    last_at: str = ""
+
+
+class StageReport(BaseModel):
+    states: List[str] = Field(default_factory=list)
+    rows: List[StageReportRow] = Field(default_factory=list)
+
+
 class BatchJobsDashboardResponse(BaseModel):
     generated_at: str
     last_activity_at: str = ""
     totals: BatchJobsTotals
     batches: List[BatchJobModel]
+    stage_report: StageReport = Field(default_factory=StageReport)
     source: str = "database"
     detail: str = "full"
 
@@ -265,6 +285,172 @@ async def list_batch_jobs(
             status_code=500,
             detail=f"Batch jobs dashboard failed: {exc}",
         ) from exc
+
+
+# --- Re-kick: (re)launch a stopped pipeline run from the dashboard --------------
+# Spawns the existing wrapper script as a detached subprocess. Hardened against
+# misuse: a fixed argv (no shell), an allowlisted step, validated state codes, a
+# single-run guard (won't double-launch), and an opt-out kill switch.
+_LAUNCH_SCRIPT = "packages/scrapers/scripts/youtube_run_priority_states_last_n.sh"
+_LAUNCH_STEPS = ("catalog", "captions", "analyze", "each", "all")
+_STATE_RE = re.compile(r"^[A-Z]{2}$")
+
+
+def _repo_root() -> Path:
+    # api/routes/batch_jobs.py -> repo root
+    return Path(__file__).resolve().parents[2]
+
+
+def _launch_enabled() -> bool:
+    # Opt-out kill switch — set BATCH_JOBS_ALLOW_LAUNCH=0 on any exposed deploy.
+    return os.getenv("BATCH_JOBS_ALLOW_LAUNCH", "1").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+        "off",
+    )
+
+
+def _launch_pidfile() -> Path:
+    return _repo_root() / "data" / "cache" / "batch_jobs" / "launch.pid"
+
+
+def _alive_launch_pid() -> Optional[int]:
+    try:
+        pid = int(_launch_pidfile().read_text().strip())
+    except Exception:
+        return None
+    try:
+        os.kill(pid, 0)  # signal 0 = liveness probe
+        return pid
+    except OSError:
+        return None  # stale pidfile (process gone / "stuck and stopped")
+
+
+def _active_run_count() -> int:
+    try:
+        from api.batch_jobs.batch_job_db import aggregate_dashboard_totals_from_db
+
+        return int((aggregate_dashboard_totals_from_db(limit=10) or {}).get("running") or 0)
+    except Exception:
+        return 0
+
+
+class LaunchRequest(BaseModel):
+    step: str = "analyze"
+    states: List[str] = Field(default_factory=list)
+    n: int = 10
+    parallel: int = 4
+
+
+class LaunchStatusResponse(BaseModel):
+    enabled: bool
+    busy: bool = False
+    running: int = 0
+    launch_pid: Optional[int] = None
+    steps: List[str] = Field(default_factory=lambda: list(_LAUNCH_STEPS))
+
+
+class LaunchResponse(BaseModel):
+    launched: bool
+    pid: Optional[int] = None
+    step: str = ""
+    states: List[str] = Field(default_factory=list)
+    log: str = ""
+    detail: str = ""
+
+
+@router.get("/launch", response_model=LaunchStatusResponse)
+async def launch_status() -> LaunchStatusResponse:
+    """Whether the dashboard re-kick button should be enabled / shown as busy."""
+    running = await asyncio.to_thread(_active_run_count)
+    pid = _alive_launch_pid()
+    return LaunchStatusResponse(
+        enabled=_launch_enabled(),
+        running=running,
+        launch_pid=pid,
+        busy=running > 0 or pid is not None,
+    )
+
+
+@router.post("/launch", response_model=LaunchResponse)
+async def launch_pipeline(req: LaunchRequest) -> LaunchResponse:
+    """(Re)launch a pipeline step. Refuses if a run is already active."""
+    if not _launch_enabled():
+        raise HTTPException(
+            status_code=403, detail="Job launch disabled (set BATCH_JOBS_ALLOW_LAUNCH=1)."
+        )
+    step = (req.step or "").strip().lower()
+    if step not in _LAUNCH_STEPS:
+        raise HTTPException(status_code=400, detail=f"step must be one of {list(_LAUNCH_STEPS)}")
+    states = [s.strip().upper() for s in (req.states or []) if s and s.strip()]
+    bad = [s for s in states if not _STATE_RE.match(s)]
+    if bad:
+        raise HTTPException(status_code=400, detail=f"invalid state code(s): {bad}")
+    if len(states) > 60:
+        raise HTTPException(status_code=400, detail="too many states")
+    n = max(1, min(2000, int(req.n or 10)))
+    parallel = max(1, min(8, int(req.parallel or 1)))
+
+    # Single-run guard: a running batch row OR a live launch pid means busy.
+    running = await asyncio.to_thread(_active_run_count)
+    if running > 0 or _alive_launch_pid() is not None:
+        raise HTTPException(
+            status_code=409, detail="A run is already active — wait for it to finish or cancel it."
+        )
+
+    root = _repo_root()
+    script = root / _LAUNCH_SCRIPT
+    if not script.is_file():
+        raise HTTPException(status_code=500, detail=f"launch script missing: {script}")
+
+    import datetime as _dt
+
+    log_dir = root / "data" / "cache" / "batch_jobs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    stamp = _dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_path = log_dir / f"launch_{step}_{stamp}.log"
+
+    env = dict(os.environ)
+    env["BATCH_STATUS"] = "1"
+    env["N"] = str(n)
+    env["PARALLEL"] = str(parallel)
+    if states:
+        env["STATES"] = ",".join(states)
+
+    try:
+        logf = open(log_path, "ab")
+        proc = subprocess.Popen(
+            ["bash", str(script), step],  # fixed argv, no shell
+            cwd=str(root),
+            env=env,
+            stdout=logf,
+            stderr=subprocess.STDOUT,
+            stdin=subprocess.DEVNULL,
+            start_new_session=True,  # detach so it outlives the request
+        )
+    except Exception as exc:
+        logger.exception("pipeline launch failed")
+        raise HTTPException(status_code=500, detail=f"launch failed: {exc}") from exc
+
+    try:
+        _launch_pidfile().write_text(str(proc.pid))
+    except Exception:
+        pass
+
+    rel_log = str(log_path.relative_to(root))
+    logger.info(
+        f"launched pipeline step={step} states={states or 'default'} "
+        f"n={n} parallel={parallel} pid={proc.pid} log={rel_log}"
+    )
+    return LaunchResponse(
+        launched=True,
+        pid=proc.pid,
+        step=step,
+        states=states,
+        log=rel_log,
+        detail=f"Started '{step}' (pid {proc.pid}). The dashboard will update as it runs.",
+    )
 
 
 class BatchJurisdictionsResponse(BaseModel):

@@ -75,15 +75,84 @@ export type BatchJob = {
   jurisdictions: BatchJurisdictionRun[]
 }
 
+export type PipelineStage = 'videos' | 'transcripts' | 'analyses' | 'reports'
+
+/** One (scope, stage) row. ``scope`` is a 2-letter state code or ``ALL`` (rollup). */
+export type StageReportRow = {
+  scope: string
+  stage: PipelineStage | string
+  done: number
+  total: number
+  failed: number
+  last_at: string
+}
+
+export type StageReport = {
+  states: string[]
+  rows: StageReportRow[]
+}
+
 export type BatchJobsDashboardPayload = {
   generated_at: string
   /** Latest batch/jurisdiction progress timestamp (not API build time). */
   last_activity_at?: string
   totals: BatchJobsTotals
   batches: BatchJob[]
+  /** Long-format per-state pipeline coverage (scope×stage rows). */
+  stage_report?: StageReport
   source?: 'database' | 'files'
   /** ``summary`` = metrics only; ``full`` = all per-video rows included. */
   detail?: 'summary' | 'full' | string
+}
+
+export type LaunchStatus = {
+  enabled: boolean
+  busy: boolean
+  running: number
+  launch_pid?: number | null
+  steps: string[]
+}
+
+export type LaunchResult = {
+  launched: boolean
+  pid?: number | null
+  step: string
+  states: string[]
+  log: string
+  detail: string
+}
+
+export async function fetchLaunchStatus(): Promise<LaunchStatus> {
+  const r = await fetch('/api/batch-jobs/launch', {
+    signal: AbortSignal.timeout(10_000),
+  })
+  if (!r.ok) throw new Error(`HTTP ${r.status}`)
+  return (await r.json()) as LaunchStatus
+}
+
+export async function launchPipeline(body: {
+  step: string
+  states?: string[]
+  n?: number
+  parallel?: number
+}): Promise<LaunchResult> {
+  const r = await fetch('/api/batch-jobs/launch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(15_000),
+  })
+  if (!r.ok) {
+    let detail = `HTTP ${r.status}`
+    try {
+      const j = (await r.json()) as { detail?: string }
+      if (j?.detail) detail = j.detail
+    } catch {
+      /* ignore */
+    }
+    throw new Error(detail)
+  }
+  return (await r.json()) as LaunchResult
 }
 
 export type BatchJobsDetailLevel = 'summary' | 'standard' | 'full'

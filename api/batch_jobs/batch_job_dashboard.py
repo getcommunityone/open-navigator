@@ -289,12 +289,18 @@ def build_dashboard_summary(*, limit: int = 30) -> Dict[str, Any]:
             last_activity = sql_totals["last_activity_at"]
     else:
         last_activity = pipeline_activity_at_from_batches(batches)
+    stage_report: Dict[str, Any] = {"states": [], "rows": []}
+    if use_db:
+        from api.batch_jobs.batch_job_db import dashboard_stage_report
+
+        stage_report = dashboard_stage_report()
     now = _dt.datetime.now(_dt.timezone.utc)
     return {
         "generated_at": now.isoformat(),
         "last_activity_at": last_activity,
         "totals": totals,
         "batches": batches,
+        "stage_report": stage_report,
         "source": source,
         "detail": "summary",
     }
@@ -550,12 +556,15 @@ def _aggregate_jobs(
 
     import datetime as _dt
 
+    from api.batch_jobs.batch_job_db import dashboard_stage_report
+
     now = _dt.datetime.now(_dt.timezone.utc)
     return {
         "generated_at": now.isoformat(),
         "last_activity_at": latest_dashboard_activity_at(jobs),
         "totals": totals,
         "batches": batches,
+        "stage_report": dashboard_stage_report(),
         "source": "database",
         "detail": "full",
     }
