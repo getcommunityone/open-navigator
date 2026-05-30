@@ -813,8 +813,8 @@ def strip_meeting_date_from_title(
     """
     Drop calendar date text from a meeting title when the same date is the filename prefix.
 
-    Handles ``1/11/2024``, ``1-11-2024``, ``September 23, 2024``, and legacy compact
-    suffixes like ``1112024`` (slashes removed by older sanitizers).
+    Handles ``1/11/2024``, ``1-11-2024``, ``04.28.26``, ``September 23, 2024``, and legacy
+    compact suffixes like ``1112024`` (slashes removed by older sanitizers).
     """
     t = _normalize_title_for_date_parse(title)
     if not t:
@@ -908,12 +908,15 @@ _DATE_IN_TITLE_PATTERNS = (
     r"(\d{4})-(\d{1,2})-(\d{1,2})",
     r"(\d{1,2})-(\d{1,2})-(\d{4})",
     r"(\d{1,2})/(\d{1,2})/(\d{4})",
+    r"(?<!\d)(\d{1,2})\.(\d{1,2})\.(\d{4})(?!\d)",
     r"(?<!\d)(\d{1,2})\s+(\d{1,2})\s+(\d{4})(?!\d)",
 )
-# M-D-YY or M/D/YY (e.g. ``1-23-24`` in county board titles); not four-digit years.
+# M-D-YY, M/D/YY, or M.D.YY (e.g. ``1-23-24`` / ``04.28.26`` in meeting titles);
+# not four-digit years.
 _DATE_IN_TITLE_PATTERNS_2Y = (
     r"(\d{1,2})-(\d{1,2})-(\d{2})(?!\d)",
     r"(\d{1,2})/(\d{1,2})/(\d{2})(?!\d)",
+    r"(?<!\d)(\d{1,2})\.(\d{1,2})\.(\d{2})(?!\d)",
     r"(?<!\d)(\d{1,2})\s+(\d{1,2})\s+(\d{2})(?!\d)",
 )
 _MONTH_DAY_YEAR_RE = re.compile(
@@ -1025,7 +1028,7 @@ def _normalize_title_for_date_parse(title: str) -> str:
 
 
 def extract_meeting_date_from_title(title: str) -> Optional[str]:
-    """Parse M/D/YYYY, M-D-YY, YYYY-MM-DD, YYYYMMDD, or 'September 23, 2024' from a video title."""
+    """Parse M/D/YYYY, M-D-YY, M.D.YY, YYYY-MM-DD, YYYYMMDD, or 'September 23, 2024' from a title."""
     text = _normalize_title_for_date_parse(title)
     for match in re.finditer(r"(?<!\d)(\d{8})(?!\d)", text):
         fragment = match.group(1)
