@@ -1,10 +1,15 @@
 # Governance pipeline (Google Colab + Drive)
 
+> **Location:** this package lives at `packages/llm/src/llm/governance/` (ported out of the
+> legacy `scripts/colab/`). Modules import as `llm.governance.<module>`; CLIs run as
+> `python -m llm.governance.<cli>`. The notebook bootstrap adds `packages/llm/src` to
+> `sys.path` so `import llm.governance...` resolves in Colab and local Jupyter alike.
+
 Use this when you **do not** have a high-end local GPU: heavy work runs in Colab or remote APIs; artifacts live on **Google Drive** so WSL and Colab see the same folders after sync.
 
 **Colab vs local (notebooks):** [`colab_paths.py`](colab_paths.py) — `maybe_mount_google_drive()` (no-op locally), `setup_notebook_paths()` (Colab + Drive: `…/CommunityOne/hackathons/2026_Gemma_4_Good`; local: `<repo>/data/hackathons/2026_Gemma_4_Good` unless **`GOVERNANCE_PIPELINE_DATA_ROOT`** is set). Set **`OPEN_NAVIGATOR_ROOT`** if Jupyter’s cwd is not inside the repo.
 
-Pipeline folder layout under that root: [`scripts/utils/gdrive_paths.py`](../utils/gdrive_paths.py) (`GovernancePipelinePaths`). Drive mount defaults for WSL are documented next to [`scripts/utils/log_sync.py`](../utils/log_sync.py).
+Pipeline folder layout under that root: [`scripts/utils/gdrive_paths.py`](../../../../../scripts/utils/gdrive_paths.py) (`GovernancePipelinePaths`). Drive mount defaults for WSL are documented next to [`scripts/utils/log_sync.py`](../../../../../scripts/utils/log_sync.py).
 
 ## Notebooks & scripts (this folder)
 
@@ -23,7 +28,7 @@ Python helper (not a notebook): [`governance_meeting_llm.py`](governance_meeting
 
 ## Prerequisites
 
-1. **Repo for Colab** — Use **GitHub** (Colab “Open from GitHub”) or clone under Drive if you prefer. **Local Jupyter:** open the repo checkout and start the kernel with cwd at the repo root, or set **`OPEN_NAVIGATOR_ROOT`** so the bootstrap cell finds `scripts/colab/colab_paths.py`.
+1. **Repo for Colab** — Use **GitHub** (Colab “Open from GitHub”) or clone under Drive if you prefer. **Local Jupyter:** open the repo checkout and start the kernel with cwd at the repo root, or set **`OPEN_NAVIGATOR_ROOT`** so the bootstrap cell finds `packages/llm/src/llm/governance/colab_paths.py`.
 2. **Scraped meetings on Drive (optional)** — Run **01** from WSL to mirror the **default four inventory** folders under ``data/cache/scraped_meetings`` → ``My Drive/CommunityOne/hackathons/2026_Gemma_4_Good/01_raw_inputs`` (use ``--all-cache`` only if you need the entire cache).
 3. **Pipeline root** — Default on Colab and Drive:  
    `My Drive/CommunityOne/hackathons/2026_Gemma_4_Good`  
@@ -33,7 +38,7 @@ Python helper (not a notebook): [`governance_meeting_llm.py`](governance_meeting
    Set **`LOG_GDRIVE_MOUNT`** if your mount is not `/mnt/g/My Drive`.
 5. **API keys** — Colab: **Secrets** (key icon). Local: export **`TOGETHER_API_KEY`** (or another provider key) in the environment. The run notebook tries Colab `userdata` first, then `os.environ`.
 
-Folder semantics for `01_raw_inputs`, `02_reference_data`, `03_processed_outputs` are summarized in [`scripts/doc_processing/readme.md`](../doc_processing/readme.md).
+Folder semantics for `01_raw_inputs`, `02_reference_data`, `03_processed_outputs` are summarized in [`scripts/doc_processing/readme.md`](../../../../../scripts/doc_processing/readme.md).
 
 ---
 
@@ -43,7 +48,7 @@ Folder semantics for `01_raw_inputs`, `02_reference_data`, `03_processed_outputs
 
 | Where | What to run |
 |--------|-------------|
-| **WSL / Linux** | From repo root: `python scripts/colab/01_copy_scraped_meetings_cache_to_gdrive.py --dry-run` then without `--dry-run`. **Default:** only the four Tuscaloosa/Big Timber inventory paths. Pass `--all-cache` to sync the whole `scraped_meetings` tree. If Drive is not visible under WSL but **rclone** is configured (`gdrive:` remote), the script falls back to rclone automatically. Use `--rclone` to force, or `--local` to stage under `data/export/` in the repo. |
+| **WSL / Linux** | From repo root: `python packages/llm/src/llm/governance/01_copy_scraped_meetings_cache_to_gdrive.py --dry-run` then without `--dry-run`. **Default:** only the four Tuscaloosa/Big Timber inventory paths. Pass `--all-cache` to sync the whole `scraped_meetings` tree. If Drive is not visible under WSL but **rclone** is configured (`gdrive:` remote), the script falls back to rclone automatically. Use `--rclone` to force, or `--local` to stage under `data/export/` in the repo. |
 
 Skip if you only use local cache or another sync path.
 
@@ -87,10 +92,10 @@ Run **before** the demo notebook to drop non-meeting files out of the queue:
 
 ```bash
 # dry-run audit first
-python scripts/colab/gatekeeper_triage.py --dry-run --max-files 20 --verbose
+python -m llm.governance.gatekeeper_triage --dry-run --max-files 20 --verbose
 
 # real sweep, writes JSON report
-python scripts/colab/gatekeeper_triage.py --report-path /tmp/triage_report.json
+python -m llm.governance.gatekeeper_triage --report-path /tmp/triage_report.json
 ```
 
 The triage layer:
@@ -110,7 +115,7 @@ With `GOVERNANCE_ORGANIZE_MEETINGS=1` (default), kept/scoped files move under
 ### 6) Run Gemma / LLM structured analysis — notebook **`02_run_meeting_llm.ipynb`**
 
 1. Open [`02_run_meeting_llm.ipynb`](02_run_meeting_llm.ipynb) (or the legacy [`03_run_meeting_llm.ipynb`](03_run_meeting_llm.ipynb) alias).
-2. **Bootstrap** — repo discovery (`OPEN_NAVIGATOR_ROOT` or walk parents for `scripts/colab/colab_paths.py`), optional Drive mount in Colab only, `PATHS = setup_notebook_paths()`, then git + `GOVERNANCE_PIPELINE_DATA_ROOT` + imports (same pattern as **`01_init_drive_layout.ipynb`**).
+2. **Bootstrap** — repo discovery (`OPEN_NAVIGATOR_ROOT` or walk parents for `packages/llm/src/llm/governance/colab_paths.py`), optional Drive mount in Colab only, `PATHS = setup_notebook_paths()`, then git + `GOVERNANCE_PIPELINE_DATA_ROOT` + imports (same pattern as **`01_init_drive_layout.ipynb`**).
 3. **`%pip install`** cell — `google-genai`, **`transformers>=5.5.0`** (Gemma 4 / `gemma4` on HF), `accelerate`, `pymupdf`, `pdf2image` (+ `poppler-utils` on Colab). **Restart runtime** after install.
 4. **Secrets / API + caps** — Colab Secret `GEMINI_API_KEY` or env `GEMINI_API_KEY` / `GOOGLE_API_KEY`. Adjust `GOVERNANCE_GENAI_MODEL` if your AI Studio project lists a different Gemma 4 id. Demo caps in env: `GOVERNANCE_DEMO_MAX_PDFS_PER_JUR` (3), `GOVERNANCE_DEMO_MAX_PAGES_PER_PDF` (8), `GOVERNANCE_DEMO_MAX_AUDIO_PER_JUR` (1), `GOVERNANCE_DEMO_MAX_AUDIO_CHUNKS` (4), `GOVERNANCE_DEMO_MAX_IMAGES_PER_JUR` (12), `GOVERNANCE_DEMO_THINKING_BUDGET` (-1).
 5. **Step 0 — Gatekeeper** cell — runs `gatekeeper_triage.run_triage()` on the raw root. Skip with `GOVERNANCE_GATEKEEPER_ENABLED=0`; audit with `GOVERNANCE_GATEKEEPER_DRY_RUN=1`.
@@ -130,7 +135,7 @@ These use the same **`CommunityOne/`** style paths under your Drive mount but **
 
 | Script | Purpose |
 |--------|---------|
-| [`scripts/utils/log_sync.py`](../utils/log_sync.py) | Copies run logs → `CommunityOne/open-navigator-logs/...` |
+| [`scripts/utils/log_sync.py`](../../../../../scripts/utils/log_sync.py) | Copies run logs → `CommunityOne/open-navigator-logs/...` |
 
 Scraped meetings mirror is **step 1** above ([`01_copy_scraped_meetings_cache_to_gdrive.py`](01_copy_scraped_meetings_cache_to_gdrive.py)); it is not a separate util under `scripts/utils/`.
 

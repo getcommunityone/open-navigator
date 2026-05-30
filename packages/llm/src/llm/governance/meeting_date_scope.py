@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 PDF_EXTS = {".pdf"}
 try:
-    from governance_meeting_llm import AUDIO_EXTS
+    from .governance_meeting_llm import AUDIO_EXTS
 except ImportError:
     AUDIO_EXTS = {
         ".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".opus",
@@ -463,7 +463,7 @@ def infer_meeting_date_for_file(path: Path, raw_root: Path) -> Optional[str]:
             return d
 
     try:
-        from meeting_grouping import infer_meeting_date_from_path
+        from .meeting_grouping import infer_meeting_date_from_path
 
         return infer_meeting_date_from_path(path)
     except Exception:
@@ -584,7 +584,7 @@ def file_media_role(path: Path, raw_root: Path) -> Optional[str]:
         return "pdf"
     if path.suffix.lower() == ".pdf":
         try:
-            from gatekeeper_triage import gatekeeper_rules_only_enabled
+            from .gatekeeper_triage import gatekeeper_rules_only_enabled
 
             if gatekeeper_rules_only_enabled():
                 if (
@@ -879,7 +879,7 @@ def narrow_gatekeeper_candidates(
     paths = dedupe_scrape_copies(paths, raw_root)
 
     try:
-        from gatekeeper_triage import resolve_gatekeeper_max_files
+        from .gatekeeper_triage import resolve_gatekeeper_max_files
     except ImportError:
         resolve_gatekeeper_max_files = lambda explicit=None: None  # type: ignore
 

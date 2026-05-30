@@ -62,6 +62,16 @@ gsa/domains, hifld/locations, dot/events, uscm/mayors). 16 branches consolidated
 `main`. `packages/llm` extracted (gemini + enrichment subpackages). Migration-048 cleanup
 swept refs to the dropped `public.jurisdiction` table (now `public.c1_jurisdiction`).
 
+**`scripts/colab/` eliminated → `packages/llm/src/llm/governance/`** (2026-05-30): 24 live
+modules + notebook + README + mount_drive.sh + 2 CLIs moved via `git mv` (blame preserved);
+flat Colab imports rewritten to package-relative (`from .x import …`); dead `colab_public_data.py`
++ `colab_notebook_ui.py` (+ its test) deleted. Notebook bootstrap now adds `packages/llm/src` to
+`sys.path` and imports `llm.governance.*`; CLIs run via `python -m llm.governance.<cli>`. Tests
+(`test_colab_bootstrap`, `test_colab_runtime_phases`, `test_meeting_consolidated_summary`,
+`test_pipeline_media_scope`) repointed. **Residual cross-dep:** governance modules still import
+`scripts.utils.gdrive_paths` (shared with `scripts/discovery/*`) — port that util next so the
+package stops reaching into `scripts/`.
+
 **In flight:** `feat/llm-enrichment-extraction` (current branch) — enrichment subpackage port.
 
 **Backlog (prioritized):**
@@ -73,10 +83,10 @@ swept refs to the dropped `public.jurisdiction` table (now `public.c1_jurisdicti
   download_hifld, download_state_dot_public_pages, load_fec_bulk.
 - _Skip (not pipelines):_ one-off SQL fixes, demos, helper modules, READMEs.
 
-**Remaining `scripts/` subdirs still to triage:** colab, data, database, datasources,
+**Remaining `scripts/` subdirs still to triage:** data, database, datasources,
 deployment, discovery, eboard, enrichment, enrichment_ai, examples, frontend, huggingface,
 jurisdictions, localview, maintenance, mcp, media, migrations, scraping, utils, wikicommons,
-wikimedia.
+wikimedia. (`colab` ✅ done → `packages/llm/src/llm/governance/`.)
 
 ## Context hygiene (native, not hand-rolled)
 

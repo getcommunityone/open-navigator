@@ -107,7 +107,7 @@ def confirm_gpu_for_demo4(*, interactive: bool = True) -> None:
 
 def apply_media_scope_for_phase(media_key: str, namespace: Optional[Dict[str, Any]] = None) -> Any:
     """Set ``GOVERNANCE_PIPELINE_MEDIA_SCOPE`` and optional notebook globals."""
-    from pipeline_media_scope import apply_media_scope
+    from .pipeline_media_scope import apply_media_scope
 
     key = (media_key or "all").strip().lower()
     os.environ["GOVERNANCE_PIPELINE_MEDIA_SCOPE"] = key
