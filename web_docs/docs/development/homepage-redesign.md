@@ -379,7 +379,7 @@ npm run build     # Vite build
 No changes needed! Same deployment process:
 
 ```bash
-./scripts/huggingface/safe-deploy.sh
+./packages/hosting/scripts/huggingface/safe-deploy.sh
 ```
 
 The Docker build will include:

@@ -36,7 +36,7 @@ Colab Secret name: **`HF_TOKEN`** (not `HUGGINGFACE_TOKEN`).
 
 ```bash
 echo $HF_TOKEN
-python scripts/huggingface/check-hf-vars.py
+python -m hosting.huggingface check-vars
 ```
 
 ## Summary

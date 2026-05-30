@@ -328,4 +328,4 @@ Add to `TOP_STORIES` array:
 
 **Deployment ready!** 🚀
 
-Just run `./scripts/huggingface/safe-deploy.sh` to deploy to production.
+Just run `./packages/hosting/scripts/huggingface/safe-deploy.sh` to deploy to production.

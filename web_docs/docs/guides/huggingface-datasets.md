@@ -44,13 +44,13 @@ HF_TOKEN=hf_your_write_token_here
 cd /home/developer/projects/open-navigator
 
 # Upload all 4 tables (organizations, financials, programs, locations)
-python scripts/upload_nonprofits_to_hf.py --all
+python -m hosting.huggingface nonprofits
 
 # Upload specific table
 python scripts/upload_nonprofits_to_hf.py --table organizations
 
 # Upload to your own repo (change username)
-python scripts/upload_nonprofits_to_hf.py --all --repo "your-username/nonprofits"
+python -m hosting.huggingface nonprofits --repo "your-username/nonprofits"
 ```
 
 **Expected Output:**
@@ -478,7 +478,7 @@ curl "https://datasets-server.huggingface.co/size?dataset=CommunityOne/one-nonpr
 
 1. **Upload your datasets:**
    ```bash
-   python scripts/upload_nonprofits_to_hf.py --all
+   python -m hosting.huggingface nonprofits
    ```
 
 2. **Test the API:**

@@ -98,7 +98,7 @@ Already tested:
 ## 🚀 Deploy
 
 ```bash
-./scripts/huggingface/safe-deploy.sh
+./packages/hosting/scripts/huggingface/safe-deploy.sh
 ```
 
 Done! Your Ground News-style homepage is ready! 🎉
