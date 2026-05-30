@@ -1283,6 +1283,26 @@ sources:
           - name: loaded_at
           - name: last_updated
 
+  - name: civic_core
+    description: |
+      Canonical OCD/Popolo civic entity tables in the PUBLIC schema (the `c1_*`
+      family). Loaded by the OCD ingestion path, NOT by dbt — declared as a
+      source so the AI-extraction marts (event_*) can resolve to the canonical
+      event via the enforced FK bronze_events_analysis_ai.event_id =
+      c1_event.legacy_id.
+    database: open_navigator
+    schema: public
+    tables:
+      - name: c1_event
+        description: "Canonical OCD event. legacy_id is the integer surrogate the bronze AI-analysis FK points at; id is the canonical OCD string id."
+        columns:
+          - name: legacy_id
+            description: "Integer surrogate; target of bronze_events_analysis_ai.event_id FK."
+          - name: id
+            description: "Canonical OCD event id (string)."
+          - name: state
+            description: "2-letter state code."
+
   - name: gold_runtime
     description: "Runtime gold tables in public schema (ACS joins for mapping quality marts)"
     database: open_navigator

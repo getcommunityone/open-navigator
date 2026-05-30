@@ -12,6 +12,18 @@ config-version: 2
 # This setting configures which "profile" dbt uses for this project.
 profile: 'open_navigator'
 
+# Roll the next month's partition forward for the partitioned event_* AI-extraction
+# marts on every run. Guarded: no-op until the partitioned parent is bootstrapped
+# (dbt run-operation bootstrap_event_people). See macros/event_extractions.sql.
+on-run-start:
+  - "{{ ensure_event_partitions('public.event_person') }}"
+  - "{{ ensure_event_partitions('public.event_decision') }}"
+  - "{{ ensure_event_partitions('public.event_place') }}"
+  - "{{ ensure_event_partitions('public.event_financial_item') }}"
+  - "{{ ensure_event_partitions('public.event_topic') }}"
+  - "{{ ensure_event_partitions('public.event_bill') }}"
+  - "{{ ensure_event_partitions('public.event_organization') }}"
+
 # These configurations specify where dbt should look for different types of files.
 # The `model-paths` config, for example, states that models in this project can be
 # found in the "models/" directory. You probably won't need to change these!
