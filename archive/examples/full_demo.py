@@ -16,7 +16,7 @@ from config.settings import settings
 
 # Import our new capabilities
 from scripts.extraction.summarizer import MeetingSummarizer, summarize_meeting_simple
-from scripts.alerts.keyword_monitor import KeywordAlertSystem, generate_alert_email
+from archive.alerts.keyword_monitor import KeywordAlertSystem, generate_alert_email
 from scripts.discovery.batch_processor import BatchProcessor, JurisdictionQuality
 from models.meeting_event import MeetingEvent, Classification, Location
 

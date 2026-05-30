@@ -6,8 +6,9 @@ This directory contains general demonstration scripts and case studies that show
 
 ### Complete Workflow Examples
 - **example_workflow.py** - Demonstrates the complete policy analysis pipeline with all agents
-- **full_demo.py** - Full system demonstration
 - **integration_demo.py** - Integration demonstration across multiple components
+
+> Note: `full_demo.py` (the keyword-alerts demo) was moved to `archive/examples/full_demo.py` alongside `archive/alerts/keyword_monitor.py`.
 
 ### Specific Feature Demos
 - **legislative_map_demo.py** - Demonstrates legislative tracking and mapping features
