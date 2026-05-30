@@ -246,6 +246,52 @@ def policy_event_counts_24h(conn: Any) -> Dict[str, Any]:
 PIPELINE_STAGES = ("discover", "videos", "transcripts", "analyses", "reports")
 
 
+def _stage_timing(conn: Any) -> Dict[str, Any]:
+    """Per-stage cadence: median seconds between recent completions (~throughput
+    per file) and the most recent output file path. Column names are fixed (not
+    user input), so the f-string is safe. Empty on pre-083 DBs."""
+
+    def _one(ts_col: str, path_col: str) -> Dict[str, Any]:
+        out = {"avg_seconds": None, "last_path": "", "last_at": ""}
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"""
+                    WITH recent AS (
+                        SELECT {ts_col} AS ts, {path_col} AS path
+                        FROM bronze.bronze_events_youtube
+                        WHERE {ts_col} IS NOT NULL
+                        ORDER BY {ts_col} DESC LIMIT 150
+                    ),
+                    gaps AS (
+                        SELECT EXTRACT(EPOCH FROM (ts - LAG(ts) OVER (ORDER BY ts))) AS gap
+                        FROM recent
+                    )
+                    SELECT
+                        (SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY gap)
+                           FROM gaps WHERE gap > 0 AND gap < 3600) AS med_gap,
+                        (SELECT path FROM recent ORDER BY ts DESC LIMIT 1) AS last_path,
+                        (SELECT ts FROM recent ORDER BY ts DESC LIMIT 1) AS last_at
+                    """
+                )
+                row = cur.fetchone()
+            if row:
+                out["avg_seconds"] = round(float(row[0]), 1) if row[0] is not None else None
+                out["last_path"] = str(row[1] or "")
+                out["last_at"] = row[2].isoformat() if row[2] is not None else ""
+        except Exception:
+            conn.rollback()
+        return out
+
+    vids = _one("transcript_download_at", "transcript_file_path")
+    return {
+        "videos": vids,
+        "transcripts": vids,
+        "analyses": _one("policy_analysis_at", "policy_analysis_path"),
+        "reports": _one("policy_report_at", "policy_report_path"),
+    }
+
+
 def pipeline_stage_report(conn: Any) -> Dict[str, Any]:
     """
     Long-format per-state pipeline coverage from the bronze per-event stamps.
@@ -382,6 +428,7 @@ def pipeline_stage_report(conn: Any) -> Dict[str, Any]:
     rows = _stage_rows("ALL", {**totals, **last}, disc_all) + rows
     out["states"] = sorted(states)
     out["rows"] = rows
+    out["timing"] = _stage_timing(conn)
     return out
 
 

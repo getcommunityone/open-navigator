@@ -87,9 +87,35 @@ export type StageReportRow = {
   last_at: string
 }
 
+export type StageTiming = {
+  avg_seconds?: number | null
+  last_path?: string
+  last_at?: string
+}
+
 export type StageReport = {
   states: string[]
   rows: StageReportRow[]
+  /** Per-stage cadence + last file: keyed by stage name. */
+  timing?: Record<string, StageTiming>
+}
+
+export type LaunchLog = {
+  step: string
+  path: string
+  lines: string[]
+  /** Best-effort "current item" line parsed from the log tail. */
+  current: string
+  current_since: string
+}
+
+export async function fetchLaunchLog(step: string): Promise<LaunchLog> {
+  const r = await fetch(
+    `/api/batch-jobs/launch/log?step=${encodeURIComponent(step)}&lines=150`,
+    { signal: AbortSignal.timeout(10_000) },
+  )
+  if (!r.ok) throw new Error(`HTTP ${r.status}`)
+  return (await r.json()) as LaunchLog
 }
 
 export type BatchJobsDashboardPayload = {

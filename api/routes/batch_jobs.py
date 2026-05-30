@@ -112,6 +112,8 @@ class StageReportRow(BaseModel):
 class StageReport(BaseModel):
     states: List[str] = Field(default_factory=list)
     rows: List[StageReportRow] = Field(default_factory=list)
+    # Per-stage cadence/last-file: {stage: {avg_seconds, last_path, last_at}}.
+    timing: Dict[str, Any] = Field(default_factory=dict)
 
 
 class BatchJobsDashboardResponse(BaseModel):
@@ -564,6 +566,76 @@ async def launch_pipeline(req: LaunchRequest) -> LaunchResponse:
         states=states,
         log=rel_log,
         detail=f"Started '{step}' (pid {proc.pid}). The dashboard will update as it runs.",
+    )
+
+
+# Lines worth showing as "current item" in a launch log (most recent wins).
+_LOG_ITEM_RE = re.compile(
+    r"(=== .*===|\[\d+/\d+\]|Calling gemini|Wrote |Analyz|Discover|Caption|catalog)",
+    re.IGNORECASE,
+)
+_LOG_TS_RE = re.compile(r"(\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?)")
+
+
+def _tail_lines(path: Path, n: int) -> List[str]:
+    try:
+        # Read at most the last ~256 KiB so huge logs stay cheap.
+        size = path.stat().st_size
+        with open(path, "rb") as fh:
+            if size > 262144:
+                fh.seek(-262144, 2)
+            data = fh.read()
+        text = data.decode("utf-8", "replace")
+        return text.splitlines()[-n:]
+    except Exception:
+        return []
+
+
+def _parse_current(lines: List[str]) -> "tuple[str, str]":
+    """(current item line, ISO timestamp of latest activity) from a log tail."""
+    current = ""
+    for ln in reversed(lines):
+        if ln.strip() and _LOG_ITEM_RE.search(ln):
+            current = ln.strip()
+            break
+    since = ""
+    for ln in reversed(lines):
+        m = _LOG_TS_RE.search(ln)
+        if m:
+            since = m.group(1).replace(" ", "T")
+            break
+    return current[:300], since
+
+
+class LaunchLogResponse(BaseModel):
+    step: str
+    path: str = ""
+    lines: List[str] = Field(default_factory=list)
+    current: str = ""
+    current_since: str = ""
+
+
+@router.get("/launch/log", response_model=LaunchLogResponse)
+async def launch_log(
+    step: str = Query(..., description="Pipeline step whose latest log to tail"),
+    lines: int = Query(120, ge=1, le=1000),
+) -> LaunchLogResponse:
+    step = (step or "").strip().lower()
+    if step not in _LAUNCH_STEPS:
+        raise HTTPException(status_code=400, detail=f"step must be one of {list(_LAUNCH_STEPS)}")
+    log_dir = _repo_root() / "data" / "cache" / "batch_jobs"
+    candidates = sorted(log_dir.glob(f"launch_{step}_*.log"), reverse=True)
+    if not candidates:
+        return LaunchLogResponse(step=step)
+    path = candidates[0]
+    tail = await asyncio.to_thread(_tail_lines, path, lines)
+    current, since = _parse_current(tail)
+    return LaunchLogResponse(
+        step=step,
+        path=str(path.relative_to(_repo_root())),
+        lines=tail,
+        current=current,
+        current_since=since,
     )
 
 

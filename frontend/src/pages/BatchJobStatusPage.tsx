@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   batchJobsStreamUrl,
@@ -8,6 +8,7 @@ import {
   fetchBatchJurisdictions,
   fetchBatchJobsDashboard,
   fetchFailedVideos,
+  fetchLaunchLog,
   fetchLaunchStatus,
   launchPipeline,
   mergeBatchIntoDashboard,
@@ -74,6 +75,30 @@ function failedVideoCount(j: BatchJurisdictionRun): number {
   const fromVideos = (j.videos || []).filter((v) => isFailedVideoStatus(v.status)).length
   const fromStats = Number(j.stats?.fail ?? 0)
   return Math.max(fromVideos, fromStats)
+}
+
+// Which runnable step advances each stage (used for the per-stage log drill-down).
+const STAGE_STEP: Record<string, string> = {
+  discover: 'discover',
+  videos: 'catalog',
+  transcripts: 'captions',
+  analyses: 'analyze',
+  reports: 'analyze',
+}
+
+function fmtSecs(s?: number | null): string {
+  if (s == null || !Number.isFinite(s)) return '—'
+  const v = Math.round(s)
+  if (v < 60) return `${v}s`
+  const m = Math.floor(v / 60)
+  const r = v % 60
+  return r ? `${m}m ${r}s` : `${m}m`
+}
+
+function baseName(p?: string): string {
+  if (!p) return '—'
+  const parts = p.split('/')
+  return parts[parts.length - 1] || p
 }
 
 function mergeDashboardFromStream(
@@ -904,6 +929,17 @@ export default function BatchJobStatusPage() {
     [refetchLaunch, refetch],
   )
 
+  // Per-stage drill-down: expand one stage to see its live log + current file.
+  const [expandedStage, setExpandedStage] = useState<string | null>(null)
+  const expandedStep = expandedStage ? STAGE_STEP[expandedStage] : null
+  const { data: stageLog } = useQuery({
+    queryKey: ['launch-log', expandedStep],
+    queryFn: () => fetchLaunchLog(expandedStep as string),
+    enabled: !!expandedStep,
+    refetchInterval: 4000,
+    retry: false,
+  })
+
   const selectedBatch = useMemo(() => {
     if (!data?.batches?.length) return null
     if (batchId) {
@@ -1510,10 +1546,19 @@ export default function BatchJobStatusPage() {
                   const pct = total ? (done / total) * 100 : 0
                   const ago = agoFromIso(r?.last_at)
                   const running = runningStages.has(st.stage)
+                  const expanded = expandedStage === st.stage
+                  const tm = data.stage_report?.timing?.[st.stage]
                   return (
-                    <div key={st.stage} className={`${cols} border-t border-slate-100 px-4 py-3`}>
-                      <div className="min-w-0">
-                        <div className="text-sm font-semibold text-slate-800">
+                    <Fragment key={st.stage}>
+                    <div className={`${cols} border-t border-slate-100 px-4 py-3`}>
+                      <button
+                        type="button"
+                        onClick={() => setExpandedStage(expanded ? null : st.stage)}
+                        className="min-w-0 text-left"
+                        title="Show this stage's live log + timing"
+                      >
+                        <div className="flex items-center gap-1 text-sm font-semibold text-slate-800">
+                          <span className="text-slate-400">{expanded ? '▾' : '▸'}</span>
                           {idx + 1} · {stageLabel[st.stage]}
                         </div>
                         {st.sub ? (
@@ -1524,7 +1569,7 @@ export default function BatchJobStatusPage() {
                             </span>
                           </div>
                         ) : null}
-                      </div>
+                      </button>
                       <div className="flex items-center gap-1.5 text-sm">
                         {running ? (
                           <>
@@ -1599,6 +1644,40 @@ export default function BatchJobStatusPage() {
                         ) : null}
                       </div>
                     </div>
+                    {expanded ? (
+                      <div className="border-t border-slate-100 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+                        <div className="flex flex-wrap gap-x-6 gap-y-1">
+                          <span>
+                            avg <b className="text-slate-800">{fmtSecs(tm?.avg_seconds)}</b>/file
+                          </span>
+                          <span>
+                            last file:{' '}
+                            <b className="text-slate-800" title={tm?.last_path}>
+                              {baseName(tm?.last_path)}
+                            </b>
+                            {tm?.last_at ? ` · ${agoFromIso(tm.last_at) ?? ''}` : ''}
+                          </span>
+                          {running && stageLog?.current ? (
+                            <span className="min-w-0">
+                              current:{' '}
+                              <b className="text-emerald-700">{stageLog.current}</b>
+                              {stageLog.current_since
+                                ? ` · ${agoFromIso(stageLog.current_since) ?? ''} on it`
+                                : ''}
+                            </span>
+                          ) : null}
+                        </div>
+                        <pre className="mt-2 max-h-56 overflow-auto rounded bg-slate-900 p-2 text-[10px] leading-snug text-slate-100">
+                          {stageLog?.lines?.length
+                            ? stageLog.lines.join('\n')
+                            : 'No log for this step yet — launch it to see live output.'}
+                        </pre>
+                        {stageLog?.path ? (
+                          <div className="mt-1 text-[10px] text-slate-400">log: {stageLog.path}</div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    </Fragment>
                   )
                 })}
                 <div className="border-t border-slate-100 px-4 py-2 text-[11px] text-slate-400">
