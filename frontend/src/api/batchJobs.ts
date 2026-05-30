@@ -23,6 +23,10 @@ export type BatchJobsTotals = {
   files_analysis_recent?: number
   /** Reports generated in the last 24h (file mtime within the rolling window). */
   files_reports_recent?: number
+  /** Analysis errors stamped in the last 24h (bronze policy_analysis_error). */
+  files_analysis_errors_recent?: number
+  /** Report errors stamped in the last 24h (bronze policy_report_error). */
+  files_reports_errors_recent?: number
   /** Most recent transcript-download stamp (all time, ISO) — "Last transcript" ago card. */
   last_transcript_at?: string
   /** Most recent analysis stamp (all time, ISO) — drives the "Last analysis" ago card. */

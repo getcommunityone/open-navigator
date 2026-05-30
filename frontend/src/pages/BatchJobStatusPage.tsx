@@ -1244,7 +1244,225 @@ export default function BatchJobStatusPage() {
 
       {data && (
         <>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+          {(() => {
+            const t = data.totals
+            const videos = t.videos_ok ?? 0
+            const attempted = t.videos_attempted || videos
+            const fmtPct = (v: number) => {
+              const r = Math.round(Math.max(0, v) * 10) / 10
+              return `${Number.isInteger(r) ? r : r.toFixed(1)}%`
+            }
+            const openFailed = () => setShowFailedVideos(true, { allBatches: true })
+            type Stage = {
+              n: number
+              label: string
+              sub?: string
+              num: number
+              den: number
+              unit: string
+              pct: number
+              ago: string | null
+              failed: number
+              pill: boolean
+              drill: (() => void) | null
+              failTitle: string
+            }
+            const stages: Stage[] = [
+              {
+                n: 1,
+                label: 'Videos',
+                num: t.videos_ok ?? 0,
+                den: attempted,
+                unit: 'attempted',
+                pct: attempted ? ((t.videos_ok ?? 0) / attempted) * 100 : 0,
+                ago: lastUpdateAgo,
+                failed: t.videos_fail ?? 0,
+                pill: false,
+                drill: openFailed,
+                failTitle: 'Videos whose caption fetch failed — tap to list',
+              },
+              {
+                n: 2,
+                label: 'Transcripts',
+                sub: `${formatCompactNumber(t.files_transcripts_disk ?? 0)} rows = segments, dedupe to videos`,
+                num: t.videos_ok ?? 0,
+                den: videos,
+                unit: 'videos',
+                pct: videos ? 100 : 0,
+                ago: lastTranscriptAgo,
+                failed: t.videos_fail ?? 0,
+                pill: true,
+                drill: openFailed,
+                failTitle: 'Videos with no usable transcript — tap to list',
+              },
+              {
+                n: 3,
+                label: 'Analyses',
+                num: t.files_analysis ?? 0,
+                den: videos,
+                unit: 'videos',
+                pct: videos ? ((t.files_analysis ?? 0) / videos) * 100 : 0,
+                ago: lastAnalysisAgo,
+                failed: t.files_analysis_errors_recent ?? 0,
+                pill: true,
+                drill: null,
+                failTitle: 'Analysis errors in the last 24h (bronze stamps)',
+              },
+              {
+                n: 4,
+                label: 'Reports',
+                num: t.files_reports ?? 0,
+                den: videos,
+                unit: 'videos',
+                pct: videos ? ((t.files_reports ?? 0) / videos) * 100 : 0,
+                ago: lastReportAgo,
+                failed: t.files_reports_errors_recent ?? 0,
+                pill: true,
+                drill: null,
+                failTitle: 'Report errors in the last 24h (bronze stamps)',
+              },
+            ]
+            const allStateCodes = [
+              ...new Set(
+                (data.batches ?? []).flatMap((b) =>
+                  Array.isArray(b.config?.states)
+                    ? (b.config.states as string[]).map((s) => String(s).toUpperCase().trim())
+                    : [],
+                ),
+              ),
+            ]
+              .filter(Boolean)
+              .sort()
+            const cols = 'grid grid-cols-[1.5fr_0.9fr_2fr_auto] items-center gap-3'
+            return (
+              <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
+                  <div className="flex items-center gap-1.5 text-sm">
+                    <span
+                      className={`inline-block h-2.5 w-2.5 rounded-full ${
+                        data.totals.running > 0 ? 'bg-emerald-500' : 'bg-slate-400'
+                      }`}
+                    />
+                    <span className="font-semibold text-slate-800">
+                      {data.totals.running > 0 ? 'Running' : 'Idle'}
+                    </span>
+                    {lastUpdateAgo ? (
+                      <span className="text-slate-500">· last activity {lastUpdateAgo} ago</span>
+                    ) : null}
+                    <span className="text-slate-500">
+                      · {formatCompactNumber(data.totals.running)} running
+                    </span>
+                  </div>
+                  {allStateCodes.length > 0 ? (
+                    <select
+                      value={stateFilter}
+                      onChange={(e) => {
+                        const next = new URLSearchParams(searchParams)
+                        if (e.target.value) next.set('state', e.target.value)
+                        else next.delete('state')
+                        setSearchParams(next, { replace: true })
+                      }}
+                      title="Filter the detail tables below by state (stage totals are global)"
+                      className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+                    >
+                      <option value="">All states</option>
+                      {allStateCodes.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
+                    </select>
+                  ) : null}
+                </div>
+                <div
+                  className={`${cols} px-4 py-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400`}
+                >
+                  <div>Stage</div>
+                  <div>Last activity</div>
+                  <div>Progress</div>
+                  <div className="text-right">Failed</div>
+                </div>
+                {stages.map((st) => (
+                  <div key={st.n} className={`${cols} border-t border-slate-100 px-4 py-3`}>
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-slate-800">
+                        {st.n} · {st.label}
+                      </div>
+                      {st.sub ? (
+                        <div className="mt-0.5 flex items-center gap-1 text-[11px] text-amber-600">
+                          <span aria-hidden>⚠️</span>
+                          <span className="truncate" title={st.sub}>
+                            {st.sub}
+                          </span>
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="flex items-center gap-1.5 text-sm text-slate-600">
+                      <span className="inline-block h-1.5 w-1.5 rounded-full bg-slate-400" />
+                      {st.ago ? `${st.ago} ago` : '—'}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-sm tabular-nums text-slate-700">
+                        <span className="font-semibold text-slate-900">
+                          {formatCompactNumber(st.num)}
+                        </span>{' '}
+                        / {formatCompactNumber(st.den)} {st.unit} · {fmtPct(st.pct)}
+                      </div>
+                      <div className="mt-1.5">
+                        <ProgressBar pct={st.pct} />
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      {st.failed > 0 ? (
+                        st.drill ? (
+                          <button
+                            type="button"
+                            onClick={st.drill}
+                            title={st.failTitle}
+                            className={
+                              st.pill
+                                ? 'inline-flex items-center gap-0.5 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700 hover:bg-red-100'
+                                : 'text-sm font-semibold text-red-700 hover:underline'
+                            }
+                          >
+                            {formatCompactNumber(st.failed)}
+                            <span className="text-red-400" aria-hidden>
+                              ⌄
+                            </span>
+                          </button>
+                        ) : (
+                          <span
+                            title={st.failTitle}
+                            className="inline-flex items-center rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700"
+                          >
+                            {formatCompactNumber(st.failed)}
+                          </span>
+                        )
+                      ) : (
+                        <span className="text-xs text-slate-400">0</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                <div className="border-t border-slate-100 px-4 py-2 text-[11px] text-slate-400">
+                  <span className="text-emerald-500" aria-hidden>
+                    ●
+                  </span>{' '}
+                  retryable{'   '}
+                  <span className="text-slate-500" aria-hidden>
+                    ▪
+                  </span>{' '}
+                  terminal · tap a failed count to drill in
+                </div>
+              </section>
+            )
+          })()}
+
+          <details className="group">
+            <summary className="cursor-pointer select-none py-1 text-xs font-medium text-slate-500 hover:text-slate-700">
+              All metrics
+            </summary>
+            <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
             {lastActivityIso && lastUpdateAgo ? (
               <SummaryCard
                 label="Last batch step"
@@ -1482,7 +1700,8 @@ export default function BatchJobStatusPage() {
                 'Reports generated in the last 24 hours (by file mtime)'
               }
             />
-          </div>
+            </div>
+          </details>
 
           {showFailedVideos && !effectiveJurisdictionId && (
             <FailedVideosPanel
