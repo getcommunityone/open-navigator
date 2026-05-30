@@ -110,6 +110,14 @@ def test_extract_dot_separated_four_digit_year():
     assert extract_meeting_date_from_title("City Council Meeting 04.28.2026") == "2026-04-28"
 
 
+def test_extract_dot_separated_iso():
+    title = "2026.04.14 Columbia County Board of Commissioners Meeting"
+    assert extract_meeting_date_from_title(title) == "2026-04-14"
+    base = meeting_media_basename(title, event_date=None)
+    assert base.startswith("2026-04-14_")
+    assert not base.startswith("unknown-date")
+
+
 def test_extract_compact_yyyymmdd_prefix():
     title = "20171107 Andalusia City Council Meeting November 7 2017"
     assert extract_meeting_date_from_title(title) == "2017-11-07"
