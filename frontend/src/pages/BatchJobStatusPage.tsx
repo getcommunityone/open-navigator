@@ -101,6 +101,13 @@ function baseName(p?: string): string {
   return parts[parts.length - 1] || p
 }
 
+function fmtEta(hours: number): string {
+  if (!Number.isFinite(hours) || hours <= 0) return '—'
+  if (hours < 1) return `${Math.round(hours * 60)}m`
+  if (hours < 48) return `${Math.round(hours)}h`
+  return `${(hours / 24).toFixed(1)}d`
+}
+
 function mergeDashboardFromStream(
   prev: BatchJobsDashboardPayload | undefined,
   next: BatchJobsDashboardPayload,
@@ -911,12 +918,22 @@ export default function BatchJobStatusPage() {
   })
   const [launching, setLaunching] = useState(false)
   const [launchMsg, setLaunchMsg] = useState<string | null>(null)
+  // Parallelism = how many jurisdictions analyze at once (the main throughput
+  // lever). Persisted so it survives reloads; ceiling is the Gemini quota.
+  const [parallelism, setParallelism] = useState<number>(() => {
+    const v = Number(localStorage.getItem('batch-parallelism'))
+    return v >= 1 && v <= 8 ? v : 6
+  })
+  const setParallel = useCallback((v: number) => {
+    setParallelism(v)
+    localStorage.setItem('batch-parallelism', String(v))
+  }, [])
   const runLaunch = useCallback(
     async (step: string, states: string[]) => {
       setLaunching(true)
       setLaunchMsg(null)
       try {
-        const res = await launchPipeline({ step, states, parallel: 4, n: 25 })
+        const res = await launchPipeline({ step, states, parallel: parallelism, n: 25 })
         setLaunchMsg(res.detail || 'Launched.')
         void refetchLaunch()
         window.setTimeout(() => void refetch(), 2500)
@@ -926,7 +943,7 @@ export default function BatchJobStatusPage() {
         setLaunching(false)
       }
     },
-    [refetchLaunch, refetch],
+    [refetchLaunch, refetch, parallelism],
   )
 
   // Per-stage drill-down: expand one stage to see its live log + current file.
@@ -1493,6 +1510,25 @@ export default function BatchJobStatusPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     {ls?.enabled ? (
+                      <label
+                        className="flex items-center gap-1 text-xs text-slate-500"
+                        title="Jurisdictions analyzed in parallel — the main throughput lever (ceiling is Gemini quota). Applies to the next launch."
+                      >
+                        <span aria-hidden>⚡</span>
+                        <select
+                          value={parallelism}
+                          onChange={(e) => setParallel(Number(e.target.value))}
+                          className="rounded-md border border-slate-300 bg-white px-1.5 py-1 text-xs font-medium text-slate-700"
+                        >
+                          {[2, 4, 6, 8].map((p) => (
+                            <option key={p} value={p}>
+                              {p}× parallel
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ) : null}
+                    {ls?.enabled ? (
                       <button
                         type="button"
                         disabled={!canRunAll}
@@ -1649,7 +1685,19 @@ export default function BatchJobStatusPage() {
                         <div className="flex flex-wrap gap-x-6 gap-y-1">
                           <span>
                             avg <b className="text-slate-800">{fmtSecs(tm?.avg_seconds)}</b>/file
+                            {tm?.avg_seconds && tm.avg_seconds > 0
+                              ? ` · ${Math.round(3600 / tm.avg_seconds)}/hr`
+                              : ''}
                           </span>
+                          {tm?.avg_seconds && tm.avg_seconds > 0 && total - done > 0 ? (
+                            <span>
+                              ETA{' '}
+                              <b className="text-slate-800">
+                                {fmtEta((total - done) / (3600 / tm.avg_seconds))}
+                              </b>{' '}
+                              for {formatCompactNumber(total - done)} left
+                            </span>
+                          ) : null}
                           <span>
                             last file:{' '}
                             <b className="text-slate-800" title={tm?.last_path}>
