@@ -1,11 +1,10 @@
-"""
-Resolve Postgres URL for Open Navigator loaders.
+"""Resolve the target Postgres URL for Open Navigator loaders.
 
 Priority (first non-empty wins):
     NEON_DATABASE_URL_DEV        — Neon dev branch (default for discovery / loaders)
     OPEN_NAVIGATOR_DATABASE_URL  — explicit override (any postgres host)
-    NEON_DATABASE_URL             — Neon prod-like
-    local default                 — docker-style local open_navigator
+    NEON_DATABASE_URL            — Neon prod-like
+    local default                — docker-style local open_navigator
 """
 
 from __future__ import annotations
@@ -25,8 +24,4 @@ def resolve_target_database_url() -> str:
         return neon
 
     pwd = os.getenv("POSTGRES_PASSWORD", "password")
-    return (
-        "postgresql://postgres:"
-        + pwd
-        + "@localhost:5433/open_navigator"
-    )
+    return "postgresql://postgres:" + pwd + "@localhost:5433/open_navigator"

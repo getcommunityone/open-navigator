@@ -41,7 +41,7 @@ Scripts will **automatically re-run using `./.venv/bin/python`** once if your `p
 
 ### Database URL (same as other loaders)
 
-Connection strings are resolved by `scripts/database/target_database_url.py`, in order:
+Connection strings are resolved by `core_lib.db.resolve_target_database_url`, in order:
 
 1. **`OPEN_NAVIGATOR_DATABASE_URL`** — explicit override (any host/port)
 2. **`NEON_DATABASE_URL_DEV`** — typical local / cloud dev (team convention)

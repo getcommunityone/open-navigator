@@ -30,7 +30,7 @@ except ModuleNotFoundError as exc:
     print("Install psycopg2-binary: pip install -r requirements.txt", file=sys.stderr)
     sys.exit(1)
 
-from scripts.database.target_database_url import resolve_target_database_url
+from core_lib.db import resolve_target_database_url
 
 TABLE = "bronze.bronze_jurisdiction_pdf_verapdf"
 _DDL = Path(__file__).resolve().parent / "sql" / "bronze_jurisdiction_pdf_verapdf.sql"
