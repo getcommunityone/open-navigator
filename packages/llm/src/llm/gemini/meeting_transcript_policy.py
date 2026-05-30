@@ -1061,6 +1061,13 @@ def run_pipeline(args: argparse.Namespace) -> None:
         args.ensure_local_from_bronze = True
         args.skip_analyzed = True
 
+    # --from-bronze is transcript-driven by default: only analyze rows bronze knows
+    # have a transcript. Without this, the batch pulls every video on the channel
+    # (PSAs, promos, …) and each captionless one errors on the live YouTube fallback.
+    # Opt out with --include-no-transcript.
+    if args.from_bronze and not getattr(args, "include_no_transcript", False):
+        args.only_has_transcript = True
+
     # Prefer disk captions when batching from bronze; sync bronze → 01_transcripts/ first.
     if args.from_bronze and args.use_local_transcript:
         args.ensure_local_from_bronze = True
@@ -1245,7 +1252,13 @@ def main() -> None:
     parser.add_argument(
         "--only-has-transcript",
         action="store_true",
-        help="With --from-bronze: only rows where bronze.has_transcript is true",
+        help="(default with --from-bronze) only rows where bronze.has_transcript is true",
+    )
+    parser.add_argument(
+        "--include-no-transcript",
+        action="store_true",
+        help="Opt out of the transcript-only default: also process bronze rows with "
+        "no transcript (will try a live YouTube caption fetch — noisy for PSAs/promos)",
     )
     parser.add_argument(
         "--ensure-local-from-bronze",
