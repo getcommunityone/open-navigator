@@ -58,5 +58,5 @@ jobs:
           HF_USERNAME: ${{ inputs.HF_USERNAME || secrets.HF_USERNAME }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          chmod +x ./deploy-huggingface.sh
-          ./deploy-huggingface.sh
+          chmod +x ./packages/hosting/scripts/huggingface/deploy-huggingface.sh
+          ./packages/hosting/scripts/huggingface/deploy-huggingface.sh
