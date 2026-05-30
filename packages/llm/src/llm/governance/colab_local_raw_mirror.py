@@ -15,9 +15,9 @@ import subprocess
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from colab_paths import in_colab
-from colab_timed_steps import timed_step
-from governance_meeting_llm import MeetingInventory, parse_jurisdiction_dir
+from .colab_paths import in_colab
+from .colab_timed_steps import timed_step
+from .governance_meeting_llm import MeetingInventory, parse_jurisdiction_dir
 
 
 def local_raw_mirror_enabled() -> bool:

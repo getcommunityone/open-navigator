@@ -11,7 +11,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
-from governance_meeting_llm import MeetingInventory, format_inventory_media_line
+from .governance_meeting_llm import MeetingInventory, format_inventory_media_line
 
 ENV_KEY = "GOVERNANCE_DEMO_SCOPE"
 
@@ -143,7 +143,7 @@ def apply_preset_to_environ(preset: DemoScopePreset) -> None:
         os.environ.pop("GOVERNANCE_DEMO_MEETING_DATE_PIN", None)
     if preset.default_media_scope:
         try:
-            from pipeline_media_scope import apply_media_scope_to_environ
+            from .pipeline_media_scope import apply_media_scope_to_environ
 
             apply_media_scope_to_environ(preset.default_media_scope)
         except ImportError:
@@ -186,7 +186,7 @@ def apply_scope_and_media(
     media_scope: Optional[str] = None,
 ) -> Tuple[DemoScopePreset, str, Any]:
     """Apply demo scope + media scope; return ``(preset, media_key, media_config)``."""
-    from pipeline_media_scope import SCOPES as MEDIA_SCOPES, apply_media_scope, normalize_media_scope_key
+    from .pipeline_media_scope import SCOPES as MEDIA_SCOPES, apply_media_scope, normalize_media_scope_key
 
     preset = apply_scope(scope)
     media = resolve_media_scope_key(preset, media_scope)
@@ -220,7 +220,7 @@ def _pick_jurisdiction_for_state(
             if slug in inv.jurisdiction.relative_label:
                 return inv
     try:
-        from pipeline_media_scope import get_active_media_scope, inventory_richness_for_scope
+        from .pipeline_media_scope import get_active_media_scope, inventory_richness_for_scope
 
         scope_key = get_active_media_scope().key
         richness = lambda i: inventory_richness_for_scope(i, scope_key)
@@ -283,7 +283,7 @@ def print_scope_plan(
     if pref:
         print(f"  Preferred jurisdiction slug: {pref!r} (when present on disk)")
     try:
-        from pipeline_media_scope import get_active_media_scope
+        from .pipeline_media_scope import get_active_media_scope
 
         mscope = get_active_media_scope()
         print(f"  Media scope: {mscope.key!r} — {mscope.label}")

@@ -10,8 +10,8 @@ Use ``--all-cache`` to copy the **entire** ``scraped_meetings`` tree instead of 
 
 Run from repo root::
 
-  python scripts/colab/01_copy_scraped_meetings_cache_to_gdrive.py --dry-run
-  python scripts/colab/01_copy_scraped_meetings_cache_to_gdrive.py
+  python packages/llm/src/llm/governance/01_copy_scraped_meetings_cache_to_gdrive.py --dry-run
+  python packages/llm/src/llm/governance/01_copy_scraped_meetings_cache_to_gdrive.py
 
 **Destination** defaults to ``<My Drive>/CommunityOne/hackathons/2026_Gemma_4_Good/01_raw_inputs`` via
 ``scraped_meetings_gdrive_mirror_root()`` in ``scripts/utils/gdrive_paths.py`` (env:
@@ -35,7 +35,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-_repo_root = Path(__file__).resolve().parents[2]
+_repo_root = Path(__file__).resolve().parents[5]
 if str(_repo_root) not in sys.path:
     sys.path.insert(0, str(_repo_root))
 
@@ -170,7 +170,7 @@ def _copy_tree_files(
                 f"Fix: in Windows Explorer ensure this folder exists (create parents if needed):\n"
                 f"  {hint}\n"
                 "Then re-run; or upload via rclone:\n"
-                "  python scripts/colab/01_copy_scraped_meetings_cache_to_gdrive.py --rclone\n",
+                "  python packages/llm/src/llm/governance/01_copy_scraped_meetings_cache_to_gdrive.py --rclone\n",
                 file=sys.stderr,
             )
             raise SystemExit(3) from exc

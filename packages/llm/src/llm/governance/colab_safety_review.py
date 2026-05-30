@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-from governance_meeting_llm import shield_review_text
+from .governance_meeting_llm import shield_review_text
 
 
 def safety_review_enabled() -> bool:

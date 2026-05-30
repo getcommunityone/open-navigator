@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, List, Sequence, Tuple
 
-from governance_meeting_llm import (
+from .governance_meeting_llm import (
     AUDIO_EXTS,
     PDF_EXTS,
     VIDEO_EXTS,
@@ -236,13 +236,13 @@ def describe_demo4_file(path: Path, *, demo4_model: str) -> str:
     model accepts video (Gemini). Gemma 4 on AI Studio uses **audio extracted**
     from MP4 via ffmpeg — still a video *source*, not native video modality.
     """
-    from governance_meeting_llm import (
+    from .governance_meeting_llm import (
         VIDEO_EXTS,
         demo4_use_video_chunks,
         model_supports_video_input,
     )
 
-    from governance_meeting_llm import (
+    from .governance_meeting_llm import (
         demo4_prefer_opus_chunks,
         demo4_uses_huggingface,
     )

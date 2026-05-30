@@ -13,19 +13,19 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from media_playback_links import (
+from .media_playback_links import (
     enrich_policy_analysis_media_links,
     format_media_context_hint,
     list_media_sources,
     resolve_media_for_input_file,
 )
-from colab_timed_steps import format_elapsed, format_file_size, log_line, log_phase, timed_step
-from genai_quota_retry import (
+from .colab_timed_steps import format_elapsed, format_file_size, log_line, log_phase, timed_step
+from .genai_quota_retry import (
     call_with_wall_clock_timeout,
     demo3_api_timeout_seconds,
     genai_inter_call_pause,
 )
-from pipeline_logging import (
+from .pipeline_logging import (
     PipelineProgress,
     build_work_plan,
     progress_tick,
@@ -33,7 +33,7 @@ from pipeline_logging import (
 )
 
 try:
-    from pipeline_media_scope import (
+    from .pipeline_media_scope import (
         demo4_step_label,
         describe_demo4_file,
         get_active_media_scope,
@@ -53,7 +53,7 @@ except ImportError:
 
     def describe_demo4_file(path, *, demo4_model):  # type: ignore[misc]
         return "15‑min slices → Gemma"
-from governance_meeting_llm import (
+from .governance_meeting_llm import (
     TOKEN_BUDGET_HIGH,
     TOKEN_BUDGET_LOW,
     TOKEN_BUDGET_MEDIUM,
@@ -262,7 +262,7 @@ def pick_demo3_pdfs_for_inventory(
             total_cap = max(1, int(env_total))
 
     try:
-        from meeting_grouping import meeting_dir_for_media_file, resolve_meeting_dir
+        from .meeting_grouping import meeting_dir_for_media_file, resolve_meeting_dir
     except ImportError:
         return pick_demo3_pdfs(pdfs, max_pdfs=per_meeting if total_cap is None else total_cap)
 
@@ -275,7 +275,7 @@ def pick_demo3_pdfs_for_inventory(
             key = str(session.resolve())
         else:
             try:
-                from meeting_date_scope import infer_meeting_date_for_file
+                from .meeting_date_scope import infer_meeting_date_for_file
 
                 d = infer_meeting_date_for_file(p, raw_root) or "undated"
             except ImportError:
@@ -655,7 +655,7 @@ def run_supplemental_demo3(inv: MeetingInventory, ctx: DemoContext) -> List[Dict
     if mscope.run_demo3 or not supplemental_demo3_with_video_enabled():
         return []
     try:
-        from meeting_grouping import list_jurisdiction_pdf_paths
+        from .meeting_grouping import list_jurisdiction_pdf_paths
     except ImportError:
         return []
     pdfs = list_jurisdiction_pdf_paths(inv.jurisdiction.root)
@@ -676,7 +676,7 @@ def run_supplemental_demo3(inv: MeetingInventory, ctx: DemoContext) -> List[Dict
         prefix="",
     )
     report: List[Dict[str, Any]] = []
-    from theme_audit import audit_decision_themes
+    from .theme_audit import audit_decision_themes
 
     for pdf in picked:
         _run_demo3_one_pdf(
@@ -686,7 +686,7 @@ def run_supplemental_demo3(inv: MeetingInventory, ctx: DemoContext) -> List[Dict
 
 
 def run_demo3(inv: MeetingInventory, ctx: DemoContext) -> List[Dict[str, Any]]:
-    from theme_audit import audit_decision_themes
+    from .theme_audit import audit_decision_themes
 
     j = inv.jurisdiction
     pdfs = pick_demo3_pdfs_for_inventory(
@@ -925,7 +925,7 @@ def run_demo4(
     brief_cache: Optional[Dict[str, str]] = None,
 ) -> List[Dict[str, Any]]:
     try:
-        from meeting_grouping import (
+        from .meeting_grouping import (
             build_meeting_collateral_brief,
             format_audio_analysis_prompt,
             resolve_meeting_dir,
@@ -939,13 +939,13 @@ def run_demo4(
         brief_cache = {}
 
     j = inv.jurisdiction
-    from governance_meeting_llm import model_accepts_demo4_audio_chunks
+    from .governance_meeting_llm import model_accepts_demo4_audio_chunks
 
     report: List[Dict[str, Any]] = []
 
     if demo4_uses_huggingface():
         try:
-            from gemma_hf_backend import ensure_demo4_hf_ready
+            from .gemma_hf_backend import ensure_demo4_hf_ready
 
             with log_phase("Demo 4 load Hugging Face E2B (first time: download + GPU load)"):
                 demo4_model = ensure_demo4_hf_ready(ctx.demo4_model or None)
@@ -991,7 +991,7 @@ def run_demo4(
         if not Path(audio).is_file():
             print(f"  • {Path(audio).name}: skip — file not on disk ({audio})")
             continue
-        from governance_meeting_llm import demo4_prefer_opus_chunks
+        from .governance_meeting_llm import demo4_prefer_opus_chunks
 
         use_video_api = (
             audio.suffix.lower() in VIDEO_EXTS
@@ -1294,7 +1294,7 @@ def run_demos_for_jurisdiction(
 ) -> JurisdictionDemoReports:
     """Run demos 1–4 for a single jurisdiction inventory."""
     try:
-        from meeting_grouping import reconcile_inventory_media_paths
+        from .meeting_grouping import reconcile_inventory_media_paths
 
         n = reconcile_inventory_media_paths(inv, ctx.raw_root)
         if n:
@@ -1340,7 +1340,7 @@ def run_demos_for_jurisdiction(
         else:
             log_line(f"⊘ Demo 4 skipped (media scope: {mscope.key})")
         try:
-            from meeting_consolidated_summary import run_consolidated_summaries_for_jurisdiction
+            from .meeting_consolidated_summary import run_consolidated_summaries_for_jurisdiction
 
             with timed_step(f"Consolidated meeting summaries | {label}"):
                 run_consolidated_summaries_for_jurisdiction(

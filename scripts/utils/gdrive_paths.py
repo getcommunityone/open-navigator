@@ -9,10 +9,10 @@ Path helpers shared with ``scripts/utils/log_sync.py`` and ``export_bronze_to_js
   ``SCRAPED_MEETINGS_ROOT`` (e.g. a mounted Drive path) when you want artifacts outside the repo.
 - ``scraped_meetings_gdrive_mirror_root()`` — default Drive mirror folder
   ``CommunityOne/hackathons/2026_Gemma_4_Good/01_raw_inputs`` under ``resolved_gdrive_mount_path()``
-  (see ``scripts/colab/01_copy_scraped_meetings_cache_to_gdrive.py``). Override with
+  (see ``packages/llm/src/llm/governance/01_copy_scraped_meetings_cache_to_gdrive.py``). Override with
   ``SCRAPED_MEETINGS_GDRIVE_MIRROR`` (absolute path to the *mirror root* folder).
 - ``GovernancePipelinePaths`` — same numbered folder layout as
-  ``scripts/colab/02_init_drive_layout.ipynb`` (ingestion / reference data / processed).
+  ``packages/llm/src/llm/governance/02_init_drive_layout.ipynb`` (ingestion / reference data / processed).
   On **Google Colab**, set ``GOVERNANCE_PIPELINE_DATA_ROOT`` to e.g.
   ``/content/drive/MyDrive/CommunityOne/hackathons/2026_Gemma_4_Good`` before importing.
 """
@@ -77,7 +77,7 @@ def default_scraped_meetings_data_cache() -> Path:
 
 
 # 2026 Gemma hackathon Colab sync set (Tuscaloosa + Big Timber county/city). Used by
-# ``scripts/colab/01_copy_scraped_meetings_cache_to_gdrive.py`` (default scope; pass ``--all-cache`` for full tree).
+# ``packages/llm/src/llm/governance/01_copy_scraped_meetings_cache_to_gdrive.py`` (default scope; pass ``--all-cache`` for full tree).
 HACKATHON_SCRAPED_MEETINGS_INVENTORY_REL: tuple[str, ...] = (
     "AL/county/county_01125",
     "MT/county/county_30097",
@@ -233,7 +233,7 @@ def resolve_governance_raw_inputs_root(pipeline_root: Path | None = None) -> Pat
 
 @dataclass(frozen=True)
 class GovernancePipelinePaths:
-    """Mirror ``scripts/colab/02_init_drive_layout.ipynb`` directory tree."""
+    """Mirror ``packages/llm/src/llm/governance/02_init_drive_layout.ipynb`` directory tree."""
 
     root: Path
     raw_inputs: Path

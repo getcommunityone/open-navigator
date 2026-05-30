@@ -2,14 +2,9 @@
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
-_COLAB = Path(__file__).resolve().parents[1] / "scripts" / "colab"
-if str(_COLAB) not in sys.path:
-    sys.path.insert(0, str(_COLAB))
-
-from meeting_consolidated_summary import (  # noqa: E402
+from llm.governance.meeting_consolidated_summary import (
     build_judge_summary_markdown,
     build_technical_manifest_markdown,
     resolve_meeting_identity,

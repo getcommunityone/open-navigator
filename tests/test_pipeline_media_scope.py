@@ -3,15 +3,10 @@
 from __future__ import annotations
 
 import os
-import sys
 from pathlib import Path
 
-_COLAB = Path(__file__).resolve().parents[1] / "scripts" / "colab"
-if str(_COLAB) not in sys.path:
-    sys.path.insert(0, str(_COLAB))
-
-from governance_meeting_llm import JurisdictionDir, MeetingInventory  # noqa: E402
-from pipeline_media_scope import (  # noqa: E402
+from llm.governance.governance_meeting_llm import JurisdictionDir, MeetingInventory
+from llm.governance.pipeline_media_scope import (
     apply_media_scope_to_environ,
     apply_media_scope_to_inventory,
     demo4_step_label,

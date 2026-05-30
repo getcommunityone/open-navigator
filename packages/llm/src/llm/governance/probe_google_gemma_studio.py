@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""Probe Google AI Studio Gemma ids: text stream + optional audio (see notebook §3b)."""
+"""Probe Google AI Studio Gemma ids: text stream + optional audio (see notebook §3b).
+
+Run as a package module from the repo root::
+
+  python -m llm.governance.probe_google_gemma_studio --models gemma-4-26b-a4b-it
+"""
 from __future__ import annotations
 
 import argparse
 import os
-import sys
 from pathlib import Path
 
-_COLAB = Path(__file__).resolve().parent
-if str(_COLAB) not in sys.path:
-    sys.path.insert(0, str(_COLAB))
-
-from governance_meeting_llm import print_probe_google_gemma_studio  # noqa: E402
+from .governance_meeting_llm import print_probe_google_gemma_studio
 
 
 def main() -> None:

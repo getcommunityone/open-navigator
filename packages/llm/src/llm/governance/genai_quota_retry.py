@@ -62,7 +62,7 @@ def call_with_genai_quota_retry(fn: Callable[[], T], *, label: str = "Gemma") ->
                 raise
             last_exc = exc
             delay = genai_quota_retry_delay_seconds(exc, attempt) + buffer
-            from colab_timed_steps import log_line
+            from .colab_timed_steps import log_line
 
             log_line(
                 f"⚠️  {label}: quota/rate limit (429) — sleeping {delay:.0f}s "

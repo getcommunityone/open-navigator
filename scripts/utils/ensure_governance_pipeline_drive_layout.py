@@ -2,7 +2,7 @@
 """
 Create governance pipeline folders on a mounted Google Drive (WSL / Linux).
 
-Uses the same paths as ``scripts/colab/02_init_drive_layout.ipynb`` and
+Uses the same paths as ``packages/llm/src/llm/governance/02_init_drive_layout.ipynb`` and
 ``GovernancePipelinePaths`` in ``scripts/utils/gdrive_paths.py``.
 
 Environment (optional):

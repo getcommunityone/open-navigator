@@ -2,17 +2,10 @@
 
 from __future__ import annotations
 
-import os
-import sys
 from pathlib import Path
 
-import pytest
 
-_COLAB = Path(__file__).resolve().parents[1] / "scripts" / "colab"
-if str(_COLAB) not in sys.path:
-    sys.path.insert(0, str(_COLAB))
-
-from colab_bootstrap import bootstrap_repo, discover_repo_root  # noqa: E402
+from llm.governance.colab_bootstrap import discover_repo_root
 
 
 def test_discover_repo_root_from_env(monkeypatch) -> None:
@@ -24,5 +17,5 @@ def test_discover_repo_root_from_env(monkeypatch) -> None:
 def test_discover_repo_root_walk_cwd(monkeypatch) -> None:
     root = Path(__file__).resolve().parents[1]
     monkeypatch.delenv("OPEN_NAVIGATOR_ROOT", raising=False)
-    monkeypatch.chdir(root / "scripts" / "colab")
+    monkeypatch.chdir(root / "packages" / "llm" / "src" / "llm" / "governance")
     assert discover_repo_root(clone_if_colab=False) == root.resolve()

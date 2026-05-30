@@ -28,10 +28,10 @@ origin (``AL/county/county_01125/2026/foo.pdf``) for live demos.
 
 CLI::
 
-    python scripts/colab/gatekeeper_triage.py --raw-root /content/drive/MyDrive/CommunityOne/hackathons/2026_Gemma_4_Good/01_raw_inputs
-    python scripts/colab/gatekeeper_triage.py --raw-root /path --dry-run
-    python scripts/colab/gatekeeper_triage.py --raw-root /path --kinds pdf
-    python scripts/colab/gatekeeper_triage.py --raw-root /path --report-path /tmp/triage_report.json
+    python -m llm.governance.gatekeeper_triage --raw-root /content/drive/MyDrive/CommunityOne/hackathons/2026_Gemma_4_Good/01_raw_inputs
+    python -m llm.governance.gatekeeper_triage --raw-root /path --dry-run
+    python -m llm.governance.gatekeeper_triage --raw-root /path --kinds pdf
+    python -m llm.governance.gatekeeper_triage --raw-root /path --report-path /tmp/triage_report.json
 """
 
 from __future__ import annotations
@@ -59,7 +59,7 @@ from typing import Any, Iterable, List, Optional, Sequence, Tuple
 
 PDF_EXTS = {".pdf"}
 try:
-    from governance_meeting_llm import (
+    from .governance_meeting_llm import (
         AUDIO_EXTS,
         VIDEO_EXTS,
         _ffmpeg_audio_only_output_flags,
@@ -95,7 +95,7 @@ SKIP_DIR_NAMES = {
 
 def _default_gatekeeper_model() -> str:
     try:
-        from gemma_hf_backend import (
+        from .gemma_hf_backend import (
             _HF_GATEKEEPER_REPO_DEFAULT,
             gatekeeper_use_huggingface,
         )
@@ -942,7 +942,7 @@ def resolve_model_id(
 def _triage_backend_label(model: str) -> str:
     """Human-readable backend for logs (hybrid: E2B → HF, 26B etc. → AI Studio)."""
     try:
-        from gemma_hf_backend import use_huggingface_for_model
+        from .gemma_hf_backend import use_huggingface_for_model
 
         return (
             "Hugging Face"
@@ -976,7 +976,7 @@ def call_gemma_triage(
       pages get the full ~1,120 image-token budget for layout / OCR fidelity.
     """
     try:
-        from gemma_hf_backend import call_gemma_hf_multimodal, use_huggingface_for_model
+        from .gemma_hf_backend import call_gemma_hf_multimodal, use_huggingface_for_model
 
         if use_huggingface_for_model(model, gatekeeper=True):
             resolution = "HIGH" if media_resolution_high else "LOW"
@@ -1038,7 +1038,7 @@ def call_gemma_triage(
                 # Older SDKs accept only include_thoughts; safe to omit.
                 pass
 
-    from genai_quota_retry import call_with_genai_quota_retry
+    from .genai_quota_retry import call_with_genai_quota_retry
 
     def _generate() -> Any:
         request_options: dict = {}
@@ -1169,7 +1169,7 @@ def _apply_meeting_metadata(
         instance_slug,
     ) = _verdict_from_json_full(payload)
     try:
-        from meeting_grouping import (
+        from .meeting_grouping import (
             infer_instance_slug_from_path,
             infer_meeting_date_from_path,
             slugify_meeting_label,
@@ -1178,7 +1178,7 @@ def _apply_meeting_metadata(
         return
     if not meeting_date and raw_root is not None:
         try:
-            from meeting_date_scope import infer_meeting_date_for_file
+            from .meeting_date_scope import infer_meeting_date_for_file
 
             meeting_date = infer_meeting_date_for_file(path, raw_root)
         except ImportError:
@@ -1236,7 +1236,7 @@ def _rules_classify_path(path: Path, raw_root: Path) -> Tuple[str, bool, float, 
         parts_lower = []
 
     try:
-        from meeting_date_scope import _lookup_manifest_row, jurisdiction_prefix_from_path
+        from .meeting_date_scope import _lookup_manifest_row, jurisdiction_prefix_from_path
 
         jur = jurisdiction_prefix_from_path(path, raw_root)
         if jur:
@@ -1486,7 +1486,7 @@ def triage_pdf(
         excerpt = extract_first_pages_text(pdf_path, pages=pages)
 
     try:
-        from gemma_hf_backend import use_huggingface_for_model
+        from .gemma_hf_backend import use_huggingface_for_model
 
         use_hf = use_huggingface_for_model(model, gatekeeper=True)
     except ImportError:
@@ -1819,7 +1819,7 @@ def select_triageable_files(
 
     allowed_year_folders: Optional[dict] = None
     try:
-        from meeting_date_scope import (
+        from .meeting_date_scope import (
             discover_year_folders_scoped,
             prune_year_folder_dirnames,
             resolve_demo_year_folder_scope,
@@ -1836,7 +1836,7 @@ def select_triageable_files(
                 raw_root, jurisdiction_root=jurisdiction_root
             )
             if show_progress:
-                from colab_timed_steps import format_elapsed
+                from .colab_timed_steps import format_elapsed
 
                 _gatekeeper_progress(
                     f"  Gatekeeper | year folders resolved — {format_elapsed(time.perf_counter() - t_year)}"
@@ -1869,7 +1869,7 @@ def select_triageable_files(
     ):
         paths.append(path)
         if show_progress and n % every == 0:
-            from colab_timed_steps import format_elapsed
+            from .colab_timed_steps import format_elapsed
 
             _gatekeeper_progress(
                 f"  Gatekeeper | … found {n} pdf/audio file(s) so far "
@@ -1878,7 +1878,7 @@ def select_triageable_files(
 
     total = len(paths)
     if show_progress:
-        from colab_timed_steps import format_elapsed
+        from .colab_timed_steps import format_elapsed
 
         _gatekeeper_progress(
             f"  Gatekeeper | walk done — {total} pdf/audio path(s) in "
@@ -1889,7 +1889,7 @@ def select_triageable_files(
     # Gatekeeper must see agenda/minutes candidates *before* dates are known.
     # Demo meeting-date caps apply to post-triage demos (filter_inventory_media), not here.
     try:
-        from meeting_date_scope import (
+        from .meeting_date_scope import (
             apply_year_folder_scope_to_candidates,
             file_media_role,
         )
@@ -1899,7 +1899,7 @@ def select_triageable_files(
             if file_media_role(p, raw_root) is not None:
                 candidates.append(p)
             if show_progress and (i % every == 0 or i == total):
-                from colab_timed_steps import format_elapsed
+                from .colab_timed_steps import format_elapsed
 
                 _gatekeeper_progress(
                     f"  Gatekeeper | … classified {i}/{total} paths | "
@@ -1914,12 +1914,12 @@ def select_triageable_files(
             )
         candidates = apply_year_folder_scope_to_candidates(candidates, raw_root)
         try:
-            from meeting_date_scope import narrow_gatekeeper_candidates
+            from .meeting_date_scope import narrow_gatekeeper_candidates
 
             date_cap = max_meeting_dates
             if date_cap is None:
                 try:
-                    from meeting_date_scope import resolve_demo_meeting_dates_limit
+                    from .meeting_date_scope import resolve_demo_meeting_dates_limit
 
                     date_cap = resolve_demo_meeting_dates_limit()
                 except ImportError:
@@ -1937,7 +1937,7 @@ def select_triageable_files(
                 candidates = candidates[-cap:]
             allowed_dates = None
         if show_progress:
-            from colab_timed_steps import format_elapsed
+            from .colab_timed_steps import format_elapsed
 
             _gatekeeper_progress(
                 f"  Gatekeeper | selection done — will_triage={len(candidates)} "
@@ -1986,7 +1986,7 @@ def iter_triageable_files(
         ]
         if allowed_year_folders:
             try:
-                from meeting_date_scope import prune_year_folder_dirnames
+                from .meeting_date_scope import prune_year_folder_dirnames
 
                 prune_year_folder_dirnames(
                     Path(dirpath), dirnames, raw_root_resolved, allowed_year_folders
@@ -2087,7 +2087,7 @@ def run_triage(
         )
 
     try:
-        from gemma_hf_backend import (
+        from .gemma_hf_backend import (
             ensure_hf_ready_for_triage,
             hf_weights_cached,
             gatekeeper_use_huggingface,
@@ -2128,7 +2128,7 @@ def run_triage(
     report = TriageReport(raw_root=str(raw_root), excluded_root=excluded_label)
 
     try:
-        from meeting_date_scope import resolve_demo_meeting_dates_limit
+        from .meeting_date_scope import resolve_demo_meeting_dates_limit
     except ImportError:
         resolve_demo_meeting_dates_limit = lambda _=None: None  # type: ignore
 
@@ -2328,7 +2328,7 @@ def run_triage(
 
     sweep_elapsed = time.perf_counter() - t_api_sweep
     try:
-        from colab_timed_steps import format_elapsed
+        from .colab_timed_steps import format_elapsed
     except ImportError:
         format_elapsed = lambda s: f"{s:.1f}s"  # type: ignore
 
@@ -2351,7 +2351,7 @@ def run_triage(
 
     if organize_meetings and report.proceed and not dry_run:
         try:
-            from meeting_grouping import organize_proceed_into_meeting_folders
+            from .meeting_grouping import organize_proceed_into_meeting_folders
 
             moves = organize_proceed_into_meeting_folders(
                 raw_root,
@@ -2391,7 +2391,7 @@ def _default_raw_root() -> Path:
 
 def _resolve_api_key(cli_value: Optional[str]) -> str:
     try:
-        from gemma_hf_backend import ensure_hf_token, gatekeeper_use_huggingface
+        from .gemma_hf_backend import ensure_hf_token, gatekeeper_use_huggingface
 
         if gatekeeper_use_huggingface():
             return ensure_hf_token(cli_value)

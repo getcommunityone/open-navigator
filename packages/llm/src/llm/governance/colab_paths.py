@@ -1,5 +1,5 @@
 """
-Shared helpers for notebooks under ``scripts/colab/``.
+Shared helpers for notebooks under ``packages/llm/src/llm/governance/``.
 
 Supports **Google Colab** (Drive mount + hackathon layout) and **local Jupyter /
 VS Code** (repo checkout on ``sys.path``, pipeline data under ``data/hackathons/``).
@@ -25,8 +25,11 @@ def in_colab() -> bool:
 
 
 def repo_root_from_this_file() -> Path:
-    """``open-navigator`` root: ``.../scripts/colab/colab_paths.py`` → ``parents[2]``."""
-    return Path(__file__).resolve().parents[2]
+    """``open-navigator`` root.
+
+    ``.../packages/llm/src/llm/governance/colab_paths.py`` → ``parents[5]``.
+    """
+    return Path(__file__).resolve().parents[5]
 
 
 def default_hackathon_pipeline_root_in_repo() -> Path:

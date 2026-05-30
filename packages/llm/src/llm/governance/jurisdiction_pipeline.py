@@ -17,15 +17,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
 
-import gatekeeper_triage
-from colab_demos import DemoContext, JurisdictionDemoReports, run_demos_for_jurisdiction
-from colab_timed_steps import log_line, timed_step
-from pipeline_logging import (
+from . import gatekeeper_triage
+from .colab_demos import DemoContext, JurisdictionDemoReports, run_demos_for_jurisdiction
+from .colab_timed_steps import log_line, timed_step
+from .pipeline_logging import (
     print_demo_run_plan,
     print_gatekeeper_mode_hint,
     print_runtime_estimate,
 )
-from governance_meeting_llm import (
+from .governance_meeting_llm import (
     MeetingInventory,
     format_inventory_media_line,
     inventory_for_jurisdiction,
@@ -124,7 +124,7 @@ def scope_inventory(
     """Apply DEMO date scope, then pipeline media scope (pdf / audio / video)."""
     if max_dates is not None:
         try:
-            from meeting_date_scope import filter_inventory_media
+            from .meeting_date_scope import filter_inventory_media
         except ImportError:
             pass
         else:
@@ -132,7 +132,7 @@ def scope_inventory(
                 inv.pdfs, inv.audio, raw_root, inv.jurisdiction.root, max_dates=max_dates
             )
     try:
-        from pipeline_media_scope import apply_media_scope_to_inventory
+        from .pipeline_media_scope import apply_media_scope_to_inventory
 
         apply_media_scope_to_inventory(inv)
     except ImportError:
@@ -142,7 +142,7 @@ def scope_inventory(
 
 def organize_inventory(raw_root: Path, inv: MeetingInventory) -> int:
     try:
-        from meeting_grouping import organize_inventory_into_meeting_folders
+        from .meeting_grouping import organize_inventory_into_meeting_folders
     except ImportError:
         return 0
     moves = organize_inventory_into_meeting_folders(raw_root, [inv])
@@ -208,7 +208,7 @@ def run_gatekeeper_for_jurisdiction(
                 progress_stdout=True,
             )
             try:
-                from pipeline_media_scope import (
+                from .pipeline_media_scope import (
                     filter_paths_for_media_scope,
                     get_active_media_scope,
                 )
@@ -290,7 +290,7 @@ def run_one_jurisdiction(
     banner = f"{'=' * 72}\n  {prefix}[{idx}/{total}] {label}\n{'=' * 72}"
     print(banner, flush=True)
     try:
-        from pipeline_media_scope import print_media_scope_banner
+        from .pipeline_media_scope import print_media_scope_banner
 
         print_media_scope_banner()
     except ImportError:
@@ -314,7 +314,7 @@ def run_one_jurisdiction(
             print(f"  Organized {n_moves} file(s) into meetings/…", flush=True)
 
     try:
-        from meeting_grouping import (
+        from .meeting_grouping import (
             reconcile_inventory_media_paths,
             repair_duplicate_date_session_folders,
         )
@@ -335,7 +335,7 @@ def run_one_jurisdiction(
         pass
 
     try:
-        from pipeline_media_scope import print_scoped_inventory_line
+        from .pipeline_media_scope import print_scoped_inventory_line
 
         print_scoped_inventory_line(inv)
     except ImportError:
@@ -398,7 +398,7 @@ def run_governance_pipeline(
     workers = resolve_parallel_state_workers(num_states)
     global_total = len(inventories)
     try:
-        from demo_scope import get_active_preset
+        from .demo_scope import get_active_preset
 
         preset = get_active_preset()
         print(
@@ -470,7 +470,7 @@ def run_governance_pipeline(
     )
 
     try:
-        from pipeline_output_links import print_pipeline_output_index
+        from .pipeline_output_links import print_pipeline_output_index
 
         prefixes = [
             inv.jurisdiction.relative_label.replace("\\", "/")
@@ -487,7 +487,7 @@ def run_governance_pipeline(
 
     if ctx.run_safety_review:
         try:
-            from colab_safety_review import run_safety_review, safety_review_enabled
+            from .colab_safety_review import run_safety_review, safety_review_enabled
         except ImportError:
             safety_review_enabled = lambda: False  # type: ignore[assignment,misc]
             run_safety_review = None  # type: ignore[assignment,misc]

@@ -2,16 +2,8 @@
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 
-import pytest
-
-_COLAB = Path(__file__).resolve().parents[1] / "scripts" / "colab"
-if str(_COLAB) not in sys.path:
-    sys.path.insert(0, str(_COLAB))
-
-from colab_runtime_phases import (  # noqa: E402
+from llm.governance.colab_runtime_phases import (
     colab_two_phase_enabled,
     runtime_label,
 )
@@ -26,7 +18,7 @@ def test_colab_two_phase_default_on(monkeypatch) -> None:
 
 def test_runtime_label_cpu_when_no_cuda(monkeypatch) -> None:
     monkeypatch.setattr(
-        "colab_runtime_phases.cuda_available",
+        "llm.governance.colab_runtime_phases.cuda_available",
         lambda: False,
     )
     assert runtime_label() == "CPU"

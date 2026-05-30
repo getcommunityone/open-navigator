@@ -14,8 +14,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 if TYPE_CHECKING:
-    from colab_demos import DemoContext
-    from governance_meeting_llm import MeetingInventory
+    from .colab_demos import DemoContext
+    from .governance_meeting_llm import MeetingInventory
 
 _ACTIVE_PROGRESS: Optional["PipelineProgress"] = None
 
@@ -104,13 +104,13 @@ class WorkPlan:
 def build_work_plan(inv: "MeetingInventory", ctx: "DemoContext") -> WorkPlan:
     """Estimate remaining Gemma/API seconds from inventory + existing outputs."""
     try:
-        from pipeline_media_scope import get_active_media_scope
+        from .pipeline_media_scope import get_active_media_scope
 
         mscope = get_active_media_scope()
     except ImportError:
         mscope = None
-    from colab_demos import pick_demo3_pdfs_for_inventory, select_demo4_media
-    from governance_meeting_llm import (
+    from .colab_demos import pick_demo3_pdfs_for_inventory, select_demo4_media
+    from .governance_meeting_llm import (
         TOKEN_BUDGET_HIGH,
         VIDEO_EXTS,
         demo2_page_output_complete,
@@ -265,7 +265,7 @@ class PipelineProgress:
         elapsed = time.perf_counter() - self.t0
         remaining_w = max(0.0, total - self.done_weight)
         eta_s = (remaining_w / self.done_weight * elapsed) if self.done_weight > 0 else remaining_w
-        from colab_timed_steps import log_line
+        from .colab_timed_steps import log_line
 
         log_line(
             f"⏱ Progress [{self.label}]: {pct:.0f}% — {desc} — "
@@ -277,7 +277,7 @@ class PipelineProgress:
         if not pipeline_progress_enabled():
             return
         elapsed = time.perf_counter() - self.t0
-        from colab_timed_steps import log_line
+        from .colab_timed_steps import log_line
 
         log_line(f"✓ Progress [{self.label}]: 100% — done in {format_duration(elapsed)}")
 
@@ -357,10 +357,10 @@ def print_demo_run_plan(inv: "MeetingInventory", raw_root: Path) -> None:
     """Print what Demos 1–4 will touch (PDF vs video) before the long Gemma calls."""
     if not pipeline_verbose_enabled():
         return
-    from governance_meeting_llm import VIDEO_EXTS, format_inventory_media_line
+    from .governance_meeting_llm import VIDEO_EXTS, format_inventory_media_line
 
     try:
-        from pipeline_media_scope import get_active_media_scope
+        from .pipeline_media_scope import get_active_media_scope
 
         mscope = get_active_media_scope()
         print(f"  Media scope: {mscope.key!r} — {mscope.label}", flush=True)

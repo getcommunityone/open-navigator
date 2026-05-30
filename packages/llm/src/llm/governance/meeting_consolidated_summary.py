@@ -14,12 +14,12 @@ import shutil
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from governance_meeting_llm import (
+from .governance_meeting_llm import (
     VIDEO_EXTS,
     mirror_output_path,
     read_json_file,
 )
-from theme_audit import audit_decision_themes, format_theme_audit_markdown
+from .theme_audit import audit_decision_themes, format_theme_audit_markdown
 
 _AUDIO_EXTS = {".mp3", ".wav", ".m4a", ".opus", ".aac", ".flac"}
 _MEDIA_EXTS = _AUDIO_EXTS | VIDEO_EXTS
@@ -842,7 +842,7 @@ def _ensure_meeting_brief(
     if brief_path.is_file() and len(brief_path.read_text(encoding="utf-8").strip()) > 80:
         return
     try:
-        from meeting_grouping import build_meeting_collateral_brief, collect_meeting_pdf_texts
+        from .meeting_grouping import build_meeting_collateral_brief, collect_meeting_pdf_texts
     except ImportError:
         return
     agenda, minutes = collect_meeting_pdf_texts(
@@ -937,7 +937,7 @@ def run_consolidated_summaries_for_jurisdiction(
     ):
         return []
     try:
-        from meeting_grouping import (
+        from .meeting_grouping import (
             iter_meeting_dirs,
             jurisdiction_prefix_from_relative,
             repair_duplicate_date_session_folders,
