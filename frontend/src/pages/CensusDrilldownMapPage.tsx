@@ -7,6 +7,7 @@ import { feature as topoFeature } from 'topojson-client'
 import { geoCentroid, geoContains } from 'd3-geo'
 import {
   ArrowLeftIcon,
+  MapPinIcon,
   PauseIcon,
   PlayIcon,
   XMarkIcon,
@@ -1553,7 +1554,7 @@ export default function CensusDrilldownMapPage() {
                       rank: stateRankById[selectedStateFips] ?? null,
                     }
                   : null
-              const showing = pinnedPlace
+              const showingBase = pinnedPlace
                 ? {
                     kind: 'place' as const,
                     id: pinnedPlace.geoid,
@@ -1570,6 +1571,44 @@ export default function CensusDrilldownMapPage() {
                       rank: pinnedCounty.rank,
                     }
                   : (hoverInfo ?? stateFallback)
+              // Pinned cards capture ``value``/``rank`` at click time, but the
+              // active metric can change afterward via the dropdown. The label
+              // and sparkline read ``metricSlug`` live, so without re-resolving
+              // here the headline number/rank would keep showing the PREVIOUS
+              // metric (e.g. a $111K home value under a "Median gross rent"
+              // label). Re-look-up both from the live per-metric maps by id;
+              // fall back to the captured value only when the region is absent
+              // from the current map (``undefined`` key) — not on a genuine
+              // ``null`` no-data, which should render as "—".
+              const liveValue = !showingBase
+                ? undefined
+                : showingBase.kind === 'state'
+                  ? stateDisplayById[fips2(showingBase.id)]
+                  : showingBase.kind === 'county'
+                    ? countyDisplayByGeoid[String(showingBase.id).padStart(5, '0')]
+                    : showingBase.kind === 'place'
+                      ? placeDisplayByGeoid[String(showingBase.id).padStart(7, '0')]
+                      : showingBase.kind === 'zip'
+                        ? zctaDisplayByZcta[String(showingBase.id)]
+                        : undefined
+              const liveRank = !showingBase
+                ? undefined
+                : showingBase.kind === 'state'
+                  ? stateRankById[fips2(showingBase.id)]
+                  : showingBase.kind === 'county'
+                    ? countyRankByGeoid[String(showingBase.id).padStart(5, '0')]
+                    : showingBase.kind === 'place'
+                      ? placeRankByGeoid[String(showingBase.id).padStart(7, '0')]
+                      : showingBase.kind === 'zip'
+                        ? zctaRankByZcta[String(showingBase.id)]
+                        : undefined
+              const showing = showingBase
+                ? {
+                    ...showingBase,
+                    value: liveValue !== undefined ? liveValue : showingBase.value,
+                    rank: liveRank !== undefined ? liveRank : showingBase.rank,
+                  }
+                : null
               const idle = !showing
               const accent = isPinned
                 ? 'border-amber-300 ring-2 ring-amber-100/70'
@@ -1870,10 +1909,11 @@ export default function CensusDrilldownMapPage() {
                 comparison chip slides in just below so the user can preview
                 without dismissing. */}
             {pinnedCounty && hoverInfo && hoverInfo.id !== pinnedCounty.geoid ? (
-              <div className="rounded-md border border-slate-200 bg-slate-50/80 px-3 py-2 text-[12px] shadow-sm">
-                <div className="flex items-center justify-between gap-2">
+              <div className="rounded-md border border-slate-200 border-l-4 border-l-[#52796F] bg-white px-3 py-3 shadow-sm">
+                <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
-                    <div className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">
+                    <div className="flex items-center gap-1 text-[9px] font-semibold uppercase tracking-wide text-slate-500">
+                      <MapPinIcon className="h-3 w-3 text-[#52796F]" />
                       Hovering{' '}
                       {hoverInfo.kind === 'state'
                         ? 'state'
@@ -1883,17 +1923,20 @@ export default function CensusDrilldownMapPage() {
                             ? 'city/town'
                             : 'county'}
                     </div>
-                    <div className="mt-0.5 truncate text-[13px] font-medium leading-snug text-slate-900">
+                    <div className="mt-1 truncate text-[15px] font-semibold leading-snug text-slate-900">
                       {hoverInfo.name}
                     </div>
-                    <div className="mt-0.5 text-[12px] tabular-nums text-slate-700">
-                      {formatMetricValueCompact(metricSlug, hoverInfo.value, metrics, valueMode)}
-                      {hoverInfo.rank ? (
-                        <span className="ml-2 text-[11px] text-slate-500">
-                          #{hoverInfo.rank.rank} of {hoverInfo.rank.total}
-                        </span>
-                      ) : null}
+                    <div className="mt-1.5 flex items-baseline gap-2">
+                      <span className="text-2xl font-bold leading-none tabular-nums text-slate-900">
+                        {formatMetricValueCompact(metricSlug, hoverInfo.value, metrics, valueMode)}
+                      </span>
+                      <span className="text-[11px] leading-tight text-slate-500">{metricLabel}</span>
                     </div>
+                    {hoverInfo.rank ? (
+                      <span className="mt-2 inline-block rounded-full bg-[#52796F]/10 px-2 py-0.5 text-[11px] font-medium tabular-nums text-[#354F52]">
+                        Rank #{hoverInfo.rank.rank} of {hoverInfo.rank.total}
+                      </span>
+                    ) : null}
                   </div>
                   {hoverInfo.kind === 'county' ? (
                     <button

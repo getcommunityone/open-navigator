@@ -226,7 +226,13 @@ def _strip_api_key(value: str) -> str:
 
 
 def resolve_gemini_api_key(*, env_path: Optional[os.PathLike[str]] = None) -> str:
-    """Read AI Studio key from env; fall back to ``.env`` when unset or blank."""
+    """Read AI Studio key from env; fall back to ``.env`` when unset or blank.
+
+    When only numbered keys are configured (``GEMINI_API_KEYS`` /
+    ``GEMINI_API_KEY_1``..``GEMINI_API_KEY_10``) and no plain ``GEMINI_API_KEY``,
+    return the first key from the rotation pool so single-key callers (entry
+    validation) still start; ``call_gemini_text`` then rotates the full pool.
+    """
     from dotenv import load_dotenv
 
     key = _strip_api_key(os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "")
@@ -236,7 +242,10 @@ def resolve_gemini_api_key(*, env_path: Optional[os.PathLike[str]] = None) -> st
     if path.is_file():
         load_dotenv(path, override=True)
         key = _strip_api_key(os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "")
-    return key
+    if key:
+        return key
+    pool = resolve_gemini_api_keys(env_path=env_path)
+    return pool[0] if pool else ""
 
 
 def is_gemini_api_key_invalid(exc: BaseException) -> bool:
@@ -305,7 +314,7 @@ _KEY_IDX: Optional[int] = None
 def resolve_gemini_api_keys(*, env_path: Optional[os.PathLike[str]] = None) -> list[str]:
     """All configured Gemini keys, de-duplicated, in order. Sources (merged):
     ``GEMINI_API_KEYS`` (comma/space/newline list), ``GEMINI_API_KEY`` /
-    ``GOOGLE_API_KEY``, and ``GEMINI_API_KEY_2``..``GEMINI_API_KEY_10``."""
+    ``GOOGLE_API_KEY``, and ``GEMINI_API_KEY_1``..``GEMINI_API_KEY_10``."""
     from dotenv import load_dotenv
 
     path = Path(env_path) if env_path is not None else Path(__file__).resolve().parents[2] / ".env"
@@ -313,7 +322,7 @@ def resolve_gemini_api_keys(*, env_path: Optional[os.PathLike[str]] = None) -> l
         load_dotenv(path)
     raw: list[str] = list(re.split(r"[,\s]+", os.getenv("GEMINI_API_KEYS") or ""))
     raw += [os.getenv("GEMINI_API_KEY") or "", os.getenv("GOOGLE_API_KEY") or ""]
-    raw += [os.getenv(f"GEMINI_API_KEY_{i}") or "" for i in range(2, 11)]
+    raw += [os.getenv(f"GEMINI_API_KEY_{i}") or "" for i in range(1, 11)]
     out: list[str] = []
     seen: set[str] = set()
     for k in (_strip_api_key(x) for x in raw):
