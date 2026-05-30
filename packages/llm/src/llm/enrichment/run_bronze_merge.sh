@@ -85,7 +85,7 @@ echo "This shows what WOULD be merged without making changes"
 echo "Testing all entities: contacts, organizations, bills"
 echo ""
 
-python scripts/datasources/gemini/merge_bronze_to_production.py \
+python -m llm.enrichment.merge_bronze_to_production \
     --entity all \
     --dry-run
 
@@ -95,12 +95,12 @@ echo
 
 if [[ ! $REPLY =~ ^[Yy]$ ]]; then
     echo -e "${YELLOW}⏸️  Merge cancelled. Run manually when ready:${NC}"
-    echo "   python scripts/datasources/gemini/merge_bronze_to_production.py --all"
+    echo "   python -m llm.enrichment.merge_bronze_to_production --all"
     echo ""
     echo "Or merge one entity at a time:"
-    echo "   python scripts/datasources/gemini/merge_bronze_to_production.py --entity contacts"
-    echo "   python scripts/datasources/gemini/merge_bronze_to_production.py --entity organizations"
-    echo "   python scripts/datasources/gemini/merge_bronze_to_production.py --entity bills"
+    echo "   python -m llm.enrichment.merge_bronze_to_production --entity contacts"
+    echo "   python -m llm.enrichment.merge_bronze_to_production --entity organizations"
+    echo "   python -m llm.enrichment.merge_bronze_to_production --entity bills"
     exit 0
 fi
 
@@ -108,7 +108,7 @@ echo ""
 echo -e "${BLUE}Step 4: Run Actual Merge (ALL Entities)${NC}"
 echo "========================================================================"
 
-python scripts/datasources/gemini/merge_bronze_to_production.py \
+python -m llm.enrichment.merge_bronze_to_production \
     --entity all
 
 echo ""
@@ -162,7 +162,7 @@ read -p "Generate duplicate detection report? (y/n) " -n 1 -r
 echo
 
 if [[ $REPLY =~ ^[Yy]$ ]]; then
-    python scripts/datasources/gemini/merge_bronze_to_production.py --report-duplicates
+    python -m llm.enrichment.merge_bronze_to_production --report-duplicates
 fi
 
 echo ""
@@ -185,5 +185,5 @@ echo "  4. Set up incremental updates (run merge daily/hourly)"
 echo ""
 echo "Documentation:"
 echo "  - Strategy: website/docs/development/bronze-to-production-merge.md"
-echo "  - Quick Start: scripts/datasources/gemini/README_BRONZE_MERGE.md"
+echo "  - Quick Start: llm/enrichment/README_BRONZE_MERGE.md"
 echo ""

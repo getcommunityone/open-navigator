@@ -1,1 +1,1 @@
-"""Gemini AI data source scripts for meeting analysis."""
+"""LLM AI-enrichment pipeline: meeting analysis, multi-model comparison, bronze->production merge."""

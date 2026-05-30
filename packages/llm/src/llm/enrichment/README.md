@@ -43,22 +43,22 @@ echo "GEMINI_API_KEY=your_key_here" >> .env
 # ✅ All analysis is FREE (within generous daily limits)
 
 # Analyze most recent 5 meetings per channel (default)
-python scripts/datasources/gemini/analyze_meeting_transcripts.py
+python -m llm.enrichment.analyze_meeting_transcripts
 
 # Analyze specific state
-python scripts/datasources/gemini/analyze_meeting_transcripts.py --states MA
+python -m llm.enrichment.analyze_meeting_transcripts --states MA
 
 # Analyze more meetings per channel
-python scripts/datasources/gemini/analyze_meeting_transcripts.py --meetings-per-channel 10
+python -m llm.enrichment.analyze_meeting_transcripts --meetings-per-channel 10
 
 # Force re-analysis (ignore previously analyzed)
-python scripts/datasources/gemini/analyze_meeting_transcripts.py --force
+python -m llm.enrichment.analyze_meeting_transcripts --force
 
 # Dry run (see what would be analyzed)
-python scripts/datasources/gemini/analyze_meeting_transcripts.py --dry-run
+python -m llm.enrichment.analyze_meeting_transcripts --dry-run
 
 # Multiple states
-python scripts/datasources/gemini/analyze_meeting_transcripts.py --states "MA,WI,GA"
+python -m llm.enrichment.analyze_meeting_transcripts --states "MA,WI,GA"
 ```
 
 #### `extract_to_bronze.py`
@@ -75,13 +75,13 @@ Extract structured AI analysis to Bronze tables for multi-model comparison.
 
 ```bash
 # Create bronze database and tables, load all data
-python scripts/datasources/gemini/extract_to_bronze.py
+python -m llm.enrichment.extract_to_bronze
 
 # Just create tables (no data load)
-python scripts/datasources/gemini/extract_to_bronze.py --create-tables-only
+python -m llm.enrichment.extract_to_bronze --create-tables-only
 
 # Load data without recreating tables
-python scripts/datasources/gemini/extract_to_bronze.py --skip-create-tables
+python -m llm.enrichment.extract_to_bronze --skip-create-tables
 ```
 
 #### `compare_model_extractions.py`
@@ -92,13 +92,13 @@ Compare how different AI models extracted the same meeting decision.
 
 ```bash
 # Summary of all multi-model extractions
-python scripts/datasources/gemini/compare_model_extractions.py --summary
+python -m llm.enrichment.compare_model_extractions --summary
 
 # Compare specific event
-python scripts/datasources/gemini/compare_model_extractions.py --event-id 192614
+python -m llm.enrichment.compare_model_extractions --event-id 192614
 
 # Compare specific models
-python scripts/datasources/gemini/compare_model_extractions.py --event-id 192614 --models gemini-1.5-flash gpt-4
+python -m llm.enrichment.compare_model_extractions --event-id 192614 --models gemini-1.5-flash gpt-4
 ```
 
 #### `moa_synthesize.py` ⭐
@@ -115,16 +115,16 @@ python scripts/datasources/gemini/compare_model_extractions.py --event-id 192614
 
 ```bash
 # Synthesize specific decision with GPT-4o
-python scripts/datasources/gemini/moa_synthesize.py --event-id 192614 --decision-id D001
+python -m llm.enrichment.moa_synthesize --event-id 192614 --decision-id D001
 
 # Use Gemini Pro as aggregator
-python scripts/datasources/gemini/moa_synthesize.py --event-id 192614 --decision-id D001 --aggregator gemini-pro
+python -m llm.enrichment.moa_synthesize --event-id 192614 --decision-id D001 --aggregator gemini-pro
 
 # Synthesize all decisions for an event
-python scripts/datasources/gemini/moa_synthesize.py --event-id 192614 --all
+python -m llm.enrichment.moa_synthesize --event-id 192614 --all
 
 # Dry run (see prompt without calling API)
-python scripts/datasources/gemini/moa_synthesize.py --event-id 192614 --decision-id D001 --dry-run
+python -m llm.enrichment.moa_synthesize --event-id 192614 --decision-id D001 --dry-run
 ```
 
 **Why use MoA?**
@@ -152,10 +152,10 @@ These scripts are **not part of the regular workflow** and should only be run wh
 
 ```bash
 # Example: Apply multi-model support migration
-python scripts/datasources/gemini/migrations/migrate_multimodel_support.py
+python llm/enrichment/migrations/migrate_multimodel_support.py
 
 # Example: Backfill NTEE codes
-python scripts/datasources/gemini/migrations/repopulate_ntee_codes.py
+python llm/enrichment/migrations/repopulate_ntee_codes.py
 ```
 
 ## Database Schema
@@ -361,7 +361,7 @@ The analysis uses `/prompts/policy_analysis.md` which defines:
 If you somehow hit limits:
 ```bash
 # Slow down to 10s between requests
-python scripts/datasources/gemini/analyze_meeting_transcripts.py --delay 10.0
+python -m llm.enrichment.analyze_meeting_transcripts --delay 10.0
 ```
 
 ## Workflow
@@ -388,13 +388,13 @@ python packages/scrapers/src/scrapers/youtube/load_youtube_events_to_postgres.py
 #### 3. Analyze with Gemini
 ```bash
 # Run AI analysis on meetings with transcripts
-python scripts/datasources/gemini/analyze_meeting_transcripts.py
+python -m llm.enrichment.analyze_meeting_transcripts
 ```
 
 #### 4. Extract to Bronze
 ```bash
 # Extract structured data to bronze tables
-python scripts/datasources/gemini/extract_to_bronze.py
+python -m llm.enrichment.extract_to_bronze
 ```
 
 #### 5. Query Results
@@ -411,32 +411,32 @@ For highest quality extractions, analyze the same meeting with multiple models a
 #### 1. Analyze with Multiple Models
 ```bash
 # Model 1: Gemini 1.5 Flash (free, fast)
-python scripts/datasources/gemini/analyze_meeting_transcripts.py --states MA
+python -m llm.enrichment.analyze_meeting_transcripts --states MA
 
 # TODO: Add support for additional models (GPT-4, Claude 3, etc.)
 ```
 
 #### 2. Extract All Models to Bronze
 ```bash
-python scripts/datasources/gemini/extract_to_bronze.py
+python -m llm.enrichment.extract_to_bronze
 ```
 
 #### 3. Compare Extractions
 ```bash
 # See summary of multi-model coverage
-python scripts/datasources/gemini/compare_model_extractions.py --summary
+python -m llm.enrichment.compare_model_extractions --summary
 
 # Compare specific event
-python scripts/datasources/gemini/compare_model_extractions.py --event-id 192614
+python -m llm.enrichment.compare_model_extractions --event-id 192614
 ```
 
 #### 4. Run MoA Synthesis (Mixture-of-Agents)
 ```bash
 # Synthesize all decisions using GPT-4o as aggregator
-python scripts/datasources/gemini/moa_synthesize.py --event-id 192614 --all
+python -m llm.enrichment.moa_synthesize --event-id 192614 --all
 
 # Or use Gemini Pro as aggregator (cheaper)
-python scripts/datasources/gemini/moa_synthesize.py --event-id 192614 --all --aggregator gemini-pro
+python -m llm.enrichment.moa_synthesize --event-id 192614 --all --aggregator gemini-pro
 ```
 
 #### 5. Query Synthesis Results
@@ -466,7 +466,7 @@ pip install google-generativeai
 **Issue: Rate limiting**
 ```bash
 # Increase delay between requests
-python scripts/datasources/gemini/analyze_meeting_transcripts.py --delay 5.0
+python -m llm.enrichment.analyze_meeting_transcripts --delay 5.0
 ```
 
 **Issue: JSON parsing errors**

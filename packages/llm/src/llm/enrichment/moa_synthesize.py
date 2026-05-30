@@ -11,16 +11,16 @@ Architecture:
 
 Usage:
     # Synthesize specific decision
-    python scripts/datasources/gemini/moa_synthesize.py --event-id 192614 --decision-id D001
+    python -m llm.enrichment.moa_synthesize --event-id 192614 --decision-id D001
     
     # Synthesize all decisions for an event
-    python scripts/datasources/gemini/moa_synthesize.py --event-id 192614 --all
+    python -m llm.enrichment.moa_synthesize --event-id 192614 --all
     
     # Use Gemini Pro as aggregator instead of GPT-4o
-    python scripts/datasources/gemini/moa_synthesize.py --event-id 192614 --aggregator gemini-pro
+    python -m llm.enrichment.moa_synthesize --event-id 192614 --aggregator gemini-pro
     
     # Dry run (show prompt without calling API)
-    python scripts/datasources/gemini/moa_synthesize.py --event-id 192614 --decision-id D001 --dry-run
+    python -m llm.enrichment.moa_synthesize --event-id 192614 --decision-id D001 --dry-run
 """
 
 import os
@@ -31,7 +31,7 @@ import argparse
 import json
 
 # Add project root to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+sys.path.insert(0, str(Path(__file__).parents[5]))
 
 import psycopg2
 from loguru import logger

@@ -14,23 +14,23 @@ By default: Analyzes the 5 most recent meetings per channel across all states.
 
 Usage:
     # Analyze most recent 5 meetings per channel (all states, known channels)
-    python scripts/datasources/gemini/load_meeting_transcripts.py
+    python -m llm.enrichment.load_meeting_transcripts
     
     # Analyze only priority states (AL, GA, IN, MA, WA, WI)
-    python scripts/datasources/gemini/load_meeting_transcripts.py --priority-states
+    python -m llm.enrichment.load_meeting_transcripts --priority-states
     
     # Analyze specific state(s)
-    python scripts/datasources/gemini/load_meeting_transcripts.py --states MA
-    python scripts/datasources/gemini/load_meeting_transcripts.py --states MA,WI,AL
+    python -m llm.enrichment.load_meeting_transcripts --states MA
+    python -m llm.enrichment.load_meeting_transcripts --states MA,WI,AL
     
     # Analyze more meetings per channel
-    python scripts/datasources/gemini/load_meeting_transcripts.py --meetings-per-channel 10
+    python -m llm.enrichment.load_meeting_transcripts --meetings-per-channel 10
     
     # Force re-analysis (skip incremental check)
-    python scripts/datasources/gemini/load_meeting_transcripts.py --force
+    python -m llm.enrichment.load_meeting_transcripts --force
     
     # Dry run (show what would be analyzed)
-    python scripts/datasources/gemini/load_meeting_transcripts.py --dry-run
+    python -m llm.enrichment.load_meeting_transcripts --dry-run
 """
 
 import os
@@ -43,7 +43,7 @@ import json
 import time
 
 # Add project root to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+sys.path.insert(0, str(Path(__file__).parents[5]))
 
 import psycopg2
 from psycopg2.extras import RealDictCursor, execute_batch
@@ -65,7 +65,7 @@ DATABASE_URL = os.getenv('NEON_DATABASE_URL_DEV', 'postgresql://postgres:passwor
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 
 # Prompt path
-PROMPTS_DIR = Path(__file__).parent.parent.parent.parent / 'prompts'
+PROMPTS_DIR = Path(__file__).parents[5] / 'prompts'
 POLICY_ANALYSIS_PROMPT = PROMPTS_DIR / 'policy_analysis.md'
 
 # Priority states

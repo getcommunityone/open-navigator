@@ -21,16 +21,16 @@ Production Tables (Target):
 
 Usage:
     # Dry run (show what would be merged)
-    python scripts/datasources/gemini/merge_bronze_to_production.py --dry-run
+    python -m llm.enrichment.merge_bronze_to_production --dry-run
 
     # Merge contacts only
-    python scripts/datasources/gemini/merge_bronze_to_production.py --entity contacts
+    python -m llm.enrichment.merge_bronze_to_production --entity contacts
 
     # Merge all entities
-    python scripts/datasources/gemini/merge_bronze_to_production.py --all
+    python -m llm.enrichment.merge_bronze_to_production --all
 
     # Generate deduplication report
-    python scripts/datasources/gemini/merge_bronze_to_production.py --report-duplicates
+    python -m llm.enrichment.merge_bronze_to_production --report-duplicates
 """
 
 import os
@@ -42,7 +42,7 @@ import uuid
 from datetime import datetime
 
 # Add project root to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+sys.path.insert(0, str(Path(__file__).parents[5]))
 
 import psycopg2
 from psycopg2.extras import RealDictCursor, execute_values
@@ -56,7 +56,7 @@ except ImportError:
     pass
 
 # Import entity resolution
-from scripts.datasources.gemini.entity_resolution import (
+from llm.enrichment.entity_resolution import (
     ContactMatcher,
     BillMatcher,
     OrganizationMatcher
