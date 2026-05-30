@@ -23,6 +23,8 @@ try:
 except ModuleNotFoundError:  # pragma: no cover
     psycopg2 = None  # type: ignore[misc, assignment]
 
+from scripts.jurisdictions.jurisdiction_id import ensure_canonical_jurisdiction_id
+
 
 def insert_bronze_persons_scraped(
     database_url: str,
@@ -47,6 +49,16 @@ def insert_bronze_persons_scraped(
     """
     if not rows or not database_url or psycopg2 is None:
         return 0
+
+    # Canonicalize the jurisdiction_id at the write boundary so legacy
+    # ``{type}_{geoid}`` ids (e.g. ``county_55091``) are stored as the name-slug
+    # form (``pepin_55091``) used by int_jurisdictions. Already-canonical ids pass
+    # through without a DB lookup; legacy ids self-heal via a bronze GEOID lookup.
+    jurisdiction_id = (
+        ensure_canonical_jurisdiction_id(jurisdiction_id, database_url=database_url)
+        or jurisdiction_id
+    )
+
     scraped_default = datetime.now(timezone.utc)
     n = 0
     conn = psycopg2.connect(database_url)

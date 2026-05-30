@@ -1008,7 +1008,45 @@ sources:
             description: "Quality rating: high, medium, low"
           - name: created_at
             description: "When transcript was created"
-      
+
+      - name: bronze_persons_scraped
+        description: |
+          Scraped person / contact rows (one row per extracted contact on a
+          jurisdiction page). Landed verbatim by the discovery scrapers; names
+          are raw page text and frequently carry page chrome ("Email", "Contact
+          Us"), bare roles ("Mayor"), markup/image filenames, or "Portrait of
+          <name>" prefixes. Cleaned + quality-classified in
+          stg_bronze_persons_scraped.
+        columns:
+          - name: id
+            description: "Primary key."
+          - name: scrape_batch_id
+            description: "UUID of the scrape batch that produced the row."
+          - name: jurisdiction_id
+            description: "Canonical {slug}_{geoid} jurisdiction id (e.g. pepin_55091)."
+          - name: state_code
+            description: "2-letter state code."
+          - name: ocd_id
+            description: "OpenCivicData division id, when resolved."
+          - name: name
+            description: "Raw scraped name text (may be junk / null)."
+          - name: role
+            description: "Raw role/title text (may be null)."
+          - name: organization
+            description: "Raw organization/department text (may be null)."
+          - name: email
+            description: "Contact email (may be present even when name is null)."
+          - name: phone
+            description: "Contact phone (may be null)."
+          - name: mailing_address
+            description: "Mailing address (may be null)."
+          - name: source_page_url
+            description: "URL the contact was scraped from."
+          - name: extraction_method
+            description: "How the contact was extracted (e.g. mailto_anchor)."
+          - name: scraped_at
+            description: "When the row was scraped."
+
       - name: bronze_events_analysis_ai
         description: "Gemini AI analysis results from meeting videos - structured entity extraction"
         columns:
@@ -1489,3 +1527,40 @@ models:
         description: "Quality flag - TRUE if <100 characters"
       - name: missing_segments
         description: "Quality flag - TRUE if segments JSONB is null/empty"
+
+  - name: stg_bronze_persons_scraped
+    description: |
+      Staged scraped person / contact rows with name-quality classification.
+      One row in -> one row out (nothing deleted); junk is SOFT-FLAGGED so
+      downstream models can filter on is_usable_person / name_quality.
+    columns:
+      - name: bronze_person_id
+        description: "Original bronze.bronze_persons_scraped id."
+        tests:
+          - unique
+          - not_null
+      - name: jurisdiction_id
+        description: "Canonical {slug}_{geoid} jurisdiction id."
+      - name: name_raw
+        description: "Raw scraped name text, unmodified."
+      - name: name_clean
+        description: "Normalized/recovered name; NULL when not a usable person."
+      - name: name_quality
+        description: "ok | recovered | missing | invalid."
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['ok', 'recovered', 'missing', 'invalid']
+      - name: invalid_reason
+        description: "ui_label | role_only | markup_or_file | sentence (only when name_quality='invalid')."
+        tests:
+          - accepted_values:
+              values: ['ui_label', 'role_only', 'markup_or_file', 'sentence']
+      - name: is_usable_person
+        description: "TRUE when name_quality IN ('ok','recovered')."
+        tests:
+          - not_null
+      - name: has_email
+        description: "TRUE when a non-empty email is present (may be TRUE even when name is missing)."
+      - name: email
+        description: "Contact email (cleaned, NULL if empty)."
