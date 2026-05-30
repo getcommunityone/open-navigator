@@ -33,13 +33,9 @@ from tqdm.asyncio import tqdm
 import pandas as pd
 import polars as pl
 
-# Add parent directory to path for imports
 import os
 import sys
 from pathlib import Path
-
-if str(Path(__file__).parent.parent.parent) not in sys.path:
-    sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from scripts.discovery.url_discovery_agent import URLDiscoveryAgent
 from scrapers.youtube.youtube_channel_discovery import YouTubeChannelDiscovery
