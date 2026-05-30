@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Export ``jurisdiction_mapping_quality_summary`` (+ optional counts) to JSON for the
-**Jurisdiction mapping quality** dashboard (``frontend/public/data/jurisdiction_mapping_quality.json``).
+**Jurisdiction mapping quality** dashboard (``web_app/public/data/jurisdiction_mapping_quality.json``).
 
 Also writes capped **drill-down** lists from ``public.jurisdiction_mapping_analysis``:
 

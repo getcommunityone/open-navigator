@@ -32,7 +32,7 @@ def main() -> int:
     args = parser.parse_args()
 
     # Make the repo importable no matter where this is invoked from (the npm
-    # script runs it with cwd=frontend/).
+    # script runs it with cwd=web_app/).
     if str(REPO_ROOT) not in sys.path:
         sys.path.insert(0, str(REPO_ROOT))
 

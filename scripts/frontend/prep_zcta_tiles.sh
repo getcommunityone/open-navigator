@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build per-state ZCTA (ZIP) TopoJSON tiles for the census drilldown ZIP tier.
 #
-# Output: frontend/public/data/zctas/state-XX.json (one per state FIPS)
+# Output: web_app/public/data/zctas/state-XX.json (one per state FIPS)
 #   - TopoJSON with objects.zctas
 #   - feature.id = ZCTA5 GEOID (5-digit string)
 #   - Lng/lat coords (the page's Albers projection is applied client-side)
@@ -19,7 +19,7 @@
 # Inputs (configurable via env):
 #   ZCTA_SHP    TIGER ZCTA shapefile (default: data/cache/census/shapefiles/2025/tl_2025_us_zcta520/tl_2025_us_zcta520.shp)
 #   STATES_SHP  Census state shapefile (default: data/cache/census/shapefiles/2025/cb_2025_us_state_500k/cb_2025_us_state_500k.shp)
-#   OUT_DIR     Output dir (default: frontend/public/data/zctas)
+#   OUT_DIR     Output dir (default: web_app/public/data/zctas)
 #   SIMPLIFY    Mapshaper simplification percent (default: 5%)
 #
 # Source shapefiles (2025 vintage, fetched by the project's census loader):
@@ -38,7 +38,7 @@ set -euo pipefail
 CACHE_DIR="data/cache/census/shapefiles/2025"
 ZCTA_SHP="${ZCTA_SHP:-$CACHE_DIR/tl_2025_us_zcta520/tl_2025_us_zcta520.shp}"
 STATES_SHP="${STATES_SHP:-$CACHE_DIR/cb_2025_us_state_500k/cb_2025_us_state_500k.shp}"
-OUT_DIR="${OUT_DIR:-frontend/public/data/zctas}"
+OUT_DIR="${OUT_DIR:-web_app/public/data/zctas}"
 SIMPLIFY="${SIMPLIFY:-5%}"
 
 command -v mapshaper >/dev/null 2>&1 || {

@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Copy Wikimedia Commons–cached license plate exports into the Vite public folder and
-# regenerate the USPS → filename map consumed by the UI (see frontend/src/utils/wikicommonsLicensePlate.ts).
+# regenerate the USPS → filename map consumed by the UI (see web_app/src/utils/wikicommonsLicensePlate.ts).
 # Source: data/cache/wikicommons (from scripts/wikicommons/download_wikicommons_assets.*).
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SRC="${ROOT}/data/cache/wikicommons"
-DST="${ROOT}/frontend/public/wikicommons"
-DATA_JSON="${ROOT}/frontend/src/data/wikicommonsPlatesLatest.json"
+DST="${ROOT}/web_app/public/wikicommons"
+DATA_JSON="${ROOT}/web_app/src/data/wikicommonsPlatesLatest.json"
 mkdir -p "${DST}"
 mkdir -p "$(dirname "${DATA_JSON}")"
 shopt -s nullglob
@@ -32,7 +32,7 @@ from pathlib import Path
 
 root = Path(os.environ["ROOT"])
 src = root / "data/cache/wikicommons"
-out_json = root / "frontend/src/data/wikicommonsPlatesLatest.json"
+out_json = root / "web_app/src/data/wikicommonsPlatesLatest.json"
 by_usps: dict[str, str] = {}
 for p in sorted(src.glob("*_latest.*")):
     name = p.name

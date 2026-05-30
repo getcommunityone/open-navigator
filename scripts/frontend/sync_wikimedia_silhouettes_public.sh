@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Copy Wikimedia-cached state silhouette SVGs into the Vite public folder and
-# regenerate the USPS → filename map consumed by the UI (see frontend/src/utils/wikimediaStateSilhouette.ts).
+# regenerate the USPS → filename map consumed by the UI (see web_app/src/utils/wikimediaStateSilhouette.ts).
 # Source: data/cache/wikimedia (from scripts/wikimedia/download_state_silhouettes.py).
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SRC="${ROOT}/data/cache/wikimedia"
-DST="${ROOT}/frontend/public/wikimedia"
-DATA_JSON="${ROOT}/frontend/src/data/wikimediaStateSilhouettes.json"
+DST="${ROOT}/web_app/public/wikimedia"
+DATA_JSON="${ROOT}/web_app/src/data/wikimediaStateSilhouettes.json"
 mkdir -p "${DST}"
 mkdir -p "$(dirname "${DATA_JSON}")"
 shopt -s nullglob
@@ -27,8 +27,8 @@ from pathlib import Path
 
 root = Path(os.environ["ROOT"])
 src = root / "data/cache/wikimedia"
-dst = root / "frontend/public/wikimedia"
-out_json = root / "frontend/src/data/wikimediaStateSilhouettes.json"
+dst = root / "web_app/public/wikimedia"
+out_json = root / "web_app/src/data/wikimediaStateSilhouettes.json"
 manifest_path = src / "_manifest.json"
 manifest: dict = {}
 if manifest_path.is_file():

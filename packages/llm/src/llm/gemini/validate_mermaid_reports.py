@@ -2,7 +2,7 @@
 """
 Validate Mermaid in Part 2 reports (single file, one jurisdiction folder, or repo-wide).
 
-  cd website && npm install   # once
+  cd web_docs && npm install   # once
 
   # One report
   .venv/bin/python -m llm.gemini.validate_mermaid_reports \\
@@ -99,7 +99,7 @@ def main() -> int:
     args = parser.parse_args()
 
     if not mermaid_cli_available():
-        print("Missing website/node_modules/mermaid. Run: cd website && npm install", file=sys.stderr)
+        print("Missing web_docs/node_modules/mermaid. Run: cd web_docs && npm install", file=sys.stderr)
         return 2
 
     paths: list[Path] = []

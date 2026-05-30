@@ -30,8 +30,8 @@ UPLOAD_PATTERNS=(
     "config/*"
     "discovery/*"
     "extraction/*"
-    "frontend/dist/*"
-    "website/build/*"
+    "web_app/dist/*"
+    "web_docs/build/*"
     "Dockerfile.huggingface"
     "requirements.txt"
     "README.md"
@@ -85,8 +85,8 @@ ignore_patterns = [
     "*.log",
     ".cache/*",
     "**/.cache/*",
-    "website/node_modules/*",
-    "frontend/node_modules/*",
+    "web_docs/node_modules/*",
+    "web_app/node_modules/*",
     "*.swp",
     "*.swo",
     "*~",

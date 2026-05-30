@@ -60,19 +60,19 @@ echo "  ✓ Removed __pycache__ directories and .pyc files"
 read -p "Remove node_modules? (can reinstall in 2 min with npm install) [y/N]: " -n 1 -r
 echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then
-    if [ -d "frontend/node_modules" ]; then
-        SIZE=$(du -sh frontend/node_modules 2>/dev/null | cut -f1)
-        echo -e "${GREEN}Removing frontend/node_modules ($SIZE)...${NC}"
-        rm -rf frontend/node_modules
-        echo "  ✓ Removed frontend/node_modules"
+    if [ -d "web_app/node_modules" ]; then
+        SIZE=$(du -sh web_app/node_modules 2>/dev/null | cut -f1)
+        echo -e "${GREEN}Removing web_app/node_modules ($SIZE)...${NC}"
+        rm -rf web_app/node_modules
+        echo "  ✓ Removed web_app/node_modules"
         FREED=$((FREED + 641))
     fi
     
-    if [ -d "website/node_modules" ]; then
-        SIZE=$(du -sh website/node_modules 2>/dev/null | cut -f1)
-        echo -e "${GREEN}Removing website/node_modules ($SIZE)...${NC}"
-        rm -rf website/node_modules
-        echo "  ✓ Removed website/node_modules"
+    if [ -d "web_docs/node_modules" ]; then
+        SIZE=$(du -sh web_docs/node_modules 2>/dev/null | cut -f1)
+        echo -e "${GREEN}Removing web_docs/node_modules ($SIZE)...${NC}"
+        rm -rf web_docs/node_modules
+        echo "  ✓ Removed web_docs/node_modules"
         FREED=$((FREED + 907))
     fi
 else
@@ -107,6 +107,6 @@ echo ""
 if [[ $FREED -gt 1000 ]]; then
     echo -e "${YELLOW}To reinstall dependencies:${NC}"
     echo -e "  ${BLUE}cd frontend && npm install && cd ..${NC}"
-    echo -e "  ${BLUE}cd website && npm install && cd ..${NC}"
+    echo -e "  ${BLUE}cd web_docs && npm install && cd ..${NC}"
     echo ""
 fi

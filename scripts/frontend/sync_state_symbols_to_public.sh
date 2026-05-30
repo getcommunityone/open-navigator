@@ -4,7 +4,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SRC="${ROOT}/data/cache/state_symbols"
-DST="${ROOT}/frontend/public/state-symbols"
+DST="${ROOT}/web_app/public/state-symbols"
 mkdir -p "${DST}"
 shopt -s nullglob
 cp -f "${SRC}"/*.jpg "${DST}/"

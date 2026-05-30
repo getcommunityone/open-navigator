@@ -84,8 +84,8 @@ def main():
         "gold_old/*",
         "gold_backup_*/*",
         ".VSCodeCounter/*",
-        "website/node_modules/*",
-        "frontend/node_modules/*",
+        "web_docs/node_modules/*",
+        "web_app/node_modules/*",
         "*.egg-info/*",
     ]
     

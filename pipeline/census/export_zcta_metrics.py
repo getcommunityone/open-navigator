@@ -1,7 +1,7 @@
 """
 Build per-state ZCTA metric JSON for the census drilldown ZIP tier.
 
-Output: ``frontend/public/data/census-map/{vintage}/zcta_metrics_{FIPS}.json``
+Output: ``web_app/public/data/census-map/{vintage}/zcta_metrics_{FIPS}.json``
         keyed by ZCTA5 → metric_slug → value, matching the shape
         ``CensusDrilldownMapPage.tsx`` loads via the ``zctaMetricsPayload`` query.
 

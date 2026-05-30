@@ -138,18 +138,18 @@ echo "📚 Verifying Docusaurus build..."
 echo "This catches configuration errors before the slow Docker build"
 echo ""
 
-if [ -d "website/node_modules" ]; then
+if [ -d "web_docs/node_modules" ]; then
     echo "✅ Node modules already installed"
 else
-    echo "📦 Installing website dependencies..."
-    cd website
+    echo "📦 Installing web_docs dependencies..."
+    cd web_docs
     npm ci --prefer-offline --no-audit || npm install --prefer-offline --no-audit
     cd ..
 fi
 echo ""
 
 echo "🔨 Building documentation site..."
-if (cd website && npm run build); then
+if (cd web_docs && npm run build); then
     echo ""
     echo "✅ Docusaurus build succeeded!"
     echo ""
@@ -164,7 +164,7 @@ else
     echo "  - Missing dependencies"
     echo ""
     echo "Fix the errors above before deploying."
-    echo "Test locally with: cd website && npm run build"
+    echo "Test locally with: cd web_docs && npm run build"
     echo ""
     exit 1
 fi
@@ -266,9 +266,9 @@ git add databricks/ examples/ models/ neon/ notebooks/
 git add requirements*.txt setup.py main.py Makefile *.sh *.md *.yml *.yaml
 git add CITATIONS.md CONTRIBUTING.md LICENSE INTEL_ARC_QUICKSTART.md
 
-# Add frontend/website source EXCLUDING node_modules (gitignore handles this)
-echo "🧹 Adding frontend/website sources (node_modules auto-excluded by .gitignore)..."
-git add frontend/ website/
+# Add web_app/web_docs source EXCLUDING node_modules (gitignore handles this)
+echo "🧹 Adding web_app/web_docs sources (node_modules auto-excluded by .gitignore)..."
+git add web_app/ web_docs/
 
 # Verify node_modules are NOT staged
 NODE_MODULES_COUNT=$(git diff --cached --name-only | grep "node_modules" | wc -l)

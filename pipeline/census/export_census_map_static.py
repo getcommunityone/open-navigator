@@ -2,7 +2,7 @@
 Build static JSON + GeoJSON for the Census map SPA (county choropleth + state place drill-down).
 
 Reads ACS parquet files produced by ``download_census_acs_data.py`` (same default cache layout)
-and writes artifacts under ``frontend/public/data/census-map`` for Vite to serve at
+and writes artifacts under ``web_app/public/data/census-map`` for Vite to serve at
 ``/data/census-map/...``.
 
 County layer uses metrics only (boundaries come from us-atlas in the browser). Place drill-down
@@ -718,7 +718,7 @@ def main() -> int:
     parser.add_argument(
         "--out-dir",
         type=Path,
-        default=Path("frontend/public/data/census-map"),
+        default=Path("web_app/public/data/census-map"),
         help="Output directory (Vite public/)",
     )
     parser.add_argument(

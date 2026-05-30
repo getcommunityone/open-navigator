@@ -111,8 +111,8 @@ insurance_df = await acs.download_acs_data_api("B27010", "county", "*")
 ```
 
 **See Also:**
-- Full documentation: `website/docs/data-sources/census-acs.md`
-- D drive setup: `website/docs/deployment/d-drive-configuration.md`
+- Full documentation: `web_docs/docs/data-sources/census-acs.md`
+- D drive setup: `web_docs/docs/deployment/d-drive-configuration.md`
 - Example script: `examples/download_acs_to_d_drive.py`
 
 ## Key Datasets
@@ -176,7 +176,7 @@ states.to_file("data/gold/boundaries/states.geojson", driver="GeoJSON")
 states.to_parquet("data/gold/boundaries/states.parquet")
 ```
 
-**See Full Guide:** `website/docs/data-sources/census-shapefiles.md`
+**See Full Guide:** `web_docs/docs/data-sources/census-shapefiles.md`
 
 ### Download ACS Data to D Drive
 
