@@ -3,7 +3,7 @@ Social features API routes - following, followers, feeds
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from sqlalchemy import func, or_, and_
+from sqlalchemy import and_
 from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
@@ -11,11 +11,27 @@ from datetime import datetime
 from api.database import get_db
 from api.auth import get_current_user
 from api.models import (
-    User, Official, Organization, Cause,
-    UserFollow, OfficialFollow, OrganizationFollow, CauseFollow
+    User, Official, Organization, Cause, SocialFollow
 )
 
 router = APIRouter(prefix="/social", tags=["social"])
+
+
+def _follower_count(db: Session, target_type: str, target_id: int) -> int:
+    """Count followers of a given entity in the consolidated social_follows table."""
+    return db.query(SocialFollow).filter(
+        SocialFollow.target_type == target_type,
+        SocialFollow.target_id == target_id,
+    ).count()
+
+
+def _get_follow(db: Session, follower_id: int, target_type: str, target_id: int):
+    """Return the existing follow row for (follower, target), or None."""
+    return db.query(SocialFollow).filter(
+        SocialFollow.follower_id == follower_id,
+        SocialFollow.target_type == target_type,
+        SocialFollow.target_id == target_id,
+    ).first()
 
 
 # ============================================================================
@@ -122,30 +138,25 @@ async def follow_user(
         raise HTTPException(status_code=404, detail="User not found")
     
     # Check if already following
-    existing = db.query(UserFollow).filter(
-        UserFollow.follower_id == current_user.user_id,
-        UserFollow.following_id == user_id
-    ).first()
-    
+    existing = _get_follow(db, current_user.user_id, "user", user_id)
+
     if existing:
         return FollowResponse(
             success=True,
             following=True,
-            follower_count=db.query(UserFollow).filter(UserFollow.following_id == user_id).count(),
+            follower_count=_follower_count(db, "user", user_id),
             message="Already following this user"
         )
-    
+
     # Create follow
-    follow = UserFollow(follower_id=current_user.user_id, following_id=user_id)
+    follow = SocialFollow(follower_id=current_user.user_id, target_type="user", target_id=user_id)
     db.add(follow)
     db.commit()
-    
-    follower_count = db.query(UserFollow).filter(UserFollow.following_id == user_id).count()
-    
+
     return FollowResponse(
         success=True,
         following=True,
-        follower_count=follower_count,
+        follower_count=_follower_count(db, "user", user_id),
         message="Successfully followed user"
     )
 
@@ -158,28 +169,23 @@ async def unfollow_user(
 ) -> FollowResponse:
     """Unfollow a user"""
     
-    follow = db.query(UserFollow).filter(
-        UserFollow.follower_id == current_user.user_id,
-        UserFollow.following_id == user_id
-    ).first()
-    
+    follow = _get_follow(db, current_user.user_id, "user", user_id)
+
     if not follow:
         return FollowResponse(
             success=True,
             following=False,
-            follower_count=db.query(UserFollow).filter(UserFollow.following_id == user_id).count(),
+            follower_count=_follower_count(db, "user", user_id),
             message="Not following this user"
         )
-    
+
     db.delete(follow)
     db.commit()
-    
-    follower_count = db.query(UserFollow).filter(UserFollow.following_id == user_id).count()
-    
+
     return FollowResponse(
         success=True,
         following=False,
-        follower_count=follower_count,
+        follower_count=_follower_count(db, "user", user_id),
         message="Successfully unfollowed user"
     )
 
@@ -198,11 +204,8 @@ async def follow_official(
         raise HTTPException(status_code=404, detail="Official not found")
     
     # Check if already following
-    existing = db.query(OfficialFollow).filter(
-        OfficialFollow.user_id == current_user.user_id,
-        OfficialFollow.official_id == official_id
-    ).first()
-    
+    existing = _get_follow(db, current_user.user_id, "official", official_id)
+
     if existing:
         return FollowResponse(
             success=True,
@@ -210,9 +213,9 @@ async def follow_official(
             follower_count=official.follower_count,
             message="Already following this official"
         )
-    
+
     # Create follow
-    follow = OfficialFollow(user_id=current_user.user_id, official_id=official_id)
+    follow = SocialFollow(follower_id=current_user.user_id, target_type="official", target_id=official_id)
     db.add(follow)
     
     # Update follower count
@@ -239,11 +242,8 @@ async def unfollow_official(
     if not official:
         raise HTTPException(status_code=404, detail="Official not found")
     
-    follow = db.query(OfficialFollow).filter(
-        OfficialFollow.user_id == current_user.user_id,
-        OfficialFollow.official_id == official_id
-    ).first()
-    
+    follow = _get_follow(db, current_user.user_id, "official", official_id)
+
     if not follow:
         return FollowResponse(
             success=True,
@@ -276,11 +276,8 @@ async def follow_organization(
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
     
-    existing = db.query(OrganizationFollow).filter(
-        OrganizationFollow.user_id == current_user.user_id,
-        OrganizationFollow.organization_id == org_id
-    ).first()
-    
+    existing = _get_follow(db, current_user.user_id, "organization", org_id)
+
     if existing:
         return FollowResponse(
             success=True,
@@ -288,8 +285,8 @@ async def follow_organization(
             follower_count=org.follower_count,
             message="Already following this organization"
         )
-    
-    follow = OrganizationFollow(user_id=current_user.user_id, organization_id=org_id)
+
+    follow = SocialFollow(follower_id=current_user.user_id, target_type="organization", target_id=org_id)
     db.add(follow)
     org.follower_count += 1
     db.commit()
@@ -314,11 +311,8 @@ async def unfollow_organization(
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
     
-    follow = db.query(OrganizationFollow).filter(
-        OrganizationFollow.user_id == current_user.user_id,
-        OrganizationFollow.organization_id == org_id
-    ).first()
-    
+    follow = _get_follow(db, current_user.user_id, "organization", org_id)
+
     if not follow:
         return FollowResponse(
             success=True,
@@ -351,11 +345,8 @@ async def follow_cause(
     if not cause:
         raise HTTPException(status_code=404, detail="Cause not found")
     
-    existing = db.query(CauseFollow).filter(
-        CauseFollow.user_id == current_user.user_id,
-        CauseFollow.cause_id == cause_id
-    ).first()
-    
+    existing = _get_follow(db, current_user.user_id, "cause", cause_id)
+
     if existing:
         return FollowResponse(
             success=True,
@@ -363,8 +354,8 @@ async def follow_cause(
             follower_count=cause.follower_count,
             message="Already following this cause"
         )
-    
-    follow = CauseFollow(user_id=current_user.user_id, cause_id=cause_id)
+
+    follow = SocialFollow(follower_id=current_user.user_id, target_type="cause", target_id=cause_id)
     db.add(follow)
     cause.follower_count += 1
     db.commit()
@@ -389,11 +380,8 @@ async def unfollow_cause(
     if not cause:
         raise HTTPException(status_code=404, detail="Cause not found")
     
-    follow = db.query(CauseFollow).filter(
-        CauseFollow.user_id == current_user.user_id,
-        CauseFollow.cause_id == cause_id
-    ).first()
-    
+    follow = _get_follow(db, current_user.user_id, "cause", cause_id)
+
     if not follow:
         return FollowResponse(
             success=True,
@@ -430,31 +418,19 @@ async def check_following_status(
     """Check if current user is following various entities"""
     
     result = {}
-    
+
     if user_id:
-        result['user'] = db.query(UserFollow).filter(
-            UserFollow.follower_id == current_user.user_id,
-            UserFollow.following_id == user_id
-        ).first() is not None
-    
+        result['user'] = _get_follow(db, current_user.user_id, "user", user_id) is not None
+
     if leader_id:
-        result['official'] = db.query(OfficialFollow).filter(
-            OfficialFollow.user_id == current_user.user_id,
-            OfficialFollow.official_id == leader_id
-        ).first() is not None
-    
+        result['official'] = _get_follow(db, current_user.user_id, "official", leader_id) is not None
+
     if org_id:
-        result['organization'] = db.query(OrganizationFollow).filter(
-            OrganizationFollow.user_id == current_user.user_id,
-            OrganizationFollow.organization_id == org_id
-        ).first() is not None
-    
+        result['organization'] = _get_follow(db, current_user.user_id, "organization", org_id) is not None
+
     if cause_id:
-        result['cause'] = db.query(CauseFollow).filter(
-            CauseFollow.user_id == current_user.user_id,
-            CauseFollow.cause_id == cause_id
-        ).first() is not None
-    
+        result['cause'] = _get_follow(db, current_user.user_id, "cause", cause_id) is not None
+
     return result
 
 
@@ -473,13 +449,19 @@ async def get_follower_stats(
     target_id = user_id if user_id else current_user.user_id
     
     # Count followers (people following this user)
-    followers = db.query(UserFollow).filter(UserFollow.following_id == target_id).count()
-    
-    # Count following (users this person follows)
-    following_users = db.query(UserFollow).filter(UserFollow.follower_id == target_id).count()
-    following_officials = db.query(OfficialFollow).filter(OfficialFollow.user_id == target_id).count()
-    following_orgs = db.query(OrganizationFollow).filter(OrganizationFollow.user_id == target_id).count()
-    following_causes = db.query(CauseFollow).filter(CauseFollow.user_id == target_id).count()
+    followers = _follower_count(db, "user", target_id)
+
+    # Count following (entities this person follows), grouped by target_type
+    def _following(target_type: str) -> int:
+        return db.query(SocialFollow).filter(
+            SocialFollow.follower_id == target_id,
+            SocialFollow.target_type == target_type,
+        ).count()
+
+    following_users = _following("user")
+    following_officials = _following("official")
+    following_orgs = _following("organization")
+    following_causes = _following("cause")
     
     total_following = following_users + following_officials + following_orgs + following_causes
     
@@ -501,10 +483,13 @@ async def get_following_officials(
     """Get list of officials the current user is following"""
     
     officials = db.query(Official).join(
-        OfficialFollow,
-        OfficialFollow.official_id == Official.id
+        SocialFollow,
+        and_(
+            SocialFollow.target_type == "official",
+            SocialFollow.target_id == Official.id,
+        )
     ).filter(
-        OfficialFollow.user_id == current_user.user_id
+        SocialFollow.follower_id == current_user.user_id
     ).all()
     
     return [OfficialSummary.from_orm(official) for official in officials]
@@ -518,10 +503,13 @@ async def get_following_organizations(
     """Get list of organizations the current user is following"""
     
     orgs = db.query(Organization).join(
-        OrganizationFollow,
-        OrganizationFollow.organization_id == Organization.id
+        SocialFollow,
+        and_(
+            SocialFollow.target_type == "organization",
+            SocialFollow.target_id == Organization.id,
+        )
     ).filter(
-        OrganizationFollow.user_id == current_user.user_id
+        SocialFollow.follower_id == current_user.user_id
     ).all()
     
     return [OrganizationSummary.from_orm(org) for org in orgs]
@@ -535,10 +523,13 @@ async def get_following_causes(
     """Get list of causes the current user is following"""
     
     causes = db.query(Cause).join(
-        CauseFollow,
-        CauseFollow.cause_id == Cause.id
+        SocialFollow,
+        and_(
+            SocialFollow.target_type == "cause",
+            SocialFollow.target_id == Cause.id,
+        )
     ).filter(
-        CauseFollow.user_id == current_user.user_id
+        SocialFollow.follower_id == current_user.user_id
     ).all()
     
     return [CauseSummary.from_orm(cause) for cause in causes]

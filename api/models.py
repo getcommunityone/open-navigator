@@ -203,66 +203,29 @@ class Official(Base):
 # FOLLOW RELATIONSHIPS (Many-to-Many)
 # ============================================================================
 
-class UserFollow(Base):
-    """User following another user"""
-    __tablename__ = "user_follows"
+class SocialFollow(Base):
+    """A user following another entity (user, official, organization, or cause).
+
+    Consolidates the former user_follows / contact_official_follows /
+    organization_follows / cause_follows tables into one polymorphic table.
+    ``follower_id`` is always the acting user; ``target_type`` + ``target_id``
+    identify what is being followed. For target_type='user', target_id is the
+    followed user's user_id.
+    """
+    __tablename__ = "social_follows"
     __table_args__ = (
-        UniqueConstraint('follower_id', 'following_id', name='unique_user_follow'),
+        UniqueConstraint('follower_id', 'target_type', 'target_id', name='unique_social_follow'),
     )
-    
+
+    # Allowed target_type values (target_id references the matching entity's PK).
+    TARGET_TYPES = ("user", "official", "organization", "cause")
+
     id = Column(Integer, primary_key=True, index=True)
     follower_id = Column(Integer, ForeignKey('user.user_id', ondelete='CASCADE'), nullable=False, index=True)
-    following_id = Column(Integer, ForeignKey('user.user_id', ondelete='CASCADE'), nullable=False, index=True)
+    target_type = Column(String, nullable=False, index=True)
+    target_id = Column(Integer, nullable=False, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
-    
+
     def __repr__(self):
-        return f"<UserFollow {self.follower_id} -> {self.following_id}>"
-
-
-class OfficialFollow(Base):
-    """User following an official (renamed from LeaderFollow)"""
-    __tablename__ = "contact_official_follows"
-    __table_args__ = (
-        UniqueConstraint('user_id', 'official_id', name='unique_contact_official_follow'),
-    )
-
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey('user.user_id', ondelete='CASCADE'), nullable=False, index=True)
-    official_id = Column(Integer, ForeignKey('contact_official.id', ondelete='CASCADE'), nullable=False, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    
-    def __repr__(self):
-        return f"<OfficialFollow user:{self.user_id} -> official:{self.official_id}>"
-
-
-class OrganizationFollow(Base):
-    """User following an organization"""
-    __tablename__ = "organization_follows"
-    __table_args__ = (
-        UniqueConstraint('user_id', 'organization_id', name='unique_org_follow'),
-    )
-    
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey('user.user_id', ondelete='CASCADE'), nullable=False, index=True)
-    organization_id = Column(Integer, ForeignKey('organization.id', ondelete='CASCADE'), nullable=False, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    
-    def __repr__(self):
-        return f"<OrganizationFollow user:{self.user_id} -> org:{self.organization_id}>"
-
-
-class CauseFollow(Base):
-    """User following a cause/topic"""
-    __tablename__ = "cause_follows"
-    __table_args__ = (
-        UniqueConstraint('user_id', 'cause_id', name='unique_cause_follow'),
-    )
-    
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey('user.user_id', ondelete='CASCADE'), nullable=False, index=True)
-    cause_id = Column(Integer, ForeignKey('cause.id', ondelete='CASCADE'), nullable=False, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    
-    def __repr__(self):
-        return f"<CauseFollow user:{self.user_id} -> cause:{self.cause_id}>"
+        return f"<SocialFollow user:{self.follower_id} -> {self.target_type}:{self.target_id}>"
 
