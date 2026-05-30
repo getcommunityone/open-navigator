@@ -313,20 +313,19 @@ def _launch_enabled() -> bool:
     )
 
 
-def _launch_pidfile() -> Path:
-    return _repo_root() / "data" / "cache" / "batch_jobs" / "launch.pid"
+def _launch_meta_path() -> Path:
+    return _repo_root() / "data" / "cache" / "batch_jobs" / "launch.json"
 
 
-def _alive_launch_pid() -> Optional[int]:
+def _alive_launch() -> Optional[Dict[str, Any]]:
+    """The active launch's meta ({pid, step, states}) if its process is still
+    alive, else None (no launch, or stale file = the run stopped/got stuck)."""
     try:
-        pid = int(_launch_pidfile().read_text().strip())
-    except Exception:
+        meta = json.loads(_launch_meta_path().read_text())
+        os.kill(int(meta["pid"]), 0)  # signal 0 = liveness probe
+        return meta
+    except (OSError, ValueError, KeyError, TypeError, FileNotFoundError):
         return None
-    try:
-        os.kill(pid, 0)  # signal 0 = liveness probe
-        return pid
-    except OSError:
-        return None  # stale pidfile (process gone / "stuck and stopped")
 
 
 def _active_run_count() -> int:
@@ -350,6 +349,8 @@ class LaunchStatusResponse(BaseModel):
     busy: bool = False
     running: int = 0
     launch_pid: Optional[int] = None
+    launch_step: str = ""
+    launch_states: List[str] = Field(default_factory=list)
     steps: List[str] = Field(default_factory=lambda: list(_LAUNCH_STEPS))
 
 
@@ -366,12 +367,14 @@ class LaunchResponse(BaseModel):
 async def launch_status() -> LaunchStatusResponse:
     """Whether the dashboard re-kick button should be enabled / shown as busy."""
     running = await asyncio.to_thread(_active_run_count)
-    pid = _alive_launch_pid()
+    live = _alive_launch()
     return LaunchStatusResponse(
         enabled=_launch_enabled(),
         running=running,
-        launch_pid=pid,
-        busy=running > 0 or pid is not None,
+        launch_pid=(int(live["pid"]) if live else None),
+        launch_step=(str(live.get("step") or "") if live else ""),
+        launch_states=(list(live.get("states") or []) if live else []),
+        busy=running > 0 or live is not None,
     )
 
 
@@ -394,9 +397,9 @@ async def launch_pipeline(req: LaunchRequest) -> LaunchResponse:
     n = max(1, min(2000, int(req.n or 10)))
     parallel = max(1, min(8, int(req.parallel or 1)))
 
-    # Single-run guard: a running batch row OR a live launch pid means busy.
+    # Single-run guard: a running batch row OR a live launch means busy.
     running = await asyncio.to_thread(_active_run_count)
-    if running > 0 or _alive_launch_pid() is not None:
+    if running > 0 or _alive_launch() is not None:
         raise HTTPException(
             status_code=409, detail="A run is already active — wait for it to finish or cancel it."
         )
@@ -449,7 +452,16 @@ async def launch_pipeline(req: LaunchRequest) -> LaunchResponse:
         raise HTTPException(status_code=500, detail=f"launch failed: {exc}") from exc
 
     try:
-        _launch_pidfile().write_text(str(proc.pid))
+        _launch_meta_path().write_text(
+            json.dumps(
+                {
+                    "pid": proc.pid,
+                    "step": step,
+                    "states": states,
+                    "started_at": _dt.datetime.now(_dt.timezone.utc).isoformat(),
+                }
+            )
+        )
     except Exception:
         pass
 

@@ -1379,11 +1379,28 @@ export default function BatchJobStatusPage() {
                 failTitle: 'Report errors (bronze policy_report_error)',
               },
             ]
-            const cols = 'grid grid-cols-[1.4fr_0.8fr_1.7fr_auto_auto] items-center gap-3'
+            // Fixed-width Failed/Run columns so the progress column lines up across rows.
+            const cols =
+              'grid grid-cols-[1.4fr_0.8fr_minmax(0,1.7fr)_4.5rem_4.5rem] items-center gap-3'
             const ls = launchStatus
             const canLaunch =
               !!ls?.enabled && !ls?.busy && !launching && data.totals.running === 0
             const launchScopeStates = scope === 'ALL' ? [] : [scope]
+            // Which stages the in-flight launch is working on (its script step maps
+            // to one or more stages), so each row can show a live "running" marker.
+            const stepStages: Record<string, PipelineStage[]> = {
+              discover: ['discover'],
+              catalog: ['videos'],
+              captions: ['videos', 'transcripts'],
+              analyze: ['analyses', 'reports'],
+              all: ['discover', 'videos', 'transcripts', 'analyses', 'reports'],
+              each: ['discover', 'videos', 'transcripts', 'analyses', 'reports'],
+            }
+            const runningStep = ls?.busy ? ls.launch_step || '' : ''
+            const runningStages = new Set<PipelineStage>(
+              runningStep ? stepStages[runningStep] ?? [] : [],
+            )
+            const isActive = data.totals.running > 0 || !!ls?.busy
             return (
               <>
               <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -1391,17 +1408,23 @@ export default function BatchJobStatusPage() {
                   <div className="flex flex-wrap items-center gap-1.5 text-sm">
                     <span
                       className={`inline-block h-2.5 w-2.5 rounded-full ${
-                        data.totals.running > 0 ? 'bg-emerald-500' : 'bg-slate-400'
-                      }`}
+                        isActive ? 'bg-emerald-500' : 'bg-slate-400'
+                      } ${ls?.busy ? 'animate-pulse' : ''}`}
                     />
                     <span className="font-semibold text-slate-800">
-                      {data.totals.running > 0 ? 'Running' : 'Idle'}
+                      {isActive ? 'Running' : 'Idle'}
                     </span>
                     {lastUpdateAgo ? (
-                      <span className="text-slate-500">· last activity {lastUpdateAgo} ago</span>
+                      <span className="text-slate-500">· last activity {lastUpdateAgo}</span>
                     ) : null}
                     <span className="text-slate-500">
-                      · {formatCompactNumber(data.totals.running)} running
+                      {ls?.busy && runningStep
+                        ? `· running ${runningStep}${
+                            ls.launch_states && ls.launch_states.length
+                              ? ` · ${ls.launch_states.join(',')}`
+                              : ''
+                          }`
+                        : `· ${formatCompactNumber(data.totals.running)} running`}
                     </span>
                     {scope !== 'ALL' ? (
                       <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-600">
@@ -1460,18 +1483,19 @@ export default function BatchJobStatusPage() {
                   <div className="text-right">Failed</div>
                   <div className="text-right">Run</div>
                 </div>
-                {defs.map((st) => {
+                {defs.map((st, idx) => {
                   const r = rowFor(scope, st.stage)
                   const done = r?.done ?? 0
                   const total = r?.total ?? 0
                   const failed = r?.failed ?? 0
                   const pct = total ? (done / total) * 100 : 0
                   const ago = agoFromIso(r?.last_at)
+                  const running = runningStages.has(st.stage)
                   return (
-                    <div key={st.n} className={`${cols} border-t border-slate-100 px-4 py-3`}>
+                    <div key={st.stage} className={`${cols} border-t border-slate-100 px-4 py-3`}>
                       <div className="min-w-0">
                         <div className="text-sm font-semibold text-slate-800">
-                          {st.n} · {stageLabel[st.stage]}
+                          {idx + 1} · {stageLabel[st.stage]}
                         </div>
                         {st.sub ? (
                           <div className="mt-0.5 flex items-center gap-1 text-[11px] text-amber-600">
@@ -1482,9 +1506,18 @@ export default function BatchJobStatusPage() {
                           </div>
                         ) : null}
                       </div>
-                      <div className="flex items-center gap-1.5 text-sm text-slate-600">
-                        <span className="inline-block h-1.5 w-1.5 rounded-full bg-slate-400" />
-                        {ago ? `${ago} ago` : '—'}
+                      <div className="flex items-center gap-1.5 text-sm">
+                        {running ? (
+                          <>
+                            <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
+                            <span className="font-medium text-emerald-600">running…</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-slate-400" />
+                            <span className="text-slate-600">{ago ?? '—'}</span>
+                          </>
+                        )}
                       </div>
                       <div className="min-w-0">
                         <div className="text-sm tabular-nums text-slate-700">

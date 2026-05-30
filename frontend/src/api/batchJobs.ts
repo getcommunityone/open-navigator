@@ -110,6 +110,9 @@ export type LaunchStatus = {
   busy: boolean
   running: number
   launch_pid?: number | null
+  /** The step of the currently-running dashboard launch (e.g. "analyze"). */
+  launch_step?: string
+  launch_states?: string[]
   steps: string[]
 }
 
