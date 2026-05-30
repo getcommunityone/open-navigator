@@ -8,8 +8,12 @@ merge bronze AI extractions to production tables.
 
 Steps (run in order):
   1. analyze  — Meeting Transcripts (Gemini AI)  → llm/enrichment/load_meeting_transcripts.py
-  2. load     — Bronze Extraction (dbt)          → dbt run --select bronze_*_from_ai
-  3. merge    — Bronze → Production              → llm/enrichment/merge_bronze_to_production.py
+  2. ingest   — Cache → bronze_events_analysis_ai → llm/enrichment/load_analysis_cache_to_bronze.py
+  3. load     — Bronze Extraction (dbt)          → dbt run --select bronze_*_from_ai
+  4. merge    — Bronze → Production              → llm/enrichment/merge_bronze_to_production.py
+
+The `ingest` step backfills the analysis cache (no Gemini calls) so `load` can
+extract from the warehouse even on a freshly-rebuilt DB.
 
 MOA synthesis (moa_synthesize.py) is per-event and must be run separately:
   .venv/bin/python -m llm.enrichment.moa_synthesize --event-id <id> --aggregator claude-opus
@@ -61,6 +65,13 @@ STEPS = [
         "key": "analyze",
         "label": "Meeting Transcripts (Gemini AI)",
         "module": "llm.enrichment.load_meeting_transcripts",
+        "supports_dry_run": True,
+        "tables": ["bronze.bronze_events_analysis_ai"],
+    },
+    {
+        "key": "ingest",
+        "label": "Cache Ingest (analysis JSON → bronze_events_analysis_ai)",
+        "module": "llm.enrichment.load_analysis_cache_to_bronze",
         "supports_dry_run": True,
         "tables": ["bronze.bronze_events_analysis_ai"],
     },
@@ -419,8 +430,13 @@ def main() -> int:
 
     merge_args = ["--entity", args.entity]
 
+    ingest_args: list[str] = []
+    if args.states:
+        ingest_args += ["--states", args.states]
+
     step_args = {
         "analyze": analyze_args,
+        "ingest": ingest_args,
         "merge": merge_args,
     }
 
