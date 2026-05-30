@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -294,6 +295,69 @@ def ensure_valid_gemini_api_key(
         raise
 
 
+# --- API key rotation across workers -----------------------------------------
+_KEY_LOCK = threading.Lock()
+_CLIENT_CACHE: dict[str, Any] = {}
+_KEY_POOL: Optional[list[str]] = None
+_KEY_IDX: Optional[int] = None
+
+
+def resolve_gemini_api_keys(*, env_path: Optional[os.PathLike[str]] = None) -> list[str]:
+    """All configured Gemini keys, de-duplicated, in order. Sources (merged):
+    ``GEMINI_API_KEYS`` (comma/space/newline list), ``GEMINI_API_KEY`` /
+    ``GOOGLE_API_KEY``, and ``GEMINI_API_KEY_2``..``GEMINI_API_KEY_10``."""
+    from dotenv import load_dotenv
+
+    path = Path(env_path) if env_path is not None else Path(__file__).resolve().parents[2] / ".env"
+    if path.is_file():
+        load_dotenv(path)
+    raw: list[str] = list(re.split(r"[,\s]+", os.getenv("GEMINI_API_KEYS") or ""))
+    raw += [os.getenv("GEMINI_API_KEY") or "", os.getenv("GOOGLE_API_KEY") or ""]
+    raw += [os.getenv(f"GEMINI_API_KEY_{i}") or "" for i in range(2, 11)]
+    out: list[str] = []
+    seen: set[str] = set()
+    for k in (_strip_api_key(x) for x in raw):
+        if k and k not in seen:
+            seen.add(k)
+            out.append(k)
+    return out
+
+
+def _key_pool(fallback: str) -> list[str]:
+    global _KEY_POOL
+    if _KEY_POOL is None:
+        pool = resolve_gemini_api_keys()
+        if fallback and fallback not in pool:
+            pool = [fallback, *pool]
+        _KEY_POOL = pool or ([fallback] if fallback else [])
+        if len(_KEY_POOL) > 1:
+            logger.info("Gemini key rotation enabled: {} keys in pool", len(_KEY_POOL))
+    return _KEY_POOL
+
+
+def _client_for(key: str) -> Any:
+    client = _CLIENT_CACHE.get(key)
+    if client is None:
+        from google import genai
+
+        client = genai.Client(api_key=key)
+        _CLIENT_CACHE[key] = client
+    return client
+
+
+def _next_client(pool: list[str]) -> Any:
+    """Round-robin a client from the pool, offsetting the start by PID so separate
+    worker processes don't all hit the same key first. Retries advance the key,
+    so a 429/quota error moves off the hot key."""
+    global _KEY_IDX
+    with _KEY_LOCK:
+        if _KEY_IDX is None:
+            _KEY_IDX = os.getpid() % max(1, len(pool))
+        key = pool[_KEY_IDX % len(pool)]
+        _KEY_IDX += 1
+    return _client_for(key)
+
+
 def call_gemini_text(
     *,
     api_key: str,
@@ -303,11 +367,10 @@ def call_gemini_text(
     temperature: float = 0.1,
     max_output_tokens: int = 65536,
 ) -> TextGenAIResult:
-    """Single-turn text generation via AI Studio API."""
-    from google import genai
+    """Single-turn text generation via AI Studio API (rotates across the key pool)."""
     from google.genai import types
 
-    client = genai.Client(api_key=api_key)
+    pool = _key_pool(api_key)
     parts = [types.Part.from_text(text=user_text)]
     config_kwargs: dict[str, Any] = dict(
         temperature=temperature,
@@ -317,6 +380,7 @@ def call_gemini_text(
         config_kwargs["system_instruction"] = system_instruction.strip()
 
     def _generate():
+        client = _next_client(pool)
         return client.models.generate_content(
             model=model,
             contents=[types.Content(role="user", parts=parts)],
