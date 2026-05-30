@@ -8,13 +8,18 @@
 }}
 
 /*
-Extract contacts (people) from Gemini AI analysis JSONB.
+Extract persons (people) from Gemini AI analysis JSONB.
 
-This model replaces the Python script load_meeting_transcripts_bronze.py
-for the bronze_contacts table.
+Renamed from bronze_contacts_from_ai for Popolo alignment (see migration
+044_rename_bronze_contacts_from_ai_to_persons.sql).
 
-Source: bronze.bronze_events_analysis_ai.structured_analysis JSONB
-Target: bronze.bronze_contacts
+Source: bronze.bronze_events_analysis_ai.structured_analysis -> 'people'
+Target: bronze.bronze_persons_from_ai
+
+The current analysis JSON provides person_id, full_name, role, appeared_as.
+The remaining columns (org_id, party_affiliation, is_lobbyist, lobbyist_*,
+wikidata_qid) are kept as forward-compatible extracts and resolve to NULL when
+absent.
 
 Incremental: Only processes new events since last run
 */

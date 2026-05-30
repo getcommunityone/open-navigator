@@ -3,11 +3,13 @@
 Master AI Enrichment Runner
 
 Runs the AI enrichment pipeline in sequence: analyze meeting transcripts with
-Gemini, then merge bronze AI extractions to production tables.
+Gemini, extract the analysis JSONB into per-entity bronze tables via dbt, then
+merge bronze AI extractions to production tables.
 
 Steps (run in order):
   1. analyze  — Meeting Transcripts (Gemini AI)  → llm/enrichment/load_meeting_transcripts.py
-  2. merge    — Bronze → Production              → llm/enrichment/merge_bronze_to_production.py
+  2. load     — Bronze Extraction (dbt)          → dbt run --select bronze_*_from_ai
+  3. merge    — Bronze → Production              → llm/enrichment/merge_bronze_to_production.py
 
 MOA synthesis (moa_synthesize.py) is per-event and must be run separately:
   .venv/bin/python -m llm.enrichment.moa_synthesize --event-id <id> --aggregator claude-opus
@@ -40,6 +42,16 @@ from scripts.utils.log_sync import sync_logs, MACHINE_ID
 
 PROJECT_ROOT = Path(__file__).parents[5]
 LOG_ROOT = PROJECT_ROOT / "logs" / "enrich_ai"
+DBT_PROJECT_DIR = PROJECT_ROOT / "dbt_project"
+
+# dbt models that extract the analysis JSONB into per-entity bronze tables.
+LOAD_DBT_MODELS = [
+    "bronze_persons_from_ai",
+    "bronze_organizations_from_ai",
+    "bronze_bills_from_ai",
+    "bronze_places_from_ai",
+    "bronze_decisions_from_ai",
+]
 
 _PG_PASSWORD = os.getenv("POSTGRES_PASSWORD", "password")
 DATABASE_URL = f"postgresql://postgres:{_PG_PASSWORD}@localhost:5433/open_navigator"
@@ -51,6 +63,19 @@ STEPS = [
         "module": "llm.enrichment.load_meeting_transcripts",
         "supports_dry_run": True,
         "tables": ["bronze.bronze_events_analysis_ai"],
+    },
+    {
+        "key": "load",
+        "label": "Bronze Extraction (dbt: analysis JSONB → entity tables)",
+        "module": None,  # runs dbt, not a `python -m` module — see run_dbt_extraction
+        "supports_dry_run": True,
+        "tables": [
+            "bronze.bronze_persons_from_ai",
+            "bronze.bronze_organizations_from_ai",
+            "bronze.bronze_bills_from_ai",
+            "bronze.bronze_places_from_ai",
+            "bronze.bronze_decisions_from_ai",
+        ],
     },
     {
         "key": "merge",
@@ -111,21 +136,75 @@ def run_subprocess(cmd: list, log_path: Path, cwd: Path = PROJECT_ROOT) -> int:
     return proc.returncode
 
 
+def ensure_dbt_profiles() -> bool:
+    """Create dbt profiles.yml from the example on first run (mirrors load_bronze.py)."""
+    if not DBT_PROJECT_DIR.exists():
+        return False
+    profiles = DBT_PROJECT_DIR / "profiles.yml"
+    example = DBT_PROJECT_DIR / "profiles.yml.example"
+    if not profiles.exists():
+        if example.exists():
+            import shutil
+            shutil.copy(example, profiles)
+            logger.info("Created dbt profiles.yml from example (first-time setup)")
+        else:
+            logger.warning("dbt profiles.yml and profiles.yml.example both missing")
+            return False
+    return True
+
+
+def run_dbt_extraction(select_models: list[str], log_path: Path) -> int:
+    """Run the bronze AI-extraction dbt models (analysis JSONB → entity tables).
+
+    JSONB extraction lives in dbt per project standards; this just invokes it.
+    """
+    if not DBT_PROJECT_DIR.exists():
+        logger.warning(f"dbt_project/ not found at {DBT_PROJECT_DIR} — skipping load")
+        return -1
+
+    ensure_dbt_profiles()
+
+    dbt_bin = PROJECT_ROOT / ".venv" / "bin" / "dbt"
+    dbt_cmd = str(dbt_bin) if dbt_bin.exists() else "dbt"
+
+    deps_cmd = [dbt_cmd, "deps", "--profiles-dir", str(DBT_PROJECT_DIR)]
+    logger.info(f"$ {' '.join(deps_cmd)}")
+    run_subprocess(deps_cmd, log_path, cwd=DBT_PROJECT_DIR)
+
+    run_cmd = [
+        dbt_cmd, "run",
+        "--select", *select_models,
+        "--profiles-dir", str(DBT_PROJECT_DIR),
+    ]
+    logger.info(f"$ {' '.join(run_cmd)}")
+    return run_subprocess(run_cmd, log_path, cwd=DBT_PROJECT_DIR)
+
+
 def run_step(step: dict, extra_args: list[str], dry_run: bool, log_dir: Path) -> dict:
     tables = step.get("tables", [])
     before = count_rows(tables)
 
-    cmd = [sys.executable, "-m", step["module"]]
-    cmd.extend(extra_args)
-    if dry_run and step["supports_dry_run"]:
-        cmd.append("--dry-run")
-
     log_path = log_dir / f"{step['key']}.log"
-    logger.info(f"$ {' '.join(str(c) for c in cmd)}")
-    logger.info(f"  log → {log_path.relative_to(PROJECT_ROOT)}")
+    is_dry = dry_run and step["supports_dry_run"]
 
     start = time.monotonic()
-    exit_code = run_subprocess(cmd, log_path)
+    if step["key"] == "load":
+        # dbt-driven bronze extraction — no `python -m` module.
+        logger.info(f"  log → {log_path.relative_to(PROJECT_ROOT)}")
+        if is_dry:
+            logger.warning("  dry-run: skipping dbt run (no DB writes)")
+            log_path.write_text("dry-run: dbt extraction skipped\n")
+            exit_code = 0
+        else:
+            exit_code = run_dbt_extraction(LOAD_DBT_MODELS, log_path)
+    else:
+        cmd = [sys.executable, "-m", step["module"]]
+        cmd.extend(extra_args)
+        if is_dry:
+            cmd.append("--dry-run")
+        logger.info(f"$ {' '.join(str(c) for c in cmd)}")
+        logger.info(f"  log → {log_path.relative_to(PROJECT_ROOT)}")
+        exit_code = run_subprocess(cmd, log_path)
     elapsed = time.monotonic() - start
 
     after = count_rows(tables)

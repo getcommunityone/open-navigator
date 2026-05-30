@@ -238,6 +238,20 @@ def default_flash_lite_model() -> str:
     ).strip()
 
 
+def _genai_http_timeout_ms() -> int:
+    """Per-request HTTP timeout (milliseconds) for google-genai clients.
+
+    Without an explicit timeout the SDK can block forever on a stalled response
+    (TCP connected, server stops sending bytes), which wedges the whole
+    single-threaded pipeline indefinitely — no exception is raised, so the
+    quota/network retry wrapper never fires. A fired timeout instead raises an
+    error that ``is_genai_transient_network_error`` classifies as retryable, so
+    ``call_with_genai_quota_retry`` backs off and rotates keys. Override via
+    ``GOVERNANCE_GENAI_HTTP_TIMEOUT_MS`` (default 120s).
+    """
+    return max(1000, int(os.environ.get("GOVERNANCE_GENAI_HTTP_TIMEOUT_MS", "120000")))
+
+
 def _strip_api_key(value: str) -> str:
     return value.strip().strip('"').strip("'")
 
@@ -280,10 +294,14 @@ def check_gemini_api_key(api_key: str, *, model: Optional[str] = None) -> None:
             "or use --transcript-only"
         )
     from google import genai
+    from google.genai import types
 
     probe_model = (model or default_flash_lite_model()).strip()
     try:
-        client = genai.Client(api_key=api_key)
+        client = genai.Client(
+            api_key=api_key,
+            http_options=types.HttpOptions(timeout=_genai_http_timeout_ms()),
+        )
         client.models.generate_content(model=probe_model, contents="ok")
     except Exception as exc:
         if is_gemini_api_key_invalid(exc):
@@ -365,8 +383,12 @@ def _client_for(key: str) -> Any:
     client = _CLIENT_CACHE.get(key)
     if client is None:
         from google import genai
+        from google.genai import types
 
-        client = genai.Client(api_key=key)
+        client = genai.Client(
+            api_key=key,
+            http_options=types.HttpOptions(timeout=_genai_http_timeout_ms()),
+        )
         _CLIENT_CACHE[key] = client
     return client
 

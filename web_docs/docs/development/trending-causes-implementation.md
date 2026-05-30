@@ -39,7 +39,7 @@ This update implements **dynamic, geography-specific trending causes** that show
   - Can be added to cron for daily updates
 
 ### 4. Documentation
-- **`dbt_project/README_TRENDING_CAUSES.md`**
+- **`web_docs/docs/dbt/trending-causes.md`**
   - Updated to reflect new implementation
   - Added examples for each aggregation level
 
@@ -223,4 +223,4 @@ After implementing this change:
 See the full documentation at:
 - [Trending Causes by Geography](website/docs/development/trending-causes-by-geography.md)
 - [dbt ETL Strategy](website/docs/development/dbt-etl-strategy.md)
-- [README_TRENDING_CAUSES.md](dbt_project/README_TRENDING_CAUSES.md)
+- [Trending Causes](../dbt/trending-causes.md)
