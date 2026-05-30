@@ -12,9 +12,15 @@ import asyncio
 import json
 import os
 import re
+import signal
 import subprocess
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, AsyncIterator, Dict, List, Optional
+
+# A "running" launch that has produced no pipeline activity for this long is
+# treated as stalled/timed-out, so the dashboard re-enables launching.
+_LAUNCH_STALL_SECONDS = 3600
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -328,13 +334,56 @@ def _alive_launch() -> Optional[Dict[str, Any]]:
         return None
 
 
-def _active_run_count() -> int:
+def _dashboard_runtime() -> "tuple[int, str]":
+    """(# running batch rows, freshest pipeline-activity ISO) in one DB hit."""
     try:
         from api.batch_jobs.batch_job_db import aggregate_dashboard_totals_from_db
 
-        return int((aggregate_dashboard_totals_from_db(limit=10) or {}).get("running") or 0)
+        t = aggregate_dashboard_totals_from_db(limit=10) or {}
+        running = int(t.get("running") or 0)
+        freshest = max(
+            str(t.get(k) or "")
+            for k in (
+                "last_activity_at",
+                "last_transcript_at",
+                "last_analysis_at",
+                "last_report_at",
+            )
+        )
+        return running, freshest
     except Exception:
-        return 0
+        return 0, ""
+
+
+def _iso_age_seconds(iso: str) -> Optional[float]:
+    try:
+        dt = datetime.fromisoformat(iso)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return (datetime.now(timezone.utc) - dt).total_seconds()
+    except Exception:
+        return None
+
+
+def _launch_stalled(live: Dict[str, Any], freshest: str) -> bool:
+    """A live launch with no activity (or none since it started) for over the
+    stall window — i.e. stuck. ``freshest`` and ``started_at`` are UTC ISO."""
+    last_seen = max(freshest or "", str(live.get("started_at") or ""))
+    age = _iso_age_seconds(last_seen) if last_seen else None
+    return age is not None and age > _LAUNCH_STALL_SECONDS
+
+
+def _terminate_launch(live: Dict[str, Any]) -> None:
+    """Best-effort kill of a stalled launch's process group, then clear the meta."""
+    try:
+        pid = int(live["pid"])
+        os.killpg(os.getpgid(pid), signal.SIGTERM)
+    except Exception:
+        pass
+    try:
+        _launch_meta_path().unlink(missing_ok=True)
+    except Exception:
+        pass
 
 
 class LaunchRequest(BaseModel):
@@ -347,6 +396,7 @@ class LaunchRequest(BaseModel):
 class LaunchStatusResponse(BaseModel):
     enabled: bool
     busy: bool = False
+    stalled: bool = False
     running: int = 0
     launch_pid: Optional[int] = None
     launch_step: str = ""
@@ -366,15 +416,19 @@ class LaunchResponse(BaseModel):
 @router.get("/launch", response_model=LaunchStatusResponse)
 async def launch_status() -> LaunchStatusResponse:
     """Whether the dashboard re-kick button should be enabled / shown as busy."""
-    running = await asyncio.to_thread(_active_run_count)
+    running, freshest = await asyncio.to_thread(_dashboard_runtime)
     live = _alive_launch()
+    stalled = bool(live and _launch_stalled(live, freshest))
+    # A stalled launch (alive but no activity for >1h) counts as timed-out, not
+    # busy, so the buttons re-enable. The POST handler reaps it on next launch.
     return LaunchStatusResponse(
         enabled=_launch_enabled(),
         running=running,
+        stalled=stalled,
         launch_pid=(int(live["pid"]) if live else None),
-        launch_step=(str(live.get("step") or "") if live else ""),
-        launch_states=(list(live.get("states") or []) if live else []),
-        busy=running > 0 or live is not None,
+        launch_step=(str(live.get("step") or "") if live and not stalled else ""),
+        launch_states=(list(live.get("states") or []) if live and not stalled else []),
+        busy=running > 0 or (live is not None and not stalled),
     )
 
 
@@ -397,12 +451,20 @@ async def launch_pipeline(req: LaunchRequest) -> LaunchResponse:
     n = max(1, min(2000, int(req.n or 10)))
     parallel = max(1, min(8, int(req.parallel or 1)))
 
-    # Single-run guard: a running batch row OR a live launch means busy.
-    running = await asyncio.to_thread(_active_run_count)
-    if running > 0 or _alive_launch() is not None:
-        raise HTTPException(
-            status_code=409, detail="A run is already active — wait for it to finish or cancel it."
-        )
+    # Single-run guard: a running batch row blocks; a live launch blocks unless
+    # it has stalled (>1h no activity), in which case we reap it and proceed.
+    running, freshest = await asyncio.to_thread(_dashboard_runtime)
+    if running > 0:
+        raise HTTPException(status_code=409, detail="A batch run is already active — wait for it.")
+    live = _alive_launch()
+    if live is not None:
+        if _launch_stalled(live, freshest):
+            _terminate_launch(live)
+        else:
+            raise HTTPException(
+                status_code=409,
+                detail="A run is already active — wait for it to finish or cancel it.",
+            )
 
     root = _repo_root()
     env = dict(os.environ)

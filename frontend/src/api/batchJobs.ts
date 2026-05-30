@@ -108,6 +108,8 @@ export type BatchJobsDashboardPayload = {
 export type LaunchStatus = {
   enabled: boolean
   busy: boolean
+  /** Live but no activity for >1h — timed out; launching is re-enabled. */
+  stalled?: boolean
   running: number
   launch_pid?: number | null
   /** The step of the currently-running dashboard launch (e.g. "analyze"). */

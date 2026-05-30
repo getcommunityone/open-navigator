@@ -1401,21 +1401,31 @@ export default function BatchJobStatusPage() {
               runningStep ? stepStages[runningStep] ?? [] : [],
             )
             const isActive = data.totals.running > 0 || !!ls?.busy
+            // Header "last activity" = the freshest per-step stamp for this scope,
+            // not the stale batch-step clock.
+            const freshestIso = stageList
+              .map((s) => rowFor(scope, s)?.last_at || '')
+              .reduce((a, b) => (a > b ? a : b), '')
+            const freshestAgo = agoFromIso(freshestIso)
+            const statusText = ls?.stalled ? 'Stalled' : isActive ? 'Running' : 'Idle'
+            const statusDot = ls?.stalled
+              ? 'bg-amber-500'
+              : isActive
+                ? 'bg-emerald-500'
+                : 'bg-slate-400'
             return (
               <>
               <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
                   <div className="flex flex-wrap items-center gap-1.5 text-sm">
                     <span
-                      className={`inline-block h-2.5 w-2.5 rounded-full ${
-                        isActive ? 'bg-emerald-500' : 'bg-slate-400'
-                      } ${ls?.busy ? 'animate-pulse' : ''}`}
+                      className={`inline-block h-2.5 w-2.5 rounded-full ${statusDot} ${
+                        ls?.busy ? 'animate-pulse' : ''
+                      }`}
                     />
-                    <span className="font-semibold text-slate-800">
-                      {isActive ? 'Running' : 'Idle'}
-                    </span>
-                    {lastUpdateAgo ? (
-                      <span className="text-slate-500">· last activity {lastUpdateAgo}</span>
+                    <span className="font-semibold text-slate-800">{statusText}</span>
+                    {freshestAgo ? (
+                      <span className="text-slate-500">· last activity {freshestAgo}</span>
                     ) : null}
                     <span className="text-slate-500">
                       {ls?.busy && runningStep
@@ -1424,7 +1434,9 @@ export default function BatchJobStatusPage() {
                               ? ` · ${ls.launch_states.join(',')}`
                               : ''
                           }`
-                        : `· ${formatCompactNumber(data.totals.running)} running`}
+                        : ls?.stalled
+                          ? '· timed out — no activity for 1h'
+                          : `· ${formatCompactNumber(data.totals.running)} running`}
                     </span>
                     {scope !== 'ALL' ? (
                       <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-600">
