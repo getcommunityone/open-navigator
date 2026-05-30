@@ -218,14 +218,6 @@ models:
         tests:
           - not_null
   
-  - name: int_contacts_deduped
-    description: "Deduplicated bronze contacts (one record per person per org)"
-    columns:
-      - name: bronze_contact_id
-        description: "Original bronze table ID"
-        tests:
-          - unique
-  
   - name: int_events_channels_registry
     description: >
       Channel-centric registry derived from `int_events_localview` channel_ids
