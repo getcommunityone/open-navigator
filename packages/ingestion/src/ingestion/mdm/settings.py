@@ -23,11 +23,15 @@ def address_settings() -> SettingsCreator:
         link_type="dedupe_only",
         unique_id_column_name="address_uid",
         # Sequential blocking — a typo in one field is still caught by another.
+        # All multi-column so pairs don't explode: a bare zip5 / city+state block
+        # compares every address in a ZIP (or state) pairwise (quadratic).
+        # All ZIP-scoped (or exact-key) so every block is small and bounded.
+        # A nationwide street_number+street_name block would lump every "100 main
+        # street" together; left out deliberately for the first pass.
         blocking_rules_to_generate_predictions=[
-            block_on("address_match_key"),          # exact mailable address
-            block_on("zip5"),                        # same ZIP
-            block_on("street_name"),                 # same street
-            block_on("city_norm", "state_code"),     # same locality
+            block_on("address_match_key"),              # exact mailable address (tiny blocks)
+            block_on("zip5", "street_name"),            # same street within a ZIP
+            block_on("zip5", "street_number"),          # same number within a ZIP
         ],
         comparisons=[
             # Street number: a wrong number is a different house -> exact or null only.
@@ -78,12 +82,14 @@ def person_settings() -> SettingsCreator:
     return SettingsCreator(
         link_type="dedupe_only",
         unique_id_column_name="person_uid",
+        # Multi-column blocks: a bare zip5 over 2.4M people is quadratic. Phonetic
+        # surname/given + geography keeps blocks small while staying order-agnostic.
         blocking_rules_to_generate_predictions=[
             block_on("external_id"),                          # strong id
             block_on("email"),                                # strong id
             block_on("name_phonetic_last", "state_code"),     # surname sound + state
             block_on("name_phonetic_first", "state_code"),    # given sound + state (order-agnostic)
-            block_on("zip5"),                                 # same ZIP
+            block_on("name_phonetic_last", "zip5"),           # surname sound + ZIP (tighter than bare zip5)
         ],
         comparisons=[
             # Name ladder on the normalized full name.
