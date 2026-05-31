@@ -26,9 +26,9 @@ import re
 from loguru import logger
 import sys
 
-# Add project root to path (module now at packages/ingestion/src/ingestion/gold/
-# -> repo root is parents[5]) so the root config/ and scripts/ trees resolve.
-sys.path.insert(0, str(Path(__file__).resolve().parents[5]))
+# Add project root to path (module now at packages/ingestion/src/ingestion/publication/gold/
+# -> repo root is parents[6]) so the root config/ and scripts/ trees resolve.
+sys.path.insert(0, str(Path(__file__).resolve().parents[6]))
 
 from config.settings import settings
 

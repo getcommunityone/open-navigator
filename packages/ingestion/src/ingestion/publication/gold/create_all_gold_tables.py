@@ -31,9 +31,9 @@ from pathlib import Path
 import argparse
 from loguru import logger
 
-# Add project root to path (module now at packages/ingestion/src/ingestion/gold/
-# -> repo root is parents[5]) so the root config/ and scripts/ trees resolve.
-project_root = Path(__file__).resolve().parents[5]
+# Add project root to path (module now at packages/ingestion/src/ingestion/publication/gold/
+# -> repo root is parents[6]) so the root config/ and scripts/ trees resolve.
+project_root = Path(__file__).resolve().parents[6]
 sys.path.insert(0, str(project_root))
 
 from ingestion.publication.gold.create_meetings_gold_tables import EventGoldTableCreator
