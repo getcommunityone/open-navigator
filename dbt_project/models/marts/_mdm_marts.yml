@@ -1,7 +1,7 @@
 version: 2
 
 models:
-  - name: mdm_dim_address_master
+  - name: mdm_address
     description: >
       MDM golden record — one row per resolved address. PK master_address_id.
     config:
@@ -39,7 +39,7 @@ models:
   - name: mdm_bridge_address_xref
     description: >
       MDM crosswalk — one row per source address occurrence. PK address_uid,
-      FK master_address_id -> mdm_dim_address_master.
+      FK master_address_id -> mdm_address.
     config:
       materialized: table
       on_schema_change: fail
@@ -48,7 +48,7 @@ models:
     constraints:
       - type: foreign_key
         columns: [master_address_id]
-        to: ref('mdm_dim_address_master')
+        to: ref('mdm_address')
         to_columns: [master_address_id]
     columns:
       - name: master_address_id
@@ -70,7 +70,7 @@ models:
   - name: mdm_bridge_address_county
     description: >
       MDM many-to-many: master address <-> county via ZIP allocation. PK
-      address_county_id, FK master_address_id -> mdm_dim_address_master.
+      address_county_id, FK master_address_id -> mdm_address.
     config:
       materialized: table
       on_schema_change: fail
@@ -79,7 +79,7 @@ models:
     constraints:
       - type: foreign_key
         columns: [master_address_id]
-        to: ref('mdm_dim_address_master')
+        to: ref('mdm_address')
         to_columns: [master_address_id]
     columns:
       - name: address_county_id
@@ -104,10 +104,54 @@ models:
       - name: is_dominant
         data_type: boolean
 
+  - name: mdm_person
+    description: >
+      MDM canonical public person table. One row per usable person occurrence from
+      the conformed pool (entity_type = 'person', is_probable_person), keyed on
+      person_uid. Replaces the retired contacts_search_ai model. Golden-record
+      dedup (master_person_id) lands once int_persons__clustered exists.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    columns:
+      - name: person_uid
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+      - name: source_system
+        data_type: text
+      - name: source_pk
+        data_type: text
+      - name: full_name
+        data_type: text
+      - name: name_norm
+        data_type: text
+      - name: given_name_norm
+        data_type: text
+      - name: family_name_norm
+        data_type: text
+      - name: name_phonetic_first
+        data_type: text
+      - name: name_phonetic_last
+        data_type: text
+      - name: email
+        data_type: text
+      - name: phone
+        data_type: text
+      - name: city_norm
+        data_type: text
+      - name: state_code
+        data_type: text
+      - name: zip5
+        data_type: text
+
   - name: mdm_bridge_person_address
     description: >
       MDM person <-> address (parcel owners today). PK person_uid, FK
-      master_address_id -> mdm_dim_address_master.
+      master_address_id -> mdm_address.
     config:
       materialized: table
       on_schema_change: fail
@@ -116,7 +160,7 @@ models:
     constraints:
       - type: foreign_key
         columns: [master_address_id]
-        to: ref('mdm_dim_address_master')
+        to: ref('mdm_address')
         to_columns: [master_address_id]
     columns:
       - name: person_uid
@@ -166,8 +210,8 @@ models:
   - name: mdm_organization
     description: >
       MDM golden record — one row per resolved organization, canonical org_type.
-      Canonical public org table. PK master_org_id; parent_jurisdiction_id rolls
-      the org up to its governing jurisdiction (-> jurisdictions.jurisdiction_id).
+      Canonical public org table. PK master_org_id. The governing jurisdiction is
+      resolved separately in mdm_bridge_org_jurisdiction.
     config:
       materialized: table
       on_schema_change: fail
@@ -201,24 +245,6 @@ models:
         data_type: double precision
       - name: website
         data_type: text
-      - name: parent_jurisdiction_id
-        data_type: text
-        description: >
-          Governing jurisdiction this org rolls up to (FK -> jurisdictions.
-          jurisdiction_id). NULL when no (state, name) match was found.
-          Not enforced as a Postgres FK because the jurisdictions mart has no
-          enforced contract/PK yet; referential integrity is covered by the
-          relationships test below.
-        tests:
-          - relationships:
-              to: ref('jurisdictions')
-              field: jurisdiction_id
-      - name: jurisdiction_match_method
-        data_type: text
-        description: "How parent_jurisdiction_id was derived: self | municipality | township | county | unmatched."
-        tests:
-          - accepted_values:
-              values: ['self', 'municipality', 'township', 'county', 'unmatched']
       - name: n_occurrences
         data_type: bigint
       - name: n_sources
@@ -244,7 +270,7 @@ models:
         to_columns: [master_org_id]
       - type: foreign_key
         columns: [master_address_id]
-        to: ref('mdm_dim_address_master')
+        to: ref('mdm_address')
         to_columns: [master_address_id]
     columns:
       - name: org_address_id

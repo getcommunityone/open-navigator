@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Export ``jurisdiction_mapping_quality_summary`` (+ optional counts) to JSON for the
+Export ``dq_jurisdiction_mapping_summary`` (+ optional counts) to JSON for the
 **Jurisdiction mapping quality** dashboard (``web_app/public/data/jurisdiction_mapping_quality.json``).
 
 Also writes capped **drill-down** lists from ``public.jurisdiction_mapping_analysis``:
@@ -38,9 +38,9 @@ Optional env caps (defaults in parentheses): ``JURIS_MAPPING_QUALITY_UNMAPPED_CA
 
 Requires dbt mart tables built:
   ./scripts/dbt.sh run --select jurisdiction_mapping_analysis jurisdiction_mapping_analysis_sources \\
-    jurisdiction_mapping_quality_summary jurisdiction_mapping_quality_summary_municipality_places \\
-    jurisdiction_mapping_quality_summary_by_acs_population_tier \\
-    jurisdiction_mapping_quality_summary_by_acs_income_level
+    dq_jurisdiction_mapping_summary dq_jurisdiction_mapping_summary_municipality_places \\
+    dq_jurisdiction_mapping_summary_by_acs_population_tier \\
+    dq_jurisdiction_mapping_summary_by_acs_income_level
 
 Usage (repo root):
 
@@ -224,7 +224,7 @@ def main() -> int:
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             summary_has_youtube = _table_column_exists(
-                cur, "public", "jurisdiction_mapping_quality_summary", "with_youtube_channel"
+                cur, "public", "dq_jurisdiction_mapping_summary", "with_youtube_channel"
             )
             analysis_has_youtube = _table_column_exists(
                 cur, "public", "jurisdiction_mapping_analysis", "has_youtube_channel"
@@ -233,7 +233,7 @@ def main() -> int:
             if not summary_has_youtube:
                 print(
                     "Note: summary marts lack with_youtube_channel — re-run dbt "
-                    "jurisdiction_mapping_quality_summary+ after jurisdiction_mapping_analysis.",
+                    "dq_jurisdiction_mapping_summary+ after jurisdiction_mapping_analysis.",
                     file=sys.stderr,
                 )
             if not analysis_has_youtube:
@@ -265,7 +265,7 @@ def main() -> int:
                        jurisdictions_touching_override,
                        {_SUMMARY_PRIMARY_FROM_COLS}{summary_youtube_sql},
                        summary_generated_at::text AS summary_generated_at
-                FROM public.jurisdiction_mapping_quality_summary
+                FROM public.dq_jurisdiction_mapping_summary
                 ORDER BY jurisdiction_type
                 """
             )
@@ -295,7 +295,7 @@ def main() -> int:
                        jurisdictions_touching_override,
                        {_SUMMARY_PRIMARY_FROM_COLS}{summary_youtube_sql},
                        summary_generated_at::text AS summary_generated_at
-                FROM public.jurisdiction_mapping_quality_summary_municipality_places
+                FROM public.dq_jurisdiction_mapping_summary_municipality_places
                 ORDER BY
                     CASE municipality_place_kind
                         WHEN 'incorporated_city' THEN 1
@@ -333,7 +333,7 @@ def main() -> int:
                        jurisdictions_touching_override,
                        {_SUMMARY_PRIMARY_FROM_COLS}{summary_youtube_sql},
                        summary_generated_at::text AS summary_generated_at
-                FROM public.jurisdiction_mapping_quality_summary_by_acs_population_tier
+                FROM public.dq_jurisdiction_mapping_summary_by_acs_population_tier
                 ORDER BY
                     jurisdiction_type,
                     CASE acs_population_tier
@@ -373,7 +373,7 @@ def main() -> int:
                        jurisdictions_touching_override,
                        {_SUMMARY_PRIMARY_FROM_COLS}{summary_youtube_sql},
                        summary_generated_at::text AS summary_generated_at
-                FROM public.jurisdiction_mapping_quality_summary_by_acs_income_level
+                FROM public.dq_jurisdiction_mapping_summary_by_acs_income_level
                 ORDER BY
                     jurisdiction_type,
                     CASE acs_income_level

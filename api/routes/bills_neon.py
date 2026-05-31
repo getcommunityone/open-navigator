@@ -455,7 +455,7 @@ async def fetch_map_data_from_neon(
                 map_category,
                 sample_bills,
                 last_updated
-            FROM bill_map_aggregate
+            FROM rpt_bill_map_aggregate
             WHERE topic = $1
         """
         

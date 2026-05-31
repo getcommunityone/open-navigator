@@ -6,7 +6,7 @@
 -- Drop existing tables if rerunning (careful in production!)
 DROP TABLE IF EXISTS jurisdiction_state_aggregate CASCADE;
 DROP TABLE IF EXISTS organization_nonprofit CASCADE;
-DROP TABLE IF EXISTS bill_map_aggregate CASCADE;
+DROP TABLE IF EXISTS rpt_bill_map_aggregate CASCADE;
 DROP TABLE IF EXISTS organization_location CASCADE;
 DROP TABLE IF EXISTS organization CASCADE;
 DROP TABLE IF EXISTS "user" CASCADE;

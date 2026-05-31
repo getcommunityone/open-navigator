@@ -156,7 +156,7 @@ def load_bills_from_state(state_code: str, conn):
     with conn.cursor() as cur:
         cur.execute(
             """
-            INSERT INTO bill_map_aggregate (
+            INSERT INTO rpt_bill_map_aggregate (
                 state_code, topic, total_bills,
                 type_bill, type_resolution, type_concurrent_resolution,
                 type_joint_resolution, type_constitutional_amendment,
@@ -247,7 +247,7 @@ def main():
                     total_aggregates += agg_count
             
             conn.commit()
-            record_sync(conn, "bill_map_aggregate", total_aggregates, "success")
+            record_sync(conn, "rpt_bill_map_aggregate", total_aggregates, "success")
             conn.commit()
         
         logger.success("🎉 Migration completed successfully!")
