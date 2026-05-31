@@ -12,7 +12,8 @@ from ingestion.mdm.linker import SPECS, run_linker
 def main() -> None:
     parser = argparse.ArgumentParser(prog="ingestion.mdm", description=__doc__)
     parser.add_argument("entity", choices=sorted(SPECS), help="which conformed pool to resolve")
-    parser.add_argument("--threshold", type=float, default=0.9, help="match probability threshold")
+    parser.add_argument("--threshold", type=float, default=0.9, help="predict (candidate-edge) threshold")
+    parser.add_argument("--cluster-threshold", type=float, default=0.99, help="stricter merge threshold")
     parser.add_argument("--max-pairs", type=float, default=1e7, help="u-estimation sample size")
     parser.add_argument(
         "--dry-run",
@@ -24,6 +25,7 @@ def main() -> None:
     out = run_linker(
         args.entity,
         match_threshold=args.threshold,
+        cluster_threshold=args.cluster_threshold,
         train_max_pairs=args.max_pairs,
         dry_run=args.dry_run,
     )

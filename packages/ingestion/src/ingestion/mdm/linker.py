@@ -84,10 +84,16 @@ def run_linker(
     entity: str,
     *,
     match_threshold: float = 0.9,
+    cluster_threshold: float = 0.99,
     train_max_pairs: float = 1e7,
     dry_run: bool = False,
 ) -> str:
     """Resolve one entity pool end to end. Returns the output table name.
+
+    match_threshold gates which pairs are predicted (candidate edges);
+    cluster_threshold (stricter) gates which edges actually merge records. Keeping
+    clustering stricter than prediction limits single-linkage chaining — at equal
+    thresholds a dense block can fuse unrelated records into one mega-cluster.
 
     dry_run builds the linker + settings and stops before any estimation, so the
     configuration can be validated without the (multi-hour) compute.
@@ -133,9 +139,9 @@ def run_linker(
     logger.info("Predicting pairwise matches (threshold={}) …", match_threshold)
     predictions = linker.inference.predict(threshold_match_probability=match_threshold)
 
-    logger.info("Clustering predictions …")
+    logger.info("Clustering predictions (threshold={}) …", cluster_threshold)
     clusters = linker.clustering.cluster_pairwise_predictions_at_threshold(
-        predictions, threshold_match_probability=match_threshold
+        predictions, threshold_match_probability=cluster_threshold
     )
 
     df = clusters.as_pandas_dataframe()
