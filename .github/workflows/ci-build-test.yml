@@ -156,7 +156,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           # Mirror backend-test: local workspace packages import as top-level modules.
-          pip install --no-deps -e packages/core -e packages/datamodels -e packages/agents
+          # ingestion included so export_openapi.py -> api.app import resolves.
+          pip install --no-deps -e packages/core -e packages/datamodels -e packages/agents -e packages/ingestion
 
       - name: Install frontend dependencies
         run: |
