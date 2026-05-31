@@ -279,3 +279,11 @@ Each step is shippable on its own.
   onto one hash. A shared **PO box** is the same trap (`po box 412` = 551
   distinct owners): treat PO-box-only situs as not-a-unique-address and exclude
   it from the exact key too, leaving those rows to Splink's fuzzy comparison.
+- **High-volume sources must dedup to distinct entities, not occurrences**
+  (found building `int_persons__unioned`): `bronze_campaigns_contributions` has
+  **~24.5M transaction rows** — a donor who gave 500 times is one entity, not 500
+  pool rows. `stg_contributions__person` collapses to one row per distinct
+  contributor identity (`name_norm` + city + state + zip) before the union, with
+  `source_pk` = a hash of that identity; the transaction-level link belongs in a
+  separate xref, not the person pool. Apply the same rule to any future
+  transaction-grained source.

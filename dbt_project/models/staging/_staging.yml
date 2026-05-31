@@ -58,6 +58,29 @@ sources:
 
       - name: bronze_organizations_nonprofits_nccs_history
         description: "NCCS Unified BMF organization-years (raw history), landed by ingestion.nccs.bulk. One row per (ein, org_year_last)."
+      - name: bronze_campaigns_contributions
+        description: |
+          Campaign finance contributions (RAW). One row per contribution_id.
+          Feeds the MDM person/organization pipeline via contributor_name
+          ("LAST, FIRST" individuals + PACs/committees/businesses). See
+          web_docs/docs/dbt/entity-resolution-mdm.md.
+        columns:
+          - name: contribution_id
+            description: "Source contribution id — natural key."
+          - name: contributor_name
+            description: "Contributor — person (LAST, FIRST) or organization/committee."
+          - name: contributor_city
+            description: "Contributor city."
+          - name: contributor_state
+            description: "Contributor 2-letter state."
+          - name: contributor_zip
+            description: "Contributor ZIP (may be ZIP+4)."
+          - name: contributor_employer
+            description: "Employer (organization signal)."
+          - name: committee_id
+            description: "Recipient committee id."
+          - name: loaded_at
+            description: "When the row was landed."
       - name: bronze_addresses
         description: |
           Parcel / property records (RAW). ~598k rows, one per
