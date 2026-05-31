@@ -1,0 +1,51 @@
+version: 2
+
+models:
+  - name: localview_events
+    description: |
+      LocalView meeting events (one row per meeting video), API-ready and keyed
+      to a canonical jurisdiction_id. Surfaces the event-grain jurisdiction
+      resolution from int_events_localview into the public schema.
+
+      Events whose scraped place did not resolve to a Census GEOID keep
+      jurisdiction_id and the resolved jurisdiction_name/type NULL, but are still
+      emitted (source_place_name / state_code remain populated).
+    config:
+      materialized: table
+    columns:
+      - name: event_id
+        description: "Surrogate event id carried from bronze_events_localview (BIGSERIAL)."
+        tests:
+          - unique
+          - not_null
+      - name: source
+        description: "Always 'localview'."
+        tests:
+          - accepted_values:
+              values: ['localview']
+      - name: datasource_id
+        description: "YouTube video id; natural key for the meeting video."
+        tests:
+          - unique
+          - not_null
+      - name: jurisdiction_id
+        description: "Canonical {place_slug}_{geoid} id; NULL when the place did not resolve."
+        tests:
+          - relationships:
+              to: ref('int_jurisdictions')
+              field: jurisdiction_id
+              config:
+                where: "jurisdiction_id is not null"
+      - name: jurisdiction_match_type
+        description: "Geography tier that resolved the jurisdiction."
+        tests:
+          - accepted_values:
+              values: ['municipality', 'county', 'township', 'school_district']
+              config:
+                where: "jurisdiction_match_type is not null"
+      - name: source_place_name
+        description: "Raw LocalView place name as scraped (system of record)."
+      - name: state_code
+        description: "2-letter state code."
+        tests:
+          - not_null
