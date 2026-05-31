@@ -342,10 +342,11 @@ Each step is shippable on its own.
   every `bronze_addresses` owner occurrence unfiltered: 35,773 of 111,075 distinct
   keys (32%) had no `mdm_person` row — **24,467 `entity_type='organization'`**
   (business parcel owners) and 11,306 low-quality person names. The filter drops
-  those (bridge: 111,075 → 75,302 keys, 0 orphans). **TODO:** the excluded
-  business parcel owners are real org↔address links — route them to an
-  org↔address bridge (`mdm_bridge_org_address` covers facility addresses today,
-  not parcels) so that signal isn't lost.
+  those (bridge: 111,075 → 75,302 keys, 0 orphans). The excluded business parcel
+  owners are not lost: `stg_parcels__org` routes the org-shaped owner names
+  (`classify_name_entity_type = 'organization'`) into the org pool, and
+  `mdm_bridge_org_address` now carries them as `parcel_owner` links (≈8,086 distinct
+  org↔address pairs, 0 address-FK orphans) alongside the `located_at` facility links.
 - **Filter non-names at the source, flag the rest** (found via `full_name`/
   `is_probable_person`): scraped pages yield ~12k non-name strings (titles, dates,
   "hours of operation", UI chrome). `stg_openstates__person` reuses the existing

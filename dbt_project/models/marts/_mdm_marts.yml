@@ -265,8 +265,9 @@ models:
 
   - name: mdm_bridge_org_address
     description: >
-      MDM organization <-> address, dated (via shared bronze_locations row). PK
-      org_address_id, FKs to org + address masters.
+      MDM organization <-> address. located_at (shared bronze_locations row) and
+      parcel_owner (shared bronze_addresses parcel row). PK org_address_id, FKs to
+      org + address masters.
     config:
       materialized: table
       on_schema_change: fail
