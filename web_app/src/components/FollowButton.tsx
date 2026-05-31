@@ -6,7 +6,8 @@ import { CheckIcon } from '@heroicons/react/24/solid'
 
 interface FollowButtonProps {
   type: 'user' | 'leader' | 'organization' | 'cause'
-  id: number
+  // Organizations are keyed by the text master_org_id; the others by integer id.
+  id: number | string
   initialFollowing?: boolean
   initialCount?: number
   showCount?: boolean

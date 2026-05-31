@@ -26,16 +26,15 @@ interface Leader {
 }
 
 interface Organization {
-  id: number
+  master_org_id: string
   name: string
-  slug: string
   description?: string
   logo_url?: string
   org_type?: string
   city?: string
   state?: string
   follower_count: number
-  is_verified: boolean
+  is_verified?: boolean
 }
 
 interface Cause {
@@ -287,8 +286,8 @@ export default function Profile() {
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {orgsFollowing.map((org) => (
-                      <div 
-                        key={org.id} 
+                      <div
+                        key={org.master_org_id}
                         className="flex items-start gap-4 p-4 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors"
                       >
                         {org.logo_url ? (
@@ -327,9 +326,9 @@ export default function Profile() {
                             {org.follower_count.toLocaleString()} followers
                           </p>
                         </div>
-                        <FollowButton 
-                          type="organization" 
-                          id={org.id}
+                        <FollowButton
+                          type="organization"
+                          id={org.master_org_id}
                           initialFollowing={true}
                           initialCount={org.follower_count}
                           showCount={false}
