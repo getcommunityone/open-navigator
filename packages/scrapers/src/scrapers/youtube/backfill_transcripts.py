@@ -112,8 +112,10 @@ def get_events_missing_transcripts(conn, states: Optional[List[str]] = None, lim
                 u.event_id,
                 u.video_url,
                 u.event_title,
+                u.jurisdiction_id,
                 u.jurisdiction_name,
-                u.state_code
+                u.state_code,
+                u.state
             FROM intermediate.int_events_union u
             LEFT JOIN bronze.bronze_events_text_ai t ON t.video_id = u.video_id
             WHERE u.video_url IS NOT NULL
@@ -160,11 +162,16 @@ def backfill_transcripts(
         # Get events missing transcripts
         logger.info("Finding YouTube events without transcripts...")
         events = get_events_missing_transcripts(conn, states=states, limit=limit)
-        
+        # Release the read transaction's AccessShareLock on int_events_union
+        # immediately — otherwise the whole (potentially hours-long) fetch loop
+        # pins the view and blocks dbt from rebuilding it (CREATE OR REPLACE /
+        # rename-swap need an exclusive lock). Inserts below open their own txns.
+        conn.rollback()
+
         if not events:
             logger.success("✓ All YouTube events already have transcripts!")
             return
-        
+
         logger.info(f"Found {len(events)} events missing transcripts")
 
         # Resolve cookies once and log where caption fetches egress (Webshare
@@ -200,7 +207,12 @@ def backfill_transcripts(
             title = event['event_title']
             jurisdiction = event['jurisdiction_name']
             state = event['state_code']
-            
+            # Geo carried from the event mart (via int_events_union). LocalView
+            # videos have no bronze_events_youtube row, so the sync trigger can't
+            # fill these — write them at insert time so coverage is complete.
+            jurisdiction_id = event.get('jurisdiction_id')
+            state_name = event.get('state')
+
             # Extract video ID
             video_id = extract_video_id_from_url(video_url)
             
@@ -274,27 +286,42 @@ def backfill_transcripts(
                     
                     # Prepare data
                     transcript_data['event_id'] = event_id
-                    
+                    transcript_data['state_code'] = state
+                    transcript_data['state'] = state_name
+                    transcript_data['jurisdiction_id'] = jurisdiction_id
+                    transcript_data['jurisdiction_name'] = jurisdiction
+
                     # Convert segments list to JSON string
                     if 'segments' in transcript_data and transcript_data['segments']:
                         transcript_data['segments'] = json.dumps(transcript_data['segments'])
                     else:
                         transcript_data['segments'] = None
-                    
+
+                    # Geo (state_code, state, jurisdiction_id, jurisdiction_name) is
+                    # written here from the event mart. The sync_text_ai_geo_from_youtube
+                    # trigger still overrides it with the YouTube catalog's canonical
+                    # geo when a matching youtube row exists, but no longer clobbers
+                    # these with NULL for LocalView-only videos (see migration 087).
                     insert_query = """
                         INSERT INTO bronze.bronze_events_text_ai (
                             event_id, video_id, raw_text, segments, language,
-                            is_auto_generated, transcript_source
+                            is_auto_generated, transcript_source,
+                            state_code, state, jurisdiction_id, jurisdiction_name
                         ) VALUES (
                             %(event_id)s, %(video_id)s, %(raw_text)s, %(segments)s::jsonb, %(language)s,
-                            %(is_auto_generated)s, %(transcript_source)s
+                            %(is_auto_generated)s, %(transcript_source)s,
+                            %(state_code)s, %(state)s, %(jurisdiction_id)s, %(jurisdiction_name)s
                         )
                         ON CONFLICT (video_id) DO UPDATE SET
                             raw_text = EXCLUDED.raw_text,
                             segments = EXCLUDED.segments,
                             language = EXCLUDED.language,
                             is_auto_generated = EXCLUDED.is_auto_generated,
-                            transcript_source = EXCLUDED.transcript_source
+                            transcript_source = EXCLUDED.transcript_source,
+                            state_code = COALESCE(bronze.bronze_events_text_ai.state_code, EXCLUDED.state_code),
+                            state = COALESCE(bronze.bronze_events_text_ai.state, EXCLUDED.state),
+                            jurisdiction_id = COALESCE(bronze.bronze_events_text_ai.jurisdiction_id, EXCLUDED.jurisdiction_id),
+                            jurisdiction_name = COALESCE(bronze.bronze_events_text_ai.jurisdiction_name, EXCLUDED.jurisdiction_name)
                     """
                     
                     cursor.execute(insert_query, transcript_data)

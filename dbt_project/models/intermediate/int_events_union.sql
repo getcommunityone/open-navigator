@@ -26,8 +26,10 @@ WITH events AS (
         event_date,
         video_url,
         event_title,
+        jurisdiction_id,
         jurisdiction_name,
         state_code,
+        state,
         source,
         COALESCE(
             -- Primary: parse the video_id out of the YouTube URL.
@@ -61,8 +63,10 @@ SELECT
     event_date,
     video_url,
     event_title,
+    jurisdiction_id,
     jurisdiction_name,
     state_code,
+    state,
     video_id,
     source
 FROM deduped
