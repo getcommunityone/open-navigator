@@ -10,8 +10,15 @@ record**. Links persons and addresses from OpenStates, GivingTuesday / 990s,
 campaign contributions, `bronze_locations`, and the AI-extracted `event_person`
 / `event_place` / `event_organization` marts.
 
-**Status:** design / not yet built. Build incrementally in the order in
-[Build order](#build-order).
+**Status:** partially built. Addresses resolve deterministically and serve from
+`mdm_address`; organizations serve from `mdm_organization`. The person pool
+(`int_persons__unioned`) is built and now serves at **source-occurrence grain**
+from `mdm_person` (PK `person_uid`) — the canonical public person table that
+replaced the legacy `contacts_search_ai` model. Probabilistic person clustering
+(Splink → `int_persons__clustered` → a deduplicated `master_person_id`) is the
+remaining piece; until it lands, `mdm_person` serves the conformed occurrences.
+Serving models use the `mdm_` prefix (the `dim_`/`fact_` star-schema naming is
+disallowed). Build incrementally in the order in [Build order](#build-order).
 
 ## Division of labor
 
@@ -22,8 +29,8 @@ into the other's internals.
 ```
 dbt (keys + conformance)          Python / Splink (matching)         dbt (serving)
 ──────────────────────────        ──────────────────────────         ─────────────────
-Layer 0  extensions               Layer 3  Splink model              Layer 5  dim_*_master
-Layer 1  normalization macros  ►  Layer 4  predict + cluster    ►            bridge_*_xref
+Layer 0  extensions               Layer 3  Splink model              Layer 5  mdm_person/address
+Layer 1  normalization macros  ►  Layer 4  predict + cluster    ►            mdm_bridge_*
 Layer 2  conformed stagings       writes clusters → bronze              (reads cluster table)
 ```
 
@@ -171,7 +178,7 @@ conformance.
   `master_address_id = coalesce(address_match_key, address_uid)` — identical
   addresses merge, streetless singletons stay separate. Result: 442,579 →
   **376,337 master addresses**, largest cluster a real shared PO box (551), built
-  in seconds, zero chaining. `dim_address_master` + `bridge_address_xref` serve it.
+  in seconds, zero chaining. `mdm_address` + `mdm_bridge_address_xref` serve it.
 - **Persons → Splink (probabilistic).** Names have no clean key and genuinely
   need fuzzy + phonetic matching; this is where Splink earns its keep.
 
@@ -240,12 +247,16 @@ per cluster in reviewable SQL, not in Python.
 
 ## Layer 5 — serving (dbt marts)
 
-- `dim_person_master`, `dim_address_master` — golden records, built by joining
-  `int_*__unioned` to the Splink cluster table plus survivorship logic.
-- `bridge_person_xref`, `bridge_address_xref` —
-  `master_id ↔ source_system + source_pk`.
-- API name-search and address-map-search query the dims; every source reaches
-  them through the bridge.
+- `mdm_person`, `mdm_address` — golden records, built by joining `int_*__unioned`
+  to the cluster table plus survivorship logic. **Addresses** are live
+  (deterministic clustering). **Persons** currently serve at source-occurrence
+  grain (PK `person_uid`) directly off `int_persons__unioned`; the upstream `ref`
+  swaps to `int_persons__clustered` once Splink person clustering lands, adding a
+  deduplicated `master_person_id` — same evolution `mdm_organization` followed.
+- `mdm_bridge_person_address`, `mdm_person_source_link`, `mdm_bridge_address_xref`
+  — link the masters to `source_system + source_pk` (and to each other).
+- API name-search and address-map-search query the `mdm_` marts; every source
+  reaches them through the bridge.
 - `GIN (name_norm gin_trgm_ops)` and `GIN (address_norm gin_trgm_ops)` indexes
   keep `similarity()` / `%` searches fast.
 
@@ -260,7 +271,7 @@ event_* marts ──┘                                              │
                                           bronze.entity_*_clusters (master_id)
                                                                │
                                                                ▼
-                      dim_person_master / dim_address_master + bridge_*_xref ◄── API search
+                          mdm_person / mdm_address + mdm_bridge_* ◄── API search
 ```
 
 ## Build order
@@ -272,9 +283,11 @@ Each step is shippable on its own.
    **Validate row counts + key null-rates before continuing.**
 3. Splink linker on **addresses first** (smaller comparison space, lat/long is a
    strong signal) as the template.
-4. `dim_address_master` + `bridge_address_xref` + API trigram index. Prove search
-   end-to-end on one entity.
-5. Repeat 3–4 for persons.
+4. `mdm_address` + `mdm_bridge_address_xref` + API trigram index. Prove search
+   end-to-end on one entity. ✅ done.
+5. Repeat 3–4 for persons. `mdm_person` already serves at occurrence grain;
+   remaining work is the Splink person linker → `int_persons__clustered` →
+   `master_person_id`, then repoint `mdm_person`'s upstream `ref`.
 
 ## Watch-outs
 
