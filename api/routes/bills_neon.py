@@ -988,13 +988,11 @@ async def get_bill_details(bill_id: str):
         bills_file = GOLD_DIR / "bills_bills.parquet"
         actions_file = GOLD_DIR / "bills_bill_actions.parquet"
         sponsors_file = GOLD_DIR / "bills_bill_sponsorships.parquet"
-        map_file = GOLD_DIR / "bill_map_aggregate.parquet"
-        
+
         # Get data sources (local or remote HuggingFace URL)
         bills_source = get_data_source(bills_file, use_remote=IS_HF_SPACES)
         actions_source = get_data_source(actions_file, use_remote=IS_HF_SPACES)
         sponsors_source = get_data_source(sponsors_file, use_remote=IS_HF_SPACES)
-        map_source = get_data_source(map_file, use_remote=IS_HF_SPACES)
         
         # Connect to DuckDB for querying parquet files
         conn = duckdb.connect()
@@ -1023,19 +1021,25 @@ async def get_bill_details(bill_id: str):
             if not result:
                 # Try to get sample bill data from map aggregates as fallback
                 logger.info(f"Bill {bill_number} not found in detailed data, checking map aggregates...")
-                
-                map_query = """
-                    SELECT sample_bills
-                    FROM read_parquet(?)
-                    WHERE UPPER(state) = ?
-                    LIMIT 1
-                """
-                
-                map_result = conn.execute(map_query, [map_source, state]).fetchone()
-                
-                if map_result and map_result[0]:
+
+                pool = await get_pool()
+                async with pool.acquire() as agg_conn:
+                    agg_row = await agg_conn.fetchrow(
+                        """
+                        SELECT sample_bills
+                        FROM rpt_bill_map_aggregate
+                        WHERE state_code = $1 AND topic = 'all'
+                        LIMIT 1
+                        """,
+                        state,
+                    )
+
+                if agg_row and agg_row['sample_bills']:
                     # Search for the bill in sample_bills array
-                    sample_bills = map_result[0]
+                    sample_bills = agg_row['sample_bills']
+                    if isinstance(sample_bills, str):
+                        import json
+                        sample_bills = json.loads(sample_bills)
                     matching_bill = None
                     for bill in sample_bills:
                         if bill.get('bill_number') == bill_number:
