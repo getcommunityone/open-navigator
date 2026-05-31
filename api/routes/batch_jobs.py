@@ -565,13 +565,12 @@ async def launch_pipeline(req: LaunchRequest) -> LaunchResponse:
             argv += ["--limit", str(min(backfill_limit, 100000))]
         if states:
             argv += ["--states", ",".join(states)]
-        # The mart-wide sweep can touch thousands of videos in a single run, so
-        # route captions through the Webshare rotating residential pool to spread
-        # the per-IP 429 ceiling — the bare cookies+direct egress (.env default,
-        # used by the per-jurisdiction `captions` step) hits YouTube's rate limit
-        # after ~20 fetches. Falls back to cookies+direct automatically if
-        # PROXY_USER_NAME / PROXY_PASSWORD are unset (webshare_enabled() == False).
-        env["YOUTUBE_USE_WEBSHARE"] = "1"
+        # Caption egress (Webshare vs cookies+direct) is left to the environment /
+        # .env (YOUTUBE_USE_WEBSHARE). Don't force Webshare here: the residential
+        # pool is bandwidth-capped and, once exhausted, every fetch TLS-times-out
+        # (SSLError) and the sweep inserts nothing — whereas cookies+direct keeps
+        # working. Set YOUTUBE_USE_WEBSHARE=1 in the env only when the pool has
+        # quota and YouTube is rate-limiting the direct IP.
     else:
         script = root / _LAUNCH_SCRIPT
         if not script.is_file():
