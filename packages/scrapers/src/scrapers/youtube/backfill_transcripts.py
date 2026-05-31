@@ -230,29 +230,32 @@ def get_events_missing_transcripts(conn, states: Optional[List[str]] = None, lim
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     
     try:
-        # Build query to find events without transcripts
+        # Build query to find videos without transcripts.
+        # int_events_union merges every event source that carries a meeting
+        # video URL (event mart + LocalView), deduped to one row per video_id.
+        # Anti-join the bronze transcript landing on video_id to skip videos
+        # whose transcript is already landed.
         query = """
-            SELECT 
-                e.event_id,
-                e.video_url,
-                e.event_title,
-                e.jurisdiction_name,
-                e.state_code
-            FROM event e
-            LEFT JOIN events_text_search t ON e.event_id = t.event_id
-            WHERE e.source = 'youtube'
-              AND e.video_url IS NOT NULL
-              AND t.id IS NULL  -- No transcript exists
+            SELECT
+                u.event_id,
+                u.video_url,
+                u.event_title,
+                u.jurisdiction_name,
+                u.state_code
+            FROM intermediate.int_events_union u
+            LEFT JOIN bronze.bronze_events_text_ai t ON t.video_id = u.video_id
+            WHERE u.video_url IS NOT NULL
+              AND t.id IS NULL  -- No transcript landed yet
         """
-        
+
         params = []
-        
+
         if states:
             placeholders = ','.join(['%s'] * len(states))
-            query += f" AND e.state_code IN ({placeholders})"
+            query += f" AND u.state_code IN ({placeholders})"
             params.extend(states)
-        
-        query += " ORDER BY e.event_id DESC"
+
+        query += " ORDER BY u.event_id DESC"
         
         if limit:
             query += " LIMIT %s"
@@ -370,8 +373,8 @@ def backfill_transcripts(
                         transcript_data['segments'] = None
                     
                     insert_query = """
-                        INSERT INTO events_text_search (
-                            event_id, video_id, raw_text, segments, language, 
+                        INSERT INTO bronze.bronze_events_text_ai (
+                            event_id, video_id, raw_text, segments, language,
                             is_auto_generated, transcript_source
                         ) VALUES (
                             %(event_id)s, %(video_id)s, %(raw_text)s, %(segments)s::jsonb, %(language)s,
