@@ -280,25 +280,25 @@ def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         w.writerows(rows)
 
 
-def main() -> int:
-    p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--state", default="GA", help="Two-letter state code (default: GA)")
-    p.add_argument(
-        "--skip-homepage-scrape",
-        action="store_true",
-        help="Skip website scraping and use handle patterns + YouTube API only",
-    )
-    p.add_argument(
-        "--output",
-        default="/tmp/ga_channel_candidates.csv",
-        help="Output CSV path (default: /tmp/ga_channel_candidates.csv)",
-    )
-    p.add_argument("--database-url", default="", help="Postgres URL override")
-    args = p.parse_args()
+def _state_output_path(output: str, state_code: str, multi: bool) -> Path:
+    """Resolve the CSV path for a state. For multi-state runs, insert the state
+    code before the suffix (``cands.csv`` -> ``cands_GA.csv``) so states don't
+    overwrite each other."""
+    base = Path(output).expanduser().resolve()
+    if not multi:
+        return base
+    return base.with_name(f"{base.stem}_{state_code}{base.suffix}")
 
-    state_code = args.state.strip().upper()
-    db_url = resolve_database_url(args.database_url)
 
+def discover_one_state(
+    state_code: str,
+    db_url: str,
+    *,
+    output: str,
+    multi: bool,
+    skip_homepage_scrape: bool,
+) -> int:
+    """Discover candidate channels for one state; returns # rows with a channel."""
     missing = fetch_missing_counties(db_url, state_code)
     logger.info("Missing county mappings in {}: {}", state_code, len(missing))
     if not missing:
@@ -309,10 +309,10 @@ def main() -> int:
         discover_channels(
             missing,
             state_code,
-            skip_homepage_scrape=args.skip_homepage_scrape,
+            skip_homepage_scrape=skip_homepage_scrape,
         )
     )
-    out_path = Path(args.output).expanduser().resolve()
+    out_path = _state_output_path(output, state_code, multi)
     write_csv(out_path, results)
 
     with_channel = sum(1 for r in results if r.get("channel_id"))
@@ -322,6 +322,45 @@ def main() -> int:
         out_path,
         with_channel,
     )
+    return with_channel
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--state", default="GA", help="Two-letter state code (default: GA)")
+    p.add_argument(
+        "--states",
+        default="",
+        help="Comma-separated state codes to sweep (e.g. AL,GA,IN). Overrides --state.",
+    )
+    p.add_argument(
+        "--skip-homepage-scrape",
+        action="store_true",
+        help="Skip website scraping and use handle patterns + YouTube API only",
+    )
+    p.add_argument(
+        "--output",
+        default="/tmp/ga_channel_candidates.csv",
+        help="Output CSV path (per-state suffix added when sweeping multiple states)",
+    )
+    p.add_argument("--database-url", default="", help="Postgres URL override")
+    args = p.parse_args()
+
+    if args.states.strip():
+        states = [s.strip().upper() for s in args.states.split(",") if s.strip()]
+    else:
+        states = [args.state.strip().upper()]
+    db_url = resolve_database_url(args.database_url)
+
+    multi = len(states) > 1
+    for state_code in states:
+        discover_one_state(
+            state_code,
+            db_url,
+            output=args.output,
+            multi=multi,
+            skip_homepage_scrape=args.skip_homepage_scrape,
+        )
     return 0
 
 

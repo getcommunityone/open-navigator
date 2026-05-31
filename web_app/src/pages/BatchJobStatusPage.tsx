@@ -46,6 +46,7 @@ import {
   formatDateTimeAbsolute,
   formatUpdatedAt,
 } from '../utils/dateTime'
+import { STATE_CODES } from '../lib/usStates'
 
 type FailedVideoRow = {
   batch_id: string
@@ -862,6 +863,10 @@ function BatchDetailPanel({
   )
 }
 
+// Priority dev states — mirrors the wrapper-script default (the STATES env in
+// youtube_run_priority_states_last_n.sh). "All states" uses STATE_CODES (50 + DC).
+const PRIORITY_STATE_CODES = ['AL', 'GA', 'IN', 'MA', 'MT', 'WA', 'WI']
+
 export default function BatchJobStatusPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const batchId = searchParams.get('batch') ?? ''
@@ -929,6 +934,16 @@ export default function BatchJobStatusPage() {
   const setParallel = useCallback((v: number) => {
     setParallelism(v)
     localStorage.setItem('batch-parallelism', String(v))
+  }, [])
+  // Which states a full / "ALL"-scope launch targets: the priority dev set
+  // (matches the script default) or every US state + DC. Picking a single state
+  // from the scope dropdown overrides this. Persisted across reloads.
+  const [allScope, setAllScopeState] = useState<'priority' | 'all'>(() => {
+    return localStorage.getItem('batch-launch-scope') === 'all' ? 'all' : 'priority'
+  })
+  const setAllScope = useCallback((v: 'priority' | 'all') => {
+    setAllScopeState(v)
+    localStorage.setItem('batch-launch-scope', v)
   }, [])
   const runLaunch = useCallback(
     async (step: string, states: string[]) => {
@@ -1460,7 +1475,16 @@ export default function BatchJobStatusPage() {
             const cols =
               'grid grid-cols-[1.4fr_0.8fr_minmax(0,1.7fr)_4.5rem_4.5rem] items-center gap-3'
             const ls = launchStatus
-            const launchScopeStates = scope === 'ALL' ? [] : [scope]
+            // ALL view scope → an explicit launch target (priority set or 50 + DC)
+            // so the backend can't silently fall back to its priority-only default.
+            const launchScopeStates =
+              scope === 'ALL'
+                ? allScope === 'all'
+                  ? STATE_CODES
+                  : PRIORITY_STATE_CODES
+                : [scope]
+            const scopeLaunchLabel =
+              scope !== 'ALL' ? scope : allScope === 'all' ? 'all 50 + DC' : 'priority'
             // Each running step maps to the stage(s) it advances. Different steps
             // run concurrently, so we union them for the live "running" markers.
             const stepStages: Record<string, PipelineStage[]> = {
@@ -1484,8 +1508,7 @@ export default function BatchJobStatusPage() {
               !!ls?.enabled &&
               !launching &&
               !runningSteps.has(stageStep[g]) &&
-              !anyFullRun &&
-              !(g === 'discover' && scope === 'ALL')
+              !anyFullRun
             const canRunAll =
               !!ls?.enabled &&
               !launching &&
@@ -1533,6 +1556,22 @@ export default function BatchJobStatusPage() {
                     ) : null}
                   </div>
                   <div className="flex items-center gap-2">
+                    {ls?.enabled && scope === 'ALL' ? (
+                      <label
+                        className="flex items-center gap-1 text-xs text-slate-500"
+                        title="Which states a full / ALL-scope run targets. Priority = the dev set (AL, GA, IN, MA, MT, WA, WI); All = every US state + DC. Pick a single state from the scope dropdown to run just that one. Applies to the next launch."
+                      >
+                        <span aria-hidden>🗺️</span>
+                        <select
+                          value={allScope}
+                          onChange={(e) => setAllScope(e.target.value as 'priority' | 'all')}
+                          className="rounded-md border border-slate-300 bg-white px-1.5 py-1 text-xs font-medium text-slate-700"
+                        >
+                          <option value="priority">Priority states</option>
+                          <option value="all">All states (50 + DC)</option>
+                        </select>
+                      </label>
+                    ) : null}
                     {ls?.enabled ? (
                       <label
                         className="flex items-center gap-1 text-xs text-slate-500"
@@ -1560,11 +1599,11 @@ export default function BatchJobStatusPage() {
                         title={
                           runningSteps.size > 0
                             ? 'Finish the running step(s) before a full-pipeline run'
-                            : `Run the full pipeline (catalog → captions → analyze)${scope !== 'ALL' ? ` for ${scope}` : ' (all states)'}`
+                            : `Run the full pipeline (catalog → captions → analyze) for ${scopeLaunchLabel} states`
                         }
                         className="inline-flex items-center gap-1 rounded-md bg-[#354F52] px-2.5 py-1.5 text-xs font-semibold uppercase tracking-wide text-white shadow-sm hover:bg-[#2c4346] disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        {launching ? 'Launching…' : `▶ Run all${scope !== 'ALL' ? ` · ${scope}` : ''}`}
+                        {launching ? 'Launching…' : `▶ Run all · ${scopeLaunchLabel}`}
                       </button>
                     ) : null}
                     {ls?.enabled && (ls?.busy || runningSteps.size > 0 || stalledSteps.size > 0) ? (
@@ -1727,9 +1766,7 @@ export default function BatchJobStatusPage() {
                             title={
                               runningSteps.has(stageStep[st.stage])
                                 ? `${stageStep[st.stage]} is already running`
-                                : st.stage === 'discover' && scope === 'ALL'
-                                  ? 'Scope to one state first to discover its channels'
-                                  : `Run ${stepDesc[st.stage]}${scope !== 'ALL' ? ` · ${scope}` : ''}`
+                                : `Run ${stepDesc[st.stage]} · ${scopeLaunchLabel}`
                             }
                             className="rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
                           >
