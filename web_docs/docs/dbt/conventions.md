@@ -12,7 +12,7 @@ This blueprint is grounded in what is actually in the repo today — not aspirat
 
 - **44 dbt models** under [dbt_project/models/](dbt_project/models/) (not 467; that figure is wrong).
 - Existing directory layout: `staging/` (3 active + 3 `.bak`), `intermediate/` (17), `marts/` (14), `bronze/` (10 AI-extraction models that build bronze tables in-database from JSON).
-- Existing naming: `int_*` is well adopted (17/17). `stg_*` is adopted for the 3 active staging models but with prefix `stg_bronze_*` (leaks the source layer name). `fct_*` / `dim_*` are not used at all — marts are named directly (e.g. `jurisdictions.sql`, `event.sql`).
+- Existing naming: `int_*` is well adopted (17/17). `stg_*` is adopted for the 3 active staging models but with prefix `stg_bronze_*` (leaks the source layer name). `fct_*` / `dim_*` are **not used at all** — marts are named directly for the entity they represent (e.g. `jurisdictions.sql`, `event.sql`). This blueprint keeps that convention: **no `dim_`/`fact_` prefixes** (see CLAUDE.md).
 - Sources live at [bronze schema](dbt_project/models/staging/_staging.yml) in `open_navigator` Postgres; no `raw_*` schemas exist yet. Stage 2 ingestion ports continue to write to `bronze.bronze_*` tables for behavior parity. The new ingestion layer (`packages/core-lib`) will produce `raw_<source>.*` tables in a later refactor — until then, **`bronze` is the only source layer dbt sees**.
 
 The intent of this blueprint is to **establish standards going forward** and provide a concrete migration path for existing models. It does NOT mass-rename existing models — that work happens model-by-model in follow-up PRs.
@@ -33,10 +33,10 @@ dbt_project/models/
 │   ├── _schema.yml
 │   └── int_<topic>__<step>.sql            # business-logic glue; can fan out into steps
 └── marts/
-    ├── core/                              # cross-cutting facts/dims used by API + analytics
+    ├── core/                              # cross-cutting entity & event marts used by API + analytics
     │   ├── _schema.yml
-    │   ├── fct_<event>.sql
-    │   └── dim_<entity>.sql
+    │   ├── <event>.sql                    # event/occurrence grain, e.g. event_meeting.sql
+    │   └── <entity>.sql                   # entity grain, e.g. organizations.sql
     ├── quality/                           # data-quality summary marts (jurisdiction_mapping_quality_*)
     │   └── _schema.yml
     └── reporting/                         # ad-hoc reporting/aggregate marts
@@ -51,15 +51,16 @@ The `models/bronze/` directory in the repo is misnamed — its 10 files (`bronze
 |---|---|---|---|---|
 | `stg_<source>__<entity>` | Staging — 1:1 with a source table, light cleaning + type stabilization | `staging` | `view` | `stg_gsa__domains`, `stg_fec__contributions`, `stg_census__states` |
 | `int_<topic>__<step>` | Intermediate — business glue, joins, dedup | `intermediate` | `table` | `int_jurisdictions__deduped`, `int_nonprofits__with_geo` |
-| `fct_<event>` | Mart — event/transaction grain (one row per occurrence) | `marts` | `table` | `fct_meetings`, `fct_contributions`, `fct_ballot_measures` |
-| `dim_<entity>` | Mart — entity grain (one row per noun, slowly changing) | `marts` | `table` | `dim_jurisdictions`, `dim_organizations`, `dim_mayors` |
+| `<entity>` | Mart — entity grain (one row per noun) | `marts` | `table` | `jurisdictions`, `organizations`, `mayors` |
+| `<entity>` (event grain) | Mart — event/transaction grain (one row per occurrence) | `marts` | `table` | `event_meeting`, `contributions`, `ballot_measures` |
 | `rpt_<topic>` | Mart — reporting/aggregate (typically used by dashboards) | `marts` | `table` | `rpt_jurisdiction_mapping_quality_summary` |
 
 Rules:
 - **Double underscore (`__`)** separates the source/topic from the entity. This makes the lineage immediately obvious in `dbt ls` output and the docs site.
+- **Marts are named for the entity they represent — never use `dim_`/`fact_` prefixes** (CLAUDE.md). Event/occurrence-grain marts get a singular entity name (`event_meeting`); `rpt_` is reserved for reporting aggregates.
 - `stg_*` references only `source()` — never another model.
 - `int_*` references `stg_*` and other `int_*`. Never `source()` directly.
-- `fct_*` / `dim_*` / `rpt_*` reference `stg_*` and `int_*`. Never `source()` directly.
+- Marts (`<entity>` / `rpt_*`) reference `stg_*` and `int_*`. Never `source()` directly.
 
 ### 1.3 Migration map for existing models
 
@@ -73,20 +74,20 @@ Don't rename in bulk. Apply during touch:
 | `int_jurisdictions.sql` | `int_jurisdictions__base.sql` | "base" makes its role in the chain clear |
 | `int_jurisdictions_clean.sql` | `int_jurisdictions__deduped.sql` | name describes the operation |
 | `int_jurisdictions_linked.sql` | `int_jurisdictions__matched.sql` | "linked" is ambiguous |
-| `event.sql` (mart) | `fct_meetings.sql` | event-grain fact |
-| `jurisdictions.sql` (mart) | `dim_jurisdictions.sql` | entity-grain dim |
-| `organization_nonprofit.sql` | `dim_organizations.sql` | entity-grain dim |
-| `ballot_measures.sql` | `fct_ballot_measures.sql` | event-grain fact |
+| `event.sql` (mart) | `event_meeting.sql` | name the entity directly; no `fct_` prefix |
+| `organization_nonprofit.sql` | `organizations.sql` | name the entity directly; no `dim_` prefix |
 | `jurisdiction_mapping_quality_summary*.sql` | `rpt_jurisdiction_mapping_quality_*.sql` | reporting aggregate |
+
+(`jurisdictions.sql` and `ballot_measures.sql` are already entity-named — leave them.)
 
 **Migration recipe per file (preserves blame):**
 
 ```bash
-git mv dbt_project/models/marts/event.sql dbt_project/models/marts/core/fct_meetings.sql
+git mv dbt_project/models/marts/event.sql dbt_project/models/marts/core/event_meeting.sql
 # Commit the rename alone, then in a second commit:
-#   - Update ref('event') → ref('fct_meetings') across the project
+#   - Update ref('event') → ref('event_meeting') across the project
 #   - Add contract + tests in _schema.yml
-git grep -l "ref('event')" dbt_project/ | xargs sed -i "s|ref('event')|ref('fct_meetings')|g"
+git grep -l "ref('event')" dbt_project/ | xargs sed -i "s|ref('event')|ref('event_meeting')|g"
 ```
 
 ---
@@ -139,14 +140,14 @@ When this model builds, dbt issues `CREATE TABLE staging.stg_gsa__domains (domai
 |---|---|
 | `stg_*` | `enforced: true` — types on every column. PK columns must declare `constraints: [primary_key, not_null]`. |
 | `int_*` | `enforced: true` for any int model that fans out (multiple downstream consumers). `enforced: false` is acceptable for single-use intermediates. |
-| `fct_*` / `dim_*` | `enforced: true` always. These are the public API surface. Treat them like a versioned schema. |
+| marts (`<entity>`) | `enforced: true` always. These are the public API surface. Treat them like a versioned schema. |
 | `rpt_*` | `enforced: true` if any external dashboard/BI tool consumes them. |
 
 ### 2.4 Tests required at minimum
 
 Per model, in `_schema.yml`:
-- `unique` and `not_null` on every primary key column
-- `relationships` for every foreign key to its parent dim (e.g., `fct_meetings.jurisdiction_id` → `dim_jurisdictions.jurisdiction_id`)
+- a declared `primary_key` constraint plus `unique` and `not_null` on every primary key column
+- a declared `foreign_key` constraint **and** a `relationships` test for every foreign key to its parent mart (e.g., `event_meeting.jurisdiction_id` → `jurisdictions.jurisdiction_id`). Every model exposed in `public` MUST declare PK and FK constraints so Postgres enforces them.
 - `accepted_values` for any enum-shaped column (e.g., `jurisdiction_type in ('state', 'county', 'city', 'school_district')`)
 
 Use `dbt_expectations` (already in [packages.yml](dbt_project/packages.yml)) for richer checks: row-count thresholds, regex patterns, distribution checks.
@@ -173,7 +174,7 @@ int_jurisdictions__deduped.sql           -- collapse to canonical row per natura
 int_jurisdictions__matched.sql           -- attach external IDs (OCD, Wikidata QID)
 int_jurisdictions__with_websites.sql     -- join website discovery picks
 int_jurisdictions__scored.sql            -- apply completeness/quality score
-dim_jurisdictions.sql                    -- final mart, exposes only stable columns
+jurisdictions.sql                        -- final mart, exposes only stable columns
 ```
 
 Each file is < 100 lines, has a single CTE doing real work, and is independently testable.
@@ -244,7 +245,7 @@ Each macro gets one corresponding unit test under `dbt_project/tests/`.
 
 **The FastAPI application must only read from the `marts` schema.** Reading from `staging`, `intermediate`, `bronze`, or `public` from API code is a bug — it bypasses the contracted surface, ties API behavior to upstream churn, and makes dbt's lineage no longer load-bearing.
 
-Treat dbt's marts as the **semantic backend**. If a column doesn't exist in `fct_*` / `dim_*` / `rpt_*`, it doesn't exist for the API.
+Treat dbt's marts as the **semantic backend**. If a column doesn't exist in a mart, it doesn't exist for the API.
 
 ### 4.2 Mechanism: a database role with grants scoped to `marts`
 
@@ -285,7 +286,7 @@ grep -rE "FROM (bronze|staging|intermediate|public)\." api/routes/
 Every match is a violation. For each:
 
 1. Identify the missing mart that should serve the data.
-2. Either consume an existing `fct_*` / `dim_*`, or add a new one to `dbt_project/models/marts/`.
+2. Either consume an existing mart, or add a new one to `dbt_project/models/marts/`.
 3. Update the route to query the mart.
 4. Run the route's tests; ensure latency is acceptable (marts are materialized as tables, so they should be faster than the joined-on-read queries common in bronze-direct routes).
 
@@ -296,17 +297,17 @@ When a mart's shape needs to change in a way that would break consumers, use dbt
 ```yaml
 # _schema.yml
 models:
-  - name: fct_meetings
+  - name: event_meeting
     latest_version: 2
     versions:
       - v: 2
-        defined_in: fct_meetings  # current
+        defined_in: event_meeting  # current
       - v: 1
-        defined_in: fct_meetings_v1
+        defined_in: event_meeting_v1
         deprecation_date: 2026-08-01
 ```
 
-The FastAPI app pins to a specific version (`ref('fct_meetings', v=2)` from intermediate models, or `SELECT * FROM marts.fct_meetings_v2` from raw SQL). Old versions stick around until their deprecation date, giving consumers a window to migrate.
+The FastAPI app pins to a specific version (`ref('event_meeting', v=2)` from intermediate models, or `SELECT * FROM marts.event_meeting_v2` from raw SQL). Old versions stick around until their deprecation date, giving consumers a window to migrate.
 
 ---
 
@@ -323,7 +324,7 @@ This PR is **documentation + one worked example**. It does not rename existing m
 Once this lands, work proceeds one model at a time:
 
 1. **Migration of `models/bronze/` → `models/staging/ai/`** — rename + ref updates in one PR.
-2. **Per-mart `fct_` / `dim_` renames** — one PR per mart with downstream ref updates.
+2. **Per-mart entity renames** — drop any `fct_`/`dim_` leanings; name marts by entity — one PR per mart with downstream ref updates.
 3. **`api_reader` role + permission grants + DATABASE_URL switch** — one PR with rollback playbook.
 4. **API-route audit and bronze-leak remediation** — one PR per offending route.
 5. **Stage 2 raw schema bridge** — when `packages/core-lib` starts writing to `raw_<source>.*`, add `stg_<source>__*` models reading from those raw tables instead of `bronze.*`.

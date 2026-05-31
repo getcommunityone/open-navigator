@@ -33,7 +33,7 @@ from pydantic import Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-DEFAULT_JSONL = Path("data/cache/civicsearch/meetings.jsonl")
+CACHE_ROOT = Path("data/cache/civicsearch")
 
 # Two landing tables share an identical schema (see migrations 095 / 097):
 #   BASE_TABLE    — general municipal CivicSearch meetings
@@ -41,6 +41,15 @@ DEFAULT_JSONL = Path("data/cache/civicsearch/meetings.jsonl")
 # The loader targets one or the other; --schools selects SCHOOLS_TABLE.
 BASE_TABLE = "bronze.bronze_events_civicsearch"
 SCHOOLS_TABLE = "bronze.bronze_events_civicsearch_schools"
+
+# The harvester writes per-portal subdirs so the two datasets never mingle:
+#   data/cache/civicsearch/cities/meetings.jsonl   -> BASE_TABLE
+#   data/cache/civicsearch/schools/meetings.jsonl  -> SCHOOLS_TABLE
+# Derive the default JSONL from the selected table so a plain (cities) load can
+# never silently pick up the schools file (or vice versa).
+def _default_jsonl(*, schools: bool) -> Path:
+    portal = "schools" if schools else "cities"
+    return CACHE_ROOT / portal / "meetings.jsonl"
 
 
 def _parse_date_iso(s: Any) -> date | None:
@@ -140,7 +149,7 @@ class CivicSearchEventsPipeline(DataSourcePipeline[CivicSearchMeetingRow]):
         limit: int | None = None,
         table: str = BASE_TABLE,
     ):
-        self._jsonl_path = jsonl_path or DEFAULT_JSONL
+        self._jsonl_path = jsonl_path or _default_jsonl(schools=table == SCHOOLS_TABLE)
         self._limit = limit
         self._table = table
         self._upsert_sql = _build_upsert_sql(table)
@@ -223,8 +232,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Land CivicSearch meetings JSONL into bronze.bronze_events_civicsearch"
     )
-    parser.add_argument("--jsonl", type=Path, default=DEFAULT_JSONL,
-                        help=f"JSONL path (default: {DEFAULT_JSONL})")
+    parser.add_argument("--jsonl", type=Path, default=None,
+                        help="JSONL path (default: derived from the target "
+                             "portal — schools/ vs cities/ subdir).")
     parser.add_argument("--limit", type=int, default=None,
                         help="Land at most this many rows (smoke tests).")
     target = parser.add_mutually_exclusive_group()
@@ -241,9 +251,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 async def _run(args: argparse.Namespace) -> None:
     table = args.table or (SCHOOLS_TABLE if args.schools else BASE_TABLE)
-    logger.info("Landing CivicSearch meetings into {}", table)
+    jsonl = args.jsonl or _default_jsonl(schools=args.schools)
+    logger.info("Landing CivicSearch meetings from {} into {}", jsonl, table)
     pipeline = CivicSearchEventsPipeline(
-        jsonl_path=args.jsonl, limit=args.limit, table=table
+        jsonl_path=jsonl, limit=args.limit, table=table
     )
     await pipeline.run()
 

@@ -29,10 +29,18 @@ Output (FETCH-only — landing is ingestion.civicsearch.events):
   * ``data/cache/civicsearch/<portal>/places.jsonl``   — one discovered place per line.
   * ``data/cache/civicsearch/<portal>/meetings.jsonl`` — one meeting (vid_id) per line.
 
+Both files are written **incrementally**: each place is appended as discovered,
+and its meetings are flushed as soon as that place's keyword sweep finishes — so
+the JSONL grows live instead of appearing only at the end. ``--incremental``
+resumes from the prior run's files (re-loading known places and skipping
+already-seen vid_ids) so a re-run appends only NEW meetings; without it the files
+are truncated and re-harvested from scratch.
+
 Usage (repo root):
     python -m scrapers.civicsearch.harvest --portal schools --max-places 50
     python -m scrapers.civicsearch.harvest --portal cities --max-places 50
     python -m scrapers.civicsearch.harvest --portal both --max-places 50
+    python -m scrapers.civicsearch.harvest --portal both --incremental   # new only
     python -m scrapers.civicsearch.harvest --portal cities --seed-zip 98101 02139
     python -m scrapers.civicsearch.harvest --portal schools --discover-only
 """
@@ -111,28 +119,111 @@ class CivicSearchHarvester:
         self,
         client: CivicSearchClient,
         *,
+        cache_dir: Path,
         max_places: int,
         keywords_override: list[str] | None = None,
         max_keywords_per_place: int = 20,
+        incremental: bool = False,
     ) -> None:
         self.client = client
         self.portal = client.portal
         self.max_places = max_places
         self.keywords_override = keywords_override
         self.max_keywords_per_place = max_keywords_per_place
+        # Incremental mode resumes from the prior run's JSONL: known places are
+        # re-loaded (so the sweep still re-harvests them for NEW meetings) and
+        # already-seen vid_ids are skipped, so only genuinely new meetings are
+        # appended. Non-incremental truncates and re-harvests everything.
+        self.incremental = incremental
+        # One subdir per portal so the two datasets never mingle on disk.
+        self.portal_dir = cache_dir / self.portal
+        self.places_path = self.portal_dir / "places.jsonl"
+        self.meetings_path = self.portal_dir / "meetings.jsonl"
         # query_id -> {query_id, display_name, lat, lon, discovered_from}
         self.places: dict[str, dict[str, Any]] = {}
-        # vid_id -> merged meeting record
-        self.meetings: dict[str, dict[str, Any]] = {}
+        # Cross-run dedupe state + streaming output handles.
+        self._seen_place_ids: set[str] = set()
+        self._seen_vids: set[str] = set()
+        self._new_places = 0   # places discovered THIS run (caps max_places)
+        self._new_meetings = 0  # meetings appended THIS run
+        self._places_fh: Any = None
+        self._meetings_fh: Any = None
+
+    # ----------------------------------------------------------- streaming io
+    def open(self) -> None:
+        """Open the per-portal JSONL files for streaming append.
+
+        Incremental: load prior places/vid_ids, then append. Otherwise truncate.
+        """
+        self.portal_dir.mkdir(parents=True, exist_ok=True)
+        if self.incremental:
+            self._load_existing()
+        mode = "a" if self.incremental else "w"
+        self._places_fh = self.places_path.open(mode, encoding="utf-8")
+        self._meetings_fh = self.meetings_path.open(mode, encoding="utf-8")
+
+    def close(self) -> None:
+        for fh in (self._places_fh, self._meetings_fh):
+            if fh is not None:
+                fh.close()
+        logger.success(
+            "{}: +{} new place(s), +{} new meeting(s) "
+            "({} places / {} meetings total on disk)",
+            self.portal, self._new_places, self._new_meetings,
+            len(self.places), len(self._seen_vids),
+        )
+
+    def _load_existing(self) -> None:
+        """Stream prior JSONL into the resume state (places + seen vid_ids)."""
+        if self.places_path.is_file():
+            with self.places_path.open(encoding="utf-8") as f:
+                for line in f:
+                    if not line.strip():
+                        continue
+                    rec = json.loads(line)
+                    qid = rec.get("query_id")
+                    if qid and qid not in self.places and "lat" in rec and "lon" in rec:
+                        self.places[qid] = rec
+                        self._seen_place_ids.add(qid)
+        if self.meetings_path.is_file():
+            with self.meetings_path.open(encoding="utf-8") as f:
+                for line in f:
+                    if not line.strip():
+                        continue
+                    vid = json.loads(line).get("vid_id")
+                    if vid:
+                        self._seen_vids.add(vid)
+        if self._seen_place_ids or self._seen_vids:
+            logger.info(
+                "resume: {} known place(s), {} known meeting(s)",
+                len(self._seen_place_ids), len(self._seen_vids),
+            )
+
+    def _append_place(self, rec: dict[str, Any]) -> None:
+        self._places_fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
+        self._places_fh.flush()
+
+    def _append_meeting(self, rec: dict[str, Any]) -> None:
+        self._meetings_fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
+        self._meetings_fh.flush()
+        self._new_meetings += 1
 
     # ------------------------------------------------------------------ phase 1
     async def discover_places(self, seeds: list[tuple[float, float]]) -> None:
-        """BFS outward from seed centroids until max_places or frontier empty."""
+        """BFS outward from seeds until ``max_places`` NEW places or frontier empty.
+
+        ``max_places`` caps places discovered *this run*; places resumed from a
+        prior run (incremental) also seed the frontier so BFS keeps expanding
+        around them, but don't count against the cap or get re-written.
+        """
         frontier: deque[tuple[tuple[float, float], str]] = deque(
             (s, "seed") for s in seeds
         )
+        # Expand around already-known places too (resumed incremental runs).
+        for p in self.places.values():
+            frontier.append(((p["lon"], p["lat"]), p["query_id"]))
         visited_points: set[tuple[float, float]] = set()
-        while frontier and len(self.places) < self.max_places:
+        while frontier and self._new_places < self.max_places:
             point, origin = frontier.popleft()
             key = (round(point[0], 3), round(point[1], 3))
             if key in visited_points:
@@ -153,12 +244,15 @@ class CivicSearchHarvester:
                 if resolved is None:
                     continue
                 self.places[qid] = resolved
+                self._seen_place_ids.add(qid)
+                self._append_place(resolved)
+                self._new_places += 1
                 logger.info(
                     "discovered place [{}/{}] {}",
-                    len(self.places), self.max_places, resolved["display_name"],
+                    self._new_places, self.max_places, resolved["display_name"],
                 )
                 frontier.append(((resolved["lon"], resolved["lat"]), qid))
-                if len(self.places) >= self.max_places:
+                if self._new_places >= self.max_places:
                     break
 
     async def _resolve_place(self, query_id: str, origin: str) -> dict[str, Any] | None:
@@ -181,12 +275,17 @@ class CivicSearchHarvester:
 
     # ------------------------------------------------------------------ phase 2
     async def harvest_meetings(self) -> None:
-        for i, place in enumerate(self.places.values(), 1):
+        # Snapshot: discovery may keep mutating self.places elsewhere, and a
+        # meeting is only final for a place after ALL its keywords are merged —
+        # so we buffer per-place, then stream the new ones out.
+        places = list(self.places.values())
+        for i, place in enumerate(places, 1):
             keywords = await self._keywords_for(place)
             logger.info(
                 "[{}/{}] {} — {} keyword(s)",
-                i, len(self.places), place["display_name"], len(keywords),
+                i, len(places), place["display_name"], len(keywords),
             )
+            place_meetings: dict[str, dict[str, Any]] = {}
             for kw in keywords:
                 try:
                     payload = await self.client.search(
@@ -198,7 +297,20 @@ class CivicSearchHarvester:
                     logger.warning("search({!r} @ {}) failed: {}", kw, place["query_id"], exc)
                     continue
                 for result in payload.get("results") or []:
-                    self._merge_meeting(result, place, kw)
+                    self._merge_meeting(place_meetings, result, place, kw)
+            self._flush_place_meetings(place_meetings)
+
+    def _flush_place_meetings(self, place_meetings: dict[str, dict[str, Any]]) -> None:
+        """Append meetings for one place, skipping vid_ids already on disk."""
+        new = 0
+        for vid, rec in place_meetings.items():
+            if vid in self._seen_vids:
+                continue  # already harvested (this run or a prior incremental run)
+            self._seen_vids.add(vid)
+            self._append_meeting(rec)
+            new += 1
+        if new:
+            logger.info("  +{} new meeting(s) [{} this run]", new, self._new_meetings)
 
     async def _keywords_for(self, place: dict[str, Any]) -> list[str]:
         if self.keywords_override:
@@ -212,12 +324,16 @@ class CivicSearchHarvester:
         return (kws or list(DEFAULT_KEYWORDS))[: self.max_keywords_per_place]
 
     def _merge_meeting(
-        self, result: dict[str, Any], place: dict[str, Any], keyword: str
+        self,
+        store: dict[str, dict[str, Any]],
+        result: dict[str, Any],
+        place: dict[str, Any],
+        keyword: str,
     ) -> None:
         vid = result.get("vid_id")
         if not vid:
             return
-        rec = self.meetings.get(vid)
+        rec = store.get(vid)
         if rec is None:
             rec = {
                 "schema_version": SCHEMA_VERSION,
@@ -238,7 +354,7 @@ class CivicSearchHarvester:
                 "topic_ids": [],
                 "scraped_at": _iso_now(),
             }
-            self.meetings[vid] = rec
+            store[vid] = rec
         if keyword not in rec["matched_keywords"]:
             rec["matched_keywords"].append(keyword)
         existing = {(s["timestamp"], s["text"]) for s in rec["snippets"]}
@@ -255,26 +371,6 @@ class CivicSearchHarvester:
             tid = snip.get("topic_id")
             if isinstance(tid, int) and tid >= 0 and tid not in rec["topic_ids"]:
                 rec["topic_ids"].append(tid)
-
-    # --------------------------------------------------------------------- io
-    def write(self, cache_dir: Path) -> tuple[Path, Path]:
-        # One subdir per portal so the two datasets never mingle on disk.
-        portal_dir = cache_dir / self.portal
-        portal_dir.mkdir(parents=True, exist_ok=True)
-        places_path = portal_dir / "places.jsonl"
-        meetings_path = portal_dir / "meetings.jsonl"
-        with places_path.open("w", encoding="utf-8") as f:
-            for place in self.places.values():
-                f.write(json.dumps(place, ensure_ascii=False) + "\n")
-        with meetings_path.open("w", encoding="utf-8") as f:
-            for rec in self.meetings.values():
-                f.write(json.dumps(rec, ensure_ascii=False) + "\n")
-        logger.success(
-            "wrote {} places -> {} and {} meetings -> {}",
-            len(self.places), places_path, len(self.meetings), meetings_path,
-        )
-        return places_path, meetings_path
-
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="CivicSearch location sweep (FETCH).")
@@ -294,6 +390,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-keywords-per-place", type=int, default=20)
     parser.add_argument("--discover-only", action="store_true",
                         help="Run place discovery only; skip the meeting harvest.")
+    parser.add_argument("--incremental", action="store_true",
+                        help="Resume from the prior run: re-load known places, "
+                             "append only NEW places/meetings (--max-places caps "
+                             "newly discovered places). Default truncates & re-harvests.")
     parser.add_argument("--rate-limit", type=float, default=2.0,
                         help="Max requests/sec to the CivicSearch API.")
     return parser
@@ -322,14 +422,19 @@ async def _run_portal(portal: str, args: argparse.Namespace) -> None:
         seeds = centroids + await _resolve_seed_zips(client, args.seed_zip)
         harvester = CivicSearchHarvester(
             client,
+            cache_dir=args.cache_dir,
             max_places=args.max_places,
             keywords_override=args.keywords,
             max_keywords_per_place=args.max_keywords_per_place,
+            incremental=args.incremental,
         )
-        await harvester.discover_places(seeds)
-        if not args.discover_only:
-            await harvester.harvest_meetings()
-    harvester.write(args.cache_dir)
+        harvester.open()
+        try:
+            await harvester.discover_places(seeds)
+            if not args.discover_only:
+                await harvester.harvest_meetings()
+        finally:
+            harvester.close()
 
 
 async def _run(args: argparse.Namespace) -> None:
