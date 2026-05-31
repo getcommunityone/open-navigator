@@ -51,13 +51,24 @@ Layer 2  conformed stagings       writes clusters → bronze              (reads
 | GivingTuesday / 990 | `bronze.bronze_organizations_nonprofits_nccs` | `org_name_current` | `f990_org_addr_street/city/state/zip`, `org_addr_full`, lat/long | `ein` |
 | Campaign contributions | `bronze.bronze_campaigns_contributions` | `contributor_name` | `contributor_city/state/zip` | `contributor_employer`, `committee_id` |
 | Locations | `bronze.bronze_locations` | `name` | `address`, `city`, `state`, `zip`, `county`, lat/long | `telephone`, `website` |
-| Parcel / property records | `bronze.bronze_addresses` (~598k) | `owner_name` | **already parsed:** `street_number`, `street_line1/2`, `city`, `state_abbr`, `postal_code`, `situs_full` | `parcel_number`, `jurisdiction_id` |
-| Event extraction | `event_person`, `event_place`, `event_organization` | `full_name` / `display_name` | `event_place.normalized_address`, `street_address`, `place_city`, lat/long | none (AI-extracted) |
+| Parcel / property records | `bronze.bronze_addresses` (~598k) | `owner_name` | `street_line1` (number embedded), `street_line2`, `city`, `state_abbr`, `postal_code` | `parcel_number`, `jurisdiction_id` |
+| AI persons | `bronze.bronze_persons_from_ai` | `full_name`, `appeared_as` | — | `person_id`, `wikidata_qid` |
+| AI places | `bronze.bronze_places_from_ai` | — | `normalized_address`, `street_address`, `city`, `state_code`, lat/long | `geocode_status` (no strong id) |
+| AI organizations | `bronze.bronze_organizations_from_ai` | `org_name`, `org_name_normalized` | — | `ein`, `ntee_code`, `wikidata_qid` |
 
-`bronze.bronze_addresses` is the largest and cleanest address source — it arrives
-**already parsed**, so it populates `street_number` / `street_name` directly and
-needs the least normalization. Its `owner_name` is a parcel owner (person *or*
-business), so it feeds the name pipeline too under the right `entity_type`.
+**Read AI sources at bronze, not at the marts.** `event_person` / `event_place` /
+`event_organization` are medallion *outputs* (`bronze_*_from_ai` + event/
+jurisdiction joins + monthly partitioning). Feeding a mart back into an
+intermediate model is a backwards DAG dependency; MDM also doesn't need the event
+context to resolve an entity. So conform from `bronze_persons_from_ai`,
+`bronze_places_from_ai`, `bronze_organizations_from_ai` directly.
+
+`bronze.bronze_addresses` is the largest address source (~598k) but is **not**
+pre-parsed despite its column names: `street_number` is empty (the number is
+embedded in `street_line1`) and `situs_full` carries a noisy source prefix, so
+the street/number split is done in `stg_parcels__address`. Its `owner_name` is a
+parcel owner (person *or* business), so it feeds the name pipeline too under the
+right `entity_type`.
 
 **Reference / gazetteer (not resolution inputs):** `bronze.bronze_geo_places`
 (Census place gazetteer: name → geoid → state) and
@@ -245,8 +256,9 @@ Each step is shippable on its own.
 
 - **Organizations vs people:** `contributor_name` and 990 `org_name_current` go
   to an organization master, not the person pool.
-- **AI-extracted sources are lowest trust:** `event_person` / `event_place` have
-  no strong keys and known dirtiness (channel-name collisions, promotion gaps).
+- **AI-extracted sources are lowest trust:** `bronze_persons_from_ai` /
+  `bronze_places_from_ai` have no strong keys and known dirtiness (channel-name
+  collisions, promotion gaps).
   Use a conservative match threshold and rank them last in survivorship so a
   hallucinated name never becomes a golden record.
 - **Name token order differs across sources** (found via `audit_mdm_keys`):
@@ -261,3 +273,9 @@ Each step is shippable on its own.
   hard-coding a per-source flip. Low match weight handles the trust/estate noise
   gracefully. See [Layer 1](#layer-1--normalization-macros-dbt) /
   [Layer 3](#layer-34--splink-python-packages).
+- **Streetless rows + PO boxes need NULL keys** (found building
+  `int_addresses__unioned`): `address_match_key` already returns NULL when the
+  street is blank — without that, ~11.7k streetless Selma AL parcels collapsed
+  onto one hash. A shared **PO box** is the same trap (`po box 412` = 551
+  distinct owners): treat PO-box-only situs as not-a-unique-address and exclude
+  it from the exact key too, leaving those rows to Splink's fuzzy comparison.
