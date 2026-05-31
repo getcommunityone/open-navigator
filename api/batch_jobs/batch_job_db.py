@@ -310,7 +310,9 @@ def _stage_timing(conn: Any) -> Dict[str, Any]:
       an idle (not-running) stage should ignore ``stale_seconds``.
     """
 
-    def _one(ts_col: str, path_col: str) -> Dict[str, Any]:
+    def _one(
+        ts_col: str, path_col: str, table: str = "bronze.bronze_events_youtube"
+    ) -> Dict[str, Any]:
         out: Dict[str, Any] = {
             "avg_seconds": None,
             "last_path": "",
@@ -324,7 +326,7 @@ def _stage_timing(conn: Any) -> Dict[str, Any]:
                     f"""
                     WITH recent AS (
                         SELECT {ts_col} AS ts, {path_col} AS path
-                        FROM bronze.bronze_events_youtube
+                        FROM {table}
                         WHERE {ts_col} IS NOT NULL
                         ORDER BY {ts_col} DESC LIMIT 150
                     ),
@@ -362,9 +364,18 @@ def _stage_timing(conn: Any) -> Dict[str, Any]:
         return out
 
     vids = _one("transcript_download_at", "transcript_file_path")
+    # Transcripts cadence/last-file come from bronze_events_text_ai (where the
+    # backfill actually writes), not the YouTube download stamp — otherwise the
+    # dashboard reads "stalled · 0/hr · last file <days ago>" while a DB-only
+    # backfill is inserting fine. video_id stands in for the missing file path.
+    transcripts = _one(
+        "COALESCE(last_updated, created_at)",
+        "video_id",
+        table="bronze.bronze_events_text_ai",
+    )
     return {
         "videos": vids,
-        "transcripts": vids,
+        "transcripts": transcripts,
         "analyses": _one("policy_analysis_at", "policy_analysis_path"),
         "reports": _one("policy_report_at", "policy_report_path"),
     }
