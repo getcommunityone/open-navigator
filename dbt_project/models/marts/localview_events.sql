@@ -36,8 +36,13 @@ WITH events AS (
         video_url,
         event_date,
         title,
+        description,
         meeting_type,
         channel_id,
+        channel_type,
+        view_count,
+        duration_minutes,
+        like_count,
         -- Raw LocalView place as scraped
         jurisdiction_name AS source_place_name,
         state_code,
@@ -62,8 +67,13 @@ SELECT
     e.video_url,
     e.event_date,
     e.title                    AS event_title,
+    e.description              AS event_description,
     e.meeting_type,
     e.channel_id,
+    e.channel_type,
+    e.view_count,
+    e.duration_minutes,
+    e.like_count,
 
     -- Canonical jurisdiction (resolved). Falls back to the scraped place name
     -- when no GEOID matched so the column is never blank for display.

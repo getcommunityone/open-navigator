@@ -62,9 +62,17 @@ SELECT
     e.title,
     e.video_url,
     COALESCE(m.channel_id, y.channel_id) AS channel_id,
+    e.channel_type,
     gr.jurisdiction_id,
     gr.geoid        AS jurisdiction_geoid,
     gr.matched_type AS jurisdiction_match_type,
+    -- Video metrics (carried from bronze for the event mart). The parquet has
+    -- a handful of non-finite floats (NaN/Inf) — null them so bigint casts
+    -- downstream don't overflow.
+    e.vid_desc AS description,
+    CASE WHEN e.vid_views      IN ('NaN','Infinity','-Infinity') THEN NULL ELSE e.vid_views      END AS view_count,
+    CASE WHEN e.vid_length_min IN ('NaN','Infinity','-Infinity') THEN NULL ELSE e.vid_length_min END AS duration_minutes,
+    CASE WHEN e.vid_likes      IN ('NaN','Infinity','-Infinity') THEN NULL ELSE e.vid_likes      END AS like_count,
     e.datasource,
     e.datasource_id,
     e.loaded_at
