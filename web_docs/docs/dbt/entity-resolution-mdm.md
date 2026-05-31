@@ -159,7 +159,25 @@ This is the highest-value artifact. **Validate row counts and key null-rates
 here before going further** — most of the value and most of the bugs live in
 conformance.
 
-## Layer 3–4 — Splink (Python, `packages/`)
+## Layer 3–4 — resolution
+
+**Split by data shape (decided after a first Splink run over-merged addresses):**
+
+- **Addresses → deterministic (dbt, not Splink).** Addresses are structured, so
+  they resolve on the exact normalized-address key. Probabilistic clustering
+  chained whole ZIPs together (a 13,699- then 4,469-member blob of *different*
+  houses) because fuzzy `street_number` scoring is too weak against exact
+  zip+city+state agreement. `int_addresses__clustered` sets
+  `master_address_id = coalesce(address_match_key, address_uid)` — identical
+  addresses merge, streetless singletons stay separate. Result: 442,579 →
+  **376,337 master addresses**, largest cluster a real shared PO box (551), built
+  in seconds, zero chaining. `dim_address_master` + `bridge_address_xref` serve it.
+- **Persons → Splink (probabilistic).** Names have no clean key and genuinely
+  need fuzzy + phonetic matching; this is where Splink earns its keep.
+
+The Splink design below now applies to the **person** pool.
+
+### Splink (Python, `packages/`)
 
 New Python is a proper library, not a script (`packages/` rule). Record linkage
 is explicitly allowed outside dbt (ML / ingestion).
