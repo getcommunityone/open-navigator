@@ -47,7 +47,8 @@ Layer 2  conformed stagings       writes clusters → bronze              (reads
 
 | Source | Table | Name field(s) | Address field(s) | Strong keys |
 |---|---|---|---|---|
-| OpenStates persons | `bronze.bronze_persons_scraped` | `name`, `given_name`, `family_name` | `mailing_address` | `openstates_person_id`, `email`, `phone`, `ocd_id` |
+| OpenStates persons | `bronze_persons_scraped` via `stg_bronze_persons_scraped` (filtered `is_usable_person`) | `name_clean` | `mailing_address` | `ocd_id`, `email`, `phone` |
+| Election candidates | `bronze_persons_osf_ledb` (OSF LEDB) | `full_name`, `firstname`, `lastname` | `geo_name`, `state_abb` | `ledb_candid` |
 | GivingTuesday / 990 | `bronze.bronze_organizations_nonprofits_nccs` | `org_name_current` | `f990_org_addr_street/city/state/zip`, `org_addr_full`, lat/long | `ein` |
 | Campaign contributions | `bronze.bronze_campaigns_contributions` | `contributor_name` | `contributor_city/state/zip` | `contributor_employer`, `committee_id` |
 | Locations | `bronze.bronze_locations` | `name` | `address`, `city`, `state`, `zip`, `county`, lat/long | `telephone`, `website` |
@@ -296,3 +297,11 @@ Each step is shippable on its own.
   model to `materialized='table'` (or an incremental int model keyed on the
   append-only contributions) so the normalization runs once. The view default is
   fine for the small sources.
+- **Filter non-names at the source, flag the rest** (found via `full_name`/
+  `is_probable_person`): scraped pages yield ~12k non-name strings (titles, dates,
+  "hours of operation", UI chrome). `stg_openstates__person` reuses the existing
+  `is_usable_person` gate from `stg_bronze_persons_scraped` so they never enter
+  the pool. For residual junk from other sources, `int_persons__unioned` exposes
+  `is_probable_person` (false for orgs, names with digits, 1- or 6+-token strings)
+  and `full_name` = `initcap(name_norm)` for display. Filter with
+  `where is_probable_person` before serving.

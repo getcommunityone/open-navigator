@@ -11,7 +11,8 @@
     feed a future organization master instead.
 
     Person sources wired so far:
-      - stg_openstates__person     (bronze_persons_scraped; has given/family + ids)
+      - stg_openstates__person     (bronze_persons_scraped, is_usable_person only)
+      - stg_osf_ledb__person       (bronze_persons_osf_ledb; candidates, given/family)
       - stg_persons_ai__person     (bronze_persons_from_ai; AI, lowest trust)
       - stg_contributions__person  (bronze_campaigns_contributions; LAST, FIRST)
       - stg_parcels__person        (bronze_addresses owner_name; SURNAME FIRST)
@@ -21,6 +22,8 @@
 
 with unioned as (
     select * from {{ ref('stg_openstates__person') }}
+    union all
+    select * from {{ ref('stg_osf_ledb__person') }}
     union all
     select * from {{ ref('stg_persons_ai__person') }}
     union all

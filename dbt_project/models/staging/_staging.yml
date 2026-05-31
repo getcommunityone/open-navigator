@@ -81,6 +81,27 @@ sources:
             description: "Recipient committee id."
           - name: loaded_at
             description: "When the row was landed."
+      - name: bronze_persons_osf_ledb
+        description: |
+          OSF Local Elections Database — candidate-contest rows (~127k across
+          ~78k distinct candidates). Feeds the MDM person pipeline; collapsed to
+          one row per ledb_candid in stg_osf_ledb__person. See
+          web_docs/docs/dbt/entity-resolution-mdm.md.
+        columns:
+          - name: ledb_candid
+            description: "Candidate id — collapses contest rows to one person; external_id."
+          - name: full_name
+            description: "Candidate full name."
+          - name: firstname
+            description: "Given name (explicit)."
+          - name: lastname
+            description: "Family name (explicit)."
+          - name: state_abb
+            description: "2-letter state."
+          - name: geo_name
+            description: "Place/jurisdiction name."
+          - name: year
+            description: "Contest year (used to keep the most-recent record per candidate)."
       - name: bronze_addresses
         description: |
           Parcel / property records (RAW). ~598k rows, one per
