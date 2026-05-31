@@ -6,67 +6,42 @@
 /*
 Unified candidate list of meeting videos for transcript fetching.
 
-Merges the two event sources that carry YouTube-hosted meeting video URLs:
-
-- `event` (CDP-derived production mart) where source = 'youtube'
-- `int_events_localview` (LocalView events) — its `datasource_id` IS the
-  YouTube video_id
-
-Deduped to one row per `video_id`, preferring the YouTube source when a video
-appears in both (so the canonical `event` event_id is kept).
+Reads the `event` production mart, which already unions every event source that
+carries a meeting video — CDP/YouTube events plus LocalView meetings promoted in
+by marts.event (deduped by video_url, CDP winning collisions). Each row therefore
+already carries a canonical `event_id`; this model just narrows to rows with a
+fetchable YouTube video, derives the `video_id`, and dedups to one row per
+video_id.
 
 Consumed by scrapers.youtube.backfill_transcripts to decide which videos still
-need a transcript landed in bronze.bronze_events_text_ai. Adding a new event
-source here (rather than UNIONing inline in Python) is all that's needed to pull
-transcripts for that source.
-
-NOTE: `event_id` is source-local and not a global key — the `event` mart and
-LocalView number rows independently. It is carried only as a hint; the
-events_text_search mart re-resolves the canonical event_id by joining on
-video_id. The durable fix is to promote LocalView events into the `event` mart
-so video_url joins resolve there too.
+need a transcript landed in bronze.bronze_events_text_ai. To pull transcripts for
+a new source, add that source to marts.event — it flows through here for free.
 */
 
 {% set youtube_video_id = "REGEXP_REPLACE(REGEXP_REPLACE(video_url, '.*[?&]v=([^&]+).*', '\\1'), '.*youtu\\.be/([^?]+).*', '\\1')" %}
 
-WITH youtube_events AS (
+WITH events AS (
     SELECT
         event_id,
         video_url,
         event_title,
         jurisdiction_name,
         state_code,
+        source,
         COALESCE(
+            -- Primary: parse the video_id out of the YouTube URL.
             CASE
                 WHEN video_url LIKE '%youtube.com%' OR video_url LIKE '%youtu.be%'
                 THEN {{ youtube_video_id }}
             END,
-            NULLIF(TRIM(datasource_id), '')
-        ) AS video_id,
-        'youtube' AS source
+            -- Fallback: for sources whose datasource_id IS the video_id.
+            CASE
+                WHEN source IN ('youtube', 'localview')
+                THEN NULLIF(TRIM(datasource_id), '')
+            END
+        ) AS video_id
     FROM {{ ref('event') }}
-    WHERE source = 'youtube'
-      AND video_url IS NOT NULL
-),
-
-localview_events AS (
-    SELECT
-        event_id,
-        video_url,
-        title AS event_title,
-        jurisdiction_name,
-        state_code,
-        NULLIF(TRIM(datasource_id), '') AS video_id,
-        'localview' AS source
-    FROM {{ ref('int_events_localview') }}
     WHERE video_url IS NOT NULL
-      AND NULLIF(TRIM(datasource_id), '') IS NOT NULL
-),
-
-unioned AS (
-    SELECT * FROM youtube_events
-    UNION ALL
-    SELECT * FROM localview_events
 ),
 
 deduped AS (
@@ -76,7 +51,7 @@ deduped AS (
             PARTITION BY video_id
             ORDER BY CASE source WHEN 'youtube' THEN 0 ELSE 1 END
         ) AS dedupe_rank
-    FROM unioned
+    FROM events
     WHERE video_id IS NOT NULL
 )
 
