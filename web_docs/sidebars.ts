@@ -138,22 +138,22 @@ const sidebars: SidebarsConfig = {
   // ========================================
   // CITIZENS & RESIDENTS - Community Resources
   // ========================================
-  familiesSidebar: [
+  citizensSidebar: [
     {
       type: 'category',
       label: 'Citizens and Residents',
       collapsed: false,
       items: [
-        'for-families',
+        'for-citizens',
         {
           type: 'category',
           label: 'Resources for Citizens & Residents',
           items: [
-            'families/community-events',
-            'families/training-education',
-            'families/voter-registration',
-            'families/service-requests',
-            'families/community-resources',
+            'citizens/community-events',
+            'citizens/training-education',
+            'citizens/voter-registration',
+            'citizens/service-requests',
+            'citizens/community-resources',
             'resources/nonprofit-resources',
           ],
         },
@@ -365,18 +365,18 @@ const sidebars: SidebarsConfig = {
       collapsed: false,
       link: {
         type: 'doc',
-        id: 'for-families',
+        id: 'for-citizens',
       },
       items: [
         {
           type: 'category',
           label: 'Resources for Citizens & Residents',
           items: [
-            'families/community-events',
-            'families/training-education',
-            'families/voter-registration',
-            'families/service-requests',
-            'families/community-resources',
+            'citizens/community-events',
+            'citizens/training-education',
+            'citizens/voter-registration',
+            'citizens/service-requests',
+            'citizens/community-resources',
           ],
         },
         {

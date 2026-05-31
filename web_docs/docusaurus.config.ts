@@ -163,7 +163,7 @@ const config: Config = {
         },
         {
           type: 'docSidebar',
-          sidebarId: 'familiesSidebar',
+          sidebarId: 'citizensSidebar',
           position: 'left',
           label: 'Citizens and Residents',
         },

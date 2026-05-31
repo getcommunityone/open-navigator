@@ -1,6 +1,6 @@
 ---
 sidebar_position: 2
-displayed_sidebar: familiesSidebar
+displayed_sidebar: citizensSidebar
 ---
 
 # For Citizens & Residents
