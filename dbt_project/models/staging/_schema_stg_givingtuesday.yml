@@ -33,3 +33,33 @@ models:
         description: "Form 990 Part 1 Line 1 - Mission & Most Significant Activities"
         tests:
           - not_null
+
+  - name: stg_givingtuesday__990_officers
+    description: >
+      Staging view over bronze.bronze_organizations_990_officers (Part VII-A).
+      Person-level: one row per (ein, tax_year, person, title), with role
+      checkboxes, average hours, and reportable + other compensation. Adds a
+      convenience total_comp (reportable org + related + other).
+    columns:
+      - name: ein
+        tests:
+          - not_null
+      - name: person_name
+        tests:
+          - not_null
+      - name: total_comp
+        description: "reportable_comp_org + reportable_comp_related + other_comp"
+
+  - name: stg_givingtuesday__990_schedule_j
+    description: >
+      Staging view over bronze.bronze_organizations_990_schedule_j (Schedule J
+      Part 2). Person-level detailed compensation (base/bonus/other/deferred/
+      nontaxable/total), split filing-org vs related-org, for the subset of
+      Part VII-A people detailed on Schedule J.
+    columns:
+      - name: ein
+        tests:
+          - not_null
+      - name: person_name
+        tests:
+          - not_null
