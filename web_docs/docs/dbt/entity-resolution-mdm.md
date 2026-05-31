@@ -51,7 +51,19 @@ Layer 2  conformed stagings       writes clusters → bronze              (reads
 | GivingTuesday / 990 | `bronze.bronze_organizations_nonprofits_nccs` | `org_name_current` | `f990_org_addr_street/city/state/zip`, `org_addr_full`, lat/long | `ein` |
 | Campaign contributions | `bronze.bronze_campaigns_contributions` | `contributor_name` | `contributor_city/state/zip` | `contributor_employer`, `committee_id` |
 | Locations | `bronze.bronze_locations` | `name` | `address`, `city`, `state`, `zip`, `county`, lat/long | `telephone`, `website` |
+| Parcel / property records | `bronze.bronze_addresses` (~598k) | `owner_name` | **already parsed:** `street_number`, `street_line1/2`, `city`, `state_abbr`, `postal_code`, `situs_full` | `parcel_number`, `jurisdiction_id` |
 | Event extraction | `event_person`, `event_place`, `event_organization` | `full_name` / `display_name` | `event_place.normalized_address`, `street_address`, `place_city`, lat/long | none (AI-extracted) |
+
+`bronze.bronze_addresses` is the largest and cleanest address source — it arrives
+**already parsed**, so it populates `street_number` / `street_name` directly and
+needs the least normalization. Its `owner_name` is a parcel owner (person *or*
+business), so it feeds the name pipeline too under the right `entity_type`.
+
+**Reference / gazetteer (not resolution inputs):** `bronze.bronze_geo_places`
+(Census place gazetteer: name → geoid → state) and
+`bronze.bronze_osf_places_geocoded` (place → lat/long → population) are lookups
+used to **validate and enrich** `city_norm` / place names and attach geoids —
+they are a reference dimension, not entities to dedup.
 
 :::warning Grain mismatch
 `contributor_name` and 990 `org_name_current` are **organizations**, not people.
@@ -96,7 +108,11 @@ covers ~80%); add the parser only if match recall is poor.
 
 ## Layer 2 — conformance staging (dbt)
 
-`stg_<source>__person` and `stg_<source>__address` for each of the six sources,
+`stg_<source>__person` and `stg_<source>__address` for each resolution source
+(OpenStates, 990/NCCS, campaign contributions, `bronze_locations`,
+`bronze_addresses`, and the `event_*` marts — not every source feeds both
+pipelines: contributions and `event_person` are name-only, `bronze_addresses`
+feeds both),
 all emitting one uniform contract, then unioned into
 `int_persons__unioned` / `int_addresses__unioned`:
 
@@ -233,3 +249,15 @@ Each step is shippable on its own.
   no strong keys and known dirtiness (channel-name collisions, promotion gaps).
   Use a conservative match threshold and rank them last in survivorship so a
   hallucinated name never becomes a golden record.
+- **Name token order differs across sources** (found via `audit_mdm_keys`):
+  campaign `contributor_name` is `LAST, FIRST` (comma-delimited, which
+  `normalize_person_name` flips), but parcel `bronze_addresses.owner_name` is
+  `LAST FIRST` with **no comma** (`DORROUGH JESSE`) — the macro can't detect
+  order, so it does not flip, and a surname-as-last-token phonetic key keys on
+  the given name instead. Owner names also carry estate/trust noise
+  (`... 1/2 INT & ... TRUST`). **Decision:** do not rely on a single "surname"
+  phonetic key. Emit phonetic keys for *both* the first and last token and let
+  Splink's name comparison + multiple blocking rules resolve order, rather than
+  hard-coding a per-source flip. Low match weight handles the trust/estate noise
+  gracefully. See [Layer 1](#layer-1--normalization-macros-dbt) /
+  [Layer 3](#layer-34--splink-python-packages).
