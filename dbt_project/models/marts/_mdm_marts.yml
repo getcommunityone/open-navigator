@@ -163,10 +163,11 @@ models:
       - name: source_page_url
         data_type: text
 
-  - name: mdm_dim_organization_master
+  - name: mdm_organization
     description: >
       MDM golden record — one row per resolved organization, canonical org_type.
-      PK master_org_id.
+      Canonical public org table. PK master_org_id; parent_jurisdiction_id rolls
+      the org up to its governing jurisdiction (-> jurisdictions.jurisdiction_id).
     config:
       materialized: table
       on_schema_change: fail
@@ -200,6 +201,24 @@ models:
         data_type: double precision
       - name: website
         data_type: text
+      - name: parent_jurisdiction_id
+        data_type: text
+        description: >
+          Governing jurisdiction this org rolls up to (FK -> jurisdictions.
+          jurisdiction_id). NULL when no (state, name) match was found.
+          Not enforced as a Postgres FK because the jurisdictions mart has no
+          enforced contract/PK yet; referential integrity is covered by the
+          relationships test below.
+        tests:
+          - relationships:
+              to: ref('jurisdictions')
+              field: jurisdiction_id
+      - name: jurisdiction_match_method
+        data_type: text
+        description: "How parent_jurisdiction_id was derived: self | municipality | township | county | unmatched."
+        tests:
+          - accepted_values:
+              values: ['self', 'municipality', 'township', 'county', 'unmatched']
       - name: n_occurrences
         data_type: bigint
       - name: n_sources
@@ -221,7 +240,7 @@ models:
     constraints:
       - type: foreign_key
         columns: [master_org_id]
-        to: ref('mdm_dim_organization_master')
+        to: ref('mdm_organization')
         to_columns: [master_org_id]
       - type: foreign_key
         columns: [master_address_id]

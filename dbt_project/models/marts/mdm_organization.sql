@@ -9,11 +9,16 @@
     common NON-'other' type across the cluster (falls back to the golden record's
     type). first_seen_year / last_seen_year give the org's date span.
 
-    Serve org search/browse from here; tie to person/address via the org bridges.
+    parent_jurisdiction_id rolls the org up to the municipality / county that
+    governs it (see int_organizations__jurisdiction_linked); picked across the
+    cluster, preferring the most-trusted match (self > municipality > township >
+    county). Canonical public org table — serve org search/browse from here;
+    tie to person/address via the org bridges and to a jurisdiction via
+    parent_jurisdiction_id.
 */
 
 with clustered as (
-    select * from {{ ref('int_organizations__clustered') }}
+    select * from {{ ref('int_organizations__jurisdiction_linked') }}
 ),
 
 ranked as (
@@ -60,6 +65,26 @@ evidence as (
         max(as_of_year)                as last_seen_year
     from clustered
     group by 1
+),
+
+-- best parent jurisdiction per cluster: an occurrence may be unmatched while a
+-- sibling occurrence matched, so pick the most-trusted non-null match.
+parent as (
+    select distinct on (master_org_id)
+        master_org_id,
+        parent_jurisdiction_id,
+        jurisdiction_match_method
+    from clustered
+    where parent_jurisdiction_id is not null
+    order by
+        master_org_id,
+        case jurisdiction_match_method
+            when 'self'         then 1
+            when 'municipality' then 2
+            when 'township'     then 3
+            when 'county'       then 4
+            else 5
+        end
 )
 
 select
@@ -75,6 +100,8 @@ select
     g.lat,
     g.lon,
     g.website,
+    p.parent_jurisdiction_id,
+    coalesce(p.jurisdiction_match_method, 'unmatched')  as jurisdiction_match_method,
     e.n_occurrences,
     e.n_sources,
     e.first_seen_year,
@@ -82,3 +109,4 @@ select
 from golden g
 join evidence e using (master_org_id)
 left join type_vote v using (master_org_id)
+left join parent p using (master_org_id)
