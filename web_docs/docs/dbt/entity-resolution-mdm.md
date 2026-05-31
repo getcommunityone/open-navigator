@@ -333,6 +333,18 @@ Each step is shippable on its own.
   model to `materialized='table'` (or an incremental int model keyed on the
   append-only contributions) so the normalization runs once. The view default is
   fine for the small sources.
+- **Person bridges aren't FK-bound to `mdm_person` yet — the parcel-owner bridge
+  is entity-impure** (found measuring orphan keys against `mdm_person`).
+  `mdm_person` filters to `entity_type='person' and is_probable_person`, but
+  `mdm_bridge_person_address` pulls every `bronze_addresses` owner occurrence
+  unfiltered, so 35,773 of its 111,075 distinct keys (32%) have no row in
+  `mdm_person`: **24,467 are `entity_type='organization'`** (business parcel
+  owners — they belong in an org↔address bridge, not a person bridge) and 11,306
+  are low-quality person names (`is_probable_person=false`).
+  `mdm_person_source_link` is cleaner (565 / 13,502 ≈ 4%). **Do not add a
+  `person_uid → mdm_person` FK until the bridges filter to real persons and
+  org-owner links are routed to an org↔address bridge** — otherwise the contract
+  fails or `mdm_person` gets polluted with businesses.
 - **Filter non-names at the source, flag the rest** (found via `full_name`/
   `is_probable_person`): scraped pages yield ~12k non-name strings (titles, dates,
   "hours of operation", UI chrome). `stg_openstates__person` reuses the existing
