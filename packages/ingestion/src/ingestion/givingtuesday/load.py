@@ -76,6 +76,21 @@ def _safe_int(val: object) -> int | None:
     return int(num)
 
 
+def _safe_num(val: object) -> float | None:
+    """Convert a decimal cell (e.g. average hours '40.00') to a nullable float."""
+    if val is None:
+        return None
+    num = pd.to_numeric(val, errors="coerce")
+    if pd.isna(num):
+        return None
+    return float(num)
+
+
+def _safe_bool(val: object) -> bool:
+    """Form 990 'X'/blank checkbox -> bool (any non-empty value is True)."""
+    return _safe_str(val) is not None
+
+
 def _ein(val: object) -> str | None:
     """Normalize EIN to 9 digits with leading zeros."""
     s = _safe_str(val)
@@ -305,13 +320,285 @@ class Form990MissionPipeline(DataSourcePipeline[Form990MissionRow]):
 
 
 # --------------------------------------------------------------------------- #
+# officers datamart (990Part7AOfficers) — person-level child table
+# --------------------------------------------------------------------------- #
+class Form990OfficerRow(RawRow):
+    ein: str = Field(min_length=1, max_length=20)
+    tax_year: int | None = None
+    org_name: str | None = None
+    person_name: str | None = None
+    title: str | None = None
+    avg_hours_org: float | None = None
+    avg_hours_related: float | None = None
+    is_officer: bool = False
+    is_director_trustee: bool = False
+    is_institutional_trustee: bool = False
+    is_key_employee: bool = False
+    is_highest_comp: bool = False
+    is_former: bool = False
+    reportable_comp_org: int | None = None
+    reportable_comp_related: int | None = None
+    other_comp: int | None = None
+    source_url: str | None = None
+
+
+_OFF_DDL = text(
+    """
+    CREATE TABLE IF NOT EXISTS bronze.bronze_organizations_990_officers (
+        id SERIAL PRIMARY KEY,
+        ein VARCHAR(20) NOT NULL,
+        tax_year INTEGER,
+        org_name TEXT,
+        person_name TEXT,
+        title TEXT,
+        avg_hours_org NUMERIC,
+        avg_hours_related NUMERIC,
+        is_officer BOOLEAN DEFAULT FALSE,
+        is_director_trustee BOOLEAN DEFAULT FALSE,
+        is_institutional_trustee BOOLEAN DEFAULT FALSE,
+        is_key_employee BOOLEAN DEFAULT FALSE,
+        is_highest_comp BOOLEAN DEFAULT FALSE,
+        is_former BOOLEAN DEFAULT FALSE,
+        reportable_comp_org BIGINT,
+        reportable_comp_related BIGINT,
+        other_comp BIGINT,
+        source_url TEXT,
+        loaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """
+)
+_OFF_INDEXES = (
+    text("CREATE INDEX IF NOT EXISTS idx_bronze_990off_ein ON bronze.bronze_organizations_990_officers(ein)"),
+    text("CREATE INDEX IF NOT EXISTS idx_bronze_990off_ein_year ON bronze.bronze_organizations_990_officers(ein, tax_year)"),
+)
+_OFF_INSERT = text(
+    """
+    INSERT INTO bronze.bronze_organizations_990_officers (
+        ein, tax_year, org_name, person_name, title,
+        avg_hours_org, avg_hours_related,
+        is_officer, is_director_trustee, is_institutional_trustee,
+        is_key_employee, is_highest_comp, is_former,
+        reportable_comp_org, reportable_comp_related, other_comp, source_url
+    ) VALUES (
+        :ein, :tax_year, :org_name, :person_name, :title,
+        :avg_hours_org, :avg_hours_related,
+        :is_officer, :is_director_trustee, :is_institutional_trustee,
+        :is_key_employee, :is_highest_comp, :is_former,
+        :reportable_comp_org, :reportable_comp_related, :other_comp, :source_url
+    )
+    """
+)
+_OFF_SRC_COLS = [
+    "FILEREIN", "TAXYEAR", "FILERNAME1", "NAMEPEPERSON", "TITLEITLE",
+    "AVHOPEWEREEL", "AVEHOUPERWEE", "OFFICERFFICE", "INDITRUSDIRE",
+    "INSTITTRUSTE", "KEYEMPEMPLOY", "HIGHCOMPEMPL", "FORMERORMER",
+    "REPCOMFROORG", "RECOFRRLORRG", "OTHERCCOMPEN", "URL",
+]
+
+
+class Form990OfficerPipeline(DataSourcePipeline[Form990OfficerRow]):
+    source = "givingtuesday_990_officers"
+    batch_size = 25_000
+    row_schema = Form990OfficerRow
+
+    def __init__(self, *, path: Path | None = None, limit: int | None = None):
+        self._path = path
+        self._limit = limit
+
+    async def extract(self, ctx: PipelineContext) -> AsyncIterator[dict]:
+        path = self._path or _latest_cached("990Part7AOfficers")
+        emitted = 0
+        for chunk in _read_chunks(path, _OFF_SRC_COLS):
+            for row in chunk.to_dict("records"):
+                if self._limit is not None and emitted >= self._limit:
+                    return
+                ein = _ein(row.get("FILEREIN"))
+                person = _safe_str(row.get("NAMEPEPERSON"))
+                if not ein or not person:
+                    continue
+                yield {
+                    "source": self.source,
+                    "source_version": path.stem,
+                    "natural_key": f"{ein}|{_safe_str(row.get('TAXYEAR')) or ''}|{person}",
+                    "ein": ein,
+                    "tax_year": _safe_int(row.get("TAXYEAR")),
+                    "org_name": _safe_str(row.get("FILERNAME1")),
+                    "person_name": person,
+                    "title": _safe_str(row.get("TITLEITLE")),
+                    "avg_hours_org": _safe_num(row.get("AVHOPEWEREEL")),
+                    "avg_hours_related": _safe_num(row.get("AVEHOUPERWEE")),
+                    "is_officer": _safe_bool(row.get("OFFICERFFICE")),
+                    "is_director_trustee": _safe_bool(row.get("INDITRUSDIRE")),
+                    "is_institutional_trustee": _safe_bool(row.get("INSTITTRUSTE")),
+                    "is_key_employee": _safe_bool(row.get("KEYEMPEMPLOY")),
+                    "is_highest_comp": _safe_bool(row.get("HIGHCOMPEMPL")),
+                    "is_former": _safe_bool(row.get("FORMERORMER")),
+                    "reportable_comp_org": _safe_int(row.get("REPCOMFROORG")),
+                    "reportable_comp_related": _safe_int(row.get("RECOFRRLORRG")),
+                    "other_comp": _safe_int(row.get("OTHERCCOMPEN")),
+                    "source_url": _safe_str(row.get("URL")),
+                }
+                emitted += 1
+
+    async def load_batch(self, session: AsyncSession, rows: list[Form990OfficerRow], ctx: PipelineContext) -> None:
+        await session.execute(_OFF_INSERT, [r.model_dump(exclude=_BASE_FIELDS) for r in rows])
+
+
+# --------------------------------------------------------------------------- #
+# Schedule J datamart (ScheduleJPart2Officers) — person-level child table
+# --------------------------------------------------------------------------- #
+class Form990ScheduleJRow(RawRow):
+    ein: str = Field(min_length=1, max_length=20)
+    tax_year: int | None = None
+    org_name: str | None = None
+    person_name: str | None = None
+    title: str | None = None
+    base_comp_org: int | None = None
+    base_comp_related: int | None = None
+    bonus_org: int | None = None
+    bonus_related: int | None = None
+    other_comp_org: int | None = None
+    other_comp_related: int | None = None
+    deferred_comp_org: int | None = None
+    deferred_comp_related: int | None = None
+    nontaxable_benefits_org: int | None = None
+    nontaxable_benefits_related: int | None = None
+    total_comp_org: int | None = None
+    total_comp_related: int | None = None
+    prior_reported_org: int | None = None
+    prior_reported_related: int | None = None
+    source_url: str | None = None
+
+
+_SJ_DDL = text(
+    """
+    CREATE TABLE IF NOT EXISTS bronze.bronze_organizations_990_schedule_j (
+        id SERIAL PRIMARY KEY,
+        ein VARCHAR(20) NOT NULL,
+        tax_year INTEGER,
+        org_name TEXT,
+        person_name TEXT,
+        title TEXT,
+        base_comp_org BIGINT,
+        base_comp_related BIGINT,
+        bonus_org BIGINT,
+        bonus_related BIGINT,
+        other_comp_org BIGINT,
+        other_comp_related BIGINT,
+        deferred_comp_org BIGINT,
+        deferred_comp_related BIGINT,
+        nontaxable_benefits_org BIGINT,
+        nontaxable_benefits_related BIGINT,
+        total_comp_org BIGINT,
+        total_comp_related BIGINT,
+        prior_reported_org BIGINT,
+        prior_reported_related BIGINT,
+        source_url TEXT,
+        loaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """
+)
+_SJ_INDEXES = (
+    text("CREATE INDEX IF NOT EXISTS idx_bronze_990sj_ein ON bronze.bronze_organizations_990_schedule_j(ein)"),
+    text("CREATE INDEX IF NOT EXISTS idx_bronze_990sj_ein_year ON bronze.bronze_organizations_990_schedule_j(ein, tax_year)"),
+)
+_SJ_INSERT = text(
+    """
+    INSERT INTO bronze.bronze_organizations_990_schedule_j (
+        ein, tax_year, org_name, person_name, title,
+        base_comp_org, base_comp_related, bonus_org, bonus_related,
+        other_comp_org, other_comp_related, deferred_comp_org, deferred_comp_related,
+        nontaxable_benefits_org, nontaxable_benefits_related,
+        total_comp_org, total_comp_related, prior_reported_org, prior_reported_related,
+        source_url
+    ) VALUES (
+        :ein, :tax_year, :org_name, :person_name, :title,
+        :base_comp_org, :base_comp_related, :bonus_org, :bonus_related,
+        :other_comp_org, :other_comp_related, :deferred_comp_org, :deferred_comp_related,
+        :nontaxable_benefits_org, :nontaxable_benefits_related,
+        :total_comp_org, :total_comp_related, :prior_reported_org, :prior_reported_related,
+        :source_url
+    )
+    """
+)
+# source CSV column -> meaning. Schedule J Part 2 person-comp columns are not in
+# the published data dictionary; mapped from the standard IRS Schedule J Part 2
+# layout (base / bonus / other / deferred / nontaxable / total / prior-reported,
+# each split filing-org vs related-org).
+_SJ_SRC_COLS = [
+    "FILEREIN", "TAXYEAR", "FILERNAME1", "NAMEPEPERSON", "TITLEITLE",
+    "BASCOMFILORG", "COBAONREORRG", "BONUFILIORGR", "BONURELAORGS",
+    "OTHCOMFILORG", "OTHCOMRELORG", "DEFCOMFILORG", "DEFCOMRELORG",
+    "NONBENFILORG", "NONBENRELORG", "TOTCOMFILORG", "TOTCOMRELORG",
+    "COREPRFIORRG", "COREPRREORRG", "URL",
+]
+
+
+class Form990ScheduleJPipeline(DataSourcePipeline[Form990ScheduleJRow]):
+    source = "givingtuesday_990_schedule_j"
+    batch_size = 25_000
+    row_schema = Form990ScheduleJRow
+
+    def __init__(self, *, path: Path | None = None, limit: int | None = None):
+        self._path = path
+        self._limit = limit
+
+    async def extract(self, ctx: PipelineContext) -> AsyncIterator[dict]:
+        path = self._path or _latest_cached("ScheduleJPart2Officers")
+        emitted = 0
+        for chunk in _read_chunks(path, _SJ_SRC_COLS):
+            for row in chunk.to_dict("records"):
+                if self._limit is not None and emitted >= self._limit:
+                    return
+                ein = _ein(row.get("FILEREIN"))
+                person = _safe_str(row.get("NAMEPEPERSON"))
+                if not ein or not person:
+                    continue
+                yield {
+                    "source": self.source,
+                    "source_version": path.stem,
+                    "natural_key": f"{ein}|{_safe_str(row.get('TAXYEAR')) or ''}|{person}",
+                    "ein": ein,
+                    "tax_year": _safe_int(row.get("TAXYEAR")),
+                    "org_name": _safe_str(row.get("FILERNAME1")),
+                    "person_name": person,
+                    "title": _safe_str(row.get("TITLEITLE")),
+                    "base_comp_org": _safe_int(row.get("BASCOMFILORG")),
+                    "base_comp_related": _safe_int(row.get("COBAONREORRG")),
+                    "bonus_org": _safe_int(row.get("BONUFILIORGR")),
+                    "bonus_related": _safe_int(row.get("BONURELAORGS")),
+                    "other_comp_org": _safe_int(row.get("OTHCOMFILORG")),
+                    "other_comp_related": _safe_int(row.get("OTHCOMRELORG")),
+                    "deferred_comp_org": _safe_int(row.get("DEFCOMFILORG")),
+                    "deferred_comp_related": _safe_int(row.get("DEFCOMRELORG")),
+                    "nontaxable_benefits_org": _safe_int(row.get("NONBENFILORG")),
+                    "nontaxable_benefits_related": _safe_int(row.get("NONBENRELORG")),
+                    "total_comp_org": _safe_int(row.get("TOTCOMFILORG")),
+                    "total_comp_related": _safe_int(row.get("TOTCOMRELORG")),
+                    "prior_reported_org": _safe_int(row.get("COREPRFIORRG")),
+                    "prior_reported_related": _safe_int(row.get("COREPRREORRG")),
+                    "source_url": _safe_str(row.get("URL")),
+                }
+                emitted += 1
+
+    async def load_batch(self, session: AsyncSession, rows: list[Form990ScheduleJRow], ctx: PipelineContext) -> None:
+        await session.execute(_SJ_INSERT, [r.model_dump(exclude=_BASE_FIELDS) for r in rows])
+
+
+# --------------------------------------------------------------------------- #
 # orchestration
 # --------------------------------------------------------------------------- #
+# Person-level child tables (officers, schedule_j) are append-only INSERTs with
+# no natural unique key — always run them with --truncate for a clean reload.
 _DATAMARTS = {
     "financials": (Form990FinancialsPipeline, _FIN_DDL, _FIN_INDEXES,
                    "bronze.bronze_organizations_990_financials"),
     "missions": (Form990MissionPipeline, _MIS_DDL, _MIS_INDEXES,
                  "bronze.bronze_organizations_990_missions"),
+    "officers": (Form990OfficerPipeline, _OFF_DDL, _OFF_INDEXES,
+                 "bronze.bronze_organizations_990_officers"),
+    "schedule_j": (Form990ScheduleJPipeline, _SJ_DDL, _SJ_INDEXES,
+                   "bronze.bronze_organizations_990_schedule_j"),
 }
 
 

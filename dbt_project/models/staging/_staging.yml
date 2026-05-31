@@ -58,6 +58,38 @@ sources:
 
       - name: bronze_organizations_nonprofits_nccs_history
         description: "NCCS Unified BMF organization-years (raw history), landed by ingestion.nccs.bulk. One row per (ein, org_year_last)."
+      - name: bronze_addresses
+        description: |
+          Parcel / property records (RAW) with the address already parsed into
+          components. ~598k rows, one per (source_dataset, source_record_id).
+          Feeds BOTH the MDM address pipeline (situs/parcel address) and the name
+          pipeline (owner_name, a person or business). See
+          web_docs/docs/dbt/entity-resolution-mdm.md.
+        columns:
+          - name: source_dataset
+            description: "Originating dataset (natural-key component)."
+          - name: source_record_id
+            description: "Source record id (natural-key component)."
+          - name: owner_name
+            description: "Parcel owner — person or business. Often SURNAME FIRSTNAME (no comma)."
+          - name: street_number
+            description: "Pre-parsed street number."
+          - name: street_line1
+            description: "Pre-parsed street line."
+          - name: street_line2
+            description: "Pre-parsed secondary line (unit/suite)."
+          - name: situs_full
+            description: "Full situs (property) address string."
+          - name: city
+            description: "Situs city."
+          - name: state_abbr
+            description: "2-letter state code."
+          - name: postal_code
+            description: "Situs ZIP (may be ZIP+4)."
+          - name: parcel_number
+            description: "Parcel id — strong key within a jurisdiction."
+          - name: loaded_at
+            description: "When the row was landed."
       - name: bronze_locations
         description: |
           HIFLD infrastructure locations (RAW), landed by ingestion.hifld.locations.
@@ -361,6 +393,41 @@ sources:
             description: "Filing tax year"
           - name: mission
             description: "Form 990 Part 1 Line 1 - Mission & Most Significant Activities"
+
+      - name: bronze_organizations_990_officers
+        description: >
+          GivingTuesday 990 Part VII-A officers/directors/key-employees
+          (990Part7AOfficers). Person-level: one row per (ein, tax_year, person,
+          title). Landed by ingestion.givingtuesday.load. Reportable comp from the
+          org + related orgs + estimated other comp, with role checkboxes.
+        columns:
+          - name: ein
+            description: "9-digit EIN (joins to IRS/NCCS)"
+          - name: person_name
+            description: "Form 990 Part VII Sec A - Name of person"
+          - name: title
+            description: "Form 990 Part VII Sec A - Title"
+          - name: reportable_comp_org
+            description: "Part VII Sec A Col D - Reportable comp from the organization (W-2/1099)"
+          - name: other_comp
+            description: "Part VII Sec A Col F - Estimated amount of other compensation"
+
+      - name: bronze_organizations_990_schedule_j
+        description: >
+          GivingTuesday 990 Schedule J Part 2 detailed compensation
+          (ScheduleJPart2Officers). Person-level: one row per (ein, tax_year,
+          person, title) for the subset detailed on Schedule J. Landed by
+          ingestion.givingtuesday.load. Base/bonus/other/deferred/nontaxable
+          comp, split filing-org vs related-org.
+        columns:
+          - name: ein
+            description: "9-digit EIN (joins to IRS/NCCS)"
+          - name: person_name
+            description: "Schedule J Part 2 - Name of person"
+          - name: base_comp_org
+            description: "Schedule J Part 2 Col B(i) - Base compensation from filing org"
+          - name: total_comp_org
+            description: "Schedule J Part 2 Col E - Total compensation from filing org"
 
       - name: bronze_jurisdictions
         description: "Master list of jurisdictions (cities, counties, states)"

@@ -151,21 +151,54 @@ def _is_fresh(dest: Path, expected_size: int) -> bool:
     return dest.exists() and dest.stat().st_size == expected_size
 
 
-async def _stream_to_file(client: httpx.AsyncClient, url: str, dest: Path) -> int:
-    """Stream ``url`` to ``dest`` via a ``.part`` temp file. Returns bytes written."""
+async def _stream_to_file(
+    client: httpx.AsyncClient, url: str, dest: Path, *, max_retries: int = 6
+) -> int:
+    """Stream ``url`` to ``dest`` via a ``.part`` temp file. Returns bytes written.
+
+    Resumable + retrying: a partial ``.part`` is continued via an HTTP ``Range``
+    request rather than restarted, and mid-stream drops (common on the multi-GB
+    datamarts) are retried with backoff. S3 advertises ``Accept-Ranges: bytes``.
+    """
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_suffix(dest.suffix + ".part")
-    written = 0
-    next_log = _LOG_EVERY
-    async with client.stream("GET", url, follow_redirects=True) as resp:
-        resp.raise_for_status()
-        with tmp.open("wb") as fh:
-            async for chunk in resp.aiter_bytes(_CHUNK):
-                fh.write(chunk)
-                written += len(chunk)
-                if written >= next_log:
-                    logger.info(f"  {dest.name}: {written / 1e9:.2f} GB...")
-                    next_log += _LOG_EVERY
+    attempt = 0
+
+    while True:
+        resume_from = tmp.stat().st_size if tmp.exists() else 0
+        headers = {"Range": f"bytes={resume_from}-"} if resume_from else {}
+        try:
+            async with client.stream("GET", url, follow_redirects=True, headers=headers) as resp:
+                # 416 = range past EOF → the .part is already the full object.
+                if resp.status_code == 416 and resume_from:
+                    break
+                # 200 when we asked to resume = server ignored Range → restart clean.
+                if resume_from and resp.status_code == 200:
+                    resume_from = 0
+                resp.raise_for_status()
+                mode = "ab" if resume_from else "wb"
+                written = resume_from
+                next_log = ((written // _LOG_EVERY) + 1) * _LOG_EVERY
+                with tmp.open(mode) as fh:
+                    async for chunk in resp.aiter_bytes(_CHUNK):
+                        fh.write(chunk)
+                        written += len(chunk)
+                        if written >= next_log:
+                            logger.info(f"  {dest.name}: {written / 1e9:.2f} GB...")
+                            next_log += _LOG_EVERY
+            break  # stream completed without error
+        except httpx.HTTPError as exc:
+            attempt += 1
+            have = tmp.stat().st_size if tmp.exists() else 0
+            if attempt > max_retries:
+                raise
+            logger.warning(
+                f"  {dest.name}: stream dropped at {have / 1e9:.2f} GB ({exc!r}); "
+                f"resuming (attempt {attempt}/{max_retries})..."
+            )
+            await asyncio.sleep(min(2 ** attempt, 30))
+
+    written = tmp.stat().st_size
     tmp.replace(dest)
     return written
 

@@ -128,3 +128,6 @@ youtube_cookies.txt
 cookies.txt
 *.cookies
 , psycopg2
+
+# Claude Code runtime locks (per-session, machine-local)
+.claude/*.lock

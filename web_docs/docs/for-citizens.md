@@ -2,7 +2,7 @@
 sidebar_position: 2
 ---
 
-# For Families & Individuals
+# For Citizens & Residents
 
 Welcome to Open Navigator! This guide helps you navigate community resources, engage with local government, and access services that matter to you and your family.
 
