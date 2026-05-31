@@ -40,10 +40,12 @@ def address_settings() -> SettingsCreator:
                 ],
             ),
             # Street name / city: typo-tolerant, term-frequency adjusted.
-            cl.JaroWinklerAtThresholds("street_name", [0.92, 0.85]).configure(
+            # NB: the Postgres backend has no Jaro-Winkler, so we use Levenshtein
+            # (edit distance) via fuzzystrmatch. Thresholds are distances, not ratios.
+            cl.LevenshteinAtThresholds("street_name", [1, 2]).configure(
                 term_frequency_adjustments=True
             ),
-            cl.JaroWinklerAtThresholds("city_norm", [0.9]).configure(
+            cl.LevenshteinAtThresholds("city_norm", [1]).configure(
                 term_frequency_adjustments=True
             ),
             # ZIP: partial credit — exact, then first-3-digits, then mismatch.
@@ -98,12 +100,12 @@ def person_settings() -> SettingsCreator:
                         " or name_phonetic_first_l = name_phonetic_first_r)",
                         label_for_charts="phonetic match (either token)",
                     ),
-                    cll.JaroWinklerLevel("name_norm", 0.88),
+                    cll.LevenshteinLevel("name_norm", 2),  # postgres backend: no Jaro-Winkler
                     cll.ElseLevel(),
                 ],
             ),
             # Explicit given/family where a source provides them (else null -> no info).
-            cl.JaroWinklerAtThresholds("family_name_norm", [0.9]).configure(
+            cl.LevenshteinAtThresholds("family_name_norm", [1]).configure(
                 term_frequency_adjustments=True
             ),
             # Strong identifiers.

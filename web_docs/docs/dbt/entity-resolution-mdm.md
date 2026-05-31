@@ -169,8 +169,13 @@ is explicitly allowed outside dbt (ML / ingestion).
   `python -m ingestion.mdm.person_linker` (mirrors `llm.governance`,
   `ingestion.youtube`). Add `splink` to that package via `uv`.
 - **Backend:** Splink Postgres backend on `localhost:5433/open_navigator`,
-  reading `public.int_persons__unioned`; results write back to `bronze`. No data
-  leaves the warehouse. (DuckDB backend is the fallback if Postgres perf bites.)
+  reading the `intermediate.int_*__unioned` tables; results write back to
+  `bronze`. No data leaves the warehouse. (DuckDB backend is the fallback if
+  Postgres perf bites.) Two backend constraints, caught via `--dry-run` and
+  handled in `ingestion.mdm`: the Postgres dialect has **no Jaro-Winkler** (use
+  Levenshtein via `fuzzystrmatch`), and it resolves input tables by **bare name
+  only** (engine sets `search_path=intermediate,bronze,public`; schema-qualified
+  names fail).
 - **Blocking rules — run several in sequence** so a typo in one field doesn't
   drop the pair (a record blocked out by a bad zip is still caught by a
   name-based rule). Avoids the `O(N²)` all-pairs blowup. Use the dbt keys:
