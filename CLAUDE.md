@@ -38,12 +38,15 @@
 - **Naming:**
     - `state_code` (2-letter) vs `state` (full name). Include BOTH.
     - `website_url` is the primary web column name.
+    - **Do NOT use dimensional `dim_`/`fact_` (dimension/fact) names** — do not recommend or apply star-schema dim/fact naming to models or tables. Name models by the entity they represent (e.g. `jurisdictions`, `event_*`).
+- **Keys:** ALWAYS define an explicit primary key, and foreign keys for every relationship, on tables/models exposed in the `public` schema (declare via dbt constraints / `schema.yml` so they are enforced in Postgres).
 - **Scripts:** Data loading scripts in `scripts/datasources/` must start with `load_`.
 
 ## Database Access
 - **Host:** `localhost:5433` (ALREADY RUNNING — do not suggest new Docker PG instances).
 - **Databases:** `open_navigator` (primary) and `openstates` (source).
 - **API Access:** Use the `public` schema in `open_navigator`. Avoid direct `bronze` access.
+- **Keys:** Every table/model exposed in `public` MUST declare an explicit primary key and foreign keys for all relationships (enforced via dbt constraints / `schema.yml`).
 - **CAUTION:** Never delete or suggest deleting `data/cache/`.
 
 ## Documentation Rules (Docusaurus)

@@ -34,10 +34,15 @@ This model:
 
 Used by: api/routes/search_postgres.py, frontend event search
 
+MDM consolidated event: this is the single golden-record event surface in the
+public schema. Per-source feeds (CDP, LocalView) live in staging/intermediate and
+are unioned + deduped here. The source-occurrence crosswalk back to each
+contributing row is mdm_bridge_event_source (keyed on match_key).
+
 Data Flow:
-  bronze_events_cdp -> stg_bronze_events_cdp ┐
-                                             ├─> event (this model)
-  localview_events (mart, jurisdiction_id) ──┘  (anti-joined on video_url)
+  bronze_events_cdp -> stg_bronze_events_cdp        ┐
+                                                    ├─> event (this model)
+  int_events_localview_enriched (jurisdiction_id) ──┘  (anti-joined on video_url)
 */
 
 WITH cdp_deduplicated AS (
@@ -58,6 +63,11 @@ WITH cdp_deduplicated AS (
 -- CDP events mapped to the shared event column set.
 cdp_events AS (
     SELECT
+        -- Natural dedup key, exposed for mdm_bridge_event_source to join on.
+        CASE
+            WHEN video_url IS NOT NULL THEN video_url
+            ELSE CONCAT(datasource_id, '_', source)
+        END                      AS match_key,
         title                    AS event_title,
         description              AS event_description,
         event_date,
@@ -101,6 +111,8 @@ cdp_events AS (
 -- CDP set, so CDP remains authoritative on overlap.
 localview_events AS (
     SELECT
+        -- video_url is always present here (filtered below), so it is the key.
+        lv.video_url                     AS match_key,
         lv.event_title,
         lv.event_description,
         lv.event_date,
@@ -132,7 +144,7 @@ localview_events AS (
         'localview'::TEXT                AS source,
         lv.datasource_id,
         NULL::TEXT                       AS external_source_id
-    FROM {{ ref('localview_events') }} lv
+    FROM {{ ref('int_events_localview_enriched') }} lv
     WHERE lv.video_url IS NOT NULL
       AND NOT EXISTS (
           SELECT 1 FROM cdp_events c WHERE c.video_url = lv.video_url
