@@ -17,7 +17,7 @@ from agents.parser import ParserAgent
 from agents.classifier import ClassifierAgent
 from agents.sentiment import SentimentAnalyzerAgent
 from agents.advocacy import AdvocacyWriterAgent
-from pipeline.delta_lake import DeltaLakePipeline
+from ingestion.delta_lake import DeltaLakePipeline
 # Lazy import for visualization to avoid requiring folium in local mode
 # from visualization.heatmap import AdvocacyHeatmap
 from config import settings
@@ -379,7 +379,7 @@ def publish_to_hf(dataset: str, private: bool, sample: bool):
         python main.py publish-to-hf --dataset discovered-urls --private
         python main.py publish-to-hf --dataset census --sample
     """
-    from pipeline.huggingface_publisher import HuggingFacePublisher, HF_AVAILABLE
+    from hosting.huggingface.pipeline_publisher import HuggingFacePublisher, HF_AVAILABLE
     
     if not HF_AVAILABLE:
         click.echo("❌ HuggingFace libraries not installed!")

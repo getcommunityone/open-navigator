@@ -15,9 +15,9 @@ Destination:
   public.c1_ballotmeasuresource
 
 Usage:
-    .venv/bin/python -m pipeline.openstates.sync_elections_to_c1 --states AL,GA,IN,MA,WA,WI
-    .venv/bin/python -m pipeline.openstates.sync_elections_to_c1 --all
-    .venv/bin/python -m pipeline.openstates.sync_elections_to_c1 --states MA --dry-run
+    .venv/bin/python -m ingestion.openstates.sync_elections_to_c1 --states AL,GA,IN,MA,WA,WI
+    .venv/bin/python -m ingestion.openstates.sync_elections_to_c1 --all
+    .venv/bin/python -m ingestion.openstates.sync_elections_to_c1 --states MA --dry-run
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ import psycopg2
 from dotenv import load_dotenv
 from psycopg2.extras import Json
 
-_ROOT = Path(__file__).resolve().parents[3]
+_ROOT = Path(__file__).resolve().parents[5]
 load_dotenv(_ROOT / ".env")
 
 logger = logging.getLogger("openstates_sync_elections_c1")

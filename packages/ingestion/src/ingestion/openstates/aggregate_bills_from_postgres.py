@@ -31,7 +31,7 @@ import sys
 load_dotenv()
 
 # Setup
-project_root = Path(__file__).parent.parent
+project_root = Path(__file__).resolve().parents[5]
 GOLD_DIR = project_root / "data" / "gold"
 OUTPUT_FILE = GOLD_DIR / "national" / "bill_map_aggregate.parquet"
 

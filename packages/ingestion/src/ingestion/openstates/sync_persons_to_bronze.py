@@ -12,12 +12,12 @@ table holds 22k+ persons across all 50 states).
 
 Run::
 
-    .venv/bin/python -m pipeline.openstates.sync_persons_to_bronze \\
+    .venv/bin/python -m ingestion.openstates.sync_persons_to_bronze \\
         --states AL,GA,IN,MA,WA,WI
 
 Or all states::
 
-    .venv/bin/python -m pipeline.openstates.sync_persons_to_bronze --all
+    .venv/bin/python -m ingestion.openstates.sync_persons_to_bronze --all
 
 Each run inserts a fresh ``sync_batch_id``; old batches stay in place for audit.
 Downstream models pick the latest batch via ``ORDER BY synced_at DESC LIMIT 1``.
@@ -40,7 +40,7 @@ import psycopg2
 from dotenv import load_dotenv
 from psycopg2.extras import execute_values
 
-_ROOT = Path(__file__).resolve().parents[3]
+_ROOT = Path(__file__).resolve().parents[5]
 load_dotenv(_ROOT / ".env")
 
 logger = logging.getLogger("openstates_sync")

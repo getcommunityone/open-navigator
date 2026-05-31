@@ -1,7 +1,7 @@
 """CPI (Bureau of Labor Statistics) read endpoint for the frontend inflation toggle.
 
 Reads ``staging.stg_bls__cpi_annual`` (built from ``bronze.bronze_bls_cpi``,
-loaded by ``scripts/datasources/bls/load_bls_cpi.py``) and returns a flat
+loaded by ``ingestion.bls.cpi``) and returns a flat
 ``{year: index_value}`` map plus the latest year — exactly the shape the
 frontend ``useInflationToggle`` / ``deflate()`` utility consumes to convert
 nominal dollars to constant dollars of the latest year.

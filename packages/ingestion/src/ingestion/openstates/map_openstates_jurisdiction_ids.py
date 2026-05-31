@@ -33,7 +33,7 @@ from psycopg2.extras import Json, execute_batch
 
 load_dotenv()
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
+PROJECT_ROOT = Path(__file__).resolve().parents[5]
 
 OPENSTATES_URL = os.getenv(
     "OPENSTATES_DATABASE_URL",

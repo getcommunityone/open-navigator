@@ -30,7 +30,7 @@ from agents.parser import ParserAgent
 from agents.classifier import ClassifierAgent
 from agents.sentiment import SentimentAnalyzerAgent
 from agents.advocacy import AdvocacyWriterAgent
-from pipeline.delta_lake import DeltaLakePipeline
+from ingestion.delta_lake import DeltaLakePipeline
 from scripts.visualization.heatmap import AdvocacyHeatmap
 from config import settings
 

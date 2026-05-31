@@ -46,8 +46,9 @@ import httpx
 import pandas as pd
 from loguru import logger
 
-# Project root on sys.path (same pattern as download_census_acs_data.py)
-sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+# Project root on sys.path (module now at packages/ingestion/src/ingestion/census/
+# -> repo root is parents[5]).
+sys.path.insert(0, str(Path(__file__).resolve().parents[5]))
 
 from ingestion.census.acs import ACSDataIngestion  # noqa: E402
 from scrapers.census.download_census_acs_data import DEFAULT_DOWNLOAD_TABLES  # noqa: E402

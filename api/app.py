@@ -17,7 +17,7 @@ from loguru import logger
 import os
 
 from agents.orchestrator import OrchestratorAgent
-from pipeline.delta_lake import DeltaLakePipeline
+from ingestion.delta_lake import DeltaLakePipeline
 from config import settings
 
 # Initialize FastAPI app

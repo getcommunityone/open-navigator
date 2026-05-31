@@ -52,7 +52,7 @@ import pandas as pd
 from dotenv import load_dotenv
 from loguru import logger
 
-_REPO_ROOT = Path(__file__).resolve().parents[3]
+_REPO_ROOT = Path(__file__).resolve().parents[5]
 
 # Shared metric definitions — copied here rather than imported to keep this
 # script callable from the venv without ``packages/ingestion`` on sys.path.
