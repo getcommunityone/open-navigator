@@ -76,14 +76,32 @@ transcripts_with_quality AS (
         AND NOT very_short_transcript  -- Filter out <100 char transcripts
 ),
 
+-- One (video_id -> event_id) row per key. Unioning the URL-extracted id and the
+-- datasource_id lets the transcript join below be a plain equality (hash) join,
+-- instead of an OR-join that forced a nested loop over the 150k-row event mart
+-- (turning a seconds-long build into 20+ minutes).
+event_video_keys AS (
+    SELECT DISTINCT ON (vid)
+        vid AS video_id,
+        event_id
+    FROM (
+        SELECT extracted_video_id AS vid, event_id
+        FROM events_with_datasource
+        WHERE extracted_video_id IS NOT NULL
+        UNION ALL
+        SELECT datasource_id AS vid, event_id
+        FROM events_with_datasource
+        WHERE datasource_id IS NOT NULL
+    ) k
+    WHERE vid IS NOT NULL
+    ORDER BY vid, event_id
+),
+
 transcripts_joined AS (
     SELECT
         t.bronze_transcript_id,
-        -- Try to match event_id from event
-        COALESCE(
-            e.event_id,
-            t.event_id  -- Use event_id from bronze if already set
-        ) AS event_id,
+        -- Canonical event_id from the event mart, else the id already on bronze.
+        COALESCE(e.event_id, t.event_id) AS event_id,
         t.video_id,
         t.raw_text,
         t.segments,
@@ -92,9 +110,7 @@ transcripts_joined AS (
         t.transcript_source,
         t.created_at
     FROM transcripts_with_quality t
-    LEFT JOIN events_with_datasource e 
-        ON t.video_id = e.extracted_video_id 
-        OR t.video_id = e.datasource_id
+    LEFT JOIN event_video_keys e ON e.video_id = t.video_id
     WHERE t.quality_rank = 1  -- Keep only best transcript per video
 )
 
