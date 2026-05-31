@@ -1508,8 +1508,7 @@ export default function BatchJobStatusPage() {
               !!ls?.enabled &&
               !launching &&
               !runningSteps.has(stageStep[g]) &&
-              !anyFullRun &&
-              !(g === 'discover' && scope === 'ALL')
+              !anyFullRun
             const canRunAll =
               !!ls?.enabled &&
               !launching &&
@@ -1767,9 +1766,7 @@ export default function BatchJobStatusPage() {
                             title={
                               runningSteps.has(stageStep[st.stage])
                                 ? `${stageStep[st.stage]} is already running`
-                                : st.stage === 'discover' && scope === 'ALL'
-                                  ? 'Scope to one state first to discover its channels'
-                                  : `Run ${stepDesc[st.stage]}${scope !== 'ALL' ? ` · ${scope}` : ''}`
+                                : `Run ${stepDesc[st.stage]} · ${scopeLaunchLabel}`
                             }
                             className="rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
                           >
