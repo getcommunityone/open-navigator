@@ -1,0 +1,45 @@
+{{ config(materialized='table') }}
+
+/*
+    Intermediate (MDM): the conformed organization pool — government, church,
+    healthcare, nonprofit, business, etc. from every org source on one contract.
+    Grain: one row per source org occurrence.
+
+    Org sources wired so far:
+      - stg_jurisdictions__org (states/counties/cities/townships/school districts)
+      - stg_orgs_ai__org       (bronze_organizations_from_ai; typed, some EIN)
+      - stg_locations__org     (bronze_locations; police/fire/church/hospital)
+      - stg_nccs__org          (nonprofits, EIN-keyed)
+
+    TODO: contribution committees/businesses, parcel-owner businesses, IRS BMF.
+*/
+
+with unioned as (
+    select * from {{ ref('stg_jurisdictions__org') }}
+    union all
+    select * from {{ ref('stg_schools__org') }}
+    union all
+    select * from {{ ref('stg_orgs_ai__org') }}
+    union all
+    select * from {{ ref('stg_locations__org') }}
+    union all
+    select * from {{ ref('stg_nccs__org') }}
+)
+
+select
+    md5(source_system || '|' || source_pk)  as org_uid,
+    source_system,
+    source_pk,
+    org_name,
+    org_name_norm,
+    org_type,
+    org_subtype,
+    ein,
+    city_norm,
+    state_code,
+    zip5,
+    lat,
+    lon,
+    website,
+    as_of_year
+from unioned

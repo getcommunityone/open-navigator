@@ -162,3 +162,86 @@ models:
         data_type: text
       - name: source_page_url
         data_type: text
+
+  - name: mdm_dim_organization_master
+    description: >
+      MDM golden record — one row per resolved organization, canonical org_type.
+      PK master_org_id.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    columns:
+      - name: master_org_id
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+      - name: org_name
+        data_type: text
+      - name: org_name_norm
+        data_type: text
+      - name: org_type
+        data_type: text
+      - name: org_subtype
+        data_type: text
+      - name: ein
+        data_type: text
+      - name: city_norm
+        data_type: text
+      - name: state_code
+        data_type: text
+      - name: zip5
+        data_type: text
+      - name: lat
+        data_type: double precision
+      - name: lon
+        data_type: double precision
+      - name: website
+        data_type: text
+      - name: n_occurrences
+        data_type: bigint
+      - name: n_sources
+        data_type: bigint
+      - name: first_seen_year
+        data_type: integer
+      - name: last_seen_year
+        data_type: integer
+
+  - name: mdm_bridge_org_address
+    description: >
+      MDM organization <-> address, dated (via shared bronze_locations row). PK
+      org_address_id, FKs to org + address masters.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [master_org_id]
+        to: ref('mdm_dim_organization_master')
+        to_columns: [master_org_id]
+      - type: foreign_key
+        columns: [master_address_id]
+        to: ref('mdm_dim_address_master')
+        to_columns: [master_address_id]
+    columns:
+      - name: org_address_id
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+      - name: master_org_id
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: master_address_id
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: relationship
+        data_type: text
+      - name: as_of_year
+        data_type: integer
