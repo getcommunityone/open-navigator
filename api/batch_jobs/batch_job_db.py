@@ -446,6 +446,30 @@ def pipeline_stage_report(conn: Any) -> Dict[str, Any]:
     except Exception:
         conn.rollback()  # scraped tables absent — discover stage degrades to zeros
 
+    # Transcripts landed per state, counted directly from bronze_events_text_ai
+    # (state_code is populated on every row). The bronze_events_youtube download
+    # stamp only covered YouTube-catalog videos in a handful of states and missed
+    # the bulk of transcripts (most text_ai video_ids are not in the event mart /
+    # int_events_union); counting text_ai itself surfaces every state that has
+    # transcripts, including LocalView/union sources.
+    tx_by_state: Dict[str, Dict[str, Any]] = {}
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    COALESCE(NULLIF(state_code, ''), '??')  AS st,
+                    COUNT(*)::int                           AS done,
+                    MAX(COALESCE(last_updated, created_at)) AS last_at
+                FROM bronze.bronze_events_text_ai
+                GROUP BY 1
+                """
+            )
+            for st, done, last_at in cur.fetchall():
+                tx_by_state[str(st)] = {"done": int(done), "last_at": _iso(last_at)}
+    except Exception:
+        conn.rollback()  # bronze_events_text_ai absent — transcript coverage degrades to zeros
+
     def _discover_row(scope: str, disc: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         d = disc or {"total": 0, "done": 0, "last_at": ""}
         return {
@@ -454,47 +478,85 @@ def pipeline_stage_report(conn: Any) -> Dict[str, Any]:
         }
 
     def _stage_rows(
-        scope: str, rec: Dict[str, Any], disc: Optional[Dict[str, Any]]
+        scope: str,
+        rec: Dict[str, Any],
+        disc: Optional[Dict[str, Any]],
+        tx: Dict[str, Any],
     ) -> List[Dict[str, Any]]:
         ok = int(rec["vids_ok"])
         fail = int(rec["vids_fail"])
         attempted = ok + fail
         lv, la, lr = rec["last_video"], rec["last_analysis"], rec["last_report"]
-        # done / total / failed / last_at per stage. Transcripts/analyses/reports
-        # are denominated by the videos that got a transcript (the funnel input).
+        # videos: YouTube download stamps (ok / attempted). transcripts: actual
+        # landed coverage from bronze_events_text_ai over the int_events_union
+        # candidate set (done = with transcript, total = candidates) — reaches
+        # LocalView/union videos the YouTube stamp never counted. analyses/reports
+        # sit below transcripts in the funnel, so they are denominated by the
+        # transcripts that exist (clamped so a stamp count can't exceed total).
+        tx_done = int(tx.get("done", 0))
+        tx_total = max(int(tx.get("total", 0)), tx_done)
+        tx_last = tx.get("last_at") or ""
+        analyses = int(rec["analyses"])
+        reports = int(rec["reports"])
         return [
             _discover_row(scope, disc),
             {"scope": scope, "stage": "videos", "done": ok, "total": attempted,
              "failed": fail, "last_at": lv},
-            {"scope": scope, "stage": "transcripts", "done": ok, "total": ok,
-             "failed": fail, "last_at": lv},
-            {"scope": scope, "stage": "analyses", "done": int(rec["analyses"]), "total": ok,
+            {"scope": scope, "stage": "transcripts", "done": tx_done, "total": tx_total,
+             "failed": fail, "last_at": tx_last or lv},
+            {"scope": scope, "stage": "analyses", "done": analyses,
+             "total": max(tx_done, analyses),
              "failed": int(rec["analysis_err"]), "last_at": la},
-            {"scope": scope, "stage": "reports", "done": int(rec["reports"]), "total": ok,
+            {"scope": scope, "stage": "reports", "done": reports,
+             "total": max(tx_done, reports),
              "failed": int(rec["report_err"]), "last_at": lr},
         ]
 
     cols = ("st", "vids_ok", "vids_fail", "analyses", "analysis_err", "reports",
             "report_err", "last_video", "last_analysis", "last_report")
-    per_state = [dict(zip(cols, r)) for r in db_rows]
+    yt_by_state: Dict[str, Dict[str, Any]] = {}
+    for r in db_rows:
+        rec = dict(zip(cols, r))
+        for tk in ("last_video", "last_analysis", "last_report"):
+            rec[tk] = _iso(rec[tk])
+        yt_by_state[str(rec["st"])] = rec
+
+    _zero_rec = {
+        "vids_ok": 0, "vids_fail": 0, "analyses": 0, "analysis_err": 0,
+        "reports": 0, "report_err": 0,
+        "last_video": "", "last_analysis": "", "last_report": "",
+    }
 
     rows: List[Dict[str, Any]] = []
     states: List[str] = []
     totals = {k: 0 for k in ("vids_ok", "vids_fail", "analyses", "analysis_err",
                              "reports", "report_err")}
     last = {"last_video": "", "last_analysis": "", "last_report": ""}
-    for rec in per_state:
-        st = str(rec["st"])
-        for tk in ("last_video", "last_analysis", "last_report"):
-            rec[tk] = _iso(rec[tk])
+    tx_totals = {"done": 0, "total": 0, "last_at": ""}
+
+    # Surface every state that has entered the pipeline (any attempted YouTube
+    # video) OR that has at least one landed transcript — the latter covers
+    # LocalView/union states with no bronze_events_youtube rows.
+    candidate_states = {
+        st for st, rec in yt_by_state.items()
+        if int(rec["vids_ok"]) + int(rec["vids_fail"]) > 0
+    } | {
+        st for st, tx in tx_by_state.items() if int(tx.get("done", 0)) > 0
+    }
+    candidate_states.discard("??")
+
+    for st in sorted(candidate_states):
+        rec = yt_by_state.get(st, dict(_zero_rec))
+        tx = tx_by_state.get(st, {"done": 0, "total": 0, "last_at": ""})
         for nk in totals:
             totals[nk] += int(rec[nk])
         for tk in last:
             last[tk] = _max_iso(last[tk], rec[tk])
-        # Only surface states that have entered the pipeline (any attempted video).
-        if int(rec["vids_ok"]) + int(rec["vids_fail"]) > 0 and st != "??":
-            states.append(st)
-            rows.extend(_stage_rows(st, rec, discover_by_state.get(st)))
+        tx_totals["done"] += int(tx.get("done", 0))
+        tx_totals["total"] += int(tx.get("total", 0))
+        tx_totals["last_at"] = _max_iso(tx_totals["last_at"], tx.get("last_at") or "")
+        states.append(st)
+        rows.extend(_stage_rows(st, rec, discover_by_state.get(st), tx))
 
     disc_all = {"total": 0, "done": 0, "last_at": ""}
     for st in states:
@@ -503,7 +565,7 @@ def pipeline_stage_report(conn: Any) -> Dict[str, Any]:
             disc_all["total"] += d["total"]
             disc_all["done"] += d["done"]
             disc_all["last_at"] = _max_iso(disc_all["last_at"], d["last_at"])
-    rows = _stage_rows("ALL", {**totals, **last}, disc_all) + rows
+    rows = _stage_rows("ALL", {**totals, **last}, disc_all, tx_totals) + rows
     out["states"] = sorted(states)
     out["rows"] = rows
     out["timing"] = _stage_timing(conn)
