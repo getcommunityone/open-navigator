@@ -82,14 +82,16 @@ def person_settings() -> SettingsCreator:
     return SettingsCreator(
         link_type="dedupe_only",
         unique_id_column_name="person_uid",
-        # Multi-column blocks: a bare zip5 over 2.4M people is quadratic. Phonetic
-        # surname/given + geography keeps blocks small while staying order-agnostic.
+        # Tight multi-column blocks. A single phonetic token + state is degenerate
+        # for short codes (surname-sound "K" in AL = 10k people, 296M pairs); the
+        # explosion comes from middle-initial-as-surname. Requiring BOTH name
+        # sounds bounds it (max block 603, ~23M pairs total).
         blocking_rules_to_generate_predictions=[
-            block_on("external_id"),                          # strong id
-            block_on("email"),                                # strong id
-            block_on("name_phonetic_last", "state_code"),     # surname sound + state
-            block_on("name_phonetic_first", "state_code"),    # given sound + state (order-agnostic)
-            block_on("name_phonetic_last", "zip5"),           # surname sound + ZIP (tighter than bare zip5)
+            block_on("external_id"),                              # strong id
+            block_on("email"),                                    # strong id
+            block_on("name_phonetic_last", "name_phonetic_first"),# both name sounds
+            block_on("family_name_norm", "state_code"),           # exact surname + state
+            block_on("name_phonetic_last", "zip5"),               # surname sound + ZIP
         ],
         comparisons=[
             # Name ladder on the normalized full name.

@@ -33,7 +33,7 @@ class EntitySpec:
     unique_id: str              # Splink unique_id_column_name
     settings_factory: callable
     output_table: str           # where clusters land (schema-qualified)
-    entity_type_filter: str | None = None  # restrict the input pool, e.g. 'person'
+    input_filter: str | None = None  # SQL predicate to restrict the input pool
     # EM training blocks — multi-column so training pairs stay bounded.
     em_blocking: tuple[tuple[str, ...], ...] = ()
 
@@ -55,8 +55,14 @@ SPECS: dict[str, EntitySpec] = {
         unique_id="person_uid",
         settings_factory=person_settings,
         output_table="bronze.entity_person_clusters",
-        entity_type_filter="person",
-        em_blocking=(("name_phonetic_last", "state_code"), ("family_name_norm", "state_code")),
+        input_filter="entity_type = 'person' and is_probable_person",
+        # EM is iterative, so its training blocks are tighter than the prediction
+        # blocks (adding state_code shrinks training pairs ~30-50x) — parameter
+        # estimates barely change, but EM runs in ~1 min instead of ~20.
+        em_blocking=(
+            ("name_phonetic_last", "name_phonetic_first", "state_code"),
+            ("family_name_norm", "state_code"),
+        ),
     ),
 }
 
@@ -67,16 +73,16 @@ def _prepare_input(engine, spec: EntitySpec) -> str:
     For a filtered pool (person), materialise a view so Splink sees only the
     relevant entity_type without us mutating the source.
     """
-    if spec.entity_type_filter is None:
+    if spec.input_filter is None:
         return spec.source_table
     bare = f"mdm_{spec.name}_input"
     with engine.begin() as conn:
         conn.execute(text(
             f"create or replace view bronze.{bare} as "
             f"select * from {spec.source_table} "
-            f"where entity_type = :et"
-        ), {"et": spec.entity_type_filter})
-    logger.info("Prepared filtered input view bronze.{} (entity_type={})", bare, spec.entity_type_filter)
+            f"where {spec.input_filter}"
+        ))
+    logger.info("Prepared filtered input view bronze.{} (where {})", bare, spec.input_filter)
     return bare  # bare name; resolved via search_path
 
 
