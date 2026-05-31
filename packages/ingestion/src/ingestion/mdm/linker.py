@@ -34,6 +34,8 @@ class EntitySpec:
     settings_factory: callable
     output_table: str           # where clusters land (schema-qualified)
     entity_type_filter: str | None = None  # restrict the input pool, e.g. 'person'
+    # EM training blocks — multi-column so training pairs stay bounded.
+    em_blocking: tuple[tuple[str, ...], ...] = ()
 
 
 # source_table is a BARE name (resolved via the engine search_path) — the Splink
@@ -45,6 +47,7 @@ SPECS: dict[str, EntitySpec] = {
         unique_id="address_uid",
         settings_factory=address_settings,
         output_table="bronze.entity_address_clusters",
+        em_blocking=(("zip5", "street_name"), ("zip5", "street_number")),
     ),
     "person": EntitySpec(
         name="person",
@@ -53,6 +56,7 @@ SPECS: dict[str, EntitySpec] = {
         settings_factory=person_settings,
         output_table="bronze.entity_person_clusters",
         entity_type_filter="person",
+        em_blocking=(("name_phonetic_last", "state_code"), ("family_name_norm", "state_code")),
     ),
 }
 
@@ -100,7 +104,14 @@ def run_linker(
     input_name = _prepare_input(engine, spec)
     settings = spec.settings_factory()
 
-    db_api = PostgresAPI(engine=engine)
+    # Splink writes its working tables to the `splink` schema and SETs search_path
+    # to it, which overrides the engine-level path — so the input schemas must be
+    # declared to Splink directly via other_schemas_to_search (not just the engine).
+    db_api = PostgresAPI(
+        engine=engine,
+        schema="splink",
+        other_schemas_to_search=["intermediate", "bronze", "public"],
+    )
     linker = Linker(input_name, settings, db_api=db_api)
     logger.info("Linker built for {} on {}", entity, input_name)
 
@@ -111,13 +122,13 @@ def run_linker(
     logger.info("Estimating u via random sampling (max_pairs={:.0e}) …", train_max_pairs)
     linker.training.estimate_u_using_random_sampling(max_pairs=train_max_pairs)
 
-    # EM on a couple of well-populated blocking rules.
+    # EM on the entity's multi-column training blocks (bounded pair counts).
     from splink import block_on
-    for rule in (block_on("zip5"), block_on("state_code")):
+    for cols in spec.em_blocking:
         try:
-            linker.training.estimate_parameters_using_expectation_maximisation(rule)
+            linker.training.estimate_parameters_using_expectation_maximisation(block_on(*cols))
         except Exception as err:  # noqa: BLE001 — EM on a sparse rule may give up; keep going
-            logger.warning("EM skipped for {}: {}", rule, err)
+            logger.warning("EM skipped for block_on{}: {}", cols, err)
 
     logger.info("Predicting pairwise matches (threshold={}) …", match_threshold)
     predictions = linker.inference.predict(threshold_match_probability=match_threshold)
