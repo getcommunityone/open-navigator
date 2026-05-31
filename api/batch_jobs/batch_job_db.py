@@ -427,12 +427,15 @@ def pipeline_stage_report(conn: Any) -> Dict[str, Any]:
     # Stage 0 (channel discovery) lives in the scraped-jurisdiction tables, not in
     # bronze_events_youtube: per state, how many jurisdictions have a YouTube channel
     # found (done) out of all scraped (total); failed = still missing a channel.
+    # Grouped by entity (counties vs municipalities) so the Discover cell can split
+    # the combined coverage; the per-entity rows sum back to the combined total.
+    DISCOVER_ENTITIES = ("counties", "municipalities")
     discover_by_state: Dict[str, Dict[str, Any]] = {}
     try:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT usps AS st,
+                SELECT usps AS st, entity,
                     COUNT(*)::int AS total,
                     COUNT(*) FILTER (
                         WHERE COALESCE(NULLIF(youtube_channel_id, ''),
@@ -440,19 +443,27 @@ def pipeline_stage_report(conn: Any) -> Dict[str, Any]:
                     )::int AS done,
                     MAX(discovered_at) AS last_at
                 FROM (
-                    SELECT usps, youtube_channel_id, youtube_channel_url, discovered_at
+                    SELECT usps, youtube_channel_id, youtube_channel_url, discovered_at,
+                           'counties' AS entity
                       FROM bronze.bronze_jurisdictions_counties_scraped
                     UNION ALL
-                    SELECT usps, youtube_channel_id, youtube_channel_url, discovered_at
+                    SELECT usps, youtube_channel_id, youtube_channel_url, discovered_at,
+                           'municipalities' AS entity
                       FROM bronze.bronze_jurisdictions_municipalities_scraped
                 ) j
                 WHERE COALESCE(usps, '') <> ''
-                GROUP BY usps
+                GROUP BY usps, entity
                 """
             )
-            for st, total, done, last_at in cur.fetchall():
-                discover_by_state[str(st)] = {
-                    "total": int(total), "done": int(done), "last_at": _iso(last_at)
+            for st, entity, total, done, last_at in cur.fetchall():
+                rec = discover_by_state.setdefault(
+                    str(st), {"total": 0, "done": 0, "last_at": "", "breakdown": {}}
+                )
+                rec["total"] += int(total)
+                rec["done"] += int(done)
+                rec["last_at"] = _max_iso(rec["last_at"], _iso(last_at))
+                rec["breakdown"][str(entity)] = {
+                    "entity": str(entity), "total": int(total), "done": int(done),
                 }
     except Exception:
         conn.rollback()  # scraped tables absent — discover stage degrades to zeros
@@ -482,10 +493,22 @@ def pipeline_stage_report(conn: Any) -> Dict[str, Any]:
         conn.rollback()  # bronze_events_text_ai absent — transcript coverage degrades to zeros
 
     def _discover_row(scope: str, disc: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-        d = disc or {"total": 0, "done": 0, "last_at": ""}
+        d = disc or {"total": 0, "done": 0, "last_at": "", "breakdown": {}}
+        bd = d.get("breakdown") or {}
+        breakdown = [
+            {
+                "entity": e,
+                "done": int(bd[e]["done"]),
+                "total": int(bd[e]["total"]),
+                "failed": max(0, int(bd[e]["total"]) - int(bd[e]["done"])),
+            }
+            for e in DISCOVER_ENTITIES
+            if e in bd
+        ]
         return {
             "scope": scope, "stage": "discover", "done": d["done"], "total": d["total"],
             "failed": max(0, d["total"] - d["done"]), "last_at": d["last_at"],
+            "breakdown": breakdown,
         }
 
     def _stage_rows(
@@ -569,13 +592,19 @@ def pipeline_stage_report(conn: Any) -> Dict[str, Any]:
         states.append(st)
         rows.extend(_stage_rows(st, rec, discover_by_state.get(st), tx))
 
-    disc_all = {"total": 0, "done": 0, "last_at": ""}
+    disc_all: Dict[str, Any] = {"total": 0, "done": 0, "last_at": "", "breakdown": {}}
     for st in states:
         d = discover_by_state.get(st)
         if d:
             disc_all["total"] += d["total"]
             disc_all["done"] += d["done"]
             disc_all["last_at"] = _max_iso(disc_all["last_at"], d["last_at"])
+            for e, b in (d.get("breakdown") or {}).items():
+                agg = disc_all["breakdown"].setdefault(
+                    e, {"entity": e, "total": 0, "done": 0}
+                )
+                agg["total"] += int(b["total"])
+                agg["done"] += int(b["done"])
     rows = _stage_rows("ALL", {**totals, **last}, disc_all, tx_totals) + rows
     out["states"] = sorted(states)
     out["rows"] = rows

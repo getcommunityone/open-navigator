@@ -99,6 +99,15 @@ class BatchJobModel(BaseModel):
     jurisdictions: List[JurisdictionRunModel] = Field(default_factory=list)
 
 
+class StageBreakdownEntry(BaseModel):
+    # Per-entity split of a stage's coverage (e.g. discover: counties vs
+    # municipalities). Entries sum back to the parent row's done/total.
+    entity: str
+    done: int = 0
+    total: int = 0
+    failed: int = 0
+
+
 class StageReportRow(BaseModel):
     # One (scope, stage) row. scope is a 2-letter state code or "ALL" (rollup).
     scope: str
@@ -107,6 +116,8 @@ class StageReportRow(BaseModel):
     total: int = 0
     failed: int = 0
     last_at: str = ""
+    # Optional per-entity split (only populated for the discover stage today).
+    breakdown: List[StageBreakdownEntry] = Field(default_factory=list)
 
 
 class StageReport(BaseModel):

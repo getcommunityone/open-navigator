@@ -1433,6 +1433,15 @@ export default function BatchJobStatusPage() {
               analyses: 'Analyses',
               reports: 'Reports',
             }
+            // Discover-stage per-entity split labels (counties vs municipalities).
+            const entityShort: Record<string, string> = {
+              counties: 'Co',
+              municipalities: 'Mun',
+            }
+            const entityLabel: Record<string, string> = {
+              counties: 'Counties',
+              municipalities: 'Municipalities (cities/towns)',
+            }
             // Which runnable step each stage's "Run" button kicks off.
             const stageStep: Record<PipelineStage, string> = {
               discover: 'discover',
@@ -1783,6 +1792,24 @@ export default function BatchJobStatusPage() {
                         <div className="mt-1.5">
                           <ProgressBar pct={pct} />
                         </div>
+                        {st.stage === 'discover' && (r?.breakdown?.length ?? 0) > 0 ? (
+                          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-slate-500">
+                            {r!.breakdown!.map((b) => (
+                              <span
+                                key={b.entity}
+                                title={`${entityLabel[b.entity] ?? b.entity}: ${formatCompactNumber(b.done)} of ${formatCompactNumber(b.total)} with a channel`}
+                              >
+                                <span className="font-medium text-slate-600">
+                                  {entityLabel[b.entity] ?? b.entity}
+                                </span>{' '}
+                                {fmtPct(b.done, b.total)}{' '}
+                                <span className="tabular-nums text-slate-400">
+                                  {formatCompactNumber(b.done)}/{formatCompactNumber(b.total)}
+                                </span>
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
                       </div>
                       <div className="text-right">
                         {failed > 0 ? (
@@ -1967,12 +1994,32 @@ export default function BatchJobStatusPage() {
                               const r = rowFor(stCode, s)
                               const done = r?.done ?? 0
                               const total = r?.total ?? 0
+                              const bd = s === 'discover' ? r?.breakdown ?? [] : []
                               return (
                                 <td key={s} className="px-3 py-2 text-right tabular-nums">
                                   <div className="text-slate-700">{fmtPct(done, total)}</div>
                                   <div className="text-[10px] text-slate-400">
                                     {formatCompactNumber(done)}/{formatCompactNumber(total)}
                                   </div>
+                                  {bd.length > 0 ? (
+                                    <div className="mt-0.5 space-y-px">
+                                      {bd.map((b) => (
+                                        <div
+                                          key={b.entity}
+                                          className="text-[10px] text-slate-400"
+                                          title={`${entityLabel[b.entity] ?? b.entity}: ${formatCompactNumber(b.done)} of ${formatCompactNumber(b.total)} with a channel`}
+                                        >
+                                          <span className="text-slate-500">
+                                            {entityShort[b.entity] ?? b.entity}
+                                          </span>{' '}
+                                          {fmtPct(b.done, b.total)}{' '}
+                                          <span className="text-slate-300">
+                                            {formatCompactNumber(b.done)}/{formatCompactNumber(b.total)}
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : null}
                                 </td>
                               )
                             })}
