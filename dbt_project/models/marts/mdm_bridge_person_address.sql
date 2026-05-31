@@ -9,6 +9,11 @@
     (an address occurrence) share the same source_pk, so the owner is linked to
     the master address they own/occupy.
 
+    Restricted to real people (entity_type = 'person', is_probable_person) so
+    every person_uid resolves to mdm_person (enforced FK). Business/organization
+    parcel owners are intentionally excluded here — they belong in an org<->address
+    bridge, not a person bridge.
+
     Grain: one row per parcel owner<->address link. Extend with other dual-entity
     sources (e.g. contributor mailing addresses) as they are added to both pools.
 */
@@ -17,6 +22,8 @@ with persons as (
     select person_uid, source_system, source_pk, raw_name
     from {{ ref('int_persons__unioned') }}
     where source_system = 'bronze_addresses'
+      and entity_type = 'person'
+      and is_probable_person
 ),
 
 addresses as (

@@ -8,13 +8,17 @@
                                    scraped from (100% have a page url)
       - bronze_persons_osf_ledb -> ballotpedia_url
 
-    Grain: one row per person_uid that has a source link.
+    Grain: one row per person_uid that has a source link. Restricted to real
+    people (entity_type = 'person', is_probable_person) so every person_uid
+    resolves to mdm_person (enforced FK).
 */
 
 with persons as (
     select person_uid, source_system, source_pk, full_name
     from {{ ref('int_persons__unioned') }}
     where source_system in ('bronze_persons_scraped', 'bronze_persons_osf_ledb')
+      and entity_type = 'person'
+      and is_probable_person
 ),
 
 scraped as (
