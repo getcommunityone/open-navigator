@@ -16,6 +16,9 @@ DROP TABLE IF EXISTS contact_official CASCADE;
 DROP TABLE IF EXISTS event CASCADE;
 DROP TABLE IF EXISTS cause CASCADE;
 DROP TABLE IF EXISTS bills_search CASCADE;
+DROP TABLE IF EXISTS tag_organization CASCADE;
+DROP TABLE IF EXISTS tag_closure CASCADE;
+DROP TABLE IF EXISTS tag CASCADE;
 DROP TABLE IF EXISTS reference_ntee_codes CASCADE;
 DROP TABLE IF EXISTS causes_ntee CASCADE;
 DROP TABLE IF EXISTS cause_ntee CASCADE;
@@ -71,56 +74,11 @@ CREATE INDEX idx_stats_state_city ON jurisdiction_state_aggregate(state_code, ci
 -- Denormalized for fast full-text search
 -- ============================================================================
 
--- Nonprofits search table (most frequently searched)
-CREATE TABLE organization_nonprofit (
-    ein VARCHAR(20) PRIMARY KEY,
-    name TEXT NOT NULL,
-    street_address TEXT,
-    city VARCHAR(100),
-    state_code VARCHAR(2),        -- Two-letter state code (e.g., 'AL', 'MA')
-    state VARCHAR(50),            -- Full state name (e.g., 'Alabama', 'Massachusetts')
-    zip_code VARCHAR(10),
-    county VARCHAR(100),
-    
-    -- Classification
-    ntee_code VARCHAR(10),
-    ntee_description TEXT,
-    subsection_code VARCHAR(10),
-    affiliation_code VARCHAR(10),
-    classification_code VARCHAR(20),
-    
-    -- Financial (most recent year)
-    revenue BIGINT,
-    assets BIGINT,
-    income BIGINT,
-    
-    -- Status
-    ruling_date DATE,
-    foundation_code VARCHAR(10),
-    pf_filing_requirement_code VARCHAR(10),
-    accounting_period VARCHAR(10),
-    asset_code VARCHAR(10),
-    income_code VARCHAR(10),
-    filing_requirement_code VARCHAR(10),
-    exempt_organization_status_code VARCHAR(10),
-    tax_period VARCHAR(10),
-    asset_amount BIGINT,
-    income_amount BIGINT,
-    form_990_revenue_amount BIGINT,
-    
-    -- Metadata
-    source VARCHAR(50) DEFAULT 'irs_bmf',
-    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Full-text search indexes
-CREATE INDEX idx_organizations_nonprofit_name_search ON organization_nonprofit USING GIN (to_tsvector('english', name));
-CREATE INDEX idx_organizations_nonprofit_state_code ON organization_nonprofit(state_code);
-CREATE INDEX idx_organizations_nonprofit_state ON organization_nonprofit(state);
-CREATE INDEX idx_organizations_nonprofit_city_state ON organization_nonprofit(city, state_code);
-CREATE INDEX idx_organizations_nonprofit_county ON organization_nonprofit(county);
-CREATE INDEX idx_organizations_nonprofit_ntee ON organization_nonprofit(ntee_code);
-CREATE INDEX idx_organizations_nonprofit_zip ON organization_nonprofit(zip_code);
+-- NOTE: the legacy `organization_nonprofit` serving table has been retired.
+-- Nonprofit org data is now served from the MDM golden record
+-- public.mdm_organization (PK master_org_id) plus the detail satellite
+-- public.mdm_organization_nonprofit (financials / NTEE / GivingTuesday-990),
+-- both synced from dbt marts. See migration 092 and api/routes/search_postgres.py.
 
 
 -- Jurisdictions search table (cities, counties, townships)
@@ -387,30 +345,60 @@ CREATE INDEX idx_bills_state_session ON bills_search(state_code, session);
 -- ============================================================================
 
 -- ============================================================================
--- REFERENCE DATA: NTEE CODES & CAUSES
--- Combined table for NTEE codes (IRS taxonomy) and EveryOrg causes
+-- TAG TAXONOMY: NTEE CODES & EVERYORG CAUSES (hierarchical)
+-- Unified, hierarchical tag taxonomy. Replaces the ad-hoc cause_ntee table.
+-- Built by dbt (marts: tag / tag_closure / tag_organization).
 -- ============================================================================
 
-CREATE TABLE cause_ntee (
-    code VARCHAR(100) PRIMARY KEY,              -- NTEE code (e.g., 'A', 'E20') or cause slug (e.g., 'animals', 'climate')
-    name TEXT NOT NULL,                         -- Human-readable name
-    description TEXT,                           -- Detailed description
-    cause_type VARCHAR(20) NOT NULL,            -- 'ntee' or 'everyorg'
-    parent_code VARCHAR(100),                   -- For hierarchical relationships
-    category VARCHAR(100),                      -- Additional categorization
-    subcategory VARCHAR(100),                   -- Additional subcategorization
-    cause_breadcrumb TEXT,                      -- Full hierarchy path (e.g., "Health > Primary Care > Hospitals")
-    
-    -- Metadata
-    source VARCHAR(50) NOT NULL,                -- 'irs' or 'everyorg'
-    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+-- Taxonomy nodes. Collision-safe synthetic key: vocabulary || '|' || source_code.
+CREATE TABLE tag (
+    tag_id VARCHAR(120) PRIMARY KEY,            -- e.g. 'ntee|E20', 'everyorg|climate'
+    vocabulary VARCHAR(20) NOT NULL,            -- 'ntee' or 'everyorg'
+    source_code VARCHAR(100) NOT NULL,          -- original code/slug within the vocabulary
+    label TEXT,                                 -- human-readable name
+    description TEXT,                           -- detailed description
+    parent_tag_id VARCHAR(120),                 -- adjacency edge; NULL at roots (self-FK)
+    depth INTEGER,                              -- distance from root (0 = root)
+    breadcrumb TEXT,                            -- denormalized root->leaf path
+    category VARCHAR(100),                      -- vocabulary-specific categorization
+    subcategory VARCHAR(100),                   -- NTEE subcategory (NULL for everyorg)
+    icon VARCHAR(100),                          -- EveryOrg icon slug (NULL for ntee)
+    popularity_rank INTEGER,                    -- EveryOrg popularity rank (NULL for ntee)
+    source VARCHAR(50),                         -- 'irs' or 'everyorg'
+    source_ingested_at TIMESTAMPTZ,
+    dbt_loaded_at TIMESTAMPTZ,
+    -- Deferrable so bulk loaders can insert children before parents in one txn.
+    CONSTRAINT fk_tag_parent FOREIGN KEY (parent_tag_id) REFERENCES tag(tag_id)
+        DEFERRABLE INITIALLY DEFERRED
 );
 
--- Indexes for search and lookups
-CREATE INDEX idx_cause_ntee_type ON cause_ntee(cause_type);
-CREATE INDEX idx_cause_ntee_parent ON cause_ntee(parent_code);
-CREATE INDEX idx_cause_ntee_name_search ON cause_ntee USING GIN (to_tsvector('english', name));
-CREATE INDEX idx_cause_ntee_description_search ON cause_ntee USING GIN (to_tsvector('english', description));
+CREATE INDEX idx_tag_vocabulary ON tag(vocabulary);
+CREATE INDEX idx_tag_parent ON tag(parent_tag_id);
+CREATE INDEX idx_tag_label_search ON tag USING GIN (to_tsvector('english', coalesce(label, '')));
+CREATE INDEX idx_tag_description_search ON tag USING GIN (to_tsvector('english', coalesce(description, '')));
+
+-- Transitive closure ("sub table") for subtree queries. Includes self pairs (depth 0).
+CREATE TABLE tag_closure (
+    ancestor_tag_id VARCHAR(120) NOT NULL REFERENCES tag(tag_id),
+    descendant_tag_id VARCHAR(120) NOT NULL REFERENCES tag(tag_id),
+    depth INTEGER NOT NULL,                     -- edges from ancestor to descendant (0 = self)
+    dbt_loaded_at TIMESTAMPTZ,
+    PRIMARY KEY (ancestor_tag_id, descendant_tag_id)
+);
+
+CREATE INDEX idx_tag_closure_descendant ON tag_closure(descendant_tag_id);
+
+-- Bridge: golden organization -> most specific NTEE tag. NTEE-only by design.
+CREATE TABLE tag_organization (
+    master_org_id VARCHAR(64) NOT NULL,         -- FK -> mdm_organization.master_org_id
+    tag_id VARCHAR(120) NOT NULL REFERENCES tag(tag_id),
+    is_primary BOOLEAN,                         -- org's primary tag (one row per org today)
+    match_method VARCHAR(20),                   -- 'exact' | 'prefix' | 'major_group'
+    assigned_at TIMESTAMPTZ,
+    PRIMARY KEY (master_org_id, tag_id)
+);
+
+CREATE INDEX idx_tag_organization_tag ON tag_organization(tag_id);
 
 
 -- ============================================================================

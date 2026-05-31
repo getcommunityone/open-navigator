@@ -476,8 +476,12 @@ def load_reference_data(conn):
     
     cursor = conn.cursor()
     total = 0
-    
-    # Load NTEE codes into cause_ntee table
+
+    def _parent_tag_id(prefix, parent):
+        """Synthetic parent edge for the tag table; None at roots."""
+        return f"{prefix}|{parent}" if (parent and not pd.isna(parent)) else None
+
+    # Load NTEE codes into the tag table
     ntee_file = GOLD_DIR / "causes_ntee_codes.parquet"
     if ntee_file.exists():
         df = pd.read_parquet(ntee_file)
@@ -509,32 +513,38 @@ def load_reference_data(conn):
             path.append(code_lookup.get(code, code))
             return ' > '.join(path)
         
+        # Populates only the `tag` node table; tag_closure / tag_organization are
+        # built by dbt (marts) and synced separately (gold-publish follow-up).
         records = [
             (
-                row['ntee_code'],
-                row.get('description', ''),
-                row.get('description', ''),
-                'ntee',
-                row.get('parent_code'),
-                row.get('ntee_type'),
-                None,
-                build_ntee_breadcrumb(row['ntee_code'], row.get('parent_code')),
-                'irs',
-                datetime.now()
-            ) 
+                f"ntee|{row['ntee_code']}",                                  # tag_id
+                'ntee',                                                      # vocabulary
+                row['ntee_code'],                                            # source_code
+                row.get('description', ''),                                  # label
+                row.get('description', ''),                                  # description
+                _parent_tag_id('ntee', row.get('parent_code')),             # parent_tag_id
+                build_ntee_breadcrumb(row['ntee_code'], row.get('parent_code')),  # breadcrumb
+                row.get('ntee_type'),                                        # category
+                None,                                                        # subcategory
+                None,                                                        # icon
+                None,                                                        # popularity_rank
+                'irs',                                                       # source
+                datetime.now(),                                             # source_ingested_at
+            )
             for _, row in df.iterrows()
         ]
-        
+
         execute_values(cursor, """
-            INSERT INTO cause_ntee (code, name, description, cause_type, parent_code, category, subcategory, cause_breadcrumb, source, last_updated)
+            INSERT INTO tag (tag_id, vocabulary, source_code, label, description, parent_tag_id, breadcrumb, category, subcategory, icon, popularity_rank, source, source_ingested_at)
             VALUES %s
-            ON CONFLICT (code) DO UPDATE SET 
-                name = EXCLUDED.name,
+            ON CONFLICT (tag_id) DO UPDATE SET
+                label = EXCLUDED.label,
                 description = EXCLUDED.description,
-                cause_breadcrumb = EXCLUDED.cause_breadcrumb,
-                last_updated = EXCLUDED.last_updated
+                parent_tag_id = EXCLUDED.parent_tag_id,
+                breadcrumb = EXCLUDED.breadcrumb,
+                source_ingested_at = EXCLUDED.source_ingested_at
         """, records)
-        
+
         total += len(records)
         logger.info(f"  Loaded {len(records)} NTEE codes")
     else:
@@ -575,37 +585,41 @@ def load_reference_data(conn):
         
         records = [
             (
-                row['cause_id'],
-                row['cause_name'],
-                row.get('description'),
-                'everyorg',
-                row.get('parent_id'),
-                row.get('category'),
-                None,
-                build_everyorg_breadcrumb(row['cause_id'], row.get('parent_id')),
-                'everyorg',
-                datetime.now()
+                f"everyorg|{row['cause_id']}",                               # tag_id
+                'everyorg',                                                  # vocabulary
+                row['cause_id'],                                             # source_code
+                row['cause_name'],                                           # label
+                row.get('description'),                                      # description
+                _parent_tag_id('everyorg', row.get('parent_id')),           # parent_tag_id
+                build_everyorg_breadcrumb(row['cause_id'], row.get('parent_id')),  # breadcrumb
+                row.get('category'),                                         # category
+                None,                                                        # subcategory
+                row.get('icon'),                                             # icon
+                row.get('popularity_rank'),                                  # popularity_rank
+                'everyorg',                                                  # source
+                datetime.now(),                                             # source_ingested_at
             )
             for _, row in df.iterrows()
         ]
-        
+
         execute_values(cursor, """
-            INSERT INTO cause_ntee (code, name, description, cause_type, parent_code, category, subcategory, cause_breadcrumb, source, last_updated)
+            INSERT INTO tag (tag_id, vocabulary, source_code, label, description, parent_tag_id, breadcrumb, category, subcategory, icon, popularity_rank, source, source_ingested_at)
             VALUES %s
-            ON CONFLICT (code) DO UPDATE SET 
-                name = EXCLUDED.name,
+            ON CONFLICT (tag_id) DO UPDATE SET
+                label = EXCLUDED.label,
                 description = EXCLUDED.description,
-                cause_breadcrumb = EXCLUDED.cause_breadcrumb,
-                last_updated = EXCLUDED.last_updated
+                parent_tag_id = EXCLUDED.parent_tag_id,
+                breadcrumb = EXCLUDED.breadcrumb,
+                source_ingested_at = EXCLUDED.source_ingested_at
         """, records)
-        
+
         total += len(records)
         logger.info(f"  Loaded {len(records)} EveryOrg causes")
     else:
         logger.warning(f"  Causes file not found: {causes_file}")
-    
+
     conn.commit()
-    logger.success(f"✅ Loaded {total} reference records into cause_ntee table")
+    logger.success(f"✅ Loaded {total} reference records into tag table")
     return True
 
 

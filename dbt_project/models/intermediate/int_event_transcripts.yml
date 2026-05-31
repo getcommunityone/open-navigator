@@ -1,0 +1,36 @@
+version: 2
+
+models:
+  - name: int_event_transcripts
+    description: >
+      Unified transcript layer — one consistent row per video_id across every
+      transcript source. YouTube caption fetches (bronze_events_text_ai) carry
+      per-segment timing in `segments`; LocalView scraped captions
+      (bronze_events_localview) are flat text with `segments` NULL. Where a video
+      has both, YouTube wins (it has timing). Canonical event_id / jurisdiction
+      geo are resolved from int_events_union. Replaces physically copying the
+      ~153K LocalView captions into bronze_events_text_ai.
+    columns:
+      - name: video_id
+        description: 11-char YouTube video id; the grain of this model.
+        data_tests:
+          - not_null
+          - unique
+      - name: event_id
+        description: Canonical event id (from int_events_union, else the source row).
+      - name: raw_text
+        description: Full transcript text (caption_text_clean for LocalView).
+        data_tests:
+          - not_null
+      - name: segments
+        description: Per-segment caption timing (jsonb); NULL for LocalView (flat text).
+      - name: transcript_source
+        description: >
+          Fetch/source channel — 'localview' for LocalView, or the original
+          YouTube fetcher ('youtube_transcript_api', 'youtube_api', 'yt-dlp', ...).
+      - name: source
+        description: Origin family of the row — 'youtube' or 'localview'.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['youtube', 'localview']

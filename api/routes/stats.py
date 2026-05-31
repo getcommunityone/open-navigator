@@ -50,9 +50,9 @@ def calculate_stats_from_db(state: Optional[str] = None,
     
     Queries:
     - jurisdiction for jurisdiction counts
-    - contact for official/legislator counts  
-    - organization_nonprofit for nonprofit counts
-    - jurisdiction_state_aggregate for trending causes
+    - contact for official/legislator counts
+    - jurisdiction_state_aggregate for nonprofit counts + trending causes
+      (nonprofit detail now lives in mdm_organization + mdm_organization_nonprofit)
     
     Args:
         state: State name (e.g., 'Massachusetts') or code (e.g., 'MA')

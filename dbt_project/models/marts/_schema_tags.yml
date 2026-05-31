@@ -1,0 +1,191 @@
+version: 2
+
+models:
+  - name: tag
+    description: >
+      Unified, hierarchical tag taxonomy (NTEE + EveryOrg) — replaces the
+      ad-hoc public.cause_ntee. One row per node, keyed by the collision-safe
+      synthetic tag_id (vocabulary || '|' || source_code). Adjacency via
+      parent_tag_id (self-FK); subtree queries via tag_closure.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    columns:
+      - name: tag_id
+        description: "Synthetic PK: vocabulary || '|' || source_code (e.g. 'ntee|E20')."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: vocabulary
+        description: "Source vocabulary: 'ntee' or 'everyorg'."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              values: ['ntee', 'everyorg']
+      - name: source_code
+        description: "Original code/slug within the vocabulary (e.g. 'E20', 'climate')."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: label
+        description: "Human-readable tag name."
+        data_type: text
+      - name: description
+        description: "Detailed description, when available."
+        data_type: text
+      - name: parent_tag_id
+        description: >
+          Adjacency edge to the parent node; NULL at roots. The self-referential
+          FK is enforced in Postgres via the Neon DDL (fk_tag_parent) rather than
+          a dbt constraint, which would introduce a self-cycle in the model DAG;
+          integrity is checked here by the relationships test.
+        data_type: text
+        tests:
+          - relationships:
+              to: ref('tag')
+              field: tag_id
+              config:
+                where: "parent_tag_id is not null"
+      - name: depth
+        description: "Distance from root (0 = root), derived from tag_closure."
+        data_type: integer
+      - name: breadcrumb
+        description: "Denormalized root->leaf path for display (NTEE: ' > ' joined)."
+        data_type: text
+      - name: category
+        description: "Vocabulary-specific categorization."
+        data_type: text
+      - name: subcategory
+        description: "NTEE subcategory (NULL for EveryOrg)."
+        data_type: text
+      - name: icon
+        description: "EveryOrg icon slug (NULL for NTEE)."
+        data_type: text
+      - name: popularity_rank
+        description: "EveryOrg popularity rank (NULL for NTEE)."
+        data_type: integer
+      - name: source
+        description: "Provenance: 'irs' (NTEE) or 'everyorg'."
+        data_type: text
+      - name: source_ingested_at
+        description: "When the source row was last landed in bronze."
+        data_type: timestamp with time zone
+      - name: dbt_loaded_at
+        description: "dbt build timestamp."
+        data_type: timestamp with time zone
+
+  - name: tag_closure
+    description: >
+      Transitive closure of the tag hierarchy ("sub table"). One row per
+      (ancestor, descendant) pair, including the self pair at depth 0. Enables
+      single-equality subtree queries against `tag`.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: primary_key
+        columns: [ancestor_tag_id, descendant_tag_id]
+      - type: foreign_key
+        columns: [ancestor_tag_id]
+        to: ref('tag')
+        to_columns: [tag_id]
+      - type: foreign_key
+        columns: [descendant_tag_id]
+        to: ref('tag')
+        to_columns: [tag_id]
+    columns:
+      - name: ancestor_tag_id
+        description: "Ancestor (or self) node. FK -> tag.tag_id."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - relationships:
+              to: ref('tag')
+              field: tag_id
+      - name: descendant_tag_id
+        description: "Descendant (or self) node. FK -> tag.tag_id."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - relationships:
+              to: ref('tag')
+              field: tag_id
+      - name: depth
+        description: "Edge count from ancestor to descendant (0 = self pair)."
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: dbt_loaded_at
+        description: "dbt build timestamp."
+        data_type: timestamp with time zone
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [ancestor_tag_id, descendant_tag_id]
+
+  - name: tag_organization
+    description: >
+      Bridge: golden organization -> most specific NTEE tag (prefix match on the
+      org's ntee_code). NTEE-only by design (EveryOrg has no org/event linkage).
+      The closure rolls each org up to all ancestor tags.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: primary_key
+        columns: [master_org_id, tag_id]
+      - type: foreign_key
+        columns: [master_org_id]
+        to: ref('mdm_organization')
+        to_columns: [master_org_id]
+      - type: foreign_key
+        columns: [tag_id]
+        to: ref('tag')
+        to_columns: [tag_id]
+    columns:
+      - name: master_org_id
+        description: "Golden org id. FK -> mdm_organization.master_org_id."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - relationships:
+              to: ref('mdm_organization')
+              field: master_org_id
+      - name: tag_id
+        description: "Matched NTEE tag. FK -> tag.tag_id."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - relationships:
+              to: ref('tag')
+              field: tag_id
+      - name: is_primary
+        description: "Whether this is the org's primary tag (always true today; one row per EIN)."
+        data_type: boolean
+      - name: match_method
+        description: "How the code was matched to a node: exact | prefix | major_group."
+        data_type: text
+        tests:
+          - accepted_values:
+              values: ['exact', 'prefix', 'major_group']
+      - name: assigned_at
+        description: "dbt build timestamp."
+        data_type: timestamp with time zone
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [master_org_id, tag_id]

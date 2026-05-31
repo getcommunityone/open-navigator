@@ -1,0 +1,98 @@
+version: 2
+
+models:
+  - name: mdm_organization_nonprofit
+    description: >
+      MDM satellite: IRS/990 nonprofit detail (NTEE, financials, GivingTuesday
+      990) for the subset of mdm_organization that carries an EIN. One row per
+      master_org_id (1:1). PK master_org_id, FK -> mdm_organization.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [master_org_id]
+        to: ref('mdm_organization')
+        to_columns: [master_org_id]
+    columns:
+      - name: master_org_id
+        description: "Golden org id (FK -> mdm_organization)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+          - relationships:
+              to: ref('mdm_organization')
+              field: master_org_id
+      - name: ein
+        description: "Employer Identification Number (nonprofit natural key)."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: ntee_code
+        description: "Full NTEE classification code (e.g. 'E20')."
+        data_type: text
+      - name: ntee_description
+        description: "NTEE major-group description (inlined for serving parity)."
+        data_type: text
+      - name: subsection_code
+        description: "IRS subsection code."
+        data_type: text
+      - name: classification_code
+        description: "IRS classification code (distinct from OCD classification)."
+        data_type: text
+      - name: revenue
+        description: "IRS BMF revenue proxy."
+        data_type: bigint
+      - name: assets
+        description: "IRS BMF assets proxy."
+        data_type: bigint
+      - name: income
+        description: "IRS BMF income proxy."
+        data_type: bigint
+      - name: tax_period
+        description: "IRS BMF tax period (YYYYMM)."
+        data_type: text
+      - name: ruling_date
+        description: "IRS ruling date."
+        data_type: text
+      - name: foundation_code
+        description: "IRS foundation code."
+        data_type: text
+      - name: gt990_tax_year
+        description: "GivingTuesday 990 tax year."
+        data_type: integer
+      - name: gt990_total_revenue
+        description: "Real e-filed 990 total revenue."
+        data_type: bigint
+      - name: gt990_total_expenses
+        data_type: bigint
+      - name: gt990_total_assets
+        data_type: bigint
+      - name: gt990_total_liabilities
+        data_type: bigint
+      - name: gt990_net_assets
+        data_type: bigint
+      - name: gt990_total_contributions
+        data_type: bigint
+      - name: gt990_program_service_revenue
+        data_type: bigint
+      - name: gt990_source_url
+        data_type: text
+      - name: gt990_mission
+        description: "990-filed mission statement."
+        data_type: text
+      - name: has_gt990_data
+        description: "True when a real 990 (financials or mission) was matched."
+        data_type: boolean
+      - name: source
+        description: "Upstream datasource label (irs / nccs / ...)."
+        data_type: text
+      - name: dbt_loaded_at
+        description: "dbt build timestamp."
+        data_type: timestamp with time zone

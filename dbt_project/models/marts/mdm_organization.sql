@@ -65,7 +65,7 @@ evidence as (
 
 select
     g.master_org_id,
-    g.org_name,
+    {{ display_org_name('g.org_name') }}  as org_name,
     g.org_name_norm,
     coalesce(v.voted_type, g.org_type)  as org_type,
     g.org_subtype,

@@ -43,6 +43,14 @@ STATE_NAME_TO_CODE = {
     'District of Columbia': 'DC', 'Puerto Rico': 'PR', 'Guam': 'GU', 'Virgin Islands': 'VI'
 }
 
+# SQL CASE mapping a 2-letter code back to a full state name, derived from
+# STATE_NAME_TO_CODE so the two never drift. Used to recover the full `state`
+# name when serving orgs from mdm_organization (which carries only state_code).
+_STATE_NAME_CASE = "CASE m.state_code\n" + "\n".join(
+    f"                    WHEN '{code}' THEN '{name.replace(chr(39), chr(39) * 2)}'"
+    for name, code in STATE_NAME_TO_CODE.items()
+) + "\n                    ELSE NULL END"
+
 
 def normalize_state_input(state: Optional[str]) -> Optional[str]:
     """
@@ -451,27 +459,41 @@ async def search_organizations_pg(
         else:
             order_by = "name ASC"
         
+        # Org identity/location now come from the golden master (mdm_organization);
+        # nonprofit financial/NTEE/990 detail from the mdm_organization_nonprofit
+        # satellite. The CTE re-exposes the same column names the WHERE/ORDER BY
+        # builders above reference (name, city, state_code, ntee_code, revenue, ...).
+        # county lives in the address layer (not the org master) -> NULL here.
         sql = f"""
-            SELECT 
-                ein,
-                name,
-                city,
-                state_code,
-                state,
-                county,
-                ntee_code,
-                ntee_description,
-                revenue,
-                assets,
-                income,
-                tax_period,
-                gt990_tax_year,
-                gt990_total_revenue,
-                gt990_total_expenses,
-                gt990_total_assets,
-                gt990_mission,
-                has_gt990_data
-            FROM organization_nonprofit
+            WITH np AS (
+                SELECT
+                    s.ein,
+                    m.org_name AS name,
+                    m.city_norm AS city,
+                    m.state_code,
+                    {_STATE_NAME_CASE} AS state,
+                    NULL::text AS county,
+                    s.ntee_code,
+                    s.ntee_description,
+                    s.revenue,
+                    s.assets,
+                    s.income,
+                    s.tax_period,
+                    s.gt990_tax_year,
+                    s.gt990_total_revenue,
+                    s.gt990_total_expenses,
+                    s.gt990_total_assets,
+                    s.gt990_mission,
+                    s.has_gt990_data
+                FROM mdm_organization m
+                JOIN mdm_organization_nonprofit s USING (master_org_id)
+            )
+            SELECT
+                ein, name, city, state_code, state, county,
+                ntee_code, ntee_description, revenue, assets, income, tax_period,
+                gt990_tax_year, gt990_total_revenue, gt990_total_expenses,
+                gt990_total_assets, gt990_mission, has_gt990_data
+            FROM np
             WHERE {where_sql}
             ORDER BY {order_by}
             LIMIT ${param_idx}

@@ -5,7 +5,7 @@ Reads from the bronze ingestion tables landed by:
   - ingestion.everyorg.causes  -> bronze.bronze_everyorg_causes
   - ingestion.ntee.codes       -> bronze.bronze_ntee_codes
 
-Falls back to the legacy public.cause_ntee table if the bronze migration has
+Falls back to the public.tag mart if the bronze migration has
 not been run yet (during the Stage-2 transition).
 """
 import os
@@ -94,7 +94,7 @@ def get_everyorg_causes(limit: int = 20) -> List[CauseItem]:
 
 
 def get_ntee_causes(limit: int = 20, level: Optional[int] = None) -> List[CauseItem]:
-    """Load NTEE code causes from bronze.bronze_ntee_codes (or legacy public.cause_ntee).
+    """Load NTEE code causes from bronze.bronze_ntee_codes (or the public.tag mart).
 
     Args:
         limit: max rows to return.
@@ -102,14 +102,15 @@ def get_ntee_causes(limit: int = 20, level: Optional[int] = None) -> List[CauseI
     """
     # `level` maps directly to code length: A = level 1, A20 = level 2.
     bronze_where = ["cause_type = 'ntee'"]
-    legacy_where: list[str] = []  # legacy public.cause_ntee has no cause_type col
+    # public.tag filters NTEE rows via vocabulary; code lives in source_code.
+    mart_where = ["vocabulary = 'ntee'"]
     params: list = []
     if level == 1:
         bronze_where.append("length(code) = 1")
-        legacy_where.append("length(code) = 1")
+        mart_where.append("length(source_code) = 1")
     elif level == 2:
         bronze_where.append("length(code) = 3")
-        legacy_where.append("length(code) = 3")
+        mart_where.append("length(source_code) = 3")
 
     bronze_sql = f"""
         SELECT code, name, description, category
@@ -118,19 +119,19 @@ def get_ntee_causes(limit: int = 20, level: Optional[int] = None) -> List[CauseI
         ORDER BY length(code), code
         LIMIT %s
     """
-    # Legacy table has no `name` column — use description as the display name.
-    legacy_sql = f"""
-        SELECT code, description AS name, description, category
-        FROM public.cause_ntee
-        {('WHERE ' + ' AND '.join(legacy_where)) if legacy_where else ''}
-        ORDER BY length(code), code
+    # Fall back to the public.tag mart (supersedes the legacy cause_ntee table).
+    mart_sql = f"""
+        SELECT source_code AS code, label AS name, description, category
+        FROM public.tag
+        WHERE {' AND '.join(mart_where)}
+        ORDER BY length(source_code), source_code
         LIMIT %s
     """
     params.append(limit)
 
     rows = _query_with_legacy_fallback(
         primary_sql=bronze_sql,
-        legacy_sql=legacy_sql,
+        legacy_sql=mart_sql,
         params=params,
     )
     if rows is None:
@@ -151,7 +152,7 @@ def get_ntee_causes(limit: int = 20, level: Optional[int] = None) -> List[CauseI
 
 
 def _query_with_legacy_fallback(primary_sql: str, legacy_sql: str, params):
-    """Try the bronze table first; fall back to the legacy public.cause_ntee.
+    """Try the bronze table first; fall back to the public.tag mart.
 
     Returns None if both fail (so the caller can render an empty response
     instead of 500ing).
@@ -161,7 +162,7 @@ def _query_with_legacy_fallback(primary_sql: str, legacy_sql: str, params):
             cur.execute(primary_sql, params)
             return cur.fetchall()
     except psycopg2.errors.UndefinedTable:
-        logger.info("bronze.bronze_ntee_codes not found, falling back to public.cause_ntee")
+        logger.info("bronze.bronze_ntee_codes not found, falling back to public.tag")
     except Exception as exc:
         logger.warning(f"Primary trending query failed: {exc}")
         return None
@@ -230,14 +231,14 @@ async def get_trending_stats():
             )
             ntee_count = cur.fetchone()[0]
     except psycopg2.errors.UndefinedTable:
-        # Stage-2 transition: bronze table not yet created, fall back. Legacy
-        # public.cause_ntee has no cause_type column — all rows are NTEE.
+        # Stage-2 transition: bronze table not yet created, fall back to the
+        # public.tag mart (NTEE rows filtered via vocabulary).
         try:
             with _cursor() as cur:
-                cur.execute("SELECT count(*) FROM public.cause_ntee")
+                cur.execute("SELECT count(*) FROM public.tag WHERE vocabulary = 'ntee'")
                 ntee_count = cur.fetchone()[0]
         except Exception as exc:
-            logger.warning(f"NTEE legacy count failed: {exc}")
+            logger.warning(f"NTEE tag-mart count failed: {exc}")
     except Exception as exc:
         logger.warning(f"NTEE count failed: {exc}")
 
