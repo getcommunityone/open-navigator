@@ -58,6 +58,29 @@ sources:
 
       - name: bronze_organizations_nonprofits_nccs_history
         description: "NCCS Unified BMF organization-years (raw history), landed by ingestion.nccs.bulk. One row per (ein, org_year_last)."
+      - name: bronze_schools_nces
+        description: |
+          NCES CCD school-level directory (~102k individual schools), landed by
+          ingestion.nces.schools. PK ncessch; carries the school's location
+          address, leaid (district link), type, website. Feeds the MDM org pool
+          via stg_schools__org (org_type=education).
+        columns:
+          - name: ncessch
+            description: "NCES school id — primary key."
+          - name: name
+            description: "School name."
+          - name: leaid
+            description: "NCES district (LEA) id — links to the school district."
+          - name: city
+            description: "Location city."
+          - name: state_code
+            description: "2-letter state."
+          - name: zip
+            description: "Location ZIP."
+          - name: school_type
+            description: "CCD school type text."
+          - name: loaded_at
+            description: "When landed."
       - name: bronze_campaigns_contributions
         description: |
           Campaign finance contributions (RAW). One row per contribution_id.

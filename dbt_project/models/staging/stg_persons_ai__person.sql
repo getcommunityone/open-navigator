@@ -17,7 +17,11 @@
 with
 
 source as (
-    select * from {{ ref('bronze_persons_from_ai') }}
+    -- the AI sometimes lists the same person twice in one event, so
+    -- source_event_id_person_id is not unique; collapse to the intended grain
+    select distinct on (source_event_id_person_id) *
+    from {{ ref('bronze_persons_from_ai') }}
+    order by source_event_id_person_id, extracted_at desc
 ),
 
 parsed as (
