@@ -128,3 +128,4 @@ youtube_cookies.txt
 cookies.txt
 *.cookies
 , psycopg2
+.claude/
