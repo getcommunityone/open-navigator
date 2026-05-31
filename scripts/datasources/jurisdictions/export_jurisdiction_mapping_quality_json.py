@@ -71,7 +71,7 @@ from dotenv import load_dotenv
 ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
-OUT = ROOT / "frontend" / "public" / "data" / "jurisdiction_mapping_quality.json"
+OUT = ROOT / "web_app" / "public" / "data" / "jurisdiction_mapping_quality.json"
 
 from scripts.datasources.jurisdictions.jurisdiction_mapping_queries import (
     ENTITY_SLICE_WHERE,

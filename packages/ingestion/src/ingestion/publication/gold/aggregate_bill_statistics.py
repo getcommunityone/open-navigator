@@ -19,8 +19,10 @@ import duckdb
 from loguru import logger
 from datetime import datetime
 
-# Add project root to path
-project_root = Path(__file__).parent.parent
+# Add project root to path so the FastAPI `api` package is importable.
+# This module lives at packages/ingestion/src/ingestion/gold/, so the
+# repository root is parents[5].
+project_root = Path(__file__).resolve().parents[5]
 sys.path.insert(0, str(project_root))
 
 from api.routes.bills import classify_bill_type, determine_bill_status, get_legend_for_topic

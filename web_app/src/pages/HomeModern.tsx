@@ -1228,7 +1228,7 @@ export default function HomeModern() {
               </div>
             </a>
 
-            {/* Families & Individuals */}
+            {/* Citizens & Residents */}
             <a
               href={`${docsBaseUrl}/for-families`}
               target="_blank"
@@ -1237,7 +1237,7 @@ export default function HomeModern() {
             >
               <HeartIcon className="h-12 w-12 mb-4 group-hover:scale-110 transition-transform" style={{ color: '#354F52' }} />
               <h3 className="text-2xl font-bold mb-3" style={{ color: '#354F52' }}>
-                Families & Individuals
+                Citizens & Residents
               </h3>
               <p className="text-gray-600 mb-4">
                 Community events, voter registration, services, and how to engage locally.

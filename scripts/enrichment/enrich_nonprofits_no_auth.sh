@@ -91,7 +91,7 @@ if [ $? -eq 0 ]; then
     echo ""
     echo "Next steps:"
     echo "1. Create contact tables:"
-    echo "   python -c \"from pipeline.create_contacts_gold_tables import ContactsGoldTableCreator; ContactsGoldTableCreator().create_contacts_nonprofit_officers()\""
+    echo "   python -c \"from ingestion.publication.gold.create_contacts_gold_tables import ContactsGoldTableCreator; ContactsGoldTableCreator().create_contacts_nonprofit_officers()\""
     echo ""
     echo "2. Search officers:"
     echo "   curl 'http://localhost:8000/api/search/?q=CEO&state=MA'"

@@ -549,6 +549,79 @@ async def search_organizations_pg(
         return []
 
 
+async def get_nonprofit_compensation_pg(
+    ein: Optional[str] = None,
+    state: Optional[str] = None,
+    person: Optional[str] = None,
+    min_comp: Optional[int] = None,
+    limit: int = 25,
+    offset: int = 0,
+    sort: str = 'comp-desc',
+) -> List[dict]:
+    """
+    Person-level executive/board compensation from the GivingTuesday 990 datamarts.
+
+    Reads public.organization_nonprofit_compensation (Form 990 Part VII-A enriched
+    with Schedule J detail + org context). Returns one record per person-filing.
+
+    Args:
+        ein: Exact EIN match (a single organization's people).
+        state: Filter by state code or full name.
+        person: Case-insensitive substring match on person name.
+        min_comp: Minimum reportable compensation from the organization.
+        limit/offset: Pagination.
+        sort: 'comp-desc' (default), 'comp-asc', or 'name-asc'.
+    """
+    state = normalize_state_input(state)
+
+    try:
+        pool = await get_db_pool()
+
+        where_clauses: List[str] = []
+        params: List = []
+        idx = 1
+        if ein:
+            where_clauses.append(f"ein = ${idx}"); params.append(ein); idx += 1
+        if state:
+            where_clauses.append(f"state_code = ${idx}"); params.append(state); idx += 1
+        if person:
+            where_clauses.append(f"person_name ILIKE ${idx}"); params.append(f"%{person}%"); idx += 1
+        if min_comp is not None:
+            where_clauses.append(f"reportable_comp_org >= ${idx}"); params.append(min_comp); idx += 1
+        where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
+
+        order_by = {
+            'comp-asc': "reportable_comp_org ASC NULLS LAST",
+            'name-asc': "person_name ASC",
+        }.get(sort, "reportable_comp_org DESC NULLS LAST")
+
+        sql = f"""
+            SELECT
+                ein, tax_year, person_name, title,
+                org_name, city, state_code, ntee_code,
+                is_officer, is_director_trustee, is_key_employee,
+                is_highest_comp, is_former, avg_hours_org,
+                reportable_comp_org, reportable_comp_related, other_comp, total_comp,
+                has_schedule_j, base_comp_org, bonus_org, deferred_comp_org,
+                nontaxable_benefits_org, sch_j_total_comp_org, source_url
+            FROM organization_nonprofit_compensation
+            WHERE {where_sql}
+            ORDER BY {order_by}
+            LIMIT ${idx} OFFSET ${idx + 1}
+        """
+        params.append(limit); params.append(offset)
+
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(sql, *params)
+            results = [dict(row) for row in rows]
+            logger.info(f"💰 PostgreSQL compensation: {len(results)} records (ein={ein}, state={state})")
+            return results
+
+    except Exception as e:
+        logger.error(f"PostgreSQL compensation query error: {e}")
+        return []
+
+
 async def search_events_pg(
     query: Optional[str] = None,
     state: Optional[str] = None,

@@ -1,12 +1,13 @@
 ---
 sidebar_position: 2
+displayed_sidebar: familiesSidebar
 ---
 
-# For Families & Individuals
+# For Citizens & Residents
 
 Welcome to Open Navigator! This guide helps you navigate community resources, engage with local government, and access services that matter to you and your family.
 
-## 🎯 Quick Start for Families
+## 🎯 Quick Start for Citizens & Residents
 
 Whether you're new to town or a longtime resident, Open Navigator helps you:
 - **Find community events** and public meetings

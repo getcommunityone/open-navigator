@@ -100,7 +100,7 @@ if [[ "$1" == "--scrape" ]]; then
     echo "=========================================================================="
     echo "Extracting Contacts from Meeting Transcripts"
     echo "=========================================================================="
-    python "$PROJECT_ROOT/scripts/manage_contacts.py" extract \
+    python -m ingestion.publication.gold.manage_contacts extract \
         --states "$STATES" \
         --batch-size 1000
     
@@ -148,7 +148,7 @@ if [[ "$1" == "--localview" ]]; then
     
     # Filter for priority states
     echo "Filtering for priority states ($STATES)..."
-    python "$PROJECT_ROOT/scripts/data/organize_meetings_by_state.py" \
+    python -m ingestion.publication.gold.organize_meetings_by_state \
         --states "$STATES"
     
     echo ""

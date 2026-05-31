@@ -162,6 +162,52 @@ def list_batch_jobs_from_db(*, limit: int = 100) -> List[BatchJob]:
     return jobs
 
 
+def reap_stale_running_batches(*, limit: int = 30) -> int:
+    """Cancel ``running`` batch rows whose recorded activity has gone stale.
+
+    The dashboard counts ``status = 'running'`` rows, but a row stays ``running``
+    after its worker dies or starts skipping already-done work — the per-job
+    stale-cancel (``apply_batch_lifecycle`` → ``_maybe_stale_cancel_batch``,
+    BATCH_JOB_INACTIVITY_SECONDS, default 3600s) only fires when a job is
+    otherwise touched, which never happens for an abandoned run. Sweeping it here,
+    on the dashboard read path, keeps ``totals.running`` honest instead of pinning
+    it at a phantom count. Returns the number of rows whose status changed.
+    """
+    if not _use_db():
+        return 0
+    # Lazy import: batch_job_status imports this module, so import its lifecycle
+    # helpers at call time to avoid a circular import at module load.
+    from api.batch_jobs.batch_job_status import apply_batch_lifecycle, persist_batch_job
+
+    reaped = 0
+    try:
+        with get_db_connection() as conn:
+            ensure_batch_job_tables(conn)
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """
+                    SELECT payload
+                    FROM bronze.youtube_batch_job_runs
+                    WHERE status = 'running'
+                    ORDER BY updated_at DESC NULLS LAST
+                    LIMIT %s
+                    """,
+                    (limit,),
+                )
+                rows = cur.fetchall()
+        for row in rows:
+            payload = row["payload"]
+            if isinstance(payload, str):
+                payload = json.loads(payload)
+            job = BatchJob.from_dict(payload)
+            if apply_batch_lifecycle(job):
+                persist_batch_job(job)  # writes cancelled/completed status back
+                reaped += 1
+    except Exception as exc:
+        logger.warning("stale batch reap failed: %s", exc)
+    return reaped
+
+
 def policy_event_counts_24h(conn: Any) -> Dict[str, Any]:
     """
     Pipeline counts from the per-event bronze stamps (migration 083):
@@ -477,6 +523,9 @@ def dashboard_stage_report() -> Dict[str, Any]:
 
 def aggregate_dashboard_totals_from_db(*, limit: int = 30) -> Dict[str, Any]:
     """Sum numeric fields from ``summary`` JSONB across recent batches (no payload)."""
+    # Reap abandoned ``running`` rows first so the ``running`` count below (and any
+    # per-batch meta read for the same dashboard tick) reflects real liveness.
+    reap_stale_running_batches(limit=limit)
     with get_db_connection() as conn:
         ensure_batch_job_tables(conn)
         with conn.cursor(cursor_factory=RealDictCursor) as cur:

@@ -31,13 +31,14 @@ from pathlib import Path
 import argparse
 from loguru import logger
 
-# Add project root to path
-project_root = Path(__file__).parent.parent
+# Add project root to path (module now at packages/ingestion/src/ingestion/gold/
+# -> repo root is parents[5]) so the root config/ and scripts/ trees resolve.
+project_root = Path(__file__).resolve().parents[5]
 sys.path.insert(0, str(project_root))
 
-from pipeline.create_meetings_gold_tables import MeetingGoldTableCreator
-from pipeline.create_nonprofits_gold_tables import NonprofitGoldTableCreator
-from pipeline.create_contacts_gold_tables import ContactsGoldTableCreator
+from ingestion.publication.gold.create_meetings_gold_tables import EventGoldTableCreator
+from ingestion.publication.gold.create_nonprofits_gold_tables import NonprofitGoldTableCreator
+from ingestion.publication.gold.create_contacts_gold_tables import ContactsGoldTableCreator
 
 
 def main():
@@ -111,7 +112,7 @@ def main():
         logger.info("🗓️  STARTING MEETINGS PIPELINE")
         logger.info("-" * 70)
         try:
-            meeting_creator = MeetingGoldTableCreator()
+            meeting_creator = EventGoldTableCreator()
             meeting_creator.create_all_gold_tables()
             logger.success("✅ Meetings pipeline completed successfully!")
             

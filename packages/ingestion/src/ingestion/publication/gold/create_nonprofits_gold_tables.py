@@ -31,13 +31,22 @@ import time
 from loguru import logger
 import sys
 
-# Add project root to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Add project root to path (module now at packages/ingestion/src/ingestion/gold/
+# -> repo root is parents[5]) so the root config/ and scripts/ trees resolve.
+sys.path.insert(0, str(Path(__file__).resolve().parents[5]))
 
 from config.settings import settings
 from scripts.utils.calendar_year_util import calendar_year_label
 from scrapers.irs.nonprofit_discovery import NonprofitDiscovery
-from scripts.discovery.irs_bmf_ingestion import IRSBMFIngestion
+
+try:
+    from scripts.discovery.irs_bmf_ingestion import IRSBMFIngestion
+except ImportError:
+    # The IRS EO-BMF bulk-ingestion module was removed in an earlier refactor
+    # with no replacement, so the use_irs_data=True path is unavailable. The
+    # default ProPublica discovery path is unaffected; importing this module
+    # must not fail just because the IRS bulk path is gone.
+    IRSBMFIngestion = None
 
 
 class NonprofitGoldTableCreator:
@@ -60,7 +69,14 @@ class NonprofitGoldTableCreator:
         
         # Initialize discovery modules
         self.discovery = NonprofitDiscovery(cache_dir=str(self.cache_dir))
-        self.irs = IRSBMFIngestion(cache_dir=str(self.cache_dir.parent / "irs_bmf"))
+        # IRS EO-BMF bulk path is optional and currently unavailable (module
+        # removed); only construct it if present, otherwise the use_irs_data
+        # path raises a clear error when actually invoked.
+        self.irs = (
+            IRSBMFIngestion(cache_dir=str(self.cache_dir.parent / "irs_bmf"))
+            if IRSBMFIngestion is not None
+            else None
+        )
         
         logger.info(f"Cache directory: {self.cache_dir}")
         logger.info(f"Bronze directory: {self.bronze_dir}")
@@ -85,6 +101,14 @@ class NonprofitGoldTableCreator:
         Returns:
             DataFrame with nonprofit data
         """
+        if self.irs is None:
+            raise RuntimeError(
+                "IRS EO-BMF bulk ingestion is unavailable: the "
+                "scripts.discovery.irs_bmf_ingestion module was removed in an "
+                "earlier refactor with no replacement. Use ProPublica discovery "
+                "(use_irs_data=False) until the IRS bulk path is reinstated."
+            )
+
         logger.info("=" * 60)
         logger.info("IRS EO-BMF BULK DATA DOWNLOAD")
         logger.info("=" * 60)

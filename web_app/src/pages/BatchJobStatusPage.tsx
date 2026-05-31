@@ -1514,14 +1514,30 @@ export default function BatchJobStatusPage() {
               !launching &&
               runningSteps.size === 0 &&
               data.totals.running === 0
-            const isActive = data.totals.running > 0 || runningSteps.size > 0
-            const anyStalled = stalledSteps.size > 0
             // Header "last activity" = the freshest per-step stamp for this scope,
             // not the stale batch-step clock.
             const freshestIso = stageList
               .map((s) => rowFor(scope, s)?.last_at || '')
               .reduce((a, b) => (a > b ? a : b), '')
             const freshestAgo = agoFromIso(freshestIso)
+            // Mirrors the API stall window (_LAUNCH_STALL_SECONDS /
+            // BATCH_JOB_INACTIVITY_SECONDS, default 3600s).
+            const STALL_SECONDS = 3600
+            const freshestAgeSecs = freshestIso
+              ? Math.max(0, Math.floor((agoClockMs - Date.parse(freshestIso)) / 1000))
+              : null
+            // A batch row stays status='running' after its worker dies or starts
+            // skipping already-done work, so totals.running alone overstates
+            // liveness. Count row-running as live only with recent recorded
+            // progress; otherwise it's a stalled run the reaper hasn't swept yet.
+            const rowsStale =
+              data.totals.running > 0 &&
+              runningSteps.size === 0 &&
+              freshestAgeSecs != null &&
+              freshestAgeSecs > STALL_SECONDS
+            const liveRunningRows = data.totals.running > 0 && !rowsStale
+            const isActive = liveRunningRows || runningSteps.size > 0
+            const anyStalled = stalledSteps.size > 0 || rowsStale
             const statusText = isActive ? 'Running' : anyStalled ? 'Stalled' : 'Idle'
             const statusDot = isActive
               ? 'bg-emerald-500'
@@ -1545,9 +1561,11 @@ export default function BatchJobStatusPage() {
                     <span className="text-slate-500">
                       {runningSteps.size > 0
                         ? `· running ${[...runningSteps].join(', ')}`
-                        : anyStalled
-                          ? `· ${[...stalledSteps].join(', ')} timed out (no activity 1h)`
-                          : `· ${formatCompactNumber(data.totals.running)} running`}
+                        : rowsStale
+                          ? `· ${formatCompactNumber(data.totals.running)} running, no progress >1h — likely stalled`
+                          : stalledSteps.size > 0
+                            ? `· ${[...stalledSteps].join(', ')} timed out (no activity 1h)`
+                            : `· ${formatCompactNumber(data.totals.running)} running`}
                     </span>
                     {scope !== 'ALL' ? (
                       <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-600">

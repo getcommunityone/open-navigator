@@ -31,14 +31,10 @@ from typing import List, Dict, Optional, Set
 from datetime import datetime
 import re
 from loguru import logger
-import sys
 import argparse
 from tqdm import tqdm
 
-# Add project root to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-# File paths
+# File paths (resolved relative to the repo root, the expected CWD)
 MEETINGS_TRANSCRIPTS = Path("data/gold/national/meetings_transcripts.parquet")
 CONTACTS_OFFICIALS = Path("data/gold/contacts_local_officials.parquet")
 MEETING_ATTENDANCE = Path("data/gold/contacts_meeting_attendance.parquet")

@@ -417,6 +417,37 @@ async def search_nonprofits(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/nonprofits/compensation")
+async def nonprofit_compensation(
+    ein: Optional[str] = Query(None, description="Exact EIN — a single org's people"),
+    state: Optional[str] = Query(None, description="2-letter state code or full name"),
+    person: Optional[str] = Query(None, description="Case-insensitive person-name search"),
+    min_comp: Optional[int] = Query(None, description="Minimum reportable comp from the org"),
+    limit: int = Query(25, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    sort: str = Query("comp-desc", description="comp-desc | comp-asc | name-asc"),
+):
+    """
+    Person-level executive/board compensation from the GivingTuesday 990 datamarts
+    (Form 990 Part VII-A + Schedule J detail), joined to organization context.
+
+    Examples:
+      /api/nonprofits/compensation?ein=530196605            (one org's people)
+      /api/nonprofits/compensation?state=NY&min_comp=500000 (top earners in NY)
+      /api/nonprofits/compensation?person=smith&sort=comp-desc
+    """
+    from api.routes import search_postgres
+    try:
+        records = await search_postgres.get_nonprofit_compensation_pg(
+            ein=ein, state=state, person=person, min_comp=min_comp,
+            limit=limit, offset=offset, sort=sort,
+        )
+        return {"count": len(records), "results": records}
+    except Exception as e:
+        logger.error(f"Compensation endpoint error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/data/status")
 async def get_data_status():
     """

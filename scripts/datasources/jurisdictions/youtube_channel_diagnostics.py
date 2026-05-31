@@ -104,26 +104,32 @@ def golden_channel_match_sql(*, g_alias: str = "g", a_alias: str = "a") -> str:
 
     Golden URLs use ``youtube_channel_url`` (not ``website_url``). Rows are keyed by
     legacy ids such as ``cobb_13067`` while analysis uses ``county_13067`` — also match
-    on Census GEOID suffix + ``jurisdiction_type``.
+    on the trailing Census GEOID token + ``jurisdiction_type``.
+
+    The GEOID branch extracts the trailing digit run from ``jurisdiction_id``
+    (``substring(... '[0-9]+$')``) and compares it to ``a.geoid``. This is sargable —
+    a functional index on that expression turns the per-row scan into an index probe —
+    and equivalent to the old ``RIGHT(jurisdiction_id, LENGTH(geoid))`` form because the
+    id always encodes the full GEOID as its trailing token (see ``idx_*_geoid_suffix``).
     """
     return f"""(
         {g_alias}.jurisdiction_id = {a_alias}.jurisdiction_id
         OR (
             NULLIF(BTRIM({a_alias}.geoid::text), '') IS NOT NULL
             AND {g_alias}.jurisdiction_type = {a_alias}.jurisdiction_type
-            AND RIGHT({g_alias}.jurisdiction_id, LENGTH(BTRIM({a_alias}.geoid::text)))
+            AND substring({g_alias}.jurisdiction_id FROM '[0-9]+$')
                 = BTRIM({a_alias}.geoid::text)
         )
     )"""
 
 
 def jurisdiction_row_match_sql(*, y_alias: str = "y", a_alias: str = "a") -> str:
-    """Same id / GEOID logic for ``bronze_events_youtube`` jurisdiction_id."""
+    """Same id / trailing-GEOID logic for ``bronze_events_youtube`` jurisdiction_id."""
     return f"""(
         {y_alias}.jurisdiction_id = {a_alias}.jurisdiction_id
         OR (
             NULLIF(BTRIM({a_alias}.geoid::text), '') IS NOT NULL
-            AND RIGHT({y_alias}.jurisdiction_id, LENGTH(BTRIM({a_alias}.geoid::text)))
+            AND substring({y_alias}.jurisdiction_id FROM '[0-9]+$')
                 = BTRIM({a_alias}.geoid::text)
         )
     )"""

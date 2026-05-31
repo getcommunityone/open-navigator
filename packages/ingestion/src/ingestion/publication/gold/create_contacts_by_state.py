@@ -13,11 +13,12 @@ from datetime import datetime
 import pandas as pd
 from loguru import logger
 
-# Add project root to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Add project root to path (module now at packages/ingestion/src/ingestion/gold/
+# -> repo root is parents[5]) so the root config/ and scripts/ trees resolve.
+sys.path.insert(0, str(Path(__file__).resolve().parents[5]))
 
 # Import the contacts extraction logic
-from pipeline.create_contacts_gold_tables import ContactsGoldTableCreator
+from ingestion.publication.gold.create_contacts_gold_tables import ContactsGoldTableCreator
 
 
 def create_contacts_for_state(state: str, state_dir: Path):
