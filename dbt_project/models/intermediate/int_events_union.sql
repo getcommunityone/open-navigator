@@ -23,6 +23,7 @@ a new source, add that source to marts.event — it flows through here for free.
 WITH events AS (
     SELECT
         event_id,
+        event_date,
         video_url,
         event_title,
         jurisdiction_name,
@@ -57,6 +58,7 @@ deduped AS (
 
 SELECT
     event_id,
+    event_date,
     video_url,
     event_title,
     jurisdiction_name,

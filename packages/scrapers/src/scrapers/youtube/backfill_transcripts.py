@@ -255,7 +255,10 @@ def get_events_missing_transcripts(conn, states: Optional[List[str]] = None, lim
             query += f" AND u.state_code IN ({placeholders})"
             params.extend(states)
 
-        query += " ORDER BY u.event_id DESC"
+        # Newest meetings first: recent uploads are far more likely to carry
+        # (auto-)captions than decades-old municipal videos, so this maximises
+        # the transcript hit-rate under --limit.
+        query += " ORDER BY u.event_date DESC NULLS LAST, u.event_id ASC"
         
         if limit:
             query += " LIMIT %s"

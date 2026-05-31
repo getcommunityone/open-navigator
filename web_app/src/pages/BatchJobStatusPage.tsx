@@ -1789,7 +1789,7 @@ export default function BatchJobStatusPage() {
                           <span className="text-xs text-slate-400">0</span>
                         )}
                       </div>
-                      <div className="text-right">
+                      <div className="flex flex-col items-end gap-1">
                         {ls?.enabled ? (
                           <button
                             type="button"
@@ -1800,9 +1800,27 @@ export default function BatchJobStatusPage() {
                                 ? `${stageStep[st.stage]} is already running`
                                 : `Run ${stepDesc[st.stage]} · ${scopeLaunchLabel}`
                             }
-                            className="rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                            className="whitespace-nowrap rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
                           >
                             {running ? '· · ·' : '▶ Run'}
+                          </button>
+                        ) : null}
+                        {/* Transcripts only: global mart-wide sweep (also reaches
+                            LocalView/union videos captions never visits). Up to
+                            500 per click so one launch is bounded. */}
+                        {ls?.enabled && st.stage === 'transcripts' ? (
+                          <button
+                            type="button"
+                            disabled={!canRunBackfill}
+                            onClick={() => runLaunch('backfill', launchScopeStates, 500)}
+                            title={
+                              runningSteps.has('backfill')
+                                ? 'backfill is already running'
+                                : `Backfill transcripts across the full event mart (LocalView + YouTube) · ${scopeLaunchLabel}`
+                            }
+                            className="whitespace-nowrap rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            {runningSteps.has('backfill') ? '· · ·' : '▶ Backfill'}
                           </button>
                         ) : null}
                       </div>
