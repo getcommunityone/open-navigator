@@ -305,7 +305,10 @@ async def list_batch_jobs(
 _LAUNCH_SCRIPT = "packages/scrapers/scripts/youtube_run_priority_states_last_n.sh"
 # Stage 0 (discover) runs a different, per-state script; the rest run the wrapper.
 _DISCOVER_SCRIPT = "packages/scrapers/src/scrapers/youtube/load_missing_county_channels.py"
-_LAUNCH_STEPS = ("discover", "catalog", "captions", "analyze", "each", "all")
+# `backfill` runs the flat, mart-wide transcript sweep (reaches LocalView/union
+# videos with no jurisdiction the per-jurisdiction `captions` loop never visits).
+_BACKFILL_SCRIPT = "packages/scrapers/src/scrapers/youtube/backfill_transcripts.py"
+_LAUNCH_STEPS = ("discover", "catalog", "captions", "backfill", "analyze", "each", "all")
 _STATE_RE = re.compile(r"^[A-Z]{2}$")
 
 
@@ -537,6 +540,22 @@ async def launch_pipeline(req: LaunchRequest) -> LaunchResponse:
         import sys as _sys
 
         argv = [_sys.executable, str(target), "--states", ",".join(states)]
+    elif step == "backfill":
+        # Global transcript backfill over the int_events_union mart. Unlike the
+        # per-jurisdiction `captions` step (which reads bronze_events_youtube
+        # WHERE jurisdiction_id = …), this is a flat sweep that also reaches the
+        # LocalView/union videos that have no bronze_events_youtube row. Runs the
+        # standalone script directly (fixed argv, no shell), like `discover`, so
+        # it has no per-jurisdiction batch tracking. States optional; `n` caps a
+        # single launch's work via --limit so one click is bounded.
+        target = root / _BACKFILL_SCRIPT
+        if not target.is_file():
+            raise HTTPException(status_code=500, detail=f"backfill script missing: {target}")
+        import sys as _sys
+
+        argv = [_sys.executable, str(target), "--limit", str(n)]
+        if states:
+            argv += ["--states", ",".join(states)]
     else:
         script = root / _LAUNCH_SCRIPT
         if not script.is_file():

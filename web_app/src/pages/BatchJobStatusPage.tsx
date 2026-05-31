@@ -946,11 +946,16 @@ export default function BatchJobStatusPage() {
     localStorage.setItem('batch-launch-scope', v)
   }, [])
   const runLaunch = useCallback(
-    async (step: string, states: string[]) => {
+    async (step: string, states: string[], nOverride?: number) => {
       setLaunching(true)
       setLaunchMsg(null)
       try {
-        const res = await launchPipeline({ step, states, parallel: parallelism, n: 25 })
+        const res = await launchPipeline({
+          step,
+          states,
+          parallel: parallelism,
+          n: nOverride ?? 25,
+        })
         setLaunchMsg(res.detail || 'Launched.')
         void refetchLaunch()
         window.setTimeout(() => void refetch(), 2500)
@@ -1473,7 +1478,7 @@ export default function BatchJobStatusPage() {
             ]
             // Fixed-width Failed/Run columns so the progress column lines up across rows.
             const cols =
-              'grid grid-cols-[1.4fr_0.8fr_minmax(0,1.7fr)_4.5rem_4.5rem] items-center gap-3'
+              'grid grid-cols-[1.4fr_0.8fr_minmax(0,1.7fr)_4.5rem_5.5rem] items-center gap-3'
             const ls = launchStatus
             // ALL view scope → an explicit launch target (priority set or 50 + DC)
             // so the backend can't silently fall back to its priority-only default.
@@ -1491,6 +1496,8 @@ export default function BatchJobStatusPage() {
               discover: ['discover'],
               catalog: ['videos'],
               captions: ['videos', 'transcripts'],
+              // Global mart-wide sweep — advances only the transcripts stage.
+              backfill: ['transcripts'],
               analyze: ['analyses', 'reports'],
               all: ['discover', 'videos', 'transcripts', 'analyses', 'reports'],
               each: ['discover', 'videos', 'transcripts', 'analyses', 'reports'],
@@ -1508,6 +1515,13 @@ export default function BatchJobStatusPage() {
               !!ls?.enabled &&
               !launching &&
               !runningSteps.has(stageStep[g]) &&
+              !anyFullRun
+            // The global backfill is its own step, so it may run alongside
+            // captions; it's only blocked by another backfill or a full run.
+            const canRunBackfill =
+              !!ls?.enabled &&
+              !launching &&
+              !runningSteps.has('backfill') &&
               !anyFullRun
             const canRunAll =
               !!ls?.enabled &&
