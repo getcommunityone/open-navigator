@@ -286,4 +286,13 @@ Each step is shippable on its own.
   contributor identity (`name_norm` + city + state + zip) before the union, with
   `source_pk` = a hash of that identity; the transaction-level link belongs in a
   separate xref, not the person pool. Apply the same rule to any future
-  transaction-grained source.
+  transaction-grained source. Result: 24.5M txns → **1,885,888 distinct
+  contributors** (13× collapse); full person pool `int_persons__unioned` =
+  2,362,852 rows.
+- **Materialize high-volume staging as a table, not a view** (perf, found
+  building the above): `stg_contributions__person` is a view, so the regex-heavy
+  `normalize_person_name` + `distinct on` over 24.5M rows re-runs on every read —
+  the union build took ~21 min, almost all of it here. Switch this one staging
+  model to `materialized='table'` (or an incremental int model keyed on the
+  append-only contributions) so the normalization runs once. The view default is
+  fine for the small sources.
