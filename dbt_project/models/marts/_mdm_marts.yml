@@ -134,3 +134,31 @@ models:
         data_type: text
         constraints:
           - type: not_null
+
+  - name: mdm_person_source_link
+    description: >
+      MDM: source-system page link per person occurrence (scraped profile/page,
+      LEDB ballotpedia). PK person_uid.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    columns:
+      - name: person_uid
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+      - name: full_name
+        data_type: text
+      - name: source_system
+        data_type: text
+      - name: source_pk
+        data_type: text
+      - name: source_url
+        data_type: text
+      - name: profile_url
+        data_type: text
+      - name: source_page_url
+        data_type: text
