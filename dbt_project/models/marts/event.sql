@@ -159,53 +159,56 @@ combined AS (
 
 SELECT
     -- Surrogate key over the unified set
-    ROW_NUMBER() OVER (ORDER BY event_date DESC NULLS LAST, video_url) AS event_id,
+    ROW_NUMBER() OVER (ORDER BY event_date DESC NULLS LAST, video_url)::BIGINT AS event_id,
+
+    -- Natural dedup key (1:1 with event_id); join target for mdm_bridge_event_source
+    match_key::TEXT                      AS match_key,
 
     -- Event basics (CDP-compatible)
-    event_title,
-    event_description,
-    event_date,
-    event_time,
-    event_datetime,
+    event_title::TEXT                    AS event_title,
+    event_description::TEXT              AS event_description,
+    event_date::DATE                     AS event_date,
+    event_time::TIME                     AS event_time,
+    event_datetime::TIMESTAMP            AS event_datetime,
 
     -- Meeting Body (CDP concept)
-    body_name,
-    body_description,
+    body_name::TEXT                      AS body_name,
+    body_description::TEXT               AS body_description,
 
     -- Organization/Jurisdiction
-    jurisdiction_id,
-    channel_id,
-    jurisdiction_name,
-    jurisdiction_type,
-    state_code,
-    state,
-    city,
+    jurisdiction_id::TEXT                AS jurisdiction_id,
+    channel_id::TEXT                     AS channel_id,
+    jurisdiction_name::TEXT              AS jurisdiction_name,
+    jurisdiction_type::TEXT              AS jurisdiction_type,
+    state_code::TEXT                     AS state_code,
+    state::TEXT                          AS state,
+    city::TEXT                           AS city,
 
     -- Meeting details
-    location,
-    location_description,
-    meeting_type,
-    status,
+    location::TEXT                       AS location,
+    location_description::TEXT           AS location_description,
+    meeting_type::TEXT                   AS meeting_type,
+    status::TEXT                         AS status,
 
     -- Documents/links (CDP-compatible)
-    agenda_url,
-    minutes_url,
-    video_url,
-    session_content_hash,
+    agenda_url::TEXT                     AS agenda_url,
+    minutes_url::TEXT                    AS minutes_url,
+    video_url::TEXT                      AS video_url,
+    session_content_hash::TEXT           AS session_content_hash,
 
     -- YouTube video metrics
-    view_count,
-    duration_minutes,
-    like_count,
-    language,
-    channel_type,
-    channel_url,
+    view_count::BIGINT                   AS view_count,
+    duration_minutes::DOUBLE PRECISION   AS duration_minutes,
+    like_count::BIGINT                   AS like_count,
+    language::TEXT                       AS language,
+    channel_type::TEXT                   AS channel_type,
+    channel_url::TEXT                    AS channel_url,
 
     -- Data source tracking (CDP-compatible)
-    source,
-    datasource_id,
-    external_source_id,
-    CURRENT_TIMESTAMP AS last_updated
+    source::TEXT                         AS source,
+    datasource_id::TEXT                  AS datasource_id,
+    external_source_id::TEXT             AS external_source_id,
+    CURRENT_TIMESTAMP::TIMESTAMPTZ       AS last_updated
 
 FROM combined
 ORDER BY event_date DESC NULLS LAST, event_id
