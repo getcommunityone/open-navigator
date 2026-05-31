@@ -523,17 +523,20 @@ async def launch_pipeline(req: LaunchRequest) -> LaunchResponse:
     root = _repo_root()
     env = dict(os.environ)
     if step == "discover":
-        # Stage 0 runs the per-state channel-discovery script (one state only).
-        if len(states) != 1:
+        # Stage 0 runs the channel-discovery script. It accepts one state or a
+        # comma list (--states A,B,C); we always pass --states so the ALL-scope
+        # launcher can sweep the whole selected set (priority or 50 + DC) in one
+        # detached run.
+        if not states:
             raise HTTPException(
-                status_code=400, detail="discover requires exactly one state (scope to a state first)."
+                status_code=400, detail="discover requires at least one state."
             )
         target = root / _DISCOVER_SCRIPT
         if not target.is_file():
             raise HTTPException(status_code=500, detail=f"discover script missing: {target}")
         import sys as _sys
 
-        argv = [_sys.executable, str(target), "--state", states[0]]
+        argv = [_sys.executable, str(target), "--states", ",".join(states)]
     else:
         script = root / _LAUNCH_SCRIPT
         if not script.is_file():
