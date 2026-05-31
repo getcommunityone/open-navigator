@@ -19,10 +19,12 @@ Usage:
 """
 
 import os
+import re
 import sys
 from pathlib import Path
 from typing import List, Dict, Optional, Any
 import argparse
+from urllib.parse import parse_qs, urlparse
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
@@ -55,18 +57,57 @@ DATABASE_URL = os.getenv('NEON_DATABASE_URL_DEV', 'postgresql://postgres:passwor
 YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY')
 
 
+# A YouTube video ID is exactly 11 chars from [A-Za-z0-9_-]. Anchoring on this
+# lets us pull the ID out of path-style URLs regardless of trailing junk.
+_VIDEO_ID_RE = re.compile(r"^[A-Za-z0-9_-]{11}$")
+# Path prefixes that carry the video ID as the next path segment.
+_PATH_ID_SEGMENTS = ("embed", "v", "shorts", "live", "e")
+
+
+def _clean_video_id(candidate: Optional[str]) -> Optional[str]:
+    """Strip query/fragment leftovers and validate the 11-char ID shape."""
+    if not candidate:
+        return None
+    # Defensive: drop anything past a stray ?, &, /, or # that slipped through.
+    candidate = re.split(r"[?&/#]", candidate.strip())[0]
+    return candidate if _VIDEO_ID_RE.match(candidate) else None
+
+
 def extract_video_id_from_url(url: str) -> Optional[str]:
-    """Extract video ID from YouTube URL."""
+    """Extract an 11-char video ID from any common YouTube URL format.
+
+    Handles ``watch?v=`` (with ``v`` in any query position), ``youtu.be/<id>``,
+    and path forms ``/embed/``, ``/v/``, ``/shorts/``, ``/live/``, ``/e/``.
+    Returns ``None`` when no valid ID is present.
+    """
     if not url:
         return None
-    
-    # Handle various YouTube URL formats
-    if 'youtube.com/watch?v=' in url:
-        return url.split('watch?v=')[1].split('&')[0]
-    elif 'youtu.be/' in url:
-        return url.split('youtu.be/')[1].split('?')[0]
-    elif '/embed/' in url:
-        return url.split('/embed/')[1].split('?')[0]
+
+    url = url.strip()
+    # Bare 11-char ID with no URL wrapper.
+    direct = _clean_video_id(url)
+    if direct:
+        return direct
+
+    parsed = urlparse(url if "//" in url else f"//{url}", scheme="https")
+    host = (parsed.hostname or "").lower().removeprefix("www.")
+    path = parsed.path or ""
+
+    # youtu.be/<id> — the ID is the first path segment.
+    if host == "youtu.be":
+        return _clean_video_id(path.lstrip("/"))
+
+    # watch?v=<id> — v can sit anywhere in the query string.
+    if "v" in (qs := parse_qs(parsed.query)):
+        cleaned = _clean_video_id(qs["v"][0])
+        if cleaned:
+            return cleaned
+
+    # Path-style: /embed/<id>, /v/<id>, /shorts/<id>, /live/<id>, /e/<id>.
+    segments = [seg for seg in path.split("/") if seg]
+    for i, seg in enumerate(segments[:-1]):
+        if seg.lower() in _PATH_ID_SEGMENTS:
+            return _clean_video_id(segments[i + 1])
 
     return None
 
@@ -351,9 +392,15 @@ def backfill_transcripts(
                     transcript_data['jurisdiction_id'] = jurisdiction_id
                     transcript_data['jurisdiction_name'] = jurisdiction
 
+                    # Capture the real segment count BEFORE serializing — once
+                    # 'segments' becomes a JSON string, len() would report the
+                    # character count, not the number of caption snippets.
+                    segments_list = transcript_data.get('segments') or []
+                    segment_count = len(segments_list)
+
                     # Convert segments list to JSON string
-                    if 'segments' in transcript_data and transcript_data['segments']:
-                        transcript_data['segments'] = json.dumps(transcript_data['segments'])
+                    if segments_list:
+                        transcript_data['segments'] = json.dumps(segments_list)
                     else:
                         transcript_data['segments'] = None
 
@@ -388,7 +435,7 @@ def backfill_transcripts(
                     conn.commit()
                     
                     inserted += 1
-                    logger.success(f"  ✓ Inserted transcript ({len(transcript_data.get('segments', '[]'))} segments)")
+                    logger.success(f"  ✓ Inserted transcript ({segment_count} segments)")
                     
                     # Commit every 10 transcripts
                     if inserted % 10 == 0:
