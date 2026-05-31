@@ -1,0 +1,136 @@
+version: 2
+
+models:
+  - name: mdm_dim_address_master
+    description: >
+      MDM golden record — one row per resolved address. PK master_address_id.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    columns:
+      - name: master_address_id
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+      - name: address_norm
+        data_type: text
+      - name: street_number
+        data_type: text
+      - name: street_name
+        data_type: text
+      - name: city_norm
+        data_type: text
+      - name: state_code
+        data_type: text
+      - name: zip5
+        data_type: text
+      - name: lat
+        data_type: double precision
+      - name: lon
+        data_type: double precision
+      - name: n_occurrences
+        data_type: bigint
+      - name: n_sources
+        data_type: bigint
+
+  - name: mdm_bridge_address_xref
+    description: >
+      MDM crosswalk — one row per source address occurrence. PK address_uid,
+      FK master_address_id -> mdm_dim_address_master.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [master_address_id]
+        to: ref('mdm_dim_address_master')
+        to_columns: [master_address_id]
+    columns:
+      - name: master_address_id
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: source_system
+        data_type: text
+      - name: source_pk
+        data_type: text
+      - name: address_uid
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+      - name: raw_address
+        data_type: text
+
+  - name: mdm_bridge_address_county
+    description: >
+      MDM many-to-many: master address <-> county via ZIP allocation. PK
+      address_county_id, FK master_address_id -> mdm_dim_address_master.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [master_address_id]
+        to: ref('mdm_dim_address_master')
+        to_columns: [master_address_id]
+    columns:
+      - name: address_county_id
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+      - name: master_address_id
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: zip5
+        data_type: text
+      - name: state_code
+        data_type: text
+      - name: county_name
+        data_type: text
+      - name: usps_city
+        data_type: text
+      - name: allocation_ratio
+        data_type: numeric
+      - name: is_dominant
+        data_type: boolean
+
+  - name: mdm_bridge_person_address
+    description: >
+      MDM person <-> address (parcel owners today). PK person_uid, FK
+      master_address_id -> mdm_dim_address_master.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [master_address_id]
+        to: ref('mdm_dim_address_master')
+        to_columns: [master_address_id]
+    columns:
+      - name: person_uid
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+      - name: person_name
+        data_type: text
+      - name: relationship
+        data_type: text
+      - name: address_uid
+        data_type: text
+      - name: master_address_id
+        data_type: text
+        constraints:
+          - type: not_null
