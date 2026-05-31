@@ -36,6 +36,18 @@ select
     entity_type,
     raw_name,
     name_norm,
+    -- display name: title-cased normalized name ("john smith" -> "John Smith")
+    initcap(name_norm)                          as full_name,
+    -- cheap quality flag: false for orgs, names with digits, and 1-token / 6+-token
+    -- strings (titles, date headings, "hours of operation ...", UI chrome). Tune
+    -- alongside the is_usable_person filter on the scraped source.
+    case
+        when entity_type <> 'person' then false
+        when name_norm ~ '[0-9]' then false
+        when coalesce(array_length(string_to_array(btrim(name_norm), ' '), 1), 0)
+             not between 2 and 5 then false
+        else true
+    end                                         as is_probable_person,
     given_name_norm,
     family_name_norm,
     name_phonetic_first,
