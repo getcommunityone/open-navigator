@@ -36,17 +36,19 @@ class EntitySpec:
     entity_type_filter: str | None = None  # restrict the input pool, e.g. 'person'
 
 
+# source_table is a BARE name (resolved via the engine search_path) — the Splink
+# Postgres backend does not accept schema-qualified input names.
 SPECS: dict[str, EntitySpec] = {
     "address": EntitySpec(
         name="address",
-        source_table="intermediate.int_addresses__unioned",
+        source_table="int_addresses__unioned",
         unique_id="address_uid",
         settings_factory=address_settings,
         output_table="bronze.entity_address_clusters",
     ),
     "person": EntitySpec(
         name="person",
-        source_table="intermediate.int_persons__unioned",
+        source_table="int_persons__unioned",
         unique_id="person_uid",
         settings_factory=person_settings,
         output_table="bronze.entity_person_clusters",
@@ -63,15 +65,15 @@ def _prepare_input(engine, spec: EntitySpec) -> str:
     """
     if spec.entity_type_filter is None:
         return spec.source_table
-    view = f"bronze.mdm_{spec.name}_input"
+    bare = f"mdm_{spec.name}_input"
     with engine.begin() as conn:
         conn.execute(text(
-            f"create or replace view {view} as "
+            f"create or replace view bronze.{bare} as "
             f"select * from {spec.source_table} "
             f"where entity_type = :et"
         ), {"et": spec.entity_type_filter})
-    logger.info("Prepared filtered input view {} (entity_type={})", view, spec.entity_type_filter)
-    return view
+    logger.info("Prepared filtered input view bronze.{} (entity_type={})", bare, spec.entity_type_filter)
+    return bare  # bare name; resolved via search_path
 
 
 def run_linker(

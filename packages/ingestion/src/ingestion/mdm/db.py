@@ -26,6 +26,16 @@ def warehouse_dsn() -> str:
     return url
 
 
+# Splink's Postgres backend resolves input tables by BARE name via search_path
+# (it does not parse schema-qualified names), so the engine puts the MDM schemas
+# on the path. intermediate = conformed inputs, bronze = filtered views + outputs.
+SEARCH_PATH = "intermediate,bronze,public"
+
+
 def get_engine() -> Engine:
     """SQLAlchemy engine Splink's PostgresAPI binds to."""
-    return create_engine(warehouse_dsn(), pool_pre_ping=True)
+    return create_engine(
+        warehouse_dsn(),
+        pool_pre_ping=True,
+        connect_args={"options": f"-csearch_path={SEARCH_PATH}"},
+    )
