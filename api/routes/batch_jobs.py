@@ -546,14 +546,23 @@ async def launch_pipeline(req: LaunchRequest) -> LaunchResponse:
         # WHERE jurisdiction_id = …), this is a flat sweep that also reaches the
         # LocalView/union videos that have no bronze_events_youtube row. Runs the
         # standalone script directly (fixed argv, no shell), like `discover`, so
-        # it has no per-jurisdiction batch tracking. States optional; `n` caps a
-        # single launch's work via --limit so one click is bounded.
+        # it has no per-jurisdiction batch tracking. States optional.
+        #
+        # Backfill batch size is independent of the wrapper-step N clamp above:
+        # the UI size picker sends `n` = 100/500/2000/4000, or 0 for "All". 0 (or
+        # negative) means sweep every missing transcript (omit --limit); a run is
+        # resumable (re-queries what's still missing), so a bounded size still
+        # makes progress across clicks. Cap to a sane ceiling so a stray value
+        # can't launch an absurd run.
         target = root / _BACKFILL_SCRIPT
         if not target.is_file():
             raise HTTPException(status_code=500, detail=f"backfill script missing: {target}")
         import sys as _sys
 
-        argv = [_sys.executable, str(target), "--limit", str(n)]
+        backfill_limit = int(req.n or 0)
+        argv = [_sys.executable, str(target)]
+        if backfill_limit > 0:
+            argv += ["--limit", str(min(backfill_limit, 100000))]
         if states:
             argv += ["--states", ",".join(states)]
     else:

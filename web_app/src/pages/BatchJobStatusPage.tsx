@@ -945,6 +945,20 @@ export default function BatchJobStatusPage() {
     setAllScopeState(v)
     localStorage.setItem('batch-launch-scope', v)
   }, [])
+  // How many missing transcripts one ▶ Backfill click fetches. 0 = "All" (sweep
+  // every missing transcript). The run is resumable — it re-queries what's still
+  // missing — so a bounded size still makes incremental progress across clicks.
+  // Persisted across reloads; defaults to 4000.
+  const BACKFILL_SIZES = [100, 500, 2000, 4000, 0] as const
+  const [backfillSize, setBackfillSizeState] = useState<number>(() => {
+    const raw = localStorage.getItem('batch-backfill-size')
+    const v = Number(raw)
+    return raw != null && (BACKFILL_SIZES as readonly number[]).includes(v) ? v : 4000
+  })
+  const setBackfillSize = useCallback((v: number) => {
+    setBackfillSizeState(v)
+    localStorage.setItem('batch-backfill-size', String(v))
+  }, [])
   const runLaunch = useCallback(
     async (step: string, states: string[], nOverride?: number) => {
       setLaunching(true)
@@ -992,7 +1006,18 @@ export default function BatchJobStatusPage() {
 
   // Per-stage drill-down: expand one stage to see its live log + current file.
   const [expandedStage, setExpandedStage] = useState<string | null>(null)
-  const expandedStep = expandedStage ? STAGE_STEP[expandedStage] : null
+  // The Transcripts stage is advanced by two steps — per-jurisdiction `captions`
+  // and the global `backfill` — which write separate launch logs. Show the
+  // backfill log while it's the live (running/stalled) step; otherwise the
+  // conventional captions log.
+  const transcriptsBackfillLive =
+    (launchStatus?.running_steps ?? []).includes('backfill') ||
+    (launchStatus?.stalled_steps ?? []).includes('backfill')
+  const expandedStep = expandedStage
+    ? expandedStage === 'transcripts' && transcriptsBackfillLive
+      ? 'backfill'
+      : STAGE_STEP[expandedStage]
+    : null
   const { data: stageLog } = useQuery({
     queryKey: ['launch-log', expandedStep],
     queryFn: () => fetchLaunchLog(expandedStep as string),
@@ -1478,7 +1503,7 @@ export default function BatchJobStatusPage() {
             ]
             // Fixed-width Failed/Run columns so the progress column lines up across rows.
             const cols =
-              'grid grid-cols-[1.4fr_0.8fr_minmax(0,1.7fr)_4.5rem_5.5rem] items-center gap-3'
+              'grid grid-cols-[1.4fr_0.8fr_minmax(0,1.7fr)_4.5rem_6.5rem] items-center gap-3'
             const ls = launchStatus
             // ALL view scope → an explicit launch target (priority set or 50 + DC)
             // so the backend can't silently fall back to its priority-only default.
@@ -1806,22 +1831,41 @@ export default function BatchJobStatusPage() {
                           </button>
                         ) : null}
                         {/* Transcripts only: global mart-wide sweep (also reaches
-                            LocalView/union videos captions never visits). Up to
-                            500 per click so one launch is bounded. */}
+                            LocalView/union videos captions never visits). The
+                            size picker sets how many missing transcripts one
+                            click fetches (All = sweep everything). */}
                         {ls?.enabled && st.stage === 'transcripts' ? (
-                          <button
-                            type="button"
-                            disabled={!canRunBackfill}
-                            onClick={() => runLaunch('backfill', launchScopeStates, 500)}
-                            title={
-                              runningSteps.has('backfill')
-                                ? 'backfill is already running'
-                                : `Backfill transcripts across the full event mart (LocalView + YouTube) · ${scopeLaunchLabel}`
-                            }
-                            className="whitespace-nowrap rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-                          >
-                            {runningSteps.has('backfill') ? '· · ·' : '▶ Backfill'}
-                          </button>
+                          <>
+                            <button
+                              type="button"
+                              disabled={!canRunBackfill}
+                              onClick={() =>
+                                runLaunch('backfill', launchScopeStates, backfillSize)
+                              }
+                              title={
+                                runningSteps.has('backfill')
+                                  ? 'backfill is already running'
+                                  : `Backfill ${
+                                      backfillSize === 0 ? 'all' : backfillSize
+                                    } missing transcript(s) across the full event mart (LocalView + YouTube) · ${scopeLaunchLabel}`
+                              }
+                              className="whitespace-nowrap rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              {runningSteps.has('backfill') ? '· · ·' : '▶ Backfill'}
+                            </button>
+                            <select
+                              value={backfillSize}
+                              onChange={(e) => setBackfillSize(Number(e.target.value))}
+                              title="How many missing transcripts one Backfill click fetches (All = sweep everything; runs are resumable)"
+                              className="w-full rounded-md border border-slate-300 bg-white px-1 py-0.5 text-[10px] font-medium text-slate-600 hover:bg-slate-50"
+                            >
+                              <option value={100}>100</option>
+                              <option value={500}>500</option>
+                              <option value={2000}>2,000</option>
+                              <option value={4000}>4,000</option>
+                              <option value={0}>All</option>
+                            </select>
+                          </>
                         ) : null}
                       </div>
                     </div>
