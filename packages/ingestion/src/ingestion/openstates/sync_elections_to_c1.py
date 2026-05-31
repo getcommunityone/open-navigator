@@ -332,9 +332,19 @@ def _election_group_key(row: BronzeElectionRow) -> str:
 def _election_rows_for_upsert(rows: list[BronzeElectionRow]) -> list[BronzeElectionRow]:
     """One bronze row per election group; candidacies inherit parent election from raw_row."""
     grouped: dict[str, BronzeElectionRow] = {}
+    seen_dedupe: set[str] = set()
     for row in rows:
         if row.record_type != "election":
             continue
+        # Collapse duplicate scrapes of the same election: identical dedupe_key
+        # (jurisdiction + date + name + type) but a different scraped ocd_id would
+        # otherwise yield distinct group keys. The DB upserts on dedupe_key, so the
+        # in-memory dedup must match that identity.
+        _, dedupe_key = _election_id(row)
+        if dedupe_key:
+            if dedupe_key in seen_dedupe:
+                continue
+            seen_dedupe.add(dedupe_key)
         grouped[_election_group_key(row)] = row
     for row in rows:
         if row.record_type == "election":
