@@ -57,6 +57,8 @@ def download_from_hf(cache_dir: Path = CACHE_DIR) -> Path | None:
     network, missing huggingface_hub, dataset not published, etc.). Failures
     are logged at warning level — the pipeline falls back to the vendored YAML.
     """
+    from loguru import logger
+
     try:
         from huggingface_hub import hf_hub_download  # lazy: optional dep
     except ImportError:

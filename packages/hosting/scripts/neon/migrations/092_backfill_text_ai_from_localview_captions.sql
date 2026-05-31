@@ -8,32 +8,42 @@
 -- work from intermediate.int_events_union anti-joined to bronze_events_text_ai on
 -- video_id (`t.id IS NULL` = "no transcript landed yet"). LocalView meetings are
 -- in int_events_union (video_id = datasource_id), but only ~2.4k of them have a
--- text_ai row -- so ~150k LocalView videos whose captions ALREADY sit in
+-- text_ai row -- so ~100k+ LocalView videos whose captions ALREADY sit in
 -- bronze_events_localview.caption_text(_clean) fall through that anti-join and get
 -- re-downloaded from YouTube on every run. This lands those captions directly so
 -- the downloader skips them, and so they flow through stg_bronze_events_text_ai ->
 -- events_text_search like any other transcript. Tagged transcript_source =
 -- 'localview' for provenance.
 --
--- FORMAT
--- ------
+-- FORMAT (why we DON'T build the segments JSONB here)
+-- ---------------------------------------------------
 -- caption_text is plain text with inline second-resolution markers, NOT WebVTT:
 --   "{00:00:01} pledge of allegiance {00:00:05} to the flag ..."
--- The sentinel "<No caption available>" means no captions -> excluded.
--- segments are derived from the {HH:MM:SS} markers (start-only; duration = next
--- marker's start - this marker's start), matching the [{text,start,duration}]
--- shape the YouTube path writes. raw_text uses caption_text_clean with any stray
--- {HH:MM:SS} markers stripped defensively (no-op if clean is already marker-free).
+-- An earlier version of this migration parsed those markers into the
+-- [{text,start,duration}] segments JSONB the YouTube path writes. At ~1,194
+-- markers/transcript x ~153k transcripts that regexp_matches(... 'g') WITH
+-- ORDINALITY explodes to ~183M cue rows, and the jsonb_agg(... ORDER BY ord)
+-- spilled hundreds of GB to temp (work_mem=4MB) -- 40+ min and still going.
+-- Not worth it. Instead we keep the inline-timer caption VERBATIM in a new
+-- caption_text_timed column and leave segments NULL; the analyze step parses
+-- either shape (YouTube segments JSONB or this inline-timer text). raw_text is the
+-- marker-free plain text for search.
 --
 -- SAFETY
 -- ------
 -- ON CONFLICT (video_id) DO NOTHING: never clobbers an existing YouTube/Gemini
--- transcript (the ~2.4k already present stay untouched). Fully idempotent --
--- re-running is a no-op. Heavy one-shot regex pass over ~150k rows; expect it to
--- take a couple of minutes.
+-- transcript (the ~2.4k already present stay untouched, segments intact). Fully
+-- idempotent. Set-based, no cue explosion -- runs in seconds.
+
+-- New column: the original LocalView inline-timer caption, stored as-is.
+ALTER TABLE bronze.bronze_events_text_ai
+    ADD COLUMN IF NOT EXISTS caption_text_timed text;
+
+COMMENT ON COLUMN bronze.bronze_events_text_ai.caption_text_timed IS
+    'LocalView-style inline-timer caption text ("{HH:MM:SS} words ..."), stored verbatim as a lightweight alternative to the segments JSONB. The analyze step handles both shapes.';
 
 INSERT INTO bronze.bronze_events_text_ai
-    (event_id, video_id, raw_text, segments, language,
+    (event_id, video_id, raw_text, caption_text_timed, segments, language,
      is_auto_generated, transcript_source, has_transcript, transcript_quality)
 WITH lv AS (
     SELECT
@@ -44,61 +54,25 @@ WITH lv AS (
     WHERE datasource_id IS NOT NULL
       AND btrim(datasource_id) <> ''
       AND COALESCE(caption_text, '') NOT IN ('', '<No caption available>')
-),
-cues AS (
-    SELECT
-        lv.video_id,
-        m.ord,
-        (m.cap[1]::int * 3600 + m.cap[2]::int * 60 + m.cap[3]::int)::numeric AS start_s,
-        btrim(regexp_replace(m.cap[4], '\s+', ' ', 'g')) AS seg_text
-    FROM lv,
-    LATERAL regexp_matches(
-        lv.caption_text,
-        '\{(\d{2}):(\d{2}):(\d{2})\}\s*([^{]*)',
-        'g'
-    ) WITH ORDINALITY AS m(cap, ord)
-),
--- duration must be computed in its own pass: a window function (lead) cannot be
--- nested inside an aggregate (jsonb_agg) in the same SELECT.
-cues_dur AS (
-    SELECT
-        video_id,
-        ord,
-        start_s,
-        seg_text,
-        lead(start_s) OVER (PARTITION BY video_id ORDER BY ord) - start_s AS duration
-    FROM cues
-),
-seg AS (
-    SELECT
-        video_id,
-        jsonb_agg(
-            jsonb_build_object(
-                'text', seg_text,
-                'start', start_s,
-                'duration', duration
-            ) ORDER BY ord
-        ) FILTER (WHERE seg_text <> '') AS segments
-    FROM cues_dur
-    GROUP BY video_id
 )
 SELECT
     u.event_id,                          -- canonical event_id from the mart (NULL if unmatched)
     lv.video_id,
+    -- marker-free plain text for search
     NULLIF(
         btrim(regexp_replace(
             regexp_replace(lv.caption_text_clean, '\{\d{2}:\d{2}:\d{2}\}', '', 'g'),
             '\s+', ' ', 'g'
         )),
         ''
-    ) AS raw_text,
-    seg.segments,
+    )           AS raw_text,
+    lv.caption_text  AS caption_text_timed,  -- VERBATIM inline-timer format ({HH:MM:SS} ...)
+    NULL::jsonb      AS segments,            -- intentionally skipped; analyze reads caption_text_timed
     'en'        AS language,
     TRUE        AS is_auto_generated,     -- LocalView captions are YouTube auto-captions
     'localview' AS transcript_source,
     TRUE        AS has_transcript,
     'medium'    AS transcript_quality
 FROM lv
-LEFT JOIN seg                              ON seg.video_id = lv.video_id
-LEFT JOIN intermediate.int_events_union u  ON u.video_id   = lv.video_id
+LEFT JOIN intermediate.int_events_union u  ON u.video_id = lv.video_id
 ON CONFLICT (video_id) DO NOTHING;

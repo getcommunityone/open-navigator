@@ -308,7 +308,45 @@ sources:
             description: "When YouTube published the video"
           - name: loaded_at
           - name: last_updated
-      
+
+      - name: bronze_events_civicsearch
+        description: |
+          Raw CivicSearch meeting records — the policy-topic + timestamped
+          transcript-snippet layer CivicSearch (schools.civicsearch.org) builds
+          on top of LocalView/YouTube transcripts. Landed VERBATIM (no derivation)
+          by the LAND loader ingestion.civicsearch.events out of
+          data/cache/civicsearch/meetings.jsonl, emitted by the FETCH scraper
+          scrapers.civicsearch.harvest. One row per vid_id (a YouTube video id),
+          which is the bridge to bronze_events_youtube / int_events_localview /
+          int_events_union (video_id). snippets/topic_ids/matched_keywords are
+          JSONB; they are unnested downstream in stg_civicsearch__snippet.
+        columns:
+          - name: id
+          - name: vid_id
+            description: "YouTube video id — natural key (one row per meeting)."
+          - name: title
+          - name: meeting_date
+          - name: location
+          - name: location_query_id
+            description: "CivicSearch slug for the meeting's place."
+          - name: distance
+          - name: has_approximate_timings
+          - name: youtube_url
+          - name: place_query_id
+            description: "Slug of the place this meeting was harvested under."
+          - name: place_lat
+          - name: place_lon
+          - name: matched_keywords
+            description: "JSONB array of search keywords that surfaced this meeting."
+          - name: snippets
+            description: "JSONB array of {text, timestamp, topic_id}."
+          - name: topic_ids
+            description: "JSONB array of distinct non-negative CivicSearch topic ids."
+          - name: raw_record
+          - name: scraped_at
+          - name: loaded_at
+          - name: last_updated
+
       - name: bronze_events_channels
         description: "YouTube channels from government jurisdictions - validated and enriched"
         columns:

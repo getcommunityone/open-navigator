@@ -6,7 +6,7 @@
 
         master_address_id  <->  (source_system, source_pk, address_uid)
 
-    Lets any source table reach dim_address_master without being mutated, and lets
+    Lets any source table reach mdm_address without being mutated, and lets
     the master roll up every contributing source row.
 */
 
