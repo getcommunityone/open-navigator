@@ -162,6 +162,52 @@ def list_batch_jobs_from_db(*, limit: int = 100) -> List[BatchJob]:
     return jobs
 
 
+def reap_stale_running_batches(*, limit: int = 30) -> int:
+    """Cancel ``running`` batch rows whose recorded activity has gone stale.
+
+    The dashboard counts ``status = 'running'`` rows, but a row stays ``running``
+    after its worker dies or starts skipping already-done work — the per-job
+    stale-cancel (``apply_batch_lifecycle`` → ``_maybe_stale_cancel_batch``,
+    BATCH_JOB_INACTIVITY_SECONDS, default 3600s) only fires when a job is
+    otherwise touched, which never happens for an abandoned run. Sweeping it here,
+    on the dashboard read path, keeps ``totals.running`` honest instead of pinning
+    it at a phantom count. Returns the number of rows whose status changed.
+    """
+    if not _use_db():
+        return 0
+    # Lazy import: batch_job_status imports this module, so import its lifecycle
+    # helpers at call time to avoid a circular import at module load.
+    from api.batch_jobs.batch_job_status import apply_batch_lifecycle, persist_batch_job
+
+    reaped = 0
+    try:
+        with get_db_connection() as conn:
+            ensure_batch_job_tables(conn)
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """
+                    SELECT payload
+                    FROM bronze.youtube_batch_job_runs
+                    WHERE status = 'running'
+                    ORDER BY updated_at DESC NULLS LAST
+                    LIMIT %s
+                    """,
+                    (limit,),
+                )
+                rows = cur.fetchall()
+        for row in rows:
+            payload = row["payload"]
+            if isinstance(payload, str):
+                payload = json.loads(payload)
+            job = BatchJob.from_dict(payload)
+            if apply_batch_lifecycle(job):
+                persist_batch_job(job)  # writes cancelled/completed status back
+                reaped += 1
+    except Exception as exc:
+        logger.warning("stale batch reap failed: %s", exc)
+    return reaped
+
+
 def policy_event_counts_24h(conn: Any) -> Dict[str, Any]:
     """
     Pipeline counts from the per-event bronze stamps (migration 083):
@@ -264,7 +310,9 @@ def _stage_timing(conn: Any) -> Dict[str, Any]:
       an idle (not-running) stage should ignore ``stale_seconds``.
     """
 
-    def _one(ts_col: str, path_col: str) -> Dict[str, Any]:
+    def _one(
+        ts_col: str, path_col: str, table: str = "bronze.bronze_events_youtube"
+    ) -> Dict[str, Any]:
         out: Dict[str, Any] = {
             "avg_seconds": None,
             "last_path": "",
@@ -278,7 +326,7 @@ def _stage_timing(conn: Any) -> Dict[str, Any]:
                     f"""
                     WITH recent AS (
                         SELECT {ts_col} AS ts, {path_col} AS path
-                        FROM bronze.bronze_events_youtube
+                        FROM {table}
                         WHERE {ts_col} IS NOT NULL
                         ORDER BY {ts_col} DESC LIMIT 150
                     ),
@@ -316,9 +364,18 @@ def _stage_timing(conn: Any) -> Dict[str, Any]:
         return out
 
     vids = _one("transcript_download_at", "transcript_file_path")
+    # Transcripts cadence/last-file come from bronze_events_text_ai (where the
+    # backfill actually writes), not the YouTube download stamp — otherwise the
+    # dashboard reads "stalled · 0/hr · last file <days ago>" while a DB-only
+    # backfill is inserting fine. video_id stands in for the missing file path.
+    transcripts = _one(
+        "COALESCE(last_updated, created_at)",
+        "video_id",
+        table="bronze.bronze_events_text_ai",
+    )
     return {
         "videos": vids,
-        "transcripts": vids,
+        "transcripts": transcripts,
         "analyses": _one("policy_analysis_at", "policy_analysis_path"),
         "reports": _one("policy_report_at", "policy_report_path"),
     }
@@ -370,12 +427,15 @@ def pipeline_stage_report(conn: Any) -> Dict[str, Any]:
     # Stage 0 (channel discovery) lives in the scraped-jurisdiction tables, not in
     # bronze_events_youtube: per state, how many jurisdictions have a YouTube channel
     # found (done) out of all scraped (total); failed = still missing a channel.
+    # Grouped by entity (counties vs municipalities) so the Discover cell can split
+    # the combined coverage; the per-entity rows sum back to the combined total.
+    DISCOVER_ENTITIES = ("counties", "municipalities")
     discover_by_state: Dict[str, Dict[str, Any]] = {}
     try:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT usps AS st,
+                SELECT usps AS st, entity,
                     COUNT(*)::int AS total,
                     COUNT(*) FILTER (
                         WHERE COALESCE(NULLIF(youtube_channel_id, ''),
@@ -383,81 +443,169 @@ def pipeline_stage_report(conn: Any) -> Dict[str, Any]:
                     )::int AS done,
                     MAX(discovered_at) AS last_at
                 FROM (
-                    SELECT usps, youtube_channel_id, youtube_channel_url, discovered_at
+                    SELECT usps, youtube_channel_id, youtube_channel_url, discovered_at,
+                           'counties' AS entity
                       FROM bronze.bronze_jurisdictions_counties_scraped
                     UNION ALL
-                    SELECT usps, youtube_channel_id, youtube_channel_url, discovered_at
+                    SELECT usps, youtube_channel_id, youtube_channel_url, discovered_at,
+                           'municipalities' AS entity
                       FROM bronze.bronze_jurisdictions_municipalities_scraped
                 ) j
                 WHERE COALESCE(usps, '') <> ''
-                GROUP BY usps
+                GROUP BY usps, entity
                 """
             )
-            for st, total, done, last_at in cur.fetchall():
-                discover_by_state[str(st)] = {
-                    "total": int(total), "done": int(done), "last_at": _iso(last_at)
+            for st, entity, total, done, last_at in cur.fetchall():
+                rec = discover_by_state.setdefault(
+                    str(st), {"total": 0, "done": 0, "last_at": "", "breakdown": {}}
+                )
+                rec["total"] += int(total)
+                rec["done"] += int(done)
+                rec["last_at"] = _max_iso(rec["last_at"], _iso(last_at))
+                rec["breakdown"][str(entity)] = {
+                    "entity": str(entity), "total": int(total), "done": int(done),
                 }
     except Exception:
         conn.rollback()  # scraped tables absent — discover stage degrades to zeros
 
+    # Transcripts landed per state, counted directly from bronze_events_text_ai
+    # (state_code is populated on every row). The bronze_events_youtube download
+    # stamp only covered YouTube-catalog videos in a handful of states and missed
+    # the bulk of transcripts (most text_ai video_ids are not in the event mart /
+    # int_events_union); counting text_ai itself surfaces every state that has
+    # transcripts, including LocalView/union sources.
+    tx_by_state: Dict[str, Dict[str, Any]] = {}
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    COALESCE(NULLIF(state_code, ''), '??')  AS st,
+                    COUNT(*)::int                           AS done,
+                    MAX(COALESCE(last_updated, created_at)) AS last_at
+                FROM bronze.bronze_events_text_ai
+                GROUP BY 1
+                """
+            )
+            for st, done, last_at in cur.fetchall():
+                tx_by_state[str(st)] = {"done": int(done), "last_at": _iso(last_at)}
+    except Exception:
+        conn.rollback()  # bronze_events_text_ai absent — transcript coverage degrades to zeros
+
     def _discover_row(scope: str, disc: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-        d = disc or {"total": 0, "done": 0, "last_at": ""}
+        d = disc or {"total": 0, "done": 0, "last_at": "", "breakdown": {}}
+        bd = d.get("breakdown") or {}
+        breakdown = [
+            {
+                "entity": e,
+                "done": int(bd[e]["done"]),
+                "total": int(bd[e]["total"]),
+                "failed": max(0, int(bd[e]["total"]) - int(bd[e]["done"])),
+            }
+            for e in DISCOVER_ENTITIES
+            if e in bd
+        ]
         return {
             "scope": scope, "stage": "discover", "done": d["done"], "total": d["total"],
             "failed": max(0, d["total"] - d["done"]), "last_at": d["last_at"],
+            "breakdown": breakdown,
         }
 
     def _stage_rows(
-        scope: str, rec: Dict[str, Any], disc: Optional[Dict[str, Any]]
+        scope: str,
+        rec: Dict[str, Any],
+        disc: Optional[Dict[str, Any]],
+        tx: Dict[str, Any],
     ) -> List[Dict[str, Any]]:
         ok = int(rec["vids_ok"])
         fail = int(rec["vids_fail"])
         attempted = ok + fail
         lv, la, lr = rec["last_video"], rec["last_analysis"], rec["last_report"]
-        # done / total / failed / last_at per stage. Transcripts/analyses/reports
-        # are denominated by the videos that got a transcript (the funnel input).
+        # videos: YouTube download stamps (ok / attempted). transcripts: actual
+        # landed coverage from bronze_events_text_ai over the int_events_union
+        # candidate set (done = with transcript, total = candidates) — reaches
+        # LocalView/union videos the YouTube stamp never counted. analyses/reports
+        # sit below transcripts in the funnel, so they are denominated by the
+        # transcripts that exist (clamped so a stamp count can't exceed total).
+        tx_done = int(tx.get("done", 0))
+        tx_total = max(int(tx.get("total", 0)), tx_done)
+        tx_last = tx.get("last_at") or ""
+        analyses = int(rec["analyses"])
+        reports = int(rec["reports"])
         return [
             _discover_row(scope, disc),
             {"scope": scope, "stage": "videos", "done": ok, "total": attempted,
              "failed": fail, "last_at": lv},
-            {"scope": scope, "stage": "transcripts", "done": ok, "total": ok,
-             "failed": fail, "last_at": lv},
-            {"scope": scope, "stage": "analyses", "done": int(rec["analyses"]), "total": ok,
+            {"scope": scope, "stage": "transcripts", "done": tx_done, "total": tx_total,
+             "failed": fail, "last_at": tx_last or lv},
+            {"scope": scope, "stage": "analyses", "done": analyses,
+             "total": max(tx_done, analyses),
              "failed": int(rec["analysis_err"]), "last_at": la},
-            {"scope": scope, "stage": "reports", "done": int(rec["reports"]), "total": ok,
+            {"scope": scope, "stage": "reports", "done": reports,
+             "total": max(tx_done, reports),
              "failed": int(rec["report_err"]), "last_at": lr},
         ]
 
     cols = ("st", "vids_ok", "vids_fail", "analyses", "analysis_err", "reports",
             "report_err", "last_video", "last_analysis", "last_report")
-    per_state = [dict(zip(cols, r)) for r in db_rows]
+    yt_by_state: Dict[str, Dict[str, Any]] = {}
+    for r in db_rows:
+        rec = dict(zip(cols, r))
+        for tk in ("last_video", "last_analysis", "last_report"):
+            rec[tk] = _iso(rec[tk])
+        yt_by_state[str(rec["st"])] = rec
+
+    _zero_rec = {
+        "vids_ok": 0, "vids_fail": 0, "analyses": 0, "analysis_err": 0,
+        "reports": 0, "report_err": 0,
+        "last_video": "", "last_analysis": "", "last_report": "",
+    }
 
     rows: List[Dict[str, Any]] = []
     states: List[str] = []
     totals = {k: 0 for k in ("vids_ok", "vids_fail", "analyses", "analysis_err",
                              "reports", "report_err")}
     last = {"last_video": "", "last_analysis": "", "last_report": ""}
-    for rec in per_state:
-        st = str(rec["st"])
-        for tk in ("last_video", "last_analysis", "last_report"):
-            rec[tk] = _iso(rec[tk])
+    tx_totals = {"done": 0, "total": 0, "last_at": ""}
+
+    # Surface every state that has entered the pipeline (any attempted YouTube
+    # video) OR that has at least one landed transcript — the latter covers
+    # LocalView/union states with no bronze_events_youtube rows.
+    candidate_states = {
+        st for st, rec in yt_by_state.items()
+        if int(rec["vids_ok"]) + int(rec["vids_fail"]) > 0
+    } | {
+        st for st, tx in tx_by_state.items() if int(tx.get("done", 0)) > 0
+    }
+    candidate_states.discard("??")
+
+    for st in sorted(candidate_states):
+        rec = yt_by_state.get(st, dict(_zero_rec))
+        tx = tx_by_state.get(st, {"done": 0, "total": 0, "last_at": ""})
         for nk in totals:
             totals[nk] += int(rec[nk])
         for tk in last:
             last[tk] = _max_iso(last[tk], rec[tk])
-        # Only surface states that have entered the pipeline (any attempted video).
-        if int(rec["vids_ok"]) + int(rec["vids_fail"]) > 0 and st != "??":
-            states.append(st)
-            rows.extend(_stage_rows(st, rec, discover_by_state.get(st)))
+        tx_totals["done"] += int(tx.get("done", 0))
+        tx_totals["total"] += int(tx.get("total", 0))
+        tx_totals["last_at"] = _max_iso(tx_totals["last_at"], tx.get("last_at") or "")
+        states.append(st)
+        rows.extend(_stage_rows(st, rec, discover_by_state.get(st), tx))
 
-    disc_all = {"total": 0, "done": 0, "last_at": ""}
+    disc_all: Dict[str, Any] = {"total": 0, "done": 0, "last_at": "", "breakdown": {}}
     for st in states:
         d = discover_by_state.get(st)
         if d:
             disc_all["total"] += d["total"]
             disc_all["done"] += d["done"]
             disc_all["last_at"] = _max_iso(disc_all["last_at"], d["last_at"])
-    rows = _stage_rows("ALL", {**totals, **last}, disc_all) + rows
+            for e, b in (d.get("breakdown") or {}).items():
+                agg = disc_all["breakdown"].setdefault(
+                    e, {"entity": e, "total": 0, "done": 0}
+                )
+                agg["total"] += int(b["total"])
+                agg["done"] += int(b["done"])
+    rows = _stage_rows("ALL", {**totals, **last}, disc_all, tx_totals) + rows
     out["states"] = sorted(states)
     out["rows"] = rows
     out["timing"] = _stage_timing(conn)
@@ -477,6 +625,9 @@ def dashboard_stage_report() -> Dict[str, Any]:
 
 def aggregate_dashboard_totals_from_db(*, limit: int = 30) -> Dict[str, Any]:
     """Sum numeric fields from ``summary`` JSONB across recent batches (no payload)."""
+    # Reap abandoned ``running`` rows first so the ``running`` count below (and any
+    # per-batch meta read for the same dashboard tick) reflects real liveness.
+    reap_stale_running_batches(limit=limit)
     with get_db_connection() as conn:
         ensure_batch_job_tables(conn)
         with conn.cursor(cursor_factory=RealDictCursor) as cur:

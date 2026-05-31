@@ -2603,42 +2603,65 @@ export default function EntityQualityDashboard({
                   display: fmtCompact(youtubeMetrics.total),
                   title: formatFullNumber(youtubeMetrics.total),
                   c: 'var(--jmq-text-muted)',
+                  href: undefined as string | undefined,
                 },
                 {
                   label: 'With channel',
                   display: fmtCompact(youtubeMetrics.withChannel),
                   title: formatFullNumber(youtubeMetrics.withChannel),
                   c: 'var(--jmq-blue)',
+                  href: undefined as string | undefined,
                 },
                 {
                   label: 'Match rate',
                   display: `${youtubeMetrics.pct.toFixed(1)}%`,
                   title: undefined,
                   c: barColor(youtubeMetrics.pct),
+                  href: undefined as string | undefined,
                 },
                 {
                   label: 'Missing',
                   display: fmtCompact(Math.max(0, youtubeMetrics.total - youtubeMetrics.withChannel)),
                   title: formatFullNumber(Math.max(0, youtubeMetrics.total - youtubeMetrics.withChannel)),
                   c: youtubeMetrics.total - youtubeMetrics.withChannel > 500 ? '#a40e26' : '#9a6700',
+                  // Drill into the jurisdictions with no golden channel (per-state, then individual).
+                  href: '#jmq-missing-youtube-by-state' as string | undefined,
                 },
               ] as const
-            ).map((k) => (
-              <div
-                key={k.label}
-                className="jmq-kpi jmq-kpi--info relative overflow-hidden rounded-lg border border-[var(--jmq-border)] bg-[var(--jmq-surface)] p-3"
-              >
-                <div className="absolute left-0 right-0 top-0 h-0.5" style={{ background: k.c }} />
-                <div className="jmq-kpi-label !mb-1">{k.label}</div>
-                <div
-                  className="font-mono text-xl font-extrabold leading-tight"
-                  style={{ color: k.c }}
-                  title={k.title}
+            ).map((k) => {
+              const inner = (
+                <>
+                  <div className="absolute left-0 right-0 top-0 h-0.5" style={{ background: k.c }} />
+                  <div className="jmq-kpi-label !mb-1">
+                    {k.label}
+                    {k.href ? <span className="ml-1 text-[var(--jmq-text-muted)]">↓</span> : null}
+                  </div>
+                  <div
+                    className="font-mono text-xl font-extrabold leading-tight"
+                    style={{ color: k.c }}
+                    title={k.title}
+                  >
+                    {k.display}
+                  </div>
+                </>
+              )
+              const cls =
+                'jmq-kpi jmq-kpi--info relative overflow-hidden rounded-lg border border-[var(--jmq-border)] bg-[var(--jmq-surface)] p-3'
+              return k.href ? (
+                <a
+                  key={k.label}
+                  href={k.href}
+                  className={`${cls} block transition-colors hover:border-[var(--jmq-teal)] hover:bg-[var(--jmq-teal-dim)]`}
+                  title="Drill into jurisdictions with no golden YouTube channel"
                 >
-                  {k.display}
+                  {inner}
+                </a>
+              ) : (
+                <div key={k.label} className={cls}>
+                  {inner}
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
           {needsLiveYoutubeCoverage && liveYoutubeCoverage ? (
             <p className="mb-4 font-mono text-[10px] text-[var(--jmq-text-muted)]">

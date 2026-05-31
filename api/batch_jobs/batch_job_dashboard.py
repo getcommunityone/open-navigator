@@ -223,10 +223,13 @@ def build_dashboard_summary(*, limit: int = 30) -> Dict[str, Any]:
                 running_batch_activity_from_db,
             )
 
+            # Totals first: it reaps stale ``running`` rows, so the meta read
+            # below sees the corrected per-batch statuses in this same snapshot.
+            reaped_totals = aggregate_dashboard_totals_from_db(limit=limit)
             batches = list_batch_job_meta_from_db(limit=limit)
             if batches:
                 source = "database"
-                sql_totals = aggregate_dashboard_totals_from_db(limit=limit)
+                sql_totals = reaped_totals
                 running = running_batch_activity_from_db()
                 if running:
                     for b in batches:

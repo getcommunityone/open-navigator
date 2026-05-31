@@ -61,7 +61,7 @@ open-navigator-data/
 │   ├── event_media        # Video recordings, livestreams, audio files
 │   └── event_bills        # Bills discussed or considered at meetings
 │
-├── contacts/               # 👥 All People - Officials, Candidates, Donors, Constituents
+├── person/                 # 👥 All People - Officials, Candidates, Donors, Constituents
 │   ├── officials          # Elected and appointed officials (mayors, council members, legislators)
 │   ├── official_roles     # Current and historical positions held
 │   ├── official_contacts  # Email, phone, office addresses
@@ -235,7 +235,7 @@ social_twitter.parquet
 social_facebook.parquet
 videos_youtube_channels.parquet
 events_events.parquet
-contact_official.parquet
+person_official.parquet
 bills_bills.parquet
 nonprofits_organizations.parquet
 nonprofits_financials.parquet
@@ -245,9 +245,9 @@ nonprofits_irs_eobmf.parquet
 nonprofits_constituents.parquet
 nonprofits_donations.parquet
 nonprofits_campaigns.parquet        # Nonprofit fundraising campaigns (NOT political)
-contacts_candidates.parquet         # Political candidates (FEC)
-contacts_nonprofit_donors.parquet   # Nonprofit leadership political giving (FEC analysis)
-contacts_constituents.parquet       # Donors, volunteers, members, beneficiaries
+person_candidates.parquet         # Political candidates (FEC)
+person_nonprofit_donors.parquet   # Nonprofit leadership political giving (FEC analysis)
+person_constituents.parquet       # Donors, volunteers, members, beneficiaries
 campaigns_committees.parquet        # Political committees/PACs (FEC)
 campaigns_contributions.parquet     # Political contributions (FEC)
 nonprofits_memberships.parquet
@@ -255,14 +255,14 @@ nonprofits_volunteer_activities.parquet
 nonprofits_program_delivery.parquet
 nonprofits_program_outcomes.parquet
 grants_federal_grants.parquet
-contact_official.parquet
-contacts_official_roles.parquet
-contacts_official_contacts.parquet
-contacts_official_identifiers.parquet
-contacts_official_links.parquet
-contacts_candidates.parquet
-contacts_nonprofit_donors.parquet
-contacts_constituents.parquet
+person_official.parquet
+person_official_roles.parquet
+person_official_contacts.parquet
+person_official_identifiers.parquet
+person_official_links.parquet
+person_candidates.parquet
+person_nonprofit_donors.parquet
+person_constituents.parquet
 bills_bills.parquet
 bills_bill_actions.parquet
 bills_bill_sponsorships.parquet

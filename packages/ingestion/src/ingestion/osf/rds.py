@@ -101,15 +101,28 @@ _BRONZE_OSF_PREFIX = "bronze_osf_"
 _SUFFIX_MAX = 63 - len(_BRONZE_OSF_PREFIX)
 
 
+# Explicit renames for specific OSF tables whose mechanical bronze_osf_<stem>
+# name we override (e.g. to group person-level tables under bronze_persons_*).
+# Keyed by the default generated name.
+_TABLE_NAME_OVERRIDES = {
+    "bronze_osf_ledb_candidatelevel": "bronze_persons_osf_ledb",
+}
+
+
 def bronze_osf_table_name(stem: str) -> str:
-    """Table name in schema `bronze`, e.g. bronze_osf_ledb_candidatelevel."""
+    """Table name in schema `bronze`, e.g. bronze_osf_ledb_candidatelevel.
+
+    A few tables are renamed via ``_TABLE_NAME_OVERRIDES`` (e.g.
+    ``bronze_osf_ledb_candidatelevel`` → ``bronze_persons_osf_ledb``).
+    """
     suf = stem.lower()
     suf = re.sub(r"[^a-z0-9_]+", "_", suf)
     suf = re.sub(r"_+", "_", suf).strip("_")
     if not suf:
         suf = "unnamed_table"
     suf = suf[:_SUFFIX_MAX]
-    return f"{_BRONZE_OSF_PREFIX}{suf}"
+    default = f"{_BRONZE_OSF_PREFIX}{suf}"
+    return _TABLE_NAME_OVERRIDES.get(default, default)
 
 
 def list_rds(root: Path) -> list[Path]:

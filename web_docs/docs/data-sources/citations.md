@@ -1,6 +1,7 @@
 ---
 sidebar_position: 2
 sidebar_label: Data and Citations
+displayed_sidebar: citationsSidebar
 ---
 
 # Data and Citations

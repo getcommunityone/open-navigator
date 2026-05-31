@@ -21,7 +21,8 @@ def _ctx() -> PipelineContext:
 
 
 def test_bronze_osf_table_name_sanitizes_and_prefixes():
-    assert bronze_osf_table_name("LEDB_CandidateLevel") == "bronze_osf_ledb_candidatelevel"
+    # LEDB_CandidateLevel is explicitly renamed to a bronze_persons_* table.
+    assert bronze_osf_table_name("LEDB_CandidateLevel") == "bronze_persons_osf_ledb"
     # non-alnum collapse to single underscore, trim leading/trailing
     assert bronze_osf_table_name("  My Data!! v2  ") == "bronze_osf_my_data_v2"
     # empty / all-symbol stem falls back to unnamed_table

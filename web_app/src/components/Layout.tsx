@@ -34,7 +34,7 @@ const navigation = [
   { name: 'Search', href: '/search', icon: MagnifyingGlassIcon },
   { name: 'Jurisdictions', href: '/jurisdictions', icon: MapPinIcon },
   { 
-    section: 'Families & Individuals',
+    section: 'Citizens & Residents',
     items: [
       { name: 'Community Events', href: '/events', icon: BookOpenIcon },
       { name: 'Services & Resources', href: '/services', icon: HeartIcon },

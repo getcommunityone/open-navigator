@@ -163,21 +163,9 @@ const config: Config = {
         },
         {
           type: 'docSidebar',
-          sidebarId: 'handbookSidebar',
+          sidebarId: 'citizensSidebar',
           position: 'left',
-          label: 'Handbook',
-        },
-        {
-          type: 'docSidebar',
-          sidebarId: 'catalogSidebar',
-          position: 'left',
-          label: 'Catalog',
-        },
-        {
-          type: 'docSidebar',
-          sidebarId: 'familiesSidebar',
-          position: 'left',
-          label: 'Families & Individuals',
+          label: 'Citizens and Residents',
         },
         {
           type: 'docSidebar',

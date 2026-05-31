@@ -44,7 +44,7 @@ If `./scripts/datasources/osf/load_osf_to_bronze.py` says `Permission denied`, r
 
 ### Load tabular data → `bronze` schema (RDS + CSV)
 
-Tables are created as **`bronze.bronze_osf_<name>`** (e.g. `bronze.bronze_osf_ledb_candidatelevel`), not a separate schema.
+Tables are created as **`bronze.bronze_osf_<name>`** (e.g. `bronze.bronze_osf_acs`), not a separate schema. A few tables are renamed (see `_TABLE_NAME_OVERRIDES` in `ingestion.osf.rds`); e.g. `LEDB_CandidateLevel` lands in `bronze.bronze_persons_osf_ledb`.
 
 Prefer the **Python** loader (uses `pyreadr`; does not require `Rscript` on PATH). Use the project venv if your system Python blocks `pip` (PEP 668):
 

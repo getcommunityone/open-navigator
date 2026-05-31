@@ -21,7 +21,7 @@ from loguru import logger
 # Add parent to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from pipeline.create_contacts_gold_tables import ContactsGoldTableCreator
+from ingestion.publication.gold.create_contacts_gold_tables import ContactsGoldTableCreator
 
 logger.remove()
 logger.add(sys.stderr, format="<green>{time:HH:mm:ss}</green> | <level>{level: <8}</level> | {message}")

@@ -77,6 +77,14 @@ export type BatchJob = {
 
 export type PipelineStage = 'discover' | 'videos' | 'transcripts' | 'analyses' | 'reports'
 
+/** Per-entity split of a stage (discover: counties vs municipalities). Sums to the row. */
+export type StageBreakdownEntry = {
+  entity: string
+  done: number
+  total: number
+  failed: number
+}
+
 /** One (scope, stage) row. ``scope`` is a 2-letter state code or ``ALL`` (rollup). */
 export type StageReportRow = {
   scope: string
@@ -85,6 +93,8 @@ export type StageReportRow = {
   total: number
   failed: number
   last_at: string
+  /** Optional per-entity split (only the discover stage today). */
+  breakdown?: StageBreakdownEntry[]
 }
 
 export type StageTiming = {

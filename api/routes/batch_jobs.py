@@ -99,6 +99,15 @@ class BatchJobModel(BaseModel):
     jurisdictions: List[JurisdictionRunModel] = Field(default_factory=list)
 
 
+class StageBreakdownEntry(BaseModel):
+    # Per-entity split of a stage's coverage (e.g. discover: counties vs
+    # municipalities). Entries sum back to the parent row's done/total.
+    entity: str
+    done: int = 0
+    total: int = 0
+    failed: int = 0
+
+
 class StageReportRow(BaseModel):
     # One (scope, stage) row. scope is a 2-letter state code or "ALL" (rollup).
     scope: str
@@ -107,6 +116,8 @@ class StageReportRow(BaseModel):
     total: int = 0
     failed: int = 0
     last_at: str = ""
+    # Optional per-entity split (only populated for the discover stage today).
+    breakdown: List[StageBreakdownEntry] = Field(default_factory=list)
 
 
 class StageReport(BaseModel):
@@ -305,7 +316,10 @@ async def list_batch_jobs(
 _LAUNCH_SCRIPT = "packages/scrapers/scripts/youtube_run_priority_states_last_n.sh"
 # Stage 0 (discover) runs a different, per-state script; the rest run the wrapper.
 _DISCOVER_SCRIPT = "packages/scrapers/src/scrapers/youtube/load_missing_county_channels.py"
-_LAUNCH_STEPS = ("discover", "catalog", "captions", "analyze", "each", "all")
+# `backfill` runs the flat, mart-wide transcript sweep (reaches LocalView/union
+# videos with no jurisdiction the per-jurisdiction `captions` loop never visits).
+_BACKFILL_SCRIPT = "packages/scrapers/src/scrapers/youtube/backfill_transcripts.py"
+_LAUNCH_STEPS = ("discover", "catalog", "captions", "backfill", "analyze", "each", "all")
 _STATE_RE = re.compile(r"^[A-Z]{2}$")
 
 
@@ -537,6 +551,37 @@ async def launch_pipeline(req: LaunchRequest) -> LaunchResponse:
         import sys as _sys
 
         argv = [_sys.executable, str(target), "--states", ",".join(states)]
+    elif step == "backfill":
+        # Global transcript backfill over the int_events_union mart. Unlike the
+        # per-jurisdiction `captions` step (which reads bronze_events_youtube
+        # WHERE jurisdiction_id = …), this is a flat sweep that also reaches the
+        # LocalView/union videos that have no bronze_events_youtube row. Runs the
+        # standalone script directly (fixed argv, no shell), like `discover`, so
+        # it has no per-jurisdiction batch tracking. States optional.
+        #
+        # Backfill batch size is independent of the wrapper-step N clamp above:
+        # the UI size picker sends `n` = 100/500/2000/4000, or 0 for "All". 0 (or
+        # negative) means sweep every missing transcript (omit --limit); a run is
+        # resumable (re-queries what's still missing), so a bounded size still
+        # makes progress across clicks. Cap to a sane ceiling so a stray value
+        # can't launch an absurd run.
+        target = root / _BACKFILL_SCRIPT
+        if not target.is_file():
+            raise HTTPException(status_code=500, detail=f"backfill script missing: {target}")
+        import sys as _sys
+
+        backfill_limit = int(req.n or 0)
+        argv = [_sys.executable, str(target)]
+        if backfill_limit > 0:
+            argv += ["--limit", str(min(backfill_limit, 100000))]
+        if states:
+            argv += ["--states", ",".join(states)]
+        # Caption egress (Webshare vs cookies+direct) is left to the environment /
+        # .env (YOUTUBE_USE_WEBSHARE). Don't force Webshare here: the residential
+        # pool is bandwidth-capped and, once exhausted, every fetch TLS-times-out
+        # (SSLError) and the sweep inserts nothing — whereas cookies+direct keeps
+        # working. Set YOUTUBE_USE_WEBSHARE=1 in the env only when the pool has
+        # quota and YouTube is rate-limiting the direct IP.
     else:
         script = root / _LAUNCH_SCRIPT
         if not script.is_file():

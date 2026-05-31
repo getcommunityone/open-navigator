@@ -28,6 +28,10 @@ from youtube_transcript_api.proxies import GenericProxyConfig, WebshareProxyConf
 # Descending priority per library docs.
 DEFAULT_TRANSCRIPT_LANGUAGES: tuple[str, ...] = ("en", "en-US", "en-GB", "de", "es")
 
+# Webshare dashboard — bandwidth usage, IP pool, and proxy credentials.
+WEBSHARE_DASHBOARD_URL = "https://dashboard.webshare.io/"
+WEBSHARE_STATS_URL = "https://dashboard.webshare.io/proxy/stats"
+
 
 def format_transcript_error(exc: BaseException, *, max_len: int = 800) -> str:
     """Full exception chain for logs (avoids truncating ``Caused by ProxyError…``)."""
@@ -615,6 +619,8 @@ def log_caption_fetch_setup(
     )
     logger.info("Caption API: {}", info["caption_api"])
     logger.info("Caption egress: {}", info["caption_egress_detail"])
+    if info["webshare_configured"]:
+        logger.info("Webshare status: {} (usage) · {} (account)", WEBSHARE_STATS_URL, WEBSHARE_DASHBOARD_URL)
     if info["cookies_path"]:
         logger.info("Cookies: {}", info["cookies_path"])
     else:

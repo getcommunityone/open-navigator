@@ -38,7 +38,7 @@ def load_data():
     """Load the main nonprofits file."""
     if not MAIN_FILE.exists():
         logger.error(f"❌ Main file not found: {MAIN_FILE}")
-        logger.error("   Run: python pipeline/create_gold_tables.py --nonprofits-only")
+        logger.error("   Run: python -m ingestion.publication.gold.create_all_gold_tables --nonprofits-only")
         sys.exit(1)
     
     logger.info(f"📂 Loading: {MAIN_FILE}")

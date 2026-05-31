@@ -945,12 +945,31 @@ export default function BatchJobStatusPage() {
     setAllScopeState(v)
     localStorage.setItem('batch-launch-scope', v)
   }, [])
+  // How many missing transcripts one ▶ Backfill click fetches. 0 = "All" (sweep
+  // every missing transcript). The run is resumable — it re-queries what's still
+  // missing — so a bounded size still makes incremental progress across clicks.
+  // Persisted across reloads; defaults to 4000.
+  const BACKFILL_SIZES = [100, 500, 2000, 4000, 0] as const
+  const [backfillSize, setBackfillSizeState] = useState<number>(() => {
+    const raw = localStorage.getItem('batch-backfill-size')
+    const v = Number(raw)
+    return raw != null && (BACKFILL_SIZES as readonly number[]).includes(v) ? v : 4000
+  })
+  const setBackfillSize = useCallback((v: number) => {
+    setBackfillSizeState(v)
+    localStorage.setItem('batch-backfill-size', String(v))
+  }, [])
   const runLaunch = useCallback(
-    async (step: string, states: string[]) => {
+    async (step: string, states: string[], nOverride?: number) => {
       setLaunching(true)
       setLaunchMsg(null)
       try {
-        const res = await launchPipeline({ step, states, parallel: parallelism, n: 25 })
+        const res = await launchPipeline({
+          step,
+          states,
+          parallel: parallelism,
+          n: nOverride ?? 25,
+        })
         setLaunchMsg(res.detail || 'Launched.')
         void refetchLaunch()
         window.setTimeout(() => void refetch(), 2500)
@@ -987,7 +1006,18 @@ export default function BatchJobStatusPage() {
 
   // Per-stage drill-down: expand one stage to see its live log + current file.
   const [expandedStage, setExpandedStage] = useState<string | null>(null)
-  const expandedStep = expandedStage ? STAGE_STEP[expandedStage] : null
+  // The Transcripts stage is advanced by two steps — per-jurisdiction `captions`
+  // and the global `backfill` — which write separate launch logs. Show the
+  // backfill log while it's the live (running/stalled) step; otherwise the
+  // conventional captions log.
+  const transcriptsBackfillLive =
+    (launchStatus?.running_steps ?? []).includes('backfill') ||
+    (launchStatus?.stalled_steps ?? []).includes('backfill')
+  const expandedStep = expandedStage
+    ? expandedStage === 'transcripts' && transcriptsBackfillLive
+      ? 'backfill'
+      : STAGE_STEP[expandedStage]
+    : null
   const { data: stageLog } = useQuery({
     queryKey: ['launch-log', expandedStep],
     queryFn: () => fetchLaunchLog(expandedStep as string),
@@ -1403,6 +1433,15 @@ export default function BatchJobStatusPage() {
               analyses: 'Analyses',
               reports: 'Reports',
             }
+            // Discover-stage per-entity split labels (counties vs municipalities).
+            const entityShort: Record<string, string> = {
+              counties: 'Co',
+              municipalities: 'Mun',
+            }
+            const entityLabel: Record<string, string> = {
+              counties: 'Counties',
+              municipalities: 'Municipalities (cities/towns)',
+            }
             // Which runnable step each stage's "Run" button kicks off.
             const stageStep: Record<PipelineStage, string> = {
               discover: 'discover',
@@ -1473,7 +1512,7 @@ export default function BatchJobStatusPage() {
             ]
             // Fixed-width Failed/Run columns so the progress column lines up across rows.
             const cols =
-              'grid grid-cols-[1.4fr_0.8fr_minmax(0,1.7fr)_4.5rem_4.5rem] items-center gap-3'
+              'grid grid-cols-[1.4fr_0.8fr_minmax(0,1.7fr)_4.5rem_6.5rem] items-center gap-3'
             const ls = launchStatus
             // ALL view scope → an explicit launch target (priority set or 50 + DC)
             // so the backend can't silently fall back to its priority-only default.
@@ -1491,6 +1530,8 @@ export default function BatchJobStatusPage() {
               discover: ['discover'],
               catalog: ['videos'],
               captions: ['videos', 'transcripts'],
+              // Global mart-wide sweep — advances only the transcripts stage.
+              backfill: ['transcripts'],
               analyze: ['analyses', 'reports'],
               all: ['discover', 'videos', 'transcripts', 'analyses', 'reports'],
               each: ['discover', 'videos', 'transcripts', 'analyses', 'reports'],
@@ -1509,19 +1550,42 @@ export default function BatchJobStatusPage() {
               !launching &&
               !runningSteps.has(stageStep[g]) &&
               !anyFullRun
+            // The global backfill is its own step, so it may run alongside
+            // captions; it's only blocked by another backfill or a full run.
+            const canRunBackfill =
+              !!ls?.enabled &&
+              !launching &&
+              !runningSteps.has('backfill') &&
+              !anyFullRun
             const canRunAll =
               !!ls?.enabled &&
               !launching &&
               runningSteps.size === 0 &&
               data.totals.running === 0
-            const isActive = data.totals.running > 0 || runningSteps.size > 0
-            const anyStalled = stalledSteps.size > 0
             // Header "last activity" = the freshest per-step stamp for this scope,
             // not the stale batch-step clock.
             const freshestIso = stageList
               .map((s) => rowFor(scope, s)?.last_at || '')
               .reduce((a, b) => (a > b ? a : b), '')
             const freshestAgo = agoFromIso(freshestIso)
+            // Mirrors the API stall window (_LAUNCH_STALL_SECONDS /
+            // BATCH_JOB_INACTIVITY_SECONDS, default 3600s).
+            const STALL_SECONDS = 3600
+            const freshestAgeSecs = freshestIso
+              ? Math.max(0, Math.floor((agoClockMs - Date.parse(freshestIso)) / 1000))
+              : null
+            // A batch row stays status='running' after its worker dies or starts
+            // skipping already-done work, so totals.running alone overstates
+            // liveness. Count row-running as live only with recent recorded
+            // progress; otherwise it's a stalled run the reaper hasn't swept yet.
+            const rowsStale =
+              data.totals.running > 0 &&
+              runningSteps.size === 0 &&
+              freshestAgeSecs != null &&
+              freshestAgeSecs > STALL_SECONDS
+            const liveRunningRows = data.totals.running > 0 && !rowsStale
+            const isActive = liveRunningRows || runningSteps.size > 0
+            const anyStalled = stalledSteps.size > 0 || rowsStale
             const statusText = isActive ? 'Running' : anyStalled ? 'Stalled' : 'Idle'
             const statusDot = isActive
               ? 'bg-emerald-500'
@@ -1545,9 +1609,11 @@ export default function BatchJobStatusPage() {
                     <span className="text-slate-500">
                       {runningSteps.size > 0
                         ? `· running ${[...runningSteps].join(', ')}`
-                        : anyStalled
-                          ? `· ${[...stalledSteps].join(', ')} timed out (no activity 1h)`
-                          : `· ${formatCompactNumber(data.totals.running)} running`}
+                        : rowsStale
+                          ? `· ${formatCompactNumber(data.totals.running)} running, no progress >1h — likely stalled`
+                          : stalledSteps.size > 0
+                            ? `· ${[...stalledSteps].join(', ')} timed out (no activity 1h)`
+                            : `· ${formatCompactNumber(data.totals.running)} running`}
                     </span>
                     {scope !== 'ALL' ? (
                       <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-600">
@@ -1726,6 +1792,24 @@ export default function BatchJobStatusPage() {
                         <div className="mt-1.5">
                           <ProgressBar pct={pct} />
                         </div>
+                        {st.stage === 'discover' && (r?.breakdown?.length ?? 0) > 0 ? (
+                          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-slate-500">
+                            {r!.breakdown!.map((b) => (
+                              <span
+                                key={b.entity}
+                                title={`${entityLabel[b.entity] ?? b.entity}: ${formatCompactNumber(b.done)} of ${formatCompactNumber(b.total)} with a channel`}
+                              >
+                                <span className="font-medium text-slate-600">
+                                  {entityLabel[b.entity] ?? b.entity}
+                                </span>{' '}
+                                {fmtPct(b.done, b.total)}{' '}
+                                <span className="tabular-nums text-slate-400">
+                                  {formatCompactNumber(b.done)}/{formatCompactNumber(b.total)}
+                                </span>
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
                       </div>
                       <div className="text-right">
                         {failed > 0 ? (
@@ -1757,7 +1841,7 @@ export default function BatchJobStatusPage() {
                           <span className="text-xs text-slate-400">0</span>
                         )}
                       </div>
-                      <div className="text-right">
+                      <div className="flex flex-col items-end gap-1">
                         {ls?.enabled ? (
                           <button
                             type="button"
@@ -1768,10 +1852,47 @@ export default function BatchJobStatusPage() {
                                 ? `${stageStep[st.stage]} is already running`
                                 : `Run ${stepDesc[st.stage]} · ${scopeLaunchLabel}`
                             }
-                            className="rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                            className="whitespace-nowrap rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
                           >
                             {running ? '· · ·' : '▶ Run'}
                           </button>
+                        ) : null}
+                        {/* Transcripts only: global mart-wide sweep (also reaches
+                            LocalView/union videos captions never visits). The
+                            size picker sets how many missing transcripts one
+                            click fetches (All = sweep everything). */}
+                        {ls?.enabled && st.stage === 'transcripts' ? (
+                          <>
+                            <button
+                              type="button"
+                              disabled={!canRunBackfill}
+                              onClick={() =>
+                                runLaunch('backfill', launchScopeStates, backfillSize)
+                              }
+                              title={
+                                runningSteps.has('backfill')
+                                  ? 'backfill is already running'
+                                  : `Backfill ${
+                                      backfillSize === 0 ? 'all' : backfillSize
+                                    } missing transcript(s) across the full event mart (LocalView + YouTube) · ${scopeLaunchLabel}`
+                              }
+                              className="whitespace-nowrap rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              {runningSteps.has('backfill') ? '· · ·' : '▶ Backfill'}
+                            </button>
+                            <select
+                              value={backfillSize}
+                              onChange={(e) => setBackfillSize(Number(e.target.value))}
+                              title="How many missing transcripts one Backfill click fetches (All = sweep everything; runs are resumable)"
+                              className="w-full rounded-md border border-slate-300 bg-white px-1 py-0.5 text-[10px] font-medium text-slate-600 hover:bg-slate-50"
+                            >
+                              <option value={100}>100</option>
+                              <option value={500}>500</option>
+                              <option value={2000}>2,000</option>
+                              <option value={4000}>4,000</option>
+                              <option value={0}>All</option>
+                            </select>
+                          </>
                         ) : null}
                       </div>
                     </div>
@@ -1873,12 +1994,32 @@ export default function BatchJobStatusPage() {
                               const r = rowFor(stCode, s)
                               const done = r?.done ?? 0
                               const total = r?.total ?? 0
+                              const bd = s === 'discover' ? r?.breakdown ?? [] : []
                               return (
                                 <td key={s} className="px-3 py-2 text-right tabular-nums">
                                   <div className="text-slate-700">{fmtPct(done, total)}</div>
                                   <div className="text-[10px] text-slate-400">
                                     {formatCompactNumber(done)}/{formatCompactNumber(total)}
                                   </div>
+                                  {bd.length > 0 ? (
+                                    <div className="mt-0.5 space-y-px">
+                                      {bd.map((b) => (
+                                        <div
+                                          key={b.entity}
+                                          className="text-[10px] text-slate-400"
+                                          title={`${entityLabel[b.entity] ?? b.entity}: ${formatCompactNumber(b.done)} of ${formatCompactNumber(b.total)} with a channel`}
+                                        >
+                                          <span className="text-slate-500">
+                                            {entityShort[b.entity] ?? b.entity}
+                                          </span>{' '}
+                                          {fmtPct(b.done, b.total)}{' '}
+                                          <span className="text-slate-300">
+                                            {formatCompactNumber(b.done)}/{formatCompactNumber(b.total)}
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : null}
                                 </td>
                               )
                             })}
