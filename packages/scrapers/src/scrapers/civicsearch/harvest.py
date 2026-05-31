@@ -98,6 +98,18 @@ def _iso_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _safe_json(line: str) -> dict[str, Any] | None:
+    """Parse one JSONL line, returning None for blank or truncated records."""
+    line = line.strip()
+    if not line:
+        return None
+    try:
+        return json.loads(line)
+    except json.JSONDecodeError:
+        logger.warning("skipping unparseable JSONL line during resume")
+        return None
+
+
 def _place_keywords(topics_payload: dict[str, Any]) -> list[str]:
     """Merge issue_keywords + keywords from get_topics_by_city, de-duplicated
     case-insensitively while preserving first-seen casing and order."""
@@ -174,23 +186,23 @@ class CivicSearchHarvester:
         )
 
     def _load_existing(self) -> None:
-        """Stream prior JSONL into the resume state (places + seen vid_ids)."""
+        """Stream prior JSONL into the resume state (places + seen vid_ids).
+
+        Tolerant of a truncated trailing line — a prior run killed mid-write can
+        leave one partial JSONL record; we skip it rather than abort the resume.
+        """
         if self.places_path.is_file():
             with self.places_path.open(encoding="utf-8") as f:
                 for line in f:
-                    if not line.strip():
-                        continue
-                    rec = json.loads(line)
-                    qid = rec.get("query_id")
+                    rec = _safe_json(line)
+                    qid = (rec or {}).get("query_id")
                     if qid and qid not in self.places and "lat" in rec and "lon" in rec:
                         self.places[qid] = rec
                         self._seen_place_ids.add(qid)
         if self.meetings_path.is_file():
             with self.meetings_path.open(encoding="utf-8") as f:
                 for line in f:
-                    if not line.strip():
-                        continue
-                    vid = json.loads(line).get("vid_id")
+                    vid = (_safe_json(line) or {}).get("vid_id")
                     if vid:
                         self._seen_vids.add(vid)
         if self._seen_place_ids or self._seen_vids:
