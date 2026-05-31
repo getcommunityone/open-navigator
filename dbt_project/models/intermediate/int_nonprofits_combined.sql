@@ -51,7 +51,7 @@ WITH irs_data AS (
 nccs_data AS (
     SELECT
         ein,
-        name,
+        org_name_current AS name,  -- bronze nccs renamed `name` -> `org_name_current` (NCCS refactor)
         COALESCE(f990_org_addr_street, '') AS street_address,
         f990_org_addr_city AS city,
         f990_org_addr_state AS state_code,
@@ -106,8 +106,33 @@ combined AS (
         ) AS last_updated
     FROM irs_data irs
     FULL OUTER JOIN nccs_data nccs ON irs.ein = nccs.ein
-)
+),
 
+-- GivingTuesday 990 datamart: latest filing per EIN (financials)
+gt_financials AS (
+    SELECT ein, tax_year, total_revenue, total_expenses, total_assets,
+           total_liabilities, net_assets, total_contributions,
+           program_service_revenue, source_url
+    FROM (
+        SELECT *,
+               ROW_NUMBER() OVER (PARTITION BY ein ORDER BY tax_year DESC NULLS LAST) AS rn
+        FROM {{ ref('stg_givingtuesday__990_financials') }}
+    ) ranked
+    WHERE rn = 1
+),
+
+-- GivingTuesday 990 datamart: latest mission statement per EIN
+gt_missions AS (
+    SELECT ein, tax_year, mission
+    FROM (
+        SELECT *,
+               ROW_NUMBER() OVER (PARTITION BY ein ORDER BY tax_year DESC NULLS LAST) AS rn
+        FROM {{ ref('stg_givingtuesday__990_missions') }}
+    ) ranked
+    WHERE rn = 1
+),
+
+base AS (
 SELECT
     ein,
     name,
@@ -142,3 +167,23 @@ FROM combined
 WHERE name IS NOT NULL  -- Must have a name
   AND ein IS NOT NULL   -- Must have EIN
   AND LENGTH(ein) >= 9  -- Valid EIN format
+)
+
+-- Enrich each org with its latest GivingTuesday 990 datamart filing (additive,
+-- non-destructive: gt990_* columns sit alongside the IRS/NCCS financials above).
+SELECT
+    base.*,
+    gtf.tax_year                 AS gt990_tax_year,
+    gtf.total_revenue            AS gt990_total_revenue,
+    gtf.total_expenses           AS gt990_total_expenses,
+    gtf.total_assets             AS gt990_total_assets,
+    gtf.total_liabilities        AS gt990_total_liabilities,
+    gtf.net_assets               AS gt990_net_assets,
+    gtf.total_contributions      AS gt990_total_contributions,
+    gtf.program_service_revenue  AS gt990_program_service_revenue,
+    gtf.source_url               AS gt990_source_url,
+    gtm.mission                  AS gt990_mission,
+    (gtf.ein IS NOT NULL OR gtm.ein IS NOT NULL) AS has_gt990_data
+FROM base
+LEFT JOIN gt_financials gtf ON base.ein = gtf.ein
+LEFT JOIN gt_missions   gtm ON base.ein = gtm.ein

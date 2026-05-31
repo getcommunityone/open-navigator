@@ -1,0 +1,35 @@
+version: 2
+
+models:
+  - name: stg_givingtuesday__990_financials
+    description: >
+      Staging view over bronze.bronze_organizations_990_financials (GivingTuesday
+      990CN120Fields datamart). One row per (ein, tax_year) filing; light cleaning
+      and type stabilization only. The latest-filing-per-EIN collapse happens in
+      int_nonprofits_combined.
+    columns:
+      - name: ein
+        description: "9-digit EIN (joins to IRS/NCCS)"
+        tests:
+          - not_null
+      - name: tax_year
+        description: "Filing tax year"
+      - name: total_revenue
+        description: "Form 990 Part 1 Line 12 - Total Revenue Current Year (USD)"
+      - name: total_expenses
+        description: "Form 990 Part 1 Line 18 - Total Expenses Current Year (USD)"
+
+  - name: stg_givingtuesday__990_missions
+    description: >
+      Staging view over bronze.bronze_organizations_990_missions (GivingTuesday
+      990Part1Missions datamart). One row per (ein, tax_year) with a non-null
+      mission statement. Latest filing per EIN selected in int_nonprofits_combined.
+    columns:
+      - name: ein
+        description: "9-digit EIN (joins to IRS/NCCS)"
+        tests:
+          - not_null
+      - name: mission
+        description: "Form 990 Part 1 Line 1 - Mission & Most Significant Activities"
+        tests:
+          - not_null

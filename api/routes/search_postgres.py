@@ -464,7 +464,13 @@ async def search_organizations_pg(
                 revenue,
                 assets,
                 income,
-                tax_period
+                tax_period,
+                gt990_tax_year,
+                gt990_total_revenue,
+                gt990_total_expenses,
+                gt990_total_assets,
+                gt990_mission,
+                has_gt990_data
             FROM organization_nonprofit
             WHERE {where_sql}
             ORDER BY {order_by}
@@ -480,18 +486,32 @@ async def search_organizations_pg(
             results = []
             for row in rows:
                 location = f"{row['city']}, {row['state']}" if row['city'] and row['state'] else (row['state'] or '')
-                
+
+                # Prefer real e-filed 990 figures (GivingTuesday datamart) over the
+                # IRS BMF proxy; fall back to the BMF amounts when no 990 was matched.
+                revenue = row['gt990_total_revenue'] if row['gt990_total_revenue'] is not None else row['revenue']
+                assets = row['gt990_total_assets'] if row['gt990_total_assets'] is not None else row['assets']
+                expenses = row['gt990_total_expenses']
+                mission = row['gt990_mission']
+
                 # Format financials
                 financials = []
-                if row['revenue']:
-                    financials.append(f"Revenue: ${row['revenue']:,}")
-                if row['assets']:
-                    financials.append(f"Assets: ${row['assets']:,}")
-                
-                description = f"{row['ntee_description'] or 'Nonprofit organization'}"
+                if revenue:
+                    financials.append(f"Revenue: ${revenue:,}")
+                if expenses:
+                    financials.append(f"Expenses: ${expenses:,}")
+                if assets:
+                    financials.append(f"Assets: ${assets:,}")
+
+                # The 990 mission statement is a far better description than the NTEE
+                # label; truncate for the card and keep the full text in metadata.
+                if mission:
+                    description = mission if len(mission) <= 280 else mission[:277] + "..."
+                else:
+                    description = row['ntee_description'] or 'Nonprofit organization'
                 if financials:
                     description += " • " + " • ".join(financials)
-                
+
                 results.append(SearchResult(
                     result_type='organization',
                     title=row['name'],
@@ -510,7 +530,14 @@ async def search_organizations_pg(
                         'revenue': row['revenue'],
                         'assets': row['assets'],
                         'income': row['income'],
-                        'tax_period': row['tax_period']
+                        'tax_period': row['tax_period'],
+                        # GivingTuesday 990 datamart enrichment (real e-filed figures)
+                        'mission': mission,
+                        'gt990_tax_year': row['gt990_tax_year'],
+                        'gt990_total_revenue': row['gt990_total_revenue'],
+                        'gt990_total_expenses': row['gt990_total_expenses'],
+                        'gt990_total_assets': row['gt990_total_assets'],
+                        'has_gt990_data': row['has_gt990_data'],
                     }
                 ))
             

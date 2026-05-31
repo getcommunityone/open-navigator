@@ -328,7 +328,40 @@ sources:
             description: "Census Core Based Statistical Area"
           - name: f990_total_revenue_recent
           - name: f990_total_assets_recent
-      
+
+      - name: bronze_organizations_990_financials
+        description: >
+          GivingTuesday 990 datamart financials (990CN120Fields). One row per
+          (ein, tax_year) filing. Landed by ingestion.givingtuesday.load from the
+          curated datamart CSVs in data/cache/giving_tuesday/. Latest filing per
+          EIN is selected downstream in int_nonprofits_combined.
+        columns:
+          - name: ein
+            description: "9-digit EIN (joins to IRS/NCCS)"
+          - name: tax_year
+            description: "Filing tax year"
+          - name: total_revenue
+            description: "Form 990 Part 1 Line 12 - Total Revenue Current Year"
+          - name: total_expenses
+            description: "Form 990 Part 1 Line 18 - Total Expenses Current Year"
+          - name: total_assets
+            description: "Form 990 Part 1 Line 20 - Total Assets End of Year"
+          - name: source_url
+            description: "URL of the underlying 990 XML in the GivingTuesday data lake"
+
+      - name: bronze_organizations_990_missions
+        description: >
+          GivingTuesday 990 datamart mission statements (990Part1Missions). One
+          row per (ein, tax_year). Landed by ingestion.givingtuesday.load. Latest
+          filing per EIN is selected downstream in int_nonprofits_combined.
+        columns:
+          - name: ein
+            description: "9-digit EIN (joins to IRS/NCCS)"
+          - name: tax_year
+            description: "Filing tax year"
+          - name: mission
+            description: "Form 990 Part 1 Line 1 - Mission & Most Significant Activities"
+
       - name: bronze_jurisdictions
         description: "Master list of jurisdictions (cities, counties, states)"
         columns:
