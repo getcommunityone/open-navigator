@@ -67,8 +67,36 @@ def extract_video_id_from_url(url: str) -> Optional[str]:
         return url.split('youtu.be/')[1].split('?')[0]
     elif '/embed/' in url:
         return url.split('/embed/')[1].split('?')[0]
-    
+
     return None
+
+
+# Network/egress failures (dead Webshare proxy, TLS handshake timeout, DNS, reset
+# connections) surface as SSLError / ProxyError / Timeout chains — NOT as a
+# missing-caption result. They mean the egress is down, so retrying the same
+# video is futile and slow; the caller skips fast and trips a circuit breaker.
+_CONNECTION_ERROR_MARKERS = (
+    "sslerror",
+    "ssl:",
+    "max retries exceeded",
+    "proxyerror",
+    "connection aborted",
+    "connection reset",
+    "connectionerror",
+    "failed to establish a new connection",
+    "read timed out",
+    "readtimeout",
+    "handshake operation timed out",
+    "timed out",
+    "name or service not known",
+    "temporary failure in name resolution",
+)
+
+
+def _is_connection_error(error_msg: str) -> bool:
+    """True when an error string is an egress/network failure, not a real result."""
+    low = (error_msg or "").lower()
+    return any(marker in low for marker in _CONNECTION_ERROR_MARKERS)
 
 
 def fetch_transcript_simple(
@@ -190,6 +218,8 @@ def backfill_transcripts(
         max_block_retries = 5  # Per-video block retries before skipping the video
         max_block_giveups = 5  # Consecutive fully-blocked videos ⇒ abort (pool is down)
         block_giveup_streak = 0
+        consecutive_egress_errors = 0  # SSL/proxy/timeout in a row ⇒ egress is down
+        max_egress_errors = 3  # Abort fast rather than grind for hours inserting nothing
 
         import time
         
@@ -224,17 +254,22 @@ def backfill_transcripts(
             logger.info(f"[{i}/{len(events)}] Fetching transcript for: {jurisdiction}, {state} - {title[:50]}...")
             logger.debug(f"  Video ID: {video_id}, Event ID: {event_id}")
             
-            # Fetch via the shared Webshare-aware client. On a block (rate limit
-            # / IP block) we back off and retry the SAME video rather than skip
-            # it — a transient block on a captioned video shouldn't cost us the
-            # transcript. Non-block errors mean the video genuinely has none.
+            # Fetch via the shared Webshare-aware client. Three outcomes:
+            #  • block (rate limit / IP block): back off and retry the SAME video
+            #    — a transient block on a captioned video shouldn't cost it.
+            #  • connection/egress error (SSL, proxy, timeout): the egress is
+            #    down, so retrying is futile and slow — skip immediately and let
+            #    the consecutive-error guard abort the run fast.
+            #  • anything else: the video genuinely has no transcript.
             transcript_data = None
             skip_video = False
             block_giveup = False
+            egress_down = False
             for attempt in range(1, max_block_retries + 1):
                 try:
                     transcript_data = fetch_transcript_simple(video_id, cookies_file=cookies_path)
                     consecutive_rate_limits = 0  # Reset on any clean fetch (incl. "no captions")
+                    consecutive_egress_errors = 0  # a clean response ⇒ egress is healthy
                     break
                 except Exception as e:
                     error_msg = format_transcript_error(e)
@@ -243,6 +278,20 @@ def backfill_transcripts(
                         or '429' in error_msg
                         or 'Too Many Requests' in error_msg
                     )
+                    if not is_block and _is_connection_error(error_msg):
+                        # Egress failure (dead proxy / TLS timeout / DNS), not a
+                        # missing-caption result. Don't retry this video — bail.
+                        consecutive_egress_errors += 1
+                        logger.error(
+                            f"  🔌 Egress error "
+                            f"({consecutive_egress_errors}/{max_egress_errors}): {error_msg[:140]}"
+                        )
+                        failed += 1
+                        skip_video = True
+                        egress_down = consecutive_egress_errors >= max_egress_errors
+                        break
+                    # Reached YouTube (block or a real no-caption error) ⇒ egress works.
+                    consecutive_egress_errors = 0
                     if not is_block:
                         logger.warning(f"  ⊘ No transcript available: {error_msg[:100]}")
                         failed += 1
@@ -263,6 +312,17 @@ def backfill_transcripts(
                     backoff_delay = min(base_delay * (2 ** consecutive_rate_limits), max_backoff)
                     logger.warning(f"  ⏱️  Backing off {backoff_delay:.1f}s, then retrying same video...")
                     time.sleep(backoff_delay)
+
+            # Egress is down (consecutive SSL/proxy/timeout failures): retrying any
+            # video is pointless. Abort loudly with where to look.
+            if egress_down:
+                logger.error(
+                    f"  ❌ Egress appears down — {consecutive_egress_errors} consecutive "
+                    "connection/SSL failures. Check Webshare quota "
+                    "(https://dashboard.webshare.io/proxy/stats), the direct-IP block, or "
+                    "YOUTUBE_USE_WEBSHARE. Aborting run."
+                )
+                break
 
             # Circuit breaker: many videos blocked back-to-back ⇒ the proxy pool
             # is down or we're globally throttled. Abort rather than burn the list.
