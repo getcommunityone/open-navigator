@@ -12,6 +12,10 @@ dependencies = [
     "pandas>=2.1",
     "pyarrow>=14",
     "zipfile-deflate64>=0.2",
+    # MDM entity resolution (ingestion.mdm) — Splink on the Postgres warehouse
+    "splink>=4.0",
+    "sqlalchemy>=2.0",
+    "psycopg2-binary>=2.9",
 ]
 
 [tool.setuptools.packages.find]
