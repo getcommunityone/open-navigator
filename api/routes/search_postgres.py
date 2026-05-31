@@ -467,6 +467,7 @@ async def search_organizations_pg(
         sql = f"""
             WITH np AS (
                 SELECT
+                    m.master_org_id,
                     s.ein,
                     m.org_name AS name,
                     INITCAP(m.city_norm) AS city,
@@ -489,7 +490,7 @@ async def search_organizations_pg(
                 JOIN mdm_organization_nonprofit s USING (master_org_id)
             )
             SELECT
-                ein, name, city, state_code, state, county,
+                master_org_id, ein, name, city, state_code, state, county,
                 ntee_code, ntee_description, revenue, assets, income, tax_period,
                 gt990_tax_year, gt990_total_revenue, gt990_total_expenses,
                 gt990_total_assets, gt990_mission, has_gt990_data
@@ -542,6 +543,7 @@ async def search_organizations_pg(
                     url=f"/search?types=organizations&state={row['state_code']}&ein={row['ein']}",
                     score=1.0,
                     metadata={
+                        'master_org_id': row['master_org_id'],
                         'ein': row['ein'],
                         'state': row['state'],
                         'state_code': row['state_code'],
