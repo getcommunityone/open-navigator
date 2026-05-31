@@ -32,6 +32,21 @@ from psycopg2.extras import RealDictCursor
 from loguru import logger
 from dotenv import load_dotenv
 
+from youtube_transcript_api._errors import (
+    IpBlocked,
+    NoTranscriptFound,
+    RequestBlocked,
+    TranscriptsDisabled,
+    VideoUnavailable,
+)
+
+from scrapers.youtube.transcript_api_client import (
+    fetch_transcript_from_api,
+    format_transcript_error,
+    log_caption_fetch_setup,
+    resolve_cookies_path,
+)
+
 # Load environment variables
 load_dotenv()
 
@@ -56,173 +71,30 @@ def extract_video_id_from_url(url: str) -> Optional[str]:
     return None
 
 
-def fetch_transcript_simple(video_id: str) -> Optional[Dict[str, Any]]:
-    """Simplified transcript fetching without loader initialization."""
-    from youtube_transcript_api import YouTubeTranscriptApi
-    from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound, VideoUnavailable
-    import yt_dlp
-    import requests
-    import re
-    
+def fetch_transcript_simple(
+    video_id: str,
+    *,
+    cookies_file: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """Fetch captions via the shared transcript client.
+
+    Routes through ``transcript_api_client``, which uses the Webshare rotating
+    residential proxy (``PROXY_USER_NAME`` / ``PROXY_PASSWORD``) plus
+    ``youtube_cookies.txt`` when configured — a fresh egress IP per request, so
+    the per-IP 429 ceiling is spread across the pool instead of hammering one IP.
+
+    Returns the transcript payload, or ``None`` when the video simply has no
+    caption track / is unavailable. Block/rate-limit errors (``RequestBlocked``,
+    ``IpBlocked``) propagate so the caller can back off.
+    """
     if not video_id:
         return None
-    
-    # Try youtube_transcript_api first
+
     try:
-        api = YouTubeTranscriptApi()
-        
-        try:
-            fetched_transcript = api.fetch(video_id, languages=['en'])
-            language = 'en'
-            is_auto = fetched_transcript.is_generated
-        except NoTranscriptFound:
-            try:
-                transcript_list = api.list(video_id)
-                available = list(transcript_list)
-                if not available:
-                    raise NoTranscriptFound(video_id)
-                first_transcript = available[0]
-                fetched_transcript = first_transcript.fetch()
-                language = first_transcript.language_code
-                is_auto = first_transcript.is_generated
-            except:
-                raise NoTranscriptFound(video_id)
-        
-        raw_text = ' '.join([snippet.text for snippet in fetched_transcript.snippets])
-        segments = [
-            {'text': snippet.text, 'start': snippet.start, 'duration': snippet.duration}
-            for snippet in fetched_transcript.snippets
-        ]
-        
-        return {
-            'video_id': video_id,
-            'raw_text': raw_text,
-            'segments': segments,
-            'language': language,
-            'is_auto_generated': is_auto,
-            'transcript_source': 'youtube_api'
-        }
-        
-    except (TranscriptsDisabled, VideoUnavailable):
+        return fetch_transcript_from_api(video_id, cookies_file=cookies_file)
+    except (TranscriptsDisabled, NoTranscriptFound, VideoUnavailable):
+        # Genuinely no transcript for this video — not a rate-limit signal.
         return None
-    except Exception as e:
-        # Check for rate limiting - re-raise to handle in caller
-        error_msg = str(e)
-        if '429' in error_msg or 'Too Many Requests' in error_msg:
-            raise  # Re-raise rate limit errors
-        # Try yt-dlp fallback for other errors
-        try:
-            ydl_opts = {
-                'skip_download': True,
-                'writesubtitles': True,
-                'writeautomaticsub': True,
-                'subtitleslangs': ['en'],
-                'quiet': True,
-                'no_warnings': True
-            }
-            
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(f'https://www.youtube.com/watch?v={video_id}', download=False)
-                
-                subtitles = info.get('subtitles', {})
-                auto_captions = info.get('automatic_captions', {})
-                
-                transcript_data = None
-                is_auto = False
-                language = 'en'
-                
-                if 'en' in subtitles:
-                    transcript_data = subtitles['en']
-                    is_auto = False
-                elif 'en' in auto_captions:
-                    transcript_data = auto_captions['en']
-                    is_auto = True
-                
-                if not transcript_data:
-                    return None
-                
-                subtitle_url = None
-                for fmt in transcript_data:
-                    if fmt.get('ext') in ['vtt', 'srv3', 'json3']:
-                        subtitle_url = fmt.get('url')
-                        break
-                
-                if not subtitle_url and transcript_data:
-                    subtitle_url = transcript_data[0].get('url')
-                
-                if not subtitle_url:
-                    return None
-                
-                response = requests.get(subtitle_url, timeout=10)
-                response.raise_for_status()
-                
-                raw_content = response.text
-                segments = []
-                lines = raw_content.split('\n')
-                i = 0
-                
-                while i < len(lines):
-                    line = lines[i].strip()
-                    
-                    if '-->' in line:
-                        timestamp_match = re.match(
-                            r'(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})',
-                            line
-                        )
-                        
-                        if timestamp_match:
-                            start_str = timestamp_match.group(1)
-                            end_str = timestamp_match.group(2)
-                            
-                            def timestamp_to_seconds(ts):
-                                h, m, s = ts.split(':')
-                                return int(h) * 3600 + int(m) * 60 + float(s)
-                            
-                            start = timestamp_to_seconds(start_str)
-                            end = timestamp_to_seconds(end_str)
-                            duration = end - start
-                            
-                            i += 1
-                            text_lines = []
-                            while i < len(lines):
-                                text_line = lines[i].strip()
-                                if not text_line or '-->' in text_line or text_line.startswith('WEBVTT'):
-                                    break
-                                if not text_line.isdigit():
-                                    clean_text = re.sub(r'<[^>]+>', '', text_line)
-                                    if clean_text:
-                                        text_lines.append(clean_text)
-                                i += 1
-                            
-                            if text_lines:
-                                segments.append({
-                                    'text': ' '.join(text_lines),
-                                    'start': start,
-                                    'duration': duration
-                                })
-                    
-                    i += 1
-                
-                raw_text = ' '.join([seg['text'] for seg in segments])
-                
-                if not raw_text:
-                    return None
-                
-                return {
-                    'video_id': video_id,
-                    'raw_text': raw_text,
-                    'segments': segments,
-                    'language': language,
-                    'is_auto_generated': is_auto,
-                    'transcript_source': 'yt-dlp'
-                }
-                
-        except Exception as e:
-            # Check for rate limiting - re-raise to handle in caller
-            error_msg = str(e)
-            if '429' in error_msg or 'Too Many Requests' in error_msg:
-                raise  # Re-raise rate limit errors
-            return None  # Other errors - no transcript available
 
 
 def get_events_missing_transcripts(conn, states: Optional[List[str]] = None, limit: Optional[int] = None) -> List[Dict]:
@@ -294,22 +166,24 @@ def backfill_transcripts(
             return
         
         logger.info(f"Found {len(events)} events missing transcripts")
-        
-        # Import transcript fetching functions directly (avoid loader initialization which creates tables/indexes)
-        from youtube_transcript_api import YouTubeTranscriptApi
-        from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound, VideoUnavailable
-        import yt_dlp
-        import requests
-        import re
-        
+
+        # Resolve cookies once and log where caption fetches egress (Webshare
+        # rotating residential proxy vs direct). Rotating IPs are what let this
+        # run avoid the per-IP 429 wall the old direct fetcher hit.
+        cookies_path = resolve_cookies_path()
+        log_caption_fetch_setup(logger, cookies_path=cookies_path, ytdlp_fallback=False)
+
         # Process each event
         inserted = 0
         failed = 0
         rate_limited = 0
         consecutive_rate_limits = 0
         max_backoff = 60  # Maximum 60 seconds backoff
-        base_delay = 2.0  # 2 seconds between fetches
-        
+        base_delay = 1.0  # Between fetches; rotating proxy IPs tolerate a tighter cadence
+        max_block_retries = 5  # Per-video block retries before skipping the video
+        max_block_giveups = 5  # Consecutive fully-blocked videos ⇒ abort (pool is down)
+        block_giveup_streak = 0
+
         import time
         
         for i, event in enumerate(events, 1):
@@ -338,27 +212,59 @@ def backfill_transcripts(
             logger.info(f"[{i}/{len(events)}] Fetching transcript for: {jurisdiction}, {state} - {title[:50]}...")
             logger.debug(f"  Video ID: {video_id}, Event ID: {event_id}")
             
-            # Fetch transcript (inline - avoid loader initialization)
-            try:
-                transcript_data = fetch_transcript_simple(video_id)
-                if transcript_data:
-                    consecutive_rate_limits = 0  # Reset on success
-            except Exception as e:
-                error_msg = str(e)
-                if '429' in error_msg or 'Too Many Requests' in error_msg:
+            # Fetch via the shared Webshare-aware client. On a block (rate limit
+            # / IP block) we back off and retry the SAME video rather than skip
+            # it — a transient block on a captioned video shouldn't cost us the
+            # transcript. Non-block errors mean the video genuinely has none.
+            transcript_data = None
+            skip_video = False
+            block_giveup = False
+            for attempt in range(1, max_block_retries + 1):
+                try:
+                    transcript_data = fetch_transcript_simple(video_id, cookies_file=cookies_path)
+                    consecutive_rate_limits = 0  # Reset on any clean fetch (incl. "no captions")
+                    break
+                except Exception as e:
+                    error_msg = format_transcript_error(e)
+                    is_block = (
+                        isinstance(e, (RequestBlocked, IpBlocked))
+                        or '429' in error_msg
+                        or 'Too Many Requests' in error_msg
+                    )
+                    if not is_block:
+                        logger.warning(f"  ⊘ No transcript available: {error_msg[:100]}")
+                        failed += 1
+                        skip_video = True
+                        break
                     rate_limited += 1
                     consecutive_rate_limits += 1
-                    logger.warning(f"  ⚠️  Rate limited! ({rate_limited} total, {consecutive_rate_limits} consecutive)")
-                    if consecutive_rate_limits >= 5:
-                        logger.error(f"  ❌ Too many consecutive rate limits ({consecutive_rate_limits}), stopping")
+                    logger.warning(
+                        f"  ⚠️  Rate limited! ({rate_limited} total, {consecutive_rate_limits} "
+                        f"consecutive, attempt {attempt}/{max_block_retries})"
+                    )
+                    if attempt >= max_block_retries:
+                        logger.error(f"  ❌ Still blocked after {attempt} attempts — skipping video")
+                        failed += 1
+                        skip_video = True
+                        block_giveup = True
                         break
-                    failed += 1
-                    continue
-                else:
-                    logger.warning(f"  ⊘ No transcript available: {error_msg[:100]}")
-                    failed += 1
-                    continue
-            
+                    backoff_delay = min(base_delay * (2 ** consecutive_rate_limits), max_backoff)
+                    logger.warning(f"  ⏱️  Backing off {backoff_delay:.1f}s, then retrying same video...")
+                    time.sleep(backoff_delay)
+
+            # Circuit breaker: many videos blocked back-to-back ⇒ the proxy pool
+            # is down or we're globally throttled. Abort rather than burn the list.
+            if block_giveup:
+                block_giveup_streak += 1
+                if block_giveup_streak >= max_block_giveups:
+                    logger.error(f"  ❌ {block_giveup_streak} videos blocked in a row — aborting run")
+                    break
+            else:
+                block_giveup_streak = 0
+
+            if skip_video:
+                continue
+
             if transcript_data:
                 # Insert transcript
                 cursor = conn.cursor()
