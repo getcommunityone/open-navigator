@@ -27,7 +27,7 @@ bronze_events_text_ai → stg_bronze_events_text_ai → events_text_search (this
 
 WITH events_with_datasource AS (
     SELECT
-        id AS event_id,
+        event_id,
         datasource_id,
         video_url,
         -- Extract video_id from YouTube URL if needed
@@ -70,8 +70,8 @@ transcripts_with_quality AS (
                 END DESC,
                 created_at DESC
         ) AS quality_rank
-    FROM {{ ref('stg_bronze_events_text_ai') }}
-    WHERE 
+    FROM {{ ref('stg_bronze_events_text_ai') }} t
+    WHERE
         NOT missing_transcript
         AND NOT very_short_transcript  -- Filter out <100 char transcripts
 ),
