@@ -469,7 +469,7 @@ async def search_organizations_pg(
                 SELECT
                     s.ein,
                     m.org_name AS name,
-                    m.city_norm AS city,
+                    INITCAP(m.city_norm) AS city,
                     m.state_code,
                     {_STATE_NAME_CASE} AS state,
                     NULL::text AS county,
