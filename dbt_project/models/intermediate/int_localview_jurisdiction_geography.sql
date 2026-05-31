@@ -28,7 +28,7 @@ normalized AS (
     SELECT
         state_code,
         place_name_raw,
-        LOWER(
+        TRIM(LOWER(
             REGEXP_REPLACE(
                 REGEXP_REPLACE(
                     REGEXP_REPLACE(
@@ -49,7 +49,7 @@ normalized AS (
                 ' ',
                 1, 0, 'i'
             )
-        ) AS place_name_clean
+        )) AS place_name_clean
     FROM localview_places
 ),
 
@@ -57,12 +57,12 @@ muni_norm AS (
     SELECT
         m.geoid AS place_geoid,
         m.usps  AS state_code,
-        LOWER(
+        TRIM(LOWER(
             REGEXP_REPLACE(
                 REGEXP_REPLACE(TRIM(m.name), '\s+(city|town|township|village|borough|cdp|county)$', '', 1, 0, 'i'),
                 '\s+(?:town|city)\s*', ' ', 1, 0, 'i'
             )
-        ) AS muni_name_clean,
+        )) AS muni_name_clean,
         m.aland_sqmi
     FROM {{ source('bronze', 'bronze_jurisdictions_municipalities') }} m
 ),
@@ -79,9 +79,9 @@ county_norm AS (
     SELECT
         c.geoid AS county_geoid,
         c.usps  AS state_code,
-        LOWER(
+        TRIM(LOWER(
             REGEXP_REPLACE(TRIM(REPLACE(c.name, CHR(160), ' ')), '\s+county\s*$', '', 1, 0, 'i')
-        ) AS county_name_clean
+        )) AS county_name_clean
     FROM {{ source('bronze', 'bronze_jurisdictions_counties') }} c
 ),
 
@@ -89,9 +89,15 @@ township_norm AS (
     SELECT
         t.geoid AS township_geoid,
         t.usps  AS state_code,
-        LOWER(
-            REGEXP_REPLACE(TRIM(t.name), '\s+township$', '', 1, 0, 'i')
-        ) AS township_name_clean
+        -- New England MCDs are stored as "North Reading town" / "Amherst Town city",
+        -- so mirror the place-side normalization (strip town/city/township suffixes
+        -- and inner tokens) instead of only the "township" suffix.
+        TRIM(LOWER(
+            REGEXP_REPLACE(
+                REGEXP_REPLACE(TRIM(t.name), '\s+(city|town|township|village|borough|cdp|county)$', '', 1, 0, 'i'),
+                '\s+(?:town|city)\s*', ' ', 1, 0, 'i'
+            )
+        )) AS township_name_clean
     FROM {{ source('bronze', 'bronze_jurisdictions_townships') }} t
 ),
 
