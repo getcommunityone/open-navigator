@@ -1525,6 +1525,53 @@ sources:
           - name: match_weight
             description: "Splink match weight (log2 Bayes factor) for the pair."
 
+      - name: bronze_organizations_990_officers
+        description: |
+          IRS Form 990 Part VII people: officers, directors, trustees, and key
+          employees each nonprofit reports, one row per (ein, tax_year, person).
+          ~40.1M rows, 457k EINs, tax years 2007–2024. Mapped to organizations on
+          EIN and served via mdm_bridge_person_organization (geography inherited
+          from the org, since this source carries none).
+        columns:
+          - name: id
+            description: "Source surrogate key."
+          - name: ein
+            description: "Filer EIN (may carry dashes/spaces; normalized to bare digits downstream)."
+          - name: tax_year
+            description: "990 tax year."
+          - name: org_name
+            description: "Filer-reported organization name (canonical name comes from the org master)."
+          - name: person_name
+            description: "Reported person name (free-form; normalized via normalize_person_name)."
+          - name: title
+            description: "Reported role/title text."
+          - name: avg_hours_org
+            description: "Average weekly hours for the organization."
+          - name: avg_hours_related
+            description: "Average weekly hours for related organizations."
+          - name: is_officer
+            description: "Reported as an officer."
+          - name: is_director_trustee
+            description: "Reported as an individual director or trustee."
+          - name: is_institutional_trustee
+            description: "Reported as an institutional trustee (often an org, not a person)."
+          - name: is_key_employee
+            description: "Reported as a key employee."
+          - name: is_highest_comp
+            description: "Among the five highest-compensated employees."
+          - name: is_former
+            description: "Former officer/director/etc."
+          - name: reportable_comp_org
+            description: "Reportable compensation from the organization (W-2/1099)."
+          - name: reportable_comp_related
+            description: "Reportable compensation from related organizations."
+          - name: other_comp
+            description: "Estimated other compensation."
+          - name: source_url
+            description: "Source filing URL."
+          - name: loaded_at
+            description: "Ingestion timestamp."
+
   - name: civic_core
     description: |
       Canonical OCD/Popolo civic entity tables in the PUBLIC schema (the `c1_*`
