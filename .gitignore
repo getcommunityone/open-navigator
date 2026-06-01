@@ -92,6 +92,8 @@ data/
 !web_app/src/data/**
 .migration_backup/
 *.csv
+# dbt seeds are source, not data dumps — must be tracked
+!dbt_project/seeds/*.csv
 *.parquet
 *.delta
 

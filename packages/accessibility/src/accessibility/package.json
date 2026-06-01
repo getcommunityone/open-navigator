@@ -15,7 +15,7 @@
     "@axe-core/puppeteer": "^4.10.2",
     "chrome-launcher": "^1.2.1",
     "lighthouse": "^12.8.2",
-    "pa11y-ci": "^3.1.0",
+    "pa11y-ci": "^4.1.1",
     "puppeteer": "^24.2.0"
   }
 }
