@@ -92,6 +92,11 @@ BROAD_RECALL_KEYWORDS: tuple[str, ...] = (
     "meeting",
 )
 
+# When a place can't quite reach its advertised num_meetings, stop the
+# per-topic-id sweep after this many consecutive topic queries add nothing —
+# avoids re-grinding ~80 calls every incremental run on off-by-a-few places.
+_MAX_TOPIC_NO_PROGRESS = 5
+
 
 def _extract_topic_ids(payload: dict[str, Any]) -> set[int]:
     """Collect non-negative numeric topic ids from a search response.
@@ -426,14 +431,24 @@ class CivicSearchHarvester:
             await _sweep(await self._place_keyword_list(place))
 
         # Axis 3: per-topic-id sweep — last resort for meetings indexed only
-        # under a topic axis. Skip entirely once the target is met.
+        # under a topic axis. Skip once the target is met, and bail early once
+        # topic searches stop yielding anything new: a place whose advertised
+        # num_meetings is slightly unreachable (the count is approximate, or a
+        # meeting just isn't surfaced by any axis) must NOT grind through every
+        # topic id on every incremental run. Stop after a short run of
+        # no-progress topic queries.
         if not _done():
+            no_progress = 0
             for tid in sorted(topic_ids):
+                before = len(place_meetings)
                 payload = await self._search(
                     place["query_id"], topics=[tid], lonlat=lonlat
                 )
                 self._merge_search_payload(place_meetings, payload, place, topic_ids=None)
                 if _done():
+                    break
+                no_progress = 0 if len(place_meetings) > before else no_progress + 1
+                if no_progress >= _MAX_TOPIC_NO_PROGRESS:
                     break
 
         return place_meetings
