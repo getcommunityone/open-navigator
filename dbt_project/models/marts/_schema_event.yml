@@ -140,3 +140,50 @@ models:
         description: "Dedup key used to resolve the master event."
       - name: video_url
         data_type: text
+
+  - name: mdm_bridge_event_analysis
+    description: >
+      MDM crosswalk linking the AI-extraction family to the golden record:
+      event_meeting (analysis) -> event (master). Joined on YouTube video_id
+      (unique in event). One row per analysis that surfaced in the golden record;
+      INNER join, so event_id is always present. Rebuilt in-run after `event` so
+      its FK tracks event's volatile ROW_NUMBER() surrogate. No c1_* dependency.
+    config:
+      materialized: table
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [event_meeting_id]
+        to: ref('event_meeting')
+        to_columns: [event_meeting_id]
+      - type: foreign_key
+        columns: [event_id]
+        to: ref('event')
+        to_columns: [event_id]
+    columns:
+      - name: event_meeting_id
+        data_type: integer
+        description: "Analysis id — PK here; FK -> event_meeting.event_meeting_id."
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+          - relationships:
+              to: ref('event_meeting')
+              field: event_meeting_id
+      - name: event_id
+        data_type: bigint
+        description: "Master golden-record event this analysis resolves to."
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - relationships:
+              to: ref('event')
+              field: event_id
+      - name: video_id
+        data_type: text
+        description: "YouTube video id the two families share (the join key)."
