@@ -385,3 +385,80 @@ models:
       - name: candidate_person_uid
         data_type: text
         description: "The most-likely counterpart occurrence for an ambiguous_match (NULL for junk)."
+
+  - name: mdm_bridge_person_organization
+    description: >
+      MDM organization-officer bridge — IRS Form 990 Part VII people (officers,
+      directors, trustees, key employees) mapped to their resolved organization,
+      with full year-by-year role + compensation history. Grain one row per
+      (officer person, organization, tax_year). PK org_person_year_id, FK
+      master_org_id -> mdm_organization. Person side keyed on the deterministic
+      officer_person_uid (name + EIN); not yet resolved into mdm_person, so no
+      person FK. Geography is inherited from the organization.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [master_org_id]
+        to: ref('mdm_organization')
+        to_columns: [master_org_id]
+    columns:
+      - name: org_person_year_id
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+      - name: officer_person_uid
+        data_type: text
+        description: "md5(name_norm | EIN) — officer identity scoped to the org, stable across years."
+      - name: person_name
+        data_type: text
+      - name: name_norm
+        data_type: text
+      - name: master_org_id
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: org_name
+        data_type: text
+      - name: tax_year
+        data_type: integer
+      - name: title
+        data_type: text
+      - name: is_officer
+        data_type: boolean
+      - name: is_director_trustee
+        data_type: boolean
+      - name: is_institutional_trustee
+        data_type: boolean
+      - name: is_key_employee
+        data_type: boolean
+      - name: is_highest_comp
+        data_type: boolean
+      - name: is_former
+        data_type: boolean
+      - name: avg_hours_org
+        data_type: numeric
+      - name: avg_hours_related
+        data_type: numeric
+      - name: reportable_comp_org
+        data_type: bigint
+      - name: reportable_comp_related
+        data_type: bigint
+      - name: other_comp
+        data_type: bigint
+      - name: city_norm
+        data_type: text
+      - name: state_code
+        data_type: text
+      - name: zip5
+        data_type: text
+      - name: lat
+        data_type: double precision
+      - name: lon
+        data_type: double precision
+      - name: source_url
+        data_type: text
