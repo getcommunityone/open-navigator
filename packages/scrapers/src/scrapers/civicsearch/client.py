@@ -17,6 +17,11 @@ Endpoints (reverse-engineered from the site bundle — the app only uses GET):
         meetings require a ``keywords`` (or ``topics``) axis.
   * ``get_place``        — resolve a place to lon/lat. One of ``display_name`` /
         ``zip_code`` / ``query_id``. Returns ``{display_name, lat, lon, query_id}``.
+  * ``get_place_list``   — the COMPLETE place roster for this portal in one call
+        (no params). Returns a JSON list of items carrying ``query_id``, ``name``,
+        ``state_name``, ``latitude``, ``longitude``, ``num_meetings``,
+        ``last_meeting_link`` and ``last_meeting_title``. This is the canonical
+        place source for the harvester (replaces the old BFS discovery).
   * ``get_topics_by_city`` — ``query_id`` -> ``{issue_keywords, keywords, ...}``;
         per-place keyword lists, used here to drive the per-place meeting sweep.
 """
@@ -118,6 +123,14 @@ class CivicSearchClient(BaseAsyncClient):
             raise ValueError("get_place requires display_name, zip_code, or query_id")
         resp = await self.get("get_place", params=params)
         return resp.json()
+
+    async def get_place_list(self) -> list[dict[str, Any]]:
+        """All places for this portal in one call (no params). Items carry
+        query_id, name, state_name, latitude, longitude, num_meetings,
+        last_meeting_link, last_meeting_title."""
+        resp = await self.get("get_place_list")
+        data = resp.json()
+        return data if isinstance(data, list) else (data.get("places") or [])
 
     async def get_topics_by_city(self, query_id: str) -> dict[str, Any]:
         """Per-place keyword lists: ``{issue_keywords: [...], keywords: [...], ...}``."""

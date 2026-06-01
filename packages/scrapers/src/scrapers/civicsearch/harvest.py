@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CivicSearch location sweep: discover places, then harvest their meetings.
+"""CivicSearch location sweep: list every place, then harvest its meetings.
 
 How the meeting sweep maximizes recall
 --------------------------------------
@@ -10,13 +10,12 @@ the keyword axis but to BROADEN it: union several generic civic phrases plus the
 place's own topic ids so routine meetings (not just topical ones) are surfaced.
 This crawler runs in two phases:
 
-  1. PLACE DISCOVERY (BFS). Seed a set of lon/lat points (US state centroids by
-     default), call ``search(lonlat=..., search_radius=30)`` to list the up-to-8
-     nearest places, resolve each to a centroid via ``get_place``, and expand
-     outward from newly found places until no new ones appear (bounded by
-     ``--max-places``).
+  1. PLACE LISTING. A single ``get_place_list`` call returns the COMPLETE place
+     roster for the portal (626 cities / 1213 schools), each item carrying its
+     ``query_id``, ``name``, lat/lon and a ``num_meetings`` count. No discovery
+     crawl is needed — the API hands us every place at once.
 
-  2. PER-PLACE MEETING HARVEST. For each discovered place, union three
+  2. PER-PLACE MEETING HARVEST. For each listed place, union three
      location-pinned (``search_radius=0``) axes by ``vid_id``: a fixed set of
      BROAD_RECALL_KEYWORDS ("city council", "regular meeting", "public
      hearing", …) that surface routine meetings, the place's own
@@ -30,30 +29,27 @@ dataset: ``schools`` (school-district boards) and ``cities`` (municipal govts).
 two never mingle.
 
 Output (FETCH-only — landing is ingestion.civicsearch.events):
-  * ``data/cache/civicsearch/<portal>/places.jsonl``   — one discovered place per line.
+  * ``data/cache/civicsearch/<portal>/places.jsonl``   — one listed place per line.
   * ``data/cache/civicsearch/<portal>/meetings.jsonl`` — one meeting (vid_id) per line.
 
-Both files are written **incrementally**: each place is appended as discovered,
-and its meetings are flushed as soon as that place's keyword sweep finishes — so
-the JSONL grows live instead of appearing only at the end. ``--incremental``
-resumes from the prior run's files (re-loading known places and skipping
-already-seen vid_ids) so a re-run appends only NEW meetings; without it the files
-are truncated and re-harvested from scratch.
+Both files are written **incrementally**: each place is appended as listed, and
+its meetings are flushed as soon as that place's keyword sweep finishes — so the
+JSONL grows live instead of appearing only at the end. ``--incremental`` resumes
+from the prior run's files (re-loading known places and skipping already-seen
+vid_ids), and additionally skips any place whose on-disk captured-meeting count
+already meets its ``num_meetings`` (fully done), so a re-run appends only NEW
+meetings; without it the files are truncated and re-harvested from scratch.
 
 Usage (repo root):
-    python -m scrapers.civicsearch.harvest --portal schools --max-places 50
-    python -m scrapers.civicsearch.harvest --portal cities --max-places 50
-    python -m scrapers.civicsearch.harvest --portal both --max-places 50
+    python -m scrapers.civicsearch.harvest --portal schools
+    python -m scrapers.civicsearch.harvest --portal cities --max-places 3
     python -m scrapers.civicsearch.harvest --portal both --incremental   # new only
-    python -m scrapers.civicsearch.harvest --portal cities --seed-zip 98101 02139
-    python -m scrapers.civicsearch.harvest --portal schools --discover-only
 """
 from __future__ import annotations
 
 import argparse
 import asyncio
 import json
-from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -68,7 +64,6 @@ REPO_ROOT = Path(__file__).resolve().parents[5]
 DEFAULT_CACHE = REPO_ROOT / "data" / "cache" / "civicsearch"
 
 SCHEMA_VERSION = 2  # v2 adds the `portal` field (schools vs cities)
-DISCOVERY_RADIUS_MI = 30
 
 # Cap on per-place self-driving keywords pulled from get_topics_by_city. The
 # broad-recall axis already guarantees routine-meeting coverage, so this is just
@@ -132,28 +127,6 @@ def _extract_topic_ids(payload: dict[str, Any]) -> set[int]:
                 ids.add(tid)
     return ids
 
-# US state + DC centroid seeds (lon, lat) for BFS place discovery. Coarse on
-# purpose — discovery snowballs outward from whatever the nearest places are.
-STATE_CENTROIDS: dict[str, tuple[float, float]] = {
-    "AL": (-86.83, 32.80), "AK": (-152.00, 64.00), "AZ": (-111.66, 34.17),
-    "AR": (-92.44, 34.97), "CA": (-119.68, 37.18), "CO": (-105.55, 38.998),
-    "CT": (-72.76, 41.52), "DE": (-75.51, 39.00), "DC": (-77.03, 38.90),
-    "FL": (-81.69, 28.62), "GA": (-83.64, 32.64), "HI": (-156.37, 20.29),
-    "ID": (-114.48, 44.24), "IL": (-89.20, 40.06), "IN": (-86.26, 39.89),
-    "IA": (-93.49, 42.01), "KS": (-98.38, 38.53), "KY": (-84.86, 37.65),
-    "LA": (-91.96, 31.07), "ME": (-69.25, 45.37), "MD": (-76.80, 39.06),
-    "MA": (-71.81, 42.26), "MI": (-84.71, 43.33), "MN": (-94.31, 46.31),
-    "MS": (-89.66, 32.74), "MO": (-92.46, 38.36), "MT": (-109.65, 46.92),
-    "NE": (-99.81, 41.54), "NV": (-116.66, 39.33), "NH": (-71.58, 43.45),
-    "NJ": (-74.52, 40.30), "NM": (-106.25, 34.84), "NY": (-75.50, 42.95),
-    "NC": (-79.81, 35.63), "ND": (-100.47, 47.45), "OH": (-82.79, 40.39),
-    "OK": (-96.93, 35.57), "OR": (-122.07, 44.57), "PA": (-77.21, 40.59),
-    "RI": (-71.51, 41.68), "SC": (-80.95, 33.86), "SD": (-99.44, 44.30),
-    "TN": (-86.69, 35.75), "TX": (-97.56, 31.05), "UT": (-111.86, 40.15),
-    "VT": (-72.71, 44.05), "VA": (-78.17, 37.77), "WA": (-121.49, 47.40),
-    "WV": (-80.95, 38.49), "WI": (-89.62, 44.27), "WY": (-107.30, 42.76),
-}
-
 
 def _iso_now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -185,35 +158,62 @@ def _place_keywords(topics_payload: dict[str, Any]) -> list[str]:
     return out
 
 
+def _place_from_list_item(item: dict[str, Any], portal: str) -> dict[str, Any] | None:
+    """Map a ``get_place_list`` item to the place dict the harvester expects.
+
+    Returns ``None`` for an item missing the essentials (query_id / lat / lon).
+    """
+    qid = item.get("query_id")
+    lat = item.get("latitude")
+    lon = item.get("longitude")
+    if not qid or lat is None or lon is None:
+        return None
+    return {
+        "portal": portal,
+        "query_id": qid,
+        "display_name": item.get("name") or qid,
+        "lat": lat,
+        "lon": lon,
+        "num_meetings": item.get("num_meetings"),
+        "state_name": item.get("state_name"),
+        "scraped_at": _iso_now(),
+    }
+
+
 class CivicSearchHarvester:
-    """Drives place discovery + per-place meeting harvest over the API."""
+    """Drives place listing + per-place meeting harvest over the API."""
 
     def __init__(
         self,
         client: CivicSearchClient,
         *,
         cache_dir: Path,
-        max_places: int,
+        max_places: int | None = None,
         incremental: bool = False,
     ) -> None:
         self.client = client
         self.portal = client.portal
+        # Optional cap that simply truncates the listed places (useful for
+        # tests / smoke runs). ``None`` = unbounded (the full roster).
         self.max_places = max_places
         # Incremental mode resumes from the prior run's JSONL: known places are
-        # re-loaded (so the sweep still re-harvests them for NEW meetings) and
-        # already-seen vid_ids are skipped, so only genuinely new meetings are
-        # appended. Non-incremental truncates and re-harvests everything.
+        # re-loaded, already-seen vid_ids are skipped, and a place whose on-disk
+        # captured count already meets its num_meetings is skipped entirely, so
+        # only genuinely new meetings are appended. Non-incremental truncates
+        # and re-harvests everything.
         self.incremental = incremental
         # One subdir per portal so the two datasets never mingle on disk.
         self.portal_dir = cache_dir / self.portal
         self.places_path = self.portal_dir / "places.jsonl"
         self.meetings_path = self.portal_dir / "meetings.jsonl"
-        # query_id -> {query_id, display_name, lat, lon, discovered_from}
+        # query_id -> place dict (query_id, display_name, lat, lon, num_meetings, ...)
         self.places: dict[str, dict[str, Any]] = {}
         # Cross-run dedupe state + streaming output handles.
         self._seen_place_ids: set[str] = set()
         self._seen_vids: set[str] = set()
-        self._new_places = 0   # places discovered THIS run (caps max_places)
+        # query_id -> captured meeting count on disk (for the fully-done skip).
+        self._disk_counts: dict[str, int] = {}
+        self._new_places = 0   # places written THIS run
         self._new_meetings = 0  # meetings appended THIS run
         self._places_fh: Any = None
         self._meetings_fh: Any = None
@@ -247,6 +247,8 @@ class CivicSearchHarvester:
 
         Tolerant of a truncated trailing line — a prior run killed mid-write can
         leave one partial JSONL record; we skip it rather than abort the resume.
+        Per-place captured counts are tallied from meetings.jsonl so a fully-done
+        place (captured >= num_meetings) can be skipped on resume.
         """
         if self.places_path.is_file():
             with self.places_path.open(encoding="utf-8") as f:
@@ -259,9 +261,15 @@ class CivicSearchHarvester:
         if self.meetings_path.is_file():
             with self.meetings_path.open(encoding="utf-8") as f:
                 for line in f:
-                    vid = (_safe_json(line) or {}).get("vid_id")
+                    rec = _safe_json(line)
+                    if not rec:
+                        continue
+                    vid = rec.get("vid_id")
                     if vid:
                         self._seen_vids.add(vid)
+                    pq = rec.get("place_query_id")
+                    if pq:
+                        self._disk_counts[pq] = self._disk_counts.get(pq, 0) + 1
         if self._seen_place_ids or self._seen_vids:
             logger.info(
                 "resume: {} known place(s), {} known meeting(s)",
@@ -271,6 +279,7 @@ class CivicSearchHarvester:
     def _append_place(self, rec: dict[str, Any]) -> None:
         self._places_fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
         self._places_fh.flush()
+        self._new_places += 1
 
     def _append_meeting(self, rec: dict[str, Any]) -> None:
         self._meetings_fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
@@ -278,73 +287,38 @@ class CivicSearchHarvester:
         self._new_meetings += 1
 
     # ------------------------------------------------------------------ phase 1
-    async def discover_places(self, seeds: list[tuple[float, float]]) -> None:
-        """BFS outward from seeds until ``max_places`` NEW places or frontier empty.
+    async def list_places(self) -> None:
+        """Populate ``self.places`` from the portal's full ``get_place_list``.
 
-        ``max_places`` caps places discovered *this run*; places resumed from a
-        prior run (incremental) also seed the frontier so BFS keeps expanding
-        around them, but don't count against the cap or get re-written.
+        One call returns the COMPLETE roster; each item is mapped to the place
+        dict the meeting sweep expects and (if not already known from a resumed
+        run) streamed to places.jsonl. ``max_places`` optionally truncates the
+        roster for smoke runs/tests.
         """
-        frontier: deque[tuple[tuple[float, float], str]] = deque(
-            (s, "seed") for s in seeds
-        )
-        # Expand around already-known places too (resumed incremental runs).
-        for p in self.places.values():
-            frontier.append(((p["lon"], p["lat"]), p["query_id"]))
-        visited_points: set[tuple[float, float]] = set()
-        while frontier and self._new_places < self.max_places:
-            point, origin = frontier.popleft()
-            key = (round(point[0], 3), round(point[1], 3))
-            if key in visited_points:
+        items = await self.client.get_place_list()
+        if self.max_places is not None:
+            items = items[: self.max_places]
+        logger.info("{}: get_place_list returned {} place(s)", self.portal, len(items))
+        for item in items:
+            place = _place_from_list_item(item, self.portal)
+            if place is None:
                 continue
-            visited_points.add(key)
-            try:
-                payload = await self.client.search(
-                    lonlat=point, search_radius=DISCOVERY_RADIUS_MI
+            qid = place["query_id"]
+            if qid in self.places:
+                # Resumed from disk: refresh num_meetings/state from the live
+                # list so the fully-done check uses the current target.
+                self.places[qid].update(
+                    num_meetings=place.get("num_meetings"),
+                    state_name=place.get("state_name"),
                 )
-            except httpx.HTTPError as exc:
-                logger.warning("discovery search failed at {}: {}", point, exc)
                 continue
-            for place in payload.get("places") or []:
-                qid = place.get("query_id")
-                if not qid or qid in self.places:
-                    continue
-                resolved = await self._resolve_place(qid, origin)
-                if resolved is None:
-                    continue
-                self.places[qid] = resolved
-                self._seen_place_ids.add(qid)
-                self._append_place(resolved)
-                self._new_places += 1
-                logger.info(
-                    "discovered place [{}/{}] {}",
-                    self._new_places, self.max_places, resolved["display_name"],
-                )
-                frontier.append(((resolved["lon"], resolved["lat"]), qid))
-                if self._new_places >= self.max_places:
-                    break
-
-    async def _resolve_place(self, query_id: str, origin: str) -> dict[str, Any] | None:
-        try:
-            p = await self.client.get_place(query_id=query_id)
-        except httpx.HTTPError as exc:
-            logger.warning("get_place({}) failed: {}", query_id, exc)
-            return None
-        if "lat" not in p or "lon" not in p:
-            return None
-        return {
-            "portal": self.portal,
-            "query_id": query_id,
-            "display_name": p.get("display_name") or query_id,
-            "lat": p["lat"],
-            "lon": p["lon"],
-            "discovered_from": origin,
-            "scraped_at": _iso_now(),
-        }
+            self.places[qid] = place
+            self._seen_place_ids.add(qid)
+            self._append_place(place)
 
     # ------------------------------------------------------------------ phase 2
     async def harvest_meetings(self) -> None:
-        """Harvest ALL public meetings for every discovered place.
+        """Harvest ALL public meetings for every listed place.
 
         The CivicSearch ``search`` endpoint returns NO meetings for a bare
         location (with or without a date window) — every result set is gated by
@@ -360,8 +334,7 @@ class CivicSearchHarvester:
              all of Andalusia's 27 meetings; the wider set is belt-and-braces
              for places whose meetings are titled differently.)
           2. ``get_topics_by_city`` keywords — the place's own self-driving
-             keyword list (kept from the prior implementation; cheap extra
-             coverage of topical meetings).
+             keyword list (cheap extra coverage of topical meetings).
           3. NUMERIC TOPIC IDS surfaced in each response's ``topic_counts`` /
              snippet ``topic_id`` — re-queried via ``topics=[id]`` to pull in
              any meeting indexed only under a topic axis.
@@ -371,21 +344,40 @@ class CivicSearchHarvester:
         retry-exhaustion, which the client raises as an ``httpx.HTTPError``
         subclass) never aborts the place or the run.
         """
-        # Snapshot: discovery may keep mutating self.places elsewhere, and a
-        # meeting is only final for a place after ALL its axes are merged —
-        # so we buffer per-place, then stream the new ones out.
         places = list(self.places.values())
+        total = len(places)
         for i, place in enumerate(places, 1):
-            logger.info(
-                "[{}/{}] {} — full meeting sweep",
-                i, len(places), place["display_name"],
-            )
-            place_meetings = await self._harvest_place_meetings(place)
-            logger.info(
-                "  {} unique meeting(s) found for {}",
-                len(place_meetings), place["query_id"],
-            )
+            qid = place["query_id"]
+            target = place.get("num_meetings")
+            captured = self._disk_counts.get(qid, 0)
+            # Incremental fully-done skip: this place's on-disk captured count
+            # already meets its advertised num_meetings, so nothing new to fetch.
+            if (
+                self.incremental
+                and isinstance(target, int)
+                and target > 0
+                and captured >= target
+            ):
+                logger.info(
+                    "[{}/{}] {} — skip (captured {} / num_meetings {})",
+                    i, total, place["display_name"], captured, target,
+                )
+                continue
+            try:
+                place_meetings = await self._harvest_place_meetings(place)
+            except httpx.HTTPError as exc:
+                logger.warning(
+                    "[{}/{}] {} — sweep aborted: {}",
+                    i, total, place["display_name"], exc,
+                )
+                continue
             self._flush_place_meetings(place_meetings)
+            captured = self._disk_counts.get(qid, 0)
+            logger.info(
+                "[{}/{}] {} — captured {} / num_meetings {}",
+                i, total, place["display_name"], captured,
+                target if target is not None else "?",
+            )
 
     async def _harvest_place_meetings(
         self, place: dict[str, Any]
@@ -475,6 +467,9 @@ class CivicSearchHarvester:
                 continue  # already harvested (this run or a prior incremental run)
             self._seen_vids.add(vid)
             self._append_meeting(rec)
+            pq = rec.get("place_query_id")
+            if pq:
+                self._disk_counts[pq] = self._disk_counts.get(pq, 0) + 1
             new += 1
         if new:
             logger.info("  +{} new meeting(s) [{} this run]", new, self._new_meetings)
@@ -530,6 +525,7 @@ class CivicSearchHarvester:
             if isinstance(tid, int) and tid >= 0 and tid not in rec["topic_ids"]:
                 rec["topic_ids"].append(tid)
 
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="CivicSearch location sweep (FETCH).")
     parser.add_argument("--portal", choices=[*PORTALS, "both"], default="schools",
@@ -537,44 +533,22 @@ def build_parser() -> argparse.ArgumentParser:
                              "(school districts), cities (municipal govts), or both.")
     parser.add_argument("--cache-dir", type=Path, default=DEFAULT_CACHE,
                         help="Base cache dir; output goes to <cache-dir>/<portal>/.")
-    parser.add_argument("--max-places", type=int, default=50,
-                        help="Stop discovery after this many distinct places.")
-    parser.add_argument("--states", nargs="*", metavar="USPS",
-                        help="Seed only these state centroids (default: all 50 + DC).")
-    parser.add_argument("--seed-zip", nargs="*", metavar="ZIP", default=[],
-                        help="Extra seed points resolved from these ZIP codes.")
-    parser.add_argument("--discover-only", action="store_true",
-                        help="Run place discovery only; skip the meeting harvest.")
+    parser.add_argument("--max-places", type=int, default=None,
+                        help="Optional cap: truncate the get_place_list roster to "
+                             "this many places (default: unbounded / full roster). "
+                             "Useful for smoke runs and tests.")
     parser.add_argument("--incremental", action="store_true",
-                        help="Resume from the prior run: re-load known places, "
-                             "append only NEW places/meetings (--max-places caps "
-                             "newly discovered places). Default truncates & re-harvests.")
+                        help="Resume from the prior run: re-load known places, skip "
+                             "fully-harvested places (captured >= num_meetings), and "
+                             "append only NEW meetings. Default truncates & re-harvests.")
     parser.add_argument("--rate-limit", type=float, default=2.0,
                         help="Max requests/sec to the CivicSearch API.")
     return parser
 
 
-async def _resolve_seed_zips(client: CivicSearchClient, zips: list[str]) -> list[tuple[float, float]]:
-    seeds: list[tuple[float, float]] = []
-    for z in zips:
-        try:
-            p = await client.get_place(zip_code=z)
-            seeds.append((p["lon"], p["lat"]))
-        except (httpx.HTTPError, KeyError) as exc:
-            logger.warning("seed zip {} failed: {}", z, exc)
-    return seeds
-
-
 async def _run_portal(portal: str, args: argparse.Namespace) -> None:
-    if args.states:
-        wanted = {s.upper() for s in args.states}
-        centroids = [v for k, v in STATE_CENTROIDS.items() if k in wanted]
-    else:
-        centroids = list(STATE_CENTROIDS.values())
-
     logger.info("=== portal: {} ===", portal)
     async with CivicSearchClient(portal=portal, rate_limit_per_sec=args.rate_limit) as client:
-        seeds = centroids + await _resolve_seed_zips(client, args.seed_zip)
         harvester = CivicSearchHarvester(
             client,
             cache_dir=args.cache_dir,
@@ -583,9 +557,8 @@ async def _run_portal(portal: str, args: argparse.Namespace) -> None:
         )
         harvester.open()
         try:
-            await harvester.discover_places(seeds)
-            if not args.discover_only:
-                await harvester.harvest_meetings()
+            await harvester.list_places()
+            await harvester.harvest_meetings()
         finally:
             harvester.close()
 
