@@ -553,9 +553,9 @@ async def launch_pipeline(req: LaunchRequest) -> LaunchResponse:
         argv = [_sys.executable, str(target), "--states", ",".join(states)]
     elif step == "backfill":
         # Global transcript backfill over the int_events_union mart. Unlike the
-        # per-jurisdiction `captions` step (which reads bronze_events_youtube
+        # per-jurisdiction `captions` step (which reads bronze_event_youtube
         # WHERE jurisdiction_id = …), this is a flat sweep that also reaches the
-        # LocalView/union videos that have no bronze_events_youtube row. Runs the
+        # LocalView/union videos that have no bronze_event_youtube row. Runs the
         # standalone script directly (fixed argv, no shell), like `discover`, so
         # it has no per-jurisdiction batch tracking. States optional.
         #

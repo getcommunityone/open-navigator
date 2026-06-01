@@ -1,5 +1,5 @@
 """
-Update ``bronze.bronze_events_youtube`` transcript download columns after caption fetch.
+Update ``bronze.bronze_event_youtube`` transcript download columns after caption fetch.
 
 Mirrors audio tracking (``006_add_audio_tracking_fields.sql`` / ``download_audio_to_drive.py``).
 """
@@ -36,7 +36,7 @@ def ensure_bronze_youtube_transcript_columns(conn: Any) -> None:
     try:
         cur.execute(
             """
-            ALTER TABLE bronze.bronze_events_youtube
+            ALTER TABLE bronze.bronze_event_youtube
             ADD COLUMN IF NOT EXISTS transcript_download_at TIMESTAMP,
             ADD COLUMN IF NOT EXISTS transcript_file_path VARCHAR(500),
             ADD COLUMN IF NOT EXISTS transcript_file_size BIGINT,
@@ -47,7 +47,7 @@ def ensure_bronze_youtube_transcript_columns(conn: Any) -> None:
         cur.execute(
             """
             CREATE INDEX IF NOT EXISTS idx_bronze_youtube_transcript_downloaded
-            ON bronze.bronze_events_youtube (transcript_download_at)
+            ON bronze.bronze_event_youtube (transcript_download_at)
             WHERE transcript_download_at IS NOT NULL
             """
         )
@@ -63,7 +63,7 @@ def record_transcript_download_success(
     *,
     commit: bool = True,
 ) -> None:
-    """Mark a successful transcript download on ``bronze_events_youtube``."""
+    """Mark a successful transcript download on ``bronze_event_youtube``."""
     vid = (video_id or "").strip()
     if not vid:
         return
@@ -76,7 +76,7 @@ def record_transcript_download_success(
     try:
         cur.execute(
             """
-            UPDATE bronze.bronze_events_youtube
+            UPDATE bronze.bronze_event_youtube
             SET
                 transcript_download_at = CURRENT_TIMESTAMP,
                 transcript_file_path = %s,
@@ -109,7 +109,7 @@ def record_transcript_download_error(
     try:
         cur.execute(
             """
-            UPDATE bronze.bronze_events_youtube
+            UPDATE bronze.bronze_event_youtube
             SET
                 transcript_download_at = CURRENT_TIMESTAMP,
                 transcript_file_path = NULL,

@@ -235,7 +235,7 @@ from sqlalchemy import create_engine
 engine = create_engine(os.environ['NEON_DATABASE_URL_DEV'])
 
 df = pd.read_sql("""
-    SELECT * FROM bronze.bronze_events_youtube
+    SELECT * FROM bronze.bronze_event_youtube
     WHERE event_date >= '2026-01-01'
 """, engine)
 
@@ -505,7 +505,7 @@ engine = create_engine(os.environ['NEON_DATABASE_URL_DEV'])
 df = pd.read_sql("""
     SELECT COUNT(*) as total_videos, 
            MAX(event_date) as latest_date
-    FROM bronze.bronze_events_youtube
+    FROM bronze.bronze_event_youtube
 """, engine)
 
 print(df)

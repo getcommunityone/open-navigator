@@ -8,7 +8,7 @@ LocalView-enriched YouTube meeting events — one row per video_id.
 
 Declarative replacement for the in-place UPDATE in
 packages/scrapers/src/scrapers/youtube/sync_bronze_youtube_from_localview.py. Rather than
-mutating bronze.bronze_events_youtube, the enrichment is derived here as a SELECT
+mutating bronze.bronze_event_youtube, the enrichment is derived here as a SELECT
 on top of stg_youtube__event (which already dedups to one row per video_id and
 parses event_date / channel_type from the raw bronze landing).
 

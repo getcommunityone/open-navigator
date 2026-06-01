@@ -22,7 +22,7 @@ This model:
 Used by: api/routes/search_postgres.py for transcript search
 
 Data Flow:
-bronze_events_text_ai → stg_bronze_events_text_ai → events_text_search (this model)
+bronze_event_youtube_transcript → stg_bronze_event_youtube_transcript → events_text_search (this model)
 */
 
 WITH events_with_datasource AS (
@@ -70,7 +70,7 @@ transcripts_with_quality AS (
                 END DESC,
                 created_at DESC
         ) AS quality_rank
-    FROM {{ ref('stg_bronze_events_text_ai') }} t
+    FROM {{ ref('stg_bronze_event_youtube_transcript') }} t
     WHERE
         NOT missing_transcript
         AND NOT very_short_transcript  -- Filter out <100 char transcripts

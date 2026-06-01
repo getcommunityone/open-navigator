@@ -7,10 +7,10 @@
 
 \set ON_ERROR_STOP on
 
-\echo '========== Pass 1: rows int_events_channels could fill on bronze_events_youtube =========='
+\echo '========== Pass 1: rows int_events_channels could fill on bronze_event_youtube =========='
 SELECT
     COUNT(*) AS youtube_rows_to_update_pass1
-FROM bronze.bronze_events_youtube y
+FROM bronze.bronze_event_youtube y
 INNER JOIN intermediate.int_events_channels_registry ec
     ON ec.channel_id = y.channel_id
 INNER JOIN intermediate.int_jurisdictions j
@@ -51,7 +51,7 @@ juris_name_match AS (
     HAVING COUNT(DISTINCT j.jurisdiction_id) = 1
 )
 SELECT COUNT(*) AS youtube_rows_to_update_pass2
-FROM bronze.bronze_events_youtube y
+FROM bronze.bronze_event_youtube y
 INNER JOIN juris_name_match jnm ON jnm.channel_id = y.channel_id
 LEFT JOIN intermediate.int_events_channels_registry ec ON ec.channel_id = y.channel_id
 WHERE ec.jurisdiction_id IS NULL
@@ -68,7 +68,7 @@ SELECT
     MAX(ec.jurisdiction_id) AS new_jurisdiction_id,
     MAX(j.name) AS new_jurisdiction_name,
     MAX(j.state_code) AS state_code
-FROM bronze.bronze_events_youtube y
+FROM bronze.bronze_event_youtube y
 INNER JOIN intermediate.int_events_channels_registry ec
     ON ec.channel_id = y.channel_id
 INNER JOIN intermediate.int_jurisdictions j

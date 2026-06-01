@@ -66,7 +66,7 @@ SELECT
     loaded_at,
     last_updated
 
-FROM {{ source('bronze', 'bronze_events_youtube') }}
+FROM {{ source('bronze', 'bronze_event_youtube') }}
 
 -- Limit 0 to create empty table structure (for initial Neon deployment)
 -- Remove this line when syncing data from local to Neon

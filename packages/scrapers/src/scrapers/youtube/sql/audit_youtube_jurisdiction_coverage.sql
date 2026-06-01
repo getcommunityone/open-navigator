@@ -13,7 +13,7 @@
 --     rank: population → looser name-matched YT activity (videos/.gov/views/subs) → land area
 --
 -- Linked jurisdiction_ids: int_events_channels, bronze_events_channels JSON,
---   bronze_events_youtube (scalar, non-unknown).
+--   bronze_event_youtube (scalar, non-unknown).
 -- =============================================================================
 
 \pset pager off
@@ -49,7 +49,7 @@ FROM (
     UNION
 
     SELECT y.jurisdiction_id
-    FROM bronze.bronze_events_youtube y
+    FROM bronze.bronze_event_youtube y
     WHERE y.jurisdiction_id IS NOT NULL
       AND BTRIM(y.jurisdiction_id) <> ''
       AND lower(BTRIM(y.jurisdiction_id)) <> 'unknown'
@@ -75,7 +75,7 @@ SELECT DISTINCT
              ~ 'city|town|village|borough|municipality|place|cdp' THEN 'municipality'::text
         ELSE NULL::text
     END AS int_jurisdiction_type
-FROM bronze.bronze_events_youtube y
+FROM bronze.bronze_event_youtube y
 WHERE y.state_code = trim(upper(:'one_state'))
   AND y.jurisdiction_name IS NOT NULL
   AND BTRIM(y.jurisdiction_name) <> ''
@@ -155,14 +155,14 @@ ORDER BY j.jurisdiction_type;
 \echo 'm_exact=id link; m_name=name+type only; m_any=union; pct_any/pct_id=% of in_ref.'
 
 \echo ''
-\echo '========== 1b) bronze_events_youtube jur_id vs int_jurisdictions =========='
+\echo '========== 1b) bronze_event_youtube jur_id vs int_jurisdictions =========='
 
 WITH st AS (
     SELECT trim(upper(:'one_state')) AS sc
 ),
 yt_ids AS (
     SELECT DISTINCT y.jurisdiction_id AS jurisdiction_id
-    FROM bronze.bronze_events_youtube y
+    FROM bronze.bronze_event_youtube y
     CROSS JOIN st
     WHERE y.state_code = st.sc
       AND y.jurisdiction_id IS NOT NULL
@@ -209,7 +209,7 @@ SELECT
 FROM agg a
 CROSS JOIN LATERAL (
     VALUES
-        (1, 'distinct jur_id on bronze_events_youtube', a.n_distinct),
+        (1, 'distinct jur_id on bronze_event_youtube', a.n_distinct),
         (2, 'those ids exist on int_jurisdictions (this state)', a.n_hit_this_state),
         (3, 'those ids not on int_jurisdictions', a.n_missing_table),
         (4, 'those ids on int_jurisdictions but other state', a.n_hit_other_state_only)
@@ -217,13 +217,13 @@ CROSS JOIN LATERAL (
 ORDER BY x.line;
 
 \echo ''
-\echo '========== 1c) Sample jur_id (bronze_events_youtube) missing from int_jurisdictions =========='
+\echo '========== 1c) Sample jur_id (bronze_event_youtube) missing from int_jurisdictions =========='
 
 SELECT
     y.jurisdiction_id AS jur_id,
     MAX(y.jurisdiction_name) AS name,
     COUNT(*)::bigint AS vids
-FROM bronze.bronze_events_youtube y
+FROM bronze.bronze_event_youtube y
 WHERE y.state_code = trim(upper(:'one_state'))
   AND y.jurisdiction_id IS NOT NULL
   AND BTRIM(y.jurisdiction_id) <> ''
@@ -249,7 +249,7 @@ SELECT
           AND lower(BTRIM(y.jurisdiction_id)) <> 'unknown'
     )::bigint AS rows_with_jurisdiction_id,
     COUNT(DISTINCT y.channel_id)::bigint AS distinct_channels
-FROM bronze.bronze_events_youtube y
+FROM bronze.bronze_event_youtube y
 WHERE y.state_code = trim(upper(:'one_state'));
 
 \echo ''
@@ -327,7 +327,7 @@ yt_name AS (
             BOOL_OR(
                 COALESCE(bc.channel_external_links::text, '') ILIKE '%.gov%'
             ) AS has_gov_external_link
-        FROM bronze.bronze_events_youtube y
+        FROM bronze.bronze_event_youtube y
         LEFT JOIN bronze.bronze_events_channels bc ON bc.channel_id = y.channel_id
         WHERE y.state_code = p.state_code
           AND lower(BTRIM(REGEXP_REPLACE(COALESCE(y.jurisdiction_name, ''), '\s+', ' ', 'g')))

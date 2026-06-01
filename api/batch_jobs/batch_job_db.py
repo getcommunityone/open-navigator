@@ -263,7 +263,7 @@ def policy_event_counts_24h(conn: Any) -> Dict[str, Any]:
                     MAX(transcript_download_at) AS last_transcript_at,
                     MAX(policy_analysis_at) AS last_analysis_at,
                     MAX(policy_report_at) AS last_report_at
-                FROM bronze.bronze_events_youtube
+                FROM bronze.bronze_event_youtube
                 """
             )
             row = cur.fetchone()
@@ -311,7 +311,7 @@ def _stage_timing(conn: Any) -> Dict[str, Any]:
     """
 
     def _one(
-        ts_col: str, path_col: str, table: str = "bronze.bronze_events_youtube"
+        ts_col: str, path_col: str, table: str = "bronze.bronze_event_youtube"
     ) -> Dict[str, Any]:
         out: Dict[str, Any] = {
             "avg_seconds": None,
@@ -364,14 +364,14 @@ def _stage_timing(conn: Any) -> Dict[str, Any]:
         return out
 
     vids = _one("transcript_download_at", "transcript_file_path")
-    # Transcripts cadence/last-file come from bronze_events_text_ai (where the
+    # Transcripts cadence/last-file come from bronze_event_youtube_transcript (where the
     # backfill actually writes), not the YouTube download stamp — otherwise the
     # dashboard reads "stalled · 0/hr · last file <days ago>" while a DB-only
     # backfill is inserting fine. video_id stands in for the missing file path.
     transcripts = _one(
         "COALESCE(last_updated, created_at)",
         "video_id",
-        table="bronze.bronze_events_text_ai",
+        table="bronze.bronze_event_youtube_transcript",
     )
     return {
         "videos": vids,
@@ -388,7 +388,7 @@ def pipeline_stage_report(conn: Any) -> Dict[str, Any]:
     Returns ``{"states": [...], "rows": [{scope, stage, done, total, failed,
     last_at}, ...]}`` where ``scope`` is a 2-letter state code or ``"ALL"`` (the
     national rollup). All four stages are derived from one ``GROUP BY state_code``
-    over ``bronze_events_youtube`` so per-state and overall numbers are consistent
+    over ``bronze_event_youtube`` so per-state and overall numbers are consistent
     and live (covering standalone/parallel analyze runs). Empty on pre-083 DBs.
     """
     out: Dict[str, Any] = {"states": [], "rows": []}
@@ -414,7 +414,7 @@ def pipeline_stage_report(conn: Any) -> Dict[str, Any]:
                     MAX(transcript_download_at)                                 AS last_video,
                     MAX(policy_analysis_at)                                     AS last_analysis,
                     MAX(policy_report_at)                                       AS last_report
-                FROM bronze.bronze_events_youtube
+                FROM bronze.bronze_event_youtube
                 GROUP BY 1
                 """
             )
@@ -425,7 +425,7 @@ def pipeline_stage_report(conn: Any) -> Dict[str, Any]:
         return out
 
     # Stage 0 (channel discovery) lives in the scraped-jurisdiction tables, not in
-    # bronze_events_youtube: per state, how many jurisdictions have a YouTube channel
+    # bronze_event_youtube: per state, how many jurisdictions have a YouTube channel
     # found (done) out of all scraped (total); failed = still missing a channel.
     # Grouped by entity (counties vs municipalities) so the Discover cell can split
     # the combined coverage; the per-entity rows sum back to the combined total.
@@ -468,8 +468,8 @@ def pipeline_stage_report(conn: Any) -> Dict[str, Any]:
     except Exception:
         conn.rollback()  # scraped tables absent — discover stage degrades to zeros
 
-    # Transcripts landed per state, counted directly from bronze_events_text_ai
-    # (state_code is populated on every row). The bronze_events_youtube download
+    # Transcripts landed per state, counted directly from bronze_event_youtube_transcript
+    # (state_code is populated on every row). The bronze_event_youtube download
     # stamp only covered YouTube-catalog videos in a handful of states and missed
     # the bulk of transcripts (most text_ai video_ids are not in the event mart /
     # int_events_union); counting text_ai itself surfaces every state that has
@@ -483,14 +483,14 @@ def pipeline_stage_report(conn: Any) -> Dict[str, Any]:
                     COALESCE(NULLIF(state_code, ''), '??')  AS st,
                     COUNT(*)::int                           AS done,
                     MAX(COALESCE(last_updated, created_at)) AS last_at
-                FROM bronze.bronze_events_text_ai
+                FROM bronze.bronze_event_youtube_transcript
                 GROUP BY 1
                 """
             )
             for st, done, last_at in cur.fetchall():
                 tx_by_state[str(st)] = {"done": int(done), "last_at": _iso(last_at)}
     except Exception:
-        conn.rollback()  # bronze_events_text_ai absent — transcript coverage degrades to zeros
+        conn.rollback()  # bronze_event_youtube_transcript absent — transcript coverage degrades to zeros
 
     def _discover_row(scope: str, disc: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         d = disc or {"total": 0, "done": 0, "last_at": "", "breakdown": {}}
@@ -522,7 +522,7 @@ def pipeline_stage_report(conn: Any) -> Dict[str, Any]:
         attempted = ok + fail
         lv, la, lr = rec["last_video"], rec["last_analysis"], rec["last_report"]
         # videos: YouTube download stamps (ok / attempted). transcripts: actual
-        # landed coverage from bronze_events_text_ai over the int_events_union
+        # landed coverage from bronze_event_youtube_transcript over the int_events_union
         # candidate set (done = with transcript, total = candidates) — reaches
         # LocalView/union videos the YouTube stamp never counted. analyses/reports
         # sit below transcripts in the funnel, so they are denominated by the
@@ -570,7 +570,7 @@ def pipeline_stage_report(conn: Any) -> Dict[str, Any]:
 
     # Surface every state that has entered the pipeline (any attempted YouTube
     # video) OR that has at least one landed transcript — the latter covers
-    # LocalView/union states with no bronze_events_youtube rows.
+    # LocalView/union states with no bronze_event_youtube rows.
     candidate_states = {
         st for st, rec in yt_by_state.items()
         if int(rec["vids_ok"]) + int(rec["vids_fail"]) > 0
@@ -1035,7 +1035,7 @@ def sync_json_batches_to_db(*, limit: int = 100) -> int:
 
 
 def enrich_transcript_counts_from_bronze(conn: Any, job: BatchJob) -> None:
-    """Set jurisdiction ``bronze_download_rows`` from bronze_events_youtube."""
+    """Set jurisdiction ``bronze_download_rows`` from bronze_event_youtube."""
     jids = [j.jurisdiction_id for j in job.jurisdictions if j.jurisdiction_id]
     if not jids:
         return
@@ -1050,7 +1050,7 @@ def enrich_transcript_counts_from_bronze(conn: Any, job: BatchJob) -> None:
                     WHERE transcript_file_error IS NOT NULL
                       AND BTRIM(transcript_file_error) <> ''
                 )::int AS transcript_errors
-            FROM bronze.bronze_events_youtube
+            FROM bronze.bronze_event_youtube
             WHERE jurisdiction_id = ANY(%s)
             GROUP BY jurisdiction_id
             """,
@@ -1072,7 +1072,7 @@ def enrich_transcript_counts_from_bronze(conn: Any, job: BatchJob) -> None:
 
 def enrich_transcript_seconds_from_bronze(conn: Any, job: BatchJob) -> None:
     """
-    Set ``job.summary['transcript_seconds']`` from ``bronze_events_youtube.duration_minutes``.
+    Set ``job.summary['transcript_seconds']`` from ``bronze_event_youtube.duration_minutes``.
 
     Batch payloads often have per-video stats without ``duration_seconds`` (older runs or
     DB copies). Prefer catalog duration for ok video ids in ``j.videos``; if none, sum
@@ -1094,7 +1094,7 @@ def enrich_transcript_seconds_from_bronze(conn: Any, job: BatchJob) -> None:
             cur.execute(
                 """
                 SELECT COALESCE(SUM(duration_minutes), 0) * 60.0
-                FROM bronze.bronze_events_youtube
+                FROM bronze.bronze_event_youtube
                 WHERE video_id = ANY(%s)
                   AND duration_minutes IS NOT NULL
                   AND duration_minutes > 0
@@ -1122,7 +1122,7 @@ def enrich_transcript_seconds_from_bronze(conn: Any, job: BatchJob) -> None:
                 cur.execute(
                     """
                     SELECT COALESCE(SUM(duration_minutes), 0) * 60.0
-                    FROM bronze.bronze_events_youtube
+                    FROM bronze.bronze_event_youtube
                     WHERE jurisdiction_id = ANY(%s)
                       AND transcript_download_at IS NOT NULL
                       AND transcript_download_at >= %s::timestamptz
@@ -1137,7 +1137,7 @@ def enrich_transcript_seconds_from_bronze(conn: Any, job: BatchJob) -> None:
                 cur.execute(
                     """
                     SELECT COALESCE(SUM(duration_minutes), 0) * 60.0
-                    FROM bronze.bronze_events_youtube
+                    FROM bronze.bronze_event_youtube
                     WHERE jurisdiction_id = ANY(%s)
                       AND transcript_download_at IS NOT NULL
                       AND duration_minutes IS NOT NULL

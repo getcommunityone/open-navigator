@@ -245,8 +245,8 @@ def fetch_youtube_rows_for_dedupe(
             y.event_date::text AS event_date,
             y.duration_minutes,
             COALESCE(t.has_transcript, false) AS has_transcript
-        FROM bronze.bronze_events_youtube y
-        LEFT JOIN bronze.bronze_events_text_ai t ON t.video_id = y.video_id
+        FROM bronze.bronze_event_youtube y
+        LEFT JOIN bronze.bronze_event_youtube_transcript t ON t.video_id = y.video_id
         WHERE y.jurisdiction_id = %s
           AND y.video_id IS NOT NULL
     """

@@ -1,4 +1,4 @@
-"""Tests for bronze_events_youtube transcript download tracking."""
+"""Tests for bronze_event_youtube transcript download tracking."""
 
 from __future__ import annotations
 

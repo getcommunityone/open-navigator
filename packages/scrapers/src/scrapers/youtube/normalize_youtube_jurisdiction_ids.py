@@ -5,7 +5,7 @@ Normalize legacy numeric ``jurisdiction_id`` values to canonical ``{type}_{geoid
 Legacy YouTube rows use ``jurisdiction.id`` (e.g. ``368`` = Andalusia).
 Canonical ids match ``intermediate.int_jurisdictions`` (e.g. ``municipality_0101708``).
 
-Updates ``bronze.bronze_events_youtube`` and renames ``data/cache/gemini_transcript_policy`` folders.
+Updates ``bronze.bronze_event_youtube`` and renames ``data/cache/gemini_transcript_policy`` folders.
 
 Usage (repo root)::
 
@@ -123,7 +123,7 @@ def build_legacy_to_canonical_map(conn) -> Dict[str, str]:
                 js.state AS search_state,
                 js.geoid AS search_geoid,
                 js.type AS search_type
-            FROM bronze.bronze_events_youtube y
+            FROM bronze.bronze_event_youtube y
             LEFT JOIN public.jurisdiction js
               ON js.id::text = y.jurisdiction_id
             WHERE y.jurisdiction_id ~ '^[0-9]+$'
@@ -205,7 +205,7 @@ def update_bronze_jurisdiction_ids(
         for legacy, canonical in sorted(mapping.items()):
             cur.execute(
                 """
-                UPDATE bronze.bronze_events_youtube
+                UPDATE bronze.bronze_event_youtube
                 SET jurisdiction_id = %s
                 WHERE jurisdiction_id = %s
                 """,

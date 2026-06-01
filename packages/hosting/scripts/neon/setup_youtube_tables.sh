@@ -155,19 +155,19 @@ fi
 
 cd "$PROJECT_ROOT/dbt_project"
 
-# Create bronze_events_youtube table
-echo "Creating bronze_events_youtube..."
-if dbt run --select bronze_events_youtube --target prod --quiet 2>&1 | grep -E "Completed successfully|ERROR|PASS|FAIL" | head -5; then
-    echo -e "${GREEN}✓${NC} bronze_events_youtube created"
+# Create bronze_event_youtube table
+echo "Creating bronze_event_youtube..."
+if dbt run --select bronze_event_youtube --target prod --quiet 2>&1 | grep -E "Completed successfully|ERROR|PASS|FAIL" | head -5; then
+    echo -e "${GREEN}✓${NC} bronze_event_youtube created"
 else
     echo -e "${YELLOW}⚠️  Note: Table may already exist (this is okay)${NC}"
 fi
 echo ""
 
-# Create bronze_events_text_ai table  
-echo "Creating bronze_events_text_ai..."
-if dbt run --select bronze_events_text_ai --target prod --quiet 2>&1 | grep -E "Completed successfully|ERROR|PASS|FAIL" | head -5; then
-    echo -e "${GREEN}✓${NC} bronze_events_text_ai created"
+# Create bronze_event_youtube_transcript table  
+echo "Creating bronze_event_youtube_transcript..."
+if dbt run --select bronze_event_youtube_transcript --target prod --quiet 2>&1 | grep -E "Completed successfully|ERROR|PASS|FAIL" | head -5; then
+    echo -e "${GREEN}✓${NC} bronze_event_youtube_transcript created"
 else
     echo -e "${YELLOW}⚠️  Note: Table may already exist (this is okay)${NC}"
 fi
@@ -210,7 +210,7 @@ fi
 # Ask user which tables to sync
 echo "Which tables do you want to sync?"
 echo ""
-echo "  1) Minimum (bronze_events_youtube, bronze_events_text_ai, bronze_events_channels)"
+echo "  1) Minimum (bronze_event_youtube, bronze_event_youtube_transcript, bronze_events_channels)"
 echo "     Size: ~8 MB, Time: 10-30 seconds"
 echo ""
 echo "  2) Recommended (includes bronze_events_localview)"
@@ -223,12 +223,12 @@ CHOICE=${CHOICE:-1}
 
 case $CHOICE in
     1)
-        TABLES="bronze_events_youtube bronze_events_text_ai bronze_events_channels"
+        TABLES="bronze_event_youtube bronze_event_youtube_transcript bronze_events_channels"
         echo ""
         echo -e "${BLUE}📦 Syncing minimum required tables${NC}"
         ;;
     2)
-        TABLES="bronze_events_youtube bronze_events_text_ai bronze_events_channels bronze_events_localview"
+        TABLES="bronze_event_youtube bronze_event_youtube_transcript bronze_events_channels bronze_events_localview"
         echo ""
         echo -e "${BLUE}📦 Syncing recommended tables (including LocalView)${NC}"
         ;;
@@ -281,17 +281,17 @@ SELECT
     pg_size_pretty(pg_total_relation_size('bronze.' || tablename)) as size
 FROM pg_tables 
 WHERE schemaname = 'bronze'
-  AND tablename IN ('bronze_events_youtube', 'bronze_events_text_ai', 'bronze_events_channels', 'bronze_events_localview')
+  AND tablename IN ('bronze_event_youtube', 'bronze_event_youtube_transcript', 'bronze_events_channels', 'bronze_events_localview')
 ORDER BY tablename;
 
 -- Row counts
 SELECT 
-    'bronze_events_youtube' as table, 
+    'bronze_event_youtube' as table, 
     COUNT(*) as rows,
     MAX(event_date) as latest_date
-FROM bronze.bronze_events_youtube
+FROM bronze.bronze_event_youtube
 UNION ALL
-SELECT 'bronze_events_text_ai', COUNT(*), NULL FROM bronze.bronze_events_text_ai
+SELECT 'bronze_event_youtube_transcript', COUNT(*), NULL FROM bronze.bronze_event_youtube_transcript
 UNION ALL
 SELECT 'bronze_events_channels', COUNT(*), NULL FROM bronze.bronze_events_channels;
 EOSQL

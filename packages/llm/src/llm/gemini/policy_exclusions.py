@@ -277,7 +277,7 @@ def write_bronze_policy_exclusion(
         with conn.cursor() as cur:
             cur.execute(
                 """
-                INSERT INTO bronze.bronze_events_text_ai (
+                INSERT INTO bronze.bronze_event_youtube_transcript (
                     event_id, video_id, raw_text, segments, language,
                     is_auto_generated, transcript_source, has_transcript, transcript_quality
                 ) VALUES (
@@ -285,7 +285,7 @@ def write_bronze_policy_exclusion(
                     false, %(transcript_source)s, false, 'none'
                 )
                 ON CONFLICT (video_id) DO UPDATE SET
-                    event_id = COALESCE(EXCLUDED.event_id, bronze.bronze_events_text_ai.event_id),
+                    event_id = COALESCE(EXCLUDED.event_id, bronze.bronze_event_youtube_transcript.event_id),
                     raw_text = NULL,
                     segments = NULL,
                     language = NULL,
@@ -377,7 +377,7 @@ def exclude_policy_video_at_path(
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(
                     """
-                    SELECT event_id FROM bronze.bronze_events_youtube
+                    SELECT event_id FROM bronze.bronze_event_youtube
                     WHERE video_id = %s
                     ORDER BY last_updated DESC NULLS LAST
                     LIMIT 1

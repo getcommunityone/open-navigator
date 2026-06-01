@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Promote scraped YouTube meeting videos from ``bronze.bronze_events_youtube`` into
+Promote scraped YouTube meeting videos from ``bronze.bronze_event_youtube`` into
 the OCD-aligned ``public.civic_event`` table, attaching each video as a
 ``civic_eventmedia`` recording.
 
@@ -75,7 +75,7 @@ _SOURCE = "bronze_youtube_promotion"
 
 @dataclass
 class YouTubeEvent:
-    """A single bronze_events_youtube row eligible for promotion."""
+    """A single bronze_event_youtube row eligible for promotion."""
 
     video_id: str
     event_date: str | None          # ISO YYYY-MM-DD (text) or None
@@ -125,7 +125,7 @@ class YouTubeEvent:
 
 def load_youtube_rows(conn, states: tuple[str, ...] | None,
                       all_dated: bool) -> list[YouTubeEvent]:
-    """Load promotable bronze_events_youtube rows.
+    """Load promotable bronze_event_youtube rows.
 
     Default scope: policy-analyzed videos (the curated meeting set whose Gemini
     analyses are cached). ``all_dated`` widens to every video carrying a date.
@@ -146,7 +146,7 @@ def load_youtube_rows(conn, states: tuple[str, ...] | None,
                city, state_code, meeting_type, location, location_description,
                channel_id, channel_url, channel_type, video_url,
                view_count, duration_minutes, like_count, language
-        FROM bronze.bronze_events_youtube
+        FROM bronze.bronze_event_youtube
         WHERE {' AND '.join(where)}
         ORDER BY video_id
     """
@@ -245,7 +245,7 @@ def run(*, states: tuple[str, ...] | None = None, all_dated: bool = False,
         dry_run: bool = False, limit: int | None = None) -> dict[str, int]:
     db_url = resolve_target_database_url()
     logger.info("=" * 70)
-    logger.info("bronze_events_youtube -> public.civic_event promotion")
+    logger.info("bronze_event_youtube -> public.civic_event promotion")
     logger.info("  scope   : {}", "all dated videos" if all_dated else "policy-analyzed only")
     logger.info("  states  : {}", ",".join(states) if states else "ALL")
     logger.info("  dry-run : {}", dry_run)
@@ -273,7 +273,7 @@ def run(*, states: tuple[str, ...] | None = None, all_dated: bool = False,
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(
-        description="Promote bronze_events_youtube meeting videos into public.civic_event",
+        description="Promote bronze_event_youtube meeting videos into public.civic_event",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     p.add_argument("--states", default="", help="Comma-separated state codes; empty = all")

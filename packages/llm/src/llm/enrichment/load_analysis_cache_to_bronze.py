@@ -13,7 +13,7 @@ Mapping a cache file → a table row:
   - The structured analysis is the ``02_analysis/<meeting_id>.json`` file itself.
   - Per-meeting metadata (video_id, video_url, gemini_model, generated_at) lives in
     the sibling ``04_runs/<meeting_id>.meta.json``.
-  - ``event_id`` is resolved from ``bronze.bronze_events_youtube`` (which carries
+  - ``event_id`` is resolved from ``bronze.bronze_event_youtube`` (which carries
     both ``video_id`` and ``event_id``, one row per scraped video) by matching the
     YouTube ``video_id``.
 
@@ -99,7 +99,7 @@ def build_video_to_event_map(conn) -> dict[str, int]:
     A YouTube video is promoted into civic_event (see
     ``ingestion.youtube.promote_to_c1_event``) keyed on
     ``dedupe_key = 'youtube|<video_id>'``, which makes this an exact, parse-free
-    reverse lookup. (An earlier version mapped via ``bronze_events_youtube.event_id``,
+    reverse lookup. (An earlier version mapped via ``bronze_event_youtube.event_id``,
     but those synthetic ids are a different id space than ``legacy_id`` — zero
     overlap — so every FK insert was rejected and the table stayed empty.)
     """

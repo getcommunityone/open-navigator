@@ -169,12 +169,12 @@ def fetch_transcript_simple(
 # ---------------------------------------------------------------------------
 # Negative cache for transcript fetches.
 #
-# A row only lands in bronze_events_text_ai on SUCCESS, so a video that has no
+# A row only lands in bronze_event_youtube_transcript on SUCCESS, so a video that has no
 # caption track stays "missing" forever and gets re-fetched on every run — which
 # is why a repeat run is a wall of "⊘ No transcript available" against the same
 # dead videos. This table records the videos we've already tried and found to
 # have no transcript, keyed by video_id so it covers BOTH event sources
-# (event mart + LocalView); bronze_events_youtube can't, since LocalView videos
+# (event mart + LocalView); bronze_event_youtube can't, since LocalView videos
 # have no row there. The selection below then skips a video until
 # `retry_after_days` has elapsed, and orders never-tried videos first.
 # ---------------------------------------------------------------------------
@@ -280,7 +280,7 @@ def get_events_missing_transcripts(
                 u.state_code,
                 u.state
             FROM intermediate.int_events_union u
-            LEFT JOIN bronze.bronze_events_text_ai t ON t.video_id = u.video_id
+            LEFT JOIN bronze.bronze_event_youtube_transcript t ON t.video_id = u.video_id
             LEFT JOIN bronze.bronze_transcript_fetch_attempts a ON a.video_id = u.video_id
             WHERE u.video_url IS NOT NULL
               AND t.id IS NULL  -- No transcript landed yet
@@ -399,7 +399,7 @@ def backfill_transcripts(
             jurisdiction = event['jurisdiction_name']
             state = event['state_code']
             # Geo carried from the event mart (via int_events_union). LocalView
-            # videos have no bronze_events_youtube row, so the sync trigger can't
+            # videos have no bronze_event_youtube row, so the sync trigger can't
             # fill these — write them at insert time so coverage is complete.
             jurisdiction_id = event.get('jurisdiction_id')
             state_name = event.get('state')
@@ -535,7 +535,7 @@ def backfill_transcripts(
                     # geo when a matching youtube row exists, but no longer clobbers
                     # these with NULL for LocalView-only videos (see migration 087).
                     insert_query = """
-                        INSERT INTO bronze.bronze_events_text_ai (
+                        INSERT INTO bronze.bronze_event_youtube_transcript (
                             event_id, video_id, raw_text, segments, language,
                             is_auto_generated, transcript_source,
                             state_code, state, jurisdiction_id, jurisdiction_name
@@ -550,10 +550,10 @@ def backfill_transcripts(
                             language = EXCLUDED.language,
                             is_auto_generated = EXCLUDED.is_auto_generated,
                             transcript_source = EXCLUDED.transcript_source,
-                            state_code = COALESCE(bronze.bronze_events_text_ai.state_code, EXCLUDED.state_code),
-                            state = COALESCE(bronze.bronze_events_text_ai.state, EXCLUDED.state),
-                            jurisdiction_id = COALESCE(bronze.bronze_events_text_ai.jurisdiction_id, EXCLUDED.jurisdiction_id),
-                            jurisdiction_name = COALESCE(bronze.bronze_events_text_ai.jurisdiction_name, EXCLUDED.jurisdiction_name)
+                            state_code = COALESCE(bronze.bronze_event_youtube_transcript.state_code, EXCLUDED.state_code),
+                            state = COALESCE(bronze.bronze_event_youtube_transcript.state, EXCLUDED.state),
+                            jurisdiction_id = COALESCE(bronze.bronze_event_youtube_transcript.jurisdiction_id, EXCLUDED.jurisdiction_id),
+                            jurisdiction_name = COALESCE(bronze.bronze_event_youtube_transcript.jurisdiction_name, EXCLUDED.jurisdiction_name)
                     """
                     
                     cursor.execute(insert_query, transcript_data)

@@ -14,7 +14,7 @@ fetchable YouTube video, derives the `video_id`, and dedups to one row per
 video_id.
 
 Consumed by scrapers.youtube.backfill_transcripts to decide which videos still
-need a transcript landed in bronze.bronze_events_text_ai. To pull transcripts for
+need a transcript landed in bronze.bronze_event_youtube_transcript. To pull transcripts for
 a new source, add that source to marts.event — it flows through here for free.
 */
 

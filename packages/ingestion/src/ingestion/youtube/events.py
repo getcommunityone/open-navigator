@@ -13,8 +13,8 @@ What this module does (LAND only):
     context, and an optional `transcript` block).
   * Lands them RAW into two bronze tables (multi-table routing, like
     ingestion.nccs.bulk / ingestion.localview.events):
-      - bronze.bronze_events_youtube       (one row per video)
-      - bronze.bronze_events_text_ai       (one row per video that has a
+      - bronze.bronze_event_youtube       (one row per video)
+      - bronze.bronze_event_youtube_transcript       (one row per video that has a
                                             transcript, linked by video_id)
 
 What this module deliberately does NOT do:
@@ -161,7 +161,7 @@ def video_to_record(obj: dict, *, source_version: str) -> dict | None:
         "source": YoutubeEventsPipeline.source,
         "source_version": source_version,
         "natural_key": video_id,
-        # --- bronze.bronze_events_youtube columns (raw, verbatim) ---
+        # --- bronze.bronze_event_youtube columns (raw, verbatim) ---
         "event_id": stable_event_id(video_id),
         "video_id": video_id,
         "jurisdiction_id": _clean_str(obj.get("jurisdiction_id"), 50),
@@ -188,7 +188,7 @@ def video_to_record(obj: dict, *, source_version: str) -> dict | None:
         "channel_type": _clean_str(obj.get("channel_type"), 50),
         "datasource": "youtube",
         "datasource_id": video_id,
-        # --- transcript block routed to bronze.bronze_events_text_ai ---
+        # --- transcript block routed to bronze.bronze_event_youtube_transcript ---
         "raw_text": raw_text,
         "segments": segments,
         "transcript_language": transcript_language,
@@ -207,7 +207,7 @@ class YoutubeEventRow(RawRow):
 
     Every bronze column is nullable except video_id, which is the upsert key
     (NOT NULL + UNIQUE). Transcript fields are carried alongside and routed to
-    bronze.bronze_events_text_ai in load_batch.
+    bronze.bronze_event_youtube_transcript in load_batch.
     """
 
     event_id: int
@@ -234,7 +234,7 @@ class YoutubeEventRow(RawRow):
     channel_type: str | None = Field(default=None, max_length=50)
     datasource: str | None = Field(default=None, max_length=100)
     datasource_id: str | None = Field(default=None, max_length=255)
-    # Transcript block (lands in bronze_events_text_ai, not bronze_events_youtube).
+    # Transcript block (lands in bronze_event_youtube_transcript, not bronze_event_youtube).
     raw_text: str | None = None
     segments: list[Any] | dict[str, Any] | None = None
     transcript_language: str | None = Field(default=None, max_length=10)
@@ -254,7 +254,7 @@ _CREATE_SCHEMA_SQL = text("CREATE SCHEMA IF NOT EXISTS bronze")
 
 _CREATE_YOUTUBE_TABLE_SQL = text(
     """
-    CREATE TABLE IF NOT EXISTS bronze.bronze_events_youtube (
+    CREATE TABLE IF NOT EXISTS bronze.bronze_event_youtube (
         id                   BIGSERIAL PRIMARY KEY,
         event_id             INTEGER,
         video_id             VARCHAR(20) NOT NULL,
@@ -291,7 +291,7 @@ _CREATE_YOUTUBE_TABLE_SQL = text(
 
 _CREATE_TEXT_AI_TABLE_SQL = text(
     """
-    CREATE TABLE IF NOT EXISTS bronze.bronze_events_text_ai (
+    CREATE TABLE IF NOT EXISTS bronze.bronze_event_youtube_transcript (
         id                    SERIAL PRIMARY KEY,
         event_id              INTEGER,
         video_id              VARCHAR(20) NOT NULL,
@@ -311,19 +311,19 @@ _CREATE_TEXT_AI_TABLE_SQL = text(
 )
 
 _CREATE_INDEXES_SQL = (
-    text("CREATE INDEX IF NOT EXISTS idx_bey_jurisdiction_id ON bronze.bronze_events_youtube(jurisdiction_id)"),
-    text("CREATE INDEX IF NOT EXISTS idx_bey_channel_id      ON bronze.bronze_events_youtube(channel_id)"),
-    text("CREATE INDEX IF NOT EXISTS idx_bey_state_code      ON bronze.bronze_events_youtube(state_code)"),
-    text("CREATE UNIQUE INDEX IF NOT EXISTS idx_betai_video_id_unique ON bronze.bronze_events_text_ai(video_id)"),
-    text("CREATE INDEX IF NOT EXISTS idx_betai_event_id      ON bronze.bronze_events_text_ai(event_id)"),
+    text("CREATE INDEX IF NOT EXISTS idx_bey_jurisdiction_id ON bronze.bronze_event_youtube(jurisdiction_id)"),
+    text("CREATE INDEX IF NOT EXISTS idx_bey_channel_id      ON bronze.bronze_event_youtube(channel_id)"),
+    text("CREATE INDEX IF NOT EXISTS idx_bey_state_code      ON bronze.bronze_event_youtube(state_code)"),
+    text("CREATE UNIQUE INDEX IF NOT EXISTS idx_betai_video_id_unique ON bronze.bronze_event_youtube_transcript(video_id)"),
+    text("CREATE INDEX IF NOT EXISTS idx_betai_event_id      ON bronze.bronze_event_youtube_transcript(event_id)"),
 )
 
-_TRUNCATE_YOUTUBE_SQL = text("TRUNCATE TABLE bronze.bronze_events_youtube")
-_TRUNCATE_TEXT_AI_SQL = text("TRUNCATE TABLE bronze.bronze_events_text_ai")
+_TRUNCATE_YOUTUBE_SQL = text("TRUNCATE TABLE bronze.bronze_event_youtube")
+_TRUNCATE_TEXT_AI_SQL = text("TRUNCATE TABLE bronze.bronze_event_youtube_transcript")
 
 _UPSERT_YOUTUBE_SQL = text(
     """
-    INSERT INTO bronze.bronze_events_youtube AS y (
+    INSERT INTO bronze.bronze_event_youtube AS y (
         event_id, video_id, jurisdiction_id, channel_id, channel_url,
         title, description, published_at,
         jurisdiction_name, jurisdiction_type, state_code, state, city,
@@ -361,7 +361,7 @@ _UPSERT_YOUTUBE_SQL = text(
 
 _UPSERT_TEXT_AI_SQL = text(
     """
-    INSERT INTO bronze.bronze_events_text_ai (
+    INSERT INTO bronze.bronze_event_youtube_transcript (
         event_id, video_id, raw_text, segments, language,
         is_auto_generated, transcript_source, has_transcript, transcript_quality
     ) VALUES (
@@ -417,7 +417,7 @@ class YoutubeEventsPipeline(DataSourcePipeline[YoutubeEventRow]):
         rows: list[YoutubeEventRow],
         ctx: PipelineContext,
     ) -> None:
-        # Route 1: every video lands in bronze.bronze_events_youtube.
+        # Route 1: every video lands in bronze.bronze_event_youtube.
         youtube_params = [
             {
                 "event_id": r.event_id,
@@ -450,7 +450,7 @@ class YoutubeEventsPipeline(DataSourcePipeline[YoutubeEventRow]):
         await session.execute(_UPSERT_YOUTUBE_SQL, youtube_params)
 
         # Route 2: videos that carry a transcript also land in
-        # bronze.bronze_events_text_ai. transcript_quality is the only
+        # bronze.bronze_event_youtube_transcript. transcript_quality is the only
         # light flag (high vs auto-generated medium) — no NLP/derivation.
         transcript_params = [
             {
@@ -513,7 +513,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
             "Land pre-collected YouTube video records (JSON/JSONL) into "
-            "bronze.bronze_events_youtube + bronze.bronze_events_text_ai"
+            "bronze.bronze_event_youtube + bronze.bronze_event_youtube_transcript"
         )
     )
     parser.add_argument(

@@ -80,7 +80,7 @@ def compute_youtube_gap_reason(row: dict[str, Any]) -> tuple[str, str]:
     if has_golden and n_bronze == 0:
         return (
             "golden_channel_no_bronze_videos",
-            "Channel URL in int_events_channels but no rows in bronze.bronze_events_youtube — run load_youtube_events.",
+            "Channel URL in int_events_channels but no rows in bronze.bronze_event_youtube — run load_youtube_events.",
         )
     if not has_golden and n_verified_candidates > 0:
         return (
@@ -124,7 +124,7 @@ def golden_channel_match_sql(*, g_alias: str = "g", a_alias: str = "a") -> str:
 
 
 def jurisdiction_row_match_sql(*, y_alias: str = "y", a_alias: str = "a") -> str:
-    """Same id / trailing-GEOID logic for ``bronze_events_youtube`` jurisdiction_id."""
+    """Same id / trailing-GEOID logic for ``bronze_event_youtube`` jurisdiction_id."""
     return f"""(
         {y_alias}.jurisdiction_id = {a_alias}.jurisdiction_id
         OR (
@@ -219,7 +219,7 @@ YOUTUBE_DIAGNOSTICS_ROW_SQL = f"""
     ) golden_pick ON TRUE
     LEFT JOIN LATERAL (
         SELECT COUNT(*)::bigint AS n_bronze_videos
-        FROM bronze.bronze_events_youtube y
+        FROM bronze.bronze_event_youtube y
         WHERE {_BRONZE_MATCH}
     ) br ON TRUE
     LEFT JOIN LATERAL (

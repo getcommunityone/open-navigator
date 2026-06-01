@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Sync bronze_events_youtube from Local to Neon (Cloud)
+Sync bronze_event_youtube from Local to Neon (Cloud)
 
 This script copies data from the local PostgreSQL database to Neon cloud database.
 It's a data MOVEMENT script (not transformation), so Python is appropriate here.
@@ -13,7 +13,7 @@ Usage:
 Prerequisites:
     - NEON_DATABASE_URL or NEON_DATABASE_URL_DEV in .env
     - Local database at localhost:5433
-    - bronze.bronze_events_youtube table exists in Neon (run dbt first)
+    - bronze.bronze_event_youtube table exists in Neon (run dbt first)
 """
 
 import os
@@ -53,7 +53,7 @@ def get_latest_video_date(conn):
     with conn.cursor() as cursor:
         cursor.execute("""
             SELECT MAX(event_date) 
-            FROM bronze.bronze_events_youtube
+            FROM bronze.bronze_event_youtube
         """)
         result = cursor.fetchone()[0]
         return result
@@ -61,7 +61,7 @@ def get_latest_video_date(conn):
 
 def sync_youtube_data(batch_size=1000, incremental=True):
     """
-    Sync bronze_events_youtube data from local to Neon.
+    Sync bronze_event_youtube data from local to Neon.
     
     Args:
         batch_size: Number of records to insert per batch
@@ -78,8 +78,8 @@ def sync_youtube_data(batch_size=1000, incremental=True):
     
     try:
         # Check current counts
-        local_count = count_records(local_conn, 'bronze_events_youtube')
-        neon_count = count_records(neon_conn, 'bronze_events_youtube')
+        local_count = count_records(local_conn, 'bronze_event_youtube')
+        neon_count = count_records(neon_conn, 'bronze_event_youtube')
         
         logger.info(f"📊 Local database: {local_count:,} records")
         logger.info(f"☁️  Neon database:  {neon_count:,} records")
@@ -96,9 +96,9 @@ def sync_youtube_data(batch_size=1000, incremental=True):
             logger.info(f"   Latest Neon date: {latest_date}")
             
             query = """
-                SELECT * FROM bronze.bronze_events_youtube
+                SELECT * FROM bronze.bronze_event_youtube
                 WHERE video_id NOT IN (
-                    SELECT video_id FROM bronze.bronze_events_youtube
+                    SELECT video_id FROM bronze.bronze_event_youtube
                 )
                 OR event_date > %s
                 ORDER BY event_date DESC, id
@@ -107,7 +107,7 @@ def sync_youtube_data(batch_size=1000, incremental=True):
         else:
             logger.info("📦 Full sync mode: Copying all records")
             query = """
-                SELECT * FROM bronze.bronze_events_youtube
+                SELECT * FROM bronze.bronze_event_youtube
                 ORDER BY id
             """
             params = None
@@ -138,7 +138,7 @@ def sync_youtube_data(batch_size=1000, incremental=True):
         placeholders = ', '.join(['%s'] * len(columns))
         column_names = ', '.join(columns)
         insert_query = f"""
-            INSERT INTO bronze.bronze_events_youtube ({column_names})
+            INSERT INTO bronze.bronze_event_youtube ({column_names})
             VALUES ({placeholders})
             ON CONFLICT (video_id) DO UPDATE SET
                 event_date = EXCLUDED.event_date,
@@ -157,7 +157,7 @@ def sync_youtube_data(batch_size=1000, incremental=True):
         neon_conn.commit()
         
         # Verify
-        new_neon_count = count_records(neon_conn, 'bronze_events_youtube')
+        new_neon_count = count_records(neon_conn, 'bronze_event_youtube')
         logger.success("=" * 80)
         logger.success("✅ SYNC COMPLETE")
         logger.success("=" * 80)
@@ -180,7 +180,7 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(
-        description="Sync bronze_events_youtube from local to Neon"
+        description="Sync bronze_event_youtube from local to Neon"
     )
     parser.add_argument(
         '--full',

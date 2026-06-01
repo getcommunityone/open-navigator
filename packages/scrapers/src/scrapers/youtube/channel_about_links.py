@@ -713,7 +713,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     p.add_argument(
         "--from-bronze-youtube",
         action="store_true",
-        help="Distinct channel_id from bronze.bronze_events_youtube not yet fetched (joins channels table)",
+        help="Distinct channel_id from bronze.bronze_event_youtube not yet fetched (joins channels table)",
     )
     p.add_argument(
         "--refetch-all",
@@ -780,7 +780,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                     cur.execute(
                         f"""
                         SELECT DISTINCT y.channel_id
-                        FROM bronze.bronze_events_youtube y
+                        FROM bronze.bronze_event_youtube y
                         LEFT JOIN bronze.bronze_events_channels c
                             ON c.channel_id = y.channel_id
                         WHERE y.channel_id IS NOT NULL

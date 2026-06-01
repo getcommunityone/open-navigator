@@ -501,7 +501,7 @@ Same mechanics, **public-governance** subjects:
 
 **Data you already have (Tuscaloosa / warehouse path):**
 
-- `bronze.bronze_events_youtube` — `event_date`, title, jurisdiction
+- `bronze.bronze_event_youtube` — `event_date`, title, jurisdiction
 - Caption cache — `YYYY-MM-DD_<title>.json` aligned with Opus basenames
 - Policy JSON — `decisions[].primary_theme`, `narrative_analysis`, timestamps
 - Optional external layer — **Google Trends** (`pytrends`) for resident search vs official record (mirror the story’s “search vs sightings” gap)

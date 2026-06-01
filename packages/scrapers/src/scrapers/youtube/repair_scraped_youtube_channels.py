@@ -9,7 +9,7 @@ rows with wrong channels. This script:
    verified replacement exists).
 2. **Restores** from verified sources (priority order):
    - ``data/cache/gemini_transcript_policy/{state}/{type}/{jurisdiction_id}/{UC…}/`` (had transcripts)
-   - ``bronze.bronze_events_youtube`` (channel with most videos for that jurisdiction)
+   - ``bronze.bronze_event_youtube`` (channel with most videos for that jurisdiction)
    - ``payload.youtube_channels`` entries whose ``discovery_method`` is not ``pattern_match``
 3. Optionally **scrubs** ``pattern_match`` entries out of ``payload.youtube_channels``.
 
@@ -65,7 +65,7 @@ class VerifiedChannel:
         """Higher = prefer for primary."""
         source_rank = {
             "gemini_transcript_policy": 4,
-            "bronze_events_youtube": 3,
+            "bronze_event_youtube": 3,
             "payload_non_pattern_match": 2,
         }.get(self.source, 0)
         return (source_rank, self.transcript_count, self.event_count)
@@ -157,7 +157,7 @@ def collect_verified_from_bronze_events(conn) -> dict[str, VerifiedChannel]:
             MAX(y.jurisdiction_type) AS jurisdiction_type,
             MAX(bc.channel_title) AS channel_title,
             MAX(bc.channel_description) AS channel_description
-        FROM bronze.bronze_events_youtube y
+        FROM bronze.bronze_event_youtube y
         LEFT JOIN bronze.bronze_events_channels bc ON bc.channel_id = y.channel_id
         WHERE y.channel_id IS NOT NULL AND y.channel_id LIKE 'UC%%'
         GROUP BY y.jurisdiction_id, y.channel_id
@@ -173,7 +173,7 @@ def collect_verified_from_bronze_events(conn) -> dict[str, VerifiedChannel]:
                 "youtube_channel_id": str(cid).strip(),
                 "channel_title": title,
                 "channel_description": desc,
-                "discovery_method": "verified_bronze_events_youtube",
+                "discovery_method": "verified_bronze_event_youtube",
                 "official_meeting_confidence": 0.55,
                 "back_links_to_jurisdiction_website": False,
             }
@@ -188,7 +188,7 @@ def collect_verified_from_bronze_events(conn) -> dict[str, VerifiedChannel]:
             by_jid[canon].append(
                 VerifiedChannel(
                     channel_id=str(cid).strip(),
-                    source="bronze_events_youtube",
+                    source="bronze_event_youtube",
                     event_count=int(n),
                 )
             )
@@ -449,7 +449,7 @@ def main() -> int:
     conn = _connect()
     try:
         bronze = collect_verified_from_bronze_events(conn)
-        print(f"Verified channels from bronze_events_youtube: {len(bronze)}")
+        print(f"Verified channels from bronze_event_youtube: {len(bronze)}")
 
         verified_jid = merge_verified(gemini, bronze)
         # Also index by geoid via int_jurisdictions

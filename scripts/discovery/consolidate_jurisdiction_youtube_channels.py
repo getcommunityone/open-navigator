@@ -5,7 +5,7 @@ Consolidate verified YouTube channels into ``intermediate.int_events_channels``.
 Sources (all states by default; optional ``--states`` filter):
 - ``bronze.bronze_jurisdictions_{counties,municipalities}_scraped`` primary columns
 - ``intermediate.int_events_channels_candidates`` rows with ``is_verified = true``
-- ``bronze.bronze_events_youtube`` catalog (primary channel by video count) for gaps
+- ``bronze.bronze_event_youtube`` catalog (primary channel by video count) for gaps
 
 After consolidation, optionally sync primaries back to ``*_scraped`` via
 ``sync_youtube_primary_from_jurisdiction_youtube.py``.
@@ -70,7 +70,7 @@ def _enrich_channel_ids(database_url: str, rows: list[dict]) -> None:
             cur.execute(
                 """
                 SELECT jurisdiction_id, channel_id, channel_url, COUNT(*) AS n
-                FROM bronze.bronze_events_youtube
+                FROM bronze.bronze_event_youtube
                 WHERE jurisdiction_id = ANY(%s)
                   AND channel_id IS NOT NULL
                   AND BTRIM(channel_id) LIKE 'UC%%'
@@ -237,7 +237,7 @@ def _fetch_bronze_catalog_primaries(
     *,
     exclude_jurisdiction_ids: set[str] | None = None,
 ) -> list[dict]:
-    """Best-effort primary channel from existing ``bronze_events_youtube`` rows."""
+    """Best-effort primary channel from existing ``bronze_event_youtube`` rows."""
     import psycopg2
     from psycopg2.extras import RealDictCursor
 
@@ -258,7 +258,7 @@ def _fetch_bronze_catalog_primaries(
                 y.channel_id,
                 y.channel_url,
                 COUNT(*) AS video_n
-            FROM bronze.bronze_events_youtube y
+            FROM bronze.bronze_event_youtube y
             INNER JOIN intermediate.int_jurisdictions j
                 ON j.jurisdiction_id = y.jurisdiction_id
             WHERE y.jurisdiction_type IN ('county', 'municipality')
@@ -298,7 +298,7 @@ def _fetch_bronze_catalog_primaries(
             out: list[dict] = []
             for rec in cur.fetchall():
                 row = dict(rec)
-                row["discovery_method"] = "verified_bronze_events_youtube"
+                row["discovery_method"] = "verified_bronze_event_youtube"
                 row["official_meeting_confidence"] = _MIN_CONFIDENCE
                 row["website_url"] = None
                 out.append(row)
@@ -499,7 +499,7 @@ def main() -> int:
     parser.add_argument(
         "--no-bronze-catalog",
         action="store_true",
-        help="Do not backfill from bronze.bronze_events_youtube",
+        help="Do not backfill from bronze.bronze_event_youtube",
     )
     args = parser.parse_args()
 

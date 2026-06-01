@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Download YouTube Audio from bronze_events_youtube to Google Drive
+Download YouTube Audio from bronze_event_youtube to Google Drive
 
-This script downloads audio-only files from YouTube videos in the ``bronze.bronze_events_youtube``
+This script downloads audio-only files from YouTube videos in the ``bronze.bronze_event_youtube``
 table (optionally restricted to channels present in ``bronze.bronze_events_channels``) and saves
 audio to disk organized by channel and date.
 
@@ -476,7 +476,7 @@ class YouTubeAudioDownloader:
         try:
             cur.execute(
                 """
-                ALTER TABLE bronze.bronze_events_youtube
+                ALTER TABLE bronze.bronze_event_youtube
                 ADD COLUMN IF NOT EXISTS audio_downloaded_at TIMESTAMP,
                 ADD COLUMN IF NOT EXISTS audio_file_path VARCHAR(500),
                 ADD COLUMN IF NOT EXISTS audio_file_size_mb DOUBLE PRECISION
@@ -485,7 +485,7 @@ class YouTubeAudioDownloader:
             cur.execute(
                 """
                 CREATE INDEX IF NOT EXISTS idx_bronze_youtube_audio_downloaded
-                ON bronze.bronze_events_youtube (audio_downloaded_at)
+                ON bronze.bronze_event_youtube (audio_downloaded_at)
                 WHERE audio_downloaded_at IS NOT NULL
                 """
             )
@@ -533,7 +533,7 @@ class YouTubeAudioDownloader:
                 conn.rollback()
                 conn.close()
                 logger.error(
-                    "Could not ensure audio tracking columns on bronze.bronze_events_youtube. "
+                    "Could not ensure audio tracking columns on bronze.bronze_event_youtube. "
                     "If you use a read-only role, apply migration manually: "
                     "packages/hosting/scripts/neon/migrations/006_add_audio_tracking_fields.sql"
                 )
@@ -616,7 +616,7 @@ class YouTubeAudioDownloader:
         return channel_dir / filename
     
     def get_videos_to_download(self) -> List[Dict]:
-        """Query database for videos to download (``bronze_events_youtube``; optional join to ``bronze_events_channels``)."""
+        """Query database for videos to download (``bronze_event_youtube``; optional join to ``bronze_events_channels``)."""
         conn = self._connect_to_database()
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         params: List[Any] = []
@@ -631,11 +631,11 @@ class YouTubeAudioDownloader:
         join_kw = "INNER JOIN" if self.bronze_channels_only else "LEFT JOIN"
         if use_channel_join:
             from_sql = f"""
-                bronze.bronze_events_youtube y
+                bronze.bronze_event_youtube y
                 {join_kw} bronze.bronze_events_channels c ON c.channel_id = y.channel_id
             """.strip()
         else:
-            from_sql = "bronze.bronze_events_youtube y"
+            from_sql = "bronze.bronze_event_youtube y"
 
         conditions = ["y.video_url IS NOT NULL"]
 
@@ -886,7 +886,7 @@ class YouTubeAudioDownloader:
             
             # Update the bronze table with download info
             cursor.execute("""
-                UPDATE bronze.bronze_events_youtube
+                UPDATE bronze.bronze_event_youtube
                 SET 
                     audio_downloaded_at = CURRENT_TIMESTAMP,
                     audio_file_path = %s,
@@ -938,7 +938,7 @@ class YouTubeAudioDownloader:
         
         cursor.execute("""
             SELECT DISTINCT channel_id, state_code, jurisdiction_name
-            FROM bronze.bronze_events_youtube
+            FROM bronze.bronze_event_youtube
             WHERE state_code IS NOT NULL
         """)
         
@@ -1008,7 +1008,7 @@ class YouTubeAudioDownloader:
                 
                 cursor.execute("""
                     SELECT video_id
-                    FROM bronze.bronze_events_youtube
+                    FROM bronze.bronze_event_youtube
                     WHERE audio_file_path = %s
                     LIMIT 1
                 """, (str(old_path.relative_to(self.output_dir)),))
@@ -1019,7 +1019,7 @@ class YouTubeAudioDownloader:
                     
                     # Update with new path
                     cursor.execute("""
-                        UPDATE bronze.bronze_events_youtube
+                        UPDATE bronze.bronze_event_youtube
                         SET audio_file_path = %s
                         WHERE video_id = %s
                     """, (relative_new_path, video_id))
@@ -1079,7 +1079,7 @@ class YouTubeAudioDownloader:
         # Get all videos from database
         cursor.execute("""
             SELECT video_id, channel_id, state_code, jurisdiction_name, title, event_date
-            FROM bronze.bronze_events_youtube
+            FROM bronze.bronze_event_youtube
         """)
         
         videos = cursor.fetchall()
@@ -1097,7 +1097,7 @@ class YouTubeAudioDownloader:
                 # Check if this file already has metadata
                 cursor.execute("""
                     SELECT video_id, audio_downloaded_at, audio_file_path
-                    FROM bronze.bronze_events_youtube
+                    FROM bronze.bronze_event_youtube
                     WHERE audio_file_path = %s
                 """, (relative_path,))
                 
@@ -1161,7 +1161,7 @@ class YouTubeAudioDownloader:
                 
                 # Update database with metadata
                 cursor.execute("""
-                    UPDATE bronze.bronze_events_youtube
+                    UPDATE bronze.bronze_event_youtube
                     SET 
                         audio_downloaded_at = CURRENT_TIMESTAMP,
                         audio_file_path = %s,
@@ -1398,7 +1398,7 @@ def main():
     # module as a library must not mutate os.environ for unrelated callers/tests.
     load_dotenv()
     parser = argparse.ArgumentParser(
-        description="Download YouTube audio from bronze_events_youtube to Google Drive"
+        description="Download YouTube audio from bronze_event_youtube to Google Drive"
     )
     
     parser.add_argument(

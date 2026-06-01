@@ -19,7 +19,7 @@ TABLES=(
     "bronze_decisions"
     "bronze_events"
     "bronze_event"
-    "bronze_events_text_ai"
+    "bronze_event_youtube_transcript"
     "bronze_financial_items"
     "bronze_jurisdictions"
     "bronze_jurisdictions_postal_codes"

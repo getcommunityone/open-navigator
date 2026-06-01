@@ -382,29 +382,59 @@ class CivicSearchHarvester:
     async def _harvest_place_meetings(
         self, place: dict[str, Any]
     ) -> dict[str, dict[str, Any]]:
-        """Union all of a place's meetings across the broad-keyword/topic axes."""
+        """Capture a place's meetings, escalating axes only as far as needed.
+
+        ``get_place_list`` tells us the exact ``num_meetings`` a place has, so we
+        treat that as the completeness target and STOP as soon as we've gathered
+        it — most places hit their full count from the first one or two broad
+        keywords (a single "city council" returns all of Andalusia's 27). The
+        expensive extra axes (the place's own ~20-keyword list, then a
+        per-topic-id sweep) only run when the cheap broad keywords fall short, so
+        the common case costs a handful of requests instead of ~40-80.
+        """
         lonlat = (place["lon"], place["lat"])
         place_meetings: dict[str, dict[str, Any]] = {}
         topic_ids: set[int] = set()
+        target = place.get("num_meetings")
+        target = target if isinstance(target, int) and target > 0 else None
 
-        # Axis 1+2: broad-recall keywords + the place's own keyword list. Both
-        # use the same code path; broad keywords are tried first so a place with
-        # an empty/failed topic list still gets full routine-meeting recall.
-        keywords = list(BROAD_RECALL_KEYWORDS) + await self._place_keyword_list(place)
+        def _done() -> bool:
+            return target is not None and len(place_meetings) >= target
+
+        async def _sweep(kw_iter):
+            """Run keyword searches until target met; returns early if complete."""
+            for kw in kw_iter:
+                key = kw.lower()
+                if key in seen_kw:
+                    continue
+                seen_kw.add(key)
+                payload = await self._search(
+                    place["query_id"], keywords=kw, lonlat=lonlat
+                )
+                self._merge_search_payload(place_meetings, payload, place, topic_ids, kw)
+                if _done():
+                    return
+
         seen_kw: set[str] = set()
-        for kw in keywords:
-            key = kw.lower()
-            if key in seen_kw:
-                continue
-            seen_kw.add(key)
-            payload = await self._search(place["query_id"], keywords=kw, lonlat=lonlat)
-            self._merge_search_payload(place_meetings, payload, place, topic_ids, kw)
 
-        # Axis 3: re-query any numeric topic ids surfaced above (some meetings
-        # are indexed only under a topic axis, not the broad keywords).
-        for tid in sorted(topic_ids):
-            payload = await self._search(place["query_id"], topics=[tid], lonlat=lonlat)
-            self._merge_search_payload(place_meetings, payload, place, topic_ids=None)
+        # Axis 1: cheap broad-recall keywords. Usually enough on its own.
+        await _sweep(BROAD_RECALL_KEYWORDS)
+
+        # Axis 2: the place's own keyword list — only if broad recall came up
+        # short of the advertised num_meetings (or we have no target to trust).
+        if not _done():
+            await _sweep(await self._place_keyword_list(place))
+
+        # Axis 3: per-topic-id sweep — last resort for meetings indexed only
+        # under a topic axis. Skip entirely once the target is met.
+        if not _done():
+            for tid in sorted(topic_ids):
+                payload = await self._search(
+                    place["query_id"], topics=[tid], lonlat=lonlat
+                )
+                self._merge_search_payload(place_meetings, payload, place, topic_ids=None)
+                if _done():
+                    break
 
         return place_meetings
 

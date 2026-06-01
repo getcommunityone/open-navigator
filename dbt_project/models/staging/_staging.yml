@@ -264,7 +264,7 @@ sources:
           - name: meeting_type
           - name: loaded_at
       
-      - name: bronze_events_youtube
+      - name: bronze_event_youtube
         description: |
           Raw YouTube video data from government channels. Landed by the LAND
           loader ingestion.youtube.events (pre-collected JSON/JSONL out of
@@ -317,7 +317,7 @@ sources:
           by the LAND loader ingestion.civicsearch.events out of
           data/cache/civicsearch/meetings.jsonl, emitted by the FETCH scraper
           scrapers.civicsearch.harvest. One row per vid_id (a YouTube video id),
-          which is the bridge to bronze_events_youtube / int_events_localview /
+          which is the bridge to bronze_event_youtube / int_events_localview /
           int_events_union (video_id). snippets/topic_ids/matched_keywords are
           JSONB; they are unnested downstream in stg_civicsearch__snippet.
         columns:
@@ -1145,7 +1145,7 @@ sources:
           - name: loaded_at
             description: "When record was loaded"
       
-      - name: bronze_events_text_ai
+      - name: bronze_event_youtube_transcript
         description: |
           Video transcripts and AI-extracted meeting text. YouTube captions are
           landed here by the LAND loader ingestion.youtube.events (second-table
@@ -1726,7 +1726,7 @@ models:
       - name: video_missing_channel
         description: "Quality flag - TRUE if has video_url but no channel_id"
   
-  - name: stg_bronze_events_text_ai
+  - name: stg_bronze_event_youtube_transcript
     description: |
       Staged and cleaned video transcripts from AI extraction.
       Filters out very short or empty transcripts, calculates quality metrics.

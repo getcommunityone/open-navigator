@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Load YouTube Events to bronze.bronze_events_youtube
+Load YouTube Events to bronze.bronze_event_youtube
 
 DECOMPOSITION NOTE (medallion refactor):
     This file is the FETCH layer — the live data acquisition (YouTube Data API,
@@ -15,8 +15,8 @@ DECOMPOSITION NOTE (medallion refactor):
     The LAND layer (thin loader for PRE-COLLECTED records) now lives at
         packages/ingestion/src/ingestion/youtube/events.py
     a DataSourcePipeline that reads JSON/JSONL out of data/cache/youtube/ and
-    lands raw rows into bronze.bronze_events_youtube (+ transcripts into
-    bronze.bronze_events_text_ai) with a stable SHA-based event_id.
+    lands raw rows into bronze.bronze_event_youtube (+ transcripts into
+    bronze.bronze_event_youtube_transcript) with a stable SHA-based event_id.
 
     The DERIVE layer (title->meeting-date parsing, jurisdiction/channel
     classification, dedup) moves DOWNSTREAM to dbt:
@@ -24,11 +24,11 @@ DECOMPOSITION NOTE (medallion refactor):
     No derivation happens in the LAND loader.
 
 This script:
-1. Reads YouTube channels from bronze.bronze_events_youtube (existing videos with channel data)
+1. Reads YouTube channels from bronze.bronze_event_youtube (existing videos with channel data)
 2. For each channel, fetches new videos using YouTube API or yt-dlp fallback
 3. Fetches video transcripts (captions/subtitles) from YouTube
-4. Incrementally adds/updates events in bronze.bronze_events_youtube table (bronze layer)
-5. Stores video transcripts in bronze.bronze_events_text_ai table (bronze layer)
+4. Incrementally adds/updates events in bronze.bronze_event_youtube table (bronze layer)
+5. Stores video transcripts in bronze.bronze_event_youtube_transcript table (bronze layer)
 6. Links events to jurisdictions via jurisdiction_id
 
 Usage:
@@ -190,7 +190,7 @@ def _process_jurisdiction_worker(
 
 
 class YouTubeEventsLoader:
-    """Load YouTube videos from jurisdictions into bronze.bronze_events_youtube table."""
+    """Load YouTube videos from jurisdictions into bronze.bronze_event_youtube table."""
     
     def __init__(
         self,
@@ -273,7 +273,7 @@ class YouTubeEventsLoader:
         # Ensure tables and columns exist (optional for tight backfill loops).
         if ensure_schema_setup:
             self._add_jurisdiction_id_column()
-            self._create_bronze_events_text_ai_table()
+            self._create_bronze_event_youtube_transcript_table()
             self._create_bronze_events_channels_table()
             ensure_bronze_events_channels_link_columns(self.conn)
             from scrapers.youtube.bronze_transcript_tracking import (
@@ -441,8 +441,8 @@ class YouTubeEventsLoader:
         finally:
             cursor.close()
     
-    def _create_bronze_events_text_ai_table(self):
-        """Create bronze.bronze_events_text_ai table if it doesn't exist."""
+    def _create_bronze_event_youtube_transcript_table(self):
+        """Create bronze.bronze_event_youtube_transcript table if it doesn't exist."""
         cursor = self.conn.cursor()
         
         try:
@@ -451,7 +451,7 @@ class YouTubeEventsLoader:
             
             # Create table matching migration 004 schema
             cursor.execute("""
-                CREATE TABLE IF NOT EXISTS bronze.bronze_events_text_ai (
+                CREATE TABLE IF NOT EXISTS bronze.bronze_event_youtube_transcript (
                     id SERIAL PRIMARY KEY,
                     event_id INTEGER,
                     video_id VARCHAR(64) NOT NULL,
@@ -471,38 +471,38 @@ class YouTubeEventsLoader:
             
             # Create indexes
             cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_bronze_events_text_ai_event_id 
-                ON bronze.bronze_events_text_ai(event_id);
+                CREATE INDEX IF NOT EXISTS idx_bronze_event_youtube_transcript_event_id 
+                ON bronze.bronze_event_youtube_transcript(event_id);
             """)
             
             cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_bronze_events_text_ai_video_id 
-                ON bronze.bronze_events_text_ai(video_id);
+                CREATE INDEX IF NOT EXISTS idx_bronze_event_youtube_transcript_video_id 
+                ON bronze.bronze_event_youtube_transcript(video_id);
             """)
             
             cursor.execute("""
                 CREATE UNIQUE INDEX IF NOT EXISTS idx_bronze_events_text_video_id_unique 
-                ON bronze.bronze_events_text_ai(video_id);
+                ON bronze.bronze_event_youtube_transcript(video_id);
             """)
             
             cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_bronze_events_text_source 
-                ON bronze.bronze_events_text_ai(transcript_source);
+                ON bronze.bronze_event_youtube_transcript(transcript_source);
             """)
             
             cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_bronze_events_text_quality 
-                ON bronze.bronze_events_text_ai(has_transcript, transcript_quality);
+                ON bronze.bronze_event_youtube_transcript(has_transcript, transcript_quality);
             """)
             
             # Full-text search index on raw_text
             cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_bronze_events_text_search_gin 
-                ON bronze.bronze_events_text_ai USING GIN (to_tsvector('english', COALESCE(raw_text, '')));
+                ON bronze.bronze_event_youtube_transcript USING GIN (to_tsvector('english', COALESCE(raw_text, '')));
             """)
             
             self.conn.commit()
-            logger.success("✓ Ensured bronze.bronze_events_text_ai table exists")
+            logger.success("✓ Ensured bronze.bronze_event_youtube_transcript table exists")
             
         except Exception as e:
             self.conn.rollback()
@@ -605,7 +605,7 @@ class YouTubeEventsLoader:
         
         try:
             # bronze_events_localview has no channel_id; link LocalView rows (datasource_id = video_id)
-            # to a channel via int_localview_youtube_video_channels (dbt) or bronze_events_youtube.
+            # to a channel via int_localview_youtube_video_channels (dbt) or bronze_event_youtube.
             in_localview = False
             for probe_sql, probe_params in (
                 (
@@ -626,7 +626,7 @@ class YouTubeEventsLoader:
                     SELECT EXISTS(
                         SELECT 1
                         FROM bronze.bronze_events_localview lv
-                        INNER JOIN bronze.bronze_events_youtube y
+                        INNER JOIN bronze.bronze_event_youtube y
                             ON y.video_id = lv.datasource_id
                         WHERE lv.datasource = 'localview'
                           AND y.channel_id = %s
@@ -1228,7 +1228,7 @@ class YouTubeEventsLoader:
         ``channel_source=counties-scraped``: ``bronze.bronze_jurisdictions_counties_scraped``.
         ``channel_source=municipalities-scraped``: ``bronze.bronze_jurisdictions_municipalities_scraped``.
         Otherwise: golden ``intermediate.int_events_channels``, then ``int_events_channels_registry``,
-        then ``bronze.bronze_events_youtube``.
+        then ``bronze.bronze_event_youtube``.
         """
         if channel_source == "counties-scraped":
             return self.get_jurisdictions_from_counties_scraped(
@@ -1289,7 +1289,7 @@ class YouTubeEventsLoader:
                     f"Found {len(jurisdictions)} jurisdictions with YouTube channels (source=intermediate.int_events_channels)"
                 )
                 return jurisdictions
-            logger.warning("No channel mappings in intermediate.int_events_channels; falling back to bronze.bronze_events_youtube")
+            logger.warning("No channel mappings in intermediate.int_events_channels; falling back to bronze.bronze_event_youtube")
 
         except Exception as exc:
             logger.warning(f"Intermediate channel source unavailable, falling back to bronze: {exc}")
@@ -1310,7 +1310,7 @@ class YouTubeEventsLoader:
                     )
                 ) as youtube_channels,
                 COUNT(DISTINCT channel_id) as youtube_channel_count
-            FROM bronze.bronze_events_youtube
+            FROM bronze.bronze_event_youtube
             WHERE channel_id IS NOT NULL
               AND jurisdiction_name IS NOT NULL
         """
@@ -1333,7 +1333,7 @@ class YouTubeEventsLoader:
         jurisdictions = cursor.fetchall()
         cursor.close()
 
-        logger.info(f"Found {len(jurisdictions)} jurisdictions with YouTube channels (source=bronze.bronze_events_youtube)")
+        logger.info(f"Found {len(jurisdictions)} jurisdictions with YouTube channels (source=bronze.bronze_event_youtube)")
         return jurisdictions
     
     def is_channel_flagged(self, channel_id: str) -> tuple[bool, str]:
@@ -1439,7 +1439,7 @@ class YouTubeEventsLoader:
                         logger.debug(f"  Skipping flagged channel: {channel_title} - {flag_reason}")
                         continue
 
-                    # Channels already linked in bronze.bronze_events_youtube (catalog refresh)
+                    # Channels already linked in bronze.bronze_event_youtube (catalog refresh)
                     if trust_catalog:
                         channel_url = item.get('channel_url') or f"https://www.youtube.com/channel/{channel_id}"
                         channels.append({
@@ -1530,7 +1530,7 @@ class YouTubeEventsLoader:
         channel_id: str,
         channel_type: str = 'unknown'
     ) -> Dict[str, Any]:
-        """Convert YouTube video metadata to bronze_events_youtube record format."""
+        """Convert YouTube video metadata to bronze_event_youtube record format."""
         
         # Parse published date; meeting date may come from title (e.g. 9/23/2024 council meeting)
         event_date = None
@@ -2178,12 +2178,12 @@ class YouTubeEventsLoader:
                 return None
     
     def insert_events(self, events: List[Dict[str, Any]], batch_size: int = 500) -> int:
-        """Insert events into bronze.bronze_events_youtube table."""
+        """Insert events into bronze.bronze_event_youtube table."""
         if not events:
             return 0
         
         insert_query = """
-            INSERT INTO bronze.bronze_events_youtube AS y (
+            INSERT INTO bronze.bronze_event_youtube AS y (
                 event_id, video_id, jurisdiction_id, channel_id, channel_url, 
                 title, description, event_date, event_time, published_at,
                 jurisdiction_name, jurisdiction_type, state_code, state, city,
@@ -2301,7 +2301,7 @@ class YouTubeEventsLoader:
             cursor.execute(
                 """
                 SELECT video_id
-                FROM bronze.bronze_events_youtube
+                FROM bronze.bronze_event_youtube
                 WHERE video_id = ANY(%s)
                 ORDER BY published_at DESC NULLS LAST, last_updated DESC NULLS LAST
                 LIMIT %s
@@ -2383,7 +2383,7 @@ class YouTubeEventsLoader:
                 """
                 SELECT video_id, title, event_date, published_at, channel_id, channel_url,
                        jurisdiction_id, state_code, jurisdiction_type
-                FROM bronze.bronze_events_youtube
+                FROM bronze.bronze_event_youtube
                 WHERE video_id = ANY(%s)
                 """,
                 (ids,),
@@ -2474,7 +2474,7 @@ class YouTubeEventsLoader:
         max_backoff = 60  # Maximum 60 seconds backoff
         
         insert_query = """
-            INSERT INTO bronze.bronze_events_text_ai (
+            INSERT INTO bronze.bronze_event_youtube_transcript (
                 event_id, video_id, raw_text, segments, language, 
                 is_auto_generated, transcript_source, has_transcript, transcript_quality
             ) VALUES (
@@ -2744,7 +2744,7 @@ class YouTubeEventsLoader:
             # Get the most recent last_updated timestamp for this specific channel
             cursor.execute("""
                 SELECT MAX(last_updated) 
-                FROM bronze.bronze_events_youtube 
+                FROM bronze.bronze_event_youtube 
                 WHERE jurisdiction_id = %s
                 AND channel_id = %s
                 AND datasource = 'youtube'
@@ -3094,13 +3094,13 @@ class YouTubeEventsLoader:
                 COUNT(DISTINCT state_code) as states,
                 MIN(event_date) as earliest_date,
                 MAX(event_date) as latest_date
-            FROM bronze.bronze_events_youtube
+            FROM bronze.bronze_event_youtube
         """)
         stats = cursor.fetchone()
         
         # Get transcript stats
         cursor.execute("""
-            SELECT COUNT(*) FROM bronze.bronze_events_text_ai
+            SELECT COUNT(*) FROM bronze.bronze_event_youtube_transcript
         """)
         transcript_count = cursor.fetchone()[0]
         cursor.close()
@@ -3154,8 +3154,8 @@ class YouTubeEventsLoader:
         
         logger.info("")
         logger.info("Query examples:")
-        logger.info("  SELECT jurisdiction_name, COUNT(*) FROM bronze.bronze_events_youtube GROUP BY jurisdiction_name ORDER BY COUNT(*) DESC LIMIT 10")
-        logger.info("  SELECT COUNT(*) FROM bronze.bronze_events_text_ai")
+        logger.info("  SELECT jurisdiction_name, COUNT(*) FROM bronze.bronze_event_youtube GROUP BY jurisdiction_name ORDER BY COUNT(*) DESC LIMIT 10")
+        logger.info("  SELECT COUNT(*) FROM bronze.bronze_event_youtube_transcript")
         logger.info("")
         logger.info("View in app: http://localhost:5173/meetings")
     
@@ -3244,7 +3244,7 @@ def main():
         '--max-videos',
         type=int,
         default=100,
-        help='Maximum videos to catalog per channel (metadata in bronze_events_youtube; default: 100)',
+        help='Maximum videos to catalog per channel (metadata in bronze_event_youtube; default: 100)',
     )
 
     parser.add_argument(

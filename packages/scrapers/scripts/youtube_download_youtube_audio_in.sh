@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Download YouTube audio for Indiana only (bronze_events_youtube.state_code = 'IN').
+# Download YouTube audio for Indiana only (bronze_event_youtube.state_code = 'IN').
 # Extra args are forwarded, e.g.:
 #   ./packages/scrapers/src/scrapers/youtube/download_youtube_audio_in.sh --limit 20 --not-yet-downloaded
 #   ./packages/scrapers/src/scrapers/youtube/download_youtube_audio_in.sh --bronze-channels-only --government-channel-types-only --meetings-only --exclude-news --years-back 5 --not-yet-downloaded

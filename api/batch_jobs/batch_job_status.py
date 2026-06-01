@@ -202,7 +202,7 @@ def persist_batch_job(job: BatchJob) -> None:
 
 
 def duration_seconds_from_catalog_minutes(duration_minutes: object) -> Optional[float]:
-    """Convert ``bronze_events_youtube.duration_minutes`` to seconds for batch UI."""
+    """Convert ``bronze_event_youtube.duration_minutes`` to seconds for batch UI."""
     if duration_minutes is None:
         return None
     try:
@@ -289,7 +289,7 @@ def fetch_batch_plan_jurisdictions(
                   AND BTRIM(j.jurisdiction_id) <> ''
                   AND EXISTS (
                       SELECT 1
-                      FROM bronze.bronze_events_youtube y
+                      FROM bronze.bronze_event_youtube y
                       WHERE y.state_code = j.state_code
                         AND (
                           y.jurisdiction_id = j.jurisdiction_id
@@ -318,7 +318,7 @@ def fetch_batch_plan_jurisdictions(
                            jurisdiction_id,
                            jurisdiction_name,
                            NULL::text AS jurisdiction_type
-                    FROM bronze.bronze_events_youtube
+                    FROM bronze.bronze_event_youtube
                     WHERE state_code = ANY(%s)
                       AND jurisdiction_id IS NOT NULL
                       AND BTRIM(jurisdiction_id) <> ''

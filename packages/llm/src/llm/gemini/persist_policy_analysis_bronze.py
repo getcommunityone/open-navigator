@@ -74,7 +74,7 @@ def persist_policy_analysis_bronze(
 ) -> Dict[str, int]:
     """
     Upsert bronze.bronze_bills, bronze_meeting_item_legislation, bronze_policy_decisions;
-    set bronze_events_youtube.primary_leg_ids for the video.
+    set bronze_event_youtube.primary_leg_ids for the video.
     """
     import psycopg2
     from psycopg2.extras import Json
@@ -215,7 +215,7 @@ def persist_policy_analysis_bronze(
 
             cur.execute(
                 """
-                UPDATE bronze.bronze_events_youtube
+                UPDATE bronze.bronze_event_youtube
                 SET primary_leg_ids = %s::jsonb,
                     legislation_validated_at = %s,
                     last_updated = CURRENT_TIMESTAMP
@@ -282,7 +282,7 @@ def record_policy_event(
         try:
             with conn.cursor() as cur:
                 cur.execute(
-                    f"UPDATE bronze.bronze_events_youtube SET {set_clause} WHERE video_id = %s",
+                    f"UPDATE bronze.bronze_event_youtube SET {set_clause} WHERE video_id = %s",
                     params,
                 )
                 updated = bool(cur.rowcount)
@@ -306,7 +306,7 @@ def resolve_event_id_for_video(database_url_str: str, video_id: str) -> Optional
     try:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT event_id FROM bronze.bronze_events_youtube WHERE video_id = %s LIMIT 1",
+                "SELECT event_id FROM bronze.bronze_event_youtube WHERE video_id = %s LIMIT 1",
                 (video_id.strip(),),
             )
             row = cur.fetchone()

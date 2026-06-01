@@ -3,7 +3,7 @@
 Backfill YouTube captions for all videos in a jurisdiction (bronze + optional local cache).
 
 Writes:
-- ``bronze.bronze_events_text_ai`` (canonical)
+- ``bronze.bronze_event_youtube_transcript`` (canonical)
 - ``data/cache/gemini_transcript_policy/{state}/{type}/{jurisdiction_id}/01_transcripts/…`` (matches Opus basename)
 
 Permanent caption failures (no subs / disabled / unavailable) may be **tombstoned** in bronze
@@ -230,8 +230,8 @@ def fetch_pending_videos(
             y.transcript_download_at,
             y.transcript_file_error,
             t.has_transcript AS bronze_has_transcript
-        FROM bronze.bronze_events_youtube y
-        LEFT JOIN bronze.bronze_events_text_ai t ON t.video_id = y.video_id
+        FROM bronze.bronze_event_youtube y
+        LEFT JOIN bronze.bronze_event_youtube_transcript t ON t.video_id = y.video_id
         WHERE y.jurisdiction_id = %s
           AND y.video_id IS NOT NULL
           AND BTRIM(y.video_url) <> ''
@@ -307,8 +307,8 @@ def fetch_video_row(
                     y.transcript_file_error,
                     t.has_transcript AS bronze_has_transcript,
                     t.transcript_source AS bronze_transcript_source
-                FROM bronze.bronze_events_youtube y
-                LEFT JOIN bronze.bronze_events_text_ai t ON t.video_id = y.video_id
+                FROM bronze.bronze_event_youtube y
+                LEFT JOIN bronze.bronze_event_youtube_transcript t ON t.video_id = y.video_id
                 WHERE y.jurisdiction_id = %s AND y.video_id = %s
                 """,
                 (jurisdiction_id, video_id.strip()),
@@ -351,7 +351,7 @@ def fix_bronze_event_dates_from_titles(
             cur.execute(
                 """
                 SELECT video_id, title, event_date::text AS event_date, published_at, audio_file_path
-                FROM bronze.bronze_events_youtube
+                FROM bronze.bronze_event_youtube
                 WHERE jurisdiction_id = %s AND title IS NOT NULL
                 """,
                 (jurisdiction_id,),
@@ -379,7 +379,7 @@ def fix_bronze_event_dates_from_titles(
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    UPDATE bronze.bronze_events_youtube
+                    UPDATE bronze.bronze_event_youtube
                     SET event_date = %s::date, last_updated = NOW()
                     WHERE video_id = %s
                     """,
@@ -412,7 +412,7 @@ def write_local_from_bronze(
             cur.execute(
                 """
                 SELECT raw_text, segments, language, is_auto_generated, transcript_source
-                FROM bronze.bronze_events_text_ai
+                FROM bronze.bronze_event_youtube_transcript
                 WHERE video_id = %s AND has_transcript IS TRUE
                 """,
                 (video_id,),
@@ -575,8 +575,8 @@ def clear_transcript_tombstones(
     import psycopg2
 
     sql = """
-        DELETE FROM bronze.bronze_events_text_ai t
-        USING bronze.bronze_events_youtube y
+        DELETE FROM bronze.bronze_event_youtube_transcript t
+        USING bronze.bronze_event_youtube y
         WHERE t.video_id = y.video_id
           AND y.jurisdiction_id = %s
           AND COALESCE(t.transcript_source, '') LIKE 'tombstone:%%'
@@ -588,8 +588,8 @@ def clear_transcript_tombstones(
 
     count_sql = """
         SELECT COUNT(*)
-        FROM bronze.bronze_events_text_ai t
-        JOIN bronze.bronze_events_youtube y ON t.video_id = y.video_id
+        FROM bronze.bronze_event_youtube_transcript t
+        JOIN bronze.bronze_event_youtube y ON t.video_id = y.video_id
         WHERE y.jurisdiction_id = %s
           AND COALESCE(t.transcript_source, '') LIKE 'tombstone:%%'
     """
@@ -658,7 +658,7 @@ def write_transcript_tombstone(
     try:
         cur.execute(
             """
-            INSERT INTO bronze.bronze_events_text_ai (
+            INSERT INTO bronze.bronze_event_youtube_transcript (
                 event_id, video_id, raw_text, segments, language,
                 is_auto_generated, transcript_source, has_transcript, transcript_quality
             ) VALUES (
@@ -666,7 +666,7 @@ def write_transcript_tombstone(
                 false, %(transcript_source)s, false, 'none'
             )
             ON CONFLICT (video_id) DO UPDATE SET
-                event_id = COALESCE(EXCLUDED.event_id, bronze.bronze_events_text_ai.event_id),
+                event_id = COALESCE(EXCLUDED.event_id, bronze.bronze_event_youtube_transcript.event_id),
                 raw_text = NULL,
                 segments = NULL,
                 language = NULL,
@@ -1441,7 +1441,7 @@ def run(args: argparse.Namespace) -> int:
                     try:
                         cur.execute(
                             """
-                            INSERT INTO bronze.bronze_events_text_ai (
+                            INSERT INTO bronze.bronze_event_youtube_transcript (
                                 event_id, video_id, raw_text, segments, language,
                                 is_auto_generated, transcript_source, has_transcript, transcript_quality
                             ) VALUES (
@@ -1633,7 +1633,7 @@ def main() -> None:
         "--write-bronze",
         action="store_true",
         default=True,
-        help="Upsert bronze.bronze_events_text_ai (default: true)",
+        help="Upsert bronze.bronze_event_youtube_transcript (default: true)",
     )
     parser.add_argument(
         "--no-tombstones",
