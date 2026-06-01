@@ -1175,6 +1175,42 @@ sources:
             description: "TRUE if transcript available"
           - name: transcript_quality
             description: "Quality rating: high, medium, low"
+          - name: event_date
+            description: "Meeting date (backfilled from LocalView, migration 098)"
+          - name: meeting_type
+            description: "Meeting type/body (from LocalView)"
+          - name: title
+            description: "Meeting title (from LocalView)"
+          - name: video_url
+            description: "Source video URL (from LocalView)"
+          - name: place_govt
+            description: "Governing place name (from LocalView)"
+          - name: channel_title
+            description: "YouTube channel title (from LocalView)"
+          - name: vid_title
+            description: "YouTube video title (from LocalView)"
+          - name: vid_desc
+            description: "YouTube video description (from LocalView)"
+          - name: vid_length_min
+            description: "Video length in minutes (from LocalView)"
+          - name: vid_upload_date
+            description: "Video upload timestamp (from LocalView)"
+          - name: vid_livestreamed
+            description: "TRUE if the video was livestreamed (from LocalView)"
+          - name: vid_views
+            description: "Video view count (from LocalView)"
+          - name: vid_likes
+            description: "Video like count (from LocalView)"
+          - name: vid_dislikes
+            description: "Video dislike count (from LocalView)"
+          - name: vid_comments
+            description: "Video comment count (from LocalView)"
+          - name: channel_type
+            description: "Channel type/classification (from LocalView)"
+          - name: channel_id
+            description: "YouTube channel id (from bronze_events_channels by channel_title)"
+          - name: channel_url
+            description: "YouTube channel URL (from bronze_events_channels by channel_title)"
           - name: created_at
             description: "When transcript was created"
 
@@ -1722,6 +1758,42 @@ models:
         description: "Quality flag - TRUE if <100 characters"
       - name: missing_segments
         description: "Quality flag - TRUE if segments JSONB is null/empty"
+      - name: event_date
+        description: "Meeting date (from LocalView, migration 098)"
+      - name: meeting_type
+        description: "Meeting type/body (from LocalView)"
+      - name: title
+        description: "Meeting title (from LocalView)"
+      - name: video_url
+        description: "Source video URL (from LocalView)"
+      - name: place_govt
+        description: "Governing place name (from LocalView)"
+      - name: channel_title
+        description: "YouTube channel title (from LocalView)"
+      - name: vid_title
+        description: "YouTube video title (from LocalView)"
+      - name: vid_desc
+        description: "YouTube video description (from LocalView)"
+      - name: vid_length_min
+        description: "Video length in minutes (from LocalView)"
+      - name: vid_upload_date
+        description: "Video upload timestamp (from LocalView)"
+      - name: vid_livestreamed
+        description: "TRUE if the video was livestreamed (from LocalView)"
+      - name: vid_views
+        description: "Video view count (from LocalView)"
+      - name: vid_likes
+        description: "Video like count (from LocalView)"
+      - name: vid_dislikes
+        description: "Video dislike count (from LocalView)"
+      - name: vid_comments
+        description: "Video comment count (from LocalView)"
+      - name: channel_type
+        description: "Channel type/classification (from LocalView)"
+      - name: channel_id
+        description: "YouTube channel id (from bronze_events_channels by channel_title)"
+      - name: channel_url
+        description: "YouTube channel URL (from bronze_events_channels by channel_title)"
 
   - name: stg_bronze_persons_scraped
     description: |

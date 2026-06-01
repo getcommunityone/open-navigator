@@ -39,7 +39,27 @@ SELECT
     -- Quality metrics
     has_transcript,
     LOWER(TRIM(transcript_quality)) AS transcript_quality,
-    
+
+    -- LocalView meeting / video metadata (backfilled by migration 098)
+    event_date,
+    NULLIF(TRIM(meeting_type), '')   AS meeting_type,
+    NULLIF(TRIM(title), '')          AS title,
+    NULLIF(TRIM(video_url), '')      AS video_url,
+    NULLIF(TRIM(place_govt), '')     AS place_govt,
+    NULLIF(TRIM(channel_title), '')  AS channel_title,
+    NULLIF(TRIM(vid_title), '')      AS vid_title,
+    NULLIF(TRIM(vid_desc), '')       AS vid_desc,
+    vid_length_min,
+    vid_upload_date,
+    vid_livestreamed,
+    vid_views,
+    vid_likes,
+    vid_dislikes,
+    vid_comments,
+    NULLIF(TRIM(channel_type), '')   AS channel_type,
+    NULLIF(TRIM(channel_id), '')     AS channel_id,
+    NULLIF(TRIM(channel_url), '')    AS channel_url,
+
     -- Calculate transcript length
     LENGTH(raw_text) AS transcript_length,
     
