@@ -274,3 +274,44 @@ def test_harvest_sweeps_incomplete_place(tmp_path: Path, monkeypatch):
     asyncio.run(h.harvest_meetings())
     h.close()
     assert swept == ["andalusia-alabama"]
+
+
+def test_harvest_skips_best_effort_swept_place(tmp_path: Path, monkeypatch):
+    # A place that was fully swept once but stayed short of num_meetings must
+    # NOT be re-swept on a later incremental run (it would re-grind every axis).
+    h = _list_harvester(tmp_path, [_ANDALUSIA], incremental=True)
+    h.open()
+    asyncio.run(h.list_places())
+    h._disk_counts["andalusia-alabama"] = 25  # short of 27, but already swept
+    h._swept["andalusia-alabama"] = 27        # swept at this target before
+
+    swept: list[str] = []
+
+    async def _fake_sweep(place):
+        swept.append(place["query_id"])
+        return {}
+
+    monkeypatch.setattr(h, "_harvest_place_meetings", _fake_sweep)
+    asyncio.run(h.harvest_meetings())
+    h.close()
+    assert swept == []  # best-effort-swept place skipped, not re-ground
+
+
+def test_harvest_reweeps_when_num_meetings_grows(tmp_path: Path, monkeypatch):
+    # If num_meetings grew beyond the swept target, re-sweep (new meetings exist).
+    h = _list_harvester(tmp_path, [_ANDALUSIA], incremental=True)
+    h.open()
+    asyncio.run(h.list_places())
+    h._disk_counts["andalusia-alabama"] = 25
+    h._swept["andalusia-alabama"] = 20  # last swept at 20; now advertises 27
+
+    swept: list[str] = []
+
+    async def _fake_sweep(place):
+        swept.append(place["query_id"])
+        return {}
+
+    monkeypatch.setattr(h, "_harvest_place_meetings", _fake_sweep)
+    asyncio.run(h.harvest_meetings())
+    h.close()
+    assert swept == ["andalusia-alabama"]  # target grew -> re-swept
