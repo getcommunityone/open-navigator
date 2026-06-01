@@ -297,8 +297,9 @@ models:
         description: >
           Full name history: array of {name, name_norm, first_year, last_year,
           sources} for every distinct name observed in the cluster, newest last_year
-          first. Years are observation years (source as_of_year), not legal change
-          dates — they bound a rename rather than pinpoint it.
+          first. Years are JSON strings (e.g. "2024") per the calendar-year
+          convention. They are observation years (source as_of_year), not legal
+          change dates — they bound a rename rather than pinpoint it.
       - name: current_name_since_year
         data_type: integer
         description: >

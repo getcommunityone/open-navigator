@@ -138,8 +138,9 @@ name_history as (
             jsonb_build_object(
                 'name', display_name,
                 'name_norm', org_name_norm,
-                'first_year', first_year,
-                'last_year', last_year,
+                -- calendar years as JSON strings, per the project convention
+                'first_year', first_year::text,
+                'last_year', last_year::text,
                 'sources', to_jsonb(sources)
             )
             order by last_year desc nulls last, first_year desc nulls last
