@@ -187,7 +187,7 @@ python -m hosting.neon.migrate
 
 ```bash
 # Connect to Neon (using psql or any Postgres client)
-psql "postgresql://neondb_owner:npg_6WMcFKpIgj3T@ep-noisy-fire-anrnmxxy-pooler.c-6.us-east-1.aws.neon.tech/neondb?sslmode=require"
+psql "postgresql://neondb_owner:<YOUR_NEON_PASSWORD>@<YOUR_NEON_HOST>.neon.tech/neondb?sslmode=require"
 
 # Test queries:
 SELECT * FROM jurisdiction_state_aggregate WHERE level = 'national';
