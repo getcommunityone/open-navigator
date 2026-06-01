@@ -30,7 +30,8 @@ ranked as (
                     when 'bronze_organizations_nonprofits_nccs' then 1
                     when 'bronze_locations' then 2
                     when 'bronze_organizations_from_ai' then 3
-                    else 4
+                    when 'bronze_organizations_nonprofits_irs' then 4
+                    else 5
                 end,
                 org_uid
         ) as rn

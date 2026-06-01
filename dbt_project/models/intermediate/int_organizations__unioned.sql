@@ -10,10 +10,12 @@
       - stg_orgs_ai__org       (bronze_organizations_from_ai; typed, some EIN)
       - stg_locations__org     (bronze_locations; police/fire/church/hospital)
       - stg_nccs__org          (nonprofits, EIN-keyed)
+      - stg_irs__org           (IRS BMF nonprofits, EIN-keyed; merges with NCCS by
+                                EIN and adds the ~290k IRS-only nonprofits)
       - stg_parcels__org       (bronze_addresses owner_name flagged as org; the
                                 business/government parcel owners)
 
-    TODO: contribution committees/businesses, IRS BMF.
+    TODO: contribution committees/businesses.
 */
 
 with unioned as (
@@ -26,6 +28,8 @@ with unioned as (
     select * from {{ ref('stg_locations__org') }}
     union all
     select * from {{ ref('stg_nccs__org') }}
+    union all
+    select * from {{ ref('stg_irs__org') }}
     union all
     select * from {{ ref('stg_parcels__org') }}
 )
