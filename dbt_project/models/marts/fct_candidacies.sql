@@ -6,7 +6,7 @@
 }}
 
 /*
-    Mart (fct): candidacies — the c1_candidacy surface.
+    Mart (fct): candidacies — the civic_candidacy surface.
 
     Reproduces upsert_candidacies() from
     scripts/datasources/openstates/sync_elections_to_c1.py.
@@ -19,7 +19,7 @@
         candidacy_id     = fit_c1_id(ocd_id, fallback = candidacy_key or id)
         -> upsert ON CONFLICT (dedupe_key) when set, else (id).
 
-    Column mapping (c1_candidacy):
+    Column mapping (civic_candidacy):
         id            = candidacy_id
         legacy_id     = bronze_record_id
         election_id   = fit_c1_id(election_id, id)

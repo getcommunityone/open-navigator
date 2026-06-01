@@ -372,8 +372,10 @@ select 1;
         primary key (event_meeting_id)
     );
 
-    -- Canonical event link. c1_event.legacy_id is the real PK; c1_event.id only
-    -- carries a unique INDEX (not a constraint) so it can't be an FK target.
+    -- Canonical event link. civic_event.legacy_id is the real PK and the target
+    -- of the bronze AI-analysis FK, so this link uses legacy_id. (civic_event.id
+    -- also gained a UNIQUE constraint in migration 100, but legacy_id stays the
+    -- canonical key here.)
     do $$ begin
       if not exists (
           select 1 from pg_constraint
@@ -382,7 +384,7 @@ select 1;
       ) then
         alter table public.event_meeting
           add constraint event_meeting_c1_event_fk
-          foreign key (legacy_event_id) references public.c1_event(legacy_id);
+          foreign key (legacy_event_id) references public.civic_event(legacy_id);
       end if;
     end $$;
 

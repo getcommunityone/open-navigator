@@ -2,11 +2,11 @@ version: 2
 
 models:
   # ---------------------------------------------------------------------------
-  # c1_division
+  # civic_division
   # ---------------------------------------------------------------------------
   - name: dim_election_divisions
     description: |
-      Election divisions (c1_division surface). Reproduces upsert_divisions()
+      Election divisions (civic_division surface). Reproduces upsert_divisions()
       from pipeline/openstates/sync_elections_to_c1.py: one row per
       division_id (= ocd_jurisdiction_id or jurisdiction_id, truncated to 300),
       classification 'jurisdiction'.
@@ -47,14 +47,14 @@ models:
           - type: not_null
 
   # ---------------------------------------------------------------------------
-  # c1_election
+  # civic_election
   # ---------------------------------------------------------------------------
   - name: fct_elections
     description: |
-      Elections (c1_election surface). Reproduces upsert_elections() +
+      Elections (civic_election surface). Reproduces upsert_elections() +
       _election_rows_for_upsert(): one row per resolved election_id, preferring
       an actual record_type='election' row when the group has one.
-      DEFERRED: c1_electionsource child rows (_source_rows) are NOT built here —
+      DEFERRED: civic_electionsource child rows (_source_rows) are NOT built here —
       they belong in a separate fct_election_sources long-format mart (raw_row
       'sources' array is preserved in the `sources` column for that follow-up).
     config:
@@ -106,11 +106,11 @@ models:
           - type: not_null
 
   # ---------------------------------------------------------------------------
-  # c1_candidatecontest
+  # civic_candidatecontest
   # ---------------------------------------------------------------------------
   - name: dim_candidate_contests
     description: |
-      Candidate contests (c1_candidatecontest surface). Reproduces
+      Candidate contests (civic_candidatecontest surface). Reproduces
       upsert_candidate_contests(): one row per contest group_key
       (= dedupe_key(election_id, candidate_post, candidate_party)).
       DEVIATION: contest id = 'ocd-cc/' || md5(contest_key) (Python uuid5 has no
@@ -161,11 +161,11 @@ models:
           - type: not_null
 
   # ---------------------------------------------------------------------------
-  # c1_candidacy
+  # civic_candidacy
   # ---------------------------------------------------------------------------
   - name: fct_candidacies
     description: |
-      Candidacies (c1_candidacy surface). Reproduces upsert_candidacies(): one
+      Candidacies (civic_candidacy surface). Reproduces upsert_candidacies(): one
       row per candidacy after collapsing rows that share a dedupe_key.
     config:
       contract:
@@ -230,15 +230,15 @@ models:
           - type: not_null
 
   # ---------------------------------------------------------------------------
-  # c1_ballotmeasure
+  # civic_ballotmeasure
   # ---------------------------------------------------------------------------
   - name: fct_ballot_measures_civic
     description: |
-      Ballot measures from the election scrape (c1_ballotmeasure surface).
+      Ballot measures from the election scrape (civic_ballotmeasure surface).
       Reproduces upsert_ballot_measures(): one row per measure after collapsing
       rows that share a dedupe_key. Named *_civic to avoid colliding with the
       existing NIST/VIP ballot_measures mart.
-      DEFERRED: c1_ballotmeasuresource child rows (_source_rows) are NOT built
+      DEFERRED: civic_ballotmeasuresource child rows (_source_rows) are NOT built
       here — a separate fct_ballot_measure_sources mart follow-up (raw_row is
       preserved for it).
     config:

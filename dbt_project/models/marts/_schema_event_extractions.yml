@@ -21,10 +21,10 @@ models:
         description: "Primary key — the bronze analysis id (== each child's analysis_id, the FK target)."
         data_tests: [not_null, unique]
       - name: legacy_event_id
-        description: "Legacy event id; FK -> c1_event.legacy_id (the canonical event)."
+        description: "Legacy event id; FK -> civic_event.legacy_id (the canonical event)."
         data_tests:
           - relationships:
-              arguments: {to: "source('civic_core', 'c1_event')", field: legacy_id}
+              arguments: {to: "source('civic_core', 'civic_event')", field: legacy_id}
               config: {severity: warn}
       - name: extracted_at
         description: "When the AI analysis that produced this meeting was generated."
@@ -51,7 +51,7 @@ models:
         description: "Resolved canonical OCD event id (nullable until the event is promoted)."
         data_tests:
           - relationships:
-              arguments: {to: "source('civic_core', 'c1_event')", field: id}
+              arguments: {to: "source('civic_core', 'civic_event')", field: id}
               config: {severity: warn}
       - name: extracted_at
         description: "Partition key — when the AI extraction was produced."
@@ -78,7 +78,7 @@ models:
         description: "Resolved canonical OCD event id (nullable until the event is promoted)."
         data_tests:
           - relationships:
-              arguments: {to: "source('civic_core', 'c1_event')", field: id}
+              arguments: {to: "source('civic_core', 'civic_event')", field: id}
               config: {severity: warn}
       - name: extracted_at
         description: "Partition key — when the AI extraction was produced."
@@ -105,7 +105,7 @@ models:
         description: "Resolved canonical OCD event id (nullable until the event is promoted)."
         data_tests:
           - relationships:
-              arguments: {to: "source('civic_core', 'c1_event')", field: id}
+              arguments: {to: "source('civic_core', 'civic_event')", field: id}
               config: {severity: warn}
       - name: extracted_at
         description: "Partition key — when the AI extraction was produced."
@@ -132,7 +132,7 @@ models:
         description: "Resolved canonical OCD event id (nullable until the event is promoted)."
         data_tests:
           - relationships:
-              arguments: {to: "source('civic_core', 'c1_event')", field: id}
+              arguments: {to: "source('civic_core', 'civic_event')", field: id}
               config: {severity: warn}
       - name: extracted_at
         description: "Partition key — when the AI extraction was produced."
@@ -159,7 +159,7 @@ models:
         description: "Resolved canonical OCD event id (nullable until the event is promoted)."
         data_tests:
           - relationships:
-              arguments: {to: "source('civic_core', 'c1_event')", field: id}
+              arguments: {to: "source('civic_core', 'civic_event')", field: id}
               config: {severity: warn}
       - name: extracted_at
         description: "Partition key — when the AI extraction was produced."
@@ -176,11 +176,23 @@ models:
       - name: id
         description: "md5 surrogate of extraction_key — FK target for downstream models."
         data_tests: [not_null]
+      - name: first_seen_analysis_id
+        description: "FK -> event_meeting.event_meeting_id — the earliest meeting the org was seen in."
+        data_tests:
+          - relationships:
+              arguments: {to: "ref('event_meeting')", field: event_meeting_id}
+              config: {severity: warn}
+      - name: last_seen_analysis_id
+        description: "FK -> event_meeting.event_meeting_id — the most recent meeting the org was seen in."
+        data_tests:
+          - relationships:
+              arguments: {to: "ref('event_meeting')", field: event_meeting_id}
+              config: {severity: warn}
       - name: last_c1_event_id
         description: "Resolved canonical OCD event id for the most recent event the org was seen in (nullable)."
         data_tests:
           - relationships:
-              arguments: {to: "source('civic_core', 'c1_event')", field: id}
+              arguments: {to: "source('civic_core', 'civic_event')", field: id}
               config: {severity: warn}
       - name: extracted_at
         description: "Partition key — when the AI extraction was produced."
@@ -207,7 +219,7 @@ models:
         description: "Resolved canonical OCD event id (nullable until the event is promoted)."
         data_tests:
           - relationships:
-              arguments: {to: "source('civic_core', 'c1_event')", field: id}
+              arguments: {to: "source('civic_core', 'civic_event')", field: id}
               config: {severity: warn}
       - name: extracted_at
         description: "Partition key — when the AI extraction was produced."

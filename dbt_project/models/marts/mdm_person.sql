@@ -3,7 +3,7 @@
 /*
     Mart (MDM Layer 5): the canonical public person table — one row per usable
     person occurrence from the conformed pool. Replaces the retired
-    contacts_search_ai model (the old contacts_search / c1_person feed).
+    contacts_search_ai model (the old contacts_search / civic_person feed).
 
     Grain TODAY is the source occurrence (PK person_uid), filtered to real people
     (entity_type = 'person' and the is_probable_person quality flag), so org-shaped

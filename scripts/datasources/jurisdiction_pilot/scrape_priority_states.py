@@ -1548,8 +1548,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.elections:
         print(f"Bronze election rows:    {totals['bronze_elections']}  (per-jurisdiction snapshots)")
         print(f"Bronze candidacy rows:   {totals['bronze_candidacies']}")
-        print(f"c1_election rows synced: {totals['c1_elections']}")
-        print(f"c1_candidacy rows synced:{totals['c1_candidacies']}")
+        print(f"civic_election rows synced: {totals['c1_elections']}")
+        print(f"civic_candidacy rows synced:{totals['c1_candidacies']}")
         print(f"Election step errors:    {totals['election_errors']}")
     print(f"Errors:                  {totals['errors']}")
     print(f"Elapsed:                 {elapsed:.0f}s")

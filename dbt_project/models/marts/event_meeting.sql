@@ -16,7 +16,7 @@ the child extraction marts (event_person/event_decision/event_bill/event_place/
 event_financial_item/event_topic) reference via their analysis_id -> event_meeting_id.
 
 SOURCE : bronze.bronze_meetings_from_ai   BRIDGE : source_event_id == analysis.id;
-         analysis.event_id -> c1_event.legacy_id (enforced FK)
+         analysis.event_id -> civic_event.legacy_id (enforced FK)
 TARGET : public.event_meeting — NON-partitioned (single-column PK so children can
          FK into it). Created by `bootstrap_event_meeting`; APPEND only.
 
@@ -50,7 +50,7 @@ analysis as (
 events as (
     select legacy_id, id as c1_event_id, state as state_code,
            jurisdiction_name, jurisdiction_type, city
-    from {{ source('civic_core', 'c1_event') }}
+    from {{ source('civic_core', 'civic_event') }}
 )
 
 select

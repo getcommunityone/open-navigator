@@ -13,11 +13,11 @@ public.event_person — people the AI extracted from analyzed meeting events.
 
 GRAIN: one row per (analysis, person) — a *mention/appearance* of a person in
 one event, NOT a canonical de-duplicated human. Resolve to the canonical
-`c1_person` later via person_id; resolve to the canonical event via c1_event_id.
+`civic_person` later via person_id; resolve to the canonical event via c1_event_id.
 
 SOURCE : bronze.bronze_persons_from_ai (LLM extraction of structured_analysis->'people')
 BRIDGE : bronze_persons_from_ai.source_event_id = bronze_events_analysis_ai.id
-         bronze_events_analysis_ai.event_id     = c1_event.legacy_id   (enforced FK)
+         bronze_events_analysis_ai.event_id     = civic_event.legacy_id   (enforced FK)
 TARGET : public.event_person — native range-partitioned by extracted_at (monthly).
 
 The partitioned parent is created by the `bootstrap_event_person` run-operation
@@ -66,7 +66,7 @@ events as (
         jurisdiction_name,
         jurisdiction_type,
         city
-    from {{ source('civic_core', 'c1_event') }}
+    from {{ source('civic_core', 'civic_event') }}
 )
 
 select

@@ -166,7 +166,7 @@ def resolve_canonical_jurisdiction_id(jurisdiction_id: str) -> str:
             cur.execute(
                 """
                 SELECT geoid, classification, name, state
-                FROM public.c1_jurisdiction
+                FROM public.civic_jurisdiction
                 WHERE id::text = %s
                   AND geoid IS NOT NULL AND BTRIM(geoid) <> ''
                 LIMIT 1

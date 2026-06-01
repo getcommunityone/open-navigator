@@ -1364,7 +1364,7 @@ sources:
           - name: election_type
           - name: election_status
           - name: ocd_jurisdiction_id
-            description: "OCD division id; primary source of c1_division.id."
+            description: "OCD division id; primary source of civic_division.id."
           - name: state_code
             description: "2-letter state code (CHAR(2))."
           - name: jurisdiction_id
@@ -1531,11 +1531,11 @@ sources:
       family). Loaded by the OCD ingestion path, NOT by dbt — declared as a
       source so the AI-extraction marts (event_*) can resolve to the canonical
       event via the enforced FK bronze_events_analysis_ai.event_id =
-      c1_event.legacy_id.
+      civic_event.legacy_id.
     database: open_navigator
     schema: public
     tables:
-      - name: c1_event
+      - name: civic_event
         description: "Canonical OCD event. legacy_id is the integer surrogate the bronze AI-analysis FK points at; id is the canonical OCD string id."
         columns:
           - name: legacy_id

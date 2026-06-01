@@ -6,7 +6,7 @@
 }}
 
 /*
-    Mart (dim): candidate contests — the c1_candidatecontest surface.
+    Mart (dim): candidate contests — the civic_candidatecontest surface.
 
     Reproduces upsert_candidate_contests() from
     scripts/datasources/openstates/sync_elections_to_c1.py.
@@ -17,7 +17,7 @@
         group_key   = contest_key or contest_id
         -> ONE payload per group_key (first row wins).
 
-    Column mapping (c1_candidatecontest):
+    Column mapping (civic_candidatecontest):
         id            = contest_id
         legacy_id     = bronze_record_id
         election_id   = fit_c1_id(election_id, id)

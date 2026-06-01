@@ -2,11 +2,11 @@
 """
 Fold ``public.organization_location`` (571,448 rows of HIFLD-style location data:
 places of worship, police stations, hospitals, sheriffs, state agencies, etc.)
-into ``public.c1_organization`` and then drop the source table.
+into ``public.civic_organization`` and then drop the source table.
 
 Mapping:
 
-  organization_location           ->  c1_organization
+  organization_location           ->  civic_organization
   ─────────────────────────────       ──────────────────────────────────────
   source_id                            extras['source_id']
   name                                 name
@@ -237,7 +237,7 @@ def fold(*, dry_run: bool, drop_source: bool) -> None:
                         execute_values(
                             dst,
                             """
-                            INSERT INTO public.c1_organization
+                            INSERT INTO public.civic_organization
                               (id, name, classification, jurisdiction_id,
                                address, city, state, county, zip_code,
                                latitude, longitude, phone, website,

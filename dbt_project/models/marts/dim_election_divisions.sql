@@ -6,7 +6,7 @@
 }}
 
 /*
-    Mart (dim): election divisions — the c1_division surface.
+    Mart (dim): election divisions — the civic_division surface.
 
     Reproduces upsert_divisions() from
     scripts/datasources/openstates/sync_elections_to_c1.py:

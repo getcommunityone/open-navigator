@@ -6,7 +6,7 @@
 }}
 
 /*
-    Mart (fct): elections — the c1_election surface.
+    Mart (fct): elections — the civic_election surface.
 
     Reproduces upsert_elections() + _election_rows_for_upsert() from
     scripts/datasources/openstates/sync_elections_to_c1.py.
@@ -19,7 +19,7 @@
       * upsert_elections: then dedups again on election_id (seen_election_ids),
         so the net grain is one row per resolved election_id.
 
-    Column mapping (c1_election):
+    Column mapping (civic_election):
         id            = election_id
         legacy_id     = bronze_record_id
         name          = election_name or source_name or 'Election'
@@ -34,7 +34,7 @@
         sources       = raw_row->'sources' (default [])
         extras        = raw_row
 
-    The c1_electionsource child rows (_source_rows) are a separate normalized
+    The civic_electionsource child rows (_source_rows) are a separate normalized
     table; see "DEFERRED" in the schema yml.
 */
 

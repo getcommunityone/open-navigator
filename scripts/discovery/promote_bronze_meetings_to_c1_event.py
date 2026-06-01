@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
 """
 Promote rows from ``bronze.bronze_events_meetings_{counties,municipalities}_scraped``
-into the OCD-aligned ``public.c1_event`` table, and attach their PDFs / YouTube /
-HTML resources as ``c1_eventdocument`` and ``c1_eventmedia`` rows.
+into the OCD-aligned ``public.civic_event`` table, and attach their PDFs / YouTube /
+HTML resources as ``civic_eventdocument`` and ``civic_eventmedia`` rows.
 
 Pipeline:
   1. Scan every bronze resource row for a meeting date (URL, anchor text, filename).
   2. Group by (jurisdiction_id, ISO date) — each unique (jur, date) becomes one
-     c1_event row. The event ``name`` is derived from the first anchor/title token
+     civic_event row. The event ``name`` is derived from the first anchor/title token
      in that group, falling back to "<jurisdiction> meeting <date>".
-  3. UPSERT c1_event keyed by ``dedupe_key = jurisdiction_id|YYYY-MM-DD``.
+  3. UPSERT civic_event keyed by ``dedupe_key = jurisdiction_id|YYYY-MM-DD``.
   4. For each resource row:
-        - PDF (doc_type agenda/minutes/other) -> c1_eventdocument with classification
+        - PDF (doc_type agenda/minutes/other) -> civic_eventdocument with classification
           = agenda/minutes/other; links jsonb = [{url, media_type, text, local_path}]
-        - YouTube link -> c1_eventmedia with classification = "recording"
+        - YouTube link -> civic_eventmedia with classification = "recording"
         - HTML calendar/list pages -> skipped (no meeting-specific attachment)
 
 Idempotent: re-running on the same bronze data produces the same dedupe_key, so
-c1_event is upserted. c1_eventdocument / c1_eventmedia rows use a deterministic
+civic_event is upserted. civic_eventdocument / civic_eventmedia rows use a deterministic
 ``id`` (UUID v5 over event_id + url) so re-runs DO NOT duplicate.
 
 Run::
@@ -250,7 +250,7 @@ def upsert_events(conn, groups: list[EventGroup], *, dry_run: bool) -> int:
     with conn.cursor() as cur:
         for g in groups:
             cur.execute("""
-                INSERT INTO public.c1_event (
+                INSERT INTO public.civic_event (
                     id, name, start_date, jurisdiction_id, dedupe_key,
                     classification, status, source,
                     state, created_at, updated_at,
@@ -281,7 +281,7 @@ def _det_uuid(event_id: str, url: str, kind: str) -> str:
 
 
 def insert_resources(conn, groups: list[EventGroup], *, dry_run: bool) -> dict[str, int]:
-    """Insert c1_eventdocument and c1_eventmedia rows for each group."""
+    """Insert civic_eventdocument and civic_eventmedia rows for each group."""
     if dry_run:
         n_pdf = n_yt = n_other = 0
         for g in groups:
@@ -308,7 +308,7 @@ def insert_resources(conn, groups: list[EventGroup], *, dry_run: bool) -> dict[s
                         + "}]"
                     )
                     cur.execute("""
-                        INSERT INTO public.c1_eventdocument
+                        INSERT INTO public.civic_eventdocument
                             (id, note, date, event_id, classification, links)
                         VALUES (%s::uuid, %s, %s, %s, %s, %s::jsonb)
                         ON CONFLICT (id) DO NOTHING
@@ -320,7 +320,7 @@ def insert_resources(conn, groups: list[EventGroup], *, dry_run: bool) -> dict[s
                     media_id = _det_uuid(g.event_id, r.url, "media_youtube")
                     links = '[{"url":' + _q(r.url) + ',"media_type":"video/youtube"}]'
                     cur.execute("""
-                        INSERT INTO public.c1_eventmedia
+                        INSERT INTO public.civic_eventmedia
                             (id, note, date, event_id, classification, links)
                         VALUES (%s::uuid, %s, %s, %s, %s, %s::jsonb)
                         ON CONFLICT (id) DO NOTHING
@@ -333,7 +333,7 @@ def insert_resources(conn, groups: list[EventGroup], *, dry_run: bool) -> dict[s
                     media_type = "video/vimeo" if "vimeo.com" in (r.url or "").lower() else "video/stream"
                     links = '[{"url":' + _q(r.url) + ',"media_type":' + _q(media_type) + "}]"
                     cur.execute("""
-                        INSERT INTO public.c1_eventmedia
+                        INSERT INTO public.civic_eventmedia
                             (id, note, date, event_id, classification, links)
                         VALUES (%s::uuid, %s, %s, %s, %s, %s::jsonb)
                         ON CONFLICT (id) DO NOTHING
@@ -355,15 +355,15 @@ def _q(s: str | None) -> str:
 
 def denormalize_urls_onto_events(conn) -> int:
     """
-    Roll up child c1_eventdocument + c1_eventmedia URLs onto the parent c1_event row:
-      * ``agenda_url`` / ``minutes_url`` <- first matching c1_eventdocument link
-      * ``video_url`` <- first c1_eventmedia link
+    Roll up child civic_eventdocument + civic_eventmedia URLs onto the parent civic_event row:
+      * ``agenda_url`` / ``minutes_url`` <- first matching civic_eventdocument link
+      * ``video_url`` <- first civic_eventmedia link
       * ``sources`` JSONB <- union of all child URLs with classification + kind tags
 
     Idempotent: COALESCE preserves existing values; ``sources`` is overwritten with the
     full child set each run (so removing a child also removes it from sources).
 
-    Returns count of c1_event rows updated.
+    Returns count of civic_event rows updated.
     """
     with conn.cursor() as cur:
         cur.execute("""
@@ -380,7 +380,7 @@ def denormalize_urls_onto_events(conn) -> int:
                         'classification', d.classification,
                         'kind',           'document'
                     ))) AS doc_sources
-                FROM public.c1_eventdocument d
+                FROM public.civic_eventdocument d
                 WHERE d.links IS NOT NULL AND jsonb_array_length(d.links) > 0
                 GROUP BY d.event_id
             ),
@@ -393,11 +393,11 @@ def denormalize_urls_onto_events(conn) -> int:
                         'classification', m.classification,
                         'kind', 'media'
                     )) AS media_sources
-                FROM public.c1_eventmedia m
+                FROM public.civic_eventmedia m
                 WHERE m.links IS NOT NULL AND jsonb_array_length(m.links) > 0
                 GROUP BY m.event_id
             )
-            UPDATE public.c1_event e
+            UPDATE public.civic_event e
             SET agenda_url  = COALESCE(e.agenda_url,  da.agenda_url),
                 minutes_url = COALESCE(e.minutes_url, da.minutes_url),
                 video_url   = COALESCE(e.video_url,   ma.video_url),
@@ -449,26 +449,26 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"  {g.key.jurisdiction_id} {g.key.date_iso} \"{g.derive_name()[:60]}\" "
                       f"({len(g.rows)} resources)")
             counts = insert_resources(conn, groups, dry_run=True)
-            print(f"\nWould upsert {len(groups)} c1_event rows")
-            print(f"Would attach {counts['documents']} c1_eventdocument rows")
-            print(f"Would attach {counts['media_youtube']} c1_eventmedia (youtube) rows")
-            print(f"Would attach {counts['media_other_stream']} c1_eventmedia (other_stream) rows")
+            print(f"\nWould upsert {len(groups)} civic_event rows")
+            print(f"Would attach {counts['documents']} civic_eventdocument rows")
+            print(f"Would attach {counts['media_youtube']} civic_eventmedia (youtube) rows")
+            print(f"Would attach {counts['media_other_stream']} civic_eventmedia (other_stream) rows")
             return 0
 
         upserted = upsert_events(conn, groups, dry_run=False)
-        logger.info("Upserted %d c1_event rows", upserted)
+        logger.info("Upserted %d civic_event rows", upserted)
         counts = insert_resources(conn, groups, dry_run=False)
         # After children land, denormalize the first agenda/minutes URL onto the parent
         # event row, and append all child links to the event's ``sources`` JSONB so the
         # event row alone tells the reader where the data came from.
         denormalized = denormalize_urls_onto_events(conn)
-        logger.info("Denormalized URLs/sources onto %d c1_event rows", denormalized)
+        logger.info("Denormalized URLs/sources onto %d civic_event rows", denormalized)
         print()
-        print(f"c1_event rows upserted:                {upserted}")
-        print(f"c1_eventdocument rows inserted:        {counts['documents']}")
-        print(f"c1_eventmedia (YouTube) inserted:      {counts['media_youtube']}")
-        print(f"c1_eventmedia (other-stream) inserted: {counts['media_other_stream']}")
-        print(f"c1_event rows w/ denormalized URLs:    {denormalized}")
+        print(f"civic_event rows upserted:                {upserted}")
+        print(f"civic_eventdocument rows inserted:        {counts['documents']}")
+        print(f"civic_eventmedia (YouTube) inserted:      {counts['media_youtube']}")
+        print(f"civic_eventmedia (other-stream) inserted: {counts['media_other_stream']}")
+        print(f"civic_event rows w/ denormalized URLs:    {denormalized}")
         return 0
     finally:
         conn.close()

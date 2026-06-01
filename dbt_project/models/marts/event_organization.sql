@@ -14,7 +14,7 @@ public.event_organization — organizations the AI extracted across analyzed eve
 GRAIN (different from the other event_* marts): one row per org, keyed on
 org_name_normalized_state_code — an AGGREGATED, near-canonical org record, NOT a
 per-event mention. It therefore resolves FIRST and LAST seen events
-(first/last_seen_event_id are analysis ids -> c1_event) instead of a single
+(first/last_seen_event_id are analysis ids -> civic_event) instead of a single
 c1_event_id, and uses the org's OWN state_code for geography.
 
 SOURCE : bronze.bronze_organizations_from_ai
@@ -36,7 +36,7 @@ analysis as (
 
 events as (
     select legacy_id, id as c1_event_id
-    from {{ source('civic_core', 'c1_event') }}
+    from {{ source('civic_core', 'civic_event') }}
 )
 
 select

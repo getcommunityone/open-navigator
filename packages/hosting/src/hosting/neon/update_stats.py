@@ -31,16 +31,16 @@ async def update_national_stats():
         
         # Count jurisdictions by type
         jurisdictions_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM c1_jurisdiction WHERE classification IN ('city', 'county', 'town', 'village')"
+            "SELECT COUNT(*) FROM civic_jurisdiction WHERE classification IN ('city', 'county', 'town', 'village')"
         )
         
         school_districts_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM c1_jurisdiction WHERE classification = 'school_district'"
+            "SELECT COUNT(*) FROM civic_jurisdiction WHERE classification = 'school_district'"
         )
         
         # Count nonprofits
         nonprofits_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM c1_organization"
+            "SELECT COUNT(*) FROM civic_organization"
         )
         
         # Sum financials (handle NULL values)
@@ -48,18 +48,18 @@ async def update_national_stats():
             SELECT 
                 COALESCE(SUM(revenue), 0) as total_revenue,
                 COALESCE(SUM(assets), 0) as total_assets
-            FROM c1_organization
+            FROM civic_organization
             WHERE revenue IS NOT NULL OR assets IS NOT NULL
         """)
         
         # Count events
         events_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM c1_event"
+            "SELECT COUNT(*) FROM civic_event"
         )
         
         # Count contacts
         contacts_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM c1_person"
+            "SELECT COUNT(*) FROM civic_person"
         )
         
         logger.info(f"  Jurisdictions: {jurisdictions_count:,}")
@@ -104,7 +104,7 @@ async def update_state_stats(conn):
     # Get all states with data
     states = await conn.fetch("""
         SELECT DISTINCT state 
-        FROM c1_organization 
+        FROM civic_organization 
         WHERE state IS NOT NULL 
         ORDER BY state
     """)
@@ -115,18 +115,18 @@ async def update_state_stats(conn):
         
         # Count jurisdictions
         jurisdictions_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM c1_jurisdiction WHERE state = $1 AND classification IN ('city', 'county', 'town', 'village')",
+            "SELECT COUNT(*) FROM civic_jurisdiction WHERE state = $1 AND classification IN ('city', 'county', 'town', 'village')",
             state
         )
         
         school_districts_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM c1_jurisdiction WHERE state = $1 AND classification = 'school_district'",
+            "SELECT COUNT(*) FROM civic_jurisdiction WHERE state = $1 AND classification = 'school_district'",
             state
         )
         
         # Count nonprofits
         nonprofits_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM c1_organization WHERE state = $1",
+            "SELECT COUNT(*) FROM civic_organization WHERE state = $1",
             state
         )
         
@@ -135,19 +135,19 @@ async def update_state_stats(conn):
             SELECT 
                 COALESCE(SUM(revenue), 0) as total_revenue,
                 COALESCE(SUM(assets), 0) as total_assets
-            FROM c1_organization
+            FROM civic_organization
             WHERE state = $1
         """, state)
         
         # Count events
         events_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM c1_event WHERE state = $1",
+            "SELECT COUNT(*) FROM civic_event WHERE state = $1",
             state
         )
         
         # Count contacts
         contacts_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM c1_person WHERE state = $1",
+            "SELECT COUNT(*) FROM civic_person WHERE state = $1",
             state
         )
         
