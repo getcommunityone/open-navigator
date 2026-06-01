@@ -1452,6 +1452,43 @@ sources:
           - name: loaded_at
           - name: last_updated
 
+      # --- MDM entity-resolution outputs (written by ingestion.mdm.linker / Splink) ---
+      - name: entity_person_clusters
+        description: |
+          Splink person-resolution output: one row per source person occurrence,
+          carrying its resolved cluster id. Written by ingestion.mdm.linker
+          (`python -m ingestion.mdm person`). Consumed by int_persons__clustered to
+          attach master_person_id + match_confidence to the person marts.
+        columns:
+          - name: master_person_id
+            description: "Resolved cluster id — the canonical person an occurrence belongs to."
+          - name: person_uid
+            description: "md5(source_system|source_pk) — source occurrence key; joins to int_persons__unioned."
+          - name: source_system
+            description: "Originating source system."
+          - name: source_pk
+            description: "Primary key within the source system."
+          - name: match_confidence
+            description: |
+              Per-occurrence merge confidence: MAX Splink match_probability of the
+              edges attaching this node within its cluster. NULL for singletons
+              (unmatched — no merge risk). Populated on the next linker re-run.
+      - name: entity_person_predictions
+        description: |
+          Splink pairwise candidate edges for persons (predicted >= match_threshold).
+          The 0.9–0.99 band — predicted but NOT auto-merged at the stricter cluster
+          threshold — is the ambiguous-match review queue feeding pending_mdm_person.
+          Written by ingestion.mdm.linker; empty until the next linker re-run.
+        columns:
+          - name: person_uid_l
+            description: "Left occurrence key of the candidate pair."
+          - name: person_uid_r
+            description: "Right occurrence key of the candidate pair."
+          - name: match_probability
+            description: "Splink match probability for the pair (0–1)."
+          - name: match_weight
+            description: "Splink match weight (log2 Bayes factor) for the pair."
+
   - name: civic_core
     description: |
       Canonical OCD/Popolo civic entity tables in the PUBLIC schema (the `c1_*`

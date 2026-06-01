@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """CivicSearch location sweep: discover places, then harvest their meetings.
 
-Why a location sweep needs a query axis
----------------------------------------
-A CivicSearch ``search`` scoped to a location *alone* returns NO meetings — only
-the nearby ``places`` and aggregate counts. Meetings only come back when a
-``keywords`` (or numeric ``topics``) axis is supplied. So this crawler runs in
-two phases:
+How the meeting sweep maximizes recall
+--------------------------------------
+A CivicSearch ``search`` scoped to a location *alone* returns NO meetings — even
+with a date window. Every result set is gated by a ``keywords`` (or numeric
+``topics``) axis. The fix for "capture ALL meetings" is therefore NOT to drop
+the keyword axis but to BROADEN it: union several generic civic phrases plus the
+place's own topic ids so routine meetings (not just topical ones) are surfaced.
+This crawler runs in two phases:
 
   1. PLACE DISCOVERY (BFS). Seed a set of lon/lat points (US state centroids by
      default), call ``search(lonlat=..., search_radius=30)`` to list the up-to-8
@@ -14,11 +16,13 @@ two phases:
      outward from newly found places until no new ones appear (bounded by
      ``--max-places``).
 
-  2. PER-PLACE MEETING HARVEST. For each discovered place, pull its own keyword
-     list from ``get_topics_by_city`` (so the sweep is self-driving — no global
-     keyword file) and run one ``search(lonlat=place, search_radius=0,
-     keywords=kw)`` per keyword. Meetings are merged by ``vid_id``: matched
-     keywords, snippet list, and topic ids are accumulated.
+  2. PER-PLACE MEETING HARVEST. For each discovered place, union three
+     location-pinned (``search_radius=0``) axes by ``vid_id``: a fixed set of
+     BROAD_RECALL_KEYWORDS ("city council", "regular meeting", "public
+     hearing", …) that surface routine meetings, the place's own
+     ``get_topics_by_city`` keyword list, and a follow-up ``topics=[id]`` sweep
+     over every numeric topic id seen in those responses. Matched keywords,
+     snippet lists, and topic ids are accumulated per meeting.
 
 CivicSearch runs two separate properties on two API hosts, each a DISTINCT
 dataset: ``schools`` (school-district boards) and ``cities`` (municipal govts).
@@ -66,10 +70,67 @@ DEFAULT_CACHE = REPO_ROOT / "data" / "cache" / "civicsearch"
 SCHEMA_VERSION = 2  # v2 adds the `portal` field (schools vs cities)
 DISCOVERY_RADIUS_MI = 30
 
-# Fallback keyword axis when a place exposes no get_topics_by_city keywords.
-DEFAULT_KEYWORDS = (
-    "budget", "housing", "public safety", "zoning", "schools", "taxes",
+# Cap on per-place self-driving keywords pulled from get_topics_by_city. The
+# broad-recall axis already guarantees routine-meeting coverage, so this is just
+# bounded extra topical coverage.
+MAX_PLACE_KEYWORDS = 20
+
+# Broad civic phrases that, unioned, surface a place's COMPLETE routine-meeting
+# set regardless of topic. A bare location returns no meetings (the API gates
+# every result set on a keyword/topic axis), but a single broad phrase like
+# "city council" already returns all of a small city's meetings; the wider set
+# covers places whose meeting titles differ (boards/commissions/work sessions).
+BROAD_RECALL_KEYWORDS: tuple[str, ...] = (
+    "city council",
+    "council meeting",
+    "board meeting",
+    "regular meeting",
+    "special meeting",
+    "work session",
+    "public hearing",
+    "commission meeting",
+    "board of",
+    "committee meeting",
+    "city of",
+    "town of",
+    "county",
+    "meeting",
 )
+
+
+def _extract_topic_ids(payload: dict[str, Any]) -> set[int]:
+    """Collect non-negative numeric topic ids from a search response.
+
+    Topic ids appear both in the aggregate ``topic_counts`` and in each
+    result's snippet ``topic_id``; we union both so a follow-up ``topics=[id]``
+    sweep can pull meetings indexed only under a topic axis.
+    """
+    ids: set[int] = set()
+    tc = payload.get("topic_counts")
+    if isinstance(tc, list):
+        for entry in tc:
+            if isinstance(entry, dict):
+                tid = entry.get("topic_id", entry.get("id", entry.get("topic")))
+            elif isinstance(entry, (list, tuple)) and entry:
+                tid = entry[0]
+            else:
+                tid = None
+            if isinstance(tid, int) and tid >= 0:
+                ids.add(tid)
+    elif isinstance(tc, dict):
+        for key in tc:
+            try:
+                tid = int(key)
+            except (TypeError, ValueError):
+                continue
+            if tid >= 0:
+                ids.add(tid)
+    for result in payload.get("results") or []:
+        for snip in result.get("snippets") or []:
+            tid = snip.get("topic_id")
+            if isinstance(tid, int) and tid >= 0:
+                ids.add(tid)
+    return ids
 
 # US state + DC centroid seeds (lon, lat) for BFS place discovery. Coarse on
 # purpose — discovery snowballs outward from whatever the nearest places are.
@@ -133,15 +194,11 @@ class CivicSearchHarvester:
         *,
         cache_dir: Path,
         max_places: int,
-        keywords_override: list[str] | None = None,
-        max_keywords_per_place: int = 20,
         incremental: bool = False,
     ) -> None:
         self.client = client
         self.portal = client.portal
         self.max_places = max_places
-        self.keywords_override = keywords_override
-        self.max_keywords_per_place = max_keywords_per_place
         # Incremental mode resumes from the prior run's JSONL: known places are
         # re-loaded (so the sweep still re-harvests them for NEW meetings) and
         # already-seen vid_ids are skipped, so only genuinely new meetings are
@@ -287,30 +344,128 @@ class CivicSearchHarvester:
 
     # ------------------------------------------------------------------ phase 2
     async def harvest_meetings(self) -> None:
+        """Harvest ALL public meetings for every discovered place.
+
+        The CivicSearch ``search`` endpoint returns NO meetings for a bare
+        location (with or without a date window) — every result set is gated by
+        a ``keywords`` or numeric ``topics`` axis. To recover a place's COMPLETE
+        meeting set (routine council/board meetings included, not just topical
+        ones) we union three keyword/topic axes per place, all pinned to the
+        place via ``search_radius=0`` and merged by ``vid_id``:
+
+          1. ``BROAD_RECALL_KEYWORDS`` — generic civic phrases ("city council",
+             "board meeting", "regular meeting", "public hearing", …) that
+             collectively surface a place's routine meetings regardless of
+             topic. (A single broad keyword like "city council" already returns
+             all of Andalusia's 27 meetings; the wider set is belt-and-braces
+             for places whose meetings are titled differently.)
+          2. ``get_topics_by_city`` keywords — the place's own self-driving
+             keyword list (kept from the prior implementation; cheap extra
+             coverage of topical meetings).
+          3. NUMERIC TOPIC IDS surfaced in each response's ``topic_counts`` /
+             snippet ``topic_id`` — re-queried via ``topics=[id]`` to pull in
+             any meeting indexed only under a topic axis.
+
+        Each place is isolated: every individual search is wrapped in
+        try/except inside :meth:`_search` so a single failing call (including
+        retry-exhaustion, which the client raises as an ``httpx.HTTPError``
+        subclass) never aborts the place or the run.
+        """
         # Snapshot: discovery may keep mutating self.places elsewhere, and a
-        # meeting is only final for a place after ALL its keywords are merged —
+        # meeting is only final for a place after ALL its axes are merged —
         # so we buffer per-place, then stream the new ones out.
         places = list(self.places.values())
         for i, place in enumerate(places, 1):
-            keywords = await self._keywords_for(place)
             logger.info(
-                "[{}/{}] {} — {} keyword(s)",
-                i, len(places), place["display_name"], len(keywords),
+                "[{}/{}] {} — full meeting sweep",
+                i, len(places), place["display_name"],
             )
-            place_meetings: dict[str, dict[str, Any]] = {}
-            for kw in keywords:
-                try:
-                    payload = await self.client.search(
-                        keywords=kw,
-                        lonlat=(place["lon"], place["lat"]),
-                        search_radius=0,
-                    )
-                except httpx.HTTPError as exc:
-                    logger.warning("search({!r} @ {}) failed: {}", kw, place["query_id"], exc)
-                    continue
-                for result in payload.get("results") or []:
-                    self._merge_meeting(place_meetings, result, place, kw)
+            place_meetings = await self._harvest_place_meetings(place)
+            logger.info(
+                "  {} unique meeting(s) found for {}",
+                len(place_meetings), place["query_id"],
+            )
             self._flush_place_meetings(place_meetings)
+
+    async def _harvest_place_meetings(
+        self, place: dict[str, Any]
+    ) -> dict[str, dict[str, Any]]:
+        """Union all of a place's meetings across the broad-keyword/topic axes."""
+        lonlat = (place["lon"], place["lat"])
+        place_meetings: dict[str, dict[str, Any]] = {}
+        topic_ids: set[int] = set()
+
+        # Axis 1+2: broad-recall keywords + the place's own keyword list. Both
+        # use the same code path; broad keywords are tried first so a place with
+        # an empty/failed topic list still gets full routine-meeting recall.
+        keywords = list(BROAD_RECALL_KEYWORDS) + await self._place_keyword_list(place)
+        seen_kw: set[str] = set()
+        for kw in keywords:
+            key = kw.lower()
+            if key in seen_kw:
+                continue
+            seen_kw.add(key)
+            payload = await self._search(place["query_id"], keywords=kw, lonlat=lonlat)
+            self._merge_search_payload(place_meetings, payload, place, topic_ids, kw)
+
+        # Axis 3: re-query any numeric topic ids surfaced above (some meetings
+        # are indexed only under a topic axis, not the broad keywords).
+        for tid in sorted(topic_ids):
+            payload = await self._search(place["query_id"], topics=[tid], lonlat=lonlat)
+            self._merge_search_payload(place_meetings, payload, place, topic_ids=None)
+
+        return place_meetings
+
+    async def _place_keyword_list(self, place: dict[str, Any]) -> list[str]:
+        """The place's self-driving keyword list from get_topics_by_city (best-effort)."""
+        try:
+            payload = await self.client.get_topics_by_city(place["query_id"])
+        except httpx.HTTPError as exc:
+            logger.warning(
+                "get_topics_by_city({}) failed: {}", place["query_id"], exc
+            )
+            return []
+        return _place_keywords(payload)[:MAX_PLACE_KEYWORDS]
+
+    async def _search(
+        self,
+        query_id: str,
+        *,
+        keywords: str | None = None,
+        topics: list[int] | None = None,
+        lonlat: tuple[float, float] | None = None,
+    ) -> dict[str, Any]:
+        """One location-pinned search; ``{}`` on any HTTP error.
+
+        Returns ``{}`` (not raising) on any ``httpx.HTTPError`` — including
+        retry-exhaustion, which the client raises as an ``httpx.HTTPError``
+        subclass — so one bad call never aborts the place.
+        """
+        try:
+            return await self.client.search(
+                keywords=keywords,
+                topics=topics,
+                lonlat=lonlat,
+                search_radius=0,
+            )
+        except httpx.HTTPError as exc:
+            axis = f"kw={keywords!r}" if keywords else f"topics={topics}"
+            logger.warning("search({} {}) failed: {}", query_id, axis, exc)
+            return {}
+
+    def _merge_search_payload(
+        self,
+        store: dict[str, dict[str, Any]],
+        payload: dict[str, Any],
+        place: dict[str, Any],
+        topic_ids: set[int] | None,
+        keyword: str | None = None,
+    ) -> None:
+        """Merge a search response's results and harvest its numeric topic ids."""
+        for result in payload.get("results") or []:
+            self._merge_meeting(store, result, place, keyword)
+        if topic_ids is not None:
+            topic_ids.update(_extract_topic_ids(payload))
 
     def _flush_place_meetings(self, place_meetings: dict[str, dict[str, Any]]) -> None:
         """Append meetings for one place, skipping vid_ids already on disk."""
@@ -324,23 +479,12 @@ class CivicSearchHarvester:
         if new:
             logger.info("  +{} new meeting(s) [{} this run]", new, self._new_meetings)
 
-    async def _keywords_for(self, place: dict[str, Any]) -> list[str]:
-        if self.keywords_override:
-            return self.keywords_override[: self.max_keywords_per_place]
-        try:
-            payload = await self.client.get_topics_by_city(place["query_id"])
-        except httpx.HTTPError as exc:
-            logger.warning("get_topics_by_city({}) failed: {}", place["query_id"], exc)
-            return list(DEFAULT_KEYWORDS)
-        kws = _place_keywords(payload)
-        return (kws or list(DEFAULT_KEYWORDS))[: self.max_keywords_per_place]
-
     def _merge_meeting(
         self,
         store: dict[str, dict[str, Any]],
         result: dict[str, Any],
         place: dict[str, Any],
-        keyword: str,
+        keyword: str | None = None,
     ) -> None:
         vid = result.get("vid_id")
         if not vid:
@@ -367,7 +511,9 @@ class CivicSearchHarvester:
                 "scraped_at": _iso_now(),
             }
             store[vid] = rec
-        if keyword not in rec["matched_keywords"]:
+        # Keyword-free location sweeps pass keyword=None; only record a real
+        # matched keyword when one was supplied (and not already present).
+        if keyword and keyword not in rec["matched_keywords"]:
             rec["matched_keywords"].append(keyword)
         existing = {(s["timestamp"], s["text"]) for s in rec["snippets"]}
         for snip in result.get("snippets") or []:
@@ -397,9 +543,6 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Seed only these state centroids (default: all 50 + DC).")
     parser.add_argument("--seed-zip", nargs="*", metavar="ZIP", default=[],
                         help="Extra seed points resolved from these ZIP codes.")
-    parser.add_argument("--keywords", nargs="*",
-                        help="Override per-place keyword discovery with this fixed list.")
-    parser.add_argument("--max-keywords-per-place", type=int, default=20)
     parser.add_argument("--discover-only", action="store_true",
                         help="Run place discovery only; skip the meeting harvest.")
     parser.add_argument("--incremental", action="store_true",
@@ -436,8 +579,6 @@ async def _run_portal(portal: str, args: argparse.Namespace) -> None:
             client,
             cache_dir=args.cache_dir,
             max_places=args.max_places,
-            keywords_override=args.keywords,
-            max_keywords_per_place=args.max_keywords_per_place,
             incremental=args.incremental,
         )
         harvester.open()

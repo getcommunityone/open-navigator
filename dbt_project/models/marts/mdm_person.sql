@@ -26,6 +26,19 @@
 -- occurrence per key so person_uid is a true PK.
 select distinct on (person_uid)
     person_uid,
+    -- Splink resolution (from int_persons__clustered): the canonical person this
+    -- occurrence resolves to, and how strongly it merged. master_person_id falls
+    -- back to person_uid (singleton) until the linker is re-run.
+    master_person_id,
+    match_confidence,
+    -- Flag weak matches in place (the record stays served, FKs from the bridges
+    -- stay valid) so a reviewer can confirm them via pending_mdm_person.
+    -- 'needs_review' = predicted as a candidate but below the 0.99 auto-merge bar.
+    case
+        when match_confidence is not null and match_confidence < 0.99
+            then 'needs_review'
+        else 'auto_accepted'
+    end                                         as review_status,
     source_system,
     source_pk,
     full_name,
@@ -39,7 +52,7 @@ select distinct on (person_uid)
     city_norm,
     state_code,
     zip5
-from {{ ref('int_persons__unioned') }}
+from {{ ref('int_persons__clustered') }}
 where entity_type = 'person'
   and is_probable_person
 order by

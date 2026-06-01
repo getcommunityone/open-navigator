@@ -121,6 +121,24 @@ models:
         constraints:
           - type: not_null
           - type: primary_key
+      - name: master_person_id
+        data_type: text
+        description: >
+          Splink-resolved canonical person id (cluster id). Falls back to person_uid
+          (singleton) until the linker is re-run. From int_persons__clustered.
+        constraints:
+          - type: not_null
+      - name: match_confidence
+        data_type: double precision
+        description: >
+          Strongest incident Splink edge probability for this occurrence. NULL when
+          isolated (no candidate edge) or before the confidence-retaining linker re-run.
+      - name: review_status
+        data_type: text
+        description: >
+          'needs_review' when match_confidence is below the 0.99 auto-merge bar
+          (a predicted-but-unmerged candidate, mirrored in pending_mdm_person), else
+          'auto_accepted'.
       - name: source_system
         data_type: text
       - name: source_pk
@@ -203,6 +221,12 @@ models:
         constraints:
           - type: not_null
           - type: primary_key
+      - name: master_person_id
+        data_type: text
+        description: "Splink-resolved canonical person id (from int_persons__clustered)."
+      - name: match_confidence
+        data_type: double precision
+        description: "Strongest incident Splink edge probability; NULL until the linker re-run."
       - name: full_name
         data_type: text
       - name: source_system
@@ -300,3 +324,42 @@ models:
         data_type: text
       - name: as_of_year
         data_type: integer
+
+  - name: pending_mdm_person
+    description: >
+      MDM human-review queue for person records not served as-is. pending_reason
+      distinguishes 'not_probable_person' (failed the is_probable_person heuristic, e.g.
+      org acronyms like "HHS" — never reach mdm_person) from 'ambiguous_match' (Splink
+      predicted a match but below the 0.99 auto-merge bar; these DO stay in mdm_person
+      flagged review_status='needs_review'). PK person_uid. Intentionally NO FK to
+      mdm_person — the 'not_probable_person' rows are not in mdm_person by design.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    columns:
+      - name: person_uid
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+      - name: full_name
+        data_type: text
+      - name: source_system
+        data_type: text
+      - name: source_pk
+        data_type: text
+      - name: state_code
+        data_type: text
+      - name: city_norm
+        data_type: text
+      - name: pending_reason
+        data_type: text
+        description: "'not_probable_person' | 'ambiguous_match'."
+      - name: match_confidence
+        data_type: double precision
+        description: "Splink probability of the strongest candidate edge (ambiguous_match only; NULL for junk)."
+      - name: candidate_person_uid
+        data_type: text
+        description: "The most-likely counterpart occurrence for an ambiguous_match (NULL for junk)."
