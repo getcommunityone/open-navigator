@@ -100,7 +100,7 @@ open https://communityone-open-navigator.hf.space
 3. **Check Neon Database:**
    ```bash
    # Test connection locally
-   psql "postgresql://neondb_owner:...@ep-noisy-fire-anrnmxxy-pooler.c-6.us-east-1.aws.neon.tech/neondb"
+   psql "postgresql://neondb_owner:REDACTED@ep-noisy-fire-anrnmxxy-pooler.c-6.us-east-1.aws.neon.tech/neondb"
    
    # Verify data exists
    SELECT COUNT(*) FROM organization_nonprofit;
