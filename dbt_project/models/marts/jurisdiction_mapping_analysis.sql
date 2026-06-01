@@ -196,7 +196,8 @@ acs_latest AS (
     FROM picked
     LEFT JOIN LATERAL (
         SELECT
-            a.acs_vintage_year,
+            -- calendar year -> integer (project convention); source col is varchar
+            case when a.acs_vintage_year ~ '^[0-9]{4}$' then a.acs_vintage_year::int end as acs_vintage_year,
             a.total_population,
             a.jurisdiction,
             a.income_level
@@ -224,7 +225,7 @@ acs_latest AS (
 acs_latest AS (
     SELECT
         picked.*,
-        CAST(NULL AS VARCHAR(4)) AS acs_vintage_year,
+        CAST(NULL AS INTEGER) AS acs_vintage_year,
         CAST(NULL AS BIGINT) AS acs_total_population,
         CAST(NULL AS VARCHAR(120)) AS acs_population_tier,
         CAST(NULL AS VARCHAR(80)) AS acs_income_level

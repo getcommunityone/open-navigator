@@ -24,8 +24,10 @@ renamed as (
         nullif(trim(org_name_current), '')                   as org_name_current,
         nullif(trim(f990_org_addr_city), '')                 as city,
         upper(nullif(trim(f990_org_addr_state), ''))         as state_code,
-        nullif(trim(org_year_first), '')                     as org_year_first,
-        nullif(trim(org_year_last), '')                      as org_year_last,
+        -- calendar years -> integer at the staging boundary (project convention);
+        -- guarded so a future non-numeric value yields NULL instead of erroring.
+        case when trim(org_year_first) ~ '^[0-9]{4}$' then trim(org_year_first)::int end as org_year_first,
+        case when trim(org_year_last)  ~ '^[0-9]{4}$' then trim(org_year_last)::int  end as org_year_last,
         latitude                                             as latitude,
         longitude                                            as longitude,
         f990_total_revenue_recent                            as total_revenue_recent,

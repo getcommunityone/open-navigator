@@ -33,9 +33,9 @@ models:
       - name: state_code
         data_type: varchar(2)
       - name: org_year_first
-        data_type: varchar(4)
+        data_type: integer
       - name: org_year_last
-        data_type: varchar(4)
+        data_type: integer
       - name: latitude
         data_type: double precision
       - name: longitude

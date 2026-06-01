@@ -33,10 +33,10 @@ models:
         description: "2-letter org address state, uppercased + trimmed."
         data_type: varchar(2)
       - name: org_year_first
-        data_type: varchar(4)
+        data_type: integer
       - name: org_year_last
         description: "Latest filing year for this version. Natural-key component."
-        data_type: varchar(4)
+        data_type: integer
       - name: latitude
         data_type: double precision
       - name: longitude
