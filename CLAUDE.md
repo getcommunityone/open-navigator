@@ -115,7 +115,10 @@ span.end();
 - Use `@opentelemetry/sdk-trace-web` + `@opentelemetry/exporter-trace-otlp-http`.
 - Instrument route changes and key user interactions (search, filter, data load).
 
-## Calendar Years in JSON (scraped meetings & similar)
-- Serialize **calendar year** fields as **JSON strings** (e.g. `"year": "2026"`), not numbers, in manifests and API payloads unless the column is a real SQL `DATE` / `TIMESTAMP`.
+## Calendar Years — Storage vs Serialization
+The rule splits by layer; do not conflate them:
+- **SQL storage (columns):** a bare calendar year is an **`integer`** (`smallint` is fine) — never `text`/`varchar`/`double precision`/`numeric`. Integer keeps range filters (`WHERE year >= 2020`) and numeric sort correct. **Bronze** may keep the source-native type for raw fidelity, but **cast to `integer` by the staging layer** so intermediate/marts/`public` are uniform.
+- **Real dates:** when you have a full date, use a `date`/`timestamp` column — not a year column.
+- **JSON / API / manifests (the wire):** serialize a bare year as a **string** (e.g. `"year": "2026"`), not a number — JSON numbers get locale-formatted (e.g. `2,024`) by UI clients. Convert at the JSON boundary: `str(y)` in Python, `::text` in SQL/`jsonb_build_object`. A real `DATE`/`TIMESTAMP` already serializes as an ISO string, so this exception does not apply to it.
 - Internal paths may still use numeric years for folders; convert with `str(y)` at the JSON boundary.
 - Migration: `python scripts/discovery/fix_scraped_meetings_manifest_years.py` (see `--dry-run`).
