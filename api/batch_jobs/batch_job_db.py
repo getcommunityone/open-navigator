@@ -468,29 +468,43 @@ def pipeline_stage_report(conn: Any) -> Dict[str, Any]:
     except Exception:
         conn.rollback()  # scraped tables absent — discover stage degrades to zeros
 
-    # Transcripts landed per state, counted directly from bronze_event_youtube_transcript
-    # (state_code is populated on every row). The bronze_event_youtube download
-    # stamp only covered YouTube-catalog videos in a handful of states and missed
-    # the bulk of transcripts (most text_ai video_ids are not in the event mart /
-    # int_events_union); counting text_ai itself surfaces every state that has
-    # transcripts, including LocalView/union sources.
+    # Transcript coverage per state over the int_events_union candidate set
+    # (CivicSearch + YouTube-API + LocalView): total = candidate videos, done =
+    # candidates with a transcript landed in bronze_event_youtube_transcript.
+    # Counting both from the same population keeps the bar honest — counting
+    # done from the transcript table alone gave it no denominator and reported
+    # done/done = 100% even with a large backlog (the "118k / 118k" artifact).
+    # Videos with no state_code (most CivicSearch school meetings) group under
+    # '??'; they get no per-state row but are folded into the ALL total below so
+    # the headline coverage isn't overstated.
     tx_by_state: Dict[str, Dict[str, Any]] = {}
+    tx_unknown_total = 0
+    tx_unknown_done = 0
     try:
         with conn.cursor() as cur:
             cur.execute(
                 """
                 SELECT
-                    COALESCE(NULLIF(state_code, ''), '??')  AS st,
-                    COUNT(*)::int                           AS done,
-                    MAX(COALESCE(last_updated, created_at)) AS last_at
-                FROM bronze.bronze_event_youtube_transcript
+                    COALESCE(NULLIF(u.state_code, ''), '??')   AS st,
+                    COUNT(*)::int                              AS total,
+                    COUNT(t.video_id)::int                     AS done,
+                    MAX(COALESCE(t.last_updated, t.created_at)) AS last_at
+                FROM intermediate.int_events_union u
+                LEFT JOIN bronze.bronze_event_youtube_transcript t
+                    ON t.video_id = u.video_id
                 GROUP BY 1
                 """
             )
-            for st, done, last_at in cur.fetchall():
-                tx_by_state[str(st)] = {"done": int(done), "last_at": _iso(last_at)}
+            for st, total, done, last_at in cur.fetchall():
+                if str(st) == "??":
+                    tx_unknown_total += int(total)
+                    tx_unknown_done += int(done)
+                else:
+                    tx_by_state[str(st)] = {
+                        "done": int(done), "total": int(total), "last_at": _iso(last_at),
+                    }
     except Exception:
-        conn.rollback()  # bronze_event_youtube_transcript absent — transcript coverage degrades to zeros
+        conn.rollback()  # int_events_union absent — transcript coverage degrades to zeros
 
     def _discover_row(scope: str, disc: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         d = disc or {"total": 0, "done": 0, "last_at": "", "breakdown": {}}
@@ -575,7 +589,8 @@ def pipeline_stage_report(conn: Any) -> Dict[str, Any]:
         st for st, rec in yt_by_state.items()
         if int(rec["vids_ok"]) + int(rec["vids_fail"]) > 0
     } | {
-        st for st, tx in tx_by_state.items() if int(tx.get("done", 0)) > 0
+        st for st, tx in tx_by_state.items()
+        if int(tx.get("done", 0)) > 0 or int(tx.get("total", 0)) > 0
     }
     candidate_states.discard("??")
 
@@ -605,6 +620,11 @@ def pipeline_stage_report(conn: Any) -> Dict[str, Any]:
                 )
                 agg["total"] += int(b["total"])
                 agg["done"] += int(b["done"])
+    # Stateless candidates (CivicSearch school meetings etc. carry no state_code)
+    # have no per-state row; fold their coverage into the ALL transcripts numbers
+    # so the headline reflects the whole candidate set.
+    tx_totals["total"] += tx_unknown_total
+    tx_totals["done"] += tx_unknown_done
     rows = _stage_rows("ALL", {**totals, **last}, disc_all, tx_totals) + rows
     out["states"] = sorted(states)
     out["rows"] = rows
