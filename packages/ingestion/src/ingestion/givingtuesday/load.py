@@ -111,6 +111,27 @@ def _latest_cached(substr: str) -> Path:
     return files[0]
 
 
+# A full (non-limited) load must capture essentially the entire source file.
+# Below this fraction we treat the result as a partial load and fail loudly —
+# this is the guard that catches a silent under-load (e.g. a stray --limit that
+# once left bronze_organizations_990_officers at 2.75M of 40.1M source rows).
+_COMPLETENESS_THRESHOLD = 0.95
+_COUNT_BUF = 1024 * 1024  # 1 MiB byte scan window for row counting
+
+
+def _count_source_rows(path: Path) -> int:
+    """Fast data-row count for a datamart CSV (newline count minus the header).
+
+    Uses a buffered byte scan rather than a full CSV parse: it is exact enough to
+    detect gross under-loads (the failure mode being guarded against). Quoted
+    embedded newlines could in theory inflate the count by a negligible amount,
+    so this is treated as an upper bound against a generous threshold.
+    """
+    with path.open("rb") as fh:
+        newlines = sum(buf.count(b"\n") for buf in iter(lambda: fh.read(_COUNT_BUF), b""))
+    return max(newlines - 1, 0)  # subtract the header row
+
+
 def _read_chunks(path: Path, columns: list[str]) -> AsyncIterator[dict]:
     """Yield row dicts from ``path``, projecting only the needed source columns."""
     header = pd.read_csv(path, dtype=str, nrows=0)
@@ -388,8 +409,12 @@ _OFF_INSERT = text(
     )
     """
 )
+# A Part VII listee's name lands in NAMEPEPERSON (PersonNm, ~98.8% of rows) OR
+# BUNABUNALIIN1 (the BusinessName-line variant, ~1.2%); the two are mutually
+# exclusive. Both must be read and coalesced, else the BusinessName-variant rows
+# are silently dropped (for some orgs that's ~45% of their officers).
 _OFF_SRC_COLS = [
-    "FILEREIN", "TAXYEAR", "FILERNAME1", "NAMEPEPERSON", "TITLEITLE",
+    "FILEREIN", "TAXYEAR", "FILERNAME1", "NAMEPEPERSON", "BUNABUNALIIN1", "TITLEITLE",
     "AVHOPEWEREEL", "AVEHOUPERWEE", "OFFICERFFICE", "INDITRUSDIRE",
     "INSTITTRUSTE", "KEYEMPEMPLOY", "HIGHCOMPEMPL", "FORMERORMER",
     "REPCOMFROORG", "RECOFRRLORRG", "OTHERCCOMPEN", "URL",
@@ -413,7 +438,7 @@ class Form990OfficerPipeline(DataSourcePipeline[Form990OfficerRow]):
                 if self._limit is not None and emitted >= self._limit:
                     return
                 ein = _ein(row.get("FILEREIN"))
-                person = _safe_str(row.get("NAMEPEPERSON"))
+                person = _safe_str(row.get("NAMEPEPERSON")) or _safe_str(row.get("BUNABUNALIIN1"))
                 if not ein or not person:
                     continue
                 yield {
@@ -592,13 +617,13 @@ class Form990ScheduleJPipeline(DataSourcePipeline[Form990ScheduleJRow]):
 # no natural unique key — always run them with --truncate for a clean reload.
 _DATAMARTS = {
     "financials": (Form990FinancialsPipeline, _FIN_DDL, _FIN_INDEXES,
-                   "bronze.bronze_organizations_990_financials"),
+                   "bronze.bronze_organizations_990_financials", "990CN120Fields"),
     "missions": (Form990MissionPipeline, _MIS_DDL, _MIS_INDEXES,
-                 "bronze.bronze_organizations_990_missions"),
+                 "bronze.bronze_organizations_990_missions", "990Part1Missions"),
     "officers": (Form990OfficerPipeline, _OFF_DDL, _OFF_INDEXES,
-                 "bronze.bronze_organizations_990_officers"),
+                 "bronze.bronze_organizations_990_officers", "990Part7AOfficers"),
     "schedule_j": (Form990ScheduleJPipeline, _SJ_DDL, _SJ_INDEXES,
-                   "bronze.bronze_organizations_990_schedule_j"),
+                   "bronze.bronze_organizations_990_schedule_j", "ScheduleJPart2Officers"),
 }
 
 
@@ -612,15 +637,60 @@ async def _prepare_target(ddl, indexes, table: str, truncate: bool) -> None:
             await session.execute(text(f"TRUNCATE TABLE {table}"))
 
 
-async def _load_one(name: str, *, file: Path | None, limit: int | None, truncate: bool) -> None:
-    pipeline_cls, ddl, indexes, table = _DATAMARTS[name]
-    await _prepare_target(ddl, indexes, table, truncate)
-    run = await pipeline_cls(path=file, limit=limit).run()
+async def _table_count(table: str) -> int:
+    async with async_session() as session:
+        result = await session.execute(text(f"SELECT count(*) FROM {table}"))
+        return int(result.scalar_one())
+
+
+async def _load_one(
+    name: str, *, file: Path | None, limit: int | None, truncate: bool, allow_partial: bool = False
+) -> None:
     from loguru import logger
+
+    pipeline_cls, ddl, indexes, table, substr = _DATAMARTS[name]
+    path = file or _latest_cached(substr)
+
+    # A --limit load writes a partial table that downstream cannot tell apart
+    # from a complete one. Refuse it for real loads unless explicitly allowed.
+    if limit is not None and not allow_partial:
+        raise SystemExit(
+            f"Refusing to load '{name}' with --limit {limit:,} into {table}: this writes a "
+            f"PARTIAL table indistinguishable from a complete load. Pass --allow-partial if a "
+            f"partial load is intentional (e.g. testing)."
+        )
+
+    await _prepare_target(ddl, indexes, table, truncate)
+    run = await pipeline_cls(path=path, limit=limit).run()
+
+    # --- completeness validation: source rows vs. what we actually read/loaded.
+    expected = _count_source_rows(path)
+    db_rows = await _table_count(table)
+    completeness = (run.extracted / expected) if expected else 0.0
+
     logger.success(
         f"{name}: loaded {run.loaded:,} rows into {table} "
-        f"(extracted {run.extracted:,}, rejected {run.rejected:,})"
+        f"(extracted {run.extracted:,}, rejected {run.rejected:,}); "
+        f"source {path.name} has {expected:,} data rows -> read {completeness:.1%}; "
+        f"{table} now holds {db_rows:,} rows"
     )
+
+    if run.loaded != run.extracted:
+        raise RuntimeError(
+            f"{name}: loaded {run.loaded:,} != extracted {run.extracted:,} — "
+            f"rows were lost on insert into {table}."
+        )
+    if limit is None and completeness < _COMPLETENESS_THRESHOLD:
+        raise RuntimeError(
+            f"{name}: INCOMPLETE LOAD — read only {completeness:.1%} of {expected:,} source "
+            f"rows ({run.extracted:,}) with no --limit. {table} is partial; investigate the "
+            f"source CSV and pipeline before trusting it."
+        )
+    if limit is not None:
+        logger.warning(
+            f"{name}: PARTIAL load ({run.extracted:,} of {expected:,} source rows, "
+            f"{completeness:.1%}) due to --limit; {table} is intentionally incomplete."
+        )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -634,13 +704,20 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--file", type=Path, help="Explicit CSV path (default: latest cached match)")
     parser.add_argument("--limit", type=int, help="Limit rows (for testing)")
     parser.add_argument("--truncate", action="store_true", help="TRUNCATE table before loading")
+    parser.add_argument(
+        "--allow-partial", action="store_true",
+        help="Permit a --limit (partial) load into the real table; otherwise refused",
+    )
     return parser
 
 
 async def _run(args: argparse.Namespace) -> None:
     names = list(_DATAMARTS) if args.datamart == "all" else [args.datamart]
     for name in names:
-        await _load_one(name, file=args.file, limit=args.limit, truncate=args.truncate)
+        await _load_one(
+            name, file=args.file, limit=args.limit, truncate=args.truncate,
+            allow_partial=args.allow_partial,
+        )
 
 
 def main() -> None:
