@@ -931,14 +931,14 @@ def _promote_primary_youtube_to_scraped(
 
 
 def _count_youtube_events(database_url: str, jurisdiction_id: str) -> int:
-    """Rows in ``bronze.bronze_events_youtube`` for this jurisdiction (catalog size)."""
+    """Rows in ``bronze.bronze_event_youtube`` for this jurisdiction (catalog size)."""
     conn = psycopg2.connect(database_url)
     try:
         with conn.cursor() as cur:
             cur.execute(
                 """
                 SELECT COUNT(*)::int
-                FROM bronze.bronze_events_youtube
+                FROM bronze.bronze_event_youtube
                 WHERE jurisdiction_id = %s
                 """,
                 (jurisdiction_id,),
@@ -1365,7 +1365,7 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help=(
             "After promoting a primary YouTube channel, catalog videos into "
-            "bronze.bronze_events_youtube (slow; uses YOUTUBE_API_KEY)."
+            "bronze.bronze_event_youtube (slow; uses YOUTUBE_API_KEY)."
         ),
     )
     p.add_argument(

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 One-shot backfill: stamp ``policy_analysis_at`` / ``policy_report_at`` on
-``bronze.bronze_events_youtube`` from existing policy-cache file mtimes.
+``bronze.bronze_event_youtube`` from existing policy-cache file mtimes.
 
 Migration 083 added the per-event tracking columns, but files written before the
 pipeline started recording (and standalone runs) have empty stamps, so the dashboard's
@@ -155,7 +155,7 @@ def apply_stamps(
             execute_values(
                 cur,
                 """
-                UPDATE bronze.bronze_events_youtube AS b
+                UPDATE bronze.bronze_event_youtube AS b
                 SET policy_analysis_at = GREATEST(b.policy_analysis_at, v.analysis_at),
                     policy_analysis_path = COALESCE(b.policy_analysis_path, v.analysis_path),
                     policy_report_at = GREATEST(b.policy_report_at, v.report_at),

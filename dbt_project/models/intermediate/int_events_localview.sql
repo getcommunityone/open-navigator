@@ -11,7 +11,7 @@ SQL/geo logic in the Python loader). This model ties each event to:
 
 - `channel_id`, joining:
     - `intermediate.int_localview_youtube_video_channels` (video_id → channel_id) when present
-    - fallback: `bronze_events_youtube` (video_id → channel_id) when available
+    - fallback: `bronze_event_youtube` (video_id → channel_id) when available
 
 - `jurisdiction_id` (canonical `{place_slug}_{geoid}`), resolved per event from
   `int_localview_jurisdiction_geography` (place_name + state → typed GEOID) joined
@@ -79,7 +79,7 @@ SELECT
 FROM {{ source('bronze', 'bronze_events_localview') }} e
 LEFT JOIN intermediate.int_localview_youtube_video_channels m
     ON e.datasource_id = m.video_id
-LEFT JOIN {{ source('bronze', 'bronze_events_youtube') }} y
+LEFT JOIN {{ source('bronze', 'bronze_event_youtube') }} y
     ON e.datasource_id = y.video_id
 LEFT JOIN geo_resolved gr
     ON gr.state_code     = e.state_code

@@ -7,13 +7,13 @@ Supports selecting specific tables or syncing all bronze tables.
 
 Usage:
     # Sync specific tables
-    python sync_bronze_tables.py bronze_events_youtube bronze_events_text_ai
+    python sync_bronze_tables.py bronze_event_youtube bronze_event_youtube_transcript
     
     # Sync all bronze tables
     python sync_bronze_tables.py --all
     
     # Sync with options
-    python sync_bronze_tables.py bronze_events_youtube --full --batch-size 500
+    python sync_bronze_tables.py bronze_event_youtube --full --batch-size 500
     
 Prerequisites:
     - NEON_DATABASE_URL in .env (cloud database)
@@ -254,16 +254,16 @@ def main():
         epilog="""
 Examples:
   # Sync specific tables
-  python sync_bronze_tables.py bronze_events_youtube bronze_events_text_ai
+  python sync_bronze_tables.py bronze_event_youtube bronze_event_youtube_transcript
   
   # Sync all bronze tables
   python sync_bronze_tables.py --all
   
   # Full sync (replace data)
-  python sync_bronze_tables.py bronze_events_youtube --full
+  python sync_bronze_tables.py bronze_event_youtube --full
   
   # Custom batch size
-  python sync_bronze_tables.py bronze_events_youtube --batch-size 500
+  python sync_bronze_tables.py bronze_event_youtube --batch-size 500
         """
     )
     

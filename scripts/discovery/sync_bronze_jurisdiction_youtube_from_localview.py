@@ -6,7 +6,7 @@ into ``intermediate.int_events_channels_candidates`` and ``intermediate.int_even
 The dbt int layer already resolves LocalView geography
 (``int_localview_jurisdiction_geography`` → ``int_localview_channel_geography`` →
 ``int_events_channels_registry``). This script was missing: existing LocalView link scripts only
-update ``bronze_events_youtube`` / ``bronze_events_channels``.
+update ``bronze_event_youtube`` / ``bronze_events_channels``.
 
 Prerequisites::
 

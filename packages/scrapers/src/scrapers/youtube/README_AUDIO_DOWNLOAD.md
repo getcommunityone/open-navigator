@@ -1,6 +1,6 @@
 # YouTube Audio Downloader for Google Drive
 
-Download audio-only files from YouTube videos in `bronze_events_youtube` table, organized by channel and date.
+Download audio-only files from YouTube videos in `bronze_event_youtube` table, organized by channel and date.
 
 ## ✨ Features
 
@@ -102,7 +102,7 @@ youtube_audio/
 
 ## 📊 Database Query
 
-The script queries `bronze.bronze_events_youtube`:
+The script queries `bronze.bronze_event_youtube`:
 
 ```sql
 SELECT 
@@ -114,7 +114,7 @@ SELECT
     channel_id,
     jurisdiction_name,
     state_code
-FROM bronze.bronze_events_youtube
+FROM bronze.bronze_event_youtube
 WHERE video_url IS NOT NULL
 ORDER BY event_date DESC, channel_id
 LIMIT 100;
@@ -154,7 +154,7 @@ drive.mount('/content/drive')
 
 ### "No videos found matching criteria"
 Check your filters:
-- Verify database has data: `SELECT COUNT(*) FROM bronze.bronze_events_youtube;`
+- Verify database has data: `SELECT COUNT(*) FROM bronze.bronze_event_youtube;`
 - Try without filters first
 - Check states/channels spelling
 

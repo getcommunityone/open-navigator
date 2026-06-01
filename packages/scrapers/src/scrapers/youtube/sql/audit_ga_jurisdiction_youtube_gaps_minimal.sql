@@ -16,12 +16,12 @@ GROUP BY js.type
 ORDER BY n DESC;
 
 \echo ''
-\echo '========== 2) SCALE: bronze_events_youtube (GA) =========='
+\echo '========== 2) SCALE: bronze_event_youtube (GA) =========='
 SELECT
   COUNT(DISTINCT jurisdiction_name) AS distinct_jurisdiction_names,
   COUNT(DISTINCT channel_id) AS distinct_channels,
   COUNT(*) AS video_rows
-FROM bronze.bronze_events_youtube
+FROM bronze.bronze_event_youtube
 WHERE state_code = 'GA';
 
 \echo ''
@@ -30,7 +30,7 @@ SELECT
   jurisdiction_name,
   COUNT(DISTINCT channel_id) AS channels,
   COUNT(*) AS videos
-FROM bronze.bronze_events_youtube
+FROM bronze.bronze_event_youtube
 WHERE state_code = 'GA'
 GROUP BY jurisdiction_name
 ORDER BY videos DESC, jurisdiction_name;

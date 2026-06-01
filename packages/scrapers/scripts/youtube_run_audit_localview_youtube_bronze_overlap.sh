@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Overlap counts: bronze_events_localview vs bronze_events_youtube (by video_id).
+# Overlap counts: bronze_events_localview vs bronze_event_youtube (by video_id).
 # Usage: ./packages/scrapers/src/scrapers/youtube/run_audit_localview_youtube_bronze_overlap.sh GA
 
 set -euo pipefail

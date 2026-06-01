@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Sync bronze.bronze_events_youtube from LocalView bronze + optional channel map.
+Sync bronze.bronze_event_youtube from LocalView bronze + optional channel map.
 
 ⚠️ DEPRECATION NOTICE:
 This in-place UPDATE has been superseded by the dbt model
@@ -78,7 +78,7 @@ def sync_from_localview(conn, *, states: list[str] | None, dry_run: bool) -> tup
         params = (states,)
 
     sql_lv = f"""
-        UPDATE bronze.bronze_events_youtube AS y
+        UPDATE bronze.bronze_event_youtube AS y
         SET
             jurisdiction_name = COALESCE(NULLIF(BTRIM(lv.jurisdiction_name), ''), y.jurisdiction_name),
             jurisdiction_type = COALESCE(NULLIF(BTRIM(lv.jurisdiction_type), ''), y.jurisdiction_type),
@@ -99,7 +99,7 @@ def sync_from_localview(conn, *, states: list[str] | None, dry_run: bool) -> tup
     """
     if dry_run:
         q = """
-        SELECT COUNT(*) FROM bronze.bronze_events_youtube y
+        SELECT COUNT(*) FROM bronze.bronze_event_youtube y
         INNER JOIN bronze.bronze_events_localview lv
           ON lv.datasource_id = y.video_id AND lv.datasource = 'localview'
         WHERE (
@@ -130,7 +130,7 @@ def sync_from_localview(conn, *, states: list[str] | None, dry_run: bool) -> tup
             state_clause_y = " AND y.state_code = ANY(%s)"
             params_map = (states,)
         sql_map = f"""
-            UPDATE bronze.bronze_events_youtube AS y
+            UPDATE bronze.bronze_event_youtube AS y
             SET
                 channel_id = COALESCE(NULLIF(BTRIM(m.channel_id), ''), y.channel_id),
                 channel_url = COALESCE(

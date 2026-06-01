@@ -9,8 +9,8 @@
 
 BEGIN;
 
-\echo '========== Pass 1: bronze.bronze_events_youtube =========='
-UPDATE bronze.bronze_events_youtube y
+\echo '========== Pass 1: bronze.bronze_event_youtube =========='
+UPDATE bronze.bronze_event_youtube y
 SET
     jurisdiction_id = j.jurisdiction_id,
     jurisdiction_name = j.name,
@@ -46,7 +46,7 @@ WHERE bc.channel_id = ec.channel_id
       OR bc.jurisdictions = '[]'::jsonb
   );
 
-\echo '========== Pass 2: bronze.bronze_events_youtube (name consensus; ec.jurisdiction_id NULL) =========='
+\echo '========== Pass 2: bronze.bronze_event_youtube (name consensus; ec.jurisdiction_id NULL) =========='
 WITH lv_consensus AS (
     SELECT
         il.channel_id,
@@ -74,7 +74,7 @@ juris_name_match AS (
     GROUP BY lc.channel_id
     HAVING COUNT(DISTINCT j.jurisdiction_id) = 1
 )
-UPDATE bronze.bronze_events_youtube y
+UPDATE bronze.bronze_event_youtube y
 SET
     jurisdiction_id = j.jurisdiction_id,
     jurisdiction_name = j.name,

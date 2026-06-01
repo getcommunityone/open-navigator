@@ -2,7 +2,7 @@
 """
 Load YouTube Channels to Bronze
 
-This script builds jurisdiction → channel rows from **bronze.bronze_events_youtube**
+This script builds jurisdiction → channel rows from **bronze.bronze_event_youtube**
 (distinct channel per jurisdiction) and upserts into **bronze_events_channels** with
 `jurisdictions` JSON (no dependency on gold ``jurisdictions_details_search``).
 
@@ -90,7 +90,7 @@ JUNK_PATTERNS = [
 
 
 class ChannelLoaderBronze:
-    """Load YouTube channels into bronze_events_channels from bronze_events_youtube."""
+    """Load YouTube channels into bronze_events_channels from bronze_event_youtube."""
 
     def __init__(self, database_url: str):
         self.conn = psycopg2.connect(database_url)
@@ -170,7 +170,7 @@ class ChannelLoaderBronze:
             cursor.close()
     
     def get_jurisdictions_channels(self, states_filter: Optional[List[str]] = None) -> List[Dict]:
-        """Aggregate distinct YouTube channels per jurisdiction from bronze.bronze_events_youtube."""
+        """Aggregate distinct YouTube channels per jurisdiction from bronze.bronze_event_youtube."""
         cursor = self.conn.cursor(cursor_factory=RealDictCursor)
 
         query = """
@@ -189,7 +189,7 @@ class ChannelLoaderBronze:
                         )
                     ) AS channel_url,
                     MAX(NULLIF(BTRIM(channel_type), '')) AS channel_type_hint
-                FROM bronze.bronze_events_youtube
+                FROM bronze.bronze_event_youtube
                 WHERE channel_id IS NOT NULL
                   AND BTRIM(channel_id) <> ''
                   AND jurisdiction_id IS NOT NULL
@@ -214,7 +214,7 @@ class ChannelLoaderBronze:
                         'channel_id', channel_id,
                         'channel_url', channel_url,
                         'channel_title', COALESCE(NULLIF(channel_type_hint, ''), ''),
-                        'discovery_method', 'bronze_events_youtube'
+                        'discovery_method', 'bronze_event_youtube'
                     )
                     ORDER BY channel_id
                 ) AS youtube_channels
@@ -228,7 +228,7 @@ class ChannelLoaderBronze:
         cursor.close()
 
         logger.info(
-            f"Found {len(jurisdictions)} jurisdiction(s) with channels from bronze.bronze_events_youtube"
+            f"Found {len(jurisdictions)} jurisdiction(s) with channels from bronze.bronze_event_youtube"
         )
         return jurisdictions
     
@@ -256,7 +256,7 @@ class ChannelLoaderBronze:
                             'video_count': item.get('video_count'),
                             'confidence': item.get('confidence'),
                             'policy_score': item.get('policy_score', 0),
-                            'discovery_method': item.get('discovery_method', 'bronze_events_youtube')
+                            'discovery_method': item.get('discovery_method', 'bronze_event_youtube')
                         })
         
         return channels
@@ -361,13 +361,13 @@ class ChannelLoaderBronze:
         validate: bool = False,
         auto_flag: bool = False
     ):
-        """Load channels from bronze.bronze_events_youtube into bronze_events_channels."""
+        """Load channels from bronze.bronze_event_youtube into bronze_events_channels."""
 
         logger.info("")
         logger.info("=" * 80)
         logger.info("CHANNEL LOADER (BRONZE)")
         logger.info("=" * 80)
-        logger.info("Source: bronze.bronze_events_youtube (aggregated per jurisdiction)")
+        logger.info("Source: bronze.bronze_event_youtube (aggregated per jurisdiction)")
         logger.info(f"Target: bronze_events_channels")
         logger.info(f"States: {', '.join(states_filter) if states_filter else 'ALL'}")
         logger.info(f"Validate: {validate}")
@@ -412,7 +412,7 @@ class ChannelLoaderBronze:
                     'in_localview': False,  # Will be updated by separate process
                     'in_wikidata': False,
                     'in_jurisdictions_details': False,
-                    'discovery_method': channel.get('discovery_method', 'bronze_events_youtube'),
+                    'discovery_method': channel.get('discovery_method', 'bronze_event_youtube'),
                     'confidence': channel.get('confidence'),
                     'jurisdictions': json.dumps([jurisdiction_info]),
                     'is_government': None if not is_junk else False,

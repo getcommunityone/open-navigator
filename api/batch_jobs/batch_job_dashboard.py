@@ -628,7 +628,7 @@ def build_dashboard_data(
     fall back to JSON files under ``data/cache/batch_jobs/``.
 
     ``refresh_files`` scans the policy cache on disk (slow). By default transcript
-  counts come from ``bronze.bronze_events_youtube`` when ``enrich_bronze`` is true.
+  counts come from ``bronze.bronze_event_youtube`` when ``enrich_bronze`` is true.
     """
     import os
 

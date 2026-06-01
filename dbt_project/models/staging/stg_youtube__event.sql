@@ -3,7 +3,7 @@
 /*
     Staging: YouTube meeting-video events (1 row per video_id).
 
-    Reads the RAW landing table bronze.bronze_events_youtube, populated by the
+    Reads the RAW landing table bronze.bronze_event_youtube, populated by the
     LAND loader ingestion.youtube.events (which lands pre-collected video records
     verbatim — title, published_at, channel metadata — with NO derivation). This
     model reproduces the derivation that used to live in the Python scraper/loader
@@ -33,7 +33,7 @@
 with
 
 source as (
-    select * from {{ source('bronze', 'bronze_events_youtube') }}
+    select * from {{ source('bronze', 'bronze_event_youtube') }}
 ),
 
 renamed as (

@@ -6,12 +6,12 @@
 }}
 
 /*
-Staging view for bronze_events_text_ai
+Staging view for bronze_event_youtube_transcript
 
 Applies basic cleaning and quality checks to video transcripts.
 Filters out low-quality or empty transcripts.
 
-Source: bronze_events_text_ai (from `open_navigator.bronze` schema)
+Source: bronze_event_youtube_transcript (from `open_navigator.bronze` schema)
 Target: Intermediate models for text analysis and search
 */
 
@@ -90,7 +90,7 @@ SELECT
     created_at,
     last_updated
 
-FROM {{ source('bronze', 'bronze_events_text_ai') }}
+FROM {{ source('bronze', 'bronze_event_youtube_transcript') }}
 
 -- Basic quality filter: must have video_id and some transcript data
 WHERE 

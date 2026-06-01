@@ -8,7 +8,7 @@
 --   B) In details but `youtube_channel_count` = 0 (discovery found no channel URL)
 --   C) Details has `youtube_channels` JSON but `bronze_events_channels` missing row
 --      (load_youtube_channels_bronze not run / failed for that channel_id)
---   D) Bronze has channel but no / few `bronze_events_youtube` rows
+--   D) Bronze has channel but no / few `bronze_event_youtube` rows
 --      (load_youtube_events_to_postgres not run / filters / API limits)
 --   E) Name mismatch: `jurisdiction.name` ≠ `jurisdiction.jurisdiction_name`
 --      (join below is exact trimmed lower match — tune for school district spelling)
@@ -51,7 +51,7 @@ SELECT
   COUNT(DISTINCT jurisdiction_name) AS distinct_jurisdiction_names,
   COUNT(DISTINCT channel_id) AS distinct_channels,
   COUNT(*) AS video_rows
-FROM bronze.bronze_events_youtube
+FROM bronze.bronze_event_youtube
 WHERE state_code = 'GA';
 
 \echo ''
@@ -124,7 +124,7 @@ SELECT
   jurisdiction_name,
   COUNT(DISTINCT channel_id) AS channels,
   COUNT(*) AS videos
-FROM bronze.bronze_events_youtube
+FROM bronze.bronze_event_youtube
 WHERE state_code = 'GA'
 GROUP BY jurisdiction_name
 ORDER BY videos DESC, jurisdiction_name;

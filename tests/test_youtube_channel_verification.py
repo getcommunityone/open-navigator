@@ -359,7 +359,7 @@ def test_verified_bronze_franklin_cartoon_channel_rejected():
         "youtube_channel_url": "https://www.youtube.com/channel/UCQJ8D7gkhMCqP1qtusqmfgg",
         "channel_title": "Franklin County",
         "channel_description": "",
-        "discovery_method": "verified_bronze_events_youtube",
+        "discovery_method": "verified_bronze_event_youtube",
         "official_meeting_confidence": 0.95,
         "back_links_to_jurisdiction_website": False,
     }
@@ -387,7 +387,7 @@ def test_verified_bronze_county_commission_still_accepted():
         "youtube_channel_url": "https://www.youtube.com/channel/UCLaqkkdvi6sYpsncNRiFggg",
         "channel_title": "Houston County Commission - Dothan Al",
         "channel_description": "Houston County Commission meetings",
-        "discovery_method": "verified_bronze_events_youtube",
+        "discovery_method": "verified_bronze_event_youtube",
         "official_meeting_confidence": 0.75,
         "back_links_to_jurisdiction_website": False,
     }

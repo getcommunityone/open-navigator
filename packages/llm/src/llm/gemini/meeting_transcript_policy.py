@@ -66,7 +66,7 @@ if str(_REPO_ROOT) not in sys.path:
 
 
 def _db_events_enabled(args: "argparse.Namespace") -> bool:
-    """Whether to stamp analysis/report outcomes onto bronze_events_youtube."""
+    """Whether to stamp analysis/report outcomes onto bronze_event_youtube."""
     if getattr(args, "no_db_events", False):
         return False
     return os.getenv("POLICY_RECORD_DB_EVENTS", "1").strip().lower() not in (
@@ -489,7 +489,7 @@ def save_transcript_policy_output(
             )
         else:
             logger.warning(
-                "persist-bronze skipped for {} — no bronze.bronze_events_youtube row",
+                "persist-bronze skipped for {} — no bronze.bronze_event_youtube row",
                 video.video_id,
             )
 
@@ -1122,7 +1122,7 @@ def run_pipeline(args: argparse.Namespace) -> None:
             hint = ""
             if getattr(args, "only_has_transcript", False):
                 hint = (
-                    " (no rows with bronze_events_text_ai.has_transcript — "
+                    " (no rows with bronze_event_youtube_transcript.has_transcript — "
                     "run packages/scrapers/src/scrapers/youtube/backfill_jurisdiction_transcripts.py first)"
                 )
             raise SystemExit(f"No bronze videos for {jurisdiction_id}{hint}")
@@ -1254,7 +1254,7 @@ def main() -> None:
     parser.add_argument(
         "--from-bronze",
         action="store_true",
-        help="Process videos from bronze.bronze_events_youtube",
+        help="Process videos from bronze.bronze_event_youtube",
     )
     parser.add_argument(
         "--order-by",
@@ -1444,7 +1444,7 @@ def main() -> None:
         "--no-db-events",
         action="store_true",
         help="Disable best-effort recording of analysis/report outcomes onto "
-        "bronze_events_youtube (also via POLICY_RECORD_DB_EVENTS=0; needs migration 083)",
+        "bronze_event_youtube (also via POLICY_RECORD_DB_EVENTS=0; needs migration 083)",
     )
     args = parser.parse_args()
     run_pipeline(args)

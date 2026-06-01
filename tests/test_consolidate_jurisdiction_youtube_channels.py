@@ -30,7 +30,7 @@ def test_payload_from_row_verified_bronze():
         {
             "youtube_channel_url": "https://www.youtube.com/channel/UCx",
             "youtube_channel_id": "UCx",
-            "discovery_method": "verified_bronze_events_youtube",
+            "discovery_method": "verified_bronze_event_youtube",
             "official_meeting_confidence": 0.5,
         },
         default_primary=True,

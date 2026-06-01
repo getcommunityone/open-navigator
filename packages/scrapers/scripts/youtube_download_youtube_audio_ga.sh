@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Download YouTube audio for Georgia only (bronze_events_youtube.state_code = 'GA').
+# Download YouTube audio for Georgia only (bronze_event_youtube.state_code = 'GA').
 # Extra args are forwarded, e.g.:
 #   ./packages/scrapers/src/scrapers/youtube/download_youtube_audio_ga.sh --limit 20 --not-yet-downloaded
 #   ./packages/scrapers/src/scrapers/youtube/download_youtube_audio_ga.sh --bronze-channels-only --government-channel-types-only \

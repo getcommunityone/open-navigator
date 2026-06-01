@@ -2219,7 +2219,7 @@ export default function BatchJobStatusPage() {
               value={formatCompactNumber(data.totals.bronze_download_rows ?? 0)}
               title={
                 metricCountTitle(data.totals.bronze_download_rows, 'Bronze download rows') ??
-                'bronze_events_youtube rows with transcript_download_at (all time)'
+                'bronze_event_youtube rows with transcript_download_at (all time)'
               }
             />
             <SummaryCard

@@ -379,7 +379,7 @@ class YoutubeChannelDiagnosticsResponse(BaseModel):
         default_factory=lambda: {
             "golden_table": "intermediate.int_events_channels",
             "candidates_table": "intermediate.int_events_channels_candidates",
-            "bronze_videos": "bronze.bronze_events_youtube",
+            "bronze_videos": "bronze.bronze_event_youtube",
             "has_youtube_channel": (
                 "True when intermediate.int_events_channels has a non-blank "
                 "youtube_channel_url for this jurisdiction (matched by jurisdiction_id "
@@ -580,7 +580,7 @@ async def list_youtube_channel_diagnostics(
 ):
     """
   Per-jurisdiction YouTube pipeline status: golden ``int_events_channels``, candidates,
-  and ``bronze_events_youtube`` video counts — explains missing videos vs missing URLs.
+  and ``bronze_event_youtube`` video counts — explains missing videos vs missing URLs.
     """
     from scripts.datasources.jurisdictions.youtube_channel_diagnostics import (
         YOUTUBE_DIAGNOSTICS_ROW_SQL,

@@ -24,8 +24,8 @@ Marts Layer (dbt tables - production-ready)
    - Includes all fields from current production `event`
    - Tracks data source (`source`, `datasource_id` columns)
 
-2. **004_create_bronze_events_text_ai.sql**
-   - Creates `bronze_events_text_ai` table in `open_navigator_bronze` database
+2. **004_create_bronze_event_youtube_transcript.sql**
+   - Creates `bronze_event_youtube_transcript` table in `open_navigator_bronze` database
    - Stores video transcripts and AI-extracted text
    - Replaces production `events_text_search` table
    - Includes quality flags and AI model tracking
@@ -38,7 +38,7 @@ Marts Layer (dbt tables - production-ready)
    - Adds quality flags: `missing_title`, `missing_date`, `missing_state`, `video_missing_channel`
    - Filters out events without title or date
 
-4. **stg_bronze_events_text_ai.sql**
+4. **stg_bronze_event_youtube_transcript.sql**
    - Staging view cleaning video transcripts
    - Calculates `word_count` and `transcript_length`
    - Adds quality flags: `missing_transcript`, `very_short_transcript`, `missing_segments`
@@ -62,9 +62,9 @@ Marts Layer (dbt tables - production-ready)
 
 7. **dbt_project/models/staging/_staging.yml**
    - Added `bronze_event` source definition
-   - Added `bronze_events_text_ai` source definition
+   - Added `bronze_event_youtube_transcript` source definition
    - Added `stg_bronze_event` model documentation
-   - Added `stg_bronze_events_text_ai` model documentation
+   - Added `stg_bronze_event_youtube_transcript` model documentation
 
 8. **dbt_project/models/marts/_marts.yml**
    - Added `event` model documentation
@@ -79,9 +79,9 @@ Marts Layer (dbt tables - production-ready)
 psql -h localhost -p 5433 -U postgres -d open_navigator_bronze \
   -f packages/hosting/scripts/neon/migrations/003_create_bronze_event.sql
 
-# Create bronze_events_text_ai table
+# Create bronze_event_youtube_transcript table
 psql -h localhost -p 5433 -U postgres -d open_navigator_bronze \
-  -f packages/hosting/scripts/neon/migrations/004_create_bronze_events_text_ai.sql
+  -f packages/hosting/scripts/neon/migrations/004_create_bronze_event_youtube_transcript.sql
 ```
 
 ### Step 2: Import Foreign Tables
@@ -90,7 +90,7 @@ psql -h localhost -p 5433 -U postgres -d open_navigator_bronze \
 # In open_navigator database, import bronze tables via FDW
 psql -h localhost -p 5433 -U postgres -d open_navigator -c "
 IMPORT FOREIGN SCHEMA public
-    LIMIT TO (bronze_event, bronze_events_text_ai)
+    LIMIT TO (bronze_event, bronze_event_youtube_transcript)
     FROM SERVER bronze_server INTO bronze;
 "
 ```
@@ -125,7 +125,7 @@ LIMIT 100;
 
 # Copy sample transcripts
 psql -h localhost -p 5433 -U postgres -d open_navigator_bronze -c "
-INSERT INTO bronze_events_text_ai (
+INSERT INTO bronze_event_youtube_transcript (
     event_id, video_id, raw_text, segments,
     language, is_auto_generated, transcript_source,
     has_transcript, created_at
@@ -145,7 +145,7 @@ LIMIT 100;
 cd dbt_project
 
 # Test staging models
-dbt run --select stg_bronze_event stg_bronze_events_text_ai
+dbt run --select stg_bronze_event stg_bronze_event_youtube_transcript
 
 # Build production marts
 dbt run --select event events_text_search
@@ -170,9 +170,9 @@ FROM event;
 
 -- Check transcripts count
 SELECT 
-    'bronze_events_text_ai' AS table_name, 
+    'bronze_event_youtube_transcript' AS table_name, 
     COUNT(*) 
-FROM bronze.bronze_events_text_ai
+FROM bronze.bronze_event_youtube_transcript
 UNION ALL
 SELECT 
     'events_text_search (dbt mart)', 
@@ -200,7 +200,7 @@ WHERE video_url IS NOT NULL;
 ┌──────────────────────────────────────────────────────────────────┐
 │             BRONZE LAYER (open_navigator_bronze)                 │
 ├──────────────────────────────┬───────────────────────────────────┤
-│  bronze_event        │  bronze_events_text_ai            │
+│  bronze_event        │  bronze_event_youtube_transcript            │
 │  - Raw events from all       │  - Raw transcripts                │
 │    sources                   │  - AI extraction metadata         │
 │  - May contain duplicates    │  - Quality flags                  │
@@ -211,7 +211,7 @@ WHERE video_url IS NOT NULL;
 ┌──────────────────────────────────────────────────────────────────┐
 │           STAGING LAYER (dbt views - open_navigator)             │
 ├──────────────────────────────┬───────────────────────────────────┤
-│  stg_bronze_event    │  stg_bronze_events_text_ai        │
+│  stg_bronze_event    │  stg_bronze_event_youtube_transcript        │
 │  - Clean & normalize         │  - Calculate word count           │
 │  - Quality flags             │  - Filter &lt;100 chars              │
 │  - No deduplication          │  - Quality scoring                │
@@ -266,7 +266,7 @@ WHERE video_url IS NOT NULL;
 
 1. **packages/scrapers/src/scrapers/youtube/load_youtube_events_to_postgres.py**
    - Change: Insert to `bronze_event` instead of `event`
-   - Change: Insert to `bronze_events_text_ai` instead of `events_text_search`
+   - Change: Insert to `bronze_event_youtube_transcript` instead of `events_text_search`
 
 2. **scripts/datasources/localview/load_to_postgres.py**
    - Change: Insert to `bronze_event` instead of `event`

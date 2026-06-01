@@ -74,7 +74,7 @@ def is_localview_discovery(method: str) -> bool:
 
 
 def is_events_catalog_auto_discovery(method: str) -> bool:
-    """Auto-picked from bronze_events_youtube / repair script — not human-verified."""
+    """Auto-picked from bronze_event_youtube / repair script — not human-verified."""
     m = (method or "").strip().lower()
     return "verified_bronze" in m or m.startswith("events_catalog")
 

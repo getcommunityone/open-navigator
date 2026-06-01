@@ -43,7 +43,7 @@ base AS (
     c.channel_type AS c_channel_type,
     c.flagged_as_junk,
     COALESCE(y.event_date, (y.published_at AT TIME ZONE 'UTC')::date) AS effective_date
-  FROM bronze.bronze_events_youtube y
+  FROM bronze.bronze_event_youtube y
   CROSS JOIN params p
   LEFT JOIN bronze.bronze_events_channels c ON c.channel_id = y.channel_id
   WHERE y.state_code = p.state_code

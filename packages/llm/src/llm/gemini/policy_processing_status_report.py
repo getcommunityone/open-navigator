@@ -466,7 +466,7 @@ def fetch_states_with_data() -> List[str]:
         cur.execute(
             """
             SELECT DISTINCT UPPER(state_code) AS sc
-            FROM bronze.bronze_events_youtube
+            FROM bronze.bronze_event_youtube
             WHERE state_code IS NOT NULL AND BTRIM(state_code) <> ''
             """
         )
@@ -526,8 +526,8 @@ def fetch_db_rollups(states: List[str]) -> Dict[str, StateRollup]:
                        WHERE COALESCE(t.has_transcript, FALSE)
                          OR (t.raw_text IS NOT NULL AND BTRIM(t.raw_text) <> '')
                    )::bigint AS bronze_has_transcript
-            FROM bronze.bronze_events_youtube y
-            LEFT JOIN bronze.bronze_events_text_ai t ON t.video_id = y.video_id
+            FROM bronze.bronze_event_youtube y
+            LEFT JOIN bronze.bronze_event_youtube_transcript t ON t.video_id = y.video_id
             WHERE UPPER(y.state_code) = ANY(%s)
               AND y.jurisdiction_id IS NOT NULL
               AND BTRIM(y.jurisdiction_id) <> ''
@@ -555,7 +555,7 @@ def fetch_db_rollups(states: List[str]) -> Dict[str, StateRollup]:
                        0
                    )::int AS yr,
                    COUNT(*)::bigint AS n
-            FROM bronze.bronze_events_youtube y
+            FROM bronze.bronze_event_youtube y
             WHERE UPPER(y.state_code) = ANY(%s)
             GROUP BY 1, 2
             ORDER BY 1, 2
@@ -585,8 +585,8 @@ def fetch_db_rollups(states: List[str]) -> Dict[str, StateRollup]:
                        WHERE COALESCE(t.has_transcript, FALSE)
                          OR (t.raw_text IS NOT NULL AND BTRIM(t.raw_text) <> '')
                    )::bigint AS with_transcript
-            FROM bronze.bronze_events_youtube y
-            LEFT JOIN bronze.bronze_events_text_ai t ON t.video_id = y.video_id
+            FROM bronze.bronze_event_youtube y
+            LEFT JOIN bronze.bronze_event_youtube_transcript t ON t.video_id = y.video_id
             WHERE UPPER(y.state_code) = ANY(%s)
               AND y.channel_id IS NOT NULL
             GROUP BY 1, 2, 3, 4, 5
@@ -610,8 +610,8 @@ def fetch_db_rollups(states: List[str]) -> Dict[str, StateRollup]:
                        WHERE COALESCE(t.has_transcript, FALSE)
                          OR (t.raw_text IS NOT NULL AND BTRIM(t.raw_text) <> '')
                    )::bigint AS with_transcript
-            FROM bronze.bronze_events_youtube y
-            LEFT JOIN bronze.bronze_events_text_ai t ON t.video_id = y.video_id
+            FROM bronze.bronze_event_youtube y
+            LEFT JOIN bronze.bronze_event_youtube_transcript t ON t.video_id = y.video_id
             WHERE UPPER(y.state_code) = ANY(%s)
               AND y.channel_id IS NOT NULL
             GROUP BY 1, 2, 3, 4
@@ -649,8 +649,8 @@ def fetch_jurisdiction_db_stats(states: List[str]) -> Dict[str, Dict[str, Any]]:
                    )::bigint AS bronze_transcripts,
                    MAX(y.last_updated) AS youtube_last_updated,
                    MAX(t.last_updated) AS transcript_last_updated
-            FROM bronze.bronze_events_youtube y
-            LEFT JOIN bronze.bronze_events_text_ai t ON t.video_id = y.video_id
+            FROM bronze.bronze_event_youtube y
+            LEFT JOIN bronze.bronze_event_youtube_transcript t ON t.video_id = y.video_id
             WHERE UPPER(y.state_code) = ANY(%s)
               AND y.jurisdiction_id IS NOT NULL
               AND BTRIM(y.jurisdiction_id) <> ''
@@ -1013,10 +1013,10 @@ def render_markdown(
     lines.append("| Column | Meaning |")
     lines.append("|--------|---------|")
     lines.append("| **Muni / County / School** | Rows in `public.jurisdiction` by type |")
-    lines.append("| **YT places** | Distinct `jurisdiction_id` in `bronze.bronze_events_youtube` |")
+    lines.append("| **YT places** | Distinct `jurisdiction_id` in `bronze.bronze_event_youtube` |")
     lines.append("| **YT channels** | Distinct `channel_id` in bronze YouTube |")
     lines.append("| **YT videos** | Rows in bronze YouTube |")
-    lines.append("| **Bronze transcript** | Join `bronze_events_text_ai` (`has_transcript` or non-empty `raw_text`) |")
+    lines.append("| **Bronze transcript** | Join `bronze_event_youtube_transcript` (`has_transcript` or non-empty `raw_text`) |")
     lines.append("| **Disk transcripts** | `01_transcripts/*.json` under policy cache |")
     lines.append("| **Disk analysis** | `02_analysis/*.json` (Part 1 policy JSON) |")
     lines.append("| **Disk reports** | `03_reports/*.md` (Part 2 Smart Brevity) |")

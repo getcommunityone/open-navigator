@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Backfill bronze.bronze_events_youtube.published_at, event_date, event_time, and channel_id
+Backfill bronze.bronze_event_youtube.published_at, event_date, event_time, and channel_id
 (from yt-dlp metadata when present) via extract_info (no download). Use when rows were inserted
 without dates or channel_id should be refreshed from the video metadata.
 
@@ -340,7 +340,7 @@ def _fetch_ids(
     cur = conn.cursor()
     q = """
         SELECT y.video_id
-        FROM bronze.bronze_events_youtube y
+        FROM bronze.bronze_event_youtube y
         WHERE y.video_url IS NOT NULL
           AND y.event_date IS NULL
           AND y.published_at IS NULL
@@ -376,7 +376,7 @@ def _update_row(
     cur = conn.cursor()
     cur.execute(
         """
-        UPDATE bronze.bronze_events_youtube
+        UPDATE bronze.bronze_event_youtube
         SET published_at = %s,
             event_date = %s,
             event_time = %s,
@@ -397,7 +397,7 @@ def _update_row(
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Backfill NULL published_at/event_date on bronze_events_youtube using yt-dlp."
+        description="Backfill NULL published_at/event_date on bronze_event_youtube using yt-dlp."
     )
     parser.add_argument(
         "--database-url",

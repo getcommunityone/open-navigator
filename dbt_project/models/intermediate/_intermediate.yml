@@ -253,7 +253,7 @@ models:
       Channel-centric registry derived from `int_events_localview` channel_ids
       plus homepage-discovered channel_ids from
       `int_jurisdiction_homepage_youtube_channels`,
-      enriched with `bronze_events_youtube` URLs (or canonical channel URL),
+      enriched with `bronze_event_youtube` URLs (or canonical channel URL),
       official-homepage YouTube links from `int_jurisdiction_homepage_youtube_channels`,
       `jurisdictions` / `jurisdiction_ids`, and scalar `jurisdiction_id` (first sorted id)
       from `int_localview_channel_geography` joined to `int_jurisdictions`.
@@ -269,7 +269,7 @@ models:
     description: >
       LocalView-enriched YouTube meeting events, one row per video_id. Declarative
       replacement for packages/scrapers/src/scrapers/youtube/sync_bronze_youtube_from_localview.py:
-      instead of UPDATE-ing geography onto bronze.bronze_events_youtube in place, this
+      instead of UPDATE-ing geography onto bronze.bronze_event_youtube in place, this
       model derives it as a SELECT on stg_youtube__event, preferring LocalView geography
       (jurisdiction_name/type, city, state_code, state, meeting_type) when present and
       falling back to the YouTube row. channel_id is resolved from
@@ -637,7 +637,7 @@ models:
       video, derives the video_id, and dedups to one row per video_id (YouTube
       source preferred). Consumed by scrapers.youtube.backfill_transcripts to
       decide which videos still need a transcript landed in
-      bronze.bronze_events_text_ai. Add a new source to marts.event to pull
+      bronze.bronze_event_youtube_transcript. Add a new source to marts.event to pull
       transcripts for it.
     columns:
       - name: video_id

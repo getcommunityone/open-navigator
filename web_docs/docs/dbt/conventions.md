@@ -70,7 +70,7 @@ Don't rename in bulk. Apply during touch:
 |---|---|---|
 | `stg_bronze_decisions.sql` | `stg_ai__decisions.sql` | bronze is the source layer, not part of the model name; "decisions" come from the AI extraction source |
 | `stg_bronze_events_cdp.sql` | `stg_cdp__events.sql` | source is CDP |
-| `stg_bronze_events_text_ai.sql` | `stg_ai__transcripts.sql` | source is AI extraction |
+| `stg_bronze_event_youtube_transcript.sql` | `stg_ai__transcripts.sql` | source is AI extraction |
 | `int_jurisdictions.sql` | `int_jurisdictions__base.sql` | "base" makes its role in the chain clear |
 | `int_jurisdictions_clean.sql` | `int_jurisdictions__deduped.sql` | name describes the operation |
 | `int_jurisdictions_linked.sql` | `int_jurisdictions__matched.sql` | "linked" is ambiguous |

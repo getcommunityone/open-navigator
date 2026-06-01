@@ -72,7 +72,7 @@ def main() -> None:
     ap.add_argument(
         "--no-write-bronze",
         action="store_true",
-        help="Do not mark bronze.bronze_events_text_ai as excluded",
+        help="Do not mark bronze.bronze_event_youtube_transcript as excluded",
     )
     ap.add_argument("--database-url", default="")
     args = ap.parse_args()

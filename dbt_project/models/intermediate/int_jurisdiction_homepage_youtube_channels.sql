@@ -175,7 +175,7 @@ youtube_catalog AS (
                 )
             ELSE NULL
         END AS channel_handle_norm
-    FROM {{ source('bronze', 'bronze_events_youtube') }}
+    FROM {{ source('bronze', 'bronze_event_youtube') }}
     WHERE NULLIF(BTRIM(channel_id), '') IS NOT NULL
 ),
 

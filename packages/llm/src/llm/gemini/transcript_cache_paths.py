@@ -148,14 +148,14 @@ def resolve_canonical_jurisdiction_id(jurisdiction_id: str) -> str:
     try:
         with psycopg2.connect(url) as conn, conn.cursor() as cur:
             cur.execute(
-                "SELECT COUNT(*) FROM bronze.bronze_events_youtube WHERE jurisdiction_id = %s",
+                "SELECT COUNT(*) FROM bronze.bronze_event_youtube WHERE jurisdiction_id = %s",
                 (jid,),
             )
             legacy_rows = int(cur.fetchone()[0] or 0)
             cur.execute(
                 """
                 SELECT jurisdiction_name, state_code
-                FROM bronze.bronze_events_youtube
+                FROM bronze.bronze_event_youtube
                 WHERE jurisdiction_id = %s
                   AND jurisdiction_name IS NOT NULL
                 LIMIT 1
@@ -232,7 +232,7 @@ def _fetch_place_name_from_db(jurisdiction_id: str) -> Optional[str]:
             return str(row[0]).strip()
         cur.execute(
             """
-            SELECT jurisdiction_name FROM bronze.bronze_events_youtube
+            SELECT jurisdiction_name FROM bronze.bronze_event_youtube
             WHERE jurisdiction_id = %s
               AND jurisdiction_name IS NOT NULL
               AND BTRIM(jurisdiction_name) <> ''
@@ -266,7 +266,7 @@ def _fetch_place_name_from_db(jurisdiction_id: str) -> Optional[str]:
                     return str(row[0]).strip()
                 cur.execute(
                     """
-                    SELECT jurisdiction_name FROM bronze.bronze_events_youtube
+                    SELECT jurisdiction_name FROM bronze.bronze_event_youtube
                     WHERE jurisdiction_id LIKE %s
                       AND jurisdiction_name IS NOT NULL
                       AND BTRIM(jurisdiction_name) <> ''
@@ -466,7 +466,7 @@ def _database_url() -> Optional[str]:
 
 @functools.lru_cache(maxsize=2048)
 def lookup_jurisdiction_geo_from_db(jurisdiction_id: str) -> Tuple[Optional[str], Optional[str]]:
-    """``(state_code, bronze jurisdiction_type)`` from ``bronze.bronze_events_youtube``."""
+    """``(state_code, bronze jurisdiction_type)`` from ``bronze.bronze_event_youtube``."""
     jid = (jurisdiction_id or "").strip()
     if not jid:
         return None, None
@@ -482,7 +482,7 @@ def lookup_jurisdiction_geo_from_db(jurisdiction_id: str) -> Tuple[Optional[str]
             cur.execute(
                 """
                 SELECT state_code, jurisdiction_type
-                FROM bronze.bronze_events_youtube
+                FROM bronze.bronze_event_youtube
                 WHERE jurisdiction_id = %s
                   AND state_code IS NOT NULL
                   AND BTRIM(state_code) <> ''
@@ -531,7 +531,7 @@ def lookup_channel_id_from_db(
     jurisdiction_id: str,
     video_id: str = "",
 ) -> Optional[str]:
-    """``channel_id`` from ``bronze.bronze_events_youtube`` for a jurisdiction or video."""
+    """``channel_id`` from ``bronze.bronze_event_youtube`` for a jurisdiction or video."""
     jid = (jurisdiction_id or "").strip()
     if not jid:
         return None
@@ -549,7 +549,7 @@ def lookup_channel_id_from_db(
                 cur.execute(
                     """
                     SELECT channel_id
-                    FROM bronze.bronze_events_youtube
+                    FROM bronze.bronze_event_youtube
                     WHERE jurisdiction_id = %s AND video_id = %s
                       AND channel_id IS NOT NULL AND BTRIM(channel_id) <> ''
                     LIMIT 1
@@ -560,7 +560,7 @@ def lookup_channel_id_from_db(
                 cur.execute(
                     """
                     SELECT channel_id
-                    FROM bronze.bronze_events_youtube
+                    FROM bronze.bronze_event_youtube
                     WHERE jurisdiction_id = %s
                       AND channel_id IS NOT NULL AND BTRIM(channel_id) <> ''
                     GROUP BY channel_id

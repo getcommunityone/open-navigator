@@ -9,7 +9,7 @@
     and adds two cheap derivations (num_snippets, num_topics). The snippet array
     is unnested separately in stg_civicsearch__snippet.
 
-    vid_id is a YouTube video id and the bridge to bronze_events_youtube /
+    vid_id is a YouTube video id and the bridge to bronze_event_youtube /
     int_events_union (video_id) — see int_events_civicsearch__localview_xref.
 
     Four-CTE template: source -> renamed -> derived -> final.

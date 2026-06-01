@@ -141,7 +141,7 @@ import psycopg2
 conn = psycopg2.connect(...)
 cursor.execute("""
     INSERT INTO event
-    SELECT * FROM bronze.bronze_events_youtube
+    SELECT * FROM bronze.bronze_event_youtube
     WHERE event_date >= '2026-01-01'
 """)
 ```
@@ -152,7 +152,7 @@ cursor.execute("""
 {{ config(materialized='incremental') }}
 
 SELECT *
-FROM {{ source('bronze', 'bronze_events_youtube') }}
+FROM {{ source('bronze', 'bronze_event_youtube') }}
 WHERE event_date >= '2026-01-01'
 {% if is_incremental() %}
     AND loaded_at > (SELECT MAX(loaded_at) FROM {{ this }})

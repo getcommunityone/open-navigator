@@ -8,8 +8,8 @@ This script automates the complete setup process:
 
 1. ✅ Creates `bronze` schema in Neon
 2. ✅ Creates required tables using dbt:
-   - `bronze.bronze_events_youtube`
-   - `bronze.bronze_events_text_ai`
+   - `bronze.bronze_event_youtube`
+   - `bronze.bronze_event_youtube_transcript`
 3. ✅ Syncs data from local PostgreSQL to Neon
 4. ✅ Verifies the setup
 
@@ -25,8 +25,8 @@ This script automates the complete setup process:
    - You'll need to add your Neon credentials
 
 3. **Local database** with bronze tables populated:
-   - `bronze.bronze_events_youtube` (your local data)
-   - `bronze.bronze_events_text_ai`
+   - `bronze.bronze_event_youtube` (your local data)
+   - `bronze.bronze_event_youtube_transcript`
 
 ## Usage
 
@@ -49,8 +49,8 @@ The script will:
 When asked which tables to sync:
 
 **Option 1: Minimum (recommended for Colab)**
-- `bronze_events_youtube` (4,759 rows, ~7.5 MB)
-- `bronze_events_text_ai` (2 rows, ~168 KB)
+- `bronze_event_youtube` (4,759 rows, ~7.5 MB)
+- `bronze_event_youtube_transcript` (2 rows, ~168 KB)
 - `bronze_events_channels` (344 rows, ~368 KB)
 - **Total:** ~8 MB, takes 10-30 seconds
 
@@ -126,14 +126,14 @@ psql "$NEON_DATABASE_URL" -c "CREATE SCHEMA IF NOT EXISTS bronze;"
 
 # 2. Create tables with dbt
 cd dbt_project
-dbt run --select bronze_events_youtube --target prod
-dbt run --select bronze_events_text_ai --target prod
+dbt run --select bronze_event_youtube --target prod
+dbt run --select bronze_event_youtube_transcript --target prod
 
 # 3. Sync data
 source .venv/bin/activate
 python -m hosting.neon.sync_bronze_tables \
-  bronze_events_youtube \
-  bronze_events_text_ai \
+  bronze_event_youtube \
+  bronze_event_youtube_transcript \
   bronze_events_channels
 ```
 
@@ -144,8 +144,8 @@ python -m hosting.neon.sync_bronze_tables \
 ```
 open_navigator (database)
 └── bronze (schema)
-    ├── bronze_events_youtube         # Video metadata
-    ├── bronze_events_text_ai         # Video transcripts
+    ├── bronze_event_youtube         # Video metadata
+    ├── bronze_event_youtube_transcript         # Video transcripts
     ├── bronze_events_channels        # Channel tracking
     └── bronze_events_localview       # Optional: LocalView events
 ```

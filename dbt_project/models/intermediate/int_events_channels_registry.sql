@@ -23,7 +23,7 @@ jurisdiction_type, geoid.
 did not match `int_jurisdictions` (fix upstream `int_localview_jurisdiction_geography` /
 GEOIDs) or when `int_localview_channel_geography` has no row for the channel.
 
-`channel_url`: prefer `bronze_events_youtube.channel_url`; if missing/blank, canonical
+`channel_url`: prefer `bronze_event_youtube.channel_url`; if missing/blank, canonical
 `https://www.youtube.com/channel/{channel_id}` so API/UI always have a link.
 
 `channel_title`, `channel_description`, `subscriber_count`, `video_count`, `view_count`,
@@ -75,7 +75,7 @@ youtube_meta AS (
         MAX(channel_url)  AS channel_url,
         MAX(channel_type) AS channel_type,
         MAX(last_updated) AS last_updated
-    FROM {{ source('bronze', 'bronze_events_youtube') }}
+    FROM {{ source('bronze', 'bronze_event_youtube') }}
     WHERE channel_id IS NOT NULL
       AND channel_id != ''
     GROUP BY channel_id

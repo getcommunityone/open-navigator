@@ -5,7 +5,7 @@ models:
     description: |
       YouTube meeting-video events — one row per video_id.
 
-      1:1-ish with bronze.bronze_events_youtube (raw landing from
+      1:1-ish with bronze.bronze_event_youtube (raw landing from
       ingestion.youtube.events), collapsed to one row per video_id. This is the
       DERIVE layer of the YouTube decomposition: it reproduces, in SQL, the
       transforms the Python scraper/loader used to do inline —

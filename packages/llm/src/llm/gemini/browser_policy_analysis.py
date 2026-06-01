@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Drive Gemini in a **headed Chrome** session (your profile) to run ``policy_analysis_v1`` on
-YouTube rows from ``bronze.bronze_events_youtube``.
+YouTube rows from ``bronze.bronze_event_youtube``.
 
 **Before running:** quit Google Chrome completely (same profile folder) or Playwright will
 fail with a profile lock error.
@@ -333,8 +333,8 @@ def fetch_videos(
             y.duration_minutes,
             y.published_at,
             COALESCE(t.has_transcript, false) AS has_transcript
-        FROM bronze.bronze_events_youtube y
-        LEFT JOIN bronze.bronze_events_text_ai t ON t.video_id = y.video_id
+        FROM bronze.bronze_event_youtube y
+        LEFT JOIN bronze.bronze_event_youtube_transcript t ON t.video_id = y.video_id
         WHERE y.jurisdiction_id = %s
           AND y.video_url IS NOT NULL
           AND BTRIM(y.video_url) <> ''
@@ -2898,7 +2898,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument(
         "--jurisdiction-id",
         default=DEFAULT_JURISDICTION_ID,
-        help=f"bronze.bronze_events_youtube.jurisdiction_id (default: {DEFAULT_JURISDICTION_ID})",
+        help=f"bronze.bronze_event_youtube.jurisdiction_id (default: {DEFAULT_JURISDICTION_ID})",
     )
     parser.add_argument("--database-url", default=None)
     parser.add_argument("--limit", type=int, default=None)
