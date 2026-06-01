@@ -347,6 +347,33 @@ sources:
           - name: loaded_at
           - name: last_updated
 
+      - name: bronze_events_civicsearch_schools
+        description: |
+          Raw CivicSearch records for the K-12 school-board corpus
+          (schools.civicsearch.org), structurally identical to
+          bronze_events_civicsearch but harvested from the schools index. One row
+          per vid_id (a YouTube video id), which is the bridge to
+          bronze_event_youtube / int_events_union (video_id). Membership in this
+          table is what distinguishes a 'civicsearch_school' video from a general
+          'civicsearch' video in int_events_union.
+        columns:
+          - name: id
+          - name: vid_id
+            description: "YouTube video id — natural key (one row per meeting)."
+          - name: title
+          - name: meeting_date
+          - name: location
+          - name: location_query_id
+          - name: youtube_url
+          - name: place_query_id
+          - name: matched_keywords
+          - name: snippets
+          - name: topic_ids
+          - name: raw_record
+          - name: scraped_at
+          - name: loaded_at
+          - name: last_updated
+
       - name: bronze_events_channels
         description: "YouTube channels from government jurisdictions - validated and enriched"
         columns:

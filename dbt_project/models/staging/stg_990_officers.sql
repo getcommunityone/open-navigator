@@ -1,4 +1,8 @@
-{{ config(materialized='view') }}
+{{ config(materialized='table') }}
+-- Materialized as a TABLE (not the usual staging view): the name-normalization regex
+-- (normalize_person_name + classify_name_entity_type) is expensive, and downstream
+-- int_990_officers__org_linked reads this twice (dedup + final join). A view would
+-- re-run the regex over all 40M rows on every reference; a table runs it once.
 
 /*
     Staging: IRS Form 990 Part VII people (officers, directors, trustees, key
@@ -20,6 +24,7 @@ with source as (
 )
 
 select
+    id,  -- bronze surrogate key; stable tiebreaker for the per-(person,org,year) dedup
     -- bare-digit EIN: the org master stores EINs without dashes/spaces.
     nullif(regexp_replace(ein, '\D', '', 'g'), '')  as ein_norm,
     tax_year,
