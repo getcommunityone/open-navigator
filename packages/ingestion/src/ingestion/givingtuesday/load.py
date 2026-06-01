@@ -551,7 +551,11 @@ _SJ_INSERT = text(
 # layout (base / bonus / other / deferred / nontaxable / total / prior-reported,
 # each split filing-org vs related-org).
 _SJ_SRC_COLS = [
-    "FILEREIN", "TAXYEAR", "FILERNAME1", "NAMEPEPERSON", "TITLEITLE",
+    # NAMEPEPERSON holds the name for ~95% of rows; the rest carry it in the
+    # BusinessName-line variant NABUBUNALIIN1/2 (cf. BUNABUNALIIN1 in officers).
+    # Read all three and coalesce, else those rows are silently dropped.
+    "FILEREIN", "TAXYEAR", "FILERNAME1", "NAMEPEPERSON", "NABUBUNALIIN1",
+    "NABUBUNALIIN2", "TITLEITLE",
     "BASCOMFILORG", "COBAONREORRG", "BONUFILIORGR", "BONURELAORGS",
     "OTHCOMFILORG", "OTHCOMRELORG", "DEFCOMFILORG", "DEFCOMRELORG",
     "NONBENFILORG", "NONBENRELORG", "TOTCOMFILORG", "TOTCOMRELORG",
@@ -576,7 +580,11 @@ class Form990ScheduleJPipeline(DataSourcePipeline[Form990ScheduleJRow]):
                 if self._limit is not None and emitted >= self._limit:
                     return
                 ein = _ein(row.get("FILEREIN"))
-                person = _safe_str(row.get("NAMEPEPERSON"))
+                person = (
+                    _safe_str(row.get("NAMEPEPERSON"))
+                    or _safe_str(row.get("NABUBUNALIIN1"))
+                    or _safe_str(row.get("NABUBUNALIIN2"))
+                )
                 if not ein or not person:
                     continue
                 yield {
