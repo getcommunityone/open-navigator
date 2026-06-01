@@ -211,6 +211,10 @@ class CivicSearchHarvester:
         self.portal_dir = cache_dir / self.portal
         self.places_path = self.portal_dir / "places.jsonl"
         self.meetings_path = self.portal_dir / "meetings.jsonl"
+        # Records places we've fully best-effort swept, so incremental runs don't
+        # re-grind a place that can't quite reach its advertised num_meetings
+        # (the count is approximate / some meetings aren't surfaced by any axis).
+        self.swept_path = self.portal_dir / "swept.jsonl"
         # query_id -> place dict (query_id, display_name, lat, lon, num_meetings, ...)
         self.places: dict[str, dict[str, Any]] = {}
         # Cross-run dedupe state + streaming output handles.
@@ -218,10 +222,14 @@ class CivicSearchHarvester:
         self._seen_vids: set[str] = set()
         # query_id -> captured meeting count on disk (for the fully-done skip).
         self._disk_counts: dict[str, int] = {}
+        # query_id -> num_meetings target at the time we last fully swept it.
+        # A place is re-swept only if its advertised num_meetings has since grown.
+        self._swept: dict[str, int] = {}
         self._new_places = 0   # places written THIS run
         self._new_meetings = 0  # meetings appended THIS run
         self._places_fh: Any = None
         self._meetings_fh: Any = None
+        self._swept_fh: Any = None
 
     # ----------------------------------------------------------- streaming io
     def open(self) -> None:
@@ -235,9 +243,10 @@ class CivicSearchHarvester:
         mode = "a" if self.incremental else "w"
         self._places_fh = self.places_path.open(mode, encoding="utf-8")
         self._meetings_fh = self.meetings_path.open(mode, encoding="utf-8")
+        self._swept_fh = self.swept_path.open(mode, encoding="utf-8")
 
     def close(self) -> None:
-        for fh in (self._places_fh, self._meetings_fh):
+        for fh in (self._places_fh, self._meetings_fh, self._swept_fh):
             if fh is not None:
                 fh.close()
         logger.success(
@@ -275,6 +284,17 @@ class CivicSearchHarvester:
                     pq = rec.get("place_query_id")
                     if pq:
                         self._disk_counts[pq] = self._disk_counts.get(pq, 0) + 1
+        if self.swept_path.is_file():
+            with self.swept_path.open(encoding="utf-8") as f:
+                for line in f:
+                    rec = _safe_json(line)
+                    qid = (rec or {}).get("query_id")
+                    if qid:
+                        # Keep the largest target seen, so a later run with a
+                        # higher num_meetings correctly re-sweeps the place.
+                        prev = self._swept.get(qid, -1)
+                        tgt = rec.get("num_meetings")
+                        self._swept[qid] = max(prev, tgt if isinstance(tgt, int) else 0)
         if self._seen_place_ids or self._seen_vids:
             logger.info(
                 "resume: {} known place(s), {} known meeting(s)",
@@ -290,6 +310,16 @@ class CivicSearchHarvester:
         self._meetings_fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
         self._meetings_fh.flush()
         self._new_meetings += 1
+
+    def _mark_swept(self, query_id: str, num_meetings: Any) -> None:
+        """Record that this place got a full best-effort sweep at this target."""
+        tgt = num_meetings if isinstance(num_meetings, int) and num_meetings > 0 else 0
+        self._swept[query_id] = max(self._swept.get(query_id, -1), tgt)
+        if self._swept_fh is not None:
+            self._swept_fh.write(
+                json.dumps({"query_id": query_id, "num_meetings": tgt}) + "\n"
+            )
+            self._swept_fh.flush()
 
     # ------------------------------------------------------------------ phase 1
     async def list_places(self) -> None:
@@ -368,6 +398,21 @@ class CivicSearchHarvester:
                     i, total, place["display_name"], captured, target,
                 )
                 continue
+            # Best-effort-swept skip: we already did a full sweep of this place
+            # at this num_meetings target and couldn't reach it (the advertised
+            # count is approximate / some meetings aren't surfaced). Don't
+            # re-grind it every run — only re-sweep if num_meetings has grown.
+            if (
+                self.incremental
+                and qid in self._swept
+                and isinstance(target, int)
+                and target <= self._swept[qid]
+            ):
+                logger.info(
+                    "[{}/{}] {} — skip (best-effort swept; captured {} / num_meetings {})",
+                    i, total, place["display_name"], captured, target,
+                )
+                continue
             try:
                 place_meetings = await self._harvest_place_meetings(place)
             except httpx.HTTPError as exc:
@@ -378,6 +423,10 @@ class CivicSearchHarvester:
                 continue
             self._flush_place_meetings(place_meetings)
             captured = self._disk_counts.get(qid, 0)
+            # Mark this place best-effort swept so a future incremental run skips
+            # it unless num_meetings grows. (We just ran the full escalation; this
+            # is the most this place will yield until new meetings are published.)
+            self._mark_swept(qid, target)
             logger.info(
                 "[{}/{}] {} — captured {} / num_meetings {}",
                 i, total, place["display_name"], captured,
