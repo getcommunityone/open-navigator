@@ -1,5 +1,5 @@
 # Core Dependencies
-python-dotenv==1.0.0
+python-dotenv==1.2.2
 pydantic>=2.10,<3        # >=2.10 required by crawl4ai (was pinned ==2.5.0, which made the tree unsatisfiable)
 pydantic-settings>=2.6,<3
 
@@ -14,7 +14,7 @@ httpx>=0.25.0
 crawl4ai>=0.4.0          # AI-friendly crawler (browser + LLM extraction); needs `crawl4ai-setup` once after install
 litellm>=1.40.0          # crawl4ai backend for non-OpenAI providers (Groq, Gemini, Anthropic, ...)
 socksio>=1.0.0  # needed for httpx SOCKS proxies (socks5://...)
-aiohttp==3.9.1
+aiohttp==3.13.4
 youtube-transcript-api>=0.6.2
 google-api-python-client>=2.100.0  # YouTube Data API v3
 
@@ -36,7 +36,7 @@ google-generativeai>=0.8.0
 # Capped <1.0: the agents use the 0.x import path `from langchain.chat_models import ChatOpenAI`,
 # removed in langchain 1.x. The 0.3.x line supports pydantic 2.x, so it coexists with the bump above.
 langchain>=0.3,<1.0
-langchain-openai>=0.2,<1.0
+langchain-openai>=1.2.2,<2.0
 langchain-community>=0.3,<1.0
 langgraph>=0.2,<1.0
 langchain-core>=0.3,<1.0
@@ -61,9 +61,9 @@ shapely>=2.0.0
 
 # NLP & Text Analysis
 spacy==3.7.2
-transformers==4.36.2
+transformers==5.0.0rc3
 sentence-transformers==2.2.2
-nltk==3.8.1
+nltk==3.9.4
 datasets>=2.16.0
 huggingface-hub>=0.20.0
 
@@ -76,7 +76,7 @@ qdrant-client>=1.7.0
 fastapi==0.109.0
 uvicorn[standard]==0.25.0
 pydantic[email]>=2.10,<3
-python-multipart==0.0.6
+python-multipart==0.0.27
 
 # Authentication & OAuth
 python-jose[cryptography]==3.3.0  # JWT tokens
@@ -97,7 +97,7 @@ pytz==2023.3
 tenacity==8.2.3
 loguru==0.7.2
 click>=8.1.8,<9  # ddgs 9.14+ requires click>=8.1.8 (was 8.1.7; conflicts with ddgs)
-tqdm==4.66.1
+tqdm==4.66.3
 
 # Testing
 pytest>=7.4.0
