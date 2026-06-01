@@ -5,8 +5,9 @@ import { UserPlusIcon, UserMinusIcon } from '@heroicons/react/24/outline'
 import { CheckIcon } from '@heroicons/react/24/solid'
 
 interface FollowButtonProps {
-  type: 'user' | 'leader' | 'organization' | 'cause'
-  // Organizations are keyed by the text master_org_id; the others by integer id.
+  type: 'user' | 'leader' | 'organization' | 'tag'
+  // Organizations (text master_org_id) and tags (text tag_id) are text-keyed;
+  // users and leaders by integer id.
   id: number | string
   initialFollowing?: boolean
   initialCount?: number

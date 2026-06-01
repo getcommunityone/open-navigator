@@ -37,14 +37,13 @@ interface Organization {
   is_verified?: boolean
 }
 
-interface Cause {
-  id: number
-  name: string
-  slug: string
+interface Tag {
+  tag_id: string
+  label?: string
   description?: string
-  icon_url?: string
-  color?: string
   category?: string
+  breadcrumb?: string
+  icon?: string
   follower_count: number
 }
 
@@ -74,10 +73,10 @@ export default function Profile() {
     enabled: !!user
   })
 
-  const { data: causesFollowing } = useQuery<Cause[]>({
-    queryKey: ['following', 'causes'],
+  const { data: tagsFollowing } = useQuery<Tag[]>({
+    queryKey: ['following', 'tags'],
     queryFn: async () => {
-      const response = await api.get('/social/following/causes')
+      const response = await api.get('/social/following/tags')
       return response.data
     },
     enabled: !!user
@@ -200,7 +199,7 @@ export default function Profile() {
               >
                 <div className="flex items-center gap-2">
                   <HeartIcon className="h-5 w-5" />
-                  Causes ({causesFollowing?.length || 0})
+                  Tags ({tagsFollowing?.length || 0})
                 </div>
               </Tab>
             </Tab.List>
@@ -340,56 +339,52 @@ export default function Profile() {
                 )}
               </Tab.Panel>
 
-              {/* Causes */}
+              {/* Tags */}
               <Tab.Panel>
-                {!causesFollowing || causesFollowing.length === 0 ? (
+                {!tagsFollowing || tagsFollowing.length === 0 ? (
                   <div className="text-center py-12">
                     <HeartIcon className="h-16 w-16 mx-auto text-gray-300 mb-4" />
-                    <p className="text-gray-500">You're not following any causes yet</p>
-                    <a 
-                      href="/" 
+                    <p className="text-gray-500">You're not following any tags yet</p>
+                    <a
+                      href="/"
                       className="inline-block mt-4 text-blue-600 hover:text-blue-700 font-medium"
                     >
-                      Explore causes →
+                      Explore tags →
                     </a>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {causesFollowing.map((cause) => (
-                      <div 
-                        key={cause.id} 
+                    {tagsFollowing.map((tag) => (
+                      <div
+                        key={tag.tag_id}
                         className="p-4 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors"
                       >
                         <div className="flex items-center gap-3 mb-2">
-                          {cause.icon_url ? (
-                            <img src={cause.icon_url} alt={cause.name} className="h-8 w-8" />
-                          ) : (
-                            <div 
-                              className="h-8 w-8 rounded-full"
-                              style={{ backgroundColor: cause.color || '#354F52' }}
-                            />
-                          )}
+                          <div className="h-8 w-8 rounded-full" style={{ backgroundColor: '#354F52' }} />
                           <h3 className="font-semibold flex-1" style={{ color: '#354F52' }}>
-                            {cause.name}
+                            {tag.label || tag.tag_id}
                           </h3>
                         </div>
-                        {cause.description && (
-                          <p className="text-sm text-gray-600 mb-3">{cause.description}</p>
+                        {tag.breadcrumb && (
+                          <p className="text-xs text-gray-400 mb-2">{tag.breadcrumb}</p>
                         )}
-                        {cause.category && (
+                        {tag.description && (
+                          <p className="text-sm text-gray-600 mb-3">{tag.description}</p>
+                        )}
+                        {tag.category && (
                           <span className="inline-block px-2 py-0.5 text-xs rounded-full bg-purple-100 text-purple-800 capitalize mb-2">
-                            {cause.category}
+                            {tag.category}
                           </span>
                         )}
                         <div className="flex items-center justify-between">
                           <p className="text-xs text-gray-500">
-                            {cause.follower_count.toLocaleString()} followers
+                            {tag.follower_count.toLocaleString()} followers
                           </p>
-                          <FollowButton 
-                            type="cause" 
-                            id={cause.id}
+                          <FollowButton
+                            type="tag"
+                            id={tag.tag_id}
                             initialFollowing={true}
-                            initialCount={cause.follower_count}
+                            initialCount={tag.follower_count}
                             showCount={false}
                             compact={true}
                           />

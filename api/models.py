@@ -73,29 +73,10 @@ class OAuthState(Base):
 # SocialFollow.target_uid; see api/routes/social.py and migration 093.
 
 
-class Cause(Base):
-    """Causes/Topics/Issues (oral health, housing, education, climate, etc.)"""
-    __tablename__ = "cause"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(255), nullable=False, index=True)
-    slug = Column(String(255), unique=True, index=True, nullable=False)
-    description = Column(Text, nullable=True)
-    icon_url = Column(String(500), nullable=True)
-    color = Column(String(7), nullable=True)  # Hex color code
-    
-    # Category
-    category = Column(String(100), nullable=True)  # 'health', 'education', 'housing', 'environment', etc.
-    
-    # Social stats
-    follower_count = Column(Integer, default=0)
-    
-    # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
-    def __repr__(self):
-        return f"<Cause {self.name}>"
+# NOTE: the integer-keyed `cause` ORM entity was retired in favour of the dbt tag
+# taxonomy (a mart, PK tag_id text -- not an ORM table). Causes/topics are now
+# followed by their text tag_id via SocialFollow.target_uid, exactly like
+# organizations; see api/routes/social.py and migration 099.
 
 
 class Official(Base):
@@ -165,7 +146,7 @@ class Official(Base):
 # ============================================================================
 
 class SocialFollow(Base):
-    """A user following another entity (user, official, organization, or cause).
+    """A user following another entity (user, official, organization, or tag).
 
     Consolidates the former user_follows / contact_official_follows /
     organization_follows / cause_follows tables into one polymorphic table.
@@ -173,9 +154,9 @@ class SocialFollow(Base):
     target key identify what is being followed.
 
     Two target-key columns coexist because targets are keyed differently:
-      - integer-keyed targets ('user', 'official', 'cause') use ``target_id``.
-      - text-keyed targets ('organization', after the fold into the MDM golden
-        record) use ``target_uid`` = mdm_organization.master_org_id.
+      - integer-keyed targets ('user', 'official') use ``target_id``.
+      - text-keyed targets use ``target_uid``: 'organization' =
+        mdm_organization.master_org_id, 'tag' = tag.tag_id.
     Exactly one of the two is set per row; uniqueness is enforced by the two
     partial indexes below.
     """
@@ -187,10 +168,10 @@ class SocialFollow(Base):
               unique=True, postgresql_where=text('target_uid IS NOT NULL')),
     )
 
-    # Allowed target_type values. target_id keys user/official/cause;
-    # target_uid keys organization (mdm_organization.master_org_id).
-    TARGET_TYPES = ("user", "official", "organization", "cause")
-    UID_TARGET_TYPES = ("organization",)
+    # Allowed target_type values. target_id keys user/official; target_uid keys
+    # organization (mdm_organization.master_org_id) and tag (tag.tag_id).
+    TARGET_TYPES = ("user", "official", "organization", "tag")
+    UID_TARGET_TYPES = ("organization", "tag")
 
     id = Column(Integer, primary_key=True, index=True)
     follower_id = Column(Integer, ForeignKey('user.user_id', ondelete='CASCADE'), nullable=False, index=True)
