@@ -1867,7 +1867,22 @@ export default function BatchJobStatusPage() {
                               type="button"
                               disabled={!canRunBackfill}
                               onClick={() =>
-                                runLaunch('backfill', launchScopeStates, backfillSize)
+                                runLaunch(
+                                  'backfill',
+                                  // The backfill is a flat mart-wide sweep, so
+                                  // "All states (50 + DC)" is best expressed as
+                                  // an unfiltered national sweep ([] → backend
+                                  // omits --states). A literal 50 + DC state
+                                  // filter silently drops the CivicSearch videos
+                                  // that carry no state_code (~19.5k school +
+                                  // ~3k general), which are the priority sources
+                                  // here. Priority/single-state scopes still
+                                  // filter as before.
+                                  scope === 'ALL' && allScope === 'all'
+                                    ? []
+                                    : launchScopeStates,
+                                  backfillSize,
+                                )
                               }
                               title={
                                 runningSteps.has('backfill')

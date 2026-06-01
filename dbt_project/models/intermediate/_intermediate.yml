@@ -631,14 +631,16 @@ models:
 
   - name: int_events_union
     description: >
-      Unified candidate list of meeting videos for transcript fetching. Reads
-      the `event` production mart (which already unions CDP/YouTube events with
-      promoted LocalView meetings), narrows to rows with a fetchable YouTube
-      video, derives the video_id, and dedups to one row per video_id (YouTube
-      source preferred). Consumed by scrapers.youtube.backfill_transcripts to
-      decide which videos still need a transcript landed in
-      bronze.bronze_event_youtube_transcript. Add a new source to marts.event to pull
-      transcripts for it.
+      Unified candidate list of meeting videos for transcript fetching. Two
+      feeds, deduped to one row per video_id: (1) the `event` production mart
+      (CDP + promoted LocalView meetings, which keep their canonical event_id and
+      enriched jurisdiction_id), and (2) `bronze_event_youtube` — the YouTube
+      catalog the event mart does NOT surface, where CivicSearch meetings
+      (datasource='civicsearch') and API-discovered videos live. Each row carries
+      a `source` and a `source_priority` so scrapers.youtube.backfill_transcripts
+      fetches the most-wanted sources first. On a video_id collision the lowest
+      priority number wins. Consumed by the backfill to decide which videos still
+      need a transcript landed in bronze.bronze_event_youtube_transcript.
     columns:
       - name: video_id
         description: "YouTube video id — grain of this model (one row per video)."
@@ -650,15 +652,28 @@ models:
         tests:
           - not_null
       - name: source
-        description: "Originating event source for this video."
+        description: >
+          Originating source for this video: 'civicsearch' / 'civicsearch_school'
+          (from bronze_event_youtube datasource='civicsearch', school flag from
+          bronze_events_civicsearch_schools membership), 'youtube_api'
+          (datasource='youtube'), or 'localview' (from the event mart).
         tests:
           - accepted_values:
-              values: ['youtube', 'localview']
+              values: ['civicsearch', 'civicsearch_school', 'youtube_api', 'localview']
+      - name: source_priority
+        description: >
+          Transcript-fetch priority (lower = fetched first): 1 civicsearch,
+          2 civicsearch_school, 3 youtube_api, 4 localview. Drives the backfill
+          ORDER BY and the per-video_id dedup tiebreak.
+        tests:
+          - not_null
+          - accepted_values:
+              values: [1, 2, 3, 4]
       - name: event_id
         description: >
-          Canonical event_id from the `event` mart (LocalView events are
-          promoted into that mart, so this is a real global key for both
-          sources).
+          Canonical event_id for event-mart rows (CDP/LocalView); for
+          bronze_event_youtube rows (CivicSearch/API) it is that table's
+          SHA-derived integer id.
 
   - name: int_events_civicsearch__localview_xref
     description: >

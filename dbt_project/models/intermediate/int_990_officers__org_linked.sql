@@ -1,4 +1,7 @@
-{{ config(materialized='table') }}
+{{ config(
+    materialized='table',
+    pre_hook="set work_mem = '1GB'"
+) }}
 
 /*
     Intermediate (MDM): 990 officers mapped to their resolved organization.
@@ -17,6 +20,10 @@
         cross-org master_person_id alongside this.
       - org_person_year_id : md5(name_norm | ein | tax_year) — the per-year grain
         and the mart primary key.
+
+    Dedup is done NARROWLY: `winners` picks one bronze id per (name_norm, ein, year)
+    by sorting only the key + id, not the 25 wide columns. The wide `distinct on`
+    spilled ~21 GB to temp; this keeps the sort payload tiny.
 */
 
 with officers as (
@@ -25,7 +32,9 @@ with officers as (
 ),
 
 org as (
-    select
+    -- distinct on ein: ein is the master_org_id for nonprofits (1:1), but guard
+    -- against any fan-out that would duplicate org_person_year_id and break the PK.
+    select distinct on (ein)
         master_org_id,
         ein,
         org_name,
@@ -36,12 +45,23 @@ org as (
         lon
     from {{ ref('mdm_organization') }}
     where ein is not null
+    order by ein, master_org_id
+),
+
+-- one surviving bronze row per (name_norm, ein, tax_year): most-complete line wins.
+winners as (
+    select distinct on (name_norm, ein_norm, tax_year) id
+    from officers
+    order by
+        name_norm, ein_norm, tax_year,
+        (title is not null) desc,
+        reportable_comp_org desc nulls last,
+        id
 )
 
--- one row per (person, org, year): guard against duplicate reporting lines.
-select distinct on (org_person_year_id)
-    md5(o.name_norm || '|' || o.ein_norm || '|' || o.tax_year)  as org_person_year_id,
-    md5(o.name_norm || '|' || o.ein_norm)                       as officer_person_uid,
+select
+    md5(o.name_norm || '|' || o.ein_norm || '|' || o.tax_year::text)  as org_person_year_id,
+    md5(o.name_norm || '|' || o.ein_norm)                             as officer_person_uid,
     o.person_name,
     o.name_norm,
     o.entity_type,
@@ -68,9 +88,5 @@ select distinct on (org_person_year_id)
     org.lon,
     o.source_url
 from officers o
+join winners w on w.id = o.id
 join org on org.ein = o.ein_norm
-order by
-    org_person_year_id,
-    -- prefer the most-complete reporting line when a (person,org,year) repeats
-    (o.title is not null) desc,
-    o.reportable_comp_org desc nulls last

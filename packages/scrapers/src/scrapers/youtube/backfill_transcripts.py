@@ -278,7 +278,9 @@ def get_events_missing_transcripts(
                 u.jurisdiction_id,
                 u.jurisdiction_name,
                 u.state_code,
-                u.state
+                u.state,
+                u.source,
+                u.source_priority
             FROM intermediate.int_events_union u
             LEFT JOIN bronze.bronze_event_youtube_transcript t ON t.video_id = u.video_id
             LEFT JOIN bronze.bronze_transcript_fetch_attempts a ON a.video_id = u.video_id
@@ -302,12 +304,18 @@ def get_events_missing_transcripts(
             query += f" AND u.state_code IN ({placeholders})"
             params.extend(states)
 
-        # Never-attempted videos first (FALSE sorts before TRUE), then newest
-        # meetings first: a capped run should spend its budget on fresh videos
-        # rather than re-trying known caption-less ones, and recent uploads are
-        # likelier to carry (auto-)captions than decades-old municipal videos.
+        # Ordering, in priority order:
+        #  1. Never-attempted videos first (FALSE < TRUE) — retries from the
+        #     negative cache go dead last regardless of source.
+        #  2. By source: CivicSearch (1) → CivicSearch schools (2) →
+        #     YouTube API (3) → LocalView (4), so a capped/aborted run spends its
+        #     budget on the most-wanted sources first (source_priority from
+        #     int_events_union).
+        #  3. Newest meetings first, then event_id — recent uploads are likelier
+        #     to carry (auto-)captions than decades-old municipal videos.
         query += (
             " ORDER BY (a.video_id IS NOT NULL),"
+            " u.source_priority ASC,"
             " u.event_date DESC NULLS LAST, u.event_id ASC"
         )
 
