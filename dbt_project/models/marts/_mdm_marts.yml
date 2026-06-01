@@ -286,6 +286,27 @@ models:
         data_type: integer
       - name: last_seen_year
         data_type: integer
+      - name: former_names
+        data_type: jsonb
+        description: >
+          Prior org names for this golden record (most-recent-first), i.e. every
+          distinct name except the current org_name. Empty array when the name has
+          never changed. See name_history for the year spans.
+      - name: name_history
+        data_type: jsonb
+        description: >
+          Full name history: array of {name, name_norm, first_year, last_year,
+          sources} for every distinct name observed in the cluster, newest last_year
+          first. Years are observation years (source as_of_year), not legal change
+          dates — they bound a rename rather than pinpoint it.
+      - name: current_name_since_year
+        data_type: integer
+        description: >
+          Earliest year the current org_name was observed (the current name's
+          first_year in name_history). Approximate "in use since" for the name.
+      - name: has_name_change
+        data_type: boolean
+        description: True when the cluster carries more than one distinct name.
 
   - name: mdm_bridge_org_address
     description: >
