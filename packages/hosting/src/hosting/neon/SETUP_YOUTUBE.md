@@ -17,7 +17,7 @@ This script automates the complete setup process:
 
 1. **Neon connection string** in `.env`:
    ```bash
-   NEON_DATABASE_URL=postgresql://user:password@ep-xxxx.neon.tech/open_navigator?sslmode=require
+   NEON_DATABASE_URL=postgresql://user:REDACTED@ep-xxxx.neon.tech/open_navigator?sslmode=require
    ```
 
 2. **dbt profiles** configured at `~/.dbt/profiles.yml`
@@ -83,7 +83,7 @@ Once the script completes, your Neon database is ready!
 
 Add it to your `.env` file:
 ```bash
-echo 'NEON_DATABASE_URL=postgresql://user:pass@ep-xxx.neon.tech/open_navigator?sslmode=require' >> .env
+echo 'NEON_DATABASE_URL=postgresql://user:REDACTED@ep-xxx.neon.tech/open_navigator?sslmode=require' >> .env
 ```
 
 ### Error: "dbt profiles not found"

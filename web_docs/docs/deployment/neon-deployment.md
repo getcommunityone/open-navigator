@@ -26,7 +26,7 @@ sidebar_position: 5
 3. **Name:** `NEON_DATABASE_URL`
 4. **Value:** 
    ```
-   postgresql://neondb_owner:npg_6WMcFKpIgj3T@ep-noisy-fire-anrnmxxy-pooler.c-6.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
+   postgresql://neondb_owner:<YOUR_NEON_PASSWORD>@<YOUR_NEON_HOST>.neon.tech/neondb?sslmode=require&channel_binding=require
    ```
 5. Click "Save"
 
@@ -100,7 +100,7 @@ open https://communityone-open-navigator.hf.space
 3. **Check Neon Database:**
    ```bash
    # Test connection locally
-   psql "postgresql://neondb_owner:...@ep-noisy-fire-anrnmxxy-pooler.c-6.us-east-1.aws.neon.tech/neondb"
+   psql "postgresql://neondb_owner:REDACTED@ep-noisy-fire-anrnmxxy-pooler.c-6.us-east-1.aws.neon.tech/neondb"
    
    # Verify data exists
    SELECT COUNT(*) FROM organization_nonprofit;

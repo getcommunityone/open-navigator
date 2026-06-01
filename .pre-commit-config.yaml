@@ -1,0 +1,21 @@
+# Pre-commit hooks for open-navigator.
+# Install once per clone:  uv run pre-commit install
+# Run against everything:  uv run pre-commit run --all-files
+repos:
+  # Strip executed output from notebooks before commit — this is what leaked the
+  # Neon DSN (a live connection string sitting in saved cell output).
+  - repo: https://github.com/kynan/nbstripout
+    rev: 0.7.1
+    hooks:
+      - id: nbstripout
+
+  # Defense-in-depth: block commits that contain secrets / private keys.
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.4
+    hooks:
+      - id: gitleaks
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: detect-private-key
