@@ -2,14 +2,15 @@
 
 /*
     Mart (MDM Layer 5): one golden record per resolved organization, with a
-    canonical org_type.
+    canonical org_type. Canonical public org table.
 
     Survivorship prefers the most-complete/most-trusted occurrence (has EIN, has
     city, has geocode; nonprofit registry > facility > AI). org_type is the most
     common NON-'other' type across the cluster (falls back to the golden record's
     type). first_seen_year / last_seen_year give the org's date span.
 
-    Serve org search/browse from here; tie to person/address via the org bridges.
+    Serve org search/browse from here; tie to person/address via the org bridges,
+    and to the governing jurisdiction via mdm_bridge_org_jurisdiction.
 */
 
 with clustered as (
@@ -64,7 +65,7 @@ evidence as (
 
 select
     g.master_org_id,
-    g.org_name,
+    {{ display_org_name('g.org_name') }}  as org_name,
     g.org_name_norm,
     coalesce(v.voted_type, g.org_type)  as org_type,
     g.org_subtype,

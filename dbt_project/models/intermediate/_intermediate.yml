@@ -659,3 +659,31 @@ models:
           Canonical event_id from the `event` mart (LocalView events are
           promoted into that mart, so this is a real global key for both
           sources).
+
+  - name: int_events_civicsearch__localview_xref
+    description: >
+      Bridges CivicSearch meetings to the unified event spine. CivicSearch
+      meetings are YouTube videos (vid_id == int_events_union.video_id); this
+      model left-joins the two on that id so downstream marts can attach
+      CivicSearch policy-topic tags + transcript snippets to an existing event,
+      and so unmatched meetings (CivicSearch has them, LocalView/YouTube ingest
+      missed them) are visible via is_in_event_union = false. Grain: one row per
+      CivicSearch meeting (vid_id).
+    columns:
+      - name: vid_id
+        description: "YouTube video id — grain of this model (one row per CivicSearch meeting)."
+        tests:
+          - unique
+          - not_null
+      - name: is_in_event_union
+        description: "TRUE when this vid_id matches a row in int_events_union."
+        tests:
+          - not_null
+      - name: event_id
+        description: "Canonical event_id from int_events_union; NULL when unmatched."
+      - name: meeting_date
+        description: "CivicSearch-reported meeting date."
+      - name: num_snippets
+        description: "Count of CivicSearch transcript snippets on this meeting."
+      - name: num_topics
+        description: "Count of distinct CivicSearch topic ids on this meeting."

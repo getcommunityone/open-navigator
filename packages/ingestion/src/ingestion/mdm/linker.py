@@ -36,6 +36,10 @@ class EntitySpec:
     input_filter: str | None = None  # SQL predicate to restrict the input pool
     # EM training blocks — multi-column so training pairs stay bounded.
     em_blocking: tuple[tuple[str, ...], ...] = ()
+    # Where the pairwise candidate edges land (schema-qualified). The 0.9–0.99 band
+    # (predicted but not auto-merged) is the ambiguous-match review queue. None ->
+    # don't persist edges (e.g. the deterministic-leaning address pool).
+    predictions_table: str | None = None
 
 
 # source_table is a BARE name (resolved via the engine search_path) — the Splink
@@ -55,6 +59,7 @@ SPECS: dict[str, EntitySpec] = {
         unique_id="person_uid",
         settings_factory=person_settings,
         output_table="bronze.entity_person_clusters",
+        predictions_table="bronze.entity_person_predictions",
         input_filter="entity_type = 'person' and is_probable_person",
         # EM is iterative, so its training blocks are tighter than the prediction
         # blocks (adding state_code shrinks training pairs ~30-50x) — parameter
@@ -153,6 +158,38 @@ def run_linker(
     df = clusters.as_pandas_dataframe()
     keep = [c for c in ("cluster_id", spec.unique_id, "source_system", "source_pk") if c in df.columns]
     df = df[keep].rename(columns={"cluster_id": f"master_{spec.name}_id"})
+
+    # Retain Splink confidence (when the spec opts in). Two artefacts:
+    #   1. the raw candidate edges (predictions_table) — the review queue, including
+    #      the 0.9–0.99 band that was predicted but not auto-merged at cluster_threshold;
+    #   2. a per-node match_confidence on the cluster rows = the strongest incident
+    #      edge probability for that occurrence. A merged node sits at >= cluster_threshold;
+    #      a node whose only link is a borderline candidate sits in [match,cluster); a
+    #      node with no candidate at all is NULL (isolated — no merge to be confident about).
+    if spec.predictions_table:
+        import pandas as pd  # local import: keeps the package importable without pandas/splink
+
+        uid = spec.unique_id
+        preds = predictions.as_pandas_dataframe()
+        edge_cols = [c for c in (f"{uid}_l", f"{uid}_r", "match_probability", "match_weight") if c in preds.columns]
+        edges = preds[edge_cols].copy()
+
+        pred_schema, pred_name = spec.predictions_table.split(".", 1)
+        edges.to_sql(
+            pred_name, engine, schema=pred_schema,
+            if_exists="replace", index=False, chunksize=10_000,
+        )
+        logger.success("Wrote {:,} candidate edge rows to {}", len(edges), spec.predictions_table)
+
+        incident = pd.concat([
+            edges[[f"{uid}_l", "match_probability"]].rename(columns={f"{uid}_l": uid}),
+            edges[[f"{uid}_r", "match_probability"]].rename(columns={f"{uid}_r": uid}),
+        ])
+        node_conf = (
+            incident.groupby(uid)["match_probability"].max().rename("match_confidence")
+        )
+        df = df.merge(node_conf, how="left", left_on=uid, right_index=True)
+
     df.to_sql(
         spec.output_table.split(".", 1)[1],
         engine,

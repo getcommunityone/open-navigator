@@ -60,7 +60,7 @@ out-of-scope work in its summary and hands it back to the Manager to re-route.
 **Done / merged to `main`:** core-lib framework + 6 ports (census/states, fec/contributions,
 gsa/domains, hifld/locations, dot/events, uscm/mayors). 16 branches consolidated → just
 `main`. `packages/llm` extracted (gemini + enrichment subpackages). Migration-048 cleanup
-swept refs to the dropped `public.jurisdiction` table (now `public.c1_jurisdiction`).
+swept refs to the dropped `public.jurisdiction` table (now `public.civic_jurisdiction`).
 
 **`scripts/colab/` eliminated → `packages/llm/src/llm/governance/`** (2026-05-30): 24 live
 modules + notebook + README + mount_drive.sh + 2 CLIs moved via `git mv` (blame preserved);

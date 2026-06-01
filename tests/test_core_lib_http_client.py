@@ -60,7 +60,11 @@ def test_retries_exhausted_raises(httpx_mock):
         async with BaseAsyncClient(_cfg(max_attempts=2)) as c:
             await c.get("/always-fails")
 
-    with pytest.raises(Exception):
+    # Exhausted retries must surface as an httpx.HTTPError so callers'
+    # `except httpx.HTTPError` handlers catch it rather than the exception
+    # escaping as a foreign type and crashing the caller (regression guard for
+    # the CivicSearch harvester crash loop on 5xx streaks).
+    with pytest.raises(httpx.HTTPError):
         asyncio.run(go())
     assert len(httpx_mock.get_requests()) == 2
 

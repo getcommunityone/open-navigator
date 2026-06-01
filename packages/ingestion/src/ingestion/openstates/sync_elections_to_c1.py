@@ -6,13 +6,13 @@ Source:
   bronze.bronze_elections_scraped
 
 Destination:
-  public.c1_division
-  public.c1_election
-  public.c1_electionsource
-  public.c1_candidatecontest
-  public.c1_candidacy
-  public.c1_ballotmeasure
-  public.c1_ballotmeasuresource
+  public.civic_division
+  public.civic_election
+  public.civic_electionsource
+  public.civic_candidatecontest
+  public.civic_candidacy
+  public.civic_ballotmeasure
+  public.civic_ballotmeasuresource
 
 Usage:
     .venv/bin/python -m ingestion.openstates.sync_elections_to_c1 --states AL,GA,IN,MA,WA,WI
@@ -361,7 +361,7 @@ def _execute_election_upsert(cur, payload: tuple) -> None:
     if dedupe_key:
         cur.execute(
             f"""
-            INSERT INTO public.c1_election
+            INSERT INTO public.civic_election
                 (id, legacy_id, name, election_date, election_type, election_status,
                  jurisdiction_id, division_id, state_code, dedupe_key, source, source_url,
                  links, sources, extras)
@@ -386,7 +386,7 @@ def _execute_election_upsert(cur, payload: tuple) -> None:
         return
     cur.execute(
         """
-        INSERT INTO public.c1_election
+        INSERT INTO public.civic_election
             (id, legacy_id, name, election_date, election_type, election_status,
              jurisdiction_id, division_id, state_code, dedupe_key, source, source_url,
              links, sources, extras)
@@ -464,7 +464,7 @@ def upsert_divisions(dst_conn, rows: list[BronzeElectionRow], *, dry_run: bool) 
         for payload in payloads.values():
             cur.execute(
                 """
-                INSERT INTO public.c1_division
+                INSERT INTO public.civic_division
                     (id, name, classification, parent_id, jurisdiction_id, state_code, extras)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (id) DO UPDATE SET
@@ -518,7 +518,7 @@ def upsert_elections(dst_conn, rows: list[BronzeElectionRow], *, dry_run: bool) 
             resolved_election_id = election_id
             if dedupe_key:
                 cur.execute(
-                    "SELECT id FROM public.c1_election WHERE dedupe_key = %s",
+                    "SELECT id FROM public.civic_election WHERE dedupe_key = %s",
                     (dedupe_key,),
                 )
                 found = cur.fetchone()
@@ -527,7 +527,7 @@ def upsert_elections(dst_conn, rows: list[BronzeElectionRow], *, dry_run: bool) 
             for note, url in _source_rows(row.raw_row or {}, row.source_url):
                 cur.execute(
                     """
-                    INSERT INTO public.c1_electionsource (election_id, note, url)
+                    INSERT INTO public.civic_electionsource (election_id, note, url)
                     VALUES (%s, %s, %s)
                     ON CONFLICT DO NOTHING
                     """,
@@ -574,7 +574,7 @@ def upsert_candidate_contests(dst_conn, rows: list[BronzeElectionRow], *, dry_ru
         for contest_id, payload in grouped.values():
             _execute_dedupe_upsert(
                 cur,
-                table="c1_candidatecontest",
+                table="civic_candidatecontest",
                 columns=(
                     "id, legacy_id, election_id, name, office, status, "
                     "jurisdiction_id, state_code, dedupe_key, source, source_url, extras"
@@ -629,7 +629,7 @@ def upsert_candidacies(dst_conn, rows: list[BronzeElectionRow], contest_ids: dic
             )
             _execute_dedupe_upsert(
                 cur,
-                table="c1_candidacy",
+                table="civic_candidacy",
                 columns=(
                     "id, legacy_id, election_id, contest_id, contest_name, person_name, "
                     "person_id, party, status, vote_count, vote_percent, jurisdiction_id, "
@@ -687,7 +687,7 @@ def upsert_ballot_measures(dst_conn, rows: list[BronzeElectionRow], *, dry_run: 
             )
             _execute_dedupe_upsert(
                 cur,
-                table="c1_ballotmeasure",
+                table="civic_ballotmeasure",
                 columns=(
                     "id, legacy_id, election_id, name, title, summary, classification, "
                     "status, result, yes_votes, no_votes, yes_percentage, jurisdiction_id, "
@@ -710,7 +710,7 @@ def upsert_ballot_measures(dst_conn, rows: list[BronzeElectionRow], *, dry_run: 
             for note, url in _source_rows(row.raw_row or {}, row.source_url):
                 cur.execute(
                     """
-                    INSERT INTO public.c1_ballotmeasuresource (ballotmeasure_id, note, url)
+                    INSERT INTO public.civic_ballotmeasuresource (ballotmeasure_id, note, url)
                     VALUES (%s, %s, %s)
                     ON CONFLICT DO NOTHING
                     """,
@@ -756,11 +756,11 @@ def main(argv: list[str] | None = None) -> int:
         n_measures = upsert_ballot_measures(conn, rows, dry_run=args.dry_run)
 
         print()
-        print(f"c1_division rows synced:        {n_divisions}")
-        print(f"c1_election rows synced:        {n_elections}")
-        print(f"c1_candidatecontest rows synced: {len(contest_ids)}")
-        print(f"c1_candidacy rows synced:       {n_candidacies}")
-        print(f"c1_ballotmeasure rows synced:   {n_measures}")
+        print(f"civic_division rows synced:        {n_divisions}")
+        print(f"civic_election rows synced:        {n_elections}")
+        print(f"civic_candidatecontest rows synced: {len(contest_ids)}")
+        print(f"civic_candidacy rows synced:       {n_candidacies}")
+        print(f"civic_ballotmeasure rows synced:   {n_measures}")
         if args.dry_run:
             print("(dry-run — no DB writes)")
         return 0

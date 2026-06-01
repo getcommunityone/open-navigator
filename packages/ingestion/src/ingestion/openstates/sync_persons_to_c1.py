@@ -5,12 +5,12 @@ person model on Neon dev:
 
   openstates                                 →  open-navigator (Neon dev)
   ──────────────────────────────────────────    ────────────────────────────
-  opencivicdata_person                         public.c1_person
-  opencivicdata_personidentifier               public.c1_personidentifier
-  opencivicdata_personlink                     public.c1_personlink
-  opencivicdata_personname                     public.c1_personname
-  opencivicdata_personsource                   public.c1_personsource
-  opencivicdata_personvote                     public.c1_personvote
+  opencivicdata_person                         public.civic_person
+  opencivicdata_personidentifier               public.civic_personidentifier
+  opencivicdata_personlink                     public.civic_personlink
+  opencivicdata_personname                     public.civic_personname
+  opencivicdata_personsource                   public.civic_personsource
+  opencivicdata_personvote                     public.civic_personvote
 
 Idempotent: rows are keyed by OCD id / (parent_id + UUID) so re-running upserts cleanly.
 Child rows for a person_id are TRUNCATED-and-REINSERTED per sync so deletions in
@@ -72,7 +72,7 @@ def _state_filter_sql(states: tuple[str, ...] | None) -> tuple[str, tuple]:
 
 
 # --------------------------------------------------------------------------------------
-# Phase 1: sync c1_person
+# Phase 1: sync civic_person
 # --------------------------------------------------------------------------------------
 
 
@@ -98,7 +98,7 @@ def sync_persons(src_conn, dst_conn, states: tuple[str, ...] | None, *, dry_run:
             (pid, name, family, given, image, gender, bio, birth, death,
              party, juris, current_role, extras, email) = r
             dst.execute("""
-                INSERT INTO public.c1_person (
+                INSERT INTO public.civic_person (
                     id, name, family_name, given_name, image, gender, biography,
                     birth_date, death_date, primary_party, current_jurisdiction_id,
                     "current_role", extras, email,
@@ -128,9 +128,9 @@ def sync_persons(src_conn, dst_conn, states: tuple[str, ...] | None, *, dry_run:
 
 
 def _person_ids_in_dst(dst_conn) -> set[str]:
-    """Return the set of person ids that exist in c1_person (skip child rows for unknown persons)."""
+    """Return the set of person ids that exist in civic_person (skip child rows for unknown persons)."""
     with dst_conn.cursor() as cur:
-        cur.execute("SELECT id FROM public.c1_person WHERE id IS NOT NULL")
+        cur.execute("SELECT id FROM public.civic_person WHERE id IS NOT NULL")
         return {r[0] for r in cur.fetchall()}
 
 
@@ -208,22 +208,22 @@ def main(argv: list[str] | None = None) -> int:
     dst = _connect("NEON_DATABASE_URL_DEV")
     try:
         n_persons = sync_persons(src, dst, states, dry_run=args.dry_run)
-        logger.info("c1_person: %d rows %s", n_persons, "to upsert (dry-run)" if args.dry_run else "upserted")
+        logger.info("civic_person: %d rows %s", n_persons, "to upsert (dry-run)" if args.dry_run else "upserted")
 
         ids = _person_ids_in_dst(dst) if not args.dry_run else set()
-        logger.info("c1_person has %d ids available for child-table syncing", len(ids))
+        logger.info("civic_person has %d ids available for child-table syncing", len(ids))
 
         results = {}
         for src_table, dst_table, parent_col, cols in [
-            ("opencivicdata_personidentifier", "c1_personidentifier", "person_id",
+            ("opencivicdata_personidentifier", "civic_personidentifier", "person_id",
              ["id", "identifier", "scheme", "person_id"]),
-            ("opencivicdata_personlink",       "c1_personlink",       "person_id",
+            ("opencivicdata_personlink",       "civic_personlink",       "person_id",
              ["id", "note", "url", "person_id"]),
-            ("opencivicdata_personname",       "c1_personname",       "person_id",
+            ("opencivicdata_personname",       "civic_personname",       "person_id",
              ["id", "name", "note", "start_date", "end_date", "person_id"]),
-            ("opencivicdata_personsource",     "c1_personsource",     "person_id",
+            ("opencivicdata_personsource",     "civic_personsource",     "person_id",
              ["id", "note", "url", "person_id"]),
-            ("opencivicdata_personvote",       "c1_personvote",       "voter_id",
+            ("opencivicdata_personvote",       "civic_personvote",       "voter_id",
              ["id", "option", "voter_name", "note", "vote_event_id", "voter_id"]),
         ]:
             n = sync_child(
@@ -236,7 +236,7 @@ def main(argv: list[str] | None = None) -> int:
             results[dst_table] = n
 
         print()
-        print(f"c1_person rows synced:           {n_persons}")
+        print(f"civic_person rows synced:           {n_persons}")
         for tbl, n in results.items():
             print(f"  {tbl:30s} {n} rows")
         if args.dry_run:

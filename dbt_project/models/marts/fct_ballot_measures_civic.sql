@@ -6,7 +6,7 @@
 }}
 
 /*
-    Mart (fct): ballot measures from the election scrape — the c1_ballotmeasure
+    Mart (fct): ballot measures from the election scrape — the civic_ballotmeasure
     surface.
 
     Named *_civic to avoid colliding with the existing NIST/VIP
@@ -19,7 +19,7 @@
         measure_id  = fit_c1_id(ocd_id, fallback = measure_key or id)
         -> upsert ON CONFLICT (dedupe_key) when set, else (id).
 
-    Column mapping (c1_ballotmeasure):
+    Column mapping (civic_ballotmeasure):
         id            = measure_id
         legacy_id     = bronze_record_id
         election_id   = fit_c1_id(election_id, id)
@@ -40,7 +40,7 @@
         extras        = raw_row
         raw_row       = raw_row
 
-    The c1_ballotmeasuresource child rows (_source_rows) are a separate
+    The civic_ballotmeasuresource child rows (_source_rows) are a separate
     normalized table; see "DEFERRED" in the schema yml.
 */
 

@@ -3,7 +3,7 @@ Social features API routes - following, followers, feeds
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
+from sqlalchemy import and_, text
 from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
@@ -11,14 +11,14 @@ from datetime import datetime
 from api.database import get_db
 from api.auth import get_current_user
 from api.models import (
-    User, Official, Organization, Cause, SocialFollow
+    User, Official, SocialFollow
 )
 
 router = APIRouter(prefix="/social", tags=["social"])
 
 
 def _follower_count(db: Session, target_type: str, target_id: int) -> int:
-    """Count followers of a given entity in the consolidated social_follows table."""
+    """Count followers of an integer-keyed entity (user / official)."""
     return db.query(SocialFollow).filter(
         SocialFollow.target_type == target_type,
         SocialFollow.target_id == target_id,
@@ -26,12 +26,54 @@ def _follower_count(db: Session, target_type: str, target_id: int) -> int:
 
 
 def _get_follow(db: Session, follower_id: int, target_type: str, target_id: int):
-    """Return the existing follow row for (follower, target), or None."""
+    """Return the existing follow row for an integer-keyed (follower, target)."""
     return db.query(SocialFollow).filter(
         SocialFollow.follower_id == follower_id,
         SocialFollow.target_type == target_type,
         SocialFollow.target_id == target_id,
     ).first()
+
+
+def _follower_count_uid(db: Session, target_type: str, target_uid: str) -> int:
+    """Count followers of a text-keyed entity (organization -> master_org_id,
+    tag -> tag_id)."""
+    return db.query(SocialFollow).filter(
+        SocialFollow.target_type == target_type,
+        SocialFollow.target_uid == target_uid,
+    ).count()
+
+
+def _get_follow_uid(db: Session, follower_id: int, target_type: str, target_uid: str):
+    """Return the existing follow row for a text-keyed (follower, target)."""
+    return db.query(SocialFollow).filter(
+        SocialFollow.follower_id == follower_id,
+        SocialFollow.target_type == target_type,
+        SocialFollow.target_uid == target_uid,
+    ).first()
+
+
+def _mdm_org(db: Session, master_org_id: str):
+    """Look up a golden org in the mdm_organization mart (not an ORM table)."""
+    return db.execute(
+        text("""
+            SELECT master_org_id, org_name, org_type, city_norm, state_code
+            FROM mdm_organization
+            WHERE master_org_id = :mid
+        """),
+        {"mid": master_org_id},
+    ).mappings().first()
+
+
+def _tag(db: Session, tag_id: str):
+    """Look up a node in the tag taxonomy mart (not an ORM table)."""
+    return db.execute(
+        text("""
+            SELECT tag_id, label, description, category, breadcrumb, icon
+            FROM tag
+            WHERE tag_id = :tid
+        """),
+        {"tid": tag_id},
+    ).mappings().first()
 
 
 # ============================================================================
@@ -53,7 +95,7 @@ class FollowerStats(BaseModel):
     following_users: int
     following_officials: int
     following_organizations: int
-    following_causes: int
+    following_tags: int
 
 
 class UserSummary(BaseModel):
@@ -86,35 +128,32 @@ class OfficialSummary(BaseModel):
 
 
 class OrganizationSummary(BaseModel):
-    """Brief organization info for lists"""
-    id: int
-    name: str
-    slug: str
-    description: Optional[str]
-    logo_url: Optional[str]
+    """Brief organization info for lists (served from mdm_organization).
+
+    Identity is the text master_org_id. Fields not carried by the golden record
+    (logo_url, description, is_verified) degrade to None/False; follower_count is
+    derived from social_follows.
+    """
+    master_org_id: str
+    name: Optional[str]
     org_type: Optional[str]
     city: Optional[str]
     state: Optional[str]
     follower_count: int
-    is_verified: bool
-    
-    class Config:
-        from_attributes = True
+    logo_url: Optional[str] = None
+    description: Optional[str] = None
+    is_verified: bool = False
 
 
-class CauseSummary(BaseModel):
-    """Brief cause info for lists"""
-    id: int
-    name: str
-    slug: str
+class TagSummary(BaseModel):
+    """Brief tag info for follow lists. Backed by the tag taxonomy mart."""
+    tag_id: str
+    label: Optional[str]
     description: Optional[str]
-    icon_url: Optional[str]
-    color: Optional[str]
     category: Optional[str]
+    breadcrumb: Optional[str]
+    icon: Optional[str]
     follower_count: int
-    
-    class Config:
-        from_attributes = True
 
 
 # ============================================================================
@@ -266,139 +305,129 @@ async def unfollow_official(
 
 @router.post("/follow/organization/{org_id}")
 async def follow_organization(
-    org_id: int,
+    org_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ) -> FollowResponse:
-    """Follow an organization"""
-    
-    org = db.query(Organization).filter(Organization.id == org_id).first()
+    """Follow an organization (keyed by mdm_organization.master_org_id)."""
+
+    org = _mdm_org(db, org_id)
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
-    
-    existing = _get_follow(db, current_user.user_id, "organization", org_id)
 
+    existing = _get_follow_uid(db, current_user.user_id, "organization", org_id)
     if existing:
         return FollowResponse(
             success=True,
             following=True,
-            follower_count=org.follower_count,
+            follower_count=_follower_count_uid(db, "organization", org_id),
             message="Already following this organization"
         )
 
-    follow = SocialFollow(follower_id=current_user.user_id, target_type="organization", target_id=org_id)
-    db.add(follow)
-    org.follower_count += 1
+    db.add(SocialFollow(follower_id=current_user.user_id, target_type="organization", target_uid=org_id))
     db.commit()
-    
+
     return FollowResponse(
         success=True,
         following=True,
-        follower_count=org.follower_count,
+        follower_count=_follower_count_uid(db, "organization", org_id),
         message="Successfully followed organization"
     )
 
 
 @router.delete("/follow/organization/{org_id}")
 async def unfollow_organization(
-    org_id: int,
+    org_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ) -> FollowResponse:
-    """Unfollow an organization"""
-    
-    org = db.query(Organization).filter(Organization.id == org_id).first()
+    """Unfollow an organization (keyed by mdm_organization.master_org_id)."""
+
+    org = _mdm_org(db, org_id)
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
-    
-    follow = _get_follow(db, current_user.user_id, "organization", org_id)
 
+    follow = _get_follow_uid(db, current_user.user_id, "organization", org_id)
     if not follow:
         return FollowResponse(
             success=True,
             following=False,
-            follower_count=org.follower_count,
+            follower_count=_follower_count_uid(db, "organization", org_id),
             message="Not following this organization"
         )
-    
+
     db.delete(follow)
-    org.follower_count = max(0, org.follower_count - 1)
     db.commit()
-    
+
     return FollowResponse(
         success=True,
         following=False,
-        follower_count=org.follower_count,
+        follower_count=_follower_count_uid(db, "organization", org_id),
         message="Successfully unfollowed organization"
     )
 
 
-@router.post("/follow/cause/{cause_id}")
-async def follow_cause(
-    cause_id: int,
+@router.post("/follow/tag/{tag_id:path}")
+async def follow_tag(
+    tag_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ) -> FollowResponse:
-    """Follow a cause/topic"""
-    
-    cause = db.query(Cause).filter(Cause.id == cause_id).first()
-    if not cause:
-        raise HTTPException(status_code=404, detail="Cause not found")
-    
-    existing = _get_follow(db, current_user.user_id, "cause", cause_id)
+    """Follow a tag/cause/topic (keyed by tag.tag_id, e.g. 'ntee|E20')."""
 
+    tag = _tag(db, tag_id)
+    if not tag:
+        raise HTTPException(status_code=404, detail="Tag not found")
+
+    existing = _get_follow_uid(db, current_user.user_id, "tag", tag_id)
     if existing:
         return FollowResponse(
             success=True,
             following=True,
-            follower_count=cause.follower_count,
-            message="Already following this cause"
+            follower_count=_follower_count_uid(db, "tag", tag_id),
+            message="Already following this tag"
         )
 
-    follow = SocialFollow(follower_id=current_user.user_id, target_type="cause", target_id=cause_id)
-    db.add(follow)
-    cause.follower_count += 1
+    db.add(SocialFollow(follower_id=current_user.user_id, target_type="tag", target_uid=tag_id))
     db.commit()
-    
+
     return FollowResponse(
         success=True,
         following=True,
-        follower_count=cause.follower_count,
-        message="Successfully followed cause"
+        follower_count=_follower_count_uid(db, "tag", tag_id),
+        message="Successfully followed tag"
     )
 
 
-@router.delete("/follow/cause/{cause_id}")
-async def unfollow_cause(
-    cause_id: int,
+@router.delete("/follow/tag/{tag_id:path}")
+async def unfollow_tag(
+    tag_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ) -> FollowResponse:
-    """Unfollow a cause/topic"""
-    
-    cause = db.query(Cause).filter(Cause.id == cause_id).first()
-    if not cause:
-        raise HTTPException(status_code=404, detail="Cause not found")
-    
-    follow = _get_follow(db, current_user.user_id, "cause", cause_id)
+    """Unfollow a tag/cause/topic (keyed by tag.tag_id)."""
 
+    tag = _tag(db, tag_id)
+    if not tag:
+        raise HTTPException(status_code=404, detail="Tag not found")
+
+    follow = _get_follow_uid(db, current_user.user_id, "tag", tag_id)
     if not follow:
         return FollowResponse(
             success=True,
             following=False,
-            follower_count=cause.follower_count,
-            message="Not following this cause"
+            follower_count=_follower_count_uid(db, "tag", tag_id),
+            message="Not following this tag"
         )
-    
+
     db.delete(follow)
-    cause.follower_count = max(0, cause.follower_count - 1)
     db.commit()
-    
+
     return FollowResponse(
         success=True,
         following=False,
-        follower_count=cause.follower_count,
-        message="Successfully unfollowed cause"
+        follower_count=_follower_count_uid(db, "tag", tag_id),
+        message="Successfully unfollowed tag"
     )
 
 
@@ -410,13 +439,13 @@ async def unfollow_cause(
 async def check_following_status(
     user_id: Optional[int] = None,
     leader_id: Optional[int] = None,
-    org_id: Optional[int] = None,
-    cause_id: Optional[int] = None,
+    org_id: Optional[str] = None,
+    tag_id: Optional[str] = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ) -> dict:
     """Check if current user is following various entities"""
-    
+
     result = {}
 
     if user_id:
@@ -426,10 +455,12 @@ async def check_following_status(
         result['official'] = _get_follow(db, current_user.user_id, "official", leader_id) is not None
 
     if org_id:
-        result['organization'] = _get_follow(db, current_user.user_id, "organization", org_id) is not None
+        # Organizations are keyed by mdm_organization.master_org_id (text).
+        result['organization'] = _get_follow_uid(db, current_user.user_id, "organization", org_id) is not None
 
-    if cause_id:
-        result['cause'] = _get_follow(db, current_user.user_id, "cause", cause_id) is not None
+    if tag_id:
+        # Tags are keyed by tag.tag_id (text).
+        result['tag'] = _get_follow_uid(db, current_user.user_id, "tag", tag_id) is not None
 
     return result
 
@@ -461,17 +492,17 @@ async def get_follower_stats(
     following_users = _following("user")
     following_officials = _following("official")
     following_orgs = _following("organization")
-    following_causes = _following("cause")
-    
-    total_following = following_users + following_officials + following_orgs + following_causes
-    
+    following_tags = _following("tag")
+
+    total_following = following_users + following_officials + following_orgs + following_tags
+
     return FollowerStats(
         followers=followers,
         following=total_following,
         following_users=following_users,
         following_officials=following_officials,
         following_organizations=following_orgs,
-        following_causes=following_causes
+        following_tags=following_tags
     )
 
 
@@ -500,36 +531,86 @@ async def get_following_organizations(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ) -> List[OrganizationSummary]:
-    """Get list of organizations the current user is following"""
-    
-    orgs = db.query(Organization).join(
-        SocialFollow,
-        and_(
-            SocialFollow.target_type == "organization",
-            SocialFollow.target_id == Organization.id,
+    """Get list of organizations the current user is following.
+
+    Orgs live in the mdm_organization mart (not the ORM); join via the follow's
+    text target_uid. follower_count is derived per org from social_follows.
+    """
+    rows = db.execute(
+        text("""
+            SELECT
+                m.master_org_id,
+                m.org_name,
+                m.org_type,
+                m.city_norm,
+                m.state_code,
+                (
+                    SELECT count(*) FROM social_follows f2
+                    WHERE f2.target_type = 'organization'
+                      AND f2.target_uid = m.master_org_id
+                ) AS follower_count
+            FROM social_follows f
+            JOIN mdm_organization m ON m.master_org_id = f.target_uid
+            WHERE f.follower_id = :uid AND f.target_type = 'organization'
+            ORDER BY m.org_name
+        """),
+        {"uid": current_user.user_id},
+    ).mappings().all()
+
+    return [
+        OrganizationSummary(
+            master_org_id=r["master_org_id"],
+            name=r["org_name"],
+            org_type=r["org_type"],
+            city=r["city_norm"],
+            state=r["state_code"],
+            follower_count=r["follower_count"],
         )
-    ).filter(
-        SocialFollow.follower_id == current_user.user_id
-    ).all()
-    
-    return [OrganizationSummary.from_orm(org) for org in orgs]
+        for r in rows
+    ]
 
 
-@router.get("/following/causes")
-async def get_following_causes(
+@router.get("/following/tags")
+async def get_following_tags(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
-) -> List[CauseSummary]:
-    """Get list of causes the current user is following"""
-    
-    causes = db.query(Cause).join(
-        SocialFollow,
-        and_(
-            SocialFollow.target_type == "cause",
-            SocialFollow.target_id == Cause.id,
+) -> List[TagSummary]:
+    """Get list of tags/causes the current user is following.
+
+    Tags live in the tag taxonomy mart (not the ORM); join via the follow's text
+    target_uid. follower_count is derived per tag from social_follows.
+    """
+    rows = db.execute(
+        text("""
+            SELECT
+                t.tag_id,
+                t.label,
+                t.description,
+                t.category,
+                t.breadcrumb,
+                t.icon,
+                (
+                    SELECT count(*) FROM social_follows f2
+                    WHERE f2.target_type = 'tag'
+                      AND f2.target_uid = t.tag_id
+                ) AS follower_count
+            FROM social_follows f
+            JOIN tag t ON t.tag_id = f.target_uid
+            WHERE f.follower_id = :uid AND f.target_type = 'tag'
+            ORDER BY t.label
+        """),
+        {"uid": current_user.user_id},
+    ).mappings().all()
+
+    return [
+        TagSummary(
+            tag_id=r["tag_id"],
+            label=r["label"],
+            description=r["description"],
+            category=r["category"],
+            breadcrumb=r["breadcrumb"],
+            icon=r["icon"],
+            follower_count=r["follower_count"],
         )
-    ).filter(
-        SocialFollow.follower_id == current_user.user_id
-    ).all()
-    
-    return [CauseSummary.from_orm(cause) for cause in causes]
+        for r in rows
+    ]

@@ -1,0 +1,107 @@
+version: 2
+
+models:
+  - name: stg_civicsearch__event
+    description: |
+      CivicSearch meeting events — one row per vid_id (a YouTube video id).
+      1:1 with bronze.bronze_events_civicsearch (raw landing from
+      ingestion.civicsearch.events), cleaned/typed with num_snippets / num_topics
+      derived. The snippet array is unnested in stg_civicsearch__snippet. vid_id
+      bridges to int_events_union (video_id) via
+      int_events_civicsearch__localview_xref.
+    config:
+      contract:
+        enforced: true
+      materialized: view
+    columns:
+      - name: vid_id
+        description: "YouTube video id. Natural key (one row per meeting)."
+        data_type: varchar(20)
+        constraints:
+          - type: not_null
+        tests:
+          - unique
+          - not_null
+      - name: title
+        description: "Meeting/video title (trimmed)."
+        data_type: text
+      - name: meeting_date
+        description: "Meeting date as reported by CivicSearch."
+        data_type: date
+      - name: location
+        description: "Human-readable place name (e.g. 'Bellevue School District, Washington')."
+        data_type: text
+      - name: location_query_id
+        description: "CivicSearch slug for the meeting's place."
+        data_type: text
+      - name: distance
+        description: "Distance (mi) from the searched place centroid; 0 for the named place."
+        data_type: double precision
+      - name: has_approximate_timings
+        description: "True when snippet timestamps are approximate."
+        data_type: boolean
+      - name: youtube_url
+        description: "Canonical YouTube watch URL for the meeting video."
+        data_type: text
+      - name: place_query_id
+        description: "Slug of the place this meeting was harvested under (location sweep)."
+        data_type: text
+      - name: place_lat
+        data_type: double precision
+      - name: place_lon
+        data_type: double precision
+      - name: matched_keywords
+        description: "JSONB array of search keywords that surfaced this meeting."
+        data_type: jsonb
+      - name: snippets
+        description: "JSONB array of {text, timestamp, topic_id} (raw)."
+        data_type: jsonb
+      - name: topic_ids
+        description: "JSONB array of distinct non-negative CivicSearch topic ids."
+        data_type: jsonb
+      - name: num_snippets
+        description: "Count of snippets on this meeting."
+        data_type: integer
+      - name: num_topics
+        description: "Count of distinct topic ids on this meeting."
+        data_type: integer
+      - name: scraped_at
+        data_type: timestamp with time zone
+      - name: dbt_loaded_at
+        data_type: timestamp with time zone
+
+  - name: stg_civicsearch__snippet
+    description: |
+      CivicSearch transcript snippets — one row per (vid_id, snippet_seq).
+      Unnests bronze.bronze_events_civicsearch.snippets. topic_id is NULL when
+      the source value was -1 ("no topic").
+    config:
+      materialized: view
+    columns:
+      - name: vid_id
+        description: "YouTube video id (FK to stg_civicsearch__event.vid_id)."
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_civicsearch__event')
+              field: vid_id
+      - name: snippet_seq
+        description: "0-based index of the snippet within the meeting."
+        tests:
+          - not_null
+      - name: location_query_id
+      - name: meeting_date
+      - name: snippet_text_marked
+        description: "Snippet text with the original <mark>…</mark> highlight tags."
+      - name: snippet_text
+        description: "Snippet text with highlight tags stripped."
+      - name: timestamp_seconds
+        description: "Offset into the meeting video, in seconds."
+      - name: topic_id
+        description: "CivicSearch policy-topic id, or NULL when none."
+      - name: dbt_loaded_at
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - vid_id
+            - snippet_seq

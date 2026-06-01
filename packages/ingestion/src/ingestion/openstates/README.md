@@ -23,7 +23,6 @@ Scripts for working with [OpenStates](https://openstates.org/) legislative data.
 - `export_openstates_to_gold.py` - Export from PostgreSQL to Gold Parquet files
 
 ### Processing
-- `aggregate_bills_from_postgres.py` - Aggregate bill statistics by state/topic
 - `legislative_tracker.py` - Track legislative activity
 
 ## Usage Examples
@@ -49,9 +48,6 @@ python load_openstates_people.py
 
 # Export to Gold format
 python export_openstates_to_gold.py
-
-# Aggregate bill statistics
-python aggregate_bills_from_postgres.py
 ```
 
 ## Document Downloader Details

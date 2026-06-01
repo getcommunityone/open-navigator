@@ -11,7 +11,7 @@ Municipality-only rollups split by Census Gazetteer **LSAD** (place kind):
 - ``incorporated_other`` — other incorporated / statistical place codes (town, village, borough, …)
 - ``unknown`` — municipality row with missing / blank LSAD
 
-Same URL / mapping metrics as ``jurisdiction_mapping_quality_summary`` but grouped by
+Same URL / mapping metrics as ``dq_jurisdiction_mapping_summary`` but grouped by
 ``municipality_place_kind`` instead of lumping all municipalities together.
 */
 

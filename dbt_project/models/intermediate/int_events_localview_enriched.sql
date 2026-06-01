@@ -1,7 +1,7 @@
 {{
   config(
     materialized='table',
-    tags=['marts', 'events', 'localview'],
+    tags=['intermediate', 'events', 'localview'],
     indexes=[
       {'columns': ['jurisdiction_id'], 'type': 'btree'},
       {'columns': ['state_code'], 'type': 'btree'},
@@ -13,18 +13,20 @@
 }}
 
 /*
-Mart: LocalView meeting events, API-ready, keyed to a canonical jurisdiction_id.
+Intermediate: LocalView meeting events enriched with the canonical jurisdiction
+name/type, ready to feed the consolidated `event` mart.
 
-Surfaces the event-grain jurisdiction resolution from int_events_localview into
-the public (marts) schema. Each row is one LocalView meeting video; events whose
-place did not resolve to a GEOID keep jurisdiction_id (and the resolved_* fields)
-NULL but are still emitted.
+This is a per-source building block, NOT a public deliverable — the consolidated
+MDM event surface in `public` is marts.event (which unions this with CDP events).
+Each row is one LocalView meeting video; events whose place did not resolve to a
+GEOID keep jurisdiction_id (and the resolved_* fields) NULL but are still emitted.
 
 Data flow:
   bronze_events_localview
     -> int_events_localview            (event-grain jurisdiction_id resolution)
     -> int_jurisdictions               (canonical jurisdiction name/type)
-    -> localview_events  (this model)
+    -> int_events_localview_enriched   (this model)
+    -> event                           (public MDM consolidated event)
 
 Grain: one row per LocalView event (datasource_id = YouTube video id).
 */

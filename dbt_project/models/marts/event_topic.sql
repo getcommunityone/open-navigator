@@ -14,7 +14,7 @@ public.event_topic — themes/topics the AI extracted from analyzed events.
 GRAIN: one row per (analysis, decision) topic record. Carries COFOG + NTEE
 classification for primary and secondary themes.
 
-SOURCE : bronze.bronze_topics_from_ai   BRIDGE : source_event_id -> analysis.id -> c1_event.legacy_id
+SOURCE : bronze.bronze_topics_from_ai   BRIDGE : source_event_id -> analysis.id -> civic_event.legacy_id
 TARGET : public.event_topic (range-partitioned by extracted_at; bootstrap_event_topic; APPEND only).
 */
 
@@ -43,7 +43,7 @@ analysis as (
 events as (
     select legacy_id, id as c1_event_id, state as state_code,
            jurisdiction_name, jurisdiction_type, city
-    from {{ source('civic_core', 'c1_event') }}
+    from {{ source('civic_core', 'civic_event') }}
 )
 
 select

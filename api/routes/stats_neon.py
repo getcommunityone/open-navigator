@@ -57,9 +57,9 @@ _TABLE_COLUMN_FALLBACKS: Dict[str, frozenset] = {
             "last_updated",
         }
     ),
-    # public.c1_jurisdiction (migration 048): type→classification, state column is
+    # public.civic_jurisdiction (migration 048): type→classification, state column is
     # ``state`` (no state_code), varchar PK ``id`` (old int PK is now ``legacy_id``).
-    "c1_jurisdiction": frozenset(
+    "civic_jurisdiction": frozenset(
         {
             "id",
             "legacy_id",
@@ -176,11 +176,11 @@ async def _fetch_location_stats_from_jurisdiction(
     county: Optional[str] = None,
     city: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
-    """Build minimal stats from ``public.c1_jurisdiction`` when aggregate table is missing."""
-    jur_cols = await _get_table_columns(conn, "c1_jurisdiction")
+    """Build minimal stats from ``public.civic_jurisdiction`` when aggregate table is missing."""
+    jur_cols = await _get_table_columns(conn, "civic_jurisdiction")
     if not jur_cols:
         return None
-    if not await _aggregate_table_exists(conn, "c1_jurisdiction"):
+    if not await _aggregate_table_exists(conn, "civic_jurisdiction"):
         return None
 
     jur_state_pred = _state_usps_match_sql(jur_cols, "$1")
@@ -196,7 +196,7 @@ async def _fetch_location_stats_from_jurisdiction(
 
     jurisdiction_query = f"""
         SELECT COUNT(DISTINCT id) AS count
-        FROM c1_jurisdiction
+        FROM civic_jurisdiction
         WHERE ({jur_state_pred}){name_filter}
     """
     jur_result = await conn.fetchrow(jurisdiction_query, *params)
@@ -204,7 +204,7 @@ async def _fetch_location_stats_from_jurisdiction(
 
     school_query = f"""
         SELECT COUNT(*) AS count
-        FROM c1_jurisdiction
+        FROM civic_jurisdiction
         WHERE classification = 'school_district'
           AND ({jur_state_pred}){name_filter}
     """

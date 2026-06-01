@@ -33,8 +33,15 @@ class HttpClientConfig:
     retry_on_status: tuple[int, ...] = (408, 425, 429, 500, 502, 503, 504)
 
 
-class _RetryableHTTPError(Exception):
-    """Internal marker: a retryable response status was observed."""
+class _RetryableHTTPError(httpx.HTTPError):
+    """Internal marker: a retryable response status was observed.
+
+    Subclasses ``httpx.HTTPError`` so that when retries are exhausted and this is
+    re-raised (``reraise=True``), callers' ``except httpx.HTTPError`` handlers
+    catch it like any other HTTP failure — instead of it escaping as an unrelated
+    exception that crashes the caller. (A run of 5xx that outlasts max_attempts
+    must look like an HTTP error to the caller, not a foreign exception type.)
+    """
 
 
 class BaseAsyncClient:

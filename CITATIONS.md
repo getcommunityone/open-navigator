@@ -41,6 +41,110 @@ July 2023, Toronto, Canada.
 
 ---
 
+### **CivicSearch (School Board Meeting Platform)**
+
+We use CivicSearch's aggregated school board meeting transcripts, agendas, and videos for tracking education policy and local governance.
+
+**Organization:** Datamuse, Inc.
+
+**BibTeX:**
+```bibtex
+@misc{civicsearch_datamuse,
+  author = {{Datamuse, Inc.}},
+  title = {CivicSearch: School Board Meeting Platform},
+  year = {2026},
+  url = {https://schools.civicsearch.org/},
+  note = {AI-indexed school board meeting transcripts and agendas}
+}
+```
+
+**Resources:**
+- Website: https://schools.civicsearch.org/
+- Example: https://schools.civicsearch.org/tuscaloosa-city-alabama
+
+**Attribution:**
+```
+Data source: CivicSearch (Datamuse, Inc.)
+https://schools.civicsearch.org/
+School board meeting transcripts and agendas
+```
+
+**What we use:**
+- School board meeting transcripts (AI-indexed), agendas, and minutes
+- Meeting videos and dates across school districts nationwide
+- Used for: Education policy tracking, school board decision analysis, community engagement
+
+**License:** Free public access for search; bulk/API access requires case-by-case approval. No automated scraping — use the official API where available and attribute back to CivicSearch.
+
+---
+
+### **LocalView Dataset (Harvard Dataverse)**
+
+We use the LocalView dataset of municipal meeting videos and automated transcripts for large-scale civic data analysis.
+
+**Organization:** Harvard University Mellon Urbanism Lab
+
+**BibTeX:**
+```bibtex
+@dataset{localview_2024,
+  author = {{Harvard Mellon Urbanism Lab}},
+  title = {LocalView: Municipal Meeting Videos and Transcripts},
+  year = {2024},
+  publisher = {Harvard Dataverse},
+  doi = {10.7910/DVN/NJTBEM},
+  url = {https://www.localview.net/}
+}
+```
+
+**Resources:**
+- Website: https://www.localview.net/
+- Dataverse: https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/NJTBEM
+- GitHub: https://mellonurbanism.harvard.edu/localview
+
+**What we use:**
+- 1,000+ municipalities with meeting videos (YouTube URLs) and automated transcripts
+- Metadata (meeting dates, agencies, agendas) and per-jurisdiction quality tracking
+- Used for: Large-scale civic data analysis and meeting discovery
+
+**License:** Research use (Harvard Dataverse).
+
+---
+
+### **Datamuse API (Word-Finding Engine)**
+
+We use the Datamuse API for natural-language tooling — word associations, semantic search, and text analysis over meeting transcripts and policy documents.
+
+**Organization:** Datamuse, Inc.
+
+**BibTeX:**
+```bibtex
+@misc{datamuse_api,
+  author = {{Datamuse, Inc.}},
+  title = {Datamuse API: Word-Finding Query Engine},
+  year = {2026},
+  url = {https://www.datamuse.com/api/},
+  note = {Free tier: 100,000 requests/day. Commercial use allowed.}
+}
+```
+
+**Resources:**
+- API Documentation: https://www.datamuse.com/api/
+- Developer Site: https://www.datamuse.com/
+
+**Attribution:**
+```
+Powered by Datamuse API
+https://www.datamuse.com/api/
+```
+
+**What we use:**
+- `/words` and `/sug` endpoints for synonyms, related terms, and autocomplete
+- Used for: Search enhancement, topic modeling, and transcript text analysis
+
+**License:** Free tier (100,000 requests/day, commercial use allowed, no API key); paid tier for high-volume use. Caching allowed; no scraping of the web interface. Note: Datamuse.ai is a separate SaaS product with its own pricing.
+
+---
+
 ## 🗂️ **Other Data Sources**
 
 ### **U.S. Census Bureau**

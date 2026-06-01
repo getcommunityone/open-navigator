@@ -127,10 +127,10 @@ def _database_url() -> Optional[str]:
     )
 
 
-# Canonical jurisdiction table is ``public.c1_jurisdiction`` (state column ``state``,
+# Canonical jurisdiction table is ``public.civic_jurisdiction`` (state column ``state``,
 # type column ``classification``). Legacy ``public.jurisdiction`` (``state_code``/``type``)
 # is still supported as a fallback.
-_JURISDICTION_TABLE_CANDIDATES = ("c1_jurisdiction", "jurisdiction")
+_JURISDICTION_TABLE_CANDIDATES = ("civic_jurisdiction", "jurisdiction")
 
 
 def _jurisdiction_table_meta(conn) -> Tuple[str, str, str]:
@@ -153,7 +153,7 @@ def _jurisdiction_table_meta(conn) -> Tuple[str, str, str]:
             if state_col and type_col:
                 return table, state_col, type_col
     raise RuntimeError(
-        "No public.c1_jurisdiction or public.jurisdiction table with state/type columns found"
+        "No public.civic_jurisdiction or public.jurisdiction table with state/type columns found"
     )
 
 

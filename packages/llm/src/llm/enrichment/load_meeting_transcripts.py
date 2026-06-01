@@ -115,7 +115,7 @@ class MeetingTranscriptAnalyzer:
         create_table_sql = """
         CREATE TABLE IF NOT EXISTS bronze.bronze_events_analysis_ai (
             id SERIAL PRIMARY KEY,
-            -- Soft reference to c1_event.legacy_id (the integer PK preserved by migration 048).
+            -- Soft reference to civic_event.legacy_id (the integer PK preserved by migration 048).
             -- No FK constraint declared — bronze.bronze_events_analysis_ai pre-dates the rename
             -- and adding a FK to an existing table risks blocking writes during the rename.
             event_id INTEGER NOT NULL,
@@ -220,7 +220,7 @@ class MeetingTranscriptAnalyzer:
                     PARTITION BY e.channel_id
                     ORDER BY e.start_date DESC, e.event_time DESC NULLS LAST
                 ) as rn
-            FROM public.c1_event e
+            FROM public.civic_event e
             INNER JOIN intermediate.int_events_channels_enriched c
                 ON e.channel_id = c.channel_id
             WHERE e.video_url IS NOT NULL

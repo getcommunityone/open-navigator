@@ -92,11 +92,11 @@ def load_meta(analysis_path: Path) -> Optional[dict[str, Any]]:
 
 
 def build_video_to_event_map(conn) -> dict[str, int]:
-    """Map YouTube video_id → c1_event.legacy_id via the promoted c1_event rows.
+    """Map YouTube video_id → civic_event.legacy_id via the promoted civic_event rows.
 
     ``bronze.bronze_events_analysis_ai.event_id`` has a FK to
-    ``public.c1_event(legacy_id)``, so the loaded event_id MUST be a legacy_id.
-    A YouTube video is promoted into c1_event (see
+    ``public.civic_event(legacy_id)``, so the loaded event_id MUST be a legacy_id.
+    A YouTube video is promoted into civic_event (see
     ``ingestion.youtube.promote_to_c1_event``) keyed on
     ``dedupe_key = 'youtube|<video_id>'``, which makes this an exact, parse-free
     reverse lookup. (An earlier version mapped via ``bronze_events_youtube.event_id``,
@@ -108,7 +108,7 @@ def build_video_to_event_map(conn) -> dict[str, int]:
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT split_part(dedupe_key, '|', 2) AS video_id, legacy_id "
-                "FROM public.c1_event "
+                "FROM public.civic_event "
                 "WHERE dedupe_key LIKE 'youtube|%' AND legacy_id IS NOT NULL"
             )
             for video_id, legacy_id in cur.fetchall():
@@ -117,7 +117,7 @@ def build_video_to_event_map(conn) -> dict[str, int]:
     except psycopg2.Error as exc:
         conn.rollback()
         logger.error(
-            "Could not read public.c1_event youtube rows ({}). Have you run "
+            "Could not read public.civic_event youtube rows ({}). Have you run "
             "`python -m ingestion.youtube.promote_to_c1_event` first? "
             "event_id resolution unavailable.", exc
         )
@@ -197,7 +197,7 @@ def run(cache_root: Path = CACHE_ROOT, database_url: str = DATABASE_URL,
 
     conn = psycopg2.connect(database_url)
     video_to_event = build_video_to_event_map(conn)
-    logger.info("Resolved {:,} video_id → c1_event.legacy_id mappings from promoted c1_event rows", len(video_to_event))
+    logger.info("Resolved {:,} video_id → civic_event.legacy_id mappings from promoted civic_event rows", len(video_to_event))
 
     stats = {"discovered": len(files), "loaded": 0, "skipped_no_meta": 0,
              "skipped_no_video": 0, "skipped_no_event": 0, "errors": 0}
@@ -220,7 +220,7 @@ def run(cache_root: Path = CACHE_ROOT, database_url: str = DATABASE_URL,
             event_id = video_to_event.get(video_id)
             if event_id is None:
                 stats["skipped_no_event"] += 1
-                logger.debug("No c1_event for video_id={} ({})", video_id, path.name)
+                logger.debug("No civic_event for video_id={} ({})", video_id, path.name)
                 continue
 
             ai_model = (meta or {}).get("gemini_model") or DEFAULT_AI_MODEL

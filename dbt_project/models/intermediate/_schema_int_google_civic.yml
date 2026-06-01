@@ -62,7 +62,7 @@ models:
       - name: ocd_jurisdiction_id
         data_type: text
       - name: division_id
-        description: "truncate(ocd_jurisdiction_id or jurisdiction_id, 300) — the c1_division id."
+        description: "truncate(ocd_jurisdiction_id or jurisdiction_id, 300) — the civic_division id."
         data_type: varchar(300)
       - name: fit_jurisdiction_id
         description: "truncate(jurisdiction_id, 300)."

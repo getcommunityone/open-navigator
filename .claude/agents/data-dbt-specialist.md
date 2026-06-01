@@ -29,7 +29,11 @@ hand it back.
 - **Transformations belong in dbt.** No Python for SQL logic or JSONB extraction.
   Python is only for ingestion (API calls, scraping), ML, or orchestration.
 - **Naming:** include BOTH `state_code` (2-letter) and `state` (full name).
-  `website_url` is the canonical web-address column.
+  `website_url` is the canonical web-address column. Name marts for the **entity**
+  they represent — never use star-schema `dim_` / `fact_` prefixes.
+- **Keys:** every table/model exposed in the `public` schema MUST declare an explicit
+  primary key and foreign keys for all relationships, as dbt constraints in
+  `schema.yml` (`contract: {enforced: true}`) so Postgres enforces them.
 - **Data loading scripts** in `scripts/datasources/` must be named `load_*`.
 - **DB:** Postgres at `localhost:5433` is ALREADY RUNNING — never suggest a new
   Docker PG instance. Databases: `open_navigator` (primary), `openstates` (source).

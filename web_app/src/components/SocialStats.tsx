@@ -15,7 +15,7 @@ interface FollowerStats {
   following_users: number
   following_leaders: number
   following_organizations: number
-  following_causes: number
+  following_tags: number
 }
 
 export default function SocialStats({ 
@@ -87,12 +87,12 @@ export default function SocialStats({
             </div>
           )}
           
-          {stats.following_causes > 0 && (
+          {stats.following_tags > 0 && (
             <div className="bg-purple-50 rounded-lg p-3">
               <div className="font-semibold text-purple-900">
-                {stats.following_causes}
+                {stats.following_tags}
               </div>
-              <div className="text-purple-700 text-xs">Causes</div>
+              <div className="text-purple-700 text-xs">Tags</div>
             </div>
           )}
           

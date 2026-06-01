@@ -1,11 +1,11 @@
 version: 2
 
 models:
-  - name: localview_events
+  - name: int_events_localview_enriched
     description: |
-      LocalView meeting events (one row per meeting video), API-ready and keyed
-      to a canonical jurisdiction_id. Surfaces the event-grain jurisdiction
-      resolution from int_events_localview into the public schema.
+      LocalView meeting events (one row per meeting video) enriched with the
+      canonical jurisdiction_id / name / type. Per-source building block for the
+      consolidated public `event` mart — not itself a public deliverable.
 
       Events whose scraped place did not resolve to a Census GEOID keep
       jurisdiction_id and the resolved jurisdiction_name/type NULL, but are still

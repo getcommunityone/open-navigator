@@ -303,8 +303,37 @@ select 1;
         extracted_at          timestamp   not null,
         primary key (extraction_key, extracted_at)
     ) partition by range (extracted_at);
+
+    -- Event-meeting links. The aggregated org grain resolves a first- and
+    -- last-seen analysis, both of which are real event_meeting rows. Types match
+    -- (integer -> event_meeting.event_meeting_id integer). Guarded so re-running
+    -- bootstrap against an already-populated table back-fills the FKs.
+    do $$ begin
+      if not exists (
+          select 1 from pg_constraint
+          where conname = 'event_organization_first_meeting_fk'
+            and conrelid = 'public.event_organization'::regclass
+      ) then
+        alter table public.event_organization
+          add constraint event_organization_first_meeting_fk
+          foreign key (first_seen_analysis_id) references public.event_meeting(event_meeting_id);
+      end if;
+      if not exists (
+          select 1 from pg_constraint
+          where conname = 'event_organization_last_meeting_fk'
+            and conrelid = 'public.event_organization'::regclass
+      ) then
+        alter table public.event_organization
+          add constraint event_organization_last_meeting_fk
+          foreign key (last_seen_analysis_id) references public.event_meeting(event_meeting_id);
+      end if;
+    end $$;
+
     create index if not exists ix_event_organization_state        on public.event_organization (state_code);
+    create index if not exists ix_event_organization_first_event  on public.event_organization (first_c1_event_id);
     create index if not exists ix_event_organization_last_event   on public.event_organization (last_c1_event_id);
+    create index if not exists ix_event_organization_first_anls   on public.event_organization (first_seen_analysis_id);
+    create index if not exists ix_event_organization_last_anls    on public.event_organization (last_seen_analysis_id);
     create index if not exists ix_event_organization_extracted    on public.event_organization (extracted_at);
   {% endset %}
   {% do run_query(ddl) %}
@@ -343,8 +372,10 @@ select 1;
         primary key (event_meeting_id)
     );
 
-    -- Canonical event link. c1_event.legacy_id is the real PK; c1_event.id only
-    -- carries a unique INDEX (not a constraint) so it can't be an FK target.
+    -- Canonical event link. civic_event.legacy_id is the real PK and the target
+    -- of the bronze AI-analysis FK, so this link uses legacy_id. (civic_event.id
+    -- also gained a UNIQUE constraint in migration 100, but legacy_id stays the
+    -- canonical key here.)
     do $$ begin
       if not exists (
           select 1 from pg_constraint
@@ -353,7 +384,7 @@ select 1;
       ) then
         alter table public.event_meeting
           add constraint event_meeting_c1_event_fk
-          foreign key (legacy_event_id) references public.c1_event(legacy_id);
+          foreign key (legacy_event_id) references public.civic_event(legacy_id);
       end if;
     end $$;
 

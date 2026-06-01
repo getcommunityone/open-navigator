@@ -17,7 +17,7 @@
 
 with addr as (
     select master_address_id, zip5, state_code
-    from {{ ref('mdm_dim_address_master') }}
+    from {{ ref('mdm_address') }}
     where zip5 is not null
 ),
 

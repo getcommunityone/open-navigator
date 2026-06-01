@@ -308,7 +308,45 @@ sources:
             description: "When YouTube published the video"
           - name: loaded_at
           - name: last_updated
-      
+
+      - name: bronze_events_civicsearch
+        description: |
+          Raw CivicSearch meeting records — the policy-topic + timestamped
+          transcript-snippet layer CivicSearch (schools.civicsearch.org) builds
+          on top of LocalView/YouTube transcripts. Landed VERBATIM (no derivation)
+          by the LAND loader ingestion.civicsearch.events out of
+          data/cache/civicsearch/meetings.jsonl, emitted by the FETCH scraper
+          scrapers.civicsearch.harvest. One row per vid_id (a YouTube video id),
+          which is the bridge to bronze_events_youtube / int_events_localview /
+          int_events_union (video_id). snippets/topic_ids/matched_keywords are
+          JSONB; they are unnested downstream in stg_civicsearch__snippet.
+        columns:
+          - name: id
+          - name: vid_id
+            description: "YouTube video id — natural key (one row per meeting)."
+          - name: title
+          - name: meeting_date
+          - name: location
+          - name: location_query_id
+            description: "CivicSearch slug for the meeting's place."
+          - name: distance
+          - name: has_approximate_timings
+          - name: youtube_url
+          - name: place_query_id
+            description: "Slug of the place this meeting was harvested under."
+          - name: place_lat
+          - name: place_lon
+          - name: matched_keywords
+            description: "JSONB array of search keywords that surfaced this meeting."
+          - name: snippets
+            description: "JSONB array of {text, timestamp, topic_id}."
+          - name: topic_ids
+            description: "JSONB array of distinct non-negative CivicSearch topic ids."
+          - name: raw_record
+          - name: scraped_at
+          - name: loaded_at
+          - name: last_updated
+
       - name: bronze_events_channels
         description: "YouTube channels from government jurisdictions - validated and enriched"
         columns:
@@ -1137,6 +1175,42 @@ sources:
             description: "TRUE if transcript available"
           - name: transcript_quality
             description: "Quality rating: high, medium, low"
+          - name: event_date
+            description: "Meeting date (backfilled from LocalView, migration 098)"
+          - name: meeting_type
+            description: "Meeting type/body (from LocalView)"
+          - name: title
+            description: "Meeting title (from LocalView)"
+          - name: video_url
+            description: "Source video URL (from LocalView)"
+          - name: place_govt
+            description: "Governing place name (from LocalView)"
+          - name: channel_title
+            description: "YouTube channel title (from LocalView)"
+          - name: vid_title
+            description: "YouTube video title (from LocalView)"
+          - name: vid_desc
+            description: "YouTube video description (from LocalView)"
+          - name: vid_length_min
+            description: "Video length in minutes (from LocalView)"
+          - name: vid_upload_date
+            description: "Video upload timestamp (from LocalView)"
+          - name: vid_livestreamed
+            description: "TRUE if the video was livestreamed (from LocalView)"
+          - name: vid_views
+            description: "Video view count (from LocalView)"
+          - name: vid_likes
+            description: "Video like count (from LocalView)"
+          - name: vid_dislikes
+            description: "Video dislike count (from LocalView)"
+          - name: vid_comments
+            description: "Video comment count (from LocalView)"
+          - name: channel_type
+            description: "Channel type/classification (from LocalView)"
+          - name: channel_id
+            description: "YouTube channel id (from bronze_events_channels by channel_title)"
+          - name: channel_url
+            description: "YouTube channel URL (from bronze_events_channels by channel_title)"
           - name: created_at
             description: "When transcript was created"
 
@@ -1290,7 +1364,7 @@ sources:
           - name: election_type
           - name: election_status
           - name: ocd_jurisdiction_id
-            description: "OCD division id; primary source of c1_division.id."
+            description: "OCD division id; primary source of civic_division.id."
           - name: state_code
             description: "2-letter state code (CHAR(2))."
           - name: jurisdiction_id
@@ -1414,17 +1488,54 @@ sources:
           - name: loaded_at
           - name: last_updated
 
+      # --- MDM entity-resolution outputs (written by ingestion.mdm.linker / Splink) ---
+      - name: entity_person_clusters
+        description: |
+          Splink person-resolution output: one row per source person occurrence,
+          carrying its resolved cluster id. Written by ingestion.mdm.linker
+          (`python -m ingestion.mdm person`). Consumed by int_persons__clustered to
+          attach master_person_id + match_confidence to the person marts.
+        columns:
+          - name: master_person_id
+            description: "Resolved cluster id — the canonical person an occurrence belongs to."
+          - name: person_uid
+            description: "md5(source_system|source_pk) — source occurrence key; joins to int_persons__unioned."
+          - name: source_system
+            description: "Originating source system."
+          - name: source_pk
+            description: "Primary key within the source system."
+          - name: match_confidence
+            description: |
+              Per-occurrence merge confidence: MAX Splink match_probability of the
+              edges attaching this node within its cluster. NULL for singletons
+              (unmatched — no merge risk). Populated on the next linker re-run.
+      - name: entity_person_predictions
+        description: |
+          Splink pairwise candidate edges for persons (predicted >= match_threshold).
+          The 0.9–0.99 band — predicted but NOT auto-merged at the stricter cluster
+          threshold — is the ambiguous-match review queue feeding pending_mdm_person.
+          Written by ingestion.mdm.linker; empty until the next linker re-run.
+        columns:
+          - name: person_uid_l
+            description: "Left occurrence key of the candidate pair."
+          - name: person_uid_r
+            description: "Right occurrence key of the candidate pair."
+          - name: match_probability
+            description: "Splink match probability for the pair (0–1)."
+          - name: match_weight
+            description: "Splink match weight (log2 Bayes factor) for the pair."
+
   - name: civic_core
     description: |
       Canonical OCD/Popolo civic entity tables in the PUBLIC schema (the `c1_*`
       family). Loaded by the OCD ingestion path, NOT by dbt — declared as a
       source so the AI-extraction marts (event_*) can resolve to the canonical
       event via the enforced FK bronze_events_analysis_ai.event_id =
-      c1_event.legacy_id.
+      civic_event.legacy_id.
     database: open_navigator
     schema: public
     tables:
-      - name: c1_event
+      - name: civic_event
         description: "Canonical OCD event. legacy_id is the integer surrogate the bronze AI-analysis FK points at; id is the canonical OCD string id."
         columns:
           - name: legacy_id
@@ -1647,6 +1758,42 @@ models:
         description: "Quality flag - TRUE if <100 characters"
       - name: missing_segments
         description: "Quality flag - TRUE if segments JSONB is null/empty"
+      - name: event_date
+        description: "Meeting date (from LocalView, migration 098)"
+      - name: meeting_type
+        description: "Meeting type/body (from LocalView)"
+      - name: title
+        description: "Meeting title (from LocalView)"
+      - name: video_url
+        description: "Source video URL (from LocalView)"
+      - name: place_govt
+        description: "Governing place name (from LocalView)"
+      - name: channel_title
+        description: "YouTube channel title (from LocalView)"
+      - name: vid_title
+        description: "YouTube video title (from LocalView)"
+      - name: vid_desc
+        description: "YouTube video description (from LocalView)"
+      - name: vid_length_min
+        description: "Video length in minutes (from LocalView)"
+      - name: vid_upload_date
+        description: "Video upload timestamp (from LocalView)"
+      - name: vid_livestreamed
+        description: "TRUE if the video was livestreamed (from LocalView)"
+      - name: vid_views
+        description: "Video view count (from LocalView)"
+      - name: vid_likes
+        description: "Video like count (from LocalView)"
+      - name: vid_dislikes
+        description: "Video dislike count (from LocalView)"
+      - name: vid_comments
+        description: "Video comment count (from LocalView)"
+      - name: channel_type
+        description: "Channel type/classification (from LocalView)"
+      - name: channel_id
+        description: "YouTube channel id (from bronze_events_channels by channel_title)"
+      - name: channel_url
+        description: "YouTube channel URL (from bronze_events_channels by channel_title)"
 
   - name: stg_bronze_persons_scraped
     description: |

@@ -13,7 +13,7 @@ public.event_financial_item — dollar amounts/items the AI extracted from event
 
 GRAIN: one row per (analysis, financial_item).
 
-SOURCE : bronze.bronze_financial_items_from_ai   BRIDGE : source_event_id -> analysis.id -> c1_event.legacy_id
+SOURCE : bronze.bronze_financial_items_from_ai   BRIDGE : source_event_id -> analysis.id -> civic_event.legacy_id
 TARGET : public.event_financial_item (range-partitioned by extracted_at; bootstrap_event_financial_item; APPEND only).
 */
 
@@ -42,7 +42,7 @@ analysis as (
 events as (
     select legacy_id, id as c1_event_id, state as state_code,
            jurisdiction_name, jurisdiction_type, city
-    from {{ source('civic_core', 'c1_event') }}
+    from {{ source('civic_core', 'civic_event') }}
 )
 
 select

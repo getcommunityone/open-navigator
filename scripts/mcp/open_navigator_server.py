@@ -436,7 +436,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                         topic,
                         COUNT(*) as total_bills,
                         SUM(total_bills) as bill_count
-                    FROM bill_map_aggregate
+                    FROM rpt_bill_map_aggregate
                     WHERE state_code = %s
                     GROUP BY state_code, topic
                     ORDER BY bill_count DESC
@@ -448,7 +448,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                         state_code,
                         COUNT(DISTINCT topic) as topics,
                         SUM(total_bills) as total_bills
-                    FROM bill_map_aggregate
+                    FROM rpt_bill_map_aggregate
                     GROUP BY state
                     ORDER BY total_bills DESC
                     LIMIT 50

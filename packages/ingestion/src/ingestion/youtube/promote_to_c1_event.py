@@ -1,26 +1,26 @@
 #!/usr/bin/env python3
 """
 Promote scraped YouTube meeting videos from ``bronze.bronze_events_youtube`` into
-the OCD-aligned ``public.c1_event`` table, attaching each video as a
-``c1_eventmedia`` recording.
+the OCD-aligned ``public.civic_event`` table, attaching each video as a
+``civic_eventmedia`` recording.
 
 Why this exists
 ---------------
 ``bronze.bronze_events_analysis_ai`` carries a foreign key
-``event_id -> public.c1_event(legacy_id)``. The live analyze step
+``event_id -> public.civic_event(legacy_id)``. The live analyze step
 (``llm.enrichment.load_meeting_transcripts``) and the cache backfill
-(``llm.enrichment.load_analysis_cache_to_bronze``) both need a ``c1_event`` row
+(``llm.enrichment.load_analysis_cache_to_bronze``) both need a ``civic_event`` row
 to attach an analysis to. But the YouTube meeting videos those analyses describe
-were never promoted into ``c1_event`` — that table only held ``openstates`` and
+were never promoted into ``civic_event`` — that table only held ``openstates`` and
 ``bronze_meetings_promotion`` events — so every analysis insert failed the FK and
 the table stayed empty. This loader fills that gap, mirroring
 ``scripts/discovery/promote_bronze_meetings_to_c1_event.py`` for the YouTube source.
 
-The c1_event identity / bridge
+The civic_event identity / bridge
 ------------------------------
-``c1_event`` has two keys:
+``civic_event`` has two keys:
   * ``id``        — varchar ``ocd-event/<uuid5>``; referenced by child tables
-                    (``c1_eventmedia.event_id``, ``c1_eventdocument.event_id``).
+                    (``civic_eventmedia.event_id``, ``civic_eventdocument.event_id``).
   * ``legacy_id`` — integer sequence PK; the target of the analysis FK.
 
 One YouTube video == one event (1:1), so we key the event on the video:
@@ -31,7 +31,7 @@ One YouTube video == one event (1:1), so we key the event on the video:
 Keying on ``dedupe_key`` gives the analysis loader an exact, parse-free
 ``video_id -> legacy_id`` lookup::
 
-    SELECT legacy_id FROM public.c1_event WHERE dedupe_key = 'youtube|' || %s
+    SELECT legacy_id FROM public.civic_event WHERE dedupe_key = 'youtube|' || %s
 
 Scope
 -----
@@ -105,7 +105,7 @@ class YouTubeEvent:
 
     @property
     def event_id(self) -> str:
-        """Deterministic c1_event.id (the ocd-event string child rows reference)."""
+        """Deterministic civic_event.id (the ocd-event string child rows reference)."""
         return f"ocd-event/{uuid.uuid5(_UUID_NS_EVENT_RESOURCE, self.dedupe_key)}"
 
     @property
@@ -159,12 +159,12 @@ def load_youtube_rows(conn, states: tuple[str, ...] | None,
 
 
 def upsert_events(conn, events: list[YouTubeEvent], *, dry_run: bool) -> int:
-    """UPSERT c1_event rows keyed on dedupe_key; preserve id/legacy_id on conflict."""
+    """UPSERT civic_event rows keyed on dedupe_key; preserve id/legacy_id on conflict."""
     if dry_run:
         return len(events)
     n = 0
     insert_sql = """
-        INSERT INTO public.c1_event (
+        INSERT INTO public.civic_event (
             id, name, description, start_date, event_time,
             jurisdiction_id, jurisdiction_name, jurisdiction_type, city, state,
             location, location_description, classification, status, source,
@@ -217,7 +217,7 @@ def _det_uuid(event_id: str, url: str | None, kind: str) -> str:
 
 
 def insert_media(conn, events: list[YouTubeEvent], *, dry_run: bool) -> int:
-    """Attach each video as a c1_eventmedia 'recording' row (idempotent)."""
+    """Attach each video as a civic_eventmedia 'recording' row (idempotent)."""
     eligible = [e for e in events if e.video_url]
     if dry_run:
         return len(eligible)
@@ -228,7 +228,7 @@ def insert_media(conn, events: list[YouTubeEvent], *, dry_run: bool) -> int:
             links = json.dumps([{"url": e.video_url, "media_type": "video/youtube"}])
             cur.execute(
                 """
-                INSERT INTO public.c1_eventmedia
+                INSERT INTO public.civic_eventmedia
                     (id, note, date, event_id, classification, links)
                 VALUES (%s::uuid, %s, %s, %s, 'recording', %s::jsonb)
                 ON CONFLICT (id) DO NOTHING
@@ -245,7 +245,7 @@ def run(*, states: tuple[str, ...] | None = None, all_dated: bool = False,
         dry_run: bool = False, limit: int | None = None) -> dict[str, int]:
     db_url = resolve_target_database_url()
     logger.info("=" * 70)
-    logger.info("bronze_events_youtube -> public.c1_event promotion")
+    logger.info("bronze_events_youtube -> public.civic_event promotion")
     logger.info("  scope   : {}", "all dated videos" if all_dated else "policy-analyzed only")
     logger.info("  states  : {}", ",".join(states) if states else "ALL")
     logger.info("  dry-run : {}", dry_run)
@@ -265,7 +265,7 @@ def run(*, states: tuple[str, ...] | None = None, all_dated: bool = False,
 
     stats = {"eligible": len(events), "events_upserted": upserted, "media_attached": media}
     logger.success(
-        "Promotion {}: {events_upserted:,} c1_event upserted, {media_attached:,} recordings attached",
+        "Promotion {}: {events_upserted:,} civic_event upserted, {media_attached:,} recordings attached",
         "(dry-run)" if dry_run else "done", **stats,
     )
     return stats
@@ -273,7 +273,7 @@ def run(*, states: tuple[str, ...] | None = None, all_dated: bool = False,
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(
-        description="Promote bronze_events_youtube meeting videos into public.c1_event",
+        description="Promote bronze_events_youtube meeting videos into public.civic_event",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     p.add_argument("--states", default="", help="Comma-separated state codes; empty = all")

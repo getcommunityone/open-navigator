@@ -1,0 +1,142 @@
+version: 2
+
+models:
+  - name: event
+    description: >
+      MDM consolidated event — the single golden-record event surface in the
+      public schema. Unions CDP events with LocalView meetings (deduped by
+      video_url, CDP winning collisions) into one row per real-world meeting.
+      Source occurrences crosswalk back via mdm_bridge_event_source on match_key.
+      Consumed by the API (api/routes/search_postgres.py) and int_events_union.
+    config:
+      materialized: table
+      contract:
+        enforced: true
+    columns:
+      - name: event_id
+        data_type: bigint
+        description: "Surrogate master event id (1:1 with match_key)."
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: match_key
+        data_type: text
+        description: "Natural dedup key: video_url, else datasource_id_source. Join key for mdm_bridge_event_source."
+        tests:
+          - unique
+      - name: event_title
+        data_type: text
+      - name: event_description
+        data_type: text
+      - name: event_date
+        data_type: date
+      - name: event_time
+        data_type: time without time zone
+      - name: event_datetime
+        data_type: timestamp without time zone
+      - name: body_name
+        data_type: text
+      - name: body_description
+        data_type: text
+      - name: jurisdiction_id
+        data_type: text
+      - name: channel_id
+        data_type: text
+      - name: jurisdiction_name
+        data_type: text
+      - name: jurisdiction_type
+        data_type: text
+      - name: state_code
+        data_type: text
+      - name: state
+        data_type: text
+      - name: city
+        data_type: text
+      - name: location
+        data_type: text
+      - name: location_description
+        data_type: text
+      - name: meeting_type
+        data_type: text
+      - name: status
+        data_type: text
+      - name: agenda_url
+        data_type: text
+      - name: minutes_url
+        data_type: text
+      - name: video_url
+        data_type: text
+      - name: session_content_hash
+        data_type: text
+      - name: view_count
+        data_type: bigint
+      - name: duration_minutes
+        data_type: double precision
+      - name: like_count
+        data_type: bigint
+      - name: language
+        data_type: text
+      - name: channel_type
+        data_type: text
+      - name: channel_url
+        data_type: text
+      - name: source
+        data_type: text
+      - name: datasource_id
+        data_type: text
+      - name: external_source_id
+        data_type: text
+      - name: last_updated
+        data_type: timestamp with time zone
+
+  - name: mdm_bridge_event_source
+    description: >
+      MDM crosswalk — one row per source event occurrence (CDP + LocalView),
+      including LocalView videos that `event` drops as duplicates of a CDP row.
+      PK event_source_id, FK event_id -> event.
+    config:
+      materialized: table
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [event_id]
+        to: ref('event')
+        to_columns: [event_id]
+    columns:
+      - name: event_source_id
+        data_type: text
+        description: "Surrogate occurrence key = hash(source_system, source_pk)."
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: event_id
+        data_type: bigint
+        description: "Master event this occurrence resolves to."
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - relationships:
+              to: ref('event')
+              field: event_id
+      - name: source_system
+        data_type: text
+        description: "'cdp' or 'localview'."
+        tests:
+          - accepted_values:
+              values: ['cdp', 'localview']
+      - name: source_pk
+        data_type: text
+        description: "Natural key of the source occurrence (datasource_id)."
+      - name: match_key
+        data_type: text
+        description: "Dedup key used to resolve the master event."
+      - name: video_url
+        data_type: text

@@ -166,16 +166,110 @@ def fetch_transcript_simple(
         return None
 
 
-def get_events_missing_transcripts(conn, states: Optional[List[str]] = None, limit: Optional[int] = None) -> List[Dict]:
-    """Get all YouTube events that don't have transcripts yet."""
+# ---------------------------------------------------------------------------
+# Negative cache for transcript fetches.
+#
+# A row only lands in bronze_events_text_ai on SUCCESS, so a video that has no
+# caption track stays "missing" forever and gets re-fetched on every run — which
+# is why a repeat run is a wall of "⊘ No transcript available" against the same
+# dead videos. This table records the videos we've already tried and found to
+# have no transcript, keyed by video_id so it covers BOTH event sources
+# (event mart + LocalView); bronze_events_youtube can't, since LocalView videos
+# have no row there. The selection below then skips a video until
+# `retry_after_days` has elapsed, and orders never-tried videos first.
+# ---------------------------------------------------------------------------
+
+
+def ensure_transcript_fetch_attempts_table(conn) -> None:
+    """Create the fetch-attempt tracking table if missing (idempotent)."""
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS bronze.bronze_transcript_fetch_attempts (
+                video_id        VARCHAR(64) PRIMARY KEY,
+                last_attempt_at TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                attempts        INTEGER     NOT NULL DEFAULT 0,
+                last_status     VARCHAR(32),
+                last_error      TEXT
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_transcript_fetch_attempts_last
+            ON bronze.bronze_transcript_fetch_attempts (last_attempt_at)
+            """
+        )
+        conn.commit()
+    finally:
+        cur.close()
+
+
+def record_transcript_unavailable(
+    conn,
+    video_id: str,
+    *,
+    status: str = "unavailable",
+    error: Optional[str] = None,
+) -> None:
+    """Mark a genuine no-transcript outcome so repeat runs skip it.
+
+    Best-effort: a tracking write must never abort the backfill, so a failure
+    here is rolled back and swallowed rather than propagated.
+    """
+    vid = (video_id or "").strip()
+    if not vid:
+        return
+    msg = (error or "").strip()[:2000] or None
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """
+            INSERT INTO bronze.bronze_transcript_fetch_attempts
+                (video_id, last_attempt_at, attempts, last_status, last_error)
+            VALUES (%s, CURRENT_TIMESTAMP, 1, %s, %s)
+            ON CONFLICT (video_id) DO UPDATE SET
+                last_attempt_at = CURRENT_TIMESTAMP,
+                attempts        = bronze.bronze_transcript_fetch_attempts.attempts + 1,
+                last_status     = EXCLUDED.last_status,
+                last_error      = EXCLUDED.last_error
+            """,
+            (vid, status, msg),
+        )
+        conn.commit()
+    except Exception as exc:  # noqa: BLE001 - tracking must never break the run
+        conn.rollback()
+        logger.debug("Could not record fetch attempt for {}: {}", vid, exc)
+    finally:
+        cur.close()
+
+
+def get_events_missing_transcripts(
+    conn,
+    states: Optional[List[str]] = None,
+    limit: Optional[int] = None,
+    *,
+    retry_after_days: int = 30,
+    retry_failed: bool = False,
+) -> List[Dict]:
+    """Get YouTube events without transcripts yet, never-tried videos first.
+
+    Videos previously tried and found to have no transcript are recorded in
+    bronze_transcript_fetch_attempts and skipped until ``retry_after_days`` has
+    elapsed (set ``retry_failed`` to ignore the negative cache entirely).
+    Never-attempted videos sort ahead of due-for-retry ones so a capped
+    ``--limit`` run spends its budget on fresh videos.
+    """
     cursor = conn.cursor(cursor_factory=RealDictCursor)
-    
+
     try:
         # Build query to find videos without transcripts.
         # int_events_union merges every event source that carries a meeting
         # video URL (event mart + LocalView), deduped to one row per video_id.
         # Anti-join the bronze transcript landing on video_id to skip videos
-        # whose transcript is already landed.
+        # whose transcript is already landed, and LEFT JOIN the negative cache
+        # to skip / deprioritise videos we've already found to have none.
         query = """
             SELECT
                 u.event_id,
@@ -187,31 +281,45 @@ def get_events_missing_transcripts(conn, states: Optional[List[str]] = None, lim
                 u.state
             FROM intermediate.int_events_union u
             LEFT JOIN bronze.bronze_events_text_ai t ON t.video_id = u.video_id
+            LEFT JOIN bronze.bronze_transcript_fetch_attempts a ON a.video_id = u.video_id
             WHERE u.video_url IS NOT NULL
               AND t.id IS NULL  -- No transcript landed yet
         """
 
-        params = []
+        params: List[Any] = []
+
+        # Negative cache: skip videos tried within the retry window. Never-tried
+        # videos (a.video_id IS NULL) always remain eligible.
+        if not retry_failed:
+            query += (
+                " AND (a.video_id IS NULL"
+                " OR a.last_attempt_at < CURRENT_TIMESTAMP - make_interval(days => %s))"
+            )
+            params.append(int(retry_after_days))
 
         if states:
             placeholders = ','.join(['%s'] * len(states))
             query += f" AND u.state_code IN ({placeholders})"
             params.extend(states)
 
-        # Newest meetings first: recent uploads are far more likely to carry
-        # (auto-)captions than decades-old municipal videos, so this maximises
-        # the transcript hit-rate under --limit.
-        query += " ORDER BY u.event_date DESC NULLS LAST, u.event_id ASC"
-        
+        # Never-attempted videos first (FALSE sorts before TRUE), then newest
+        # meetings first: a capped run should spend its budget on fresh videos
+        # rather than re-trying known caption-less ones, and recent uploads are
+        # likelier to carry (auto-)captions than decades-old municipal videos.
+        query += (
+            " ORDER BY (a.video_id IS NOT NULL),"
+            " u.event_date DESC NULLS LAST, u.event_id ASC"
+        )
+
         if limit:
             query += " LIMIT %s"
             params.append(limit)
-        
+
         cursor.execute(query, params)
         results = cursor.fetchall()
-        
+
         return [dict(row) for row in results]
-        
+
     finally:
         cursor.close()
 
@@ -220,17 +328,29 @@ def backfill_transcripts(
     database_url: str,
     youtube_api_key: Optional[str] = None,
     states: Optional[List[str]] = None,
-    limit: Optional[int] = None
+    limit: Optional[int] = None,
+    retry_after_days: int = 30,
+    retry_failed: bool = False,
 ):
     """Backfill missing transcripts for YouTube events."""
-    
+
     # Connect to database
     conn = psycopg2.connect(database_url)
-    
+
     try:
+        # Negative cache for "no transcript" outcomes (created if missing) so we
+        # prioritise never-tried videos and don't re-fetch known caption-less ones.
+        ensure_transcript_fetch_attempts_table(conn)
+
         # Get events missing transcripts
         logger.info("Finding YouTube events without transcripts...")
-        events = get_events_missing_transcripts(conn, states=states, limit=limit)
+        events = get_events_missing_transcripts(
+            conn,
+            states=states,
+            limit=limit,
+            retry_after_days=retry_after_days,
+            retry_failed=retry_failed,
+        )
         # Release the read transaction's AccessShareLock on int_events_union
         # immediately — otherwise the whole (potentially hours-long) fetch loop
         # pins the view and blocks dbt from rebuilding it (CREATE OR REPLACE /
@@ -335,6 +455,11 @@ def backfill_transcripts(
                     consecutive_egress_errors = 0
                     if not is_block:
                         logger.warning(f"  ⊘ No transcript available: {error_msg[:100]}")
+                        # Reached YouTube and there's genuinely no caption track —
+                        # record it so future runs skip this video for a while.
+                        record_transcript_unavailable(
+                            conn, video_id, status="unavailable", error=error_msg
+                        )
                         failed += 1
                         skip_video = True
                         break
@@ -456,8 +581,11 @@ def backfill_transcripts(
                     cursor.close()
             else:
                 logger.warning(f"  ⊘ No transcript available")
+                # Clean fetch that returned no caption track — negative-cache it
+                # so repeat runs prioritise videos we haven't tried yet.
+                record_transcript_unavailable(conn, video_id, status="unavailable")
                 failed += 1
-        
+
         # Summary
         logger.info("")
         logger.success("=" * 80)
@@ -485,21 +613,36 @@ def main():
         type=int,
         help='Maximum number of transcripts to fetch'
     )
-    
+    parser.add_argument(
+        '--retry-after-days',
+        type=int,
+        default=30,
+        help='Re-attempt a previously-unavailable video only after this many '
+             'days (default: 30). Never-tried videos are always prioritised first.'
+    )
+    parser.add_argument(
+        '--retry-failed',
+        action='store_true',
+        help='Ignore the negative cache and re-attempt every missing video, '
+             'including ones already found to have no transcript.'
+    )
+
     args = parser.parse_args()
-    
+
     # Parse states
     states = None
     if args.states:
         states = [s.strip().upper() for s in args.states.split(',')]
         logger.info(f"Filtering to states: {', '.join(states)}")
-    
+
     # Run backfill
     backfill_transcripts(
         database_url=DATABASE_URL,
         youtube_api_key=YOUTUBE_API_KEY,
         states=states,
-        limit=args.limit
+        limit=args.limit,
+        retry_after_days=args.retry_after_days,
+        retry_failed=args.retry_failed,
     )
 
 

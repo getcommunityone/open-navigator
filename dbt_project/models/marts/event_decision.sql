@@ -18,7 +18,7 @@ competing_views, smart_brevity, diagram_*).
 
 SOURCE : bronze.bronze_decisions_from_ai (structured_analysis->'decisions')
 BRIDGE : bronze_decisions_from_ai.source_event_id = bronze_events_analysis_ai.id
-         bronze_events_analysis_ai.event_id        = c1_event.legacy_id   (enforced FK)
+         bronze_events_analysis_ai.event_id        = civic_event.legacy_id   (enforced FK)
 TARGET : public.event_decision — native range-partitioned by extracted_at (monthly),
          created by the `bootstrap_event_decision` run-operation. APPEND only.
 */
@@ -64,7 +64,7 @@ events as (
         jurisdiction_name,
         jurisdiction_type,
         city
-    from {{ source('civic_core', 'c1_event') }}
+    from {{ source('civic_core', 'civic_event') }}
 )
 
 select
