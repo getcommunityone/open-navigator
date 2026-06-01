@@ -26,7 +26,22 @@
 --   transcript that also matches a LocalView video) is never overwritten.
 -- * The UPDATE never touches video_id, so the BEFORE UPDATE OF video_id geo
 --   trigger (sync_text_ai_geo_from_youtube) does not fire.
--- * Set-based; runs in seconds.
+--
+-- PERFORMANCE (why we drop + rebuild the full-text GIN index)
+-- ----------------------------------------------------------
+-- This UPDATE adds only unindexed columns (raw_text / video_id are untouched),
+-- but the table is at fillfactor 100 so the row versions are non-HOT. A non-HOT
+-- update re-inserts EVERY index entry for the row -- including the row's whole
+-- transcript tsvector into idx_bronze_events_text_search_gin. At ~110k rows of
+-- full-transcript tsvectors that incremental GIN maintenance is hundreds of
+-- millions of entry inserts and runs for ~an hour (CPU-bound, "word is too long
+-- to be indexed" notices). Since the GIN content does not actually change, we
+-- DROP it, run the backfill (now just heap + cheap btree maintenance), then bulk
+-- CREATE INDEX -- the sorted bulk GIN build is dramatically faster than per-row
+-- inserts. Full-text search on this table is briefly unavailable during the
+-- rebuild (acceptable for a deploy-time migration).
+-- * The sentinel WHERE guard (title/event_date/video_url all NULL) makes the
+--   backfill a near-no-op on idempotent re-runs.
 
 -- ---------------------------------------------------------------------------
 -- Columns (types mirror bronze_events_localview; channel_id/url mirror
@@ -55,7 +70,12 @@ ALTER TABLE bronze.bronze_events_text_ai
 -- ---------------------------------------------------------------------------
 -- Backfill from LocalView (video_id = datasource_id); channel_id/url from the
 -- channel registry by channel_title.
+--
+-- Drop the full-text GIN index first so the bulk UPDATE does not pay per-row
+-- incremental GIN maintenance (see PERFORMANCE note above); rebuilt below.
 -- ---------------------------------------------------------------------------
+DROP INDEX IF EXISTS bronze.idx_bronze_events_text_search_gin;
+
 WITH ch AS (
     -- one channel_id/url per title (12 titles are duplicated in the registry):
     -- prefer verified, then the most-populated / most-recently-updated row.
@@ -94,7 +114,18 @@ SET event_date       = COALESCE(t.event_date,       lv.event_date),
 FROM bronze.bronze_events_localview lv
 LEFT JOIN ch ON ch.channel_title = lv.channel_title
 WHERE lv.datasource_id IS NOT NULL
-  AND lv.datasource_id = t.video_id;
+  AND lv.datasource_id = t.video_id
+  -- sentinel: only rows with no LocalView meeting context yet (keeps an
+  -- idempotent re-run a near-no-op instead of rewriting every matched row).
+  AND t.title IS NULL
+  AND t.event_date IS NULL
+  AND t.video_url IS NULL;
+
+-- ---------------------------------------------------------------------------
+-- Rebuild the full-text GIN index (fast sorted bulk build).
+-- ---------------------------------------------------------------------------
+CREATE INDEX IF NOT EXISTS idx_bronze_events_text_search_gin
+    ON bronze.bronze_events_text_ai USING GIN (to_tsvector('english', COALESCE(raw_text, '')));
 
 -- ---------------------------------------------------------------------------
 -- Column documentation
