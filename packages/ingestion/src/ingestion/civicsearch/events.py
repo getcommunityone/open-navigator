@@ -8,6 +8,11 @@ VERBATIM — no derivation here; topic/snippet shaping is done downstream in dbt
 (stg_civicsearch__event). Requires migration
 095_create_bronze_events_civicsearch.sql to have been applied.
 
+Post-land steps (so fresh meetings reach the event spine WITH geo): apply
+migration 103 to promote new vid_ids into bronze.bronze_event_youtube, then run
+``python -m scrapers.youtube.enrich_civicsearch_jurisdictions`` to resolve and
+write jurisdiction_id/name/state onto those rows (the promotion leaves them NULL).
+
 Usage:
     python -m scrapers.civicsearch.harvest                 (FETCH)
     python -m ingestion.civicsearch.events                 (LAND)

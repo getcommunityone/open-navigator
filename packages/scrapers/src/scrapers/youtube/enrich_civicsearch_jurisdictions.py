@@ -550,6 +550,59 @@ def write_back(
     return stats
 
 
+def enrich(
+    conn,
+    *,
+    min_confidence: str = "low",
+    dry_run: bool = False,
+    sample: int = 0,
+) -> Dict[str, int]:
+    """Resolve CivicSearch geo and write it onto ``bronze_event_youtube``.
+
+    Importable entry point so a CivicSearch end-to-end runner can chain this
+    right after the promotion (migration 103) without shelling out. Returns the
+    merged resolution + writeback stats. Idempotent — safe to re-run on every
+    fresh harvest; only ``datasource = 'civicsearch'`` rows are touched.
+    """
+    by_state, name_to_code = load_jurisdictions(conn)
+    places = load_civicsearch_places(conn)
+    resolutions, stats = build_resolutions(places, by_state, name_to_code)
+
+    total = stats["resolved"] + stats["unresolved"]
+    logger.info(
+        "Resolved {:,}/{:,} vid_ids ({} high, {} medium, {} low); {:,} unresolved",
+        stats["resolved"],
+        total,
+        stats.get("conf_high", 0),
+        stats.get("conf_medium", 0),
+        stats.get("conf_low", 0),
+        stats.get("unresolved", 0),
+    )
+    for vid, r in list(resolutions.items())[: max(0, sample)]:
+        logger.info(
+            "  {} → {} [{}] {}, {} ({}, {})",
+            vid,
+            r.jurisdiction_id,
+            r.jurisdiction_type,
+            r.jurisdiction_name,
+            r.state_code,
+            r.confidence,
+            r.method,
+        )
+
+    wstats = write_back(
+        conn, resolutions, min_confidence=min_confidence, dry_run=dry_run
+    )
+    logger.info(
+        "{} {:,} eligible (≥{}) → {:,} bronze_event_youtube rows updated",
+        "DRY-RUN" if dry_run else "WROTE",
+        wstats["eligible"],
+        min_confidence,
+        wstats["updated"],
+    )
+    return {**stats, **wstats}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--database-url", default="")
@@ -575,44 +628,11 @@ def main() -> int:
     import psycopg2
 
     with psycopg2.connect(db_url) as conn:
-        by_state, name_to_code = load_jurisdictions(conn)
-        places = load_civicsearch_places(conn)
-        resolutions, stats = build_resolutions(places, by_state, name_to_code)
-
-        total = stats["resolved"] + stats["unresolved"]
-        logger.info(
-            "Resolved {:,}/{:,} vid_ids ({} high, {} medium, {} low); {:,} unresolved",
-            stats["resolved"],
-            total,
-            stats.get("conf_high", 0),
-            stats.get("conf_medium", 0),
-            stats.get("conf_low", 0),
-            stats.get("unresolved", 0),
-        )
-        for vid, r in list(resolutions.items())[: max(0, args.sample)]:
-            logger.info(
-                "  {} → {} [{}] {}, {} ({}, {})",
-                vid,
-                r.jurisdiction_id,
-                r.jurisdiction_type,
-                r.jurisdiction_name,
-                r.state_code,
-                r.confidence,
-                r.method,
-            )
-
-        wstats = write_back(
+        enrich(
             conn,
-            resolutions,
             min_confidence=args.min_confidence,
             dry_run=args.dry_run,
-        )
-        logger.info(
-            "{} {:,} eligible (≥{}) → {:,} bronze_event_youtube rows updated",
-            "DRY-RUN" if args.dry_run else "WROTE",
-            wstats["eligible"],
-            args.min_confidence,
-            wstats["updated"],
+            sample=args.sample,
         )
     return 0
 
