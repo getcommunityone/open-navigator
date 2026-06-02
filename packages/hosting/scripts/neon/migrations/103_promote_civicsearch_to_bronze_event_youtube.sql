@@ -21,6 +21,15 @@
 -- 2-letter token of `location` ("Milford, MA" -> "MA") when present; otherwise NULL.
 -- This is a metadata stub, NOT a transcript (see the separate transcript decision).
 --
+-- REQUIRED FOLLOW-UP: jurisdiction geo (jurisdiction_id / jurisdiction_name /
+-- jurisdiction_type / full state_code) is NOT set here — that needs fuzzy
+-- name+lat/lon matching against int_jurisdictions, which is not expressible in
+-- this stub. After applying this migration (and after every fresh CivicSearch
+-- harvest), run the idempotent resolver to fill it:
+--   .venv/bin/python -m scrapers.youtube.enrich_civicsearch_jurisdictions
+-- Without it, these rows surface as "None, None" in the transcript-backfill log
+-- and carry no geo for the analyze/report jobs or Gemini cache folder naming.
+--
 -- SAFETY
 -- ------
 -- Inserts only vid_ids NOT already in bronze_event_youtube (anti-join on
