@@ -754,6 +754,139 @@ async def search_events_pg(
         return []
 
 
+async def search_documents_pg(
+    query: Optional[str] = None,
+    state: Optional[str] = None,
+    limit: int = 10
+) -> List[SearchResult]:
+    """
+    Full-text search over event documents (meeting transcripts) using PostgreSQL.
+
+    Searches the body text of public.event_documents (transcripts today) and
+    returns a highlighted snippet of the matching passage so results show *why*
+    they matched, plus the linkable meeting it belongs to.
+
+    Args:
+        query: Search text (matched against the document body)
+        state: Filter by state code ('MA') or full name ('Massachusetts')
+        limit: Max results
+
+    Returns:
+        List of SearchResult objects
+    """
+    # Normalize state input to 2-letter code
+    state = normalize_state_input(state)
+
+    try:
+        pool = await get_db_pool()
+
+        where_clauses = []
+        params = []
+        param_idx = 1
+
+        if state:
+            where_clauses.append(f"state_code = ${param_idx}")
+            params.append(state.upper())
+            param_idx += 1
+
+        # Full-text body search (GIN-indexed to_tsvector on content)
+        if query and query.strip():
+            where_clauses.append(
+                f"to_tsvector('english', content) @@ plainto_tsquery('english', ${param_idx})"
+            )
+            params.append(query)
+            q_idx = param_idx
+            param_idx += 1
+
+            order_by = (
+                f"ts_rank(to_tsvector('english', content), "
+                f"plainto_tsquery('english', ${q_idx})) DESC, event_date DESC NULLS LAST"
+            )
+            # Highlighted snippet around the matching passage
+            snippet_sql = (
+                f"ts_headline('english', content, plainto_tsquery('english', ${q_idx}), "
+                f"'MaxFragments=2, MinWords=5, MaxWords=18, StartSel=<mark>, StopSel=</mark>')"
+            )
+        else:
+            order_by = "event_date DESC NULLS LAST"
+            snippet_sql = "LEFT(content, 200)"
+
+        where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
+
+        sql = f"""
+            SELECT
+                event_document_id,
+                event_id,
+                document_type,
+                document_source,
+                video_id,
+                event_title,
+                event_date,
+                jurisdiction_name,
+                jurisdiction_type,
+                state_code,
+                state,
+                city,
+                video_url,
+                word_count,
+                {snippet_sql} AS snippet
+            FROM event_documents
+            WHERE {where_sql}
+            ORDER BY {order_by}
+            LIMIT ${param_idx}
+        """
+        params.append(limit)
+
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(sql, *params)
+
+            results = []
+            for row in rows:
+                location = f"{row['jurisdiction_name']}, {row['state']}" if row['jurisdiction_name'] and row['state'] else ''
+                date_str = row['event_date'].strftime('%Y-%m-%d') if row['event_date'] else ''
+                title = row['event_title'] or 'Meeting transcript'
+                subtitle = f"{location} - {date_str}".strip(' -')
+
+                # event_id is nullable (orphan transcripts have no golden event);
+                # deep-link to the meeting when one exists, else fall back to the
+                # source video.
+                if row['event_id'] is not None:
+                    url = f"/documents?meeting_id={row['event_id']}"
+                else:
+                    url = row['video_url'] or ''
+
+                results.append(SearchResult(
+                    result_type='document',
+                    title=title,
+                    subtitle=subtitle,
+                    description=row['snippet'] or '',
+                    url=url,
+                    score=1.0,
+                    metadata={
+                        'document_id': row['event_document_id'],
+                        'document_type': row['document_type'],
+                        'document_source': row['document_source'],
+                        'meeting_id': row['event_id'],
+                        'video_id': row['video_id'],
+                        'jurisdiction': row['jurisdiction_name'],
+                        'jurisdiction_type': row['jurisdiction_type'],
+                        'state': row['state'],
+                        'state_code': row['state_code'],
+                        'city': row['city'],
+                        'date': date_str,
+                        'video_url': row['video_url'],
+                        'word_count': row['word_count'],
+                    }
+                ))
+
+            logger.info(f"📄 PostgreSQL documents search: {len(results)} results")
+            return results
+
+    except Exception as e:
+        logger.error(f"PostgreSQL documents search error: {e}")
+        return []
+
+
 async def search_bills_pg(
     query: Optional[str] = None,
     state: Optional[str] = None,

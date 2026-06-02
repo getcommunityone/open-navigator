@@ -1451,7 +1451,7 @@ def search_jurisdictions(query: str, state: Optional[str] = None, city: Optional
 @router.get("/search/", include_in_schema=False)
 async def unified_search(
     q: Optional[str] = Query(None, description="Search query (optional - browse by filters if omitted)"),
-    types: Optional[str] = Query(None, description="Comma-separated result types: contacts,meetings,organizations,causes,jurisdictions,bills,topics,decisions"),
+    types: Optional[str] = Query(None, description="Comma-separated result types: contacts,meetings,organizations,causes,jurisdictions,bills,topics,decisions,documents"),
     state: Optional[str] = Query(None, description="Filter by state (2-letter code)"),
     city: Optional[str] = Query(None, description="Filter by city name"),
     jurisdiction_levels: Optional[str] = Query(None, description="Comma-separated jurisdiction levels: city,county,town,village,school_district,special_district,state"),
@@ -1496,7 +1496,7 @@ async def unified_search(
         if types:
             requested_types = [t.strip() for t in types.split(',')]
         else:
-            requested_types = ['contacts', 'meetings', 'organizations', 'causes', 'jurisdictions', 'bills', 'topics', 'decisions']
+            requested_types = ['contacts', 'meetings', 'organizations', 'causes', 'jurisdictions', 'bills', 'topics', 'decisions', 'documents']
         
         # Parse jurisdiction levels if provided
         jurisdiction_levels_list = None
@@ -1562,6 +1562,13 @@ async def unified_search(
             logger.info(f"⚖️ Decisions search returned {len(decision_results)} results")
             all_results.extend(decision_results)
         
+        if 'documents' in requested_types:
+            # Full-text search over meeting transcripts (public.event_documents)
+            document_results_pg = await search_postgres.search_documents_pg(q, state, limit=search_limit)
+            document_results = [convert_pg_result(r) for r in document_results_pg]
+            logger.info(f"📄 Documents search returned {len(document_results)} results")
+            all_results.extend(document_results)
+
         if 'causes' in requested_types:
             cause_results = search_causes(q or "", limit=search_limit)
             logger.info(f"🎯 Causes search returned {len(cause_results)} results")
@@ -1599,6 +1606,7 @@ async def unified_search(
             'decisions': [r.to_dict() for r in paginated_results if r.result_type == 'decision'],
             'causes': [r.to_dict() for r in paginated_results if r.result_type == 'cause'],
             'jurisdictions': [r.to_dict() for r in paginated_results if r.result_type == 'jurisdiction'],
+            'documents': [r.to_dict() for r in paginated_results if r.result_type == 'document'],
         }
         
         logger.info(f"📦 Grouped results - contacts:{len(grouped_results['contacts'])}, meetings:{len(grouped_results['meetings'])}, organizations:{len(grouped_results['organizations'])}, bills:{len(grouped_results['bills'])}, topics:{len(grouped_results['topics'])}, decisions:{len(grouped_results['decisions'])}, causes:{len(grouped_results['causes'])}, jurisdictions:{len(grouped_results['jurisdictions'])}")
@@ -1613,6 +1621,7 @@ async def unified_search(
             'decisions': len([r for r in all_results if r.result_type == 'decision']),
             'causes': len([r for r in all_results if r.result_type == 'cause']),
             'jurisdictions': len([r for r in all_results if r.result_type == 'jurisdiction']),
+            'documents': len([r for r in all_results if r.result_type == 'document']),
         }
         
         # Calculate total results

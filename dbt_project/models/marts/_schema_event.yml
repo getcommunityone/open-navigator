@@ -187,3 +187,104 @@ models:
       - name: video_id
         data_type: text
         description: "YouTube video id the two families share (the join key)."
+
+  - name: event_documents
+    description: >
+      public.event_documents — searchable documents attached to a golden-record
+      event. One row per (event, document); today the only document_type is
+      'transcript' (video transcripts from events_text_search), generalizing to
+      agenda / minutes / caption documents later without a schema change.
+      content holds the full searchable body (GIN full-text indexed). FK
+      event_id -> event. Consumed by the API (search_documents_pg).
+    config:
+      materialized: table
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [event_id]
+        to: ref('event')
+        to_columns: [event_id]
+    columns:
+      - name: event_document_id
+        data_type: bigint
+        description: "Surrogate document id (PK). Stable within a build only."
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: event_id
+        data_type: bigint
+        description: >
+          Golden-record event this document belongs to. NULLABLE: ~90% of
+          transcripts have no golden event yet (un-promoted video) and are kept
+          searchable with event_id NULL. FK enforced for non-null values.
+        tests:
+          - relationships:
+              to: ref('event')
+              field: event_id
+      - name: document_type
+        data_type: text
+        description: "Kind of document. Currently always 'transcript'."
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              values: ['transcript']
+      - name: document_source
+        data_type: text
+        description: "Provenance of the document body (e.g. transcript source 'youtube')."
+      - name: video_id
+        data_type: text
+        description: "YouTube video id the transcript was derived from."
+      - name: content
+        data_type: text
+        description: "Full searchable document body (transcript text). GIN full-text indexed."
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: content_length
+        data_type: integer
+        description: "Character length of content."
+      - name: word_count
+        data_type: integer
+        description: "Approximate word count of content."
+      - name: language
+        data_type: text
+        description: "Document language (e.g. 'en')."
+      - name: is_auto_generated
+        data_type: boolean
+        description: "True when the transcript was auto-generated (vs. human)."
+      - name: segments
+        data_type: jsonb
+        description: "Timed transcript segments (JSONB), when available."
+      - name: event_title
+        data_type: text
+        description: "Denormalized event title for result display."
+      - name: event_date
+        data_type: date
+        description: "Denormalized event date for sort/display."
+      - name: jurisdiction_name
+        data_type: text
+        description: "Denormalized jurisdiction name for result display."
+      - name: jurisdiction_type
+        data_type: text
+        description: "Denormalized jurisdiction type."
+      - name: state_code
+        data_type: text
+        description: "Denormalized 2-letter state code for filtering."
+      - name: state
+        data_type: text
+        description: "Denormalized full state name for display."
+      - name: city
+        data_type: text
+        description: "Denormalized city for display."
+      - name: video_url
+        data_type: text
+        description: "Source video URL."
+      - name: created_at
+        data_type: timestamp without time zone
+        description: "When the underlying transcript row was created."
