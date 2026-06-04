@@ -139,7 +139,10 @@ api_ready AS (
         j.name,
         j.name AS display_name,
 
-        -- API-facing type (matches level_mapping in search_postgres.py)
+        -- API-facing type (matches level_mapping in search_postgres.py).
+        -- search_jurisdictions_pg both filters its WHERE clause on and SELECTs
+        -- `jurisdiction_type` (aliased to `type` in its own SELECT for output),
+        -- so this single canonical column is all the API needs.
         CASE j.jurisdiction_type
             WHEN 'municipality' THEN 'city'
             WHEN 'township'     THEN 'town'
