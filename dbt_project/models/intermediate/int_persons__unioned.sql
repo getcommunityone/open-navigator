@@ -16,6 +16,8 @@
       - stg_persons_ai__person     (bronze_persons_from_ai; AI, lowest trust)
       - stg_contributions__person  (bronze_campaigns_contributions; LAST, FIRST)
       - stg_parcels__person        (bronze_addresses owner_name; SURNAME FIRST)
+      - stg_990_officers__person   (bronze_990_officers; Form 990 Part VII people,
+                                    identity-collapsed to name + EIN, no geography)
 
     TODO: add stg_nccs__org / stg_orgs_ai__org to a parallel org pool.
 */
@@ -30,6 +32,8 @@ with unioned as (
     select * from {{ ref('stg_contributions__person') }}
     union all
     select * from {{ ref('stg_parcels__person') }}
+    union all
+    select * from {{ ref('stg_990_officers__person') }}
 )
 
 select

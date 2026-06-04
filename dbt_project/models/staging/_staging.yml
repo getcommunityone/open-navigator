@@ -1905,3 +1905,35 @@ models:
         description: "TRUE when a non-empty email is present (may be TRUE even when name is missing)."
       - name: email
         description: "Contact email (cleaned, NULL if empty)."
+
+  - name: stg_990_officers__person
+    description: |
+      MDM person-conformance projection of stg_990_officers (IRS Form 990 Part VII
+      officers/directors/trustees/key employees) onto the shared person contract,
+      feeding int_persons__unioned. Collapsed from ~39M (ein, tax_year, person)
+      reporting lines to one row per distinct officer-org identity (name_norm + EIN),
+      the same identity-grain collapse stg_contributions__person uses. source_system
+      = 'bronze_990_officers'. Carries no person geography (city/state/zip null) —
+      the 990 Part VII source has none; the org EIN is retained in `ein` so a future
+      Splink pass can attach geography from the org master.
+    columns:
+      - name: source_pk
+        description: "md5(name_norm || '|' || ein) — deterministic officer-org identity key."
+        tests:
+          - not_null
+      - name: source_system
+        description: "Constant 'bronze_990_officers'."
+        tests:
+          - not_null
+      - name: entity_type
+        description: "'person' | 'organization' (institutional trustees classify as organization and stay out of the person match pool)."
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['person', 'organization']
+      - name: name_norm
+        description: "Normalized person name (normalize_person_name); never null (the source model drops null-name rows)."
+        tests:
+          - not_null
+      - name: ein
+        description: "Bare-digit filer EIN of the org this officer reported for; the person-pool affiliation key."

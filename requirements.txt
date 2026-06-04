@@ -78,6 +78,12 @@ uvicorn[standard]==0.25.0
 pydantic[email]>=2.10,<3
 python-multipart==0.0.27
 
+# Observability (OpenTelemetry tracing for FastAPI — see api/telemetry.py)
+opentelemetry-api==1.42.0
+opentelemetry-sdk==1.42.0
+opentelemetry-instrumentation-fastapi==0.63b0
+opentelemetry-exporter-otlp-proto-http==1.42.0
+
 # Authentication & OAuth
 python-jose[cryptography]==3.3.0  # JWT tokens
 passlib[bcrypt]==1.7.4            # Password hashing

@@ -84,7 +84,7 @@ export default function PeopleFinder() {
     queryKey: ['people-finder', effectiveState, currentPage],
     queryFn: async () => {
       const params: any = {
-        types: 'contacts',
+        types: 'person',
         limit: 100, // API max is 100
         state: effectiveState,
         page: currentPage
@@ -96,15 +96,16 @@ export default function PeopleFinder() {
     staleTime: 60000, // Cache for 1 minute
   })
 
-  // Convert API contacts to Person format
-  const people: Person[] = (contactsData?.results?.contacts || []).map((contact: any, index: number) => ({
+  // Convert API person results to Person format (prefer `person`, fall back to legacy `contacts`)
+  const personResults = contactsData?.results?.person ?? contactsData?.results?.contacts ?? []
+  const people: Person[] = personResults.map((person: any, index: number) => ({
     id: index + 1,
-    name: contact.title || 'Unknown',  // API puts name in title field
+    name: person.metadata?.name || person.title || 'Unknown',  // metadata.name canonical; title fallback
     role: 'decision-makers' as PersonRole,
-    specificRole: contact.metadata.title || contact.metadata.role_type || 'Official',
-    organization: contact.metadata.organization || contact.metadata.state || 'Government',
-    location: `${contact.metadata.city || contact.metadata.state || ''}`.trim(),
-    contact: contact.metadata.email || undefined,
+    specificRole: person.metadata.title || person.metadata.role_type || 'Official',
+    organization: person.metadata.organization || person.metadata.state || 'Government',
+    location: `${person.metadata.city || person.metadata.state || ''}`.trim(),
+    contact: person.metadata.email || undefined,
   }))
 
   // Debug logging
@@ -113,9 +114,9 @@ export default function PeopleFinder() {
       effectiveState,
       defaultCity,
       totalResults: contactsData.total_results,
-      contactsReturned: contactsData.results?.contacts?.length || 0,
+      peopleReturned: personResults.length,
       peopleConverted: people.length,
-      sampleContact: contactsData.results?.contacts?.[0]
+      samplePerson: personResults[0]
     })
   }
 
@@ -176,9 +177,9 @@ export default function PeopleFinder() {
       {/* Error State */}
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 mb-8">
-          <h3 className="text-red-800 font-semibold mb-2">Error loading contacts</h3>
+          <h3 className="text-red-800 font-semibold mb-2">Error loading people</h3>
           <p className="text-red-600 text-sm">
-            {error instanceof Error ? error.message : 'Failed to load contacts from the API'}
+            {error instanceof Error ? error.message : 'Failed to load people from the API'}
           </p>
           <button 
             onClick={() => window.location.reload()} 

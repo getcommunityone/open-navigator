@@ -25,11 +25,11 @@ import {
   XMarkIcon,
   UserCircleIcon,
   ChevronDownIcon,
+  CheckIcon,
   EnvelopeIcon,
   Cog6ToothIcon,
   ArrowRightOnRectangleIcon,
   ClipboardDocumentListIcon,
-  FunnelIcon,
   CodeBracketIcon,
 } from '@heroicons/react/24/outline'
 import {
@@ -171,11 +171,14 @@ export default function Home() {
   const [selectedStoryTab, setSelectedStoryTab] = useState(0)
   const [heroSearchTab, setHeroSearchTab] = useState<HeroSearchCategoryTab>('all')
   const [showSuggestions, setShowSuggestions] = useState(false)
+  const [focused, setFocused] = useState(false)
+  const [scopeOpen, setScopeOpen] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [showLoginMenu, setShowLoginMenu] = useState(false)
   const { location, setLocation } = useLocationContext()
   const { user, isAuthenticated, login, logout, isLoading } = useAuth()
   const searchContainerRef = useRef<HTMLDivElement>(null)
+  const scopeRef = useRef<HTMLDivElement>(null)
 
   const DOCS_URL = import.meta.env.PROD ? 'https://www.communityone.com/docs/intro' : 'http://localhost:3000/docs/intro'
   
@@ -206,6 +209,22 @@ export default function Home() {
       };
     }
   }, [showSuggestions]);
+
+  // Close location scope dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (scopeRef.current && !scopeRef.current.contains(event.target as Node)) {
+        setScopeOpen(false);
+      }
+    };
+
+    if (scopeOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [scopeOpen]);
 
   // Fetch stats based on location AND search scope
   const { data: locationStats } = useQuery({
@@ -321,6 +340,32 @@ export default function Home() {
   const heroSearchTypes = React.useMemo(() => {
     const row = HERO_SEARCH_TAB_DEFS.find((t) => t.id === heroSearchTab)
     return row?.types ?? HERO_SEARCH_TAB_DEFS[0].types
+  }, [heroSearchTab])
+
+  // Human-readable label for the currently selected search scope (reused by the
+  // location selector button and the live "Searching … in …" hint line).
+  const scopeLabel = React.useMemo(() => {
+    if (!location) return 'your area'
+    switch (searchScope) {
+      case 'city':
+        return `My City (${location.city || '—'})`
+      case 'county':
+        return `My County (${location.county || '—'})`
+      case 'community':
+        return `School Board (${location.city || '—'})`
+      case 'state':
+        return `My State (${location.state})`
+      case 'national':
+        return 'National'
+      default:
+        return 'your area'
+    }
+  }, [location, searchScope])
+
+  const scopeNoun = React.useMemo(() => {
+    if (heroSearchTab === 'all') return 'everything'
+    const row = HERO_SEARCH_TAB_DEFS.find((t) => t.id === heroSearchTab)
+    return (row?.label ?? 'everything').toLowerCase()
   }, [heroSearchTab])
 
   // Generate dynamic subtitle based on location and search scope
@@ -1003,123 +1048,159 @@ export default function Home() {
                         Search examples include school board budget, mental health nonprofit, zoning, and transit.
                       </span>
 
-                      <div className="mx-auto w-full max-w-6xl px-1">
-                        <p
-                          id="hero-search-tabs-label"
-                          className="mb-2 flex items-center justify-center gap-1.5 text-center text-[11px] font-semibold uppercase tracking-[0.1em] text-[#6b8a8a]"
-                        >
-                          <FunnelIcon className="h-3.5 w-3.5 shrink-0 text-[#1a6b6b]" aria-hidden />
-                          <span>Filter search by category</span>
-                        </p>
-                      <div
-                        role="tablist"
-                        aria-labelledby="hero-search-tabs-label"
-                        className="flex justify-center"
-                        onKeyDown={(e) => {
-                          const idx = HERO_SEARCH_TAB_DEFS.findIndex((t) => t.id === heroSearchTab)
-                          if (idx < 0) return
-                          if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-                            e.preventDefault()
-                            const next = HERO_SEARCH_TAB_DEFS[(idx + 1) % HERO_SEARCH_TAB_DEFS.length]
-                            setHeroSearchTab(next.id)
-                            window.requestAnimationFrame(() => {
-                              document.getElementById(`hero-search-tab-${next.id}`)?.focus()
-                            })
-                          } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-                            e.preventDefault()
-                            const prev =
-                              HERO_SEARCH_TAB_DEFS[
-                                (idx - 1 + HERO_SEARCH_TAB_DEFS.length) % HERO_SEARCH_TAB_DEFS.length
-                              ]
-                            setHeroSearchTab(prev.id)
-                            window.requestAnimationFrame(() => {
-                              document.getElementById(`hero-search-tab-${prev.id}`)?.focus()
-                            })
-                          }
-                        }}
-                      >
-                        <div className="inline-flex max-w-full flex-wrap justify-center gap-2 rounded-full border border-[#d4e8e8] bg-[#e8f2f2] p-2 shadow-inner">
-                          {HERO_SEARCH_TAB_DEFS.map((tab) => {
-                            const selected = heroSearchTab === tab.id
-                            const countBadge =
-                              tab.id === 'bills'
-                                ? formatCompactCount(locationStats?.bills as number | undefined)
-                                : tab.count
-                            return (
-                              <button
-                                key={tab.id}
-                                type="button"
-                                id={`hero-search-tab-${tab.id}`}
-                                role="tab"
-                                aria-selected={selected}
-                                tabIndex={selected ? 0 : -1}
-                                title={`Show ${tab.label} results`}
-                                className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-4 py-2 text-[13px] font-semibold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1a6b6b] focus-visible:ring-offset-2 active:scale-[0.98] ${
-                                  selected
-                                    ? 'border-[#1a6b6b] bg-[#1a6b6b] text-white shadow-[0_2px_10px_rgba(26,107,107,0.35)]'
-                                    : 'border border-white/90 bg-white text-[#4a6a6a] shadow-sm hover:border-[#1a6b6b]/45 hover:bg-[#f7fafb] hover:text-[#0f2b2b] hover:shadow-md'
-                                }`}
-                                onClick={() => setHeroSearchTab(tab.id)}
-                              >
-                                {tab.label}
-                                {countBadge ? (
-                                  <span
-                                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold leading-none tabular-nums ${
-                                      selected
-                                        ? 'border border-white/30 bg-white/20 text-white'
-                                        : 'bg-[#e8f4f4] text-[#1a6b6b]'
-                                    }`}
-                                  >
-                                    {countBadge}
-                                  </span>
-                                ) : null}
-                              </button>
-                            )
-                          })}
-                        </div>
-                      </div>
-                      </div>
+                      <span id="hero-search-tabs-label" className="sr-only">
+                        Filter search by category
+                      </span>
 
-                      {/* Search Box */}
-                      <div className="w-full max-w-6xl mx-auto" ref={searchContainerRef}>
-                        <div
-                          id="hero-search-primary"
-                          className="overflow-visible rounded-xl border-[1.5px] border-[#d4e8e8] bg-white shadow-[0_4px_20px_rgba(26,107,107,0.08)]"
-                        >
-                          <form onSubmit={handleSearch} className="flex flex-col lg:flex-row lg:items-start divide-y lg:divide-y-0 lg:divide-x divide-[#d4e8e8]">
-                            <div className="relative min-w-0 flex-1 p-3 md:py-3.5 md:pl-4 md:pr-2">
-                              <label
-                                htmlFor="hero-search-input"
-                                className="mb-1 block text-left text-[13px] font-medium leading-snug text-[#6b8a8a] sm:text-sm"
-                                style={{ fontFamily: "'DM Sans', sans-serif" }}
-                              >
+                      {/* Search Box — single unified rounded pill bar */}
+                      <div className="w-full max-w-4xl mx-auto px-1" ref={searchContainerRef}>
+                        <div className="relative">
+                          <form
+                            onSubmit={handleSearch}
+                            id="hero-search-primary"
+                            className="flex flex-col items-stretch overflow-visible rounded-2xl border-2 bg-white transition-all lg:flex-row"
+                            style={{
+                              borderColor: focused ? '#1a6b6b' : '#d4e8e8',
+                              boxShadow: focused
+                                ? '0 0 0 4px rgba(26,107,107,0.2), 0 4px 20px rgba(26,107,107,0.10)'
+                                : '0 4px 20px rgba(26,107,107,0.08)',
+                            }}
+                          >
+                            {/* 1. Query region (dominant) */}
+                            <div className="flex flex-1 items-center pl-6">
+                              <MagnifyingGlassIcon
+                                className="pointer-events-none h-7 w-7 shrink-0 text-[#6b8a8a]"
+                                aria-hidden
+                              />
+                              <label htmlFor="hero-search-input" className="sr-only">
                                 Search for topics, people, organizations, or causes
                               </label>
-                              <div className="flex min-h-[2.75rem] items-center gap-2.5 rounded-[10px] border border-[#c5dede] bg-[#f7fafb] px-3 py-1.5 shadow-[inset_0_1px_2px_rgba(15,43,43,0.06)] transition-colors focus-within:border-[#1a6b6b] focus-within:bg-white focus-within:shadow-[inset_0_0_0_1px_rgba(26,107,107,0.2),0_1px_3px_rgba(26,107,107,0.08)]">
-                                <MagnifyingGlassIcon
-                                  className="pointer-events-none h-5 w-5 shrink-0 text-[#6b8a8a]"
-                                  aria-hidden
-                                />
-                                <input
-                                  id="hero-search-input"
-                                  type="search"
-                                  name="q"
-                                  autoComplete="off"
-                                  placeholder="Try 'school board budget' or 'mental health nonprofits'…"
-                                  title='Examples: "school board budget", "mental health nonprofit", "zoning", "transit".'
-                                  aria-describedby="hero-search-hint"
-                                  value={keyword}
-                                  onChange={handleKeywordChange}
-                                  onFocus={() => {
-                                    if (keyword.length >= 2) {
-                                      setShowSuggestions(true)
-                                    }
-                                  }}
-                                  className="min-h-[2.25rem] min-w-0 flex-1 border-0 bg-transparent p-0 text-[15px] leading-snug text-[#0f2b2b] placeholder:text-[#9bb8b8] placeholder:leading-snug focus:outline-none focus:ring-0"
+                              <input
+                                id="hero-search-input"
+                                type="search"
+                                name="q"
+                                autoComplete="off"
+                                placeholder="Try 'school board budget' or 'mental health nonprofits'…"
+                                title='Examples: "school board budget", "mental health nonprofit", "zoning", "transit".'
+                                aria-describedby="hero-search-hint"
+                                value={keyword}
+                                onChange={handleKeywordChange}
+                                onFocus={() => {
+                                  setFocused(true)
+                                  if (keyword.length >= 2) {
+                                    setShowSuggestions(true)
+                                  }
+                                }}
+                                onBlur={() => setFocused(false)}
+                                className="min-w-0 flex-1 border-0 bg-transparent px-3 py-5 text-lg leading-snug text-[#0f2b2b] placeholder:text-[#9bb8b8] focus:outline-none focus:ring-0 md:py-6 md:text-xl"
+                                style={{ fontFamily: "'DM Sans', sans-serif" }}
+                              />
+                            </div>
+
+                            {/* 2. Location selector region (secondary) */}
+                            <div
+                              ref={scopeRef}
+                              className="relative flex items-stretch border-t border-[#d4e8e8] lg:border-l lg:border-t-0"
+                            >
+                              {location ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setScopeOpen((o) => !o)}
+                                  aria-haspopup="listbox"
+                                  aria-expanded={scopeOpen}
+                                  aria-label="Search area"
+                                  className="flex w-full items-center justify-center gap-2 px-5 py-4 text-[15px] font-medium text-[#0f2b2b] transition-colors hover:bg-[#f7fafb] lg:py-0"
                                   style={{ fontFamily: "'DM Sans', sans-serif" }}
-                                />
-                              </div>
-                                
+                                >
+                                  <MapPinIcon className="h-5 w-5 shrink-0 text-[#1a6b6b]" aria-hidden />
+                                  <span className="truncate max-w-[12rem]">{scopeLabel}</span>
+                                  <ChevronDownIcon
+                                    className={`h-4 w-4 shrink-0 text-[#6b8a8a] transition-transform ${scopeOpen ? 'rotate-180' : ''}`}
+                                    aria-hidden
+                                  />
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedTab(1)}
+                                  className="flex w-full items-center justify-center gap-2 px-5 py-4 text-[15px] font-semibold text-[#1a6b6b] transition-colors hover:bg-[#f7fafb] lg:py-0"
+                                  style={{ fontFamily: "'DM Sans', sans-serif" }}
+                                >
+                                  <MapPinIcon className="h-5 w-5 shrink-0" aria-hidden />
+                                  <span>Set location</span>
+                                </button>
+                              )}
+
+                              {/* Custom scope dropdown panel */}
+                              {location && scopeOpen && (
+                                <div
+                                  role="listbox"
+                                  aria-label="Search area"
+                                  className="absolute right-0 top-full z-50 mt-2 w-72 overflow-hidden rounded-xl border border-[#d4e8e8] bg-white py-1 text-left shadow-[0_8px_30px_rgba(26,107,107,0.18)]"
+                                >
+                                  {([
+                                    { value: 'city', label: `My City (${location.city || '—'})`, disabled: !location.city },
+                                    { value: 'county', label: `My County (${location.county || '—'})`, disabled: !location.county },
+                                    { value: 'community', label: `School Board (${location.city || '—'})`, disabled: !location.city },
+                                    { value: 'state', label: `My State (${location.state})`, disabled: false },
+                                    { value: 'national', label: 'National', disabled: false },
+                                  ] as { value: string; label: string; disabled: boolean }[]).map((opt) => {
+                                    const active = searchScope === opt.value
+                                    return (
+                                      <button
+                                        key={opt.value}
+                                        type="button"
+                                        role="option"
+                                        aria-selected={active}
+                                        disabled={opt.disabled}
+                                        onClick={() => {
+                                          setSearchScope(opt.value)
+                                          setScopeOpen(false)
+                                        }}
+                                        className={`flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm transition-colors ${
+                                          opt.disabled
+                                            ? 'cursor-not-allowed text-[#9bb8b8]'
+                                            : active
+                                              ? 'bg-[#e8f4f4] font-semibold text-[#0f2b2b]'
+                                              : 'text-[#0f2b2b] hover:bg-[#f7fafb]'
+                                        }`}
+                                        style={{ fontFamily: "'DM Sans', sans-serif" }}
+                                      >
+                                        <CheckIcon
+                                          className={`h-4 w-4 shrink-0 ${active ? 'text-[#1a6b6b]' : 'text-transparent'}`}
+                                          aria-hidden
+                                        />
+                                        <span className="truncate">{opt.label}</span>
+                                      </button>
+                                    )
+                                  })}
+                                  <div className="my-1 border-t border-[#d4e8e8]" />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setScopeOpen(false)
+                                      setSelectedTab(1)
+                                    }}
+                                    className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-[#1a6b6b] transition-colors hover:bg-[#f7fafb]"
+                                    style={{ fontFamily: "'DM Sans', sans-serif" }}
+                                  >
+                                    <MapIcon className="h-4 w-4 shrink-0" aria-hidden />
+                                    Change Location
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* 3. CTA submit */}
+                            <button
+                              type="submit"
+                              aria-label="Search"
+                              className="flex items-center justify-center border-t border-[#d4e8e8] bg-[#1a6b6b] px-6 py-4 text-white transition-colors hover:bg-[#2a8585] lg:rounded-r-2xl lg:border-l lg:border-t-0 lg:py-0"
+                            >
+                              <MagnifyingGlassIcon className="h-6 w-6" aria-hidden />
+                            </button>
+                          </form>
+
                                 {/* Error Display - Below Input */}
                                 {keyword.length >= 2 && previewError && (
                                   <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-red-50 border border-red-200 rounded-lg shadow-lg p-3">
@@ -1402,74 +1483,84 @@ export default function Home() {
                                     )}
                                   </div>
                                 )}
-                              </div>
-                              
-                            <div className="flex flex-col justify-start border-[#d4e8e8] p-3 md:px-4 md:py-3.5 lg:w-[min(20rem,32vw)] lg:shrink-0 lg:border-t-0">
-                              <label
-                                htmlFor="hero-search-scope"
-                                className="mb-1 block text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-[#6b8a8a]"
-                                style={{ fontFamily: "'DM Sans', sans-serif" }}
-                              >
-                                Search In
-                              </label>
-                              {location ? (
-                                <div className="relative pb-6">
-                                  <div className="flex min-h-[2.75rem] items-center rounded-[10px] border border-[#c5dede] bg-white px-3 py-1.5 shadow-[inset_0_1px_2px_rgba(15,43,43,0.04)] transition-colors focus-within:border-[#1a6b6b] focus-within:shadow-[inset_0_0_0_1px_rgba(26,107,107,0.2),0_1px_3px_rgba(26,107,107,0.08)]">
-                                  <select
-                                    id="hero-search-scope"
-                                    value={searchScope}
-                                    onChange={(e) => setSearchScope(e.target.value)}
-                                    className="min-h-[2.25rem] w-full min-w-0 flex-1 cursor-pointer border-0 bg-transparent p-0 text-[15px] font-medium leading-snug text-[#0f2b2b] focus:outline-none focus:ring-0"
-                                    aria-label="Search area"
-                                    style={{ fontFamily: "'DM Sans', sans-serif" }}
-                                  >
-                                    <option value="city" disabled={!location.city}>
-                                      My City ({location.city || '—'})
-                                    </option>
-                                    <option value="county" disabled={!location.county}>
-                                      My County ({location.county || '—'})
-                                    </option>
-                                    <option value="community" disabled={!location.city}>
-                                      School Board ({location.city || '—'})
-                                    </option>
-                                    <option value="state">My State ({location.state})</option>
-                                    <option value="national">National</option>
-                                  </select>
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => setSelectedTab(1)}
-                                    className="absolute bottom-0 left-0 right-0 flex items-center justify-center gap-1 text-xs font-medium text-[#1a6b6b] underline decoration-[#1a6b6b]/40 underline-offset-2 hover:text-[#0f2b2b] hover:decoration-[#0f2b2b]/40"
-                                    style={{ fontFamily: "'DM Sans', sans-serif" }}
-                                  >
-                                    <MapIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                                    Change Location
-                                  </button>
-                                </div>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => setSelectedTab(1)}
-                                  className="flex min-h-[2.75rem] w-full items-center justify-center gap-2 rounded-[10px] border border-[#1a6b6b] bg-[#e8f4f4] px-3 py-1.5 text-sm font-semibold text-[#0f2b2b] transition-colors hover:bg-[#d9ecec]"
-                                  style={{ fontFamily: "'DM Sans', sans-serif" }}
-                                >
-                                  <MapIcon className="h-4 w-4 shrink-0" aria-hidden />
-                                  Set Your Location First
-                                </button>
-                              )}
-                            </div>
-
-                            <div className="flex items-center justify-center p-3 lg:min-w-[8.5rem] lg:flex-initial lg:self-center lg:p-2">
-                              <button
-                                type="submit"
-                                className="w-full min-h-[2.75rem] rounded-lg bg-[#1a6b6b] px-5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#2a8585] lg:w-auto lg:min-w-[7.5rem]"
-                                style={{ fontFamily: "'DM Sans', sans-serif" }}
-                              >
-                                Search
-                              </button>
-                            </div>
-                          </form>
                         </div>
+
+                        {/* Category scope chips (below the bar) */}
+                        <div
+                          role="tablist"
+                          aria-labelledby="hero-search-tabs-label"
+                          className="mt-4 flex flex-wrap justify-center gap-2"
+                          onKeyDown={(e) => {
+                            const idx = HERO_SEARCH_TAB_DEFS.findIndex((t) => t.id === heroSearchTab)
+                            if (idx < 0) return
+                            if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+                              e.preventDefault()
+                              const next = HERO_SEARCH_TAB_DEFS[(idx + 1) % HERO_SEARCH_TAB_DEFS.length]
+                              setHeroSearchTab(next.id)
+                              window.requestAnimationFrame(() => {
+                                document.getElementById(`hero-search-tab-${next.id}`)?.focus()
+                              })
+                            } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+                              e.preventDefault()
+                              const prev =
+                                HERO_SEARCH_TAB_DEFS[
+                                  (idx - 1 + HERO_SEARCH_TAB_DEFS.length) % HERO_SEARCH_TAB_DEFS.length
+                                ]
+                              setHeroSearchTab(prev.id)
+                              window.requestAnimationFrame(() => {
+                                document.getElementById(`hero-search-tab-${prev.id}`)?.focus()
+                              })
+                            }
+                          }}
+                        >
+                          {HERO_SEARCH_TAB_DEFS.map((tab) => {
+                            const selected = heroSearchTab === tab.id
+                            const countBadge =
+                              tab.id === 'bills'
+                                ? formatCompactCount(locationStats?.bills as number | undefined)
+                                : tab.count
+                            return (
+                              <button
+                                key={tab.id}
+                                type="button"
+                                id={`hero-search-tab-${tab.id}`}
+                                role="tab"
+                                aria-selected={selected}
+                                tabIndex={selected ? 0 : -1}
+                                title={`Show ${tab.label} results`}
+                                className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-4 py-2 text-[13px] font-semibold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1a6b6b] focus-visible:ring-offset-2 active:scale-[0.98] ${
+                                  selected
+                                    ? 'border-[#1a6b6b] bg-[#1a6b6b] text-white shadow-[0_2px_10px_rgba(26,107,107,0.35)]'
+                                    : 'border-[#d4e8e8] bg-white text-[#4a6a6a] shadow-sm hover:border-[#1a6b6b]/45 hover:bg-[#f7fafb] hover:text-[#0f2b2b] hover:shadow-md'
+                                }`}
+                                onClick={() => setHeroSearchTab(tab.id)}
+                                style={{ fontFamily: "'DM Sans', sans-serif" }}
+                              >
+                                {tab.label}
+                                {countBadge ? (
+                                  <span
+                                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold leading-none tabular-nums ${
+                                      selected
+                                        ? 'border border-white/30 bg-white/20 text-white'
+                                        : 'bg-[#e8f4f4] text-[#1a6b6b]'
+                                    }`}
+                                  >
+                                    {countBadge}
+                                  </span>
+                                ) : null}
+                              </button>
+                            )
+                          })}
+                        </div>
+
+                        {/* Live scope hint */}
+                        <p
+                          className="mt-3 text-sm text-[#6b8a8a]"
+                          style={{ fontFamily: "'DM Sans', sans-serif" }}
+                        >
+                          Searching <span className="font-semibold text-[#0f2b2b]">{scopeNoun}</span> in{' '}
+                          <span className="font-semibold text-[#1a6b6b]">{scopeLabel}</span>
+                        </p>
                       </div>
                     </div>
 

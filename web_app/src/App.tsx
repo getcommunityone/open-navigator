@@ -12,6 +12,7 @@ import Nonprofits from './pages/Nonprofits'
 import NonprofitsHF from './pages/NonprofitsHF'
 import Settings from './pages/Settings'
 import PeopleFinder from './pages/PeopleFinder'
+import PersonDetail from './pages/PersonDetail'
 import DebateFinder from './pages/DebateGrader'
 import Profile from './pages/Profile'
 import Explore from './pages/Explore'
@@ -124,6 +125,7 @@ function App() {
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="analytics" element={<Analytics />} />
         <Route path="people" element={<PeopleFinder />} />
+        <Route path="person/:id" element={<PersonDetail />} />
         <Route path="heatmap" element={<Heatmap />} />
         <Route path="policy-map" element={<PolicyMap />} />
         <Route path="census-map/county/:vintage/:metric" element={<CensusCountyAliasRedirect />} />

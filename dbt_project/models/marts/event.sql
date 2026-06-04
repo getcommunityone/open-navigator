@@ -1,3 +1,12 @@
+{#
+  post_hook FTS index rationale: full-text search support for search_events_pg
+  (api/routes/search_postgres.py). That search UNIONs a title-FTS branch with a
+  jurisdiction-substring branch; both need a GIN index or Postgres falls back to
+  a 153k-row seq scan that recomputes to_tsvector per row (~3.8s for a common
+  term). pg_trgm backs the leading-wildcard ILIKE on jurisdiction_name (a plain
+  btree cannot). Kept as a Jinja comment, NOT a `--` SQL comment inside the
+  config() list, which is invalid Jinja and breaks `dbt parse`.
+#}
 {{
   config(
     materialized='table',
@@ -13,6 +22,11 @@
       {'columns': ['channel_id'], 'type': 'btree'},
       {'columns': ['video_url'], 'unique': True},
       {'columns': ['source'], 'type': 'btree'}
+    ],
+    post_hook=[
+      "CREATE EXTENSION IF NOT EXISTS pg_trgm",
+      "CREATE INDEX IF NOT EXISTS event_title_fts_idx ON {{ this }} USING gin (to_tsvector('english', event_title))",
+      "CREATE INDEX IF NOT EXISTS event_jurisdiction_trgm_idx ON {{ this }} USING gin (jurisdiction_name gin_trgm_ops)"
     ]
   )
 }}
