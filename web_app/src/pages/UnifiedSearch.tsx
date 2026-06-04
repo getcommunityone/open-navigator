@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
+import { withSpan } from '../instrumentation'
 import { 
   MagnifyingGlassIcon, 
   UserIcon, 
@@ -319,8 +320,23 @@ export default function UnifiedSearch() {
         params.full_text = 'true'
       }
       
-      const response = await api.get('/search/', { params })
-      return response.data
+      // Trace the search data-load. Low-cardinality attributes only — query
+      // length/presence and enum-ish facets, never the raw query string.
+      return withSpan(
+        'search.fetch',
+        async () => {
+          const response = await api.get('/search/', { params })
+          return response.data
+        },
+        {
+          'search.q.length': activeQuery ? activeQuery.length : 0,
+          'search.has_query': !!activeQuery,
+          'search.has_state': !!selectedState,
+          'search.has_ein': !!selectedEin,
+          'search.type_count': selectedTypes.length,
+          'search.page': currentPage,
+        },
+      )
     },
     // Enable if we have query OR filters (browse mode) OR EIN
     enabled: (activeQuery && activeQuery.length >= 2) || selectedState !== '' || selectedTypes.length > 0 || selectedEin !== ''

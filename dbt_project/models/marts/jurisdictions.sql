@@ -1,96 +1,192 @@
+{#
+  post_hook GIN FTS index rationale: jurisdiction search (search_jurisdictions_pg
+  in api/routes/search_postgres.py) ranks with
+  ts_rank(to_tsvector('english', COALESCE(search_text, display_name)), query).
+  Without a GIN index Postgres recomputes to_tsvector over all ~82k rows per
+  query (seq scan). The index expression MUST match the API's tsvector
+  expression exactly (COALESCE(search_text, display_name)) for the planner to
+  use it. Mirrors the pattern in event.sql / event_documents.sql. This note
+  lives in a Jinja comment, NOT a `--` SQL comment inside config(), which is
+  invalid Jinja and breaks `dbt parse` for the whole project.
+#}
 {{
   config(
     materialized='table',
-    tags=['gold', 'jurisdictions', 'api']
+    tags=['gold', 'jurisdictions', 'api'],
+    unique_key='jurisdiction_id',
+    indexes=[
+      {'columns': ['jurisdiction_id'], 'unique': True},
+      {'columns': ['geoid'], 'type': 'btree'},
+      {'columns': ['state_code'], 'type': 'btree'},
+      {'columns': ['jurisdiction_type'], 'type': 'btree'}
+    ],
+    post_hook=[
+      "CREATE INDEX IF NOT EXISTS jurisdictions_search_fts_idx ON {{ this }} USING gin (to_tsvector('english', coalesce(search_text, display_name)))"
+    ]
   )
 }}
 
 /*
-Gold Jurisdictions - API-Ready Final Table
+public.jurisdictions - API-Ready Final Table
 
-This is the final, cleaned, and enriched jurisdiction table for API consumption.
-Combines data from bronze and silver layers with additional business logic.
+Single source of truth for jurisdiction data consumed by
+api/routes/search_postgres.py (search_jurisdictions_pg) and the frontend
+jurisdiction search.
 
-Purpose:
-- Single source of truth for jurisdiction data
-- Optimized for API queries
-- Includes all necessary fields for frontend display
-- Quality-filtered (excludes invalid records)
+Lineage note: rebuilt on the LIVE canonical pipeline
+(intermediate.int_jurisdictions, 82,921 rows, built from the sharded
+bronze.bronze_jurisdictions_* tables). The previous lineage
+(source bronze_jurisdictions -> int_jurisdictions_clean ->
+int_jurisdictions_linked) was dead in this warehouse: the single "master list"
+table bronze.bronze_jurisdictions was never created here, only the shards.
 
-Target: API routes (api/routes/search_postgres.py)
+One row per jurisdiction (per geoid). Enrichment joins are deduped so they do
+not fan out the grain:
+  - population  <- public.jurisdiction_acs.total_population (on geoid)
+  - website_url <- intermediate.int_jurisdiction_websites (best 1 per
+                   jurisdiction_id, ranked by source quality)
+
+jurisdiction_type is mapped to the values the API level filter expects
+(level_mapping in search_postgres.py: city/county/town/village/
+school_district/special_district/state). Census-native 'municipality' -> 'city'
+and 'township' -> 'town'; the raw census type is kept as jurisdiction_category.
 */
 
-WITH silver_jurisdictions AS (
+WITH base AS (
     SELECT *
-    FROM {{ ref('int_jurisdictions_linked') }}
+    FROM {{ ref('int_jurisdictions') }}
 ),
 
--- Filter out low-quality records
+-- Quality filter: must have the essential identifiers + a valid geoid length
 quality_filtered AS (
     SELECT *
-    FROM silver_jurisdictions
+    FROM base
     WHERE
-        -- Must have essential identifiers
-        NOT missing_name
-        AND NOT missing_state_code
-        AND NOT missing_geoid
-        -- GEOID must be valid length for type
-        AND NOT invalid_geoid_length
-        -- Must have valid type
-        AND type IS NOT NULL
+        name IS NOT NULL
+        AND state_code IS NOT NULL
+        AND geoid IS NOT NULL
+        AND jurisdiction_type IS NOT NULL
+        AND (
+            (jurisdiction_type = 'state'           AND length(geoid) = 2)
+            OR (jurisdiction_type = 'county'        AND length(geoid) = 5)
+            OR (jurisdiction_type = 'municipality'  AND length(geoid) = 7)
+            OR (jurisdiction_type = 'school_district' AND length(geoid) = 7)
+            OR (jurisdiction_type = 'township'      AND length(geoid) = 10)
+        )
 ),
 
--- Add API-specific fields
+-- Best single website per jurisdiction (avoid fan-out; up to 136 rows/jurisdiction)
+websites_ranked AS (
+    SELECT
+        jurisdiction_id,
+        website_url,
+        ROW_NUMBER() OVER (
+            PARTITION BY jurisdiction_id
+            ORDER BY
+                CASE website_source
+                    WHEN 'override'        THEN 1
+                    WHEN 'gsa'             THEN 2
+                    WHEN 'naco'            THEN 3
+                    WHEN 'nces_directory'  THEN 4
+                    WHEN 'league'          THEN 5
+                    WHEN 'uscm'            THEN 6
+                    WHEN 'wikidata'        THEN 7
+                    ELSE 99
+                END,
+                website_url
+        ) AS rn
+    FROM {{ ref('int_jurisdiction_websites') }}
+    WHERE jurisdiction_id IS NOT NULL
+      AND website_url IS NOT NULL
+),
+
+best_website AS (
+    SELECT jurisdiction_id, website_url
+    FROM websites_ranked
+    WHERE rn = 1
+),
+
+-- Population: ACS has multiple rows per geoid (geography_type place vs sduni,
+-- multiple vintages). Dedupe to one row per geoid, latest vintage first.
+acs_ranked AS (
+    SELECT
+        geoid,
+        total_population,
+        ROW_NUMBER() OVER (
+            PARTITION BY geoid
+            ORDER BY acs_vintage_year DESC,
+                     CASE geography_type WHEN 'place' THEN 1 ELSE 2 END,
+                     total_population DESC
+        ) AS rn
+    FROM {{ source('gold_runtime', 'jurisdiction_acs') }}
+    WHERE geoid IS NOT NULL
+),
+
+acs AS (
+    SELECT geoid, total_population
+    FROM acs_ranked
+    WHERE rn = 1
+),
+
 api_ready AS (
     SELECT
-        -- Primary identifiers
-        id AS jurisdiction_id,
-        geoid_clean AS geoid,
-        fips_code_clean AS fips_code,
-        ansicode,
-        
+        j.jurisdiction_id,
+        j.geoid,
+        j.fips_code,
+        j.ansicode,
+
         -- Display fields
-        name,
-        name_clean AS display_name,
-        type AS jurisdiction_type,
-        jurisdiction_category,
-        
+        j.name,
+        j.name AS display_name,
+
+        -- API-facing type (matches level_mapping in search_postgres.py)
+        CASE j.jurisdiction_type
+            WHEN 'municipality' THEN 'city'
+            WHEN 'township'     THEN 'town'
+            ELSE j.jurisdiction_type
+        END AS jurisdiction_type,
+        -- Raw census classification preserved for provenance
+        j.jurisdiction_type AS jurisdiction_category,
+
         -- Geographic hierarchy
-        state_code,
-        state AS state_name,
-        county AS county_name,
-        
-        -- Demographic data
-        population,
-        area_sq_miles,
-        
+        j.state_code,
+        j.state AS state_name,
+        -- A county's own name IS its county; no place->county crosswalk is
+        -- available at scale (bronze_jurisdictions_place_county has only 66
+        -- rows), so non-county jurisdictions have a NULL county_name.
+        CASE
+            WHEN j.jurisdiction_type = 'county' THEN j.name
+            ELSE NULL
+        END AS county_name,
+
+        -- Demographics
+        a.total_population::bigint AS population,
+        j.area_sq_miles,
+
         -- Location
-        latitude,
-        longitude,
-        
+        j.latitude,
+        j.longitude,
+
         -- Links
-        website_url,
-        
-        -- Metadata for search
-        search_text,
-        
-        -- Data provenance
-        source AS data_source,
-        match_confidence,
-        
-        -- Timestamps
-        created_at,
-        updated_at,
-        transformed_at,
-        linked_at,
+        w.website_url,
+
+        -- Search blob: name + state + type (+ county when present)
+        TRIM(
+            CONCAT_WS(' ',
+                j.name,
+                j.state,
+                j.state_code,
+                j.jurisdiction_type,
+                CASE WHEN j.jurisdiction_type = 'county' THEN j.name ELSE NULL END
+            )
+        ) AS search_text,
+
+        j.ingestion_date,
+        j.transformed_at,
         CURRENT_TIMESTAMP AS published_at
-        
-    FROM quality_filtered
+    FROM quality_filtered j
+    LEFT JOIN best_website w ON j.jurisdiction_id = w.jurisdiction_id
+    LEFT JOIN acs a ON j.geoid = a.geoid
 )
 
 SELECT * FROM api_ready
-
--- This table should be queried by:
--- - api/routes/search_postgres.py
--- - Frontend search components
--- - Data exports and downloads

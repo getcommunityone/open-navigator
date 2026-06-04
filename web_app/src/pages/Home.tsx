@@ -3,6 +3,7 @@ import React, { useState, Fragment, useEffect, useRef } from 'react'
 import { Menu, Transition } from '@headlessui/react'
 import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
+import { tracer } from '../instrumentation'
 import { homeLog } from '../utils/devLog'
 import { 
   MagnifyingGlassIcon, 
@@ -571,6 +572,19 @@ export default function Home() {
       params.set('state', location.state)
       homeLog('📍 [Home] Adding state filter:', location.state)
     }
+
+    // Trace the search submission. Attributes are low-cardinality only — we
+    // record the query *length* and presence, never the raw query string
+    // (privacy + cardinality), mirroring the API's search spans.
+    const searchSpan = tracer.startSpan('search.submit', {
+      attributes: {
+        'search.q.length': q.length,
+        'search.has_query': q.length > 0,
+        'search.scope': searchScope,
+        'search.tab': heroSearchTab,
+      },
+    })
+    searchSpan.end()
 
     const searchUrl = `/search?${params.toString()}`
     homeLog('🚀 [Home] Navigating to:', searchUrl)

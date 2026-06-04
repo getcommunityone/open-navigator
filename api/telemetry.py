@@ -18,8 +18,11 @@ Usage (once, at app construction):
 Exporter selection is driven by env:
 - If ``OTEL_EXPORTER_OTLP_ENDPOINT`` (or ``OTEL_EXPORTER_OTLP_TRACES_ENDPOINT``)
   is set, traces are batched and exported over OTLP/HTTP to that collector.
-- Otherwise (the local/dev default) spans are printed by a console exporter, so
-  the API never tries to dial a missing collector or spams connection errors.
+- Else if ``OTEL_CONSOLE_EXPORT`` is truthy, spans are printed to the console via
+  a *batched* processor (off the request path) — opt-in because it's noisy.
+- Otherwise (the local/dev default) tracing stays active but no exporter is
+  attached, so the terminal stays clean and request handling isn't slowed by
+  blocking span export.
 
 ``setup_telemetry`` is idempotent: calling it more than once is a no-op.
 """
@@ -34,7 +37,6 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import (
     BatchSpanProcessor,
     ConsoleSpanExporter,
-    SimpleSpanProcessor,
 )
 
 # Canonical service identity surfaced on every span / trace.
@@ -60,6 +62,23 @@ def _resolve_otlp_endpoint() -> str | None:
         or os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
         or None
     )
+
+
+def _console_export_enabled() -> bool:
+    """Whether to print spans to the console (opt-in, off by default).
+
+    The console exporter is useful for eyeballing traces in dev, but it's noisy
+    (a JSON blob per span) and — with a synchronous processor — does blocking
+    stdout I/O on the asyncio event loop, which stalls request handling. So it's
+    now opt-in: set ``OTEL_CONSOLE_EXPORT=1`` to turn it on, and even then we
+    batch it off the request path.
+    """
+    return os.getenv("OTEL_CONSOLE_EXPORT", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
 
 
 def setup_telemetry(app) -> None:
@@ -98,12 +117,27 @@ def setup_telemetry(app) -> None:
             endpoint,
             SERVICE_NAME,
         )
-    else:
-        # Dev default: print spans to the console, no collector required.
-        provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
+    elif _console_export_enabled():
+        # Opt-in dev console exporter. BatchSpanProcessor (not Simple) so span
+        # serialization + stdout writes happen on a background thread instead of
+        # blocking the event loop when each span ends.
+        provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
         logger.info(
-            "🖥️  OpenTelemetry: no OTLP endpoint set — using console span exporter "
-            "(service={}). Set OTEL_EXPORTER_OTLP_ENDPOINT to ship to a collector.",
+            "🖥️  OpenTelemetry: console span exporter enabled via "
+            "OTEL_CONSOLE_EXPORT (service={}). Spans are batched off the request "
+            "path.",
+            SERVICE_NAME,
+        )
+    else:
+        # Quiet dev default: tracing context is still active (spans are created
+        # and parented correctly) but nothing is exported, so the terminal stays
+        # clean and request handling isn't slowed by span export. Set
+        # OTEL_EXPORTER_OTLP_ENDPOINT to ship traces, or OTEL_CONSOLE_EXPORT=1 to
+        # print them locally.
+        logger.info(
+            "🔇 OpenTelemetry: no exporter configured — tracing active but spans "
+            "not exported (service={}). Set OTEL_EXPORTER_OTLP_ENDPOINT to ship "
+            "traces, or OTEL_CONSOLE_EXPORT=1 to print them.",
             SERVICE_NAME,
         )
 
