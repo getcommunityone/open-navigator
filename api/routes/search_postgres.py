@@ -251,121 +251,168 @@ async def search_jurisdictions_pg(
         return []
 
 
-async def search_contacts_pg(
+async def search_persons_pg(
     query: Optional[str] = None,
     state: Optional[str] = None,
     limit: int = 10
 ) -> List[SearchResult]:
     """
-    Search contacts (nonprofit officers, local officials) using PostgreSQL
-    
+    Search people using PostgreSQL, backed by the MDM person master (mdm_person).
+
+    - Deduplicates to one result per RESOLVED person (master_person_id), picking
+      the best source occurrence.
+    - Matches names with trigram similarity (typo-tolerant; uses the
+      mdm_person_full_name_trgm_idx GIN index).
+    - Joins mdm_bridge_person_organization for the person's top org / title.
+
+    Replaces the retired `contact` table feed (which no longer exists).
+
     Args:
-        query: Search text (name, title, organization)
-        state: Filter by state code (e.g., 'MA') or full name (e.g., 'Massachusetts')
+        query: Search text (person name)
+        state: Filter by state code ('MA') or full name ('Massachusetts')
         limit: Max results
-    
+
     Returns:
-        List of SearchResult objects
+        List of SearchResult objects (result_type='person')
     """
     # Normalize state input to 2-letter code
     state = normalize_state_input(state)
-    
+
     try:
         pool = await get_db_pool()
-        
-        # Build WHERE clauses
+
         where_clauses = []
         params = []
-        param_idx = 1
-        
+        idx = 1
+
         if state:
-            where_clauses.append(f"state_code = ${param_idx}")
+            where_clauses.append(f"p.state_code = ${idx}")
             params.append(state.upper())
-            param_idx += 1
-        
-        # Text search across name, title, and organization
-        if query and query.strip():
-            where_clauses.append(f"""(
-                to_tsvector('english', name) @@ plainto_tsquery('english', ${param_idx})
-                OR to_tsvector('english', COALESCE(organization_name, '')) @@ plainto_tsquery('english', ${param_idx})
-                OR LOWER(title) LIKE LOWER(${param_idx + 1})
-                OR LOWER(organization_name) LIKE LOWER(${param_idx + 1})
-                OR LOWER(name) LIKE LOWER(${param_idx + 1})
-            )""")
-            params.append(query)
-            params.append(f"%{query}%")
-            param_idx += 2
-            
-            # Rank by relevance
-            order_by = f"""
-                GREATEST(
-                    ts_rank(to_tsvector('english', name), plainto_tsquery('english', ${param_idx - 2})),
-                    ts_rank(to_tsvector('english', COALESCE(organization_name, '')), plainto_tsquery('english', ${param_idx - 2}))
-                ) DESC, name ASC
+            idx += 1
+
+        has_query = bool(query and query.strip())
+        if has_query:
+            q = query.strip()
+            params.append(f"%{q}%")
+            like_idx = idx
+            idx += 1
+            params.append(q)
+            sim_idx = idx
+            idx += 1
+            where_clauses.append(f"p.full_name ILIKE ${like_idx}")
+            sim_select = f"similarity(p.full_name, ${sim_idx}) AS sim"
+            # DISTINCT ON requires the partition key first; pick the best
+            # occurrence per resolved person.
+            inner_order = f"p.master_person_id, similarity(p.full_name, ${sim_idx}) DESC, p.match_confidence DESC NULLS LAST"
+            outer_order = "sim DESC NULLS LAST, full_name ASC"
+        else:
+            sim_select = "0::real AS sim"
+            inner_order = "p.master_person_id"
+            outer_order = "full_name ASC"
+
+        where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
+
+        # limit param is shared by both branches
+        limit_idx = idx
+        params.append(limit)
+
+        base_select = f"""
+            p.master_person_id,
+            p.person_uid,
+            p.full_name,
+            p.email,
+            p.phone,
+            p.city_norm,
+            p.state_code,
+            {sim_select}"""
+
+        # Org affiliation (top by recency / reported comp) for the survivor uid.
+        lateral = """
+            LEFT JOIN LATERAL (
+                SELECT org_name, master_org_id, title, reportable_comp_org
+                FROM mdm_bridge_person_organization b
+                WHERE b.officer_person_uid = d.person_uid
+                ORDER BY tax_year DESC NULLS LAST, reportable_comp_org DESC NULLS LAST
+                LIMIT 1
+            ) o ON TRUE"""
+
+        if has_query:
+            # Trigram WHERE is selective, so dedup the full matched set then
+            # rank by similarity and limit.
+            sql = f"""
+                SELECT d.*, o.org_name, o.master_org_id, o.title, o.reportable_comp_org
+                FROM (
+                    SELECT DISTINCT ON (p.master_person_id)
+                        {base_select}
+                    FROM mdm_person p
+                    WHERE {where_sql}
+                    ORDER BY {inner_order}
+                ) d
+                {lateral}
+                ORDER BY {outer_order}
+                LIMIT ${limit_idx}
             """
         else:
-            order_by = "name ASC"
-        
-        where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
-        
-        sql = f"""
-            SELECT 
-                name,
-                title,
-                organization_name,
-                organization_ein,
-                email,
-                phone,
-                city,
-                state_code,
-                state,
-                role_type,
-                compensation,
-                source
-            FROM contact
-            WHERE {where_sql}
-            ORDER BY {order_by}
-            LIMIT ${param_idx}
-        """
-        params.append(limit)
-        
+            # Browse (no name query): stop after `limit` distinct people in
+            # master_person_id order so we never sort the full 2.2M-row table.
+            sql = f"""
+                SELECT d.*, o.org_name, o.master_org_id, o.title, o.reportable_comp_org
+                FROM (
+                    SELECT DISTINCT ON (p.master_person_id)
+                        {base_select}
+                    FROM mdm_person p
+                    WHERE {where_sql}
+                    ORDER BY p.master_person_id
+                    LIMIT ${limit_idx}
+                ) d
+                {lateral}
+                ORDER BY {outer_order}
+            """
+
         async with pool.acquire() as conn:
             rows = await conn.fetch(sql, *params)
-            
+
             results = []
             for row in rows:
-                org_display = format_organization_id(row['organization_name']) if row['organization_name'] else 'Unknown Organization'
-                location = f"{row['city']}, {row['state']}" if row['city'] and row['state'] else (row['state'] or '')
-                
+                name = row['full_name'] or 'Unknown'
+                org = row['org_name']
+                org_display = org if org else 'No known organization'
+                title = format_title(row['title']) if row['title'] else 'Person'
+                location = f"{row['city_norm']}, {row['state_code']}" if row['city_norm'] and row['state_code'] else (row['state_code'] or '')
+
                 results.append(SearchResult(
-                    result_type='contact',
-                    title=row['name'],
-                    subtitle=f"{format_title(row['title']) if row['title'] else 'Officer'} - {org_display}",
-                    description=f"{format_role_type(row['role_type']) if row['role_type'] else 'Contact'} in {location}",
-                    url=f"/people/{row['name'].replace(' ', '-')}",
-                    score=1.0,
+                    result_type='person',
+                    title=name,
+                    subtitle=f"{title} - {org_display}" if org else title,
+                    description=f"Person in {location}" if location else 'Person',
+                    url=f"/people/{name.replace(' ', '-')}",
+                    score=float(row['sim']) if row['sim'] is not None else 1.0,
                     metadata={
-                        'name': row['name'],
+                        'name': name,
+                        'master_person_id': row['master_person_id'],
                         'title': row['title'],
                         'organization': org_display,
-                        'organization_ein': row['organization_ein'],
-                        'state': row['state'],
+                        'master_org_id': row['master_org_id'],
+                        'state': row['state_code'],
                         'state_code': row['state_code'],
-                        'city': row['city'],
-                        'role_type': row['role_type'],
-                        'compensation': row['compensation'],
-                        'email': row.get('email'),
-                        'phone': row.get('phone'),
-                        'source': row['source']
+                        'city': row['city_norm'],
+                        'compensation': row['reportable_comp_org'],
+                        'email': row['email'],
+                        'phone': row['phone'],
                     }
                 ))
-            
-            logger.info(f"👤 PostgreSQL contacts search: {len(results)} results")
+
+            logger.info(f"👤 PostgreSQL person search: {len(results)} results")
             return results
-            
+
     except Exception as e:
-        logger.error(f"PostgreSQL contacts search error: {e}")
+        logger.error(f"PostgreSQL person search error: {e}")
         return []
+
+
+# Back-compat alias: the dispatcher and any external callers may still reference
+# the old name. Person search is now MDM-backed (mdm_person).
+search_contacts_pg = search_persons_pg
 
 
 async def search_organizations_pg(
