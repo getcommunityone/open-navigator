@@ -11,7 +11,7 @@ playwright>=1.49.0
 httpx>=0.25.0
 crawl4ai>=0.4.0
 litellm>=1.40.0
-aiohttp>=3.13.4
+aiohttp>=3.14.0
 youtube-transcript-api>=0.6.2
 
 # AI & LLM (CPU versions)

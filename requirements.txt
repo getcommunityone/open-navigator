@@ -14,7 +14,7 @@ httpx>=0.25.0
 crawl4ai>=0.4.0          # AI-friendly crawler (browser + LLM extraction); needs `crawl4ai-setup` once after install
 litellm>=1.40.0          # crawl4ai backend for non-OpenAI providers (Groq, Gemini, Anthropic, ...)
 socksio>=1.0.0  # needed for httpx SOCKS proxies (socks5://...)
-aiohttp==3.13.4
+aiohttp==3.14.0
 youtube-transcript-api>=0.6.2
 google-api-python-client>=2.100.0  # YouTube Data API v3
 
