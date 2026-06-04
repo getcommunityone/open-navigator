@@ -1,4 +1,16 @@
-{{ config(materialized='table') }}
+{{
+  config(
+    materialized='table',
+    indexes=[
+      {'columns': ['state_code'], 'type': 'btree'},
+      {'columns': ['master_person_id'], 'type': 'btree'}
+    ],
+    post_hook=[
+      "CREATE EXTENSION IF NOT EXISTS pg_trgm",
+      "CREATE INDEX IF NOT EXISTS mdm_person_full_name_trgm_idx ON {{ this }} USING gin (full_name gin_trgm_ops)"
+    ]
+  )
+}}
 
 /*
     Mart (MDM Layer 5): the canonical public person table — one row per usable
