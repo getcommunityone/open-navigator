@@ -4,7 +4,7 @@
 # Core ML Libraries
 torch>=2.1.0
 intel-extension-for-pytorch>=2.1.0
-transformers>=4.35.0
+transformers>=5.0.0rc3
 accelerate>=0.24.0
 optimum[openvino]>=1.14.0
 sentence-transformers>=2.2.2
@@ -28,8 +28,8 @@ polars>=0.19.0
 
 # Utilities
 loguru>=0.7.0
-tqdm>=4.66.0
-python-dotenv>=1.0.0
+tqdm>=4.66.3
+python-dotenv>=1.2.2
 
 # SQL
 sqlalchemy>=2.0.0
