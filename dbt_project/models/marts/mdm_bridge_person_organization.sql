@@ -1,4 +1,11 @@
-{{ config(materialized='table') }}
+{{
+  config(
+    materialized='table',
+    indexes=[
+      {'columns': ['officer_person_uid'], 'type': 'btree'}
+    ]
+  )
+}}
 
 /*
     Mart (MDM): the public organization-officer bridge — IRS Form 990 Part VII

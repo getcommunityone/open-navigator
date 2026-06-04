@@ -319,6 +319,7 @@ async def search_persons_pg(
         base_select = f"""
             p.master_person_id,
             p.person_uid,
+            p.source_pk,
             p.full_name,
             p.email,
             p.phone,
@@ -326,12 +327,16 @@ async def search_persons_pg(
             p.state_code,
             {sim_select}"""
 
-        # Org affiliation (top by recency / reported comp) for the survivor uid.
+        # Org affiliation (top by recency / reported comp). The bridge's
+        # officer_person_uid = md5(name_norm|ein) == mdm_person.source_pk for
+        # officer-sourced people (person_uid is a *different*, double-hashed key,
+        # so we must join on source_pk). Indexed by
+        # mdm_bridge_person_organization_officer_uid_idx.
         lateral = """
             LEFT JOIN LATERAL (
                 SELECT org_name, master_org_id, title, reportable_comp_org
                 FROM mdm_bridge_person_organization b
-                WHERE b.officer_person_uid = d.person_uid
+                WHERE b.officer_person_uid = d.source_pk
                 ORDER BY tax_year DESC NULLS LAST, reportable_comp_org DESC NULLS LAST
                 LIMIT 1
             ) o ON TRUE"""
