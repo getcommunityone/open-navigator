@@ -21,8 +21,13 @@ DATABASE_URL = NEON_DATABASE_URL_DEV or NEON_DATABASE_URL
 # Bronze schema for AI-extracted meeting data (topics, decisions, etc.)
 # NOTE: Bronze data is now in bronze schema of main database
 POSTGRES_PASSWORD = os.getenv('POSTGRES_PASSWORD', 'password')
-BRONZE_DATABASE_URL = os.getenv('LOCAL_BRONZE_DATABASE_URL', 
+BRONZE_DATABASE_URL = os.getenv('LOCAL_BRONZE_DATABASE_URL',
                                  f'postgresql://postgres:{POSTGRES_PASSWORD}@localhost:5433/open_navigator')
+
+# Person search (mdm_person ~13.8M rows): cap how many ILIKE-matched candidates
+# we rank/dedup so a broad substring (e.g. '%jo%' ~ 900k rows) can't stall the
+# query. Selective name queries return far fewer than this and are unaffected.
+PERSON_CANDIDATE_CAP = 3000
 
 # Connection pools (created on first request)
 _db_pool = None  # Production database pool (Neon)
@@ -290,6 +295,11 @@ async def search_persons_pg(
             params.append(state.upper())
             idx += 1
 
+        # A 1-char name query is all noise and matches millions; skip the work
+        # (the per-keystroke typeahead starts firing useful results at 2 chars).
+        if query and query.strip() and len(query.strip()) < 2 and not state:
+            return []
+
         has_query = bool(query and query.strip())
         if has_query:
             q = query.strip()
@@ -342,20 +352,31 @@ async def search_persons_pg(
             ) o ON TRUE"""
 
         if has_query:
-            # Trigram WHERE is selective, so dedup the full matched set then
-            # rank by similarity and limit.
+            # A bare substring like '%jo%' matches ~900k of the 13.8M people, and
+            # ranking/deduping that whole set takes ~20s — fatal for per-keystroke
+            # typeahead. Cap the candidate scan first (the trgm GIN index lets the
+            # ILIKE fill the cap fast); we then dedup+rank only those. Selective
+            # queries ("john bowyer" -> 3 rows) never hit the cap.
             sql = f"""
                 SELECT d.*, o.org_name, o.master_org_id, o.title, o.reportable_comp_org
                 FROM (
-                    SELECT DISTINCT ON (p.master_person_id)
-                        {base_select}
-                    FROM mdm_person p
-                    WHERE {where_sql}
-                    ORDER BY {inner_order}
+                    SELECT * FROM (
+                        SELECT DISTINCT ON (p.master_person_id)
+                            {base_select}
+                        FROM (
+                            SELECT master_person_id, person_uid, source_pk, full_name,
+                                   email, phone, city_norm, state_code, match_confidence
+                            FROM mdm_person p
+                            WHERE {where_sql}
+                            LIMIT {PERSON_CANDIDATE_CAP}
+                        ) p
+                        ORDER BY {inner_order}
+                    ) dd
+                    ORDER BY {outer_order}
+                    LIMIT ${limit_idx}
                 ) d
                 {lateral}
                 ORDER BY {outer_order}
-                LIMIT ${limit_idx}
             """
         else:
             # Browse (no name query): stop after `limit` distinct people in
