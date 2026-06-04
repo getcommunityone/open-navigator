@@ -419,6 +419,25 @@ export default function Home() {
     return (row?.label ?? 'everything').toLowerCase()
   }, [heroSearchTab])
 
+  // The next-broader geography for the "expand search area" affordance shown
+  // when a scoped search returns no results. Walks city → county → state →
+  // national, skipping levels the current location can't support. `null` once
+  // already nationwide (nothing left to broaden to).
+  const broaderScope = React.useMemo<{ value: string; label: string } | null>(() => {
+    if (!location) return null
+    const order = ['city', 'community', 'county', 'state', 'national']
+    const currentRank = order.indexOf(searchScope)
+    const candidates: { value: string; available: boolean; label: string }[] = [
+      { value: 'county', available: !!location.county, label: location.county ? `${location.county} County` : 'your county' },
+      { value: 'state', available: !!location.state, label: location.state || 'your state' },
+      { value: 'national', available: true, label: 'nationwide' },
+    ]
+    for (const c of candidates) {
+      if (order.indexOf(c.value) > currentRank && c.available) return { value: c.value, label: c.label }
+    }
+    return null
+  }, [location, searchScope])
+
   // Generate dynamic subtitle based on location and search scope
   const getSubtitle = () => {
     // If national scope, show national message regardless of location
@@ -1112,9 +1131,6 @@ export default function Home() {
                         Search examples include school board budget, mental health nonprofit, zoning, and transit.
                       </span>
 
-                      <span id="hero-search-tabs-label" className="sr-only">
-                        Filter search by category
-                      </span>
 
                       {/* Search Box — single unified rounded pill bar */}
                       <div className="w-full max-w-4xl mx-auto px-1" ref={searchContainerRef}>
@@ -1388,13 +1404,31 @@ export default function Home() {
                                         <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                                         </svg>
-                                        <h3 className="mt-2 text-sm font-medium text-gray-900">No results found</h3>
-                                        <p className="mt-1 text-sm text-gray-500">
-                                          Try searching for different keywords or check back later.
-                                        </p>
-                                        <p className="mt-2 text-xs text-gray-400">
-                                          Database may be empty. Run data ingestion scripts to populate.
-                                        </p>
+                                        <h3 className="mt-2 text-sm font-medium text-gray-900">
+                                          No results in <span className="text-[#1a6b6b]">{scopeLabel}</span>
+                                        </h3>
+                                        {/* Geography is the most common reason a scoped search comes back
+                                            empty — offer to widen it before suggesting other fixes. */}
+                                        {broaderScope ? (
+                                          <>
+                                            <p className="mt-1 text-sm text-gray-500">
+                                              Nothing here yet for “{keyword.trim()}”. Try a wider area.
+                                            </p>
+                                            <button
+                                              type="button"
+                                              onClick={() => setSearchScope(broaderScope.value)}
+                                              className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-[#1a6b6b] bg-[#1a6b6b] px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-[#2a8585]"
+                                              style={{ fontFamily: "'DM Sans', sans-serif" }}
+                                            >
+                                              <MapPinIcon className="h-4 w-4" aria-hidden />
+                                              Expand to {broaderScope.label}
+                                            </button>
+                                          </>
+                                        ) : (
+                                          <p className="mt-1 text-sm text-gray-500">
+                                            Try searching for different keywords or check back later.
+                                          </p>
+                                        )}
                                       </div>
                                     )}
                                     
