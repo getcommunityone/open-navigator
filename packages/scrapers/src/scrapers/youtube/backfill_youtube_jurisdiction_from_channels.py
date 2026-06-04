@@ -9,9 +9,15 @@ are all NULL. That starves the per-jurisdiction analyze loop
 their transcripts sit unanalyzed (~40k of the unanalyzed backlog as of 2026-06).
 
 Unlike the CivicSearch case (``enrich_civicsearch_jurisdictions``), the geo here
-does NOT need fuzzy entity resolution — it already exists in the warehouse keyed
-on the channel. This module joins the blank rows' ``channel_id`` to two sources,
-in descending trust:
+does NOT need fuzzy entity resolution — it already exists in the warehouse. In
+practice the whole blank set is LocalView-origin, so source 0 below resolves
+essentially all of it; the channel-based sources (1-2) are a fallback for any
+future non-LocalView blanks. In descending trust:
+
+0. **LocalView resolved model** — ``intermediate.int_events_localview_enriched``
+   carries a geoid-resolved canonical ``jurisdiction_id`` per ``video_url`` (these
+   videos were promoted into bronze with their channel/jurisdiction columns
+   stripped). A materialized geoid match, no guessing. ``confidence = high``.
 
 1. **Scraped channel map** — ``bronze.bronze_jurisdictions_counties_scraped`` and
    ``bronze.bronze_jurisdictions_municipalities_scraped`` carry a 1:1
@@ -233,6 +239,29 @@ def load_catalog_channel_map(conn) -> Dict[str, list]:
     return out
 
 
+def load_localview_video_map(conn) -> Dict[str, str]:
+    """``video_id → jurisdiction_id`` from the resolved LocalView dbt model.
+
+    LocalView videos promoted into ``bronze_event_youtube`` lost their channel /
+    jurisdiction columns, but ``intermediate.int_events_localview_enriched`` already
+    carries the geoid-resolved canonical ``jurisdiction_id`` (keyed by ``video_url``).
+    This is the highest-trust source — a materialized geoid match, no guessing.
+    """
+    with conn.cursor() as cur:
+        cur.execute(
+            r"""
+            SELECT regexp_replace(video_url, '^.*[=/]', '') AS video_id,
+                   jurisdiction_id
+            FROM intermediate.int_events_localview_enriched
+            WHERE jurisdiction_id IS NOT NULL AND jurisdiction_id <> ''
+              AND video_url IS NOT NULL AND video_url <> ''
+            """
+        )
+        out = {vid: jid for vid, jid in cur.fetchall()}
+    logger.info("Loaded {:,} LocalView video→jurisdiction mappings", len(out))
+    return out
+
+
 # ---------------------------------------------------------------------------
 # Resolution
 # ---------------------------------------------------------------------------
@@ -349,8 +378,9 @@ def resolve_from_catalog(
 def build_resolutions(
     conn,
 ) -> Tuple[Dict[str, Resolution], Dict[str, int]]:
-    """Resolve every blank channel-bearing ``datasource='youtube'`` video."""
+    """Resolve every blank ``datasource='youtube'`` video (channel-based or LocalView)."""
     lookup, geoid_index = load_jurisdiction_lookup(conn)
+    localview = load_localview_video_map(conn)
     scraped = load_scraped_channel_map(conn)
     catalog = load_catalog_channel_map(conn)
 
@@ -361,33 +391,43 @@ def build_resolutions(
             FROM bronze.bronze_event_youtube y
             WHERE y.datasource = 'youtube'
               AND (y.jurisdiction_id IS NULL OR y.jurisdiction_id = '')
-              AND y.channel_id IS NOT NULL AND y.channel_id <> ''
             """
         )
         targets = cur.fetchall()
 
-    # Resolve once per distinct channel, then fan out to its videos.
+    # Channel resolutions are cached per distinct channel; LocalView is per video.
     chan_res: Dict[str, Optional[Resolution]] = {}
     out: Dict[str, Resolution] = {}
     stats: Dict[str, int] = defaultdict(int)
     stats["target_videos"] = len(targets)
 
     for video_id, channel_id in targets:
-        if channel_id not in chan_res:
-            if channel_id in scraped:
-                chan_res[channel_id] = _build_resolution(
-                    scraped[channel_id],
-                    confidence="high",
-                    method="scraped",
-                    lookup=lookup,
-                )
-            elif channel_id in catalog:
-                chan_res[channel_id] = resolve_from_catalog(
-                    catalog[channel_id], lookup, geoid_index
-                )
-            else:
-                chan_res[channel_id] = None
-        res = chan_res[channel_id]
+        # 1. LocalView resolved model (highest trust — materialized geoid match).
+        lv_jid = localview.get(video_id)
+        if lv_jid:
+            res: Optional[Resolution] = _build_resolution(
+                lv_jid, confidence="high", method="localview_enriched", lookup=lookup
+            )
+        else:
+            res = None
+        # 2. Fall back to the channel-based sources (scraped, then catalog).
+        if res is None and channel_id:
+            if channel_id not in chan_res:
+                if channel_id in scraped:
+                    chan_res[channel_id] = _build_resolution(
+                        scraped[channel_id],
+                        confidence="high",
+                        method="scraped",
+                        lookup=lookup,
+                    )
+                elif channel_id in catalog:
+                    chan_res[channel_id] = resolve_from_catalog(
+                        catalog[channel_id], lookup, geoid_index
+                    )
+                else:
+                    chan_res[channel_id] = None
+            res = chan_res[channel_id]
+
         if res is None:
             stats["unresolved_videos"] += 1
             continue
@@ -497,12 +537,12 @@ def backfill(
     resolutions, stats = build_resolutions(conn)
 
     logger.info(
-        "Targets: {:,} videos across {:,} channels — resolved {:,} videos "
-        "({} scraped, {} catalog-single, {} catalog-county-town, {} catalog-multi); "
-        "{:,} videos unresolved (no channel match)",
+        "Targets: {:,} videos — resolved {:,} "
+        "({} localview, {} scraped, {} catalog-single, {} catalog-county-town, "
+        "{} catalog-multi); {:,} unresolved (no localview row + no channel match)",
         stats["target_videos"],
-        stats["distinct_channels"],
         stats["resolved_videos"],
+        stats.get("method_localview_enriched_videos", 0),
         stats.get("method_scraped_videos", 0),
         stats.get("method_catalog_single_videos", 0),
         stats.get("method_catalog_county_town_videos", 0),
