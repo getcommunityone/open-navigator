@@ -32,6 +32,10 @@ interface APIResponse<T> {
   statusText: string
 }
 
+// Upper bound on any single request before it aborts. Keeps a slow/hung backend
+// from leaving the UI spinning forever; well above normal response times.
+const REQUEST_TIMEOUT_MS = 20000
+
 // Fetch wrapper that mimics axios interface
 class APIClient {
   private baseURL: string
@@ -69,10 +73,25 @@ class APIClient {
       headers['Authorization'] = `Bearer ${token}`
     }
 
+    // Hard request timeout so a slow/hung backend never leaves the UI spinning
+    // forever — the request aborts and rejects, letting callers (React Query)
+    // render an error/empty state instead.
+    const timeoutController = new AbortController()
+    const timeoutId = setTimeout(
+      () => timeoutController.abort(new DOMException('Request timed out', 'TimeoutError')),
+      REQUEST_TIMEOUT_MS,
+    )
+    const callerSignal = options.signal as AbortSignal | undefined
+    const signal =
+      callerSignal && typeof AbortSignal !== 'undefined' && 'any' in AbortSignal
+        ? (AbortSignal as any).any([callerSignal, timeoutController.signal])
+        : timeoutController.signal
+
     try {
       const response = await fetch(fullUrl, {
         ...options,
         headers,
+        signal,
       })
 
       // Handle 401 unauthorized
@@ -107,8 +126,20 @@ class APIClient {
         statusText: response.statusText,
       }
     } catch (error) {
+      // Normalize an aborted/timed-out request into a clear, finite error so the
+      // UI shows "try again" rather than spinning indefinitely.
+      if (error instanceof DOMException && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
+        const timeoutErr = {
+          message: `Request timed out after ${REQUEST_TIMEOUT_MS / 1000}s. Please try again.`,
+          isTimeout: true,
+        }
+        console.error('[FETCH] Timeout/abort:', fullUrl)
+        throw timeoutErr
+      }
       console.error('[FETCH] Error:', fullUrl, error)
       throw error
+    } finally {
+      clearTimeout(timeoutId)
     }
   }
 
