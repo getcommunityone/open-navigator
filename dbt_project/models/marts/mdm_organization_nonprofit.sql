@@ -1,4 +1,17 @@
-{{ config(materialized='table') }}
+{#
+  ein index rationale: exact-EIN lookups back the organization direct-link /
+  detail path in search_organizations_pg; without it an EIN filter seq-scans the
+  3.6M-row satellite. (Kept as a Jinja comment, NOT a `--` SQL comment inside the
+  config() list, which is invalid Jinja and breaks `dbt parse`.)
+#}
+{{
+  config(
+    materialized='table',
+    post_hook=[
+      "CREATE INDEX IF NOT EXISTS mdm_organization_nonprofit_ein_idx ON {{ this }} (ein)"
+    ]
+  )
+}}
 
 /*
     Mart (MDM satellite): IRS/990 nonprofit detail for organizations whose

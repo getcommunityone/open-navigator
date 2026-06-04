@@ -23,6 +23,15 @@ DATABASE_URL = NEON_DATABASE_URL_DEV or NEON_DATABASE_URL
 # query. Selective name queries return far fewer than this and are unaffected.
 PERSON_CANDIDATE_CAP = 3000
 
+# Organization search (mdm_organization 4.2M JOIN nonprofit satellite 3.6M):
+# - Browse/name sorts order by org_name_norm (btree-indexed) instead of org_name,
+#   so the first page is an index scan, not a 3.6M-row sort (~6s -> instant).
+# - For a text query, ts_rank over the full match set is fatal: a common word like
+#   "school" matches ~530k orgs and even COUNTing them takes ~5s. Cap the FTS
+#   candidate scan (the GIN index fills the cap and stops), then rank/sort only
+#   those — selective queries return far fewer and rank exactly as before.
+ORG_CANDIDATE_CAP = 2000
+
 # Document search: ts_headline + detoasting the matched transcript bodies
 # (content averages 43KB and is TOASTed) costs ~40ms/row, so the cost scales with
 # how many rows we snippet. The unified search over-fetches (limit + 100) to mix
@@ -52,7 +61,10 @@ STATE_NAME_TO_CODE = {
 # SQL CASE mapping a 2-letter code back to a full state name, derived from
 # STATE_NAME_TO_CODE so the two never drift. Used to recover the full `state`
 # name when serving orgs from mdm_organization (which carries only state_code).
-_STATE_NAME_CASE = "CASE m.state_code\n" + "\n".join(
+# References an unqualified `state_code` so it can run in an outer projection over
+# already-filtered/capped rows (computing this 50-branch CASE per row before the
+# candidate cap, over the full 3.6M-row join, was a major org-search slowdown).
+_STATE_NAME_CASE = "CASE state_code\n" + "\n".join(
     f"                    WHEN '{code}' THEN '{name.replace(chr(39), chr(39) * 2)}'"
     for name, code in STATE_NAME_TO_CODE.items()
 ) + "\n                    ELSE NULL END"
@@ -540,11 +552,15 @@ async def search_organizations_pg(
         # Debug logging
         logger.info(f"🔍 Organizations search - WHERE: {where_sql} | PARAMS: {params} | city={city}")
         
-        # Determine sort order
+        has_text_query = bool(query and query.strip() and not ein)
+
+        # Name sorts order by org_name_norm (btree-indexed) rather than org_name so
+        # browse is an index scan instead of a 3.6M-row sort. They sort identically
+        # to the user (normalized lower-case of the same name).
         if sort == 'name-asc':
-            order_by = "name ASC"
+            order_by = "org_name_norm ASC"
         elif sort == 'name-desc':
-            order_by = "name DESC"
+            order_by = "org_name_norm DESC"
         elif sort == 'revenue-asc':
             order_by = "revenue ASC NULLS LAST"
         elif sort == 'revenue-desc':
@@ -553,49 +569,73 @@ async def search_organizations_pg(
             order_by = "assets ASC NULLS LAST"
         elif sort == 'assets-desc':
             order_by = "assets DESC NULLS LAST"
-        elif query and query.strip() and not ein:
-            # Relevance ranking for text search
-            order_by = f"ts_rank(to_tsvector('english', name), plainto_tsquery('english', ${param_idx - 1})) DESC, name ASC"
+        elif has_text_query:
+            # Relevance ranking for text search — now applied only to the capped
+            # candidate set (see ORG_CANDIDATE_CAP), so recomputing to_tsvector here
+            # is bounded instead of running over a 530k-row match set.
+            order_by = f"ts_rank(to_tsvector('english', name), plainto_tsquery('english', ${param_idx - 1})) DESC, org_name_norm ASC"
         else:
-            order_by = "name ASC"
-        
+            order_by = "org_name_norm ASC"
+
+        # Cap the candidate scan for text queries only (browse/exact-filter modes
+        # ride the org_name_norm index and need the full ordered scan).
+        cap_sql = f"LIMIT {ORG_CANDIDATE_CAP}" if has_text_query else ""
+
         # Org identity/location now come from the golden master (mdm_organization);
         # nonprofit financial/NTEE/990 detail from the mdm_organization_nonprofit
         # satellite. The CTE re-exposes the same column names the WHERE/ORDER BY
         # builders above reference (name, city, state_code, ntee_code, revenue, ...).
         # county lives in the address layer (not the org master) -> NULL here.
+        # Inner `cand` does the join + filters + (text-query) candidate cap with a
+        # CHEAP column projection only. The expensive display derivations — INITCAP
+        # on city and the 50-branch state-name CASE — run in the OUTER select, over
+        # at most a page (browse) or the capped candidate set, never over the full
+        # 3.6M-row join. (Computing them below the cap was what made a named-CTE
+        # version 15s+ for a common word.) `cand` re-exposes the alias names the
+        # WHERE/ORDER BY builders reference (name, city, state_code, ntee_code, ...).
         sql = f"""
-            WITH np AS (
-                SELECT
-                    m.master_org_id,
-                    s.ein,
-                    m.org_name AS name,
-                    INITCAP(m.city_norm) AS city,
-                    m.state_code,
-                    {_STATE_NAME_CASE} AS state,
-                    NULL::text AS county,
-                    s.ntee_code,
-                    s.ntee_description,
-                    s.revenue,
-                    s.assets,
-                    s.income,
-                    s.tax_period,
-                    s.gt990_tax_year,
-                    s.gt990_total_revenue,
-                    s.gt990_total_expenses,
-                    s.gt990_total_assets,
-                    s.gt990_mission,
-                    s.has_gt990_data
-                FROM mdm_organization m
-                JOIN mdm_organization_nonprofit s USING (master_org_id)
-            )
             SELECT
-                master_org_id, ein, name, city, state_code, state, county,
+                master_org_id,
+                ein,
+                name,
+                INITCAP(city) AS city,
+                state_code,
+                {_STATE_NAME_CASE} AS state,
+                NULL::text AS county,
                 ntee_code, ntee_description, revenue, assets, income, tax_period,
                 gt990_tax_year, gt990_total_revenue, gt990_total_expenses,
                 gt990_total_assets, gt990_mission, has_gt990_data
-            FROM np
-            WHERE {where_sql}
+            FROM (
+                -- `base` does cheap column renames so the WHERE/cap can reference
+                -- the builder alias names (name, city, ...); it has no LIMIT so
+                -- Postgres flattens it into the filter+cap, letting the FTS GIN
+                -- index drive and the cap stop the scan early.
+                SELECT * FROM (
+                    SELECT
+                        m.master_org_id,
+                        s.ein,
+                        m.org_name AS name,
+                        m.org_name_norm,
+                        m.city_norm AS city,
+                        m.state_code,
+                        s.ntee_code,
+                        s.ntee_description,
+                        s.revenue,
+                        s.assets,
+                        s.income,
+                        s.tax_period,
+                        s.gt990_tax_year,
+                        s.gt990_total_revenue,
+                        s.gt990_total_expenses,
+                        s.gt990_total_assets,
+                        s.gt990_mission,
+                        s.has_gt990_data
+                    FROM mdm_organization m
+                    JOIN mdm_organization_nonprofit s USING (master_org_id)
+                ) base
+                WHERE {where_sql}
+                {cap_sql}
+            ) cand
             ORDER BY {order_by}
             LIMIT ${param_idx}
             OFFSET ${param_idx + 1}
