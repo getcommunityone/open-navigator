@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # Multi-stage build for Hugging Face Spaces
 # Runs all three apps: Docusaurus docs, React frontend, FastAPI backend
 
@@ -41,9 +42,22 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Copy Python requirements and install
+# Pre-install CPU-only torch/torchvision in their own cache-stable layer (no
+# requirements.txt dependency). sentence-transformers pulls torch transitively;
+# without this, pip drags in the ~2.5GB CUDA wheel — pure waste on a CPU-only HF
+# Space. Installing it here means an edit to requirements.txt (e.g. a transformers
+# pin bump) reuses this cached layer instead of redownloading the whole ML stack.
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install torch==2.8.0 torchvision==0.23.0 \
+    --index-url https://download.pytorch.org/whl/cpu
+
+# Copy Python requirements and install. torch/torchvision are already satisfied
+# above, so this layer only (re)installs the lighter packages on a pin change.
+# The BuildKit cache mount persists pip's wheel cache (keeps the layer slim like
+# --no-cache-dir did, while still caching downloads for local rebuilds).
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -r requirements.txt
 
 # OPTIMIZATION: Copy frontend package files first for better caching
 COPY web_app/package*.json /app/web_app/

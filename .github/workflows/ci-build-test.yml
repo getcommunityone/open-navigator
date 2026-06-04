@@ -180,11 +180,37 @@ jobs:
           echo "Regenerated API types are compatible with all frontend consumers"
 
   # Test 4: Docker Build (Full Integration Test)
+  # Gate: the full-stack image build is expensive (~minutes). On PRs, only run it
+  # when Docker-relevant files change — most PRs (dbt, packages, backend logic,
+  # docs content) can't affect the image and the dedicated frontend/docs/backend
+  # jobs already cover source build breakage. Pushes to the deploy branches always
+  # build (the `if` on docker-build short-circuits the filter for push events).
+  changes:
+    name: Detect Docker-relevant changes
+    runs-on: ubuntu-latest
+    outputs:
+      docker: ${{ steps.filter.outputs.docker }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            docker:
+              - 'Dockerfile.huggingface'
+              - 'requirements.txt'
+              - 'web_app/package*.json'
+              - 'web_docs/package*.json'
+              - '.huggingface/**'
+              - '.github/workflows/ci-build-test.yml'
+
   docker-build:
     name: Docker Build Test (Full Stack)
     runs-on: ubuntu-latest
-    needs: [frontend-build, docs-build, backend-test]
-    
+    needs: [frontend-build, docs-build, backend-test, changes]
+    if: github.event_name != 'pull_request' || needs.changes.outputs.docker == 'true'
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
