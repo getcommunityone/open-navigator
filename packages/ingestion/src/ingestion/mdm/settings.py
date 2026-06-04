@@ -91,7 +91,12 @@ def person_settings() -> SettingsCreator:
             block_on("email"),                                    # strong id
             block_on("name_phonetic_last", "name_phonetic_first"),# both name sounds
             block_on("family_name_norm", "state_code"),           # exact surname + state
-            block_on("name_phonetic_last", "zip5"),               # surname sound + ZIP
+            # Exact given+family name. Replaces a loose name_phonetic_last+zip5 block:
+            # on parcel-owner-heavy ZIPs that surname-sound+ZIP rule built dense
+            # candidate blocks that, via the old either-token phonetic level, fused
+            # unrelated owners in the same ZIP. An exact first+last block corroborates
+            # identity instead of geography and keeps blocks small.
+            block_on("family_name_norm", "given_name_norm"),      # exact first + last name
         ],
         comparisons=[
             # Name ladder on the normalized full name.
@@ -102,11 +107,20 @@ def person_settings() -> SettingsCreator:
                     cll.ExactMatchLevel("name_norm").configure(
                         tf_adjustment_column="name_norm"
                     ),
-                    # Double Metaphone agreement on either token (catches order swaps + spelling).
+                    # Double Metaphone agreement on BOTH tokens (catches order swaps +
+                    # spelling, e.g. "Jon"/"John" + "Smith"/"Smyth").
+                    # WHY BOTH, not either: a single shared metaphone code is far too
+                    # weak. Many distinct given names collapse to the same code
+                    # ("Gene"/"Jean"/"Jane"/"John"/"Jon" -> JN), so an "either token"
+                    # level let one shared sound link strangers; under single-linkage
+                    # clustering those edges chained whole ZIPs into mega-clusters
+                    # (303k masters over-merged 2+ distinct full_names; one blob held
+                    # 677 names). Requiring first AND last to agree breaks the chain
+                    # while exact/levenshtein levels above still score true matches.
                     cll.CustomLevel(
                         "(name_phonetic_last_l = name_phonetic_last_r"
-                        " or name_phonetic_first_l = name_phonetic_first_r)",
-                        label_for_charts="phonetic match (either token)",
+                        " and name_phonetic_first_l = name_phonetic_first_r)",
+                        label_for_charts="phonetic match (both tokens)",
                     ),
                     cll.LevenshteinLevel("name_norm", 2),  # postgres backend: no Jaro-Winkler
                     cll.ElseLevel(),

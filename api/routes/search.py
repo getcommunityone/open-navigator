@@ -19,6 +19,8 @@ from functools import lru_cache
 from datetime import datetime, timedelta
 
 from api.errors import ErrorDetail, parse_error
+from api.telemetry import tracer
+from opentelemetry.trace import SpanKind
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_REPO_ROOT) not in sys.path:
@@ -1401,6 +1403,37 @@ def search_jurisdictions(query: str, state: Optional[str] = None, city: Optional
     return all_results[offset:offset + limit]
 
 
+async def _traced_subsearch(
+    label: str,
+    coro,
+    *,
+    q: Optional[str],
+    state: Optional[str],
+):
+    """Await a single per-type sub-search inside its own child span.
+
+    Each coroutine opens its OWN span so the fan-out works correctly under
+    asyncio.gather (the span is entered and exited within the same awaited
+    task, not shared across the concurrent tasks). Attributes are deliberately
+    low-cardinality: we record q.length / has_query / state presence and the
+    resulting count — never the raw user query string.
+    """
+    with tracer.start_as_current_span(f"search.{label}") as span:
+        span.set_attribute("search.type", label)
+        span.set_attribute("search.q.length", len(q.strip()) if q else 0)
+        span.set_attribute("search.has_query", bool(q and q.strip()))
+        span.set_attribute("search.has_state", bool(state))
+        outcome = await coro
+        # gather(return_exceptions=True) would swallow this, but here we await
+        # directly so a failure is recorded on the span then re-raised for the
+        # dispatcher's per-type error handling.
+        try:
+            span.set_attribute("search.result.count", len(outcome))
+        except TypeError:
+            span.set_attribute("search.result.count", 0)
+        return outcome
+
+
 @router.get("/search")
 @router.get("/search/", include_in_schema=False)
 async def unified_search(
@@ -1520,10 +1553,26 @@ async def unified_search(
             # return_exceptions=True so one failing type degrades gracefully
             # (empty results for it) instead of failing the whole search.
             labels = [label for label, _ in search_tasks]
-            gathered = await asyncio.gather(
-                *(coro for _, coro in search_tasks),
-                return_exceptions=True,
-            )
+            # Parent span over the concurrent fan-out; each sub-search opens its
+            # own child span (search.person, search.organizations, ...) so the
+            # person-vs-org timing we debugged is visible per type in traces.
+            with tracer.start_as_current_span(
+                "search.dispatch", kind=SpanKind.INTERNAL
+            ) as dispatch_span:
+                dispatch_span.set_attribute("search.types", ",".join(labels))
+                dispatch_span.set_attribute("search.type_count", len(labels))
+                dispatch_span.set_attribute(
+                    "search.q.length", len(q.strip()) if q else 0
+                )
+                dispatch_span.set_attribute("search.has_query", bool(q and q.strip()))
+                dispatch_span.set_attribute("search.has_state", bool(state))
+                gathered = await asyncio.gather(
+                    *(
+                        _traced_subsearch(label, coro, q=q, state=state)
+                        for label, coro in search_tasks
+                    ),
+                    return_exceptions=True,
+                )
             for label, outcome in zip(labels, gathered):
                 if isinstance(outcome, Exception):
                     logger.error(f"❌ {label} search failed: {outcome}")

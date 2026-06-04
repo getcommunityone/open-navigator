@@ -23,6 +23,14 @@ DATABASE_URL = NEON_DATABASE_URL_DEV or NEON_DATABASE_URL
 # query. Selective name queries return far fewer than this and are unaffected.
 PERSON_CANDIDATE_CAP = 3000
 
+# Document search: ts_headline + detoasting the matched transcript bodies
+# (content averages 43KB and is TOASTed) costs ~40ms/row, so the cost scales with
+# how many rows we snippet. The unified search over-fetches (limit + 100) to mix
+# across types, but every document shares a constant score=1.0 (the buffer never
+# changes their order), so snippeting 120 rows to show ~20 is pure waste. Cap the
+# rows we rank+snippet to a page's worth: turns a ~5s document search into <1s.
+DOCUMENT_RESULT_CAP = 25
+
 # Connection pools (created on first request)
 _db_pool = None  # Production database pool (Neon)
 
@@ -759,53 +767,66 @@ async def search_events_pg(
     
     try:
         pool = await get_db_pool()
-        
-        # Build WHERE clauses
-        where_clauses = []
+
+        cols = """event_id, event_title, event_description, event_date,
+                jurisdiction_name, jurisdiction_type, state_code, state,
+                city, video_url, agenda_url"""
+
+        has_query = bool(query and query.strip())
         params = []
-        param_idx = 1
-        
-        if state:
-            where_clauses.append(f"state_code = ${param_idx}")
-            params.append(state.upper())
-            param_idx += 1
-        
-        # Text search
-        if query and query.strip():
-            where_clauses.append(f"""(
-                to_tsvector('english', event_title) @@ plainto_tsquery('english', ${param_idx})
-                OR LOWER(jurisdiction_name) LIKE LOWER(${param_idx + 1})
-            )""")
-            params.append(query)
-            params.append(f"%{query}%")
-            param_idx += 2
-            
-            order_by = f"ts_rank(to_tsvector('english', event_title), plainto_tsquery('english', ${param_idx - 2})) DESC, event_date DESC"
+
+        if has_query:
+            # The title-FTS / jurisdiction-substring match used to be a single
+            # `to_tsvector(title) @@ q OR LOWER(jurisdiction) LIKE '%q%'`. The
+            # leading-wildcard LIKE in an OR is un-indexable, forcing a full
+            # 153k-row seq scan that recomputed to_tsvector on every row (~3.8s
+            # for a common term). Split into a UNION of two index-backed branches:
+            #   - title @@ query  -> event_title_fts_idx (GIN on to_tsvector)
+            #   - jurisdiction ILIKE -> event_jurisdiction_trgm_idx (GIN pg_trgm)
+            # Order by event_date (recent first) instead of ts_rank: the result
+            # score is a constant 1.0 anyway, so ranking was only internal
+            # tie-breaking, and ranking a large match set was itself the stall.
+            q = query.strip()
+            params.append(q)
+            q_pos = len(params)
+            params.append(f"%{q}%")
+            like_pos = len(params)
+            state_clause = ""
+            if state:
+                params.append(state.upper())
+                state_clause = f" AND state_code = ${len(params)}"
+            params.append(limit)
+            lim_pos = len(params)
+
+            sql = f"""
+                WITH matched AS (
+                    SELECT event_id FROM event
+                    WHERE to_tsvector('english', event_title) @@ plainto_tsquery('english', ${q_pos}){state_clause}
+                    UNION
+                    SELECT event_id FROM event
+                    WHERE jurisdiction_name ILIKE ${like_pos}{state_clause}
+                )
+                SELECT {cols}
+                FROM event e
+                JOIN matched m USING (event_id)
+                ORDER BY e.event_date DESC NULLS LAST
+                LIMIT ${lim_pos}
+            """
         else:
-            order_by = "event_date DESC"
-        
-        where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
-        
-        sql = f"""
-            SELECT 
-                event_id,
-                event_title,
-                event_description,
-                event_date,
-                jurisdiction_name,
-                jurisdiction_type,
-                state_code,
-                state,
-                city,
-                video_url,
-                agenda_url
-            FROM event
-            WHERE {where_sql}
-            ORDER BY {order_by}
-            LIMIT ${param_idx}
-        """
-        params.append(limit)
-        
+            # Browse: most recent meetings first (optionally state-scoped).
+            where_sql = "TRUE"
+            if state:
+                params.append(state.upper())
+                where_sql = f"state_code = ${len(params)}"
+            params.append(limit)
+            sql = f"""
+                SELECT {cols}
+                FROM event
+                WHERE {where_sql}
+                ORDER BY event_date DESC NULLS LAST
+                LIMIT ${len(params)}
+            """
+
         async with pool.acquire() as conn:
             rows = await conn.fetch(sql, *params)
             
@@ -932,7 +953,8 @@ async def search_documents_pg(
             ORDER BY {order_by}
             LIMIT ${param_idx}
         """
-        params.append(limit)
+        # Bound the snippet/detoast work regardless of the caller's over-fetch.
+        params.append(min(limit, DOCUMENT_RESULT_CAP))
 
         async with pool.acquire() as conn:
             rows = await conn.fetch(sql, *params)

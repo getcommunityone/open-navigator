@@ -106,6 +106,14 @@ def custom_openapi():
 
 app.openapi = custom_openapi
 
+# Bootstrap OpenTelemetry: instrument the app at startup and configure the
+# exporter (OTLP collector if OTEL_EXPORTER_OTLP_ENDPOINT is set, else a console
+# exporter for dev). Idempotent. Spans for the search DB path are opened in
+# api/routes/search*.py via the shared `tracer`.
+from api.telemetry import setup_telemetry
+
+setup_telemetry(app)
+
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,

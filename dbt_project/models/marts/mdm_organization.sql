@@ -3,9 +3,6 @@
     materialized='table',
     post_hook=[
       "CREATE INDEX IF NOT EXISTS mdm_organization_org_name_fts_idx ON {{ this }} USING gin (to_tsvector('english', org_name))",
-      -- btree on the normalized name: powers the person-search anti-join that keeps
-      -- officer-derived org names (e.g. CareQuest Institute) out of People results
-      -- (see api/routes/search_postgres.py search_persons_pg).
       "CREATE INDEX IF NOT EXISTS mdm_organization_org_name_norm_idx ON {{ this }} (org_name_norm)"
     ]
   )
@@ -14,6 +11,11 @@
 /*
     Mart (MDM Layer 5): one golden record per resolved organization, with a
     canonical org_type. Canonical public org table.
+
+    Indexes (post_hook): a GIN FTS index on org_name for org search, plus a btree
+    on org_name_norm that powers the person-search anti-join keeping officer-derived
+    org names (e.g. CareQuest Institute) out of People results
+    (see api/routes/search_postgres.py search_persons_pg).
 
     Survivorship has two tracks:
       - IDENTITY / LOCATION (city, geocode, ein, website): the most-complete,
