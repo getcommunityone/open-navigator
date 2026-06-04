@@ -36,7 +36,7 @@ google-generativeai>=0.8.0
 # Capped <1.0: the agents use the 0.x import path `from langchain.chat_models import ChatOpenAI`,
 # removed in langchain 1.x. The 0.3.x line supports pydantic 2.x, so it coexists with the bump above.
 langchain>=0.3,<1.0
-langchain-openai>=1.2.2,<2.0
+langchain-openai>=0.2,<1.0
 langchain-community>=0.3,<1.0
 langgraph>=0.2,<1.0
 langchain-core>=0.3,<1.0
