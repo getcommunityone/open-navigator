@@ -23,7 +23,8 @@ import {
 import { formatCurrency } from '../utils/formatters'
 
 interface SearchResult {
-  type: 'contact' | 'meeting' | 'organization' | 'cause' | 'bill' | 'topic' | 'decision'
+  type: 'person' | 'contact' | 'meeting' | 'organization' | 'cause' | 'bill' | 'topic' | 'decision'
+  result_type?: 'person' | 'contact' | 'meeting' | 'organization' | 'cause' | 'bill' | 'topic' | 'decision'
   title: string
   subtitle: string
   description: string
@@ -36,7 +37,9 @@ interface SearchResponse {
   query: string
   total_results: number
   type_totals?: {
-    contacts: number
+    person?: number
+    /** @deprecated back-compat alias for `person` */
+    contacts?: number
     meetings: number
     organizations: number
     causes: number
@@ -46,7 +49,9 @@ interface SearchResponse {
     jurisdictions: number
   }
   results: {
-    contacts: SearchResult[]
+    person: SearchResult[]
+    /** @deprecated back-compat alias for `person` */
+    contacts?: SearchResult[]
     meetings: SearchResult[]
     organizations: SearchResult[]
     causes: SearchResult[]
@@ -81,12 +86,12 @@ export default function UnifiedSearch() {
   const [selectedTypes, setSelectedTypes] = useState<string[]>(() => {
     const typesParam = searchParams.get('types')
     if (typesParam) {
-      const types = typesParam.split(',').filter(t => 
-        ['contacts', 'organizations', 'causes', 'meetings', 'bills', 'topics', 'decisions'].includes(t.trim())
+      const types = typesParam.split(',').filter(t =>
+        ['person', 'contacts', 'organizations', 'causes', 'meetings', 'bills', 'topics', 'decisions'].includes(t.trim())
       )
-      return types.length > 0 ? types : ['contacts', 'organizations', 'causes', 'bills', 'topics']
+      return types.length > 0 ? types : ['person', 'organizations', 'causes', 'bills', 'topics']
     }
-    return ['contacts', 'organizations', 'causes', 'bills', 'topics']
+    return ['person', 'organizations', 'causes', 'bills', 'topics']
   })
   const [selectedState, setSelectedState] = useState(() => searchParams.get('state') || '')
   const [currentPage, setCurrentPage] = useState(() => parseInt(searchParams.get('page') || '1'))
@@ -225,8 +230,8 @@ export default function UnifiedSearch() {
       }
     }
     if (typesParam) {
-      const types = typesParam.split(',').filter(t => 
-        ['contacts', 'meetings', 'organizations', 'causes', 'bills', 'topics', 'decisions'].includes(t.trim())
+      const types = typesParam.split(',').filter(t =>
+        ['person', 'contacts', 'meetings', 'organizations', 'causes', 'bills', 'topics', 'decisions'].includes(t.trim())
       )
       if (types.length > 0) {
         setSelectedTypes(types)
@@ -245,7 +250,7 @@ export default function UnifiedSearch() {
       
       const params: any = {
         q: debouncedQuery,
-        types: 'causes,contacts,organizations,bills,topics,decisions',
+        types: 'causes,person,organizations,bills,topics,decisions',
         limit: 3
       }
       
@@ -440,6 +445,7 @@ export default function UnifiedSearch() {
     const normalizedType = type.replace(/s$/, '')
     
     switch (normalizedType) {
+      case 'person':
       case 'contact':
         return <UserIcon className="h-5 w-5" />
       case 'meeting':
@@ -466,6 +472,7 @@ export default function UnifiedSearch() {
     const normalizedType = type.replace(/s$/, '')
     
     switch (normalizedType) {
+      case 'person':
       case 'contact':
         return 'bg-blue-100 text-blue-700 border-blue-200'
       case 'meeting':
@@ -487,13 +494,15 @@ export default function UnifiedSearch() {
     }
   }
 
-  const ResultCard = ({ result }: { result: SearchResult }) => (
+  const ResultCard = ({ result }: { result: SearchResult }) => {
+    const resultType = result.result_type ?? result.type
+    return (
     <div
       className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow"
     >
       <div className="flex items-start gap-3">
-        <div className={`p-2 rounded-lg border ${getTypeColor(result.type)}`}>
-          {getTypeIcon(result.type)}
+        <div className={`p-2 rounded-lg border ${getTypeColor(resultType)}`}>
+          {getTypeIcon(resultType)}
         </div>
         
         <div className="flex-1">
@@ -694,15 +703,16 @@ export default function UnifiedSearch() {
           
           {/* Type badge */}
           <div className="mt-2">
-            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getTypeColor(result.type)}`}>
-              {getTypeIcon(result.type)}
-              {result.type.charAt(0).toUpperCase() + result.type.slice(1)}
+            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getTypeColor(resultType)}`}>
+              {getTypeIcon(resultType)}
+              {resultType.charAt(0).toUpperCase() + resultType.slice(1)}
             </span>
           </div>
         </div>
       </div>
     </div>
-  )
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -723,7 +733,7 @@ export default function UnifiedSearch() {
                   setShowSuggestions(true)
                 }}
                 onFocus={() => setShowSuggestions(true)}
-                placeholder="Search contacts, meetings, organizations, bills, topics, decisions, causes..."
+                placeholder="Search people, meetings, organizations, bills, topics, decisions, causes..."
                 className="w-full px-12 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-lg text-gray-900"
               />
               <MagnifyingGlassIcon className="absolute left-4 top-3.5 h-6 w-6 text-gray-400" />
@@ -791,24 +801,22 @@ export default function UnifiedSearch() {
                   </div>
                 )}
 
-                {/* People (Contacts) Section */}
-                {previewResults.results.contacts.length > 0 && (
+                {/* People Section */}
+                {(previewResults.results.person ?? previewResults.results.contacts ?? []).length > 0 && (
                   <div className="border-b border-gray-200">
                     <div className="px-4 py-2 bg-gray-50 flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <UserIcon className="h-4 w-4 text-gray-500" />
                         <span className="text-xs font-semibold text-gray-700 uppercase">People</span>
                       </div>
-                      {previewResults.results.contacts.length > 0 && (
-                        <button
-                          onClick={() => handleViewAllCategory('contacts')}
-                          className="text-xs text-primary-600 hover:text-primary-700 font-medium"
-                        >
-                          View All
-                        </button>
-                      )}
+                      <button
+                        onClick={() => handleViewAllCategory('person')}
+                        className="text-xs text-primary-600 hover:text-primary-700 font-medium"
+                      >
+                        View All
+                      </button>
                     </div>
-                    {previewResults.results.contacts.slice(0, 3).map((result, idx) => (
+                    {(previewResults.results.person ?? previewResults.results.contacts ?? []).slice(0, 3).map((result, idx) => (
                       <button
                         key={idx}
                         onClick={() => navigate(result.url)}
@@ -1021,7 +1029,15 @@ export default function UnifiedSearch() {
             </button>
 
             {/* Quick Type Filters - Responsive sizing */}
-            {(['contacts', 'organizations', 'causes', 'meetings', 'bills', 'topics', 'decisions'] as const).map((type) => (
+            {([
+              { type: 'person', label: 'People' },
+              { type: 'organizations', label: 'Organizations' },
+              { type: 'causes', label: 'Causes' },
+              { type: 'meetings', label: 'Meetings' },
+              { type: 'bills', label: 'Bills' },
+              { type: 'topics', label: 'Topics' },
+              { type: 'decisions', label: 'Decisions' },
+            ] as const).map(({ type, label }) => (
               <button
                 key={type}
                 onClick={() => toggleType(type)}
@@ -1035,7 +1051,7 @@ export default function UnifiedSearch() {
                   <CheckIcon className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
                 )}
                 {getTypeIcon(type)}
-                <span className="truncate">{type.charAt(0).toUpperCase() + type.slice(1)}</span>
+                <span className="truncate">{label}</span>
               </button>
             ))}
           </div>
@@ -1484,14 +1500,16 @@ export default function UnifiedSearch() {
                 )}
 
                 {/* Results by Type */}
-                {selectedTypes.includes('contacts') && searchResults.results?.contacts && searchResults.results.contacts.length > 0 && (
+                {(selectedTypes.includes('person') || selectedTypes.includes('contacts')) &&
+                  (searchResults.results?.person ?? searchResults.results?.contacts) &&
+                  (searchResults.results.person ?? searchResults.results.contacts ?? []).length > 0 && (
                   <div className="mb-8">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                       <UserIcon className="h-6 w-6 text-blue-600" />
-                      People ({searchResults.type_totals?.contacts?.toLocaleString() || searchResults.results.contacts.length})
+                      People ({(searchResults.type_totals?.person ?? searchResults.type_totals?.contacts)?.toLocaleString() || (searchResults.results.person ?? searchResults.results.contacts ?? []).length})
                     </h3>
                     <div className="grid grid-cols-1 gap-4">
-                      {searchResults.results.contacts.map((result, idx) => (
+                      {(searchResults.results.person ?? searchResults.results.contacts ?? []).map((result, idx) => (
                         <ResultCard key={idx} result={result} />
                       ))}
                     </div>
