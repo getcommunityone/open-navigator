@@ -695,6 +695,19 @@ export default function Home() {
     })
     searchSpan.end()
 
+    // Trace the search submission. Attributes are low-cardinality only — we
+    // record the query *length* and presence, never the raw query string
+    // (privacy + cardinality), mirroring the API's search spans.
+    const searchSpan = tracer.startSpan('search.submit', {
+      attributes: {
+        'search.q.length': q.length,
+        'search.has_query': q.length > 0,
+        'search.scope': searchScope,
+        'search.tab': heroSearchTab,
+      },
+    })
+    searchSpan.end()
+
     const searchUrl = `/search?${params.toString()}`
     homeLog('🚀 [Home] Navigating to:', searchUrl)
     navigate(searchUrl)
