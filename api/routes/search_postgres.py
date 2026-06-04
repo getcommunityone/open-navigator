@@ -197,7 +197,9 @@ async def search_jurisdictions_pg(
             db_types = [level_mapping.get(level) for level in jurisdiction_levels if level_mapping.get(level)]
             if db_types:
                 placeholders = ','.join([f"${param_idx + i}" for i in range(len(db_types))])
-                where_clauses.append(f"type IN ({placeholders})")
+                # Filter on the canonical jurisdiction_type column (the mart exposes
+                # the API-level values city/county/town/.../state under that name).
+                where_clauses.append(f"jurisdiction_type IN ({placeholders})")
                 params.extend(db_types)
                 param_idx += len(db_types)
         

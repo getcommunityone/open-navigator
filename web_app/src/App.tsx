@@ -1,5 +1,7 @@
+import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom'
+import { tracer } from './instrumentation'
 import Layout from './components/Layout'
 import Home from './pages/Home'
 import HomeModern from './pages/HomeModern'
@@ -106,9 +108,27 @@ function LegacyCensusMapRedirect() {
   return <Navigate to={`${path}${search}`} replace />
 }
 
+/**
+ * Emits a short `route.change` span on every navigation. Rendered inside the
+ * Router so `useLocation()` is available. Attribute is the path only (no query
+ * string) to keep cardinality bounded and avoid leaking search terms.
+ */
+function RouteChangeTracer() {
+  const location = useLocation()
+  useEffect(() => {
+    const span = tracer.startSpan('route.change', {
+      attributes: { 'route.path': location.pathname },
+    })
+    span.end()
+  }, [location.pathname])
+  return null
+}
+
 function App() {
   return (
-    <Routes>
+    <>
+      <RouteChangeTracer />
+      <Routes>
       {/* Ground News-style homepage without Layout (has its own header) */}
       <Route path="/" element={<Home />} />
       
@@ -171,7 +191,8 @@ function App() {
       
       {/* 404 Page - Catch all unmatched routes */}
       <Route path="*" element={<NotFound />} />
-    </Routes>
+      </Routes>
+    </>
   )
 }
 

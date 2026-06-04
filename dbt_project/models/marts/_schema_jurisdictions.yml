@@ -1,0 +1,93 @@
+version: 2
+
+models:
+  - name: jurisdictions
+    description: >
+      public.jurisdictions - API-ready jurisdiction table consumed by
+      search_jurisdictions_pg (api/routes/search_postgres.py) and the frontend
+      jurisdiction search. One row per jurisdiction (PK jurisdiction_id), built
+      from the live intermediate.int_jurisdictions (82,921 rows from the sharded
+      bronze census/wikidata tables) enriched with population (jurisdiction_acs)
+      and a best-pick website_url (int_jurisdiction_websites). geoid is NOT
+      unique (places and school districts can share a 7-char code), so the PK is
+      jurisdiction_id. jurisdiction_type is mapped to the API level_mapping
+      values (municipality->city, township->town) and is the single canonical
+      type column (search_jurisdictions_pg aliases it to `type` in its own SELECT).
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    columns:
+      - name: jurisdiction_id
+        description: "Primary key. Stable id (slug + geoid) from int_jurisdictions."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: geoid
+        description: "Census GEOID. NOT unique across types (place vs school district share 7-char codes)."
+        data_type: varchar
+      - name: fips_code
+        description: "FIPS code (same value as geoid for most census shards)."
+        data_type: varchar
+      - name: ansicode
+        description: "Census ANSI/GNIS code where available."
+        data_type: varchar
+      - name: name
+        description: "Raw jurisdiction name."
+        data_type: varchar
+      - name: display_name
+        description: "Display name used by the API for search + UI (currently = name)."
+        data_type: varchar
+        constraints:
+          - type: not_null
+      - name: jurisdiction_type
+        description: "API-facing type mapped to level_mapping values: city/town/county/state/school_district."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: jurisdiction_category
+        description: "Raw census classification preserved for provenance (municipality/township/county/state/school_district)."
+        data_type: text
+      - name: state_code
+        description: "2-letter state code."
+        data_type: varchar
+        constraints:
+          - type: not_null
+      - name: state_name
+        description: "Full state name."
+        data_type: text
+      - name: county_name
+        description: "County name; populated only for county-type jurisdictions (a county's own name). NULL otherwise - no place->county crosswalk at scale."
+        data_type: varchar
+      - name: population
+        description: "Total population from public.jurisdiction_acs (latest vintage, on geoid). NULL where no ACS match."
+        data_type: bigint
+      - name: area_sq_miles
+        description: "Land area in square miles."
+        data_type: numeric
+      - name: latitude
+        description: "Centroid latitude."
+        data_type: numeric
+      - name: longitude
+        description: "Centroid longitude."
+        data_type: numeric
+      - name: website_url
+        description: "Best single official website (ranked by source quality from int_jurisdiction_websites). NULL where unknown."
+        data_type: text
+      - name: search_text
+        description: "FTS blob: name + state + state_code + type (+ county for counties). Backs the API to_tsvector match/rank."
+        data_type: text
+      - name: ingestion_date
+        description: "Source ingestion timestamp from int_jurisdictions."
+        data_type: timestamp
+      - name: transformed_at
+        description: "int_jurisdictions transform timestamp."
+        data_type: timestamptz
+      - name: published_at
+        description: "Build timestamp for this mart."
+        data_type: timestamptz

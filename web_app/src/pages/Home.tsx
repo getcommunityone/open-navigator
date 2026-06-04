@@ -3,6 +3,7 @@ import React, { useState, Fragment, useEffect, useRef } from 'react'
 import { Menu, Transition } from '@headlessui/react'
 import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
+import { tracer } from '../instrumentation'
 import { homeLog } from '../utils/devLog'
 import { 
   MagnifyingGlassIcon, 
@@ -133,19 +134,41 @@ type HeroSearchCategoryTab =
   | 'bills'
   | 'donors'
 
-const HERO_SEARCH_TAB_DEFS: { id: HeroSearchCategoryTab; label: string; types: string; count?: string }[] = [
+const HERO_SEARCH_TAB_DEFS: {
+  id: HeroSearchCategoryTab
+  label: string
+  types: string
+  count?: string
+  /* `activity` surfaces an orange "new this week" dot in the category dropdown. */
+  activity?: boolean
+  /* Shown in the input when this category is active (the box narrows a browsable list). */
+  filterPlaceholder?: string
+}[] = [
   { id: 'all', label: 'All', types: 'causes,contacts,organizations,bills,topics,decisions' },
-  { id: 'leaders', label: 'Leaders', types: 'contacts', count: '75K' },
-  { id: 'nonprofits', label: 'Nonprofits', types: 'organizations', count: '1.8M' },
-  { id: 'decisions', label: 'Decisions', types: 'decisions', count: '169' },
-  { id: 'causes', label: 'Causes', types: 'causes', count: '650+' },
-  { id: 'bills', label: 'Bills', types: 'bills' },
+  { id: 'leaders', label: 'Leaders', types: 'contacts', count: '75K', filterPlaceholder: 'Filter leaders by name or office…' },
+  { id: 'nonprofits', label: 'Nonprofits', types: 'organizations', count: '1.8M', filterPlaceholder: 'Filter nonprofits by name or cause…' },
+  { id: 'decisions', label: 'Decisions', types: 'decisions', count: '169', activity: true, filterPlaceholder: 'Filter decisions by topic or body…' },
+  { id: 'causes', label: 'Causes', types: 'causes', count: '650+', filterPlaceholder: 'Filter causes by name…' },
+  { id: 'bills', label: 'Bills', types: 'bills', filterPlaceholder: 'Filter bills by number or topic…' },
   {
     id: 'donors',
     label: 'Donors',
     /* No dedicated donor index yet — combined people + orgs until search adds a donors type. */
     types: 'contacts,organizations',
+    filterPlaceholder: 'Filter donors by name…',
   },
+]
+
+// Shown under the hero bar in the idle state when the live trending query
+// returns nothing (e.g. an empty local warehouse) so the row still reads as
+// designed. Real trending causes from /trending take precedence when present.
+const FALLBACK_TRENDING: { name: string }[] = [
+  { name: 'school board budget' },
+  { name: 'rezoning' },
+  { name: 'police oversight board' },
+  { name: 'water utility rates' },
+  { name: 'short-term rentals' },
+  { name: 'transit funding' },
 ]
 
 function formatCompactCount(n: number | undefined): string | undefined {
@@ -173,12 +196,14 @@ export default function Home() {
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [focused, setFocused] = useState(false)
   const [scopeOpen, setScopeOpen] = useState(false)
+  const [catOpen, setCatOpen] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [showLoginMenu, setShowLoginMenu] = useState(false)
   const { location, setLocation } = useLocationContext()
   const { user, isAuthenticated, login, logout, isLoading } = useAuth()
   const searchContainerRef = useRef<HTMLDivElement>(null)
   const scopeRef = useRef<HTMLDivElement>(null)
+  const catRef = useRef<HTMLDivElement>(null)
 
   const DOCS_URL = import.meta.env.PROD ? 'https://www.communityone.com/docs/intro' : 'http://localhost:3000/docs/intro'
   
@@ -225,6 +250,22 @@ export default function Home() {
       };
     }
   }, [scopeOpen]);
+
+  // Close category dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (catRef.current && !catRef.current.contains(event.target as Node)) {
+        setCatOpen(false);
+      }
+    };
+
+    if (catOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [catOpen]);
 
   // Fetch stats based on location AND search scope
   const { data: locationStats } = useQuery({
@@ -337,10 +378,20 @@ export default function Home() {
     return globalCauses.filter((cause: any) => (cause.decision_count || 0) > 0)
   }, [locationStats, trendingData])
 
-  const heroSearchTypes = React.useMemo(() => {
-    const row = HERO_SEARCH_TAB_DEFS.find((t) => t.id === heroSearchTab)
-    return row?.types ?? HERO_SEARCH_TAB_DEFS[0].types
-  }, [heroSearchTab])
+  const activeHeroTab = React.useMemo(
+    () => HERO_SEARCH_TAB_DEFS.find((t) => t.id === heroSearchTab) ?? HERO_SEARCH_TAB_DEFS[0],
+    [heroSearchTab],
+  )
+
+  const heroSearchTypes = activeHeroTab.types
+
+  // Placeholder adapts to the active scope: the broad "All" prompt, or a
+  // category-specific "Filter … by …" prompt that signals the box now narrows
+  // a browsable list.
+  const heroSearchPlaceholder =
+    heroSearchTab === 'all'
+      ? 'Search topics, people, organizations, or causes…'
+      : activeHeroTab.filterPlaceholder ?? 'Search topics, people, organizations, or causes…'
 
   // Human-readable label for the currently selected search scope (reused by the
   // location selector button and the live "Searching … in …" hint line).
@@ -571,6 +622,19 @@ export default function Home() {
       params.set('state', location.state)
       homeLog('📍 [Home] Adding state filter:', location.state)
     }
+
+    // Trace the search submission. Attributes are low-cardinality only — we
+    // record the query *length* and presence, never the raw query string
+    // (privacy + cardinality), mirroring the API's search spans.
+    const searchSpan = tracer.startSpan('search.submit', {
+      attributes: {
+        'search.q.length': q.length,
+        'search.has_query': q.length > 0,
+        'search.scope': searchScope,
+        'search.tab': heroSearchTab,
+      },
+    })
+    searchSpan.end()
 
     const searchUrl = `/search?${params.toString()}`
     homeLog('🚀 [Home] Navigating to:', searchUrl)
@@ -1066,8 +1130,90 @@ export default function Home() {
                                 : '0 4px 20px rgba(26,107,107,0.08)',
                             }}
                           >
+                            {/* 0. Category scope — dropdown on the left, part of the search action */}
+                            <div ref={catRef} className="relative flex items-stretch">
+                              <button
+                                type="button"
+                                onClick={() => setCatOpen((o) => !o)}
+                                aria-haspopup="listbox"
+                                aria-expanded={catOpen}
+                                aria-label="Search category"
+                                className="flex items-center gap-2 rounded-t-2xl px-5 py-4 font-medium text-[#0f2b2b] transition-colors hover:bg-[#f7fafb] lg:rounded-l-2xl lg:rounded-tr-none lg:py-0"
+                                style={{ fontFamily: "'DM Sans', sans-serif" }}
+                              >
+                                <span className="text-[15px]">{activeHeroTab.label}</span>
+                                {HERO_SEARCH_TAB_DEFS.some((c) => c.activity && c.id !== heroSearchTab) && (
+                                  <span
+                                    className="h-1.5 w-1.5 rounded-full bg-[#e0723a]"
+                                    title="New activity in some categories"
+                                  />
+                                )}
+                                <ChevronDownIcon
+                                  className={`h-4 w-4 shrink-0 text-[#6b8a8a] transition-transform ${catOpen ? 'rotate-180' : ''}`}
+                                  aria-hidden
+                                />
+                              </button>
+
+                              {catOpen && (
+                                <div
+                                  role="listbox"
+                                  aria-label="Search category"
+                                  className="absolute left-0 top-full z-50 mt-2 w-64 overflow-hidden rounded-xl border border-[#d4e8e8] bg-white py-1.5 text-left shadow-[0_8px_30px_rgba(26,107,107,0.18)]"
+                                >
+                                  <p className="px-3 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-wide text-[#9bb8b8]">
+                                    Search in
+                                  </p>
+                                  {HERO_SEARCH_TAB_DEFS.map((cat) => {
+                                    const selected = heroSearchTab === cat.id
+                                    const countBadge =
+                                      cat.id === 'bills'
+                                        ? formatCompactCount(locationStats?.bills as number | undefined)
+                                        : cat.count
+                                    return (
+                                      <button
+                                        key={cat.id}
+                                        type="button"
+                                        role="option"
+                                        aria-selected={selected}
+                                        onClick={() => {
+                                          setHeroSearchTab(cat.id)
+                                          setCatOpen(false)
+                                        }}
+                                        className="flex w-full items-center justify-between px-3 py-2 text-sm transition-colors hover:bg-[#f7fafb]"
+                                        style={{
+                                          color: selected ? '#1a6b6b' : '#334155',
+                                          fontFamily: "'DM Sans', sans-serif",
+                                        }}
+                                      >
+                                        <span className="flex items-center gap-2">
+                                          {cat.label}
+                                          {cat.activity && (
+                                            <span
+                                              className="h-1.5 w-1.5 rounded-full bg-[#e0723a]"
+                                              title="New activity this week"
+                                            />
+                                          )}
+                                        </span>
+                                        <span className="flex items-center gap-2">
+                                          {countBadge && (
+                                            <span className="text-[11px] font-semibold tabular-nums text-[#9bb8b8]">
+                                              {countBadge}
+                                            </span>
+                                          )}
+                                          {selected && <CheckIcon className="h-4 w-4 text-[#1a6b6b]" aria-hidden />}
+                                        </span>
+                                      </button>
+                                    )
+                                  })}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* vertical divider between category and query */}
+                            <div className="mx-0 hidden w-px self-stretch bg-[#d4e8e8] lg:my-3 lg:block" />
+
                             {/* 1. Query region (dominant) */}
-                            <div className="flex flex-1 items-center pl-6">
+                            <div className="flex flex-1 items-center pl-4 lg:pl-5">
                               <MagnifyingGlassIcon
                                 className="pointer-events-none h-7 w-7 shrink-0 text-[#6b8a8a]"
                                 aria-hidden
@@ -1080,7 +1226,7 @@ export default function Home() {
                                 type="search"
                                 name="q"
                                 autoComplete="off"
-                                placeholder="Try 'school board budget' or 'mental health nonprofits'…"
+                                placeholder={heroSearchPlaceholder}
                                 title='Examples: "school board budget", "mental health nonprofit", "zoning", "transit".'
                                 aria-describedby="hero-search-hint"
                                 value={keyword}
@@ -1485,82 +1631,86 @@ export default function Home() {
                                 )}
                         </div>
 
-                        {/* Category scope chips (below the bar) */}
-                        <div
-                          role="tablist"
-                          aria-labelledby="hero-search-tabs-label"
-                          className="mt-4 flex flex-wrap justify-center gap-2"
-                          onKeyDown={(e) => {
-                            const idx = HERO_SEARCH_TAB_DEFS.findIndex((t) => t.id === heroSearchTab)
-                            if (idx < 0) return
-                            if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-                              e.preventDefault()
-                              const next = HERO_SEARCH_TAB_DEFS[(idx + 1) % HERO_SEARCH_TAB_DEFS.length]
-                              setHeroSearchTab(next.id)
-                              window.requestAnimationFrame(() => {
-                                document.getElementById(`hero-search-tab-${next.id}`)?.focus()
-                              })
-                            } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-                              e.preventDefault()
-                              const prev =
-                                HERO_SEARCH_TAB_DEFS[
-                                  (idx - 1 + HERO_SEARCH_TAB_DEFS.length) % HERO_SEARCH_TAB_DEFS.length
-                                ]
-                              setHeroSearchTab(prev.id)
-                              window.requestAnimationFrame(() => {
-                                document.getElementById(`hero-search-tab-${prev.id}`)?.focus()
-                              })
-                            }
-                          }}
-                        >
-                          {HERO_SEARCH_TAB_DEFS.map((tab) => {
-                            const selected = heroSearchTab === tab.id
-                            const countBadge =
-                              tab.id === 'bills'
-                                ? formatCompactCount(locationStats?.bills as number | undefined)
-                                : tab.count
+                        {/* State-aware footer: trending + browse when idle, scope
+                            hint when a category or query narrows the search. */}
+                        {(() => {
+                          const trimmed = keyword.trim()
+                          const intent =
+                            trimmed.length > 0 ? 'query' : heroSearchTab === 'all' ? 'idle' : 'browse'
+
+                          if (intent === 'idle') {
+                            const heroTrending =
+                              trendingTopics && trendingTopics.length > 0
+                                ? trendingTopics
+                                : FALLBACK_TRENDING
                             return (
-                              <button
-                                key={tab.id}
-                                type="button"
-                                id={`hero-search-tab-${tab.id}`}
-                                role="tab"
-                                aria-selected={selected}
-                                tabIndex={selected ? 0 : -1}
-                                title={`Show ${tab.label} results`}
-                                className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-4 py-2 text-[13px] font-semibold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1a6b6b] focus-visible:ring-offset-2 active:scale-[0.98] ${
-                                  selected
-                                    ? 'border-[#1a6b6b] bg-[#1a6b6b] text-white shadow-[0_2px_10px_rgba(26,107,107,0.35)]'
-                                    : 'border-[#d4e8e8] bg-white text-[#4a6a6a] shadow-sm hover:border-[#1a6b6b]/45 hover:bg-[#f7fafb] hover:text-[#0f2b2b] hover:shadow-md'
-                                }`}
-                                onClick={() => setHeroSearchTab(tab.id)}
+                              <div className="mt-4 flex items-center gap-3 text-left">
+                                <span className="hidden shrink-0 items-center gap-1.5 text-[#9bb8b8] sm:inline-flex">
+                                  <ArrowTrendingUpIcon className="h-4 w-4" style={{ color: '#e0723a' }} aria-hidden />
+                                  Trending
+                                </span>
+                                <div className="relative min-w-0 flex-1">
+                                  <div className="scrollbar-hide flex items-center gap-2 overflow-x-auto py-0.5">
+                                    {heroTrending.slice(0, 8).map((t: { name: string }) => (
+                                      <button
+                                        key={t.name}
+                                        type="button"
+                                        onClick={() => setKeyword(t.name)}
+                                        className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-[#d4e8e8] bg-white px-3 py-1.5 text-sm font-medium text-[#4a6a6a] transition-colors hover:border-[#1a6b6b]/45 hover:text-[#0f2b2b]"
+                                        style={{ fontFamily: "'DM Sans', sans-serif" }}
+                                      >
+                                        {t.name}
+                                      </button>
+                                    ))}
+                                  </div>
+                                  {/* edge fade masks */}
+                                  <div className="pointer-events-none absolute inset-y-0 left-0 w-6 bg-gradient-to-r from-white to-transparent" />
+                                  <div className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-white to-transparent" />
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => navigate('/search')}
+                                  className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-[#1a6b6b] underline-offset-2 transition-colors hover:underline"
+                                  style={{ fontFamily: "'DM Sans', sans-serif" }}
+                                >
+                                  Browse topics
+                                  <ChevronDownIcon className="h-4 w-4 -rotate-90" aria-hidden />
+                                </button>
+                              </div>
+                            )
+                          }
+
+                          if (intent === 'browse') {
+                            const countBadge =
+                              activeHeroTab.id === 'bills'
+                                ? formatCompactCount(locationStats?.bills as number | undefined)
+                                : activeHeroTab.count
+                            return (
+                              <p
+                                className="mt-3 text-sm text-[#6b8a8a]"
                                 style={{ fontFamily: "'DM Sans', sans-serif" }}
                               >
-                                {tab.label}
-                                {countBadge ? (
-                                  <span
-                                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold leading-none tabular-nums ${
-                                      selected
-                                        ? 'border border-white/30 bg-white/20 text-white'
-                                        : 'bg-[#e8f4f4] text-[#1a6b6b]'
-                                    }`}
-                                  >
-                                    {countBadge}
-                                  </span>
-                                ) : null}
-                              </button>
+                                Browsing{' '}
+                                <span className="font-semibold text-[#0f2b2b]">
+                                  {countBadge ? `all ${countBadge} ` : 'all '}
+                                  {activeHeroTab.label.toLowerCase()}
+                                </span>{' '}
+                                in <span className="font-semibold text-[#1a6b6b]">{scopeLabel}</span>
+                                {' — start typing to filter'}
+                              </p>
                             )
-                          })}
-                        </div>
+                          }
 
-                        {/* Live scope hint */}
-                        <p
-                          className="mt-3 text-sm text-[#6b8a8a]"
-                          style={{ fontFamily: "'DM Sans', sans-serif" }}
-                        >
-                          Searching <span className="font-semibold text-[#0f2b2b]">{scopeNoun}</span> in{' '}
-                          <span className="font-semibold text-[#1a6b6b]">{scopeLabel}</span>
-                        </p>
+                          return (
+                            <p
+                              className="mt-3 text-sm text-[#6b8a8a]"
+                              style={{ fontFamily: "'DM Sans', sans-serif" }}
+                            >
+                              Searching <span className="font-semibold text-[#0f2b2b]">{scopeNoun}</span> in{' '}
+                              <span className="font-semibold text-[#1a6b6b]">{scopeLabel}</span>
+                            </p>
+                          )
+                        })()}
                       </div>
                     </div>
 
