@@ -11,7 +11,13 @@
       {'columns': ['event_date'], 'type': 'btree'}
     ],
     post_hook=[
-      "CREATE INDEX IF NOT EXISTS event_documents_content_fts_idx ON {{ this }} USING gin (to_tsvector('english', content))"
+      -- GIN on the STORED content_tsv column (not on to_tsvector(content)): the
+      -- search ranks with ts_rank(content_tsv, query), and ranking off an
+      -- expression index would force Postgres to recompute to_tsvector over the
+      -- full 43KB-avg transcript for every match (a common word like "water"
+      -- matches thousands of rows -> 25s+ stall). Storing the vector makes both
+      -- the @@ match and the ts_rank ordering read precomputed lexemes.
+      "CREATE INDEX IF NOT EXISTS event_documents_content_tsv_idx ON {{ this }} USING gin (content_tsv)"
     ]
   )
 }}
@@ -92,6 +98,10 @@ SELECT
     transcript_source                                      AS document_source,
     video_id,
     raw_text                                               AS content,
+    -- Precomputed full-text vector stored alongside the raw text so the search
+    -- API can ts_rank() without recomputing to_tsvector over every match.
+    -- Indexed by the content_tsv GIN index (see post_hook).
+    to_tsvector('english', raw_text)                       AS content_tsv,
     LENGTH(raw_text)                                       AS content_length,
     CASE
         WHEN raw_text IS NOT NULL

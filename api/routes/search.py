@@ -7,6 +7,7 @@ from fastapi import APIRouter, Query, HTTPException
 from fastapi.responses import JSONResponse
 from typing import Optional, List, Dict, Any
 from pathlib import Path
+import asyncio
 import pandas as pd
 import duckdb
 from loguru import logger
@@ -1271,56 +1272,9 @@ def search_organizations(query: str, state: Optional[str] = None, ntee_code: Opt
     return results
 
 
-def search_causes(query: str, limit: int = 10) -> List[SearchResult]:
-    """Search causes and NTEE categories - supports browse mode"""
-    results = []
-    
-    try:
-        # Get data source (local or remote HuggingFace URL)
-        ntee_file = GOLD_DIR / "reference" / "causes_ntee_codes.parquet"
-        data_source = get_data_source(ntee_file, use_remote=IS_HF_SPACES)
-        
-        # Load with caching
-        df = load_parquet_cached(data_source)
-        logger.debug(f"Loaded {len(df)} NTEE codes from cache")
-        
-        for _, row in df.iterrows():
-            code = str(row.get('ntee_code', ''))
-            description = str(row.get('description', ''))
-            ntee_type = str(row.get('ntee_type', ''))
-            
-            # Browse mode: return all causes
-            # Search mode: filter by relevance
-            if query and query.strip():
-                score = max(
-                    calculate_relevance_score(description, query),
-                    calculate_relevance_score(code, query)
-                )
-                if score <= 0.3:
-                    continue  # Skip low relevance results
-            else:
-                score = 1.0  # Default score for browse mode
-            
-            results.append(SearchResult(
-                result_type="cause",
-                title=description,
-                subtitle=f"NTEE Code: {code}",
-                description=f"Category type: {ntee_type}",
-                url=f"/nonprofits?ntee_code={code}",
-                score=score,
-                metadata={
-                    "ntee_code": code,
-                    "ntee_type": ntee_type
-                }
-            ))
-        
-        logger.info(f"Found {len(results)} cause results for query '{query}'")
-    
-    except Exception as e:
-        logger.error(f"Cause search error: {e}")
-    
-    results.sort(key=lambda x: x.score, reverse=True)
-    return results[:limit]
+# NOTE: causes search moved to search_postgres.search_causes_pg (public.tag,
+# vocabulary='ntee'). The old parquet-backed search_causes() was removed when
+# data/gold/reference/causes_ntee_codes.parquet was retired.
 
 
 def search_jurisdictions(query: str, state: Optional[str] = None, city: Optional[str] = None, jurisdiction_levels: Optional[List[str]] = None, limit: int = 10, offset: int = 0) -> List[SearchResult]:
@@ -1520,68 +1474,64 @@ async def unified_search(
             search_limit = offset + limit + 100
             search_offset = 0
         
+        # Each requested type is an independent indexed PostgreSQL query. Run them
+        # CONCURRENTLY (asyncio.gather) instead of sequentially: a multi-type search
+        # used to await each type back-to-back, so their latencies *compounded* (5
+        # types ~= sum of 5 query times). Concurrent dispatch makes the endpoint as
+        # slow as its single slowest type, and isolates a slow/failing type so it
+        # can't block the others. The pool (max_size=20) comfortably covers the
+        # handful of in-flight per-type queries.
+        # (label, coroutine) pairs — built only for requested types.
+        search_tasks: List[tuple] = []
+
         # 'person' is the current type; 'contacts' kept as a back-compat alias.
         if 'person' in requested_types or 'contacts' in requested_types:
             # MDM person master (mdm_person) — fast trigram name search
-            person_results_pg = await search_postgres.search_persons_pg(q, state, limit=search_limit)
-            person_results = [convert_pg_result(r) for r in person_results_pg]
-            logger.info(f"👤 Person search returned {len(person_results)} results")
-            all_results.extend(person_results)
-        
+            search_tasks.append(('person', search_postgres.search_persons_pg(q, state, limit=search_limit)))
+
         if 'meetings' in requested_types:
-            # Use PostgreSQL for fast indexed search
-            meeting_results_pg = await search_postgres.search_events_pg(q, state, limit=search_limit)
-            meeting_results = [convert_pg_result(r) for r in meeting_results_pg]
-            logger.info(f"📅 Meetings search returned {len(meeting_results)} results")
-            all_results.extend(meeting_results)
-        
+            search_tasks.append(('meetings', search_postgres.search_events_pg(q, state, limit=search_limit)))
+
         if 'organizations' in requested_types:
-            # Use PostgreSQL for fast indexed search
-            org_results_pg = await search_postgres.search_organizations_pg(q, state, city, ntee_code, ein, limit=search_limit, offset=search_offset, sort=sort)
-            org_results = [convert_pg_result(r) for r in org_results_pg]
-            logger.info(f"🏢 Organizations search returned {len(org_results)} results")
-            all_results.extend(org_results)
-        
+            search_tasks.append(('organizations', search_postgres.search_organizations_pg(q, state, city, ntee_code, ein, limit=search_limit, offset=search_offset, sort=sort)))
+
         if 'bills' in requested_types:
-            # Use PostgreSQL for fast indexed search
-            bill_results_pg = await search_postgres.search_bills_pg(q, state, session, limit=search_limit)
-            bill_results = [convert_pg_result(r) for r in bill_results_pg]
-            logger.info(f"📜 Bills search returned {len(bill_results)} results")
-            all_results.extend(bill_results)
-        
+            search_tasks.append(('bills', search_postgres.search_bills_pg(q, state, session, limit=search_limit)))
+
         if 'topics' in requested_types:
-            # Use PostgreSQL for fast indexed search of AI-extracted meeting topics
-            topic_results_pg = await search_postgres.search_topics_pg(q, state, ntee_code, limit=search_limit)
-            topic_results = [convert_pg_result(r) for r in topic_results_pg]
-            logger.info(f"📋 Topics search returned {len(topic_results)} results")
-            all_results.extend(topic_results)
-        
+            search_tasks.append(('topics', search_postgres.search_topics_pg(q, state, ntee_code, limit=search_limit)))
+
         if 'decisions' in requested_types:
-            # Use PostgreSQL for fast indexed search of governance decisions
-            decision_results_pg = await search_postgres.search_decisions_pg(q, state, limit=search_limit)
-            decision_results = [convert_pg_result(r) for r in decision_results_pg]
-            logger.info(f"⚖️ Decisions search returned {len(decision_results)} results")
-            all_results.extend(decision_results)
-        
+            search_tasks.append(('decisions', search_postgres.search_decisions_pg(q, state, limit=search_limit)))
+
         if 'documents' in requested_types:
             # Full-text search over meeting transcripts (public.event_documents)
-            document_results_pg = await search_postgres.search_documents_pg(q, state, limit=search_limit)
-            document_results = [convert_pg_result(r) for r in document_results_pg]
-            logger.info(f"📄 Documents search returned {len(document_results)} results")
-            all_results.extend(document_results)
+            search_tasks.append(('documents', search_postgres.search_documents_pg(q, state, limit=search_limit)))
 
         if 'causes' in requested_types:
-            cause_results = search_causes(q or "", limit=search_limit)
-            logger.info(f"🎯 Causes search returned {len(cause_results)} results")
-            all_results.extend(cause_results)
-        
+            # NTEE causes now come from public.tag (vocabulary='ntee'); the old
+            # causes_ntee_codes.parquet feed was retired.
+            search_tasks.append(('causes', search_postgres.search_causes_pg(q, limit=search_limit)))
+
         if 'jurisdictions' in requested_types:
-            # Use PostgreSQL for fast indexed search
-            jurisdiction_results_pg = await search_postgres.search_jurisdictions_pg(q, state, city, jurisdiction_levels_list, limit=search_limit, offset=search_offset)
-            jurisdiction_results = [convert_pg_result(r) for r in jurisdiction_results_pg]
-            logger.info(f"🏛️ Jurisdictions search returned {len(jurisdiction_results)} results")
-            all_results.extend(jurisdiction_results)
-        
+            search_tasks.append(('jurisdictions', search_postgres.search_jurisdictions_pg(q, state, city, jurisdiction_levels_list, limit=search_limit, offset=search_offset)))
+
+        if search_tasks:
+            # return_exceptions=True so one failing type degrades gracefully
+            # (empty results for it) instead of failing the whole search.
+            labels = [label for label, _ in search_tasks]
+            gathered = await asyncio.gather(
+                *(coro for _, coro in search_tasks),
+                return_exceptions=True,
+            )
+            for label, outcome in zip(labels, gathered):
+                if isinstance(outcome, Exception):
+                    logger.error(f"❌ {label} search failed: {outcome}")
+                    continue
+                converted = [convert_pg_result(r) for r in outcome]
+                logger.info(f"🔎 {label} search returned {len(converted)} results")
+                all_results.extend(converted)
+
         # Sort all results by score
         all_results.sort(key=lambda x: x.score, reverse=True)
         

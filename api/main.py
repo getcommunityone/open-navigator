@@ -296,6 +296,7 @@ async def internal_server_error_handler(request: Request, exc: Exception):
 from api.routes import auth as auth_routes
 from api.routes import social as social_routes
 from api.routes import search as search_routes
+from api.routes import people as people_routes
 # Use Neon database for fast stats queries (500x faster than parquet)
 from api.routes import stats_neon as stats_routes  # Was: stats
 from api.routes import contact as contact_routes
@@ -315,6 +316,7 @@ from api.database import init_db
 app.include_router(auth_routes.router, prefix="/api")
 app.include_router(social_routes.router, prefix="/api")
 app.include_router(search_routes.router, prefix="/api")
+app.include_router(people_routes.router, prefix="/api")
 app.include_router(stats_routes.router, prefix="/api", tags=["stats"])
 app.include_router(contact_routes.router, prefix="/api")
 app.include_router(bills_routes.router, prefix="/api")

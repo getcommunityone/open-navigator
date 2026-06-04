@@ -18,12 +18,6 @@ NEON_DATABASE_URL = os.getenv('NEON_DATABASE_URL')
 # Use dev database for local development, production database for deployed environments
 DATABASE_URL = NEON_DATABASE_URL_DEV or NEON_DATABASE_URL
 
-# Bronze schema for AI-extracted meeting data (topics, decisions, etc.)
-# NOTE: Bronze data is now in bronze schema of main database
-POSTGRES_PASSWORD = os.getenv('POSTGRES_PASSWORD', 'password')
-BRONZE_DATABASE_URL = os.getenv('LOCAL_BRONZE_DATABASE_URL',
-                                 f'postgresql://postgres:{POSTGRES_PASSWORD}@localhost:5433/open_navigator')
-
 # Person search (mdm_person ~13.8M rows): cap how many ILIKE-matched candidates
 # we rank/dedup so a broad substring (e.g. '%jo%' ~ 900k rows) can't stall the
 # query. Selective name queries return far fewer than this and are unaffected.
@@ -31,7 +25,6 @@ PERSON_CANDIDATE_CAP = 3000
 
 # Connection pools (created on first request)
 _db_pool = None  # Production database pool (Neon)
-_bronze_db_pool = None  # Bronze database pool (local PostgreSQL)
 
 # State name to code mapping for input normalization
 STATE_NAME_TO_CODE = {
@@ -320,6 +313,19 @@ async def search_persons_pg(
             inner_order = "p.master_person_id"
             outer_order = "full_name ASC"
 
+        # mdm_person is officer-derived (source_system='bronze_990_officers'), so a
+        # chunk of "people" are really organization names that leaked in from the
+        # Form 990 officer roster (e.g. "World Resources Institute", "Elias Law
+        # Group", "Carequest Institute For Oral Health"). Those belong under
+        # Organizations, not People. Drop any candidate whose normalized name is an
+        # exact known organization name. name_norm and org_name_norm use the same
+        # normalization, so this is precise (a real person like "Bill Center" has no
+        # matching org and is kept). Cheap on the typeahead path: it runs only over
+        # the trgm-capped candidate set and probes the mdm_organization_org_name_norm_idx.
+        where_clauses.append(
+            "NOT EXISTS (SELECT 1 FROM mdm_organization o WHERE o.org_name_norm = p.name_norm)"
+        )
+
         where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
 
         # limit param is shared by both branches
@@ -406,12 +412,25 @@ async def search_persons_pg(
                 title = format_title(row['title']) if row['title'] else 'Person'
                 location = f"{row['city_norm']}, {row['state_code']}" if row['city_norm'] and row['state_code'] else (row['state_code'] or '')
 
+                # Key the detail URL on person_uid (the true unique PK), NOT
+                # master_person_id. The MDM resolved-entity id badly over-merges
+                # (one master_person_id can blob together 50+ unrelated people in
+                # the same city), so it does not identify the person the user
+                # clicked. person_uid is one row per real source occurrence.
+                # Fall back to the legacy name slug only if person_uid is null.
+                person_uid = row['person_uid']
+                person_url = (
+                    f"/person/{person_uid}"
+                    if person_uid
+                    else f"/people/{name.replace(' ', '-')}"
+                )
+
                 results.append(SearchResult(
                     result_type='person',
                     title=name,
                     subtitle=f"{title} - {org_display}" if org else title,
                     description=f"Person in {location}" if location else 'Person',
-                    url=f"/people/{name.replace(' ', '-')}",
+                    url=person_url,
                     score=float(row['sim']) if row['sim'] is not None else 1.0,
                     metadata={
                         'name': name,
@@ -862,17 +881,22 @@ async def search_documents_pg(
             params.append(state.upper())
             param_idx += 1
 
-        # Full-text body search (GIN-indexed to_tsvector on content)
+        # Full-text body search against the STORED content_tsv vector (GIN-indexed
+        # by event_documents_content_tsv_idx). Match AND rank both read the
+        # precomputed lexemes — ranking off to_tsvector(content) instead would
+        # re-tokenize every 43KB-avg transcript per match (a common word matches
+        # thousands of rows -> 25s+ stall). ts_headline below still reads the raw
+        # `content` text, but only for the handful of rows we actually return.
         if query and query.strip():
             where_clauses.append(
-                f"to_tsvector('english', content) @@ plainto_tsquery('english', ${param_idx})"
+                f"content_tsv @@ plainto_tsquery('english', ${param_idx})"
             )
             params.append(query)
             q_idx = param_idx
             param_idx += 1
 
             order_by = (
-                f"ts_rank(to_tsvector('english', content), "
+                f"ts_rank(content_tsv, "
                 f"plainto_tsquery('english', ${q_idx})) DESC, event_date DESC NULLS LAST"
             )
             # Highlighted snippet around the matching passage
@@ -967,126 +991,133 @@ async def search_bills_pg(
     limit: int = 10
 ) -> List[SearchResult]:
     """
-    Search bills using PostgreSQL full-text search
-    
+    Search legislation referenced in meetings, backed by the public.event_bill mart
+    (AI-extracted bill / ordinance references from meeting analysis).
+
+    Replaces the retired `bills_search` table. event_bill is a thinner,
+    meeting-derived feed: it carries no abstract / legislative session / action
+    history, so the `session` filter is accepted for back-compat but NOT applied
+    (there is no session column to filter on).
+
     Args:
-        query: Search text (title, bill number, abstract)
+        query: Search text (matched against bill title + official number)
         state: Filter by state code (e.g., 'MA') or full name (e.g., 'Massachusetts')
-        session: Filter by legislative session
+        session: Accepted for back-compat; event_bill has no session column (ignored)
         limit: Max results
-    
+
     Returns:
-        List of SearchResult objects
+        List of SearchResult objects (result_type='bill')
     """
     # Normalize state input to 2-letter code
     state = normalize_state_input(state)
-    
+
     try:
         pool = await get_db_pool()
-        
+
         # Build WHERE clauses
         where_clauses = []
         params = []
         param_idx = 1
-        
+
         if state:
             where_clauses.append(f"state_code = ${param_idx}")
             params.append(state.upper())
             param_idx += 1
-        
-        if session:
-            where_clauses.append(f"session = ${param_idx}")
-            params.append(session)
-            param_idx += 1
-        
-        # Text search across title and abstract
+
+        # Text search across title + official number (the only text event_bill carries)
         if query and query.strip():
             where_clauses.append(f"""(
-                to_tsvector('english', title) @@ plainto_tsquery('english', ${param_idx})
-                OR to_tsvector('english', COALESCE(abstract, '')) @@ plainto_tsquery('english', ${param_idx})
-                OR LOWER(bill_number) LIKE LOWER(${param_idx + 1})
+                to_tsvector('english', COALESCE(title, '')) @@ plainto_tsquery('english', ${param_idx})
+                OR LOWER(official_number) LIKE LOWER(${param_idx + 1})
             )""")
             params.append(query)
             params.append(f"%{query}%")
             param_idx += 2
-            
-            order_by = f"""
-                GREATEST(
-                    ts_rank(to_tsvector('english', title), plainto_tsquery('english', ${param_idx - 2})),
-                    ts_rank(to_tsvector('english', COALESCE(abstract, '')), plainto_tsquery('english', ${param_idx - 2}))
-                ) DESC, latest_action_date DESC NULLS LAST
-            """
+
+            order_by = (
+                f"ts_rank(to_tsvector('english', COALESCE(title, '')), "
+                f"plainto_tsquery('english', ${param_idx - 2})) DESC, extracted_at DESC"
+            )
         else:
-            order_by = "latest_action_date DESC NULLS LAST"
-        
+            order_by = "extracted_at DESC"
+
         where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
-        
+
         sql = f"""
-            SELECT 
-                bill_id,
-                bill_number,
+            SELECT
+                event_bill_id,
+                official_number,
                 title,
-                classification,
-                session,
-                session_name,
+                leg_type,
+                status,
+                relevance,
                 jurisdiction_name,
+                jurisdiction_type,
                 state_code,
                 state,
-                latest_action_date,
-                latest_action_description,
-                abstract,
-                source_url
-            FROM bills_search
+                city,
+                c1_event_id,
+                analysis_id,
+                extracted_at
+            FROM event_bill
             WHERE {where_sql}
             ORDER BY {order_by}
             LIMIT ${param_idx}
         """
         params.append(limit)
-        
+
         async with pool.acquire() as conn:
             rows = await conn.fetch(sql, *params)
-            
+
             results = []
             for row in rows:
-                # Format title  
-                title = f"{row['bill_number']}: {row['title'][:100]}"
-                if len(row['title']) > 100:
-                    title += "..."
-                
-                # Format subtitle with session and date
-                subtitle_parts = []
-                if row['session_name']:
-                    subtitle_parts.append(row['session_name'])
-                if row['latest_action_date']:
-                    subtitle_parts.append(f"Last action: {row['latest_action_date'].strftime('%Y-%m-%d')}")
-                subtitle = " • ".join(subtitle_parts) if subtitle_parts else row.get('jurisdiction_name', '')
-                
-                # Description is either abstract or latest action
-                description = row['abstract'] if row['abstract'] else (row['latest_action_description'] or '')
+                # Format title
+                bill_title = row['title'] or 'Untitled legislation'
+                number = row['official_number']
+                title = f"{number}: {bill_title}" if number else bill_title
+                if len(title) > 120:
+                    title = title[:117] + "..."
+
+                # Subtitle: location + status
+                location = (
+                    f"{row['jurisdiction_name']}, {row['state']}"
+                    if row['jurisdiction_name'] and row['state']
+                    else (row['state'] or '')
+                )
+                subtitle = " • ".join(p for p in (location, row['status']) if p)
+
+                # Description: the AI relevance note, else the title itself
+                description = row['relevance'] or bill_title
                 if description and len(description) > 200:
                     description = description[:200] + "..."
-                
+
                 results.append(SearchResult(
                     result_type='bill',
                     title=title,
                     subtitle=subtitle,
                     description=description,
-                    url=row['source_url'] or f"/bills/{row['state_code']}/{row['bill_number']}",
+                    url=f"/bills/{row['state_code']}/{number}" if number and row['state_code'] else '',
                     score=1.0,
                     metadata={
-                        'bill_id': row['bill_id'],
-                        'bill_number': row['bill_number'],
+                        'event_bill_id': row['event_bill_id'],
+                        'official_number': row['official_number'],
+                        'leg_type': row['leg_type'],
+                        'status': row['status'],
+                        'relevance': row['relevance'],
+                        'jurisdiction': row['jurisdiction_name'],
+                        'jurisdiction_type': row['jurisdiction_type'],
                         'state': row['state'],
                         'state_code': row['state_code'],
-                        'session': row['session'],
-                        'classification': row['classification'],
-                        'latest_action_date': row['latest_action_date'].isoformat() if row['latest_action_date'] else None
+                        'city': row['city'],
+                        'meeting_id': row['analysis_id'],
+                        'c1_event_id': row['c1_event_id'],
+                        'extracted_at': row['extracted_at'].isoformat() if row['extracted_at'] else None,
                     }
                 ))
-            
+
             logger.info(f"📜 PostgreSQL bills search: {len(results)} results")
             return results
-            
+
     except Exception as e:
         logger.error(f"PostgreSQL bills search error: {e}")
         return []
@@ -1099,123 +1130,126 @@ async def search_topics_pg(
     limit: int = 10
 ) -> List[SearchResult]:
     """
-    Search meeting topics from bronze_topics table.
-    Topics are AI-extracted decision topics from meeting transcripts.
-    
+    Search meeting topics, backed by the public.event_topic mart (AI-extracted
+    discussion themes from meeting analysis).
+
+    Replaces the retired `bronze.bronze_topics` table. event_topic is thinner: it
+    carries a primary_theme + headline but no NTEE classification, so the
+    `ntee_code` filter is accepted for back-compat but NOT applied. Unlike the old
+    bronze feed it DOES carry state, so the `state` filter now works.
+
     Args:
-        query: Search query (searches topic, headline, themes)
-        state: State code filter (not applicable for bronze, but kept for compatibility)
-        ntee_code: NTEE code filter (e.g., 'E' for Health)
+        query: Search query (matched against headline + primary_theme)
+        state: Filter by state code (e.g., 'MA') or full name (e.g., 'Massachusetts')
+        ntee_code: Accepted for back-compat; event_topic has no NTEE column (ignored)
         limit: Max results to return
-    
+
     Returns:
-        List of SearchResult objects
+        List of SearchResult objects (result_type='topic')
     """
-    global _bronze_db_pool
-    
+    # Normalize state input to 2-letter code
+    state = normalize_state_input(state)
+
     try:
-        # Create connection pool for bronze database if needed
-        if _bronze_db_pool is None:
-            _bronze_db_pool = await asyncpg.create_pool(
-                BRONZE_DATABASE_URL,
-                min_size=1,
-                max_size=10,
-                command_timeout=30
-            )
-        
-        pool = _bronze_db_pool
-        
-        # Build WHERE clause
+        pool = await get_db_pool()
+
         where_conditions = []
         params = []
         param_idx = 1
-        
-        if query:
-            # Full-text search across topic, headline, and themes
-            where_conditions.append(f"""
-                (topic ILIKE ${param_idx} 
-                 OR headline ILIKE ${param_idx}
-                 OR primary_theme ILIKE ${param_idx}
-                 OR secondary_theme ILIKE ${param_idx})
-            """)
+
+        if state:
+            where_conditions.append(f"state_code = ${param_idx}")
+            params.append(state.upper())
+            param_idx += 1
+
+        if query and query.strip():
+            where_conditions.append(f"""(
+                to_tsvector('english', COALESCE(headline, '') || ' ' || COALESCE(primary_theme, ''))
+                @@ plainto_tsquery('english', ${param_idx})
+                OR primary_theme ILIKE ${param_idx + 1}
+            )""")
+            params.append(query)
             params.append(f"%{query}%")
-            param_idx += 1
-        
-        if ntee_code:
-            where_conditions.append(f"(ntee_major_group = ${param_idx} OR secondary_ntee_major_group = ${param_idx})")
-            params.append(ntee_code)
-            param_idx += 1
-        
+            param_idx += 2
+
+            order_by = (
+                f"ts_rank(to_tsvector('english', COALESCE(headline, '') || ' ' || COALESCE(primary_theme, '')), "
+                f"plainto_tsquery('english', ${param_idx - 2})) DESC, extracted_at DESC"
+            )
+        else:
+            order_by = "extracted_at DESC"
+
         where_sql = " AND ".join(where_conditions) if where_conditions else "TRUE"
-        
+
         sql = f"""
-            SELECT 
-                id,
-                source_event_id,
+            SELECT
+                event_topic_id,
+                analysis_id,
                 decision_id,
-                topic,
-                headline,
                 primary_theme,
-                primary_theme_cofog,
-                secondary_theme,
-                ntee_code,
-                ntee_major_group,
-                ntee_category_label,
-                secondary_ntee_code,
-                secondary_ntee_major_group,
+                headline,
+                jurisdiction_name,
+                jurisdiction_type,
+                state_code,
+                state,
+                city,
+                c1_event_id,
                 extracted_at
-            FROM bronze.bronze_topics
+            FROM event_topic
             WHERE {where_sql}
-            ORDER BY extracted_at DESC
+            ORDER BY {order_by}
             LIMIT ${param_idx}
         """
         params.append(limit)
-        
+
         async with pool.acquire() as conn:
             rows = await conn.fetch(sql, *params)
-            
+
             results = []
             for row in rows:
-                # Format title
-                title = row['topic'] or 'Untitled Topic'
+                # event_topic has no standalone topic field; the theme names it
+                title = row['primary_theme'] or 'Untitled Topic'
                 if len(title) > 100:
                     title = title[:100] + "..."
-                
-                # Format subtitle with theme
-                subtitle_parts = []
-                if row['primary_theme']:
-                    subtitle_parts.append(row['primary_theme'])
-                if row['ntee_category_label']:
-                    subtitle_parts.append(f"Cause: {row['ntee_category_label']}")
-                subtitle = " • ".join(subtitle_parts)
-                
+
+                # Subtitle: location
+                location = (
+                    f"{row['jurisdiction_name']}, {row['state']}"
+                    if row['jurisdiction_name'] and row['state']
+                    else (row['state'] or '')
+                )
+                subtitle = location
+
                 # Description is the headline
                 description = row['headline'] or ''
                 if description and len(description) > 200:
                     description = description[:200] + "..."
-                
+
                 results.append(SearchResult(
                     result_type='topic',
                     title=title,
                     subtitle=subtitle,
                     description=description,
-                    url=f"/topics/{row['id']}",
+                    url=f"/topics/{row['event_topic_id']}",
                     score=1.0,
                     metadata={
-                        'id': row['id'],
+                        'id': row['event_topic_id'],
                         'decision_id': row['decision_id'],
-                        'source_event_id': row['source_event_id'],
+                        'meeting_id': row['analysis_id'],
                         'primary_theme': row['primary_theme'],
-                        'ntee_code': row['ntee_code'],
-                        'ntee_major_group': row['ntee_major_group'],
-                        'cofog_code': row['primary_theme_cofog'],
+                        'jurisdiction': row['jurisdiction_name'],
+                        'jurisdiction_type': row['jurisdiction_type'],
+                        'state': row['state'],
+                        'state_code': row['state_code'],
+                        'city': row['city'],
+                        'c1_event_id': row['c1_event_id'],
                         'extracted_at': row['extracted_at'].isoformat() if row['extracted_at'] else None
                     }
                 ))
-            
+
             logger.info(f"📋 PostgreSQL topics search: {len(results)} results")
             return results
-            
+
     except Exception as e:
         logger.error(f"PostgreSQL topics search error: {e}")
         return []
@@ -1228,128 +1262,243 @@ async def search_decisions_pg(
     limit: int = 10
 ) -> List[SearchResult]:
     """
-    Search governance decisions from bronze_decisions table.
-    Decisions are AI-extracted policy decisions from meeting transcripts.
-    
+    Search governance decisions, backed by the public.event_decision mart
+    (AI-extracted policy decisions from meeting analysis).
+
+    Replaces the retired `bronze.bronze_decisions` table. event_decision has no
+    standalone `topic` / `decision_method` / `decision_date` columns (those lived
+    in the old bronze feed); it does carry state, so the `state` filter now works.
+
     Args:
-        query: Search query (searches topic, headline, decision_statement)
-        state: State code filter (not applicable for bronze, but kept for compatibility)
+        query: Search query (matched against headline, decision_statement, primary_theme)
+        state: Filter by state code (e.g., 'MA') or full name (e.g., 'Massachusetts')
         outcome: Filter by outcome (APPROVED, DENIED, DEFERRED, etc.)
         limit: Max results to return
-    
+
     Returns:
-        List of SearchResult objects
+        List of SearchResult objects (result_type='decision')
     """
-    global _bronze_db_pool
-    
+    # Normalize state input to 2-letter code
+    state = normalize_state_input(state)
+
     try:
-        # Create connection pool for bronze database if needed
-        if _bronze_db_pool is None:
-            _bronze_db_pool = await asyncpg.create_pool(
-                BRONZE_DATABASE_URL,
-                min_size=1,
-                max_size=10,
-                command_timeout=30
-            )
-        
-        pool = _bronze_db_pool
-        
-        # Build WHERE clause
+        pool = await get_db_pool()
+
         where_conditions = []
         params = []
         param_idx = 1
-        
-        if query:
-            # Full-text search across topic, headline, and decision_statement
-            where_conditions.append(f"""
-                (topic ILIKE ${param_idx} 
-                 OR headline ILIKE ${param_idx}
-                 OR decision_statement ILIKE ${param_idx})
-            """)
-            params.append(f"%{query}%")
+
+        if state:
+            where_conditions.append(f"state_code = ${param_idx}")
+            params.append(state.upper())
             param_idx += 1
-        
+
+        if query and query.strip():
+            where_conditions.append(f"""(
+                to_tsvector('english', COALESCE(headline, '') || ' ' || COALESCE(decision_statement, '') || ' ' || COALESCE(primary_theme, ''))
+                @@ plainto_tsquery('english', ${param_idx})
+            )""")
+            params.append(query)
+            param_idx += 1
+
+            order_by = (
+                f"ts_rank(to_tsvector('english', COALESCE(headline, '') || ' ' || COALESCE(decision_statement, '') || ' ' || COALESCE(primary_theme, '')), "
+                f"plainto_tsquery('english', ${param_idx - 1})) DESC, extracted_at DESC"
+            )
+        else:
+            order_by = "extracted_at DESC"
+
         if outcome:
-            where_conditions.append(f"outcome = ${param_idx}")
-            params.append(outcome.upper())
+            # event_decision stores title-case outcomes ('Approved'); match
+            # case-insensitively so callers can pass any casing.
+            where_conditions.append(f"LOWER(outcome) = LOWER(${param_idx})")
+            params.append(outcome)
             param_idx += 1
-        
+
         where_sql = " AND ".join(where_conditions) if where_conditions else "TRUE"
-        
+
         sql = f"""
-            SELECT 
-                id,
-                source_event_id,
+            SELECT
+                event_decision_id,
+                analysis_id,
                 decision_id,
                 subject_id,
-                topic,
                 headline,
                 decision_statement,
-                decision_method,
                 outcome,
-                decision_date,
                 primary_theme,
-                primary_theme_cofog,
                 vote_tally,
+                jurisdiction_name,
+                jurisdiction_type,
+                state_code,
+                state,
+                city,
+                c1_event_id,
                 extracted_at
-            FROM bronze.bronze_decisions
+            FROM event_decision
             WHERE {where_sql}
-            ORDER BY decision_date DESC NULLS LAST, extracted_at DESC
+            ORDER BY {order_by}
             LIMIT ${param_idx}
         """
         params.append(limit)
-        
+
         async with pool.acquire() as conn:
             rows = await conn.fetch(sql, *params)
-            
+
             results = []
             for row in rows:
                 # Title is the headline (the actual decision)
                 title = row['headline'] or row['decision_statement'] or 'Untitled Decision'
                 if len(title) > 150:
                     title = title[:150] + "..."
-                
-                # Subtitle includes topic and metadata
+
+                # Subtitle includes theme + outcome + location
                 subtitle_parts = []
-                if row['topic']:
-                    subtitle_parts.append(row['topic'])
+                if row['primary_theme']:
+                    subtitle_parts.append(row['primary_theme'])
                 if row['outcome']:
                     subtitle_parts.append(row['outcome'])
-                if row['decision_date']:
-                    subtitle_parts.append(row['decision_date'].strftime('%Y-%m-%d'))
+                location = (
+                    f"{row['jurisdiction_name']}, {row['state']}"
+                    if row['jurisdiction_name'] and row['state']
+                    else (row['state'] or '')
+                )
+                if location:
+                    subtitle_parts.append(location)
                 subtitle = " • ".join(subtitle_parts)
-                
+
                 # Description is the decision_statement for additional context
                 description = row['decision_statement'] or row['headline'] or ''
                 if description and len(description) > 200:
                     description = description[:200] + "..."
-                
+
                 results.append(SearchResult(
                     result_type='decision',
                     title=title,
                     subtitle=subtitle,
                     description=description,
-                    url=f"/decisions/{row['id']}",
+                    url=f"/decisions/{row['event_decision_id']}",
                     score=1.0,
                     metadata={
-                        'id': row['id'],
+                        'id': row['event_decision_id'],
                         'decision_id': row['decision_id'],
                         'subject_id': row['subject_id'],
-                        'source_event_id': row['source_event_id'],
+                        'meeting_id': row['analysis_id'],
                         'outcome': row['outcome'],
-                        'decision_method': row['decision_method'],
-                        'decision_date': row['decision_date'].isoformat() if row['decision_date'] else None,
                         'primary_theme': row['primary_theme'],
-                        'cofog_code': row['primary_theme_cofog'],
                         'vote_tally': row['vote_tally'],
+                        'jurisdiction': row['jurisdiction_name'],
+                        'jurisdiction_type': row['jurisdiction_type'],
+                        'state': row['state'],
+                        'state_code': row['state_code'],
+                        'city': row['city'],
+                        'c1_event_id': row['c1_event_id'],
                         'extracted_at': row['extracted_at'].isoformat() if row['extracted_at'] else None
                     }
                 ))
-            
+
             logger.info(f"⚖️ PostgreSQL decisions search: {len(results)} results")
             return results
-            
+
     except Exception as e:
         logger.error(f"PostgreSQL decisions search error: {e}")
+        return []
+
+
+async def search_causes_pg(
+    query: Optional[str] = None,
+    limit: int = 10
+) -> List[SearchResult]:
+    """
+    Search causes / NTEE categories, backed by the public.tag mart
+    (vocabulary='ntee' — the hierarchical NTEE taxonomy).
+
+    Replaces the retired `data/gold/reference/causes_ntee_codes.parquet` feed.
+    Supports browse mode (no query): returns the most popular / lowest codes first.
+
+    Args:
+        query: Search text (matched against the NTEE label, description, and code)
+        limit: Max results
+
+    Returns:
+        List of SearchResult objects (result_type='cause')
+    """
+    try:
+        pool = await get_db_pool()
+
+        where_clauses = ["vocabulary = 'ntee'"]
+        params = []
+        param_idx = 1
+
+        if query and query.strip():
+            where_clauses.append(f"""(
+                to_tsvector('english', COALESCE(label, '') || ' ' || COALESCE(description, ''))
+                @@ plainto_tsquery('english', ${param_idx})
+                OR source_code ILIKE ${param_idx + 1}
+            )""")
+            params.append(query)
+            params.append(f"%{query}%")
+            param_idx += 2
+
+            order_by = (
+                f"ts_rank(to_tsvector('english', COALESCE(label, '') || ' ' || COALESCE(description, '')), "
+                f"plainto_tsquery('english', ${param_idx - 2})) DESC, source_code ASC"
+            )
+        else:
+            # Browse mode: popularity first, then code order
+            order_by = "COALESCE(popularity_rank, 2147483647) ASC, source_code ASC"
+
+        where_sql = " AND ".join(where_clauses)
+
+        sql = f"""
+            SELECT
+                tag_id,
+                source_code,
+                label,
+                description,
+                breadcrumb,
+                category,
+                subcategory,
+                depth
+            FROM tag
+            WHERE {where_sql}
+            ORDER BY {order_by}
+            LIMIT ${param_idx}
+        """
+        params.append(limit)
+
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(sql, *params)
+
+            results = []
+            for row in rows:
+                code = row['source_code']
+                title = row['label'] or code or 'NTEE Category'
+                # Prefer the hierarchy breadcrumb as context, else the description
+                description = row['breadcrumb'] or row['description'] or row['category'] or ''
+
+                results.append(SearchResult(
+                    result_type='cause',
+                    title=title,
+                    subtitle=f"NTEE Code: {code}" if code else 'NTEE Category',
+                    description=description,
+                    url=f"/nonprofits?ntee_code={code}",
+                    score=1.0,
+                    metadata={
+                        'tag_id': row['tag_id'],
+                        'ntee_code': code,
+                        'ntee_type': 'ntee',
+                        'category': row['category'],
+                        'subcategory': row['subcategory'],
+                        'breadcrumb': row['breadcrumb'],
+                        'depth': row['depth'],
+                    }
+                ))
+
+            logger.info(f"🎯 PostgreSQL causes search: {len(results)} results")
+            return results
+
+    except Exception as e:
+        logger.error(f"PostgreSQL causes search error: {e}")
         return []
 
