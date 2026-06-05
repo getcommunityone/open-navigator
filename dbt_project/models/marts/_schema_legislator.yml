@@ -1,0 +1,82 @@
+version: 2
+
+models:
+  - name: legislator
+    description: >
+      public.legislator — one row per OpenStates legislator (PK person_uid),
+      sourced from bronze.bronze_jurisdiction_openstates. This is the person entity
+      that bill sponsorships link to. person_uid =
+      md5('bronze_jurisdiction_openstates|' || openstates_person_id), the same
+      deterministic key the bill_sponsorship bridge derives. jurisdiction_id is a
+      NULLABLE FK -> jurisdictions.jurisdiction_id (state-level row, by USPS code).
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [jurisdiction_id]
+        to: ref('jurisdictions')
+        to_columns: [jurisdiction_id]
+    columns:
+      - name: person_uid
+        description: "Primary key. md5('bronze_jurisdiction_openstates|' || openstates_person_id)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: openstates_person_id
+        description: "OCD person id (ocd-person/..). Unique."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - unique
+          - not_null
+      - name: full_name
+        description: "Legislator display name."
+        data_type: text
+      - name: given_name
+        description: "First name."
+        data_type: text
+      - name: family_name
+        description: "Last name."
+        data_type: text
+      - name: primary_party
+        description: "Primary party affiliation."
+        data_type: text
+      - name: gender
+        description: "Gender as recorded by OpenStates."
+        data_type: text
+      - name: email
+        description: "Contact email (nullable)."
+        data_type: text
+      - name: state_code
+        description: "2-letter USPS state code."
+        data_type: text
+      - name: jurisdiction_id
+        description: "Nullable FK -> jurisdictions.jurisdiction_id (the legislator's state-level row)."
+        data_type: text
+        tests:
+          - relationships:
+              to: ref('jurisdictions')
+              field: jurisdiction_id
+      - name: current_jurisdiction_id
+        description: "OCD jurisdiction id of the legislator's current jurisdiction."
+        data_type: text
+      - name: birth_date
+        description: "Birth date (source-native string; frequently blank)."
+        data_type: text
+      - name: biography
+        description: "Free-text biography (nullable)."
+        data_type: text
+      - name: image
+        description: "Portrait image URL (nullable)."
+        data_type: text
+      - name: dbt_loaded_at
+        description: "dbt build timestamp."
+        data_type: timestamp with time zone
