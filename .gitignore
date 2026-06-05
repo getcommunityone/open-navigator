@@ -131,3 +131,6 @@ cookies.txt
 *.cookies
 , psycopg2
 .claude/
+
+# transcript-analysis backfill runtime log
+analyze_backlog.out
