@@ -271,6 +271,59 @@ async def stream_batch_jobs(
     )
 
 
+# --- Dashboard response cache -------------------------------------------------
+# The dashboard aggregates (especially the int_events_union transcript-coverage
+# view) take ~30s, and the UI polls frequently — so without caching every poll
+# re-runs the whole thing and competes with the analyze backfill's writes, the
+# endpoint exceeds the client timeout, and the UI shows "empty response". Cache
+# the assembled payload per param-set with a short TTL: single-flight (concurrent
+# polls share one computation), stale-while-revalidate (serve the last result
+# instantly and refresh in the background once stale), and shielded so a client
+# disconnect still lets the in-flight computation finish and populate the cache —
+# so the next "Retry load" hits it warm. Tune via BATCH_JOBS_DASHBOARD_TTL_SECONDS
+# (default 20); set to 0 to disable caching.
+_DASH_CACHE: Dict[tuple, tuple] = {}
+_DASH_INFLIGHT: Dict[tuple, Any] = {}
+
+
+def _dash_ttl() -> float:
+    try:
+        return max(0.0, float(os.environ.get("BATCH_JOBS_DASHBOARD_TTL_SECONDS", "20")))
+    except ValueError:
+        return 20.0
+
+
+async def _load_dashboard_cached(**kwargs: Any) -> Dict[str, Any]:
+    ttl = _dash_ttl()
+    if ttl <= 0:
+        return await _load_dashboard_async(**kwargs)
+
+    key = tuple(sorted(kwargs.items()))
+    loop = asyncio.get_running_loop()
+    hit = _DASH_CACHE.get(key)
+    if hit is not None and loop.time() - hit[0] < ttl:
+        return hit[1]  # fresh
+
+    async def _compute() -> Dict[str, Any]:
+        try:
+            payload = await _load_dashboard_async(**kwargs)
+            _DASH_CACHE[key] = (loop.time(), payload)
+            return payload
+        finally:
+            _DASH_INFLIGHT.pop(key, None)
+
+    task = _DASH_INFLIGHT.get(key)
+    if task is None or task.done():
+        task = loop.create_task(_compute())
+        _DASH_INFLIGHT[key] = task
+
+    if hit is not None:
+        return hit[1]  # stale-while-revalidate: serve stale, refresh in background
+    # Cold cache: must wait for the first computation. Shield it so a client
+    # timeout/disconnect doesn't cancel the work — it still caches for the retry.
+    return await asyncio.shield(task)
+
+
 @router.get("/", response_model=BatchJobsDashboardResponse)
 @router.get("", response_model=BatchJobsDashboardResponse, include_in_schema=False)
 async def list_batch_jobs(
@@ -294,7 +347,7 @@ async def list_batch_jobs(
             detail="detail must be summary, standard, or full",
         )
     try:
-        payload = await _load_dashboard_async(
+        payload = await _load_dashboard_cached(
             refresh_files=refresh_files,
             enrich_bronze=enrich_bronze,
             detail=detail,
