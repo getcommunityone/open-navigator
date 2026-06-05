@@ -447,15 +447,28 @@ async def search_persons_pg(
                 ORDER BY {outer_order}
             """
         else:
-            # Browse (no name query): stop after `limit` distinct people in
-            # master_person_id order so we never sort the full 2.2M-row table.
+            # Browse (no name query): cap the candidate scan FIRST so a city filter
+            # that resolves to tens of thousands of person<->jurisdiction bridge rows
+            # (e.g. Tuscaloosa ~29k) can't force a full materialize + on-disk sort for
+            # a 20-row page. Without the cap, `DISTINCT ON ... ORDER BY master_person_id
+            # LIMIT 20` builds every matching row and external-merge sorts it (~1.1s,
+            # spills to disk) because the `person_uid IN (bridge)` filter isn't aligned
+            # with the master_person_id sort order. The inner LIMIT lets Postgres stop
+            # after PERSON_CANDIDATE_CAP matched rows; we then dedup those to distinct
+            # people. Browse is unranked, so capping only affects *which* arbitrary page
+            # of people shows, not correctness.
             sql = f"""
                 SELECT d.*, o.org_name, o.master_org_id, o.title, o.reportable_comp_org
                 FROM (
                     SELECT DISTINCT ON (p.master_person_id)
                         {base_select}
-                    FROM mdm_person p
-                    WHERE {where_sql}
+                    FROM (
+                        SELECT master_person_id, person_uid, source_pk, full_name,
+                               email, phone, city_norm, state_code, match_confidence
+                        FROM mdm_person p
+                        WHERE {where_sql}
+                        LIMIT {PERSON_CANDIDATE_CAP}
+                    ) p
                     ORDER BY p.master_person_id
                     LIMIT ${limit_idx}
                 ) d

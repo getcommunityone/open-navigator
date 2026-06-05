@@ -38,6 +38,7 @@ exploded as (
 persons as (
     select
         ocd_bill_id,
+        nullif(elem ->> 'id', '')                              as ocd_sponsorship_id,
         nullif(elem ->> 'person_id', '')                       as ocd_person_id,
         nullif(elem ->> 'name', '')                            as sponsor_name,
         coalesce((elem ->> 'primary')::boolean, false)         as is_primary,

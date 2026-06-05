@@ -9,12 +9,12 @@
     Resolution: join sponsorship.ocd_person_id ->
     bronze_jurisdiction_openstates.openstates_person_id (100% match for AL) and
     derive person_uid = md5('bronze_jurisdiction_openstates|' || openstates_person_id),
-    matching the staging key in stg_openstates_legislators__person so it FKs to
-    mdm_person.person_uid. primary_party is carried from the legislator source.
+    matching the PK of the public.legislator mart so the bridge FKs to it.
+    primary_party is carried from the legislator source.
 
-    person_uid is derived directly from ocd_person_id even when the legislator row
-    is absent (so the bridge never loses a sponsor); the join to the legislator
-    source only enriches primary_party. The FK to mdm_person is validated by the
+    person_uid is derived from the JOINED legislator row, so it is NULL when a
+    sponsor's ocd_person_id has no legislator record (the sponsor is still kept,
+    by name, with a nullable person_uid). The FK to legislator is validated by the
     relationships test on the public.bill_sponsorship mart.
 */
 
@@ -34,8 +34,12 @@ legislators as (
 linked as (
     select
         s.ocd_bill_id,
+        s.ocd_sponsorship_id,
         s.ocd_person_id,
-        md5('bronze_jurisdiction_openstates|' || s.ocd_person_id) as person_uid,
+        case
+            when l.openstates_person_id is not null
+            then md5('bronze_jurisdiction_openstates|' || l.openstates_person_id)
+        end                                                       as person_uid,
         s.sponsor_name,
         s.is_primary,
         s.classification,

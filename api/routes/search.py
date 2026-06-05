@@ -48,6 +48,14 @@ HF_ORGANIZATION = os.getenv('HF_ORGANIZATION', 'CommunityOne')
 _count_cache = {}
 _count_cache_ttl = {}
 
+# Upper bound for the persons pager total. count_persons over mdm_person (~13.8M)
+# with a city filter that fans out to tens of thousands of bridge rows is too
+# expensive to count exactly for an honest total nobody pages through. We stop
+# counting at the cap; a returned value == PERSON_COUNT_CAP means "this many or
+# more" (the UI can render it as "1000+"). 1000 / 20-per-page = 50 pages, far
+# past any real browse depth.
+PERSON_COUNT_CAP = 1000
+
 # Every.org API config (fallback only)
 EVERYORG_API_KEY = os.getenv('EVERYORG_API_KEY', '')
 EVERYORG_API_BASE = "https://partners.every.org/v0.2"
@@ -517,10 +525,23 @@ async def count_persons(
             )
 
             where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
+            # Accurate-but-capped distinct count. We must count DISTINCT
+            # master_person_id (mdm_person has ~6 source rows per resolved person, so
+            # a raw row count over-reports ~6x and would falsely trip the cap for
+            # small towns). DISTINCT can't short-circuit on a LIMIT — Postgres dedups
+            # the whole matched set first — but this count is cached for 1h and runs
+            # off the per-keystroke path, so accuracy beats latency here. The outer
+            # LIMIT caps the returned total at PERSON_COUNT_CAP: a result == the cap
+            # means "1000+" (the city has at least that many people); anything below
+            # is the exact distinct count. The browse query (search_persons_pg) is the
+            # per-request hot path and is optimized separately via PERSON_CANDIDATE_CAP.
             sql = f"""
-                SELECT count(DISTINCT p.master_person_id)
-                FROM mdm_person p
-                WHERE {where_sql}
+                SELECT count(*) FROM (
+                    SELECT DISTINCT p.master_person_id
+                    FROM mdm_person p
+                    WHERE {where_sql}
+                    LIMIT {PERSON_COUNT_CAP}
+                ) t
             """
 
             pool = await search_postgres.get_db_pool()
