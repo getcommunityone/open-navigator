@@ -242,17 +242,60 @@ sources:
           - name: synced_at
 
       - name: bronze_bills
-        description: "Legislation discussed in meetings"
+        description: |
+          Legislation/bills extracted by the TEXT/policy transcript-analysis
+          pipeline (Pipeline A) — one row per (source_event_id, leg_id,
+          source_ai_model). NOT bronze_bills_from_ai (that is the structured
+          meeting-analysis family). The `jurisdiction` text column is DIRTY
+          (mixes names like 'Bulloch County, Georgia' and slugs like
+          'bulloch_13031'); resolve geography via video_id ->
+          event_youtube_with_jurisdiction instead. `year` is VARCHAR(4) raw
+          fidelity; staging casts to nullable integer.
         columns:
-          - name: id
+          - name: source_event_id_leg_id
+            description: "Primary key (text) — source_event_id || leg_id composite."
           - name: source_event_id
+          - name: video_id
+            description: "YouTube video id — bridge to event_youtube_with_jurisdiction."
+          - name: source_ai_model
           - name: leg_id
+          - name: leg_type
           - name: official_number
           - name: title
           - name: jurisdiction
+            description: "DIRTY free-text/slug jurisdiction label — do not use for geography."
           - name: year
+            description: "Calendar year, raw source-native VARCHAR(4); cast to integer in staging."
+          - name: status
+          - name: relevance
+          - name: url
+          - name: agenda_labels
+            description: "JSONB array of agenda labels."
+          - name: analysis_cache_path
           - name: extracted_at
-          
+
+      - name: bronze_policy_decisions
+        description: |
+          Policy decisions extracted by the TEXT/policy transcript-analysis
+          pipeline (Pipeline A) — one row per (source_event_id, decision_id,
+          source_ai_model). Carries video_id directly as the bridge to
+          event_youtube_with_jurisdiction for resolved geography.
+        columns:
+          - name: id
+          - name: source_event_id
+          - name: video_id
+            description: "YouTube video id — bridge to event_youtube_with_jurisdiction."
+          - name: source_ai_model
+          - name: decision_id
+          - name: subject_id
+          - name: headline
+          - name: outcome
+          - name: legislation_refs
+            description: "JSONB array of referenced legislation."
+          - name: vote_tally
+            description: "JSONB vote tally object."
+          - name: extracted_at
+
       - name: bronze_decisions
         description: "Policy decisions from meeting analysis"
         columns:

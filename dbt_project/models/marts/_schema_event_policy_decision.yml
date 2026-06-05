@@ -1,0 +1,38 @@
+version: 2
+
+models:
+  - name: event_policy_decision
+    description: |
+      Policy decisions extracted by the TEXT/policy transcript-analysis pipeline
+      (llm.gemini.meeting_transcript_policy, "Pipeline A"), surfaced with resolved
+      geography. Grain: one row per (source_event_id, decision_id, source_ai_model).
+
+      Source bronze.bronze_policy_decisions had no downstream consumer before this
+      model (a dead-end write); this mart bridges each row via video_id ->
+      event_youtube_with_jurisdiction for the resolved jurisdiction. Distinct from
+      public.event_decision, which is fed by the separate multimodal pipeline
+      (bronze_decisions_from_ai / bronze_events_analysis_ai).
+    columns:
+      - name: event_policy_decision_id
+        description: PK — md5(source_event_id|decision_id|source_ai_model).
+        tests:
+          - unique
+          - not_null
+      - name: source_event_id
+        tests:
+          - not_null
+      - name: decision_id
+        tests:
+          - not_null
+      - name: video_id
+        description: YouTube id; bridge to event_youtube_with_jurisdiction.
+        tests:
+          - not_null
+      - name: jurisdiction_id
+        description: Resolved jurisdiction (FK to int_jurisdictions).
+        tests:
+          - relationships:
+              to: ref('int_jurisdictions')
+              field: jurisdiction_id
+              config:
+                where: "jurisdiction_id is not null"

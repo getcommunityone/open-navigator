@@ -1,0 +1,41 @@
+version: 2
+
+models:
+  - name: event_policy_bill
+    description: |
+      Legislation / bills extracted by the TEXT/policy transcript-analysis pipeline
+      (llm.gemini.meeting_transcript_policy, "Pipeline A"), surfaced with resolved
+      geography. Grain: one row per source_event_id_leg_id (the bronze PK).
+
+      Source bronze.bronze_bills (NOT bronze_bills_from_ai) had no downstream
+      consumer before this model; this mart bridges each row via video_id ->
+      event_youtube_with_jurisdiction for the resolved jurisdiction, and drops the
+      dirty bronze `jurisdiction` text column. `year` is cast varchar(4) -> nullable
+      integer in staging per the calendar-year storage rule. Distinct from
+      public.event_bill (fed by the multimodal bronze_bills_from_ai lineage).
+    columns:
+      - name: source_event_id_leg_id
+        description: PK — already unique in bronze.bronze_bills.
+        tests:
+          - unique
+          - not_null
+      - name: source_event_id
+        tests:
+          - not_null
+      - name: leg_id
+        tests:
+          - not_null
+      - name: video_id
+        description: YouTube id; bridge to event_youtube_with_jurisdiction.
+        tests:
+          - not_null
+      - name: year
+        description: Bill calendar year — integer (cast from bronze varchar(4)).
+      - name: jurisdiction_id
+        description: Resolved jurisdiction (FK to int_jurisdictions).
+        tests:
+          - relationships:
+              to: ref('int_jurisdictions')
+              field: jurisdiction_id
+              config:
+                where: "jurisdiction_id is not null"
