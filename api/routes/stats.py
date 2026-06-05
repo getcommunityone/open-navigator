@@ -118,9 +118,6 @@ def calculate_stats_from_db(state: Optional[str] = None,
         total_assets = result[7] or 0
         trending_causes = None
 
-        cursor.close()
-        conn.close()
-        
         # Build response
         return {
             'level': level,
