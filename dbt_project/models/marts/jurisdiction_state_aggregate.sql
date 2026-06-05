@@ -201,24 +201,46 @@ bill_stats AS (
 ),
 
 decision_stats AS (
-    -- Count decisions by state and city.
+    -- Count decisions by state and jurisdiction, split by grain.
     -- BUGFIX: previously read source('bronze','bronze_decisions') (an EMPTY table)
     -- and mapped to a city ONLY via bronze_events_localview, so any non-LocalView
     -- place (e.g. Tuscaloosa, whose meetings are on the YouTube/CivicSearch path)
     -- got 0 decisions. Repointed to ref('event_policy_decision'), the canonical
     -- promoted decisions mart that carries a real jurisdiction_id (FK to
-    -- int_jurisdictions). Roll up by jurisdiction_id, then resolve that id to the
-    -- bare-city grain via int_jurisdictions.name (stripping the trailing unit word
-    -- so a county/government label lands on the same UPPER(city) key the other
-    -- metrics use). decision_id is the stable per-decision key.
+    -- int_jurisdictions).
+    --
+    -- BUGFIX (count collapse): event_policy_decision.decision_id is a PER-EVENT
+    -- ORDINAL (D001..D018), NOT unique, so COUNT(DISTINCT decision_id) collapsed
+    -- ~3,787 national decisions to ~20. There is exactly one row per decision
+    -- (PK event_policy_decision_id), so count with COUNT(*).
+    --
+    -- BUGFIX (county grain lost): county-jurisdiction decisions (~701) were keyed
+    -- via normalize_place_key, which strips the trailing " County" word and tried
+    -- to land them on a bare-city row that does not exist, so they vanished.
+    -- We now split by grain (jurisdiction_type, which is perfectly consistent with
+    -- the " County" name suffix): county-grain decisions key on the FULL county
+    -- name (matching nonprofit_stats.county, e.g. "Bryan County") so they roll up
+    -- to county rows; city/other-grain decisions key on the bare-city
+    -- normalize_place_key so they roll up to city rows. State/national sum BOTH.
     SELECT
         d.state_code,
-        {{ normalize_place_key('j.name') }} as city_upper,
-        COUNT(DISTINCT d.decision_id) as decisions_count
+        CASE WHEN j.jurisdiction_type = 'county' THEN 'county' ELSE 'city' END AS grain,
+        -- county grain: full county name (e.g. "Bryan County"); city grain: bare UPPER(city) key
+        CASE
+            WHEN j.jurisdiction_type = 'county' THEN j.name
+            ELSE {{ normalize_place_key('j.name') }}
+        END AS place_key,
+        COUNT(*) as decisions_count
     FROM {{ ref('event_policy_decision') }} d
     JOIN {{ ref('int_jurisdictions') }} j ON d.jurisdiction_id = j.jurisdiction_id
     WHERE d.state_code IS NOT NULL
-    GROUP BY d.state_code, {{ normalize_place_key('j.name') }}
+    GROUP BY
+        d.state_code,
+        CASE WHEN j.jurisdiction_type = 'county' THEN 'county' ELSE 'city' END,
+        CASE
+            WHEN j.jurisdiction_type = 'county' THEN j.name
+            ELSE {{ normalize_place_key('j.name') }}
+        END
 ),
 
 -- Trending causes aggregated by jurisdiction (from dbt intermediate model)
@@ -386,17 +408,25 @@ county_stats AS (
         0 as persons_count,
         0 as leaders_count,
         0 as nonprofit_leaders_count,
-        0 as decisions_count,
+        -- BUGFIX: county-grain decisions are now populated (was hardcoded 0/TODO).
+        -- County-grain decision_stats keys on the full county name (e.g.
+        -- "Bryan County"), matching nps.county (census_county_name carries the
+        -- " County" suffix). persons/leaders remain a TODO (no county column upstream).
+        COALESCE(cds.decisions_count, 0)::INTEGER as decisions_count,
         nps.total_revenue,
         nps.total_assets,
-        
+
         -- County trending causes (aggregate from jurisdictions in this county)
         -- Note: We don't have county-level decisions, so this will be NULL for now
         NULL::JSONB as trending_causes,
         CURRENT_TIMESTAMP as last_updated
     FROM nonprofit_stats nps
-    LEFT JOIN county_event_stats ces 
+    LEFT JOIN county_event_stats ces
         ON nps.county = ces.county AND nps.state_code = ces.state_code
+    LEFT JOIN (
+        SELECT state_code, place_key AS county, SUM(decisions_count) AS decisions_count
+        FROM decision_stats WHERE grain = 'county' GROUP BY state_code, place_key
+    ) cds ON cds.state_code = nps.state_code AND cds.county = nps.county
     WHERE nps.county IS NOT NULL
 ),
 
@@ -414,7 +444,7 @@ city_keys AS (
     UNION
     SELECT state_code, UPPER(city_norm) AS city_upper FROM person_stats WHERE city_norm IS NOT NULL
     UNION
-    SELECT state_code, city_upper FROM decision_stats WHERE city_upper IS NOT NULL
+    SELECT state_code, place_key AS city_upper FROM decision_stats WHERE grain = 'city' AND place_key IS NOT NULL
     UNION
     SELECT state_code, UPPER(city_norm) AS city_upper FROM leader_board_stats WHERE city_norm IS NOT NULL
 ),
@@ -475,8 +505,8 @@ city_stats AS (
         FROM person_stats GROUP BY state_code, UPPER(city_norm)
     ) ps ON ps.state_code = ck.state_code AND ps.city_upper = ck.city_upper
     LEFT JOIN (
-        SELECT state_code, city_upper, SUM(decisions_count) AS decisions_count
-        FROM decision_stats GROUP BY state_code, city_upper
+        SELECT state_code, place_key AS city_upper, SUM(decisions_count) AS decisions_count
+        FROM decision_stats WHERE grain = 'city' GROUP BY state_code, place_key
     ) ds ON ds.state_code = ck.state_code AND ds.city_upper = ck.city_upper
     LEFT JOIN (
         -- BUGFIX (officials key-mismatch): contact_official has no jurisdiction_id,
