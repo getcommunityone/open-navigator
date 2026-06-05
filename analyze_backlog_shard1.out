@@ -320,3 +320,4 @@
 2026-06-04 22:39:20.658 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1226 - [18/69] iUdJiWmIWv4 — CHIP Network Meeting: 2023 Kickoff!
 2026-06-04 22:39:20.958 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for iUdJiWmIWv4 (1588 segments, database:bronze_event_youtube_transcript (segments))
 2026-06-04 22:39:21.004 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1011 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-04 22:41:20.125 | WARNING  | llm.gemini.genai_text_client:call_with_genai_quota_retry:321 - gemini-2.5-flash-lite: gateway timeout / deadline (504) — sleeping 1s, retry 2/5 (rotating key 2/4)

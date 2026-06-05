@@ -34,6 +34,15 @@ def test_parse_models_dedupes_and_trims_order():
     assert parse_models("a, b , a,c") == ["a", "b", "c"]
 
 
+def test_default_models_drop_retired_and_lead_with_flash():
+    # gemini-2.0-flash-lite was retired by Google (API 404s "no longer available"); it
+    # must be gone from the defaults so a default run never rotates onto a dead model.
+    assert "gemini-2.0-flash-lite" not in DEFAULT_MODELS
+    # The healthy/fast model leads the rotation.
+    assert DEFAULT_MODELS[0] == "gemini-2.5-flash"
+    assert "gemini-2.5-flash-lite" in DEFAULT_MODELS
+
+
 # --------------------------------------------------------------------------- #
 # ModelCycler state machine
 # --------------------------------------------------------------------------- #
@@ -346,6 +355,38 @@ def test_run_backlog_overload_rotates_model(monkeypatch):
     ab.run_backlog(args)
 
     # m1 overloaded -> cooled down + rotated to m2 which succeeded.
+    assert calls == ["m1", "m2"]
+
+
+def test_run_backlog_unavailable_model_drops_and_rotates(monkeypatch):
+    """A GenAIModelUnavailableGiveUp (retired model 404) on the first model must drop it
+    PERMANENTLY from the rotation and retry the same jurisdiction on the next live model —
+    NOT a transient cooldown, and never crash the run."""
+    import llm.gemini.analyze_backlog as ab
+    from llm.gemini.genai_text_client import GenAIModelUnavailableGiveUp
+
+    monkeypatch.setattr(ab, "_resolve_database_url", lambda *_a, **_k: "fake-dsn")
+    monkeypatch.setattr(
+        ab, "fetch_pending_plans", lambda *_a, **_k: [_plan("muni_z", "GA")]
+    )
+    monkeypatch.setattr(ab.time, "sleep", lambda *_a, **_k: None)
+
+    calls: list[str] = []
+
+    def _fake_run(ns):
+        calls.append(ns.model)
+        if ns.model == "m1":
+            raise GenAIModelUnavailableGiveUp(
+                "m1: model is unavailable (retired / not found)."
+            )
+        return None
+
+    monkeypatch.setattr(ab, "run_jurisdiction", _fake_run)
+
+    args = ab.build_parser().parse_args(["--models", "m1,m2", "--on-exhaust", "exit"])
+    ab.run_backlog(args)
+
+    # m1 retired -> dropped + rotated to m2 which succeeded.
     assert calls == ["m1", "m2"]
 
 

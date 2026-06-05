@@ -324,6 +324,17 @@ def call_with_genai_quota_retry(
             return fn()
         except Exception as exc:
             if not is_genai_retryable(exc):
+                # A 404 that says the *model* is retired/unavailable is non-retryable
+                # (a fresh attempt on the same dead model can't succeed), but it must NOT
+                # escape as a raw ClientError — that crashes a model-cycling driver. Give
+                # it a typed give-up so the driver drops the model and rotates on.
+                if is_genai_model_unavailable_error(exc):
+                    detail = (
+                        f"{label}: model is unavailable (retired / not found). "
+                        f"{describe_genai_error(exc)}"
+                    )
+                    logger.error("{}: model unavailable — {}", label, describe_genai_error(exc))
+                    raise GenAIModelUnavailableGiveUp(detail) from exc
                 logger.error("{}: non-retryable API failure — {}", label, describe_genai_error(exc))
                 raise
             transient = is_genai_transient_network_error(exc)

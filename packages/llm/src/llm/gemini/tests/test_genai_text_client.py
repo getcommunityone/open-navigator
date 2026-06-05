@@ -5,9 +5,11 @@ import pytest
 from llm.gemini import genai_text_client as m
 from llm.gemini.genai_text_client import (
     GenAIDailyQuotaGiveUp,
+    GenAIModelUnavailableGiveUp,
     GenAIServerOverloadGiveUp,
     GenAITransientGiveUp,
     call_with_genai_quota_retry,
+    is_genai_model_unavailable_error,
     is_genai_quota_error,
     is_genai_server_overload_error,
     resolve_gemini_api_keys,
@@ -130,3 +132,58 @@ def test_overload_classifier_excludes_quota():
     assert not is_genai_server_overload_error(RuntimeError("429 RESOURCE_EXHAUSTED"))
     assert is_genai_quota_error(RuntimeError("429 RESOURCE_EXHAUSTED"))
     assert not is_genai_quota_error(RuntimeError("503 UNAVAILABLE"))
+
+
+class _FakeClientError(Exception):
+    """Stand-in for ``google.genai.errors.ClientError`` (carries an HTTP ``code``)."""
+
+    def __init__(self, code: int, message: str):
+        super().__init__(f"{code} {message}")
+        self.code = code
+
+
+def test_is_genai_model_unavailable_error_true_for_retired_model():
+    # The live bug message: a retired model 404s with "no longer available".
+    retired = _FakeClientError(
+        404,
+        "NOT_FOUND. This model models/gemini-2.0-flash-lite is no longer available.",
+    )
+    assert is_genai_model_unavailable_error(retired)
+    # Plain-string variants (no .code attribute) must also be detected.
+    assert is_genai_model_unavailable_error(
+        RuntimeError("404 NOT_FOUND: model gemini-foo is not found")
+    )
+    assert is_genai_model_unavailable_error(
+        RuntimeError("404 models/gemini-bar was not found or is not supported")
+    )
+
+
+def test_is_genai_model_unavailable_error_false_for_unrelated_errors():
+    # An unrelated 404 (not about the model) must NOT be swallowed.
+    assert not is_genai_model_unavailable_error(
+        _FakeClientError(404, "NOT_FOUND: requested file does not exist")
+    )
+    # Other error families are not model-unavailable.
+    assert not is_genai_model_unavailable_error(RuntimeError("429 RESOURCE_EXHAUSTED"))
+    assert not is_genai_model_unavailable_error(RuntimeError("503 UNAVAILABLE"))
+    assert not is_genai_model_unavailable_error(RuntimeError("500 INTERNAL"))
+
+
+def test_model_unavailable_giveup_raises_distinct_subtype(monkeypatch):
+    monkeypatch.setattr(m.time, "sleep", lambda *_a, **_k: None)
+
+    def _fn():
+        raise _FakeClientError(
+            404,
+            "NOT_FOUND. This model models/gemini-2.0-flash-lite is no longer available.",
+        )
+
+    # A retired-model 404 must surface as the typed give-up — NOT the raw ClientError,
+    # which would crash a model-cycling driver. It is NOT retried (a dead model can't
+    # recover on a fresh attempt) and is distinct from the quota/overload give-ups.
+    with pytest.raises(GenAIModelUnavailableGiveUp) as excinfo:
+        call_with_genai_quota_retry(_fn, label="gemini-2.0-flash-lite", key_pool_size=3)
+    assert not isinstance(excinfo.value, _FakeClientError)
+    assert not isinstance(excinfo.value, GenAIDailyQuotaGiveUp)
+    assert not isinstance(excinfo.value, GenAIServerOverloadGiveUp)
+    assert issubclass(GenAIModelUnavailableGiveUp, RuntimeError)

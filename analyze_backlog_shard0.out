@@ -106,3 +106,5 @@ google.genai.errors.ClientError: 404 NOT_FOUND. {'error': {'code': 404, 'message
 2026-06-04 22:40:56.431 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1226 - [13/40] 1aAMoZ7rXUY — Highlands, NJ Council Meeting 12-19-2018
 2026-06-04 22:40:56.751 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for 1aAMoZ7rXUY (1083 segments, database:bronze_event_youtube_transcript (caption_text_timed))
 2026-06-04 22:40:56.786 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1011 - Calling gemini-2.5-flash (AI Studio API)
+2026-06-04 22:41:54.621 | WARNING  | llm.gemini.genai_text_client:call_with_genai_quota_retry:321 - gemini-2.5-flash: transient network disconnect — sleeping 8s, retry 2/12 (RemoteProtocolError — Server disconnected without sending a response.)
+2026-06-04 22:43:04.770 | WARNING  | llm.gemini.genai_text_client:call_with_genai_quota_retry:321 - gemini-2.5-flash: transient network disconnect — sleeping 11s, retry 3/12 (RemoteProtocolError — Server disconnected without sending a response.)

@@ -141,6 +141,7 @@ from llm.gemini.diarize_postprocess import (  # noqa: E402
 )
 from llm.gemini.genai_text_client import (  # noqa: E402
     GenAIDailyQuotaGiveUp,
+    GenAIModelUnavailableGiveUp,
     GenAIServerOverloadGiveUp,
     GenAITransientGiveUp,
     call_gemini_text,
@@ -1243,18 +1244,25 @@ def run_pipeline(args: argparse.Namespace) -> None:
                     )
                 continue
             except Exception as exc:
-                # Opt-in: a pool-wide daily-quota wall OR a sustained server-overload
-                # give-up propagates so a model-cycling driver can rotate models / wait
-                # (Pacific reset for quota, short cooldown for overload). Default-off, so
+                # Opt-in: a pool-wide daily-quota wall, a sustained server-overload give-up,
+                # OR a retired/unavailable-model give-up propagates so a model-cycling
+                # driver can rotate models / wait (Pacific reset for quota, short cooldown
+                # for overload, permanent drop for a retired model). Default-off, so
                 # existing callers see the unchanged log-and-continue behaviour.
                 if getattr(args, "stop_on_quota", False) and isinstance(
-                    exc, (GenAIDailyQuotaGiveUp, GenAIServerOverloadGiveUp)
+                    exc,
+                    (
+                        GenAIDailyQuotaGiveUp,
+                        GenAIServerOverloadGiveUp,
+                        GenAIModelUnavailableGiveUp,
+                    ),
                 ):
-                    wall = (
-                        "daily quota wall"
-                        if isinstance(exc, GenAIDailyQuotaGiveUp)
-                        else "server overload"
-                    )
+                    if isinstance(exc, GenAIDailyQuotaGiveUp):
+                        wall = "daily quota wall"
+                    elif isinstance(exc, GenAIModelUnavailableGiveUp):
+                        wall = "model unavailable (retired)"
+                    else:
+                        wall = "server overload"
                     logger.warning(
                         "Stopping batch for {} — {} (stop_on_quota): {}",
                         jurisdiction_id,

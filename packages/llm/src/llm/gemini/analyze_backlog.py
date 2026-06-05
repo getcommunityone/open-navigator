@@ -28,7 +28,7 @@ backlog on Gemini's free tier:
 Run the real backfill, leading with a healthy model::
 
     python -m llm.gemini.analyze_backlog \
-        --models gemini-2.0-flash-lite,gemini-2.5-flash,gemini-2.5-flash-lite
+        --models gemini-2.5-flash,gemini-2.5-flash-lite
 
 Restrict to one or more states::
 
@@ -68,13 +68,16 @@ PACIFIC = ZoneInfo("America/Los_Angeles")
 # is congested right now, so we step off it for ~10 min and try the next live model.
 DEFAULT_OVERLOAD_COOLDOWN_SECONDS: float = 600.0
 
-# Default model rotation: cheapest / highest-free-quota first. flash-lite models have the
-# largest free RPD; 2.5-flash is the fallback once both lites are walled. Names confirmed
-# against ``default_flash_lite_model`` ("gemini-2.5-flash-lite").
+# Default model rotation, healthy/fast model FIRST. ``gemini-2.5-flash`` leads because it
+# is the reliable, currently-healthy model; ``gemini-2.5-flash-lite`` follows as the
+# higher-free-RPD fallback. ``gemini-2.0-flash-lite`` was RETIRED by Google (the API now
+# 404s "This model models/gemini-2.0-flash-lite is no longer available"), so it is gone
+# from the defaults — a default run that rotated onto it used to crash the shard. If a run
+# ever does rotate onto a retired model, the driver now drops it from rotation (see
+# GenAIModelUnavailableGiveUp) instead of dying.
 DEFAULT_MODELS: Tuple[str, ...] = (
-    "gemini-2.5-flash-lite",
-    "gemini-2.0-flash-lite",
     "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
 )
 
 
@@ -584,6 +587,7 @@ def run_backlog(args: argparse.Namespace) -> None:
     total_j = len(plans)
     quota_giveup = _quota_giveup_type()
     overload_giveup = _overload_giveup_type()
+    unavailable_giveup = _model_unavailable_giveup_type()
     for plan in plans:
         # Retry the same jurisdiction across models until it completes or all models wall.
         while True:
@@ -612,6 +616,27 @@ def run_backlog(args: argparse.Namespace) -> None:
             )
             try:
                 run_jurisdiction(ns)
+            except unavailable_giveup as exc:
+                # A retired/unknown model (404 NOT_FOUND). It will never come back, so
+                # drop it from the rotation PERMANENTLY for the run (mark_exhausted, like a
+                # daily wall but never reset back in by reset() — a re-rotation onto it
+                # would just re-detect the 404 and re-drop it via this same path) and retry
+                # the same jurisdiction on the next live model.
+                logger.warning(
+                    "Model {} is unavailable (retired) — dropping from rotation on {}: {}",
+                    model,
+                    plan.jurisdiction_id,
+                    exc,
+                )
+                cycler.mark_exhausted(model)
+                try:
+                    cycler.advance(now=time.time())
+                except AllModelsExhausted:
+                    # Every model is now dead/walled — fall through to the existing
+                    # all-unavailable handling at the top of the loop.
+                    pass
+                # Loop again: next live model is picked at the top (or all-exhausted path).
+                continue
             except quota_giveup as exc:
                 logger.warning(
                     "Model {} hit the daily quota wall on {}: {}",
@@ -669,6 +694,12 @@ def _overload_giveup_type():
     from llm.gemini.genai_text_client import GenAIServerOverloadGiveUp
 
     return GenAIServerOverloadGiveUp
+
+
+def _model_unavailable_giveup_type():
+    from llm.gemini.genai_text_client import GenAIModelUnavailableGiveUp
+
+    return GenAIModelUnavailableGiveUp
 
 
 def _handle_all_unavailable(args: argparse.Namespace, cycler: ModelCycler) -> bool:

@@ -88,3 +88,8 @@
 2026-06-04 22:40:46.696 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for Cu4_uBjHQHg (1223 segments, database:bronze_event_youtube_transcript (segments))
 2026-06-04 22:40:46.730 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:957 - Built 2 agenda segment hint(s) for presenter linking
 2026-06-04 22:40:46.763 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1011 - Calling gemini-2.5-flash (AI Studio API)
+2026-06-04 22:42:37.596 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:572 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/AL/county/lauderdale_01077/UCAHo53gYrr2j6hLNJEXCVng/02_analysis/2025-09-02_Florence_City_Council_Regular_Meeting.json
+2026-06-04 22:42:37.715 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1226 - [17/50] 1W9xHRrulSk — 8-19-25 Florence City Council Work Session
+2026-06-04 22:42:38.015 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for 1W9xHRrulSk (811 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-04 22:42:38.064 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1011 - Calling gemini-2.5-flash (AI Studio API)
+2026-06-04 22:43:39.511 | WARNING  | llm.gemini.genai_text_client:call_with_genai_quota_retry:321 - gemini-2.5-flash: transient network disconnect — sleeping 8s, retry 2/12 (RemoteProtocolError — Server disconnected without sending a response.)
