@@ -256,3 +256,45 @@ def test_model_unavailable_giveup_raises_distinct_subtype(monkeypatch):
     assert not isinstance(excinfo.value, GenAIDailyQuotaGiveUp)
     assert not isinstance(excinfo.value, GenAIServerOverloadGiveUp)
     assert issubclass(GenAIModelUnavailableGiveUp, RuntimeError)
+
+
+# --- Hard wall-clock guard (37-min-hang backstop) ---------------------------
+def test_wallclock_default_is_httpx_timeout_plus_buffer(monkeypatch):
+    import llm.gemini.genai_text_client as g
+    monkeypatch.delenv("GOVERNANCE_GENAI_WALLCLOCK_TIMEOUT_SECONDS", raising=False)
+    monkeypatch.delenv("GOVERNANCE_GENAI_HTTP_TIMEOUT_MS", raising=False)
+    monkeypatch.delenv("GOVERNANCE_GENAI_REQUEST_TIMEOUT_SECONDS", raising=False)
+    # default httpx 300s + 30s buffer
+    assert g._genai_wallclock_timeout_seconds() == 330.0
+    monkeypatch.setenv("GOVERNANCE_GENAI_WALLCLOCK_TIMEOUT_SECONDS", "12")
+    assert g._genai_wallclock_timeout_seconds() == 12.0
+
+
+def test_hung_call_becomes_transient_giveup_not_infinite_hang(monkeypatch):
+    import time
+    from llm.gemini.genai_text_client import (
+        call_with_genai_quota_retry,
+        GenAITransientGiveUp,
+    )
+    monkeypatch.setenv("GOVERNANCE_GENAI_WALLCLOCK_TIMEOUT_SECONDS", "1")
+    monkeypatch.setenv("GOVERNANCE_GENAI_NETWORK_RETRIES", "2")
+
+    def hung():
+        time.sleep(30)  # far beyond the 1s wall-clock cap
+
+    with pytest.raises(GenAITransientGiveUp):
+        call_with_genai_quota_retry(hung, label="test", key_pool_size=1)
+
+
+def test_wallclock_passes_through_result_and_worker_exception(monkeypatch):
+    from llm.gemini.genai_text_client import call_with_genai_quota_retry
+    monkeypatch.setenv("GOVERNANCE_GENAI_WALLCLOCK_TIMEOUT_SECONDS", "5")
+    assert call_with_genai_quota_retry(lambda: "ok", label="t") == "ok"
+
+    class Boom(Exception):
+        pass
+
+    with pytest.raises(Boom):
+        call_with_genai_quota_retry(
+            lambda: (_ for _ in ()).throw(Boom("x")), label="t"
+        )
