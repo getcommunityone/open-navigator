@@ -1,4 +1,12 @@
-{{ config(materialized='table') }}
+{{
+  config(
+    materialized='table',
+    post_hook=[
+      "CREATE INDEX IF NOT EXISTS mdm_bridge_org_jurisdiction_jurisdiction_id_idx ON {{ this }} (jurisdiction_id)",
+      "CREATE INDEX IF NOT EXISTS mdm_bridge_org_jurisdiction_master_org_id_idx ON {{ this }} (master_org_id)"
+    ]
+  )
+}}
 
 /*
     Mart (MDM): organization <-> jurisdiction, as a many-to-many bridge across
