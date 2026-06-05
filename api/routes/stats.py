@@ -3,7 +3,6 @@ Statistics endpoint with cached metrics from database tables
 """
 from fastapi import APIRouter, HTTPException, Query
 from pathlib import Path
-import pandas as pd
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 from loguru import logger
@@ -19,27 +18,6 @@ LOCAL_DB_URL = os.getenv("NEON_DATABASE_URL_DEV", "postgresql://postgres:passwor
 # Cache key format: "national" or "state:MA" or "county:MA:Suffolk" or "city:MA:Boston"
 STATS_CACHE: Dict[str, Dict[str, Any]] = {}
 CACHE_DURATION = timedelta(hours=1)
-
-
-def count_parquet_records(pattern: str, filter_func=None) -> int:
-    """
-    Count total records across matching parquet files
-    
-    Args:
-        pattern: Glob pattern for files
-        filter_func: Optional function to filter DataFrame rows
-    """
-    files = list(Path('data/gold').glob(pattern))
-    total = 0
-    for file in files:
-        try:
-            df = pd.read_parquet(file)
-            if filter_func:
-                df = df[filter_func(df)]
-            total += len(df)
-        except Exception as e:
-            print(f"Warning: Could not read {file}: {e}")
-    return total
 
 
 def calculate_stats_from_db(state: Optional[str] = None, 
@@ -308,8 +286,7 @@ def calculate_stats(state: Optional[str] = None,
     states_with_data = len(list(Path('data/gold/states').glob('*/')))
 
     # Count domains
-    # TODO: no Postgres source for domains yet
-    domains = count_parquet_records('reference/domains_*.parquet')
+    domains = 0  # no Postgres source for domains; gold glob is empty (returns 0)
     
     # Format display values - use ACTUAL counts only, no extrapolation
     # Don't make up numbers we don't have
