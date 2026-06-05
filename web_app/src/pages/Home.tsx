@@ -47,6 +47,32 @@ import HeroStateSilhouetteBadge from '../components/HeroStateSilhouetteBadge'
 import { useLocation as useLocationContext, type LocationData } from '../contexts/LocationContext'
 import { formatCommunityPlaceLine } from '../utils/communityLocationLabel'
 
+// Shape of the /stats payload served from the jurisdiction_state_aggregate
+// rollup. Counts are scoped to the selected geography. `leaders` now means
+// civic/government officials only; `nonprofit_leaders` is the separate rollup
+// of nonprofit board members / officers (see api/routes/stats_neon.py).
+interface LocationStats {
+  location?: string
+  level?: string
+  state?: string
+  county?: string | null
+  city?: string | null
+  jurisdictions?: number
+  school_districts?: number
+  nonprofits?: number
+  events?: number
+  bills?: number
+  persons?: number
+  leaders?: number
+  nonprofit_leaders?: number
+  decisions?: number
+  total_revenue?: number
+  total_assets?: number
+  trending_causes?: unknown
+  last_updated?: string | null
+  source?: string
+}
+
 // Trending topic/cause interface
 interface TrendingCause {
   name: string
@@ -273,7 +299,7 @@ export default function Home() {
   }, [catOpen]);
 
   // Fetch stats based on location AND search scope
-  const { data: locationStats } = useQuery({
+  const { data: locationStats } = useQuery<LocationStats | null>({
     queryKey: ['location-stats', location?.state, location?.city, location?.county, location?.granularity, searchScope],
     queryFn: async () => {
       if (!location) return null;
