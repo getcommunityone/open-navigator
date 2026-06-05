@@ -97,6 +97,12 @@ def is_genai_retryable(exc: BaseException) -> bool:
             "BAD_GATEWAY",
             "OVERLOADED",
             "HIGH DEMAND",
+            # 504 gateway / deadline-exceeded: the server timed out on a slow
+            # generation — transient, retry (often succeeds on a fresh attempt).
+            "504",
+            "DEADLINE_EXCEEDED",
+            "GATEWAY TIMEOUT",
+            "GATEWAY_TIMEOUT",
         )
     ):
         return True
@@ -105,7 +111,15 @@ def is_genai_retryable(exc: BaseException) -> bool:
         if val is None:
             continue
         s = str(val).upper()
-        if val in (429, 502, 503) or s in ("429", "502", "503", "RESOURCE_EXHAUSTED", "UNAVAILABLE"):
+        if val in (429, 502, 503, 504) or s in (
+            "429",
+            "502",
+            "503",
+            "504",
+            "RESOURCE_EXHAUSTED",
+            "UNAVAILABLE",
+            "DEADLINE_EXCEEDED",
+        ):
             return True
     return False
 
@@ -125,7 +139,7 @@ def _genai_http_code(exc: BaseException) -> Optional[int]:
         if s.isdigit():
             return int(s)
     msg = str(exc)
-    for token in ("429", "502", "503"):
+    for token in ("429", "502", "503", "504"):
         if token in msg:
             return int(token)
     return None
@@ -143,6 +157,8 @@ def classify_genai_error(exc: BaseException) -> str:
         return "service overloaded (503)"
     if code == 502 or "BAD_GATEWAY" in msg:
         return "upstream bad gateway (502)"
+    if code == 504 or "DEADLINE_EXCEEDED" in msg or "GATEWAY TIMEOUT" in msg:
+        return "gateway timeout / deadline (504)"
     if code:
         return f"HTTP {code}"
     return "transient API error"
