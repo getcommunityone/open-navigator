@@ -9,6 +9,24 @@ seeds:
       - name: domain
         description: "FQDN to exclude, e.g. wilcoxcountyal.gov"
 
+  - name: policy_theme_cofog
+    description: >
+      Maps each canonical policy-decision primary_theme label (the 18-label COFOG
+      civic-theme vocabulary) to its COFOG code. Single source of truth mirrored from
+      packages/llm/src/llm/gemini/policy_themes.py (THEME_TO_COFOG). Joined into
+      int_trending_causes_by_jurisdiction to derive cause_code from the bronze label.
+      After editing: dbt seed --select policy_theme_cofog.
+    columns:
+      - name: primary_theme
+        description: "Canonical theme label, verbatim from bronze.bronze_policy_decisions.primary_theme"
+        tests:
+          - unique
+          - not_null
+      - name: cofog_code
+        description: "COFOG-NN code for the theme (e.g. COFOG-01)"
+        tests:
+          - not_null
+
   - name: jurisdiction_website_url_overrides
     description: >
       Manual canonical website per jurisdiction_id when bronze/GSA/NACo rows are missing or wrong.

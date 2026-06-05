@@ -32,6 +32,11 @@ select
     headline,
     outcome,
 
+    -- categorical cause signal (18-label COFOG civic-theme vocabulary).
+    -- Nullable by design: rows analyzed before the primary_theme extractor
+    -- shipped remain NULL until re-analysis.
+    primary_theme,
+
     -- reference graph / vote detail (JSONB pass-through)
     legislation_refs,
     vote_tally,

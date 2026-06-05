@@ -29,6 +29,7 @@ geo as (
         video_id,
         jurisdiction_id,
         jurisdiction_name,
+        jurisdiction_type,
         state_code,
         state,
         event_date
@@ -50,6 +51,7 @@ select
     -- resolved geography (jurisdiction_id is the FK)
     g.jurisdiction_id,
     g.jurisdiction_name,
+    g.jurisdiction_type,
     g.state_code,
     g.state,
     g.event_date,
@@ -57,6 +59,7 @@ select
     -- decision content
     d.headline,
     d.outcome,
+    d.primary_theme,
     d.legislation_refs,
     d.vote_tally,
 

@@ -28,6 +28,13 @@ models:
         description: YouTube id; bridge to event_youtube_with_jurisdiction.
         tests:
           - not_null
+      - name: primary_theme
+        description: >
+          Categorical cause signal from the 18-label COFOG civic-theme vocabulary
+          (packages/llm THEME_TO_COFOG). Nullable: NULL for decisions analyzed
+          before the primary_theme extractor shipped (filled on re-analysis).
+      - name: jurisdiction_type
+        description: Resolved jurisdiction type (e.g. city, county) from the geo bridge.
       - name: jurisdiction_id
         description: Resolved jurisdiction (FK to int_jurisdictions).
         tests:

@@ -6,78 +6,82 @@
 
 /*
     Intermediate model: Trending Causes by Jurisdiction
-    
-    Aggregates decision counts by cause (NTEE major group) and jurisdiction
-    for the last 90 days. Used to populate trending_causes JSON in jurisdiction_state_aggregate.
+
+    Rolls up policy-decision counts by cause (the categorical primary_theme from the
+    18-label COFOG civic-theme vocabulary) and jurisdiction. Feeds the trending_causes
+    JSON in jurisdiction_state_aggregate (joined on state_code + UPPER(jurisdiction_name)).
+
+    SOURCE  : event_policy_decision (public mart; bronze.bronze_policy_decisions →
+              stg_policy_decisions, geography resolved via event_youtube_with_jurisdiction).
+              Replaces the legacy, now-empty bronze_decisions path.
+    CAUSE    : cause_category = primary_theme label; cause_code = COFOG code mapped via
+              the policy_theme_cofog seed (mirrors packages/llm THEME_TO_COFOG).
+
+    Decisions whose primary_theme is NULL (analyzed before the extractor shipped) are
+    excluded, so this model is legitimately empty until re-analysis backfills themes.
+
+    Output columns are pinned to the consumer contract:
+      state_code, state, jurisdiction_name, jurisdiction_type, cause_category,
+      cause_code, decision_count, unique_topics, most_recent_decision, cause_rank,
+      sample_headlines (avg_days_old retained as a non-contract extra).
 */
 
-WITH recent_decisions AS (
-    SELECT *
-    FROM {{ ref('stg_bronze_decisions') }}
-    WHERE is_recent = true
-),
-
--- Join with bronze_events_localview to get jurisdiction information
-bronze_events_source AS (
+WITH decisions AS (
     SELECT
-        event_id,
+        jurisdiction_id,
         jurisdiction_name,
         jurisdiction_type,
-        city,
         state_code,
-        state
-    FROM {{ source('bronze', 'bronze_events_localview') }}
+        state,
+        primary_theme,
+        headline,
+        event_date
+    FROM {{ ref('event_policy_decision') }}
+    WHERE primary_theme IS NOT NULL
+      AND jurisdiction_id IS NOT NULL
 ),
 
--- Join decisions with events to get jurisdiction data
-decisions_aggregated AS (
-    SELECT 
-        d.*,
-        COALESCE(e.jurisdiction_name, e.city, 'Unknown') as jurisdiction_name,
-        e.state_code,
-        e.state,
-        COALESCE(e.jurisdiction_type, 'city') as jurisdiction_type,
-        e.city
-    FROM recent_decisions d
-    LEFT JOIN bronze_events_source e ON d.source_event_id = e.event_id
+-- Label -> COFOG code (seed mirrors packages/llm THEME_TO_COFOG)
+theme_cofog AS (
+    SELECT
+        primary_theme,
+        cofog_code
+    FROM {{ ref('policy_theme_cofog') }}
 ),
 
 -- Aggregate by cause and jurisdiction
 cause_aggregates AS (
     SELECT
-        -- Jurisdiction identifiers (placeholder for now)
-        state_code,
-        state,
-        jurisdiction_name,
-        jurisdiction_type,
-        
-        -- Cause identifier (use secondary_ntee_major_group or primary_theme)
-        COALESCE(secondary_ntee_major_group, primary_theme) as cause_category,
-        COALESCE(secondary_ntee_code, primary_theme_cofog) as cause_code,
-        
+        d.state_code,
+        d.state,
+        d.jurisdiction_name,
+        COALESCE(d.jurisdiction_type, 'city') AS jurisdiction_type,
+
+        -- Cause identifiers
+        d.primary_theme AS cause_category,
+        tc.cofog_code   AS cause_code,
+
         -- Decision counts
-        COUNT(*) as decision_count,
-        COUNT(DISTINCT topic) as unique_topics,
-        
-        -- Most recent decision date
-        MAX(decision_date) as most_recent_decision,
-        
-        -- Average age of decisions
-        AVG(days_since_decision) as avg_days_old,
-        
-        -- Sample headlines (PostgreSQL doesn't support LIMIT in ARRAY_AGG)
-        (ARRAY_AGG(headline ORDER BY decision_date DESC))[1:3] as sample_headlines
-        
-    FROM decisions_aggregated
-    WHERE secondary_ntee_major_group IS NOT NULL  -- Only decisions with cause mapping
-       OR primary_theme IS NOT NULL
-    GROUP BY 
-        state_code,
-        state,
-        jurisdiction_name,
-        jurisdiction_type,
-        COALESCE(secondary_ntee_major_group, primary_theme),
-        COALESCE(secondary_ntee_code, primary_theme_cofog)
+        COUNT(*) AS decision_count,
+        COUNT(DISTINCT d.headline) AS unique_topics,
+
+        -- Recency
+        MAX(d.event_date) AS most_recent_decision,
+        AVG(CURRENT_DATE - d.event_date)::DOUBLE PRECISION AS avg_days_old,
+
+        -- Sample headlines (top 3 most recent)
+        (ARRAY_AGG(d.headline ORDER BY d.event_date DESC NULLS LAST))[1:3]
+            AS sample_headlines
+
+    FROM decisions d
+    LEFT JOIN theme_cofog tc ON tc.primary_theme = d.primary_theme
+    GROUP BY
+        d.state_code,
+        d.state,
+        d.jurisdiction_name,
+        COALESCE(d.jurisdiction_type, 'city'),
+        d.primary_theme,
+        tc.cofog_code
 ),
 
 -- Rank causes within each jurisdiction
@@ -85,13 +89,13 @@ ranked_causes AS (
     SELECT
         *,
         ROW_NUMBER() OVER (
-            PARTITION BY state_code, jurisdiction_name 
+            PARTITION BY state_code, jurisdiction_name
             ORDER BY decision_count DESC, most_recent_decision DESC
-        ) as cause_rank
+        ) AS cause_rank
     FROM cause_aggregates
 )
 
--- Only keep top 10 causes per jurisdiction
+-- Top 10 trending causes per jurisdiction
 SELECT
     state_code,
     state,
@@ -106,8 +110,8 @@ SELECT
     sample_headlines,
     cause_rank
 FROM ranked_causes
-WHERE cause_rank <= 10  -- Top 10 trending causes per jurisdiction
-ORDER BY 
+WHERE cause_rank <= 10
+ORDER BY
     state_code,
     jurisdiction_name,
     cause_rank
