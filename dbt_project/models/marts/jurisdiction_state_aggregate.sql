@@ -19,9 +19,11 @@
     - bronze_organizations_nonprofits: Nonprofit counts, revenue, assets (1.95M orgs)
     - bronze_events: Meeting/event counts
     - mdm_person: Person counts (people in the geography)
-    - contact_official + mdm_bridge_person_organization: Leader counts
-      (elected/government officials + nonprofit board members/leaders)
+    - contact_official: Civic leader counts (leaders_count)
+    - mdm_bridge_person_organization: Nonprofit board/leader counts
+      (nonprofit_leaders_count — a DISTINCT, additive population)
     - bronze_bills: Bill counts
+    - event_policy_decision (+ int_jurisdictions): Decision counts by jurisdiction
     - int_trending_causes_by_jurisdiction: Trending causes by jurisdiction
 */
 
@@ -199,15 +201,24 @@ bill_stats AS (
 ),
 
 decision_stats AS (
-    -- Count decisions by state and city
+    -- Count decisions by state and city.
+    -- BUGFIX: previously read source('bronze','bronze_decisions') (an EMPTY table)
+    -- and mapped to a city ONLY via bronze_events_localview, so any non-LocalView
+    -- place (e.g. Tuscaloosa, whose meetings are on the YouTube/CivicSearch path)
+    -- got 0 decisions. Repointed to ref('event_policy_decision'), the canonical
+    -- promoted decisions mart that carries a real jurisdiction_id (FK to
+    -- int_jurisdictions). Roll up by jurisdiction_id, then resolve that id to the
+    -- bare-city grain via int_jurisdictions.name (stripping the trailing unit word
+    -- so a county/government label lands on the same UPPER(city) key the other
+    -- metrics use). decision_id is the stable per-decision key.
     SELECT
-        e.state_code,
-        e.city,
-        COUNT(DISTINCT d.id) as decisions_count
-    FROM {{ source('bronze', 'bronze_decisions') }} d
-    JOIN {{ source('bronze', 'bronze_events_localview') }} e ON d.source_event_id = e.event_id
-    WHERE e.state_code IS NOT NULL
-    GROUP BY e.state_code, e.city
+        d.state_code,
+        {{ normalize_place_key('j.name') }} as city_upper,
+        COUNT(DISTINCT d.decision_id) as decisions_count
+    FROM {{ ref('event_policy_decision') }} d
+    JOIN {{ ref('int_jurisdictions') }} j ON d.jurisdiction_id = j.jurisdiction_id
+    WHERE d.state_code IS NOT NULL
+    GROUP BY d.state_code, {{ normalize_place_key('j.name') }}
 ),
 
 -- Trending causes aggregated by jurisdiction (from dbt intermediate model)
@@ -310,11 +321,11 @@ national_stats AS (
         COALESCE((SELECT SUM(events_count) FROM event_stats), 0)::INTEGER as events_count,
         COALESCE((SELECT SUM(bills_count) FROM bill_stats), 0)::INTEGER as bills_count,
         COALESCE((SELECT SUM(persons_count) FROM person_stats), 0)::INTEGER as persons_count,
-        -- leaders = SUM of two non-dedupable id namespaces (officials + nonprofit board)
-        (
-            COALESCE((SELECT SUM(officials_count) FROM leader_official_stats), 0)
-            + COALESCE((SELECT SUM(board_count) FROM leader_board_stats), 0)
-        )::INTEGER as leaders_count,
+        -- leaders_count = civic officials ONLY (contact_official), matching the
+        -- search "Leaders" drilldown. The nonprofit board population is a disjoint
+        -- id namespace and is exposed separately as nonprofit_leaders_count.
+        COALESCE((SELECT SUM(officials_count) FROM leader_official_stats), 0)::INTEGER as leaders_count,
+        COALESCE((SELECT SUM(board_count) FROM leader_board_stats), 0)::INTEGER as nonprofit_leaders_count,
         COALESCE((SELECT SUM(decisions_count) FROM decision_stats), 0)::INTEGER as decisions_count,
         (SELECT SUM(total_revenue) FROM nonprofit_stats) as total_revenue,
         (SELECT SUM(total_assets) FROM nonprofit_stats) as total_assets,
@@ -339,11 +350,10 @@ state_stats AS (
         COALESCE((SELECT SUM(events_count) FROM event_stats WHERE state_code = nps.state_code), 0)::INTEGER as events_count,
         COALESCE((SELECT bills_count FROM bill_stats WHERE state_code = nps.state_code), 0)::INTEGER as bills_count,
         COALESCE((SELECT SUM(persons_count) FROM person_stats WHERE state_code = nps.state_code), 0)::INTEGER as persons_count,
-        -- leaders = SUM of two non-dedupable id namespaces (officials + nonprofit board)
-        (
-            COALESCE((SELECT SUM(officials_count) FROM leader_official_stats WHERE state_code = nps.state_code), 0)
-            + COALESCE((SELECT SUM(board_count) FROM leader_board_stats WHERE state_code = nps.state_code), 0)
-        )::INTEGER as leaders_count,
+        -- leaders_count = civic officials ONLY (matches search drilldown);
+        -- nonprofit board exposed separately as nonprofit_leaders_count.
+        COALESCE((SELECT SUM(officials_count) FROM leader_official_stats WHERE state_code = nps.state_code), 0)::INTEGER as leaders_count,
+        COALESCE((SELECT SUM(board_count) FROM leader_board_stats WHERE state_code = nps.state_code), 0)::INTEGER as nonprofit_leaders_count,
         COALESCE((SELECT SUM(decisions_count) FROM decision_stats WHERE state_code = nps.state_code), 0)::INTEGER as decisions_count,
         SUM(nps.total_revenue) as total_revenue,
         SUM(nps.total_assets) as total_assets,
@@ -375,6 +385,7 @@ county_stats AS (
         -- (mdm_person and the bridge have no county column).
         0 as persons_count,
         0 as leaders_count,
+        0 as nonprofit_leaders_count,
         0 as decisions_count,
         nps.total_revenue,
         nps.total_assets,
@@ -403,7 +414,7 @@ city_keys AS (
     UNION
     SELECT state_code, UPPER(city_norm) AS city_upper FROM person_stats WHERE city_norm IS NOT NULL
     UNION
-    SELECT state_code, UPPER(city) AS city_upper FROM decision_stats WHERE city IS NOT NULL
+    SELECT state_code, city_upper FROM decision_stats WHERE city_upper IS NOT NULL
     UNION
     SELECT state_code, UPPER(city_norm) AS city_upper FROM leader_board_stats WHERE city_norm IS NOT NULL
 ),
@@ -429,8 +440,10 @@ city_stats AS (
         COALESCE(es.events_count, 0)::INTEGER as events_count,
         0 as bills_count,
         COALESCE(ps.persons_count, 0)::INTEGER as persons_count,
-        -- leaders = SUM of two non-dedupable id namespaces (officials + nonprofit board)
-        (COALESCE(los.officials_count, 0) + COALESCE(lbs.board_count, 0))::INTEGER as leaders_count,
+        -- leaders_count = civic officials ONLY (matches search drilldown);
+        -- nonprofit board exposed separately as nonprofit_leaders_count.
+        COALESCE(los.officials_count, 0)::INTEGER as leaders_count,
+        COALESCE(lbs.board_count, 0)::INTEGER as nonprofit_leaders_count,
         COALESCE(ds.decisions_count, 0)::INTEGER as decisions_count,
         COALESCE(ncs.total_revenue, 0) as total_revenue,
         COALESCE(ncs.total_assets, 0) as total_assets,
@@ -462,12 +475,20 @@ city_stats AS (
         FROM person_stats GROUP BY state_code, UPPER(city_norm)
     ) ps ON ps.state_code = ck.state_code AND ps.city_upper = ck.city_upper
     LEFT JOIN (
-        SELECT state_code, UPPER(city) AS city_upper, SUM(decisions_count) AS decisions_count
-        FROM decision_stats GROUP BY state_code, UPPER(city)
+        SELECT state_code, city_upper, SUM(decisions_count) AS decisions_count
+        FROM decision_stats GROUP BY state_code, city_upper
     ) ds ON ds.state_code = ck.state_code AND ds.city_upper = ck.city_upper
     LEFT JOIN (
-        SELECT state_code, UPPER(jurisdiction) AS city_upper, SUM(officials_count) AS officials_count
-        FROM leader_official_stats GROUP BY state_code, UPPER(jurisdiction)
+        -- BUGFIX (officials key-mismatch): contact_official has no jurisdiction_id,
+        -- and its `jurisdiction` text carries unit suffixes ("Tuscaloosa County",
+        -- "Tuscaloosa Government") that never matched the bare-city key the city
+        -- rows join on, stranding officials off the city row. Normalize the label
+        -- to the same UPPER(city) key (strip trailing unit word) and re-sum so the
+        -- officials land on the city grain.
+        SELECT state_code, {{ normalize_place_key('jurisdiction') }} AS city_upper,
+               SUM(officials_count) AS officials_count
+        FROM leader_official_stats
+        GROUP BY state_code, {{ normalize_place_key('jurisdiction') }}
     ) los ON los.state_code = ck.state_code AND los.city_upper = ck.city_upper
     LEFT JOIN (
         SELECT state_code, UPPER(city_norm) AS city_upper, SUM(board_count) AS board_count

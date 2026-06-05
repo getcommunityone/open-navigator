@@ -64,13 +64,28 @@ models:
           - not_null
       - name: leaders_count
         description: >
-          Leaders = SUM of two non-dedupable id namespaces: elected/government
-          officials (contact_official) + nonprofit board members/leaders
-          (mdm_bridge_person_organization).
+          Civic leaders ONLY: elected/government officials (contact_official) in
+          the geography. Defined to match the app's search "Leaders" drilldown
+          population. Nonprofit board members are a disjoint id namespace and are
+          reported separately in nonprofit_leaders_count (do not add the two for a
+          "total leaders" figure unless that is explicitly intended).
+        tests:
+          - not_null
+      - name: nonprofit_leaders_count
+        description: >
+          Nonprofit board members / leaders in the geography: DISTINCT
+          officer_person_uid from mdm_bridge_person_organization holding a
+          leadership flag (officer / director-trustee / key-employee /
+          institutional-trustee). A separate, additive population from
+          leaders_count (civic officials); the two namespaces cannot be deduped
+          against each other.
         tests:
           - not_null
       - name: decisions_count
-        description: "Number of distinct decisions in the geography."
+        description: >
+          Number of distinct policy decisions in the geography, sourced from
+          event_policy_decision and rolled up by jurisdiction_id (resolved to the
+          city grain via int_jurisdictions).
         tests:
           - not_null
       - name: total_revenue
