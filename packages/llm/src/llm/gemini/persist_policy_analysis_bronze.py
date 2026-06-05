@@ -16,6 +16,8 @@ from typing import Any, Dict, List, Optional
 from dotenv import load_dotenv
 from loguru import logger
 
+from llm.gemini.policy_themes import normalize_primary_theme
+
 
 def database_url(explicit: Optional[str] = None) -> str:
     load_dotenv()
@@ -27,19 +29,31 @@ def database_url(explicit: Optional[str] = None) -> str:
     )
 
 
+_MIGRATIONS_DIR = (
+    Path(__file__).resolve().parents[5] / "packages/hosting/scripts/neon/migrations"
+)
+
+
+def _apply_migration(conn, filename: str) -> None:
+    """Apply a migration SQL file idempotently (no-op if the file is missing)."""
+    migration = _MIGRATIONS_DIR / filename
+    if not migration.is_file():
+        logger.warning("Migration file not found: {}", migration)
+        return
+    sql = migration.read_text(encoding="utf-8")
+    with conn.cursor() as cur:
+        cur.execute(sql)
+    conn.commit()
+
+
 def ensure_legislation_tables(conn) -> None:
     """Apply 018 migration SQL if tables missing (idempotent)."""
-    migration = (
-        Path(__file__).resolve().parents[5]
-        / "packages/hosting/scripts/neon/migrations/018_policy_legislation_linkage.sql"
-    )
-    if migration.is_file():
-        sql = migration.read_text(encoding="utf-8")
-        with conn.cursor() as cur:
-            cur.execute(sql)
-        conn.commit()
-        return
-    logger.warning("Migration file not found: {}", migration)
+    _apply_migration(conn, "018_policy_legislation_linkage.sql")
+
+
+def ensure_policy_decision_theme_column(conn) -> None:
+    """Add bronze_policy_decisions.primary_theme if missing (idempotent, migration 106)."""
+    _apply_migration(conn, "106_policy_decisions_primary_theme.sql")
 
 
 def _collect_primary_leg_ids(analysis: Dict[str, Any]) -> List[str]:
@@ -92,6 +106,7 @@ def persist_policy_analysis_bronze(
     conn = psycopg2.connect(url)
     try:
         ensure_legislation_tables(conn)
+        ensure_policy_decision_theme_column(conn)
         with conn.cursor() as cur:
             for leg in analysis.get("legislation") or []:
                 if not isinstance(leg, dict) or not leg.get("leg_id"):
@@ -188,12 +203,14 @@ def persist_policy_analysis_bronze(
                     """
                     INSERT INTO bronze.bronze_policy_decisions (
                         source_event_id, video_id, source_ai_model, decision_id,
-                        subject_id, headline, outcome, legislation_refs, vote_tally, extracted_at
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        subject_id, headline, outcome, primary_theme,
+                        legislation_refs, vote_tally, extracted_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (source_event_id, decision_id, source_ai_model) DO UPDATE SET
                         subject_id = EXCLUDED.subject_id,
                         headline = EXCLUDED.headline,
                         outcome = EXCLUDED.outcome,
+                        primary_theme = EXCLUDED.primary_theme,
                         legislation_refs = EXCLUDED.legislation_refs,
                         vote_tally = EXCLUDED.vote_tally,
                         extracted_at = EXCLUDED.extracted_at
@@ -206,6 +223,8 @@ def persist_policy_analysis_bronze(
                         row.get("subject_id"),
                         row.get("headline"),
                         row.get("outcome"),
+                        # Nullable controlled-vocabulary theme; tolerates missing/unknown.
+                        normalize_primary_theme(row.get("primary_theme")),
                         Json(row.get("legislation_refs") or []),
                         Json(row.get("vote_tally")),
                         now,

@@ -10,27 +10,9 @@ from __future__ import annotations
 import re
 from typing import Any, Dict, List, Optional
 
-# Mirrors prompts/policy_analysis_v1.md COFOG table.
-THEME_TO_COFOG: Dict[str, str] = {
-    "Fiscal and Budget Management": "COFOG-01",
-    "Infrastructure and Capital Projects": "COFOG-04",
-    "Zoning and Land Use": "COFOG-06",
-    "Public Safety and Emergency Services": "COFOG-03",
-    "Environmental and Natural Resources": "COFOG-05",
-    "Housing and Community Development": "COFOG-06",
-    "Economic Development and Business": "COFOG-04",
-    "Transportation and Mobility": "COFOG-04",
-    "Education and Workforce": "COFOG-09",
-    "Health and Human Services": "COFOG-07",
-    "Civil Rights and Equity": "COFOG-01",
-    "Governance and Administrative Policy": "COFOG-01",
-    "Parks and Recreation": "COFOG-08",
-    "Utilities and Public Works": "COFOG-06",
-    "Technology and Innovation": "COFOG-04",
-    "Legal and Compliance": "COFOG-01",
-    "Intergovernmental Relations": "COFOG-01",
-    "Public Engagement and Communications": "COFOG-01",
-}
+# Canonical controlled vocabulary lives in llm.gemini.policy_themes; re-exported
+# here so existing governance imports of THEME_TO_COFOG keep working.
+from llm.gemini.policy_themes import THEME_TO_COFOG  # noqa: F401
 
 _PARKS_KEYWORDS = re.compile(
     r"\b(parks?|recreation|playground|ballfield|athletic|trail|greenway|"

@@ -62,8 +62,30 @@ Extract **every distinct real-world location** mentioned in the transcript: stre
 
 **Priority for geocoding:** street number + street > named facility in city > subdivision name in city.
 
+## Theme Classification (controlled vocabulary)
+Set `primary_theme` on **every** `decisions[]` and `uncontested_items[]` row to **one exact label** from this fixed list (do not invent labels, do not abbreviate). Pick the single best fit; use `Governance and Administrative Policy` for purely procedural items and only when nothing else fits. If the transcript gives no signal, set `primary_theme` to `null`.
+
+- Fiscal and Budget Management
+- Infrastructure and Capital Projects
+- Zoning and Land Use
+- Public Safety and Emergency Services
+- Environmental and Natural Resources
+- Housing and Community Development
+- Economic Development and Business
+- Transportation and Mobility
+- Education and Workforce
+- Health and Human Services
+- Civil Rights and Equity
+- Governance and Administrative Policy
+- Parks and Recreation
+- Utilities and Public Works
+- Technology and Innovation
+- Legal and Compliance
+- Intergovernmental Relations
+- Public Engagement and Communications
+
 ## NTEE & COFOG Classification
-Assign the most specific NTEE major group code determinable from context for organizations. For decisions, extract NTEE codes based on the primary cause area (e.g., E for Health Care, O for Youth Development). Prioritize substantive cause areas over W (Public Policy) unless it is strictly administrative. Set `primary_theme_cofog` based on the exact Theme labels.
+Assign the most specific NTEE major group code determinable from context for organizations. For decisions, extract NTEE codes based on the primary cause area (e.g., E for Health Care, O for Youth Development). Prioritize substantive cause areas over W (Public Policy) unless it is strictly administrative. Set `primary_theme_cofog` based on the exact Theme labels above.
 
 ## Output Instructions
 Output the JSON object matching the schema below and NOTHING ELSE.
@@ -209,7 +231,7 @@ Keep `human_element` / diagrams **off** `uncontested_items[]` — only IDs, moti
       "place_refs": ["string — place_id slugs; include all locations discussed for this item"],
       "legislation_refs": ["string — leg_id slugs, often empty"],
       "financial_item_refs": ["string — financial_item_id slugs, often empty"],
-      "primary_theme": "string or null — short theme label only",
+      "primary_theme": "string or null — one exact label from the Theme Classification list",
       "presenter_person_ids": ["string — people[].person_id who presented; [] if unknown"],
       "council_question_person_ids": ["string — councilors who asked questions; often []"],
       "motion": {
@@ -232,7 +254,7 @@ Keep `human_element` / diagrams **off** `uncontested_items[]` — only IDs, moti
       "financial_item_refs": ["string — must match a financial_item_id"],
       "headline": "string — Smart Brevity lead",
       "decision_statement": "string",
-      "primary_theme": "string",
+      "primary_theme": "string or null — one exact label from the Theme Classification list",
       "outcome": "string",
       "vote_tally": {
         "yes": "number or null",

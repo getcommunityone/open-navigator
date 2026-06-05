@@ -528,8 +528,13 @@ def _normalize_part1_analysis(parsed: dict[str, Any]) -> dict[str, Any]:
             continue
         d.pop("decision_profile", None)
         from llm.gemini.mermaid_diagrams import normalize_decision_diagrams
+        from llm.gemini.policy_themes import normalize_primary_theme
 
         normalize_decision_diagrams(d)
+        # Coerce primary_theme to the controlled vocabulary (nullable). Older cached
+        # analyses / in-flight runs that lack the key are untouched.
+        if "primary_theme" in d:
+            d["primary_theme"] = normalize_primary_theme(d.get("primary_theme"))
         kept.append(d)
     out["decisions"] = kept
     out["uncontested_items"] = uncontested
