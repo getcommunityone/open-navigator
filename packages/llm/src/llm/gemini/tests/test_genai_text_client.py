@@ -1,5 +1,6 @@
 """Tests for the AI Studio text client: key-pool sanitizing and retry give-up typing."""
 
+import httpx
 import pytest
 
 from llm.gemini import genai_text_client as m
@@ -11,7 +12,9 @@ from llm.gemini.genai_text_client import (
     call_with_genai_quota_retry,
     is_genai_model_unavailable_error,
     is_genai_quota_error,
+    is_genai_retryable,
     is_genai_server_overload_error,
+    is_genai_transient_network_error,
     resolve_gemini_api_keys,
 )
 
@@ -132,6 +135,72 @@ def test_overload_classifier_excludes_quota():
     assert not is_genai_server_overload_error(RuntimeError("429 RESOURCE_EXHAUSTED"))
     assert is_genai_quota_error(RuntimeError("429 RESOURCE_EXHAUSTED"))
     assert not is_genai_quota_error(RuntimeError("503 UNAVAILABLE"))
+
+
+# --- Half-open-connection timeout (the 37-minute-hang fix) -------------------
+
+
+@pytest.mark.parametrize(
+    "exc",
+    [
+        httpx.ReadTimeout("timed out"),
+        httpx.TimeoutException("timed out"),
+        httpx.ConnectTimeout("timed out"),
+        httpx.PoolTimeout("timed out"),
+        httpx.WriteTimeout("timed out"),
+    ],
+)
+def test_http_timeout_is_classified_retryable_transient(exc):
+    # The half-open-connection fix: a per-request HTTP timeout must be treated like a
+    # network disconnect — retryable AND transient — so it rides the transient retry
+    # budget and ends in GenAITransientGiveUp, NOT server-overload or quota.
+    assert is_genai_transient_network_error(exc)
+    assert is_genai_retryable(exc)
+    assert not is_genai_server_overload_error(exc)
+    assert not is_genai_quota_error(exc)
+
+
+def test_persistent_http_timeout_raises_transient_giveup(monkeypatch):
+    monkeypatch.setattr(m.time, "sleep", lambda *_a, **_k: None)
+    monkeypatch.setenv("GOVERNANCE_GENAI_NETWORK_RETRIES", "3")
+    calls = {"n": 0}
+
+    def _fn():
+        # Simulate the SDK request hanging then firing its bounded timeout (instead of
+        # the old silent 37-min wedge). Persists across every retry.
+        calls["n"] += 1
+        raise httpx.ReadTimeout("The read operation timed out")
+
+    # A persistent timeout must end as GenAITransientGiveUp (shard skips-and-continues),
+    # never an infinite hang, and never the server-overload/quota give-ups.
+    with pytest.raises(GenAITransientGiveUp) as excinfo:
+        call_with_genai_quota_retry(_fn, label="gemini-2.5-flash-lite", key_pool_size=2)
+    assert not isinstance(excinfo.value, GenAIServerOverloadGiveUp)
+    assert not isinstance(excinfo.value, GenAIDailyQuotaGiveUp)
+    # It was actually retried (rotated keys) before giving up, not raised on first hit.
+    assert calls["n"] == 3
+
+
+def test_http_timeout_default_is_300_seconds(monkeypatch):
+    # Default: 300s (5 min) — comfortably allows ~2-min large-transcript calls while
+    # killing a true half-open hang. The SDK timeout is milliseconds, so seconds*1000.
+    monkeypatch.delenv("GOVERNANCE_GENAI_HTTP_TIMEOUT_MS", raising=False)
+    monkeypatch.delenv("GOVERNANCE_GENAI_REQUEST_TIMEOUT_SECONDS", raising=False)
+    assert m._DEFAULT_GENAI_REQUEST_TIMEOUT_SECONDS == 300
+    assert m._genai_http_timeout_ms() == 300_000
+
+
+def test_http_timeout_seconds_env_override(monkeypatch):
+    monkeypatch.delenv("GOVERNANCE_GENAI_HTTP_TIMEOUT_MS", raising=False)
+    monkeypatch.setenv("GOVERNANCE_GENAI_REQUEST_TIMEOUT_SECONDS", "45")
+    assert m._genai_http_timeout_ms() == 45_000
+
+
+def test_http_timeout_raw_ms_override_wins(monkeypatch):
+    # The legacy raw-millisecond knob still takes precedence for operators who tuned it.
+    monkeypatch.setenv("GOVERNANCE_GENAI_HTTP_TIMEOUT_MS", "90000")
+    monkeypatch.setenv("GOVERNANCE_GENAI_REQUEST_TIMEOUT_SECONDS", "45")
+    assert m._genai_http_timeout_ms() == 90_000
 
 
 class _FakeClientError(Exception):

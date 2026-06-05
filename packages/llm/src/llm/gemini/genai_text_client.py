@@ -17,6 +17,28 @@ from loguru import logger
 
 T = TypeVar("T")
 
+# Per-request HTTP timeout for every google-genai analysis call, in SECONDS.
+#
+# THE 37-MINUTE HANG: a transcript-analysis shard called gemini-2.5-flash-lite,
+# the API issued a gateway-timeout warning, then ``generate_content`` went SILENT
+# for 37+ minutes while the process stayed alive (~5% CPU). The HTTP request hung
+# inside a half-open connection (TCP connected, server stopped sending bytes), so
+# the call never returned *or raised* — which means the quota/network retry loop
+# and the server-overload model-rotation NEVER fire. The shard is simply wedged.
+#
+# A bounded per-request timeout converts that silent hang into an httpx
+# ReadTimeout/TimeoutException, which ``is_genai_transient_network_error`` already
+# classifies as a transient network error: it is retried within the transient
+# budget (rotating keys), and on persistent failure raises GenAITransientGiveUp,
+# which batch callers skip-and-continue on instead of hanging the whole shard.
+#
+# Default 300s (5 min): legit large-transcript generations have been observed
+# taking up to ~2 min, so 300s comfortably allows real work while still killing a
+# true half-open hang. Override seconds via GOVERNANCE_GENAI_REQUEST_TIMEOUT_SECONDS;
+# a raw-millisecond override (GOVERNANCE_GENAI_HTTP_TIMEOUT_MS) still wins if set,
+# for operators who tuned the old knob.
+_DEFAULT_GENAI_REQUEST_TIMEOUT_SECONDS = 300
+
 
 class GenAITransientGiveUp(RuntimeError):
     """Raised when retries are exhausted on a *transient infra* failure (network
@@ -409,17 +431,33 @@ def default_flash_lite_model() -> str:
 
 
 def _genai_http_timeout_ms() -> int:
-    """Per-request HTTP timeout (milliseconds) for google-genai clients.
+    """Per-request HTTP timeout for google-genai clients, in MILLISECONDS.
+
+    The google-genai SDK's ``HttpOptions(timeout=...)`` is millisecond-based, so the
+    seconds-valued ``GOVERNANCE_GENAI_REQUEST_TIMEOUT_SECONDS`` (default 300s — see
+    ``_DEFAULT_GENAI_REQUEST_TIMEOUT_SECONDS`` and the 37-minute-hang note) is
+    converted seconds→ms here. A raw-millisecond override
+    (``GOVERNANCE_GENAI_HTTP_TIMEOUT_MS``) still wins if set, so operators who tuned
+    the old knob keep their value.
 
     Without an explicit timeout the SDK can block forever on a stalled response
-    (TCP connected, server stops sending bytes), which wedges the whole
-    single-threaded pipeline indefinitely — no exception is raised, so the
-    quota/network retry wrapper never fires. A fired timeout instead raises an
-    error that ``is_genai_transient_network_error`` classifies as retryable, so
-    ``call_with_genai_quota_retry`` backs off and rotates keys. Override via
-    ``GOVERNANCE_GENAI_HTTP_TIMEOUT_MS`` (default 120s).
+    (TCP connected, server stops sending bytes), wedging the single-threaded shard
+    indefinitely with no exception — so the quota/network retry wrapper never fires.
+    A fired timeout instead raises an httpx ``ReadTimeout``/``TimeoutException`` that
+    ``is_genai_transient_network_error`` classifies as a retryable transient error, so
+    ``call_with_genai_quota_retry`` backs off, rotates keys, and (if persistent) raises
+    ``GenAITransientGiveUp`` rather than hanging.
     """
-    return max(1000, int(os.environ.get("GOVERNANCE_GENAI_HTTP_TIMEOUT_MS", "120000")))
+    raw_ms = os.environ.get("GOVERNANCE_GENAI_HTTP_TIMEOUT_MS")
+    if raw_ms is not None and raw_ms.strip():
+        return max(1000, int(raw_ms))
+    seconds = float(
+        os.environ.get(
+            "GOVERNANCE_GENAI_REQUEST_TIMEOUT_SECONDS",
+            str(_DEFAULT_GENAI_REQUEST_TIMEOUT_SECONDS),
+        )
+    )
+    return max(1000, int(seconds * 1000))
 
 
 def _genai_http_options() -> Any:

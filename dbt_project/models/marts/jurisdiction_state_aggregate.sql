@@ -257,16 +257,18 @@ national_stats AS (
         
         0 as jurisdictions_count,
         0 as school_districts_count,
-        (SELECT SUM(nonprofits_count) FROM nonprofit_stats)::INTEGER as nonprofits_count,
-        (SELECT SUM(events_count) FROM event_stats)::INTEGER as events_count,
-        (SELECT SUM(bills_count) FROM bill_stats)::INTEGER as bills_count,
-        (SELECT SUM(persons_count) FROM person_stats)::INTEGER as persons_count,
+        -- COALESCE every SUM to 0: an empty source set makes SUM() return NULL, which
+        -- would violate the not_null grain test (a jurisdiction with zero of X reads 0, not NULL).
+        COALESCE((SELECT SUM(nonprofits_count) FROM nonprofit_stats), 0)::INTEGER as nonprofits_count,
+        COALESCE((SELECT SUM(events_count) FROM event_stats), 0)::INTEGER as events_count,
+        COALESCE((SELECT SUM(bills_count) FROM bill_stats), 0)::INTEGER as bills_count,
+        COALESCE((SELECT SUM(persons_count) FROM person_stats), 0)::INTEGER as persons_count,
         -- leaders = SUM of two non-dedupable id namespaces (officials + nonprofit board)
         (
             COALESCE((SELECT SUM(officials_count) FROM leader_official_stats), 0)
             + COALESCE((SELECT SUM(board_count) FROM leader_board_stats), 0)
         )::INTEGER as leaders_count,
-        (SELECT SUM(decisions_count) FROM decision_stats)::INTEGER as decisions_count,
+        COALESCE((SELECT SUM(decisions_count) FROM decision_stats), 0)::INTEGER as decisions_count,
         (SELECT SUM(total_revenue) FROM nonprofit_stats) as total_revenue,
         (SELECT SUM(total_assets) FROM nonprofit_stats) as total_assets,
         
