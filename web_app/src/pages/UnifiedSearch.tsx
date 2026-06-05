@@ -376,6 +376,7 @@ export default function UnifiedSearch() {
       const params: any = {}
       if (query.trim()) params.q = query
       if (selectedState) params.state = selectedState
+      if (selectedCity) params.city = selectedCity
       if (selectedTypes.length > 0 && selectedTypes.length < 5) {
         params.types = selectedTypes.join(',')
       }
@@ -393,6 +394,7 @@ export default function UnifiedSearch() {
     const params: any = {}
     if (activeQuery) params.q = activeQuery
     if (selectedState) params.state = selectedState
+    if (selectedCity) params.city = selectedCity
     if (selectedTypes.length > 0 && selectedTypes.length < 5) {
       params.types = selectedTypes.join(',')
     }
@@ -414,6 +416,7 @@ export default function UnifiedSearch() {
     // Update URL with all current filters
     const params: any = { q: query }
     if (selectedState) params.state = selectedState
+    if (selectedCity) params.city = selectedCity
     params.types = category
     if (sortBy && sortBy !== 'relevance') params.sort = sortBy
     if (nteeCategory) params.ntee = nteeCategory
@@ -433,6 +436,7 @@ export default function UnifiedSearch() {
     const params: any = {}
     if (activeQuery) params.q = activeQuery
     if (selectedState) params.state = selectedState
+    if (selectedCity) params.city = selectedCity
     if (newTypes.length > 0 && newTypes.length < 5) {
       params.types = newTypes.join(',')
     }
@@ -1169,7 +1173,7 @@ export default function UnifiedSearch() {
           </div>
 
           {/* Active Filters Display */}
-          {(selectedState || sortBy !== 'relevance' || nteeCategory || jurisdictionDetails.length > 0 || includeFullText) && (
+          {(selectedState || selectedCity || sortBy !== 'relevance' || nteeCategory || jurisdictionDetails.length > 0 || includeFullText) && (
             <div className="mt-3 flex items-center gap-2 flex-wrap">
               <span className="text-sm text-gray-600">Active filters:</span>
               {selectedState && (
@@ -1179,6 +1183,21 @@ export default function UnifiedSearch() {
                     onClick={() => {
                       setSelectedState('')
                       setTimeout(() => handleSearch(), 0)
+                    }}
+                    className="hover:bg-blue-200 rounded-full p-0.5"
+                  >
+                    <XMarkIcon className="h-3 w-3" />
+                  </button>
+                </span>
+              )}
+              {selectedCity && (
+                <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+                  City: {selectedCity}
+                  <button
+                    onClick={() => {
+                      const params = new URLSearchParams(window.location.search)
+                      params.delete('city')
+                      setSearchParams(params)
                     }}
                     className="hover:bg-blue-200 rounded-full p-0.5"
                   >

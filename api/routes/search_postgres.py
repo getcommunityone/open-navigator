@@ -533,6 +533,7 @@ OFFICIAL_CANDIDATE_CAP = 2000
 async def search_officials_pg(
     query: Optional[str] = None,
     state: Optional[str] = None,
+    city: Optional[str] = None,
     limit: int = 10,
 ) -> List[SearchResult]:
     """
@@ -561,6 +562,7 @@ async def search_officials_pg(
     Args:
         query: Search text (matched against full_name AND title; jurisdiction too)
         state: Filter by state code ('AL') or full name ('Alabama')
+        city: Filter by city name (substring-matched against contact_official.jurisdiction)
         limit: Max results
 
     Returns:
@@ -574,8 +576,8 @@ async def search_officials_pg(
 
     # A 1-char query is all noise (matches the whole table); mirror the persons
     # search early-return so the per-keystroke typeahead only fires at >=2 chars.
-    # When a state is supplied we still allow a bare browse (no query).
-    if has_query and len(q) < 2 and not state:
+    # When a state or city is supplied we still allow a bare browse (no query).
+    if has_query and len(q) < 2 and not state and not city:
         return []
 
     try:
@@ -588,6 +590,15 @@ async def search_officials_pg(
         if state:
             where_clauses.append(f"state_code = ${idx}")
             params.append(state.upper())
+            idx += 1
+
+        # Additive city scope: contact_official.jurisdiction holds the place name
+        # (e.g. "Tuscaloosa"); a substring ILIKE keeps officials for that city.
+        # Bound as a parameter ($N) like every other predicate here — no string
+        # interpolation of user input.
+        if city and city.strip():
+            where_clauses.append(f"jurisdiction ILIKE ${idx}")
+            params.append(f"%{city.strip()}%")
             idx += 1
 
         if has_query:

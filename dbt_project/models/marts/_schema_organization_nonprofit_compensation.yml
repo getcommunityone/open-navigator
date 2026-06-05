@@ -138,4 +138,4 @@ models:
         data_type: text
       - name: published_at
         description: "dbt build timestamp."
-        data_type: timestamp without time zone
+        data_type: timestamp with time zone

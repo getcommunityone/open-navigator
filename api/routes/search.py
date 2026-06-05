@@ -350,6 +350,194 @@ async def count_organizations(
             return 0
 
 
+async def count_leaders(
+    query: Optional[str] = None,
+    state: Optional[str] = None,
+    city: Optional[str] = None,
+) -> int:
+    """Count government officials matching the leaders search filters.
+
+    Mirrors the WHERE predicates of search_postgres.search_officials_pg
+    (public.contact_official): the same state_code filter, the same additive
+    `jurisdiction ILIKE %city%` city scope, and the same name/title/jurisdiction
+    ILIKE for a query. Used to report an HONEST type_total for the "leaders"
+    category so pagination (total_pages / has_next) reflects the real match
+    count, not the fetched-list length.
+
+    NOTE: search_officials_pg caps its candidate scan at OFFICIAL_CANDIDATE_CAP
+    before ranking; this COUNT is uncapped, so for a very broad term it can
+    legitimately exceed the number of rows the search returns. That is the
+    intended behavior for an honest pager. Result cached for 1 hour.
+    """
+    norm_state = search_postgres.normalize_state_input(state)
+    has_query = bool(query and query.strip())
+    q = query.strip() if has_query else ""
+
+    # Mirror the search's short-query early-return: a 1-char query with no
+    # state/city scope is all noise -> 0 (the search returns []).
+    if has_query and len(q) < 2 and not norm_state and not (city and city.strip()):
+        return 0
+
+    cache_key = f"count_leaders_{norm_state}_{city}_{query}"
+    now = datetime.now()
+    if cache_key in _count_cache:
+        cached_time = _count_cache_ttl.get(cache_key)
+        if cached_time and (now - cached_time).total_seconds() < 3600:
+            return _count_cache[cache_key]
+
+    with tracer.start_as_current_span("search.count_leaders") as span:
+        span.set_attribute("search.has_state", bool(norm_state))
+        span.set_attribute("search.has_city", bool(city and city.strip()))
+        span.set_attribute("search.has_query", has_query)
+        try:
+            where_clauses: List[str] = []
+            params: List[Any] = []
+            idx = 1
+
+            if norm_state:
+                where_clauses.append(f"state_code = ${idx}")
+                params.append(norm_state.upper())
+                idx += 1
+
+            if city and city.strip():
+                where_clauses.append(f"jurisdiction ILIKE ${idx}")
+                params.append(f"%{city.strip()}%")
+                idx += 1
+
+            if has_query:
+                where_clauses.append(
+                    f"(full_name ILIKE ${idx} "
+                    f"OR title ILIKE ${idx} "
+                    f"OR jurisdiction ILIKE ${idx})"
+                )
+                params.append(f"%{q}%")
+                idx += 1
+
+            where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
+            sql = f"SELECT count(*) FROM contact_official WHERE {where_sql}"
+
+            pool = await search_postgres.get_db_pool()
+            async with pool.acquire() as conn:
+                count = await conn.fetchval(sql, *params)
+
+            count = int(count or 0)
+            span.set_attribute("search.count", count)
+            _count_cache[cache_key] = count
+            _count_cache_ttl[cache_key] = now
+            return count
+        except Exception as e:
+            logger.error(f"Leaders count error: {e}")
+            span.record_exception(e)
+            return 0
+
+
+async def count_persons(
+    query: Optional[str] = None,
+    state: Optional[str] = None,
+    city: Optional[str] = None,
+    jurisdiction_id: Optional[str] = None,
+) -> int:
+    """Count resolved people matching the persons search filters.
+
+    Mirrors the WHERE predicates of search_postgres.search_persons_pg
+    (public.mdm_person): the direct state_code filter, the jurisdiction_id /
+    city scope through mdm_bridge_person_jurisdiction, the name ILIKE, and the
+    org-name anti-join (NOT EXISTS on mdm_organization.org_name_norm). Counts
+    DISTINCT resolved people (master_person_id) to match the search's
+    DISTINCT ON (master_person_id) dedup.
+
+    NOTE: search_persons_pg caps its candidate scan at PERSON_CANDIDATE_CAP
+    before dedup/rank; this COUNT is uncapped, so for a broad term it can exceed
+    the returned rows — intended for an honest pager. Result cached for 1 hour.
+    """
+    norm_state = search_postgres.normalize_state_input(state)
+    has_query = bool(query and query.strip())
+    q = query.strip() if has_query else ""
+
+    # Mirror the search's short-query early-return.
+    if has_query and len(q) < 2 and not norm_state:
+        return 0
+
+    cache_key = f"count_persons_{norm_state}_{city}_{jurisdiction_id}_{query}"
+    now = datetime.now()
+    if cache_key in _count_cache:
+        cached_time = _count_cache_ttl.get(cache_key)
+        if cached_time and (now - cached_time).total_seconds() < 3600:
+            return _count_cache[cache_key]
+
+    with tracer.start_as_current_span("search.count_persons") as span:
+        span.set_attribute("search.has_state", bool(norm_state))
+        span.set_attribute("search.has_city", bool(city and city.strip()))
+        span.set_attribute("search.has_jurisdiction", bool(jurisdiction_id))
+        span.set_attribute("search.has_query", has_query)
+        try:
+            where_clauses: List[str] = []
+            params: List[Any] = []
+            idx = 1
+
+            if norm_state:
+                where_clauses.append(f"p.state_code = ${idx}")
+                params.append(norm_state.upper())
+                idx += 1
+
+            if jurisdiction_id:
+                where_clauses.append(
+                    f"EXISTS (SELECT 1 FROM mdm_bridge_person_jurisdiction bj "
+                    f"WHERE bj.person_uid = p.person_uid "
+                    f"AND bj.jurisdiction_id = ${idx})"
+                )
+                params.append(jurisdiction_id)
+                idx += 1
+            elif city and city.strip():
+                city_pred = (
+                    f"p.person_uid IN ("
+                    f"SELECT bj.person_uid FROM mdm_bridge_person_jurisdiction bj "
+                    f"JOIN jurisdictions j ON j.jurisdiction_id = bj.jurisdiction_id "
+                    f"WHERE lower(j.name) = lower(${idx}) "
+                    f"AND j.jurisdiction_type IN ('city','town')"
+                )
+                params.append(city.strip())
+                idx += 1
+                if norm_state:
+                    city_pred += f" AND j.state_code = ${idx}"
+                    params.append(norm_state.upper())
+                    idx += 1
+                city_pred += ")"
+                where_clauses.append(city_pred)
+
+            if has_query:
+                where_clauses.append(f"p.full_name ILIKE ${idx}")
+                params.append(f"%{q}%")
+                idx += 1
+
+            # Same org-name anti-join the search applies.
+            where_clauses.append(
+                "NOT EXISTS (SELECT 1 FROM mdm_organization o "
+                "WHERE o.org_name_norm = p.name_norm)"
+            )
+
+            where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
+            sql = f"""
+                SELECT count(DISTINCT p.master_person_id)
+                FROM mdm_person p
+                WHERE {where_sql}
+            """
+
+            pool = await search_postgres.get_db_pool()
+            async with pool.acquire() as conn:
+                count = await conn.fetchval(sql, *params)
+
+            count = int(count or 0)
+            span.set_attribute("search.count", count)
+            _count_cache[cache_key] = count
+            _count_cache_ttl[cache_key] = now
+            return count
+        except Exception as e:
+            logger.error(f"Persons count error: {e}")
+            span.record_exception(e)
+            return 0
+
+
 # NOTE: organizations search moved to search_postgres.search_organizations_pg
 # (mdm_organization JOIN mdm_organization_nonprofit). The old DuckDB/parquet
 # search_organizations() reading nonprofits_organizations.parquet was removed
@@ -510,7 +698,7 @@ async def unified_search(
         # This is now its OWN category, distinct from "persons". (Aliases
         # 'contacts'/'officials' already normalized to 'leaders' above.)
         if 'leaders' in requested_types:
-            search_tasks.append(('leaders', search_postgres.search_officials_pg(q, state, limit=search_limit)))
+            search_tasks.append(('leaders', search_postgres.search_officials_pg(q, state, city=city, limit=search_limit)))
 
         if 'meetings' in requested_types:
             search_tasks.append(('meetings', search_postgres.search_events_pg(q, state, limit=search_limit)))
@@ -630,20 +818,51 @@ async def unified_search(
             'grants': len([r for r in all_results if r.result_type == 'grant']),
         }
         
-        # Calculate total results
-        # For single-type browse mode, get accurate count from database
-        if not q and len(requested_types) == 1:
-            # Browse mode: count total matching records in DB
-            if 'organizations' in requested_types:
-                total_results = await count_organizations(state=state, ntee_code=ntee_code, query=q)
-                type_totals['organizations'] = total_results  # Use accurate DB count
-            else:
-                # Fallback to fetched results for other types
-                total_results = len(all_results)
-        else:
-            # Search/multi-type mode: use fetched results
-            total_results = len(all_results)
-        
+        # Calculate total results.
+        #
+        # The fetched-list lengths above are only an honest total when the whole
+        # match set fits in one fetch. For a filtered search (a query and/or a
+        # city/state/jurisdiction scope) the search functions cap their candidate
+        # scans, so len(all_results) under-reports the true count and the pager
+        # collapses (total_pages -> 1, has_next -> False), hiding later pages.
+        #
+        # Fix: for the common, paginated types we replace the fetched-length
+        # estimate with a real DB COUNT that mirrors each search's WHERE clause:
+        #   - organizations: count_organizations (browse mode, as before)
+        #   - leaders:       count_leaders   (NEW — query/state/city aware)
+        #   - persons:       count_persons   (NEW — query/state/city/jurisdiction)
+        # total_results is then the SUM of the per-type type_totals (accurate
+        # where we have a COUNT, fetched-length estimate otherwise).
+        #
+        # REMAINING ESTIMATES: meetings, bills, topics, decisions, causes,
+        # jurisdictions, documents, and grants still report fetched-length totals
+        # (their type_totals can under-count a broad filtered search). Adding
+        # COUNT helpers for those is a follow-up; scoped here to the high-traffic
+        # leaders + persons (+ existing organizations) path.
+        is_filtered = bool(q) or bool(state) or bool(city) or bool(jurisdiction_id)
+
+        if not q and len(requested_types) == 1 and 'organizations' in requested_types:
+            # Single-type org browse: accurate count (unchanged behavior).
+            type_totals['organizations'] = await count_organizations(
+                state=state, ntee_code=ntee_code, query=q
+            )
+
+        # Accurate per-type counts for the paginated people categories whenever
+        # the result set is filtered (query and/or location scope).
+        if is_filtered and 'leaders' in requested_types:
+            type_totals['leaders'] = await count_leaders(
+                query=q, state=state, city=city
+            )
+        if is_filtered and 'persons' in requested_types:
+            type_totals['persons'] = await count_persons(
+                query=q, state=state, city=city, jurisdiction_id=jurisdiction_id
+            )
+
+        # Derive the grand total from the (now partly-accurate) per-type totals
+        # rather than the fetched-list length, so total_pages/has_next reflect
+        # the real match count for leaders/persons/organizations.
+        total_results = sum(type_totals.values())
+
         total_pages = (total_results + limit - 1) // limit  # Ceiling division
         
         response_data = {

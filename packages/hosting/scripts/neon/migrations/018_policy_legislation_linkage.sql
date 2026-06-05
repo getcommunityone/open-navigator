@@ -17,13 +17,13 @@ CREATE TABLE IF NOT EXISTS bronze.bronze_bills (
     source_event_id INTEGER NOT NULL,
     video_id VARCHAR(64),
     source_ai_model VARCHAR(100) NOT NULL DEFAULT 'gemini-2.5-flash-lite',
-    leg_id VARCHAR(255) NOT NULL,
-    leg_type VARCHAR(100),
-    official_number VARCHAR(64),
+    leg_id TEXT NOT NULL,
+    leg_type TEXT,
+    official_number TEXT,
     title TEXT,
-    jurisdiction VARCHAR(200),
-    year VARCHAR(4),
-    status VARCHAR(100),
+    jurisdiction TEXT,
+    year TEXT,
+    status TEXT,
     relevance TEXT,
     url TEXT,
     agenda_labels JSONB NOT NULL DEFAULT '[]'::jsonb,
@@ -45,9 +45,9 @@ CREATE TABLE IF NOT EXISTS bronze.bronze_meeting_item_legislation (
     source_event_id INTEGER NOT NULL,
     video_id VARCHAR(64) NOT NULL,
     source_ai_model VARCHAR(100) NOT NULL DEFAULT 'gemini-2.5-flash-lite',
-    item_id VARCHAR(32) NOT NULL,
+    item_id TEXT NOT NULL,
     item_kind VARCHAR(16) NOT NULL CHECK (item_kind IN ('uncontested', 'decision')),
-    leg_id VARCHAR(255) NOT NULL,
+    leg_id TEXT NOT NULL,
     agenda_labels JSONB NOT NULL DEFAULT '[]'::jsonb,
     headline TEXT,
     extracted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -65,10 +65,10 @@ CREATE TABLE IF NOT EXISTS bronze.bronze_policy_decisions (
     source_event_id INTEGER NOT NULL,
     video_id VARCHAR(64) NOT NULL,
     source_ai_model VARCHAR(100) NOT NULL DEFAULT 'gemini-2.5-flash-lite',
-    decision_id VARCHAR(32) NOT NULL,
-    subject_id VARCHAR(255),
+    decision_id TEXT NOT NULL,
+    subject_id TEXT,
     headline TEXT,
-    outcome VARCHAR(100),
+    outcome TEXT,
     legislation_refs JSONB NOT NULL DEFAULT '[]'::jsonb,
     vote_tally JSONB,
     extracted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -83,5 +83,80 @@ ALTER TABLE bronze.bronze_bills
     ADD COLUMN IF NOT EXISTS video_id VARCHAR(64),
     ADD COLUMN IF NOT EXISTS agenda_labels JSONB NOT NULL DEFAULT '[]'::jsonb,
     ADD COLUMN IF NOT EXISTS analysis_cache_path TEXT;
+
+-- Widen AI-derived text columns to TEXT on already-existing tables.
+-- These hold free-form model output and overflowed their original VARCHAR bounds
+-- (e.g. a decision `outcome` > 100 chars aborted the whole backlog run). The dbt
+-- staging views stg_policy_bill / stg_policy_decisions reference some of these columns,
+-- so an ALTER COLUMN TYPE is blocked until they are dropped — we capture their
+-- definitions, drop, widen, and recreate them verbatim within this transaction.
+-- Guarded so it runs (and churns the views) at most once: this migration is re-run
+-- idempotently on every persist call, but does nothing once every column is already TEXT.
+DO $$
+DECLARE
+    rec record;
+    need_widen boolean;
+    def_bill text;
+    def_dec text;
+BEGIN
+    SELECT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'bronze'
+          AND data_type <> 'text'
+          AND (
+            (table_name = 'bronze_bills'
+                AND column_name IN ('leg_id','leg_type','official_number','jurisdiction','year','status'))
+         OR (table_name = 'bronze_meeting_item_legislation'
+                AND column_name IN ('item_id','leg_id'))
+         OR (table_name = 'bronze_policy_decisions'
+                AND column_name IN ('decision_id','subject_id','outcome'))
+          )
+    ) INTO need_widen;
+
+    IF NOT need_widen THEN
+        RETURN;
+    END IF;
+
+    -- Capture dependent view definitions (NULL if the view does not exist yet).
+    def_bill := pg_get_viewdef(to_regclass('staging.stg_policy_bill'), true);
+    def_dec  := pg_get_viewdef(to_regclass('staging.stg_policy_decisions'), true);
+    DROP VIEW IF EXISTS staging.stg_policy_bill;
+    DROP VIEW IF EXISTS staging.stg_policy_decisions;
+
+    FOR rec IN
+        SELECT * FROM (VALUES
+            ('bronze_bills', 'leg_id'),
+            ('bronze_bills', 'leg_type'),
+            ('bronze_bills', 'official_number'),
+            ('bronze_bills', 'jurisdiction'),
+            ('bronze_bills', 'year'),
+            ('bronze_bills', 'status'),
+            ('bronze_meeting_item_legislation', 'item_id'),
+            ('bronze_meeting_item_legislation', 'leg_id'),
+            ('bronze_policy_decisions', 'decision_id'),
+            ('bronze_policy_decisions', 'subject_id'),
+            ('bronze_policy_decisions', 'outcome')
+        ) AS t(tbl, col)
+    LOOP
+        IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'bronze'
+              AND table_name = rec.tbl
+              AND column_name = rec.col
+              AND data_type <> 'text'
+        ) THEN
+            EXECUTE format(
+                'ALTER TABLE bronze.%I ALTER COLUMN %I TYPE TEXT', rec.tbl, rec.col
+            );
+        END IF;
+    END LOOP;
+
+    IF def_bill IS NOT NULL THEN
+        EXECUTE 'CREATE VIEW staging.stg_policy_bill AS ' || def_bill;
+    END IF;
+    IF def_dec IS NOT NULL THEN
+        EXECUTE 'CREATE VIEW staging.stg_policy_decisions AS ' || def_dec;
+    END IF;
+END $$;
 
 COMMIT;
