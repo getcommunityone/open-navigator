@@ -440,9 +440,36 @@ models:
         tests:
           - not_null
 
+  - name: int_nonprofits_unified
+    description: |
+      Reproducible builder of the (formerly phantom) consolidated nonprofits
+      table. IRS Business Master File (1.95M orgs, one row per EIN) LEFT JOINed
+      to NCCS Core (one row per EIN) on EIN for census_county_name enrichment.
+      EIN is unique in both shards, so the grain is one row per IRS EIN.
+
+      Columns are named to match the legacy bronze_organizations_nonprofits table
+      exactly (org_name, irs_asset_amt, irs_income_amt, irs_revenue_amt,
+      census_county_name, ...) so the two consumers — jurisdiction_state_aggregate
+      and int_nonprofits_with_county_fips — keep identical count/revenue/asset
+      semantics. Replaces the un-built source('bronze','bronze_organizations_nonprofits').
+    columns:
+      - name: ein
+        description: "Employer Identification Number — primary key (unique per IRS EIN)."
+        tests:
+          - unique
+          - not_null
+      - name: state_code
+        description: "Org address state (2-letter), from IRS BMF."
+      - name: census_county_name
+        description: "NCCS census-geocoded county name (nullable; may be cross-state mis-geocoded — scrubbed downstream)."
+      - name: irs_revenue_amt
+        description: "IRS BMF revenue amount."
+      - name: irs_asset_amt
+        description: "IRS BMF asset amount."
+
   - name: int_nonprofits_with_county_fips
     description: |
-      Enriches bronze_organizations_nonprofits with county FIPS codes using two methods:
+      Enriches int_nonprofits_unified with county FIPS codes using two methods:
       
       **Method 1: census_county_name matching** (~790K matches, 40% of total)
       - Direct match on county name and state from NCCS geocoding

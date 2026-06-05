@@ -596,22 +596,10 @@ sources:
           - name: item_description
           - name: extracted_at
           
-      - name: bronze_organizations_nonprofits
-        description: "Consolidated nonprofit organization data from multiple sources"
-        columns:
-          - name: ein
-            description: "Employer Identification Number (primary key)"
-          - name: irs_id
-          - name: org_name
-          - name: city
-          - name: state_code
-          - name: zip_code
-          - name: ntee_cd
-            description: "NTEE classification code"
-          - name: irs_asset_amt
-          - name: irs_income_amt
-          - name: irs_revenue_amt
-          
+      # NOTE: the consolidated `bronze_organizations_nonprofits` table is no longer
+      # declared as a source. It had no reproducible builder; it is now produced
+      # in dbt by `int_nonprofits_unified` (IRS base LEFT JOIN NCCS on EIN) from
+      # the three shard sources below. Consumers ref() that model instead.
       - name: bronze_organizations_nonprofits_irs
         description: "IRS Business Master File (BMF) nonprofit data - 1.95M organizations"
         columns:
