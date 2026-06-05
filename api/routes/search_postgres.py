@@ -274,6 +274,8 @@ async def search_jurisdictions_pg(
 async def search_persons_pg(
     query: Optional[str] = None,
     state: Optional[str] = None,
+    city: Optional[str] = None,
+    jurisdiction_id: Optional[str] = None,
     limit: int = 10
 ) -> List[SearchResult]:
     """
@@ -285,11 +287,22 @@ async def search_persons_pg(
       mdm_person_full_name_trgm_idx GIN index).
     - Joins mdm_bridge_person_organization for the person's top org / title.
 
+    Location scoping (city / jurisdiction_id) goes through the MDM
+    person<->jurisdiction bridge (mdm_bridge_person_jurisdiction), keyed on
+    p.person_uid — the same allocation pattern used for orgs:
+      - jurisdiction_id -> EXISTS on that exact jurisdiction_id.
+      - city (+ state) -> resolve to the city/town jurisdiction(s) and keep persons
+        bridged to one of them.
+    The existing state filter (direct p.state_code) and the org-name anti-join are
+    preserved.
+
     Replaces the retired `contact` table feed (which no longer exists).
 
     Args:
         query: Search text (person name)
         state: Filter by state code ('MA') or full name ('Massachusetts')
+        city: Filter by city name (resolved to a city/town jurisdiction via the bridge)
+        jurisdiction_id: Exact jurisdiction scope (city, county, or state) via the bridge
         limit: Max results
 
     Returns:
@@ -309,6 +322,33 @@ async def search_persons_pg(
             where_clauses.append(f"p.state_code = ${idx}")
             params.append(state.upper())
             idx += 1
+
+        # Location scope via the MDM person<->jurisdiction bridge, keyed on
+        # p.person_uid (mdm_person's true PK). Mirrors the org bridge filter.
+        if jurisdiction_id:
+            where_clauses.append(
+                f"EXISTS (SELECT 1 FROM mdm_bridge_person_jurisdiction bj "
+                f"WHERE bj.person_uid = p.person_uid "
+                f"AND bj.jurisdiction_id = ${idx})"
+            )
+            params.append(jurisdiction_id)
+            idx += 1
+        elif city:
+            city_pred = (
+                f"p.person_uid IN ("
+                f"SELECT bj.person_uid FROM mdm_bridge_person_jurisdiction bj "
+                f"JOIN jurisdictions j ON j.jurisdiction_id = bj.jurisdiction_id "
+                f"WHERE lower(j.name) = lower(${idx}) "
+                f"AND j.jurisdiction_type IN ('city','town')"
+            )
+            params.append(city.strip())
+            idx += 1
+            if state:
+                city_pred += f" AND j.state_code = ${idx}"
+                params.append(state.upper())
+                idx += 1
+            city_pred += ")"
+            where_clauses.append(city_pred)
 
         # A 1-char name query is all noise and matches millions; skip the work
         # (the per-keystroke typeahead starts firing useful results at 2 chars).
@@ -477,9 +517,211 @@ async def search_persons_pg(
         return []
 
 
-# Back-compat alias: the dispatcher and any external callers may still reference
-# the old name. Person search is now MDM-backed (mdm_person).
-search_contacts_pg = search_persons_pg
+# NOTE: the former `search_contacts_pg = search_persons_pg` back-compat alias was
+# removed — there were no callers, and the "contacts" naming is retired in favor
+# of the two distinct categories: "persons" (mdm_person, search_persons_pg) and
+# "leaders" (contact_official, search_officials_pg).
+
+
+# Officials search (public.contact_official ~34k rows): cap how many ILIKE/trgm
+# candidates we rank so a broad title term (e.g. "Council Member" matches
+# thousands) can't degrade the typeahead. The pg_trgm GIN indexes on full_name
+# and title fill the cap fast; selective queries return far fewer.
+OFFICIAL_CANDIDATE_CAP = 2000
+
+
+async def search_officials_pg(
+    query: Optional[str] = None,
+    state: Optional[str] = None,
+    limit: int = 10,
+) -> List[SearchResult]:
+    """
+    Search elected/appointed officials, backed by the public.contact_official mart.
+
+    Replaces the retired gold parquet officials feed
+    (data/gold/states/<ST>/contact_official.parquet, consolidated
+    data/gold/contact_official.parquet). Reads ONLY the public schema — no parquet,
+    no DuckDB.
+
+    Title-aware: the query is matched against BOTH full_name AND title, so "Mayor"
+    returns every mayor (optionally narrowed by state) while a name query still
+    returns the person. Ranking, highest first:
+        1. exact / prefix name match
+        2. title match (exact > prefix > substring)
+        3. jurisdiction substring match
+        4. trigram name similarity (typo tolerance)
+    Both ILIKE branches ride the pg_trgm GIN indexes on full_name and title.
+
+    is_current officials sort ahead of historical ones.
+
+    These are government officials — they surface in the unified search under the
+    dedicated **"leaders"** category (result_type='leader'), distinct from the
+    "persons" category (real people from mdm_person via search_persons_pg).
+
+    Args:
+        query: Search text (matched against full_name AND title; jurisdiction too)
+        state: Filter by state code ('AL') or full name ('Alabama')
+        limit: Max results
+
+    Returns:
+        List of SearchResult objects (result_type='leader')
+    """
+    # Normalize state input to 2-letter code
+    state = normalize_state_input(state)
+
+    has_query = bool(query and query.strip())
+    q = query.strip() if has_query else ""
+
+    # A 1-char query is all noise (matches the whole table); mirror the persons
+    # search early-return so the per-keystroke typeahead only fires at >=2 chars.
+    # When a state is supplied we still allow a bare browse (no query).
+    if has_query and len(q) < 2 and not state:
+        return []
+
+    try:
+        pool = await get_db_pool()
+
+        where_clauses: List[str] = []
+        params: List = []
+        idx = 1
+
+        if state:
+            where_clauses.append(f"state_code = ${idx}")
+            params.append(state.upper())
+            idx += 1
+
+        if has_query:
+            # One %q% pattern (drives both full_name and title ILIKE, both
+            # trgm-indexed) plus the raw term for similarity()/prefix scoring.
+            params.append(f"%{q}%")
+            like_idx = idx
+            idx += 1
+            params.append(q)
+            term_idx = idx
+            idx += 1
+            params.append(f"{q}%")
+            prefix_idx = idx
+            idx += 1
+
+            # Match if the term hits the name, the title, OR the jurisdiction.
+            where_clauses.append(
+                f"(full_name ILIKE ${like_idx} "
+                f"OR title ILIKE ${like_idx} "
+                f"OR jurisdiction ILIKE ${like_idx})"
+            )
+
+            # Composite relevance score. Name match dominates, then title, then
+            # jurisdiction, with a trigram tail for typo tolerance.
+            score_select = f"""(
+                CASE
+                    WHEN LOWER(full_name) = LOWER(${term_idx}) THEN 5.0
+                    WHEN full_name ILIKE ${prefix_idx} THEN 4.0
+                    WHEN full_name ILIKE ${like_idx} THEN 3.0
+                    ELSE 0.0
+                END
+                + CASE
+                    WHEN LOWER(title) = LOWER(${term_idx}) THEN 2.5
+                    WHEN title ILIKE ${prefix_idx} THEN 2.0
+                    WHEN title ILIKE ${like_idx} THEN 1.5
+                    ELSE 0.0
+                END
+                + CASE WHEN jurisdiction ILIKE ${like_idx} THEN 1.0 ELSE 0.0 END
+                + similarity(full_name, ${term_idx})
+            ) AS score"""
+            # is_current first, then composite score, then name.
+            order_by = (
+                "is_current DESC NULLS LAST, score DESC, full_name ASC"
+            )
+        else:
+            # Browse (state-scoped, no query): current officials, mayors first.
+            score_select = """(
+                CASE
+                    WHEN title ILIKE '%mayor%' THEN 2.0
+                    WHEN title ILIKE '%council%' THEN 1.8
+                    WHEN title ILIKE '%commission%' THEN 1.7
+                    ELSE 1.5
+                END
+            ) AS score"""
+            order_by = "is_current DESC NULLS LAST, score DESC, full_name ASC"
+
+        where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
+
+        limit_idx = idx
+        params.append(limit)
+
+        cols = """id, full_name, title, jurisdiction, state_code, state,
+                  party, district, office, email, phone, photo_url, is_current"""
+
+        # Inner query caps the candidate scan (trgm GIN fills it fast); the outer
+        # select ranks + orders only the capped set, then trims to `limit`.
+        sql = f"""
+            SELECT {cols}, score
+            FROM (
+                SELECT {cols}, {score_select}
+                FROM contact_official
+                WHERE {where_sql}
+                LIMIT {OFFICIAL_CANDIDATE_CAP}
+            ) cand
+            ORDER BY {order_by}
+            LIMIT ${limit_idx}
+        """
+
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(sql, *params)
+
+            results = []
+            for row in rows:
+                name = row["full_name"] or "Unknown"
+                title = row["title"] or "Official"
+                jurisdiction = row["jurisdiction"]
+                state_full = row["state"]
+                state_code = row["state_code"]
+
+                # Location: prefer the office's jurisdiction, fall back to state.
+                location = jurisdiction or state_full or state_code or ""
+
+                contact_info = []
+                if row["email"]:
+                    contact_info.append(f"📧 {row['email']}")
+                if row["phone"]:
+                    contact_info.append(f"📞 {row['phone']}")
+                description = f"{title} in {location}" if location else title
+                if contact_info:
+                    description += " • " + " • ".join(contact_info)
+
+                results.append(SearchResult(
+                    result_type="leader",
+                    title=name,
+                    subtitle=f"{title} - {location}" if location else title,
+                    description=description,
+                    url=f"/people/{name.replace(' ', '-')}",
+                    score=float(row["score"]) if row["score"] is not None else 1.0,
+                    metadata={
+                        "id": row["id"],
+                        "name": name,
+                        "title": title,
+                        "jurisdiction": jurisdiction,
+                        # Naming contract: expose BOTH state_code and full state.
+                        "state": state_full,
+                        "state_code": state_code,
+                        "party": row["party"],
+                        "district": row["district"],
+                        "office": row["office"],
+                        "email": row["email"],
+                        "phone": row["phone"],
+                        "photo_url": row["photo_url"],
+                        "is_current": row["is_current"],
+                        "contact_type": "official",
+                        "data_source": "contact_official",
+                    },
+                ))
+
+            logger.info(f"🏛️  PostgreSQL officials search: {len(results)} results")
+            return results
+
+    except Exception as e:
+        logger.error(f"PostgreSQL officials search error: {e}")
+        return []
 
 
 async def search_organizations_pg(
@@ -488,23 +730,37 @@ async def search_organizations_pg(
     city: Optional[str] = None,
     ntee_code: Optional[str] = None,
     ein: Optional[str] = None,
+    jurisdiction_id: Optional[str] = None,
     limit: int = 10,
     offset: int = 0,
     sort: str = 'relevance'
 ) -> List[SearchResult]:
     """
     Search nonprofit organizations using PostgreSQL
-    
+
+    Location scoping goes through the MDM org<->jurisdiction bridge
+    (mdm_bridge_org_jurisdiction), NOT the org's own free-text city. The bridge
+    allocates each org to the city/county/state jurisdiction(s) it operates in, so
+    "orgs in Tuscaloosa" returns every city-linked org (~4,535) rather than only
+    rows whose stored city string happens to equal "Tuscaloosa".
+
+    - jurisdiction_id (exact city/county/state scope) -> EXISTS over the bridge on
+      that jurisdiction_id (preferred, most precise).
+    - city (+ state) -> resolve to the matching CITY/TOWN jurisdiction(s) and filter
+      orgs whose master_org_id is bridged to one of them.
+    - state only (no city/jurisdiction_id) -> direct state_code match (no bridge).
+
     Args:
         query: Search text (organization name)
         state: Filter by state code (e.g., 'MA') or full name (e.g., 'Massachusetts')
-        city: Filter by city name (case-insensitive)
+        city: Filter by city name (resolved to a city/town jurisdiction via the bridge)
         ntee_code: Filter by NTEE code prefix
         ein: Exact EIN match
+        jurisdiction_id: Exact jurisdiction scope (city, county, or state) via the bridge
         limit: Max results
         offset: Pagination offset
         sort: Sort order (relevance, name-asc, name-desc, revenue-asc, revenue-desc, assets-asc, assets-desc)
-    
+
     Returns:
         List of SearchResult objects
     """
@@ -524,19 +780,45 @@ async def search_organizations_pg(
             where_clauses.append(f"ein = ${param_idx}")
             params.append(ein.strip())
             param_idx += 1
-        
-        # State filter
-        if state:
+
+        # Location scope via the MDM org<->jurisdiction bridge.
+        # jurisdiction_id (exact) wins; else city+state resolves to a city/town
+        # jurisdiction; else a bare state falls back to a direct state_code match.
+        if jurisdiction_id:
+            # EXISTS over the bridge for this exact jurisdiction (city/county/state).
+            # base.master_org_id is exposed by the inner projection below.
+            where_clauses.append(
+                f"EXISTS (SELECT 1 FROM mdm_bridge_org_jurisdiction b "
+                f"WHERE b.master_org_id = base.master_org_id "
+                f"AND b.jurisdiction_id = ${param_idx})"
+            )
+            params.append(jurisdiction_id)
+            param_idx += 1
+        elif city:
+            # Resolve the city/town jurisdiction(s) by name (+ state) and filter
+            # orgs bridged to one of them. This is what makes "orgs in Tuscaloosa"
+            # return the city-linked set, not just stored-city string matches.
+            city_pred = (
+                f"base.master_org_id IN ("
+                f"SELECT b.master_org_id FROM mdm_bridge_org_jurisdiction b "
+                f"JOIN jurisdictions j ON j.jurisdiction_id = b.jurisdiction_id "
+                f"WHERE lower(j.name) = lower(${param_idx}) "
+                f"AND j.jurisdiction_type IN ('city','town')"
+            )
+            params.append(city.strip())
+            param_idx += 1
+            if state:
+                city_pred += f" AND j.state_code = ${param_idx}"
+                params.append(state.upper())
+                param_idx += 1
+            city_pred += ")"
+            where_clauses.append(city_pred)
+        elif state:
+            # State-only scope: direct state_code match (no bridge needed).
             where_clauses.append(f"state_code = ${param_idx}")
             params.append(state.upper())
             param_idx += 1
-        
-        # City filter (case-insensitive)
-        if city:
-            where_clauses.append(f"LOWER(city) = LOWER(${param_idx})")
-            params.append(city.strip())
-            param_idx += 1
-        
+
         # NTEE code filter
         if ntee_code:
             where_clauses.append(f"ntee_code LIKE ${param_idx}")
@@ -1564,5 +1846,175 @@ async def search_causes_pg(
 
     except Exception as e:
         logger.error(f"PostgreSQL causes search error: {e}")
+        return []
+
+
+async def search_grants_pg(
+    query: Optional[str] = None,
+    state: Optional[str] = None,
+    city: Optional[str] = None,
+    jurisdiction_id: Optional[str] = None,
+    limit: int = 10,
+    offset: int = 0,
+) -> List[SearchResult]:
+    """
+    Search nonprofit grants, backed by the public.grant mart (GivingTuesday 990
+    Schedule I Part II grant lines: grantor org -> grantee, cash amount, purpose).
+
+    public.grant has no FTS / tsvector column, so the query is matched with ILIKE
+    against grantor_name, grantee_name, and purpose.
+
+    Location is filtered by the GRANTOR's geography:
+      - jurisdiction_id -> grantor_master_org_id is bridged to that jurisdiction
+        (mdm_bridge_org_jurisdiction), the same exact-scope path as org search.
+      - else state -> direct grantor_state_code match (indexed, ~100% populated).
+      - else/also city -> direct lower(grantor_city_norm) match (indexed alongside
+        grantor_state_code). Direct is fine for v1 given the coverage.
+
+    Results are ordered by amount DESC (biggest grants first), so a bare browse
+    (no query) returns the largest grants.
+
+    Args:
+        query: Search text (matched against grantor_name, grantee_name, purpose)
+        state: Filter by grantor state code ('MA') or full name ('Massachusetts')
+        city: Filter by grantor city (direct grantor_city_norm match)
+        jurisdiction_id: Exact grantor jurisdiction scope via the org bridge
+        limit: Max results
+        offset: Pagination offset
+
+    Returns:
+        List of SearchResult objects (result_type='grant')
+    """
+    # Normalize state input to 2-letter code (matches grantor_state_code)
+    state = normalize_state_input(state)
+
+    try:
+        pool = await get_db_pool()
+
+        where_clauses = []
+        params = []
+        param_idx = 1
+
+        # Grantor-location scope. jurisdiction_id (exact) goes through the org
+        # bridge; otherwise fall back to the indexed direct grantor columns.
+        if jurisdiction_id:
+            where_clauses.append(
+                f"grantor_master_org_id IN ("
+                f"SELECT master_org_id FROM mdm_bridge_org_jurisdiction "
+                f"WHERE jurisdiction_id = ${param_idx})"
+            )
+            params.append(jurisdiction_id)
+            param_idx += 1
+        else:
+            if state:
+                where_clauses.append(f"grantor_state_code = ${param_idx}")
+                params.append(state.upper())
+                param_idx += 1
+            if city:
+                where_clauses.append(f"lower(grantor_city_norm) = lower(${param_idx})")
+                params.append(city.strip())
+                param_idx += 1
+
+        # No tsvector column on public.grant — ILIKE the one %q% pattern across the
+        # three text columns the grant carries.
+        has_query = bool(query and query.strip())
+        if has_query:
+            q = query.strip()
+            where_clauses.append(f"""(
+                grantor_name ILIKE ${param_idx}
+                OR grantee_name ILIKE ${param_idx}
+                OR purpose ILIKE ${param_idx}
+            )""")
+            params.append(f"%{q}%")
+            param_idx += 1
+
+        where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
+
+        sql = f"""
+            SELECT
+                grant_id,
+                grantor_name,
+                grantor_state_code,
+                grantor_city_norm,
+                grantee_name,
+                grantee_city,
+                grantee_state_code,
+                amount,
+                purpose,
+                tax_year,
+                source_url
+            FROM "grant"
+            WHERE {where_sql}
+            ORDER BY amount DESC NULLS LAST
+            LIMIT ${param_idx} OFFSET ${param_idx + 1}
+        """
+        params.append(limit)
+        params.append(offset)
+
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(sql, *params)
+
+            results = []
+            for row in rows:
+                grantor = row['grantor_name'] or 'Unknown grantor'
+                grantee = row['grantee_name'] or 'Unknown grantee'
+                title = f"{grantor} → {grantee}"
+
+                amount = row['amount']
+                amount_str = f"${amount:,}" if amount is not None else None
+
+                # Grantor location for context (golden 2-letter state + city).
+                grantor_location = (
+                    f"{row['grantor_city_norm']}, {row['grantor_state_code']}"
+                    if row['grantor_city_norm'] and row['grantor_state_code']
+                    else (row['grantor_state_code'] or '')
+                )
+
+                subtitle = " • ".join(
+                    p for p in (amount_str, grantor_location) if p
+                )
+
+                # Description: amount + purpose (truncated if long).
+                purpose = row['purpose'] or ''
+                if len(purpose) > 200:
+                    purpose = purpose[:197] + "..."
+                description = " • ".join(
+                    p for p in (amount_str, purpose) if p
+                ) or 'Nonprofit grant'
+
+                results.append(SearchResult(
+                    result_type='grant',
+                    title=title,
+                    subtitle=subtitle,
+                    description=description,
+                    url=f"/grants/{row['grant_id']}",
+                    score=1.0,
+                    metadata={
+                        'grant_id': row['grant_id'],
+                        'grantor_name': grantor,
+                        'grantee_name': grantee,
+                        'amount': amount,
+                        'purpose': row['purpose'],
+                        'tax_year': str(row['tax_year']) if row['tax_year'] is not None else None,
+                        # Naming contract: grantor location is the card's geography.
+                        'state': row['grantor_state_code'],
+                        'state_code': row['grantor_state_code'],
+                        'city': row['grantor_city_norm'],
+                        'grantee_city': row['grantee_city'],
+                        'grantee_state_code': row['grantee_state_code'],
+                        'source_url': row['source_url'],
+                    }
+                ))
+
+            logger.info(f"💰 PostgreSQL grants search: {len(results)} results")
+            return results
+
+    except asyncpg.exceptions.UndefinedTableError as e:
+        # The grant mart may be unbuilt in some envs — degrade gracefully instead
+        # of 500-ing the whole unified search.
+        logger.warning(f"public.grant not found, skipping grants search: {e}")
+        return []
+    except Exception as e:
+        logger.error(f"PostgreSQL grants search error: {e}")
         return []
 

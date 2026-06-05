@@ -1,0 +1,76 @@
+version: 2
+
+models:
+  - name: contact_official
+    description: >
+      public.contact_official — API-ready current government officials (mayors,
+      council members, legislators) sourced from the OpenStates opencivicdata_*
+      tables. One row per official×role (PK id = OCD membership id). Rebuilt as a
+      warehouse mart to replace the legacy gold parquet
+      (data/gold/states/<ST>/contact_official.parquet) the API reads today; the
+      previous public.contact_official table was dropped by migration 052.
+      Unlike the parquet export this includes ALL current memberships, not just
+      legislative chambers, so mayors and local officials are present.
+      No FK is declared: the OCD jurisdiction slug has no clean key into
+      public.jurisdictions (census slug+geoid); the jurisdiction name is
+      denormalized for display. Resolving a hard org->jurisdiction FK is a
+      follow-up.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    columns:
+      - name: id
+        description: "Primary key. The OCD membership id (text)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: full_name
+        description: "Official's full name."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: title
+        description: "Cleaned, title-cased role (e.g. 'Mayor', 'Council Member')."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: jurisdiction
+        description: "Organization name the official serves (e.g. 'Tuscaloosa Government'). Display only."
+        data_type: text
+      - name: state_code
+        description: "2-letter state/territory code (state:/territory:/district: token)."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: state
+        description: "Full state name (from state_code_to_name)."
+        data_type: text
+      - name: party
+        description: "Primary party, where known."
+        data_type: text
+      - name: district
+        description: "District/seat label (post.label), where known."
+        data_type: text
+      - name: office
+        description: "Org classification / chamber (government/upper/lower/...). Nullable."
+        data_type: text
+      - name: email
+        description: "Official email, lower-cased. Nullable."
+        data_type: text
+      - name: phone
+        description: "Reserved nullable column (not carried by the OpenStates source) to match the legacy parquet contract."
+        data_type: text
+      - name: photo_url
+        description: "Photo URL (opencivicdata_person.image). Nullable."
+        data_type: text
+      - name: is_current
+        description: "True when the term is open-ended or ends on/after the current-term cutoff."
+        data_type: boolean
+        constraints:
+          - type: not_null

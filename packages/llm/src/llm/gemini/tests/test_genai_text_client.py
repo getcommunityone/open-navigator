@@ -4,8 +4,14 @@ import pytest
 
 from llm.gemini import genai_text_client as m
 from llm.gemini.genai_text_client import (
+    GenAIDailyQuotaGiveUp,
+    GenAIModelUnavailableGiveUp,
+    GenAIServerOverloadGiveUp,
     GenAITransientGiveUp,
     call_with_genai_quota_retry,
+    is_genai_model_unavailable_error,
+    is_genai_quota_error,
+    is_genai_server_overload_error,
     resolve_gemini_api_keys,
 )
 
@@ -65,8 +71,119 @@ def test_quota_giveup_raises_plain_runtimeerror(monkeypatch):
     def _fn():
         raise RuntimeError("RESOURCE_EXHAUSTED: 429 quota exceeded")
 
-    # Real quota/server give-ups stay plain RuntimeError (NOT the transient subtype),
+    # Real quota/server give-ups stay RuntimeError (NOT the transient subtype),
     # so --stop-on-error still halts on them.
     with pytest.raises(RuntimeError) as excinfo:
         call_with_genai_quota_retry(_fn, label="test", key_pool_size=1)
     assert not isinstance(excinfo.value, GenAITransientGiveUp)
+
+
+def test_daily_quota_giveup_raises_distinct_subtype(monkeypatch):
+    monkeypatch.setattr(m.time, "sleep", lambda *_a, **_k: None)
+    monkeypatch.setenv("GOVERNANCE_GENAI_QUOTA_RETRIES", "2")
+
+    def _fn():
+        raise RuntimeError("RESOURCE_EXHAUSTED: 429 quota exceeded")
+
+    # Pool-wide quota/429 give-ups raise the dedicated daily-quota type so a
+    # model-cycling driver can rotate models, while remaining a RuntimeError so
+    # existing `except RuntimeError`/`except Exception` handlers still catch it.
+    with pytest.raises(GenAIDailyQuotaGiveUp):
+        call_with_genai_quota_retry(_fn, label="test", key_pool_size=1)
+    assert issubclass(GenAIDailyQuotaGiveUp, RuntimeError)
+
+
+def test_server_overload_giveup_raises_distinct_subtype(monkeypatch):
+    monkeypatch.setattr(m.time, "sleep", lambda *_a, **_k: None)
+    monkeypatch.setenv("GOVERNANCE_GENAI_QUOTA_RETRIES", "2")
+
+    def _fn():
+        raise RuntimeError("503 UNAVAILABLE: service overloaded")
+
+    # A sustained server-overload give-up (503/502/504) raises its own type so a
+    # model-cycling driver can temporarily rotate off the congested model — but it is
+    # NOT the daily-quota subtype (a 503 overload is not a daily wall).
+    with pytest.raises(GenAIServerOverloadGiveUp) as excinfo:
+        call_with_genai_quota_retry(_fn, label="test", key_pool_size=1)
+    assert not isinstance(excinfo.value, GenAIDailyQuotaGiveUp)
+    assert issubclass(GenAIServerOverloadGiveUp, RuntimeError)
+
+
+def test_504_deadline_giveup_is_server_overload(monkeypatch):
+    monkeypatch.setattr(m.time, "sleep", lambda *_a, **_k: None)
+    monkeypatch.setenv("GOVERNANCE_GENAI_QUOTA_RETRIES", "2")
+
+    def _fn():
+        raise RuntimeError("504 DEADLINE_EXCEEDED")
+
+    # The live bug: a sustained 504 DEADLINE_EXCEEDED used to give up as a plain
+    # RuntimeError, so the driver never moved off the congested model. It must now be
+    # the server-overload subtype.
+    with pytest.raises(GenAIServerOverloadGiveUp):
+        call_with_genai_quota_retry(_fn, label="test", key_pool_size=1)
+
+
+def test_overload_classifier_excludes_quota():
+    # Predicate boundaries: quota (429/RESOURCE_EXHAUSTED) is NOT server-overload, and
+    # vice-versa, so the give-up branch routes each to the right type.
+    assert is_genai_server_overload_error(RuntimeError("503 UNAVAILABLE"))
+    assert is_genai_server_overload_error(RuntimeError("504 DEADLINE_EXCEEDED"))
+    assert is_genai_server_overload_error(RuntimeError("502 BAD_GATEWAY"))
+    assert not is_genai_server_overload_error(RuntimeError("429 RESOURCE_EXHAUSTED"))
+    assert is_genai_quota_error(RuntimeError("429 RESOURCE_EXHAUSTED"))
+    assert not is_genai_quota_error(RuntimeError("503 UNAVAILABLE"))
+
+
+class _FakeClientError(Exception):
+    """Stand-in for ``google.genai.errors.ClientError`` (carries an HTTP ``code``)."""
+
+    def __init__(self, code: int, message: str):
+        super().__init__(f"{code} {message}")
+        self.code = code
+
+
+def test_is_genai_model_unavailable_error_true_for_retired_model():
+    # The live bug message: a retired model 404s with "no longer available".
+    retired = _FakeClientError(
+        404,
+        "NOT_FOUND. This model models/gemini-2.0-flash-lite is no longer available.",
+    )
+    assert is_genai_model_unavailable_error(retired)
+    # Plain-string variants (no .code attribute) must also be detected.
+    assert is_genai_model_unavailable_error(
+        RuntimeError("404 NOT_FOUND: model gemini-foo is not found")
+    )
+    assert is_genai_model_unavailable_error(
+        RuntimeError("404 models/gemini-bar was not found or is not supported")
+    )
+
+
+def test_is_genai_model_unavailable_error_false_for_unrelated_errors():
+    # An unrelated 404 (not about the model) must NOT be swallowed.
+    assert not is_genai_model_unavailable_error(
+        _FakeClientError(404, "NOT_FOUND: requested file does not exist")
+    )
+    # Other error families are not model-unavailable.
+    assert not is_genai_model_unavailable_error(RuntimeError("429 RESOURCE_EXHAUSTED"))
+    assert not is_genai_model_unavailable_error(RuntimeError("503 UNAVAILABLE"))
+    assert not is_genai_model_unavailable_error(RuntimeError("500 INTERNAL"))
+
+
+def test_model_unavailable_giveup_raises_distinct_subtype(monkeypatch):
+    monkeypatch.setattr(m.time, "sleep", lambda *_a, **_k: None)
+
+    def _fn():
+        raise _FakeClientError(
+            404,
+            "NOT_FOUND. This model models/gemini-2.0-flash-lite is no longer available.",
+        )
+
+    # A retired-model 404 must surface as the typed give-up — NOT the raw ClientError,
+    # which would crash a model-cycling driver. It is NOT retried (a dead model can't
+    # recover on a fresh attempt) and is distinct from the quota/overload give-ups.
+    with pytest.raises(GenAIModelUnavailableGiveUp) as excinfo:
+        call_with_genai_quota_retry(_fn, label="gemini-2.0-flash-lite", key_pool_size=3)
+    assert not isinstance(excinfo.value, _FakeClientError)
+    assert not isinstance(excinfo.value, GenAIDailyQuotaGiveUp)
+    assert not isinstance(excinfo.value, GenAIServerOverloadGiveUp)
+    assert issubclass(GenAIModelUnavailableGiveUp, RuntimeError)

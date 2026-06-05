@@ -1,0 +1,63 @@
+version: 2
+
+models:
+  - name: int_event_youtube__jurisdiction_resolved
+    description: |
+      Resolved jurisdiction geography for channel-discovered YouTube videos whose
+      bronze.bronze_event_youtube row landed with a NULL/blank jurisdiction_id
+      (datasource = 'youtube').
+
+      Declarative, SELECT-based replacement for a since-removed Python script that
+      did an in-place UPDATE of bronze (backfill_youtube_jurisdiction_from_channels.py,
+      retired when this model landed) — bronze stays raw. One row per video_id.
+      Resolution precedence (descending
+      trust): int_events_localview_enriched (high, localview_enriched) ->
+      scraped 1:1 channel map (high, scraped) -> bronze_events_channels.jurisdictions
+      catalog (high catalog_single / medium catalog_county_town / low catalog_multi).
+
+      Name / state_code / state / jurisdiction_type come from int_jurisdictions
+      (authoritative), falling back to the catalog JSONB entry when the id is
+      absent there. Only rows that resolved to a jurisdiction_id are emitted.
+    config:
+      materialized: table
+    columns:
+      - name: video_id
+        description: "YouTube video id — primary key (one row per blank bronze_event_youtube row)."
+        tests:
+          - unique
+          - not_null
+      - name: channel_id
+        description: "YouTube channel id the video belongs to (may be null for localview-only resolutions)."
+      - name: jurisdiction_id
+        description: "Resolved canonical {place_slug}_{geoid} jurisdiction id (or 2-letter code for states)."
+        tests:
+          - not_null
+          - relationships:
+              to: ref('int_jurisdictions')
+              field: jurisdiction_id
+              config:
+                where: "jurisdiction_id is not null"
+      - name: jurisdiction_name
+        description: "Authoritative name from int_jurisdictions; catalog JSONB fallback when the id is absent there."
+      - name: jurisdiction_type
+        description: "Canonical type (municipality / township / school_district / county / state)."
+      - name: state_code
+        description: "2-letter USPS state code."
+        tests:
+          - not_null
+      - name: state
+        description: "Full state name (paired with state_code per the dual-naming rule)."
+      - name: resolution_confidence
+        description: "high (localview/scraped/catalog_single), medium (catalog_county_town), low (catalog_multi)."
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['high', 'medium', 'low']
+      - name: resolution_method
+        description: "Source that resolved the row: localview_enriched / scraped / catalog_single / catalog_county_town / catalog_multi."
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['localview_enriched', 'scraped', 'catalog_single', 'catalog_county_town', 'catalog_multi']
+      - name: transformed_at
+        description: "Model build timestamp."

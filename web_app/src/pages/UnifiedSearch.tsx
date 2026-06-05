@@ -19,13 +19,25 @@ import {
   VideoCameraIcon,
   DocumentTextIcon,
   ChatBubbleBottomCenterTextIcon,
-  ScaleIcon
+  ScaleIcon,
+  BanknotesIcon
 } from '@heroicons/react/24/outline'
 import { formatCurrency } from '../utils/formatters'
 
+type SearchResultType =
+  | 'leader'
+  | 'person'
+  | 'meeting'
+  | 'organization'
+  | 'cause'
+  | 'bill'
+  | 'topic'
+  | 'decision'
+  | 'grant'
+
 interface SearchResult {
-  type: 'person' | 'contact' | 'meeting' | 'organization' | 'cause' | 'bill' | 'topic' | 'decision'
-  result_type?: 'person' | 'contact' | 'meeting' | 'organization' | 'cause' | 'bill' | 'topic' | 'decision'
+  type: SearchResultType
+  result_type?: SearchResultType
   title: string
   subtitle: string
   description: string
@@ -38,9 +50,8 @@ interface SearchResponse {
   query: string
   total_results: number
   type_totals?: {
-    person?: number
-    /** @deprecated back-compat alias for `person` */
-    contacts?: number
+    leaders?: number
+    persons?: number
     meetings: number
     organizations: number
     causes: number
@@ -48,11 +59,11 @@ interface SearchResponse {
     topics: number
     decisions: number
     jurisdictions: number
+    grants?: number
   }
   results: {
-    person: SearchResult[]
-    /** @deprecated back-compat alias for `person` */
-    contacts?: SearchResult[]
+    leaders?: SearchResult[]
+    persons?: SearchResult[]
     meetings: SearchResult[]
     organizations: SearchResult[]
     causes: SearchResult[]
@@ -60,6 +71,7 @@ interface SearchResponse {
     topics: SearchResult[]
     decisions: SearchResult[]
     jurisdictions?: SearchResult[]
+    grants?: SearchResult[]
   }
   pagination: {
     page: number
@@ -76,6 +88,14 @@ interface SearchResponse {
   }
 }
 
+// Map legacy request type names to the current /api/search vocabulary so old
+// links (?types=contacts / ?types=people / ?types=person) still resolve.
+function normalizeTypeAlias(t: string): string {
+  if (t === 'contacts' || t === 'leader') return 'leaders'
+  if (t === 'people' || t === 'person') return 'persons'
+  return t
+}
+
 export default function UnifiedSearch() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -87,12 +107,12 @@ export default function UnifiedSearch() {
   const [selectedTypes, setSelectedTypes] = useState<string[]>(() => {
     const typesParam = searchParams.get('types')
     if (typesParam) {
-      const types = typesParam.split(',').filter(t =>
-        ['person', 'contacts', 'organizations', 'causes', 'meetings', 'bills', 'topics', 'decisions'].includes(t.trim())
+      const types = typesParam.split(',').map(t => t.trim()).map(normalizeTypeAlias).filter(t =>
+        ['leaders', 'persons', 'organizations', 'causes', 'meetings', 'bills', 'topics', 'decisions', 'grants'].includes(t)
       )
-      return types.length > 0 ? types : ['person', 'organizations', 'causes', 'bills', 'topics']
+      return types.length > 0 ? types : ['leaders', 'persons', 'organizations', 'causes', 'bills', 'topics']
     }
-    return ['person', 'organizations', 'causes', 'bills', 'topics']
+    return ['leaders', 'persons', 'organizations', 'causes', 'bills', 'topics']
   })
   const [selectedState, setSelectedState] = useState(() => searchParams.get('state') || '')
   const [currentPage, setCurrentPage] = useState(() => parseInt(searchParams.get('page') || '1'))
@@ -144,10 +164,12 @@ export default function UnifiedSearch() {
   const [expandedJurisdictions, setExpandedJurisdictions] = useState<Set<number>>(new Set())
   const [expandedOrganizations, setExpandedOrganizations] = useState<Set<string>>(new Set())
   
-  // Extract city from jurisdiction details
-  const selectedCity = jurisdictionDetails.find(j => 
+  // Extract city from jurisdiction details, falling back to a plain ?city=
+  // URL param so a Home-built scoped link (e.g. ?city=Tuscaloosa&state=AL)
+  // filters results without needing a jurisdiction_details blob.
+  const selectedCity = jurisdictionDetails.find(j =>
     j.type === 'City' || j.type === 'city' || j.type === 'Place' || j.type === 'place'
-  )?.name || ''
+  )?.name || searchParams.get('city') || ''
   
   // Debounced query for autocomplete
   const [debouncedQuery, setDebouncedQuery] = useState(query)
@@ -231,8 +253,8 @@ export default function UnifiedSearch() {
       }
     }
     if (typesParam) {
-      const types = typesParam.split(',').filter(t =>
-        ['person', 'contacts', 'meetings', 'organizations', 'causes', 'bills', 'topics', 'decisions'].includes(t.trim())
+      const types = typesParam.split(',').map(t => t.trim()).map(normalizeTypeAlias).filter(t =>
+        ['leaders', 'persons', 'meetings', 'organizations', 'causes', 'bills', 'topics', 'decisions'].includes(t)
       )
       if (types.length > 0) {
         setSelectedTypes(types)
@@ -251,7 +273,7 @@ export default function UnifiedSearch() {
       
       const params: any = {
         q: debouncedQuery,
-        types: 'causes,person,organizations,bills,topics,decisions',
+        types: 'causes,leaders,persons,organizations,bills,topics,decisions',
         limit: 3
       }
       
@@ -462,7 +484,7 @@ export default function UnifiedSearch() {
     
     switch (normalizedType) {
       case 'person':
-      case 'contact':
+      case 'leader':
         return <UserIcon className="h-5 w-5" />
       case 'meeting':
         return <CalendarIcon className="h-5 w-5" />
@@ -476,6 +498,8 @@ export default function UnifiedSearch() {
         return <ChatBubbleBottomCenterTextIcon className="h-5 w-5" />
       case 'decision':
         return <ScaleIcon className="h-5 w-5" />
+      case 'grant':
+        return <BanknotesIcon className="h-5 w-5" />
       case 'jurisdiction':
         return <MapPinIcon className="h-5 w-5" />
       default:
@@ -488,9 +512,10 @@ export default function UnifiedSearch() {
     const normalizedType = type.replace(/s$/, '')
     
     switch (normalizedType) {
-      case 'person':
-      case 'contact':
+      case 'leader':
         return 'bg-blue-100 text-blue-700 border-blue-200'
+      case 'person':
+        return 'bg-sky-100 text-sky-700 border-sky-200'
       case 'meeting':
         return 'bg-green-100 text-green-700 border-green-200'
       case 'organization':
@@ -503,6 +528,8 @@ export default function UnifiedSearch() {
         return 'bg-teal-100 text-teal-700 border-teal-200'
       case 'decision':
         return 'bg-amber-100 text-amber-700 border-amber-200'
+      case 'grant':
+        return 'bg-emerald-100 text-emerald-700 border-emerald-200'
       case 'jurisdiction':
         return 'bg-orange-100 text-orange-700 border-orange-200'
       default:
@@ -716,7 +743,39 @@ export default function UnifiedSearch() {
               )}
             </div>
           )}
-          
+
+          {/* Grant-specific metadata badges (amount, grantor location, tax year) */}
+          {resultType === 'grant' && result.metadata && (
+            <div className="mt-2 flex flex-wrap gap-2 text-xs">
+              {result.metadata.amount !== null && result.metadata.amount !== undefined && (
+                <span className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded">
+                  💰 {formatCurrency(result.metadata.amount)}
+                </span>
+              )}
+              {(result.metadata.city || result.metadata.state_code) && (
+                <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded">
+                  📍 {[result.metadata.city, result.metadata.state_code].filter(Boolean).join(', ')}
+                </span>
+              )}
+              {result.metadata.tax_year && (
+                <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded">
+                  📅 Tax Year {result.metadata.tax_year}
+                </span>
+              )}
+              {result.metadata.source_url && (
+                <a
+                  href={result.metadata.source_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="px-2 py-1 bg-gray-100 text-blue-600 hover:text-blue-800 hover:underline rounded inline-flex items-center gap-1"
+                >
+                  🔗 Source
+                </a>
+              )}
+            </div>
+          )}
+
           {/* Type badge */}
           <div className="mt-2">
             <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getTypeColor(resultType)}`}>
@@ -817,8 +876,43 @@ export default function UnifiedSearch() {
                   </div>
                 )}
 
-                {/* People Section */}
-                {(previewResults.results.person ?? previewResults.results.contacts ?? []).length > 0 && (
+                {/* Leaders Section (government officials) */}
+                {(previewResults.results.leaders ?? []).length > 0 && (
+                  <div className="border-b border-gray-200">
+                    <div className="px-4 py-2 bg-gray-50 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <UserIcon className="h-4 w-4 text-gray-500" />
+                        <span className="text-xs font-semibold text-gray-700 uppercase">Leaders</span>
+                      </div>
+                      <button
+                        onClick={() => handleViewAllCategory('leaders')}
+                        className="text-xs text-primary-600 hover:text-primary-700 font-medium"
+                      >
+                        View All
+                      </button>
+                    </div>
+                    {(previewResults.results.leaders ?? []).slice(0, 3).map((result, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => navigate(result.url)}
+                        className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
+                      >
+                        <UserIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-gray-900 truncate">{result.title}</div>
+                          <div className="text-sm text-gray-600 truncate">
+                            {[result.metadata?.title, result.metadata?.jurisdiction]
+                              .filter(Boolean)
+                              .join(' – ') || result.subtitle}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* People Section (real people incl. residents/homeowners) */}
+                {(previewResults.results.persons ?? []).length > 0 && (
                   <div className="border-b border-gray-200">
                     <div className="px-4 py-2 bg-gray-50 flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -826,13 +920,13 @@ export default function UnifiedSearch() {
                         <span className="text-xs font-semibold text-gray-700 uppercase">People</span>
                       </div>
                       <button
-                        onClick={() => handleViewAllCategory('person')}
+                        onClick={() => handleViewAllCategory('persons')}
                         className="text-xs text-primary-600 hover:text-primary-700 font-medium"
                       >
                         View All
                       </button>
                     </div>
-                    {(previewResults.results.person ?? previewResults.results.contacts ?? []).slice(0, 3).map((result, idx) => (
+                    {(previewResults.results.persons ?? []).slice(0, 3).map((result, idx) => (
                       <button
                         key={idx}
                         onClick={() => navigate(result.url)}
@@ -1046,13 +1140,15 @@ export default function UnifiedSearch() {
 
             {/* Quick Type Filters - Responsive sizing */}
             {([
-              { type: 'person', label: 'People' },
+              { type: 'leaders', label: 'Leaders' },
+              { type: 'persons', label: 'People' },
               { type: 'organizations', label: 'Organizations' },
               { type: 'causes', label: 'Causes' },
               { type: 'meetings', label: 'Meetings' },
               { type: 'bills', label: 'Bills' },
               { type: 'topics', label: 'Topics' },
               { type: 'decisions', label: 'Decisions' },
+              { type: 'grants', label: 'Grants' },
             ] as const).map(({ type, label }) => (
               <button
                 key={type}
@@ -1516,16 +1612,32 @@ export default function UnifiedSearch() {
                 )}
 
                 {/* Results by Type */}
-                {(selectedTypes.includes('person') || selectedTypes.includes('contacts')) &&
-                  (searchResults.results?.person ?? searchResults.results?.contacts) &&
-                  (searchResults.results.person ?? searchResults.results.contacts ?? []).length > 0 && (
+                {selectedTypes.includes('leaders') &&
+                  searchResults.results?.leaders &&
+                  searchResults.results.leaders.length > 0 && (
                   <div className="mb-8">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                       <UserIcon className="h-6 w-6 text-blue-600" />
-                      People ({(searchResults.type_totals?.person ?? searchResults.type_totals?.contacts)?.toLocaleString() || (searchResults.results.person ?? searchResults.results.contacts ?? []).length})
+                      Leaders ({searchResults.type_totals?.leaders?.toLocaleString() || searchResults.results.leaders.length})
                     </h3>
                     <div className="grid grid-cols-1 gap-4">
-                      {(searchResults.results.person ?? searchResults.results.contacts ?? []).map((result, idx) => (
+                      {searchResults.results.leaders.map((result, idx) => (
+                        <ResultCard key={idx} result={result} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {selectedTypes.includes('persons') &&
+                  searchResults.results?.persons &&
+                  searchResults.results.persons.length > 0 && (
+                  <div className="mb-8">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                      <UserIcon className="h-6 w-6 text-sky-600" />
+                      People ({searchResults.type_totals?.persons?.toLocaleString() || searchResults.results.persons.length})
+                    </h3>
+                    <div className="grid grid-cols-1 gap-4">
+                      {searchResults.results.persons.map((result, idx) => (
                         <ResultCard key={idx} result={result} />
                       ))}
                     </div>
@@ -1624,6 +1736,20 @@ export default function UnifiedSearch() {
                     </h3>
                     <div className="grid grid-cols-1 gap-4">
                       {searchResults.results.jurisdictions.map((result, idx) => (
+                        <ResultCard key={idx} result={result} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {selectedTypes.includes('grants') && searchResults.results?.grants && searchResults.results.grants.length > 0 && (
+                  <div className="mb-8">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                      <BanknotesIcon className="h-6 w-6 text-emerald-600" />
+                      Grants ({searchResults.type_totals?.grants?.toLocaleString() || searchResults.results.grants.length})
+                    </h3>
+                    <div className="grid grid-cols-1 gap-4">
+                      {searchResults.results.grants.map((result, idx) => (
                         <ResultCard key={idx} result={result} />
                       ))}
                     </div>

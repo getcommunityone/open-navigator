@@ -79,6 +79,16 @@ _TABLE_COLUMN_FALLBACKS: Dict[str, frozenset] = {
             "city",
         }
     ),
+    "contact_official": frozenset(
+        {
+            "id",
+            "full_name",
+            "title",
+            "jurisdiction",
+            "state_code",
+            "state",
+        }
+    ),
 }
 
 
@@ -211,18 +221,23 @@ async def _fetch_location_stats_from_jurisdiction(
     school_result = await conn.fetchrow(school_query, *params)
     school_districts = int(school_result["count"] or 0) if school_result else 0
 
-    contacts = 0
-    if await _aggregate_table_exists(conn, "contact"):
-        contact_cols = await _get_table_columns(conn, "contact")
-        if contact_cols:
-            contact_state_pred = _state_usps_match_sql(contact_cols, "$1")
-            contact_result = await conn.fetchrow(
-                f"SELECT COUNT(*) AS count FROM contact WHERE ({contact_state_pred})",
+    # Leaders fallback = elected/government officials in this state
+    # (public.contact_official). Persons is left at 0 here: a live count off the
+    # 13.7M-row person index is ~2 min, so persons_count is served only from the
+    # precomputed aggregate row. This helper only runs when no aggregate row
+    # exists for the location.
+    leaders = 0
+    if await _aggregate_table_exists(conn, "contact_official"):
+        official_cols = await _get_table_columns(conn, "contact_official")
+        if official_cols:
+            official_state_pred = _state_usps_match_sql(official_cols, "$1")
+            official_result = await conn.fetchrow(
+                f"SELECT COUNT(*) AS count FROM contact_official WHERE ({official_state_pred})",
                 state_val,
             )
-            contacts = int(contact_result["count"] or 0) if contact_result else 0
+            leaders = int(official_result["count"] or 0) if official_result else 0
 
-    if jurisdictions <= 0 and contacts <= 0:
+    if jurisdictions <= 0 and leaders <= 0:
         return None
 
     level = "city" if city else "county" if county else "state"
@@ -236,7 +251,8 @@ async def _fetch_location_stats_from_jurisdiction(
         "nonprofits_count": 0,
         "events_count": 0,
         "bills_count": 0,
-        "contacts_count": contacts,
+        "persons_count": 0,
+        "leaders_count": leaders,
         "total_revenue": 0,
         "total_assets": 0,
         "last_updated": datetime.now(),
@@ -333,7 +349,8 @@ async def get_stats(
                 'nonprofits': 0,
                 'events': 0,
                 'bills': 0,
-                'contacts': 0,
+                'persons': 0,
+                'leaders': 0,
                 'decisions': 0,
                 'total_revenue': 0,
                 'total_assets': 0,
@@ -354,7 +371,11 @@ async def get_stats(
                 'nonprofits': stats.get('nonprofits_count', 0),
                 'events': stats.get('events_count', 0),
                 'bills': stats.get('bills_count', 0),
-                'contacts': stats.get('contacts_count', 0),
+                # `persons` = everyone in the person index; `leaders` = elected/
+                # government officials + nonprofit board members. (Replaces the
+                # former single `contacts` metric — see migration 105.)
+                'persons': stats.get('persons_count', 0),
+                'leaders': stats.get('leaders_count', 0),
                 'decisions': stats.get('decisions_count', 0),
                 'total_revenue': stats.get('total_revenue', 0),
                 'total_assets': stats.get('total_assets', 0),

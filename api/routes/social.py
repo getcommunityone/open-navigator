@@ -1,9 +1,9 @@
 """
 Social features API routes - following, followers, feeds
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, text
+from sqlalchemy import text
 from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
@@ -11,14 +11,14 @@ from datetime import datetime
 from api.database import get_db
 from api.auth import get_current_user
 from api.models import (
-    User, Official, SocialFollow
+    User, SocialFollow
 )
 
 router = APIRouter(prefix="/social", tags=["social"])
 
 
 def _follower_count(db: Session, target_type: str, target_id: int) -> int:
-    """Count followers of an integer-keyed entity (user / official)."""
+    """Count followers of an integer-keyed entity (user)."""
     return db.query(SocialFollow).filter(
         SocialFollow.target_type == target_type,
         SocialFollow.target_id == target_id,
@@ -93,7 +93,6 @@ class FollowerStats(BaseModel):
     followers: int
     following: int
     following_users: int
-    following_officials: int
     following_organizations: int
     following_tags: int
 
@@ -105,23 +104,6 @@ class UserSummary(BaseModel):
     full_name: Optional[str]
     avatar_url: Optional[str]
     created_at: datetime
-    
-    class Config:
-        from_attributes = True
-
-
-class OfficialSummary(BaseModel):
-    """Brief official info for lists"""
-    id: int
-    name: str
-    slug: str
-    title: Optional[str]
-    photo_url: Optional[str]
-    office: Optional[str]
-    city: Optional[str]
-    state: Optional[str]
-    follower_count: int
-    is_verified: bool
     
     class Config:
         from_attributes = True
@@ -226,80 +208,6 @@ async def unfollow_user(
         following=False,
         follower_count=_follower_count(db, "user", user_id),
         message="Successfully unfollowed user"
-    )
-
-
-@router.post("/follow/official/{official_id}")
-async def follow_official(
-    official_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-) -> FollowResponse:
-    """Follow an official"""
-    
-    # Check if official exists
-    official = db.query(Official).filter(Official.id == official_id).first()
-    if not official:
-        raise HTTPException(status_code=404, detail="Official not found")
-    
-    # Check if already following
-    existing = _get_follow(db, current_user.user_id, "official", official_id)
-
-    if existing:
-        return FollowResponse(
-            success=True,
-            following=True,
-            follower_count=official.follower_count,
-            message="Already following this official"
-        )
-
-    # Create follow
-    follow = SocialFollow(follower_id=current_user.user_id, target_type="official", target_id=official_id)
-    db.add(follow)
-    
-    # Update follower count
-    official.follower_count += 1
-    db.commit()
-    
-    return FollowResponse(
-        success=True,
-        following=True,
-        follower_count=official.follower_count,
-        message="Successfully followed official"
-    )
-
-
-@router.delete("/follow/official/{official_id}")
-async def unfollow_official(
-    official_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-) -> FollowResponse:
-    """Unfollow an official"""
-    
-    official = db.query(Official).filter(Official.id == official_id).first()
-    if not official:
-        raise HTTPException(status_code=404, detail="Official not found")
-    
-    follow = _get_follow(db, current_user.user_id, "official", official_id)
-
-    if not follow:
-        return FollowResponse(
-            success=True,
-            following=False,
-            follower_count=official.follower_count,
-            message="Not following this official"
-        )
-    
-    db.delete(follow)
-    official.follower_count = max(0, official.follower_count - 1)
-    db.commit()
-    
-    return FollowResponse(
-        success=True,
-        following=False,
-        follower_count=official.follower_count,
-        message="Successfully unfollowed official"
     )
 
 
@@ -438,7 +346,6 @@ async def unfollow_tag(
 @router.get("/following/status")
 async def check_following_status(
     user_id: Optional[int] = None,
-    leader_id: Optional[int] = None,
     org_id: Optional[str] = None,
     tag_id: Optional[str] = None,
     current_user: User = Depends(get_current_user),
@@ -450,9 +357,6 @@ async def check_following_status(
 
     if user_id:
         result['user'] = _get_follow(db, current_user.user_id, "user", user_id) is not None
-
-    if leader_id:
-        result['official'] = _get_follow(db, current_user.user_id, "official", leader_id) is not None
 
     if org_id:
         # Organizations are keyed by mdm_organization.master_org_id (text).
@@ -490,40 +394,18 @@ async def get_follower_stats(
         ).count()
 
     following_users = _following("user")
-    following_officials = _following("official")
     following_orgs = _following("organization")
     following_tags = _following("tag")
 
-    total_following = following_users + following_officials + following_orgs + following_tags
+    total_following = following_users + following_orgs + following_tags
 
     return FollowerStats(
         followers=followers,
         following=total_following,
         following_users=following_users,
-        following_officials=following_officials,
         following_organizations=following_orgs,
         following_tags=following_tags
     )
-
-
-@router.get("/following/officials")
-async def get_following_officials(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-) -> List[OfficialSummary]:
-    """Get list of officials the current user is following"""
-    
-    officials = db.query(Official).join(
-        SocialFollow,
-        and_(
-            SocialFollow.target_type == "official",
-            SocialFollow.target_id == Official.id,
-        )
-    ).filter(
-        SocialFollow.follower_id == current_user.user_id
-    ).all()
-    
-    return [OfficialSummary.from_orm(official) for official in officials]
 
 
 @router.get("/following/organizations")

@@ -1,0 +1,197 @@
+Date : 2026-06-04 22:33:55
+Directory : /home/developer/projects/open-navigator
+Total : 103 files,  4899 codes, 2395 comments, 714 blanks, all 8008 lines
+
+Languages
++------------------+------------+------------+------------+------------+------------+
+| language         | files      | code       | comment    | blank      | total      |
++------------------+------------+------------+------------+------------+------------+
+| Python           |         31 |      2,253 |      1,678 |        435 |      4,366 |
+| MS SQL           |         33 |      1,359 |        607 |        183 |      2,149 |
+| YAML             |         13 |        852 |          5 |         30 |        887 |
+| toml             |          1 |        729 |          0 |         46 |        775 |
+| TypeScript JSX   |          7 |        680 |         70 |         49 |        799 |
+| TypeScript       |          4 |         94 |         45 |         19 |        158 |
+| pip requirements |          1 |         32 |        -27 |          1 |          6 |
+| PostCSS          |          2 |          0 |          0 |          0 |          0 |
+| Markdown         |          4 |        -67 |          0 |        -25 |        -92 |
+| JavaScript       |          2 |       -103 |         17 |        -24 |       -110 |
+| JSON             |          5 |       -930 |          0 |          0 |       -930 |
++------------------+------------+------------+------------+------------+------------+
+
+Directories
++--------------------------------------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| path                                                                                                                                 | files      | code       | comment    | blank      | total      |
++--------------------------------------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| .                                                                                                                                    |        103 |      4,899 |      2,395 |        714 |      8,008 |
+| . (Files)                                                                                                                            |          4 |        780 |        -27 |         54 |        807 |
+| .github                                                                                                                              |          1 |         20 |          5 |          1 |         26 |
+| .github/workflows                                                                                                                    |          1 |         20 |          5 |          1 |         26 |
+| api                                                                                                                                  |         14 |       -330 |        443 |       -107 |          6 |
+| api (Files)                                                                                                                          |          3 |         72 |         71 |         12 |        155 |
+| api/batch_jobs                                                                                                                       |          1 |          3 |         17 |          0 |         20 |
+| api/routes                                                                                                                           |          6 |       -302 |        338 |        -95 |        -59 |
+| api/static                                                                                                                           |          4 |       -103 |         17 |        -24 |       -110 |
+| api/static/assets                                                                                                                    |          4 |       -103 |         17 |        -24 |       -110 |
+| dbt_project                                                                                                                          |         43 |      2,201 |        728 |        210 |      3,139 |
+| dbt_project/macros                                                                                                                   |          1 |          0 |          8 |          0 |          8 |
+| dbt_project/models                                                                                                                   |         39 |      2,122 |        528 |        198 |      2,848 |
+| dbt_project/models/intermediate                                                                                                      |          5 |        325 |         79 |         26 |        430 |
+| dbt_project/models/marts                                                                                                             |         24 |      1,349 |        277 |        107 |      1,733 |
+| dbt_project/models/staging                                                                                                           |         10 |        448 |        172 |         65 |        685 |
+| dbt_project/scripts                                                                                                                  |          2 |         71 |        173 |          9 |        253 |
+| dbt_project/tests                                                                                                                    |          1 |          8 |         19 |          3 |         30 |
+| packages                                                                                                                             |         23 |      2,171 |      1,298 |        544 |      4,013 |
+| packages/accessibility                                                                                                               |          1 |       -525 |          0 |          0 |       -525 |
+| packages/accessibility/src                                                                                                           |          1 |       -525 |          0 |          0 |       -525 |
+| packages/accessibility/src/accessibility                                                                                             |          1 |       -525 |          0 |          0 |       -525 |
+| packages/hosting                                                                                                                     |          4 |         61 |         52 |         11 |        124 |
+| packages/hosting/scripts                                                                                                             |          3 |         60 |         52 |         11 |        123 |
+| packages/hosting/scripts/neon                                                                                                        |          3 |         60 |         52 |         11 |        123 |
+| packages/hosting/scripts/neon/migrations                                                                                             |          3 |         60 |         52 |         11 |        123 |
+| packages/hosting/src                                                                                                                 |          1 |          1 |          0 |          0 |          1 |
+| packages/hosting/src/hosting                                                                                                         |          1 |          1 |          0 |          0 |          1 |
+| packages/hosting/src/hosting/neon                                                                                                    |          1 |          1 |          0 |          0 |          1 |
+| packages/ingestion                                                                                                                   |          7 |      1,091 |        698 |        203 |      1,992 |
+| packages/ingestion/src                                                                                                               |          5 |        671 |        625 |         92 |      1,388 |
+| packages/ingestion/src/ingestion                                                                                                     |          5 |        671 |        625 |         92 |      1,388 |
+| packages/ingestion/src/ingestion/civicsearch                                                                                         |          1 |          0 |          5 |          0 |          5 |
+| packages/ingestion/src/ingestion/givingtuesday                                                                                       |          1 |        135 |         78 |         21 |        234 |
+| packages/ingestion/src/ingestion/mdm                                                                                                 |          1 |          0 |         14 |          0 |         14 |
+| packages/ingestion/src/ingestion/openstates                                                                                          |          2 |        536 |        528 |         71 |      1,135 |
+| packages/ingestion/tests                                                                                                             |          2 |        420 |         73 |        111 |        604 |
+| packages/llm                                                                                                                         |          8 |      1,056 |        375 |        247 |      1,678 |
+| packages/llm/src                                                                                                                     |          8 |      1,056 |        375 |        247 |      1,678 |
+| packages/llm/src/llm                                                                                                                 |          8 |      1,056 |        375 |        247 |      1,678 |
+| packages/llm/src/llm/gemini                                                                                                          |          8 |      1,056 |        375 |        247 |      1,678 |
+| packages/llm/src/llm/gemini (Files)                                                                                                  |          5 |        731 |        312 |        126 |      1,169 |
+| packages/llm/src/llm/gemini/tests                                                                                                    |          3 |        325 |         63 |        121 |        509 |
+| packages/scrapers                                                                                                                    |          3 |        488 |        173 |         83 |        744 |
+| packages/scrapers/src                                                                                                                |          2 |        419 |        162 |         69 |        650 |
+| packages/scrapers/src/scrapers                                                                                                       |          2 |        419 |        162 |         69 |        650 |
+| packages/scrapers/src/scrapers/youtube                                                                                               |          2 |        419 |        162 |         69 |        650 |
+| packages/scrapers/tests                                                                                                              |          1 |         69 |         11 |         14 |         94 |
+| scripts                                                                                                                              |          3 |       -312 |       -167 |        -56 |       -535 |
+| scripts/datasources                                                                                                                  |          3 |       -312 |       -167 |        -56 |       -535 |
+| scripts/datasources/dbpedia                                                                                                          |          2 |       -230 |       -167 |        -28 |       -425 |
+| scripts/datasources/govwebsites                                                                                                      |          1 |        -82 |          0 |        -28 |       -110 |
+| web_app                                                                                                                              |         14 |        500 |        115 |         68 |        683 |
+| web_app (Files)                                                                                                                      |          2 |       -242 |          0 |          0 |       -242 |
+| web_app/policy-dashboards                                                                                                            |          1 |        -32 |          0 |          0 |        -32 |
+| web_app/src                                                                                                                          |         11 |        774 |        115 |         68 |        957 |
+| web_app/src (Files)                                                                                                                  |          4 |         85 |         41 |         18 |        144 |
+| web_app/src/api                                                                                                                      |          1 |          5 |          3 |          0 |          8 |
+| web_app/src/lib                                                                                                                      |          1 |         22 |          7 |          2 |         31 |
+| web_app/src/pages                                                                                                                    |          5 |        662 |         64 |         48 |        774 |
+| web_docs                                                                                                                             |          1 |       -131 |          0 |          0 |       -131 |
++--------------------------------------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+
+Files
++--------------------------------------------------------------------------------------------------------------------------------------+------------------+------------+------------+------------+------------+
+| filename                                                                                                                             | language         | code       | comment    | blank      | total      |
++--------------------------------------------------------------------------------------------------------------------------------------+------------------+------------+------------+------------+------------+
+| /home/developer/projects/open-navigator/.github/workflows/ci-build-test.yml                                                          | YAML             |         20 |          5 |          1 |         26 |
+| /home/developer/projects/open-navigator/CLAUDE.md                                                                                    | Markdown         |          4 |          0 |          0 |          4 |
+| /home/developer/projects/open-navigator/SECURITY.md                                                                                  | Markdown         |         15 |          0 |          7 |         22 |
+| /home/developer/projects/open-navigator/api/batch_jobs/batch_job_db.py                                                               | Python           |          3 |         17 |          0 |         20 |
+| /home/developer/projects/open-navigator/api/main.py                                                                                  | Python           |         40 |         11 |          4 |         55 |
+| /home/developer/projects/open-navigator/api/models.py                                                                                | Python           |        -39 |         -4 |        -11 |        -54 |
+| /home/developer/projects/open-navigator/api/routes/people.py                                                                         | Python           |        100 |         26 |         22 |        148 |
+| /home/developer/projects/open-navigator/api/routes/search.py                                                                         | Python           |       -644 |       -220 |       -119 |       -983 |
+| /home/developer/projects/open-navigator/api/routes/search_postgres.py                                                                | Python           |        329 |        515 |         27 |        871 |
+| /home/developer/projects/open-navigator/api/routes/social.py                                                                         | Python           |        -87 |         -8 |        -23 |       -118 |
+| /home/developer/projects/open-navigator/api/routes/stats.py                                                                          | Python           |        -10 |         14 |         -2 |          2 |
+| /home/developer/projects/open-navigator/api/routes/stats_neon.py                                                                     | Python           |         10 |         11 |          0 |         21 |
+| /home/developer/projects/open-navigator/api/static/assets/index-BdQvQsgI.js                                                          | JavaScript       |       -229 |          0 |        -26 |       -255 |
+| /home/developer/projects/open-navigator/api/static/assets/index-CRfiMS1I.css                                                         | PostCSS          |         -1 |          0 |         -1 |         -2 |
+| /home/developer/projects/open-navigator/api/static/assets/index-DE2vn_JD.js                                                          | JavaScript       |        126 |         17 |          2 |        145 |
+| /home/developer/projects/open-navigator/api/static/assets/index-D_wWyK4E.css                                                         | PostCSS          |          1 |          0 |          1 |          2 |
+| /home/developer/projects/open-navigator/api/telemetry.py                                                                             | Python           |         71 |         64 |         19 |        154 |
+| /home/developer/projects/open-navigator/dbt_project/macros/classify_name_entity_type.sql                                             | MS SQL           |          0 |          8 |          0 |          8 |
+| /home/developer/projects/open-navigator/dbt_project/models/intermediate/_intermediate.yml                                            | YAML             |         15 |          0 |          0 |         15 |
+| /home/developer/projects/open-navigator/dbt_project/models/intermediate/_schema_int_event_youtube__jurisdiction_resolved.yml         | YAML             |         60 |          0 |          4 |         64 |
+| /home/developer/projects/open-navigator/dbt_project/models/intermediate/int_event_youtube__jurisdiction_resolved.sql                 | MS SQL           |        200 |         61 |         19 |        280 |
+| /home/developer/projects/open-navigator/dbt_project/models/intermediate/int_events_union.sql                                         | MS SQL           |         48 |         16 |          3 |         67 |
+| /home/developer/projects/open-navigator/dbt_project/models/intermediate/int_persons__unioned.sql                                     | MS SQL           |          2 |          2 |          0 |          4 |
+| /home/developer/projects/open-navigator/dbt_project/models/marts/_mdm_marts.yml                                                      | YAML             |         98 |          0 |          2 |        100 |
+| /home/developer/projects/open-navigator/dbt_project/models/marts/_schema_contact_official.yml                                        | YAML             |         75 |          0 |          2 |         77 |
+| /home/developer/projects/open-navigator/dbt_project/models/marts/_schema_event.yml                                                   | YAML             |        100 |          0 |          1 |        101 |
+| /home/developer/projects/open-navigator/dbt_project/models/marts/_schema_event_policy_bill.yml                                       | YAML             |         39 |          0 |          3 |         42 |
+| /home/developer/projects/open-navigator/dbt_project/models/marts/_schema_event_policy_decision.yml                                   | YAML             |         36 |          0 |          3 |         39 |
+| /home/developer/projects/open-navigator/dbt_project/models/marts/_schema_event_youtube_with_jurisdiction.yml                         | YAML             |         36 |          0 |          4 |         40 |
+| /home/developer/projects/open-navigator/dbt_project/models/marts/_schema_grant.yml                                                   | YAML             |        109 |          0 |          2 |        111 |
+| /home/developer/projects/open-navigator/dbt_project/models/marts/_schema_jurisdictions.yml                                           | YAML             |         92 |          0 |          2 |         94 |
+| /home/developer/projects/open-navigator/dbt_project/models/marts/contact_official.sql                                                | MS SQL           |         37 |         34 |          4 |         75 |
+| /home/developer/projects/open-navigator/dbt_project/models/marts/event.sql                                                           | MS SQL           |         14 |          0 |          0 |         14 |
+| /home/developer/projects/open-navigator/dbt_project/models/marts/event_documents.sql                                                 | MS SQL           |         90 |         35 |          5 |        130 |
+| /home/developer/projects/open-navigator/dbt_project/models/marts/event_policy_bill.sql                                               | MS SQL           |         42 |         19 |         10 |         71 |
+| /home/developer/projects/open-navigator/dbt_project/models/marts/event_policy_decision.sql                                           | MS SQL           |         41 |         18 |         10 |         69 |
+| /home/developer/projects/open-navigator/dbt_project/models/marts/event_youtube_with_jurisdiction.sql                                 | MS SQL           |         66 |         31 |         19 |        116 |
+| /home/developer/projects/open-navigator/dbt_project/models/marts/grant.sql                                                           | MS SQL           |         72 |         47 |          8 |        127 |
+| /home/developer/projects/open-navigator/dbt_project/models/marts/jurisdiction_mapping_analysis.sql                                   | MS SQL           |          0 |          1 |          0 |          1 |
+| /home/developer/projects/open-navigator/dbt_project/models/marts/jurisdiction_state_aggregate.sql                                    | MS SQL           |         35 |         15 |          2 |         52 |
+| /home/developer/projects/open-navigator/dbt_project/models/marts/jurisdictions.sql                                                   | MS SQL           |         86 |         11 |          2 |         99 |
+| /home/developer/projects/open-navigator/dbt_project/models/marts/mdm_bridge_org_jurisdiction.sql                                     | MS SQL           |        120 |         30 |         14 |        164 |
+| /home/developer/projects/open-navigator/dbt_project/models/marts/mdm_bridge_person_jurisdiction.sql                                  | MS SQL           |        120 |         28 |         14 |        162 |
+| /home/developer/projects/open-navigator/dbt_project/models/marts/mdm_bridge_person_organization.sql                                  | MS SQL           |          7 |          0 |          0 |          7 |
+| /home/developer/projects/open-navigator/dbt_project/models/marts/mdm_organization.sql                                                | MS SQL           |          9 |          8 |          0 |         17 |
+| /home/developer/projects/open-navigator/dbt_project/models/marts/mdm_organization_nonprofit.sql                                      | MS SQL           |         13 |          0 |          0 |         13 |
+| /home/developer/projects/open-navigator/dbt_project/models/marts/mdm_person.sql                                                      | MS SQL           |         12 |          0 |          0 |         12 |
+| /home/developer/projects/open-navigator/dbt_project/models/staging/_schema_stg_givingtuesday.yml                                     | YAML             |         21 |          0 |          1 |         22 |
+| /home/developer/projects/open-navigator/dbt_project/models/staging/_staging.yml                                                      | YAML             |        151 |          0 |          5 |        156 |
+| /home/developer/projects/open-navigator/dbt_project/models/staging/stg_990_officers.sql                                              | MS SQL           |          0 |          4 |          0 |          4 |
+| /home/developer/projects/open-navigator/dbt_project/models/staging/stg_990_officers__person.sql                                      | MS SQL           |         55 |         35 |          8 |         98 |
+| /home/developer/projects/open-navigator/dbt_project/models/staging/stg_grants_gt990__schedule_i.sql                                  | MS SQL           |         35 |         12 |          8 |         55 |
+| /home/developer/projects/open-navigator/dbt_project/models/staging/stg_nccs__organization.sql                                        | MS SQL           |          0 |          2 |          0 |          2 |
+| /home/developer/projects/open-navigator/dbt_project/models/staging/stg_openstates__official.sql                                      | MS SQL           |         70 |         27 |         19 |        116 |
+| /home/developer/projects/open-navigator/dbt_project/models/staging/stg_parcels__person.sql                                           | MS SQL           |         70 |         63 |          5 |        138 |
+| /home/developer/projects/open-navigator/dbt_project/models/staging/stg_policy_bill.sql                                               | MS SQL           |         24 |         16 |         10 |         50 |
+| /home/developer/projects/open-navigator/dbt_project/models/staging/stg_policy_decisions.sql                                          | MS SQL           |         22 |         13 |          9 |         44 |
+| /home/developer/projects/open-navigator/dbt_project/scripts/backfill_persons_leaders_counts.py                                       | Python           |         69 |        173 |          9 |        251 |
+| /home/developer/projects/open-navigator/dbt_project/scripts/export_stats_to_open_navigator.py                                        | Python           |          2 |          0 |          0 |          2 |
+| /home/developer/projects/open-navigator/dbt_project/tests/assert_mdm_person_not_overmerged.sql                                       | MS SQL           |          8 |         19 |          3 |         30 |
+| /home/developer/projects/open-navigator/packages/accessibility/src/accessibility/package-lock.json                                   | JSON             |       -525 |          0 |          0 |       -525 |
+| /home/developer/projects/open-navigator/packages/hosting/scripts/neon/migrations/103_promote_civicsearch_to_bronze_event_youtube.sql | MS SQL           |          0 |          9 |          0 |          9 |
+| /home/developer/projects/open-navigator/packages/hosting/scripts/neon/migrations/104_create_bronze_bills_openstates.sql              | MS SQL           |         43 |         18 |          7 |         68 |
+| /home/developer/projects/open-navigator/packages/hosting/scripts/neon/migrations/105_stats_aggregate_persons_leaders_counts.sql      | MS SQL           |         17 |         25 |          4 |         46 |
+| /home/developer/projects/open-navigator/packages/hosting/src/hosting/neon/schema.sql                                                 | MS SQL           |          1 |          0 |          0 |          1 |
+| /home/developer/projects/open-navigator/packages/ingestion/src/ingestion/civicsearch/events.py                                       | Python           |          0 |          5 |          0 |          5 |
+| /home/developer/projects/open-navigator/packages/ingestion/src/ingestion/givingtuesday/load.py                                       | Python           |        135 |         78 |         21 |        234 |
+| /home/developer/projects/open-navigator/packages/ingestion/src/ingestion/mdm/settings.py                                             | Python           |          0 |         14 |          0 |         14 |
+| /home/developer/projects/open-navigator/packages/ingestion/src/ingestion/openstates/bills.py                                         | Python           |        304 |        261 |         36 |        601 |
+| /home/developer/projects/open-navigator/packages/ingestion/src/ingestion/openstates/officials.py                                     | Python           |        232 |        267 |         35 |        534 |
+| /home/developer/projects/open-navigator/packages/ingestion/tests/test_openstates_bills.py                                            | Python           |        241 |         43 |         64 |        348 |
+| /home/developer/projects/open-navigator/packages/ingestion/tests/test_openstates_officials.py                                        | Python           |        179 |         30 |         47 |        256 |
+| /home/developer/projects/open-navigator/packages/llm/src/llm/gemini/analyze_backlog.py                                               | Python           |        497 |        206 |         89 |        792 |
+| /home/developer/projects/open-navigator/packages/llm/src/llm/gemini/browser_policy_analysis.py                                       | Python           |          6 |          1 |          0 |          7 |
+| /home/developer/projects/open-navigator/packages/llm/src/llm/gemini/genai_text_client.py                                             | Python           |         78 |         58 |         14 |        150 |
+| /home/developer/projects/open-navigator/packages/llm/src/llm/gemini/meeting_transcript_policy.py                                     | Python           |         48 |         14 |          5 |         67 |
+| /home/developer/projects/open-navigator/packages/llm/src/llm/gemini/tests/test_analyze_backlog.py                                    | Python           |        235 |         51 |         86 |        372 |
+| /home/developer/projects/open-navigator/packages/llm/src/llm/gemini/tests/test_genai_text_client.py                                  | Python           |         35 |         11 |         14 |         60 |
+| /home/developer/projects/open-navigator/packages/llm/src/llm/gemini/tests/test_transcript_db.py                                      | Python           |         55 |          1 |         21 |         77 |
+| /home/developer/projects/open-navigator/packages/llm/src/llm/gemini/transcript_db.py                                                 | Python           |        102 |         33 |         18 |        153 |
+| /home/developer/projects/open-navigator/packages/scrapers/src/scrapers/youtube/backfill_transcripts.py                               | Python           |          3 |          5 |          0 |          8 |
+| /home/developer/projects/open-navigator/packages/scrapers/src/scrapers/youtube/enrich_civicsearch_jurisdictions.py                   | Python           |        416 |        157 |         69 |        642 |
+| /home/developer/projects/open-navigator/packages/scrapers/tests/test_enrich_civicsearch_jurisdictions.py                             | Python           |         69 |         11 |         14 |         94 |
+| /home/developer/projects/open-navigator/requirements.txt                                                                             | pip requirements |         32 |        -27 |          1 |          6 |
+| /home/developer/projects/open-navigator/scripts/datasources/dbpedia/README.md                                                        | Markdown         |         -4 |          0 |         -4 |         -8 |
+| /home/developer/projects/open-navigator/scripts/datasources/dbpedia/dbpedia_integration.py                                           | Python           |       -226 |       -167 |        -24 |       -417 |
+| /home/developer/projects/open-navigator/scripts/datasources/govwebsites/README.md                                                    | Markdown         |        -82 |          0 |        -28 |       -110 |
+| /home/developer/projects/open-navigator/uv.lock                                                                                      | toml             |        729 |          0 |         46 |        775 |
+| /home/developer/projects/open-navigator/web_app/package-lock.json                                                                    | JSON             |       -247 |          0 |          0 |       -247 |
+| /home/developer/projects/open-navigator/web_app/package.json                                                                         | JSON             |          5 |          0 |          0 |          5 |
+| /home/developer/projects/open-navigator/web_app/policy-dashboards/package-lock.json                                                  | JSON             |        -32 |          0 |          0 |        -32 |
+| /home/developer/projects/open-navigator/web_app/src/App.tsx                                                                          | TypeScript JSX   |         17 |          5 |          1 |         23 |
+| /home/developer/projects/open-navigator/web_app/src/api/batchJobs.ts                                                                 | TypeScript       |          5 |          3 |          0 |          8 |
+| /home/developer/projects/open-navigator/web_app/src/instrumentation.ts                                                               | TypeScript       |         64 |         33 |         17 |        114 |
+| /home/developer/projects/open-navigator/web_app/src/lib/api.ts                                                                       | TypeScript       |         22 |          7 |          2 |         31 |
+| /home/developer/projects/open-navigator/web_app/src/main.tsx                                                                         | TypeScript JSX   |          1 |          1 |          0 |          2 |
+| /home/developer/projects/open-navigator/web_app/src/pages/BatchJobStatusPage.tsx                                                     | TypeScript JSX   |          6 |          9 |          0 |         15 |
+| /home/developer/projects/open-navigator/web_app/src/pages/Home.tsx                                                                   | TypeScript JSX   |        321 |         44 |         23 |        388 |
+| /home/developer/projects/open-navigator/web_app/src/pages/PeopleFinder.tsx                                                           | TypeScript JSX   |          1 |          0 |          0 |          1 |
+| /home/developer/projects/open-navigator/web_app/src/pages/PersonDetail.tsx                                                           | TypeScript JSX   |        188 |          3 |         19 |        210 |
+| /home/developer/projects/open-navigator/web_app/src/pages/UnifiedSearch.tsx                                                          | TypeScript JSX   |        146 |          8 |          6 |        160 |
+| /home/developer/projects/open-navigator/web_app/src/vite-env.d.ts                                                                    | TypeScript       |          3 |          2 |          0 |          5 |
+| /home/developer/projects/open-navigator/web_docs/package-lock.json                                                                   | JSON             |       -131 |          0 |          0 |       -131 |
+| Total                                                                                                                                |                  |      4,899 |      2,395 |        714 |      8,008 |
++--------------------------------------------------------------------------------------------------------------------------------------+------------------+------------+------------+------------+------------+

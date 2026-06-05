@@ -33,3 +33,25 @@ models:
         description: "Form 990 Part 1 Line 1 - Mission & Most Significant Activities"
         tests:
           - not_null
+
+  - name: stg_grants_gt990__schedule_i
+    description: >
+      Staging view over bronze.bronze_grants_gt990_schedule_i (GivingTuesday
+      990 Schedule I Part II grants datamart). One row per grant line
+      (grantor -> grantee org). Light cleaning + type stabilization: EIN
+      normalization, tax_year cast to integer, state uppercased. Grantor ->
+      org-master resolution and the surrogate grant_id are applied in the
+      `grant` mart.
+    columns:
+      - name: grantor_ein
+        description: "9-digit EIN of the filing (grantor) organization."
+        tests:
+          - not_null
+      - name: grantee_name
+        description: "Recipient organization name."
+        tests:
+          - not_null
+      - name: tax_year
+        description: "Filing tax year (integer)."
+      - name: cash_grant_amount
+        description: "Amount of cash grant (USD)."

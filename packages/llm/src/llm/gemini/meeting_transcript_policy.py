@@ -140,6 +140,9 @@ from llm.gemini.diarize_postprocess import (  # noqa: E402
     merge_caption_speakers,
 )
 from llm.gemini.genai_text_client import (  # noqa: E402
+    GenAIDailyQuotaGiveUp,
+    GenAIModelUnavailableGiveUp,
+    GenAIServerOverloadGiveUp,
     GenAITransientGiveUp,
     call_gemini_text,
     default_flash_lite_model,
@@ -833,7 +836,27 @@ def process_one_video(
         state_code=state_code,
         channel_id=getattr(video, "channel_id", None),
     )
-    if cached_local is not None:
+
+    # Primary source: the warehouse. bronze_event_youtube_transcript holds the
+    # caption text (segments[] JSONB, {HH:MM:SS}-timed caption_text_timed, or
+    # raw_text). Fall back to the on-disk cache / live YouTube captions only when
+    # the DB has no usable row. Opt out with --no-db-transcript.
+    if getattr(args, "use_db_transcript", True) and not source_parts:
+        from llm.gemini.transcript_db import fetch_db_transcript
+
+        try:
+            db_yt = fetch_db_transcript(
+                _database_url(getattr(args, "database_url", None) or None),
+                video_id,
+            )
+        except Exception as exc:  # noqa: BLE001 - DB hiccup must not abort the run
+            logger.warning("DB transcript lookup failed for {}: {}", video_id, exc)
+            db_yt = None
+        if db_yt is not None:
+            yt = db_yt
+            source_parts = [db_yt["transcript_source"]]
+
+    if not source_parts and cached_local is not None:
         local_path, local_payload = cached_local
         loaded = _load_local_transcript(local_path, local_payload)
         if loaded is not None:
@@ -1221,6 +1244,32 @@ def run_pipeline(args: argparse.Namespace) -> None:
                     )
                 continue
             except Exception as exc:
+                # Opt-in: a pool-wide daily-quota wall, a sustained server-overload give-up,
+                # OR a retired/unavailable-model give-up propagates so a model-cycling
+                # driver can rotate models / wait (Pacific reset for quota, short cooldown
+                # for overload, permanent drop for a retired model). Default-off, so
+                # existing callers see the unchanged log-and-continue behaviour.
+                if getattr(args, "stop_on_quota", False) and isinstance(
+                    exc,
+                    (
+                        GenAIDailyQuotaGiveUp,
+                        GenAIServerOverloadGiveUp,
+                        GenAIModelUnavailableGiveUp,
+                    ),
+                ):
+                    if isinstance(exc, GenAIDailyQuotaGiveUp):
+                        wall = "daily quota wall"
+                    elif isinstance(exc, GenAIModelUnavailableGiveUp):
+                        wall = "model unavailable (retired)"
+                    else:
+                        wall = "server overload"
+                    logger.warning(
+                        "Stopping batch for {} — {} (stop_on_quota): {}",
+                        jurisdiction_id,
+                        wall,
+                        exc,
+                    )
+                    raise
                 logger.exception("Failed {}: {}", video.video_id, exc)
                 if _db_events_enabled(args):
                     _record_policy_event_safe(
@@ -1248,7 +1297,13 @@ def run_pipeline(args: argparse.Namespace) -> None:
     )
 
 
-def main() -> None:
+def build_parser() -> argparse.ArgumentParser:
+    """Argument parser for the analyze pipeline.
+
+    Factored out of ``main`` so in-process drivers (e.g. ``llm.gemini.analyze_backlog``)
+    can derive a complete defaults-populated ``Namespace`` via ``parse_args([])`` instead
+    of hand-maintaining the full attribute set ``run_pipeline`` expects.
+    """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--video-id", default="", help="YouTube video id (single-video mode)")
     parser.add_argument(
@@ -1365,6 +1420,14 @@ def main() -> None:
         "bronze → 01_transcripts/ first. Falls back to YouTube captions when missing on disk.",
     )
     parser.add_argument(
+        "--no-db-transcript",
+        action="store_false",
+        dest="use_db_transcript",
+        default=True,
+        help="Don't read transcripts from bronze_event_youtube_transcript first; use the "
+        "on-disk cache / live YouTube captions instead (default: read from the DB).",
+    )
+    parser.add_argument(
         "--run-part-2",
         action="store_true",
         help="After Part 1, call API with policy_analysis_part_2.md and write *_report.md",
@@ -1446,6 +1509,18 @@ def main() -> None:
         help="Disable best-effort recording of analysis/report outcomes onto "
         "bronze_event_youtube (also via POLICY_RECORD_DB_EVENTS=0; needs migration 083)",
     )
+    parser.add_argument(
+        "--stop-on-quota",
+        action="store_true",
+        help="With --from-bronze: re-raise a pool-wide daily-quota wall "
+        "(GenAIDailyQuotaGiveUp) instead of logging-and-continuing, so a model-cycling "
+        "driver can rotate models / wait for the Pacific reset (default: off)",
+    )
+    return parser
+
+
+def main() -> None:
+    parser = build_parser()
     args = parser.parse_args()
     run_pipeline(args)
 

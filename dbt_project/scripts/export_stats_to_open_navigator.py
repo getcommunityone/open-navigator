@@ -47,7 +47,8 @@ def sync_stats():
                 nonprofits_count,
                 events_count,
                 bills_count,
-                contacts_count,
+                persons_count,
+                leaders_count,
                 total_revenue,
                 total_assets,
                 trending_causes,
@@ -76,9 +77,9 @@ def sync_stats():
         processed_rows = []
         for row in stats_rows:
             row_list = list(row)
-            # trending_causes is at index 13
-            if row_list[13] is not None:
-                row_list[13] = Json(row_list[13])
+            # trending_causes is at index 14
+            if row_list[14] is not None:
+                row_list[14] = Json(row_list[14])
             processed_rows.append(tuple(row_list))
         
         insert_query = """
@@ -93,7 +94,8 @@ def sync_stats():
                 nonprofits_count,
                 events_count,
                 bills_count,
-                contacts_count,
+                persons_count,
+                leaders_count,
                 total_revenue,
                 total_assets,
                 trending_causes,

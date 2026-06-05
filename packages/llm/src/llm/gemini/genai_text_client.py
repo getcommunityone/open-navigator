@@ -27,6 +27,51 @@ class GenAITransientGiveUp(RuntimeError):
     whole run. Genuine errors raise plain exceptions and still honour stop-on-error.
     """
 
+
+class GenAIDailyQuotaGiveUp(RuntimeError):
+    """Raised when the retry budget is exhausted on a *quota / 429 / resource-exhausted*
+    failure — i.e. every key in the pool is rate/daily-limited for the current model.
+
+    Subclasses ``RuntimeError`` so every existing ``except Exception`` / ``except
+    RuntimeError`` caller is unaffected (they keep catching it as today). Callers that
+    want to react to a pool-wide quota wall — e.g. a model-cycling backlog driver — can
+    catch this specific type to rotate to a different model or wait for the daily reset.
+    A *generic* server give-up (502/503/504 overload, not quota) is
+    :class:`GenAIServerOverloadGiveUp`.
+    """
+
+
+class GenAIServerOverloadGiveUp(RuntimeError):
+    """Raised when the retry budget is exhausted on a *server-overload* failure —
+    a sustained 502/503/504 / ``DEADLINE_EXCEEDED`` on the endpoint that is NOT a
+    quota/429 wall. The endpoint (or the specific model) is congested right now.
+
+    Subclasses ``RuntimeError`` so every existing ``except Exception`` / ``except
+    RuntimeError`` caller is unaffected. A model-cycling driver catches this specific
+    type to rotate *temporarily* off the congested model (a short cooldown), distinct
+    from :class:`GenAIDailyQuotaGiveUp`, which is a hard daily wall warranting a wait
+    until the Pacific quota reset. Previously this case was an un-typed ``RuntimeError``,
+    so the driver never moved off a congested model and sat sleeping 8–55s per retry.
+    """
+
+
+class GenAIModelUnavailableGiveUp(RuntimeError):
+    """Raised when the API rejects the *model itself* as gone — a 404 ``NOT_FOUND``
+    whose message says the model is no longer available / not found (a retired or
+    mistyped model name, e.g. ``gemini-2.0-flash-lite`` after its sunset).
+
+    Subclasses ``RuntimeError`` so every existing ``except Exception`` / ``except
+    RuntimeError`` caller is unaffected. Distinct from both :class:`GenAIDailyQuotaGiveUp`
+    (a daily wall that clears at the Pacific reset) and :class:`GenAIServerOverloadGiveUp`
+    (a transient congestion blip that clears on a short cooldown): a retired model never
+    comes back, so a model-cycling driver catches this specific type to drop the model
+    from the rotation *permanently* for the run (like a daily wall, but it stays dropped
+    even across a Pacific reset — a re-rotation onto it simply re-detects the 404 and
+    re-drops it via this same path). Previously a 404 was classified non-retryable and the
+    raw ``ClientError`` escaped ``call_with_genai_quota_retry`` and crashed the shard.
+    """
+
+
 _RETRY_IN_RE = re.compile(r"retry in\s+([\d.]+)\s*s", re.IGNORECASE)
 _RETRY_DELAY_RE = re.compile(
     r"""retryDelay['"]?\s*[:=]\s*['"]?(\d+(?:\.\d+)?)s?""",
@@ -84,6 +129,12 @@ def is_genai_retryable(exc: BaseException) -> bool:
             "BAD_GATEWAY",
             "OVERLOADED",
             "HIGH DEMAND",
+            # 504 gateway / deadline-exceeded: the server timed out on a slow
+            # generation — transient, retry (often succeeds on a fresh attempt).
+            "504",
+            "DEADLINE_EXCEEDED",
+            "GATEWAY TIMEOUT",
+            "GATEWAY_TIMEOUT",
         )
     ):
         return True
@@ -92,7 +143,15 @@ def is_genai_retryable(exc: BaseException) -> bool:
         if val is None:
             continue
         s = str(val).upper()
-        if val in (429, 502, 503) or s in ("429", "502", "503", "RESOURCE_EXHAUSTED", "UNAVAILABLE"):
+        if val in (429, 502, 503, 504) or s in (
+            "429",
+            "502",
+            "503",
+            "504",
+            "RESOURCE_EXHAUSTED",
+            "UNAVAILABLE",
+            "DEADLINE_EXCEEDED",
+        ):
             return True
     return False
 
@@ -112,7 +171,7 @@ def _genai_http_code(exc: BaseException) -> Optional[int]:
         if s.isdigit():
             return int(s)
     msg = str(exc)
-    for token in ("429", "502", "503"):
+    for token in ("429", "502", "503", "504"):
         if token in msg:
             return int(token)
     return None
@@ -130,9 +189,85 @@ def classify_genai_error(exc: BaseException) -> str:
         return "service overloaded (503)"
     if code == 502 or "BAD_GATEWAY" in msg:
         return "upstream bad gateway (502)"
+    if code == 504 or "DEADLINE_EXCEEDED" in msg or "GATEWAY TIMEOUT" in msg:
+        return "gateway timeout / deadline (504)"
     if code:
         return f"HTTP {code}"
     return "transient API error"
+
+
+def is_genai_quota_error(exc: BaseException) -> bool:
+    """True for a quota / 429 / resource-exhausted failure (the daily-wall family)."""
+    code = _genai_http_code(exc)
+    msg = str(exc).upper()
+    return code == 429 or "RESOURCE_EXHAUSTED" in msg or "QUOTA" in msg
+
+
+def is_genai_server_overload_error(exc: BaseException) -> bool:
+    """True for a server-overload failure: 502/503/504 / ``DEADLINE_EXCEEDED`` /
+    ``UNAVAILABLE`` / bad-gateway / gateway-timeout that is NOT a quota wall.
+
+    This is the signal a model-cycling driver uses to *temporarily* rotate off a
+    congested model. Quota/429 (the daily wall) is deliberately excluded — it is
+    classified by :func:`is_genai_quota_error` and handled as a hard daily wall.
+    """
+    if is_genai_quota_error(exc):
+        return False
+    code = _genai_http_code(exc)
+    if code in (502, 503, 504):
+        return True
+    msg = str(exc).upper()
+    return any(
+        token in msg
+        for token in (
+            "503",
+            "UNAVAILABLE",
+            "OVERLOADED",
+            "HIGH DEMAND",
+            "502",
+            "BAD_GATEWAY",
+            "BAD GATEWAY",
+            "504",
+            "DEADLINE_EXCEEDED",
+            "GATEWAY TIMEOUT",
+            "GATEWAY_TIMEOUT",
+        )
+    )
+
+
+def is_genai_model_unavailable_error(exc: BaseException) -> bool:
+    """True for a 404 ``NOT_FOUND`` that says the *model* is gone (retired / not found).
+
+    Specific to model-not-found 404s — a retired model name like
+    ``gemini-2.0-flash-lite`` ("This model models/gemini-2.0-flash-lite is no longer
+    available") or an unknown model. Deliberately does NOT swallow unrelated 404s (a
+    missing file/resource that happens to be a NOT_FOUND): the message must mention the
+    model AND an unavailable/not-found phrase, or carry an explicit ``models/`` path with
+    a no-longer-available phrase. This is the signal a model-cycling driver uses to drop
+    the model from rotation permanently for the run.
+    """
+    code = _genai_http_code(exc)
+    msg = str(exc)
+    upper = msg.upper()
+    is_404 = code == 404 or "404" in upper or "NOT_FOUND" in upper or "NOT FOUND" in upper
+    if not is_404:
+        return False
+    mentions_model = "MODEL" in upper or "MODELS/" in upper
+    if not mentions_model:
+        return False
+    return any(
+        phrase in upper
+        for phrase in (
+            "NO LONGER AVAILABLE",
+            "NOT AVAILABLE",
+            "IS NOT FOUND",
+            "WAS NOT FOUND",
+            "IS NOT SUPPORTED",
+            "NOT SUPPORTED",
+            "DOES NOT EXIST",
+            "UNKNOWN MODEL",
+        )
+    )
 
 
 def describe_genai_error(exc: BaseException, *, max_len: int = 220) -> str:
@@ -189,6 +324,17 @@ def call_with_genai_quota_retry(
             return fn()
         except Exception as exc:
             if not is_genai_retryable(exc):
+                # A 404 that says the *model* is retired/unavailable is non-retryable
+                # (a fresh attempt on the same dead model can't succeed), but it must NOT
+                # escape as a raw ClientError — that crashes a model-cycling driver. Give
+                # it a typed give-up so the driver drops the model and rotates on.
+                if is_genai_model_unavailable_error(exc):
+                    detail = (
+                        f"{label}: model is unavailable (retired / not found). "
+                        f"{describe_genai_error(exc)}"
+                    )
+                    logger.error("{}: model unavailable — {}", label, describe_genai_error(exc))
+                    raise GenAIModelUnavailableGiveUp(detail) from exc
                 logger.error("{}: non-retryable API failure — {}", label, describe_genai_error(exc))
                 raise
             transient = is_genai_transient_network_error(exc)
@@ -215,6 +361,15 @@ def call_with_genai_quota_retry(
                 # skip-and-continue without aborting the run on a Google-side flake.
                 if transient:
                     raise GenAITransientGiveUp(detail) from exc
+                # Pool-wide quota / 429 / resource-exhausted give-ups get their own
+                # type so a model-cycling driver can wait for the daily reset.
+                if is_genai_quota_error(exc):
+                    raise GenAIDailyQuotaGiveUp(detail) from exc
+                # A sustained server-overload give-up (502/503/504 / DEADLINE_EXCEEDED)
+                # gets its own type so the driver can *temporarily* rotate off the
+                # congested model (short cooldown) instead of sitting on a dead endpoint.
+                if is_genai_server_overload_error(exc):
+                    raise GenAIServerOverloadGiveUp(detail) from exc
                 raise RuntimeError(detail) from exc
             # Quota/429 with more keys to try: rotate to the next key fast (a fresh
             # key likely still has quota) instead of sleeping the full backoff. Only
@@ -267,6 +422,35 @@ def _genai_http_timeout_ms() -> int:
     return max(1000, int(os.environ.get("GOVERNANCE_GENAI_HTTP_TIMEOUT_MS", "120000")))
 
 
+def _genai_http_options() -> Any:
+    """``HttpOptions`` for google-genai clients, with the httpx connection pool
+    tuned to avoid stale keep-alive reuse.
+
+    The Gemini endpoint closes idle keep-alive sockets during the gaps between our
+    calls (transcript load, Part 1, save, Part 2 — seconds apart). httpx's pool then
+    hands out a dead connection and the next request fails instantly with
+    ``RemoteProtocolError — Server disconnected without sending a response`` — which
+    our retry wrapper then burns minutes of backoff on (worse on WSL2). Disabling
+    keep-alive (a fresh connection per request) trades a small TLS handshake for
+    eliminating those disconnect-retry storms, plus a couple of transport-level
+    connect retries. Opt back into bounded keep-alive with ``GENAI_HTTP_KEEPALIVE=1``.
+    """
+    import httpx
+    from google.genai import types
+
+    if os.environ.get("GENAI_HTTP_KEEPALIVE", "0").strip().lower() in ("1", "true", "yes", "on"):
+        expiry = float(os.environ.get("GENAI_HTTP_KEEPALIVE_EXPIRY_SECONDS", "5"))
+        limits = httpx.Limits(max_keepalive_connections=10, keepalive_expiry=expiry)
+    else:
+        limits = httpx.Limits(max_keepalive_connections=0)
+    retries = max(0, int(os.environ.get("GENAI_HTTP_CONNECT_RETRIES", "2")))
+    return types.HttpOptions(
+        timeout=_genai_http_timeout_ms(),
+        client_args={"limits": limits, "transport": httpx.HTTPTransport(retries=retries)},
+        async_client_args={"limits": limits, "transport": httpx.AsyncHTTPTransport(retries=retries)},
+    )
+
+
 def _strip_api_key(value: str) -> str:
     return value.strip().strip('"').strip("'")
 
@@ -309,13 +493,12 @@ def check_gemini_api_key(api_key: str, *, model: Optional[str] = None) -> None:
             "or use --transcript-only"
         )
     from google import genai
-    from google.genai import types
 
     probe_model = (model or default_flash_lite_model()).strip()
     try:
         client = genai.Client(
             api_key=api_key,
-            http_options=types.HttpOptions(timeout=_genai_http_timeout_ms()),
+            http_options=_genai_http_options(),
         )
         client.models.generate_content(model=probe_model, contents="ok")
     except Exception as exc:
@@ -403,11 +586,10 @@ def _client_for(key: str) -> Any:
     client = _CLIENT_CACHE.get(key)
     if client is None:
         from google import genai
-        from google.genai import types
 
         client = genai.Client(
             api_key=key,
-            http_options=types.HttpOptions(timeout=_genai_http_timeout_ms()),
+            http_options=_genai_http_options(),
         )
         _CLIENT_CACHE[key] = client
     return client
@@ -424,6 +606,17 @@ def _next_client(pool: list[str]) -> Any:
         key = pool[_KEY_IDX % len(pool)]
         _KEY_IDX += 1
     return _client_for(key)
+
+
+def _stream_enabled() -> bool:
+    """Whether to stream text generations (default on). Streaming avoids the
+    idle-connection drop on long responses; set GEMINI_TEXT_STREAM=0 to disable."""
+    return os.environ.get("GEMINI_TEXT_STREAM", "1").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+        "off",
+    )
 
 
 def call_gemini_text(
@@ -449,17 +642,37 @@ def call_gemini_text(
 
     def _generate():
         client = _next_client(pool)
-        return client.models.generate_content(
-            model=model,
-            contents=[types.Content(role="user", parts=parts)],
-            config=types.GenerateContentConfig(**config_kwargs),
-        )
+        cfg = types.GenerateContentConfig(**config_kwargs)
+        contents = [types.Content(role="user", parts=parts)]
+        if _stream_enabled():
+            # Stream the generation so the connection receives tokens immediately
+            # instead of sitting idle for the whole (sometimes 60s+) response.
+            # Non-streaming generate_content on long policy analyses leaves the
+            # connection idle until the full answer is ready, and an intermediary
+            # kills it at ~60s — surfacing as "Server disconnected without sending
+            # a response" (RemoteProtocolError) and burning the retry budget. A
+            # disconnect mid-stream raises out of the loop and the whole call is
+            # retried fresh (no partial-text corruption). Opt out: GEMINI_TEXT_STREAM=0.
+            chunks: list[str] = []
+            last: Any = None
+            for chunk in client.models.generate_content_stream(
+                model=model, contents=contents, config=cfg
+            ):
+                last = chunk
+                piece = getattr(chunk, "text", None)
+                if piece:
+                    chunks.append(piece)
+            return "".join(chunks), last
+        resp = client.models.generate_content(model=model, contents=contents, config=cfg)
+        return (getattr(resp, "text", None) or ""), resp
 
-    response = call_with_genai_quota_retry(_generate, label=model, key_pool_size=len(pool))
-    text = (getattr(response, "text", None) or "").strip()
+    text_raw, raw = call_with_genai_quota_retry(
+        _generate, label=model, key_pool_size=len(pool)
+    )
+    text = (text_raw or "").strip()
     if not text:
         raise RuntimeError(f"Empty response from {model}")
-    return TextGenAIResult(text=text, model=model, raw_response=response)
+    return TextGenAIResult(text=text, model=model, raw_response=raw)
 
 
 def extract_json_from_model_text(text: str) -> Optional[dict[str, Any]]:

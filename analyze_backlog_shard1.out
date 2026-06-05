@@ -1,0 +1,323 @@
+2026-06-04 22:33:16.000 | INFO     | __main__:run_backlog:570 - Shard slice: 1/3
+2026-06-04 22:33:16.007 | INFO     | __main__:_log_plan:534 - Backlog plan: 343 jurisdiction(s), 35,191 pending transcript(s)
+2026-06-04 22:33:16.009 | INFO     | __main__:_log_plan:538 -    1. bulloch_13031            GA  pending=20     newest=2026-06-04
+2026-06-04 22:33:16.010 | INFO     | __main__:_log_plan:538 -    2. leeds_0141968            AL  pending=9      newest=2026-06-04
+2026-06-04 22:33:16.010 | INFO     | __main__:_log_plan:538 -    3. franklin_25011           MA  pending=59     newest=2026-06-04
+2026-06-04 22:33:16.011 | INFO     | __main__:_log_plan:538 -    4. weyauwega_5586400        WI  pending=123    newest=2026-06-04
+2026-06-04 22:33:16.012 | INFO     | __main__:_log_plan:538 -    5. auburn_0103076           AL  pending=235    newest=2026-06-04
+2026-06-04 22:33:16.012 | INFO     | __main__:_log_plan:538 -    6. escambia_01053           AL  pending=27     newest=2026-06-04
+2026-06-04 22:33:16.013 | INFO     | __main__:_log_plan:538 -    7. bainbridge_1304896       GA  pending=31     newest=2026-06-04
+2026-06-04 22:33:16.013 | INFO     | __main__:_log_plan:538 -    8. baldwin_01003            AL  pending=36     newest=2026-06-04
+2026-06-04 22:33:16.014 | INFO     | __main__:_log_plan:538 -    9. wayne_13305              GA  pending=33     newest=2026-06-04
+2026-06-04 22:33:16.014 | INFO     | __main__:_log_plan:538 -   10. eau_claire_55035         WI  pending=37     newest=2026-06-04
+2026-06-04 22:33:16.015 | INFO     | __main__:_log_plan:547 -   … and 333 more jurisdiction(s)
+2026-06-04 22:33:16.015 | INFO     | __main__:run_backlog:572 - Model rotation: gemini-2.5-flash -> gemini-2.5-flash-lite -> gemini-2.0-flash-lite
+2026-06-04 22:33:16.713 | INFO     | __main__:run_backlog:604 - [1/343] bulloch_13031 (GA) — pending~20, model=gemini-2.5-flash
+2026-06-04 22:33:26.273 | INFO     | llm.gemini.meeting_transcript_policy:load_speaker_context:339 - Loaded speaker hints from /home/developer/projects/open-navigator/data/cache/scraped_meetings/GA/county/bulloch_13031
+2026-06-04 22:33:30.759 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [1/86] Skip 5G7MatGOoAc — analysis exists (2026-05-19_Planning_and_Zoning_Commission_meeting_530PM.json)
+2026-06-04 22:33:30.763 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [2/86] Skip 7n7vpkNCYjk — analysis exists (2026-05-19_Board_of_Commissioners_meeting_800AM.json)
+2026-06-04 22:33:30.768 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [3/86] Skip kJaN5rqJSV8 — analysis exists (2026-05-12_Board_of_Commissioners_Town_Hall_meeting_600PM.json)
+2026-06-04 22:33:30.774 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [4/86] Skip FVQDbo15iWQ — analysis exists (2026-05-05_Board_of_Commissioners_meeting_530PM.json)
+2026-06-04 22:33:30.781 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [5/86] Skip vNcX8KrT7AE — analysis exists (2026-04-21_Planning_&_Zoning_Commission_meeting_530PM.json)
+2026-06-04 22:33:30.785 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [6/86] Skip X-oXmNyd6Nk — analysis exists (2026-04-21_Board_of_Commissioners_meeting_830AM.json)
+2026-06-04 22:33:30.789 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [7/86] Skip 2ATzAeYWF7I — analysis exists (2026-04-07_Board_of_Commissioners_meeting_530PM.json)
+2026-06-04 22:33:30.792 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [8/86] Skip h-onHzwn2RM — analysis exists (2025-12-02_Board_of_Commissioners_regularly_scheduled_meeting_-_530PM.json)
+2026-06-04 22:33:30.796 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [9/86] Skip ZVZW_rs-gWM — analysis exists (2025-11-18_Board_of_Commissioners_regularly_scheduled_meeting_-_830AM.json)
+2026-06-04 22:33:30.799 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [10/86] Skip AgbWX2ezPH4 — analysis exists (2025-11-18_Planning_and_Zoning_Commission_regularly_scheduled_meeting_-_530PM.json)
+2026-06-04 22:33:30.804 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [11/86] Skip AGVwGLMWVP4 — analysis exists (2025-11-04_Board_of_Commissioners_regularly_scheduled_meeting_-_530PM.json)
+2026-06-04 22:33:30.807 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [12/86] Skip rWaauW53H54 — analysis exists (2025-10-21_Planning_&_Zoning_Commission_-_530PM.json)
+2026-06-04 22:33:30.810 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [13/86] Skip i1aFvoIU05A — analysis exists (2025-10-21_Bulloch_County_Board_of_Commissioners_-_Regularly_scheduled_meeting_830AM.json)
+2026-06-04 22:33:30.813 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [14/86] Skip imDwUv9FjT4 — analysis exists (2025-10-07_Bulloch_County_Board_of_Commissioners_-_Regularly_scheduled_meeting_530PM.json)
+2026-06-04 22:33:30.821 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [15/86] Skip 9YV-NOJE4lE — analysis exists (2025-09-16_Bulloch_County_Planning_&_Zoning_Commission_-_530PM.json)
+2026-06-04 22:33:30.824 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [16/86] Skip XCwHWzaQpNk — analysis exists (2025-09-16_Bulloch_County_Board_of_Commissioners_-_Regularly_scheduled_meeting_830AM.json)
+2026-06-04 22:33:30.828 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [17/86] Skip xmpokQZoebU — analysis exists (2025-09-02_Bulloch_County_Board_of_Commissioners_-_Regularly_scheduled_meeting_530PM.json)
+2026-06-04 22:33:30.831 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [18/86] Skip RiHNhwSYWj8 — analysis exists (2025-08-26_Bulloch_County_Board_of_Commissioners_-_Called_meeting_600PM.json)
+2026-06-04 22:33:30.833 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [19/86] Skip 1twD6bOjXB4 — analysis exists (2025-08-21_Bulloch_County_Board_of_Commissioners_-_Regular_meeting_600PM.json)
+2026-06-04 22:33:30.835 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [20/86] Skip DKrwYHehCdM — analysis exists (2025-08-19_Bulloch_County_Planning_&_Zoning_Commission_530_PM.json)
+2026-06-04 22:33:30.839 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [21/86] Skip 7KDQg7ADSvk — analysis exists (2025-08-19_Bulloch_County_Board_of_Commissioners_-_Regular_meeting_830AM.json)
+2026-06-04 22:33:30.844 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [22/86] Skip wk_oahzxWdg — analysis exists (2025-08-05_Bulloch_County_Board_of_Commissioners_-_Regular_meeting_530PM.json)
+2026-06-04 22:33:30.848 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [23/86] Skip SCX3Y5rY1vA — analysis exists (2025-07-15_Planning_&_Zoning_Commission_Meeting_530pm.json)
+2026-06-04 22:33:30.850 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [24/86] Skip M6XU9T10bMo — analysis exists (2025-07-15_Bulloch_County_Board_of_Commissioners_-_Regular_meeting_830AM.json)
+2026-06-04 22:33:30.853 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [25/86] Skip aIPGiY3cowI — analysis exists (2025-07-01_Bulloch_County_Board_of_Commissioners_-_Regular_meeting_530PM.json)
+2026-06-04 22:33:30.859 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [26/86] Skip E-2bKypM5OU — analysis exists (2025-06-26_Bulloch_County_Board_of_Commissioners_-_Called_meeting_530PM.json)
+2026-06-04 22:33:30.862 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [27/86] Skip Xg6M-r6QemU — analysis exists (2025-06-18_Bulloch_County_Board_of_Commissioners_-_Regularly_scheduled_meeting_530PM.json)
+2026-06-04 22:33:30.865 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [28/86] Skip 3RQLG77imh8 — analysis exists (2025-06-17_Planning_&_Zoning_Commission_530PM.json)
+2026-06-04 22:33:30.868 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [29/86] Skip DWTbuEF6z70 — analysis exists (2025-06-17_Bulloch_County_Board_of_Commissioners_-_Regularly_scheduled_meeting_830AM.json)
+2026-06-04 22:33:30.872 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [30/86] Skip D9trApwFQ_c — analysis exists (2025-06-17_Public_Facilities_Authority_meeting_815_AM.json)
+2026-06-04 22:33:30.878 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [31/86] Skip zuZzRv1Z0BU — analysis exists (2025-06-03_Bulloch_County_Board_of_Commissioners_-_Regularly_scheduled_meeting_530PM.json)
+2026-06-04 22:33:30.881 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [32/86] Skip Cdksj7dRldE — analysis exists (2025-05-20_Bulloch_County_Planning_&_Zoning_Commission_Meeting_530PM.json)
+2026-06-04 22:33:30.884 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [33/86] Skip xInagFil-Bo — analysis exists (2025-05-20_Board_of_Commissioners_Regular_Meeting_830am_(_full_meeting_video).json)
+2026-06-04 22:33:30.887 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [34/86] Skip fGBaVwxvVaY — analysis exists (2025-05-20_Bulloch_County_Board_of_Commissioners_-_Regularly_scheduled_meeting_830AM.json)
+2026-06-04 22:33:30.893 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [35/86] Skip zIx-1jcV-7I — analysis exists (2025-05-15_Bulloch_County_Board_of_Commissioners_-_Budget_workshop_-_1000AM.json)
+2026-06-04 22:33:30.897 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [36/86] Skip q6e4jpM5TmQ — analysis exists (2025-05-06_Bulloch_County_Board_of_Commissioners_Meeting_-_530PM.json)
+2026-06-04 22:33:30.902 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [37/86] Skip feT22V56thU — analysis exists (2025-04-17_Bulloch_County_Board_of_Commissioners_Meeting_-_500PM.json)
+2026-06-04 22:33:30.907 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [38/86] Skip HT7sFCZypTM — analysis exists (2025-04-15_Bulloch_County_Board_of_Commissioners_Meeting_-_830AM.json)
+2026-06-04 22:33:30.912 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [39/86] Skip b7gGwVwqsDY — analysis exists (2025-04-01_Bulloch_County_Board_of_Commissioners_Meeting_-_530PM.json)
+2026-06-04 22:33:30.915 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [40/86] Skip -KqedlNZBxQ — analysis exists (2025-03-18_Bulloch_County_Planning_&_Zoning_Commission_Meeting_530PM.json)
+2026-06-04 22:33:30.917 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [41/86] Skip bfqRMngrMWk — analysis exists (2025-03-18_Bulloch_County_Board_of_Commissioners_Meeting_-_830AM.json)
+2026-06-04 22:33:30.919 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [42/86] Skip EFYFt-f_lPY — analysis exists (2025-03-04_Board_of_Commissioners_regularly_scheduled_meeting_(resumed).json)
+2026-06-04 22:33:30.923 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [43/86] Skip BcjbES-OQq4 — analysis exists (2025-03-04_Bulloch_County_Board_of_Commissioners_Meeting_-_530PM.json)
+2026-06-04 22:33:30.926 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [44/86] Skip Ofbj_PX81-k — analysis exists (2025-02-18_Planning_&_Zoning_Commission_Meeting_530P.M..json)
+2026-06-04 22:33:30.929 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [45/86] Skip ckEVDzTHIOY — analysis exists (2025-02-18_Bulloch_County_Board_of_Commissioners_Meeting_-_830AM.json)
+2026-06-04 22:33:30.933 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [46/86] Skip lH0jI4tGK4M — analysis exists (2025-02-04_Bulloch_County_Board_of_Commissioners_Meeting_-_530PM.json)
+2026-06-04 22:33:30.936 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [47/86] Skip XPvRCRYqa9k — analysis exists (2025-01-27_Bulloch_County_Board_of_Commissioners_Meeting_-_830AM.json)
+2026-06-04 22:33:30.939 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [48/86] Skip 3PP2yEuOcsQ — analysis exists (2025-01-07_Bulloch_County_Board_of_Commissioners_Meeting_-_530PM.json)
+2026-06-04 22:33:30.944 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [49/86] Skip zFh2fC7Xv-c — analysis exists (2024-12-17_Bulloch_County_Board_of_Commissioners_Meeting_-_830AM.json)
+2026-06-04 22:33:30.948 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [50/86] Skip bDGwdZpKlbs — analysis exists (2024-12-12_Planning_and_Zoning_Commission_Meeting_600PM.json)
+2026-06-04 22:33:30.954 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [51/86] Skip msk3oMX61aw — analysis exists (2024-12-03_Bulloch_County_Board_of_Commissioners_Meeting_-_530PM.json)
+2026-06-04 22:33:30.957 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [52/86] Skip 0o_rs7DiDMI — analysis exists (2024-11-14_Planning_and_Zoning_Commission_Meeting_600PM.json)
+2026-06-04 22:33:30.960 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [53/86] Skip sx651pdT-e4 — analysis exists (2024-10-10_Planning_and_Zoning_Commission_Meeting_600PM.json)
+2026-06-04 22:33:30.966 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [54/86] Skip wQE9auEmQMA — analysis exists (2024-07-11_Bulloch_County_Planning_&_Zoning_Commission_meeting_6pm.json)
+2026-06-04 22:33:30.970 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [55/86] Skip peBMCSu_KeQ — analysis exists (2024-06-13_Bulloch_County_Planning_and_Zoning_Meeting.json)
+2026-06-04 22:33:30.973 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [56/86] Skip Lwc3ea8q7Uc — analysis exists (2024-05-09_Bulloch_County_Planning_&_Zoning_Board_Meeting.json)
+2026-06-04 22:33:30.975 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [57/86] Skip JFTA23Z40l0 — analysis exists (2024-04-11_Planning_and_Zoning_Commission_Meeting.json)
+2026-06-04 22:33:30.978 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [58/86] Skip G0mpb7df9Eg — analysis exists (2024-03-14_Planning_&_Zoning_Board_Meeting.json)
+2026-06-04 22:33:30.982 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [59/86] Skip TAgu9IKTBqA — analysis exists (2024-02-08_Planning_&_Zoning_Commission.json)
+2026-06-04 22:33:30.985 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [60/86] Skip -ZIKH7YbdkA — analysis exists (2020-10-20_BOC_Meeting.json)
+2026-06-04 22:33:30.991 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [61/86] Skip yPYvd5qdvOs — analysis exists (2020-08-18_BOC_Meeting.json)
+2026-06-04 22:33:30.994 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [62/86] Skip vsFIlINRN-Q — analysis exists (2020-08-04_BOC_Meeting.json)
+2026-06-04 22:33:30.998 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [63/86] Skip DLGLQSs-LZE — analysis exists (2020-07-21_BOC_Meeting.json)
+2026-06-04 22:33:31.001 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [64/86] Skip LLz9pVCEWG4 — analysis exists (2020-07-07_BOC_Meeting.json)
+2026-06-04 22:33:31.005 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [65/86] Skip CBTIa7ijEwc — analysis exists (2020-06-30_BOC_Meeting_Special_Called_Resumed.json)
+2026-06-04 22:33:31.010 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [66/86] Skip BO818Xz1lYk — analysis exists (2020-06-30_BOC_Meeting_Special_Called.json)
+2026-06-04 22:33:31.013 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [67/86] Skip hZgFsXKALJs — analysis exists (2020-06-16_BOC_Meeting.json)
+2026-06-04 22:33:31.018 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [68/86] Skip xw9iRO0A8dM — analysis exists (2020-06-02_BOC_Meeting.json)
+2026-06-04 22:33:31.020 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [69/86] Skip EvVjc3T-Eqo — analysis exists (2020-05-19_BOC_Meeting.json)
+2026-06-04 22:33:31.022 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [70/86] Skip gRcolzmRABg — analysis exists (2020-05-05_BOC_Meeting.json)
+2026-06-04 22:33:31.026 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [71/86] Skip FRcYtEp5wII — analysis exists (unknown-date_Board_of_Commissioners_meeting_Mar._3,_2026_530PM.json)
+2026-06-04 22:33:31.028 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [72/86] Skip D_9EyK-hiRU — analysis exists (unknown-date_Hazard_Mitigation_Plan_work_session_pt_4.json)
+2026-06-04 22:33:31.030 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [73/86] Skip 5wX8kormNi8 — analysis exists (unknown-date_Hazard_Mitigation_Plan_work_session_pt_5.json)
+2026-06-04 22:33:31.034 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [74/86] Skip J0sopROreDc — analysis exists (unknown-date_Hazard_Mitigation_Plan_work_session_pt_2.json)
+2026-06-04 22:33:31.037 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [75/86] Skip 7iu5HkI4fm4 — analysis exists (unknown-date_Hazard_Mitigation_Plan_work_session_pt_1.json)
+2026-06-04 22:33:31.040 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [76/86] Skip 7C83SXBO1wc — analysis exists (unknown-date_Bulloch_County_Planning_&_Zoning_Commission_Meeting_April15,_2025_530PM.json)
+2026-06-04 22:33:31.043 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [77/86] Skip IqwpF6aublo — analysis exists (unknown-date_Planning_&_Zoning_Commission_meeting_September_12_6pm.json)
+2026-06-04 22:33:31.047 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [78/86] Skip HJBGGJa_lwE — analysis exists (unknown-date_Planning_&_Zoning_Commission_meeting_September_10_6pm..json)
+2026-06-04 22:33:31.049 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [79/86] Skip BIndg_CgTvI — analysis exists (unknown-date_Bulloch_County_Video_2021.json)
+2026-06-04 22:33:31.051 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [80/86] Skip W9d164mKNIY — analysis exists (unknown-date_Planning_&_Zoning_Commission_meeting_Feb._17,_2026_530PM.json)
+2026-06-04 22:33:31.057 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [81/86] Skip AEZWY4QCry0 — analysis exists (unknown-date_Board_of_Commissioners_meeting_Feb._17,_2026_830AM.json)
+2026-06-04 22:33:31.062 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [82/86] Skip DF7CR_TGigo — analysis exists (unknown-date_Board_of_Commissioners_meeting_Jan._20,_2026_830AM.json)
+2026-06-04 22:33:31.067 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [83/86] Skip P0A6JxJTOGA — analysis exists (unknown-date_Planning_&_Zoning_Commission_meeting_Dec._16,_2025_530PM.json)
+2026-06-04 22:33:31.071 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [84/86] Skip IzZao9-DB-s — analysis exists (unknown-date_Board_of_Commissioners_meeting_Dec._16,_2025_830AM.json)
+2026-06-04 22:33:31.075 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [85/86] Skip ZP1QtN9byOQ — analysis exists (unknown-date_Bryan-Bulloch_Groundwater_Sustainability_Program_Advisory_Comm._meeting_Dec._11,.json)
+2026-06-04 22:33:31.079 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [86/86] Skip ZuYwU78SG7k — analysis exists (unknown-date_Bulloch_County_Board_of_Commissioners_Live_Stream.json)
+2026-06-04 22:33:31.079 | INFO     | __main__:run_backlog:651 - Progress 1/343 jurisdictions (3.98/min, ETA 1h25m)
+2026-06-04 22:33:31.082 | INFO     | __main__:run_backlog:604 - [2/343] leeds_0141968 (AL) — pending~9, model=gemini-2.5-flash
+2026-06-04 22:33:35.964 | WARNING  | llm.gemini.meeting_transcript_policy:load_speaker_context:342 - contacts.json not found: /home/developer/projects/open-navigator/data/cache/scraped_meetings/AL/municipality/leeds_0141968/_contact_images/contacts.json
+2026-06-04 22:33:36.476 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [1/19] Skip rL9JUmEh0AU — analysis exists (2011-06-28_Leeds_ZBA_Meeting.json)
+2026-06-04 22:33:36.480 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [2/19] Skip ay8AWVe3WiE — analysis exists (2011-06-20_Leeds_Council_Meeting_of.json)
+2026-06-04 22:33:36.483 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [3/19] Skip 3KahcaGamGE — analysis exists (2011-05-16_Leeds_City_Council_Meeting_for.json)
+2026-06-04 22:33:36.486 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [4/19] Skip xa8aqdApj3U — analysis exists (2011-05-02_Leeds_Council_Meeting_for.json)
+2026-06-04 22:33:36.489 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [5/19] Skip xSqFiMOHsVA — analysis exists (2011-04-04_City_of_Leeds_Board_Appointments.json)
+2026-06-04 22:33:36.493 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [6/19] Skip Q5ZjgCTZ_p4 — analysis exists (2011-03-21_Leeds_City_Council_Meeting_for.json)
+2026-06-04 22:33:36.497 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [7/19] Skip tlJc4pJlNwY — analysis exists (2011-03-07_Leeds_City_Council_Meeting_on.json)
+2026-06-04 22:33:36.500 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [8/19] Skip -emjUdTT-fA — analysis exists (2011-02-07_Leeds_City_Council,_—_Fire_Station.json)
+2026-06-04 22:33:36.502 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [9/19] Skip 4slspAy8GAw — analysis exists (2011-01-19_Leeds_Cooperative_Distrct_Meeting_on.json)
+2026-06-04 22:33:36.504 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [10/19] Skip GE0sYqRYC90 — analysis exists (2011-01-13_Leeds_Planning_and_Zoning_Meeting.json)
+2026-06-04 22:33:36.527 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1226 - [11/19] GvWgnAIlPgs — Leeds City Council Meeting October 04, 2010 Part 1
+2026-06-04 22:33:36.738 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for GvWgnAIlPgs (335 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-04 22:33:36.743 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:957 - Built 1 agenda segment hint(s) for presenter linking
+2026-06-04 22:33:36.744 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1011 - Calling gemini-2.5-flash (AI Studio API)
+2026-06-04 22:33:36.770 | INFO     | llm.gemini.genai_text_client:_key_pool:518 - Gemini key rotation enabled: 4 keys in pool
+2026-06-04 22:34:03.744 | WARNING  | llm.gemini.genai_text_client:call_with_genai_quota_retry:321 - gemini-2.5-flash: transient network disconnect — sleeping 8s, retry 2/12 (RemoteProtocolError — peer closed connection without sending complete message body (incomplete chunked read))
+2026-06-04 22:34:58.071 | INFO     | __main__:run_backlog:570 - Shard slice: 1/3
+2026-06-04 22:34:58.072 | INFO     | __main__:_log_plan:534 - Backlog plan: 343 jurisdiction(s), 35,191 pending transcript(s)
+2026-06-04 22:34:58.074 | INFO     | __main__:_log_plan:538 -    1. bulloch_13031            GA  pending=20     newest=2026-06-04
+2026-06-04 22:34:58.075 | INFO     | __main__:_log_plan:538 -    2. leeds_0141968            AL  pending=9      newest=2026-06-04
+2026-06-04 22:34:58.076 | INFO     | __main__:_log_plan:538 -    3. franklin_25011           MA  pending=59     newest=2026-06-04
+2026-06-04 22:34:58.077 | INFO     | __main__:_log_plan:538 -    4. weyauwega_5586400        WI  pending=123    newest=2026-06-04
+2026-06-04 22:34:58.077 | INFO     | __main__:_log_plan:538 -    5. auburn_0103076           AL  pending=235    newest=2026-06-04
+2026-06-04 22:34:58.077 | INFO     | __main__:_log_plan:538 -    6. escambia_01053           AL  pending=27     newest=2026-06-04
+2026-06-04 22:34:58.078 | INFO     | __main__:_log_plan:538 -    7. bainbridge_1304896       GA  pending=31     newest=2026-06-04
+2026-06-04 22:34:58.078 | INFO     | __main__:_log_plan:538 -    8. baldwin_01003            AL  pending=36     newest=2026-06-04
+2026-06-04 22:34:58.079 | INFO     | __main__:_log_plan:538 -    9. wayne_13305              GA  pending=33     newest=2026-06-04
+2026-06-04 22:34:58.079 | INFO     | __main__:_log_plan:538 -   10. eau_claire_55035         WI  pending=37     newest=2026-06-04
+2026-06-04 22:34:58.079 | INFO     | __main__:_log_plan:547 -   … and 333 more jurisdiction(s)
+2026-06-04 22:34:58.079 | INFO     | __main__:run_backlog:572 - Model rotation: gemini-2.5-flash-lite -> gemini-2.5-flash
+2026-06-04 22:34:59.959 | INFO     | __main__:run_backlog:604 - [1/343] bulloch_13031 (GA) — pending~20, model=gemini-2.5-flash-lite
+2026-06-04 22:35:15.486 | INFO     | llm.gemini.meeting_transcript_policy:load_speaker_context:339 - Loaded speaker hints from /home/developer/projects/open-navigator/data/cache/scraped_meetings/GA/county/bulloch_13031
+2026-06-04 22:35:22.549 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [1/86] Skip 5G7MatGOoAc — analysis exists (2026-05-19_Planning_and_Zoning_Commission_meeting_530PM.json)
+2026-06-04 22:35:22.568 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [2/86] Skip 7n7vpkNCYjk — analysis exists (2026-05-19_Board_of_Commissioners_meeting_800AM.json)
+2026-06-04 22:35:22.580 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [3/86] Skip kJaN5rqJSV8 — analysis exists (2026-05-12_Board_of_Commissioners_Town_Hall_meeting_600PM.json)
+2026-06-04 22:35:22.585 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [4/86] Skip FVQDbo15iWQ — analysis exists (2026-05-05_Board_of_Commissioners_meeting_530PM.json)
+2026-06-04 22:35:22.599 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [5/86] Skip vNcX8KrT7AE — analysis exists (2026-04-21_Planning_&_Zoning_Commission_meeting_530PM.json)
+2026-06-04 22:35:22.609 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [6/86] Skip X-oXmNyd6Nk — analysis exists (2026-04-21_Board_of_Commissioners_meeting_830AM.json)
+2026-06-04 22:35:22.623 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [7/86] Skip 2ATzAeYWF7I — analysis exists (2026-04-07_Board_of_Commissioners_meeting_530PM.json)
+2026-06-04 22:35:22.634 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [8/86] Skip h-onHzwn2RM — analysis exists (2025-12-02_Board_of_Commissioners_regularly_scheduled_meeting_-_530PM.json)
+2026-06-04 22:35:22.656 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [9/86] Skip ZVZW_rs-gWM — analysis exists (2025-11-18_Board_of_Commissioners_regularly_scheduled_meeting_-_830AM.json)
+2026-06-04 22:35:22.671 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [10/86] Skip AgbWX2ezPH4 — analysis exists (2025-11-18_Planning_and_Zoning_Commission_regularly_scheduled_meeting_-_530PM.json)
+2026-06-04 22:35:22.681 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [11/86] Skip AGVwGLMWVP4 — analysis exists (2025-11-04_Board_of_Commissioners_regularly_scheduled_meeting_-_530PM.json)
+2026-06-04 22:35:22.695 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [12/86] Skip rWaauW53H54 — analysis exists (2025-10-21_Planning_&_Zoning_Commission_-_530PM.json)
+2026-06-04 22:35:22.705 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [13/86] Skip i1aFvoIU05A — analysis exists (2025-10-21_Bulloch_County_Board_of_Commissioners_-_Regularly_scheduled_meeting_830AM.json)
+2026-06-04 22:35:22.723 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [14/86] Skip imDwUv9FjT4 — analysis exists (2025-10-07_Bulloch_County_Board_of_Commissioners_-_Regularly_scheduled_meeting_530PM.json)
+2026-06-04 22:35:22.739 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [15/86] Skip 9YV-NOJE4lE — analysis exists (2025-09-16_Bulloch_County_Planning_&_Zoning_Commission_-_530PM.json)
+2026-06-04 22:35:22.782 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [16/86] Skip XCwHWzaQpNk — analysis exists (2025-09-16_Bulloch_County_Board_of_Commissioners_-_Regularly_scheduled_meeting_830AM.json)
+2026-06-04 22:35:22.787 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [17/86] Skip xmpokQZoebU — analysis exists (2025-09-02_Bulloch_County_Board_of_Commissioners_-_Regularly_scheduled_meeting_530PM.json)
+2026-06-04 22:35:22.802 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [18/86] Skip RiHNhwSYWj8 — analysis exists (2025-08-26_Bulloch_County_Board_of_Commissioners_-_Called_meeting_600PM.json)
+2026-06-04 22:35:22.841 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [19/86] Skip 1twD6bOjXB4 — analysis exists (2025-08-21_Bulloch_County_Board_of_Commissioners_-_Regular_meeting_600PM.json)
+2026-06-04 22:35:22.856 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [20/86] Skip DKrwYHehCdM — analysis exists (2025-08-19_Bulloch_County_Planning_&_Zoning_Commission_530_PM.json)
+2026-06-04 22:35:22.871 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [21/86] Skip 7KDQg7ADSvk — analysis exists (2025-08-19_Bulloch_County_Board_of_Commissioners_-_Regular_meeting_830AM.json)
+2026-06-04 22:35:22.888 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [22/86] Skip wk_oahzxWdg — analysis exists (2025-08-05_Bulloch_County_Board_of_Commissioners_-_Regular_meeting_530PM.json)
+2026-06-04 22:35:22.902 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [23/86] Skip SCX3Y5rY1vA — analysis exists (2025-07-15_Planning_&_Zoning_Commission_Meeting_530pm.json)
+2026-06-04 22:35:22.921 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [24/86] Skip M6XU9T10bMo — analysis exists (2025-07-15_Bulloch_County_Board_of_Commissioners_-_Regular_meeting_830AM.json)
+2026-06-04 22:35:22.937 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [25/86] Skip aIPGiY3cowI — analysis exists (2025-07-01_Bulloch_County_Board_of_Commissioners_-_Regular_meeting_530PM.json)
+2026-06-04 22:35:22.976 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [26/86] Skip E-2bKypM5OU — analysis exists (2025-06-26_Bulloch_County_Board_of_Commissioners_-_Called_meeting_530PM.json)
+2026-06-04 22:35:22.980 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [27/86] Skip Xg6M-r6QemU — analysis exists (2025-06-18_Bulloch_County_Board_of_Commissioners_-_Regularly_scheduled_meeting_530PM.json)
+2026-06-04 22:35:22.994 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [28/86] Skip 3RQLG77imh8 — analysis exists (2025-06-17_Planning_&_Zoning_Commission_530PM.json)
+2026-06-04 22:35:22.999 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [29/86] Skip DWTbuEF6z70 — analysis exists (2025-06-17_Bulloch_County_Board_of_Commissioners_-_Regularly_scheduled_meeting_830AM.json)
+2026-06-04 22:35:23.049 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [30/86] Skip D9trApwFQ_c — analysis exists (2025-06-17_Public_Facilities_Authority_meeting_815_AM.json)
+2026-06-04 22:35:23.072 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [31/86] Skip zuZzRv1Z0BU — analysis exists (2025-06-03_Bulloch_County_Board_of_Commissioners_-_Regularly_scheduled_meeting_530PM.json)
+2026-06-04 22:35:23.083 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [32/86] Skip Cdksj7dRldE — analysis exists (2025-05-20_Bulloch_County_Planning_&_Zoning_Commission_Meeting_530PM.json)
+2026-06-04 22:35:23.102 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [33/86] Skip xInagFil-Bo — analysis exists (2025-05-20_Board_of_Commissioners_Regular_Meeting_830am_(_full_meeting_video).json)
+2026-06-04 22:35:23.133 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [34/86] Skip fGBaVwxvVaY — analysis exists (2025-05-20_Bulloch_County_Board_of_Commissioners_-_Regularly_scheduled_meeting_830AM.json)
+2026-06-04 22:35:23.144 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [35/86] Skip zIx-1jcV-7I — analysis exists (2025-05-15_Bulloch_County_Board_of_Commissioners_-_Budget_workshop_-_1000AM.json)
+2026-06-04 22:35:23.159 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [36/86] Skip q6e4jpM5TmQ — analysis exists (2025-05-06_Bulloch_County_Board_of_Commissioners_Meeting_-_530PM.json)
+2026-06-04 22:35:23.190 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [37/86] Skip feT22V56thU — analysis exists (2025-04-17_Bulloch_County_Board_of_Commissioners_Meeting_-_500PM.json)
+2026-06-04 22:35:23.242 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [38/86] Skip HT7sFCZypTM — analysis exists (2025-04-15_Bulloch_County_Board_of_Commissioners_Meeting_-_830AM.json)
+2026-06-04 22:35:23.250 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [39/86] Skip b7gGwVwqsDY — analysis exists (2025-04-01_Bulloch_County_Board_of_Commissioners_Meeting_-_530PM.json)
+2026-06-04 22:35:23.290 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [40/86] Skip -KqedlNZBxQ — analysis exists (2025-03-18_Bulloch_County_Planning_&_Zoning_Commission_Meeting_530PM.json)
+2026-06-04 22:35:23.299 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [41/86] Skip bfqRMngrMWk — analysis exists (2025-03-18_Bulloch_County_Board_of_Commissioners_Meeting_-_830AM.json)
+2026-06-04 22:35:23.312 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [42/86] Skip EFYFt-f_lPY — analysis exists (2025-03-04_Board_of_Commissioners_regularly_scheduled_meeting_(resumed).json)
+2026-06-04 22:35:23.334 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [43/86] Skip BcjbES-OQq4 — analysis exists (2025-03-04_Bulloch_County_Board_of_Commissioners_Meeting_-_530PM.json)
+2026-06-04 22:35:23.347 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [44/86] Skip Ofbj_PX81-k — analysis exists (2025-02-18_Planning_&_Zoning_Commission_Meeting_530P.M..json)
+2026-06-04 22:35:23.367 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [45/86] Skip ckEVDzTHIOY — analysis exists (2025-02-18_Bulloch_County_Board_of_Commissioners_Meeting_-_830AM.json)
+2026-06-04 22:35:23.387 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [46/86] Skip lH0jI4tGK4M — analysis exists (2025-02-04_Bulloch_County_Board_of_Commissioners_Meeting_-_530PM.json)
+2026-06-04 22:35:23.406 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [47/86] Skip XPvRCRYqa9k — analysis exists (2025-01-27_Bulloch_County_Board_of_Commissioners_Meeting_-_830AM.json)
+2026-06-04 22:35:23.424 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [48/86] Skip 3PP2yEuOcsQ — analysis exists (2025-01-07_Bulloch_County_Board_of_Commissioners_Meeting_-_530PM.json)
+2026-06-04 22:35:23.443 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [49/86] Skip zFh2fC7Xv-c — analysis exists (2024-12-17_Bulloch_County_Board_of_Commissioners_Meeting_-_830AM.json)
+2026-06-04 22:35:23.449 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [50/86] Skip bDGwdZpKlbs — analysis exists (2024-12-12_Planning_and_Zoning_Commission_Meeting_600PM.json)
+2026-06-04 22:35:23.468 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [51/86] Skip msk3oMX61aw — analysis exists (2024-12-03_Bulloch_County_Board_of_Commissioners_Meeting_-_530PM.json)
+2026-06-04 22:35:23.473 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [52/86] Skip 0o_rs7DiDMI — analysis exists (2024-11-14_Planning_and_Zoning_Commission_Meeting_600PM.json)
+2026-06-04 22:35:23.486 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [53/86] Skip sx651pdT-e4 — analysis exists (2024-10-10_Planning_and_Zoning_Commission_Meeting_600PM.json)
+2026-06-04 22:35:23.507 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [54/86] Skip wQE9auEmQMA — analysis exists (2024-07-11_Bulloch_County_Planning_&_Zoning_Commission_meeting_6pm.json)
+2026-06-04 22:35:23.522 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [55/86] Skip peBMCSu_KeQ — analysis exists (2024-06-13_Bulloch_County_Planning_and_Zoning_Meeting.json)
+2026-06-04 22:35:23.543 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [56/86] Skip Lwc3ea8q7Uc — analysis exists (2024-05-09_Bulloch_County_Planning_&_Zoning_Board_Meeting.json)
+2026-06-04 22:35:23.549 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [57/86] Skip JFTA23Z40l0 — analysis exists (2024-04-11_Planning_and_Zoning_Commission_Meeting.json)
+2026-06-04 22:35:23.567 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [58/86] Skip G0mpb7df9Eg — analysis exists (2024-03-14_Planning_&_Zoning_Board_Meeting.json)
+2026-06-04 22:35:23.586 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [59/86] Skip TAgu9IKTBqA — analysis exists (2024-02-08_Planning_&_Zoning_Commission.json)
+2026-06-04 22:35:23.602 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [60/86] Skip -ZIKH7YbdkA — analysis exists (2020-10-20_BOC_Meeting.json)
+2026-06-04 22:35:23.620 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [61/86] Skip yPYvd5qdvOs — analysis exists (2020-08-18_BOC_Meeting.json)
+2026-06-04 22:35:23.640 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [62/86] Skip vsFIlINRN-Q — analysis exists (2020-08-04_BOC_Meeting.json)
+2026-06-04 22:35:23.665 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [63/86] Skip DLGLQSs-LZE — analysis exists (2020-07-21_BOC_Meeting.json)
+2026-06-04 22:35:23.670 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [64/86] Skip LLz9pVCEWG4 — analysis exists (2020-07-07_BOC_Meeting.json)
+2026-06-04 22:35:23.685 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [65/86] Skip CBTIa7ijEwc — analysis exists (2020-06-30_BOC_Meeting_Special_Called_Resumed.json)
+2026-06-04 22:35:23.693 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [66/86] Skip BO818Xz1lYk — analysis exists (2020-06-30_BOC_Meeting_Special_Called.json)
+2026-06-04 22:35:23.707 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [67/86] Skip hZgFsXKALJs — analysis exists (2020-06-16_BOC_Meeting.json)
+2026-06-04 22:35:23.725 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [68/86] Skip xw9iRO0A8dM — analysis exists (2020-06-02_BOC_Meeting.json)
+2026-06-04 22:35:23.758 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [69/86] Skip EvVjc3T-Eqo — analysis exists (2020-05-19_BOC_Meeting.json)
+2026-06-04 22:35:23.769 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [70/86] Skip gRcolzmRABg — analysis exists (2020-05-05_BOC_Meeting.json)
+2026-06-04 22:35:23.774 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [71/86] Skip FRcYtEp5wII — analysis exists (unknown-date_Board_of_Commissioners_meeting_Mar._3,_2026_530PM.json)
+2026-06-04 22:35:23.778 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [72/86] Skip D_9EyK-hiRU — analysis exists (unknown-date_Hazard_Mitigation_Plan_work_session_pt_4.json)
+2026-06-04 22:35:23.792 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [73/86] Skip 5wX8kormNi8 — analysis exists (unknown-date_Hazard_Mitigation_Plan_work_session_pt_5.json)
+2026-06-04 22:35:23.796 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [74/86] Skip J0sopROreDc — analysis exists (unknown-date_Hazard_Mitigation_Plan_work_session_pt_2.json)
+2026-06-04 22:35:23.807 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [75/86] Skip 7iu5HkI4fm4 — analysis exists (unknown-date_Hazard_Mitigation_Plan_work_session_pt_1.json)
+2026-06-04 22:35:23.814 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [76/86] Skip 7C83SXBO1wc — analysis exists (unknown-date_Bulloch_County_Planning_&_Zoning_Commission_Meeting_April15,_2025_530PM.json)
+2026-06-04 22:35:23.822 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [77/86] Skip IqwpF6aublo — analysis exists (unknown-date_Planning_&_Zoning_Commission_meeting_September_12_6pm.json)
+2026-06-04 22:35:23.828 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [78/86] Skip HJBGGJa_lwE — analysis exists (unknown-date_Planning_&_Zoning_Commission_meeting_September_10_6pm..json)
+2026-06-04 22:35:23.833 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [79/86] Skip BIndg_CgTvI — analysis exists (unknown-date_Bulloch_County_Video_2021.json)
+2026-06-04 22:35:23.839 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [80/86] Skip W9d164mKNIY — analysis exists (unknown-date_Planning_&_Zoning_Commission_meeting_Feb._17,_2026_530PM.json)
+2026-06-04 22:35:23.843 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [81/86] Skip AEZWY4QCry0 — analysis exists (unknown-date_Board_of_Commissioners_meeting_Feb._17,_2026_830AM.json)
+2026-06-04 22:35:23.853 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [82/86] Skip DF7CR_TGigo — analysis exists (unknown-date_Board_of_Commissioners_meeting_Jan._20,_2026_830AM.json)
+2026-06-04 22:35:23.865 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [83/86] Skip P0A6JxJTOGA — analysis exists (unknown-date_Planning_&_Zoning_Commission_meeting_Dec._16,_2025_530PM.json)
+2026-06-04 22:35:23.869 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [84/86] Skip IzZao9-DB-s — analysis exists (unknown-date_Board_of_Commissioners_meeting_Dec._16,_2025_830AM.json)
+2026-06-04 22:35:23.875 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [85/86] Skip ZP1QtN9byOQ — analysis exists (unknown-date_Bryan-Bulloch_Groundwater_Sustainability_Program_Advisory_Comm._meeting_Dec._11,.json)
+2026-06-04 22:35:23.883 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [86/86] Skip ZuYwU78SG7k — analysis exists (unknown-date_Bulloch_County_Board_of_Commissioners_Live_Stream.json)
+2026-06-04 22:35:23.885 | INFO     | __main__:run_backlog:651 - Progress 1/343 jurisdictions (2.33/min, ETA 2h27m)
+2026-06-04 22:35:23.889 | INFO     | __main__:run_backlog:604 - [2/343] leeds_0141968 (AL) — pending~9, model=gemini-2.5-flash-lite
+2026-06-04 22:35:25.575 | WARNING  | llm.gemini.meeting_transcript_policy:load_speaker_context:342 - contacts.json not found: /home/developer/projects/open-navigator/data/cache/scraped_meetings/AL/municipality/leeds_0141968/_contact_images/contacts.json
+2026-06-04 22:35:26.994 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [1/19] Skip rL9JUmEh0AU — analysis exists (2011-06-28_Leeds_ZBA_Meeting.json)
+2026-06-04 22:35:27.006 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [2/19] Skip ay8AWVe3WiE — analysis exists (2011-06-20_Leeds_Council_Meeting_of.json)
+2026-06-04 22:35:27.016 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [3/19] Skip 3KahcaGamGE — analysis exists (2011-05-16_Leeds_City_Council_Meeting_for.json)
+2026-06-04 22:35:27.024 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [4/19] Skip xa8aqdApj3U — analysis exists (2011-05-02_Leeds_Council_Meeting_for.json)
+2026-06-04 22:35:27.028 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [5/19] Skip xSqFiMOHsVA — analysis exists (2011-04-04_City_of_Leeds_Board_Appointments.json)
+2026-06-04 22:35:27.032 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [6/19] Skip Q5ZjgCTZ_p4 — analysis exists (2011-03-21_Leeds_City_Council_Meeting_for.json)
+2026-06-04 22:35:27.039 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [7/19] Skip tlJc4pJlNwY — analysis exists (2011-03-07_Leeds_City_Council_Meeting_on.json)
+2026-06-04 22:35:27.043 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [8/19] Skip -emjUdTT-fA — analysis exists (2011-02-07_Leeds_City_Council,_—_Fire_Station.json)
+2026-06-04 22:35:27.054 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [9/19] Skip 4slspAy8GAw — analysis exists (2011-01-19_Leeds_Cooperative_Distrct_Meeting_on.json)
+2026-06-04 22:35:27.059 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [10/19] Skip GE0sYqRYC90 — analysis exists (2011-01-13_Leeds_Planning_and_Zoning_Meeting.json)
+2026-06-04 22:35:27.091 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1226 - [11/19] GvWgnAIlPgs — Leeds City Council Meeting October 04, 2010 Part 1
+2026-06-04 22:35:27.466 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for GvWgnAIlPgs (335 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-04 22:35:27.473 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:957 - Built 1 agenda segment hint(s) for presenter linking
+2026-06-04 22:35:27.476 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1011 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-04 22:35:27.550 | INFO     | llm.gemini.genai_text_client:_key_pool:518 - Gemini key rotation enabled: 4 keys in pool
+2026-06-04 22:35:40.346 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:572 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/AL/municipality/leeds_0141968/UCxljYdqvrq4-yfKue3XrWCQ/02_analysis/2010-10-04_Leeds_City_Council_Meeting_Part_1.json
+2026-06-04 22:35:40.377 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1226 - [12/19] 3ile314_JU8 — Leeds City Council Meeting October 04, 2010 Part II
+2026-06-04 22:35:40.506 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for 3ile314_JU8 (135 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-04 22:35:40.511 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1011 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-04 22:35:48.274 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:572 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/AL/municipality/leeds_0141968/UCxljYdqvrq4-yfKue3XrWCQ/02_analysis/2010-10-04_Leeds_City_Council_Meeting_Part_II.json
+2026-06-04 22:35:48.313 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1226 - [13/19] G7SBCwUQFvw — Leeds Alabama City Council October 04, 2010 Part III
+2026-06-04 22:35:48.421 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for G7SBCwUQFvw (84 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-04 22:35:48.423 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1011 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-04 22:35:55.110 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:572 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/AL/municipality/leeds_0141968/UCxljYdqvrq4-yfKue3XrWCQ/02_analysis/2010-10-04_Leeds_Alabama_City_Council_Part_III.json
+2026-06-04 22:35:55.147 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1226 - [14/19] H-XQM5Gbnk4 — Leeds Alabama City Council October 04, 2010 Part IV
+2026-06-04 22:35:55.455 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for H-XQM5Gbnk4 (361 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-04 22:35:55.472 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1011 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-04 22:36:03.743 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:572 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/AL/municipality/leeds_0141968/UCxljYdqvrq4-yfKue3XrWCQ/02_analysis/2010-10-04_Leeds_Alabama_City_Council_Part_IV.json
+2026-06-04 22:36:03.776 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1226 - [15/19] g6yLSS_SOVs — Leeds Alabama City Council October 04, 2010 Part V
+2026-06-04 22:36:03.983 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for g6yLSS_SOVs (131 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-04 22:36:03.991 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1011 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-04 22:36:17.276 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:572 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/AL/municipality/leeds_0141968/UCxljYdqvrq4-yfKue3XrWCQ/02_analysis/2010-10-04_Leeds_Alabama_City_Council_Part_V.json
+2026-06-04 22:36:17.333 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1226 - [16/19] -quRFx6Y8fE — After the Game Highlights
+2026-06-04 22:36:17.732 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for -quRFx6Y8fE (84 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-04 22:36:17.736 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1011 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-04 22:36:23.191 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:572 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/AL/municipality/leeds_0141968/UCxljYdqvrq4-yfKue3XrWCQ/02_analysis/unknown-date_After_the_Game_Highlights.json
+2026-06-04 22:36:23.214 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1226 - [17/19] -xY0vT1LU7w — Redbox Introduction
+2026-06-04 22:36:23.367 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for -xY0vT1LU7w (98 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-04 22:36:23.380 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1011 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-04 22:36:27.952 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:572 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/AL/municipality/leeds_0141968/UCxljYdqvrq4-yfKue3XrWCQ/02_analysis/unknown-date_Redbox_Introduction.json
+2026-06-04 22:36:28.012 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1226 - [18/19] -RCo4txx9fU — Leeds Council Work Session - Board Appointment Discussion
+2026-06-04 22:36:28.257 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for -RCo4txx9fU (738 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-04 22:36:28.285 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1011 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-04 22:36:34.876 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:572 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/AL/municipality/leeds_0141968/UCxljYdqvrq4-yfKue3XrWCQ/02_analysis/unknown-date_Leeds_Council_Work_Session_-_Board_Appointment_Discussion.json
+2026-06-04 22:36:34.907 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1226 - [19/19] -12fs7v1-VI — Spirit Night
+2026-06-04 22:36:35.354 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for -12fs7v1-VI (18 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-04 22:36:35.357 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1011 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-04 22:36:39.786 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:572 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/AL/municipality/leeds_0141968/UCxljYdqvrq4-yfKue3XrWCQ/02_analysis/unknown-date_Spirit_Night.json
+2026-06-04 22:36:39.787 | INFO     | __main__:run_backlog:651 - Progress 2/343 jurisdictions (1.27/min, ETA 4h28m)
+2026-06-04 22:36:39.792 | INFO     | __main__:run_backlog:604 - [3/343] franklin_25011 (MA) — pending~59, model=gemini-2.5-flash-lite
+2026-06-04 22:36:45.030 | WARNING  | llm.gemini.meeting_transcript_policy:load_speaker_context:342 - contacts.json not found: /home/developer/projects/open-navigator/data/cache/scraped_meetings/MA/county/franklin_25011/_contact_images/contacts.json
+2026-06-04 22:36:46.979 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [1/69] Skip ttTliMsb51Q — analysis exists (2025-09-18_Resilient_Deerfield_Watershed_Coalition_Meeting.json)
+2026-06-04 22:36:46.982 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [2/69] Skip 4oyyuW6LgNY — analysis exists (2025-06-12_Resilient_Deerfield_Watershed_Coalition_Meeting.json)
+2026-06-04 22:36:46.987 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [3/69] Skip CwxowLwNBio — analysis exists (2025-05-15_Resilient_Deerfield_Watershed_Coalition_Meeting.json)
+2026-06-04 22:36:46.995 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [4/69] Skip KzQKng9wgHs — analysis exists (2023-12-13_Overview_of_the_Tanning_Code.json)
+2026-06-04 22:36:46.999 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [5/69] Skip ApsWpwI-v7E — analysis exists (2023-08-16_Cannabis_Updates_with_Cheryl_Sbarra.json)
+2026-06-04 22:36:47.005 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [6/69] Skip 8FacgMaiKtU — analysis exists (2023-04-24_Beaver_Permitting_Trapping.json)
+2026-06-04 22:36:47.013 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [7/69] Skip o9Ebr6LNoM0 — analysis exists (2022-01-27_Franklin_Regional_Planning_Board_Meeting,.json)
+2026-06-04 22:36:47.017 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [8/69] Skip w_xE_qv9m-8 — analysis exists (2022-01-18_MIP_Read-Only_Training.json)
+2026-06-04 22:36:47.031 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [9/69] Skip 0G4F6Kc71jQ — analysis exists (unknown-date_Housing_Workshop_for_CPA_Communities.json)
+2026-06-04 22:36:47.037 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [10/69] Skip 8TCztiR2Q9E — analysis exists (unknown-date_What's_New_at_the_FRCOG_-_Winter_2024.json)
+2026-06-04 22:36:47.140 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1226 - [11/69] qW-goJVkHeU — Cybersecurity for Municipalities Workshop Series (W1S2): Internal Change Managem
+2026-06-04 22:36:47.970 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for qW-goJVkHeU (2394 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-04 22:36:48.027 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1011 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-04 22:37:03.482 | INFO     | llm.gemini.persist_policy_analysis_bronze:persist_policy_analysis_bronze:233 - Persisted legislation bronze for qW-goJVkHeU: {'bills': 0, 'item_links': 0, 'decisions': 1, 'youtube_updated': 1}
+2026-06-04 22:37:04.172 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:572 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/MA/county/franklin_25011/UCseMmca1wVygR2Qthpr1mHw/02_analysis/unknown-date_Cybersecurity_for_Municipalities_Workshop_Series_(W1S2)_Internal_Change_Manageme.json
+2026-06-04 22:37:04.222 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1226 - [12/69] t8Q4amLSU9Q — WMPHA Workshop: Attorney General's Neighborhood Renewal Division Information Ses
+2026-06-04 22:37:04.391 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for t8Q4amLSU9Q (1495 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-04 22:37:04.439 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1011 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-04 22:37:15.870 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:572 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/MA/county/franklin_25011/UCseMmca1wVygR2Qthpr1mHw/02_analysis/unknown-date_WMPHA_Workshop_Attorney_General's_Neighborhood_Renewal_Division_Information_Sess.json
+2026-06-04 22:37:15.904 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1226 - [13/69] A73iG3xnbes — 2022 County Health Rankings Release and  Legislative Response
+2026-06-04 22:37:16.072 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for A73iG3xnbes (1570 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-04 22:37:16.106 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1011 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-04 22:37:48.364 | INFO     | llm.gemini.persist_policy_analysis_bronze:persist_policy_analysis_bronze:233 - Persisted legislation bronze for A73iG3xnbes: {'bills': 16, 'item_links': 0, 'decisions': 1, 'youtube_updated': 1}
+2026-06-04 22:37:48.811 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:572 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/MA/county/franklin_25011/UCseMmca1wVygR2Qthpr1mHw/02_analysis/unknown-date_2022_County_Health_Rankings_Release_and_Legislative_Response.json
+2026-06-04 22:37:48.859 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1226 - [14/69] ZS_HOscySP4 — Pre-Rental Housing Inspection Regulations: A Tool to Improve Health
+2026-06-04 22:37:49.024 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for ZS_HOscySP4 (1955 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-04 22:37:49.063 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1011 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-04 22:38:09.736 | INFO     | llm.gemini.persist_policy_analysis_bronze:persist_policy_analysis_bronze:233 - Persisted legislation bronze for ZS_HOscySP4: {'bills': 0, 'item_links': 0, 'decisions': 1, 'youtube_updated': 1}
+2026-06-04 22:38:09.824 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:572 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/MA/county/franklin_25011/UCseMmca1wVygR2Qthpr1mHw/02_analysis/unknown-date_Pre-Rental_Housing_Inspection_Regulations_A_Tool_to_Improve_Health.json
+2026-06-04 22:38:09.843 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1226 - [15/69] m55y6QZjVqo — Diversifying Rural Housing Opportunities
+2026-06-04 22:38:09.919 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for m55y6QZjVqo (2229 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-04 22:38:09.958 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1011 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-04 22:38:23.522 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:572 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/MA/county/franklin_25011/UCseMmca1wVygR2Qthpr1mHw/02_analysis/unknown-date_Diversifying_Rural_Housing_Opportunities.json
+2026-06-04 22:38:23.562 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1226 - [16/69] 9SjF4YEd7w0 — CHIP Network: Legislative Priority Pitch Party
+2026-06-04 22:38:23.697 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for 9SjF4YEd7w0 (1708 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-04 22:38:23.753 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1011 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-04 22:38:58.689 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:572 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/MA/county/franklin_25011/UCseMmca1wVygR2Qthpr1mHw/02_analysis/unknown-date_CHIP_Network_Legislative_Priority_Pitch_Party.json
+2026-06-04 22:38:58.763 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1226 - [17/69] hTTDHDkGjC4 — CHIP Network Meeting: Legislative Advocacy 101
+2026-06-04 22:38:59.047 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for hTTDHDkGjC4 (2368 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-04 22:38:59.085 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1011 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-04 22:39:00.422 | WARNING  | llm.gemini.genai_text_client:call_with_genai_quota_retry:321 - gemini-2.5-flash-lite: transient network disconnect — sleeping 8s, retry 2/12 (RemoteProtocolError — peer closed connection without sending complete message body (incomplete chunked read))
+2026-06-04 22:39:20.596 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:572 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/MA/county/franklin_25011/UCseMmca1wVygR2Qthpr1mHw/02_analysis/unknown-date_CHIP_Network_Meeting_Legislative_Advocacy_101.json
+2026-06-04 22:39:20.658 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1226 - [18/69] iUdJiWmIWv4 — CHIP Network Meeting: 2023 Kickoff!
+2026-06-04 22:39:20.958 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for iUdJiWmIWv4 (1588 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-04 22:39:21.004 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1011 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-04 22:41:20.125 | WARNING  | llm.gemini.genai_text_client:call_with_genai_quota_retry:321 - gemini-2.5-flash-lite: gateway timeout / deadline (504) — sleeping 1s, retry 2/5 (rotating key 2/4)

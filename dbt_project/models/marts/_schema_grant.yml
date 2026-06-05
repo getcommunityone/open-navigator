@@ -1,0 +1,110 @@
+version: 2
+
+models:
+  - name: grant
+    description: >
+      public.grant — one row per GivingTuesday 990 Schedule I Part II grant line
+      (nonprofit grantmaking: grantor org -> grantee, cash amount, purpose).
+      grantor_master_org_id resolves the filer EIN to the org master via
+      mdm_organization_nonprofit; grantor_state_code / grantor_city_norm carry
+      the grantor's golden location for location filtering without a bridge.
+      grantee_master_org_id is resolved only when the grantee EIN matches an org
+      master (nullable). PK grant_id; FK grantor_master_org_id -> mdm_organization
+      (NOT NULL), FK grantee_master_org_id -> mdm_organization (nullable).
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [grantor_master_org_id]
+        to: ref('mdm_organization')
+        to_columns: [master_org_id]
+    columns:
+      - name: grant_id
+        description: "Surrogate grant-line id (deterministic hash over the natural grain)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: grantor_master_org_id
+        description: "Golden org id of the grantor (FK -> mdm_organization). NOT NULL."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - relationships:
+              to: ref('mdm_organization')
+              field: master_org_id
+      - name: grantor_ein
+        description: "9-digit EIN of the grantor (filing) organization."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: grantor_name
+        description: "Grantor (filer) organization name from the 990."
+        data_type: text
+      - name: grantor_state_code
+        description: "Grantor's golden 2-letter state code (for location filtering)."
+        data_type: text
+      - name: grantor_city_norm
+        description: "Grantor's golden normalized city (for location filtering)."
+        data_type: text
+      - name: grantee_master_org_id
+        description: >
+          Golden org id of the grantee (FK -> mdm_organization). NULLABLE: filled
+          only when the grantee EIN is present and matches an org master.
+        data_type: text
+        tests:
+          - relationships:
+              to: ref('mdm_organization')
+              field: master_org_id
+      - name: grantee_name
+        description: "Recipient organization name (Schedule I Part II col (a))."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: grantee_ein
+        description: "Recipient EIN (col (b)); nullable (frequently blank in source)."
+        data_type: text
+      - name: grantee_city
+        description: "Recipient city."
+        data_type: text
+      - name: grantee_state_code
+        description: "Recipient 2-letter state code."
+        data_type: text
+      - name: grantee_zip
+        description: "Recipient ZIP code."
+        data_type: text
+      - name: irc_section
+        description: "IRC section / 501(c) status of the recipient (col (c))."
+        data_type: text
+      - name: amount
+        description: "Amount of cash grant in USD (Schedule I Part II col (d))."
+        data_type: bigint
+      - name: noncash_assistance_amount
+        description: "Amount of non-cash assistance in USD (col (f))."
+        data_type: bigint
+      - name: valuation_method
+        description: "Method of valuation for non-cash assistance (col (g))."
+        data_type: text
+      - name: noncash_description
+        description: "Description of non-cash assistance (col (h) book/FMV note)."
+        data_type: text
+      - name: purpose
+        description: "Purpose of grant or assistance (col (h))."
+        data_type: text
+      - name: tax_year
+        description: "Filing tax year (integer)."
+        data_type: integer
+      - name: source_url
+        description: "URL of the underlying 990 XML in the GivingTuesday data lake."
+        data_type: text
+      - name: dbt_loaded_at
+        description: "dbt build timestamp."
+        data_type: timestamp with time zone

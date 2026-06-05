@@ -210,18 +210,92 @@ sources:
           - name: first_seen_event_id
             description: "First meeting where this org appeared"
           
-      - name: bronze_bills
-        description: "Legislation discussed in meetings"
+      - name: bronze_officials_openstates
+        description: >
+          Current government officials synced from the OpenStates
+          opencivicdata_* tables by ingestion.openstates.officials. One row per
+          person×membership (mayors, council members, legislators — ALL current
+          memberships, not just legislative chambers). Natural key
+          ocd_membership_id. Feeds stg_openstates__official -> public.contact_official.
         columns:
-          - name: id
+          - name: ocd_membership_id
+            description: "OCD membership id — natural key / conflict key."
+          - name: ocd_person_id
+          - name: full_name
+          - name: party
+          - name: role
+            description: "Membership role = the official's title (e.g. 'Mayor')."
+          - name: district
+            description: "post.label — district/seat label where present."
+          - name: ocd_organization_id
+          - name: organization_name
+          - name: organization_classification
+            description: "Org classification (chamber): government/upper/lower/legislature/..."
+          - name: ocd_jurisdiction_id
+          - name: state_code
+            description: "2-letter state code parsed from the OCD jurisdiction id."
+          - name: email
+          - name: image
+            description: "Photo URL from opencivicdata_person.image."
+          - name: start_date
+          - name: end_date
+          - name: synced_at
+
+      - name: bronze_bills
+        description: |
+          Legislation/bills extracted by the TEXT/policy transcript-analysis
+          pipeline (Pipeline A) — one row per (source_event_id, leg_id,
+          source_ai_model). NOT bronze_bills_from_ai (that is the structured
+          meeting-analysis family). The `jurisdiction` text column is DIRTY
+          (mixes names like 'Bulloch County, Georgia' and slugs like
+          'bulloch_13031'); resolve geography via video_id ->
+          event_youtube_with_jurisdiction instead. `year` is VARCHAR(4) raw
+          fidelity; staging casts to nullable integer.
+        columns:
+          - name: source_event_id_leg_id
+            description: "Primary key (text) — source_event_id || leg_id composite."
           - name: source_event_id
+          - name: video_id
+            description: "YouTube video id — bridge to event_youtube_with_jurisdiction."
+          - name: source_ai_model
           - name: leg_id
+          - name: leg_type
           - name: official_number
           - name: title
           - name: jurisdiction
+            description: "DIRTY free-text/slug jurisdiction label — do not use for geography."
           - name: year
+            description: "Calendar year, raw source-native VARCHAR(4); cast to integer in staging."
+          - name: status
+          - name: relevance
+          - name: url
+          - name: agenda_labels
+            description: "JSONB array of agenda labels."
+          - name: analysis_cache_path
           - name: extracted_at
-          
+
+      - name: bronze_policy_decisions
+        description: |
+          Policy decisions extracted by the TEXT/policy transcript-analysis
+          pipeline (Pipeline A) — one row per (source_event_id, decision_id,
+          source_ai_model). Carries video_id directly as the bridge to
+          event_youtube_with_jurisdiction for resolved geography.
+        columns:
+          - name: id
+          - name: source_event_id
+          - name: video_id
+            description: "YouTube video id — bridge to event_youtube_with_jurisdiction."
+          - name: source_ai_model
+          - name: decision_id
+          - name: subject_id
+          - name: headline
+          - name: outcome
+          - name: legislation_refs
+            description: "JSONB array of referenced legislation."
+          - name: vote_tally
+            description: "JSONB vote tally object."
+          - name: extracted_at
+
       - name: bronze_decisions
         description: "Policy decisions from meeting analysis"
         columns:
@@ -524,6 +598,29 @@ sources:
             description: "Filing tax year"
           - name: mission
             description: "Form 990 Part 1 Line 1 - Mission & Most Significant Activities"
+
+      - name: bronze_grants_gt990_schedule_i
+        description: >
+          GivingTuesday 990 Schedule I Part II datamart (ScheduleIPart2Grants):
+          nonprofit grantmaking to domestic organizations. One row per grant line
+          (grantor filer -> grantee org). Append-only child table (no natural
+          unique key) landed by ingestion.givingtuesday.load --datamart schedule_i.
+          Feeds stg_grants_gt990__schedule_i -> the `grant` mart.
+        columns:
+          - name: grantor_ein
+            description: "9-digit EIN of the filing (grantor) organization."
+          - name: tax_year
+            description: "Filing tax year."
+          - name: grantee_name
+            description: "Recipient organization name (Schedule I Part II col (a))."
+          - name: grantee_ein
+            description: "Recipient EIN (col (b)); frequently blank."
+          - name: cash_grant_amount
+            description: "Amount of cash grant (col (d))."
+          - name: purpose
+            description: "Purpose of grant or assistance (col (h))."
+          - name: source_url
+            description: "URL of the underlying 990 XML in the GivingTuesday data lake."
 
       - name: bronze_jurisdictions
         description: "Master list of jurisdictions (cities, counties, states)"

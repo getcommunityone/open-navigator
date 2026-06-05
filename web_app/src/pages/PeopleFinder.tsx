@@ -84,7 +84,7 @@ export default function PeopleFinder() {
     queryKey: ['people-finder', effectiveState, currentPage],
     queryFn: async () => {
       const params: any = {
-        types: 'person',
+        types: 'leaders',
         limit: 100, // API max is 100
         state: effectiveState,
         page: currentPage
@@ -96,8 +96,8 @@ export default function PeopleFinder() {
     staleTime: 60000, // Cache for 1 minute
   })
 
-  // Convert API person results to Person format (prefer `person`, fall back to legacy `contacts`)
-  const personResults = contactsData?.results?.person ?? contactsData?.results?.contacts ?? []
+  // Convert API leader (government official) results to Person format
+  const personResults = contactsData?.results?.leaders ?? []
   const people: Person[] = personResults.map((person: any, index: number) => ({
     id: index + 1,
     name: person.metadata?.name || person.title || 'Unknown',  // metadata.name canonical; title fallback

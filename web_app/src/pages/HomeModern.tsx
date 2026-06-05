@@ -183,7 +183,7 @@ export default function HomeModern() {
       const url = '/search/';
       const params: any = {
         q: debouncedKeyword,
-        types: 'causes,contacts,organizations',
+        types: 'causes,leaders,organizations',
         limit: 3
       };
       
@@ -199,7 +199,7 @@ export default function HomeModern() {
         homeLog('📥 [HomeModern] API Response:', response.data);
         homeLog('📊 [HomeModern] Total results:', response.data.total_results);
         homeLog('🎯 [HomeModern] Causes:', response.data.results.causes.length);
-        homeLog('👥 [HomeModern] Contacts:', response.data.results.contacts.length);
+        homeLog('👥 [HomeModern] Leaders:', response.data.results.leaders?.length ?? 0);
         homeLog('🏢 [HomeModern] Organizations:', response.data.results.organizations.length);
         return response.data;
       } catch (error: any) {
@@ -738,26 +738,26 @@ export default function HomeModern() {
                                   </div>
                                 )}
 
-                                {/* People (Contacts) Section */}
-                                {previewResults.results.contacts.length > 0 && (
+                                {/* Leaders Section (government officials) */}
+                                {(previewResults.results.leaders?.length ?? 0) > 0 && (
                                   <div className="border-b border-gray-200">
                                     <div className="px-4 py-2 bg-gray-50 flex items-center justify-between">
                                       <div className="flex items-center gap-2">
                                         <UserIcon className="h-4 w-4 text-gray-500" />
-                                        <span className="text-xs font-semibold text-gray-700 uppercase">People</span>
+                                        <span className="text-xs font-semibold text-gray-700 uppercase">Leaders</span>
                                       </div>
                                       <button
                                         type="button"
                                         onMouseDown={(e) => {
                                           e.preventDefault();
-                                          handleViewAllCategory('contacts');
+                                          handleViewAllCategory('leaders');
                                         }}
                                         className="text-xs text-primary-600 hover:text-primary-700 font-medium"
                                       >
                                         View All
                                       </button>
                                     </div>
-                                    {previewResults.results.contacts.slice(0, 3).map((result: any, idx: number) => (
+                                    {previewResults.results.leaders.slice(0, 3).map((result: any, idx: number) => (
                                       <button
                                         key={idx}
                                         type="button"

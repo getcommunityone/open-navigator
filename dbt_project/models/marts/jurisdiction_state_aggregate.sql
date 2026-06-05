@@ -10,15 +10,17 @@
     
     Builds jurisdiction_state_aggregate table with:
     - Nonprofit counts and financials by geography
-    - Event counts, contact counts, bill counts
+    - Event counts, person counts, leader counts, bill counts
     - Trending causes (JSON) based on decisions in last 90 days
-    
+
     Levels: national, state, county, city, jurisdiction
-    
+
     Data Sources:
     - bronze_organizations_nonprofits: Nonprofit counts, revenue, assets (1.95M orgs)
     - bronze_events: Meeting/event counts
-    - bronze_contacts: Contact counts
+    - mdm_person: Person counts (people in the geography)
+    - contact_official + mdm_bridge_person_organization: Leader counts
+      (elected/government officials + nonprofit board members/leaders)
     - bronze_bills: Bill counts
     - int_trending_causes_by_jurisdiction: Trending causes by jurisdiction
 */
@@ -99,15 +101,44 @@ county_event_stats AS (
     GROUP BY c2c.state_code, c2c.primary_county
 ),
 
-contact_stats AS (
-    -- Count contacts by state (via events)
+-- Person counts from the MDM person master, by geography.
+-- mdm_person exposes lowercase `city_norm` and `state_code`; there is no county column.
+person_stats AS (
     SELECT
-        e.state_code,
-        COUNT(DISTINCT c.id) as contacts_count
-    FROM {{ source('bronze', 'bronze_contacts') }} c
-    JOIN {{ source('bronze', 'bronze_events_localview') }} e ON c.source_event_id = e.id
-    WHERE e.state_code IS NOT NULL
-    GROUP BY e.state_code
+        state_code,
+        city_norm,
+        COUNT(*) as persons_count
+    FROM {{ ref('mdm_person') }}
+    WHERE state_code IS NOT NULL
+    GROUP BY state_code, city_norm
+),
+
+-- Leader counts. Two DIFFERENT id namespaces that CANNOT be deduped across each other,
+-- so we SUM the two counts rather than UNION-distinct:
+--   1. contact_official: elected + government officials
+--      (keyed by state_code + jurisdiction text place name).
+--   2. mdm_bridge_person_organization: nonprofit board members / leaders
+--      (DISTINCT officer_person_uid where they hold a leadership flag,
+--       keyed by state_code + city_norm).
+leader_official_stats AS (
+    SELECT
+        state_code,
+        jurisdiction,
+        COUNT(*) as officials_count
+    FROM {{ ref('contact_official') }}
+    WHERE state_code IS NOT NULL
+    GROUP BY state_code, jurisdiction
+),
+
+leader_board_stats AS (
+    SELECT
+        state_code,
+        city_norm,
+        COUNT(DISTINCT officer_person_uid) as board_count
+    FROM {{ ref('mdm_bridge_person_organization') }}
+    WHERE state_code IS NOT NULL
+      AND (is_officer OR is_director_trustee OR is_key_employee OR is_institutional_trustee)
+    GROUP BY state_code, city_norm
 ),
 
 bill_stats AS (
@@ -229,7 +260,12 @@ national_stats AS (
         (SELECT SUM(nonprofits_count) FROM nonprofit_stats)::INTEGER as nonprofits_count,
         (SELECT SUM(events_count) FROM event_stats)::INTEGER as events_count,
         (SELECT SUM(bills_count) FROM bill_stats)::INTEGER as bills_count,
-        (SELECT SUM(contacts_count) FROM contact_stats)::INTEGER as contacts_count,
+        (SELECT SUM(persons_count) FROM person_stats)::INTEGER as persons_count,
+        -- leaders = SUM of two non-dedupable id namespaces (officials + nonprofit board)
+        (
+            COALESCE((SELECT SUM(officials_count) FROM leader_official_stats), 0)
+            + COALESCE((SELECT SUM(board_count) FROM leader_board_stats), 0)
+        )::INTEGER as leaders_count,
         (SELECT SUM(decisions_count) FROM decision_stats)::INTEGER as decisions_count,
         (SELECT SUM(total_revenue) FROM nonprofit_stats) as total_revenue,
         (SELECT SUM(total_assets) FROM nonprofit_stats) as total_assets,
@@ -253,7 +289,12 @@ state_stats AS (
         SUM(nps.nonprofits_count)::INTEGER as nonprofits_count,
         COALESCE((SELECT SUM(events_count) FROM event_stats WHERE state_code = nps.state_code), 0)::INTEGER as events_count,
         COALESCE((SELECT bills_count FROM bill_stats WHERE state_code = nps.state_code), 0)::INTEGER as bills_count,
-        COALESCE((SELECT contacts_count FROM contact_stats WHERE state_code = nps.state_code), 0)::INTEGER as contacts_count,
+        COALESCE((SELECT SUM(persons_count) FROM person_stats WHERE state_code = nps.state_code), 0)::INTEGER as persons_count,
+        -- leaders = SUM of two non-dedupable id namespaces (officials + nonprofit board)
+        (
+            COALESCE((SELECT SUM(officials_count) FROM leader_official_stats WHERE state_code = nps.state_code), 0)
+            + COALESCE((SELECT SUM(board_count) FROM leader_board_stats WHERE state_code = nps.state_code), 0)
+        )::INTEGER as leaders_count,
         COALESCE((SELECT SUM(decisions_count) FROM decision_stats WHERE state_code = nps.state_code), 0)::INTEGER as decisions_count,
         SUM(nps.total_revenue) as total_revenue,
         SUM(nps.total_assets) as total_assets,
@@ -281,7 +322,10 @@ county_stats AS (
         nps.nonprofits_count::INTEGER,
         COALESCE(ces.events_count, 0)::INTEGER as events_count,
         0 as bills_count,
-        0 as contacts_count,
+        -- TODO: county persons/leaders need a city->county roll-up
+        -- (mdm_person and the bridge have no county column).
+        0 as persons_count,
+        0 as leaders_count,
         0 as decisions_count,
         nps.total_revenue,
         nps.total_assets,
@@ -311,7 +355,9 @@ city_stats AS (
         COALESCE(ncs.nonprofits_count, 0)::INTEGER as nonprofits_count,
         es.events_count::INTEGER,
         0 as bills_count,
-        0 as contacts_count,
+        COALESCE(ps.persons_count, 0)::INTEGER as persons_count,
+        -- leaders = SUM of two non-dedupable id namespaces (officials + nonprofit board)
+        (COALESCE(los.officials_count, 0) + COALESCE(lbs.board_count, 0))::INTEGER as leaders_count,
         COALESCE(ds.decisions_count, 0)::INTEGER as decisions_count,
         COALESCE(ncs.total_revenue, 0) as total_revenue,
         COALESCE(ncs.total_assets, 0) as total_assets,
@@ -327,6 +373,12 @@ city_stats AS (
         ON UPPER(es.city) = UPPER(tcd.jurisdiction_name) AND es.state_code = tcd.state_code
     LEFT JOIN decision_stats ds
         ON UPPER(es.city) = UPPER(ds.city) AND es.state_code = ds.state_code
+    LEFT JOIN person_stats ps
+        ON UPPER(es.city) = UPPER(ps.city_norm) AND es.state_code = ps.state_code
+    LEFT JOIN leader_official_stats los
+        ON UPPER(es.city) = UPPER(los.jurisdiction) AND es.state_code = los.state_code
+    LEFT JOIN leader_board_stats lbs
+        ON UPPER(es.city) = UPPER(lbs.city_norm) AND es.state_code = lbs.state_code
     WHERE es.city IS NOT NULL
 )
 
