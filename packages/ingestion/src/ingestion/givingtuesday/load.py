@@ -9,11 +9,17 @@ that feed the nonprofit lineage:
                     (990CN120Fields: total revenue/expenses/assets, etc.)
     missions    ->  bronze.bronze_organizations_990_missions
                     (990Part1Missions: Part 1 mission statement text)
+    schedule_i  ->  bronze.bronze_grants_gt990_schedule_i
+                    (ScheduleIPart2Grants: grantmaking — grantor org -> grantee
+                    org, cash amount, purpose; feeds the `grant` mart)
 
-Each datamart holds one row per filing (i.e. multiple tax years per EIN); the
-bronze tables preserve that grain with ``UNIQUE(ein, tax_year)``. Downstream dbt
-staging (``stg_givingtuesday__*``) picks the latest filing per EIN before
-joining into ``int_nonprofits_combined``.
+The financials/missions datamarts hold one row per filing (i.e. multiple tax
+years per EIN); their bronze tables preserve that grain with
+``UNIQUE(ein, tax_year)`` and downstream dbt staging (``stg_givingtuesday__*``)
+picks the latest filing per EIN before joining into ``int_nonprofits_combined``.
+The officers / schedule_j / schedule_i datamarts are line-item child tables with
+no natural unique key — they are append-only INSERTs and must be loaded with
+``--truncate`` for a clean reload.
 
 The source CSVs are large (financials ~1.6 GB, missions ~1.1 GB), so rows are
 read in chunks with only the needed columns projected, then batched-upserted via
@@ -619,6 +625,147 @@ class Form990ScheduleJPipeline(DataSourcePipeline[Form990ScheduleJRow]):
 
 
 # --------------------------------------------------------------------------- #
+# Schedule I Part II datamart (ScheduleIPart2Grants) — grant-line child table
+# --------------------------------------------------------------------------- #
+# Schedule I Part II = grants & other assistance to domestic ORGANIZATIONS
+# (one row per grant line: grantor filer -> grantee org, cash amount, purpose).
+# This is the grantmaking source for the `grant` mart. Part III (grants to
+# individuals) is a separate datamart and is NOT loaded here.
+#
+# There is no stable per-line natural key in the source, so this is an
+# append-only INSERT (like officers / schedule_j) — always run with --truncate
+# for a clean reload. A surrogate grant_id is minted downstream in dbt.
+class Form990ScheduleIRow(RawRow):
+    grantor_ein: str = Field(min_length=1, max_length=20)
+    tax_year: int | None = None
+    grantor_name: str | None = None
+    grantee_name: str | None = None
+    grantee_ein: str | None = None
+    grantee_city: str | None = None
+    grantee_state_code: str | None = None
+    grantee_zip: str | None = None
+    irc_section: str | None = None
+    cash_grant_amount: int | None = None
+    noncash_assistance_amount: int | None = None
+    valuation_method: str | None = None
+    noncash_description: str | None = None
+    purpose: str | None = None
+    source_url: str | None = None
+
+
+_SI_DDL = text(
+    """
+    CREATE TABLE IF NOT EXISTS bronze.bronze_grants_gt990_schedule_i (
+        id SERIAL PRIMARY KEY,
+        grantor_ein VARCHAR(20) NOT NULL,
+        tax_year INTEGER,
+        grantor_name TEXT,
+        grantee_name TEXT,
+        grantee_ein VARCHAR(20),
+        grantee_city TEXT,
+        grantee_state_code VARCHAR(2),
+        grantee_zip VARCHAR(10),
+        irc_section TEXT,
+        cash_grant_amount BIGINT,
+        noncash_assistance_amount BIGINT,
+        valuation_method TEXT,
+        noncash_description TEXT,
+        purpose TEXT,
+        source_url TEXT,
+        loaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """
+)
+_SI_INDEXES = (
+    text("CREATE INDEX IF NOT EXISTS idx_bronze_990si_grantor_ein ON bronze.bronze_grants_gt990_schedule_i(grantor_ein)"),
+    text("CREATE INDEX IF NOT EXISTS idx_bronze_990si_grantee_ein ON bronze.bronze_grants_gt990_schedule_i(grantee_ein)"),
+    text("CREATE INDEX IF NOT EXISTS idx_bronze_990si_grantor_year ON bronze.bronze_grants_gt990_schedule_i(grantor_ein, tax_year)"),
+)
+_SI_INSERT = text(
+    """
+    INSERT INTO bronze.bronze_grants_gt990_schedule_i (
+        grantor_ein, tax_year, grantor_name, grantee_name, grantee_ein,
+        grantee_city, grantee_state_code, grantee_zip, irc_section,
+        cash_grant_amount, noncash_assistance_amount, valuation_method,
+        noncash_description, purpose, source_url
+    ) VALUES (
+        :grantor_ein, :tax_year, :grantor_name, :grantee_name, :grantee_ein,
+        :grantee_city, :grantee_state_code, :grantee_zip, :irc_section,
+        :cash_grant_amount, :noncash_assistance_amount, :valuation_method,
+        :noncash_description, :purpose, :source_url
+    )
+    """
+)
+# source CSV column -> meaning (Schedule I Part II layout; abbreviations confirmed
+# against the 2025_08_29_All_Years_ScheduleIPart2Grants.csv header + sample rows).
+# The grantee BusinessName lands on RTRNBBNLINE11 (line 1) and RTRNBBNLINE22
+# (line 2, the continuation); coalesce/concatenate both, else 2-line org names
+# are truncated.
+_SI_SRC_COLS = [
+    "FILEREIN", "FILERNAME1", "FILERNAME2", "TAXYEAR",
+    "RTRNBBNLINE11", "RTRNBBNLINE22", "RTEINORECIPI",
+    "RECTABADDCIT", "RECTABADDSTA", "RTAZIPCODE", "RETAIRRCCSSE",
+    "RETAAMOFCAGR", "RTAONCASSIST", "RETAMEOFVAAL", "RTDONCASSIST",
+    "RETAPUOFGRRA", "URL",
+]
+
+
+class Form990ScheduleIPipeline(DataSourcePipeline[Form990ScheduleIRow]):
+    source = "givingtuesday_990_schedule_i"
+    batch_size = 25_000
+    row_schema = Form990ScheduleIRow
+
+    def __init__(self, *, path: Path | None = None, limit: int | None = None):
+        self._path = path
+        self._limit = limit
+
+    async def extract(self, ctx: PipelineContext) -> AsyncIterator[dict]:
+        path = self._path or _latest_cached("ScheduleIPart2Grants")
+        emitted = 0
+        for chunk in _read_chunks(path, _SI_SRC_COLS):
+            for row in chunk.to_dict("records"):
+                if self._limit is not None and emitted >= self._limit:
+                    return
+                grantor_ein = _ein(row.get("FILEREIN"))
+                name1 = _safe_str(row.get("RTRNBBNLINE11"))
+                name2 = _safe_str(row.get("RTRNBBNLINE22"))
+                grantee_name = " ".join(p for p in (name1, name2) if p) or None
+                grantor_name = " ".join(
+                    p for p in (_safe_str(row.get("FILERNAME1")), _safe_str(row.get("FILERNAME2"))) if p
+                ) or None
+                # Drop lines with neither a grantor EIN nor a grantee — not a usable grant.
+                if not grantor_ein or not grantee_name:
+                    continue
+                yield {
+                    "source": self.source,
+                    "source_version": path.stem,
+                    "natural_key": (
+                        f"{grantor_ein}|{_safe_str(row.get('TAXYEAR')) or ''}|"
+                        f"{grantee_name}|{_safe_str(row.get('RETAAMOFCAGR')) or ''}"
+                    ),
+                    "grantor_ein": grantor_ein,
+                    "tax_year": _safe_int(row.get("TAXYEAR")),
+                    "grantor_name": grantor_name,
+                    "grantee_name": grantee_name,
+                    "grantee_ein": _ein(row.get("RTEINORECIPI")),
+                    "grantee_city": _safe_str(row.get("RECTABADDCIT")),
+                    "grantee_state_code": _safe_str(row.get("RECTABADDSTA"), 2),
+                    "grantee_zip": _safe_str(row.get("RTAZIPCODE"), 10),
+                    "irc_section": _safe_str(row.get("RETAIRRCCSSE")),
+                    "cash_grant_amount": _safe_int(row.get("RETAAMOFCAGR")),
+                    "noncash_assistance_amount": _safe_int(row.get("RTAONCASSIST")),
+                    "valuation_method": _safe_str(row.get("RETAMEOFVAAL")),
+                    "noncash_description": _safe_str(row.get("RTDONCASSIST")),
+                    "purpose": _safe_str(row.get("RETAPUOFGRRA")),
+                    "source_url": _safe_str(row.get("URL")),
+                }
+                emitted += 1
+
+    async def load_batch(self, session: AsyncSession, rows: list[Form990ScheduleIRow], ctx: PipelineContext) -> None:
+        await session.execute(_SI_INSERT, [r.model_dump(exclude=_BASE_FIELDS) for r in rows])
+
+
+# --------------------------------------------------------------------------- #
 # orchestration
 # --------------------------------------------------------------------------- #
 # Person-level child tables (officers, schedule_j) are append-only INSERTs with
@@ -632,6 +779,8 @@ _DATAMARTS = {
                  "bronze.bronze_organizations_990_officers", "990Part7AOfficers"),
     "schedule_j": (Form990ScheduleJPipeline, _SJ_DDL, _SJ_INDEXES,
                    "bronze.bronze_organizations_990_schedule_j", "ScheduleJPart2Officers"),
+    "schedule_i": (Form990ScheduleIPipeline, _SI_DDL, _SI_INDEXES,
+                   "bronze.bronze_grants_gt990_schedule_i", "ScheduleIPart2Grants"),
 }
 
 

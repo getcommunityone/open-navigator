@@ -612,19 +612,37 @@ export default function Home() {
     setShowSuggestions(value.length >= 2)
   }
 
+  // Apply the active location scope to a /search URL the same way the
+  // `location-stats` query (above) does, so navigation stays consistent with
+  // the badge counts. UnifiedSearch + /api/search currently accept only
+  // `state` and `city` (no `county` param), so we forward city+state and
+  // intentionally omit county even when the scope is county-level.
+  const applyLocationScope = (params: URLSearchParams) => {
+    if (!location) return
+    if (searchScope === 'city' && location.city) {
+      if (location.state) params.set('state', location.state)
+      params.set('city', location.city)
+    } else if (searchScope === 'community' && location.city) {
+      // School boards — city level
+      if (location.state) params.set('state', location.state)
+      params.set('city', location.city)
+    } else if (location.state) {
+      // county / state / national / fallback: state-level only (no county param downstream)
+      params.set('state', location.state)
+    }
+  }
+
   const handleSelectSuggestion = (suggestion: string) => {
     setKeyword(suggestion)
     setShowSuggestions(false)
-    
+
     // Navigate to search results with the selected suggestion
     const params = new URLSearchParams()
     params.set('q', suggestion)
     if (heroSearchTab !== 'all') {
       params.set('types', heroSearchTypes)
     }
-    if (location && location.state) {
-      params.set('state', location.state)
-    }
+    applyLocationScope(params)
     navigate(`/search?${params.toString()}`)
   }
 
@@ -633,9 +651,7 @@ export default function Home() {
       const params = new URLSearchParams()
       params.set('q', keyword)
       params.set('types', category)
-      if (location && location.state) {
-        params.set('state', location.state)
-      }
+      applyLocationScope(params)
       navigate(`/search?${params.toString()}`)
     }
   }
@@ -657,10 +673,8 @@ export default function Home() {
       params.set('types', heroSearchTypes)
     }
 
-    if (location && location.state) {
-      params.set('state', location.state)
-      homeLog('📍 [Home] Adding state filter:', location.state)
-    }
+    applyLocationScope(params)
+    homeLog('📍 [Home] Applied location scope:', { scope: searchScope, state: params.get('state'), city: params.get('city') })
 
     // Trace the search submission. Attributes are low-cardinality only — we
     // record the query *length* and presence, never the raw query string

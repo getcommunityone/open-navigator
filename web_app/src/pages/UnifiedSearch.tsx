@@ -144,10 +144,12 @@ export default function UnifiedSearch() {
   const [expandedJurisdictions, setExpandedJurisdictions] = useState<Set<number>>(new Set())
   const [expandedOrganizations, setExpandedOrganizations] = useState<Set<string>>(new Set())
   
-  // Extract city from jurisdiction details
-  const selectedCity = jurisdictionDetails.find(j => 
+  // Extract city from jurisdiction details, falling back to a plain ?city=
+  // URL param so a Home-built scoped link (e.g. ?city=Tuscaloosa&state=AL)
+  // filters results without needing a jurisdiction_details blob.
+  const selectedCity = jurisdictionDetails.find(j =>
     j.type === 'City' || j.type === 'city' || j.type === 'Place' || j.type === 'place'
-  )?.name || ''
+  )?.name || searchParams.get('city') || ''
   
   // Debounced query for autocomplete
   const [debouncedQuery, setDebouncedQuery] = useState(query)

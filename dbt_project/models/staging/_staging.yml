@@ -556,6 +556,29 @@ sources:
           - name: mission
             description: "Form 990 Part 1 Line 1 - Mission & Most Significant Activities"
 
+      - name: bronze_grants_gt990_schedule_i
+        description: >
+          GivingTuesday 990 Schedule I Part II datamart (ScheduleIPart2Grants):
+          nonprofit grantmaking to domestic organizations. One row per grant line
+          (grantor filer -> grantee org). Append-only child table (no natural
+          unique key) landed by ingestion.givingtuesday.load --datamart schedule_i.
+          Feeds stg_grants_gt990__schedule_i -> the `grant` mart.
+        columns:
+          - name: grantor_ein
+            description: "9-digit EIN of the filing (grantor) organization."
+          - name: tax_year
+            description: "Filing tax year."
+          - name: grantee_name
+            description: "Recipient organization name (Schedule I Part II col (a))."
+          - name: grantee_ein
+            description: "Recipient EIN (col (b)); frequently blank."
+          - name: cash_grant_amount
+            description: "Amount of cash grant (col (d))."
+          - name: purpose
+            description: "Purpose of grant or assistance (col (h))."
+          - name: source_url
+            description: "URL of the underlying 990 XML in the GivingTuesday data lake."
+
       - name: bronze_jurisdictions
         description: "Master list of jurisdictions (cities, counties, states)"
         columns:
