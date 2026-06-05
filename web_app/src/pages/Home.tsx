@@ -314,7 +314,8 @@ export default function Home() {
   // real count; otherwise we fall back to the static marketing string so the
   // idle hero still reads as designed.
   const HERO_COUNT_STAT_FIELD: Partial<Record<HeroSearchCategoryTab, string>> = {
-    leaders: 'contacts',
+    leaders: 'leaders',
+    persons: 'persons',
     nonprofits: 'nonprofits',
     decisions: 'decisions',
     bills: 'bills',

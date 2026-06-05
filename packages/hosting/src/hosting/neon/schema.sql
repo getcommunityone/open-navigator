@@ -45,7 +45,8 @@ CREATE TABLE jurisdiction_state_aggregate (
     nonprofits_count INTEGER DEFAULT 0,
     events_count INTEGER DEFAULT 0,
     bills_count INTEGER DEFAULT 0,
-    contacts_count INTEGER DEFAULT 0,
+    persons_count INTEGER DEFAULT 0,   -- everyone in the person index (mdm_person)
+    leaders_count INTEGER DEFAULT 0,   -- elected/gov officials + nonprofit board members
     
     -- Financial aggregates (from nonprofit data)
     total_revenue BIGINT DEFAULT 0,

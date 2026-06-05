@@ -189,16 +189,19 @@ PENDING_BY_JURISDICTION_SQL = """
         ON t.video_id = v.video_id
        AND t.has_transcript IS TRUE
        AND COALESCE(t.transcript_source, '') NOT LIKE 'excluded:%%'
-    LEFT JOIN bronze.bronze_events_analysis_ai a
-        ON a.video_id = v.video_id
-       AND a.error_message IS NULL
-    WHERE a.video_id IS NULL
+    WHERE v.policy_analysis_at IS NULL
       AND COALESCE(v.jurisdiction_id, '') <> ''
       AND v.video_url IS NOT NULL
       AND BTRIM(v.video_url) <> ''
     GROUP BY v.jurisdiction_id
     ORDER BY newest_pending DESC NULLS LAST
 """
+# NOTE: "pending" = no ``policy_analysis_at`` stamp on bronze_event_youtube. The
+# text/policy pipeline (llm.gemini.meeting_transcript_policy) marks a video done by
+# stamping ``policy_analysis_at`` (and writing the disk analysis), NOT by inserting
+# into ``bronze_events_analysis_ai`` — that table belongs to the separate multimodal
+# pipeline. Counting against it made the backlog never tick down. ``policy_analysis_at``
+# is the signal this pipeline actually sets and the one that surfaces in the view.
 
 
 def rows_to_plans(rows: Iterable[Sequence]) -> List[JurisdictionPlan]:

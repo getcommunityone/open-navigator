@@ -61,49 +61,63 @@ def calculate_stats_from_db(state: Optional[str] = None,
         
         if city and state:
             stats_where.append("city ILIKE %s")
-            stats_where.append("state_code = %s")
+            stats_where.append("state = %s")
             stats_params.append(f"%{city}%")
             stats_params.append(state.upper() if len(state) == 2 else state)
         elif county and state:
             # Normalize county name (remove 'County' suffix if present)
             county_name = county.replace(' County', '').strip()
             stats_where.append("county ILIKE %s")
-            stats_where.append("state_code = %s")
+            stats_where.append("state = %s")
             stats_params.append(f"%{county_name}%")
             stats_params.append(state.upper() if len(state) == 2 else state)
         elif state:
-            stats_where.append("state_code = %s")
+            stats_where.append("state = %s")
             stats_params.append(state.upper() if len(state) == 2 else state)
         
+        # Columns match the public.jurisdiction_state_aggregate schema. Officials
+        # are the `leaders_count` rollup. `trending_causes` is not materialized on
+        # this table yet (no source column), so it is reported as None until the
+        # dbt model exposes it.
         stats_query = f"""
-            SELECT 
+            SELECT
                 nonprofits_count,
                 events_count,
-                trending_causes,
                 jurisdictions_count,
-                contacts_count
+                school_districts_count,
+                bills_count,
+                leaders_count,
+                total_revenue,
+                total_assets
             FROM jurisdiction_state_aggregate
             WHERE {' AND '.join(stats_where)}
             LIMIT 1
         """
-        
+
         cursor.execute(stats_query, stats_params)
         result = cursor.fetchone()
-        
-        if result:
-            nonprofits = result[0] or 0
-            events = result[1] or 0
-            trending_causes = result[2]
-            jurisdictions = result[3] or 0
-            contacts = result[4] or 0
-        else:
-            # No data found for this location
-            nonprofits = 0
-            events = 0
-            trending_causes = None
-            jurisdictions = 0
-            contacts = 0
-        
+        cursor.close()
+        conn.close()
+
+        # The precomputed aggregate is authoritative only once its rollups are
+        # populated. Today it holds national + a few seeded states, with
+        # leaders_count / bills_count still 0. When the matching row is missing
+        # or unpopulated, defer to the live per-table counts (calculate_stats),
+        # which cover every location, instead of reporting zeros. This fast path
+        # self-activates once the jurisdiction_state_aggregate rollup is filled.
+        if not result or (result[5] or 0) == 0:
+            return calculate_stats(state=state, county=county, city=city)
+
+        nonprofits = result[0] or 0
+        events = result[1] or 0
+        jurisdictions = result[2] or 0
+        school_districts = result[3] or 0
+        bills = result[4] or 0
+        contacts = result[5] or 0
+        total_revenue = result[6] or 0
+        total_assets = result[7] or 0
+        trending_causes = None
+
         cursor.close()
         conn.close()
         
@@ -115,13 +129,13 @@ def calculate_stats_from_db(state: Optional[str] = None,
             'county': county,
             'city': city,
             'jurisdictions': jurisdictions,
-            'school_districts': 0,  # TODO: Add to jurisdiction_state_aggregate
+            'school_districts': school_districts,
             'nonprofits': nonprofits,
             'events': events,
-            'bills': 0,  # TODO: Add bills_search table
+            'bills': bills,
             'contacts': contacts,
-            'total_revenue': 0,
-            'total_assets': 0,
+            'total_revenue': total_revenue,
+            'total_assets': total_assets,
             'trending_causes': trending_causes,
             'last_updated': datetime.now().isoformat(),
             'source': 'database',
