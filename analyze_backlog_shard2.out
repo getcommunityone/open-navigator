@@ -93,3 +93,4 @@
 2026-06-04 22:42:38.015 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for 1W9xHRrulSk (811 segments, database:bronze_event_youtube_transcript (segments))
 2026-06-04 22:42:38.064 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1011 - Calling gemini-2.5-flash (AI Studio API)
 2026-06-04 22:43:39.511 | WARNING  | llm.gemini.genai_text_client:call_with_genai_quota_retry:321 - gemini-2.5-flash: transient network disconnect — sleeping 8s, retry 2/12 (RemoteProtocolError — Server disconnected without sending a response.)
+2026-06-04 22:44:43.831 | WARNING  | llm.gemini.genai_text_client:call_with_genai_quota_retry:321 - gemini-2.5-flash: transient network disconnect — sleeping 11s, retry 3/12 (RemoteProtocolError — peer closed connection without sending complete message body (incomplete chunked read))
