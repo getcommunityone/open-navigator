@@ -1763,3 +1763,144 @@ async def search_causes_pg(
         logger.error(f"PostgreSQL causes search error: {e}")
         return []
 
+
+async def search_grants_pg(
+    query: Optional[str] = None,
+    state: Optional[str] = None,
+    limit: int = 10,
+) -> List[SearchResult]:
+    """
+    Search nonprofit grants, backed by the public.grant mart (GivingTuesday 990
+    Schedule I Part II grant lines: grantor org -> grantee, cash amount, purpose).
+
+    public.grant has no FTS / tsvector column, so the query is matched with ILIKE
+    against grantor_name, grantee_name, and purpose. The state filter matches the
+    grantor's golden 2-letter state code (full names normalized to a code).
+
+    Results are ordered by amount DESC (biggest grants first), so a bare browse
+    (no query) returns the largest grants.
+
+    Args:
+        query: Search text (matched against grantor_name, grantee_name, purpose)
+        state: Filter by grantor state code ('MA') or full name ('Massachusetts')
+        limit: Max results
+
+    Returns:
+        List of SearchResult objects (result_type='grant')
+    """
+    # Normalize state input to 2-letter code (matches grantor_state_code)
+    state = normalize_state_input(state)
+
+    try:
+        pool = await get_db_pool()
+
+        where_clauses = []
+        params = []
+        param_idx = 1
+
+        if state:
+            where_clauses.append(f"grantor_state_code = ${param_idx}")
+            params.append(state.upper())
+            param_idx += 1
+
+        # No tsvector column on public.grant — ILIKE the one %q% pattern across the
+        # three text columns the grant carries.
+        if query and query.strip():
+            q = query.strip()
+            where_clauses.append(f"""(
+                grantor_name ILIKE ${param_idx}
+                OR grantee_name ILIKE ${param_idx}
+                OR purpose ILIKE ${param_idx}
+            )""")
+            params.append(f"%{q}%")
+            param_idx += 1
+
+        where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
+
+        sql = f"""
+            SELECT
+                grant_id,
+                grantor_name,
+                grantor_state_code,
+                grantor_city_norm,
+                grantee_name,
+                grantee_city,
+                grantee_state_code,
+                amount,
+                purpose,
+                tax_year,
+                source_url
+            FROM "grant"
+            WHERE {where_sql}
+            ORDER BY amount DESC NULLS LAST
+            LIMIT ${param_idx}
+        """
+        params.append(limit)
+
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(sql, *params)
+
+            results = []
+            for row in rows:
+                grantor = row['grantor_name'] or 'Unknown grantor'
+                grantee = row['grantee_name'] or 'Unknown grantee'
+                title = f"{grantor} → {grantee}"
+
+                amount = row['amount']
+                amount_str = f"${amount:,}" if amount is not None else None
+
+                # Grantor location for context (golden 2-letter state + city).
+                grantor_location = (
+                    f"{row['grantor_city_norm']}, {row['grantor_state_code']}"
+                    if row['grantor_city_norm'] and row['grantor_state_code']
+                    else (row['grantor_state_code'] or '')
+                )
+
+                subtitle = " • ".join(
+                    p for p in (amount_str, grantor_location) if p
+                )
+
+                # Description: amount + purpose (truncated if long).
+                purpose = row['purpose'] or ''
+                if len(purpose) > 200:
+                    purpose = purpose[:197] + "..."
+                description = " • ".join(
+                    p for p in (amount_str, purpose) if p
+                ) or 'Nonprofit grant'
+
+                results.append(SearchResult(
+                    result_type='grant',
+                    title=title,
+                    subtitle=subtitle,
+                    description=description,
+                    url=f"/grants/{row['grant_id']}",
+                    score=1.0,
+                    metadata={
+                        'grant_id': row['grant_id'],
+                        'grantor_name': grantor,
+                        'grantee_name': grantee,
+                        'amount': amount,
+                        'purpose': row['purpose'],
+                        'tax_year': str(row['tax_year']) if row['tax_year'] is not None else None,
+                        # Naming contract: grantor location is the card's geography.
+                        'state': row['grantor_state_code'],
+                        'state_code': row['grantor_state_code'],
+                        'city': row['grantor_city_norm'],
+                        'grantee_city': row['grantee_city'],
+                        'grantee_state_code': row['grantee_state_code'],
+                        'source_url': row['source_url'],
+                    }
+                ))
+
+            logger.info(f"💰 PostgreSQL grants search: {len(results)} results")
+            return results
+
+    except asyncpg.exceptions.UndefinedTableError as e:
+        # The grant mart may be unbuilt in some envs — degrade gracefully instead
+        # of 500-ing the whole unified search.
+        logger.warning(f"public.grant not found, skipping grants search: {e}")
+        return []
+    except Exception as e:
+        logger.error(f"PostgreSQL grants search error: {e}")
+        return []
+

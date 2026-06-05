@@ -1054,7 +1054,7 @@ async def _traced_subsearch(
 @router.get("/search/", include_in_schema=False)
 async def unified_search(
     q: Optional[str] = Query(None, description="Search query (optional - browse by filters if omitted)"),
-    types: Optional[str] = Query(None, description="Comma-separated result types: person,meetings,organizations,causes,jurisdictions,bills,topics,decisions,documents ('contacts' accepted as a deprecated alias of 'person')"),
+    types: Optional[str] = Query(None, description="Comma-separated result types: person,meetings,organizations,causes,jurisdictions,bills,topics,decisions,documents,grants ('contacts' accepted as a deprecated alias of 'person')"),
     state: Optional[str] = Query(None, description="Filter by state (2-letter code)"),
     city: Optional[str] = Query(None, description="Filter by city name"),
     jurisdiction_levels: Optional[str] = Query(None, description="Comma-separated jurisdiction levels: city,county,town,village,school_district,special_district,state"),
@@ -1099,7 +1099,7 @@ async def unified_search(
         if types:
             requested_types = [t.strip() for t in types.split(',')]
         else:
-            requested_types = ['person', 'meetings', 'organizations', 'causes', 'jurisdictions', 'bills', 'topics', 'decisions', 'documents']
+            requested_types = ['person', 'meetings', 'organizations', 'causes', 'jurisdictions', 'bills', 'topics', 'decisions', 'documents', 'grants']
         
         # Parse jurisdiction levels if provided
         jurisdiction_levels_list = None
@@ -1158,6 +1158,11 @@ async def unified_search(
 
         if 'bills' in requested_types:
             search_tasks.append(('bills', search_postgres.search_bills_pg(q, state, session, limit=search_limit)))
+
+        if 'grants' in requested_types:
+            # Nonprofit grants (public.grant) — ILIKE over grantor/grantee/purpose,
+            # ordered by amount DESC. Graceful no-op if the mart is unbuilt.
+            search_tasks.append(('grants', search_postgres.search_grants_pg(q, state, limit=search_limit)))
 
         if 'topics' in requested_types:
             search_tasks.append(('topics', search_postgres.search_topics_pg(q, state, ntee_code, limit=search_limit)))
@@ -1247,9 +1252,10 @@ async def unified_search(
             'causes': [r.to_dict() for r in paginated_results if r.result_type == 'cause'],
             'jurisdictions': [r.to_dict() for r in paginated_results if r.result_type == 'jurisdiction'],
             'documents': [r.to_dict() for r in paginated_results if r.result_type == 'document'],
+            'grants': [r.to_dict() for r in paginated_results if r.result_type == 'grant'],
         }
-        
-        logger.info(f"📦 Grouped results - contacts:{len(grouped_results['contacts'])}, meetings:{len(grouped_results['meetings'])}, organizations:{len(grouped_results['organizations'])}, bills:{len(grouped_results['bills'])}, topics:{len(grouped_results['topics'])}, decisions:{len(grouped_results['decisions'])}, causes:{len(grouped_results['causes'])}, jurisdictions:{len(grouped_results['jurisdictions'])}")
+
+        logger.info(f"📦 Grouped results - contacts:{len(grouped_results['contacts'])}, meetings:{len(grouped_results['meetings'])}, organizations:{len(grouped_results['organizations'])}, bills:{len(grouped_results['bills'])}, topics:{len(grouped_results['topics'])}, decisions:{len(grouped_results['decisions'])}, causes:{len(grouped_results['causes'])}, jurisdictions:{len(grouped_results['jurisdictions'])}, grants:{len(grouped_results['grants'])}")
         
         # Calculate total results per type (from all_results before pagination)
         people_and_officials_total = len(
@@ -1266,6 +1272,7 @@ async def unified_search(
             'causes': len([r for r in all_results if r.result_type == 'cause']),
             'jurisdictions': len([r for r in all_results if r.result_type == 'jurisdiction']),
             'documents': len([r for r in all_results if r.result_type == 'document']),
+            'grants': len([r for r in all_results if r.result_type == 'grant']),
         }
         
         # Calculate total results

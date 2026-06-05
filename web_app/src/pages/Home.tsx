@@ -32,6 +32,7 @@ import {
   ArrowRightOnRectangleIcon,
   ClipboardDocumentListIcon,
   CodeBracketIcon,
+  BanknotesIcon,
 } from '@heroicons/react/24/outline'
 import {
   EXPLORE_BUILD_ID,
@@ -128,10 +129,12 @@ const FEATURED_STORIES = [
 type HeroSearchCategoryTab =
   | 'all'
   | 'leaders'
+  | 'persons'
   | 'nonprofits'
   | 'decisions'
   | 'causes'
   | 'bills'
+  | 'grants'
   | 'donors'
 
 const HERO_SEARCH_TAB_DEFS: {
@@ -146,10 +149,12 @@ const HERO_SEARCH_TAB_DEFS: {
 }[] = [
   { id: 'all', label: 'All', types: 'causes,contacts,organizations,bills,topics,decisions' },
   { id: 'leaders', label: 'Leaders', types: 'contacts', count: '75K', filterPlaceholder: 'Filter leaders by name or office…' },
+  { id: 'persons', label: 'Persons', types: 'person', filterPlaceholder: 'Filter people by name…' },
   { id: 'nonprofits', label: 'Nonprofits', types: 'organizations', count: '1.8M', filterPlaceholder: 'Filter nonprofits by name or cause…' },
   { id: 'decisions', label: 'Decisions', types: 'decisions', count: '169', activity: true, filterPlaceholder: 'Filter decisions by topic or body…' },
   { id: 'causes', label: 'Causes', types: 'causes', count: '650+', filterPlaceholder: 'Filter causes by name…' },
   { id: 'bills', label: 'Bills', types: 'bills', filterPlaceholder: 'Filter bills by number or topic…' },
+  { id: 'grants', label: 'Grants', types: 'grants', filterPlaceholder: 'Filter grants by organization or purpose…' },
   {
     id: 'donors',
     label: 'Donors',
@@ -1573,6 +1578,42 @@ export default function Home() {
                                       );
                                     })()}
 
+                                    {/* Persons Section (MDM person index — distinct from the officials-backed People/contacts group above) */}
+                                    {previewResults.total_results > 0 && previewResults.results?.person?.length > 0 && (() => {
+                                      const filteredPersons = filterResults(previewResults.results.person, keyword);
+                                      return filteredPersons.length > 0 && (
+                                        <div className="border-b border-gray-200">
+                                          <div className="px-4 py-2 bg-gray-50 flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                              <UserCircleIcon className="h-4 w-4 text-gray-500" />
+                                              <span className="text-xs font-semibold text-gray-700 uppercase">Persons</span>
+                                            </div>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleViewAllCategory('person')}
+                                              className="text-xs text-[#354F52] hover:text-[#2e4346] font-medium"
+                                            >
+                                              View All
+                                            </button>
+                                          </div>
+                                          {filteredPersons.slice(0, 3).map((result: any, idx: number) => (
+                                            <button
+                                              key={idx}
+                                              type="button"
+                                              onClick={() => handleSelectSuggestion(result.title)}
+                                              className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
+                                            >
+                                              <UserCircleIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
+                                              <div className="flex-1 min-w-0">
+                                                <div className="font-medium text-gray-900 truncate">{highlightMatch(result.title, keyword)}</div>
+                                                <div className="text-sm text-gray-600 truncate">{highlightMatch(result.subtitle || result.description, keyword)}</div>
+                                              </div>
+                                            </button>
+                                          ))}
+                                        </div>
+                                      );
+                                    })()}
+
                                     {/* Bills Section */}
                                     {previewResults.total_results > 0 && previewResults.results?.bills?.length > 0 && (() => {
                                       const filteredBills = filterResults(previewResults.results.bills, keyword);
@@ -1599,6 +1640,42 @@ export default function Home() {
                                               className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
                                             >
                                               <DocumentTextIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
+                                              <div className="flex-1 min-w-0">
+                                                <div className="font-medium text-gray-900 truncate">{highlightMatch(result.title, keyword)}</div>
+                                                <div className="text-sm text-gray-600 truncate">{highlightMatch(result.subtitle || result.description, keyword)}</div>
+                                              </div>
+                                            </button>
+                                          ))}
+                                        </div>
+                                      );
+                                    })()}
+
+                                    {/* Grants Section (GivingTuesday 990 grants — backend `grants` search type) */}
+                                    {previewResults.total_results > 0 && previewResults.results?.grants?.length > 0 && (() => {
+                                      const filteredGrants = filterResults(previewResults.results.grants, keyword);
+                                      return filteredGrants.length > 0 && (
+                                        <div className="border-b border-gray-200">
+                                          <div className="px-4 py-2 bg-gray-50 flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                              <BanknotesIcon className="h-4 w-4 text-gray-500" />
+                                              <span className="text-xs font-semibold text-gray-700 uppercase">Grants</span>
+                                            </div>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleViewAllCategory('grants')}
+                                              className="text-xs text-[#354F52] hover:text-[#2e4346] font-medium"
+                                            >
+                                              View All
+                                            </button>
+                                          </div>
+                                          {filteredGrants.slice(0, 3).map((result: any, idx: number) => (
+                                            <button
+                                              key={idx}
+                                              type="button"
+                                              onClick={() => handleSelectSuggestion(result.title)}
+                                              className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
+                                            >
+                                              <BanknotesIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
                                               <div className="flex-1 min-w-0">
                                                 <div className="font-medium text-gray-900 truncate">{highlightMatch(result.title, keyword)}</div>
                                                 <div className="text-sm text-gray-600 truncate">{highlightMatch(result.subtitle || result.description, keyword)}</div>

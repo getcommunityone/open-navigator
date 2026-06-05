@@ -13,7 +13,7 @@ from datetime import datetime, date
 import sys
 import time
 from pathlib import Path
-from fastapi import FastAPI, HTTPException, Query, BackgroundTasks, Request
+from fastapi import FastAPI, HTTPException, Query, BackgroundTasks, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -174,6 +174,24 @@ async def log_requests(request: Request, call_next):
         
     except Exception as e:
         duration_ms = (time.time() - start_time) * 1000
+
+        # A client that disconnects mid-flight (e.g. the frontend's
+        # AbortController timing out a slow request) cancels the downstream
+        # task, so Starlette's BaseHTTPMiddleware reports
+        # "No response returned." That's a normal client abort, not a server
+        # fault — log it quietly and return 499 (Client Closed Request) instead
+        # of re-raising a 500 with a noisy traceback.
+        if (
+            isinstance(e, RuntimeError)
+            and str(e) == "No response returned."
+            and await request.is_disconnected()
+        ):
+            logger.info(
+                f"🚫 {request.method} {request.url.path} - "
+                f"Client disconnected - Duration: {duration_ms:.2f}ms"
+            )
+            return Response(status_code=499)
+
         logger.error(
             f"💥 {request.method} {request.url.path} - "
             f"Error: {str(e)} - "
@@ -656,6 +674,7 @@ async def get_api_opportunities(
         opportunities = []
         
         # Use consolidated parquet file
+        # NOTE: stays on parquet until bronze_bills_openstates ingestion is complete (13k/1.55M)
         parquet_path = Path("data/gold/bills_bills.parquet")
         if not parquet_path.exists():
             return {"opportunities": [], "total": 0}
@@ -1315,67 +1334,72 @@ async def startup_event():
     critical_files = []
     optional_files = []
     
-    # Check reference data (critical)
-    reference_checks = [
-        "reference/jurisdictions_cities.parquet",
-        "reference/jurisdictions_counties.parquet",
-        "reference/causes_ntee_codes.parquet",
+    # Check reference data (critical). These now come from the Postgres `public`
+    # schema rather than local parquet (CLAUDE.md: API must read `public`).
+    # Each probe reports its live row count via SELECT count(*).
+    import psycopg2
+    _ref_dsn = os.getenv(
+        "NEON_DATABASE_URL_DEV",
+        "postgresql://postgres:password@localhost:5433/open_navigator",
+    )
+    # label -> SQL count query against public schema
+    reference_db_checks = [
+        ("jurisdictions (city/town/county)",
+         "SELECT count(*) FROM public.jurisdictions "
+         "WHERE jurisdiction_type IN ('city','town','county')"),
+        ("jurisdictions (counties)",
+         "SELECT count(*) FROM public.jurisdictions "
+         "WHERE jurisdiction_type = 'county'"),
+        ("causes (public.tag)", "SELECT count(*) FROM public.tag"),
     ]
-    
-    for file_pattern in reference_checks:
-        file_path = data_dir / file_pattern
-        if file_path.exists():
-            size_mb = file_path.stat().st_size / (1024 * 1024)
+    try:
+        _ref_conn = psycopg2.connect(_ref_dsn)
+        _ref_cur = _ref_conn.cursor()
+        for label, query in reference_db_checks:
             try:
-                import pandas as pd
-                df = pd.read_parquet(file_path)
-                logger.info(f"  ✅ {file_pattern}: {len(df):,} records ({size_mb:.2f} MB)")
-                critical_files.append(file_pattern)
+                _ref_cur.execute(query)
+                _count = _ref_cur.fetchone()[0]
+                logger.info(f"  ✅ {label}: {_count:,} records (public schema)")
+                critical_files.append(label)
             except Exception as e:
-                logger.error(f"  ❌ {file_pattern}: ERROR - {e}")
-        else:
-            logger.warning(f"  ⚠️  {file_pattern}: NOT FOUND")
+                logger.error(f"  ❌ {label}: ERROR - {e}")
+        _ref_cur.close()
+        _ref_conn.close()
+    except Exception as e:
+        logger.error(f"  ❌ reference counts: could not connect to public schema - {e}")
     
-    # Check state data (optional - shows what's available)
+    # State data availability — served from the Postgres `public` schema.
+    # events -> public.event grouped by state_code (NOT per-state parquet dirs).
+    # NOTE: nonprofits (public.mdm_organization_nonprofit) has no state_code and
+    # no usable org->location join, so a per-state nonprofit count is not
+    # available here; only the national count is logged below.
     logger.info("")
     logger.info("📍 STATE DATA AVAILABILITY:")
-    
-    states_dir = data_dir / "states"
-    if states_dir.exists():
-        state_dirs = sorted([d for d in states_dir.iterdir() if d.is_dir()])
-        states_with_data = []
-        
-        for state_dir in state_dirs[:10]:  # Show first 10 states
-            state = state_dir.name
-            files_found = []
-            
-            # Check for key files.
-            # NOTE: officials (contact_official) are no longer served from
-            # per-state parquet — the API reads public.contact_official. The
-            # officials row count is logged once below from the table, so it is
-            # intentionally absent from this per-state local-file probe.
-            key_files = [
-                "nonprofits_organizations.parquet",
-                "events.parquet",
-            ]
-            
-            for filename in key_files:
-                file_path = state_dir / filename
-                if file_path.exists():
-                    files_found.append(filename.split('.')[0].split('_')[-1])
-            
-            if files_found:
-                logger.info(f"  ✅ {state}: {', '.join(files_found)}")
-                states_with_data.append(state)
-        
-        total_states = len(state_dirs)
+    try:
+        _state_conn = psycopg2.connect(_ref_dsn)
+        _state_cur = _state_conn.cursor()
+        _state_cur.execute(
+            "SELECT state_code, count(*) FROM public.event "
+            "WHERE state_code IS NOT NULL GROUP BY state_code ORDER BY state_code"
+        )
+        _state_rows = _state_cur.fetchall()
+
+        _state_cur.execute("SELECT count(*) FROM public.mdm_organization_nonprofit")
+        _np_national = _state_cur.fetchone()[0]
+
+        _state_cur.close()
+        _state_conn.close()
+
+        for sc, cnt in _state_rows[:10]:  # Show first 10 states
+            logger.info(f"  ✅ {sc}: {cnt:,} events")
+        total_states = len(_state_rows)
         if total_states > 10:
             logger.info(f"  ... and {total_states - 10} more states")
-        
         logger.info(f"")
-        logger.info(f"  📊 Total states with data: {total_states}")
-    else:
-        logger.warning("  ⚠️  No state data directory found")
+        logger.info(f"  📊 Total states with events: {total_states}")
+        logger.info(f"  🏢 public.mdm_organization_nonprofit: {_np_national:,} nonprofits (national)")
+    except Exception as e:
+        logger.warning(f"  ⚠️  Could not read per-state event counts from public schema: {e}")
 
     # Officials are served from public.contact_official (not parquet). Log the
     # live row count once so the startup banner still reports officials volume.

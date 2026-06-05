@@ -185,99 +185,83 @@ def calculate_stats(state: Optional[str] = None,
         level = 'national'
         location_display = 'United States'
     
-    # Count jurisdictions (cities, counties, townships, school districts)
-    if state:
-        # Filter to specific state's jurisdictions
-        def filter_state(df):
-            state_col = 'state' if 'state' in df.columns else 'STATE'
-            if state_col not in df.columns:
-                return pd.Series([False] * len(df))
-            return df[state_col].str.upper() == state.upper()
-        
-        # For city level, show just that city (1 jurisdiction)
+    # Counts are served from the Postgres `public` schema (NOT parquet) per
+    # CLAUDE.md. Reuse the same psycopg2/LOCAL_DB_URL convention as the
+    # officials migration above — a single connection for all count queries.
+    state_code = (state.upper() if (state and len(state) == 2) else state) if state else None
+
+    jurisdictions = 0
+    school_districts = 0
+    nonprofits = 0
+    meetings = 0
+    try:
+        conn = psycopg2.connect(LOCAL_DB_URL)
+        cursor = conn.cursor()
+
+        # --- Jurisdictions (public.jurisdictions) ---
+        # "All jurisdictions" deliberately EXCLUDES school_district (counted
+        # separately below). city/town/county only.
         if city:
             # When a city is selected, show 4 jurisdictions:
             # 1. City, 2. County, 3. State, 4. School District
-            jurisdictions = 4  # City, County, State, School District
-        elif county:
-            # Count cities/townships in this county
-            cities_file = Path('data/gold/reference/jurisdictions_cities.parquet')
-            townships_file = Path('data/gold/reference/jurisdictions_townships.parquet')
-            count = 0
-            
-            if cities_file.exists():
-                df = pd.read_parquet(cities_file)
-                state_col = 'state' if 'state' in df.columns else 'STATE'
-                if state_col in df.columns:
-                    df = df[df[state_col].str.upper() == state.upper()]
-                    # Filter by county name (NAME column contains county info in some cases)
-                    # For now, count all in state - proper county filtering needs geocoding
-                    count += len(df)
-            
-            if townships_file.exists():
-                df = pd.read_parquet(townships_file)
-                state_col = 'state' if 'state' in df.columns else 'STATE'
-                if state_col in df.columns:
-                    df = df[df[state_col].str.upper() == state.upper()]
-                    count += len(df)
-            
+            jurisdictions = 4
+        elif county and state_code:
+            # Count cities/townships in this county's state.
+            # For now, count all in state - proper county filtering needs geocoding.
+            cursor.execute(
+                "SELECT count(*) FROM public.jurisdictions "
+                "WHERE jurisdiction_type IN ('city','town') AND state_code = %s",
+                [state_code],
+            )
+            count = cursor.fetchone()[0] or 0
             jurisdictions = count if count > 0 else 1  # At least the county itself
         else:
-            # State level - count all jurisdictions
-            jurisdictions = count_parquet_records('reference/jurisdictions_*.parquet', filter_state)
-        
-        school_districts = count_parquet_records('reference/jurisdictions_school_districts.parquet', filter_state)
-    else:
-        jurisdictions = count_parquet_records('reference/jurisdictions_*.parquet')
-        school_districts = count_parquet_records('reference/jurisdictions_school_districts.parquet')
-    
-    # Count nonprofits
-    nonprofits_file = Path('data/gold/nonprofits_organizations.parquet')
-    if nonprofits_file.exists():
-        df = pd.read_parquet(nonprofits_file)
-        
-        # Filter by state if specified
-        if state:
-            state_col = 'state' if 'state' in df.columns else ('STATE' if 'STATE' in df.columns else None)
-            if state_col:
-                df = df[df[state_col].str.upper() == state.upper()]
-        
-        # Filter by county if specified
-        if county:
-            county_col = 'COUNTY' if 'COUNTY' in df.columns else 'county'
-            if county_col in df.columns:
-                df = df[df[county_col].str.contains(county, case=False, na=False)]
-        
-        # Filter by city if specified  
-        if city:
-            city_col = 'CITY' if 'CITY' in df.columns else 'city'
-            if city_col in df.columns:
-                df = df[df[city_col].str.contains(city, case=False, na=False)]
-        
-        nonprofits = len(df)
-    else:
-        nonprofits = 0
-    
-    # Count events/meetings
-    event_file = Path('data/gold/events.parquet')
-    if event_file.exists():
-        df = pd.read_parquet(event_file)
-        
-        # Filter by state if specified
-        if state:
-            state_col = 'state' if 'state' in df.columns else ('STATE' if 'STATE' in df.columns else None)
-            if state_col:
-                df = df[df[state_col].str.upper() == state.upper()]
-        
-        # Filter by city if specified
-        if city:
-            place_col = 'place_name' if 'place_name' in df.columns else ('jurisdiction_name' if 'jurisdiction_name' in df.columns else 'jurisdiction')
-            if place_col in df.columns:
-                df = df[df[place_col].str.contains(city, case=False, na=False)]
-        
-        meetings = len(df)
-    else:
-        meetings = 0
+            jur_where = "jurisdiction_type IN ('city','town','county')"
+            jur_params: list = []
+            if state_code:
+                jur_where += " AND state_code = %s"
+                jur_params.append(state_code)
+            cursor.execute(
+                f"SELECT count(*) FROM public.jurisdictions WHERE {jur_where}",
+                jur_params,
+            )
+            jurisdictions = cursor.fetchone()[0] or 0
+
+        # School districts (same table, jurisdiction_type='school_district').
+        sd_where = "jurisdiction_type = 'school_district'"
+        sd_params: list = []
+        if state_code:
+            sd_where += " AND state_code = %s"
+            sd_params.append(state_code)
+        cursor.execute(
+            f"SELECT count(*) FROM public.jurisdictions WHERE {sd_where}", sd_params
+        )
+        school_districts = cursor.fetchone()[0] or 0
+
+        # --- Nonprofits (public.mdm_organization_nonprofit) ---
+        # This table has NO state_code column, and mdm_bridge_org_address shares
+        # zero master_org_id values with it (different ID namespaces), so a clean
+        # state/county/city join is not available.
+        # TODO: state-filtered nonprofit count needs org->location join
+        # (mdm_bridge_org_address currently does not link to mdm_organization_nonprofit).
+        cursor.execute("SELECT count(*) FROM public.mdm_organization_nonprofit")
+        nonprofits = cursor.fetchone()[0] or 0
+
+        # --- Events / meetings (public.event) ---
+        ev_where = "TRUE"
+        ev_params: list = []
+        if state_code:
+            ev_where = "state_code = %s"
+            ev_params.append(state_code)
+        cursor.execute(
+            f"SELECT count(*) FROM public.event WHERE {ev_where}", ev_params
+        )
+        meetings = cursor.fetchone()[0] or 0
+
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        logger.error(f"Error counting jurisdictions/nonprofits/events from public schema: {e}")
     
     # Count contacts (officials) from the public.contact_official table — replaces
     # the retired gold officials parquet feed (data/gold/contact_official.parquet).
@@ -306,13 +290,25 @@ def calculate_stats(state: Optional[str] = None,
         logger.error(f"Error counting contacts from public.contact_official: {e}")
         contacts = 0
     
-    # Count causes (NTEE codes - always national)
-    causes = count_parquet_records('reference/causes_ntee_codes.parquet')
-    
+    # Count causes (NTEE cause taxonomy - always national).
+    # public.tag replaced the retired reference/causes_ntee_codes.parquet feed.
+    causes = 0
+    try:
+        conn = psycopg2.connect(LOCAL_DB_URL)
+        cursor = conn.cursor()
+        cursor.execute("SELECT count(*) FROM public.tag")
+        causes = cursor.fetchone()[0] or 0
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        logger.error(f"Error counting causes from public.tag: {e}")
+        causes = 0
+
     # Count states with data
     states_with_data = len(list(Path('data/gold/states').glob('*/')))
-    
+
     # Count domains
+    # TODO: no Postgres source for domains yet
     domains = count_parquet_records('reference/domains_*.parquet')
     
     # Format display values - use ACTUAL counts only, no extrapolation
@@ -492,26 +488,42 @@ async def get_detailed_stats(
     try:
         stats = get_cached_stats(state=state)
         
-        # Add state-by-state breakdown (only for national view)
+        # Add state-by-state breakdown (only for national view).
+        # Served from the Postgres `public` schema via single grouped queries
+        # (NOT per-state parquet dirs) per CLAUDE.md.
         if not state:
-            states = {}
-            for state_dir in Path('data/gold/states').glob('*/'):
-                state_code = state_dir.name
-                state_stats = {}
-                
-                # Count each data type for this state
-                for data_type in ['nonprofits_organizations', 'meetings', 'contacts_nonprofit_officers']:
-                    file = state_dir / f'{data_type}.parquet'
-                    if file.exists():
-                        try:
-                            df = pd.read_parquet(file)
-                            state_stats[data_type] = len(df)
-                        except:
-                            pass
-                
-                if state_stats:
-                    states[state_code] = state_stats
-            
+            states: Dict[str, Dict[str, int]] = {}
+            try:
+                conn = psycopg2.connect(LOCAL_DB_URL)
+                cursor = conn.cursor()
+
+                # meetings -> public.event grouped by state_code
+                cursor.execute(
+                    "SELECT state_code, count(*) FROM public.event "
+                    "WHERE state_code IS NOT NULL GROUP BY state_code"
+                )
+                for sc, cnt in cursor.fetchall():
+                    states.setdefault(sc, {})['meetings'] = cnt
+
+                # contacts_nonprofit_officers -> public.mdm_bridge_person_organization
+                # (Form-990 officers) grouped by state_code.
+                cursor.execute(
+                    "SELECT state_code, count(*) FROM public.mdm_bridge_person_organization "
+                    "WHERE state_code IS NOT NULL GROUP BY state_code"
+                )
+                for sc, cnt in cursor.fetchall():
+                    states.setdefault(sc, {})['contacts_nonprofit_officers'] = cnt
+
+                cursor.close()
+                conn.close()
+            except Exception as e:
+                logger.error(f"Error building per-state breakdown from public schema: {e}")
+
+            # nonprofits_organizations per-state is intentionally omitted:
+            # public.mdm_organization_nonprofit has no state_code and no usable
+            # org->location join (mdm_bridge_org_address does not link to it).
+            # TODO: state-filtered nonprofit count needs org->location join.
+
             return {
                 'success': True,
                 'data': {

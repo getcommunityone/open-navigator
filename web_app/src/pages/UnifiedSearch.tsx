@@ -19,13 +19,14 @@ import {
   VideoCameraIcon,
   DocumentTextIcon,
   ChatBubbleBottomCenterTextIcon,
-  ScaleIcon
+  ScaleIcon,
+  BanknotesIcon
 } from '@heroicons/react/24/outline'
 import { formatCurrency } from '../utils/formatters'
 
 interface SearchResult {
-  type: 'person' | 'contact' | 'meeting' | 'organization' | 'cause' | 'bill' | 'topic' | 'decision'
-  result_type?: 'person' | 'contact' | 'meeting' | 'organization' | 'cause' | 'bill' | 'topic' | 'decision'
+  type: 'person' | 'contact' | 'meeting' | 'organization' | 'cause' | 'bill' | 'topic' | 'decision' | 'grant'
+  result_type?: 'person' | 'contact' | 'meeting' | 'organization' | 'cause' | 'bill' | 'topic' | 'decision' | 'grant'
   title: string
   subtitle: string
   description: string
@@ -48,6 +49,7 @@ interface SearchResponse {
     topics: number
     decisions: number
     jurisdictions: number
+    grants?: number
   }
   results: {
     person: SearchResult[]
@@ -60,6 +62,7 @@ interface SearchResponse {
     topics: SearchResult[]
     decisions: SearchResult[]
     jurisdictions?: SearchResult[]
+    grants?: SearchResult[]
   }
   pagination: {
     page: number
@@ -88,7 +91,7 @@ export default function UnifiedSearch() {
     const typesParam = searchParams.get('types')
     if (typesParam) {
       const types = typesParam.split(',').filter(t =>
-        ['person', 'contacts', 'organizations', 'causes', 'meetings', 'bills', 'topics', 'decisions'].includes(t.trim())
+        ['person', 'contacts', 'organizations', 'causes', 'meetings', 'bills', 'topics', 'decisions', 'grants'].includes(t.trim())
       )
       return types.length > 0 ? types : ['person', 'organizations', 'causes', 'bills', 'topics']
     }
@@ -478,6 +481,8 @@ export default function UnifiedSearch() {
         return <ChatBubbleBottomCenterTextIcon className="h-5 w-5" />
       case 'decision':
         return <ScaleIcon className="h-5 w-5" />
+      case 'grant':
+        return <BanknotesIcon className="h-5 w-5" />
       case 'jurisdiction':
         return <MapPinIcon className="h-5 w-5" />
       default:
@@ -505,6 +510,8 @@ export default function UnifiedSearch() {
         return 'bg-teal-100 text-teal-700 border-teal-200'
       case 'decision':
         return 'bg-amber-100 text-amber-700 border-amber-200'
+      case 'grant':
+        return 'bg-emerald-100 text-emerald-700 border-emerald-200'
       case 'jurisdiction':
         return 'bg-orange-100 text-orange-700 border-orange-200'
       default:
@@ -1055,6 +1062,7 @@ export default function UnifiedSearch() {
               { type: 'bills', label: 'Bills' },
               { type: 'topics', label: 'Topics' },
               { type: 'decisions', label: 'Decisions' },
+              { type: 'grants', label: 'Grants' },
             ] as const).map(({ type, label }) => (
               <button
                 key={type}
@@ -1626,6 +1634,20 @@ export default function UnifiedSearch() {
                     </h3>
                     <div className="grid grid-cols-1 gap-4">
                       {searchResults.results.jurisdictions.map((result, idx) => (
+                        <ResultCard key={idx} result={result} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {selectedTypes.includes('grants') && searchResults.results?.grants && searchResults.results.grants.length > 0 && (
+                  <div className="mb-8">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                      <BanknotesIcon className="h-6 w-6 text-emerald-600" />
+                      Grants ({searchResults.type_totals?.grants?.toLocaleString() || searchResults.results.grants.length})
+                    </h3>
+                    <div className="grid grid-cols-1 gap-4">
+                      {searchResults.results.grants.map((result, idx) => (
                         <ResultCard key={idx} result={result} />
                       ))}
                     </div>
