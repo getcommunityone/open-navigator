@@ -472,6 +472,17 @@ def _next_client(pool: list[str]) -> Any:
     return _client_for(key)
 
 
+def _stream_enabled() -> bool:
+    """Whether to stream text generations (default on). Streaming avoids the
+    idle-connection drop on long responses; set GEMINI_TEXT_STREAM=0 to disable."""
+    return os.environ.get("GEMINI_TEXT_STREAM", "1").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+        "off",
+    )
+
+
 def call_gemini_text(
     *,
     api_key: str,
@@ -495,17 +506,37 @@ def call_gemini_text(
 
     def _generate():
         client = _next_client(pool)
-        return client.models.generate_content(
-            model=model,
-            contents=[types.Content(role="user", parts=parts)],
-            config=types.GenerateContentConfig(**config_kwargs),
-        )
+        cfg = types.GenerateContentConfig(**config_kwargs)
+        contents = [types.Content(role="user", parts=parts)]
+        if _stream_enabled():
+            # Stream the generation so the connection receives tokens immediately
+            # instead of sitting idle for the whole (sometimes 60s+) response.
+            # Non-streaming generate_content on long policy analyses leaves the
+            # connection idle until the full answer is ready, and an intermediary
+            # kills it at ~60s — surfacing as "Server disconnected without sending
+            # a response" (RemoteProtocolError) and burning the retry budget. A
+            # disconnect mid-stream raises out of the loop and the whole call is
+            # retried fresh (no partial-text corruption). Opt out: GEMINI_TEXT_STREAM=0.
+            chunks: list[str] = []
+            last: Any = None
+            for chunk in client.models.generate_content_stream(
+                model=model, contents=contents, config=cfg
+            ):
+                last = chunk
+                piece = getattr(chunk, "text", None)
+                if piece:
+                    chunks.append(piece)
+            return "".join(chunks), last
+        resp = client.models.generate_content(model=model, contents=contents, config=cfg)
+        return (getattr(resp, "text", None) or ""), resp
 
-    response = call_with_genai_quota_retry(_generate, label=model, key_pool_size=len(pool))
-    text = (getattr(response, "text", None) or "").strip()
+    text_raw, raw = call_with_genai_quota_retry(
+        _generate, label=model, key_pool_size=len(pool)
+    )
+    text = (text_raw or "").strip()
     if not text:
         raise RuntimeError(f"Empty response from {model}")
-    return TextGenAIResult(text=text, model=model, raw_response=response)
+    return TextGenAIResult(text=text, model=model, raw_response=raw)
 
 
 def extract_json_from_model_text(text: str) -> Optional[dict[str, Any]]:
