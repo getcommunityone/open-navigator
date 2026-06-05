@@ -140,6 +140,7 @@ from llm.gemini.diarize_postprocess import (  # noqa: E402
     merge_caption_speakers,
 )
 from llm.gemini.genai_text_client import (  # noqa: E402
+    GenAIDailyQuotaGiveUp,
     GenAITransientGiveUp,
     call_gemini_text,
     default_flash_lite_model,
@@ -1221,6 +1222,18 @@ def run_pipeline(args: argparse.Namespace) -> None:
                     )
                 continue
             except Exception as exc:
+                # Opt-in: a pool-wide daily-quota wall propagates so a model-cycling
+                # driver can rotate models / wait for the Pacific reset. Default-off,
+                # so existing callers see the unchanged log-and-continue behaviour.
+                if getattr(args, "stop_on_quota", False) and isinstance(
+                    exc, GenAIDailyQuotaGiveUp
+                ):
+                    logger.warning(
+                        "Stopping batch for {} — daily quota wall (stop_on_quota): {}",
+                        jurisdiction_id,
+                        exc,
+                    )
+                    raise
                 logger.exception("Failed {}: {}", video.video_id, exc)
                 if _db_events_enabled(args):
                     _record_policy_event_safe(
@@ -1248,7 +1261,13 @@ def run_pipeline(args: argparse.Namespace) -> None:
     )
 
 
-def main() -> None:
+def build_parser() -> argparse.ArgumentParser:
+    """Argument parser for the analyze pipeline.
+
+    Factored out of ``main`` so in-process drivers (e.g. ``llm.gemini.analyze_backlog``)
+    can derive a complete defaults-populated ``Namespace`` via ``parse_args([])`` instead
+    of hand-maintaining the full attribute set ``run_pipeline`` expects.
+    """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--video-id", default="", help="YouTube video id (single-video mode)")
     parser.add_argument(
@@ -1446,6 +1465,18 @@ def main() -> None:
         help="Disable best-effort recording of analysis/report outcomes onto "
         "bronze_event_youtube (also via POLICY_RECORD_DB_EVENTS=0; needs migration 083)",
     )
+    parser.add_argument(
+        "--stop-on-quota",
+        action="store_true",
+        help="With --from-bronze: re-raise a pool-wide daily-quota wall "
+        "(GenAIDailyQuotaGiveUp) instead of logging-and-continuing, so a model-cycling "
+        "driver can rotate models / wait for the Pacific reset (default: off)",
+    )
+    return parser
+
+
+def main() -> None:
+    parser = build_parser()
     args = parser.parse_args()
     run_pipeline(args)
 

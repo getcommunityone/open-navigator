@@ -4,6 +4,7 @@ import pytest
 
 from llm.gemini import genai_text_client as m
 from llm.gemini.genai_text_client import (
+    GenAIDailyQuotaGiveUp,
     GenAITransientGiveUp,
     call_with_genai_quota_retry,
     resolve_gemini_api_keys,
@@ -65,8 +66,37 @@ def test_quota_giveup_raises_plain_runtimeerror(monkeypatch):
     def _fn():
         raise RuntimeError("RESOURCE_EXHAUSTED: 429 quota exceeded")
 
-    # Real quota/server give-ups stay plain RuntimeError (NOT the transient subtype),
+    # Real quota/server give-ups stay RuntimeError (NOT the transient subtype),
     # so --stop-on-error still halts on them.
     with pytest.raises(RuntimeError) as excinfo:
         call_with_genai_quota_retry(_fn, label="test", key_pool_size=1)
     assert not isinstance(excinfo.value, GenAITransientGiveUp)
+
+
+def test_daily_quota_giveup_raises_distinct_subtype(monkeypatch):
+    monkeypatch.setattr(m.time, "sleep", lambda *_a, **_k: None)
+    monkeypatch.setenv("GOVERNANCE_GENAI_QUOTA_RETRIES", "2")
+
+    def _fn():
+        raise RuntimeError("RESOURCE_EXHAUSTED: 429 quota exceeded")
+
+    # Pool-wide quota/429 give-ups raise the dedicated daily-quota type so a
+    # model-cycling driver can rotate models, while remaining a RuntimeError so
+    # existing `except RuntimeError`/`except Exception` handlers still catch it.
+    with pytest.raises(GenAIDailyQuotaGiveUp):
+        call_with_genai_quota_retry(_fn, label="test", key_pool_size=1)
+    assert issubclass(GenAIDailyQuotaGiveUp, RuntimeError)
+
+
+def test_generic_server_giveup_stays_plain_runtimeerror(monkeypatch):
+    monkeypatch.setattr(m.time, "sleep", lambda *_a, **_k: None)
+    monkeypatch.setenv("GOVERNANCE_GENAI_QUOTA_RETRIES", "2")
+
+    def _fn():
+        raise RuntimeError("503 UNAVAILABLE: service overloaded")
+
+    # A generic (non-quota) server give-up is NOT the daily-quota subtype: the driver
+    # should not treat a transient 503 overload as a daily quota wall.
+    with pytest.raises(RuntimeError) as excinfo:
+        call_with_genai_quota_retry(_fn, label="test", key_pool_size=1)
+    assert not isinstance(excinfo.value, GenAIDailyQuotaGiveUp)

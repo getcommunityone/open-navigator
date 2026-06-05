@@ -27,6 +27,19 @@ class GenAITransientGiveUp(RuntimeError):
     whole run. Genuine errors raise plain exceptions and still honour stop-on-error.
     """
 
+
+class GenAIDailyQuotaGiveUp(RuntimeError):
+    """Raised when the retry budget is exhausted on a *quota / 429 / resource-exhausted*
+    failure — i.e. every key in the pool is rate/daily-limited for the current model.
+
+    Subclasses ``RuntimeError`` so every existing ``except Exception`` / ``except
+    RuntimeError`` caller is unaffected (they keep catching it as today). Callers that
+    want to react to a pool-wide quota wall — e.g. a model-cycling backlog driver — can
+    catch this specific type to rotate to a different model or wait for the daily reset.
+    A *generic* server give-up (502/503 overload, not quota) stays a plain RuntimeError.
+    """
+
+
 _RETRY_IN_RE = re.compile(r"retry in\s+([\d.]+)\s*s", re.IGNORECASE)
 _RETRY_DELAY_RE = re.compile(
     r"""retryDelay['"]?\s*[:=]\s*['"]?(\d+(?:\.\d+)?)s?""",
@@ -215,6 +228,12 @@ def call_with_genai_quota_retry(
                 # skip-and-continue without aborting the run on a Google-side flake.
                 if transient:
                     raise GenAITransientGiveUp(detail) from exc
+                # Pool-wide quota / 429 / resource-exhausted give-ups get their own
+                # type so a model-cycling driver can rotate models or wait for the
+                # daily reset. A generic server give-up (502/503 overload) stays a
+                # plain RuntimeError. Classify via the existing helper.
+                if "429" in classify_genai_error(exc) or "quota" in classify_genai_error(exc).lower():
+                    raise GenAIDailyQuotaGiveUp(detail) from exc
                 raise RuntimeError(detail) from exc
             # Quota/429 with more keys to try: rotate to the next key fast (a fresh
             # key likely still has quota) instead of sleeping the full backoff. Only
