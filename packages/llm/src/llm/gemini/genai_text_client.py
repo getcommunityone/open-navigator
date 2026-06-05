@@ -286,6 +286,35 @@ def _genai_http_timeout_ms() -> int:
     return max(1000, int(os.environ.get("GOVERNANCE_GENAI_HTTP_TIMEOUT_MS", "120000")))
 
 
+def _genai_http_options() -> Any:
+    """``HttpOptions`` for google-genai clients, with the httpx connection pool
+    tuned to avoid stale keep-alive reuse.
+
+    The Gemini endpoint closes idle keep-alive sockets during the gaps between our
+    calls (transcript load, Part 1, save, Part 2 — seconds apart). httpx's pool then
+    hands out a dead connection and the next request fails instantly with
+    ``RemoteProtocolError — Server disconnected without sending a response`` — which
+    our retry wrapper then burns minutes of backoff on (worse on WSL2). Disabling
+    keep-alive (a fresh connection per request) trades a small TLS handshake for
+    eliminating those disconnect-retry storms, plus a couple of transport-level
+    connect retries. Opt back into bounded keep-alive with ``GENAI_HTTP_KEEPALIVE=1``.
+    """
+    import httpx
+    from google.genai import types
+
+    if os.environ.get("GENAI_HTTP_KEEPALIVE", "0").strip().lower() in ("1", "true", "yes", "on"):
+        expiry = float(os.environ.get("GENAI_HTTP_KEEPALIVE_EXPIRY_SECONDS", "5"))
+        limits = httpx.Limits(max_keepalive_connections=10, keepalive_expiry=expiry)
+    else:
+        limits = httpx.Limits(max_keepalive_connections=0)
+    retries = max(0, int(os.environ.get("GENAI_HTTP_CONNECT_RETRIES", "2")))
+    return types.HttpOptions(
+        timeout=_genai_http_timeout_ms(),
+        client_args={"limits": limits, "transport": httpx.HTTPTransport(retries=retries)},
+        async_client_args={"limits": limits, "transport": httpx.AsyncHTTPTransport(retries=retries)},
+    )
+
+
 def _strip_api_key(value: str) -> str:
     return value.strip().strip('"').strip("'")
 
@@ -328,13 +357,12 @@ def check_gemini_api_key(api_key: str, *, model: Optional[str] = None) -> None:
             "or use --transcript-only"
         )
     from google import genai
-    from google.genai import types
 
     probe_model = (model or default_flash_lite_model()).strip()
     try:
         client = genai.Client(
             api_key=api_key,
-            http_options=types.HttpOptions(timeout=_genai_http_timeout_ms()),
+            http_options=_genai_http_options(),
         )
         client.models.generate_content(model=probe_model, contents="ok")
     except Exception as exc:
@@ -422,11 +450,10 @@ def _client_for(key: str) -> Any:
     client = _CLIENT_CACHE.get(key)
     if client is None:
         from google import genai
-        from google.genai import types
 
         client = genai.Client(
             api_key=key,
-            http_options=types.HttpOptions(timeout=_genai_http_timeout_ms()),
+            http_options=_genai_http_options(),
         )
         _CLIENT_CACHE[key] = client
     return client
