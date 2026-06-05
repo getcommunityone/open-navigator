@@ -49,30 +49,19 @@ grants_raw as (
 ),
 
 -- Drop ONLY fully-identical duplicate grant lines (same values in every source
--- column). Rows that differ in any column survive, since their distinguishing
--- columns are part of the surrogate-key grain below.
+-- column). Rows that differ in ANY column survive, since their distinguishing
+-- columns are all part of the surrogate-key grain below. Implemented as
+-- SELECT DISTINCT over every column (equivalent to row_number over all columns
+-- = 1, but lets Postgres use a HashAggregate instead of a full 15-key sort of
+-- ~5.6M wide rows -- the sort was the dominant cost of the old ~32-min build).
 deduped as (
-    select
+    select distinct
         grantor_ein, grantor_name, tax_year,
         grantee_name, grantee_ein, grantee_city,
         grantee_state_code, grantee_zip, irc_section,
         cash_grant_amount, noncash_assistance_amount,
         valuation_method, noncash_description, purpose, source_url
-    from (
-        select
-            *,
-            row_number() over (
-                partition by
-                    grantor_ein, grantor_name, tax_year,
-                    grantee_name, grantee_ein, grantee_city,
-                    grantee_state_code, grantee_zip, irc_section,
-                    cash_grant_amount, noncash_assistance_amount,
-                    valuation_method, noncash_description, purpose, source_url
-                order by grantor_ein
-            ) as _dupe_rn
-        from grants_raw
-    ) d
-    where _dupe_rn = 1
+    from grants_raw
 ),
 
 grants as (
