@@ -134,3 +134,4 @@ cookies.txt
 
 # transcript-analysis backfill runtime log
 analyze_backlog.out
+analyze_backlog_shard*.out
