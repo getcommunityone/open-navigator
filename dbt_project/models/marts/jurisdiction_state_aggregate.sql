@@ -342,24 +342,44 @@ county_stats AS (
     WHERE nps.county IS NOT NULL
 ),
 
--- City level stats (FIX: Use actual city nonprofit counts!)
+-- City-grain key set. BUGFIX: the city grain was previously anchored on
+-- event_stats, so a city only got a row if it had localview events. Cities with
+-- nonprofits/persons/leaders but no events (e.g. Tuscaloosa, AL — 740 nonprofits,
+-- ~29k persons, 0 events) were dropped entirely, and the API then fell back to
+-- statewide numbers. Anchor on the UNION of every city-grained metric instead so
+-- a row exists whenever ANY metric is present. Keyed on UPPER(city) for a single
+-- canonical grain across the differently-cased sources.
+city_keys AS (
+    SELECT state_code, UPPER(city) AS city_upper FROM nonprofit_city_stats WHERE city IS NOT NULL
+    UNION
+    SELECT state_code, UPPER(city) AS city_upper FROM event_stats WHERE city IS NOT NULL
+    UNION
+    SELECT state_code, UPPER(city_norm) AS city_upper FROM person_stats WHERE city_norm IS NOT NULL
+    UNION
+    SELECT state_code, UPPER(city) AS city_upper FROM decision_stats WHERE city IS NOT NULL
+    UNION
+    SELECT state_code, UPPER(city_norm) AS city_upper FROM leader_board_stats WHERE city_norm IS NOT NULL
+),
+
+-- City level stats (union-anchored). Each metric is re-aggregated to the
+-- (state_code, UPPER(city)) grain inside its join so a single key cannot fan out
+-- across differently-cased source rows, keeping every join strictly 1:1.
 city_stats AS (
     SELECT
         'city' as level,
-        es.state_code,
+        ck.state_code,
         -- FIX: populate full state name alongside state_code (naming convention).
-        {{ state_code_to_name('es.state_code') }}::VARCHAR(50) as state,
+        {{ state_code_to_name('ck.state_code') }}::VARCHAR(50) as state,
         -- FIX: carry the city's primary county so the grain is genuinely
         -- (level, state_code, county, city) and distinct same-named places in
         -- different counties cannot merge into one row.
         c2c.primary_county::VARCHAR(100) as county,
-        es.city,
+        INITCAP(ck.city_upper)::VARCHAR(100) as city,
 
         0 as jurisdictions_count,
         0 as school_districts_count,
-        -- FIX: Use actual city nonprofit count, not state total!
         COALESCE(ncs.nonprofits_count, 0)::INTEGER as nonprofits_count,
-        es.events_count::INTEGER,
+        COALESCE(es.events_count, 0)::INTEGER as events_count,
         0 as bills_count,
         COALESCE(ps.persons_count, 0)::INTEGER as persons_count,
         -- leaders = SUM of two non-dedupable id namespaces (officials + nonprofit board)
@@ -372,24 +392,46 @@ city_stats AS (
         tcd.trending_causes,
 
         CURRENT_TIMESTAMP as last_updated
-    FROM event_stats es
-    -- city_to_county_map is unique per (state_code, city) via DISTINCT ON, so this
-    -- join attaches the primary county WITHOUT fanning out the city grain.
-    LEFT JOIN city_to_county_map c2c
-        ON UPPER(es.city) = UPPER(c2c.city) AND es.state_code = c2c.state_code
-    LEFT JOIN nonprofit_city_stats ncs
-        ON UPPER(es.city) = UPPER(ncs.city) AND es.state_code = ncs.state_code
-    LEFT JOIN trending_causes_data tcd
-        ON UPPER(es.city) = UPPER(tcd.jurisdiction_name) AND es.state_code = tcd.state_code
-    LEFT JOIN decision_stats ds
-        ON UPPER(es.city) = UPPER(ds.city) AND es.state_code = ds.state_code
-    LEFT JOIN person_stats ps
-        ON UPPER(es.city) = UPPER(ps.city_norm) AND es.state_code = ps.state_code
-    LEFT JOIN leader_official_stats los
-        ON UPPER(es.city) = UPPER(los.jurisdiction) AND es.state_code = los.state_code
-    LEFT JOIN leader_board_stats lbs
-        ON UPPER(es.city) = UPPER(lbs.city_norm) AND es.state_code = lbs.state_code
-    WHERE es.city IS NOT NULL
+    FROM city_keys ck
+    LEFT JOIN (
+        SELECT DISTINCT ON (state_code, UPPER(city))
+            state_code, UPPER(city) AS city_upper, primary_county
+        FROM city_to_county_map
+        ORDER BY state_code, UPPER(city)
+    ) c2c ON c2c.state_code = ck.state_code AND c2c.city_upper = ck.city_upper
+    LEFT JOIN (
+        SELECT state_code, UPPER(city) AS city_upper,
+               SUM(nonprofits_count) AS nonprofits_count,
+               SUM(total_revenue) AS total_revenue,
+               SUM(total_assets) AS total_assets
+        FROM nonprofit_city_stats GROUP BY state_code, UPPER(city)
+    ) ncs ON ncs.state_code = ck.state_code AND ncs.city_upper = ck.city_upper
+    LEFT JOIN (
+        SELECT state_code, UPPER(city) AS city_upper, SUM(events_count) AS events_count
+        FROM event_stats WHERE city IS NOT NULL GROUP BY state_code, UPPER(city)
+    ) es ON es.state_code = ck.state_code AND es.city_upper = ck.city_upper
+    LEFT JOIN (
+        SELECT state_code, UPPER(city_norm) AS city_upper, SUM(persons_count) AS persons_count
+        FROM person_stats GROUP BY state_code, UPPER(city_norm)
+    ) ps ON ps.state_code = ck.state_code AND ps.city_upper = ck.city_upper
+    LEFT JOIN (
+        SELECT state_code, UPPER(city) AS city_upper, SUM(decisions_count) AS decisions_count
+        FROM decision_stats GROUP BY state_code, UPPER(city)
+    ) ds ON ds.state_code = ck.state_code AND ds.city_upper = ck.city_upper
+    LEFT JOIN (
+        SELECT state_code, UPPER(jurisdiction) AS city_upper, SUM(officials_count) AS officials_count
+        FROM leader_official_stats GROUP BY state_code, UPPER(jurisdiction)
+    ) los ON los.state_code = ck.state_code AND los.city_upper = ck.city_upper
+    LEFT JOIN (
+        SELECT state_code, UPPER(city_norm) AS city_upper, SUM(board_count) AS board_count
+        FROM leader_board_stats GROUP BY state_code, UPPER(city_norm)
+    ) lbs ON lbs.state_code = ck.state_code AND lbs.city_upper = ck.city_upper
+    LEFT JOIN (
+        -- collapse same-named jurisdictions (multiple types) to one jsonb per city
+        SELECT state_code, UPPER(jurisdiction_name) AS city_upper,
+               (jsonb_agg(trending_causes ORDER BY jurisdiction_name))->0 AS trending_causes
+        FROM trending_causes_data GROUP BY state_code, UPPER(jurisdiction_name)
+    ) tcd ON tcd.state_code = ck.state_code AND tcd.city_upper = ck.city_upper
 )
 
 -- Combine all levels

@@ -1,0 +1,66 @@
+version: 2
+
+models:
+  - name: rpt_bill_map_aggregate
+    description: >
+      public.rpt_bill_map_aggregate — pre-aggregated bill SUBJECTS (topics) by
+      jurisdiction for fast map/geography "trending topics" queries. Grain: one row
+      per (jurisdiction_id, subject) (state_code is functionally determined by
+      jurisdiction_id). subject is exploded from bills.subject. topic_rank ranks
+      subjects within a jurisdiction by bill_count desc so the UI can pull "top N
+      trending topics in this geography"; recent_bill_count is the 2-year "trending"
+      count. PK surrogate bill_topic_id; FK jurisdiction_id -> jurisdictions
+      (nullable). Indexed on jurisdiction_id and state_code.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [jurisdiction_id]
+        to: ref('jurisdictions')
+        to_columns: [jurisdiction_id]
+    columns:
+      - name: bill_topic_id
+        description: "Primary key. md5(coalesce(jurisdiction_id,'') || '|' || subject)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: jurisdiction_id
+        description: "NULLABLE FK -> jurisdictions.jurisdiction_id (state-level row)."
+        data_type: text
+        tests:
+          - relationships:
+              to: ref('jurisdictions')
+              field: jurisdiction_id
+      - name: state_code
+        description: "2-letter state code (determined by jurisdiction_id)."
+        data_type: text
+      - name: subject
+        description: "Bill subject/topic (exploded from bills.subject jsonb array)."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: bill_count
+        description: "Total bills mentioning this subject in the jurisdiction."
+        data_type: bigint
+      - name: recent_bill_count
+        description: "Bills with latest_action_date within the last 2 years ('trending')."
+        data_type: bigint
+      - name: most_recent_action_date
+        description: "Latest action date across the subject's bills."
+        data_type: date
+      - name: topic_rank
+        description: "Rank of the subject within the jurisdiction by bill_count desc."
+        data_type: bigint
+      - name: sample_bill_titles
+        description: "Up to 3 most-recent bill titles for the subject."
+        data_type: text[]
+      - name: dbt_loaded_at
+        description: "dbt build timestamp."
+        data_type: timestamp with time zone

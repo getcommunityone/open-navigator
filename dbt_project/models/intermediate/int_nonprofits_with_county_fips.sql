@@ -22,17 +22,17 @@ Match logic:
 - Total expected match rate: ~82%
 
 Sources:
-- bronze_organizations_nonprofits (has census_county_name and zip_code)
+- int_nonprofits_unified (reproducible consolidated nonprofits; has census_county_name and zip_code)
 - bronze_jurisdictions (has county fips_code)
 - bronze_jurisdictions_zip_county (has ZCTA to county mappings)
 
-Note: This is a documentation model. Actual enrichment is done via SQL script.
-
-Actual enrichment script: scripts/datasources/census/enrich_nonprofits_with_county_fips.sql
+Note: reads the dbt-owned int_nonprofits_unified model (the reproducible builder
+of the former phantom bronze_organizations_nonprofits table) instead of the
+un-built source table, so this enrichment runs end-to-end in dbt from the shards.
 */
 
 WITH nonprofits AS (
-    SELECT 
+    SELECT
         ein,
         org_name,
         city,
@@ -41,12 +41,12 @@ WITH nonprofits AS (
         zip_code,
         LEFT(zip_code, 5) as zip_code_5,
         -- Clean county name for matching (remove " County" suffix)
-        CASE 
-            WHEN census_county_name LIKE '% County' 
+        CASE
+            WHEN census_county_name LIKE '% County'
             THEN REPLACE(census_county_name, ' County', '')
             ELSE census_county_name
         END as county_name_clean
-    FROM {{ source('bronze', 'bronze_organizations_nonprofits') }}
+    FROM {{ ref('int_nonprofits_unified') }}
 ),
 
 counties AS (
