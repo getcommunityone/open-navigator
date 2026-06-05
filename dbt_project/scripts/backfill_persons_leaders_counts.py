@@ -159,8 +159,18 @@ def main() -> None:
 
         updated = 0
         inserted = 0
+        skipped = 0
         for r in rows:
             if r["persons"] == 0 and r["leaders"] == 0:
+                continue
+
+            # The serving table caps state/city at varchar(100); a few normalized
+            # city values are junk (concatenated/overlong). Skip rather than abort.
+            if r["level"] == "city" and (not r["city"] or len(r["city"]) > 100):
+                skipped += 1
+                continue
+            if r["state_code"] and len(r["state_code"]) > 2:
+                skipped += 1
                 continue
 
             if r["level"] == "national":
@@ -210,7 +220,10 @@ def main() -> None:
 
         conn.commit()
         logger.success(
-            "✅ Done: {} rows updated, {} city rows inserted", updated, inserted
+            "✅ Done: {} rows updated, {} city rows inserted, {} skipped (overlong)",
+            updated,
+            inserted,
+            skipped,
         )
 
         # Spot-check the Tuscaloosa case from the bug report.
