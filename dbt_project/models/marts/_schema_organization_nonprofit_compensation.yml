@@ -1,0 +1,141 @@
+version: 2
+
+models:
+  - name: organization_nonprofit_compensation
+    description: >
+      public.organization_nonprofit_compensation — person-level executive and
+      board compensation, one row per (ein, tax_year, person_name, title) from
+      IRS Form 990 Part VII, Section A (reused from stg_990_officers), LEFT
+      JOINed to Schedule J Part 2 detail (base/bonus/deferred/benefits) for the
+      subset of people itemized there, and enriched with organization context
+      (name, city, state, NTEE) from int_nonprofits_combined. PK compensation_id
+      (deterministic hash over the natural grain). FK master_org_id ->
+      mdm_organization (nullable: filled only when the EIN is in the org master).
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [master_org_id]
+        to: ref('mdm_organization')
+        to_columns: [master_org_id]
+    columns:
+      - name: compensation_id
+        description: "Deterministic surrogate id (md5 over ein|tax_year|person|title)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: master_org_id
+        description: >
+          Golden org id (FK -> mdm_organization). NULLABLE: filled only when the
+          EIN matches the nonprofit org master.
+        data_type: text
+        tests:
+          - relationships:
+              to: ref('mdm_organization')
+              field: master_org_id
+      - name: ein
+        description: "Filer EIN (9+ chars; the natural org key in the 990 source)."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: tax_year
+        description: "990 filing tax year (integer)."
+        data_type: integer
+      - name: person_name
+        description: "Reported person name (Part VII-A, free-form)."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: title
+        description: "Reported role/title text (nullable)."
+        data_type: text
+      - name: org_name
+        description: "Organization name (golden name from int_nonprofits_combined, else filer-reported)."
+        data_type: text
+      - name: city
+        description: "Organization city (golden, from int_nonprofits_combined)."
+        data_type: text
+      - name: state_code
+        description: "Organization 2-letter state code (golden, uppercased)."
+        data_type: text
+      - name: ntee_code
+        description: "Organization NTEE classification code."
+        data_type: text
+      - name: is_officer
+        description: "Reported as an officer."
+        data_type: boolean
+      - name: is_director_trustee
+        description: "Reported as an individual director or trustee."
+        data_type: boolean
+      - name: is_institutional_trustee
+        description: "Reported as an institutional trustee (often an org, not a person)."
+        data_type: boolean
+      - name: is_key_employee
+        description: "Reported as a key employee."
+        data_type: boolean
+      - name: is_highest_comp
+        description: "Among the five highest-compensated employees."
+        data_type: boolean
+      - name: is_former
+        description: "Former officer/director/etc."
+        data_type: boolean
+      - name: avg_hours_org
+        description: "Average weekly hours for the organization."
+        data_type: numeric
+      - name: avg_hours_related
+        description: "Average weekly hours for related organizations."
+        data_type: numeric
+      - name: reportable_comp_org
+        description: "Part VII-A reportable compensation from the organization (W-2/1099)."
+        data_type: bigint
+      - name: reportable_comp_related
+        description: "Part VII-A reportable compensation from related organizations."
+        data_type: bigint
+      - name: other_comp
+        description: "Part VII-A estimated other compensation."
+        data_type: bigint
+      - name: total_comp
+        description: "Convenience total: reportable_org + reportable_related + other_comp."
+        data_type: bigint
+      - name: has_schedule_j
+        description: "True when the person is itemized on Schedule J Part 2 for this filing."
+        data_type: boolean
+        constraints:
+          - type: not_null
+      - name: base_comp_org
+        description: "Schedule J base compensation from the organization (NULL when not on Sch J)."
+        data_type: bigint
+      - name: bonus_org
+        description: "Schedule J bonus/incentive compensation from the organization."
+        data_type: bigint
+      - name: sch_j_other_comp_org
+        description: "Schedule J other reportable compensation from the organization."
+        data_type: bigint
+      - name: deferred_comp_org
+        description: "Schedule J deferred compensation from the organization."
+        data_type: bigint
+      - name: nontaxable_benefits_org
+        description: "Schedule J nontaxable benefits from the organization."
+        data_type: bigint
+      - name: sch_j_total_comp_org
+        description: "Schedule J total compensation from the organization."
+        data_type: bigint
+      - name: sch_j_total_comp_related
+        description: "Schedule J total compensation from related organizations."
+        data_type: bigint
+      - name: prior_reported_org
+        description: "Schedule J compensation reported as deferred on a prior 990 (organization)."
+        data_type: bigint
+      - name: source_url
+        description: "Source 990 filing URL."
+        data_type: text
+      - name: published_at
+        description: "dbt build timestamp."
+        data_type: timestamp without time zone

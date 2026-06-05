@@ -1762,6 +1762,61 @@ sources:
           - name: loaded_at
             description: "Ingestion timestamp."
 
+      - name: bronze_organizations_990_schedule_j
+        description: |
+          IRS Form 990 Schedule J, Part 2 detailed compensation — the
+          breakdown (base / bonus / deferred / nontaxable benefits) reported for
+          the subset of Part VII-A people whose pay is itemized on Schedule J
+          (typically the highest-compensated). ~2.9M rows, one per
+          (ein, tax_year, person, title). Landed by ingestion.givingtuesday.load
+          (ScheduleJPart2Officers datamart); joins Part VII-A on
+          (ein, tax_year, person).
+        columns:
+          - name: id
+            description: "Source surrogate key."
+          - name: ein
+            description: "Filer EIN (may carry dashes/spaces; normalized downstream)."
+          - name: tax_year
+            description: "990 tax year."
+          - name: org_name
+            description: "Filer-reported organization name."
+          - name: person_name
+            description: "Reported person name (free-form)."
+          - name: title
+            description: "Reported role/title text."
+          - name: base_comp_org
+            description: "Base compensation from the organization (W-2/1099 Box 1)."
+          - name: base_comp_related
+            description: "Base compensation from related organizations."
+          - name: bonus_org
+            description: "Bonus and incentive compensation from the organization."
+          - name: bonus_related
+            description: "Bonus and incentive compensation from related organizations."
+          - name: other_comp_org
+            description: "Other reportable compensation from the organization."
+          - name: other_comp_related
+            description: "Other reportable compensation from related organizations."
+          - name: deferred_comp_org
+            description: "Deferred compensation from the organization."
+          - name: deferred_comp_related
+            description: "Deferred compensation from related organizations."
+          - name: nontaxable_benefits_org
+            description: "Nontaxable benefits from the organization."
+          - name: nontaxable_benefits_related
+            description: "Nontaxable benefits from related organizations."
+          - name: total_comp_org
+            description: "Total Schedule J compensation from the organization."
+          - name: total_comp_related
+            description: "Total Schedule J compensation from related organizations."
+          - name: prior_reported_org
+            description: "Compensation reported as deferred on a prior 990 (organization)."
+          - name: prior_reported_related
+            description: "Compensation reported as deferred on a prior 990 (related)."
+          - name: source_url
+            description: "Source filing URL."
+          - name: loaded_at
+            description: "Ingestion timestamp."
+
   - name: civic_core
     description: |
       Canonical OCD/Popolo civic entity tables in the PUBLIC schema (the `c1_*`
