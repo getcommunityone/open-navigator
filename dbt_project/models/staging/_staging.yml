@@ -210,6 +210,37 @@ sources:
           - name: first_seen_event_id
             description: "First meeting where this org appeared"
           
+      - name: bronze_officials_openstates
+        description: >
+          Current government officials synced from the OpenStates
+          opencivicdata_* tables by ingestion.openstates.officials. One row per
+          person×membership (mayors, council members, legislators — ALL current
+          memberships, not just legislative chambers). Natural key
+          ocd_membership_id. Feeds stg_openstates__official -> public.contact_official.
+        columns:
+          - name: ocd_membership_id
+            description: "OCD membership id — natural key / conflict key."
+          - name: ocd_person_id
+          - name: full_name
+          - name: party
+          - name: role
+            description: "Membership role = the official's title (e.g. 'Mayor')."
+          - name: district
+            description: "post.label — district/seat label where present."
+          - name: ocd_organization_id
+          - name: organization_name
+          - name: organization_classification
+            description: "Org classification (chamber): government/upper/lower/legislature/..."
+          - name: ocd_jurisdiction_id
+          - name: state_code
+            description: "2-letter state code parsed from the OCD jurisdiction id."
+          - name: email
+          - name: image
+            description: "Photo URL from opencivicdata_person.image."
+          - name: start_date
+          - name: end_date
+          - name: synced_at
+
       - name: bronze_bills
         description: "Legislation discussed in meetings"
         columns:

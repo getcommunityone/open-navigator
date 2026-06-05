@@ -482,6 +482,203 @@ async def search_persons_pg(
 search_contacts_pg = search_persons_pg
 
 
+# Officials search (public.contact_official ~34k rows): cap how many ILIKE/trgm
+# candidates we rank so a broad title term (e.g. "Council Member" matches
+# thousands) can't degrade the typeahead. The pg_trgm GIN indexes on full_name
+# and title fill the cap fast; selective queries return far fewer.
+OFFICIAL_CANDIDATE_CAP = 2000
+
+
+async def search_officials_pg(
+    query: Optional[str] = None,
+    state: Optional[str] = None,
+    limit: int = 10,
+) -> List[SearchResult]:
+    """
+    Search elected/appointed officials, backed by the public.contact_official mart.
+
+    Replaces the retired gold parquet officials feed
+    (data/gold/states/<ST>/contact_official.parquet, consolidated
+    data/gold/contact_official.parquet). Reads ONLY the public schema — no parquet,
+    no DuckDB.
+
+    Title-aware: the query is matched against BOTH full_name AND title, so "Mayor"
+    returns every mayor (optionally narrowed by state) while a name query still
+    returns the person. Ranking, highest first:
+        1. exact / prefix name match
+        2. title match (exact > prefix > substring)
+        3. jurisdiction substring match
+        4. trigram name similarity (typo tolerance)
+    Both ILIKE branches ride the pg_trgm GIN indexes on full_name and title.
+
+    is_current officials sort ahead of historical ones.
+
+    Args:
+        query: Search text (matched against full_name AND title; jurisdiction too)
+        state: Filter by state code ('AL') or full name ('Alabama')
+        limit: Max results
+
+    Returns:
+        List of SearchResult objects (result_type='contact')
+    """
+    # Normalize state input to 2-letter code
+    state = normalize_state_input(state)
+
+    has_query = bool(query and query.strip())
+    q = query.strip() if has_query else ""
+
+    # A 1-char query is all noise (matches the whole table); mirror the persons
+    # search early-return so the per-keystroke typeahead only fires at >=2 chars.
+    # When a state is supplied we still allow a bare browse (no query).
+    if has_query and len(q) < 2 and not state:
+        return []
+
+    try:
+        pool = await get_db_pool()
+
+        where_clauses: List[str] = []
+        params: List = []
+        idx = 1
+
+        if state:
+            where_clauses.append(f"state_code = ${idx}")
+            params.append(state.upper())
+            idx += 1
+
+        if has_query:
+            # One %q% pattern (drives both full_name and title ILIKE, both
+            # trgm-indexed) plus the raw term for similarity()/prefix scoring.
+            params.append(f"%{q}%")
+            like_idx = idx
+            idx += 1
+            params.append(q)
+            term_idx = idx
+            idx += 1
+            params.append(f"{q}%")
+            prefix_idx = idx
+            idx += 1
+
+            # Match if the term hits the name, the title, OR the jurisdiction.
+            where_clauses.append(
+                f"(full_name ILIKE ${like_idx} "
+                f"OR title ILIKE ${like_idx} "
+                f"OR jurisdiction ILIKE ${like_idx})"
+            )
+
+            # Composite relevance score. Name match dominates, then title, then
+            # jurisdiction, with a trigram tail for typo tolerance.
+            score_select = f"""(
+                CASE
+                    WHEN LOWER(full_name) = LOWER(${term_idx}) THEN 5.0
+                    WHEN full_name ILIKE ${prefix_idx} THEN 4.0
+                    WHEN full_name ILIKE ${like_idx} THEN 3.0
+                    ELSE 0.0
+                END
+                + CASE
+                    WHEN LOWER(title) = LOWER(${term_idx}) THEN 2.5
+                    WHEN title ILIKE ${prefix_idx} THEN 2.0
+                    WHEN title ILIKE ${like_idx} THEN 1.5
+                    ELSE 0.0
+                END
+                + CASE WHEN jurisdiction ILIKE ${like_idx} THEN 1.0 ELSE 0.0 END
+                + similarity(full_name, ${term_idx})
+            ) AS score"""
+            # is_current first, then composite score, then name.
+            order_by = (
+                "is_current DESC NULLS LAST, score DESC, full_name ASC"
+            )
+        else:
+            # Browse (state-scoped, no query): current officials, mayors first.
+            score_select = """(
+                CASE
+                    WHEN title ILIKE '%mayor%' THEN 2.0
+                    WHEN title ILIKE '%council%' THEN 1.8
+                    WHEN title ILIKE '%commission%' THEN 1.7
+                    ELSE 1.5
+                END
+            ) AS score"""
+            order_by = "is_current DESC NULLS LAST, score DESC, full_name ASC"
+
+        where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
+
+        limit_idx = idx
+        params.append(limit)
+
+        cols = """id, full_name, title, jurisdiction, state_code, state,
+                  party, district, office, email, phone, photo_url, is_current"""
+
+        # Inner query caps the candidate scan (trgm GIN fills it fast); the outer
+        # select ranks + orders only the capped set, then trims to `limit`.
+        sql = f"""
+            SELECT {cols}, score
+            FROM (
+                SELECT {cols}, {score_select}
+                FROM contact_official
+                WHERE {where_sql}
+                LIMIT {OFFICIAL_CANDIDATE_CAP}
+            ) cand
+            ORDER BY {order_by}
+            LIMIT ${limit_idx}
+        """
+
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(sql, *params)
+
+            results = []
+            for row in rows:
+                name = row["full_name"] or "Unknown"
+                title = row["title"] or "Official"
+                jurisdiction = row["jurisdiction"]
+                state_full = row["state"]
+                state_code = row["state_code"]
+
+                # Location: prefer the office's jurisdiction, fall back to state.
+                location = jurisdiction or state_full or state_code or ""
+
+                contact_info = []
+                if row["email"]:
+                    contact_info.append(f"📧 {row['email']}")
+                if row["phone"]:
+                    contact_info.append(f"📞 {row['phone']}")
+                description = f"{title} in {location}" if location else title
+                if contact_info:
+                    description += " • " + " • ".join(contact_info)
+
+                results.append(SearchResult(
+                    result_type="contact",
+                    title=name,
+                    subtitle=f"{title} - {location}" if location else title,
+                    description=description,
+                    url=f"/people/{name.replace(' ', '-')}",
+                    score=float(row["score"]) if row["score"] is not None else 1.0,
+                    metadata={
+                        "id": row["id"],
+                        "name": name,
+                        "title": title,
+                        "jurisdiction": jurisdiction,
+                        # Naming contract: expose BOTH state_code and full state.
+                        "state": state_full,
+                        "state_code": state_code,
+                        "party": row["party"],
+                        "district": row["district"],
+                        "office": row["office"],
+                        "email": row["email"],
+                        "phone": row["phone"],
+                        "photo_url": row["photo_url"],
+                        "is_current": row["is_current"],
+                        "contact_type": "official",
+                        "data_source": "contact_official",
+                    },
+                ))
+
+            logger.info(f"🏛️  PostgreSQL officials search: {len(results)} results")
+            return results
+
+    except Exception as e:
+        logger.error(f"PostgreSQL officials search error: {e}")
+        return []
+
+
 async def search_organizations_pg(
     query: Optional[str] = None,
     state: Optional[str] = None,

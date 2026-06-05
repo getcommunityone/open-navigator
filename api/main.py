@@ -1349,10 +1349,13 @@ async def startup_event():
             state = state_dir.name
             files_found = []
             
-            # Check for key files
+            # Check for key files.
+            # NOTE: officials (contact_official) are no longer served from
+            # per-state parquet — the API reads public.contact_official. The
+            # officials row count is logged once below from the table, so it is
+            # intentionally absent from this per-state local-file probe.
             key_files = [
                 "nonprofits_organizations.parquet",
-                "contact_official.parquet",
                 "events.parquet",
             ]
             
@@ -1373,7 +1376,25 @@ async def startup_event():
         logger.info(f"  📊 Total states with data: {total_states}")
     else:
         logger.warning("  ⚠️  No state data directory found")
-    
+
+    # Officials are served from public.contact_official (not parquet). Log the
+    # live row count once so the startup banner still reports officials volume.
+    try:
+        import psycopg2
+        _officials_dsn = os.getenv(
+            "NEON_DATABASE_URL_DEV",
+            "postgresql://postgres:password@localhost:5433/open_navigator",
+        )
+        _conn = psycopg2.connect(_officials_dsn)
+        _cur = _conn.cursor()
+        _cur.execute("SELECT count(*) FROM public.contact_official")
+        _officials_count = _cur.fetchone()[0]
+        _cur.close()
+        _conn.close()
+        logger.info(f"  🏛️  public.contact_official: {_officials_count:,} officials")
+    except Exception as e:
+        logger.warning(f"  ⚠️  Could not count public.contact_official: {e}")
+
     # Validate HuggingFace datasets if running on HF Spaces
     if IS_HF_SPACES:
         logger.info("")

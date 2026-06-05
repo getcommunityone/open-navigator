@@ -279,30 +279,32 @@ def calculate_stats(state: Optional[str] = None,
     else:
         meetings = 0
     
-    # Count contacts - read from consolidated contacts files
+    # Count contacts (officials) from the public.contact_official table — replaces
+    # the retired gold officials parquet feed (data/gold/contact_official.parquet).
+    # state -> state_code (2-letter); city -> jurisdiction ILIKE.
     contacts = 0
-    for contact_table in ['contacts_local_officials', 'contact_official']:
-        contact_file = Path(f'data/gold/{contact_table}.parquet')
-        if contact_file.exists():
-            try:
-                df = pd.read_parquet(contact_file)
-                
-                # Filter by state if specified
-                if state:
-                    state_col = 'state' if 'state' in df.columns else ('STATE' if 'STATE' in df.columns else None)
-                    if state_col:
-                        df = df[df[state_col].str.upper() == state.upper()]
-                
-                # Filter by city if specified
-                if city:
-                    jurisdiction_col = 'jurisdiction' if 'jurisdiction' in df.columns else 'city'
-                    if jurisdiction_col in df.columns:
-                        df = df[df[jurisdiction_col].str.contains(city, case=False, na=False)]
-                
-                contacts += len(df)
-            except Exception as e:
-                logger.error(f"Error reading contacts from {contact_file}: {e}")
-                continue
+    try:
+        conn = psycopg2.connect(LOCAL_DB_URL)
+        cursor = conn.cursor()
+        where_clauses = []
+        params: list = []
+        if state:
+            where_clauses.append("state_code = %s")
+            params.append(state.upper() if len(state) == 2 else state)
+        if city:
+            where_clauses.append("jurisdiction ILIKE %s")
+            params.append(f"%{city}%")
+        where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
+        cursor.execute(
+            f"SELECT count(*) FROM public.contact_official WHERE {where_sql}", params
+        )
+        row = cursor.fetchone()
+        contacts = row[0] if row else 0
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        logger.error(f"Error counting contacts from public.contact_official: {e}")
+        contacts = 0
     
     # Count causes (NTEE codes - always national)
     causes = count_parquet_records('reference/causes_ntee_codes.parquet')
