@@ -25,20 +25,65 @@
     - int_trending_causes_by_jurisdiction: Trending causes by jurisdiction
 */
 
--- CTE for base nonprofits data (use source, not ref)
+-- CTE for base nonprofits data.
+-- Reads int_nonprofits_unified — the reproducible dbt builder of the former
+-- phantom bronze_organizations_nonprofits table (IRS base LEFT JOIN NCCS on EIN).
 WITH base_nonprofits AS (
-    SELECT * FROM {{ source('bronze', 'bronze_organizations_nonprofits') }}
+    SELECT * FROM {{ ref('int_nonprofits_unified') }}
+),
+
+-- Authoritative Census Gazetteer county reference, used to scrub NCCS
+-- cross-state mis-geocoding (see census_validated_nonprofits below).
+census_counties AS (
+    SELECT DISTINCT
+        usps AS state_code,
+        UPPER(TRIM(name)) AS county_name_norm
+    FROM {{ source('bronze', 'bronze_jurisdictions_counties') }}
+),
+
+-- Distinct county names that exist in Census for ANY state. A county name in
+-- this list that does NOT match the org's own state is a cross-state leak.
+census_county_names_any AS (
+    SELECT DISTINCT county_name_norm
+    FROM census_counties
+),
+
+-- Cross-state county-grain leak fix.
+-- NCCS occasionally attaches a county name from the WRONG state (e.g.
+-- "Tuscaloosa County" appearing under FL/MS/WA/TX/DC ...). The raw county_fips
+-- on the legacy data is unreliable too (Tuscaloosa rows carry fips 11250, a DC
+-- prefix), so FIPS-prefix matching is not trustworthy here. Instead we validate
+-- the (state_code, census_county_name) pair against the authoritative Census
+-- Gazetteer county list:
+--   * KEEP rows whose county name is a real county IN the org's own state.
+--   * KEEP rows whose county name is NOT a Census county anywhere
+--     (US territories, accented/abbreviated names like "Doña Ana County",
+--      PR Municipios) — these have no cross-state ambiguity to resolve.
+--   * DROP rows whose county name is a real county but belongs ONLY to a
+--     DIFFERENT state — the actual mis-geocoded leak (~24k of 1.66M orgs).
+-- Applied once here so every county-grain CTE downstream is clean.
+census_validated_nonprofits AS (
+    SELECT bn.*
+    FROM base_nonprofits bn
+    LEFT JOIN census_counties cc
+        ON bn.state_code = cc.state_code
+        AND UPPER(TRIM(bn.census_county_name)) = cc.county_name_norm
+    LEFT JOIN census_county_names_any cna
+        ON UPPER(TRIM(bn.census_county_name)) = cna.county_name_norm
+    WHERE bn.census_county_name IS NULL          -- no county claim, nothing to validate
+       OR cc.county_name_norm IS NOT NULL        -- valid county IN this state
+       OR cna.county_name_norm IS NULL           -- not a Census county anywhere (territory/format)
 ),
 
 nonprofit_stats AS (
-    -- Aggregate nonprofit data by state and county
+    -- Aggregate nonprofit data by state and county (cross-state leak scrubbed)
     SELECT
         state_code,
         census_county_name as county,
         COUNT(*) as nonprofits_count,
         COALESCE(SUM(irs_revenue_amt), 0) as total_revenue,
         COALESCE(SUM(irs_asset_amt), 0) as total_assets
-    FROM base_nonprofits
+    FROM census_validated_nonprofits
     WHERE state_code IS NOT NULL
     GROUP BY state_code, census_county_name
 ),
@@ -60,13 +105,15 @@ city_to_county_map AS (
     -- Map cities to their primary county (most nonprofits in that county)
     -- FIX: Order by COUNT DESC to pick the county with most orgs, not alphabetically!
     WITH city_county_counts AS (
-        SELECT 
+        SELECT
             state_code,
             city,
             census_county_name,
             COUNT(*) as org_count
-        FROM base_nonprofits
-        WHERE city IS NOT NULL AND city != '' 
+        -- Use the leak-scrubbed set so a city's primary county can never be a
+        -- cross-state mis-geocoded county name.
+        FROM census_validated_nonprofits
+        WHERE city IS NOT NULL AND city != ''
           AND census_county_name IS NOT NULL
         GROUP BY state_code, city, census_county_name
     )
