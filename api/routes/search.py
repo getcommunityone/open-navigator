@@ -1,6 +1,6 @@
 """
 Unified Search API
-LinkedIn-style search across contacts, meetings, organizations, and causes
+LinkedIn-style search across leaders, persons, meetings, organizations, and causes
 Uses hybrid approach: PostgreSQL (primary, fast) + HuggingFace Search API + DuckDB (fallback)
 """
 from fastapi import APIRouter, Query, HTTPException
@@ -261,7 +261,8 @@ def convert_pg_result(pg_result: search_postgres.SearchResult) -> 'SearchResult'
 # (data/gold/states/<ST>/contact_official.parquet, consolidated
 # data/gold/contact_official.parquet) was retired from the API serving layer.
 # The unified /search endpoint now dispatches officials via
-# search_postgres.search_officials_pg (result_type='contact').
+# search_postgres.search_officials_pg (result_type='leader') under the dedicated
+# "leaders" response category, separate from the "persons" category (mdm_person).
 
 
 async def count_organizations(
@@ -398,7 +399,7 @@ async def _traced_subsearch(
 @router.get("/search/", include_in_schema=False)
 async def unified_search(
     q: Optional[str] = Query(None, description="Search query (optional - browse by filters if omitted)"),
-    types: Optional[str] = Query(None, description="Comma-separated result types: person,meetings,organizations,causes,jurisdictions,bills,topics,decisions,documents,grants ('contacts' accepted as a deprecated alias of 'person')"),
+    types: Optional[str] = Query(None, description="Comma-separated result types: leaders,persons,meetings,organizations,causes,jurisdictions,bills,topics,decisions,documents,grants. Legacy aliases accepted: 'contacts'/'officials' -> 'leaders', 'people'/'person' -> 'persons'"),
     state: Optional[str] = Query(None, description="Filter by state (2-letter code)"),
     city: Optional[str] = Query(None, description="Filter by city name"),
     jurisdiction_levels: Optional[str] = Query(None, description="Comma-separated jurisdiction levels: city,county,town,village,school_district,special_district,state"),
@@ -413,8 +414,9 @@ async def unified_search(
 ):
     """
     Unified search across all data types
-    
-    Search for contacts, meetings, organizations, bills, and causes in one query.
+
+    Search for leaders (officials), persons, meetings, organizations, bills, and
+    causes in one query.
     **NEW:** Query is now optional - you can browse by state/type without searching!
     
     **Pagination:**
@@ -439,11 +441,29 @@ async def unified_search(
         if offset == 0 and page > 1:
             offset = (page - 1) * limit
         
-        # Parse requested types
+        # Parse requested types, normalizing legacy aliases to the current scheme.
+        # People are now split into two distinct categories:
+        #   - "leaders"  -> government officials (contact_official)
+        #   - "persons"  -> real people (mdm_person; now also residents/homeowners)
+        # Legacy aliases kept for backward compat (old clients still send these):
+        #   'contacts'/'officials'/'contact' -> 'leaders'
+        #   'people'/'person'                -> 'persons'
+        _TYPE_ALIASES = {
+            'contacts': 'leaders',
+            'contact': 'leaders',
+            'officials': 'leaders',
+            'leader': 'leaders',
+            'people': 'persons',
+            'person': 'persons',
+        }
         if types:
-            requested_types = [t.strip() for t in types.split(',')]
+            requested_types = [
+                _TYPE_ALIASES.get(t.strip(), t.strip())
+                for t in types.split(',')
+                if t.strip()
+            ]
         else:
-            requested_types = ['person', 'meetings', 'organizations', 'causes', 'jurisdictions', 'bills', 'topics', 'decisions', 'documents', 'grants']
+            requested_types = ['leaders', 'persons', 'meetings', 'organizations', 'causes', 'jurisdictions', 'bills', 'topics', 'decisions', 'documents', 'grants']
         
         # Parse jurisdiction levels if provided
         jurisdiction_levels_list = None
@@ -477,22 +497,19 @@ async def unified_search(
         # (label, coroutine) pairs — built only for requested types.
         search_tasks: List[tuple] = []
 
-        # 'person' is the current type; 'contacts' kept as a back-compat alias.
-        if 'person' in requested_types or 'contacts' in requested_types:
-            # MDM person master (mdm_person) — fast trigram name search
-            search_tasks.append(('person', search_postgres.search_persons_pg(q, state, limit=search_limit)))
+        # "persons" — real people from the MDM person master (mdm_person), fast
+        # trigram name search. (Aliases 'people'/'person' already normalized above.)
+        # A parallel data change is folding homeowners/residents into mdm_person, so
+        # this category will include residents automatically — no API change needed.
+        if 'persons' in requested_types:
+            search_tasks.append(('persons', search_postgres.search_persons_pg(q, state, limit=search_limit)))
 
-        # Elected/appointed officials (public.contact_official) — title-aware so a
-        # query like "Mayor" returns officials. Surfaces under the same People /
-        # Contacts category the frontend already renders (result_type='contact').
-        # Triggered by 'person'/'contacts' (the People tab) or an explicit
-        # 'officials' type, so the dropdown's People section includes officials.
-        if (
-            'officials' in requested_types
-            or 'person' in requested_types
-            or 'contacts' in requested_types
-        ):
-            search_tasks.append(('officials', search_postgres.search_officials_pg(q, state, limit=search_limit)))
+        # "leaders" — elected/appointed government officials (public.contact_official),
+        # title-aware so a query like "Mayor" returns officials (result_type='leader').
+        # This is now its OWN category, distinct from "persons". (Aliases
+        # 'contacts'/'officials' already normalized to 'leaders' above.)
+        if 'leaders' in requested_types:
+            search_tasks.append(('leaders', search_postgres.search_officials_pg(q, state, limit=search_limit)))
 
         if 'meetings' in requested_types:
             search_tasks.append(('meetings', search_postgres.search_events_pg(q, state, limit=search_limit)))
@@ -574,20 +591,13 @@ async def unified_search(
         logger.info(f"✂️ Paginated results: {len(paginated_results)} items")
         
         # Group by type for response.
-        # People + Officials share the frontend "People" section: the UI reads
-        # `results.person ?? results.contacts`. MDM people (result_type='person')
-        # and contact_official officials (result_type='contact') are both folded
-        # into BOTH the `person` and `contacts` keys so officials (e.g. mayors)
-        # always appear in that dropdown section regardless of which key the
-        # client reads.
-        people_and_officials = [
-            r.to_dict() for r in paginated_results
-            if r.result_type in ('person', 'contact')
-        ]
+        # Two DISTINCT people categories now:
+        #   - 'leaders'  <- result_type 'leader'  (government officials)
+        #   - 'persons'  <- result_type 'person'  (real people / residents)
+        # The old combined 'person'/'contacts' grouping is removed.
         grouped_results = {
-            'person': people_and_officials,
-            # back-compat alias: old clients read 'contacts'
-            'contacts': people_and_officials,
+            'leaders': [r.to_dict() for r in paginated_results if r.result_type == 'leader'],
+            'persons': [r.to_dict() for r in paginated_results if r.result_type == 'person'],
             'meetings': [r.to_dict() for r in paginated_results if r.result_type == 'meeting'],
             'organizations': [r.to_dict() for r in paginated_results if r.result_type == 'organization'],
             'bills': [r.to_dict() for r in paginated_results if r.result_type == 'bill'],
@@ -599,15 +609,13 @@ async def unified_search(
             'grants': [r.to_dict() for r in paginated_results if r.result_type == 'grant'],
         }
 
-        logger.info(f"📦 Grouped results - contacts:{len(grouped_results['contacts'])}, meetings:{len(grouped_results['meetings'])}, organizations:{len(grouped_results['organizations'])}, bills:{len(grouped_results['bills'])}, topics:{len(grouped_results['topics'])}, decisions:{len(grouped_results['decisions'])}, causes:{len(grouped_results['causes'])}, jurisdictions:{len(grouped_results['jurisdictions'])}, grants:{len(grouped_results['grants'])}")
-        
-        # Calculate total results per type (from all_results before pagination)
-        people_and_officials_total = len(
-            [r for r in all_results if r.result_type in ('person', 'contact')]
-        )
+        logger.info(f"📦 Grouped results - leaders:{len(grouped_results['leaders'])}, persons:{len(grouped_results['persons'])}, meetings:{len(grouped_results['meetings'])}, organizations:{len(grouped_results['organizations'])}, bills:{len(grouped_results['bills'])}, topics:{len(grouped_results['topics'])}, decisions:{len(grouped_results['decisions'])}, causes:{len(grouped_results['causes'])}, jurisdictions:{len(grouped_results['jurisdictions'])}, grants:{len(grouped_results['grants'])}")
+
+        # Calculate total results per type (from all_results before pagination).
+        # leaders and persons each report their OWN total.
         type_totals = {
-            'person': people_and_officials_total,
-            'contacts': people_and_officials_total,
+            'leaders': len([r for r in all_results if r.result_type == 'leader']),
+            'persons': len([r for r in all_results if r.result_type == 'person']),
             'meetings': len([r for r in all_results if r.result_type == 'meeting']),
             'organizations': len([r for r in all_results if r.result_type == 'organization']),
             'bills': len([r for r in all_results if r.result_type == 'bill']),

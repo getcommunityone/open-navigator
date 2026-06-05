@@ -477,9 +477,10 @@ async def search_persons_pg(
         return []
 
 
-# Back-compat alias: the dispatcher and any external callers may still reference
-# the old name. Person search is now MDM-backed (mdm_person).
-search_contacts_pg = search_persons_pg
+# NOTE: the former `search_contacts_pg = search_persons_pg` back-compat alias was
+# removed — there were no callers, and the "contacts" naming is retired in favor
+# of the two distinct categories: "persons" (mdm_person, search_persons_pg) and
+# "leaders" (contact_official, search_officials_pg).
 
 
 # Officials search (public.contact_official ~34k rows): cap how many ILIKE/trgm
@@ -513,13 +514,17 @@ async def search_officials_pg(
 
     is_current officials sort ahead of historical ones.
 
+    These are government officials — they surface in the unified search under the
+    dedicated **"leaders"** category (result_type='leader'), distinct from the
+    "persons" category (real people from mdm_person via search_persons_pg).
+
     Args:
         query: Search text (matched against full_name AND title; jurisdiction too)
         state: Filter by state code ('AL') or full name ('Alabama')
         limit: Max results
 
     Returns:
-        List of SearchResult objects (result_type='contact')
+        List of SearchResult objects (result_type='leader')
     """
     # Normalize state input to 2-letter code
     state = normalize_state_input(state)
@@ -645,7 +650,7 @@ async def search_officials_pg(
                     description += " • " + " • ".join(contact_info)
 
                 results.append(SearchResult(
-                    result_type="contact",
+                    result_type="leader",
                     title=name,
                     subtitle=f"{title} - {location}" if location else title,
                     description=description,
