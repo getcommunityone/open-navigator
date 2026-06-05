@@ -4,11 +4,11 @@
 BEGIN;
 
 -- Meeting-level rollup on YouTube catalog rows
-ALTER TABLE bronze.bronze_events_youtube
+ALTER TABLE bronze.bronze_event_youtube
     ADD COLUMN IF NOT EXISTS primary_leg_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
     ADD COLUMN IF NOT EXISTS legislation_validated_at TIMESTAMPTZ;
 
-COMMENT ON COLUMN bronze.bronze_events_youtube.primary_leg_ids IS
+COMMENT ON COLUMN bronze.bronze_event_youtube.primary_leg_ids IS
     'Distinct leg_id slugs from latest policy analysis for this video';
 
 -- Canonical legislation rows per meeting (parallel to dbt bronze_bills_from_ai)
