@@ -265,6 +265,14 @@ export async function fetchBatchJobsDashboard(
     signal: AbortSignal.timeout(30_000),
   })
   if (error) throw error
+  if (data == null) {
+    // openapi-fetch resolved with neither data nor error — e.g. an empty body
+    // or a 30s-aborted request. Returning undefined here makes React Query emit
+    // a cryptic "data is undefined" error; throw a real message instead.
+    throw new Error(
+      'Batch jobs API returned an empty response (the API may be down, restarting, or slow — try restarting it and reloading).',
+    )
+  }
   return data as BatchJobsDashboardPayload
 }
 
