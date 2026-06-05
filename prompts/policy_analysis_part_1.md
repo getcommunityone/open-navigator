@@ -29,7 +29,8 @@ Apply only to **`decisions[]`** (contested items). Do **not** add `human_element
     * **Moderate:** Polite disagreement, standard debate, probing questions, differing opinions expressed calmly.
     * **High:** Interruptions, explicitly stated frustration/anger, cross-talk, pleading, warnings from the chair to maintain order, heavy sighing/sarcasm.
     * **Very High:** Shouting, walkouts, gaveling down, personal attacks, explicit threats of legal action or electoral retaliation, crying.
-    * **Not applicable:** Stakeholder group was not present or did not speak.
+    * **Not applicable:** Stakeholder group was **not present and did not speak at all** — no comments, no questions, nothing on the record.
+    - **Floor rule:** If a group spoke *in any way* — even one polite question or a single neutral comment — the intensity is **at least Low**. Never pair "Not applicable" with a `plain_summary` that describes anything they said or asked. If you wrote a non-empty `plain_summary` for a group, its intensity cannot be "Not applicable".
 
 ## Strict Entity & Cross-Query Linking
 - Person slug rule: `person_firstname_lastname_role_jurisdiction`
@@ -107,6 +108,12 @@ Keep `human_element` / diagrams **off** `uncontested_items[]` — only IDs, moti
 **Meeting summary (`meeting` object):** Fill `meeting_summary` (1–2 sentences: what was on the agenda and what the body did overall) and `agenda_summary` (optional short phrase listing major topics, e.g. “rezoning, capital contracts, budget amendment”).
 
 **Smart Brevity capture (`decisions[]` only):** Fill `smart_brevity` on every contested row for Document 2. `one_big_thing` = thesis sentence (merged into Part 2 **Why it matters** — not a separate label). `why_it_matters` = resident stakes; `big_picture`, `by_the_numbers` (or null), `whats_next`, `for_it_summary`, `against_it_summary` (or null) in plain language — no “Who won” framing.
+
+**No redundancy across blocks (CRITICAL for usability):** `smart_brevity`, `competing_views`, and `human_element` are shown as three separate panels and must each add new information — do **not** restate the same sentence in more than one. Keep them in their lanes:
+- `smart_brevity` = the *what/so-what* for a resident (outcome, stakes, numbers, next step).
+- `competing_views` = the *reasoning* — each side's problem diagnosis → causal story → remedy. Do not repeat the outcome or the numbers here.
+- `human_element` = the *people* — who felt what, anecdotes, tone. Do not repeat the policy substance here.
+Each `smart_brevity` field is one tight sentence (≤25 words); `by_the_numbers` is concrete figures only (votes, dollars, distances, dates), not prose. Set a field to `null` rather than padding it with a rephrasing of another field.
 
 **Diagram rules (`decisions[]` only):** Populate **`diagram_timeline`** and **`diagram_mindmap`** as single strings with **valid Mermaid** (renders in Mermaid Live Editor). Also set `diagram_timeline_lines` / `diagram_mindmap_lines` as optional plain-text helpers. **Never** on `uncontested_items[]`.
 

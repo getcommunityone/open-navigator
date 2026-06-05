@@ -1338,12 +1338,20 @@ export default function UnifiedSearch() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900 bg-white"
                   >
                     <option value="relevance" className="text-gray-900">Relevance</option>
-                    <option value="name-asc" className="text-gray-900">Name (A-Z)</option>
-                    <option value="name-desc" className="text-gray-900">Name (Z-A)</option>
-                    <option value="revenue-desc" className="text-gray-900">Revenue (High to Low)</option>
-                    <option value="revenue-asc" className="text-gray-900">Revenue (Low to High)</option>
-                    <option value="assets-desc" className="text-gray-900">Assets (High to Low)</option>
-                    <option value="assets-asc" className="text-gray-900">Assets (Low to High)</option>
+                    <optgroup label="Date (decisions)">
+                      <option value="date_desc" className="text-gray-900">Date (Newest first)</option>
+                      <option value="date_asc" className="text-gray-900">Date (Oldest first)</option>
+                      <option value="theme" className="text-gray-900">Theme (A-Z)</option>
+                      <option value="outcome" className="text-gray-900">Outcome (A-Z)</option>
+                    </optgroup>
+                    <optgroup label="Organizations">
+                      <option value="name-asc" className="text-gray-900">Name (A-Z)</option>
+                      <option value="name-desc" className="text-gray-900">Name (Z-A)</option>
+                      <option value="revenue-desc" className="text-gray-900">Revenue (High to Low)</option>
+                      <option value="revenue-asc" className="text-gray-900">Revenue (Low to High)</option>
+                      <option value="assets-desc" className="text-gray-900">Assets (High to Low)</option>
+                      <option value="assets-asc" className="text-gray-900">Assets (Low to High)</option>
+                    </optgroup>
                   </select>
                 </div>
 

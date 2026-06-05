@@ -18,6 +18,8 @@ from fastapi import APIRouter, Query
 from loguru import logger
 from pydantic import BaseModel
 
+from api.routes.search_postgres import normalize_state_input
+
 router = APIRouter(prefix="/api/trending", tags=["trending"])
 
 LOCAL_DB_URL = os.getenv(
@@ -59,6 +61,20 @@ class CauseItem(BaseModel):
 class TrendingResponse(BaseModel):
     """Response with trending causes"""
     causes: List[CauseItem]
+    total: int
+
+
+class TrendingTopicItem(BaseModel):
+    """A trending legislative topic (bill subject)."""
+    name: str
+    bill_count: int
+    recent_bill_count: int
+    state_code: Optional[str] = None
+
+
+class TrendingTopicsResponse(BaseModel):
+    """Response with trending legislative topics."""
+    topics: List[TrendingTopicItem]
     total: int
 
 
@@ -209,6 +225,75 @@ async def get_trending_causes(
         causes = get_everyorg_causes(limit=limit)
 
     return TrendingResponse(causes=causes, total=len(causes))
+
+
+@router.get("/topics", response_model=TrendingTopicsResponse)
+async def get_trending_topics(
+    state: Optional[str] = Query(
+        None, description="2-letter code or full state name; omit for national"
+    ),
+    limit: int = Query(12, ge=1, le=50, description="Max number of topics to return"),
+) -> TrendingTopicsResponse:
+    """
+    Get trending legislative topics for the homepage trending pills.
+
+    Reads the modeled ``public.rpt_bill_map_aggregate`` mart. The trending
+    signal is ``recent_bill_count`` (bills with recent action).
+
+    - **state** given: per-state subjects filtered by ``state_code``.
+    - **state** omitted: subjects aggregated across all jurisdictions.
+    """
+    norm_state = normalize_state_input(state)
+
+    if norm_state:
+        sql = """
+            SELECT subject, bill_count, recent_bill_count, state_code
+            FROM public.rpt_bill_map_aggregate
+            WHERE state_code = %s
+              AND subject IS NOT NULL
+              AND btrim(subject) <> ''
+            ORDER BY recent_bill_count DESC, bill_count DESC
+            LIMIT %s
+        """
+        params: tuple = (norm_state, limit)
+    else:
+        sql = """
+            SELECT subject,
+                   sum(bill_count) AS bill_count,
+                   sum(recent_bill_count) AS recent_bill_count,
+                   NULL AS state_code
+            FROM public.rpt_bill_map_aggregate
+            WHERE subject IS NOT NULL
+              AND btrim(subject) <> ''
+            GROUP BY subject
+            ORDER BY sum(recent_bill_count) DESC, sum(bill_count) DESC
+            LIMIT %s
+        """
+        params = (limit,)
+
+    try:
+        with _cursor() as cur:
+            cur.execute(sql, params)
+            rows = cur.fetchall()
+    except psycopg2.errors.UndefinedTable:
+        logger.warning(
+            "public.rpt_bill_map_aggregate not found; returning empty trending topics"
+        )
+        return TrendingTopicsResponse(topics=[], total=0)
+    except Exception as exc:
+        logger.warning(f"Trending topics query failed: {exc}")
+        return TrendingTopicsResponse(topics=[], total=0)
+
+    topics = [
+        TrendingTopicItem(
+            name=subject,
+            bill_count=int(bill_count or 0),
+            recent_bill_count=int(recent_bill_count or 0),
+            state_code=state_code,
+        )
+        for (subject, bill_count, recent_bill_count, state_code) in rows
+    ]
+    return TrendingTopicsResponse(topics=topics, total=len(topics))
 
 
 @router.get("/stats")

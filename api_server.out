@@ -166,3 +166,10 @@ INFO:     127.0.0.1:45222 - "GET /api/batch-jobs/?detail=summary&batch_limit=25 
 2026-06-05 00:25:19 | INFO     | api.main:log_requests - ➡️  GET /api/batch-jobs/ - Client: 127.0.0.1
 2026-06-05 00:25:19 | INFO     | api.main:log_requests - ✅ GET /api/batch-jobs/ - Status: 200 - Duration: 6.20ms - Size: 64819 bytes
 INFO:     127.0.0.1:45230 - "GET /api/batch-jobs/?detail=summary&batch_limit=25 HTTP/1.1" 200 OK
+2026-06-05 17:00:27 | INFO     | api.telemetry:setup_telemetry - 🔇 OpenTelemetry: no exporter configured — tracing active but spans not exported (service=open-navigator-api). Set OTEL_EXPORTER_OTLP_ENDPOINT to ship traces, or OTEL_CONSOLE_EXPORT=1 to print them.
+2026-06-05 17:00:27 | SUCCESS  | api.telemetry:setup_telemetry - ✅ OpenTelemetry instrumentation enabled for open-navigator-api
+2026-06-05 17:00:30 | INFO     | api.routes.bills_neon:<module> - 🗄️  Bills map using: DEV database
+2026-06-05 17:00:30 | INFO     | api.routes.bills_neon:<module> - 📁 Bills details using: local parquet
+2026-06-05 17:00:31 | INFO     | agents.base:__init__ - Initialized orchestrator agent: orchestrator-001
+2026-06-05 17:00:31 | INFO     | __main__:serve - Starting API server on 0.0.0.0:8000
+ERROR:    [Errno 98] Address already in use

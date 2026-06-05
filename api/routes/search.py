@@ -728,7 +728,7 @@ async def unified_search(
             search_tasks.append(('organizations', search_postgres.search_organizations_pg(q, state, city, ntee_code, ein, jurisdiction_id=jurisdiction_id, limit=search_limit, offset=search_offset, sort=sort)))
 
         if 'bills' in requested_types:
-            search_tasks.append(('bills', search_postgres.search_bills_pg(q, state, session, limit=search_limit)))
+            search_tasks.append(('bills', search_postgres.search_bills_pg(q, state, session, city=city, limit=search_limit)))
 
         if 'grants' in requested_types:
             # Nonprofit grants (public.grant) — ILIKE over grantor/grantee/purpose,
@@ -741,7 +741,7 @@ async def unified_search(
             search_tasks.append(('topics', search_postgres.search_topics_pg(q, state, ntee_code, limit=search_limit)))
 
         if 'decisions' in requested_types:
-            search_tasks.append(('decisions', search_postgres.search_decisions_pg(q, state, limit=search_limit)))
+            search_tasks.append(('decisions', search_postgres.search_decisions_pg(q, state, city=city, sort=sort, limit=search_limit)))
 
         if 'documents' in requested_types:
             # Full-text search over meeting transcripts (public.event_documents)

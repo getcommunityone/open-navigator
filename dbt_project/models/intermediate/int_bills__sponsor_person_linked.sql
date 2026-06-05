@@ -24,11 +24,15 @@ sponsorships as (
     select * from {{ ref('stg_openstates__bill_sponsorship') }}
 ),
 
+-- join the already-deduped legislator mart (one row per person) rather than raw
+-- bronze, which now holds multiple sync batches (a person in two batches would
+-- otherwise multiply sponsorship rows).
 legislators as (
     select
         openstates_person_id,
+        person_uid,
         primary_party
-    from {{ source('bronze', 'bronze_jurisdiction_openstates') }}
+    from {{ ref('legislator') }}
 ),
 
 linked as (
@@ -36,10 +40,7 @@ linked as (
         s.ocd_bill_id,
         s.ocd_sponsorship_id,
         s.ocd_person_id,
-        case
-            when l.openstates_person_id is not null
-            then md5('bronze_jurisdiction_openstates|' || l.openstates_person_id)
-        end                                                       as person_uid,
+        l.person_uid,
         s.sponsor_name,
         s.is_primary,
         s.classification,

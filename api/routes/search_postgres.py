@@ -1358,6 +1358,7 @@ async def search_bills_pg(
     query: Optional[str] = None,
     state: Optional[str] = None,
     session: Optional[str] = None,
+    city: Optional[str] = None,
     limit: int = 10
 ) -> List[SearchResult]:
     """
@@ -1392,6 +1393,17 @@ async def search_bills_pg(
         if state:
             where_clauses.append(f"state_code = ${param_idx}")
             params.append(state.upper())
+            param_idx += 1
+
+        # Location scope. event_bill is local legislation (ordinances/resolutions);
+        # jurisdiction_name is always populated, city only sometimes. A city browse
+        # (e.g. "Tuscaloosa") must not leak the rest of the state's bills, so match
+        # the requested city against either column.
+        if city and city.strip():
+            where_clauses.append(
+                f"(lower(jurisdiction_name) = lower(${param_idx}) OR lower(city) = lower(${param_idx}))"
+            )
+            params.append(city.strip())
             param_idx += 1
 
         # Text search across title + official number (the only text event_bill carries)
@@ -1466,7 +1478,7 @@ async def search_bills_pg(
                     title=title,
                     subtitle=subtitle,
                     description=description,
-                    url=f"/bills/{row['state_code']}/{number}" if number and row['state_code'] else '',
+                    url=f"/bills/{row['event_bill_id']}",
                     score=1.0,
                     metadata={
                         'event_bill_id': row['event_bill_id'],
@@ -1629,6 +1641,8 @@ async def search_decisions_pg(
     query: Optional[str] = None,
     state: Optional[str] = None,
     outcome: Optional[str] = None,
+    city: Optional[str] = None,
+    sort: Optional[str] = None,
     limit: int = 10
 ) -> List[SearchResult]:
     """
@@ -1659,53 +1673,93 @@ async def search_decisions_pg(
         param_idx = 1
 
         if state:
-            where_conditions.append(f"state_code = ${param_idx}")
+            where_conditions.append(f"d.state_code = ${param_idx}")
             params.append(state.upper())
             param_idx += 1
 
-        if query and query.strip():
-            where_conditions.append(f"""(
-                to_tsvector('english', COALESCE(headline, '') || ' ' || COALESCE(decision_statement, '') || ' ' || COALESCE(primary_theme, ''))
-                @@ plainto_tsquery('english', ${param_idx})
-            )""")
-            params.append(query)
+        # Location scope. event_decision carries jurisdiction_name (always set) and
+        # a sparser city column; a city browse (e.g. "Tuscaloosa") must not leak
+        # decisions from the rest of the state, so match the city against either.
+        if city and city.strip():
+            where_conditions.append(
+                f"(lower(d.jurisdiction_name) = lower(${param_idx}) OR lower(d.city) = lower(${param_idx}))"
+            )
+            params.append(city.strip())
             param_idx += 1
 
-            order_by = (
-                f"ts_rank(to_tsvector('english', COALESCE(headline, '') || ' ' || COALESCE(decision_statement, '') || ' ' || COALESCE(primary_theme, '')), "
-                f"plainto_tsquery('english', ${param_idx - 1})) DESC, extracted_at DESC"
-            )
-        else:
-            order_by = "extracted_at DESC"
+        has_query = bool(query and query.strip())
+        rank_idx = None
+        if has_query:
+            where_conditions.append(f"""(
+                to_tsvector('english', COALESCE(d.headline, '') || ' ' || COALESCE(d.decision_statement, '') || ' ' || COALESCE(d.primary_theme, ''))
+                @@ plainto_tsquery('english', ${param_idx})
+            )""")
+            params.append(query.strip())
+            rank_idx = param_idx
+            param_idx += 1
 
         if outcome:
             # event_decision stores title-case outcomes ('Approved'); match
             # case-insensitively so callers can pass any casing.
-            where_conditions.append(f"LOWER(outcome) = LOWER(${param_idx})")
+            where_conditions.append(f"LOWER(d.outcome) = LOWER(${param_idx})")
             params.append(outcome)
             param_idx += 1
 
         where_sql = " AND ".join(where_conditions) if where_conditions else "TRUE"
 
+        # Meeting date (full ISO text) + body name come from event_meeting joined on
+        # c1_event_id; event_date is often blank, so fall back to meeting_date. Some
+        # rows carry the literal 'unknown' instead of a date — only accept a real
+        # ISO YYYY-MM-DD so it sorts correctly and never renders "(unknown)".
+        meeting_date_expr = (
+            "CASE WHEN COALESCE(NULLIF(m.event_date, ''), NULLIF(m.meeting_date, '')) "
+            "~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' "
+            "THEN COALESCE(NULLIF(m.event_date, ''), NULLIF(m.meeting_date, '')) END"
+        )
+
+        # Sort modes — the pager shows 20 per page; let users reorder them.
+        s = (sort or 'relevance').lower()
+        if s in ('date_asc', 'oldest'):
+            order_by = f"{meeting_date_expr} ASC NULLS LAST, d.extracted_at ASC"
+        elif s in ('date_desc', 'newest', 'date'):
+            order_by = f"{meeting_date_expr} DESC NULLS LAST, d.extracted_at DESC"
+        elif s == 'theme':
+            order_by = "d.primary_theme ASC NULLS LAST, d.extracted_at DESC"
+        elif s == 'outcome':
+            order_by = "d.outcome ASC NULLS LAST, d.extracted_at DESC"
+        elif has_query:
+            # relevance (default when there's a text query)
+            order_by = (
+                f"ts_rank(to_tsvector('english', COALESCE(d.headline, '') || ' ' || COALESCE(d.decision_statement, '') || ' ' || COALESCE(d.primary_theme, '')), "
+                f"plainto_tsquery('english', ${rank_idx})) DESC, {meeting_date_expr} DESC NULLS LAST"
+            )
+        else:
+            # relevance with no query -> newest meeting first
+            order_by = f"{meeting_date_expr} DESC NULLS LAST, d.extracted_at DESC"
+
         sql = f"""
             SELECT
-                event_decision_id,
-                analysis_id,
-                decision_id,
-                subject_id,
-                headline,
-                decision_statement,
-                outcome,
-                primary_theme,
-                vote_tally,
-                jurisdiction_name,
-                jurisdiction_type,
-                state_code,
-                state,
-                city,
-                c1_event_id,
-                extracted_at
-            FROM event_decision
+                d.event_decision_id,
+                d.analysis_id,
+                d.decision_id,
+                d.subject_id,
+                d.headline,
+                d.decision_statement,
+                d.outcome,
+                d.primary_theme,
+                d.vote_tally,
+                d.jurisdiction_name,
+                d.jurisdiction_type,
+                d.state_code,
+                d.state,
+                d.city,
+                d.c1_event_id,
+                d.extracted_at,
+                m.body_name AS meeting_name,
+                {meeting_date_expr} AS meeting_date,
+                m.video_id AS meeting_video_id
+            FROM event_decision d
+            LEFT JOIN event_meeting m ON m.c1_event_id = d.c1_event_id
             WHERE {where_sql}
             ORDER BY {order_by}
             LIMIT ${param_idx}
@@ -1735,6 +1789,17 @@ async def search_decisions_pg(
                 )
                 if location:
                     subtitle_parts.append(location)
+                # Meeting + date so each row shows where/when the decision happened.
+                meeting_date = row['meeting_date']
+                meeting_name = row['meeting_name']
+                meeting_bits = " ".join(
+                    p for p in (
+                        meeting_name,
+                        f"({meeting_date})" if meeting_date else None,
+                    ) if p
+                )
+                if meeting_bits:
+                    subtitle_parts.append(meeting_bits)
                 subtitle = " • ".join(subtitle_parts)
 
                 # Description is the decision_statement for additional context
@@ -1754,6 +1819,9 @@ async def search_decisions_pg(
                         'decision_id': row['decision_id'],
                         'subject_id': row['subject_id'],
                         'meeting_id': row['analysis_id'],
+                        'meeting_name': meeting_name,
+                        'meeting_date': meeting_date,
+                        'meeting_video_id': row['meeting_video_id'],
                         'outcome': row['outcome'],
                         'primary_theme': row['primary_theme'],
                         'vote_tally': row['vote_tally'],

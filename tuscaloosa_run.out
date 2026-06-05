@@ -1,0 +1,20 @@
+2026-06-05 18:23:11.642 | INFO     | __main__:load_speaker_context:340 - Loaded speaker hints from /home/developer/projects/open-navigator/data/cache/scraped_meetings/AL/municipality/tuscaloosa_0177256
+2026-06-05 18:23:13.764 | INFO     | __main__:run_pipeline:1195 - [1/19] Skip 5uyTABYdvQI — analysis exists (2026-03-03_Tuscaloosa_Properties_Committee_Meeting.json)
+2026-06-05 18:23:13.766 | INFO     | __main__:run_pipeline:1195 - [2/19] Skip -5O2ivpqQeM — analysis exists (2026-01-13_Tuscaloosa_Public_Safety_Committee_Meeting.json)
+2026-06-05 18:23:13.767 | INFO     | __main__:run_pipeline:1195 - [3/19] Skip FanjL_zqf8U — analysis exists (2026-01-13_Tuscaloosa_Projects_Committee_Meeting.json)
+2026-06-05 18:23:13.770 | INFO     | __main__:run_pipeline:1195 - [4/19] Skip IyvUM-zHWiY — analysis exists (2026-01-06_Tuscaloosa_City_Council_Meeting.json)
+2026-06-05 18:23:13.777 | INFO     | __main__:run_pipeline:1195 - [5/19] Skip G8g2hSGjEdE — analysis exists (2026-01-06_Tuscaloosa_Finance_Committee_Meeting.json)
+2026-06-05 18:23:13.782 | INFO     | __main__:run_pipeline:1195 - [6/19] Skip KSVq87TfZHI — analysis exists (2026-01-06_Tuscaloosa_Properties_Committee_Meeting.json)
+2026-06-05 18:23:13.789 | INFO     | __main__:run_pipeline:1195 - [7/19] Skip 39wHHl_45K8 — analysis exists (2026-01-06_Tuscaloosa_Projects_Committee_Meeting.json)
+2026-06-05 18:23:13.795 | INFO     | __main__:run_pipeline:1195 - [8/19] Skip JydVulKddTs — analysis exists (2025-12-16_Tuscaloosa_Finance_Committee_Meeting.json)
+2026-06-05 18:23:13.802 | INFO     | __main__:run_pipeline:1195 - [9/19] Skip 4ms8d-kYgAQ — analysis exists (2025-12-17_Tuscaloosa_Zoning_Board_of_Adjustment_Meeting.json)
+2026-06-05 18:23:13.807 | INFO     | __main__:run_pipeline:1195 - [10/19] Skip RhZ2ejtuoCU — analysis exists (2025-12-16_Tuscaloosa_Projects_Committee_Meeting.json)
+2026-06-05 18:23:13.811 | INFO     | __main__:run_pipeline:1195 - [11/19] Skip Ye6LTB2bKrk — analysis exists (2025-12-16_Tuscaloosa_City_Council_Meeting.json)
+2026-06-05 18:23:13.816 | INFO     | __main__:run_pipeline:1195 - [12/19] Skip 6sXmAY7Gsfs — analysis exists (2025-12-16_Tuscaloosa_Administration_Committee_Meeting.json)
+2026-06-05 18:23:13.908 | INFO     | __main__:run_pipeline:1227 - [13/19] Z9cOIV2TdTw — Tuscaloosa Planning and Zoning Commission Meeting - Dec 15, 2025
+2026-06-05 18:23:14.087 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for Z9cOIV2TdTw (4166 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-05 18:23:14.134 | INFO     | __main__:process_one_video:958 - Built 2 agenda segment hint(s) for presenter linking
+2026-06-05 18:23:14.142 | INFO     | __main__:process_one_video:1012 - Calling gemini-2.5-flash (AI Studio API)
+2026-06-05 18:23:14.155 | INFO     | llm.gemini.genai_text_client:_key_pool:684 - Gemini key rotation enabled: 4 keys in pool
+2026-06-05 18:24:14.444 | WARNING  | llm.gemini.genai_text_client:call_with_genai_quota_retry:471 - gemini-2.5-flash: transient network disconnect — sleeping 8s, retry 2/12 (RemoteProtocolError — Server disconnected without sending a response.)
+2026-06-05 18:25:23.239 | WARNING  | llm.gemini.genai_text_client:call_with_genai_quota_retry:471 - gemini-2.5-flash: transient network disconnect — sleeping 11s, retry 3/12 (RemoteProtocolError — Server disconnected without sending a response.)

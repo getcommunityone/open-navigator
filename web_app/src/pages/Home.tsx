@@ -19,8 +19,6 @@ import {
   CheckCircleIcon,
   MapIcon,
   MapPinIcon,
-  PlusIcon,
-  BellIcon,
   ArrowTrendingUpIcon,
   Bars3Icon,
   XMarkIcon,
@@ -71,16 +69,6 @@ interface LocationStats {
   trending_causes?: unknown
   last_updated?: string | null
   source?: string
-}
-
-// Trending topic/cause interface
-interface TrendingCause {
-  name: string
-  icon: string
-  category: string
-  description?: string
-  image_url?: string
-  popularity_rank?: number
 }
 
 // Featured stories for tabbed hero banner
@@ -375,6 +363,21 @@ export default function Home() {
     staleTime: 5 * 60 * 1000,  // Cache for 5 minutes
   })
 
+  // Fetch REAL trending topics (legislative bill subjects) from
+  // rpt_bill_map_aggregate, scoped to the user's state when known. This is the
+  // canonical "what's trending" source; it takes precedence over nonprofit causes
+  // and the static fallback for the trending pills.
+  const { data: trendingTopicsData } = useQuery({
+    queryKey: ['trending-topics', location?.state],
+    queryFn: async () => {
+      const response = await api.get('/trending/topics', {
+        params: { state: location?.state || undefined, limit: 12 },
+      })
+      return response.data as { topics?: { name: string; bill_count?: number; recent_bill_count?: number }[] }
+    },
+    staleTime: 5 * 60 * 1000,
+  })
+
   // Helper function to map cause names to icons
   const getCauseIcon = (causeName: string): string => {
     const iconMap: Record<string, string> = {
@@ -410,6 +413,20 @@ export default function Home() {
 
   // Use location-specific trending causes if available, fallback to global trending
   const trendingTopics = React.useMemo(() => {
+    // Prefer REAL trending topics (legislative bill subjects) from
+    // rpt_bill_map_aggregate — what's actually trending in the selected geography.
+    const billTopics = trendingTopicsData?.topics || []
+    if (billTopics.length > 0) {
+      homeLog('📊 [Home] Using real trending bill topics:', billTopics)
+      return billTopics.slice(0, 12).map((t) => ({
+        name: t.name,
+        icon: getCauseIcon(t.name),
+        category: 'primary',
+        description: `${t.recent_bill_count ?? t.bill_count ?? 0} recent bills`,
+        popularity_rank: undefined,
+      }))
+    }
+
     // If we have location stats with trending causes, use those
     if (locationStats?.trending_causes && Array.isArray(locationStats.trending_causes)) {
       homeLog('📊 [Home] Using location-specific trending causes:', locationStats.trending_causes)
@@ -433,7 +450,7 @@ export default function Home() {
     homeLog('📊 [Home] Using global trending causes from API')
     const globalCauses = trendingData?.causes || []
     return globalCauses.filter((cause: any) => (cause.decision_count || 0) > 0)
-  }, [locationStats, trendingData])
+  }, [locationStats, trendingData, trendingTopicsData])
 
   const activeHeroTab = React.useMemo(
     () => HERO_SEARCH_TAB_DEFS.find((t) => t.id === heroSearchTab) ?? HERO_SEARCH_TAB_DEFS[0],
@@ -1134,40 +1151,6 @@ export default function Home() {
         )}
       </nav>
 
-      {/* Trending Topics Bar - Compact and Professional - Only show if there are topics */}
-      {trendingTopics && trendingTopics.length > 0 && (
-        <div className="border-b border-slate-400/50 bg-slate-200/95">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
-            <div className="flex items-center gap-2 md:gap-3">
-              {/* Trending Icon */}
-              <ArrowTrendingUpIcon className="h-4 w-4 md:h-5 md:w-5 text-green-600 flex-shrink-0" />
-              
-              {/* Scrollable topics row */}
-              <div className="flex items-center gap-1.5 md:gap-2 overflow-x-auto scrollbar-hide flex-1">
-                {trendingTopics.slice(0, 12).map((topic: TrendingCause) => (
-                  <button
-                    key={topic.name}
-                    onClick={() => navigate(`/search?q=${encodeURIComponent(topic.name)}`)}
-                    className="group inline-flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-0.5 md:py-1 bg-gray-50 border border-gray-200 rounded-md hover:border-[#354F52] hover:bg-[#354F52]/5 transition-all text-xs whitespace-nowrap flex-shrink-0"
-                  >
-                    <span className="font-medium text-gray-700 group-hover:text-[#354F52]">{topic.name}</span>
-                    <PlusIcon className="h-3 w-3 text-gray-400 group-hover:text-[#354F52]" />
-                  </button>
-                ))}
-                <button
-                  onClick={() => navigate('/search')}
-                  className="inline-flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-0.5 md:py-1 bg-[#354F52] text-white rounded-md hover:bg-[#2e4346] transition-all text-xs whitespace-nowrap flex-shrink-0"
-                >
-                  <BellIcon className="h-3 w-3" />
-                  <span className="font-medium hidden sm:inline">View All</span>
-                  <span className="font-medium sm:hidden">All</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Featured Story Hero */}
       <div className="pt-2 pb-4 md:pt-3 md:pb-7 bg-gradient-to-b from-stone-50 via-white to-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -1850,7 +1833,7 @@ export default function Home() {
                                 </div>
                                 <button
                                   type="button"
-                                  onClick={() => navigate('/search')}
+                                  onClick={() => navigate('/search?types=topics')}
                                   className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-[#1a6b6b] underline-offset-2 transition-colors hover:underline"
                                   style={{ fontFamily: "'DM Sans', sans-serif" }}
                                 >
