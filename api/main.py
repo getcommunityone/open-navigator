@@ -1456,7 +1456,7 @@ async def startup_event():
     
     logger.info("")
     logger.info("="*80)
-    logger.info(f"✅ API READY - {len(critical_files)}/{len(reference_checks)} critical files available")
+    logger.info(f"✅ API READY - {len(critical_files)}/{len(reference_db_checks)} critical files available")
     if IS_HF_SPACES:
         logger.info(f"✅ HuggingFace datasets validated")
     logger.info("="*80)
