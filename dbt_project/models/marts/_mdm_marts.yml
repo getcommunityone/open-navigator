@@ -208,22 +208,16 @@ models:
       per (person_uid, jurisdiction_id). State tier from state_code, city tier
       from normalized city_norm + state_code, county tier from zip5 via the HUD
       ZIP->county crosswalk (allocation_ratio = tot_ratio; is_dominant marks the
-      best row per (person, level)). PK person_jurisdiction_id, FK person_uid ->
-      mdm_person, FK jurisdiction_id -> jurisdictions.
+      best row per (person, level)). PK person_jurisdiction_id; FK person_uid ->
+      mdm_person and FK jurisdiction_id -> jurisdictions are added NOT VALID via the
+      model's post_hook (not the contract constraints block) so the bulk INSERT
+      isn't row-by-row FK-validated against 13.8M-row mdm_person (~5 min/FK); they
+      still enforce future writes.
     config:
       materialized: table
       on_schema_change: fail
       contract:
         enforced: true
-    constraints:
-      - type: foreign_key
-        columns: [person_uid]
-        to: ref('mdm_person')
-        to_columns: [person_uid]
-      - type: foreign_key
-        columns: [jurisdiction_id]
-        to: ref('jurisdictions')
-        to_columns: [jurisdiction_id]
     columns:
       - name: person_jurisdiction_id
         data_type: text
@@ -404,22 +398,16 @@ models:
       row per (master_org_id, jurisdiction_id). State tier from state_code, city
       tier from normalized city_norm + state_code, county tier from zip5 via the
       HUD ZIP->county crosswalk (allocation_ratio = tot_ratio; is_dominant marks
-      the best row per (org, level)). PK org_jurisdiction_id, FK master_org_id ->
-      mdm_organization, FK jurisdiction_id -> jurisdictions.
+      the best row per (org, level)). PK org_jurisdiction_id; FK master_org_id ->
+      mdm_organization and FK jurisdiction_id -> jurisdictions are added NOT VALID
+      via the model's post_hook (not the contract constraints block) so the bulk
+      INSERT isn't row-by-row FK-validated over millions of rows; they still enforce
+      future writes.
     config:
       materialized: table
       on_schema_change: fail
       contract:
         enforced: true
-    constraints:
-      - type: foreign_key
-        columns: [master_org_id]
-        to: ref('mdm_organization')
-        to_columns: [master_org_id]
-      - type: foreign_key
-        columns: [jurisdiction_id]
-        to: ref('jurisdictions')
-        to_columns: [jurisdiction_id]
     columns:
       - name: org_jurisdiction_id
         data_type: text

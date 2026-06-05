@@ -345,10 +345,14 @@ city_stats AS (
     SELECT
         'city' as level,
         es.state_code,
-        NULL::VARCHAR(50) as state,
-        NULL::VARCHAR(100) as county,
+        -- FIX: populate full state name alongside state_code (naming convention).
+        {{ state_code_to_name('es.state_code') }}::VARCHAR(50) as state,
+        -- FIX: carry the city's primary county so the grain is genuinely
+        -- (level, state_code, county, city) and distinct same-named places in
+        -- different counties cannot merge into one row.
+        c2c.primary_county::VARCHAR(100) as county,
         es.city,
-        
+
         0 as jurisdictions_count,
         0 as school_districts_count,
         -- FIX: Use actual city nonprofit count, not state total!
@@ -361,13 +365,17 @@ city_stats AS (
         COALESCE(ds.decisions_count, 0)::INTEGER as decisions_count,
         COALESCE(ncs.total_revenue, 0) as total_revenue,
         COALESCE(ncs.total_assets, 0) as total_assets,
-        
+
         -- City-level trending causes (from jurisdiction-specific decisions)
         tcd.trending_causes,
-        
+
         CURRENT_TIMESTAMP as last_updated
     FROM event_stats es
-    LEFT JOIN nonprofit_city_stats ncs 
+    -- city_to_county_map is unique per (state_code, city) via DISTINCT ON, so this
+    -- join attaches the primary county WITHOUT fanning out the city grain.
+    LEFT JOIN city_to_county_map c2c
+        ON UPPER(es.city) = UPPER(c2c.city) AND es.state_code = c2c.state_code
+    LEFT JOIN nonprofit_city_stats ncs
         ON UPPER(es.city) = UPPER(ncs.city) AND es.state_code = ncs.state_code
     LEFT JOIN trending_causes_data tcd
         ON UPPER(es.city) = UPPER(tcd.jurisdiction_name) AND es.state_code = tcd.state_code

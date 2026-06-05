@@ -37,31 +37,48 @@
     irc_section / valuation_method / noncash_description (genuinely distinct
     lines, kept) while the rest were fully-identical rows (true duplicates: same
     filing ingested twice / re-reported). The `deduped` CTE drops only
-    fully-identical rows (row_number over EVERY source column), so true dupes
-    collapse to one row and location/section-differing lines survive. The hash
-    is stable within a build given stable bronze content.
+    fully-identical rows (it dedupes on grant_id, the hash over EVERY grain
+    column), so true dupes collapse to one row and location/section-differing
+    lines survive. The hash is stable within a build given stable bronze content.
 */
 
 with
 
+-- Compute grant_id (the full-grain surrogate hash) FIRST so the dedupe can run
+-- on a single 32-char column. PERF: deduping on the narrow hash lets Postgres
+-- keep the dedupe in memory; deduping on the 15 wide text grain columns forced
+-- a multi-hundred-MB external (on-disk) merge sort -- the dominant cost of the
+-- slow build.
 grants_raw as (
-    select * from {{ ref('stg_grants_gt990__schedule_i') }}
-),
-
--- Drop ONLY fully-identical duplicate grant lines (same values in every source
--- column). Rows that differ in ANY column survive, since their distinguishing
--- columns are all part of the surrogate-key grain below. Implemented as
--- SELECT DISTINCT over every column (equivalent to row_number over all columns
--- = 1, but lets Postgres use a HashAggregate instead of a full 15-key sort of
--- ~5.6M wide rows -- the sort was the dominant cost of the old ~32-min build).
-deduped as (
-    select distinct
+    select
+        {{ dbt_utils.generate_surrogate_key([
+            'grantor_ein', 'grantor_name', 'tax_year',
+            'grantee_name', 'grantee_ein', 'grantee_city',
+            'grantee_state_code', 'grantee_zip', 'irc_section',
+            'cash_grant_amount', 'noncash_assistance_amount',
+            'valuation_method', 'noncash_description', 'purpose', 'source_url'
+        ]) }}                                          as grant_id,
         grantor_ein, grantor_name, tax_year,
         grantee_name, grantee_ein, grantee_city,
         grantee_state_code, grantee_zip, irc_section,
         cash_grant_amount, noncash_assistance_amount,
         valuation_method, noncash_description, purpose, source_url
-    from grants_raw
+    from {{ ref('stg_grants_gt990__schedule_i') }}
+),
+
+-- Drop ONLY fully-identical duplicate grant lines. Two rows share a grant_id
+-- iff they are identical across every grain column, so keeping one row per
+-- grant_id collapses true duplicates while preserving location/section-
+-- differing lines (which hash differently). Dedupe on the narrow hash.
+deduped as (
+    select *
+    from (
+        select
+            *,
+            row_number() over (partition by grant_id) as _dupe_rn
+        from grants_raw
+    ) d
+    where _dupe_rn = 1
 ),
 
 grants as (

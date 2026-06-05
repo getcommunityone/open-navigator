@@ -337,6 +337,7 @@ from api.routes import locations as locations_routes
 from api.routes import addresses as addresses_routes
 from api.routes import geocode as geocode_routes
 from api.routes import cpi as cpi_routes
+from api.routes import grants as grants_routes
 from api.database import init_db
 
 app.include_router(auth_routes.router, prefix="/api")
@@ -355,6 +356,7 @@ app.include_router(locations_routes.router, prefix="/api")
 app.include_router(addresses_routes.router, prefix="/api")
 app.include_router(geocode_routes.router, prefix="/api")
 app.include_router(cpi_routes.router, prefix="/api", tags=["cpi"])
+app.include_router(grants_routes.router, prefix="/api")
 
 # Custom Swagger UI with logo
 @app.get("/docs", include_in_schema=False)

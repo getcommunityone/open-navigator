@@ -36,6 +36,7 @@ import CensusDrilldownMapPage from './pages/CensusDrilldownMapPage'
 import DataExplorerLayout from './components/DataExplorerLayout'
 import DataExplorerScorecardPage from './pages/DataExplorerScorecardPage'
 import BillDetail from './pages/BillDetail'
+import GrantDetail from './pages/GrantDetail'
 import NotFound from './pages/NotFound'
 import { DATA_EXPLORER_MAP_BASE } from './utils/dataExplorerPaths'
 
@@ -169,6 +170,7 @@ function App() {
           <Route path="map-legacy/place/:stateFips/:vintage/:metric" element={<CensusMapPage />} />
         </Route>
         <Route path="bill/:billId" element={<BillDetail />} />
+        <Route path="grants/:id" element={<GrantDetail />} />
         <Route path="documents" element={<Documents />} />
         <Route path="opportunities" element={<Opportunities />} />
         <Route path="nonprofits" element={<Nonprofits />} />

@@ -3,10 +3,18 @@
     materialized='table',
     post_hook=[
       "CREATE INDEX IF NOT EXISTS mdm_bridge_org_jurisdiction_jurisdiction_id_idx ON {{ this }} (jurisdiction_id)",
-      "CREATE INDEX IF NOT EXISTS mdm_bridge_org_jurisdiction_master_org_id_idx ON {{ this }} (master_org_id)"
+      "CREATE INDEX IF NOT EXISTS mdm_bridge_org_jurisdiction_master_org_id_idx ON {{ this }} (master_org_id)",
+      "ALTER TABLE {{ this }} ADD CONSTRAINT mdm_bridge_org_jurisdiction_master_org_id_fkey FOREIGN KEY (master_org_id) REFERENCES {{ ref('mdm_organization') }} (master_org_id) NOT VALID",
+      "ALTER TABLE {{ this }} ADD CONSTRAINT mdm_bridge_org_jurisdiction_jurisdiction_id_fkey FOREIGN KEY (jurisdiction_id) REFERENCES {{ ref('jurisdictions') }} (jurisdiction_id) NOT VALID"
     ]
   )
 }}
+
+-- FKs are added NOT VALID in the post_hook above (not via the contract `constraints`
+-- block) on purpose: inline contract FKs validate every row against the parent during
+-- the bulk INSERT (measured ~5 min PER FK over millions of rows). The bridge is built
+-- FROM these parents via ref(), so referential integrity holds by construction; NOT
+-- VALID still enforces all FUTURE writes. The ref()s in the SELECT keep dbt build order.
 
 /*
     Mart (MDM): organization <-> jurisdiction, as a many-to-many bridge across

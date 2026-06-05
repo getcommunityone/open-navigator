@@ -194,20 +194,42 @@ async def _fetch_location_stats_from_jurisdiction(
         return None
 
     jur_state_pred = _state_usps_match_sql(jur_cols, "$1")
-    name_filter = ""
+    # ``jur_filter`` constrains the jurisdiction (city/county) count; ``school_filter``
+    # narrows the school-district count to the same locality by name.
+    jur_filter = ""
+    school_filter = ""
     params: list[Any] = [state_val]
     if city:
-        params.append(f"%{city}%")
-        name_filter = f" AND name ILIKE ${len(params)}"
+        # civic_jurisdiction stores incorporated places with a trailing " city"
+        # (e.g. "Tuscaloosa city"), alongside same-named "<X> County" (classification
+        # 'county') and "<X> CCD" (classification 'township') rows. Without a
+        # classification filter + anchored name match, a bare ``name ILIKE '%city%''``
+        # summed all three -> inflated city count. Constrain to real cities and match
+        # the city name with or without the stored " city" suffix (still case-insensitive).
+        # Strip a user-supplied " city" suffix so both forms compare equally.
+        city_name = city.strip()
+        if city_name.lower().endswith(" city"):
+            city_name = city_name[: -len(" city")].strip()
+        params.append(city_name)
+        params.append(f"{city_name} city")
+        name_pred = f"(name ILIKE ${len(params) - 1} OR name ILIKE ${len(params)})"
+        jur_filter = f" AND classification = 'city' AND {name_pred}"
+        # School districts are not stored with a " city" suffix; match on the bare name.
+        school_name_param = len(params) - 1  # the un-suffixed city name
+        school_filter = f" AND name ILIKE ${school_name_param}"
     elif county:
         county_name = county.replace(" County", "").strip() if county else county
         params.append(f"%{county_name}%")
-        name_filter = f" AND (name ILIKE ${len(params)} OR county ILIKE ${len(params)})"
+        jur_filter = (
+            f" AND classification = 'county'"
+            f" AND (name ILIKE ${len(params)} OR county ILIKE ${len(params)})"
+        )
+        school_filter = f" AND (name ILIKE ${len(params)} OR county ILIKE ${len(params)})"
 
     jurisdiction_query = f"""
         SELECT COUNT(DISTINCT id) AS count
         FROM civic_jurisdiction
-        WHERE ({jur_state_pred}){name_filter}
+        WHERE ({jur_state_pred}){jur_filter}
     """
     jur_result = await conn.fetchrow(jurisdiction_query, *params)
     jurisdictions = int(jur_result["count"] or 0) if jur_result else 0
@@ -216,7 +238,7 @@ async def _fetch_location_stats_from_jurisdiction(
         SELECT COUNT(*) AS count
         FROM civic_jurisdiction
         WHERE classification = 'school_district'
-          AND ({jur_state_pred}){name_filter}
+          AND ({jur_state_pred}){school_filter}
     """
     school_result = await conn.fetchrow(school_query, *params)
     school_districts = int(school_result["count"] or 0) if school_result else 0

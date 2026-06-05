@@ -1,0 +1,92 @@
+version: 2
+
+models:
+  - name: jurisdiction_state_aggregate
+    description: >
+      public.jurisdiction_state_aggregate - multi-level rollup of nonprofit,
+      event, person, leader, bill and decision counts (plus trending causes JSON)
+      used by the API/UI stats panels. One row per
+      (level, state_code, county, city). `level` is one of
+      national/state/county/city. For coarser levels the finer-grain columns are
+      NULL by design: national has state_code/county/city NULL; state has
+      county/city NULL; county has city NULL. The compound grain
+      (level, state_code, county, city) is therefore the natural key - the
+      unique_combination_of_columns test below enforces it (Postgres GROUP BY
+      treats NULLs as equal, so the coarse-level NULLs collapse to one row per
+      level/state and do not cause a spurious failure). The model SQL was fixed
+      to carry each city's primary county into the `county` column so distinct
+      same-named cities in different counties stay on separate rows instead of
+      merging and inflating counts.
+    config:
+      materialized: table
+    columns:
+      - name: level
+        description: "Aggregation level: national | state | county | city. Natural-key component."
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['national', 'state', 'county', 'city']
+      - name: state_code
+        description: "2-letter state code. NULL only for the national level. Natural-key component."
+      - name: state
+        description: "Full state name (populated for city level via state_code_to_name; NULL at coarser levels)."
+      - name: county
+        description: >
+          County name. Natural-key component. Populated for county level (the
+          county's own name) and for city level (the city's primary county, the
+          county holding the most of that city's nonprofits). NULL for
+          national/state levels.
+      - name: city
+        description: "City name. Natural-key component. Populated only for the city level; NULL otherwise."
+      - name: jurisdictions_count
+        description: "Placeholder count (currently 0 - not yet populated)."
+        tests:
+          - not_null
+      - name: school_districts_count
+        description: "Placeholder count (currently 0 - not yet populated)."
+        tests:
+          - not_null
+      - name: nonprofits_count
+        description: "Number of nonprofits in the geography."
+        tests:
+          - not_null
+      - name: events_count
+        description: "Number of meetings/events in the geography."
+        tests:
+          - not_null
+      - name: bills_count
+        description: "Number of legislative bills (populated at national/state level; 0 at county/city)."
+        tests:
+          - not_null
+      - name: persons_count
+        description: "Number of people (mdm_person) in the geography."
+        tests:
+          - not_null
+      - name: leaders_count
+        description: >
+          Leaders = SUM of two non-dedupable id namespaces: elected/government
+          officials (contact_official) + nonprofit board members/leaders
+          (mdm_bridge_person_organization).
+        tests:
+          - not_null
+      - name: decisions_count
+        description: "Number of distinct decisions in the geography."
+        tests:
+          - not_null
+      - name: total_revenue
+        description: "Sum of nonprofit revenue (irs_revenue_amt) in the geography."
+      - name: total_assets
+        description: "Sum of nonprofit assets (irs_asset_amt) in the geography."
+      - name: trending_causes
+        description: "JSONB array of trending causes for the geography (last-90-day decisions). NULL at county level."
+      - name: last_updated
+        description: "Build timestamp for this row."
+        tests:
+          - not_null
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - level
+            - state_code
+            - county
+            - city
