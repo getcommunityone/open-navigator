@@ -402,6 +402,7 @@ async def unified_search(
     types: Optional[str] = Query(None, description="Comma-separated result types: leaders,persons,meetings,organizations,causes,jurisdictions,bills,topics,decisions,documents,grants. Legacy aliases accepted: 'contacts'/'officials' -> 'leaders', 'people'/'person' -> 'persons'"),
     state: Optional[str] = Query(None, description="Filter by state (2-letter code)"),
     city: Optional[str] = Query(None, description="Filter by city name"),
+    jurisdiction_id: Optional[str] = Query(None, description="Filter by exact jurisdiction_id (city, county, or state) — scopes orgs/persons/grants through the MDM jurisdiction bridges"),
     jurisdiction_levels: Optional[str] = Query(None, description="Comma-separated jurisdiction levels: city,county,town,village,school_district,special_district,state"),
     ntee_code: Optional[str] = Query(None, description="Filter organizations by NTEE code"),
     ein: Optional[str] = Query(None, description="Filter organizations by exact EIN (for direct organization links)"),
@@ -434,7 +435,7 @@ async def unified_search(
     - `/api/search?q=healthcare&types=bills&state=MA` - Search bills in Massachusetts
     """
     # 🔍 DEBUG LOGGING - Log all incoming request parameters
-    logger.info(f"🔍 SEARCH REQUEST: q={q!r}, types={types!r}, state={state!r}, city={city!r}, jurisdiction_levels={jurisdiction_levels!r}, ntee_code={ntee_code!r}, ein={ein!r}, session={session!r}, limit={limit}, offset={offset}, page={page}, enrich={enrich}, sort={sort!r}")
+    logger.info(f"🔍 SEARCH REQUEST: q={q!r}, types={types!r}, state={state!r}, city={city!r}, jurisdiction_id={jurisdiction_id!r}, jurisdiction_levels={jurisdiction_levels!r}, ntee_code={ntee_code!r}, ein={ein!r}, session={session!r}, limit={limit}, offset={offset}, page={page}, enrich={enrich}, sort={sort!r}")
     
     try:
         # Calculate offset from page if offset not explicitly provided
@@ -502,7 +503,7 @@ async def unified_search(
         # A parallel data change is folding homeowners/residents into mdm_person, so
         # this category will include residents automatically — no API change needed.
         if 'persons' in requested_types:
-            search_tasks.append(('persons', search_postgres.search_persons_pg(q, state, limit=search_limit)))
+            search_tasks.append(('persons', search_postgres.search_persons_pg(q, state, city=city, jurisdiction_id=jurisdiction_id, limit=search_limit)))
 
         # "leaders" — elected/appointed government officials (public.contact_official),
         # title-aware so a query like "Mayor" returns officials (result_type='leader').
@@ -515,15 +516,17 @@ async def unified_search(
             search_tasks.append(('meetings', search_postgres.search_events_pg(q, state, limit=search_limit)))
 
         if 'organizations' in requested_types:
-            search_tasks.append(('organizations', search_postgres.search_organizations_pg(q, state, city, ntee_code, ein, limit=search_limit, offset=search_offset, sort=sort)))
+            search_tasks.append(('organizations', search_postgres.search_organizations_pg(q, state, city, ntee_code, ein, jurisdiction_id=jurisdiction_id, limit=search_limit, offset=search_offset, sort=sort)))
 
         if 'bills' in requested_types:
             search_tasks.append(('bills', search_postgres.search_bills_pg(q, state, session, limit=search_limit)))
 
         if 'grants' in requested_types:
             # Nonprofit grants (public.grant) — ILIKE over grantor/grantee/purpose,
-            # ordered by amount DESC. Graceful no-op if the mart is unbuilt.
-            search_tasks.append(('grants', search_postgres.search_grants_pg(q, state, limit=search_limit)))
+            # ordered by amount DESC. Location filter is by GRANTOR geography
+            # (jurisdiction_id via the org bridge, else state/city direct).
+            # Graceful no-op if the mart is unbuilt.
+            search_tasks.append(('grants', search_postgres.search_grants_pg(q, state, city=city, jurisdiction_id=jurisdiction_id, limit=search_limit, offset=search_offset)))
 
         if 'topics' in requested_types:
             search_tasks.append(('topics', search_postgres.search_topics_pg(q, state, ntee_code, limit=search_limit)))
@@ -658,6 +661,8 @@ async def unified_search(
             },
             "filters": {
                 "state": state,
+                "city": city,
+                "jurisdiction_id": jurisdiction_id,
                 "ntee_code": ntee_code,
                 "types": requested_types,
                 "sort": sort

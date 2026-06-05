@@ -743,7 +743,39 @@ export default function UnifiedSearch() {
               )}
             </div>
           )}
-          
+
+          {/* Grant-specific metadata badges (amount, grantor location, tax year) */}
+          {resultType === 'grant' && result.metadata && (
+            <div className="mt-2 flex flex-wrap gap-2 text-xs">
+              {result.metadata.amount !== null && result.metadata.amount !== undefined && (
+                <span className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded">
+                  💰 {formatCurrency(result.metadata.amount)}
+                </span>
+              )}
+              {(result.metadata.city || result.metadata.state_code) && (
+                <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded">
+                  📍 {[result.metadata.city, result.metadata.state_code].filter(Boolean).join(', ')}
+                </span>
+              )}
+              {result.metadata.tax_year && (
+                <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded">
+                  📅 Tax Year {result.metadata.tax_year}
+                </span>
+              )}
+              {result.metadata.source_url && (
+                <a
+                  href={result.metadata.source_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="px-2 py-1 bg-gray-100 text-blue-600 hover:text-blue-800 hover:underline rounded inline-flex items-center gap-1"
+                >
+                  🔗 Source
+                </a>
+              )}
+            </div>
+          )}
+
           {/* Type badge */}
           <div className="mt-2">
             <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getTypeColor(resultType)}`}>

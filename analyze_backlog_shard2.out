@@ -1,0 +1,90 @@
+2026-06-04 22:33:15.976 | INFO     | __main__:run_backlog:570 - Shard slice: 2/3
+2026-06-04 22:33:15.977 | INFO     | __main__:_log_plan:534 - Backlog plan: 314 jurisdiction(s), 36,745 pending transcript(s)
+2026-06-04 22:33:15.978 | INFO     | __main__:_log_plan:538 -    1. lauderdale_01077         AL  pending=40     newest=2026-06-04
+2026-06-04 22:33:15.978 | INFO     | __main__:_log_plan:538 -    2. marshall_01095           AL  pending=5      newest=2026-06-04
+2026-06-04 22:33:15.979 | INFO     | __main__:_log_plan:538 -    3. argo_0102320             AL  pending=58     newest=2026-06-04
+2026-06-04 22:33:15.979 | INFO     | __main__:_log_plan:538 -    4. west_bend_5585350        WI  pending=17     newest=2026-06-04
+2026-06-04 22:33:15.979 | INFO     | __main__:_log_plan:538 -    5. dover_2517370            MA  pending=708    newest=2026-06-04
+2026-06-04 22:33:15.979 | INFO     | __main__:_log_plan:538 -    6. north_reading_2501748955 MA  pending=531    newest=2026-06-04
+2026-06-04 22:33:15.979 | INFO     | __main__:_log_plan:538 -    7. oregon_5560200           WI  pending=356    newest=2026-06-04
+2026-06-04 22:33:15.980 | INFO     | __main__:_log_plan:538 -    8. tuskegee_0177304         AL  pending=7      newest=2026-06-04
+2026-06-04 22:33:15.980 | INFO     | __main__:_log_plan:538 -    9. paulding_13223           GA  pending=40     newest=2026-06-04
+2026-06-04 22:33:15.980 | INFO     | __main__:_log_plan:538 -   10. cowlitz_53015            WA  pending=14     newest=2026-06-04
+2026-06-04 22:33:15.980 | INFO     | __main__:_log_plan:547 -   … and 304 more jurisdiction(s)
+2026-06-04 22:33:15.980 | INFO     | __main__:run_backlog:572 - Model rotation: gemini-2.5-flash-lite -> gemini-2.0-flash-lite -> gemini-2.5-flash
+2026-06-04 22:33:16.502 | INFO     | __main__:run_backlog:604 - [1/314] lauderdale_01077 (AL) — pending~40, model=gemini-2.5-flash-lite
+2026-06-04 22:33:22.305 | INFO     | llm.gemini.meeting_transcript_policy:load_speaker_context:339 - Loaded speaker hints from /home/developer/projects/open-navigator/data/cache/scraped_meetings/AL/county/lauderdale_01077
+2026-06-04 22:33:25.860 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [1/50] Skip BkfUT79khPI — analysis exists (2026-03-23_Florence_City_Council_Regular_Meeting.json)
+2026-06-04 22:33:25.872 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [2/50] Skip 7r0DN7e9lr0 — analysis exists (2026-02-09_Florence_Finance_Committee_Meeting.json)
+2026-06-04 22:33:25.877 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [3/50] Skip 5ba9uxmdbzI — analysis exists (2026-01-20_Florence_City_Council_Main_Meeting.json)
+2026-06-04 22:33:25.892 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [4/50] Skip WVyKu-TtD7o — analysis exists (2026-01-15_Florence_District_6_Community_Meeting.json)
+2026-06-04 22:33:25.900 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [5/50] Skip CX54ayl6gDc — analysis exists (2026-01-08_Park_and_Rec_Commission.json)
+2026-06-04 22:33:25.914 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [6/50] Skip 0GAjJTUEK08 — analysis exists (2026-01-07_Florence_Utilities_Committee.json)
+2026-06-04 22:33:25.927 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [7/50] Skip US1Z-nEuJV0 — analysis exists (2026-01-06_City_Council_Main_Meeting.json)
+2026-06-04 22:33:25.930 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [8/50] Skip FRECQ4gVRUg — analysis exists (2025-12-24_Florence_Public_Safety_Committee.json)
+2026-06-04 22:33:25.943 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [9/50] Skip 1zxSW8g1X18 — analysis exists (2025-12-02_Florence_City_Council_Main_Meeting.json)
+2026-06-04 22:33:25.957 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [10/50] Skip WxH1kaTluSA — analysis exists (2025-11-18_Florence_City_Council_Work_Session.json)
+2026-06-04 22:33:26.030 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1226 - [11/50] -DKY-Qyt3tE — 9 22 25 Florence Utilities Committee
+2026-06-04 22:33:26.624 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for -DKY-Qyt3tE (970 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-04 22:33:26.788 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1011 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-04 22:33:26.845 | INFO     | llm.gemini.genai_text_client:_key_pool:518 - Gemini key rotation enabled: 4 keys in pool
+2026-06-04 22:33:41.584 | INFO     | llm.gemini.persist_policy_analysis_bronze:persist_policy_analysis_bronze:233 - Persisted legislation bronze for -DKY-Qyt3tE: {'bills': 0, 'item_links': 0, 'decisions': 1, 'youtube_updated': 1}
+2026-06-04 22:33:41.816 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:572 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/AL/county/lauderdale_01077/UCAHo53gYrr2j6hLNJEXCVng/02_analysis/2025-09-22_Florence_Utilities_Committee.json
+2026-06-04 22:33:41.863 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1226 - [12/50] Fcuhaw2wSKg — 9 18 25 Florence Public Works Committee
+2026-06-04 22:33:42.006 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for Fcuhaw2wSKg (1496 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-04 22:33:45.618 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1011 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-04 22:34:01.718 | WARNING  | llm.gemini.genai_text_client:call_with_genai_quota_retry:321 - gemini-2.5-flash-lite: transient network disconnect — sleeping 8s, retry 2/12 (RemoteProtocolError — peer closed connection without sending complete message body (incomplete chunked read))
+2026-06-04 22:34:43.090 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:572 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/AL/county/lauderdale_01077/UCAHo53gYrr2j6hLNJEXCVng/02_analysis/2025-09-18_Florence_Public_Works_Committee.json
+2026-06-04 22:34:43.165 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1226 - [13/50] 2qAfgbNcNgc — 9 12 25 Florence Utilities Committee Meeting
+2026-06-04 22:34:43.761 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for 2qAfgbNcNgc (1048 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-04 22:34:43.791 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1011 - Calling gemini-2.5-flash-lite (AI Studio API)
+2026-06-04 22:34:58.393 | INFO     | __main__:run_backlog:570 - Shard slice: 2/3
+2026-06-04 22:34:58.396 | INFO     | __main__:_log_plan:534 - Backlog plan: 314 jurisdiction(s), 36,744 pending transcript(s)
+2026-06-04 22:34:58.397 | INFO     | __main__:_log_plan:538 -    1. lauderdale_01077         AL  pending=39     newest=2026-06-04
+2026-06-04 22:34:58.398 | INFO     | __main__:_log_plan:538 -    2. marshall_01095           AL  pending=5      newest=2026-06-04
+2026-06-04 22:34:58.399 | INFO     | __main__:_log_plan:538 -    3. argo_0102320             AL  pending=58     newest=2026-06-04
+2026-06-04 22:34:58.400 | INFO     | __main__:_log_plan:538 -    4. west_bend_5585350        WI  pending=17     newest=2026-06-04
+2026-06-04 22:34:58.400 | INFO     | __main__:_log_plan:538 -    5. dover_2517370            MA  pending=708    newest=2026-06-04
+2026-06-04 22:34:58.400 | INFO     | __main__:_log_plan:538 -    6. north_reading_2501748955 MA  pending=531    newest=2026-06-04
+2026-06-04 22:34:58.401 | INFO     | __main__:_log_plan:538 -    7. oregon_5560200           WI  pending=356    newest=2026-06-04
+2026-06-04 22:34:58.402 | INFO     | __main__:_log_plan:538 -    8. tuskegee_0177304         AL  pending=7      newest=2026-06-04
+2026-06-04 22:34:58.403 | INFO     | __main__:_log_plan:538 -    9. paulding_13223           GA  pending=40     newest=2026-06-04
+2026-06-04 22:34:58.404 | INFO     | __main__:_log_plan:538 -   10. cowlitz_53015            WA  pending=14     newest=2026-06-04
+2026-06-04 22:34:58.404 | INFO     | __main__:_log_plan:547 -   … and 304 more jurisdiction(s)
+2026-06-04 22:34:58.407 | INFO     | __main__:run_backlog:572 - Model rotation: gemini-2.5-flash -> gemini-2.5-flash-lite
+2026-06-04 22:35:00.648 | INFO     | __main__:run_backlog:604 - [1/314] lauderdale_01077 (AL) — pending~39, model=gemini-2.5-flash
+2026-06-04 22:35:21.879 | INFO     | llm.gemini.meeting_transcript_policy:load_speaker_context:339 - Loaded speaker hints from /home/developer/projects/open-navigator/data/cache/scraped_meetings/AL/county/lauderdale_01077
+2026-06-04 22:35:28.330 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [1/50] Skip BkfUT79khPI — analysis exists (2026-03-23_Florence_City_Council_Regular_Meeting.json)
+2026-06-04 22:35:28.346 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [2/50] Skip 7r0DN7e9lr0 — analysis exists (2026-02-09_Florence_Finance_Committee_Meeting.json)
+2026-06-04 22:35:28.371 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [3/50] Skip 5ba9uxmdbzI — analysis exists (2026-01-20_Florence_City_Council_Main_Meeting.json)
+2026-06-04 22:35:28.376 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [4/50] Skip WVyKu-TtD7o — analysis exists (2026-01-15_Florence_District_6_Community_Meeting.json)
+2026-06-04 22:35:28.395 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [5/50] Skip CX54ayl6gDc — analysis exists (2026-01-08_Park_and_Rec_Commission.json)
+2026-06-04 22:35:28.408 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [6/50] Skip 0GAjJTUEK08 — analysis exists (2026-01-07_Florence_Utilities_Committee.json)
+2026-06-04 22:35:28.451 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [7/50] Skip US1Z-nEuJV0 — analysis exists (2026-01-06_City_Council_Main_Meeting.json)
+2026-06-04 22:35:28.557 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [8/50] Skip FRECQ4gVRUg — analysis exists (2025-12-24_Florence_Public_Safety_Committee.json)
+2026-06-04 22:35:28.582 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [9/50] Skip 1zxSW8g1X18 — analysis exists (2025-12-02_Florence_City_Council_Main_Meeting.json)
+2026-06-04 22:35:28.627 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [10/50] Skip WxH1kaTluSA — analysis exists (2025-11-18_Florence_City_Council_Work_Session.json)
+2026-06-04 22:35:28.645 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [11/50] Skip -DKY-Qyt3tE — analysis exists (2025-09-22_Florence_Utilities_Committee.json)
+2026-06-04 22:35:28.661 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1194 - [12/50] Skip Fcuhaw2wSKg — analysis exists (2025-09-18_Florence_Public_Works_Committee.json)
+2026-06-04 22:35:28.749 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1226 - [13/50] 2qAfgbNcNgc — 9 12 25 Florence Utilities Committee Meeting
+2026-06-04 22:35:29.187 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for 2qAfgbNcNgc (1048 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-04 22:35:29.242 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1011 - Calling gemini-2.5-flash (AI Studio API)
+2026-06-04 22:35:29.332 | INFO     | llm.gemini.genai_text_client:_key_pool:518 - Gemini key rotation enabled: 4 keys in pool
+2026-06-04 22:36:31.099 | INFO     | llm.gemini.persist_policy_analysis_bronze:persist_policy_analysis_bronze:233 - Persisted legislation bronze for 2qAfgbNcNgc: {'bills': 2, 'item_links': 2, 'decisions': 2, 'youtube_updated': 1}
+2026-06-04 22:36:31.579 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:572 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/AL/county/lauderdale_01077/UCAHo53gYrr2j6hLNJEXCVng/02_analysis/2025-09-12_Florence_Utilities_Committee_Meeting.json
+2026-06-04 22:36:31.647 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1226 - [14/50] TQD9Bl6dc5g — 9 5 25 Florence Utilities Committee Meeting
+2026-06-04 22:36:32.027 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for TQD9Bl6dc5g (1113 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-04 22:36:32.061 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1011 - Calling gemini-2.5-flash (AI Studio API)
+2026-06-04 22:37:33.144 | INFO     | llm.gemini.persist_policy_analysis_bronze:persist_policy_analysis_bronze:233 - Persisted legislation bronze for TQD9Bl6dc5g: {'bills': 0, 'item_links': 0, 'decisions': 1, 'youtube_updated': 1}
+2026-06-04 22:37:33.510 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:572 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/AL/county/lauderdale_01077/UCAHo53gYrr2j6hLNJEXCVng/02_analysis/2025-09-05_Florence_Utilities_Committee_Meeting.json
+2026-06-04 22:37:33.548 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1226 - [15/50] 93cUyCvGaEw — 9 5 25 Florence Finance Committee Meeting
+2026-06-04 22:37:33.803 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for 93cUyCvGaEw (1046 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-04 22:37:33.824 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1011 - Calling gemini-2.5-flash (AI Studio API)
+2026-06-04 22:38:35.992 | WARNING  | llm.gemini.genai_text_client:call_with_genai_quota_retry:321 - gemini-2.5-flash: transient network disconnect — sleeping 8s, retry 2/12 (RemoteProtocolError — Server disconnected without sending a response.)
+2026-06-04 22:39:04.032 | WARNING  | llm.gemini.genai_text_client:call_with_genai_quota_retry:321 - gemini-2.5-flash: transient network disconnect — sleeping 11s, retry 3/12 (RemoteProtocolError — peer closed connection without sending complete message body (incomplete chunked read))
+2026-06-04 22:40:45.157 | INFO     | llm.gemini.persist_policy_analysis_bronze:persist_policy_analysis_bronze:233 - Persisted legislation bronze for 93cUyCvGaEw: {'bills': 1, 'item_links': 1, 'decisions': 3, 'youtube_updated': 1}
+2026-06-04 22:40:45.665 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:572 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/AL/county/lauderdale_01077/UCAHo53gYrr2j6hLNJEXCVng/02_analysis/2025-09-05_Florence_Finance_Committee_Meeting.json
+2026-06-04 22:40:45.773 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1226 - [16/50] Cu4_uBjHQHg — 9 2 25 Florence City Council Regular Meeting
+2026-06-04 22:40:46.696 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for Cu4_uBjHQHg (1223 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-04 22:40:46.730 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:957 - Built 2 agenda segment hint(s) for presenter linking
+2026-06-04 22:40:46.763 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1011 - Calling gemini-2.5-flash (AI Studio API)

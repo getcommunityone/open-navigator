@@ -55,6 +55,23 @@ class GenAIServerOverloadGiveUp(RuntimeError):
     """
 
 
+class GenAIModelUnavailableGiveUp(RuntimeError):
+    """Raised when the API rejects the *model itself* as gone — a 404 ``NOT_FOUND``
+    whose message says the model is no longer available / not found (a retired or
+    mistyped model name, e.g. ``gemini-2.0-flash-lite`` after its sunset).
+
+    Subclasses ``RuntimeError`` so every existing ``except Exception`` / ``except
+    RuntimeError`` caller is unaffected. Distinct from both :class:`GenAIDailyQuotaGiveUp`
+    (a daily wall that clears at the Pacific reset) and :class:`GenAIServerOverloadGiveUp`
+    (a transient congestion blip that clears on a short cooldown): a retired model never
+    comes back, so a model-cycling driver catches this specific type to drop the model
+    from the rotation *permanently* for the run (like a daily wall, but it stays dropped
+    even across a Pacific reset — a re-rotation onto it simply re-detects the 404 and
+    re-drops it via this same path). Previously a 404 was classified non-retryable and the
+    raw ``ClientError`` escaped ``call_with_genai_quota_retry`` and crashed the shard.
+    """
+
+
 _RETRY_IN_RE = re.compile(r"retry in\s+([\d.]+)\s*s", re.IGNORECASE)
 _RETRY_DELAY_RE = re.compile(
     r"""retryDelay['"]?\s*[:=]\s*['"]?(\d+(?:\.\d+)?)s?""",
@@ -214,6 +231,41 @@ def is_genai_server_overload_error(exc: BaseException) -> bool:
             "DEADLINE_EXCEEDED",
             "GATEWAY TIMEOUT",
             "GATEWAY_TIMEOUT",
+        )
+    )
+
+
+def is_genai_model_unavailable_error(exc: BaseException) -> bool:
+    """True for a 404 ``NOT_FOUND`` that says the *model* is gone (retired / not found).
+
+    Specific to model-not-found 404s — a retired model name like
+    ``gemini-2.0-flash-lite`` ("This model models/gemini-2.0-flash-lite is no longer
+    available") or an unknown model. Deliberately does NOT swallow unrelated 404s (a
+    missing file/resource that happens to be a NOT_FOUND): the message must mention the
+    model AND an unavailable/not-found phrase, or carry an explicit ``models/`` path with
+    a no-longer-available phrase. This is the signal a model-cycling driver uses to drop
+    the model from rotation permanently for the run.
+    """
+    code = _genai_http_code(exc)
+    msg = str(exc)
+    upper = msg.upper()
+    is_404 = code == 404 or "404" in upper or "NOT_FOUND" in upper or "NOT FOUND" in upper
+    if not is_404:
+        return False
+    mentions_model = "MODEL" in upper or "MODELS/" in upper
+    if not mentions_model:
+        return False
+    return any(
+        phrase in upper
+        for phrase in (
+            "NO LONGER AVAILABLE",
+            "NOT AVAILABLE",
+            "IS NOT FOUND",
+            "WAS NOT FOUND",
+            "IS NOT SUPPORTED",
+            "NOT SUPPORTED",
+            "DOES NOT EXIST",
+            "UNKNOWN MODEL",
         )
     )
 
