@@ -141,6 +141,7 @@ from llm.gemini.diarize_postprocess import (  # noqa: E402
 )
 from llm.gemini.genai_text_client import (  # noqa: E402
     GenAIDailyQuotaGiveUp,
+    GenAIServerOverloadGiveUp,
     GenAITransientGiveUp,
     call_gemini_text,
     default_flash_lite_model,
@@ -1242,15 +1243,22 @@ def run_pipeline(args: argparse.Namespace) -> None:
                     )
                 continue
             except Exception as exc:
-                # Opt-in: a pool-wide daily-quota wall propagates so a model-cycling
-                # driver can rotate models / wait for the Pacific reset. Default-off,
-                # so existing callers see the unchanged log-and-continue behaviour.
+                # Opt-in: a pool-wide daily-quota wall OR a sustained server-overload
+                # give-up propagates so a model-cycling driver can rotate models / wait
+                # (Pacific reset for quota, short cooldown for overload). Default-off, so
+                # existing callers see the unchanged log-and-continue behaviour.
                 if getattr(args, "stop_on_quota", False) and isinstance(
-                    exc, GenAIDailyQuotaGiveUp
+                    exc, (GenAIDailyQuotaGiveUp, GenAIServerOverloadGiveUp)
                 ):
+                    wall = (
+                        "daily quota wall"
+                        if isinstance(exc, GenAIDailyQuotaGiveUp)
+                        else "server overload"
+                    )
                     logger.warning(
-                        "Stopping batch for {} — daily quota wall (stop_on_quota): {}",
+                        "Stopping batch for {} — {} (stop_on_quota): {}",
                         jurisdiction_id,
+                        wall,
                         exc,
                     )
                     raise

@@ -36,7 +36,22 @@ class GenAIDailyQuotaGiveUp(RuntimeError):
     RuntimeError`` caller is unaffected (they keep catching it as today). Callers that
     want to react to a pool-wide quota wall — e.g. a model-cycling backlog driver — can
     catch this specific type to rotate to a different model or wait for the daily reset.
-    A *generic* server give-up (502/503 overload, not quota) stays a plain RuntimeError.
+    A *generic* server give-up (502/503/504 overload, not quota) is
+    :class:`GenAIServerOverloadGiveUp`.
+    """
+
+
+class GenAIServerOverloadGiveUp(RuntimeError):
+    """Raised when the retry budget is exhausted on a *server-overload* failure —
+    a sustained 502/503/504 / ``DEADLINE_EXCEEDED`` on the endpoint that is NOT a
+    quota/429 wall. The endpoint (or the specific model) is congested right now.
+
+    Subclasses ``RuntimeError`` so every existing ``except Exception`` / ``except
+    RuntimeError`` caller is unaffected. A model-cycling driver catches this specific
+    type to rotate *temporarily* off the congested model (a short cooldown), distinct
+    from :class:`GenAIDailyQuotaGiveUp`, which is a hard daily wall warranting a wait
+    until the Pacific quota reset. Previously this case was an un-typed ``RuntimeError``,
+    so the driver never moved off a congested model and sat sleeping 8–55s per retry.
     """
 
 
@@ -164,6 +179,45 @@ def classify_genai_error(exc: BaseException) -> str:
     return "transient API error"
 
 
+def is_genai_quota_error(exc: BaseException) -> bool:
+    """True for a quota / 429 / resource-exhausted failure (the daily-wall family)."""
+    code = _genai_http_code(exc)
+    msg = str(exc).upper()
+    return code == 429 or "RESOURCE_EXHAUSTED" in msg or "QUOTA" in msg
+
+
+def is_genai_server_overload_error(exc: BaseException) -> bool:
+    """True for a server-overload failure: 502/503/504 / ``DEADLINE_EXCEEDED`` /
+    ``UNAVAILABLE`` / bad-gateway / gateway-timeout that is NOT a quota wall.
+
+    This is the signal a model-cycling driver uses to *temporarily* rotate off a
+    congested model. Quota/429 (the daily wall) is deliberately excluded — it is
+    classified by :func:`is_genai_quota_error` and handled as a hard daily wall.
+    """
+    if is_genai_quota_error(exc):
+        return False
+    code = _genai_http_code(exc)
+    if code in (502, 503, 504):
+        return True
+    msg = str(exc).upper()
+    return any(
+        token in msg
+        for token in (
+            "503",
+            "UNAVAILABLE",
+            "OVERLOADED",
+            "HIGH DEMAND",
+            "502",
+            "BAD_GATEWAY",
+            "BAD GATEWAY",
+            "504",
+            "DEADLINE_EXCEEDED",
+            "GATEWAY TIMEOUT",
+            "GATEWAY_TIMEOUT",
+        )
+    )
+
+
 def describe_genai_error(exc: BaseException, *, max_len: int = 220) -> str:
     """One-line detail for operators (type, code, API message)."""
     parts = [type(exc).__name__]
@@ -245,11 +299,14 @@ def call_with_genai_quota_retry(
                 if transient:
                     raise GenAITransientGiveUp(detail) from exc
                 # Pool-wide quota / 429 / resource-exhausted give-ups get their own
-                # type so a model-cycling driver can rotate models or wait for the
-                # daily reset. A generic server give-up (502/503 overload) stays a
-                # plain RuntimeError. Classify via the existing helper.
-                if "429" in classify_genai_error(exc) or "quota" in classify_genai_error(exc).lower():
+                # type so a model-cycling driver can wait for the daily reset.
+                if is_genai_quota_error(exc):
                     raise GenAIDailyQuotaGiveUp(detail) from exc
+                # A sustained server-overload give-up (502/503/504 / DEADLINE_EXCEEDED)
+                # gets its own type so the driver can *temporarily* rotate off the
+                # congested model (short cooldown) instead of sitting on a dead endpoint.
+                if is_genai_server_overload_error(exc):
+                    raise GenAIServerOverloadGiveUp(detail) from exc
                 raise RuntimeError(detail) from exc
             # Quota/429 with more keys to try: rotate to the next key fast (a fresh
             # key likely still has quota) instead of sleeping the full backoff. Only

@@ -5,8 +5,11 @@ import pytest
 from llm.gemini import genai_text_client as m
 from llm.gemini.genai_text_client import (
     GenAIDailyQuotaGiveUp,
+    GenAIServerOverloadGiveUp,
     GenAITransientGiveUp,
     call_with_genai_quota_retry,
+    is_genai_quota_error,
+    is_genai_server_overload_error,
     resolve_gemini_api_keys,
 )
 
@@ -88,15 +91,42 @@ def test_daily_quota_giveup_raises_distinct_subtype(monkeypatch):
     assert issubclass(GenAIDailyQuotaGiveUp, RuntimeError)
 
 
-def test_generic_server_giveup_stays_plain_runtimeerror(monkeypatch):
+def test_server_overload_giveup_raises_distinct_subtype(monkeypatch):
     monkeypatch.setattr(m.time, "sleep", lambda *_a, **_k: None)
     monkeypatch.setenv("GOVERNANCE_GENAI_QUOTA_RETRIES", "2")
 
     def _fn():
         raise RuntimeError("503 UNAVAILABLE: service overloaded")
 
-    # A generic (non-quota) server give-up is NOT the daily-quota subtype: the driver
-    # should not treat a transient 503 overload as a daily quota wall.
-    with pytest.raises(RuntimeError) as excinfo:
+    # A sustained server-overload give-up (503/502/504) raises its own type so a
+    # model-cycling driver can temporarily rotate off the congested model — but it is
+    # NOT the daily-quota subtype (a 503 overload is not a daily wall).
+    with pytest.raises(GenAIServerOverloadGiveUp) as excinfo:
         call_with_genai_quota_retry(_fn, label="test", key_pool_size=1)
     assert not isinstance(excinfo.value, GenAIDailyQuotaGiveUp)
+    assert issubclass(GenAIServerOverloadGiveUp, RuntimeError)
+
+
+def test_504_deadline_giveup_is_server_overload(monkeypatch):
+    monkeypatch.setattr(m.time, "sleep", lambda *_a, **_k: None)
+    monkeypatch.setenv("GOVERNANCE_GENAI_QUOTA_RETRIES", "2")
+
+    def _fn():
+        raise RuntimeError("504 DEADLINE_EXCEEDED")
+
+    # The live bug: a sustained 504 DEADLINE_EXCEEDED used to give up as a plain
+    # RuntimeError, so the driver never moved off the congested model. It must now be
+    # the server-overload subtype.
+    with pytest.raises(GenAIServerOverloadGiveUp):
+        call_with_genai_quota_retry(_fn, label="test", key_pool_size=1)
+
+
+def test_overload_classifier_excludes_quota():
+    # Predicate boundaries: quota (429/RESOURCE_EXHAUSTED) is NOT server-overload, and
+    # vice-versa, so the give-up branch routes each to the right type.
+    assert is_genai_server_overload_error(RuntimeError("503 UNAVAILABLE"))
+    assert is_genai_server_overload_error(RuntimeError("504 DEADLINE_EXCEEDED"))
+    assert is_genai_server_overload_error(RuntimeError("502 BAD_GATEWAY"))
+    assert not is_genai_server_overload_error(RuntimeError("429 RESOURCE_EXHAUSTED"))
+    assert is_genai_quota_error(RuntimeError("429 RESOURCE_EXHAUSTED"))
+    assert not is_genai_quota_error(RuntimeError("503 UNAVAILABLE"))

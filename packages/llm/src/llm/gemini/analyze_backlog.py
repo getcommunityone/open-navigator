@@ -10,17 +10,36 @@ backlog on Gemini's free tier:
 * **Recent-first work list** — queries the warehouse for jurisdictions that still have
   pending (un-analyzed) transcripts, ordered by their newest pending meeting. Within a
   jurisdiction the pipeline's ``--order-by meeting_date`` keeps newest-first.
-* **Model cycling** — runs the current model until the whole key pool is daily-quota
-  exhausted (``GenAIDailyQuotaGiveUp``), then advances to the next model and retries the
-  *same* jurisdiction (``skip_analyzed`` resumes mid-jurisdiction). When every model is
-  exhausted it either sleeps until the next America/Los_Angeles midnight (Gemini free-tier
-  daily reset) and clears the exhausted set, or exits — see ``--on-exhaust``.
+* **Model cycling** — runs the current model until it walls, then advances to the next
+  model and retries the *same* jurisdiction (``skip_analyzed`` resumes mid-jurisdiction).
+  Two distinct wall types:
+
+  - ``GenAIDailyQuotaGiveUp`` (pool-wide daily quota / 429) — a *daily* wall. When every
+    model is daily-walled the driver sleeps until the next America/Los_Angeles midnight
+    (Gemini free-tier reset) and clears the exhausted set, or exits — see ``--on-exhaust``.
+  - ``GenAIServerOverloadGiveUp`` (sustained 502/503/504 / ``DEADLINE_EXCEEDED``) — a
+    *transient* congestion blip. The model goes on a short cooldown (``--overload-cooldown-\
+    seconds``, default 600s) and the driver rotates to the next live model immediately.
+    When *all* live models are merely cooling down, it short-waits only until the soonest
+    cooldown expires — it does NOT wait until Pacific midnight for transient congestion.
 * **Resumable** — pending work is re-derived from the DB each pass; nothing is persisted
   client-side beyond the analysis JSON the pipeline already writes.
 
-Run the real backfill::
+Run the real backfill, leading with a healthy model::
 
-    python -m llm.gemini.analyze_backlog
+    python -m llm.gemini.analyze_backlog \
+        --models gemini-2.0-flash-lite,gemini-2.5-flash,gemini-2.5-flash-lite
+
+Restrict to one or more states::
+
+    python -m llm.gemini.analyze_backlog --state GA --state AL
+    python -m llm.gemini.analyze_backlog --state GA,AL
+
+Run N disjoint shards across processes (clean multi-process parallelism, no overlap)::
+
+    python -m llm.gemini.analyze_backlog --shard 0/3 &
+    python -m llm.gemini.analyze_backlog --shard 1/3 &
+    python -m llm.gemini.analyze_backlog --shard 2/3 &
 
 Preview the plan (no API calls)::
 
@@ -36,13 +55,18 @@ import argparse
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from typing import Iterable, List, Optional, Sequence, Tuple
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 from zoneinfo import ZoneInfo
 
 from loguru import logger
 
 # Gemini free-tier daily quota resets at midnight Pacific.
 PACIFIC = ZoneInfo("America/Los_Angeles")
+
+# Default cooldown applied to a model after a sustained server-overload give-up
+# (502/503/504). This is a *temporary* rotation, NOT the daily quota wall: the model
+# is congested right now, so we step off it for ~10 min and try the next live model.
+DEFAULT_OVERLOAD_COOLDOWN_SECONDS: float = 600.0
 
 # Default model rotation: cheapest / highest-free-quota first. flash-lite models have the
 # largest free RPD; 2.5-flash is the fallback once both lites are walled. Names confirmed
@@ -73,19 +97,33 @@ class AllModelsExhausted(RuntimeError):
 
 @dataclass
 class ModelCycler:
-    """Ordered model rotation with a per-day exhausted set.
+    """Ordered model rotation with a per-day exhausted set AND a temporary cooldown map.
 
-    State machine (pure — the caller owns the clock/reset trigger):
+    Two distinct "model unavailable" notions, kept separate on purpose:
 
-    * :attr:`current` — the model to use right now (first non-exhausted in order).
-    * :meth:`mark_exhausted` — flag the current model as daily-quota walled.
-    * :meth:`advance` — move to the next non-exhausted model; raises
-      :class:`AllModelsExhausted` when none remain.
-    * :meth:`reset` — clear the exhausted set (call after the Pacific daily reset).
+    * :attr:`exhausted` — a *daily* quota wall (``GenAIDailyQuotaGiveUp``). Cleared only
+      by :meth:`reset` after the Pacific midnight quota reset.
+    * :attr:`cooldowns` — a *temporary* server-overload step-off (``GenAIServerOverload\
+      GiveUp``), model -> epoch-seconds-until-available. Expires on its own clock; a
+      driver waits only until the soonest expiry, not until Pacific midnight.
+
+    State machine (pure — the caller owns the clock; ``now`` is passed in, never read
+    from a wall clock inside the class):
+
+    * :attr:`current` / :meth:`current_or_none` — first model that is neither daily-walled
+      nor (given ``now``) still cooling down.
+    * :meth:`mark_exhausted` — flag a model as daily-quota walled.
+    * :meth:`mark_overloaded` — put a model on a temporary cooldown.
+    * :meth:`advance` — return the next live model; raises :class:`AllModelsExhausted`
+      when none are available *right now* (all daily-walled and/or cooling down).
+    * :meth:`seconds_until_any_available` — soonest cooldown expiry, or ``None`` when a
+      model is available now (or the only blockers are daily walls).
+    * :meth:`reset` — clear the daily exhausted set (NOT cooldowns).
     """
 
     models: List[str]
     exhausted: set[str] = field(default_factory=set)
+    cooldowns: Dict[str, float] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not self.models:
@@ -102,36 +140,107 @@ class ModelCycler:
             raise ValueError("ModelCycler needs at least one non-empty model")
         self.models = deduped
 
+    def _cooling(self, model: str, now: Optional[float]) -> bool:
+        """True if ``model`` is still on a server-overload cooldown at ``now`` (epoch s).
+
+        When ``now`` is ``None`` cooldowns are ignored (backward-compatible with the
+        original daily-only callers that pass no clock)."""
+        if now is None:
+            return False
+        until = self.cooldowns.get(model)
+        return until is not None and until > now
+
     @property
     def all_exhausted(self) -> bool:
+        """All models daily-quota walled (ignores transient cooldowns)."""
         return all(m in self.exhausted for m in self.models)
 
     @property
     def current(self) -> str:
-        for m in self.models:
-            if m not in self.exhausted:
-                return m
-        raise AllModelsExhausted("every model is exhausted-for-today")
+        """First non-exhausted model (daily walls only; cooldowns ignored).
+
+        Backward-compatible no-arg property. Use :meth:`current_or_none(now=...)` to
+        also skip models that are temporarily cooling down.
+        """
+        m = self.current_or_none()
+        if m is None:
+            raise AllModelsExhausted("every model is exhausted-for-today")
+        return m
 
     def mark_exhausted(self, model: Optional[str] = None) -> None:
         target = (model or self.current_or_none() or "").strip()
         if target:
             self.exhausted.add(target)
 
-    def current_or_none(self) -> Optional[str]:
+    def mark_overloaded(
+        self,
+        model: str,
+        *,
+        now: float,
+        cooldown_seconds: float = DEFAULT_OVERLOAD_COOLDOWN_SECONDS,
+    ) -> None:
+        """Put ``model`` on a temporary cooldown until ``now + cooldown_seconds`` (epoch s).
+
+        Distinct from :meth:`mark_exhausted`: this is a transient server-overload step-off,
+        not a daily wall. ``now`` is supplied by the caller (pure)."""
+        target = (model or "").strip()
+        if not target:
+            return
+        self.cooldowns[target] = now + max(0.0, cooldown_seconds)
+
+    def current_or_none(self, now: Optional[float] = None) -> Optional[str]:
+        """First model available at ``now``: neither daily-walled nor cooling down.
+
+        ``now`` is epoch seconds; omit it to consider daily walls only (cooldowns
+        ignored) — preserves the original signature for daily-only callers."""
         for m in self.models:
-            if m not in self.exhausted:
+            if m not in self.exhausted and not self._cooling(m, now):
                 return m
         return None
 
-    def advance(self) -> str:
-        """Move past the current (now-exhausted) model to the next live one."""
-        nxt = self.current_or_none()
+    def advance(self, now: Optional[float] = None) -> str:
+        """Return the next live model (daily-walled AND cooldown-aware when ``now`` given).
+
+        Raises :class:`AllModelsExhausted` when nothing is available right now."""
+        nxt = self.current_or_none(now)
         if nxt is None:
             raise AllModelsExhausted("every model is exhausted-for-today")
         return nxt
 
+    def seconds_until_any_available(self, now: float) -> Optional[float]:
+        """Soonest moment a model frees up, as seconds-from-``now`` (>= 0).
+
+        Returns ``None`` when a model is already available at ``now`` (nothing to wait
+        for), or when the only blockers are *daily* quota walls (no cooldown to expire —
+        the caller should fall back to the Pacific-midnight wait). When every available
+        path is gated purely by cooldowns, returns the seconds until the earliest expiry.
+        """
+        if self.current_or_none(now) is not None:
+            return None
+        # Earliest future cooldown expiry among models that are NOT daily-walled
+        # (a daily-walled model won't come back on its cooldown clock).
+        soonest: Optional[float] = None
+        for m in self.models:
+            if m in self.exhausted:
+                continue
+            until = self.cooldowns.get(m)
+            if until is None or until <= now:
+                continue
+            if soonest is None or until < soonest:
+                soonest = until
+        if soonest is None:
+            return None
+        return max(0.0, soonest - now)
+
+    def clear_expired_cooldowns(self, now: float) -> None:
+        """Drop cooldown entries that have expired at ``now`` (epoch s)."""
+        for m in [m for m, until in self.cooldowns.items() if until <= now]:
+            del self.cooldowns[m]
+
     def reset(self) -> None:
+        """Clear the daily exhausted set (after the Pacific quota reset).
+
+        Cooldowns are intentionally left alone — they expire on their own clock."""
         self.exhausted.clear()
 
 
@@ -234,6 +343,88 @@ def rows_to_plans(rows: Iterable[Sequence]) -> List[JurisdictionPlan]:
     return plans
 
 
+def parse_states(spec: Optional[Sequence[str]]) -> List[str]:
+    """Parse repeated/comma-separated ``--state`` values into upper 2-letter codes.
+
+    Accepts a list of raw argparse values (each may itself be comma-separated), e.g.
+    ``["GA,AL", "wi"]`` -> ``["GA", "AL", "WI"]``. De-duplicates, preserves order.
+    """
+    if not spec:
+        return []
+    out: List[str] = []
+    seen: set[str] = set()
+    for raw in spec:
+        for piece in str(raw or "").split(","):
+            code = piece.strip().upper()
+            if code and code not in seen:
+                seen.add(code)
+                out.append(code)
+    return out
+
+
+def parse_shard(spec: Optional[str]) -> Optional[Tuple[int, int]]:
+    """Parse a ``--shard i/n`` spec into ``(index, count)`` with ``0 <= index < count``.
+
+    Returns ``None`` when unset. Raises ``ValueError`` on a malformed / out-of-range spec
+    so the operator gets a clear failure instead of a silently-wrong partition.
+    """
+    if not spec or not str(spec).strip():
+        return None
+    text = str(spec).strip()
+    if "/" not in text:
+        raise ValueError(f"--shard expects 'i/n' (e.g. 0/3), got {spec!r}")
+    i_str, n_str = text.split("/", 1)
+    try:
+        index, count = int(i_str.strip()), int(n_str.strip())
+    except ValueError as exc:
+        raise ValueError(f"--shard expects integers 'i/n', got {spec!r}") from exc
+    if count <= 0:
+        raise ValueError(f"--shard count must be >= 1, got {count}")
+    if not (0 <= index < count):
+        raise ValueError(f"--shard index must satisfy 0 <= i < n, got {index}/{count}")
+    return index, count
+
+
+def _stable_shard_bucket(jurisdiction_id: str, count: int) -> int:
+    """Deterministic, process-independent bucket in ``[0, count)`` for a jurisdiction.
+
+    Uses an MD5 digest (not Python's salted ``hash``) so separate shard processes —
+    each its own interpreter — agree on the partition. Mirrors Postgres ``hashtext``'s
+    intent (a stable hash of the id) without depending on the DB.
+    """
+    import hashlib
+
+    digest = hashlib.md5(jurisdiction_id.encode("utf-8")).hexdigest()
+    return int(digest, 16) % count
+
+
+def filter_plans(
+    plans: Sequence[JurisdictionPlan],
+    *,
+    states: Optional[Sequence[str]] = None,
+    shard: Optional[Tuple[int, int]] = None,
+) -> List[JurisdictionPlan]:
+    """Apply the jurisdiction-slice filters in the pure layer (unit-testable).
+
+    * ``states`` — keep only plans whose ``state_code`` is in the (upper-cased) set.
+    * ``shard`` — ``(index, count)``; keep only plans whose stable hash bucket matches
+      ``index`` so ``count`` disjoint processes partition the backlog without overlap.
+
+    Recency order is preserved.
+    """
+    state_set = {s.strip().upper() for s in (states or []) if s and s.strip()}
+    out: List[JurisdictionPlan] = []
+    for p in plans:
+        if state_set and p.state_code.upper() not in state_set:
+            continue
+        if shard is not None:
+            index, count = shard
+            if _stable_shard_bucket(p.jurisdiction_id, count) != index:
+                continue
+        out.append(p)
+    return out
+
+
 def format_eta(seconds: float) -> str:
     """Human-friendly ``HhMmSs`` ETA string for logging."""
     if seconds < 0 or seconds != seconds:  # negative or NaN
@@ -268,14 +459,33 @@ def _resolve_database_url(explicit: Optional[str]) -> str:
     return _database_url(None)
 
 
-def fetch_pending_plans(database_url: str) -> List[JurisdictionPlan]:
-    """Run the recency work-list query and build the jurisdiction plan."""
+def fetch_pending_plans(
+    database_url: str, *, states: Optional[Sequence[str]] = None
+) -> List[JurisdictionPlan]:
+    """Run the recency work-list query and build the jurisdiction plan.
+
+    ``states`` (2-letter codes) pushes a ``state_code IN (...)`` filter into the SQL so a
+    state-sliced run scans only its own jurisdictions instead of the whole backlog.
+    """
     import psycopg2
+
+    state_codes = parse_states(list(states) if states else None)
+    sql = PENDING_BY_JURISDICTION_SQL
+    params: Tuple = ()
+    if state_codes:
+        # Inject the IN-filter before GROUP BY; parameterised to avoid injection.
+        placeholders = ", ".join(["%s"] * len(state_codes))
+        sql = sql.replace(
+            "    GROUP BY v.jurisdiction_id",
+            f"      AND UPPER(COALESCE(v.state_code, '')) IN ({placeholders})\n"
+            "    GROUP BY v.jurisdiction_id",
+        )
+        params = tuple(state_codes)
 
     conn = psycopg2.connect(database_url)
     try:
         with conn.cursor() as cur:
-            cur.execute(PENDING_BY_JURISDICTION_SQL)
+            cur.execute(sql, params)
             rows = cur.fetchall()
     finally:
         conn.close()
@@ -341,12 +551,23 @@ def run_backlog(args: argparse.Namespace) -> None:
     database_url = _resolve_database_url(getattr(args, "database_url", None))
     models = parse_models(getattr(args, "models", None))
     cycler = ModelCycler(models=models)
+    cooldown_seconds = float(
+        getattr(args, "overload_cooldown_seconds", None) or DEFAULT_OVERLOAD_COOLDOWN_SECONDS
+    )
 
-    plans = fetch_pending_plans(database_url)
+    states = parse_states(getattr(args, "state", None))
+    shard = parse_shard(getattr(args, "shard", None))
+
+    plans = fetch_pending_plans(database_url, states=states)
+    plans = filter_plans(plans, states=states, shard=shard)
     total_pending = sum(p.pending for p in plans)
     if args.max_jurisdictions is not None:
         plans = plans[: int(args.max_jurisdictions)]
 
+    if states:
+        logger.info("State slice: {}", ", ".join(states))
+    if shard is not None:
+        logger.info("Shard slice: {}/{}", shard[0], shard[1])
     _log_plan(plans, total_pending)
     logger.info("Model rotation: {}", " -> ".join(models))
 
@@ -361,21 +582,24 @@ def run_backlog(args: argparse.Namespace) -> None:
     start = time.monotonic()
     done = 0
     total_j = len(plans)
+    quota_giveup = _quota_giveup_type()
+    overload_giveup = _overload_giveup_type()
     for plan in plans:
         # Retry the same jurisdiction across models until it completes or all models wall.
         while True:
-            try:
-                ns = build_pipeline_namespace(
-                    plan,
-                    model=cycler.current,
-                    database_url=database_url,
-                    limit=args.limit_per_jurisdiction,
-                )
-            except AllModelsExhausted:
-                if not _handle_all_exhausted(args, cycler):
+            # Pick a model that is neither daily-walled nor cooling down right now.
+            live_model = cycler.current_or_none(now=time.time())
+            if live_model is None:
+                if not _handle_all_unavailable(args, cycler):
                     logger.success("Exiting on quota exhaustion (--on-exhaust exit).")
                     return
                 continue
+            ns = build_pipeline_namespace(
+                plan,
+                model=live_model,
+                database_url=database_url,
+                limit=args.limit_per_jurisdiction,
+            )
             model = ns.model
             logger.info(
                 "[{}/{}] {} ({}) — pending~{:,}, model={}",
@@ -388,7 +612,7 @@ def run_backlog(args: argparse.Namespace) -> None:
             )
             try:
                 run_jurisdiction(ns)
-            except _quota_giveup_type() as exc:
+            except quota_giveup as exc:
                 logger.warning(
                     "Model {} hit the daily quota wall on {}: {}",
                     model,
@@ -396,13 +620,20 @@ def run_backlog(args: argparse.Namespace) -> None:
                     exc,
                 )
                 cycler.mark_exhausted(model)
-                try:
-                    cycler.advance()
-                except AllModelsExhausted:
-                    if not _handle_all_exhausted(args, cycler):
-                        logger.success("Exiting on quota exhaustion (--on-exhaust exit).")
-                        return
-                # Loop again: retry same jurisdiction on the next (or reset) model.
+                # Loop again: next live model is picked at the top (cooldown-aware).
+                continue
+            except overload_giveup as exc:
+                logger.warning(
+                    "Model {} is server-overloaded on {} — cooling down {} and rotating: {}",
+                    model,
+                    plan.jurisdiction_id,
+                    format_eta(cooldown_seconds),
+                    exc,
+                )
+                cycler.mark_overloaded(
+                    model, now=time.time(), cooldown_seconds=cooldown_seconds
+                )
+                # Loop again: pick the next live model (or short-wait if all cooling down).
                 continue
             except SystemExit as exc:
                 # run_pipeline raises SystemExit("No bronze videos…") when a jurisdiction
@@ -434,10 +665,43 @@ def _quota_giveup_type():
     return GenAIDailyQuotaGiveUp
 
 
-def _handle_all_exhausted(args: argparse.Namespace, cycler: ModelCycler) -> bool:
-    """All models walled. Return True to keep going (waited+reset), False to exit."""
+def _overload_giveup_type():
+    from llm.gemini.genai_text_client import GenAIServerOverloadGiveUp
+
+    return GenAIServerOverloadGiveUp
+
+
+def _handle_all_unavailable(args: argparse.Namespace, cycler: ModelCycler) -> bool:
+    """No model is usable right now. Return True to keep going (after waiting), False to exit.
+
+    Distinguishes two cases the cooldown work introduced:
+
+    * **Some models are merely cooling down** (transient server overload): sleep only
+      until the soonest cooldown expiry, clear expired cooldowns, and resume. Do NOT
+      wait until Pacific midnight for a transient congestion blip.
+    * **Every model is daily-quota walled**: fall back to the original Pacific-midnight
+      wait + daily reset.
+
+    ``--on-exhaust exit`` short-circuits both to a clean exit.
+    """
     if args.on_exhaust == "exit":
         return False
+
+    cooldown_wait = cycler.seconds_until_any_available(time.time())
+    if cooldown_wait is not None:
+        # At least one model is only cooling down (not daily-walled): short wait.
+        logger.warning(
+            "All live models are server-overloaded (cooling down). Sleeping {} "
+            "until the soonest model frees up.",
+            format_eta(cooldown_wait),
+        )
+        # +2s slack so the cooldown has definitely elapsed when we re-check.
+        time.sleep(cooldown_wait + 2.0)
+        cycler.clear_expired_cooldowns(time.time())
+        logger.info("Cooldown elapsed — resuming model rotation.")
+        return True
+
+    # Nothing cooling down => the blockers are daily quota walls. Wait for the reset.
     now = datetime.now(timezone.utc)
     wait_s = seconds_until_pacific_midnight(now)
     wake = next_pacific_midnight(now)
@@ -478,7 +742,31 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("wait", "exit"),
         default="wait",
         help="When every model is daily-quota exhausted: wait for the Pacific reset "
-        "(default) or exit cleanly",
+        "(default) or exit cleanly. (Transient server-overload cooldowns always short-wait.)",
+    )
+    parser.add_argument(
+        "--state",
+        action="append",
+        default=None,
+        metavar="CODE",
+        help="Restrict the backlog to these 2-letter state codes. Repeatable and/or "
+        "comma-separated (e.g. --state GA --state AL  or  --state GA,AL). Pushes a "
+        "state_code IN (...) filter into the work-list SQL.",
+    )
+    parser.add_argument(
+        "--shard",
+        default=None,
+        metavar="i/n",
+        help="Partition jurisdictions into n disjoint shards and process only shard i "
+        "(0-based), via a stable hash of jurisdiction_id. Run n processes (--shard 0/3, "
+        "--shard 1/3, …) for clean multi-process parallelism with no overlap.",
+    )
+    parser.add_argument(
+        "--overload-cooldown-seconds",
+        type=float,
+        default=DEFAULT_OVERLOAD_COOLDOWN_SECONDS,
+        help="Seconds to temporarily step a model off the rotation after a sustained "
+        f"server-overload give-up (502/503/504). Default: {int(DEFAULT_OVERLOAD_COOLDOWN_SECONDS)}.",
     )
     parser.add_argument(
         "--dry-run",
