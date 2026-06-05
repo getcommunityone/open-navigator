@@ -87,6 +87,7 @@ def calculate_stats_from_db(state: Optional[str] = None,
                 school_districts_count,
                 bills_count,
                 leaders_count,
+                nonprofit_leaders_count,
                 total_revenue,
                 total_assets
             FROM jurisdiction_state_aggregate
@@ -114,8 +115,9 @@ def calculate_stats_from_db(state: Optional[str] = None,
         school_districts = result[3] or 0
         bills = result[4] or 0
         contacts = result[5] or 0
-        total_revenue = result[6] or 0
-        total_assets = result[7] or 0
+        nonprofit_leaders = result[6] or 0
+        total_revenue = result[7] or 0
+        total_assets = result[8] or 0
         trending_causes = None
 
         # Build response
@@ -131,6 +133,7 @@ def calculate_stats_from_db(state: Optional[str] = None,
             'events': events,
             'bills': bills,
             'contacts': contacts,
+            'nonprofit_leaders': nonprofit_leaders,
             'total_revenue': total_revenue,
             'total_assets': total_assets,
             'trending_causes': trending_causes,

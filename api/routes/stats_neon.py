@@ -51,6 +51,7 @@ _TABLE_COLUMN_FALLBACKS: Dict[str, frozenset] = {
             "events_count",
             "bills_count",
             "contacts_count",
+            "nonprofit_leaders_count",
             "total_revenue",
             "total_assets",
             "trending_causes",
@@ -373,6 +374,7 @@ async def get_stats(
                 'bills': 0,
                 'persons': 0,
                 'leaders': 0,
+                'nonprofit_leaders': 0,
                 'decisions': 0,
                 'total_revenue': 0,
                 'total_assets': 0,
@@ -398,6 +400,11 @@ async def get_stats(
                 # former single `contacts` metric — see migration 105.)
                 'persons': stats.get('persons_count', 0),
                 'leaders': stats.get('leaders_count', 0),
+                # `nonprofit_leaders` = nonprofit board members / officers rollup
+                # (added to public.jurisdiction_state_aggregate as
+                # nonprofit_leaders_count). Distinct from `leaders`, which now
+                # means civic/government officials only.
+                'nonprofit_leaders': stats.get('nonprofit_leaders_count', 0),
                 'decisions': stats.get('decisions_count', 0),
                 'total_revenue': stats.get('total_revenue', 0),
                 'total_assets': stats.get('total_assets', 0),
