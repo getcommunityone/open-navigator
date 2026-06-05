@@ -1,0 +1,39 @@
+version: 2
+
+models:
+  - name: event_youtube_with_jurisdiction
+    description: |
+      Serving VIEW exposing bronze.bronze_event_youtube as a column superset with
+      its jurisdiction/geo columns resolved.
+
+      Every bronze_event_youtube column passes through unchanged EXCEPT the five
+      geo columns — jurisdiction_id, jurisdiction_name, jurisdiction_type,
+      state_code, state — which are COALESCE-overridden with the canonical values
+      from int_event_youtube__jurisdiction_resolved (one row per video_id) when that
+      model resolved the row, falling back to the raw bronze value otherwise.
+
+      This is the declarative replacement for a since-removed Python script that did
+      an in-place UPDATE of bronze (backfill_youtube_jurisdiction_from_channels.py):
+      downstream consumers read resolved jurisdiction_ids here while bronze stays raw.
+      The per-jurisdiction analyze loop (llm.gemini.browser_policy_analysis.fetch_videos)
+      reads this view. bronze.video_id is
+      unique and the resolved model is one row per video_id, so the LEFT JOIN never
+      fans out — row count equals bronze.bronze_event_youtube.
+    config:
+      materialized: view
+    columns:
+      - name: video_id
+        description: "YouTube video id — natural key, one row per bronze_event_youtube row."
+        tests:
+          - unique
+          - not_null
+      - name: jurisdiction_id
+        description: "Resolved canonical jurisdiction id (resolved model wins; raw bronze fallback)."
+      - name: jurisdiction_name
+        description: "Resolved jurisdiction name (resolved model wins; raw bronze fallback)."
+      - name: jurisdiction_type
+        description: "Resolved jurisdiction type (resolved model wins; raw bronze fallback)."
+      - name: state_code
+        description: "2-letter USPS state code (resolved model wins; raw bronze fallback)."
+      - name: state
+        description: "Full state name, paired with state_code (resolved model wins; raw bronze fallback)."

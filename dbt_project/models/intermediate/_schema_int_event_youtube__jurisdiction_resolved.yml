@@ -7,9 +7,10 @@ models:
       bronze.bronze_event_youtube row landed with a NULL/blank jurisdiction_id
       (datasource = 'youtube').
 
-      Declarative, SELECT-based replacement for the in-place UPDATE in
-      packages/scrapers/src/scrapers/youtube/backfill_youtube_jurisdiction_from_channels.py
-      — bronze stays raw. One row per video_id. Resolution precedence (descending
+      Declarative, SELECT-based replacement for a since-removed Python script that
+      did an in-place UPDATE of bronze (backfill_youtube_jurisdiction_from_channels.py,
+      retired when this model landed) — bronze stays raw. One row per video_id.
+      Resolution precedence (descending
       trust): int_events_localview_enriched (high, localview_enriched) ->
       scraped 1:1 channel map (high, scraped) -> bronze_events_channels.jurisdictions
       catalog (high catalog_single / medium catalog_county_town / low catalog_multi).

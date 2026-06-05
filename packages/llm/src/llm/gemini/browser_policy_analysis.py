@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 Drive Gemini in a **headed Chrome** session (your profile) to run ``policy_analysis_v1`` on
-YouTube rows from ``bronze.bronze_event_youtube``.
+YouTube rows from ``public.event_youtube_with_jurisdiction`` (the jurisdiction-resolved
+serving view over ``bronze.bronze_event_youtube``).
 
 **Before running:** quit Google Chrome completely (same profile folder) or Playwright will
 fail with a profile lock error.
@@ -333,7 +334,13 @@ def fetch_videos(
             y.duration_minutes,
             y.published_at,
             COALESCE(t.has_transcript, false) AS has_transcript
-        FROM bronze.bronze_event_youtube y
+        -- Read jurisdiction_id from the resolved serving view, not raw bronze:
+        -- public.event_youtube_with_jurisdiction is a column-superset of
+        -- bronze_event_youtube that COALESCEs jurisdiction/geo from the dbt model
+        -- int_event_youtube__jurisdiction_resolved. This is what lets ~39.9k
+        -- channel-first videos (NULL jurisdiction_id in raw bronze) be targeted
+        -- by the per-jurisdiction analyze loop. Must be dbt-built where this runs.
+        FROM public.event_youtube_with_jurisdiction y
         LEFT JOIN bronze.bronze_event_youtube_transcript t ON t.video_id = y.video_id
         WHERE y.jurisdiction_id = %s
           AND y.video_url IS NOT NULL
