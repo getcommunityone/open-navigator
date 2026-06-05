@@ -79,66 +79,12 @@ class OAuthState(Base):
 # organizations; see api/routes/social.py and migration 099.
 
 
-class Official(Base):
-    """Public officials (elected, appointed) - renamed from Leader to match OpenStates"""
-    __tablename__ = "contact_official"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    ocd_person_id = Column(String(255), unique=True, index=True, nullable=True)  # OpenCivicData ID
-    name = Column(String(255), nullable=False, index=True)
-    slug = Column(String(255), unique=True, index=True, nullable=False)
-    family_name = Column(String(100), nullable=True)
-    given_name = Column(String(100), nullable=True)
-    sort_name = Column(String(255), nullable=True)
-    
-    # Bio and presentation
-    title = Column(String(255), nullable=True)  # 'Mayor', 'State Senator', 'City Council Member'
-    bio = Column(Text, nullable=True)
-    photo_url = Column(String(500), nullable=True)
-    gender = Column(String(20), nullable=True)
-    birth_date = Column(DateTime, nullable=True)
-    
-    # Current role (primary position)
-    position_type = Column(String(100), nullable=True)  # 'elected', 'appointed'
-    office = Column(String(255), nullable=True)  # 'Office of the Mayor', 'State Senate District 12'
-    party = Column(String(100), nullable=True)  # 'Democratic', 'Republican', 'Independent'
-    chamber = Column(String(50), nullable=True)  # 'upper', 'lower', 'executive'
-    district = Column(String(50), nullable=True)  # District number or name
-    
-    # Location/Jurisdiction
-    state = Column(String(100), nullable=True)
-    county = Column(String(100), nullable=True)
-    city = Column(String(100), nullable=True)
-    jurisdiction = Column(String(255), nullable=True)
-    
-    # Contact
-    email = Column(String(255), nullable=True)
-    phone = Column(String(50), nullable=True)
-    website = Column(String(500), nullable=True)
-    
-    # Social media
-    twitter = Column(String(255), nullable=True)
-    linkedin = Column(String(255), nullable=True)
-    facebook = Column(String(255), nullable=True)
-    
-    # Social stats
-    follower_count = Column(Integer, default=0)
-    
-    # Verification
-    is_verified = Column(Boolean, default=False)
-    verified_at = Column(DateTime, nullable=True)
-    
-    # Term dates
-    term_start_date = Column(DateTime, nullable=True)
-    term_end_date = Column(DateTime, nullable=True)
-    is_current = Column(Boolean, default=True)
-    
-    # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
-    def __repr__(self):
-        return f"<Official {self.name}>"
+# NOTE: the `Official` ORM entity (table public.contact_official) was retired by
+# migration 052, which dropped the empty table. Officials data lives in per-state
+# parquet gold files (data/gold/states/<ST>/contact_official.parquet), read directly
+# by api/routes/search.py — never as a queryable table. The follow-an-official
+# feature that depended on this model was orphaned (the frontend never called its
+# routes) and was removed alongside it; see api/routes/social.py.
 
 
 # ============================================================================
@@ -146,7 +92,7 @@ class Official(Base):
 # ============================================================================
 
 class SocialFollow(Base):
-    """A user following another entity (user, official, organization, or tag).
+    """A user following another entity (user, organization, or tag).
 
     Consolidates the former user_follows / contact_official_follows /
     organization_follows / cause_follows tables into one polymorphic table.
@@ -154,7 +100,7 @@ class SocialFollow(Base):
     target key identify what is being followed.
 
     Two target-key columns coexist because targets are keyed differently:
-      - integer-keyed targets ('user', 'official') use ``target_id``.
+      - integer-keyed targets ('user') use ``target_id``.
       - text-keyed targets use ``target_uid``: 'organization' =
         mdm_organization.master_org_id, 'tag' = tag.tag_id.
     Exactly one of the two is set per row; uniqueness is enforced by the two
@@ -168,9 +114,9 @@ class SocialFollow(Base):
               unique=True, postgresql_where=text('target_uid IS NOT NULL')),
     )
 
-    # Allowed target_type values. target_id keys user/official; target_uid keys
+    # Allowed target_type values. target_id keys user; target_uid keys
     # organization (mdm_organization.master_org_id) and tag (tag.tag_id).
-    TARGET_TYPES = ("user", "official", "organization", "tag")
+    TARGET_TYPES = ("user", "organization", "tag")
     UID_TARGET_TYPES = ("organization", "tag")
 
     id = Column(Integer, primary_key=True, index=True)

@@ -303,6 +303,26 @@ export default function Home() {
     staleTime: 5 * 60 * 1000 // Cache for 5 minutes
   });
 
+  // Hero category badge counts, scoped to the selected geography. The /stats
+  // endpoint serves these from the cached jurisdiction_state_aggregate rollup
+  // (national/state/county/city rows). When a location is selected we show the
+  // real count; otherwise we fall back to the static marketing string so the
+  // idle hero still reads as designed.
+  const HERO_COUNT_STAT_FIELD: Partial<Record<HeroSearchCategoryTab, string>> = {
+    leaders: 'contacts',
+    nonprofits: 'nonprofits',
+    decisions: 'decisions',
+    bills: 'bills',
+  }
+  const heroCategoryCount = (cat: { id: HeroSearchCategoryTab; count?: string }): string | undefined => {
+    const statKey = HERO_COUNT_STAT_FIELD[cat.id]
+    if (statKey) {
+      const real = formatCompactCount(locationStats?.[statKey] as number | undefined)
+      if (real != null) return real
+    }
+    return cat.count
+  }
+
   // Fetch trending causes from database (replaces hardcoded TRENDING_TOPICS)
   const { data: trendingData } = useQuery({
     queryKey: ['trending-causes'],
@@ -1181,10 +1201,7 @@ export default function Home() {
                                   </p>
                                   {HERO_SEARCH_TAB_DEFS.map((cat) => {
                                     const selected = heroSearchTab === cat.id
-                                    const countBadge =
-                                      cat.id === 'bills'
-                                        ? formatCompactCount(locationStats?.bills as number | undefined)
-                                        : cat.count
+                                    const countBadge = heroCategoryCount(cat)
                                     return (
                                       <button
                                         key={cat.id}
@@ -1715,10 +1732,7 @@ export default function Home() {
                           }
 
                           if (intent === 'browse') {
-                            const countBadge =
-                              activeHeroTab.id === 'bills'
-                                ? formatCompactCount(locationStats?.bills as number | undefined)
-                                : activeHeroTab.count
+                            const countBadge = heroCategoryCount(activeHeroTab)
                             return (
                               <p
                                 className="mt-3 text-sm text-[#6b8a8a]"
