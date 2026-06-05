@@ -573,3 +573,10 @@
 2026-06-04 23:24:47.020 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for URQ5izcecSU (1 segments, database:bronze_event_youtube_transcript (caption_text_timed))
 2026-06-04 23:24:47.023 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:958 - Built 1 agenda segment hint(s) for presenter linking
 2026-06-04 23:24:47.023 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1012 - Calling gemini-2.5-flash (AI Studio API)
+2026-06-04 23:32:31.046 | INFO     | llm.gemini.persist_policy_analysis_bronze:persist_policy_analysis_bronze:233 - Persisted legislation bronze for URQ5izcecSU: {'bills': 1, 'item_links': 1, 'decisions': 1, 'youtube_updated': 1}
+2026-06-04 23:32:31.199 | INFO     | llm.gemini.meeting_transcript_policy:save_transcript_policy_output:573 - Wrote /home/developer/projects/open-navigator/data/cache/gemini_transcript_policy/WI/municipality/weyauwega_5586400/UCjClmlKahxUg3y1cbqAWqFQ/02_analysis/2016-07-18_Weyauwega_Common_Council_Meeting.json
+2026-06-04 23:32:31.306 | INFO     | llm.gemini.meeting_transcript_policy:run_pipeline:1227 - [44/133] 7wF29ekmUIw — Weyauwega Police Fire & Ambulance Committee Meeting - 7-12-16
+2026-06-04 23:32:31.432 | INFO     | llm.gemini.transcript_db:fetch_db_transcript:146 - Using DB transcript for 7wF29ekmUIw (1347 segments, database:bronze_event_youtube_transcript (segments))
+2026-06-04 23:32:31.460 | INFO     | llm.gemini.meeting_transcript_policy:process_one_video:1012 - Calling gemini-2.5-flash (AI Studio API)
+2026-06-04 23:33:33.297 | WARNING  | llm.gemini.genai_text_client:call_with_genai_quota_retry:384 - gemini-2.5-flash: transient network disconnect — sleeping 8s, retry 2/12 (RemoteProtocolError — Server disconnected without sending a response.)
+2026-06-04 23:34:43.391 | WARNING  | llm.gemini.genai_text_client:call_with_genai_quota_retry:384 - gemini-2.5-flash: transient network disconnect — sleeping 11s, retry 3/12 (RemoteProtocolError — Server disconnected without sending a response.)

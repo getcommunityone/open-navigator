@@ -1,0 +1,84 @@
+version: 2
+
+models:
+  - name: bills
+    description: >
+      public.bills — one row per OpenStates bill (PK bill_uid = md5 over
+      ocd_bill_id). Built from int_bills__jurisdiction_linked. jurisdiction_id is a
+      NULLABLE FK -> jurisdictions.jurisdiction_id (the state-level row); federal /
+      unmapped bills are allowed. subject (jsonb array) is the topic source exploded
+      in rpt_bill_map_aggregate. year is an INTEGER. Indexed on jurisdiction_id and
+      state_code for map/geography filtering.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [jurisdiction_id]
+        to: ref('jurisdictions')
+        to_columns: [jurisdiction_id]
+    columns:
+      - name: bill_uid
+        description: "Primary key. md5('openstates_bill|' || ocd_bill_id)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: ocd_bill_id
+        description: "OpenStates OCD bill id (natural key, unique)."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - unique
+          - not_null
+      - name: identifier
+        description: "Bill number/identifier (e.g. 'HB 1')."
+        data_type: text
+      - name: title
+        description: "Bill title."
+        data_type: text
+      - name: classification
+        description: "jsonb array — bill classification(s)."
+        data_type: jsonb
+      - name: subject
+        description: "jsonb array — bill subjects/topics (exploded in rpt_bill_map_aggregate)."
+        data_type: jsonb
+      - name: session_identifier
+        description: "Legislative session identifier."
+        data_type: text
+      - name: session_name
+        description: "Legislative session display name."
+        data_type: text
+      - name: ocd_jurisdiction_id
+        description: "OCD jurisdiction id (e.g. ocd-jurisdiction/country:us/state:al/government)."
+        data_type: text
+      - name: state_code
+        description: "2-letter state code."
+        data_type: text
+      - name: jurisdiction_id
+        description: >
+          NULLABLE FK -> jurisdictions.jurisdiction_id (state-level row). Null for
+          federal / unmapped bills.
+        data_type: text
+        tests:
+          - relationships:
+              to: ref('jurisdictions')
+              field: jurisdiction_id
+      - name: latest_action_date
+        description: "Date of the latest action on the bill (cast from source TEXT)."
+        data_type: date
+      - name: latest_action_description
+        description: "Description of the latest action."
+        data_type: text
+      - name: year
+        description: "Calendar year (INTEGER) derived from latest/first action date or session label."
+        data_type: integer
+      - name: dbt_loaded_at
+        description: "dbt build timestamp."
+        data_type: timestamp with time zone

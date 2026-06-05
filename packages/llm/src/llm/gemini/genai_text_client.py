@@ -4,6 +4,7 @@ Text-only Google AI Studio calls (``google-genai``) with quota retry.
 
 from __future__ import annotations
 
+import concurrent.futures
 import json
 import os
 import re
@@ -13,6 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Optional, TypeVar
 
+import httpx
 from loguru import logger
 
 T = TypeVar("T")
@@ -325,6 +327,69 @@ def genai_quota_retry_delay_seconds(exc: BaseException, attempt: int) -> float:
     return min(base * (1.0 + 0.2 * attempt), cap)
 
 
+# --- Hard wall-clock guard around each Gemini attempt -----------------------
+# HttpOptions.timeout (httpx read timeout) is the first line of defense, but it has
+# been observed NOT to fire on a pathological half-open connection: a shard hung 37
+# minutes on a single generate_content call WITH a 120s httpx timeout set (TCP
+# connected, server silent, no exception ever raised). This wall-clock guard runs
+# each attempt in a worker thread and abandons it after a hard deadline regardless
+# of what the socket/SDK is doing, converting the hang into a retryable transient
+# timeout so the retry wrapper rotates/retries and finally raises GenAITransientGiveUp
+# (the batch skips-and-continues) instead of wedging forever. The abandoned worker
+# cannot be killed in Python — it stays blocked on I/O (cheap) until the httpx
+# timeout lets it die; a small shared, bounded pool caps and reuses the threads.
+_DEFAULT_GENAI_WALLCLOCK_BUFFER_SECONDS = 30.0
+_WALLCLOCK_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
+    max_workers=max(1, int(os.environ.get("GOVERNANCE_GENAI_WALLCLOCK_WORKERS", "4"))),
+    thread_name_prefix="genai-wallclock",
+)
+
+
+def _genai_wallclock_timeout_seconds() -> float:
+    """Hard per-attempt wall-clock cap, in seconds.
+
+    Defaults to the httpx request timeout + a buffer, so the httpx read timeout
+    normally fires first/cleanly and this only catches the pathological hang where
+    it didn't. Override with ``GOVERNANCE_GENAI_WALLCLOCK_TIMEOUT_SECONDS``.
+    """
+    override = os.environ.get("GOVERNANCE_GENAI_WALLCLOCK_TIMEOUT_SECONDS")
+    if override is not None and override.strip():
+        return max(1.0, float(override))
+    buffer = float(
+        os.environ.get(
+            "GOVERNANCE_GENAI_WALLCLOCK_BUFFER_SECONDS",
+            str(_DEFAULT_GENAI_WALLCLOCK_BUFFER_SECONDS),
+        )
+    )
+    return (_genai_http_timeout_ms() / 1000.0) + buffer
+
+
+def _call_with_walltimeout(fn: Callable[[], T], label: str) -> T:
+    """Run one Gemini attempt under a hard wall-clock deadline.
+
+    On expiry raise ``httpx.ReadTimeout`` (classified transient/retryable) so the
+    surrounding retry wrapper rotates keys, retries, and on persistence raises
+    ``GenAITransientGiveUp`` rather than hanging. A worker that raises propagates
+    its exception unchanged via ``future.result()`` (so quota/overload/model
+    classification is preserved); only a true wall-clock overrun is converted.
+    """
+    timeout_s = _genai_wallclock_timeout_seconds()
+    future = _WALLCLOCK_EXECUTOR.submit(fn)
+    try:
+        return future.result(timeout=timeout_s)
+    except concurrent.futures.TimeoutError as exc:
+        # Do NOT cancel/join — the worker is wedged on a hung socket and cannot be
+        # killed; let it leak (blocked on I/O) and move on.
+        logger.warning(
+            "{}: hard wall-clock timeout after {:.0f}s — abandoning call (likely hung connection)",
+            label,
+            timeout_s,
+        )
+        raise httpx.ReadTimeout(
+            f"{label}: hard wall-clock timeout after {timeout_s:.0f}s"
+        ) from exc
+
+
 def call_with_genai_quota_retry(
     fn: Callable[[], T], *, label: str = "Gemini", key_pool_size: int = 1
 ) -> T:
@@ -343,7 +408,7 @@ def call_with_genai_quota_retry(
     net_used = 0
     while True:
         try:
-            return fn()
+            return _call_with_walltimeout(fn, label)
         except Exception as exc:
             if not is_genai_retryable(exc):
                 # A 404 that says the *model* is retired/unavailable is non-retryable

@@ -18,6 +18,10 @@
       - stg_parcels__person        (bronze_addresses owner_name; SURNAME FIRST)
       - stg_990_officers__person   (bronze_990_officers; Form 990 Part VII people,
                                     identity-collapsed to name + EIN, no geography)
+      - stg_openstates_legislators__person
+                                    (bronze_jurisdiction_openstates; OpenStates
+                                    legislators, external_id = OCD person id, the
+                                    FK target for bill sponsorships)
 
     TODO: add stg_nccs__org / stg_orgs_ai__org to a parallel org pool.
 */
@@ -34,6 +38,8 @@ with unioned as (
     select * from {{ ref('stg_parcels__person') }}
     union all
     select * from {{ ref('stg_990_officers__person') }}
+    union all
+    select * from {{ ref('stg_openstates_legislators__person') }}
 )
 
 select

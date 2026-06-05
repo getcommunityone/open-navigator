@@ -241,6 +241,84 @@ sources:
           - name: end_date
           - name: synced_at
 
+      - name: bronze_jurisdiction_openstates
+        description: >
+          OpenStates legislators (people) — 2,463 rows (Alabama validation pull).
+          One row per legislator. openstates_person_id is the OCD person id
+          (ocd-person/..) and matches sponsorships[].person_id on the bills source
+          at 100% for AL. Feeds stg_openstates_legislators__person -> the MDM
+          person pool (mdm_person). NOT bronze_officials_openstates (that is the
+          membership-grained officials feed).
+        columns:
+          - name: id
+            description: "Bronze surrogate row id (bigint)."
+          - name: openstates_person_id
+            description: "OCD person id (ocd-person/..). Natural key; person source_pk + external_id."
+          - name: name
+            description: "Full display name."
+          - name: given_name
+            description: "Given (first) name."
+          - name: family_name
+            description: "Family (last) name."
+          - name: gender
+          - name: primary_party
+            description: "Primary party affiliation."
+          - name: email
+          - name: current_jurisdiction_id
+            description: "OCD jurisdiction id of the legislator's current role."
+          - name: state_code
+            description: "2-letter state code."
+          - name: current_role
+            description: "jsonb — current legislative role/chamber/district."
+          - name: extras
+          - name: links
+          - name: identifiers
+          - name: synced_at
+
+      - name: bronze_bills_openstates
+        description: >
+          OpenStates legislation/bills — 13,393 rows (Alabama single-state
+          validation pull; full multi-state pull comes later). One row per bill,
+          natural key ocd_bill_id. subject (jsonb array) is the topic source for
+          trending-topics aggregation; sponsorships (jsonb array) link bills to
+          legislators via person_id. *_date columns are source-native TEXT and are
+          cast to date in staging. state_code is already derived (char(2)).
+        columns:
+          - name: ocd_bill_id
+            description: "OCD bill id. Natural key (unique)."
+          - name: identifier
+            description: "Bill number/identifier (e.g. 'HB 1')."
+          - name: title
+          - name: classification
+            description: "jsonb array — bill classification(s)."
+          - name: subject
+            description: "jsonb array — bill subjects/topics (THE topic source)."
+          - name: from_organization_id
+          - name: legislative_session_id
+          - name: session_identifier
+          - name: session_name
+          - name: ocd_jurisdiction_id
+            description: "OCD jurisdiction id (e.g. ocd-jurisdiction/country:us/state:al/government)."
+          - name: state_code
+            description: "2-letter state code (derived)."
+          - name: first_action_date
+            description: "TEXT (source-native); cast to date in staging."
+          - name: latest_action_date
+            description: "TEXT (source-native); cast to date in staging."
+          - name: latest_action_description
+          - name: latest_passage_date
+            description: "TEXT (source-native); cast to date in staging."
+          - name: citations
+          - name: extras
+          - name: sponsorships
+            description: "jsonb array; each: {id,name,entity_type,primary,classification,person_id,organization_id}."
+          - name: abstracts
+          - name: titles
+          - name: identifiers
+          - name: source_created_at
+          - name: source_updated_at
+          - name: synced_at
+
       - name: bronze_bills
         description: |
           Legislation/bills extracted by the TEXT/policy transcript-analysis
