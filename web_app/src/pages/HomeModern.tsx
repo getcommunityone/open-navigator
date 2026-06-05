@@ -164,6 +164,8 @@ export default function HomeModern() {
     jurisdictions_display: formatNumber(rawStatsData.jurisdictions),
     nonprofits_display: formatNumber(rawStatsData.nonprofits),
     contacts_display: formatNumber(rawStatsData.contacts),
+    // Nonprofit board members / officers — distinct from civic `leaders`.
+    nonprofit_leaders_display: formatNumber(rawStatsData.nonprofit_leaders),
     causes_display: '650+', // Static for now - we don't track causes count yet
     school_districts_display: formatNumber(rawStatsData.school_districts)
   } : null;
@@ -540,8 +542,16 @@ export default function HomeModern() {
                     {statsData.contacts_display} leaders
                   </Link>
                   {' • '}
+                  {/* Nonprofit leaders link (board members / officers) */}
+                  <Link
+                    to={`/search?types=persons&state=${statsData.state}${statsData.county ? `&county=${encodeURIComponent(statsData.county)}` : ''}${statsData.city ? `&city=${encodeURIComponent(statsData.city)}` : ''}`}
+                    className="font-semibold text-[#52796F] hover:text-[#354F52] no-underline hover:underline hover:decoration-2 transition-all duration-200"
+                  >
+                    {statsData.nonprofit_leaders_display} nonprofit leaders
+                  </Link>
+                  {' • '}
                   {/* Causes link */}
-                  <Link 
+                  <Link
                     to={`/search?types=causes&state=${statsData.state}${statsData.county ? `&county=${encodeURIComponent(statsData.county)}` : ''}${statsData.city ? `&city=${encodeURIComponent(statsData.city)}` : ''}`}
                     className="font-semibold text-[#52796F] hover:text-[#354F52] no-underline hover:underline hover:decoration-2 transition-all duration-200"
                   >
@@ -573,7 +583,14 @@ export default function HomeModern() {
                     {statsData.contacts_display} leaders
                   </Link>
                   {' • '}
-                  <Link 
+                  <Link
+                    to="/search?types=persons"
+                    className="font-semibold text-[#52796F] hover:text-[#354F52] no-underline hover:underline hover:decoration-2 transition-all duration-200"
+                  >
+                    {statsData.nonprofit_leaders_display} nonprofit leaders
+                  </Link>
+                  {' • '}
+                  <Link
                     to="/search?types=causes"
                     className="font-semibold text-[#52796F] hover:text-[#354F52] no-underline hover:underline hover:decoration-2 transition-all duration-200"
                   >

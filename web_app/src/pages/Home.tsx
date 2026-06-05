@@ -155,6 +155,7 @@ const FEATURED_STORIES = [
 type HeroSearchCategoryTab =
   | 'all'
   | 'leaders'
+  | 'nonprofit_leaders'
   | 'persons'
   | 'nonprofits'
   | 'decisions'
@@ -175,6 +176,9 @@ const HERO_SEARCH_TAB_DEFS: {
 }[] = [
   { id: 'all', label: 'All', types: 'causes,leaders,organizations,bills,topics,decisions' },
   { id: 'leaders', label: 'Leaders', types: 'leaders', count: '75K', filterPlaceholder: 'Filter leaders by name or office…' },
+  // Nonprofit board members / officers — distinct from civic `leaders`. No
+  // dedicated search type yet, so browsing drills into the person index.
+  { id: 'nonprofit_leaders', label: 'Nonprofit leaders', types: 'persons', filterPlaceholder: 'Filter nonprofit board members by name…' },
   { id: 'persons', label: 'Persons', types: 'persons', filterPlaceholder: 'Filter people by name…' },
   { id: 'nonprofits', label: 'Nonprofits', types: 'organizations', count: '1.8M', filterPlaceholder: 'Filter nonprofits by name or cause…' },
   { id: 'decisions', label: 'Decisions', types: 'decisions', count: '169', activity: true, filterPlaceholder: 'Filter decisions by topic or body…' },
@@ -339,8 +343,9 @@ export default function Home() {
   // (national/state/county/city rows). When a location is selected we show the
   // real count; otherwise we fall back to the static marketing string so the
   // idle hero still reads as designed.
-  const HERO_COUNT_STAT_FIELD: Partial<Record<HeroSearchCategoryTab, string>> = {
+  const HERO_COUNT_STAT_FIELD: Partial<Record<HeroSearchCategoryTab, keyof LocationStats>> = {
     leaders: 'leaders',
+    nonprofit_leaders: 'nonprofit_leaders',
     persons: 'persons',
     nonprofits: 'nonprofits',
     decisions: 'decisions',
