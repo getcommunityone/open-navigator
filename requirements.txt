@@ -85,7 +85,7 @@ opentelemetry-instrumentation-fastapi==0.63b0
 opentelemetry-exporter-otlp-proto-http==1.42.0
 
 # Authentication & OAuth
-python-jose[cryptography]==3.3.0  # JWT tokens
+python-jose[cryptography]==3.4.0  # JWT tokens (3.4.0 fixes CVE-2024-33663 algo confusion + CVE-2024-33664 JWT bomb)
 passlib[bcrypt]==1.7.4            # Password hashing
 itsdangerous==2.1.2                # Secure tokens
 psycopg2-binary==2.9.9             # PostgreSQL driver
