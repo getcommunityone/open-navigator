@@ -374,17 +374,6 @@ sources:
             description: "JSONB vote tally object."
           - name: extracted_at
 
-      - name: bronze_decisions
-        description: "Policy decisions from meeting analysis"
-        columns:
-          - name: id
-          - name: source_event_id
-          - name: decision_id
-          - name: headline
-          - name: decision_statement
-          - name: outcome
-          - name: extracted_at
-          
       - name: bronze_topics
         description: "Topics extracted from meeting transcripts and agendas"
         columns:
@@ -1950,35 +1939,6 @@ sources:
             description: "JSONB array/object of associated .gov domains (matched with the ? operator)."
 
 models:
-  - name: stg_bronze_decisions
-    description: "Staged and cleaned bronze decisions with recent decision flags"
-    columns:
-      - name: bronze_decision_id
-        description: "Original bronze table ID"
-        tests:
-          - unique
-          - not_null
-      - name: source_event_id
-        description: "Link to source meeting/event"
-      - name: headline
-        description: "Decision headline/summary"
-      - name: decision_date
-        description: "Date of decision"
-        tests:
-          - not_null
-      - name: is_recent
-        description: "True if decision is within last 90 days"
-      - name: days_since_decision
-        description: "Number of days since decision was made"
-      - name: secondary_ntee_major_group
-        description: "NTEE major cause category"
-      - name: primary_theme
-        description: "Primary policy theme"
-      - name: extracted_at
-        description: "When this was extracted"
-        tests:
-          - not_null
-          
   - name: stg_bronze_events_cdp
     description: |
       Staged and cleaned Council Data Project (CDP) events.

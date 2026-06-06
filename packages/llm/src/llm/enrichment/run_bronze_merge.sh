@@ -44,8 +44,6 @@ cur.execute("""
     UNION ALL
     SELECT 'bronze_bills', COUNT(*) FROM bronze_bills
     UNION ALL
-    SELECT 'bronze_decisions', COUNT(*) FROM bronze_decisions
-    UNION ALL
     SELECT 'bronze_financial_items', COUNT(*) FROM bronze_financial_items
 """)
 for row in cur.fetchall():

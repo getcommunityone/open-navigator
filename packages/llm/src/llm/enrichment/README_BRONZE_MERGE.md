@@ -45,7 +45,6 @@ python -m llm.enrichment.load_meeting_transcripts_bronze --create-tables-only
 - `bronze_contacts` - People mentioned (officials, lobbyists, citizens)
 - `bronze_organizations` - Organizations mentioned
 - `bronze_bills` - Legislation discussed
-- `bronze_decisions` - Policy decisions made
 - `bronze_financial_items` - Budget items, grants, contracts
 
 ### 3. Merge Bronze → Production (DRY RUN)

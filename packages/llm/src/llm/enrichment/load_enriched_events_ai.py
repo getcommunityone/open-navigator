@@ -15,9 +15,6 @@ Steps (run in order):
 The `ingest` step backfills the analysis cache (no Gemini calls) so `load` can
 extract from the warehouse even on a freshly-rebuilt DB.
 
-MOA synthesis (moa_synthesize.py) is per-event and must be run separately:
-  .venv/bin/python -m llm.enrichment.moa_synthesize --event-id <id> --aggregator claude-opus
-
 Usage:
     python -m llm.enrichment.load_enriched_events_ai                          # all steps, priority states
     python -m llm.enrichment.load_enriched_events_ai --states MA,WI,GA        # specific states
@@ -314,12 +311,6 @@ def print_summary(results: list[dict], started_at: datetime, log_dir: Path) -> N
     else:
         logger.success(f"  {summary_line}")
     logger.info(sep)
-
-    if not any(r.get("skipped") for r in results if r["key"] == "merge"):
-        logger.info("")
-        logger.info("  Next step for per-event synthesis:")
-        logger.info("  .venv/bin/python -m llm.enrichment.moa_synthesize \\")
-        logger.info("      --event-id <id> --aggregator claude-opus")
 
 
 def main() -> int:

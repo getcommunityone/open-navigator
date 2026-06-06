@@ -84,55 +84,6 @@ python -m llm.enrichment.extract_to_bronze --create-tables-only
 python -m llm.enrichment.extract_to_bronze --skip-create-tables
 ```
 
-#### `compare_model_extractions.py`
-
-Compare how different AI models extracted the same meeting decision.
-
-**Usage:**
-
-```bash
-# Summary of all multi-model extractions
-python -m llm.enrichment.compare_model_extractions --summary
-
-# Compare specific event
-python -m llm.enrichment.compare_model_extractions --event-id 192614
-
-# Compare specific models
-python -m llm.enrichment.compare_model_extractions --event-id 192614 --models gemini-1.5-flash gpt-4
-```
-
-#### `moa_synthesize.py` ⭐
-
-**NEW** - Mixture-of-Agents synthesis to merge multiple model extractions into consensus.
-
-**What it does:**
-1. Gets all model extractions of the same decision from bronze
-2. Uses powerful "aggregator" model (GPT-4o or Gemini Pro) to synthesize
-3. Identifies consensus facts, contradictions, and best parts from each model
-4. Stores synthesis back to bronze with model name `moa-{aggregator}`
-
-**Usage:**
-
-```bash
-# Synthesize specific decision with GPT-4o
-python -m llm.enrichment.moa_synthesize --event-id 192614 --decision-id D001
-
-# Use Gemini Pro as aggregator
-python -m llm.enrichment.moa_synthesize --event-id 192614 --decision-id D001 --aggregator gemini-pro
-
-# Synthesize all decisions for an event
-python -m llm.enrichment.moa_synthesize --event-id 192614 --all
-
-# Dry run (see prompt without calling API)
-python -m llm.enrichment.moa_synthesize --event-id 192614 --decision-id D001 --dry-run
-```
-
-**Why use MoA?**
-- Combines strengths of multiple models (better than any single model)
-- Identifies high vs low confidence facts
-- Resolves contradictions systematically
-- Industry best practice for AI evaluation in 2026
-
 ### Supporting Scripts
 
 ### One-Time & Migration Scripts
@@ -185,41 +136,6 @@ CREATE TABLE events_text_ai (
 );
 ```
 
-### Bronze Tables (Multi-Model Extraction)
-
-Bronze layer stores normalized extractions for comparison across AI models:
-
-```sql
--- Bronze Decisions (multi-model support)
-CREATE TABLE bronze_decisions (
-    id SERIAL PRIMARY KEY,
-    source_event_id INTEGER,
-    source_ai_model VARCHAR(100),  -- e.g., 'gemini-1.5-flash', 'gpt-4', 'moa-gpt-4o'
-    decision_id VARCHAR(255),
-    headline TEXT,
-    decision_statement TEXT,
-    outcome VARCHAR(50),
-    primary_theme VARCHAR(100),
-    ntee_code VARCHAR(10),
-    arguments_for JSONB,
-    arguments_against JSONB,
-    vote_tally JSONB,
-    extracted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    
-    -- Multi-model support: same decision can be extracted by multiple models
-    UNIQUE(source_event_id, decision_id, source_ai_model)
-);
-
--- Bronze Contacts, Organizations, Bills, Topics, Causes (similar pattern)
--- All support multiple model extractions with source_ai_model column
-```
-
-**Key feature:** The `source_ai_model` column + UNIQUE constraint allows storing:
-- Same decision extracted by Gemini 1.5 Flash
-- Same decision extracted by GPT-4
-- Same decision extracted by Claude 3
-- Synthesized version from MoA (`moa-gpt-4o`)
-
 ## Query Results
 
 ```sql
@@ -257,58 +173,6 @@ FROM events_text_ai ai
 JOIN event e ON ai.event_id = e.event_id,
 LATERAL jsonb_array_elements(ai.structured_analysis->'decisions') as decision
 WHERE ai.error_message IS NULL;
-```
-
-### Multi-Model Comparison Queries
-
-```sql
--- Find decisions extracted by multiple models
-SELECT 
-    source_event_id,
-    decision_id,
-    COUNT(DISTINCT source_ai_model) as num_models,
-    array_agg(DISTINCT source_ai_model) as models
-FROM bronze_decisions
-GROUP BY source_event_id, decision_id
-HAVING COUNT(DISTINCT source_ai_model) > 1
-ORDER BY num_models DESC;
-
--- Compare specific decision across models
-SELECT 
-    source_ai_model,
-    headline,
-    outcome,
-    primary_theme,
-    ntee_code,
-    json_array_length(arguments_for) as num_args_for,
-    json_array_length(arguments_against) as num_args_against
-FROM bronze_decisions
-WHERE source_event_id = 192614 
-  AND decision_id = 'D001'
-ORDER BY source_ai_model;
-
--- Get MoA synthesis for comparison
-SELECT 
-    headline,
-    decision_statement,
-    outcome,
-    primary_theme
-FROM bronze_decisions
-WHERE source_event_id = 192614 
-  AND decision_id = 'D001'
-  AND source_ai_model = 'moa-gpt-4o';
-
--- Model performance stats
-SELECT 
-    source_ai_model,
-    COUNT(*) as total_decisions,
-    COUNT(DISTINCT source_event_id) as total_events,
-    AVG(json_array_length(arguments_for)) as avg_arguments_for,
-    AVG(json_array_length(arguments_against)) as avg_arguments_against,
-    COUNT(*) FILTER (WHERE outcome IS NOT NULL) as decisions_with_outcome
-FROM bronze_decisions
-GROUP BY source_ai_model
-ORDER BY total_decisions DESC;
 ```
 
 ## Prompt Template
@@ -403,52 +267,6 @@ python -m llm.enrichment.extract_to_bronze
 PGPASSWORD=password psql -h localhost -p 5433 -U postgres -d open_navigator -c \
   "SELECT COUNT(*) FROM events_text_ai WHERE error_message IS NULL;"
 ```
-
-### Multi-Model Comparison Pipeline (Advanced) ⭐
-
-For highest quality extractions, analyze the same meeting with multiple models and synthesize results:
-
-#### 1. Analyze with Multiple Models
-```bash
-# Model 1: Gemini 1.5 Flash (free, fast)
-python -m llm.enrichment.analyze_meeting_transcripts --states MA
-
-# TODO: Add support for additional models (GPT-4, Claude 3, etc.)
-```
-
-#### 2. Extract All Models to Bronze
-```bash
-python -m llm.enrichment.extract_to_bronze
-```
-
-#### 3. Compare Extractions
-```bash
-# See summary of multi-model coverage
-python -m llm.enrichment.compare_model_extractions --summary
-
-# Compare specific event
-python -m llm.enrichment.compare_model_extractions --event-id 192614
-```
-
-#### 4. Run MoA Synthesis (Mixture-of-Agents)
-```bash
-# Synthesize all decisions using GPT-4o as aggregator
-python -m llm.enrichment.moa_synthesize --event-id 192614 --all
-
-# Or use Gemini Pro as aggregator (cheaper)
-python -m llm.enrichment.moa_synthesize --event-id 192614 --all --aggregator gemini-pro
-```
-
-#### 5. Query Synthesis Results
-```bash
-psql -d open_navigator_bronze -c "
-  SELECT decision_id, headline, outcome FROM bronze_decisions
-  WHERE source_event_id = 192614 AND source_ai_model = 'moa-gpt-4o'
-  ORDER BY decision_id;
-"
-```
-
-**Benefits:** Higher accuracy, identifies biases, builds confidence through consensus
 
 ## Troubleshooting
 

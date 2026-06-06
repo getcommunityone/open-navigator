@@ -16,7 +16,6 @@ TABLES=(
     "bronze_bills"
     "bronze_causes"
     "bronze_contacts"
-    "bronze_decisions"
     "bronze_events"
     "bronze_event"
     "bronze_event_youtube_transcript"

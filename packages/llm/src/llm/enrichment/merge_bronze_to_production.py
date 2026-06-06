@@ -9,7 +9,6 @@ Bronze Tables (Source):
 - bronze_contacts
 - bronze_organizations_meetings  
 - bronze_bills
-- bronze_decisions
 - bronze_financial_items
 
 Production Tables (Target):
