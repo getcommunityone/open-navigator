@@ -325,6 +325,7 @@ from api.routes import search as search_routes
 from api.routes import people as people_routes
 from api.routes import decisions as decisions_routes
 from api.routes import event_bills as event_bills_routes
+from api.routes import meetings as meetings_routes
 # Use Neon database for fast stats queries (500x faster than parquet)
 from api.routes import stats_neon as stats_routes  # Was: stats
 from api.routes import contact as contact_routes
@@ -349,6 +350,7 @@ app.include_router(search_routes.router, prefix="/api")
 app.include_router(people_routes.router, prefix="/api")
 app.include_router(decisions_routes.router, prefix="/api")
 app.include_router(event_bills_routes.router, prefix="/api")
+app.include_router(meetings_routes.router, prefix="/api")
 app.include_router(stats_routes.router, prefix="/api", tags=["stats"])
 app.include_router(contact_routes.router, prefix="/api")
 app.include_router(bills_routes.router, prefix="/api")

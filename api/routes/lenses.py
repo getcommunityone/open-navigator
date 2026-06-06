@@ -259,13 +259,23 @@ def _build_flag_card(row: Any) -> LensCard:
         stats.append(LensStat(value=str(row["amount_type"])[:18], label="Type", tone="amber"))
     if pct is not None:
         stats.append(LensStat(value=f"{pct}% under", label="Approval limit", tone="blue"))
+    # Drill down to the flagged item's real meeting record. analysis_id is the
+    # event_meeting_id; ?item highlights this specific line on the page.
+    meeting_id = row["analysis_id"]
+    fin_id = row["financial_item_id"]
+    if meeting_id is not None:
+        url = f"/meetings/{meeting_id}"
+        if fin_id:
+            url += f"?item={fin_id}"
+    else:
+        url = None
     return LensCard(
         headline=row["event_description"] or "Flagged financial item",
         stats=stats[:3],
         jurisdiction=row["jurisdiction_name"] or row["state_code"] or "Unknown",
         date=None,
         badge="Raised Eyebrows",
-        url=None,
+        url=url,
         state_code=row["state_code"],
         state=row["state"],
     )
@@ -499,11 +509,17 @@ async def get_lenses(
                         flag_params.append(f"%{city.strip()}%")
                         fidx += 1
                     flag_where = (" AND " + " AND ".join(flag_clauses)) if flag_clauses else ""
+                    # Drill down to the flagged item's real MEETING record
+                    # (/meetings/{event_meeting_id}), which lists the meeting's
+                    # decisions + financial items and highlights this one via ?item.
+                    # analysis_id IS the event_meeting_id (FK). Every flag has one, so
+                    # every flag is a working drilldown — no fake slug, no mislink.
                     flag_sql = f"""
                         SELECT
                             fi.event_description, fi.jurisdiction_name,
                             fi.state_code, fi.state, fi.amount, fi.amount_type,
-                            f.severity, f.evidence, f.anomaly_score
+                            f.severity, f.evidence, f.anomaly_score,
+                            fi.analysis_id, fi.financial_item_id
                         FROM item_flags f
                         JOIN event_financial_item fi
                           ON fi.event_financial_item_id = f.subject_ref

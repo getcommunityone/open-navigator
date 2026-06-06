@@ -1,6 +1,7 @@
 import { useParams, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
+import MeetingPlayer from '../components/MeetingPlayer'
 import {
   ArrowLeftIcon,
   ScaleIcon,
@@ -9,7 +10,6 @@ import {
   SparklesIcon,
   UsersIcon,
   CalendarIcon,
-  VideoCameraIcon,
 } from '@heroicons/react/24/outline'
 
 interface DecisionDetail {
@@ -174,51 +174,75 @@ function Section({
 // Render it as a narrative — the side's stance, then the worry / why / the ask —
 // instead of a raw key/value dump. Falls back to the generic JsonValue for any
 // unexpected shape so we never render an empty section.
-const VIEW_SUBFIELDS: { key: string; label: string; hint: string }[] = [
+const VIEW_SUBFIELDS: { key: string; label: string; hint: string; emphasize?: boolean }[] = [
   { key: 'problem_diagnosis', label: 'The worry', hint: "what's the concern?" },
   { key: 'causal_story', label: 'Why', hint: "what's behind it?" },
-  { key: 'proposed_remedy', label: 'What they want', hint: 'the proposed fix' },
+  { key: 'proposed_remedy', label: 'What they want', hint: 'the proposed fix', emphasize: true },
 ]
 
-function ViewBlock({
-  kicker,
+// Serif stack matching the homepage "story" typography (Newsreader → Georgia).
+const CV_SERIF = { fontFamily: "'Newsreader', Georgia, 'Times New Roman', serif" } as const
+
+function ViewColumn({
+  side,
   view,
-  accent,
 }: {
-  kicker: string
+  side: 'prevailing' | 'other'
   view: Record<string, unknown>
-  accent: string
 }) {
+  const isPrev = side === 'prevailing'
+  const accent = isPrev ? '#1d6b5f' : '#e0603a'
+  const tint = isPrev ? '#e7f2ef' : '#fdeee7'
+  const kicker = isPrev ? 'THE PREVAILING VIEW' : 'THE OTHER SIDE'
   const label = typeof view?.view_label === 'string' ? view.view_label : null
-  const rows = VIEW_SUBFIELDS.map(({ key, label: l, hint }) => {
+
+  const rows = VIEW_SUBFIELDS.map(({ key, label: l, hint, emphasize }) => {
     const v = view?.[key]
     if (typeof v !== 'string' || !v.trim()) return null
     return (
-      <div key={key}>
-        <div className="text-sm font-semibold text-gray-800">
-          {l} <span className="font-normal text-gray-400">· {hint}</span>
+      <div key={key} className="mt-5 first:mt-0">
+        <div className="text-[13px] font-semibold text-[#16201d]">
+          {l} <span className="font-normal text-[#9bb8b8]">· {hint}</span>
         </div>
-        <p className="text-sm text-gray-700 whitespace-pre-line">{v}</p>
+        <p
+          className={`mt-1.5 whitespace-pre-line text-[14px] leading-relaxed ${
+            emphasize ? 'font-semibold text-[#16201d]' : 'text-[#56635e]'
+          }`}
+        >
+          {v}
+        </p>
       </div>
     )
   }).filter(Boolean)
 
-  // Unknown view shape (no recognized sub-fields): defer to the generic renderer.
   if (!label && rows.length === 0) return <JsonValue value={view} />
 
   return (
-    <div className={`rounded-lg border-l-4 ${accent} bg-gray-50 p-4`}>
-      <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
+    <div>
+      <span
+        className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11.5px] font-bold tracking-wide"
+        style={{ background: tint, color: accent }}
+      >
+        <span className="h-1.5 w-1.5 rounded-full" style={{ background: accent }} />
         {kicker}
-      </div>
-      {label && <h3 className="text-base font-bold text-gray-900 mb-3">{label}</h3>}
-      {rows.length > 0 && <div className="space-y-3">{rows}</div>}
+      </span>
+      {label && (
+        <h3 className="mt-3 text-[22px] font-semibold leading-tight text-[#16201d]" style={CV_SERIF}>
+          {label}
+        </h3>
+      )}
+      {rows.length > 0 && <div className="mt-3">{rows}</div>}
     </div>
   )
 }
 
 function CompetingViews({ data }: { data: unknown }) {
-  if (!data || typeof data !== 'object') return <JsonValue value={data} />
+  const fallback = (value: unknown) => (
+    <Section title="Where they disagreed" icon={<UsersIcon className="h-5 w-5" />}>
+      <JsonValue value={value} />
+    </Section>
+  )
+  if (!data || typeof data !== 'object') return fallback(data)
   const cv = data as Record<string, unknown>
   const dominant =
     cv.dominant_view && typeof cv.dominant_view === 'object'
@@ -236,29 +260,54 @@ function CompetingViews({ data }: { data: unknown }) {
         : null
 
   // Recognized neither side -> generic fallback, so we never drop content.
-  if (!dominant && counters.length === 0) return <JsonValue value={data} />
+  if (!dominant && counters.length === 0) return fallback(data)
+
+  // Left column = the prevailing view (or the first stated view if there's no
+  // explicit dominant); remaining views stack on the right as "the other side".
+  const leftView = dominant ?? counters[0]
+  const rightViews = dominant ? counters : counters.slice(1)
 
   return (
-    <div className="space-y-4">
+    <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+      <div className="text-[12px] font-bold uppercase tracking-[0.12em] text-[#1d6b5f]">
+        Where they disagreed
+      </div>
+
       {debate && (
-        <div>
-          <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
-            The debate
-          </div>
-          <p className="text-sm text-gray-700 whitespace-pre-line">{debate}</p>
+        <div className="mt-4">
+          <div className="text-[13px] text-[#8a958f]">The debate</div>
+          <p className="mt-1 whitespace-pre-line text-[22px] leading-snug text-[#16201d]" style={CV_SERIF}>
+            {debate}
+          </p>
         </div>
       )}
-      {dominant && (
-        <ViewBlock kicker="The prevailing view" view={dominant} accent="border-blue-400" />
-      )}
-      {counters.map((c, i) => (
-        <ViewBlock
-          key={i}
-          kicker={counters.length > 1 ? `The other side (${i + 1})` : 'The other side'}
-          view={c}
-          accent="border-amber-400"
-        />
-      ))}
+
+      <div className="my-5 border-t border-[#e1ebe7]" />
+
+      <div className="grid gap-7 md:grid-cols-2 md:gap-0">
+        <div className="md:pr-7">
+          <ViewColumn side={dominant ? 'prevailing' : 'other'} view={leftView} />
+        </div>
+        {rightViews.length > 0 && (
+          <div className="space-y-8 border-t border-[#e1ebe7] pt-7 md:border-l md:border-t-0 md:pl-7 md:pt-0">
+            {rightViews.map((c, i) => (
+              <ViewColumn key={i} side="other" view={c} />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="mt-6 flex items-center justify-between gap-3 border-t border-[#e1ebe7] pt-3 text-[12.5px]">
+        <span className="flex items-center gap-1.5 text-[#8a958f]">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+            <path d="M4 6h16M4 12h16M4 18h10" strokeLinecap="round" />
+          </svg>
+          Summarized from the meeting transcript
+        </span>
+        <Link to="/documents" className="shrink-0 font-medium text-[#1d6b5f] hover:underline">
+          Read the discussion →
+        </Link>
+      </div>
     </div>
   )
 }
@@ -379,18 +428,22 @@ export default function DecisionDetail() {
                 <span>{new Date(decision.meeting_date).toLocaleDateString()}</span>
               )}
             </div>
-            {decision.meeting_video_id && (
-              <a
-                href={`https://www.youtube.com/watch?v=${decision.meeting_video_id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-3 inline-flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 hover:underline"
-              >
-                <VideoCameraIcon className="h-4 w-4" />
-                Watch meeting recording →
-              </a>
-            )}
           </Section>
+        )}
+
+        {/* Meeting recording + clickable transcript */}
+        {decision.meeting_video_id && (
+          <MeetingPlayer
+            videoId={decision.meeting_video_id}
+            caption={[decision.meeting_name, decision.meeting_date
+              ? new Date(decision.meeting_date).toLocaleDateString()
+              : null]
+              .filter(Boolean)
+              .join(' • ') || undefined}
+            targetText={[decision.headline, decision.decision_statement]
+              .filter(Boolean)
+              .join('. ') || undefined}
+          />
         )}
 
         {/* Decision Statement */}
@@ -444,11 +497,9 @@ export default function DecisionDetail() {
           </Section>
         )}
 
-        {/* Frame analysis: where the sides disagreed */}
+        {/* Frame analysis: where the sides disagreed (renders its own card) */}
         {!isEmpty(decision.competing_views) && (
-          <Section title="Where they disagreed" icon={<UsersIcon className="h-5 w-5" />}>
-            <CompetingViews data={decision.competing_views} />
-          </Section>
+          <CompetingViews data={decision.competing_views} />
         )}
 
         {/* Human Element */}

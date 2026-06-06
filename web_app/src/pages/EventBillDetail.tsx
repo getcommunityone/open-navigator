@@ -1,12 +1,12 @@
 import { useParams, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
+import MeetingPlayer from '../components/MeetingPlayer'
 import {
   ArrowLeftIcon,
   DocumentTextIcon,
   MapPinIcon,
   CalendarIcon,
-  VideoCameraIcon,
 } from '@heroicons/react/24/outline'
 
 interface BillReferenceDetail {
@@ -160,18 +160,22 @@ export default function EventBillDetail() {
                 <span>{new Date(bill.meeting_date).toLocaleDateString()}</span>
               )}
             </div>
-            {bill.meeting_video_id && (
-              <a
-                href={`https://www.youtube.com/watch?v=${bill.meeting_video_id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-3 inline-flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 hover:underline"
-              >
-                <VideoCameraIcon className="h-4 w-4" />
-                Watch meeting recording →
-              </a>
-            )}
           </div>
+        )}
+
+        {/* Meeting recording + clickable transcript */}
+        {bill.meeting_video_id && (
+          <MeetingPlayer
+            videoId={bill.meeting_video_id}
+            caption={[bill.meeting_name, bill.meeting_date
+              ? new Date(bill.meeting_date).toLocaleDateString()
+              : null]
+              .filter(Boolean)
+              .join(' • ') || undefined}
+            targetText={[bill.official_number, bill.title, bill.relevance]
+              .filter(Boolean)
+              .join('. ') || undefined}
+          />
         )}
 
         {/* Provenance */}

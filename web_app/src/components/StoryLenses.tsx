@@ -267,9 +267,10 @@ export default function StoryLenses({ locationLabel, stateCode, city, onSearch, 
     ? DEMO_ACTIVITY
     : (data?.activity ?? []).map((a, i) => ({ em: a.icon, v: a.value, l: a.label, bg: ACTIVITY_BG[i % ACTIVITY_BG.length] }))
 
+  // Only a card with a real url is a drilldown; url-less cards (e.g. a flag whose
+  // spend maps to no decision) are not faked into a link.
   const openCard = (c: RenderCard) => {
     if (c.url) navigate(c.url)
-    else onSearch?.(c.h)
   }
 
   return (
@@ -439,19 +440,29 @@ export default function StoryLenses({ locationLabel, stateCode, city, onSearch, 
         </div>
       ) : (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
-          {cards.map((c, i) => (
+          {cards.map((c, i) => {
+            const clickable = !!c.url
+            return (
             <article
               key={`${active}-${i}`}
-              role="link"
-              tabIndex={0}
-              onClick={() => openCard(c)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault()
-                  openCard(c)
-                }
-              }}
-              className="group relative flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-[#e1ebe7] bg-white shadow-[0_1px_2px_rgba(20,40,35,.04),0_8px_24px_rgba(20,40,35,.06)] transition-all hover:-translate-y-0.5 hover:border-[#cfe0db] hover:shadow-[0_2px_4px_rgba(20,40,35,.06),0_14px_32px_rgba(20,40,35,.10)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1a6b6b]/40"
+              {...(clickable
+                ? {
+                    role: 'link',
+                    tabIndex: 0,
+                    onClick: () => openCard(c),
+                    onKeyDown: (e: React.KeyboardEvent) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        openCard(c)
+                      }
+                    },
+                  }
+                : {})}
+              className={`group relative flex flex-col overflow-hidden rounded-2xl border border-[#e1ebe7] bg-white shadow-[0_1px_2px_rgba(20,40,35,.04),0_8px_24px_rgba(20,40,35,.06)] transition-all ${
+                clickable
+                  ? 'cursor-pointer hover:-translate-y-0.5 hover:border-[#cfe0db] hover:shadow-[0_2px_4px_rgba(20,40,35,.06),0_14px_32px_rgba(20,40,35,.10)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1a6b6b]/40'
+                  : ''
+              }`}
             >
               <span className="h-1 w-full" style={{ background: lens.clr }} aria-hidden />
               <div className="flex flex-1 flex-col p-[18px]">
@@ -506,7 +517,8 @@ export default function StoryLenses({ locationLabel, stateCode, city, onSearch, 
                 </div>
               </div>
             </article>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
