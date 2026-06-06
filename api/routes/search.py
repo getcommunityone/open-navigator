@@ -636,7 +636,7 @@ async def _traced_subsearch(
 @router.get("/search/", include_in_schema=False)
 async def unified_search(
     q: Optional[str] = Query(None, description="Search query (optional - browse by filters if omitted)"),
-    types: Optional[str] = Query(None, description="Comma-separated result types: leaders,persons,meetings,organizations,causes,jurisdictions,bills,topics,decisions,documents,grants,opportunities. Legacy aliases accepted: 'contacts'/'officials' -> 'leaders', 'people'/'person' -> 'persons'"),
+    types: Optional[str] = Query(None, description="Comma-separated result types: leaders,persons,meetings,organizations,causes,jurisdictions,bills,topics,decisions,documents,grants,grant_opportunities. Legacy aliases accepted: 'contacts'/'officials' -> 'leaders', 'people'/'person' -> 'persons'"),
     state: Optional[str] = Query(None, description="Filter by state (2-letter code)"),
     city: Optional[str] = Query(None, description="Filter by city name"),
     jurisdiction_id: Optional[str] = Query(None, description="Filter by exact jurisdiction_id (city, county, or state) — scopes orgs/persons/grants through the MDM jurisdiction bridges"),
@@ -701,7 +701,7 @@ async def unified_search(
                 if t.strip()
             ]
         else:
-            requested_types = ['leaders', 'persons', 'meetings', 'organizations', 'causes', 'jurisdictions', 'bills', 'topics', 'decisions', 'documents', 'grants', 'opportunities']
+            requested_types = ['leaders', 'persons', 'meetings', 'organizations', 'causes', 'jurisdictions', 'bills', 'topics', 'decisions', 'documents', 'grants', 'grant_opportunities']
         
         # Parse jurisdiction levels if provided
         jurisdiction_levels_list = None
@@ -765,12 +765,12 @@ async def unified_search(
             # Graceful no-op if the mart is unbuilt.
             search_tasks.append(('grants', search_postgres.search_grants_pg(q, state, city=city, jurisdiction_id=jurisdiction_id, limit=search_limit, offset=search_offset)))
 
-        if 'opportunities' in requested_types:
+        if 'grant_opportunities' in requested_types:
             # Federal grant opportunities (public.grant_opportunity) — Grants.gov
             # open/forecasted funding ("what's available now"), DISTINCT from the
             # 990 'grants' bucket above. ILIKE over title/agency/number, ordered
             # open-first then soonest deadline. Graceful no-op if the mart is unbuilt.
-            search_tasks.append(('opportunities', search_postgres.search_opportunities_pg(q, state, city=city, jurisdiction_id=jurisdiction_id, limit=search_limit, offset=search_offset)))
+            search_tasks.append(('grant_opportunities', search_postgres.search_grant_opportunities_pg(q, state, city=city, jurisdiction_id=jurisdiction_id, limit=search_limit, offset=search_offset)))
 
         if 'topics' in requested_types:
             search_tasks.append(('topics', search_postgres.search_topics_pg(q, state, ntee_code, limit=search_limit)))
@@ -854,10 +854,10 @@ async def unified_search(
             'jurisdictions': [r.to_dict() for r in paginated_results if r.result_type == 'jurisdiction'],
             'documents': [r.to_dict() for r in paginated_results if r.result_type == 'document'],
             'grants': [r.to_dict() for r in paginated_results if r.result_type == 'grant'],
-            'opportunities': [r.to_dict() for r in paginated_results if r.result_type == 'opportunity'],
+            'grant_opportunities': [r.to_dict() for r in paginated_results if r.result_type == 'grant_opportunity'],
         }
 
-        logger.info(f"📦 Grouped results - leaders:{len(grouped_results['leaders'])}, persons:{len(grouped_results['persons'])}, meetings:{len(grouped_results['meetings'])}, organizations:{len(grouped_results['organizations'])}, bills:{len(grouped_results['bills'])}, topics:{len(grouped_results['topics'])}, decisions:{len(grouped_results['decisions'])}, causes:{len(grouped_results['causes'])}, jurisdictions:{len(grouped_results['jurisdictions'])}, grants:{len(grouped_results['grants'])}, opportunities:{len(grouped_results['opportunities'])}")
+        logger.info(f"📦 Grouped results - leaders:{len(grouped_results['leaders'])}, persons:{len(grouped_results['persons'])}, meetings:{len(grouped_results['meetings'])}, organizations:{len(grouped_results['organizations'])}, bills:{len(grouped_results['bills'])}, topics:{len(grouped_results['topics'])}, decisions:{len(grouped_results['decisions'])}, causes:{len(grouped_results['causes'])}, jurisdictions:{len(grouped_results['jurisdictions'])}, grants:{len(grouped_results['grants'])}, grant_opportunities:{len(grouped_results['grant_opportunities'])}")
 
         # Calculate total results per type (from all_results before pagination).
         # leaders and persons each report their OWN total.
@@ -873,7 +873,7 @@ async def unified_search(
             'jurisdictions': len([r for r in all_results if r.result_type == 'jurisdiction']),
             'documents': len([r for r in all_results if r.result_type == 'document']),
             'grants': len([r for r in all_results if r.result_type == 'grant']),
-            'opportunities': len([r for r in all_results if r.result_type == 'opportunity']),
+            'grant_opportunities': len([r for r in all_results if r.result_type == 'grant_opportunity']),
         }
         
         # Calculate total results.
@@ -893,7 +893,7 @@ async def unified_search(
         # where we have a COUNT, fetched-length estimate otherwise).
         #
         # REMAINING ESTIMATES: meetings, bills, topics, decisions, causes,
-        # jurisdictions, documents, grants, and opportunities still report fetched-length totals
+        # jurisdictions, documents, grants, and grant_opportunities still report fetched-length totals
         # (their type_totals can under-count a broad filtered search). Adding
         # COUNT helpers for those is a follow-up; scoped here to the high-traffic
         # leaders + persons (+ existing organizations) path.

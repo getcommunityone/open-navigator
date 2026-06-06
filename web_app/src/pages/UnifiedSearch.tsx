@@ -35,7 +35,7 @@ type SearchResultType =
   | 'topic'
   | 'decision'
   | 'grant'
-  | 'opportunity'
+  | 'grant_opportunity'
 
 interface SearchResult {
   type: SearchResultType
@@ -64,7 +64,7 @@ interface SearchResponse {
     decisions: number
     jurisdictions: number
     grants?: number
-    opportunities?: number
+    grant_opportunities?: number
   }
   results: {
     leaders?: SearchResult[]
@@ -77,7 +77,7 @@ interface SearchResponse {
     decisions: SearchResult[]
     jurisdictions?: SearchResult[]
     grants?: SearchResult[]
-    opportunities?: SearchResult[]
+    grant_opportunities?: SearchResult[]
   }
   pagination: {
     page: number
@@ -159,7 +159,7 @@ export default function UnifiedSearch() {
     const typesParam = searchParams.get('types')
     if (typesParam) {
       const types = typesParam.split(',').map(t => t.trim()).map(normalizeTypeAlias).filter(t =>
-        ['leaders', 'persons', 'organizations', 'causes', 'meetings', 'bills', 'topics', 'decisions', 'grants', 'opportunities'].includes(t)
+        ['leaders', 'persons', 'organizations', 'causes', 'meetings', 'bills', 'topics', 'decisions', 'grants', 'grant_opportunities'].includes(t)
       )
       return types.length > 0 ? types : ['leaders', 'persons', 'organizations', 'causes', 'bills', 'topics']
     }
@@ -555,10 +555,10 @@ export default function UnifiedSearch() {
         return <ScaleIcon className="h-5 w-5" />
       case 'grant':
         return <BanknotesIcon className="h-5 w-5" />
-      // 'opportunities' normalizes to 'opportunitie' (trailing 's' stripped);
+      // 'grant_opportunities' normalizes to 'grant_opportunitie' (trailing 's' stripped);
       // match both the singular result type and the de-pluralized facet name.
-      case 'opportunity':
-      case 'opportunitie':
+      case 'grant_opportunity':
+      case 'grant_opportunitie':
         return <MegaphoneIcon className="h-5 w-5" />
       case 'jurisdiction':
         return <MapPinIcon className="h-5 w-5" />
@@ -590,8 +590,8 @@ export default function UnifiedSearch() {
         return 'bg-amber-100 text-amber-700 border-amber-200'
       case 'grant':
         return 'bg-emerald-100 text-emerald-700 border-emerald-200'
-      case 'opportunity':
-      case 'opportunitie':
+      case 'grant_opportunity':
+      case 'grant_opportunitie':
         return 'bg-rose-100 text-rose-700 border-rose-200'
       case 'jurisdiction':
         return 'bg-orange-100 text-orange-700 border-orange-200'
@@ -889,7 +889,7 @@ export default function UnifiedSearch() {
 
           {/* Opportunity-specific metadata badges (federal grant opportunities
               from Grants.gov — distinct from historical 990 grantmaking above). */}
-          {resultType === 'opportunity' && result.metadata && (
+          {resultType === 'grant_opportunity' && result.metadata && (
             <div className="mt-2 flex flex-wrap gap-2 text-xs">
               {result.metadata.opp_status && (
                 <span
@@ -1338,7 +1338,7 @@ export default function UnifiedSearch() {
               { type: 'topics', label: 'Topics' },
               { type: 'decisions', label: 'Decisions' },
               { type: 'grants', label: 'Grants' },
-              { type: 'opportunities', label: 'Opportunities' },
+              { type: 'grant_opportunities', label: 'Grant Opportunities' },
             ] as const).map(({ type, label }) => (
               <button
                 key={type}
@@ -2093,14 +2093,14 @@ export default function UnifiedSearch() {
 
                 {/* Grant Opportunities — open federal funding (Grants.gov).
                     Distinct from historical 990 grantmaking ("Grants") above. */}
-                {selectedTypes.includes('opportunities') && searchResults.results?.opportunities && searchResults.results.opportunities.length > 0 && (
+                {selectedTypes.includes('grant_opportunities') && searchResults.results?.grant_opportunities && searchResults.results.grant_opportunities.length > 0 && (
                   <div className="mb-8">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                       <MegaphoneIcon className="h-6 w-6 text-rose-600" />
-                      Opportunities ({searchResults.type_totals?.opportunities?.toLocaleString() || searchResults.results.opportunities.length})
+                      Grant Opportunities ({searchResults.type_totals?.grant_opportunities?.toLocaleString() || searchResults.results.grant_opportunities.length})
                     </h3>
                     <div className="grid grid-cols-1 gap-4">
-                      {searchResults.results.opportunities.map((result, idx) => (
+                      {searchResults.results.grant_opportunities.map((result, idx) => (
                         <ResultCard key={idx} result={result} />
                       ))}
                     </div>

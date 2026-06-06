@@ -2143,7 +2143,7 @@ async def search_grants_pg(
         return []
 
 
-async def search_opportunities_pg(
+async def search_grant_opportunities_pg(
     query: Optional[str] = None,
     state: Optional[str] = None,
     city: Optional[str] = None,
@@ -2158,7 +2158,7 @@ async def search_opportunities_pg(
 
     DISTINCT from search_grants_pg: that searches the 990 Schedule I `grant` mart
     ("who got funded"); this searches open opportunities ("what's available now")
-    and returns result_type='opportunity'.
+    and returns result_type='grant_opportunity'.
 
     public.grant_opportunity has no FTS / tsvector column, so the query is matched
     with ILIKE against title, agency_name, and opportunity_number.
@@ -2173,7 +2173,7 @@ async def search_opportunities_pg(
     actionable opportunities.
 
     Returns:
-        List of SearchResult objects (result_type='opportunity'). The url is the
+        List of SearchResult objects (result_type='grant_opportunity'). The url is the
         canonical public Grants.gov detail page (external_url).
     """
     try:
@@ -2246,7 +2246,7 @@ async def search_opportunities_pg(
                 ) or 'Federal grant opportunity'
 
                 results.append(SearchResult(
-                    result_type='opportunity',
+                    result_type='grant_opportunity',
                     title=title,
                     subtitle=subtitle,
                     description=description,
@@ -2267,15 +2267,15 @@ async def search_opportunities_pg(
                     }
                 ))
 
-            logger.info(f"🏛️ PostgreSQL opportunities search: {len(results)} results")
+            logger.info(f"🏛️ PostgreSQL grant opportunities search: {len(results)} results")
             return results
 
     except asyncpg.exceptions.UndefinedTableError as e:
         # The grant_opportunity mart may be unbuilt in some envs — degrade
         # gracefully instead of 500-ing the whole unified search.
-        logger.warning(f"public.grant_opportunity not found, skipping opportunities search: {e}")
+        logger.warning(f"public.grant_opportunity not found, skipping grant opportunities search: {e}")
         return []
     except Exception as e:
-        logger.error(f"PostgreSQL opportunities search error: {e}")
+        logger.error(f"PostgreSQL grant opportunities search error: {e}")
         return []
 
