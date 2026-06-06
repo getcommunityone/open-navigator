@@ -6,7 +6,6 @@ import MeetingPlayer from '../components/MeetingPlayer'
 import { MeetingVideoProvider, EvidenceLink, WatchRecordingLink } from '../components/MeetingVideoContext'
 import {
   ArrowLeftIcon,
-  ScaleIcon,
   MapPinIcon,
   ChartBarIcon,
   SparklesIcon,
@@ -143,12 +142,13 @@ function JsonValue({ value, depth = 0 }: { value: unknown; depth?: number }) {
   )
 }
 
-function outcomeColor(outcome?: string | null): string {
+// Outline-pill colors for the hero status chip (uppercase mono treatment).
+function outcomePill(outcome?: string | null): string {
   const o = (outcome || '').toLowerCase()
-  if (/(approv|pass|adopt|grant)/.test(o)) return 'bg-green-100 text-green-800'
-  if (/(defer|table|postpon|continu|hold)/.test(o)) return 'bg-yellow-100 text-yellow-800'
-  if (/(den|reject|fail|veto|withdraw)/.test(o)) return 'bg-red-100 text-red-800'
-  return 'bg-gray-100 text-gray-800'
+  if (/(approv|pass|adopt|grant)/.test(o)) return 'border-emerald-300 bg-emerald-50 text-emerald-700'
+  if (/(defer|table|postpon|continu|hold)/.test(o)) return 'border-amber-300 bg-amber-50 text-amber-700'
+  if (/(den|reject|fail|veto|withdraw)/.test(o)) return 'border-rose-300 bg-rose-50 text-rose-700'
+  return 'border-slate-300 bg-slate-50 text-slate-600'
 }
 
 function Section({
@@ -185,6 +185,9 @@ const VIEW_SUBFIELDS: { key: string; label: string; hint: string; emphasize?: bo
 
 // Serif stack matching the homepage "story" typography (Newsreader → Georgia).
 const CV_SERIF = { fontFamily: "'Newsreader', Georgia, 'Times New Roman', serif" } as const
+// Body stack matching the homepage (DM Sans) so the detail page reads as the
+// same product, not a stock-Tailwind screen.
+const CV_FONT = { fontFamily: "'DM Sans', sans-serif" } as const
 
 function ViewColumn({
   side,
@@ -781,7 +784,7 @@ export default function DecisionDetail() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 py-8">
+      <div className="min-h-screen bg-[#f6faf8] py-8">
         <div className="max-w-4xl mx-auto px-4">
           <div className="flex justify-center items-center h-96">
             <div className="text-center">
@@ -799,7 +802,7 @@ export default function DecisionDetail() {
     const errorMessage =
       err?.response?.data?.detail || err?.message || 'Unable to load decision details'
     return (
-      <div className="min-h-screen bg-gray-50 py-8">
+      <div className="min-h-screen bg-[#f6faf8] py-8">
         <div className="max-w-4xl mx-auto px-4">
           <div className="bg-red-50 border border-red-200 rounded-lg p-8 text-center">
             <div className="text-red-600 text-5xl mb-4">⚠️</div>
@@ -831,69 +834,66 @@ export default function DecisionDetail() {
 
   return (
     <MeetingVideoProvider videoId={decision.meeting_video_id} caption={videoCaption || undefined}>
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen bg-[#f6faf8] py-8" style={CV_FONT}>
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Back Button */}
         <div className="mb-6">
           <Link
             to="/search"
-            className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"
+            className="inline-flex items-center gap-2 text-[14px] font-medium text-[#1a6b6b] transition-colors hover:text-[#0f2b2b]"
           >
-            <ArrowLeftIcon className="h-5 w-5" />
+            <ArrowLeftIcon className="h-4 w-4" />
             Back to Search
           </Link>
         </div>
 
-        {/* Header */}
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <div className="flex items-center gap-2 flex-wrap mb-3">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium bg-amber-100 text-amber-800">
-              <ScaleIcon className="h-4 w-4" />
-              Policy Decision
-            </span>
+        {/* Header — editorial hero on the page background (status chips → serif
+            headline → location · body · date · watch), matching the spec. */}
+        <header className="mb-6">
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            {decision.primary_theme && (
+              <span className="rounded-full bg-[#1d6b5f] px-3 py-1 font-mono text-[11px] font-semibold uppercase tracking-wider text-white">
+                {decision.primary_theme}
+              </span>
+            )}
             {decision.outcome && (
               <span
-                className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${outcomeColor(
+                className={`rounded-full border px-3 py-1 font-mono text-[11px] font-semibold uppercase tracking-wider ${outcomePill(
                   decision.outcome,
                 )}`}
               >
                 {decision.outcome}
               </span>
             )}
-            {decision.primary_theme && (
-              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800">
-                {decision.primary_theme}
-              </span>
-            )}
           </div>
           <h1
-            className="mb-3 text-[2rem] font-semibold leading-tight text-gray-900"
+            className="text-[2rem] font-semibold leading-tight tracking-tight text-[#0f2b2b] sm:text-[2.2rem]"
             style={CV_SERIF}
           >
             {decision.headline || 'Untitled Decision'}
           </h1>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500">
+          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13.5px] text-[#56635e]">
             {location && (
               <span className="flex items-center gap-1.5">
-                <MapPinIcon className="h-4 w-4 text-gray-400" />
+                <MapPinIcon className="h-4 w-4 text-[#9bb8b8]" />
                 {location}
               </span>
             )}
             {decision.meeting_name && (
               <span className="flex items-center gap-1.5">
-                <UsersIcon className="h-4 w-4 text-gray-400" />
+                <UsersIcon className="h-4 w-4 text-[#9bb8b8]" />
                 {decision.meeting_name}
               </span>
             )}
             {decision.meeting_date && (
               <span className="flex items-center gap-1.5">
-                <CalendarIcon className="h-4 w-4 text-gray-400" />
+                <CalendarIcon className="h-4 w-4 text-[#9bb8b8]" />
                 {new Date(decision.meeting_date).toLocaleDateString()}
               </span>
             )}
             <WatchRecordingLink />
           </div>
-        </div>
+        </header>
 
         {/* Meeting context */}
         {(decision.meeting_name || decision.meeting_date) && (

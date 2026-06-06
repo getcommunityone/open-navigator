@@ -220,6 +220,17 @@ function activitySearchQuery(label: string): string {
   return label.replace(/^in\s+/i, '').trim()
 }
 
+// Map an activity-tile label to the lens it should reveal on the homepage (so a
+// tile shows the real, location-scoped stories instead of a keyword search).
+function activityToLens(label: string): string | null {
+  const l = label.toLowerCase()
+  if (l.includes('contest')) return 'contested'
+  if (l.includes('spend') || l.includes('money') || l.includes('budget') || l.includes('dollar')) return 'money'
+  if (l.includes('coming back') || l.includes('upcoming') || l.includes('vote')) return 'next'
+  if (l.includes('flag') || l.includes('eyebrow') || l.includes('anomal')) return 'flags'
+  return null
+}
+
 interface StoryLensesProps {
   /** Short place label for headings, e.g. "Northport". */
   locationLabel?: string
@@ -508,6 +519,16 @@ export default function StoryLenses({ locationLabel, stateCode, city, onSearch, 
     if (c.url) navigate(c.url)
   }
 
+  // Activity tiles switch the active lens and scroll to the (location-scoped)
+  // story grid — NOT a keyword search, which leaked across jurisdictions
+  // (e.g. a Northport "contested" tile returning a Jefferson County topic).
+  const storiesRef = useRef<HTMLDivElement>(null)
+  const handleActivityClick = (label: string) => {
+    const lensId = activityToLens(label)
+    if (lensId) setActive(lensId)
+    storiesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
   // Stable-ish key for save state & list rendering. Headline+jurisdiction is
   // unique enough for the handful of cards per lens; url wins when present.
   const cardKey = (c: RenderCard, i: number) => c.url || `${active}-${c.h}-${c.juris}-${i}`
@@ -603,9 +624,9 @@ export default function StoryLenses({ locationLabel, stateCode, city, onSearch, 
           <button
             key={s.l}
             type="button"
-            onClick={() => onSearch?.(s.q)}
-            title={`Search ${s.q}`}
-            aria-label={`${s.v} ${s.l} — search ${s.q}`}
+            onClick={() => handleActivityClick(s.l)}
+            title={`Show ${s.l} near ${place}`}
+            aria-label={`${s.v} ${s.l} — show these near ${place}`}
             className="group flex items-center gap-3 rounded-2xl border border-[#e1ebe7] bg-white px-4 py-3.5 text-left transition-all hover:-translate-y-0.5 hover:border-[#cfe0db] hover:shadow-[0_2px_4px_rgba(20,40,35,.06),0_10px_24px_rgba(20,40,35,.08)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1a6b6b]/40"
           >
             <span
@@ -625,7 +646,7 @@ export default function StoryLenses({ locationLabel, stateCode, city, onSearch, 
       </div>
 
       {/* Top stories header + time control */}
-      <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+      <div ref={storiesRef} className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 scroll-mt-4">
         <h2 className="text-[20px] font-semibold tracking-tight text-[#0f2b2b]" style={SERIF}>
           Top stories near {place}
         </h2>
