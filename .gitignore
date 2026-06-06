@@ -88,8 +88,11 @@ nohup.out
 
 # Data files
 data/
+# These app dirs keep committed SOURCE data; the broad data/ rule above must not swallow them.
 !web_app/src/data/
 !web_app/src/data/**
+!web_app/policy-dashboards/src/data/
+!web_app/policy-dashboards/src/data/**
 .migration_backup/
 *.csv
 # dbt seeds are source, not data dumps — must be tracked

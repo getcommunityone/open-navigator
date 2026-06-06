@@ -8,7 +8,7 @@ Interactive web dashboards that expose gaps between rhetoric and reality, deferr
 
 ```bash
 # Install dependencies
-cd frontend/policy-dashboards
+cd web_app/policy-dashboards
 npm install
 
 # Start development server
@@ -36,10 +36,10 @@ The Python accountability analysis automatically exports data for the frontend:
 
 ```bash
 # Run the full analysis (includes frontend export)
-python examples/tuscaloosa_accountability_report.py
+python scripts/examples/tuscaloosa_accountability_report.py
 ```
 
-This generates: `frontend/policy-dashboards/src/data/dashboardData.js`
+This generates: `web_app/policy-dashboards/src/data/dashboardData.js`
 
 ### Manual Data Updates
 
@@ -56,7 +56,7 @@ export const rhetoricGapData = {
 ## Project Structure
 
 ```
-frontend/policy-dashboards/
+web_app/policy-dashboards/
 ├── public/
 │   └── index.html
 ├── src/
@@ -240,7 +240,7 @@ For questions or issues:
 
 - **Documentation**: See `docs/ACCOUNTABILITY_DASHBOARD_STRATEGY.md`
 - **Python Backend**: See `extraction/accountability_dashboards.py`
-- **Examples**: See `examples/tuscaloosa_accountability_report.py`
+- **Examples**: See `scripts/examples/tuscaloosa_accountability_report.py`
 
 ## License
 

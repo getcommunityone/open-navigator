@@ -535,7 +535,7 @@ Call them out by name. Make them defend their veto power publicly.
     return presentation
 
 
-def export_for_frontend(dashboards: Dict[str, Any], output_path: str = "frontend/policy-dashboards/src/data/dashboardData.js"):
+def export_for_frontend(dashboards: Dict[str, Any], output_path: str = "web_app/policy-dashboards/src/data/dashboardData.js"):
     """
     Export dashboard data in the format expected by the React frontend.
     """
