@@ -1,16 +1,32 @@
 {
   "version": 0,
   "shared": {
-    "background": "#12052b",
+    "background": "rgb(18 5 43)",
+    "range": [
+      0,
+      null
+    ],
     "size": {
       "x": 1080,
       "y": 1920
-    }
+    },
+    "audioOffset": 0
   },
   "preview": {
-    "fps": 30
+    "fps": 30,
+    "resolutionScale": 1
   },
   "rendering": {
-    "fps": 30
+    "fps": 30,
+    "resolutionScale": 1,
+    "colorSpace": "srgb",
+    "exporter": {
+      "name": "@canvas-commons/core/image-sequence",
+      "options": {
+        "fileType": "image/png",
+        "quality": 100,
+        "groupByScene": false
+      }
+    }
   }
 }
