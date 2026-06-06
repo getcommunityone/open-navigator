@@ -716,9 +716,15 @@ async def search_officials_pg(
                     contact_info.append(f"📧 {row['email']}")
                 if row["phone"]:
                     contact_info.append(f"📞 {row['phone']}")
-                description = f"{title} in {location}" if location else title
-                if contact_info:
-                    description += " • " + " • ".join(contact_info)
+                # Description carries NEW info (party, district, contact) rather
+                # than repeating the subtitle, which already reads "{title} - {location}".
+                desc_parts: list[str] = []
+                if row["party"]:
+                    desc_parts.append(row["party"])
+                if row["district"]:
+                    desc_parts.append(row["district"])
+                desc_parts.extend(contact_info)
+                description = " • ".join(desc_parts) if desc_parts else (location or title)
 
                 results.append(SearchResult(
                     result_type="leader",

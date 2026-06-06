@@ -42,7 +42,7 @@ def test_parse_council_html_name_then_role_layout():
     <html><body>
       <h2>City Council president</h2>
       <div class="member">
-        <img alt="Liz Breadon headshot"/>
+        <img src="/sites/default/files/img/breadon-headshot.jpg?itok=abc" alt="Liz Breadon headshot"/>
         <h3>Liz Breadon</h3>
         <p>City Council President; City Councilor, District 9</p>
       </div>
@@ -66,6 +66,10 @@ def test_parse_council_html_name_then_role_layout():
     assert breadon.full_name == "Liz Breadon"
     assert breadon.district == "District 9"
     assert breadon.title == "City Council President"
+    # Headshot src (alt="<Name> headshot") is captured and resolved to an absolute URL.
+    assert breadon.photo_url == "https://www.boston.gov/sites/default/files/img/breadon-headshot.jpg?itok=abc"
+    # A member whose img carries no src gets no photo (no crash).
+    assert members[1].photo_url is None
     assert members[1].full_name == "Ruthzee Louijeune"
     assert members[1].district == "At-Large"
     assert members[1].title == cfg.member_title

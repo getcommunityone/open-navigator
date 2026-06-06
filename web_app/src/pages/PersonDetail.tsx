@@ -25,6 +25,7 @@ interface Person {
   email: string | null
   phone: string | null
   jurisdiction_website: string | null
+  photo_url: string | null
   organizations: PersonOrganization[]
 }
 
@@ -132,18 +133,53 @@ export default function PersonDetail() {
 
         {/* Person Header */}
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 mb-3">{person.name}</h1>
-
-          {location && (
-            <div className="flex items-center gap-2 text-sm text-gray-600 mb-4">
-              <MapPinIcon className="h-4 w-4" />
-              <span>{location}</span>
+          <div className="flex items-start gap-5">
+            {/* Headshot (local leaders) with a letter-avatar fallback */}
+            {person.photo_url ? (
+              <img
+                src={person.photo_url}
+                alt={person.name}
+                className="h-24 w-24 rounded-full object-cover bg-gray-100 flex-shrink-0"
+                onError={(e) => {
+                  ;(e.currentTarget as HTMLImageElement).style.display = 'none'
+                  const fallback = e.currentTarget
+                    .nextElementSibling as HTMLElement | null
+                  if (fallback) fallback.style.display = 'flex'
+                }}
+              />
+            ) : null}
+            <div
+              className="h-24 w-24 rounded-full bg-blue-100 text-blue-700 text-3xl font-semibold items-center justify-center flex-shrink-0"
+              style={{ display: person.photo_url ? 'none' : 'flex' }}
+            >
+              {person.name.charAt(0)}
             </div>
-          )}
 
-          {(person.email || person.phone) && (
-            <div className="flex flex-wrap items-center gap-4 text-sm">
-              {person.email && (
+            <div className="flex-1 min-w-0">
+              <h1 className="text-3xl font-bold text-gray-900 mb-3">{person.name}</h1>
+
+              {location && (
+                <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
+                  <MapPinIcon className="h-4 w-4" />
+                  <span>{location}</span>
+                </div>
+              )}
+
+              {person.jurisdiction_website && (
+                <a
+                  href={person.jurisdiction_website}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 hover:underline mb-4"
+                >
+                  <GlobeAltIcon className="h-4 w-4" />
+                  {person.jurisdiction_website.replace(/^https?:\/\//, '')}
+                </a>
+              )}
+
+              {(person.email || person.phone) && (
+                <div className="flex flex-wrap items-center gap-4 text-sm">
+                  {person.email && (
                 <a
                   href={`mailto:${person.email}`}
                   className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 hover:underline"
@@ -161,8 +197,10 @@ export default function PersonDetail() {
                   {person.phone}
                 </a>
               )}
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
 
         {/* Organizations */}

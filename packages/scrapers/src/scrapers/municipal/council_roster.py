@@ -35,6 +35,7 @@ import urllib.request
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from typing import Optional
+from urllib.parse import urljoin
 
 from loguru import logger
 
@@ -150,7 +151,11 @@ def fetch_html(url: str, *, timeout: int = 20) -> str:
 
 
 class _TextHarvester(HTMLParser):
-    """Collect visible text chunks; skip script/style. Heuristic roster parse."""
+    """Collect visible text chunks + member headshots; skip script/style.
+
+    Also records ``(alt, src)`` for every ``<img>`` so the parser can pair a
+    member with their headshot — city sites label these ``alt="<Name> headshot"``.
+    """
 
     _SKIP = {"script", "style", "noscript", "head"}
 
@@ -158,10 +163,20 @@ class _TextHarvester(HTMLParser):
         super().__init__()
         self._skip_depth = 0
         self.chunks: list[str] = []
+        self.images: list[tuple[str, str]] = []  # (alt, src)
 
     def handle_starttag(self, tag, attrs):  # noqa: D102
         if tag in self._SKIP:
             self._skip_depth += 1
+            return
+        if self._skip_depth:
+            return
+        if tag == "img":
+            a = dict(attrs)
+            src = (a.get("src") or "").strip()
+            alt = (a.get("alt") or "").strip()
+            if src and alt:
+                self.images.append((alt, src))
 
     def handle_endtag(self, tag):  # noqa: D102
         if tag in self._SKIP and self._skip_depth:
@@ -173,6 +188,26 @@ class _TextHarvester(HTMLParser):
         text = data.strip()
         if text:
             self.chunks.append(text)
+
+
+def _name_key(name: str) -> str:
+    """Normalized key for matching a member name to their headshot alt text."""
+    return re.sub(r"\s+", " ", name or "").strip().lower()
+
+
+def _headshots_by_name(harv: _TextHarvester, base_url: str) -> dict[str, str]:
+    """Map normalized member name -> absolute headshot URL from img alt/src.
+
+    City sites label member photos ``alt="<Name> headshot"``; strip that suffix
+    to recover the name and resolve the (often relative) src against the page URL.
+    """
+    out: dict[str, str] = {}
+    for alt, src in harv.images:
+        name = re.sub(r"\s+headshot$", "", alt, flags=re.IGNORECASE).strip()
+        key = _name_key(name)
+        if key and key not in out:
+            out[key] = urljoin(base_url, src)
+    return out
 
 
 _DISTRICT_RE = re.compile(r"\bDistrict\s+(\d+)\b", re.IGNORECASE)
@@ -200,14 +235,23 @@ def _looks_like_name(chunk: str) -> bool:
     return bool(re.match(r"[A-ZÀ-Þ]", text))
 
 
-def _make_member(name: str, district: Optional[str], title: str, config: MunicipalCouncilConfig) -> CouncilMember:
+def _make_member(
+    name: str,
+    district: Optional[str],
+    title: str,
+    config: MunicipalCouncilConfig,
+    photos: Optional[dict[str, str]] = None,
+) -> CouncilMember:
+    full_name = re.sub(r"\s+", " ", name).strip()
+    photo_url = (photos or {}).get(_name_key(full_name))
     return CouncilMember(
-        full_name=re.sub(r"\s+", " ", name).strip(),
+        full_name=full_name,
         title=title,
         jurisdiction=config.jurisdiction,
         state_code=config.state_code,
         state=config.state,
         district=district,
+        photo_url=photo_url,
     )
 
 
@@ -228,6 +272,7 @@ def parse_council_html(html: str, config: MunicipalCouncilConfig) -> list[Counci
     harv = _TextHarvester()
     harv.feed(html)
     chunks = harv.chunks
+    photos = _headshots_by_name(harv, config.url)
 
     members: list[CouncilMember] = []
     pending_name: Optional[str] = None
@@ -249,14 +294,14 @@ def parse_council_html(html: str, config: MunicipalCouncilConfig) -> list[Counci
             else:
                 district = None
             title = "City Council President" if _PRESIDENT_RE.search(chunk) else config.member_title
-            members.append(_make_member(pending_name, district, title, config))
+            members.append(_make_member(pending_name, district, title, config, photos))
             pending_name = None
             continue
 
         # A bare "District N" line resolves a prefixed-name candidate (Tuscaloosa).
         dm = _DISTRICT_RE.search(chunk)
         if dm and pending_name:
-            members.append(_make_member(pending_name, f"District {dm.group(1)}", config.member_title, config))
+            members.append(_make_member(pending_name, f"District {dm.group(1)}", config.member_title, config, photos))
             pending_name = None
             continue
 
@@ -269,6 +314,34 @@ def parse_council_html(html: str, config: MunicipalCouncilConfig) -> list[Counci
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
+def _overlay_live_photos(members: list[CouncilMember], config: MunicipalCouncilConfig) -> list[CouncilMember]:
+    """Attach live headshot URLs to a curated roster, matched by name.
+
+    Keeps the curated names/districts/titles authoritative (the raw parse is too
+    noisy to trust for membership) while filling the one thing the curated roster
+    can't carry offline: a current headshot URL. Network failure -> unchanged.
+    """
+    try:
+        harv = _TextHarvester()
+        harv.feed(fetch_html(config.url))
+        photos = _headshots_by_name(harv, config.url)
+    except Exception as exc:
+        logger.warning("headshot enrichment for {} failed ({}); keeping curated photos", config.slug, exc)
+        return members
+
+    enriched: list[CouncilMember] = []
+    filled = 0
+    for m in members:
+        url = photos.get(_name_key(m.full_name))
+        if url and not m.photo_url:
+            enriched.append(dataclasses.replace(m, photo_url=url))
+            filled += 1
+        else:
+            enriched.append(m)
+    logger.success("attached {}/{} headshots for {} from {}", filled, len(members), config.slug, config.url)
+    return enriched
+
+
 def get_council(
     slug: str,
     *,
@@ -277,8 +350,14 @@ def get_council(
 ) -> list[CouncilMember]:
     """Return council members for a city.
 
-    Precedence: explicit ``json_path`` > ``live`` scrape (falls back to curated
-    if the parse yields nothing) > curated roster.
+    Precedence: explicit ``json_path`` > curated roster (enriched with live
+    headshots when ``live``) > best-effort live parse for cities with no curated
+    roster.
+
+    With ``live=True`` and a curated roster present, the curated names/districts
+    are authoritative and only the headshot URLs are pulled live (the raw page
+    parse is too noisy to trust for membership). Cities with no curated roster
+    fall back to the best-effort parse.
     """
     slug = slug.lower().strip()
 
@@ -287,21 +366,25 @@ def get_council(
             raw = json.load(fh)
         return [CouncilMember(**r) for r in raw]
 
+    curated = CURATED_ROSTERS.get(slug)
+
     if live:
         cfg = CONFIGS.get(slug)
         if not cfg:
             raise ValueError(f"no scrape config for city {slug!r}")
+        if curated is not None:
+            return _overlay_live_photos(list(curated), cfg)
+        # No curated roster: best-effort parse of the live page.
         try:
             parsed = parse_council_html(fetch_html(cfg.url), cfg)
-        except Exception as exc:  # network/parse failure -> curated fallback
-            logger.warning("live scrape of {} failed ({}); using curated roster", slug, exc)
+        except Exception as exc:
+            logger.warning("live scrape of {} failed ({})", slug, exc)
             parsed = []
         if parsed:
             logger.success("scraped {} council members from {}", len(parsed), cfg.url)
             return parsed
-        logger.warning("live parse yielded 0 members; falling back to curated roster")
+        logger.warning("live parse yielded 0 members and no curated roster exists for {}", slug)
 
-    curated = CURATED_ROSTERS.get(slug)
     if curated is None:
         raise ValueError(f"no curated roster for city {slug!r}")
     return list(curated)

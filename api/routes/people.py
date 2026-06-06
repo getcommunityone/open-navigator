@@ -49,6 +49,9 @@ class PersonDetail(BaseModel):
     # Official website of the leader's jurisdiction (local leaders only; resolved
     # on the contact_official mart). None for MDM persons and unresolved leaders.
     jurisdiction_website: Optional[str] = None
+    # Headshot URL (local leaders, from contact_official.photo_url). None for MDM
+    # persons (the master has no photo column) and officials with no headshot.
+    photo_url: Optional[str] = None
     organizations: List[PersonOrganization] = Field(default_factory=list)
 
 
@@ -99,7 +102,8 @@ _OFFICIAL_SQL = """
         o.email,
         o.phone,
         o.state_code,
-        o.website_url
+        o.website_url,
+        o.photo_url
     FROM contact_official o
     WHERE o.id = $1
 """
@@ -131,6 +135,7 @@ def _official_to_detail(row) -> PersonDetail:
         email=row["email"],
         phone=row["phone"],
         jurisdiction_website=row["website_url"],
+        photo_url=row["photo_url"],
         organizations=organizations,
     )
 
