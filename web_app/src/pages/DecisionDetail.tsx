@@ -592,7 +592,14 @@ function SmartBrevityBody({ sb }: { sb: Record<string, unknown> }) {
           {lead}
         </p>
       )}
-      {why[1] && <SBSection label={why[0]} body={why[1]} />}
+      {why[1] && (
+        <div className="mt-4 rounded-xl border-l-4 border-[#1d6b5f] bg-[#e7f2ef] px-4 py-3.5">
+          <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#1d6b5f]">
+            Why it matters
+          </div>
+          <p className="whitespace-pre-line text-[15px] leading-relaxed text-[#16201d]">{why[1]}</p>
+        </div>
+      )}
       {numbers.length > 0 && (
         <div className="mt-5">
           <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-[#8a958f]">
@@ -895,20 +902,6 @@ export default function DecisionDetail() {
           </div>
         </header>
 
-        {/* Meeting context */}
-        {(decision.meeting_name || decision.meeting_date) && (
-          <Section title="Meeting" icon={<CalendarIcon className="h-5 w-5" />}>
-            <div className="text-sm text-gray-700">
-              {decision.meeting_name && <span className="font-medium">{decision.meeting_name}</span>}
-              {decision.meeting_name && decision.meeting_date && (
-                <span className="text-gray-400"> • </span>
-              )}
-              {decision.meeting_date && (
-                <span>{new Date(decision.meeting_date).toLocaleDateString()}</span>
-              )}
-            </div>
-          </Section>
-        )}
 
         {/* Decision Statement */}
         {decision.decision_statement && (

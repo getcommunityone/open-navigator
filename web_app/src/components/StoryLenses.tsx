@@ -13,12 +13,11 @@ import { useIsMobile } from '../hooks/useMediaQuery'
  * Raised Eyebrows, Moving Fast, Watch Next) rather than by topic, with a live
  * activity strip, a time-frame control, and a story-card grid.
  *
- * Live data comes from `GET /api/lenses` (state/city/window scoped). The
- * `CARDS` / `activityStats` demo constants below are kept ONLY as a graceful
- * fallback for the error / no-data path — analogous to the old
- * FALLBACK_TRENDING in Home.tsx. Lenses the API marks `placeholder: true`
- * (e.g. flags, soon — signals not yet extracted) render an honest empty state,
- * never demo cards.
+ * Live data ONLY, from `GET /api/lenses` (state/city/window scoped). There is
+ * no demo/hardcoded fallback: on a hard failure we show an honest error state,
+ * while loading we show skeletons, and lenses the API marks `placeholder: true`
+ * (e.g. flags, soon — signals not yet extracted) render an honest empty state.
+ * We never fabricate stories.
  */
 
 const FONT = { fontFamily: "'DM Sans', sans-serif" } as const
@@ -65,47 +64,6 @@ interface Stat {
   l: string
   tone?: Tone
 }
-interface Card {
-  badge?: string
-  /** Negative = past, positive = upcoming. */
-  days: number
-  h: string
-  stats: Stat[]
-  juris: string
-}
-
-const CARDS: Record<string, Card[]> = {
-  contested: [
-    { days: -1, h: 'Northport adds a $40 monthly trash fee after an hour of pushback', stats: [{ v: '3–2', l: 'Vote' }, { v: '18', l: 'Spoke against' }, { v: '+$480', l: 'Impact / year', tone: 'green' }], juris: 'City Council' },
-    { days: -22, h: 'Council splits sharply over a downtown bar curfew', stats: [{ v: '4–3', l: 'Vote' }, { v: 'Tabled', l: 'Outcome', tone: 'amber' }, { v: '11', l: 'Spoke' }], juris: 'City Council' },
-    { days: -68, h: 'Commission can’t agree on the rural broadband contract', stats: [{ v: 'Tie', l: 'Deadlock', tone: 'red' }, { v: '$4M', l: 'At stake' }, { v: '1', l: 'Bidder', tone: 'red' }], juris: 'County Commission' },
-    { days: -210, h: 'Annexation barely passes after a packed three-hour hearing', stats: [{ v: '4–3', l: 'Vote' }, { v: '3 hr', l: 'Hearing' }, { v: '60+', l: 'Attended' }], juris: 'City Council' },
-  ],
-  money: [
-    { days: -1, h: 'City approves $2.3M contract with developer connected to council donor', stats: [{ v: '$2.3M', l: 'Contract value', tone: 'green' }, { v: 'Donor link', l: 'Disclosed', tone: 'amber' }, { v: 'No', l: 'Bids received', tone: 'red' }], juris: 'City Council' },
-    { days: -24, h: 'Northport water rates rise again — 9% this time', stats: [{ v: '+9%', l: 'Rate hike', tone: 'red' }, { v: '3rd', l: 'In 4 years' }, { v: '~33%', l: 'Since 2022' }], juris: 'Utilities Board' },
-    { days: -70, h: 'County awards a $4.2M road contract to a single bidder', stats: [{ v: '$4.2M', l: 'Contract', tone: 'green' }, { v: '1', l: 'Bidder', tone: 'red' }, { v: '0', l: 'Competing bids', tone: 'red' }], juris: 'County Commission' },
-    { days: -190, h: 'City refinanced $30M in debt to free up budget room', stats: [{ v: '$30M', l: 'Refinanced', tone: 'green' }, { v: '3 yr', l: 'Runway' }, { v: 'Consent', l: 'Passed on' }], juris: 'City Council' },
-  ],
-  flags: [
-    { days: -2, h: 'One-third of traffic revenue comes from just two speed traps', stats: [{ v: '$1.1M', l: 'From tickets', tone: 'purple' }, { v: '32%', l: 'Of city revenue', tone: 'amber' }, { v: '4 locations', l: 'Concentrated', tone: 'blue' }], juris: 'Finance Committee' },
-    { days: -15, h: 'Repeated purchases land just under the $5,000 approval limit', stats: [{ v: '7 buys', l: '~$4,950 each', tone: 'red' }, { v: '$5K', l: 'Sign-off line', tone: 'amber' }, { v: '0', l: 'Board reviews', tone: 'red' }], juris: 'County Procurement' },
-    { days: -30, h: 'A contract went to a vendor sharing an address with an official’s relative', stats: [{ v: 'Match', l: 'Entity resolution', tone: 'purple' }, { v: 'No', l: 'Recusal', tone: 'red' }, { v: '1', l: 'Member tied' }], juris: 'City Council' },
-    { days: -44, h: 'One official’s travel reimbursements run roughly 4x the board average', stats: [{ v: '4×', l: 'Peer median', tone: 'red' }, { v: 'Travel', l: 'Category', tone: 'amber' }, { v: '12 mo', l: 'Window' }], juris: 'City Council' },
-  ],
-  soon: [
-    { days: -2, h: 'A $1.8M software contract passed on the consent agenda', stats: [{ v: '0 min', l: 'Debate', tone: 'red' }, { v: '$1.8M', l: 'Bundled', tone: 'green' }, { v: '1', l: 'Vote' }], juris: 'County Commission' },
-    { days: -4, h: 'Fee-schedule changes adopted with no separate discussion', stats: [{ v: 'Consent', l: 'Track', tone: 'amber' }, { v: 'All', l: 'Permit fees up' }, { v: '0', l: 'Comments' }], juris: 'City Council' },
-    { days: -8, h: 'Council quietly extended the mayor’s emergency powers', stats: [{ v: '6 mo', l: 'Extension', tone: 'amber' }, { v: 'Packaged', l: 'Resolution' }, { v: '0 min', l: 'Discussion', tone: 'red' }], juris: 'City Council' },
-  ],
-  next: [
-    { days: 3, h: 'Public comment on the 2027 budget closes Friday', stats: [{ v: '3 days', l: 'To weigh in', tone: 'amber' }, { v: 'Open', l: 'Comment', tone: 'green' }, { v: '$2.3M', l: 'New spend' }], juris: 'City Council' },
-    { days: 5, h: 'The downtown parking deck goes to a vote Tuesday', stats: [{ v: '5 days', l: 'Until vote', tone: 'amber' }, { v: '$9M', l: 'Project', tone: 'green' }, { v: '2 yr', l: 'Debated' }], juris: 'City Council' },
-    { days: 8, h: 'Last hearing on the noise ordinance before adoption', stats: [{ v: 'Final', l: 'Reading', tone: 'red' }, { v: '8 days', l: 'Until adopted' }, { v: 'Open', l: 'Comment', tone: 'green' }], juris: 'City Council' },
-    { days: 24, h: 'Comprehensive plan update opens for public input next month', stats: [{ v: '~24 days', l: 'Opens' }, { v: '10 yr', l: 'Zoning impact', tone: 'blue' }, { v: 'Draft', l: 'Stage' }], juris: 'Planning' },
-  ],
-}
-
 const TIME_OPTIONS: { d: number; label: string }[] = [
   { d: 7, label: 'Week' },
   { d: 31, label: 'Month' },
@@ -200,13 +158,6 @@ function relFromDate(dateStr?: string): string {
   const days = Math.round((then.getTime() - Date.now()) / 86_400_000)
   return rel(days)
 }
-
-const DEMO_ACTIVITY: { em: string; v: string; l: string; bg: string; q: string }[] = [
-  { em: '\u{1F525}', v: '3', l: 'contested votes this week', bg: '#fdeeeb', q: 'contested' },
-  { em: '\u{1F4B2}', v: '$2.3M', l: 'in new spending approved', bg: '#e7f2ef', q: 'budget' },
-  { em: '\u{1F441}\u{FE0F}', v: '124', l: 'public comments submitted', bg: '#efebfb', q: 'public comment' },
-  { em: '⚠️', v: '2', l: 'major projects proposed', bg: '#fbf3e2', q: 'projects' },
-]
 
 // Map an activity-tile label to a search term when the API doesn't supply one.
 function activitySearchQuery(label: string): string {
@@ -487,31 +438,28 @@ export default function StoryLenses({ locationLabel, stateCode, city, onSearch, 
   const autoActive = windowSel === 'auto'
   const autoLabel = autoActive && data?.window ? `Auto · ${WINDOW_LABEL[data.window] ?? ''}` : 'Auto'
 
-  // Fall back to the demo content only on a hard failure (no successful payload).
-  const useDemo = isError || !data
+  // 100% live data — no demo/hardcoded fallback. On a hard failure we show an
+  // honest error state; we never fabricate stories.
   const loading = isLoading && !data
+  const errored = isError && !data
   const apiLens = data?.lenses.find((l) => l.id === active)
   const isPlaceholder = !!data && (apiLens?.placeholder || (apiLens?.cards.length ?? 0) === 0)
 
-  const cards: RenderCard[] = useDemo
-    ? (CARDS[active] ?? []).map((c) => ({ h: c.h, stats: c.stats, juris: c.juris, when: rel(c.days) }))
-    : (apiLens?.cards ?? []).map((c) => ({
-        h: c.headline,
-        stats: c.stats.map((s) => ({ v: s.value, l: s.label, tone: s.tone })),
-        juris: c.jurisdiction,
-        when: relFromDate(c.date),
-        url: c.url,
-      }))
+  const cards: RenderCard[] = (apiLens?.cards ?? []).map((c) => ({
+    h: c.headline,
+    stats: c.stats.map((s) => ({ v: s.value, l: s.label, tone: s.tone })),
+    juris: c.jurisdiction,
+    when: relFromDate(c.date),
+    url: c.url,
+  }))
 
-  const activityTiles = useDemo
-    ? DEMO_ACTIVITY
-    : (data?.activity ?? []).map((a, i) => ({
-        em: a.icon,
-        v: a.value,
-        l: a.label,
-        bg: ACTIVITY_BG[i % ACTIVITY_BG.length],
-        q: a.query || activitySearchQuery(a.label),
-      }))
+  const activityTiles = (data?.activity ?? []).map((a, i) => ({
+    em: a.icon,
+    v: a.value,
+    l: a.label,
+    bg: ACTIVITY_BG[i % ACTIVITY_BG.length],
+    q: a.query || activitySearchQuery(a.label),
+  }))
 
   // Only a card with a real url is a drilldown; url-less cards (e.g. a flag whose
   // spend maps to no decision) are not faked into a link.
@@ -601,7 +549,9 @@ export default function StoryLenses({ locationLabel, stateCode, city, onSearch, 
         </button>
       </div>
 
-      {/* What's happening strip */}
+      {/* What's happening strip — hidden entirely on a hard failure (no fake data) */}
+      {!errored && (
+      <>
       <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
         <h2 className="text-[20px] font-semibold tracking-tight text-[#0f2b2b]" style={SERIF}>
           What&rsquo;s happening in {place}
@@ -620,30 +570,36 @@ export default function StoryLenses({ locationLabel, stateCode, city, onSearch, 
         </button>
       </div>
       <div className="mb-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {activityTiles.map((s) => (
-          <button
-            key={s.l}
-            type="button"
-            onClick={() => handleActivityClick(s.l)}
-            title={`Show ${s.l} near ${place}`}
-            aria-label={`${s.v} ${s.l} — show these near ${place}`}
-            className="group flex items-center gap-3 rounded-2xl border border-[#e1ebe7] bg-white px-4 py-3.5 text-left transition-all hover:-translate-y-0.5 hover:border-[#cfe0db] hover:shadow-[0_2px_4px_rgba(20,40,35,.06),0_10px_24px_rgba(20,40,35,.08)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1a6b6b]/40"
-          >
-            <span
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[19px]"
-              style={{ background: s.bg }}
-            >
-              {s.em}
-            </span>
-            <div className="min-w-0">
-              <div className="text-[22px] font-bold leading-none tracking-tight" style={{ color: '#0f2b2b' }}>
-                {s.v}
-              </div>
-              <div className="mt-1 text-[12.5px] leading-snug text-[#56635e] group-hover:text-[#0f2b2b]">{s.l}</div>
-            </div>
-          </button>
-        ))}
+        {loading
+          ? Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-[76px] animate-pulse rounded-2xl border border-[#e1ebe7] bg-[#f3f7f6]" />
+            ))
+          : activityTiles.map((s) => (
+              <button
+                key={s.l}
+                type="button"
+                onClick={() => handleActivityClick(s.l)}
+                title={`Show ${s.l} near ${place}`}
+                aria-label={`${s.v} ${s.l} — show these near ${place}`}
+                className="group flex items-center gap-3 rounded-2xl border border-[#e1ebe7] bg-white px-4 py-3.5 text-left transition-all hover:-translate-y-0.5 hover:border-[#cfe0db] hover:shadow-[0_2px_4px_rgba(20,40,35,.06),0_10px_24px_rgba(20,40,35,.08)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1a6b6b]/40"
+              >
+                <span
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[19px]"
+                  style={{ background: s.bg }}
+                >
+                  {s.em}
+                </span>
+                <div className="min-w-0">
+                  <div className="text-[22px] font-bold leading-none tracking-tight" style={{ color: '#0f2b2b' }}>
+                    {s.v}
+                  </div>
+                  <div className="mt-1 text-[12.5px] leading-snug text-[#56635e] group-hover:text-[#0f2b2b]">{s.l}</div>
+                </div>
+              </button>
+            ))}
       </div>
+      </>
+      )}
 
       {/* Top stories header + time control */}
       <div ref={storiesRef} className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 scroll-mt-4">
@@ -696,6 +652,10 @@ export default function StoryLenses({ locationLabel, stateCode, city, onSearch, 
           {Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="h-44 animate-pulse rounded-2xl border border-[#e1ebe7] bg-[#f3f7f6]" />
           ))}
+        </div>
+      ) : errored ? (
+        <div className="rounded-xl border border-dashed border-[#d4e8e8] bg-white px-6 py-10 text-center text-sm text-[#9bb8b8]">
+          Couldn&rsquo;t load stories right now. <b className="text-[#56635e]">Please try again.</b>
         </div>
       ) : isPlaceholder ? (
         <div className="rounded-xl border border-dashed border-[#d4e8e8] bg-white px-6 py-10 text-center text-sm text-[#9bb8b8]">
