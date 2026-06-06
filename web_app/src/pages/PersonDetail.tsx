@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import api from '../lib/api'
 import {
   ArrowLeftIcon,
@@ -39,6 +39,8 @@ const usd = new Intl.NumberFormat('en-US', {
 
 export default function PersonDetail() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
+  const routerLocation = useLocation()
   const [person, setPerson] = useState<Person | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -79,6 +81,18 @@ export default function PersonDetail() {
     }
   }, [id])
 
+  // Return the user to the screen they came from (e.g. their leaders/people
+  // search, whose query + filters live in the URL). `location.key` is
+  // 'default' only when this page is the first in-app entry (opened via a
+  // direct link or refresh), in which case we fall back to the People list.
+  const handleBack = () => {
+    if (routerLocation.key !== 'default') {
+      navigate(-1)
+    } else {
+      navigate('/people')
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 py-8">
@@ -104,13 +118,14 @@ export default function PersonDetail() {
             <p className="text-red-700 mb-4">
               {error || 'We could not find a person with that id.'}
             </p>
-            <Link
-              to="/people"
+            <button
+              type="button"
+              onClick={handleBack}
               className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
             >
               <ArrowLeftIcon className="h-5 w-5" />
               Back to People
-            </Link>
+            </button>
           </div>
         </div>
       </div>
@@ -124,13 +139,14 @@ export default function PersonDetail() {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Back Button */}
         <div className="mb-6">
-          <Link
-            to="/people"
+          <button
+            type="button"
+            onClick={handleBack}
             className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"
           >
             <ArrowLeftIcon className="h-5 w-5" />
             Back to People
-          </Link>
+          </button>
         </div>
 
         {/* Person Header */}

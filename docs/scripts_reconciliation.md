@@ -95,10 +95,11 @@ imported symbols into `packages/ingestion`, repoint callers) before retiring.
 - **Renamed ports** (LAND lives in `packages/ingestion` under a different name;
   scrapers migrated in Category A.2 above): `parcels` → `ingestion.arcgis`,
   `powerbi_ballot_measures` → `ingestion.ncls`,
-  `data_gov` → `ingestion.data_gov.organizations`.
+  `data_gov` → `ingestion.data_gov.organizations`,
+  `google_data_commons` → `ingestion.google_data_commons.{client,bronze}`.
 - **Still to triage** (no live refs found; may yet be renamed ports —
   maintainer to confirm): `cityscrapers`, `dbpedia`,
-  `google_data_commons`, `govwebsites`, `grants_gov`, `ma_pilot`,
+  `govwebsites`, `grants_gov`, `ma_pilot`,
   `meetingbank`, `netronline`, `social_media`, `vendorsearch`, `voter_data`.
 
 Caveat learned this pass: "no same-name `packages/ingestion` dir" does **not**

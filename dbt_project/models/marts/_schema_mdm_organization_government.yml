@@ -1,0 +1,77 @@
+version: 2
+
+models:
+  - name: mdm_organization_government
+    description: >
+      MDM satellite: Data.gov (CKAN) publishing-government detail (government_level,
+      dataset & follower counts, CKAN slug/title/logo, created_at) for the subset of
+      mdm_organization that resolved to a Data.gov government org. One row per
+      master_org_id (1:1). PK master_org_id, FK -> mdm_organization. master_org_id is
+      the deterministic `gov:<ckan_id>` key minted in int_organizations__clustered.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [master_org_id]
+        to: ref('mdm_organization')
+        to_columns: [master_org_id]
+    columns:
+      - name: master_org_id
+        description: "Golden org id (`gov:<ckan_id>`). PK, FK -> mdm_organization."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+          - relationships:
+              to: ref('mdm_organization')
+              field: master_org_id
+      - name: ckan_id
+        description: "CKAN organization UUID (gov-org natural key)."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - unique
+          - not_null
+      - name: slug
+        description: "CKAN organization slug, e.g. 'epa-gov'."
+        data_type: text
+      - name: title
+        description: "Human-readable organization name."
+        data_type: text
+      - name: display_name
+        description: "CKAN display name."
+        data_type: text
+      - name: description
+        description: "Free-text organization description."
+        data_type: text
+      - name: website_url
+        description: "Canonical organization web address."
+        data_type: text
+      - name: image_url
+        description: "Organization logo/image URL."
+        data_type: text
+      - name: image_display_url
+        description: "CKAN-rendered display image URL."
+        data_type: text
+      - name: government_level
+        description: "Government tier from CKAN extras.organization_type, e.g. 'Federal Government' / 'County Government' / 'City Government'."
+        data_type: text
+      - name: dataset_count
+        description: "Number of datasets the org publishes on Data.gov."
+        data_type: integer
+      - name: follower_count
+        description: "Number of CKAN followers."
+        data_type: integer
+      - name: source_created_at
+        description: "When the org was created in CKAN (real timestamp)."
+        data_type: timestamp
+      - name: dbt_loaded_at
+        description: "dbt build timestamp."
+        data_type: timestamp with time zone

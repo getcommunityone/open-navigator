@@ -1,0 +1,119 @@
+version: 2
+
+models:
+  - name: stg_data_commons__jurisdiction
+    description: |
+      Staging for Google Data Commons jurisdiction enrichment — one row per
+      jurisdiction FIPS code with the latest demographic, economic, education,
+      health, and housing statistics from the Data Commons v2 observation API.
+
+      Source: bronze.bronze_jurisdiction_datacommons, landed by
+      packages/ingestion/src/ingestion/google_data_commons/bronze.py.
+
+      Keying: `fips_code` is the natural/primary key (5-digit county or 7-digit
+      place). `state_fips_code` is its leading two digits; the full state name /
+      state_code mapping is resolved downstream (a staging model must not read
+      another model). Metric columns are kept as DOUBLE PRECISION for raw
+      fidelity. `stats` carries the full {statvar: value} JSONB.
+
+    config:
+      contract:
+        enforced: true
+      materialized: view
+
+    columns:
+      - name: fips_code
+        description: "Jurisdiction FIPS code (5-digit county / 7-digit place). Primary key."
+        data_type: varchar(7)
+        constraints:
+          - type: not_null
+        tests:
+          - unique
+          - not_null
+
+      - name: state_fips_code
+        description: "Leading two digits of fips_code (state FIPS)."
+        data_type: text
+
+      - name: dcid
+        description: "Data Commons place ID, e.g. 'geoId/01073'."
+        data_type: varchar(32)
+
+      - name: population
+        description: "Total population (Count_Person)."
+        data_type: double precision
+      - name: population_male
+        description: "Male population (Count_Person_Male)."
+        data_type: double precision
+      - name: population_female
+        description: "Female population (Count_Person_Female)."
+        data_type: double precision
+      - name: median_age
+        description: "Median age (Median_Age_Person)."
+        data_type: double precision
+      - name: population_white
+        description: "White-alone population (Count_Person_WhiteAlone)."
+        data_type: double precision
+      - name: population_black
+        description: "Black/African American-alone population."
+        data_type: double precision
+      - name: population_hispanic
+        description: "Hispanic or Latino population."
+        data_type: double precision
+      - name: population_asian
+        description: "Asian-alone population (Count_Person_AsianAlone)."
+        data_type: double precision
+
+      - name: median_household_income
+        description: "Median household income (Median_Income_Household)."
+        data_type: double precision
+      - name: unemployment_rate
+        description: "Unemployment rate (UnemploymentRate_Person), fractional/percent."
+        data_type: double precision
+      - name: poverty_count
+        description: "Persons below the poverty level in the past 12 months."
+        data_type: double precision
+      - name: median_earnings
+        description: "Median earnings per person (Median_Earnings_Person)."
+        data_type: double precision
+
+      - name: bachelors_or_higher
+        description: "Persons with a bachelor's degree or higher."
+        data_type: double precision
+      - name: hs_grad_or_higher
+        description: "Persons with a high-school diploma or higher."
+        data_type: double precision
+
+      - name: insured_count
+        description: "Persons with health insurance (Count_Person_WithHealthInsurance)."
+        data_type: double precision
+      - name: uninsured_count
+        description: "Persons without health insurance (Count_Person_NoHealthInsurance)."
+        data_type: double precision
+
+      - name: median_home_price
+        description: "Median price of a sold home (Median_Price_SoldHome)."
+        data_type: double precision
+      - name: housing_units
+        description: "Total housing units (Count_HousingUnit)."
+        data_type: double precision
+      - name: households
+        description: "Total households (Count_Household)."
+        data_type: double precision
+
+      - name: stats
+        description: "Full {statvar: value} map kept for raw fidelity."
+        data_type: jsonb
+
+      - name: source_retrieved_at
+        description: "When the Data Commons observation was fetched (loader retrieval_date)."
+        data_type: timestamp
+      - name: source_ingested_at
+        description: "Timestamp from the bronze loader (ingestion_date)."
+        data_type: timestamp
+      - name: dbt_loaded_at
+        description: "Timestamp this staging model was materialized."
+        # current_timestamp returns timestamptz in Postgres; contract must match.
+        data_type: timestamp with time zone
+        constraints:
+          - type: not_null

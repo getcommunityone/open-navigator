@@ -111,6 +111,7 @@ name_occurrences as (
         case source_system
             when 'bronze_jurisdictions' then 0               -- canonical gov name
             when 'bronze_schools_nces' then 0                -- canonical school name
+            when 'bronze_organizations_gov' then 0           -- Data.gov: agency's own name
             when 'bronze_organizations_nonprofits_irs' then 1  -- IRS = legal-name registry
             when 'bronze_organizations_nonprofits_nccs' then 2 -- NCCS lags IRS on name
             when 'bronze_locations' then 3
