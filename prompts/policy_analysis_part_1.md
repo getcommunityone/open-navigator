@@ -313,13 +313,15 @@ Each `smart_brevity` field is one tight sentence (≤25 words); `by_the_numbers`
           "view_label": "string",
           "problem_diagnosis": "string",
           "causal_story": "string",
-          "proposed_remedy": "string"
+          "proposed_remedy": "string",
+          "held_by": ["string — people[].person_id of those who advanced this view (council members, staff, speakers); empty array if no one is individually identifiable"]
         },
         "counter_views": [
           {
             "view_label": "string",
             "problem_diagnosis": "string",
-            "causal_story": "string"
+            "causal_story": "string",
+            "held_by": ["string — people[].person_id of those who argued this side; empty array if no one is individually identifiable"]
           }
         ]
       },

@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
 import MeetingPlayer from '../components/MeetingPlayer'
+import { MeetingVideoProvider, EvidenceLink, WatchRecordingLink } from '../components/MeetingVideoContext'
 import {
   ArrowLeftIcon,
   ScaleIcon,
@@ -10,6 +12,7 @@ import {
   SparklesIcon,
   UsersIcon,
   CalendarIcon,
+  FilmIcon,
 } from '@heroicons/react/24/outline'
 
 interface DecisionDetail {
@@ -210,6 +213,7 @@ function ViewColumn({
           }`}
         >
           {v}
+          <EvidenceLink text={v} />
         </p>
       </div>
     )
@@ -218,7 +222,10 @@ function ViewColumn({
   if (!label && rows.length === 0) return <JsonValue value={view} />
 
   return (
-    <div>
+    <div
+      className="h-full rounded-xl border border-[#e1ebe7] p-4 sm:p-5"
+      style={{ borderLeftWidth: 4, borderLeftColor: accent, background: isPrev ? '#f6faf9' : '#fef8f5' }}
+    >
       <span
         className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11.5px] font-bold tracking-wide"
         style={{ background: tint, color: accent }}
@@ -227,7 +234,7 @@ function ViewColumn({
         {kicker}
       </span>
       {label && (
-        <h3 className="mt-3 text-[22px] font-semibold leading-tight text-[#16201d]" style={CV_SERIF}>
+        <h3 className="mt-3 text-[19px] font-semibold leading-tight text-[#16201d] sm:text-[22px]" style={CV_SERIF}>
           {label}
         </h3>
       )}
@@ -284,12 +291,10 @@ function CompetingViews({ data }: { data: unknown }) {
 
       <div className="my-5 border-t border-[#e1ebe7]" />
 
-      <div className="grid gap-7 md:grid-cols-2 md:gap-0">
-        <div className="md:pr-7">
-          <ViewColumn side={dominant ? 'prevailing' : 'other'} view={leftView} />
-        </div>
+      <div className="grid items-stretch gap-4 md:grid-cols-2">
+        <ViewColumn side={dominant ? 'prevailing' : 'other'} view={leftView} />
         {rightViews.length > 0 && (
-          <div className="space-y-8 border-t border-[#e1ebe7] pt-7 md:border-l md:border-t-0 md:pl-7 md:pt-0">
+          <div className="space-y-4">
             {rightViews.map((c, i) => (
               <ViewColumn key={i} side="other" view={c} />
             ))}
@@ -308,6 +313,206 @@ function CompetingViews({ data }: { data: unknown }) {
           Read the discussion →
         </Link>
       </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Voices in the room (human_element) — puts faces to the testimony.
+//
+// The AI `person_id`/`speaker_id` are descriptive slugs
+// (e.g. "chuck_tracy_resident_baldwin_01003"), NOT MDM person ids, so no
+// contact photo joins. We derive a display name + role + a deterministic
+// initials avatar from the slug — the honest universal fallback that still
+// works when a real photo isn't available.
+// ---------------------------------------------------------------------------
+const AVATAR_COLORS = [
+  { bg: '#e7f2ef', fg: '#1d6b5f' },
+  { bg: '#fdeee7', fg: '#c0432a' },
+  { bg: '#eaf1f8', fg: '#2f6fb0' },
+  { bg: '#efebfb', fg: '#6b5bd2' },
+  { bg: '#fbf3e2', fg: '#9a6b12' },
+  { bg: '#fdeef5', fg: '#b03a78' },
+]
+
+const ROLE_WORDS = new Set([
+  'resident', 'residents', 'applicant', 'representative', 'rep', 'owner', 'official', 'officials',
+  'council', 'councilmember', 'member', 'mayor', 'attorney', 'director', 'chair', 'chairman',
+  'chairwoman', 'chairperson', 'president', 'vice', 'spokesperson', 'staff', 'citizen', 'speaker',
+  'public', 'commissioner', 'commission', 'developer', 'petitioner', 'neighbor', 'business',
+  'manager', 'planner', 'engineer', 'consultant', 'pastor', 'professor', 'teacher', 'student',
+  'parent', 'advocate', 'opponent', 'supporter', 'clerk', 'administrator', 'superintendent',
+  'sheriff', 'trustee', 'board', 'deputy', 'assistant',
+])
+
+interface Speaker {
+  name: string
+  role: string
+  initials: string
+  color: { bg: string; fg: string }
+}
+
+function parseSpeaker(id: string): Speaker {
+  const toks = id.split('_').filter(Boolean)
+  while (toks.length && /^\d+$/.test(toks[toks.length - 1])) toks.pop() // drop trailing FIPS
+  const nameToks = toks.slice(0, 2)
+  const lowerName = nameToks.map((t) => t.toLowerCase())
+  const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1)
+  const roleToks = [
+    ...new Set(
+      toks
+        .slice(nameToks.length)
+        .map((t) => t.toLowerCase())
+        .filter((t) => ROLE_WORDS.has(t) && !lowerName.includes(t)),
+    ),
+  ]
+  const name = nameToks.map(cap).join(' ') || 'Speaker'
+  const role = roleToks.map(cap).join(' ')
+  const initials = nameToks.map((t) => t.charAt(0).toUpperCase()).join('').slice(0, 2) || '?'
+  let h = 0
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0
+  return { name, role, initials, color: AVATAR_COLORS[h % AVATAR_COLORS.length] }
+}
+
+function Avatar({ speaker, size = 40 }: { speaker: Speaker; size?: number }) {
+  return (
+    <span
+      className="flex shrink-0 items-center justify-center rounded-full font-bold"
+      style={{
+        width: size,
+        height: size,
+        background: speaker.color.bg,
+        color: speaker.color.fg,
+        fontSize: Math.round(size * 0.36),
+      }}
+      title={speaker.name}
+      aria-hidden
+    >
+      {speaker.initials}
+    </span>
+  )
+}
+
+interface Story {
+  person_id?: string
+  story_headline?: string
+  story_detail?: string
+  why_it_mattered_to_the_decision?: string
+}
+
+// One side of emotional_tone: { intensity, plain_summary, primary_emotions[] }.
+function ToneSide({ label, accent, side }: { label: string; accent: string; side: Record<string, unknown> }) {
+  const intensity = typeof side.intensity === 'string' ? side.intensity : null
+  const summary = typeof side.plain_summary === 'string' ? side.plain_summary : null
+  const emotions = Array.isArray(side.primary_emotions)
+    ? (side.primary_emotions.filter((e) => typeof e === 'string') as string[])
+    : []
+  if (!intensity && !summary && emotions.length === 0) return null
+  return (
+    <div className="rounded-xl border border-[#e1ebe7] p-4" style={{ borderLeftWidth: 4, borderLeftColor: accent }}>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[12px] font-bold uppercase tracking-wide" style={{ color: accent }}>
+          {label}
+        </span>
+        {intensity && <span className="text-[11.5px] font-medium text-[#8a958f]">Intensity: {intensity}</span>}
+      </div>
+      {emotions.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {emotions.map((e) => (
+            <span key={e} className="rounded-full bg-[#f3f7f6] px-2 py-0.5 text-[11.5px] text-[#56635e]">
+              {e}
+            </span>
+          ))}
+        </div>
+      )}
+      {summary && <p className="mt-2 text-[13px] leading-relaxed text-[#56635e]">{summary}</p>}
+    </div>
+  )
+}
+
+function HumanElement({ data }: { data: unknown }) {
+  if (!data || typeof data !== 'object') return null
+  const he = data as Record<string, unknown>
+  const stories = Array.isArray(he.personal_stories)
+    ? (he.personal_stories.filter((s) => s && typeof s === 'object') as Story[])
+    : []
+  const tone = he.emotional_tone && typeof he.emotional_tone === 'object' ? (he.emotional_tone as Record<string, unknown>) : null
+  const sup = tone && tone.supporters && typeof tone.supporters === 'object' ? (tone.supporters as Record<string, unknown>) : null
+  const opp = tone && tone.opponents && typeof tone.opponents === 'object' ? (tone.opponents as Record<string, unknown>) : null
+  const humor = Array.isArray(he.humor_and_light_moments)
+    ? (he.humor_and_light_moments.filter((h) => h && typeof h === 'object') as Record<string, unknown>[])
+    : []
+
+  // Recognized nothing structured -> generic fallback so content is never dropped.
+  if (stories.length === 0 && !sup && !opp && humor.length === 0) {
+    return (
+      <Section title="Human Element" icon={<UsersIcon className="h-5 w-5" />}>
+        <JsonValue value={data} />
+      </Section>
+    )
+  }
+
+  return (
+    <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+      <div className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.12em] text-[#1d6b5f]">
+        <UsersIcon className="h-4 w-4" /> Voices in the room
+      </div>
+
+      {stories.length > 0 && (
+        <ul className="mt-4 space-y-5">
+          {stories.map((s, i) => {
+            const sp = parseSpeaker(s.person_id || 'speaker')
+            return (
+              <li key={i} className="flex gap-3">
+                <Avatar speaker={sp} />
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-baseline gap-x-2">
+                    <span className="text-[15px] font-semibold text-[#16201d]">{sp.name}</span>
+                    {sp.role && <span className="text-[12px] text-[#8a958f]">{sp.role}</span>}
+                  </div>
+                  {s.story_headline && <div className="mt-0.5 text-[13.5px] font-medium text-[#16201d]">{s.story_headline}</div>}
+                  {s.story_detail && <p className="mt-1 text-[13.5px] leading-relaxed text-[#56635e]">{s.story_detail}</p>}
+                  {s.why_it_mattered_to_the_decision && (
+                    <p className="mt-1.5 border-l-2 border-[#e1ebe7] pl-3 text-[12.5px] italic leading-relaxed text-[#8a958f]">
+                      Why it mattered: {s.why_it_mattered_to_the_decision}
+                    </p>
+                  )}
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+
+      {(sup || opp) && (
+        <div className={stories.length > 0 ? 'mt-6 border-t border-[#e1ebe7] pt-5' : 'mt-4'}>
+          <div className="text-[12.5px] font-semibold text-[#16201d]">How the room felt</div>
+          <div className="mt-2 grid gap-3 sm:grid-cols-2">
+            {sup && <ToneSide label="Supporters" accent="#1d6b5f" side={sup} />}
+            {opp && <ToneSide label="Opponents" accent="#e0603a" side={opp} />}
+          </div>
+        </div>
+      )}
+
+      {humor.length > 0 && (
+        <div className="mt-6 border-t border-[#e1ebe7] pt-4">
+          <div className="text-[12.5px] font-semibold text-[#16201d]">Lighter moments</div>
+          <ul className="mt-2 space-y-2">
+            {humor.map((h, i) => {
+              const sp = typeof h.speaker_id === 'string' ? parseSpeaker(h.speaker_id) : null
+              return (
+                <li key={i} className="flex items-start gap-2 text-[13px] leading-relaxed text-[#56635e]">
+                  <span aria-hidden>😄</span>
+                  <span>
+                    {typeof h.summary === 'string' ? h.summary : ''}
+                    {sp && <span className="text-[#8a958f]"> — {sp.name}</span>}
+                  </span>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      )}
     </div>
   )
 }
@@ -393,6 +598,158 @@ function SmartBrevityBody({ sb }: { sb: Record<string, unknown> }) {
   )
 }
 
+// Visual vote result (idea from the PolicyDecision mockup): big yes/no figures,
+// a Passed/Failed badge, and a colored cell strip — from the real vote_tally.
+function VoteResult({ votes }: { votes: [string, number][] }) {
+  const get = (k: string) => votes.find(([l]) => l.toLowerCase() === k)?.[1] ?? 0
+  const yes = get('yes')
+  const no = get('no')
+  const others = votes.filter(([l]) => !['yes', 'no'].includes(l.toLowerCase()))
+  const passed = yes > no
+  const cells = [...Array(yes).fill('y'), ...Array(no).fill('n')] as string[]
+  return (
+    <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900">
+          <ChartBarIcon className="h-5 w-5 text-[#1d6b5f]" />
+          The vote
+        </h2>
+        <span
+          className={`rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider ${
+            passed ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+          }`}
+        >
+          {passed ? 'Passed' : 'Failed'}
+        </span>
+      </div>
+      <div className="flex items-end gap-2" style={CV_SERIF}>
+        <span className="text-4xl font-semibold text-emerald-600">{yes}</span>
+        <span className="pb-1 text-sm text-gray-400">Yes</span>
+        <span className="px-1 pb-1 text-gray-300">·</span>
+        <span className="text-4xl font-semibold text-rose-500">{no}</span>
+        <span className="pb-1 text-sm text-gray-400">No</span>
+        {others.map(([l, c]) => (
+          <span key={l} className="flex items-end gap-2">
+            <span className="px-1 pb-1 text-gray-300">·</span>
+            <span className="text-4xl font-semibold text-gray-400">{c}</span>
+            <span className="pb-1 text-sm text-gray-400 capitalize">{l}</span>
+          </span>
+        ))}
+      </div>
+      {cells.length > 0 && cells.length <= 40 && (
+        <div className="mt-4 flex gap-1.5">
+          {cells.map((v, i) => (
+            <div
+              key={i}
+              className={`grid h-8 flex-1 place-items-center rounded-md text-sm font-bold text-white ${
+                v === 'y' ? 'bg-emerald-500' : 'bg-rose-400'
+              }`}
+            >
+              {v === 'y' ? '✓' : '–'}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// "Related decisions" rail — similar items by shared theme / body, from
+// /api/decision/{id}/related (our metadata, not a video platform).
+interface RelatedItem {
+  event_decision_id: string
+  headline?: string | null
+  jurisdiction_name?: string | null
+  state_code?: string | null
+  primary_theme?: string | null
+  outcome?: string | null
+  shared_theme?: boolean
+  shared_jurisdiction?: boolean
+}
+
+function RelatedDecisions({ id }: { id: string }) {
+  const { data } = useQuery({
+    queryKey: ['decision-related', id],
+    enabled: !!id,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => (await api.get(`/decision/${id}/related`)).data as RelatedItem[],
+  })
+  const items = data ?? []
+  if (items.length === 0) return null
+  return (
+    <div className="mb-6">
+      <div className="mb-3 flex items-center gap-2">
+        <UsersIcon className="h-5 w-5 text-[#1d6b5f]" />
+        <h2 className="text-lg font-bold text-gray-900">Related decisions</h2>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {items.map((it) => {
+          const tags = [
+            it.shared_theme ? it.primary_theme : null,
+            it.shared_jurisdiction ? it.jurisdiction_name : null,
+          ].filter(Boolean) as string[]
+          return (
+            <Link
+              key={it.event_decision_id}
+              to={`/decisions/${it.event_decision_id}`}
+              className="group flex flex-col rounded-xl border border-gray-200 bg-white p-4 transition-colors hover:border-[#1d6b5f]/40 hover:bg-[#f7fafb]"
+            >
+              <div className="line-clamp-2 text-sm font-semibold text-gray-900 group-hover:text-[#1d6b5f]" style={CV_SERIF}>
+                {it.headline || 'Decision'}
+              </div>
+              <div className="mt-1 text-[12px] text-gray-400">
+                {[it.jurisdiction_name, it.state_code].filter(Boolean).join(', ')}
+                {it.outcome ? ` · ${it.outcome}` : ''}
+              </div>
+              {tags.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {tags.slice(0, 2).map((t) => (
+                    <span key={t} className="rounded-full bg-[#e7f2ef] px-2 py-0.5 text-[10.5px] font-medium text-[#1d6b5f]">
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </Link>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// Full recording + searchable transcript, collapsed by default and lazily
+// mounted on expand so the heavy embed never blocks the read or double-loads
+// alongside the evidence popout.
+function WatchAndVerify({
+  videoId,
+  caption,
+  targetText,
+}: {
+  videoId: string
+  caption?: string
+  targetText?: string
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <details
+      className="mb-6 rounded-lg bg-white shadow-sm"
+      onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}
+    >
+      <summary className="flex cursor-pointer list-none items-center gap-2 p-6 text-lg font-bold text-gray-900">
+        <FilmIcon className="h-5 w-5 text-[#1d6b5f]" />
+        Watch &amp; verify
+        <span className="text-sm font-normal text-gray-400">full recording + transcript</span>
+      </summary>
+      {open && (
+        <div className="px-2 pb-2 sm:px-4 sm:pb-4">
+          <MeetingPlayer videoId={videoId} caption={caption} targetText={targetText} />
+        </div>
+      )}
+    </details>
+  )
+}
+
 export default function DecisionDetail() {
   const { id } = useParams<{ id: string }>()
 
@@ -421,10 +778,9 @@ export default function DecisionDetail() {
   }
 
   if (error || !decision) {
+    const err = error as { response?: { data?: { detail?: string } }; message?: string } | null
     const errorMessage =
-      (error as any)?.response?.data?.detail ||
-      (error as any)?.message ||
-      'Unable to load decision details'
+      err?.response?.data?.detail || err?.message || 'Unable to load decision details'
     return (
       <div className="min-h-screen bg-gray-50 py-8">
         <div className="max-w-4xl mx-auto px-4">
@@ -449,8 +805,15 @@ export default function DecisionDetail() {
   const voteEntries = decision.vote_tally
     ? Object.entries(decision.vote_tally).filter(([, v]) => typeof v === 'number')
     : []
+  const videoCaption = [
+    decision.meeting_name,
+    decision.meeting_date ? new Date(decision.meeting_date).toLocaleDateString() : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
 
   return (
+    <MeetingVideoProvider videoId={decision.meeting_video_id} caption={videoCaption || undefined}>
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Back Button */}
@@ -486,15 +849,33 @@ export default function DecisionDetail() {
               </span>
             )}
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">
+          <h1
+            className="mb-3 text-[2rem] font-semibold leading-tight text-gray-900"
+            style={CV_SERIF}
+          >
             {decision.headline || 'Untitled Decision'}
           </h1>
-          {location && (
-            <div className="flex items-center gap-1 text-sm text-gray-600">
-              <MapPinIcon className="h-4 w-4" />
-              <span>{location}</span>
-            </div>
-          )}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500">
+            {location && (
+              <span className="flex items-center gap-1.5">
+                <MapPinIcon className="h-4 w-4 text-gray-400" />
+                {location}
+              </span>
+            )}
+            {decision.meeting_name && (
+              <span className="flex items-center gap-1.5">
+                <UsersIcon className="h-4 w-4 text-gray-400" />
+                {decision.meeting_name}
+              </span>
+            )}
+            {decision.meeting_date && (
+              <span className="flex items-center gap-1.5">
+                <CalendarIcon className="h-4 w-4 text-gray-400" />
+                {new Date(decision.meeting_date).toLocaleDateString()}
+              </span>
+            )}
+            <WatchRecordingLink />
+          </div>
         </div>
 
         {/* Meeting context */}
@@ -512,21 +893,6 @@ export default function DecisionDetail() {
           </Section>
         )}
 
-        {/* Meeting recording + clickable transcript */}
-        {decision.meeting_video_id && (
-          <MeetingPlayer
-            videoId={decision.meeting_video_id}
-            caption={[decision.meeting_name, decision.meeting_date
-              ? new Date(decision.meeting_date).toLocaleDateString()
-              : null]
-              .filter(Boolean)
-              .join(' • ') || undefined}
-            targetText={[decision.headline, decision.decision_statement]
-              .filter(Boolean)
-              .join('. ') || undefined}
-          />
-        )}
-
         {/* Decision Statement */}
         {decision.decision_statement && (
           <Section title="Decision">
@@ -536,21 +902,9 @@ export default function DecisionDetail() {
           </Section>
         )}
 
-        {/* Vote Tally */}
+        {/* Vote result (visual) */}
         {voteEntries.length > 0 && (
-          <Section title="Vote Tally" icon={<ChartBarIcon className="h-5 w-5" />}>
-            <div className="flex flex-wrap gap-3">
-              {voteEntries.map(([label, count]) => (
-                <div
-                  key={label}
-                  className="flex items-baseline gap-2 px-4 py-2 rounded-lg bg-gray-50 border border-gray-100"
-                >
-                  <span className="text-2xl font-bold text-gray-900">{count}</span>
-                  <span className="text-sm text-gray-600 capitalize">{label}</span>
-                </div>
-              ))}
-            </div>
-          </Section>
+          <VoteResult votes={voteEntries as [string, number][]} />
         )}
 
         {/* Key Takeaways (smart_brevity) */}
@@ -565,22 +919,42 @@ export default function DecisionDetail() {
           <CompetingViews data={decision.competing_views} />
         )}
 
-        {/* Human Element */}
-        {!isEmpty(decision.human_element) && (
-          <Section title="Human Element">
-            <JsonValue value={decision.human_element} />
-          </Section>
+        {/* Human Element — named voices with avatars + room sentiment */}
+        {!isEmpty(decision.human_element) && <HumanElement data={decision.human_element} />}
+
+        {/* Related decisions — shared theme / body */}
+        <RelatedDecisions id={decision.event_decision_id} />
+
+        {/* Watch & verify — full recording + transcript, collapsed */}
+        {decision.meeting_video_id && (
+          <WatchAndVerify
+            videoId={decision.meeting_video_id}
+            caption={videoCaption || undefined}
+            targetText={[decision.headline, decision.decision_statement]
+              .filter(Boolean)
+              .join('. ') || undefined}
+          />
         )}
 
-        {/* Provenance */}
-        <div className="bg-white rounded-lg shadow-sm p-6 text-xs text-gray-500 space-y-1">
-          {decision.source_ai_model && <div>Extracted by {decision.source_ai_model}</div>}
-          {decision.extracted_at && (
-            <div>Extracted {new Date(decision.extracted_at).toLocaleDateString()}</div>
-          )}
-          {decision.c1_event_id && <div>Event: {decision.c1_event_id}</div>}
+        {/* Provenance / attribution */}
+        <div className="mt-2 rounded-xl border border-dashed border-gray-300 bg-white/60 p-4">
+          <div className="flex items-start gap-2.5">
+            <SparklesIcon className="mt-0.5 h-4 w-4 shrink-0 text-[#1d6b5f]" />
+            <div className="text-[12px] leading-relaxed text-gray-400">
+              <span className="text-gray-500">AI-extracted summary</span>
+              {decision.source_ai_model && <> — {decision.source_ai_model}</>}
+              {decision.extracted_at && (
+                <>, {new Date(decision.extracted_at).toLocaleDateString()}</>
+              )}
+              , from the meeting transcript. Verify against the recording.
+              {decision.c1_event_id && (
+                <div className="mt-1">Event: {decision.c1_event_id}</div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>
+    </MeetingVideoProvider>
   )
 }

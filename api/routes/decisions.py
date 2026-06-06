@@ -369,3 +369,81 @@ async def get_decision(event_decision_id: str) -> DecisionDetail:
             span.record_exception(e)
             logger.error("Decision detail error for {}: {}", event_decision_id, e)
             raise HTTPException(status_code=500, detail="Failed to load decision detail")
+
+
+# ---------------------------------------------------------------------------
+# Related decisions — "similar" feed driven by OUR metadata (shared theme + same
+# body/jurisdiction), not by any video platform. Powers the decision page's
+# "Related decisions" rail.
+# ---------------------------------------------------------------------------
+class RelatedDecision(BaseModel):
+    event_decision_id: str
+    headline: Optional[str] = None
+    jurisdiction_name: Optional[str] = None
+    state_code: Optional[str] = None
+    primary_theme: Optional[str] = None
+    outcome: Optional[str] = None
+    shared_theme: bool = False
+    shared_jurisdiction: bool = False
+
+
+_RELATED_SQL = """
+    WITH base AS (
+        SELECT primary_theme, state_code, jurisdiction_name
+        FROM event_decision WHERE event_decision_id = $1
+    )
+    SELECT
+        e.event_decision_id,
+        e.headline,
+        e.jurisdiction_name,
+        e.state_code,
+        e.primary_theme,
+        e.outcome,
+        (e.primary_theme IS NOT DISTINCT FROM b.primary_theme) AS shared_theme,
+        (e.jurisdiction_name IS NOT DISTINCT FROM b.jurisdiction_name) AS shared_jurisdiction,
+        (
+            (e.primary_theme IS NOT DISTINCT FROM b.primary_theme)::int * 2
+            + (e.jurisdiction_name IS NOT DISTINCT FROM b.jurisdiction_name)::int * 2
+            + (e.state_code IS NOT DISTINCT FROM b.state_code)::int
+        ) AS score
+    FROM event_decision e, base b
+    WHERE e.event_decision_id <> $1
+      AND (
+            (b.primary_theme IS NOT NULL AND e.primary_theme = b.primary_theme)
+         OR (b.jurisdiction_name IS NOT NULL AND e.jurisdiction_name = b.jurisdiction_name)
+      )
+    ORDER BY score DESC, e.extracted_at DESC NULLS LAST
+    LIMIT $2
+"""
+
+
+@router.get("/{event_decision_id}/related", response_model=List[RelatedDecision])
+async def get_related_decisions(
+    event_decision_id: str,
+    limit: int = Query(6, ge=1, le=20),
+) -> List[RelatedDecision]:
+    """Decisions sharing this one's theme or body — ranked by overlap. [] if none."""
+    with tracer.start_as_current_span("decision-related") as span:
+        span.set_attribute("decision.event_decision_id", event_decision_id)
+        try:
+            pool = await get_db_pool()
+            async with pool.acquire() as conn:
+                rows = await conn.fetch(_RELATED_SQL, event_decision_id, limit)
+        except Exception as e:  # noqa: BLE001
+            span.record_exception(e)
+            logger.error("Related decisions error for {}: {}", event_decision_id, e)
+            raise HTTPException(status_code=500, detail="Failed to load related decisions")
+
+        return [
+            RelatedDecision(
+                event_decision_id=r["event_decision_id"],
+                headline=r["headline"],
+                jurisdiction_name=r["jurisdiction_name"],
+                state_code=r["state_code"],
+                primary_theme=r["primary_theme"],
+                outcome=r["outcome"],
+                shared_theme=bool(r["shared_theme"]),
+                shared_jurisdiction=bool(r["shared_jurisdiction"]),
+            )
+            for r in rows
+        ]
