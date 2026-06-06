@@ -21,6 +21,13 @@
       "react-app"
     ]
   },
+  "overrides": {
+    "nth-check": "^2.1.1",
+    "serialize-javascript": "^7.0.5",
+    "underscore": "^1.13.8",
+    "ws": "^8.20.1",
+    "@tootallnate/once": "^2.0.1"
+  },
   "browserslist": {
     "production": [
       ">0.2%",
