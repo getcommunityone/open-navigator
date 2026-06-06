@@ -41,7 +41,9 @@ interface SearchResult {
   title: string
   subtitle: string
   description: string
-  url: string
+  // Optional: a result with no stable detail key (e.g. an MDM person with a
+  // null person_uid) comes back with no url and renders as non-clickable.
+  url?: string | null
   score: number
   metadata: Record<string, any>
 }
@@ -99,7 +101,14 @@ function normalizeTypeAlias(t: string): string {
 export default function UnifiedSearch() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
-  
+
+  // Navigate to a result's detail page, but only when it has a url. Results
+  // without a stable detail key (url == null) are rendered non-clickable, so
+  // this is a no-op for them instead of routing to a 404.
+  const openResult = (url?: string | null) => {
+    if (url) navigate(url)
+  }
+
   // Initialize state directly from URL params (lazy initializer for performance)
   const [query, setQuery] = useState(() => searchParams.get('q') || '')
   const [activeQuery, setActiveQuery] = useState(() => searchParams.get('q') || '')
@@ -548,16 +557,46 @@ export default function UnifiedSearch() {
       className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow"
     >
       <div className="flex items-start gap-3">
-        <div className={`p-2 rounded-lg border ${getTypeColor(resultType)}`}>
-          {getTypeIcon(resultType)}
-        </div>
-        
+        {/* Leaders / officials show their photo (or a letter avatar) in the
+            left slot where the generic type icon would otherwise sit. */}
+        {resultType === 'leader' ? (
+          <div className="relative w-12 h-12 flex-shrink-0">
+            {result.metadata?.photo_url ? (
+              <img
+                src={result.metadata.photo_url}
+                alt={result.title}
+                className="w-12 h-12 rounded-full object-cover bg-gray-100 border border-gray-200"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none'
+                  const fallback = e.currentTarget.nextElementSibling as HTMLElement | null
+                  if (fallback) fallback.style.display = 'flex'
+                }}
+              />
+            ) : null}
+            <div
+              className="w-12 h-12 rounded-full items-center justify-center text-white text-lg font-bold"
+              style={{
+                backgroundColor: '#2F5D62',
+                display: result.metadata?.photo_url ? 'none' : 'flex',
+              }}
+            >
+              {result.title.charAt(0)}
+            </div>
+          </div>
+        ) : (
+          <div className={`p-2 rounded-lg border ${getTypeColor(resultType)}`}>
+            {getTypeIcon(resultType)}
+          </div>
+        )}
+
         <div className="flex-1">
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1">
-              <h3 
-                onClick={() => navigate(result.url)}
-                className="font-semibold text-gray-900 cursor-pointer hover:text-blue-600 mb-1"
+              <h3
+                onClick={() => openResult(result.url)}
+                className={`font-semibold text-gray-900 mb-1 ${
+                  result.url ? 'cursor-pointer hover:text-blue-600' : ''
+                }`}
               >
                 {result.title}
               </h3>
@@ -580,9 +619,9 @@ export default function UnifiedSearch() {
               ) : null
             )}
             {result.type === 'organization' && (
-              <div 
+              <div
                 className="w-12 h-12 rounded flex items-center justify-center text-white text-lg font-bold flex-shrink-0"
-                style={{ 
+                style={{
                   backgroundColor: '#52796F',
                   display: result.metadata?.logo_url ? 'none' : 'flex'
                 }}
@@ -590,6 +629,7 @@ export default function UnifiedSearch() {
                 {result.title.charAt(0)}
               </div>
             )}
+
           </div>
           
           <p className="text-sm text-gray-500 line-clamp-2 mb-2">{result.description}</p>
@@ -867,7 +907,7 @@ export default function UnifiedSearch() {
                     {previewResults.results.causes.slice(0, 3).map((result, idx) => (
                       <button
                         key={idx}
-                        onClick={() => navigate(result.url)}
+                        onClick={() => openResult(result.url)}
                         className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
                       >
                         <HeartIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
@@ -898,7 +938,7 @@ export default function UnifiedSearch() {
                     {(previewResults.results.leaders ?? []).slice(0, 3).map((result, idx) => (
                       <button
                         key={idx}
-                        onClick={() => navigate(result.url)}
+                        onClick={() => openResult(result.url)}
                         className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
                       >
                         <UserIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
@@ -933,7 +973,7 @@ export default function UnifiedSearch() {
                     {(previewResults.results.persons ?? []).slice(0, 3).map((result, idx) => (
                       <button
                         key={idx}
-                        onClick={() => navigate(result.url)}
+                        onClick={() => openResult(result.url)}
                         className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
                       >
                         <UserIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
@@ -966,7 +1006,7 @@ export default function UnifiedSearch() {
                     {previewResults.results.organizations.slice(0, 3).map((result, idx) => (
                       <button
                         key={idx}
-                        onClick={() => navigate(result.url)}
+                        onClick={() => openResult(result.url)}
                         className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors last:rounded-b-lg"
                       >
                         {/* Logo with fallback */}
@@ -1021,7 +1061,7 @@ export default function UnifiedSearch() {
                     {previewResults.results.bills.slice(0, 3).map((result, idx) => (
                       <button
                         key={idx}
-                        onClick={() => navigate(result.url)}
+                        onClick={() => openResult(result.url)}
                         className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
                       >
                         <DocumentTextIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
@@ -1054,7 +1094,7 @@ export default function UnifiedSearch() {
                     {previewResults.results.topics.slice(0, 3).map((result, idx) => (
                       <button
                         key={idx}
-                        onClick={() => navigate(result.url)}
+                        onClick={() => openResult(result.url)}
                         className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
                       >
                         <ChatBubbleBottomCenterTextIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
@@ -1087,7 +1127,7 @@ export default function UnifiedSearch() {
                     {previewResults.results.decisions.slice(0, 3).map((result, idx) => (
                       <button
                         key={idx}
-                        onClick={() => navigate(result.url)}
+                        onClick={() => openResult(result.url)}
                         className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
                       >
                         <ScaleIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />

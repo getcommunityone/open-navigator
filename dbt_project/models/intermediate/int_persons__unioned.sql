@@ -22,6 +22,11 @@
                                     (bronze_jurisdiction_openstates; OpenStates
                                     legislators, external_id = OCD person id, the
                                     FK target for bill sponsorships)
+      - stg_scraped_official__person
+                                    (bronze_officials_scraped; scraped municipal
+                                    council members, external_id = ocd_membership_id;
+                                    fills the gap where OpenStates has a city's mayor
+                                    but not its council members)
 
     TODO: add stg_nccs__org / stg_orgs_ai__org to a parallel org pool.
 */
@@ -40,6 +45,8 @@ with unioned as (
     select * from {{ ref('stg_990_officers__person') }}
     union all
     select * from {{ ref('stg_openstates_legislators__person') }}
+    union all
+    select * from {{ ref('stg_scraped_official__person') }}
 )
 
 select

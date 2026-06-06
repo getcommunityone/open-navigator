@@ -74,3 +74,10 @@ models:
         data_type: boolean
         constraints:
           - type: not_null
+      - name: website_url
+        description: >
+          The official's jurisdiction website (from public.jurisdictions),
+          resolved for LOCAL leaders only (office in government/executive) by
+          matching state_code + normalized place name. NULL for legislators and
+          for any local leader whose jurisdiction has no known website.
+        data_type: text

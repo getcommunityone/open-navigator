@@ -241,6 +241,32 @@ sources:
           - name: end_date
           - name: synced_at
 
+      - name: bronze_officials_scraped
+        description: >
+          Municipal council members scraped from city sites by
+          scrapers.municipal.council_roster and landed by
+          ingestion.municipal.load_council_officials. Fills the gap where
+          OpenStates carries a city's mayor but not its council (e.g. Tuscaloosa's
+          7 districts). Synthetic key ocd-membership/scraped-<sha1>. Feeds
+          stg_scraped__official -> public.contact_official.
+        columns:
+          - name: ocd_membership_id
+            description: "Synthetic scraped membership id — natural key / conflict key."
+          - name: full_name
+          - name: title
+            description: "Cleaned role, e.g. 'City Councilor'."
+          - name: jurisdiction
+            description: "City government name, matching the city's other officials."
+          - name: state_code
+          - name: state
+          - name: district
+          - name: office
+          - name: email
+          - name: phone
+          - name: photo_url
+          - name: is_current
+          - name: synced_at
+
       - name: bronze_jurisdiction_openstates
         description: >
           OpenStates legislators (people) — 2,463 rows (Alabama validation pull).
@@ -2154,3 +2180,37 @@ models:
           - not_null
       - name: ein
         description: "Bare-digit filer EIN of the org this officer reported for; the person-pool affiliation key."
+
+  - name: stg_scraped_official__person
+    description: |
+      MDM person-conformance projection of stg_scraped__official (scraped municipal
+      council members from bronze_officials_scraped — e.g. the Boston City Council)
+      onto the shared person contract, feeding int_persons__unioned so council
+      members become resolvable mdm_person identities, not just role-grain rows in
+      contact_official. source_system = 'bronze_officials_scraped'; source_pk /
+      external_id = the deterministic ocd_membership_id. No parsed given/family name
+      or geography beyond state_code (the roster carries none).
+    columns:
+      - name: source_pk
+        description: "ocd_membership_id — deterministic scraped-membership key (md5 of jurisdiction|name|district|title)."
+        tests:
+          - not_null
+          - unique
+      - name: source_system
+        description: "Constant 'bronze_officials_scraped'."
+        tests:
+          - not_null
+      - name: entity_type
+        description: "'person' | 'organization' (org-shaped strings stay out of the person match pool)."
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['person', 'organization']
+      - name: name_norm
+        description: "Normalized person name (normalize_person_name); never null (the not-null filter drops unusable strings)."
+        tests:
+          - not_null
+      - name: external_id
+        description: "ocd_membership_id — same id as source_pk; the stable external handle for the scraped official."
+        tests:
+          - not_null

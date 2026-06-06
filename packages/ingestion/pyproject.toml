@@ -11,6 +11,8 @@ dependencies = [
     "core-lib",
     # ingestion.geocode reuses llm.gemini.enrich_analysis_places._nominatim_geocode
     "communityone-llm",
+    # ingestion.municipal reuses scrapers.municipal.council_roster
+    "communityone-scrapers",
     "pandas>=2.1",
     "pyarrow>=14",
     "zipfile-deflate64>=0.2",
@@ -26,3 +28,4 @@ where = ["src"]
 [tool.uv.sources]
 core-lib = { workspace = true }
 communityone-llm = { workspace = true }
+communityone-scrapers = { workspace = true }

@@ -7,6 +7,7 @@ import {
   EnvelopeIcon,
   PhoneIcon,
   BuildingOffice2Icon,
+  GlobeAltIcon,
 } from '@heroicons/react/24/outline'
 
 interface PersonOrganization {
@@ -23,6 +24,7 @@ interface Person {
   city: string | null
   email: string | null
   phone: string | null
+  jurisdiction_website: string | null
   organizations: PersonOrganization[]
 }
 

@@ -46,6 +46,9 @@ class PersonDetail(BaseModel):
     city: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
+    # Official website of the leader's jurisdiction (local leaders only; resolved
+    # on the contact_official mart). None for MDM persons and unresolved leaders.
+    jurisdiction_website: Optional[str] = None
     organizations: List[PersonOrganization] = Field(default_factory=list)
 
 
@@ -81,8 +84,58 @@ _ORGS_SQL = """
     ORDER BY b.reportable_comp_org DESC NULLS LAST, b.org_name
 """
 
+# Fallback lookup for elected/appointed officials. Leader search results
+# (result_type='leader') come from contact_official — a separate table with no
+# person_uid linkage to the MDM master — so /person/{id} resolves them here when
+# the id misses mdm_person. The id namespaces are disjoint, so this only fires
+# for genuine official ids. The office itself is surfaced as the single org row.
+_OFFICIAL_SQL = """
+    SELECT
+        o.id,
+        o.full_name,
+        o.title,
+        o.jurisdiction,
+        o.office,
+        o.email,
+        o.phone,
+        o.state_code,
+        o.website_url
+    FROM contact_official o
+    WHERE o.id = $1
+"""
 
-@router.get("/{person_uid}", response_model=PersonDetail)
+
+def _official_to_detail(row) -> PersonDetail:
+    """Map a contact_official row onto the shared PersonDetail shape.
+
+    The official's office (title + jurisdiction/office) is surfaced as the
+    single organization entry so the existing detail UI renders it unchanged.
+    """
+    # Prefer the jurisdiction (e.g. "Tuscaloosa Government") over the coarse
+    # office code (e.g. "government") for the org affiliation display.
+    affiliation = row["jurisdiction"] or row["office"]
+    organizations = [
+        PersonOrganization(
+            title=row["title"],
+            organization=affiliation,
+            master_org_id=None,
+            compensation=None,
+        )
+    ]
+    return PersonDetail(
+        person_uid=row["id"],
+        master_person_id=None,
+        name=row["full_name"] or "Unknown",
+        state_code=row["state_code"],
+        city=row["jurisdiction"],
+        email=row["email"],
+        phone=row["phone"],
+        jurisdiction_website=row["website_url"],
+        organizations=organizations,
+    )
+
+
+@router.get("/{person_uid:path}", response_model=PersonDetail)
 async def get_person(person_uid: str) -> PersonDetail:
     """
     Return a single person (and their org affiliations) by person_uid.
@@ -97,12 +150,23 @@ async def get_person(person_uid: str) -> PersonDetail:
                     person_row = await conn.fetchrow(_PERSON_SQL, person_uid)
 
                 if person_row is None:
+                    # Not in the MDM master — fall back to contact_official so
+                    # leader search results (which carry an official id, not a
+                    # person_uid) still drill into a real detail page.
+                    with tracer.start_as_current_span("person-detail.query-official"):
+                        official_row = await conn.fetchrow(_OFFICIAL_SQL, person_uid)
+                    if official_row is not None:
+                        span.set_attribute("person.found", True)
+                        span.set_attribute("person.source", "contact_official")
+                        return _official_to_detail(official_row)
+
                     span.set_attribute("person.found", False)
                     raise HTTPException(
                         status_code=404,
                         detail=f"No person found for person_uid '{person_uid}'",
                     )
                 span.set_attribute("person.found", True)
+                span.set_attribute("person.source", "mdm_person")
 
                 with tracer.start_as_current_span("person-detail.query-orgs"):
                     org_rows = await conn.fetch(_ORGS_SQL, person_uid)

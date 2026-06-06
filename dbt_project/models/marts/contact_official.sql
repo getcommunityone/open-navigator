@@ -49,26 +49,82 @@ The trigram (pg_trgm) GIN indexes on full_name and title back the API's ILIKE
 name/title search.
 */
 
-with officials as (
-    select * from {{ ref('stg_openstates__official') }}
+-- OpenStates officials (legislators, mayors, council where present) normalized
+-- to the contract columns. office = the chamber/org classification; phone is not
+-- carried by the OpenStates source.
+with openstates as (
+    select
+        ocd_membership_id                                     as id,
+        full_name,
+        title,
+        jurisdiction,
+        state_code,
+        state,
+        party,
+        district,
+        chamber                                               as office,
+        email,
+        cast(null as text)                                    as phone,
+        photo_url,
+        is_current
+    from {{ ref('stg_openstates__official') }}
+),
+
+-- Scraped municipal council members (ingestion.municipal.load_council_officials)
+-- — fills the gap where OpenStates has a city's mayor but not its council. Same
+-- contract columns; carries phone when scraped.
+scraped as (
+    select
+        ocd_membership_id                                     as id,
+        full_name,
+        title,
+        jurisdiction,
+        state_code,
+        state,
+        party,
+        district,
+        office,
+        email,
+        phone,
+        photo_url,
+        is_current
+    from {{ ref('stg_scraped__official') }}
+),
+
+unioned as (
+    select id, full_name, title, jurisdiction, state_code, state,
+           party, district, office, email, phone, photo_url, is_current
+    from openstates
+    union all
+    select id, full_name, title, jurisdiction, state_code, state,
+           party, district, office, email, phone, photo_url, is_current
+    from scraped
 )
 
+-- Resolve the jurisdiction's official website for LOCAL leaders only
+-- (office in government/executive — these carry a place name like
+-- "Tuscaloosa Government"; legislators' "jurisdiction" is a committee, not a
+-- place). No hard FK exists (see header), so we match on state_code + the
+-- normalized place name: strip the trailing " Government" suffix, then run both
+-- sides through normalize_jurisdiction_label_for_match (handles City of/county/
+-- St.-> Saint, etc.). Multiple jurisdictions can normalize alike (city vs county
+-- vs school district), so we prefer the municipality/place and the shortest name,
+-- and require a non-null website. NULL for everyone who doesn't resolve.
 select
-    ocd_membership_id                                          as id,
-    full_name,
-    title,
-    jurisdiction,
-    state_code,
-    state,
-    party,
-    district,
-    -- office: the chamber/organization classification, surfaced as a nullable
-    -- API field (e.g. 'government', 'upper', 'lower'). NULL where unknown.
-    chamber                                                    as office,
-    email,
-    -- phone: not carried by the OpenStates person/membership source; reserved
-    -- nullable column so the API contract matches the legacy parquet shape.
-    cast(null as text)                                         as phone,
-    photo_url,
-    is_current
-from officials
+    u.id, u.full_name, u.title, u.jurisdiction, u.state_code, u.state,
+    u.party, u.district, u.office, u.email, u.phone, u.photo_url, u.is_current,
+    jw.website_url
+from unioned u
+left join lateral (
+    select j.website_url
+    from {{ ref('jurisdictions') }} j
+    where u.office in ('government', 'executive')
+      and j.state_code = u.state_code
+      and j.website_url is not null
+      and {{ normalize_jurisdiction_label_for_match("regexp_replace(u.jurisdiction, '\\s+government$', '', 'gi')") }}
+          = {{ normalize_jurisdiction_label_for_match('j.name') }}
+    order by
+        case when j.name ~* '(county|parish|school district| ccd)$' then 2 else 1 end,
+        length(j.name)
+    limit 1
+) jw on true

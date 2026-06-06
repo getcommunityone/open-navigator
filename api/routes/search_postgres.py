@@ -3,6 +3,7 @@ PostgreSQL-based search functions
 Uses indexed search tables for fast queries (10-100x faster than parquet)
 """
 from typing import Optional, List
+from urllib.parse import quote
 from loguru import logger
 import asyncpg
 import os
@@ -107,7 +108,10 @@ class SearchResult:
     title: str
     subtitle: str
     description: str
-    url: str
+    # None when the row has no stable detail key (e.g. an MDM person with a
+    # null person_uid) — the frontend renders these as non-clickable so they
+    # can't navigate to a 404.
+    url: Optional[str]
     score: float
     metadata: dict
 
@@ -492,13 +496,10 @@ async def search_persons_pg(
                 # (one master_person_id can blob together 50+ unrelated people in
                 # the same city), so it does not identify the person the user
                 # clicked. person_uid is one row per real source occurrence.
-                # Fall back to the legacy name slug only if person_uid is null.
+                # When person_uid is null there is no key that resolves to this
+                # exact person, so emit no url — a name slug would just 404.
                 person_uid = row['person_uid']
-                person_url = (
-                    f"/person/{person_uid}"
-                    if person_uid
-                    else f"/people/{name.replace(' ', '-')}"
-                )
+                person_url = f"/person/{quote(str(person_uid), safe='')}" if person_uid else None
 
                 results.append(SearchResult(
                     result_type='person',
@@ -610,7 +611,13 @@ async def search_officials_pg(
         # Bound as a parameter ($N) like every other predicate here — no string
         # interpolation of user input.
         if city and city.strip():
-            where_clauses.append(f"jurisdiction ILIKE ${idx}")
+            # A city filter must not leak COUNTY officials: a bare
+            # ILIKE '%Tuscaloosa%' also matches "Tuscaloosa County". Keep the
+            # substring match on the city name but exclude county-level
+            # jurisdictions so /search?city=Tuscaloosa returns city offices only.
+            where_clauses.append(
+                f"(jurisdiction ILIKE ${idx} AND jurisdiction NOT ILIKE '%county%')"
+            )
             params.append(f"%{city.strip()}%")
             idx += 1
 
@@ -718,7 +725,12 @@ async def search_officials_pg(
                     title=name,
                     subtitle=f"{title} - {location}" if location else title,
                     description=description,
-                    url=f"/people/{name.replace(' ', '-')}",
+                    # Drill into the shared person-detail route. The id is
+                    # contact_official.id (an OCD id containing a '/'), so it is
+                    # percent-encoded to stay a single URL segment for the
+                    # frontend router; /person/{id:path} falls back to
+                    # contact_official when no mdm_person row matches.
+                    url=f"/person/{quote(row['id'], safe='')}",
                     score=float(row["score"]) if row["score"] is not None else 1.0,
                     metadata={
                         "id": row["id"],
