@@ -254,7 +254,9 @@ export const HOME_QUICK_NAV_FLYOUTS: Record<HomeQuickNavGroupId, HomeFlyoutItem[
       label: 'Grants & Funding',
       description: 'Federal, state, and foundation opportunities',
       tag: '1,000s available',
-      to: '/opportunities',
+      // Grants search: historical 990 grantmaking + open Grants.gov funding.
+      // (The bare /opportunities route is the unrelated advocacy-opportunities page.)
+      to: '/search?types=grants,grant_opportunities',
     },
     {
       id: 'svc',
