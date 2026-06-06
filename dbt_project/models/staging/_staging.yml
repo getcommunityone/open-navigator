@@ -1295,6 +1295,66 @@ sources:
           - name: ingestion_date
             description: "When record was loaded"
 
+      - name: bronze_jurisdiction_datacommons
+        description: |
+          Google Data Commons jurisdiction enrichment — one row per FIPS code
+          with latest demographic / economic / education / health / housing
+          statistics from the Data Commons v2 observation API. Landed by
+          ingestion.google_data_commons.bronze.
+        columns:
+          - name: fips_code
+            description: "Jurisdiction FIPS code (5-digit county / 7-digit place). Primary key."
+          - name: dcid
+            description: "Data Commons place ID, e.g. 'geoId/01073'"
+          - name: population
+            description: "Total population (Count_Person)"
+          - name: median_household_income
+            description: "Median household income (Median_Income_Household)"
+          - name: unemployment_rate
+            description: "Unemployment rate (UnemploymentRate_Person)"
+          - name: stats
+            description: "Full {statvar: value} JSONB kept for raw fidelity"
+          - name: data_source
+            description: "Literal 'Google Data Commons'"
+          - name: retrieval_date
+            description: "When the observation was fetched from the API"
+          - name: ingestion_date
+            description: "When record was loaded"
+
+      - name: bronze_grants_gov_opportunity
+        description: |
+          Grants.gov federal grant opportunities — one row per prospective
+          funding opportunity (open / forecasted) from the Grants.gov Search2
+          API. Landed by ingestion.grants_gov.bronze. DISTINCT from the 990
+          Schedule I `grant` mart (this is "what's open now", not "who got funded").
+        columns:
+          - name: opportunity_id
+            description: "Grants.gov opportunity id (primary key)."
+          - name: opportunity_number
+            description: "Funding-opportunity number, e.g. 'HRSA-24-019'."
+          - name: title
+            description: "Opportunity title."
+          - name: agency_code
+            description: "Issuing agency code, e.g. 'HHS-HRSA'."
+          - name: agency_name
+            description: "Issuing agency name."
+          - name: open_date
+            description: "Date the opportunity opens/was posted (DATE)."
+          - name: close_date
+            description: "Application close date (DATE)."
+          - name: opp_status
+            description: "Lifecycle status: forecasted | posted | closed | archived."
+          - name: doc_type
+            description: "Grants.gov document type (e.g. 'synopsis')."
+          - name: aln
+            description: "First Assistance Listing Number (formerly CFDA)."
+          - name: data_source
+            description: "Literal 'Grants.gov'."
+          - name: raw
+            description: "Full Search2 oppHits record as JSONB (raw fidelity)."
+          - name: ingestion_date
+            description: "When record was loaded."
+
       - name: bronze_jurisdictions_zcta
         description: "Census ZCTA centroids and area — 33,791 ZIP Code Tabulation Areas"
         columns:

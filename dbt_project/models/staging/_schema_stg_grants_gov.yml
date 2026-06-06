@@ -1,0 +1,86 @@
+version: 2
+
+models:
+  - name: stg_grants_gov__opportunity
+    description: |
+      Staging for Grants.gov federal grant opportunities — one row per
+      opportunity (prospective federal funding open / forecasted for
+      application) from the Grants.gov Search2 API.
+
+      Source: bronze.bronze_grants_gov_opportunity, landed by
+      packages/ingestion/src/ingestion/grants_gov/bronze.py.
+
+      DISTINCT ENTITY: opportunities to apply for ("what's open now"), NOT the
+      historical IRS 990 Schedule I grants in the `grant` mart. Keep separate.
+
+      Keying: `opportunity_id` is the natural/primary key. `open_date` /
+      `close_date` are real DATE columns; `is_open` is a derived flag for
+      opportunities whose close_date has not passed. `raw` carries the full
+      Search2 oppHits record as JSONB.
+
+    config:
+      contract:
+        enforced: true
+      materialized: view
+
+    columns:
+      - name: opportunity_id
+        description: "Grants.gov opportunity id. Primary key."
+        data_type: varchar(32)
+        constraints:
+          - type: not_null
+        tests:
+          - unique
+          - not_null
+
+      - name: opportunity_number
+        description: "Funding-opportunity number (e.g. 'HRSA-24-019')."
+        data_type: varchar(255)
+      - name: title
+        description: "Opportunity title."
+        data_type: text
+
+      - name: agency_code
+        description: "Issuing agency code (e.g. 'HHS-HRSA')."
+        data_type: varchar(64)
+      - name: agency_name
+        description: "Issuing agency name."
+        data_type: text
+
+      - name: open_date
+        description: "Date the opportunity was posted/opens (real DATE)."
+        data_type: date
+      - name: close_date
+        description: "Application close date (real DATE)."
+        data_type: date
+      - name: opp_status
+        description: "Lifecycle status: forecasted | posted | closed | archived."
+        data_type: varchar(32)
+      - name: doc_type
+        description: "Grants.gov document type (e.g. 'synopsis', 'forecast')."
+        data_type: varchar(64)
+
+      - name: aln
+        description: "First Assistance Listing Number (formerly CFDA); full list in raw."
+        data_type: varchar(32)
+
+      - name: is_open
+        description: "True when close_date is null or has not yet passed (as of build)."
+        data_type: boolean
+
+      - name: data_source
+        description: "Literal 'Grants.gov'."
+        data_type: varchar(64)
+      - name: raw
+        description: "Full Search2 oppHits record kept for raw fidelity."
+        data_type: jsonb
+
+      - name: source_ingested_at
+        description: "Timestamp from the bronze loader (ingestion_date)."
+        data_type: timestamp
+      - name: dbt_loaded_at
+        description: "Timestamp this staging model was materialized."
+        # current_timestamp returns timestamptz in Postgres; contract must match.
+        data_type: timestamp with time zone
+        constraints:
+          - type: not_null
