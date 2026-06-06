@@ -91,7 +91,7 @@ scraped as (
     from {{ ref('stg_scraped__official') }}
 ),
 
-unioned as (
+unioned_raw as (
     select id, full_name, title, jurisdiction, state_code, state,
            party, district, office, email, phone, photo_url, is_current
     from openstates
@@ -99,6 +99,27 @@ unioned as (
     select id, full_name, title, jurisdiction, state_code, state,
            party, district, office, email, phone, photo_url, is_current
     from scraped
+),
+
+-- Curated/scraped headshot overrides for officials whose source carries no image
+-- (e.g. mayors — their photo is on a city department page, not in OpenStates).
+-- Matched on name + state and coalesced, so it patches the existing row without
+-- adding one. See seed official_photo_override.
+photo_override as (
+    select lower(trim(full_name)) as full_name_key, state_code, photo_url
+    from {{ ref('official_photo_override') }}
+),
+
+unioned as (
+    select
+        u.id, u.full_name, u.title, u.jurisdiction, u.state_code, u.state,
+        u.party, u.district, u.office, u.email, u.phone,
+        coalesce(u.photo_url, po.photo_url)                   as photo_url,
+        u.is_current
+    from unioned_raw u
+    left join photo_override po
+        on po.full_name_key = lower(trim(u.full_name))
+       and po.state_code = u.state_code
 )
 
 -- Resolve the jurisdiction's official website for LOCAL leaders only

@@ -18,7 +18,7 @@
  *   # options: EDITOR_URL (default http://localhost:9000), RENDER_TIMEOUT_MS
  */
 import { createRequire } from 'node:module';
-import { existsSync, readdirSync, statSync, mkdirSync } from 'node:fs';
+import { existsSync, readdirSync, statSync, mkdirSync, symlinkSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -38,15 +38,34 @@ const mp4s = () =>
 
 (async () => {
   if (!existsSync(OUT)) mkdirSync(OUT, { recursive: true });
+
+  // The ffmpeg exporter feeds sound paths to ffmpeg as "audio/<f>.wav" (it
+  // strips the leading "/" of the served URL), resolved relative to the project
+  // CWD — but the WAVs live in public/audio. Without ./audio, ffmpeg exits 254
+  // ("No such file or directory") and the render aborts. Make ./audio resolve.
+  const audioLink = join(ROOT, 'audio');
+  if (!existsSync(audioLink)) {
+    try { symlinkSync('public/audio', audioLink); console.log('[render] linked ./audio -> public/audio'); }
+    catch (e) { console.log('[render] WARN could not create ./audio symlink:', e.message); }
+  }
+
   const before = new Set(mp4s().map((m) => m.f));
 
   console.log('[render] launching headless chromium');
   const browser = await chromium.launch({
     headless: true,
     args: ['--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage',
-           '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
+           '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader',
+           // CRITICAL for headless render: Chrome throttles/pauses the rAF render
+           // loop when the page is considered hidden/backgrounded, so canvas-commons
+           // captures 0 frames and ffmpeg writes an empty MP4. Keep it running.
+           '--disable-background-timer-throttling',
+           '--disable-backgrounding-occluded-windows',
+           '--disable-renderer-backgrounding',
+           '--autoplay-policy=no-user-gesture-required'],
   });
   const page = await browser.newPage();
+  await page.bringToFront().catch(() => {});
   page.on('pageerror', (e) => console.log('[page-error]', e.message.slice(0, 160)));
   page.on('console', (m) => {
     const t = m.text();
@@ -94,7 +113,9 @@ const mp4s = () =>
     if (fresh.length) {
       const newest = fresh.sort((a, b) => b.mtimeMs - a.mtimeMs)[0];
       target = newest.f;
-      if (last !== null && newest.size === last && newest.size > 0) {
+      // Require a non-trivial size: a 0-frame render writes a ~48-byte empty
+      // container, which must NOT count as success.
+      if (last !== null && newest.size === last && newest.size > 100_000) {
         if (!stableSince) stableSince = Date.now();
         if (Date.now() - stableSince > 6000) {
           console.log(`[render] DONE -> output/${newest.f} (${(newest.size / 1e6).toFixed(1)} MB)`);

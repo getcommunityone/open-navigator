@@ -1,11 +1,13 @@
 """Unit tests for the municipal council roster scraper (no network)."""
 
+from scrapers.municipal import council_roster
 from scrapers.municipal.council_roster import (
     CONFIGS,
     CURATED_ROSTERS,
     CouncilMember,
     get_council,
     parse_council_html,
+    scrape_official_photos,
 )
 
 
@@ -108,6 +110,27 @@ def test_parse_council_html_pairs_name_and_district():
 def test_parse_council_html_empty_when_no_roster():
     cfg = CONFIGS["tuscaloosa"]
     assert parse_council_html("<html><body><p>No council here</p></body></html>", cfg) == []
+
+
+def test_scrape_official_photos_handles_mayor_title_and_relative_src(monkeypatch):
+    # The mayor's-office layout: alt="A headshot of Mayor <Name> smiling." with a
+    # clean title="<Name>", and a relative src that must be made absolute.
+    html = """
+    <html><body>
+      <img src="/sites/default/files/img/wu-headshot-square.png?itok=abc"
+           alt="A headshot of Mayor Michelle Wu smiling." title="Michelle Wu" />
+      <img src="/sites/default/files/img/burke-headshot.jpg" alt="Fire Commissioner Paul F. Burke" />
+      <img src="/logo.svg" alt="city logo" />
+    </body></html>
+    """
+    monkeypatch.setattr(council_roster, "fetch_html", lambda url, **kw: html)
+    photos = scrape_official_photos("https://www.boston.gov/departments/mayors-office")
+    # Mayor matched via title; src resolved to absolute. Non-headshot logo ignored.
+    assert photos["michelle wu"] == (
+        "https://www.boston.gov/sites/default/files/img/wu-headshot-square.png?itok=abc"
+    )
+    assert "city logo" not in photos
+    assert "paul f. burke" not in photos  # no "headshot" in alt -> skipped
 
 
 def test_curated_rosters_are_council_members():

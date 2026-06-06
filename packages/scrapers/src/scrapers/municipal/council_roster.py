@@ -163,7 +163,7 @@ class _TextHarvester(HTMLParser):
         super().__init__()
         self._skip_depth = 0
         self.chunks: list[str] = []
-        self.images: list[tuple[str, str]] = []  # (alt, src)
+        self.images: list[tuple[str, str, str]] = []  # (alt, src, title)
 
     def handle_starttag(self, tag, attrs):  # noqa: D102
         if tag in self._SKIP:
@@ -175,8 +175,9 @@ class _TextHarvester(HTMLParser):
             a = dict(attrs)
             src = (a.get("src") or "").strip()
             alt = (a.get("alt") or "").strip()
-            if src and alt:
-                self.images.append((alt, src))
+            title = (a.get("title") or "").strip()
+            if src and (alt or title):
+                self.images.append((alt, src, title))
 
     def handle_endtag(self, tag):  # noqa: D102
         if tag in self._SKIP and self._skip_depth:
@@ -202,11 +203,55 @@ def _headshots_by_name(harv: _TextHarvester, base_url: str) -> dict[str, str]:
     to recover the name and resolve the (often relative) src against the page URL.
     """
     out: dict[str, str] = {}
-    for alt, src in harv.images:
+    for alt, src, _title in harv.images:
         name = re.sub(r"\s+headshot$", "", alt, flags=re.IGNORECASE).strip()
         key = _name_key(name)
         if key and key not in out:
             out[key] = urljoin(base_url, src)
+    return out
+
+
+# Mayors / executives whose photo isn't on the council page and whom OpenStates
+# carries with no image. Their headshots live on a department page; scraping it
+# lets us overlay a photo onto the existing contact_official row (matched by
+# name, so we never duplicate the OpenStates official).
+OFFICIAL_PHOTO_SOURCES: dict[str, list[str]] = {
+    "boston": ["https://www.boston.gov/departments/mayors-office"],
+}
+
+# alt text like "A headshot of Mayor Michelle Wu smiling." -> the bare name.
+_HEADSHOT_OF_RE = re.compile(
+    r"headshot of\s+(?:mayor|councilor|councill?or|councilman|councilwoman|"
+    r"commissioner|chief|president|director)?\s*(.+?)(?:\s+smiling)?\.?$",
+    re.IGNORECASE,
+)
+
+
+def scrape_official_photos(url: str) -> dict[str, str]:
+    """Scrape ``name -> absolute headshot URL`` from an arbitrary department page.
+
+    Handles the two headshot labellings city sites use: ``alt="<Name> headshot"``
+    and ``alt="A headshot of <Title> <Name> ..." title="<Name>"`` (the mayor's
+    office page). Prefers the clean ``title`` attribute for the name.
+    """
+    harv = _TextHarvester()
+    harv.feed(fetch_html(url))
+    out: dict[str, str] = {}
+    for alt, src, title in harv.images:
+        if "headshot" not in alt.lower() and "headshot" not in title.lower():
+            continue
+        name = ""
+        if title and "headshot" in alt.lower():
+            name = title.strip()
+        if not name:
+            m = _HEADSHOT_OF_RE.search(alt)
+            if m:
+                name = m.group(1)
+            else:
+                name = re.sub(r"\s*headshot.*$", "", alt, flags=re.IGNORECASE)
+        key = _name_key(name)
+        if key and key not in out:
+            out[key] = urljoin(url, src)
     return out
 
 
