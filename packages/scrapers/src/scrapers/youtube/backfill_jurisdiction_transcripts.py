@@ -659,14 +659,13 @@ def write_transcript_tombstone(
         cur.execute(
             """
             INSERT INTO bronze.bronze_event_youtube_transcript (
-                event_id, video_id, raw_text, segments, language,
+                video_id, raw_text, segments, language,
                 is_auto_generated, transcript_source, has_transcript, transcript_quality
             ) VALUES (
-                %(event_id)s, %(video_id)s, NULL, NULL, NULL,
+                %(video_id)s, NULL, NULL, NULL,
                 false, %(transcript_source)s, false, 'none'
             )
             ON CONFLICT (video_id) DO UPDATE SET
-                event_id = COALESCE(EXCLUDED.event_id, bronze.bronze_event_youtube_transcript.event_id),
                 raw_text = NULL,
                 segments = NULL,
                 language = NULL,
@@ -1442,10 +1441,10 @@ def run(args: argparse.Namespace) -> int:
                         cur.execute(
                             """
                             INSERT INTO bronze.bronze_event_youtube_transcript (
-                                event_id, video_id, raw_text, segments, language,
+                                video_id, raw_text, segments, language,
                                 is_auto_generated, transcript_source, has_transcript, transcript_quality
                             ) VALUES (
-                                %(event_id)s, %(video_id)s, %(raw_text)s, %(segments)s::jsonb, %(language)s,
+                                %(video_id)s, %(raw_text)s, %(segments)s::jsonb, %(language)s,
                                 %(is_auto_generated)s, %(transcript_source)s, true, %(transcript_quality)s
                             )
                             ON CONFLICT (video_id) DO UPDATE SET

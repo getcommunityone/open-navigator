@@ -1365,17 +1365,23 @@ sources:
           route: one row per video_id that carries a transcript block), linked
           by video_id. transcript_quality is the only light flag set at load
           time (high vs auto-generated medium); no NLP/derivation.
+          Migration 108 dropped the denormalized meeting/video metadata that was
+          duplicated from bronze_event_youtube (event_id, geo, event_date,
+          meeting_type, title, video_url, vid_title, vid_desc, vid_length_min,
+          vid_upload_date, vid_views, vid_likes, channel_id/url/type). Read those
+          fields by joining bronze_event_youtube on video_id instead — the
+          stg_bronze_event_youtube_transcript view does this.
         columns:
           - name: id
             description: "Primary key"
-          - name: event_id
-            description: "Foreign key to event"
           - name: video_id
-            description: "YouTube video ID (unique)"
+            description: "YouTube video ID (unique); join key to bronze_event_youtube"
           - name: raw_text
             description: "Full transcript as plain text"
           - name: segments
             description: "JSONB structured transcript with timestamps"
+          - name: caption_text_timed
+            description: "Timestamped caption text"
           - name: language
             description: "Transcript language (e.g., 'en', 'es')"
           - name: is_auto_generated
@@ -1384,48 +1390,26 @@ sources:
             description: "Source: youtube_api, whisper_ai, etc."
           - name: ai_model
             description: "AI model used for extraction"
+          - name: ai_extraction_version
+            description: "AI extraction pipeline version"
           - name: has_transcript
             description: "TRUE if transcript available"
           - name: transcript_quality
             description: "Quality rating: high, medium, low"
-          - name: event_date
-            description: "Meeting date (backfilled from LocalView, migration 098)"
-          - name: meeting_type
-            description: "Meeting type/body (from LocalView)"
-          - name: title
-            description: "Meeting title (from LocalView)"
-          - name: video_url
-            description: "Source video URL (from LocalView)"
           - name: place_govt
-            description: "Governing place name (from LocalView)"
+            description: "Governing place name (transcript-specific; not on bronze_event_youtube)"
           - name: channel_title
-            description: "YouTube channel title (from LocalView)"
-          - name: vid_title
-            description: "YouTube video title (from LocalView)"
-          - name: vid_desc
-            description: "YouTube video description (from LocalView)"
-          - name: vid_length_min
-            description: "Video length in minutes (from LocalView)"
-          - name: vid_upload_date
-            description: "Video upload timestamp (from LocalView)"
+            description: "YouTube channel title (transcript-specific; not on bronze_event_youtube)"
           - name: vid_livestreamed
-            description: "TRUE if the video was livestreamed (from LocalView)"
-          - name: vid_views
-            description: "Video view count (from LocalView)"
-          - name: vid_likes
-            description: "Video like count (from LocalView)"
+            description: "TRUE if the video was livestreamed (transcript-specific)"
           - name: vid_dislikes
-            description: "Video dislike count (from LocalView)"
+            description: "Video dislike count (transcript-specific; not on bronze_event_youtube)"
           - name: vid_comments
-            description: "Video comment count (from LocalView)"
-          - name: channel_type
-            description: "Channel type/classification (from LocalView)"
-          - name: channel_id
-            description: "YouTube channel id (from bronze_events_channels by channel_title)"
-          - name: channel_url
-            description: "YouTube channel URL (from bronze_events_channels by channel_title)"
+            description: "Video comment count (transcript-specific; not on bronze_event_youtube)"
           - name: created_at
             description: "When transcript was created"
+          - name: last_updated
+            description: "When transcript row was last updated"
 
       - name: bronze_persons_scraped
         description: |

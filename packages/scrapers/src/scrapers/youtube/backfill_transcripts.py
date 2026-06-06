@@ -537,31 +537,24 @@ def backfill_transcripts(
                     else:
                         transcript_data['segments'] = None
 
-                    # Geo (state_code, state, jurisdiction_id, jurisdiction_name) is
-                    # written here from the event mart. The sync_text_ai_geo_from_youtube
-                    # trigger still overrides it with the YouTube catalog's canonical
-                    # geo when a matching youtube row exists, but no longer clobbers
-                    # these with NULL for LocalView-only videos (see migration 087).
+                    # event_id and geo (state_code/state/jurisdiction_id/
+                    # jurisdiction_name) are no longer stored on the transcript row;
+                    # they are read from bronze_event_youtube by joining on video_id
+                    # (migration 108 dropped the redundant copies + the geo-sync trigger).
                     insert_query = """
                         INSERT INTO bronze.bronze_event_youtube_transcript (
-                            event_id, video_id, raw_text, segments, language,
-                            is_auto_generated, transcript_source,
-                            state_code, state, jurisdiction_id, jurisdiction_name
+                            video_id, raw_text, segments, language,
+                            is_auto_generated, transcript_source
                         ) VALUES (
-                            %(event_id)s, %(video_id)s, %(raw_text)s, %(segments)s::jsonb, %(language)s,
-                            %(is_auto_generated)s, %(transcript_source)s,
-                            %(state_code)s, %(state)s, %(jurisdiction_id)s, %(jurisdiction_name)s
+                            %(video_id)s, %(raw_text)s, %(segments)s::jsonb, %(language)s,
+                            %(is_auto_generated)s, %(transcript_source)s
                         )
                         ON CONFLICT (video_id) DO UPDATE SET
                             raw_text = EXCLUDED.raw_text,
                             segments = EXCLUDED.segments,
                             language = EXCLUDED.language,
                             is_auto_generated = EXCLUDED.is_auto_generated,
-                            transcript_source = EXCLUDED.transcript_source,
-                            state_code = COALESCE(bronze.bronze_event_youtube_transcript.state_code, EXCLUDED.state_code),
-                            state = COALESCE(bronze.bronze_event_youtube_transcript.state, EXCLUDED.state),
-                            jurisdiction_id = COALESCE(bronze.bronze_event_youtube_transcript.jurisdiction_id, EXCLUDED.jurisdiction_id),
-                            jurisdiction_name = COALESCE(bronze.bronze_event_youtube_transcript.jurisdiction_name, EXCLUDED.jurisdiction_name)
+                            transcript_source = EXCLUDED.transcript_source
                     """
                     
                     cursor.execute(insert_query, transcript_data)

@@ -453,7 +453,6 @@ class YouTubeEventsLoader:
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS bronze.bronze_event_youtube_transcript (
                     id SERIAL PRIMARY KEY,
-                    event_id INTEGER,
                     video_id VARCHAR(64) NOT NULL,
                     raw_text TEXT,
                     segments JSONB,
@@ -471,12 +470,7 @@ class YouTubeEventsLoader:
             
             # Create indexes
             cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_bronze_event_youtube_transcript_event_id 
-                ON bronze.bronze_event_youtube_transcript(event_id);
-            """)
-            
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_bronze_event_youtube_transcript_video_id 
+                CREATE INDEX IF NOT EXISTS idx_bronze_event_youtube_transcript_video_id
                 ON bronze.bronze_event_youtube_transcript(video_id);
             """)
             
@@ -2475,10 +2469,10 @@ class YouTubeEventsLoader:
         
         insert_query = """
             INSERT INTO bronze.bronze_event_youtube_transcript (
-                event_id, video_id, raw_text, segments, language, 
+                video_id, raw_text, segments, language,
                 is_auto_generated, transcript_source, has_transcript, transcript_quality
             ) VALUES (
-                %(event_id)s, %(video_id)s, %(raw_text)s, %(segments)s::jsonb, %(language)s,
+                %(video_id)s, %(raw_text)s, %(segments)s::jsonb, %(language)s,
                 %(is_auto_generated)s, %(transcript_source)s, %(has_transcript)s, %(transcript_quality)s
             )
             ON CONFLICT (video_id) DO UPDATE SET

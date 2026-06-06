@@ -17,48 +17,51 @@ Target: Intermediate models for text analysis and search
 
 SELECT
     -- Primary key
-    id AS bronze_transcript_id,
+    t.id AS bronze_transcript_id,
     
-    -- Event linking
-    event_id,
-    TRIM(video_id) AS video_id,
+    -- Event linking (event_id now sourced from the youtube catalog via video_id;
+    -- migration 108 dropped the redundant copy from the transcript table)
+    y.event_id,
+    TRIM(t.video_id) AS video_id,
     
     -- Transcript data (cleaned)
-    NULLIF(TRIM(raw_text), '') AS raw_text,
-    segments,  -- Keep JSONB as-is
-    
-    -- Metadata
-    LOWER(TRIM(language)) AS language,
-    is_auto_generated,
-    LOWER(TRIM(transcript_source)) AS transcript_source,
-    
-    -- AI extraction metadata
-    NULLIF(TRIM(ai_model), '') AS ai_model,
-    NULLIF(TRIM(ai_extraction_version), '') AS ai_extraction_version,
-    
-    -- Quality metrics
-    has_transcript,
-    LOWER(TRIM(transcript_quality)) AS transcript_quality,
+    NULLIF(TRIM(t.raw_text), '') AS raw_text,
+    t.segments,  -- Keep JSONB as-is
 
-    -- LocalView meeting / video metadata (backfilled by migration 098)
-    event_date,
-    NULLIF(TRIM(meeting_type), '')   AS meeting_type,
-    NULLIF(TRIM(title), '')          AS title,
-    NULLIF(TRIM(video_url), '')      AS video_url,
-    NULLIF(TRIM(place_govt), '')     AS place_govt,
-    NULLIF(TRIM(channel_title), '')  AS channel_title,
-    NULLIF(TRIM(vid_title), '')      AS vid_title,
-    NULLIF(TRIM(vid_desc), '')       AS vid_desc,
-    vid_length_min,
-    vid_upload_date,
-    vid_livestreamed,
-    vid_views,
-    vid_likes,
-    vid_dislikes,
-    vid_comments,
-    NULLIF(TRIM(channel_type), '')   AS channel_type,
-    NULLIF(TRIM(channel_id), '')     AS channel_id,
-    NULLIF(TRIM(channel_url), '')    AS channel_url,
+    -- Metadata
+    LOWER(TRIM(t.language)) AS language,
+    t.is_auto_generated,
+    LOWER(TRIM(t.transcript_source)) AS transcript_source,
+
+    -- AI extraction metadata
+    NULLIF(TRIM(t.ai_model), '') AS ai_model,
+    NULLIF(TRIM(t.ai_extraction_version), '') AS ai_extraction_version,
+
+    -- Quality metrics
+    t.has_transcript,
+    LOWER(TRIM(t.transcript_quality)) AS transcript_quality,
+
+    -- LocalView meeting / video metadata.
+    -- These were redundant copies and are now read from bronze_event_youtube
+    -- via the video_id join (migration 108 dropped them from the transcript table).
+    y.event_date,
+    NULLIF(TRIM(y.meeting_type), '')   AS meeting_type,
+    NULLIF(TRIM(y.title), '')          AS title,
+    NULLIF(TRIM(y.video_url), '')      AS video_url,
+    NULLIF(TRIM(t.place_govt), '')     AS place_govt,
+    NULLIF(TRIM(t.channel_title), '')  AS channel_title,
+    NULLIF(TRIM(y.title), '')          AS vid_title,
+    NULLIF(TRIM(y.description), '')    AS vid_desc,
+    y.duration_minutes AS vid_length_min,
+    y.published_at     AS vid_upload_date,
+    t.vid_livestreamed,
+    y.view_count       AS vid_views,
+    y.like_count       AS vid_likes,
+    t.vid_dislikes,
+    t.vid_comments,
+    NULLIF(TRIM(y.channel_type), '')   AS channel_type,
+    NULLIF(TRIM(y.channel_id), '')     AS channel_id,
+    NULLIF(TRIM(y.channel_url), '')    AS channel_url,
 
     -- Calculate transcript length
     LENGTH(raw_text) AS transcript_length,
@@ -87,16 +90,20 @@ SELECT
     END AS missing_segments,
     
     -- Timestamps
-    created_at,
-    last_updated
+    t.created_at,
+    t.last_updated
 
-FROM {{ source('bronze', 'bronze_event_youtube_transcript') }}
+FROM {{ source('bronze', 'bronze_event_youtube_transcript') }} t
+-- Recover the meeting/video metadata that used to be denormalized onto the
+-- transcript row (dropped by migration 108) from the canonical youtube catalog.
+LEFT JOIN {{ source('bronze', 'bronze_event_youtube') }} y
+    ON y.video_id = t.video_id
 
 -- Basic quality filter: must have video_id and some transcript data
-WHERE 
-    video_id IS NOT NULL 
-    AND TRIM(video_id) != ''
+WHERE
+    t.video_id IS NOT NULL
+    AND TRIM(t.video_id) != ''
     AND (
-        raw_text IS NOT NULL 
-        OR segments IS NOT NULL
+        t.raw_text IS NOT NULL
+        OR t.segments IS NOT NULL
     )

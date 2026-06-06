@@ -293,7 +293,6 @@ _CREATE_TEXT_AI_TABLE_SQL = text(
     """
     CREATE TABLE IF NOT EXISTS bronze.bronze_event_youtube_transcript (
         id                    SERIAL PRIMARY KEY,
-        event_id              INTEGER,
         video_id              VARCHAR(20) NOT NULL,
         raw_text              TEXT,
         segments              JSONB,
@@ -315,7 +314,6 @@ _CREATE_INDEXES_SQL = (
     text("CREATE INDEX IF NOT EXISTS idx_bey_channel_id      ON bronze.bronze_event_youtube(channel_id)"),
     text("CREATE INDEX IF NOT EXISTS idx_bey_state_code      ON bronze.bronze_event_youtube(state_code)"),
     text("CREATE UNIQUE INDEX IF NOT EXISTS idx_betai_video_id_unique ON bronze.bronze_event_youtube_transcript(video_id)"),
-    text("CREATE INDEX IF NOT EXISTS idx_betai_event_id      ON bronze.bronze_event_youtube_transcript(event_id)"),
 )
 
 _TRUNCATE_YOUTUBE_SQL = text("TRUNCATE TABLE bronze.bronze_event_youtube")
@@ -362,10 +360,10 @@ _UPSERT_YOUTUBE_SQL = text(
 _UPSERT_TEXT_AI_SQL = text(
     """
     INSERT INTO bronze.bronze_event_youtube_transcript (
-        event_id, video_id, raw_text, segments, language,
+        video_id, raw_text, segments, language,
         is_auto_generated, transcript_source, has_transcript, transcript_quality
     ) VALUES (
-        :event_id, :video_id, :raw_text, CAST(:segments AS jsonb), :language,
+        :video_id, :raw_text, CAST(:segments AS jsonb), :language,
         :is_auto_generated, :transcript_source, :has_transcript, :transcript_quality
     )
     ON CONFLICT (video_id) DO UPDATE SET
