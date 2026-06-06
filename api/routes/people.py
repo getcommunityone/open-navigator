@@ -37,6 +37,18 @@ class PersonOrganization(BaseModel):
     compensation: Optional[float] = None
 
 
+class PersonColleague(BaseModel):
+    """A peer official in the same jurisdiction (government person subtype only).
+
+    Powers the "Other officials in {jurisdiction}" cross-navigation on the detail
+    page — each links to that peer's own /person/{person_uid}.
+    """
+    person_uid: str
+    name: str
+    title: Optional[str] = None
+    photo_url: Optional[str] = None
+
+
 class PersonDetail(BaseModel):
     """A single person, keyed by their unique person_uid."""
     person_uid: str
@@ -58,6 +70,10 @@ class PersonDetail(BaseModel):
     # mayor" page). None for MDM persons and officials with no bio.
     biography: Optional[str] = None
     organizations: List[PersonOrganization] = Field(default_factory=list)
+    # Peer officials in the same jurisdiction (officials only; empty for MDM
+    # persons and for officials with no resolved jurisdiction_id). Drives the
+    # "Other officials in {jurisdiction}" cross-navigation.
+    colleagues: List[PersonColleague] = Field(default_factory=list)
 
 
 # Single person row by the true unique PK (person_uid). No DISTINCT ON needed —
@@ -122,17 +138,37 @@ _OFFICIAL_SQL = """
         o.state_code,
         o.website_url,
         o.photo_url,
+        o.jurisdiction_id,
         to_jsonb(o) ->> 'biography' AS biography
     FROM person_government o
     WHERE o.person_id = $1
 """
 
+# Peer officials sharing the clicked official's jurisdiction (same jurisdiction_id),
+# excluding the official themselves. Backs the "Other officials in {jurisdiction}"
+# cross-navigation. jurisdiction_id is indexed on person_government; current
+# officials first, then a stable name order. Capped so a large council/legislature
+# does not balloon the detail payload.
+_COLLEAGUES_SQL = """
+    SELECT
+        o.person_id,
+        o.full_name,
+        o.title,
+        o.photo_url
+    FROM person_government o
+    WHERE o.jurisdiction_id = $1
+      AND o.person_id <> $2
+    ORDER BY o.is_current DESC, o.full_name
+    LIMIT 24
+"""
 
-def _official_to_detail(row) -> PersonDetail:
+
+def _official_to_detail(row, colleagues: List[PersonColleague]) -> PersonDetail:
     """Map a person_government (official subtype) row onto the shared PersonDetail.
 
     The official's office (title + jurisdiction/office) is surfaced as the
     single organization entry so the existing detail UI renders it unchanged.
+    colleagues are the peer officials in the same jurisdiction (may be empty).
     """
     # Prefer the jurisdiction (e.g. "Tuscaloosa Government") over the coarse
     # office code (e.g. "government") for the org affiliation display.
@@ -157,6 +193,7 @@ def _official_to_detail(row) -> PersonDetail:
         photo_url=row["photo_url"],
         biography=row["biography"],
         organizations=organizations,
+        colleagues=colleagues,
     )
 
 
@@ -182,9 +219,32 @@ async def get_person(person_uid: str) -> PersonDetail:
                     with tracer.start_as_current_span("person-detail.query-official"):
                         official_row = await conn.fetchrow(_OFFICIAL_SQL, person_uid)
                     if official_row is not None:
+                        # Peer officials in the same jurisdiction (cross-nav).
+                        # Only when the official resolved to a jurisdiction_id.
+                        colleagues: List[PersonColleague] = []
+                        jurisdiction_id = official_row["jurisdiction_id"]
+                        if jurisdiction_id:
+                            with tracer.start_as_current_span(
+                                "person-detail.query-colleagues"
+                            ):
+                                colleague_rows = await conn.fetch(
+                                    _COLLEAGUES_SQL,
+                                    jurisdiction_id,
+                                    official_row["person_id"],
+                                )
+                            colleagues = [
+                                PersonColleague(
+                                    person_uid=r["person_id"],
+                                    name=r["full_name"] or "Unknown",
+                                    title=r["title"],
+                                    photo_url=r["photo_url"],
+                                )
+                                for r in colleague_rows
+                            ]
                         span.set_attribute("person.found", True)
                         span.set_attribute("person.source", "person_government")
-                        return _official_to_detail(official_row)
+                        span.set_attribute("person.colleague_count", len(colleagues))
+                        return _official_to_detail(official_row, colleagues)
 
                     span.set_attribute("person.found", False)
                     raise HTTPException(

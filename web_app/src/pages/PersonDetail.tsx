@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate, useLocation } from 'react-router-dom'
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
 import api from '../lib/api'
 import {
   ArrowLeftIcon,
@@ -9,6 +9,7 @@ import {
   BuildingOffice2Icon,
   GlobeAltIcon,
   DocumentTextIcon,
+  UserGroupIcon,
 } from '@heroicons/react/24/outline'
 
 interface PersonOrganization {
@@ -16,6 +17,13 @@ interface PersonOrganization {
   organization: string | null
   master_org_id: string | null
   compensation: number | null
+}
+
+interface PersonColleague {
+  person_uid: string
+  name: string
+  title: string | null
+  photo_url: string | null
 }
 
 interface Person {
@@ -29,6 +37,7 @@ interface Person {
   photo_url: string | null
   biography: string | null
   organizations: PersonOrganization[]
+  colleagues: PersonColleague[]
 }
 
 const usd = new Intl.NumberFormat('en-US', {
@@ -274,6 +283,54 @@ export default function PersonDetail() {
             </div>
           )}
         </div>
+
+        {/* Other officials in the same jurisdiction (officials only) — cross-nav
+            to each peer's own detail page. */}
+        {person.colleagues.length > 0 && (
+          <div className="bg-white rounded-lg shadow-sm p-6 mt-6">
+            <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <UserGroupIcon className="h-5 w-5" />
+              Other officials{person.city ? ` in ${person.city}` : ''}
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {person.colleagues.map((c) => (
+                <Link
+                  key={c.person_uid}
+                  to={`/person/${encodeURIComponent(c.person_uid)}`}
+                  className="flex items-center gap-3 border border-gray-100 rounded-lg p-3 hover:shadow-sm hover:border-blue-200 transition-all"
+                >
+                  {c.photo_url ? (
+                    <img
+                      src={c.photo_url}
+                      alt={c.name}
+                      className="h-10 w-10 rounded-full object-cover bg-gray-100 flex-shrink-0"
+                      onError={(e) => {
+                        ;(e.currentTarget as HTMLImageElement).style.display = 'none'
+                        const fallback = e.currentTarget
+                          .nextElementSibling as HTMLElement | null
+                        if (fallback) fallback.style.display = 'flex'
+                      }}
+                    />
+                  ) : null}
+                  <div
+                    className="h-10 w-10 rounded-full bg-blue-100 text-blue-700 text-sm font-semibold items-center justify-center flex-shrink-0"
+                    style={{ display: c.photo_url ? 'none' : 'flex' }}
+                  >
+                    {c.name.charAt(0)}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-gray-900 truncate">
+                      {c.name}
+                    </div>
+                    {c.title && (
+                      <div className="text-xs text-gray-500 truncate">{c.title}</div>
+                    )}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
