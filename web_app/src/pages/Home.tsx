@@ -20,7 +20,6 @@ import {
   CheckCircleIcon,
   MapIcon,
   MapPinIcon,
-  ArrowTrendingUpIcon,
   Bars3Icon,
   XMarkIcon,
   UserCircleIcon,
@@ -42,6 +41,7 @@ import {
 } from '../data/exploreActionPhases'
 import { useAuth } from '../contexts/AuthContext'
 import AddressLookup from '../components/AddressLookup'
+import StoryLenses from '../components/StoryLenses'
 import HeroStateSilhouetteBadge from '../components/HeroStateSilhouetteBadge'
 import { useLocation as useLocationContext, type LocationData } from '../contexts/LocationContext'
 import { formatCommunityPlaceLine } from '../utils/communityLocationLabel'
@@ -183,18 +183,6 @@ const HERO_SEARCH_TAB_DEFS: {
     types: 'persons,organizations',
     filterPlaceholder: 'Filter donors by name…',
   },
-]
-
-// Shown under the hero bar in the idle state when the live trending query
-// returns nothing (e.g. an empty local warehouse) so the row still reads as
-// designed. Real trending causes from /trending take precedence when present.
-const FALLBACK_TRENDING: { name: string }[] = [
-  { name: 'school board budget' },
-  { name: 'rezoning' },
-  { name: 'police oversight board' },
-  { name: 'water utility rates' },
-  { name: 'short-term rentals' },
-  { name: 'transit funding' },
 ]
 
 function formatCompactCount(n: number | undefined): string | undefined {
@@ -350,110 +338,6 @@ export default function Home() {
     }
     return cat.count
   }
-
-  // Fetch trending causes from database (replaces hardcoded TRENDING_TOPICS)
-  const { data: trendingData } = useQuery({
-    queryKey: ['trending-causes'],
-    queryFn: async () => {
-      const response = await api.get('/trending', {
-        params: {
-          source: 'mixed',  // Mix of everyorg and ntee causes
-          limit: 12
-        }
-      })
-      return response.data
-    },
-    staleTime: 5 * 60 * 1000,  // Cache for 5 minutes
-  })
-
-  // Fetch REAL trending topics (legislative bill subjects) from
-  // rpt_bill_map_aggregate, scoped to the user's state when known. This is the
-  // canonical "what's trending" source; it takes precedence over nonprofit causes
-  // and the static fallback for the trending pills.
-  const { data: trendingTopicsData } = useQuery({
-    queryKey: ['trending-topics', location?.state],
-    queryFn: async () => {
-      const response = await api.get('/trending/topics', {
-        params: { state: location?.state || undefined, limit: 12 },
-      })
-      return response.data as { topics?: { name: string; bill_count?: number; recent_bill_count?: number }[] }
-    },
-    staleTime: 5 * 60 * 1000,
-  })
-
-  // Helper function to map cause names to icons
-  const getCauseIcon = (causeName: string): string => {
-    const iconMap: Record<string, string> = {
-      'Education': '📚',
-      'Education and Workforce': '📚',
-      'Health': '🏥',
-      'Healthcare': '🏥',
-      'Environment': '🌍',
-      'Environmental Protection': '🌍',
-      'Environmental and Natural Resources': '🌍',
-      'Climate': '🌍',
-      'Housing': '🏠',
-      'Housing and Community Amenities': '🏠',
-      'Public Safety': '🚨',
-      'Public Safety and Emergency Services': '🚨',
-      'Public Order and Safety': '🚨',
-      'Economic Affairs': '💼',
-      'Economic Development and Business': '💼',
-      'Social Protection': '🤝',
-      'Recreation': '🎨',
-      'Recreation, Culture, and Religion': '🎨',
-      'General Public Services': '🏛️',
-      'Governance and Administrative Policy': '🏛️',
-      'Infrastructure and Capital Projects': '🏗️',
-      'Fiscal and Budget Management': '💰',
-      'Public Engagement and Communications': '📣',
-      'Zoning and Land Use': '🏘️',
-      'Defense': '🛡️',
-      'Transportation': '🚗'
-    }
-    return iconMap[causeName] || '📋'
-  }
-
-  // Use location-specific trending causes if available, fallback to global trending
-  const trendingTopics = React.useMemo(() => {
-    // Prefer REAL trending topics (legislative bill subjects) from
-    // rpt_bill_map_aggregate — what's actually trending in the selected geography.
-    const billTopics = trendingTopicsData?.topics || []
-    if (billTopics.length > 0) {
-      homeLog('📊 [Home] Using real trending bill topics:', billTopics)
-      return billTopics.slice(0, 12).map((t) => ({
-        name: t.name,
-        icon: getCauseIcon(t.name),
-        category: 'primary',
-        description: `${t.recent_bill_count ?? t.bill_count ?? 0} recent bills`,
-        popularity_rank: undefined,
-      }))
-    }
-
-    // If we have location stats with trending causes, use those
-    if (locationStats?.trending_causes && Array.isArray(locationStats.trending_causes)) {
-      homeLog('📊 [Home] Using location-specific trending causes:', locationStats.trending_causes)
-      
-      // Transform the database trending_causes to match TrendingCause interface
-      // Filter out causes with no decisions
-      return locationStats.trending_causes
-        .filter((cause: any) => (cause.decision_count || 0) > 0)
-        .slice(0, 12)
-        .map((cause: any) => ({
-          name: cause.cause || cause.name,
-          icon: getCauseIcon(cause.cause || cause.name),
-          category: 'primary',
-          description: `${cause.decision_count || 0} recent decisions`,
-          popularity_rank: cause.rank
-        }))
-    }
-    
-    // Otherwise use global trending causes from API
-    // Also filter these to only show causes with decision counts
-    homeLog('📊 [Home] Using global trending causes from API')
-    const globalCauses = trendingData?.causes || []
-    return globalCauses.filter((cause: any) => (cause.decision_count || 0) > 0)
-  }, [locationStats, trendingData, trendingTopicsData])
 
   const activeHeroTab = React.useMemo(
     () => HERO_SEARCH_TAB_DEFS.find((t) => t.id === heroSearchTab) ?? HERO_SEARCH_TAB_DEFS[0],
@@ -1842,44 +1726,12 @@ export default function Home() {
                             trimmed.length > 0 ? 'query' : heroSearchTab === 'all' ? 'idle' : 'browse'
 
                           if (intent === 'idle') {
-                            const heroTrending =
-                              trendingTopics && trendingTopics.length > 0
-                                ? trendingTopics
-                                : FALLBACK_TRENDING
                             return (
-                              <div className="mt-4 flex items-center gap-3 text-left">
-                                <span className="hidden shrink-0 items-center gap-1.5 text-[#9bb8b8] sm:inline-flex">
-                                  <ArrowTrendingUpIcon className="h-4 w-4" style={{ color: '#e0723a' }} aria-hidden />
-                                  Trending
-                                </span>
-                                <div className="relative min-w-0 flex-1">
-                                  <div className="scrollbar-hide flex items-center gap-2 overflow-x-auto py-0.5">
-                                    {heroTrending.slice(0, 8).map((t: { name: string }) => (
-                                      <button
-                                        key={t.name}
-                                        type="button"
-                                        onClick={() => setKeyword(t.name)}
-                                        className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-[#d4e8e8] bg-white px-3 py-1.5 text-sm font-medium text-[#4a6a6a] transition-colors hover:border-[#1a6b6b]/45 hover:text-[#0f2b2b]"
-                                        style={{ fontFamily: "'DM Sans', sans-serif" }}
-                                      >
-                                        {t.name}
-                                      </button>
-                                    ))}
-                                  </div>
-                                  {/* edge fade masks */}
-                                  <div className="pointer-events-none absolute inset-y-0 left-0 w-6 bg-gradient-to-r from-white to-transparent" />
-                                  <div className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-white to-transparent" />
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => navigate('/search?types=topics')}
-                                  className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-[#1a6b6b] underline-offset-2 transition-colors hover:underline"
-                                  style={{ fontFamily: "'DM Sans', sans-serif" }}
-                                >
-                                  Browse topics
-                                  <ChevronDownIcon className="h-4 w-4 -rotate-90" aria-hidden />
-                                </button>
-                              </div>
+                              <StoryLenses
+                                locationLabel={location?.city || location?.county || undefined}
+                                onSearch={(q) => setKeyword(q)}
+                                onBrowseTopics={() => navigate('/search?types=topics')}
+                              />
                             )
                           }
 
