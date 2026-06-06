@@ -416,8 +416,12 @@ async def search_persons_pg(
         # mdm_bridge_person_organization_officer_uid_idx.
         lateral = """
             LEFT JOIN LATERAL (
-                SELECT org_name, master_org_id, title, reportable_comp_org
+                SELECT b.org_name, b.master_org_id, b.title, b.reportable_comp_org,
+                       n.ein, n.ntee_description, n.ntee_code,
+                       n.gt990_total_revenue, n.gt990_total_assets, n.gt990_source_url
                 FROM mdm_bridge_person_organization b
+                LEFT JOIN mdm_organization_nonprofit n
+                    ON n.master_org_id = b.master_org_id
                 WHERE b.officer_person_uid = d.source_pk
                 ORDER BY tax_year DESC NULLS LAST, reportable_comp_org DESC NULLS LAST
                 LIMIT 1
@@ -430,7 +434,9 @@ async def search_persons_pg(
             # ILIKE fill the cap fast); we then dedup+rank only those. Selective
             # queries ("john bowyer" -> 3 rows) never hit the cap.
             sql = f"""
-                SELECT d.*, o.org_name, o.master_org_id, o.title, o.reportable_comp_org
+                SELECT d.*, o.org_name, o.master_org_id, o.title, o.reportable_comp_org,
+                       o.ein, o.ntee_description, o.ntee_code,
+                       o.gt990_total_revenue, o.gt990_total_assets, o.gt990_source_url
                 FROM (
                     SELECT * FROM (
                         SELECT DISTINCT ON (p.master_person_id)
@@ -462,7 +468,9 @@ async def search_persons_pg(
             # people. Browse is unranked, so capping only affects *which* arbitrary page
             # of people shows, not correctness.
             sql = f"""
-                SELECT d.*, o.org_name, o.master_org_id, o.title, o.reportable_comp_org
+                SELECT d.*, o.org_name, o.master_org_id, o.title, o.reportable_comp_org,
+                       o.ein, o.ntee_description, o.ntee_code,
+                       o.gt990_total_revenue, o.gt990_total_assets, o.gt990_source_url
                 FROM (
                     SELECT DISTINCT ON (p.master_person_id)
                         {base_select}
@@ -520,6 +528,12 @@ async def search_persons_pg(
                         'compensation': row['reportable_comp_org'],
                         'email': row['email'],
                         'phone': row['phone'],
+                        'ein': row['ein'],
+                        'cause': row['ntee_description'],
+                        'ntee_code': row['ntee_code'],
+                        'total_revenue': float(row['gt990_total_revenue']) if row['gt990_total_revenue'] is not None else None,
+                        'total_assets': float(row['gt990_total_assets']) if row['gt990_total_assets'] is not None else None,
+                        'filing_url': row['gt990_source_url'],
                     }
                 ))
 
@@ -2126,5 +2140,142 @@ async def search_grants_pg(
         return []
     except Exception as e:
         logger.error(f"PostgreSQL grants search error: {e}")
+        return []
+
+
+async def search_opportunities_pg(
+    query: Optional[str] = None,
+    state: Optional[str] = None,
+    city: Optional[str] = None,
+    jurisdiction_id: Optional[str] = None,
+    limit: int = 10,
+    offset: int = 0,
+) -> List[SearchResult]:
+    """
+    Search federal grant OPPORTUNITIES, backed by the public.grant_opportunity
+    mart (Grants.gov Search2 — prospective funding open / forecasted for
+    application).
+
+    DISTINCT from search_grants_pg: that searches the 990 Schedule I `grant` mart
+    ("who got funded"); this searches open opportunities ("what's available now")
+    and returns result_type='opportunity'.
+
+    public.grant_opportunity has no FTS / tsvector column, so the query is matched
+    with ILIKE against title, agency_name, and opportunity_number.
+
+    Location: opportunities carry no resolved org/jurisdiction geography yet, so
+    `state` / `city` / `jurisdiction_id` are accepted for signature parity with
+    the other search functions but do not filter results (federal opportunities
+    are national). When geography enrichment lands, scope here.
+
+    Ordering: still-open opportunities first (is_open DESC), then soonest
+    application deadline (close_date ASC), so a bare browse surfaces the most
+    actionable opportunities.
+
+    Returns:
+        List of SearchResult objects (result_type='opportunity'). The url is the
+        canonical public Grants.gov detail page (external_url).
+    """
+    try:
+        pool = await get_db_pool()
+
+        where_clauses = []
+        params: list = []
+        param_idx = 1
+
+        has_query = bool(query and query.strip())
+        if has_query:
+            q = query.strip()
+            where_clauses.append(f"""(
+                title ILIKE ${param_idx}
+                OR agency_name ILIKE ${param_idx}
+                OR opportunity_number ILIKE ${param_idx}
+            )""")
+            params.append(f"%{q}%")
+            param_idx += 1
+
+        where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
+
+        sql = f"""
+            SELECT
+                opportunity_id,
+                opportunity_number,
+                title,
+                agency_code,
+                agency_name,
+                open_date,
+                close_date,
+                opp_status,
+                aln,
+                is_open,
+                external_url
+            FROM grant_opportunity
+            WHERE {where_sql}
+            ORDER BY is_open DESC, close_date ASC NULLS LAST
+            LIMIT ${param_idx} OFFSET ${param_idx + 1}
+        """
+        params.append(limit)
+        params.append(offset)
+
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(sql, *params)
+
+            results = []
+            for row in rows:
+                title = row['title'] or row['opportunity_number'] or 'Grant opportunity'
+
+                agency = row['agency_name'] or row['agency_code'] or ''
+                # close_date is a real date -> ISO string at the JSON boundary.
+                close_date = row['close_date']
+                close_str = close_date.isoformat() if close_date else None
+                status = (row['opp_status'] or '').capitalize()
+
+                subtitle = " • ".join(
+                    p for p in (agency, status) if p
+                )
+
+                if close_str:
+                    deadline = (
+                        f"Closes {close_str}" if row['is_open']
+                        else f"Closed {close_str}"
+                    )
+                else:
+                    deadline = "No close date"
+                description = " • ".join(
+                    p for p in (row['opportunity_number'], deadline) if p
+                ) or 'Federal grant opportunity'
+
+                results.append(SearchResult(
+                    result_type='opportunity',
+                    title=title,
+                    subtitle=subtitle,
+                    description=description,
+                    # External Grants.gov detail page (no internal detail route).
+                    url=row['external_url'] or '',
+                    score=1.0,
+                    metadata={
+                        'opportunity_id': row['opportunity_id'],
+                        'opportunity_number': row['opportunity_number'],
+                        'agency_code': row['agency_code'],
+                        'agency_name': row['agency_name'],
+                        'open_date': row['open_date'].isoformat() if row['open_date'] else None,
+                        'close_date': close_str,
+                        'opp_status': row['opp_status'],
+                        'aln': row['aln'],
+                        'is_open': row['is_open'],
+                        'external_url': row['external_url'],
+                    }
+                ))
+
+            logger.info(f"🏛️ PostgreSQL opportunities search: {len(results)} results")
+            return results
+
+    except asyncpg.exceptions.UndefinedTableError as e:
+        # The grant_opportunity mart may be unbuilt in some envs — degrade
+        # gracefully instead of 500-ing the whole unified search.
+        logger.warning(f"public.grant_opportunity not found, skipping opportunities search: {e}")
+        return []
+    except Exception as e:
+        logger.error(f"PostgreSQL opportunities search error: {e}")
         return []
 

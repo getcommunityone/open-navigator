@@ -40,6 +40,17 @@ from api.routes.hf_search import (
 
 router = APIRouter(tags=["search"])
 
+# Per-type sub-search timeout (seconds). The unified search fans every requested
+# type out concurrently (asyncio.gather), so the combined response is only as fast
+# as its SLOWEST type. Every well-indexed type returns sub-second; a pathological
+# one (e.g. an un-capped ILIKE over public.grant) can take ~20s and, with no
+# ceiling, drags the whole homepage past the frontend's fetch-abort window so NO
+# category renders. Cap each sub-search: a slow type degrades to empty results for
+# that type (the dispatcher already treats a per-type failure as empty via
+# return_exceptions=True) instead of sinking the fast types. Override with
+# SEARCH_SUBSEARCH_TIMEOUT_S.
+SUBSEARCH_TIMEOUT_S = float(os.getenv("SEARCH_SUBSEARCH_TIMEOUT_S", "6.0"))
+
 # Detect deployment environment
 IS_HF_SPACES = os.getenv("HF_SPACES") == "1"
 HF_ORGANIZATION = os.getenv('HF_ORGANIZATION', 'CommunityOne')
@@ -593,7 +604,19 @@ async def _traced_subsearch(
         span.set_attribute("search.q.length", len(q.strip()) if q else 0)
         span.set_attribute("search.has_query", bool(q and q.strip()))
         span.set_attribute("search.has_state", bool(state))
-        outcome = await coro
+        # Bound each sub-search so one slow type can't sink the whole fan-out.
+        # On timeout we record it on the span and re-raise: the dispatcher's
+        # return_exceptions=True path then logs it and degrades this type to
+        # empty results, leaving the fast types intact.
+        try:
+            outcome = await asyncio.wait_for(coro, timeout=SUBSEARCH_TIMEOUT_S)
+        except asyncio.TimeoutError:
+            span.set_attribute("search.timed_out", True)
+            span.set_attribute("search.timeout_s", SUBSEARCH_TIMEOUT_S)
+            logger.warning(
+                f"⏱️ {label} search exceeded {SUBSEARCH_TIMEOUT_S}s — degrading to empty results"
+            )
+            raise
         # gather(return_exceptions=True) would swallow this, but here we await
         # directly so a failure is recorded on the span then re-raised for the
         # dispatcher's per-type error handling.
@@ -608,7 +631,7 @@ async def _traced_subsearch(
 @router.get("/search/", include_in_schema=False)
 async def unified_search(
     q: Optional[str] = Query(None, description="Search query (optional - browse by filters if omitted)"),
-    types: Optional[str] = Query(None, description="Comma-separated result types: leaders,persons,meetings,organizations,causes,jurisdictions,bills,topics,decisions,documents,grants. Legacy aliases accepted: 'contacts'/'officials' -> 'leaders', 'people'/'person' -> 'persons'"),
+    types: Optional[str] = Query(None, description="Comma-separated result types: leaders,persons,meetings,organizations,causes,jurisdictions,bills,topics,decisions,documents,grants,opportunities. Legacy aliases accepted: 'contacts'/'officials' -> 'leaders', 'people'/'person' -> 'persons'"),
     state: Optional[str] = Query(None, description="Filter by state (2-letter code)"),
     city: Optional[str] = Query(None, description="Filter by city name"),
     jurisdiction_id: Optional[str] = Query(None, description="Filter by exact jurisdiction_id (city, county, or state) — scopes orgs/persons/grants through the MDM jurisdiction bridges"),
@@ -673,7 +696,7 @@ async def unified_search(
                 if t.strip()
             ]
         else:
-            requested_types = ['leaders', 'persons', 'meetings', 'organizations', 'causes', 'jurisdictions', 'bills', 'topics', 'decisions', 'documents', 'grants']
+            requested_types = ['leaders', 'persons', 'meetings', 'organizations', 'causes', 'jurisdictions', 'bills', 'topics', 'decisions', 'documents', 'grants', 'opportunities']
         
         # Parse jurisdiction levels if provided
         jurisdiction_levels_list = None
@@ -736,6 +759,13 @@ async def unified_search(
             # (jurisdiction_id via the org bridge, else state/city direct).
             # Graceful no-op if the mart is unbuilt.
             search_tasks.append(('grants', search_postgres.search_grants_pg(q, state, city=city, jurisdiction_id=jurisdiction_id, limit=search_limit, offset=search_offset)))
+
+        if 'opportunities' in requested_types:
+            # Federal grant opportunities (public.grant_opportunity) — Grants.gov
+            # open/forecasted funding ("what's available now"), DISTINCT from the
+            # 990 'grants' bucket above. ILIKE over title/agency/number, ordered
+            # open-first then soonest deadline. Graceful no-op if the mart is unbuilt.
+            search_tasks.append(('opportunities', search_postgres.search_opportunities_pg(q, state, city=city, jurisdiction_id=jurisdiction_id, limit=search_limit, offset=search_offset)))
 
         if 'topics' in requested_types:
             search_tasks.append(('topics', search_postgres.search_topics_pg(q, state, ntee_code, limit=search_limit)))
@@ -819,9 +849,10 @@ async def unified_search(
             'jurisdictions': [r.to_dict() for r in paginated_results if r.result_type == 'jurisdiction'],
             'documents': [r.to_dict() for r in paginated_results if r.result_type == 'document'],
             'grants': [r.to_dict() for r in paginated_results if r.result_type == 'grant'],
+            'opportunities': [r.to_dict() for r in paginated_results if r.result_type == 'opportunity'],
         }
 
-        logger.info(f"📦 Grouped results - leaders:{len(grouped_results['leaders'])}, persons:{len(grouped_results['persons'])}, meetings:{len(grouped_results['meetings'])}, organizations:{len(grouped_results['organizations'])}, bills:{len(grouped_results['bills'])}, topics:{len(grouped_results['topics'])}, decisions:{len(grouped_results['decisions'])}, causes:{len(grouped_results['causes'])}, jurisdictions:{len(grouped_results['jurisdictions'])}, grants:{len(grouped_results['grants'])}")
+        logger.info(f"📦 Grouped results - leaders:{len(grouped_results['leaders'])}, persons:{len(grouped_results['persons'])}, meetings:{len(grouped_results['meetings'])}, organizations:{len(grouped_results['organizations'])}, bills:{len(grouped_results['bills'])}, topics:{len(grouped_results['topics'])}, decisions:{len(grouped_results['decisions'])}, causes:{len(grouped_results['causes'])}, jurisdictions:{len(grouped_results['jurisdictions'])}, grants:{len(grouped_results['grants'])}, opportunities:{len(grouped_results['opportunities'])}")
 
         # Calculate total results per type (from all_results before pagination).
         # leaders and persons each report their OWN total.
@@ -837,6 +868,7 @@ async def unified_search(
             'jurisdictions': len([r for r in all_results if r.result_type == 'jurisdiction']),
             'documents': len([r for r in all_results if r.result_type == 'document']),
             'grants': len([r for r in all_results if r.result_type == 'grant']),
+            'opportunities': len([r for r in all_results if r.result_type == 'opportunity']),
         }
         
         # Calculate total results.
@@ -856,7 +888,7 @@ async def unified_search(
         # where we have a COUNT, fetched-length estimate otherwise).
         #
         # REMAINING ESTIMATES: meetings, bills, topics, decisions, causes,
-        # jurisdictions, documents, and grants still report fetched-length totals
+        # jurisdictions, documents, grants, and opportunities still report fetched-length totals
         # (their type_totals can under-count a broad filtered search). Adding
         # COUNT helpers for those is a follow-up; scoped here to the high-traffic
         # leaders + persons (+ existing organizations) path.
