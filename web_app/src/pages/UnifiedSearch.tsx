@@ -20,7 +20,8 @@ import {
   DocumentTextIcon,
   ChatBubbleBottomCenterTextIcon,
   ScaleIcon,
-  BanknotesIcon
+  BanknotesIcon,
+  MegaphoneIcon
 } from '@heroicons/react/24/outline'
 import { formatCurrency } from '../utils/formatters'
 
@@ -34,6 +35,7 @@ type SearchResultType =
   | 'topic'
   | 'decision'
   | 'grant'
+  | 'opportunity'
 
 interface SearchResult {
   type: SearchResultType
@@ -62,6 +64,7 @@ interface SearchResponse {
     decisions: number
     jurisdictions: number
     grants?: number
+    opportunities?: number
   }
   results: {
     leaders?: SearchResult[]
@@ -74,6 +77,7 @@ interface SearchResponse {
     decisions: SearchResult[]
     jurisdictions?: SearchResult[]
     grants?: SearchResult[]
+    opportunities?: SearchResult[]
   }
   pagination: {
     page: number
@@ -98,6 +102,32 @@ function normalizeTypeAlias(t: string): string {
   return t
 }
 
+// Stable dot color for a cause/NTEE string (small palette, hashed by key).
+const CAUSE_DOT_PALETTE = [
+  '#2F5D62', // teal
+  '#3B82F6', // blue
+  '#8B5CF6', // violet
+  '#EC4899', // pink
+  '#F59E0B', // amber
+  '#10B981', // emerald
+  '#EF4444', // red
+  '#6366F1', // indigo
+]
+
+function causeDotColor(key: string): string {
+  let hash = 0
+  for (let i = 0; i < key.length; i++) {
+    hash = (hash * 31 + key.charCodeAt(i)) | 0
+  }
+  return CAUSE_DOT_PALETTE[Math.abs(hash) % CAUSE_DOT_PALETTE.length]
+}
+
+// Format a 9-digit IRS EIN as "XX-XXXXXXX"; leave anything else untouched.
+function formatEin(ein: string): string {
+  const digits = ein.replace(/\D/g, '')
+  return digits.length === 9 ? `${digits.slice(0, 2)}-${digits.slice(2)}` : ein
+}
+
 export default function UnifiedSearch() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -105,8 +135,20 @@ export default function UnifiedSearch() {
   // Navigate to a result's detail page, but only when it has a url. Results
   // without a stable detail key (url == null) are rendered non-clickable, so
   // this is a no-op for them instead of routing to a 404.
+  //
+  // Some result types (e.g. opportunities) carry an EXTERNAL url
+  // (https://www.grants.gov/...) that has no matching App.tsx route. Those must
+  // open in a new tab instead of being handed to react-router (which would 404).
+  const isExternalUrl = (url?: string | null): boolean =>
+    !!url && /^https?:\/\//i.test(url)
+
   const openResult = (url?: string | null) => {
-    if (url) navigate(url)
+    if (!url) return
+    if (isExternalUrl(url)) {
+      window.open(url, '_blank', 'noopener,noreferrer')
+    } else {
+      navigate(url)
+    }
   }
 
   // Initialize state directly from URL params (lazy initializer for performance)
@@ -117,7 +159,7 @@ export default function UnifiedSearch() {
     const typesParam = searchParams.get('types')
     if (typesParam) {
       const types = typesParam.split(',').map(t => t.trim()).map(normalizeTypeAlias).filter(t =>
-        ['leaders', 'persons', 'organizations', 'causes', 'meetings', 'bills', 'topics', 'decisions', 'grants'].includes(t)
+        ['leaders', 'persons', 'organizations', 'causes', 'meetings', 'bills', 'topics', 'decisions', 'grants', 'opportunities'].includes(t)
       )
       return types.length > 0 ? types : ['leaders', 'persons', 'organizations', 'causes', 'bills', 'topics']
     }
@@ -282,7 +324,7 @@ export default function UnifiedSearch() {
       
       const params: any = {
         q: debouncedQuery,
-        types: 'causes,leaders,persons,organizations,bills,topics,decisions',
+        types: 'meetings,decisions,causes,leaders,persons,organizations,bills,topics',
         limit: 3
       }
       
@@ -513,6 +555,11 @@ export default function UnifiedSearch() {
         return <ScaleIcon className="h-5 w-5" />
       case 'grant':
         return <BanknotesIcon className="h-5 w-5" />
+      // 'opportunities' normalizes to 'opportunitie' (trailing 's' stripped);
+      // match both the singular result type and the de-pluralized facet name.
+      case 'opportunity':
+      case 'opportunitie':
+        return <MegaphoneIcon className="h-5 w-5" />
       case 'jurisdiction':
         return <MapPinIcon className="h-5 w-5" />
       default:
@@ -543,6 +590,9 @@ export default function UnifiedSearch() {
         return 'bg-amber-100 text-amber-700 border-amber-200'
       case 'grant':
         return 'bg-emerald-100 text-emerald-700 border-emerald-200'
+      case 'opportunity':
+      case 'opportunitie':
+        return 'bg-rose-100 text-rose-700 border-rose-200'
       case 'jurisdiction':
         return 'bg-orange-100 text-orange-700 border-orange-200'
       default:
@@ -592,14 +642,31 @@ export default function UnifiedSearch() {
         <div className="flex-1">
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1">
-              <h3
-                onClick={() => openResult(result.url)}
-                className={`font-semibold text-gray-900 mb-1 ${
-                  result.url ? 'cursor-pointer hover:text-blue-600' : ''
-                }`}
-              >
-                {result.title}
-              </h3>
+              {/* External-url results (e.g. opportunities → grants.gov) render
+                  the title as a real anchor that opens in a new tab, since the
+                  url is not an internal App.tsx route. Internal results keep the
+                  click-to-route behavior via openResult(). */}
+              {isExternalUrl(result.url) ? (
+                <a
+                  href={result.url as string}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="font-semibold text-gray-900 mb-1 inline-flex items-center gap-1 cursor-pointer hover:text-blue-600"
+                >
+                  {result.title}
+                  <span aria-hidden="true" className="text-xs text-gray-400">↗</span>
+                </a>
+              ) : (
+                <h3
+                  onClick={() => openResult(result.url)}
+                  className={`font-semibold text-gray-900 mb-1 ${
+                    result.url ? 'cursor-pointer hover:text-blue-600' : ''
+                  }`}
+                >
+                  {result.title}
+                </h3>
+              )}
               <p className="text-sm text-gray-600 mb-2">{result.subtitle}</p>
             </div>
             
@@ -820,6 +887,55 @@ export default function UnifiedSearch() {
             </div>
           )}
 
+          {/* Opportunity-specific metadata badges (federal grant opportunities
+              from Grants.gov — distinct from historical 990 grantmaking above). */}
+          {resultType === 'opportunity' && result.metadata && (
+            <div className="mt-2 flex flex-wrap gap-2 text-xs">
+              {result.metadata.opp_status && (
+                <span
+                  className={`px-2 py-1 rounded ${
+                    result.metadata.is_open
+                      ? 'bg-green-100 text-green-700'
+                      : 'bg-gray-100 text-gray-700'
+                  }`}
+                >
+                  {result.metadata.is_open ? '🟢' : '⚪'} {String(result.metadata.opp_status).charAt(0).toUpperCase() + String(result.metadata.opp_status).slice(1)}
+                </span>
+              )}
+              {result.metadata.agency_name && (
+                <span className="px-2 py-1 bg-rose-100 text-rose-700 rounded">
+                  🏛️ {result.metadata.agency_name}
+                </span>
+              )}
+              {result.metadata.opportunity_number && (
+                <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded">
+                  #{result.metadata.opportunity_number}
+                </span>
+              )}
+              {result.metadata.close_date && (
+                <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded">
+                  📅 Closes {result.metadata.close_date}
+                </span>
+              )}
+              {result.metadata.aln && (
+                <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded">
+                  ALN {result.metadata.aln}
+                </span>
+              )}
+              {result.metadata.external_url && (
+                <a
+                  href={result.metadata.external_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="px-2 py-1 bg-gray-100 text-blue-600 hover:text-blue-800 hover:underline rounded inline-flex items-center gap-1"
+                >
+                  🔗 View on Grants.gov
+                </a>
+              )}
+            </div>
+          )}
+
           {/* Type badge */}
           <div className="mt-2">
             <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getTypeColor(resultType)}`}>
@@ -887,6 +1003,68 @@ export default function UnifiedSearch() {
                 {/* Results */}
                 {!isFetchingPreview && query === debouncedQuery && previewResults && previewResults.total_results > 0 && (
                   <>
+                {/* Meetings Section */}
+                {previewResults.results.meetings && previewResults.results.meetings.length > 0 && (
+                  <div className="border-b border-gray-200">
+                    <div className="px-4 py-2 bg-gray-50 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <CalendarIcon className="h-4 w-4 text-gray-500" />
+                        <span className="text-xs font-semibold text-gray-700 uppercase">Meetings</span>
+                      </div>
+                      <button
+                        onClick={() => handleViewAllCategory('meetings')}
+                        className="text-xs text-primary-600 hover:text-primary-700 font-medium"
+                      >
+                        View All
+                      </button>
+                    </div>
+                    {previewResults.results.meetings.slice(0, 3).map((result, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => openResult(result.url)}
+                        className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
+                      >
+                        <CalendarIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-gray-900 truncate">{result.title}</div>
+                          <div className="text-sm text-gray-600 truncate">{result.subtitle}</div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Decisions Section */}
+                {previewResults.results.decisions && previewResults.results.decisions.length > 0 && (
+                  <div className="border-b border-gray-200">
+                    <div className="px-4 py-2 bg-gray-50 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <ScaleIcon className="h-4 w-4 text-gray-500" />
+                        <span className="text-xs font-semibold text-gray-700 uppercase">Decisions</span>
+                      </div>
+                      <button
+                        onClick={() => handleViewAllCategory('decisions')}
+                        className="text-xs text-primary-600 hover:text-primary-700 font-medium"
+                      >
+                        View All
+                      </button>
+                    </div>
+                    {previewResults.results.decisions.slice(0, 3).map((result, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => openResult(result.url)}
+                        className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
+                      >
+                        <ScaleIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-gray-900 truncate">{result.title}</div>
+                          <div className="text-sm text-gray-600 truncate">{result.subtitle}</div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
                 {/* Causes Section */}
                 {previewResults.results.causes.length > 0 && (
                   <div className="border-b border-gray-200">
@@ -1107,39 +1285,6 @@ export default function UnifiedSearch() {
                   </div>
                 )}
 
-                {/* Decisions Section */}
-                {previewResults.results.decisions && previewResults.results.decisions.length > 0 && (
-                  <div className="border-b border-gray-200">
-                    <div className="px-4 py-2 bg-gray-50 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <ScaleIcon className="h-4 w-4 text-gray-500" />
-                        <span className="text-xs font-semibold text-gray-700 uppercase">Decisions</span>
-                      </div>
-                      {previewResults.results.decisions.length > 0 && (
-                        <button
-                          onClick={() => handleViewAllCategory('decisions')}
-                          className="text-xs text-primary-600 hover:text-primary-700 font-medium"
-                        >
-                          View All
-                        </button>
-                      )}
-                    </div>
-                    {previewResults.results.decisions.slice(0, 3).map((result, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => openResult(result.url)}
-                        className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
-                      >
-                        <ScaleIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-gray-900 truncate">{result.title}</div>
-                          <div className="text-sm text-gray-600 truncate">{result.subtitle}</div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-
                 {/* Footer with total results */}
                 <div className="px-4 py-2 bg-gray-50 text-center border-t border-gray-200">
                   <button
@@ -1193,6 +1338,7 @@ export default function UnifiedSearch() {
               { type: 'topics', label: 'Topics' },
               { type: 'decisions', label: 'Decisions' },
               { type: 'grants', label: 'Grants' },
+              { type: 'opportunities', label: 'Opportunities' },
             ] as const).map(({ type, label }) => (
               <button
                 key={type}
@@ -1701,13 +1847,135 @@ export default function UnifiedSearch() {
                   <div className="mb-8">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                       <UserIcon className="h-6 w-6 text-sky-600" />
-                      People ({searchResults.type_totals?.persons?.toLocaleString() || searchResults.results.persons.length})
+                      Nonprofit Leaders ({searchResults.type_totals?.persons?.toLocaleString() || searchResults.results.persons.length})
                     </h3>
-                    <div className="grid grid-cols-1 gap-4">
-                      {searchResults.results.persons.map((result, idx) => (
-                        <ResultCard key={idx} result={result} />
-                      ))}
-                    </div>
+                    {(() => {
+                      const persons = searchResults.results.persons
+                      // Max revenue across the currently-rendered list, for bar widths.
+                      const maxRevenue = persons.reduce((max, r) => {
+                        const v = Number(r.metadata?.total_revenue)
+                        return Number.isFinite(v) && v > max ? v : max
+                      }, 0)
+                      return (
+                        <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
+                          <table className="min-w-full divide-y divide-gray-200">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-4 py-3 w-12" />
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Leader</th>
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Organization</th>
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Cause</th>
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Revenue</th>
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Assets</th>
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Jurisdiction</th>
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">File</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200">
+                              {persons.map((result, idx) => {
+                                const m = result.metadata ?? {}
+                                const revenue = Number(m.total_revenue)
+                                const hasRevenue = Number.isFinite(revenue) && m.total_revenue != null
+                                const assets = Number(m.total_assets)
+                                const hasAssets = Number.isFinite(assets) && m.total_assets != null
+                                const barWidth = hasRevenue && maxRevenue > 0
+                                  ? Math.max(2, Math.round((revenue / maxRevenue) * 100))
+                                  : 0
+                                const cause = m.cause ?? null
+                                const dotColor = cause
+                                  ? causeDotColor(String(m.ntee_code ?? m.cause))
+                                  : null
+                                return (
+                                  <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                                    {/* Avatar */}
+                                    <td className="px-4 py-3">
+                                      <div
+                                        className="w-10 h-10 rounded-full flex items-center justify-center text-white text-base font-bold"
+                                        style={{ backgroundColor: '#2F5D62' }}
+                                      >
+                                        {result.title?.charAt(0) ?? '?'}
+                                      </div>
+                                    </td>
+                                    {/* Leader */}
+                                    <td className="px-4 py-3 align-top">
+                                      <div
+                                        onClick={() => openResult(result.url)}
+                                        className={`font-semibold text-gray-900 ${
+                                          result.url ? 'cursor-pointer hover:text-blue-600' : ''
+                                        }`}
+                                      >
+                                        {result.title}
+                                      </div>
+                                      <div className="text-xs text-gray-500 mt-0.5">
+                                        {m.title ?? 'Leader'}
+                                      </div>
+                                    </td>
+                                    {/* Organization */}
+                                    <td className="px-4 py-3 align-top">
+                                      <div className="text-sm text-gray-900">{m.organization ?? '—'}</div>
+                                      {m.ein && (
+                                        <div className="text-xs text-gray-500 mt-0.5">EIN {formatEin(String(m.ein))}</div>
+                                      )}
+                                    </td>
+                                    {/* Cause */}
+                                    <td className="px-4 py-3 align-top">
+                                      {cause ? (
+                                        <div className="flex items-center gap-2">
+                                          <span
+                                            className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                            style={{ backgroundColor: dotColor ?? '#9CA3AF' }}
+                                          />
+                                          <span className="text-sm text-gray-700">{cause}</span>
+                                        </div>
+                                      ) : null}
+                                    </td>
+                                    {/* Total Revenue */}
+                                    <td className="px-4 py-3 align-top">
+                                      {hasRevenue ? (
+                                        <div className="flex items-center gap-2 min-w-[120px]">
+                                          <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                            <div
+                                              className="h-full bg-sky-500 rounded-full"
+                                              style={{ width: `${barWidth}%` }}
+                                            />
+                                          </div>
+                                          <span className="text-xs text-gray-700 whitespace-nowrap">
+                                            {formatCurrency(revenue)}
+                                          </span>
+                                        </div>
+                                      ) : null}
+                                    </td>
+                                    {/* Assets */}
+                                    <td className="px-4 py-3 align-top text-sm text-gray-700 whitespace-nowrap">
+                                      {hasAssets ? formatCurrency(assets) : null}
+                                    </td>
+                                    {/* Jurisdiction */}
+                                    <td className="px-4 py-3 align-top">
+                                      {m.city && <div className="text-sm text-gray-900">{m.city}</div>}
+                                      {m.state && <div className="text-xs text-gray-500 mt-0.5">{m.state}</div>}
+                                    </td>
+                                    {/* File */}
+                                    <td className="px-4 py-3 align-top">
+                                      {m.filing_url ? (
+                                        <a
+                                          href={m.filing_url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-gray-400 hover:text-blue-600"
+                                          title="View 990 filing"
+                                        >
+                                          <DocumentTextIcon className="h-5 w-5" />
+                                        </a>
+                                      ) : null}
+                                    </td>
+                                  </tr>
+                                )
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )
+                    })()}
                   </div>
                 )}
 
@@ -1817,6 +2085,22 @@ export default function UnifiedSearch() {
                     </h3>
                     <div className="grid grid-cols-1 gap-4">
                       {searchResults.results.grants.map((result, idx) => (
+                        <ResultCard key={idx} result={result} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Grant Opportunities — open federal funding (Grants.gov).
+                    Distinct from historical 990 grantmaking ("Grants") above. */}
+                {selectedTypes.includes('opportunities') && searchResults.results?.opportunities && searchResults.results.opportunities.length > 0 && (
+                  <div className="mb-8">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                      <MegaphoneIcon className="h-6 w-6 text-rose-600" />
+                      Opportunities ({searchResults.type_totals?.opportunities?.toLocaleString() || searchResults.results.opportunities.length})
+                    </h3>
+                    <div className="grid grid-cols-1 gap-4">
+                      {searchResults.results.opportunities.map((result, idx) => (
                         <ResultCard key={idx} result={result} />
                       ))}
                     </div>

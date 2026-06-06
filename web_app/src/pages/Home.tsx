@@ -6,8 +6,9 @@ import api from '../lib/api'
 import { tracer } from '../instrumentation'
 import { homeLog } from '../utils/devLog'
 import { 
-  MagnifyingGlassIcon, 
-  DocumentTextIcon, 
+  MagnifyingGlassIcon,
+  CalendarIcon,
+  DocumentTextIcon,
   ChartBarIcon,
   BuildingLibraryIcon,
   ArrowRightIcon,
@@ -142,6 +143,7 @@ const FEATURED_STORIES = [
 
 type HeroSearchCategoryTab =
   | 'all'
+  | 'meetings'
   | 'leaders'
   | 'nonprofit_leaders'
   | 'persons'
@@ -162,14 +164,15 @@ const HERO_SEARCH_TAB_DEFS: {
   /* Shown in the input when this category is active (the box narrows a browsable list). */
   filterPlaceholder?: string
 }[] = [
-  { id: 'all', label: 'All', types: 'causes,leaders,organizations,bills,topics,decisions' },
+  { id: 'all', label: 'All', types: 'meetings,decisions,causes,leaders,organizations,bills,topics' },
+  { id: 'meetings', label: 'Meetings', types: 'meetings', activity: true, filterPlaceholder: 'Filter meetings by body or topic…' },
+  { id: 'decisions', label: 'Decisions', types: 'decisions', count: '169', activity: true, filterPlaceholder: 'Filter decisions by topic or body…' },
   { id: 'leaders', label: 'Leaders', types: 'leaders', count: '75K', filterPlaceholder: 'Filter leaders by name or office…' },
   // Nonprofit board members / officers — distinct from civic `leaders`. No
   // dedicated search type yet, so browsing drills into the person index.
   { id: 'nonprofit_leaders', label: 'Nonprofit leaders', types: 'persons', filterPlaceholder: 'Filter nonprofit board members by name…' },
   { id: 'persons', label: 'Persons', types: 'persons', filterPlaceholder: 'Filter people by name…' },
   { id: 'nonprofits', label: 'Nonprofits', types: 'organizations', count: '1.8M', filterPlaceholder: 'Filter nonprofits by name or cause…' },
-  { id: 'decisions', label: 'Decisions', types: 'decisions', count: '169', activity: true, filterPlaceholder: 'Filter decisions by topic or body…' },
   { id: 'causes', label: 'Causes', types: 'causes', count: '650+', filterPlaceholder: 'Filter causes by name…' },
   { id: 'bills', label: 'Bills', types: 'bills', filterPlaceholder: 'Filter bills by number or topic…' },
   { id: 'grants', label: 'Grants', types: 'grants', filterPlaceholder: 'Filter grants by organization or purpose…' },
@@ -1483,6 +1486,78 @@ export default function Home() {
                                       </div>
                                     )}
                                     
+                                    {/* Meetings Section */}
+                                    {previewResults.total_results > 0 && previewResults.results?.meetings?.length > 0 && (() => {
+                                      const filteredMeetings = filterResults(previewResults.results.meetings, keyword);
+                                      return filteredMeetings.length > 0 && (
+                                        <div className="border-b border-gray-200">
+                                          <div className="px-4 py-2 bg-gray-50 flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                              <CalendarIcon className="h-4 w-4 text-gray-500" />
+                                              <span className="text-xs font-semibold text-gray-700 uppercase">Meetings</span>
+                                            </div>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleViewAllCategory('meetings')}
+                                              className="text-xs text-[#354F52] hover:text-[#2e4346] font-medium"
+                                            >
+                                              View All
+                                            </button>
+                                          </div>
+                                          {filteredMeetings.slice(0, 3).map((result: any, idx: number) => (
+                                            <button
+                                              key={idx}
+                                              type="button"
+                                              onClick={() => handleSelectSuggestion(result.title)}
+                                              className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
+                                            >
+                                              <CalendarIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
+                                              <div className="flex-1 min-w-0">
+                                                <div className="font-medium text-gray-900 truncate">{highlightMatch(result.title, keyword)}</div>
+                                                <div className="text-sm text-gray-600 truncate">{highlightMatch(result.subtitle || result.description, keyword)}</div>
+                                              </div>
+                                            </button>
+                                          ))}
+                                        </div>
+                                      );
+                                    })()}
+
+                                    {/* Decisions Section */}
+                                    {previewResults.total_results > 0 && previewResults.results?.decisions?.length > 0 && (() => {
+                                      const filteredDecisions = filterResults(previewResults.results.decisions, keyword);
+                                      return filteredDecisions.length > 0 && (
+                                        <div className="border-b border-gray-200">
+                                          <div className="px-4 py-2 bg-gray-50 flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                              <ScaleIcon className="h-4 w-4 text-gray-500" />
+                                              <span className="text-xs font-semibold text-gray-700 uppercase">Decisions</span>
+                                            </div>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleViewAllCategory('decisions')}
+                                              className="text-xs text-[#354F52] hover:text-[#2e4346] font-medium"
+                                            >
+                                              View All
+                                            </button>
+                                          </div>
+                                          {filteredDecisions.slice(0, 3).map((result: any, idx: number) => (
+                                            <button
+                                              key={idx}
+                                              type="button"
+                                              onClick={() => handleSelectSuggestion(result.title)}
+                                              className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
+                                            >
+                                              <ScaleIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
+                                              <div className="flex-1 min-w-0">
+                                                <div className="font-medium text-gray-900 truncate">{highlightMatch(result.title, keyword)}</div>
+                                                <div className="text-sm text-gray-600 truncate">{highlightMatch(result.subtitle || result.description, keyword)}</div>
+                                              </div>
+                                            </button>
+                                          ))}
+                                        </div>
+                                      );
+                                    })()}
+
                                     {/* Causes Section */}
                                     {previewResults.total_results > 0 && previewResults.results?.causes?.length > 0 && (() => {
                                       const filteredCauses = filterResults(previewResults.results.causes, keyword);
@@ -1734,42 +1809,6 @@ export default function Home() {
                                               className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
                                             >
                                               <ChatBubbleBottomCenterTextIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
-                                              <div className="flex-1 min-w-0">
-                                                <div className="font-medium text-gray-900 truncate">{highlightMatch(result.title, keyword)}</div>
-                                                <div className="text-sm text-gray-600 truncate">{highlightMatch(result.subtitle || result.description, keyword)}</div>
-                                              </div>
-                                            </button>
-                                          ))}
-                                        </div>
-                                      );
-                                    })()}
-
-                                    {/* Decisions Section */}
-                                    {previewResults.total_results > 0 && previewResults.results?.decisions?.length > 0 && (() => {
-                                      const filteredDecisions = filterResults(previewResults.results.decisions, keyword);
-                                      return filteredDecisions.length > 0 && (
-                                        <div className="border-b border-gray-200">
-                                          <div className="px-4 py-2 bg-gray-50 flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                              <ScaleIcon className="h-4 w-4 text-gray-500" />
-                                              <span className="text-xs font-semibold text-gray-700 uppercase">Decisions</span>
-                                            </div>
-                                            <button
-                                              type="button"
-                                              onClick={() => handleViewAllCategory('decisions')}
-                                              className="text-xs text-[#354F52] hover:text-[#2e4346] font-medium"
-                                            >
-                                              View All
-                                            </button>
-                                          </div>
-                                          {filteredDecisions.slice(0, 3).map((result: any, idx: number) => (
-                                            <button
-                                              key={idx}
-                                              type="button"
-                                              onClick={() => handleSelectSuggestion(result.title)}
-                                              className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-start gap-3 transition-colors"
-                                            >
-                                              <ScaleIcon className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
                                               <div className="flex-1 min-w-0">
                                                 <div className="font-medium text-gray-900 truncate">{highlightMatch(result.title, keyword)}</div>
                                                 <div className="text-sm text-gray-600 truncate">{highlightMatch(result.subtitle || result.description, keyword)}</div>

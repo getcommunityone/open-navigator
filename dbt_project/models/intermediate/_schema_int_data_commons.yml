@@ -1,0 +1,101 @@
+version: 2
+
+models:
+  - name: int_jurisdictions__datacommons_enriched
+    description: |
+      Canonical jurisdictions (int_jurisdictions) LEFT JOINed to Google Data
+      Commons demographic enrichment (stg_data_commons__jurisdiction) on
+      fips_code. One row per jurisdiction_id; jurisdictions with no Data Commons
+      observation keep NULL metrics and has_datacommons = false. Resolves the
+      bronze loader's FIPS-only rows to full state / state_code / name identity.
+
+    config:
+      contract:
+        enforced: true
+      materialized: table
+
+    columns:
+      - name: jurisdiction_id
+        description: "Canonical jurisdiction id (from int_jurisdictions). Primary key."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - unique
+          - not_null
+      - name: fips_code
+        description: "Jurisdiction FIPS code (join key to Data Commons)."
+        data_type: text
+      - name: state_code
+        description: "2-letter state code."
+        data_type: text
+      - name: state
+        description: "Full state name."
+        data_type: text
+      - name: name
+        description: "Jurisdiction name."
+        data_type: text
+      - name: jurisdiction_type
+        description: "county / city / school_district / state."
+        data_type: text
+      - name: dcid
+        description: "Data Commons place id, e.g. 'geoId/01073' (NULL when unmatched)."
+        data_type: varchar(32)
+      - name: has_datacommons
+        description: "TRUE when a Data Commons observation was attached."
+        data_type: boolean
+        constraints:
+          - type: not_null
+
+      - name: population
+        description: "Total population (Count_Person)."
+        data_type: double precision
+      - name: population_male
+        data_type: double precision
+      - name: population_female
+        data_type: double precision
+      - name: median_age
+        data_type: double precision
+      - name: population_white
+        data_type: double precision
+      - name: population_black
+        data_type: double precision
+      - name: population_hispanic
+        data_type: double precision
+      - name: population_asian
+        data_type: double precision
+
+      - name: median_household_income
+        data_type: double precision
+      - name: unemployment_rate
+        data_type: double precision
+      - name: poverty_count
+        data_type: double precision
+      - name: median_earnings
+        data_type: double precision
+
+      - name: bachelors_or_higher
+        data_type: double precision
+      - name: hs_grad_or_higher
+        data_type: double precision
+
+      - name: insured_count
+        data_type: double precision
+      - name: uninsured_count
+        data_type: double precision
+
+      - name: median_home_price
+        data_type: double precision
+      - name: housing_units
+        data_type: double precision
+      - name: households
+        data_type: double precision
+
+      - name: source_retrieved_at
+        description: "When the Data Commons observation was fetched."
+        data_type: timestamp
+      - name: dbt_loaded_at
+        description: "Timestamp this model was materialized."
+        data_type: timestamp with time zone
+        constraints:
+          - type: not_null
