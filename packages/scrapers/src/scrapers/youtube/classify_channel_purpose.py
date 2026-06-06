@@ -262,7 +262,13 @@ def classify_channel(stats: ChannelStats) -> Verdict:
 
 
 def load_channel_stats(conn, *, sample_titles: int = 30) -> List[ChannelStats]:
-    """Aggregate per-channel signals from the served video mart."""
+    """Aggregate per-channel signals from the UNGATED bronze video table.
+
+    Reads ``bronze.bronze_event_youtube`` rather than the served mart so the
+    classifier keeps full visibility of every jurisdiction-stamped channel even
+    after the dbt gate has dropped a channel from the served feed (reading the
+    gated mart would make already-flagged channels invisible to re-runs).
+    """
     from psycopg2.extras import RealDictCursor
 
     out: List[ChannelStats] = []
@@ -281,7 +287,7 @@ def load_channel_stats(conn, *, sample_titles: int = 30) -> List[ChannelStats]:
                     y.title ORDER BY y.view_count DESC NULLS LAST
                 ))[1:%(n)s] AS sample_titles,
                 MAX(bc.channel_title) AS channel_title
-            FROM public.event_youtube_with_jurisdiction y
+            FROM bronze.bronze_event_youtube y
             LEFT JOIN bronze.bronze_events_channels bc
                    ON bc.channel_id = y.channel_id
             WHERE y.channel_id IS NOT NULL AND y.channel_id <> ''
@@ -307,13 +313,13 @@ def load_channel_stats(conn, *, sample_titles: int = 30) -> List[ChannelStats]:
 
 
 def load_seed_channels(conn) -> set[str]:
-    """Channel ids already carrying a curated ``method='seed'`` verdict."""
+    """Channel ids carrying a curated seed verdict (``seed`` / ``manual_seed``)."""
     with conn.cursor() as cur:
         cur.execute(
             """
             SELECT channel_id
             FROM bronze.bronze_youtube_channel_classification
-            WHERE classification_method = 'seed'
+            WHERE classification_method LIKE '%%seed%%'
             """
         )
         return {r[0] for r in cur.fetchall()}
@@ -361,11 +367,13 @@ def write_back(
                 confidence           = EXCLUDED.confidence,
                 classified_at        = now()
             WHERE bronze_youtube_channel_classification.classification_method
-                  <> 'seed'
+                  NOT LIKE '%%seed%%'
             """,
             rows,
         )
-        stats["written"] = cur.rowcount
+        # execute_values reports only the last page's rowcount; count eligible
+        # rows for an accurate written total instead.
+        stats["written"] = len(rows)
 
     if dry_run:
         conn.rollback()
