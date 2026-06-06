@@ -1846,16 +1846,25 @@ export default function Home() {
 
                           if (intent === 'browse') {
                             const countBadge = heroCategoryCount(activeHeroTab)
+                            // Build the same scoped browse URL a no-query submit would,
+                            // so the count acts as a drill-down into the full list.
+                            const browseParams = new URLSearchParams()
+                            if (heroSearchTab !== 'all') browseParams.set('types', heroSearchTypes)
+                            applyLocationScope(browseParams)
+                            const browseUrl = `/search?${browseParams.toString()}`
                             return (
                               <p
                                 className="mt-3 text-sm text-[#6b8a8a]"
                                 style={{ fontFamily: "'DM Sans', sans-serif" }}
                               >
                                 Browsing{' '}
-                                <span className="font-semibold text-[#0f2b2b]">
+                                <Link
+                                  to={browseUrl}
+                                  className="font-semibold text-[#0f2b2b] underline decoration-[#1a6b6b]/40 underline-offset-2 transition-colors hover:text-[#1a6b6b] hover:decoration-[#1a6b6b]"
+                                >
                                   {countBadge ? `all ${countBadge} ` : 'all '}
                                   {activeHeroTab.label.toLowerCase()}
-                                </span>{' '}
+                                </Link>{' '}
                                 in <span className="font-semibold text-[#1a6b6b]">{scopeLabel}</span>
                                 {' — start typing to filter'}
                               </p>
