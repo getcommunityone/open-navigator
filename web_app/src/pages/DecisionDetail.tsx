@@ -198,6 +198,12 @@ function ViewColumn({
   const tint = isPrev ? '#e7f2ef' : '#fdeee7'
   const kicker = isPrev ? 'THE PREVAILING VIEW' : 'THE OTHER SIDE'
   const label = typeof view?.view_label === 'string' ? view.view_label : null
+  // Who argued this side (populated by the extraction's `held_by` person_ids).
+  const heldBy = Array.isArray(view?.held_by)
+    ? (view.held_by as unknown[])
+        .filter((p): p is string => typeof p === 'string' && p.trim().length > 0)
+        .map(parseSpeaker)
+    : []
 
   const rows = VIEW_SUBFIELDS.map(({ key, label: l, hint, emphasize }) => {
     const v = view?.[key]
@@ -237,6 +243,17 @@ function ViewColumn({
         <h3 className="mt-3 text-[19px] font-semibold leading-tight text-[#16201d] sm:text-[22px]" style={CV_SERIF}>
           {label}
         </h3>
+      )}
+      {heldBy.length > 0 && (
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-[#9bb8b8]">Argued by</span>
+          {heldBy.map((sp, i) => (
+            <span key={i} className="inline-flex items-center gap-1.5">
+              <Avatar speaker={sp} size={26} />
+              <span className="text-[12.5px] font-medium text-[#16201d]">{sp.name}</span>
+            </span>
+          ))}
+        </div>
       )}
       {rows.length > 0 && <div className="mt-3">{rows}</div>}
     </div>

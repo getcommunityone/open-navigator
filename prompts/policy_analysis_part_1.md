@@ -123,7 +123,7 @@ Keep `human_element` / diagrams / `evidence_metrics` **off** `uncontested_items[
  
 **No redundancy across blocks (CRITICAL for usability):** `smart_brevity`, `competing_views`, `human_element`, and `evidence_metrics` are shown as separate panels and must each add new information — do **not** restate the same sentence in more than one. Keep them in their lanes:
 - `smart_brevity` = the *what/so-what* for a resident (outcome, stakes, numbers, next step).
-- `competing_views` = the *reasoning* — each side's problem diagnosis → causal story → remedy. Do not repeat the outcome or the numbers here.
+- `competing_views` = the *reasoning* — each side's problem diagnosis → causal story → remedy. Do not repeat the outcome or the numbers here. Populate each view's `held_by` with the `people[].person_id` values of those who advanced it (so the UI can show who took each side); use an empty array when the side was argued by the public generally or no individual is identifiable. Every `held_by` id MUST resolve to a `people[]` entry.
 - `human_element` = the *people* — who felt what, anecdotes, tone. Do not repeat the policy substance here.
 - `evidence_metrics` = the *numbers-as-evidence* — each cited figure, who used it, which side it backs, and whether it was rebutted. Do not restate `by_the_numbers` here; that's a display digest, this is the argument graph.
 Each `smart_brevity` field is one tight sentence (≤25 words); `by_the_numbers` is concrete figures only (votes, dollars, distances, dates), not prose. Set a field to `null` rather than padding it with a rephrasing of another field.
