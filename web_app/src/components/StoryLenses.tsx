@@ -173,6 +173,8 @@ interface ApiActivity {
   icon: string
   value: string
   label: string
+  /** Search term the tile drills into; falls back to one derived from the label. */
+  query?: string
 }
 interface LensesResponse {
   lenses: ApiLens[]
@@ -199,12 +201,24 @@ function relFromDate(dateStr?: string): string {
   return rel(days)
 }
 
-const DEMO_ACTIVITY: { em: string; v: string; l: string; bg: string }[] = [
-  { em: '\u{1F525}', v: '3', l: 'contested votes this week', bg: '#fdeeeb' },
-  { em: '\u{1F4B2}', v: '$2.3M', l: 'in new spending approved', bg: '#e7f2ef' },
-  { em: '\u{1F441}\u{FE0F}', v: '124', l: 'public comments submitted', bg: '#efebfb' },
-  { em: '⚠️', v: '2', l: 'major projects proposed', bg: '#fbf3e2' },
+const DEMO_ACTIVITY: { em: string; v: string; l: string; bg: string; q: string }[] = [
+  { em: '\u{1F525}', v: '3', l: 'contested votes this week', bg: '#fdeeeb', q: 'contested' },
+  { em: '\u{1F4B2}', v: '$2.3M', l: 'in new spending approved', bg: '#e7f2ef', q: 'budget' },
+  { em: '\u{1F441}\u{FE0F}', v: '124', l: 'public comments submitted', bg: '#efebfb', q: 'public comment' },
+  { em: '⚠️', v: '2', l: 'major projects proposed', bg: '#fbf3e2', q: 'projects' },
 ]
+
+// Map an activity-tile label to a search term when the API doesn't supply one.
+function activitySearchQuery(label: string): string {
+  const l = label.toLowerCase()
+  if (l.includes('contested')) return 'contested'
+  if (l.includes('spending') || l.includes('budget')) return 'budget'
+  if (l.includes('comment')) return 'public comment'
+  if (l.includes('project')) return 'projects'
+  if (l.includes('vote') || l.includes('upcoming')) return 'upcoming vote'
+  if (l.includes('decision')) return 'decisions'
+  return label.replace(/^in\s+/i, '').trim()
+}
 
 interface StoryLensesProps {
   /** Short place label for headings, e.g. "Northport". */
@@ -480,7 +494,13 @@ export default function StoryLenses({ locationLabel, stateCode, city, onSearch, 
 
   const activityTiles = useDemo
     ? DEMO_ACTIVITY
-    : (data?.activity ?? []).map((a, i) => ({ em: a.icon, v: a.value, l: a.label, bg: ACTIVITY_BG[i % ACTIVITY_BG.length] }))
+    : (data?.activity ?? []).map((a, i) => ({
+        em: a.icon,
+        v: a.value,
+        l: a.label,
+        bg: ACTIVITY_BG[i % ACTIVITY_BG.length],
+        q: a.query || activitySearchQuery(a.label),
+      }))
 
   // Only a card with a real url is a drilldown; url-less cards (e.g. a flag whose
   // spend maps to no decision) are not faked into a link.
@@ -580,7 +600,14 @@ export default function StoryLenses({ locationLabel, stateCode, city, onSearch, 
       </div>
       <div className="mb-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {activityTiles.map((s) => (
-          <div key={s.l} className="flex items-center gap-3 rounded-2xl border border-[#e1ebe7] bg-white px-4 py-3.5">
+          <button
+            key={s.l}
+            type="button"
+            onClick={() => onSearch?.(s.q)}
+            title={`Search ${s.q}`}
+            aria-label={`${s.v} ${s.l} — search ${s.q}`}
+            className="group flex items-center gap-3 rounded-2xl border border-[#e1ebe7] bg-white px-4 py-3.5 text-left transition-all hover:-translate-y-0.5 hover:border-[#cfe0db] hover:shadow-[0_2px_4px_rgba(20,40,35,.06),0_10px_24px_rgba(20,40,35,.08)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1a6b6b]/40"
+          >
             <span
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[19px]"
               style={{ background: s.bg }}
@@ -591,9 +618,9 @@ export default function StoryLenses({ locationLabel, stateCode, city, onSearch, 
               <div className="text-[22px] font-bold leading-none tracking-tight" style={{ color: '#0f2b2b' }}>
                 {s.v}
               </div>
-              <div className="mt-1 text-[12.5px] leading-snug text-[#56635e]">{s.l}</div>
+              <div className="mt-1 text-[12.5px] leading-snug text-[#56635e] group-hover:text-[#0f2b2b]">{s.l}</div>
             </div>
-          </div>
+          </button>
         ))}
       </div>
 

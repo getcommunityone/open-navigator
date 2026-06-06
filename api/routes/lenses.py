@@ -70,6 +70,8 @@ class ActivityCount(BaseModel):
     icon: str
     value: str
     label: str
+    # Search term the tile drills into when clicked (homepage activity strip).
+    query: Optional[str] = None
 
 
 class LensesResponse(BaseModel):
@@ -562,21 +564,25 @@ async def get_lenses(
                 icon="\U0001F525",  # 🔥
                 value=str(int(agg["contested_count"])),
                 label="contested decisions",
+                query="contested",
             ),
             ActivityCount(
                 icon="\U0001F4B2",  # 💲
                 value=money_fmt(agg["tracked_spending"]),
                 label="in tracked spending",
+                query="budget",
             ),
             ActivityCount(
                 icon="\U0001F5F3️",  # 🗳️
                 value=str(int(agg["total_decisions"])),
                 label="decisions analyzed",
+                query="decisions",
             ),
             ActivityCount(
                 icon="\U0001F4C5",  # 📅
                 value=str(int(agg["coming_back_count"])),
                 label="coming back for a vote",
+                query="upcoming vote",
             ),
         ]
 
