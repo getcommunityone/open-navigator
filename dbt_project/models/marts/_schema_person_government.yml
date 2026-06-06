@@ -1,0 +1,107 @@
+version: 2
+
+models:
+  - name: person_government
+    description: >
+      public.person_government — government officials modelled as a PERSON
+      SUBTYPE ("subclass" of person). An elected/appointed official is a kind of
+      person, so it is a first-class member of the person family rather than an
+      orphan officials table. Unlike mdm_person (probabilistically resolved), an
+      official has an exact OCD membership id, so it gets a DETERMINISTIC person
+      identity (person_id = OCD membership id) — no Splink, which avoids the heavy
+      person-resolution rebuild and the over-fragmentation it causes for these
+      single-name roster rows. Carries the government-specific attributes
+      (office/title, jurisdiction, photo, biography, website) that the plain MDM
+      person tables do not. Sourced 1:1 from contact_official (re-projected with
+      the person-identity framing), so contact_official stays the single officials
+      role mart and nothing downstream of it changes. Consumed by the API
+      person-detail endpoint, which resolves an official id here when it misses
+      mdm_person.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    columns:
+      - name: person_id
+        description: "Primary key. Deterministic person identity = the OCD membership id (text)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: master_person_id
+        description: >
+          Reserved nullable link to mdm_person.master_person_id for a future
+          DETERMINISTIC cross-subtype match (e.g. a mayor who is also a known 990
+          officer). Always NULL today; no FK is enforced because the relationship
+          is unpopulated and we do not couple this lightweight subtype to the
+          heavy person master until a deterministic crosswalk exists.
+        data_type: text
+      - name: full_name
+        description: "Official's full name."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: title
+        description: "Cleaned, title-cased role (e.g. 'Mayor', 'Council Member')."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: jurisdiction
+        description: "Organization/place name the official serves (e.g. 'Tuscaloosa Government'). Display only."
+        data_type: text
+      - name: jurisdiction_id
+        description: >
+          Foreign key to public.jurisdictions (nullable). Soft-resolved by
+          state_code + normalized place name (same match contact_official uses for
+          the website), so every non-null value is a real jurisdictions PK. NULL
+          for legislators (committee, not a place) and for any local leader whose
+          place does not normalize to a known jurisdiction.
+        data_type: text
+        constraints:
+          - type: foreign_key
+            to: ref('jurisdictions')
+            to_columns: [jurisdiction_id]
+      - name: office
+        description: "Org classification / chamber (government/upper/lower/...). Nullable."
+        data_type: text
+      - name: state_code
+        description: "2-letter state/territory code."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: state
+        description: "Full state name."
+        data_type: text
+      - name: party
+        description: "Primary party, where known."
+        data_type: text
+      - name: district
+        description: "District/seat label, where known."
+        data_type: text
+      - name: email
+        description: "Official email, lower-cased. Nullable."
+        data_type: text
+      - name: phone
+        description: "Official phone (scraped path only). Nullable."
+        data_type: text
+      - name: photo_url
+        description: "Headshot URL. Nullable."
+        data_type: text
+      - name: biography
+        description: >
+          Official biography prose (scraped municipal directory pages, e.g.
+          Northport's CivicPlus detail pages, else the official_photo_override
+          seed). Nullable.
+        data_type: text
+      - name: website_url
+        description: "The official's jurisdiction website (from public.jurisdictions). Nullable."
+        data_type: text
+      - name: is_current
+        description: "True when the term is open-ended or ends on/after the current-term cutoff."
+        data_type: boolean
+        constraints:
+          - type: not_null

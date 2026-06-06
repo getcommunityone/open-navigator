@@ -92,23 +92,27 @@ _ORGS_SQL = """
     ORDER BY b.reportable_comp_org DESC NULLS LAST, b.org_name
 """
 
-# Fallback lookup for elected/appointed officials. Leader search results
-# (result_type='leader') come from contact_official — a separate table with no
-# person_uid linkage to the MDM master — so /person/{id} resolves them here when
-# the id misses mdm_person. The id namespaces are disjoint, so this only fires
-# for genuine official ids. The office itself is surfaced as the single org row.
-# NOTE: biography is intentionally NOT selected here. The officials' curated bio
-# is being migrated to the MDM layer (mdm_person_source_link.biography); the
-# contact_official mart does not reliably carry the column (a stale build crashed
-# this endpoint with "column o.biography does not exist"). Officials are not yet
-# resolvable in the deployed MDM person tables (no bronze_officials_scraped rows
-# in mdm_person), and a name+state match risks attaching the wrong person's bio,
-# so we surface no bio for officials until the MDM-backed path lands. The role
-# attributes (photo/title/jurisdiction/website) still come from contact_official —
-# the only warehouse home for them today.
+# Fallback lookup for elected/appointed officials, resolved via the person
+# SUBTYPE public.person_government. Leader search results (result_type='leader')
+# carry an official id (= the OCD membership id, person_government.person_id), not
+# an mdm_person person_uid, so /person/{id} resolves them here when the id misses
+# mdm_person. The id namespaces are disjoint, so this only fires for genuine
+# official ids. The office itself is surfaced as the single org row.
+#
+# person_government is a deterministic person subtype (one row per official×role,
+# keyed by the exact OCD membership id) carrying the government-specific
+# attributes mdm_person lacks — office title, jurisdiction, photo, and the
+# biography (scraped municipal directory pages, e.g. Northport's CivicPlus detail
+# pages, keyed to the EXACT membership row, so always the right person's bio).
+#
+# biography is read via `to_jsonb(o) ->> 'biography'` (not `o.biography`) as a
+# deliberate safety net: if the mart is ever rebuilt from a stale model WITHOUT
+# the column, this returns NULL instead of crashing the endpoint with "column
+# o.biography does not exist" (the failure mode that previously broke this route).
 _OFFICIAL_SQL = """
     SELECT
-        o.id,
+        o.person_id,
+        o.master_person_id,
         o.full_name,
         o.title,
         o.jurisdiction,
@@ -117,14 +121,15 @@ _OFFICIAL_SQL = """
         o.phone,
         o.state_code,
         o.website_url,
-        o.photo_url
-    FROM contact_official o
-    WHERE o.id = $1
+        o.photo_url,
+        to_jsonb(o) ->> 'biography' AS biography
+    FROM person_government o
+    WHERE o.person_id = $1
 """
 
 
 def _official_to_detail(row) -> PersonDetail:
-    """Map a contact_official row onto the shared PersonDetail shape.
+    """Map a person_government (official subtype) row onto the shared PersonDetail.
 
     The official's office (title + jurisdiction/office) is surfaced as the
     single organization entry so the existing detail UI renders it unchanged.
@@ -141,8 +146,8 @@ def _official_to_detail(row) -> PersonDetail:
         )
     ]
     return PersonDetail(
-        person_uid=row["id"],
-        master_person_id=None,
+        person_uid=row["person_id"],
+        master_person_id=row["master_person_id"],
         name=row["full_name"] or "Unknown",
         state_code=row["state_code"],
         city=row["jurisdiction"],
@@ -150,7 +155,7 @@ def _official_to_detail(row) -> PersonDetail:
         phone=row["phone"],
         jurisdiction_website=row["website_url"],
         photo_url=row["photo_url"],
-        biography=None,
+        biography=row["biography"],
         organizations=organizations,
     )
 
@@ -170,14 +175,15 @@ async def get_person(person_uid: str) -> PersonDetail:
                     person_row = await conn.fetchrow(_PERSON_SQL, person_uid)
 
                 if person_row is None:
-                    # Not in the MDM master — fall back to contact_official so
-                    # leader search results (which carry an official id, not a
-                    # person_uid) still drill into a real detail page.
+                    # Not in the MDM master — resolve as the government person
+                    # subtype (person_government) so leader search results (which
+                    # carry an official id, not a person_uid) still drill into a
+                    # real detail page.
                     with tracer.start_as_current_span("person-detail.query-official"):
                         official_row = await conn.fetchrow(_OFFICIAL_SQL, person_uid)
                     if official_row is not None:
                         span.set_attribute("person.found", True)
-                        span.set_attribute("person.source", "contact_official")
+                        span.set_attribute("person.source", "person_government")
                         return _official_to_detail(official_row)
 
                     span.set_attribute("person.found", False)
