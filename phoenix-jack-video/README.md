@@ -1,11 +1,14 @@
 # Phoenix City Council — "You Don't Know Jack" edition 🎙️
 
-A ~90-second, game-show-style explainer of the **most controversial decision** in the
-Phoenix City Council Formal Meeting of **April 8, 2026** — built with
+A ~90-second, **vertical 1080×1920 (9:16)**, game-show-style explainer of the
+**most controversial decision** in the Phoenix City Council Formal Meeting of
+**April 8, 2026** — built with
 [canvas-commons](https://github.com/canvas-commons/canvas-commons).
 
 It combines **frame analysis** (how each side framed the issue: problem → story → fix)
-with the irreverent, fast-talking *You Don't Know Jack* trivia-show vibe.
+with the irreverent, fast-talking *You Don't Know Jack* trivia-show vibe — complete
+with synthesized **sound cues** (title stinger, ticks, ding, whoosh, VS clash, boom,
+applause).
 
 ## The decision it covers
 
@@ -45,9 +48,23 @@ canvas-commons renders from the browser editor (there is no headless CLI render)
 2. Open the **Video Settings** tab → click **RENDER**.
 3. The MP4 (FFmpeg exporter, already wired in `vite.config.ts`) is written to `output/`.
 
-To change resolution / FPS, use the editor's project settings before rendering
-(defaults to 1920×1080). Runtime is ~90s; trim or extend the `waitFor(...)` holds in
-each scene to retune pacing.
+Resolution/FPS are preset to **1080×1920 @ 30fps** in [`src/project.meta`](src/project.meta)
+(`shared.size`); change them there or in the editor's Video Settings. Runtime is ~90s;
+trim or extend the `waitFor(...)` holds in each scene to retune pacing.
+
+## Audio
+
+Sound cues are scheduled in-scene via canvas-commons' `sound(url).play()` API (see the
+`sfx()` helper in [`src/lib.tsx`](src/lib.tsx)) and are muxed into the MP4 by the FFmpeg
+exporter. The WAV files in `public/audio/` are synthesized — pure-stdlib, deterministic —
+by [`tools/gen_sfx.py`](tools/gen_sfx.py):
+
+```bash
+python3 tools/gen_sfx.py      # regenerates public/audio/*.wav
+```
+
+Swap in your own clips by dropping same-named files in `public/audio/`, or change the
+names passed to `sfx(...)` in the scenes.
 
 ## Verify it compiles
 
@@ -60,7 +77,10 @@ npm run build      # tsc typecheck + vite bundle
 ```
 src/
   project.ts        scene order
+  project.meta      canvas size (1080x1920) + fps
   decision.ts       the real D004 data + both frames (single source of truth)
-  lib.tsx           palette, fonts, background, host bar, answer chips, helpers
+  lib.tsx           palette, fonts, background, host bar, answer chips, sfx(), helpers
   scenes/           01_intro … 06_outro
+public/audio/       synthesized sound cues (*.wav)
+tools/gen_sfx.py    regenerates the sound cues
 ```
