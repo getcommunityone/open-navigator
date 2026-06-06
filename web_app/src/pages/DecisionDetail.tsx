@@ -168,6 +168,101 @@ function Section({
   )
 }
 
+// Frame analysis ("Where they disagreed"). competing_views is a stable AI shape:
+//   { dominant_view, counter_views: [...] } where each view is
+//   { view_label, problem_diagnosis, causal_story, proposed_remedy }.
+// Render it as a narrative — the side's stance, then the worry / why / the ask —
+// instead of a raw key/value dump. Falls back to the generic JsonValue for any
+// unexpected shape so we never render an empty section.
+const VIEW_SUBFIELDS: { key: string; label: string; hint: string }[] = [
+  { key: 'problem_diagnosis', label: 'The worry', hint: "what's the concern?" },
+  { key: 'causal_story', label: 'Why', hint: "what's behind it?" },
+  { key: 'proposed_remedy', label: 'What they want', hint: 'the proposed fix' },
+]
+
+function ViewBlock({
+  kicker,
+  view,
+  accent,
+}: {
+  kicker: string
+  view: Record<string, unknown>
+  accent: string
+}) {
+  const label = typeof view?.view_label === 'string' ? view.view_label : null
+  const rows = VIEW_SUBFIELDS.map(({ key, label: l, hint }) => {
+    const v = view?.[key]
+    if (typeof v !== 'string' || !v.trim()) return null
+    return (
+      <div key={key}>
+        <div className="text-sm font-semibold text-gray-800">
+          {l} <span className="font-normal text-gray-400">· {hint}</span>
+        </div>
+        <p className="text-sm text-gray-700 whitespace-pre-line">{v}</p>
+      </div>
+    )
+  }).filter(Boolean)
+
+  // Unknown view shape (no recognized sub-fields): defer to the generic renderer.
+  if (!label && rows.length === 0) return <JsonValue value={view} />
+
+  return (
+    <div className={`rounded-lg border-l-4 ${accent} bg-gray-50 p-4`}>
+      <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
+        {kicker}
+      </div>
+      {label && <h3 className="text-base font-bold text-gray-900 mb-3">{label}</h3>}
+      {rows.length > 0 && <div className="space-y-3">{rows}</div>}
+    </div>
+  )
+}
+
+function CompetingViews({ data }: { data: unknown }) {
+  if (!data || typeof data !== 'object') return <JsonValue value={data} />
+  const cv = data as Record<string, unknown>
+  const dominant =
+    cv.dominant_view && typeof cv.dominant_view === 'object'
+      ? (cv.dominant_view as Record<string, unknown>)
+      : null
+  const counters = Array.isArray(cv.counter_views)
+    ? (cv.counter_views.filter((c) => c && typeof c === 'object') as Record<string, unknown>[])
+    : []
+  // Optional editorial lead-in; only shown if the extraction supplies one.
+  const debate =
+    typeof cv.central_question === 'string'
+      ? cv.central_question
+      : typeof cv.debate === 'string'
+        ? cv.debate
+        : null
+
+  // Recognized neither side -> generic fallback, so we never drop content.
+  if (!dominant && counters.length === 0) return <JsonValue value={data} />
+
+  return (
+    <div className="space-y-4">
+      {debate && (
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
+            The debate
+          </div>
+          <p className="text-sm text-gray-700 whitespace-pre-line">{debate}</p>
+        </div>
+      )}
+      {dominant && (
+        <ViewBlock kicker="The prevailing view" view={dominant} accent="border-blue-400" />
+      )}
+      {counters.map((c, i) => (
+        <ViewBlock
+          key={i}
+          kicker={counters.length > 1 ? `The other side (${i + 1})` : 'The other side'}
+          view={c}
+          accent="border-amber-400"
+        />
+      ))}
+    </div>
+  )
+}
+
 export default function DecisionDetail() {
   const { id } = useParams<{ id: string }>()
 
@@ -349,10 +444,10 @@ export default function DecisionDetail() {
           </Section>
         )}
 
-        {/* Competing Views */}
+        {/* Frame analysis: where the sides disagreed */}
         {!isEmpty(decision.competing_views) && (
-          <Section title="Competing Views" icon={<UsersIcon className="h-5 w-5" />}>
-            <JsonValue value={decision.competing_views} />
+          <Section title="Where they disagreed" icon={<UsersIcon className="h-5 w-5" />}>
+            <CompetingViews data={decision.competing_views} />
           </Section>
         )}
 

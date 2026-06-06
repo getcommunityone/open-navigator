@@ -100,3 +100,23 @@ vars:
 
   # int_jurisdictions: nearest ZCTA → zip column (slow). Default false keeps zip NULL.
   include_nearest_postal_zip: false
+
+  # --- Civic interestingness score (item_interestingness / item_flags) ---
+  # Composite time decay. 30 is a fine live-feed default; 90 better fits this
+  # corpus (71% current-year, long historical tail) so old items sink gracefully
+  # without collapsing the whole distribution to 0. Tunable per run via --vars.
+  civic_half_life_days: 90
+  # Trailing peer window (days) for percentile normalization within a size tier.
+  civic_peer_window_days: 365
+  # Forward 'soon' lens horizon (days) for the urgency component.
+  civic_urgency_horizon_days: 14
+  # Per-request proximity radius (meters) for rank_for_user. Static score excludes it.
+  civic_proximity_radius_m: 40000
+  # --- feature flags for signals with no data source yet (default off = honest stub) ---
+  civic_enable_fee_tax_bonus: false        # is_new_or_increased_fee_tax not extracted
+  civic_fee_tax_bonus: 0.15
+  civic_enable_buried_no_discussion: false # treat any high-money item as buried when no discussion signal
+  # --- item_flags detectors (default off; most await a data source) ---
+  civic_flag_threshold_structuring: true   # ON: global-limit approximation ($50k) until per-jurisdiction limits land
+  civic_approval_limit: 50000
+  civic_structuring_band: 0.1

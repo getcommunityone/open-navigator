@@ -67,3 +67,15 @@ vars:
   ai_sources: ['gemini_ai_extraction']
 
   include_nearest_postal_zip: false
+
+  # --- Civic interestingness score (mirror of dbt_project/dbt_project.yml) ---
+  civic_half_life_days: 90
+  civic_peer_window_days: 365
+  civic_urgency_horizon_days: 14
+  civic_proximity_radius_m: 40000
+  civic_enable_fee_tax_bonus: false
+  civic_fee_tax_bonus: 0.15
+  civic_enable_buried_no_discussion: false
+  civic_flag_threshold_structuring: false
+  civic_approval_limit: 50000
+  civic_structuring_band: 0.1

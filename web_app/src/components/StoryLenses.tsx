@@ -1,5 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { ChevronRightIcon, BookmarkIcon, ArrowRightIcon } from '@heroicons/react/24/outline'
+import api from '../lib/api'
 
 /**
  * StoryLenses — the homepage "What's happening near you" section.
@@ -8,10 +11,12 @@ import { ChevronRightIcon, BookmarkIcon, ArrowRightIcon } from '@heroicons/react
  * Raised Eyebrows, Moving Fast, Watch Next) rather than by topic, with a live
  * activity strip, a time-frame control, and a story-card grid.
  *
- * Card / stat content here is illustrative demo data (there is no
- * `interestingness_score` endpoint yet) — analogous to the old FALLBACK_TRENDING
- * in Home.tsx. The component is self-contained so it can later be wired to live
- * API data without touching Home.tsx.
+ * Live data comes from `GET /api/lenses` (state/city/window scoped). The
+ * `CARDS` / `activityStats` demo constants below are kept ONLY as a graceful
+ * fallback for the error / no-data path — analogous to the old
+ * FALLBACK_TRENDING in Home.tsx. Lenses the API marks `placeholder: true`
+ * (e.g. flags, soon — signals not yet extracted) render an honest empty state,
+ * never demo cards.
  */
 
 const FONT = { fontFamily: "'DM Sans', sans-serif" } as const
@@ -134,30 +139,138 @@ function rel(d: number): string {
   return fut ? `in ${t}` : `${t} ago`
 }
 
+// windowDays (segmented-control value) -> API `window` param, and back.
+const WINDOW_BY_DAYS: Record<number, string> = { 7: 'week', 31: 'month', 92: 'quarter', 366: 'year', 999999: 'all' }
+const WINDOW_LABEL: Record<string, string> = { week: 'Week', month: 'Month', quarter: 'Quarter', year: 'Year', all: 'All time' }
+// accent backgrounds for the live activity tiles, by position
+const ACTIVITY_BG = ['#fdeeeb', '#e7f2ef', '#efebfb', '#fbf3e2']
+
+// ---- /api/lenses response shape ----
+interface ApiStat {
+  value: string
+  label: string
+  tone?: Tone
+}
+interface ApiCard {
+  headline: string
+  stats: ApiStat[]
+  jurisdiction: string
+  date?: string
+  badge?: string
+  url?: string
+  state_code?: string
+  state?: string
+}
+interface ApiLens {
+  id: string
+  label: string
+  placeholder: boolean
+  cards: ApiCard[]
+}
+interface ApiActivity {
+  icon: string
+  value: string
+  label: string
+}
+interface LensesResponse {
+  lenses: ApiLens[]
+  activity: ApiActivity[]
+  window: string
+  location_label?: string
+}
+
+// Normalized card the grid renders, from either live API or demo fallback.
+interface RenderCard {
+  h: string
+  stats: Stat[]
+  juris: string
+  when: string
+  url?: string
+}
+
+// Relative-time label from an ISO yyyy-mm-dd date (reuses rel()'s wording).
+function relFromDate(dateStr?: string): string {
+  if (!dateStr) return ''
+  const then = new Date(`${dateStr}T00:00:00`)
+  if (Number.isNaN(then.getTime())) return ''
+  const days = Math.round((then.getTime() - Date.now()) / 86_400_000)
+  return rel(days)
+}
+
+const DEMO_ACTIVITY: { em: string; v: string; l: string; bg: string }[] = [
+  { em: '\u{1F525}', v: '3', l: 'contested votes this week', bg: '#fdeeeb' },
+  { em: '\u{1F4B2}', v: '$2.3M', l: 'in new spending approved', bg: '#e7f2ef' },
+  { em: '\u{1F441}\u{FE0F}', v: '124', l: 'public comments submitted', bg: '#efebfb' },
+  { em: '⚠️', v: '2', l: 'major projects proposed', bg: '#fbf3e2' },
+]
+
 interface StoryLensesProps {
   /** Short place label for headings, e.g. "Northport". */
   locationLabel?: string
+  /** 2-letter state code for scoping the lenses query. */
+  stateCode?: string
+  /** City for scoping the lenses query. */
+  city?: string
   /** Invoked when a card or popular-topic is activated. */
   onSearch?: (query: string) => void
   /** Invoked by "View all" / "See all activity" / Browse topics. */
   onBrowseTopics?: () => void
 }
 
-export default function StoryLenses({ locationLabel, onSearch, onBrowseTopics }: StoryLensesProps) {
+export default function StoryLenses({ locationLabel, stateCode, city, onSearch, onBrowseTopics }: StoryLensesProps) {
+  const navigate = useNavigate()
   const [active, setActive] = useState<string>('contested')
-  const [windowDays, setWindowDays] = useState<number>(31)
+  // 'auto' (default) lets the API pick the narrowest window with enough items;
+  // a number is an explicit user choice from the segmented control.
+  const [windowSel, setWindowSel] = useState<number | 'auto'>('auto')
+  const windowParam = windowSel === 'auto' ? 'auto' : WINDOW_BY_DAYS[windowSel] ?? 'month'
 
-  const place = locationLabel || 'your area'
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['lenses', stateCode, city, windowParam],
+    queryFn: () =>
+      api
+        .get('/lenses', {
+          params: { state: stateCode || undefined, city: city || undefined, window: windowParam, limit_per_lens: 6 },
+        })
+        .then((r) => r.data as LensesResponse),
+    staleTime: 5 * 60 * 1000,
+    // Keep the prior window's data on screen while a new window loads, so the
+    // grid doesn't flash back to the demo fallback on every toggle.
+    placeholderData: (prev) => prev,
+  })
+
   const lens = LENSES.find((l) => l.id === active) ?? LENSES[0]
-  const allCards = CARDS[active] ?? []
-  const rows = useMemo(() => allCards.filter((c) => Math.abs(c.days) <= windowDays), [allCards, windowDays])
+  const place = locationLabel || data?.location_label || 'your area'
 
-  const activityStats: { em: string; v: string; l: string; clr: string; bg: string }[] = [
-    { em: '\u{1F525}', v: '3', l: 'contested votes this week', clr: '#e0603a', bg: '#fdeeeb' },
-    { em: '\u{1F4B2}', v: '$2.3M', l: 'in new spending approved', clr: '#2a8576', bg: '#e7f2ef' },
-    { em: '\u{1F441}\u{FE0F}', v: '124', l: 'public comments submitted', clr: '#7a5cd0', bg: '#efebfb' },
-    { em: '⚠️', v: '2', l: 'major projects proposed', clr: '#d57a1e', bg: '#fbf3e2' },
-  ]
+  // In auto mode the "Auto" segment is active and labelled with the grain the API
+  // resolved to; an explicit pick highlights its own day segment instead.
+  const autoActive = windowSel === 'auto'
+  const autoLabel = autoActive && data?.window ? `Auto · ${WINDOW_LABEL[data.window] ?? ''}` : 'Auto'
+
+  // Fall back to the demo content only on a hard failure (no successful payload).
+  const useDemo = isError || !data
+  const loading = isLoading && !data
+  const apiLens = data?.lenses.find((l) => l.id === active)
+  const isPlaceholder = !!data && (apiLens?.placeholder || (apiLens?.cards.length ?? 0) === 0)
+
+  const cards: RenderCard[] = useDemo
+    ? (CARDS[active] ?? []).map((c) => ({ h: c.h, stats: c.stats, juris: c.juris, when: rel(c.days) }))
+    : (apiLens?.cards ?? []).map((c) => ({
+        h: c.headline,
+        stats: c.stats.map((s) => ({ v: s.value, l: s.label, tone: s.tone })),
+        juris: c.jurisdiction,
+        when: relFromDate(c.date),
+        url: c.url,
+      }))
+
+  const activityTiles = useDemo
+    ? DEMO_ACTIVITY
+    : (data?.activity ?? []).map((a, i) => ({ em: a.icon, v: a.value, l: a.label, bg: ACTIVITY_BG[i % ACTIVITY_BG.length] }))
+
+  const openCard = (c: RenderCard) => {
+    if (c.url) navigate(c.url)
+    else onSearch?.(c.h)
+  }
 
   return (
     <div className="mt-5 text-left" style={FONT}>
@@ -246,7 +359,7 @@ export default function StoryLenses({ locationLabel, onSearch, onBrowseTopics }:
         </button>
       </div>
       <div className="mb-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {activityStats.map((s) => (
+        {activityTiles.map((s) => (
           <div key={s.l} className="flex items-center gap-3 rounded-2xl border border-[#e1ebe7] bg-white px-4 py-3.5">
             <span
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[19px]"
@@ -270,13 +383,25 @@ export default function StoryLenses({ locationLabel, onSearch, onBrowseTopics }:
           Top stories near {place}
         </h2>
         <div className="ml-auto inline-flex rounded-full border-[1.5px] border-[#d4e8e8] bg-white p-[3px]">
+          <button
+            type="button"
+            onClick={() => setWindowSel('auto')}
+            title="Automatically pick the best time range for your area"
+            className={`rounded-full px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${
+              autoActive
+                ? 'bg-[#1a6b6b] text-white shadow-[0_2px_6px_rgba(26,107,107,0.30)]'
+                : 'text-[#4a6a6a] hover:text-[#0f2b2b]'
+            }`}
+          >
+            {autoLabel}
+          </button>
           {TIME_OPTIONS.map((opt) => {
-            const on = windowDays === opt.d
+            const on = windowSel === opt.d
             return (
               <button
                 key={opt.d}
                 type="button"
-                onClick={() => setWindowDays(opt.d)}
+                onClick={() => setWindowSel(opt.d)}
                 className={`rounded-full px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${
                   on
                     ? 'bg-[#1a6b6b] text-white shadow-[0_2px_6px_rgba(26,107,107,0.30)]'
@@ -298,16 +423,35 @@ export default function StoryLenses({ locationLabel, onSearch, onBrowseTopics }:
       )}
 
       {/* Card grid */}
-      {rows.length === 0 ? (
+      {loading ? (
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="h-44 animate-pulse rounded-2xl border border-[#e1ebe7] bg-[#f3f7f6]" />
+          ))}
+        </div>
+      ) : isPlaceholder ? (
+        <div className="rounded-xl border border-dashed border-[#d4e8e8] bg-white px-6 py-10 text-center text-sm text-[#9bb8b8]">
+          Coming soon — we&rsquo;re still extracting the signals for this lens.
+        </div>
+      ) : cards.length === 0 ? (
         <div className="rounded-xl border border-dashed border-[#d4e8e8] bg-white px-6 py-10 text-center text-sm text-[#9bb8b8]">
           Nothing in this window. <b className="text-[#56635e]">Try a wider time frame.</b>
         </div>
       ) : (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
-          {rows.map((c, i) => (
+          {cards.map((c, i) => (
             <article
               key={`${active}-${i}`}
-              className="relative flex flex-col overflow-hidden rounded-2xl border border-[#e1ebe7] bg-white shadow-[0_1px_2px_rgba(20,40,35,.04),0_8px_24px_rgba(20,40,35,.06)]"
+              role="link"
+              tabIndex={0}
+              onClick={() => openCard(c)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  openCard(c)
+                }
+              }}
+              className="group relative flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-[#e1ebe7] bg-white shadow-[0_1px_2px_rgba(20,40,35,.04),0_8px_24px_rgba(20,40,35,.06)] transition-all hover:-translate-y-0.5 hover:border-[#cfe0db] hover:shadow-[0_2px_4px_rgba(20,40,35,.06),0_14px_32px_rgba(20,40,35,.10)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1a6b6b]/40"
             >
               <span className="h-1 w-full" style={{ background: lens.clr }} aria-hidden />
               <div className="flex flex-1 flex-col p-[18px]">
@@ -319,17 +463,15 @@ export default function StoryLenses({ locationLabel, onSearch, onBrowseTopics }:
                     <span className="text-[12px] leading-none">{lens.em}</span>
                     {lens.label}
                   </span>
-                  <span className="shrink-0 text-[12px] text-[#8a958f]">{rel(c.days)}</span>
+                  <span className="shrink-0 text-[12px] text-[#8a958f]">{c.when}</span>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => onSearch?.(c.h)}
-                  className="mb-3 text-left text-[19px] font-semibold leading-tight tracking-tight text-[#0f2b2b] hover:underline"
+                <h3
+                  className="mb-3 text-[19px] font-semibold leading-tight tracking-tight text-[#0f2b2b] group-hover:underline"
                   style={SERIF}
                 >
                   {c.h}
-                </button>
+                </h3>
 
                 <div className="mb-3 flex flex-wrap gap-2">
                   {c.stats.map((s) => {
@@ -352,9 +494,10 @@ export default function StoryLenses({ locationLabel, onSearch, onBrowseTopics }:
                 <div className="mt-auto flex items-center gap-2 border-t border-[#e1ebe7] pt-2.5 text-[12px] text-[#8a958f]">
                   <span className="font-semibold text-[#56635e]">{c.juris}</span>
                   <span className="opacity-50">&middot;</span>
-                  <span>{rel(c.days)}</span>
+                  <span>{c.when}</span>
                   <button
                     type="button"
+                    onClick={(e) => e.stopPropagation()}
                     className="ml-auto text-[#9bb8b8] transition-colors hover:text-[#1a6b6b]"
                     aria-label="Save story"
                   >

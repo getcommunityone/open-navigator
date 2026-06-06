@@ -66,6 +66,67 @@ seeds:
       - name: source_url
         description: "Page the photo/bio was scraped from (provenance)"
 
+  - name: interestingness_weights
+    description: >
+      Tunable per-component weights for public.item_interestingness. One row per
+      component; the composite is a weight-normalized average so retuning never
+      breaks the 0–100 bound. Read via the civic_component_weights() macro — never
+      hardcoded in a model. After editing: dbt seed --select interestingness_weights
+      && dbt run --select item_interestingness. Keep the component set in sync with
+      the macro and int_civic__item_signal_norms.
+    config:
+      column_types:
+        component: text
+        weight: double precision
+    columns:
+      - name: component
+        description: "Component name: conflict|money|novelty|engagement|surprise|urgency|buried"
+        tests:
+          - unique
+          - not_null
+          - accepted_values:
+              values: ['conflict', 'money', 'novelty', 'engagement', 'surprise', 'urgency', 'buried']
+      - name: weight
+        description: "Non-negative weight; the set is normalized by its sum at score time."
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+              max_value: 1
+
+  - name: lens_config
+    description: >
+      Drives the per-lens serving feed (rank_for_user macro): one row per story
+      lens. eligibility_sql + sort_expr are SQL fragments evaluated against
+      item_interestingness columns, so adding/retuning a lens is a config change,
+      not new SQL. After editing: dbt seed --select lens_config.
+    config:
+      column_types:
+        lens_id: text
+        eligibility_sql: text
+        sort_expr: text
+        direction: text
+    columns:
+      - name: lens_id
+        description: "Lens key: default|contested|money|new|people|changed|soon|slipped|near"
+        tests:
+          - unique
+          - not_null
+      - name: eligibility_sql
+        description: "Boolean SQL fragment over item_interestingness columns (lens eligibility filter)."
+        tests:
+          - not_null
+      - name: sort_expr
+        description: "Column/expression the lens sorts by (default feed -> interestingness_score)."
+        tests:
+          - not_null
+      - name: direction
+        description: "Sort direction for sort_expr."
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['asc', 'desc']
+
   - name: jurisdiction_website_url_overrides
     description: >
       Manual canonical website per jurisdiction_id when bronze/GSA/NACo rows are missing or wrong.

@@ -77,6 +77,8 @@ end
   {%- endif -%}
 {%- endif -%}
 
+-- depends_on: {{ ref('lens_config') }}
+-- depends_on: {{ ref('item_interestingness') }}
 with feed as (
     select
         f.*,

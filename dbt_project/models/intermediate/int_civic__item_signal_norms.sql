@@ -87,11 +87,9 @@ components as (
         ---------------------------------------------------------------
         least(1.0,
             case when b.net_dollar_impact > 0 then coalesce(pc.money_pct, 0.0) else 0.0 end
-            + case
-                when {{ var('civic_enable_fee_tax_bonus', false) | lower }}
-                     and b.is_new_or_increased_fee_tax then {{ var('civic_fee_tax_bonus', 0.15) }}
-                else 0.0
-              end
+            {% if var('civic_enable_fee_tax_bonus', false) %}
+            + case when b.is_new_or_increased_fee_tax then {{ var('civic_fee_tax_bonus', 0.15) }} else 0.0 end
+            {% endif %}
         )                                  as money,
 
         -- novelty: 1.0 on first appearance of subject for this body, decaying
@@ -129,8 +127,10 @@ components as (
         case
             when b.net_dollar_impact > 0 and b.public_comment_speaker_count > 0
                 then coalesce(pc.money_pct, 0.0) * (1 - coalesce(pc.engagement_pct, 0.0))
-            when b.net_dollar_impact > 0 and {{ var('civic_enable_buried_no_discussion', false) | lower }}
+            {% if var('civic_enable_buried_no_discussion', false) %}
+            when b.net_dollar_impact > 0
                 then coalesce(pc.money_pct, 0.0)
+            {% endif %}
             else 0.0
         end                                as buried
 

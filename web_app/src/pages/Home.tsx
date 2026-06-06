@@ -1729,7 +1729,17 @@ export default function Home() {
                             return (
                               <StoryLenses
                                 locationLabel={location?.city || location?.county || undefined}
-                                onSearch={(q) => setKeyword(q)}
+                                stateCode={location?.state || undefined}
+                                city={location?.city || undefined}
+                                onSearch={(q) => {
+                                  // Navigate to scoped search results. (Previously
+                                  // setKeyword(q) only filled the hero box far above
+                                  // the fold, so topic pills / cards felt dead.)
+                                  const params = new URLSearchParams()
+                                  params.set('q', q)
+                                  applyLocationScope(params)
+                                  navigate(`/search?${params.toString()}`)
+                                }}
                                 onBrowseTopics={() => navigate('/search?types=topics')}
                               />
                             )

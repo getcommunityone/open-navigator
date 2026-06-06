@@ -1,0 +1,68 @@
+version: 2
+
+models:
+  - name: int_civic__item_signals
+    description: >
+      Raw per-item signals for the interestingness score (one row per
+      event_decision_id). Assembles votes, money, competing views, public comment,
+      recency, geocoded point, and cross-session occurrence/reversal. Normalization
+      happens downstream in int_civic__item_signal_norms.
+    columns:
+      - name: event_decision_id
+        description: "Grain key -> event_decision.event_decision_id (latest extraction)."
+        tests:
+          - unique
+          - not_null
+      - name: occurred_at
+        description: "Meeting date (from event_meeting.meeting_date), falling back to event_date then extracted_at."
+        tests:
+          - not_null
+      - name: size_tier
+        description: "Jurisdiction population quartile (1-4); 0 when population unresolved. Peer-window partition."
+        tests:
+          - not_null
+      - name: money_metric
+        description: "ln(1 + |net_dollar_impact|), log-compressed value percentile-ranked downstream."
+        tests:
+          - not_null
+
+  - name: int_civic__item_signal_norms
+    description: >
+      Each interestingness component normalized to [0,1]. Unbounded metrics (money,
+      engagement) use a trailing-window percentile within size_tier; bounded signals
+      (conflict, novelty, surprise, urgency, buried) are emitted directly. Every
+      component is NOT NULL and in [0,1].
+    columns:
+      - name: event_decision_id
+        description: "Grain key; FK -> int_civic__item_signals."
+        tests:
+          - unique
+          - not_null
+          - relationships:
+              to: ref('int_civic__item_signals')
+              field: event_decision_id
+      - name: conflict
+        description: "Vote closeness blended with competing-views presence; [0,1]."
+        tests: &component_range
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+              max_value: 1
+      - name: money
+        description: "Percentile of log money within size_tier + trailing window; [0,1]."
+        tests: *component_range
+      - name: novelty
+        description: "1/appearance_idx — first appearance of a subject for a body = 1.0; [0,1]."
+        tests: *component_range
+      - name: engagement
+        description: "Percentile of public-comment speaker count; 0 when none spoke; [0,1]."
+        tests: *component_range
+      - name: surprise
+        description: "Outcome reversal vs prior session = 1.0, revisit = 0.5, first = 0; [0,1]."
+        tests: *component_range
+      - name: urgency
+        description: "Forward items only: max(0, 1 - days_until/horizon); 0 today (no source); [0,1]."
+        tests: *component_range
+      - name: buried
+        description: "money_pct * (1 - discussion_pct) for low-discussion high-impact items; [0,1]."
+        tests: *component_range

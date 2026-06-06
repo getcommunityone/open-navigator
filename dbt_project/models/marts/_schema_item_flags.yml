@@ -1,0 +1,66 @@
+version: 2
+
+# public.item_flags — "Raised Eyebrows" anomaly scaffold.
+# Every row is an UNVERIFIED ANOMALY, never a finding. Single-column PK
+# (item_flag_id) is contract-enforced. Detectors are feature-flagged; most are
+# TODO behind their flag pending a data source, so this table is legitimately
+# empty (0 rows) until a detector is enabled with its source present.
+
+models:
+  - name: item_flags
+    description: >
+      Per-(subject, flag) anomaly scaffold for the Raised Eyebrows lens. Kept
+      SEPARATE from item_interestingness on purpose — anomalies are review-sensitive
+      and must never inflate the discovery score. Each flag is an UNVERIFIED
+      anomaly (a review prompt), NOT a finding; verify against source_record_url
+      before drawing any conclusion. Detectors are gated by per-type feature-flag
+      vars (default off); see model SQL for the TODO detectors awaiting sources.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    columns:
+      - name: item_flag_id
+        description: "PK — md5(flag_type || '|' || subject_ref)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: flag_type
+        description: "Anomaly type: threshold_structuring | residency_mismatch | vendor_official_tie | expense_outlier | sole_source_concentration | late_disclosure."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: subject_ref
+        description: "The flagged subject's id (an item/financial_item id or an official id)."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: subject_kind
+        description: "What subject_ref points at: 'item' | 'financial_item' | 'official'."
+        data_type: text
+      - name: state_code
+        data_type: text
+      - name: severity
+        description: "UNVERIFIED anomaly strength in [0,1]. NOT a probability of wrongdoing."
+        data_type: double precision
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+              max_value: 1
+      - name: evidence
+        description: "JSONB supporting detail (amounts, limits, links). Review material, not proof."
+        data_type: jsonb
+      - name: source_record_url
+        description: "Relative URL to the underlying record so the UI can link to evidence for human review."
+        data_type: text
+      - name: anomaly_score
+        description: "Per-subject max(severity) for the Raised Eyebrows lens sort. UNVERIFIED."
+        data_type: double precision
+      - name: anomaly_any
+        description: "True for any flagged subject row (rollup convenience)."
+        data_type: boolean

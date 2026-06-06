@@ -1,0 +1,177 @@
+version: 2
+
+# public.item_interestingness — composite + component interestingness scores.
+# Single-column PK (event_decision_id) is contract-enforced. The FK into the
+# partitioned public.event_decision parent (composite PK) cannot be a single-column
+# constraint, so it is asserted via a relationships test (warn) — the established
+# event_* family convention.
+
+models:
+  - name: item_interestingness
+    description: >
+      Tunable, explainable interestingness score per civic agenda item (decision).
+      interestingness_score = 100 * time_decay * weight-normalized average of the
+      seven components. Each component is emitted alongside the composite for
+      single-signal lens sorts, plus top_signals (ordered contributions) for the
+      "why this surfaced" badge. PROXIMITY is intentionally absent — it is a
+      per-request signal computed in rank_for_user, never baked into this score.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    columns:
+      - name: event_decision_id
+        description: "PK; the decision this score is for. FK -> event_decision (relationships test, warn)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+          - relationships:
+              to: ref('event_decision')
+              field: event_decision_id
+              config:
+                severity: warn
+      - name: meeting_id
+        description: "FK -> event_meeting.event_meeting_id (the analysis/meeting)."
+        data_type: integer
+      - name: jurisdiction_id
+        description: "Resolved jurisdiction id (name+state match to jurisdictions); NULL when unresolved (~17%)."
+        data_type: text
+      - name: jurisdiction_name
+        data_type: text
+      - name: state_code
+        data_type: text
+      - name: state
+        data_type: text
+      - name: city
+        data_type: text
+      - name: size_tier
+        description: "Population quartile (1-4); 0 when population unresolved."
+        data_type: integer
+      - name: occurred_at
+        description: "Meeting date used for recency/decay and trailing peer window."
+        data_type: date
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: scheduled_for
+        description: "Upcoming-item date; always NULL today (no source). Drives the forward 'soon' lens when populated."
+        data_type: date
+      - name: subject_id
+        data_type: text
+      - name: subject_key
+        description: "Best-effort cross-session subject key (normalized subject_id or headline) for novelty/surprise."
+        data_type: text
+      - name: title
+        data_type: text
+      - name: summary
+        data_type: text
+      - name: primary_theme
+        data_type: text
+      - name: cofog_code
+        data_type: text
+      - name: outcome
+        data_type: text
+      - name: conflict
+        description: "Component [0,1]: vote closeness / competing views. Lens: contested."
+        data_type: double precision
+        constraints:
+          - type: not_null
+        tests: &component_range
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+              max_value: 1
+      - name: money
+        description: "Component [0,1]: percentile of log dollar impact. Lens: money."
+        data_type: double precision
+        constraints:
+          - type: not_null
+        tests: *component_range
+      - name: novelty
+        description: "Component [0,1]: first appearance of subject for body. Lens: new."
+        data_type: double precision
+        constraints:
+          - type: not_null
+        tests: *component_range
+      - name: engagement
+        description: "Component [0,1]: public-comment volume. Lens: people."
+        data_type: double precision
+        constraints:
+          - type: not_null
+        tests: *component_range
+      - name: surprise
+        description: "Component [0,1]: outcome reversal vs prior session. Lens: changed."
+        data_type: double precision
+        constraints:
+          - type: not_null
+        tests: *component_range
+      - name: urgency
+        description: "Component [0,1]: forward items only. Lens: soon. 0 today (no source)."
+        data_type: double precision
+        constraints:
+          - type: not_null
+        tests: *component_range
+      - name: buried
+        description: "Component [0,1]: high impact, low discussion. Lens: slipped."
+        data_type: double precision
+        constraints:
+          - type: not_null
+        tests: *component_range
+      - name: votes_yes
+        data_type: integer
+      - name: votes_no
+        data_type: integer
+      - name: total_votes
+        data_type: integer
+      - name: competing_views_count
+        data_type: integer
+      - name: has_competing_views
+        data_type: boolean
+      - name: public_comment_speaker_count
+        data_type: integer
+      - name: net_dollar_impact
+        description: "Sum of |amount| over the decision's financial_item_refs."
+        data_type: numeric
+      - name: appearance_idx
+        description: "1-based ordinal of this subject's appearances for the body (recency order)."
+        data_type: integer
+      - name: is_reversal
+        data_type: boolean
+      - name: is_revisit
+        data_type: boolean
+      - name: primary_latitude
+        description: "Primary geocoded point latitude (exposed for downstream/per-request proximity only)."
+        data_type: double precision
+      - name: primary_longitude
+        data_type: double precision
+      - name: time_decay
+        description: "pow(0.5, age_days / half_life_days); 1.0 for forward items."
+        data_type: double precision
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+              max_value: 1
+      - name: interestingness_score
+        description: "Composite 0-100. Default-feed sort key."
+        data_type: double precision
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+              max_value: 100
+      - name: top_signals
+        description: "Ordered JSONB array of {component, contribution} (desc) for the 'why this surfaced' badge."
+        data_type: jsonb
+        constraints:
+          - type: not_null
