@@ -61,7 +61,7 @@ shapely>=2.0.0
 
 # NLP & Text Analysis
 spacy==3.7.2
-transformers==4.36.2
+transformers==5.0.0rc3
 sentence-transformers==2.2.2
 nltk==3.9.4
 datasets>=2.16.0
