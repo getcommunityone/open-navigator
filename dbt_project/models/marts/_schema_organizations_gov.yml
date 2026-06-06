@@ -1,0 +1,99 @@
+version: 2
+
+models:
+  - name: organizations_gov
+    description: >
+      Data.gov (CKAN) publishing organizations — one row per CKAN organization
+      (federal agency, sub-agency, or a state/county/city government that
+      publishes datasets on Data.gov). Standalone government-org reference,
+      separate from the nonprofit-centric `mdm_organization` master.
+      Named for the entity (no dim_/fact_ prefixes). PK = id (CKAN UUID).
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    columns:
+      - name: id
+        description: "CKAN organization UUID. Primary key."
+        data_type: varchar(64)
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+
+      - name: slug
+        description: "CKAN organization slug, e.g. 'epa-gov'."
+        data_type: varchar(255)
+
+      - name: title
+        description: "Human-readable organization name."
+        data_type: varchar(512)
+
+      - name: display_name
+        description: "CKAN display name."
+        data_type: varchar(512)
+
+      - name: description
+        description: "Free-text organization description."
+        data_type: text
+
+      - name: website_url
+        description: "Canonical organization web address."
+        data_type: text
+
+      - name: image_url
+        description: "Organization logo/image URL."
+        data_type: text
+
+      - name: image_display_url
+        description: "CKAN-rendered display image URL."
+        data_type: text
+
+      - name: government_level
+        description: "Government tier from extras.organization_type, e.g. 'Federal Government' / 'County Government' / 'City Government'."
+        data_type: text
+
+      - name: ckan_type
+        description: "CKAN `type` — literal 'organization' for these rows. NOT a US state and not a US-state concept."
+        data_type: varchar(64)
+
+      - name: ckan_state
+        description: "CKAN record lifecycle state ('active'/'deleted') — NOT a US state."
+        data_type: varchar(32)
+
+      - name: approval_status
+        description: "CKAN approval workflow status, e.g. 'approved'."
+        data_type: varchar(64)
+
+      - name: is_organization
+        description: "CKAN flag — TRUE for organizations (vs groups)."
+        data_type: boolean
+
+      - name: dataset_count
+        description: "Number of datasets the org publishes on Data.gov."
+        data_type: integer
+        constraints:
+          - type: not_null
+
+      - name: follower_count
+        description: "Number of CKAN followers."
+        data_type: integer
+        constraints:
+          - type: not_null
+
+      - name: source_created_at
+        description: "When the org was created in CKAN (real timestamp)."
+        data_type: timestamp
+
+      - name: source_ingested_at
+        description: "Bronze ingestion timestamp."
+        data_type: timestamp
+
+      - name: dbt_updated_at
+        description: "When this mart row was last built."
+        data_type: timestamp with time zone
+        constraints:
+          - type: not_null

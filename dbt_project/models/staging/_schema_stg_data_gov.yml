@@ -1,0 +1,108 @@
+version: 2
+
+models:
+  - name: stg_data_gov__organizations
+    description: |
+      Staging for Data.gov (CKAN) publishing organizations — one row per CKAN
+      organization (federal agency, sub-agency, or a state/county/city
+      government that publishes datasets on Data.gov).
+
+      Source: bronze.bronze_organizations_gov, landed by
+      packages/ingestion/src/ingestion/data_gov/organizations.py.
+
+      Disambiguations baked in here:
+        - `ckan_state` is the CKAN record lifecycle state ("active"/"deleted"),
+          NOT a US state. CKAN-deleted rows are filtered out.
+        - `ckan_type` is CKAN's `type` field, always "organization" for these rows.
+        - `government_level` is extracted from the CKAN `extras` array
+          (key = "organization_type") via dbt-side JSONB, e.g. "Federal Government".
+
+    config:
+      contract:
+        enforced: true
+      materialized: view
+
+    columns:
+      - name: id
+        description: "CKAN organization UUID. Primary key / natural key."
+        data_type: varchar(64)
+        constraints:
+          - type: not_null
+        tests:
+          - unique
+          - not_null
+
+      - name: slug
+        description: "CKAN organization slug (bronze `name`), e.g. 'epa-gov'."
+        data_type: varchar(255)
+
+      - name: title
+        description: "Human-readable org name, coalesced title->display_name->slug."
+        data_type: varchar(512)
+
+      - name: display_name
+        description: "CKAN display_name."
+        data_type: varchar(512)
+
+      - name: description
+        description: "Free-text org description."
+        data_type: text
+
+      - name: website_url
+        description: "Canonical organization web address (project convention column)."
+        data_type: text
+
+      - name: image_url
+        description: "Org logo/image URL."
+        data_type: text
+
+      - name: image_display_url
+        description: "CKAN-rendered display image URL."
+        data_type: text
+
+      - name: ckan_type
+        description: "CKAN `type` field — literal 'organization' for these rows. Kept for fidelity."
+        data_type: varchar(64)
+
+      - name: ckan_state
+        description: "CKAN record lifecycle state ('active'/'deleted') — NOT a US state."
+        data_type: varchar(32)
+
+      - name: approval_status
+        description: "CKAN approval workflow status, e.g. 'approved'."
+        data_type: varchar(64)
+
+      - name: is_organization
+        description: "CKAN flag — TRUE for organizations (vs groups)."
+        data_type: boolean
+
+      - name: government_level
+        description: "Government tier extracted from extras.organization_type, e.g. 'Federal Government' / 'County Government' / 'City Government'."
+        data_type: text
+
+      - name: dataset_count
+        description: "Number of datasets published by this org (CKAN package_count). NULLs coalesced to 0."
+        data_type: integer
+        constraints:
+          - type: not_null
+
+      - name: follower_count
+        description: "Number of CKAN followers (num_followers). NULLs coalesced to 0."
+        data_type: integer
+        constraints:
+          - type: not_null
+
+      - name: source_created_at
+        description: "When the org was created in CKAN (real timestamp)."
+        data_type: timestamp
+
+      - name: source_ingested_at
+        description: "Timestamp from the bronze loader (ingestion_date)."
+        data_type: timestamp
+
+      - name: dbt_loaded_at
+        description: "Timestamp this staging model was materialized."
+        # current_timestamp returns timestamptz in Postgres; contract must match.
+        data_type: timestamp with time zone
+        constraints:
+          - type: not_null

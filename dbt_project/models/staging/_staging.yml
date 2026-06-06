@@ -264,6 +264,8 @@ sources:
           - name: email
           - name: phone
           - name: photo_url
+          - name: biography
+            description: "Scraped biography prose (e.g. CivicPlus directory detail pages). Nullable."
           - name: is_current
           - name: synced_at
 
@@ -1247,7 +1249,52 @@ sources:
             description: "Security contact email"
           - name: ingestion_date
             description: "When record was loaded"
-      
+
+      - name: bronze_organizations_gov
+        description: |
+          Data.gov (CKAN) publishing organizations — federal agencies,
+          sub-agencies, and some state/county/city governments that publish
+          datasets on Data.gov. Landed by ingestion.data_gov.organizations.
+          NOTE: the `state` column is the CKAN record lifecycle state
+          ("active"/"deleted"), NOT a US state.
+        columns:
+          - name: id
+            description: "CKAN organization UUID (primary key)"
+          - name: name
+            description: "CKAN slug, e.g. 'epa-gov'"
+          - name: title
+            description: "Human-readable org name"
+          - name: display_name
+            description: "CKAN display name"
+          - name: description
+            description: "Org description"
+          - name: image_url
+            description: "Org logo/image URL"
+          - name: image_display_url
+            description: "CKAN-rendered display image URL"
+          - name: website_url
+            description: "Organization web address"
+          - name: org_type
+            description: "CKAN `type` (literal 'organization' for these rows)"
+          - name: state
+            description: "CKAN record lifecycle state ('active'/'deleted') — NOT a US state"
+          - name: approval_status
+            description: "CKAN approval workflow status"
+          - name: is_organization
+            description: "TRUE for organizations (vs groups)"
+          - name: package_count
+            description: "Number of datasets published"
+          - name: num_followers
+            description: "Number of CKAN followers"
+          - name: created_at
+            description: "When the org was created in CKAN"
+          - name: extras
+            description: "CKAN extras array; carries organization_type (Federal/County/City Government)"
+          - name: raw
+            description: "Full raw CKAN organization_show payload"
+          - name: ingestion_date
+            description: "When record was loaded"
+
       - name: bronze_jurisdictions_zcta
         description: "Census ZCTA centroids and area — 33,791 ZIP Code Tabulation Areas"
         columns:

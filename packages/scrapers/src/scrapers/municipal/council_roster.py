@@ -60,6 +60,11 @@ class CouncilMember:
     email: Optional[str] = None
     phone: Optional[str] = None
     photo_url: Optional[str] = None
+    # Biography prose scraped from the member's detail / "more information" page
+    # (e.g. a CivicPlus directory.aspx entry). Newline-separated sections; flows
+    # bronze_officials_scraped.biography -> contact_official.biography -> the
+    # PersonDetail page. None when the source page carries no bio.
+    biography: Optional[str] = None
 
     def to_dict(self) -> dict[str, Optional[str]]:
         return dataclasses.asdict(self)
@@ -82,6 +87,11 @@ class MunicipalCouncilConfig:
     # district number. caboosecms sites (e.g. Tuscaloosa) render the headshot as
     # a CSS background-image on this page, not as an <img> on the roster.
     member_page_template: Optional[str] = None
+    # CivicPlus sites (e.g. Northport) link each member to a `directory.aspx?eid=N`
+    # detail page that carries the name, title/district, headshot AND biography.
+    # When True, `--live` discovers those eids off the roster page and parses each
+    # detail page in full (see scrape_civicplus_directory) rather than the roster.
+    civicplus_directory: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -133,6 +143,147 @@ CONFIGS: dict[str, MunicipalCouncilConfig] = {
         state_code="TN",
         state="Tennessee",
         member_title="Alderman",
+    ),
+    "northport": MunicipalCouncilConfig(
+        slug="northport",
+        # CivicPlus site. The roster page links each member ("More Information") to
+        # a directory.aspx?eid=N detail page carrying name/title/district/headshot
+        # AND a full biography.
+        url="https://www.northportal.gov/220/City-Council",
+        # No OpenStates officials exist for Northport (mayor included), so
+        # ?city=Northport returns ONLY these scraped rows. Uses the "<City>
+        # Government" convention shared by the other AL cities in contact_official.
+        # The mayor is therefore INCLUDED here (nothing to duplicate), like Kingsport.
+        jurisdiction="Northport Government",
+        state_code="AL",
+        state="Alabama",
+        civicplus_directory=True,
+    ),
+}
+
+
+# Northport, AL council biographies, scraped from each member's CivicPlus
+# directory.aspx detail page ("More Information"). Kept here so the curated roster
+# below stays readable; refresh with `--live` (scrape_civicplus_directory).
+_NORTHPORT_BIOS: dict[str, str] = {
+    "Dale Phillips": (
+        "Mayor Phillips was elected in August of 2025 and sworn in as Mayor on November 3, 2025, replacing John Hinton."
+    ),
+    "Turnley Smith": (
+        "Personal Profile\n"
+        "Turnley Smith was born in Florence, Alabama, and raised in Hohenwald, Tennessee. He has been a proud resident of Northport since 2006.\n"
+        "He has been married since 1999. He and his wife are blessed with two wonderful children. Together, they enjoy biking, playing pickleball, and traveling.\n"
+        "His favorite pastime is golf.\n"
+        "\n"
+        "Education\n"
+        "He holds a Bachelor of Architecture, a Bachelor of Interior Architecture, and a Bachelor of Science in Environmental Design from Auburn University's College of Architecture, Design and Construction. He completed his thesis in Auburn's renowned Rural Studio in Newbern, Alabama.\n"
+        "After graduation, Mr. Smith joined Ellis Architects in Tuscaloosa, where he completed the Architect Intern Program. He later founded and operated his own Design-Build firm for more than 17 years, during which he also became a Licensed Homebuilder.\n"
+        "He currently serves as Deputy Director of Building and Inspections for the City of Tuscaloosa Department of Urban Development.\n"
+        "\n"
+        "Overall Goals\n"
+        "Turnley Smith chose to run for Northport City Council to share his expertise in community planning and to help ensure that all residents have a voice in building a better Northport.\n"
+        "Poll Location: District 1 - Northport Civic Center\n"
+        "\n"
+        "Voting District Information\n"
+        "Mr. Smith was elected to the City Council in August 2025."
+    ),
+    "Woodrow Washington III": (
+        "Personal Profile\n"
+        "Married to Marie J. Washington\n"
+        "Two sons, Kerry Matthew Jr., and Woodrow Washington IV\n"
+        "Five grandchildren: Tristan Williams, Jordan Scruggs, Treasure Anderson, Kerry Matthews III, and Damon Bishop\n"
+        "Retired Fire Captain from Tuscaloosa Fire Service\n"
+        "Retired MSGT. United Air Force Reserve\n"
+        "Owner of Archibald BBQ, Archibald and Archibald and Woodrow's BBQ\n"
+        "Owner of New Life CRF (State Contractor for the Department of Intellectual Disability)\n"
+        "Member of Alpha Tau Chapter of Omega Psi Phi Fraternity, Inc. Tuscaloosa, AL\n"
+        "Member of Beulah Baptist Church, Northport, AL\n"
+        "\n"
+        "Education\n"
+        "Graduate of Tuscaloosa County High School\n"
+        "Graduate of Stillman College with a Bachelor of Science Degree in Business Administration\n"
+        "\n"
+        "Areas of Interest\n"
+        "Spending time with family and friends\n"
+        "Community Service\n"
+        "Developing our youth through sports\n"
+        "\n"
+        "Overall Goals\n"
+        "Ensure every citizen of District 2 voice is heard\n"
+        "Meet the needs of all citizens in District 2\n"
+        "Bridge the gap from City Hall and the community\n"
+        "Poll Location: District 2 - New Zion Baptist Church\n"
+        "\n"
+        "Voting District Information\n"
+        "Councilman Washington was elected to the City Council in October 2020 and re-elected in August 2025. He represents District 2 and is serving his second term. Councilman Washington was elected President Pro Tempore on November 3, 2025."
+    ),
+    "Jaime Conger": (
+        "Personal Profile\n"
+        "Born and raised in Montgomery, Alabama. Jaime has been a proud resident of Northport since 2008. She has been married to John Conger since 2009, and they are blessed with two children, Vivian and Henry.\n"
+        "Served with many local organizations since moving to Tuscaloosa County, and is the past president of the Tuscaloosa County Bar Association and the Junior League of Tuscaloosa.\n"
+        "Graduate of the Alabama State Bar Leadership Forum\n"
+        "Previously served Northport as chair of the Northport Redevelopment Authority.\n"
+        "\n"
+        "Education\n"
+        "Graduated from Saint James School in Montgomery, Alabama, in 2000.\n"
+        "Bachelor of Arts in both economics and political science from Furman University in Greenville, South Carolina, in 2004.\n"
+        "Councilor Conger received her J.D. from Tulane University School of Law in New Orleans, Louisiana, in 2007. Before graduating, she attended the University of Alabama School of Law for the fall 2005 semester due to Hurricane Katrina.\n"
+        "After graduation, she practiced law for one year in Montgomery, Alabama, before making Northport her home in 2008.\n"
+        "Practiced law with the firm Smith & Staggs, LLP since 2012, and her main areas of practice are domestic relations, criminal defense, and juvenile delinquency and dependency.\n"
+        "\n"
+        "Overall Goals\n"
+        "Jaime Conger ran on the platform of restoring trust to the Northport City Council. Her main objectives are to unify the community, promote transparency, support small businesses, address outstanding infrastructure issues, and advocate for the citizens of Northport.\n"
+        "Poll Location: District 3 - Daystar Family Church\n"
+        "\n"
+        "Voting District Information\n"
+        "Councilwoman Conger was elected in August of 2025 to represent District 3."
+    ),
+    "Jamie Dykes": (
+        "Personal Profile\n"
+        "Daughter, Emma Katharine, 2020 Graduate of TCHS\n"
+        "Parents, Linda and Frank Dykes\n"
+        "\n"
+        "Education\n"
+        "Graduate of The University of Alabama with a BS and MA in Elementary Education\n"
+        "\n"
+        "Areas of Interest\n"
+        "Spending time with family\n"
+        "Grilling or eating out with friends\n"
+        "Playing tennis\n"
+        "Working in her yard\n"
+        "Alabama Softball\n"
+        "Being anywhere on the water, especially Lake Tuscaloosa\n"
+        "\n"
+        "Overall Goals\n"
+        "Meet the needs of all District 4 citizens\n"
+        "Paving schedule\n"
+        "Create a Citizens Advisory group\n"
+        "Enhance the positivity of Northport\n"
+        "Poll Location: District 4 - Northport Fire and Rescue Station 2\n"
+        "\n"
+        "Voting District Information\n"
+        "Councilwoman Dykes was elected to the City Council in October 2020 and re-elected in August 2025. She represents District 4 and is serving her second term on the Northport City Council. Councilwoman Dykes was elected Council President on November 3, 2025."
+    ),
+    "Danny Higdon": (
+        "Personal Profile\n"
+        "Councilman Higdon has been a proud resident of Northport for over fifty years. He and his wife, Mitzi, have been married for 39 years and are the parents of three sons, all of whom are married and reside in Northport. Two of their sons are educators, and the third serves as Marketing Director for a mission organization. Danny and Mitzi are blessed with six grandchildren.\n"
+        "\n"
+        "Education\n"
+        "Attended Crestmont Elementary, Northport Junior High, and graduated from Tuscaloosa County High School.\n"
+        "Bachelor's degree in Commerce and Business Administration with a major in Accounting from the University of Alabama.\n"
+        "\n"
+        "Areas of Interest\n"
+        "Worked as an Auditor with the City of Tuscaloosa from 1991 to 1994.\n"
+        "Worked as an Auditor at the City of Northport, where he later advanced to the position of Auditor/Assistant Finance Director, serving from 1994 to 2005.\n"
+        "Worked at the Tuscaloosa County Board of Education, where he held several administrative roles before being appointed Chief School Finance Officer (CSFO) in 2012. Danny served as CSFO until his retirement in 2020. He returned to the position in 2021 and remained in that role until his retirement in April 2025.\n"
+        "In addition to his professional accomplishments, Danny served in the Alabama National Guard in Northport, first with Company A of the 31st Support Battalion and later with Headquarters Company of the 31st Armor Brigade, achieving the rank of Captain.\n"
+        "\n"
+        "Overall Goals\n"
+        "Danny Higdon chose to run for the Northport City Council to serve the citizens with integrity, transparency, and fiscal responsibility. His goal is to ensure that the voices of Northport residents are heard and represented in every decision that impacts the community.\n"
+        "Poll Location: District 5 - Flatwoods Baptist Church\n"
+        "\n"
+        "Voting District Information\n"
+        "Councilman Higdon was elected in August of 2025 to represent District 5."
     ),
 }
 
@@ -211,6 +362,50 @@ CURATED_ROSTERS: dict[str, list[CouncilMember]] = {
             "James Phillips", "Alderman", "Kingsport Government", "TN", "Tennessee",
             district="At-Large", email="JamesPhillips@kingsporttn.gov",
             photo_url="https://www.kingsporttn.gov/wp-content/uploads/2021/07/james-web.jpg",
+        ),
+    ],
+    # Northport, AL — Mayor + 5 single-member-district council seats. Like
+    # Kingsport, OpenStates carries no Northport officials at all, so this roster
+    # INCLUDES the mayor (nothing to duplicate). Names/titles/districts, headshots,
+    # and biographies were scraped from each member's CivicPlus directory.aspx
+    # detail page; `--live` (scrape_civicplus_directory) re-pulls all of it.
+    # Source: https://www.northportal.gov/220/City-Council
+    "northport": [
+        CouncilMember(
+            "Dale Phillips", "Mayor", "Northport Government", "AL", "Alabama",
+            district=None, phone="205-394-1476",
+            photo_url="https://www.northportal.gov/ImageRepository/Document?documentID=1771",
+            biography=_NORTHPORT_BIOS["Dale Phillips"],
+        ),
+        CouncilMember(
+            "Turnley Smith", "City Councilor", "Northport Government", "AL", "Alabama",
+            district="District 1",
+            photo_url="https://www.northportal.gov/ImageRepository/Document?documentID=1779",
+            biography=_NORTHPORT_BIOS["Turnley Smith"],
+        ),
+        CouncilMember(
+            "Woodrow Washington III", "City Councilor (Mayor Pro Tempore)", "Northport Government", "AL", "Alabama",
+            district="District 2",
+            photo_url="https://www.northportal.gov/ImageRepository/Document?documentID=1780",
+            biography=_NORTHPORT_BIOS["Woodrow Washington III"],
+        ),
+        CouncilMember(
+            "Jaime Conger", "City Councilor", "Northport Government", "AL", "Alabama",
+            district="District 3",
+            photo_url="https://www.northportal.gov/ImageRepository/Document?documentID=1777",
+            biography=_NORTHPORT_BIOS["Jaime Conger"],
+        ),
+        CouncilMember(
+            "Jamie Dykes", "City Council President", "Northport Government", "AL", "Alabama",
+            district="District 4",
+            photo_url="https://www.northportal.gov/ImageRepository/Document?documentID=1778",
+            biography=_NORTHPORT_BIOS["Jamie Dykes"],
+        ),
+        CouncilMember(
+            "Danny Higdon", "City Councilor", "Northport Government", "AL", "Alabama",
+            district="District 5",
+            photo_url="https://www.northportal.gov/ImageRepository/Document?documentID=1776",
+            biography=_NORTHPORT_BIOS["Danny Higdon"],
         ),
     ],
 }
@@ -556,6 +751,192 @@ def parse_council_html(html: str, config: MunicipalCouncilConfig) -> list[Counci
 
 
 # ---------------------------------------------------------------------------
+# CivicPlus directory scrape (Northport-style: per-member detail pages)
+# ---------------------------------------------------------------------------
+# Section labels CivicPlus directory.aspx pages use to structure the bio body.
+_CIVICPLUS_BIO_SECTIONS = {
+    "Personal Profile", "Professional Profile", "Biography", "Education",
+    "Areas of Interest", "Overall Goals", "Voting District Information", "Poll Location",
+}
+# Header/footer image alts that are site chrome, not a member headshot.
+_CIVICPLUS_IMG_CHROME = {
+    "homepage", "facebook", "twitter", "instagram", "employee email", "search", "youtube",
+}
+# Detail-page link on a CivicPlus roster: ``directory.aspx?eid=37``.
+_CIVICPLUS_EID_RE = re.compile(r"directory\.aspx\?eid=(\d+)", re.IGNORECASE)
+_CIVICPLUS_PLACEHOLDER = "coming soon!"
+_CIVICPLUS_BIO_END = "Return to Staff Directory"
+
+
+def _civicplus_title_district(title_text: str, config: MunicipalCouncilConfig) -> tuple[str, Optional[str]]:
+    """Map a CivicPlus "Title:" value to a (display title, district) pair.
+
+    Examples: "Mayor" -> (Mayor, None); "President / Council Member - District 4"
+    -> (City Council President, District 4); "Pro Tempore / Council Member -
+    District 2" -> (City Councilor (Mayor Pro Tempore), District 2).
+    """
+    low = (title_text or "").lower()
+    dm = _DISTRICT_RE.search(title_text or "")
+    district = f"District {dm.group(1)}" if dm else None
+    if "mayor" in low and "council" not in low:
+        title = "Mayor"
+    elif "president" in low:
+        title = "City Council President"
+    elif "pro tempore" in low:
+        title = "City Councilor (Mayor Pro Tempore)"
+    else:
+        title = config.member_title
+    return title, district
+
+
+def _civicplus_biography(chunks: list[str], start: int) -> Optional[str]:
+    """Join a CivicPlus detail page's section/prose chunks into a bio string.
+
+    Reads from the first bio-section header (``start``) up to the page footer
+    (``Return to Staff Directory``); drops "Coming soon!" placeholders and any
+    section header left with no content; blanks a line before each kept header.
+    A lone surviving header (e.g. a mayor with only a one-line note) is dropped.
+    """
+    try:
+        end = chunks.index(_CIVICPLUS_BIO_END)
+    except ValueError:
+        end = len(chunks)
+    seg = [c for c in chunks[start:end] if c.lower() != _CIVICPLUS_PLACEHOLDER]
+    kept: list[str] = []
+    for i, c in enumerate(seg):
+        # Skip an empty section: a header immediately followed by another header.
+        if c in _CIVICPLUS_BIO_SECTIONS and (i + 1 >= len(seg) or seg[i + 1] in _CIVICPLUS_BIO_SECTIONS):
+            continue
+        kept.append(c)
+    if sum(1 for c in kept if c in _CIVICPLUS_BIO_SECTIONS) == 1:
+        kept = [c for c in kept if c not in _CIVICPLUS_BIO_SECTIONS]
+    out: list[str] = []
+    for c in kept:
+        if c in _CIVICPLUS_BIO_SECTIONS and out:
+            out.append("")
+        out.append(c)
+    return "\n".join(out).strip() or None
+
+
+def parse_civicplus_member(html: str, config: MunicipalCouncilConfig) -> Optional[CouncilMember]:
+    """Parse one CivicPlus ``directory.aspx`` detail page into a CouncilMember.
+
+    Layout: a "Staff Directory" breadcrumb, then the member NAME, a category
+    ("City Council"/"Mayor"), a "Title: ..." line, an optional "Phone:" in the
+    contact block, and a sectioned biography. The headshot is the one ``<img>``
+    whose ``alt`` equals the member name (CivicPlus serves it from
+    ``/ImageRepository/Document?documentID=...``). Returns ``None`` if no name.
+    """
+    harv = _TextHarvester()
+    harv.feed(html)
+    chunks = harv.chunks
+    try:
+        i = chunks.index("Staff Directory")
+    except ValueError:
+        return None
+    if i + 1 >= len(chunks):
+        return None
+    name = re.sub(r"\s+", " ", chunks[i + 1]).strip()
+
+    # Title line within the next few chunks after the name.
+    title_idx = i + 1
+    title_text = ""
+    for j in range(i + 2, min(i + 9, len(chunks))):
+        if chunks[j].startswith("Title:"):
+            title_text = chunks[j][len("Title:"):].strip()
+            title_idx = j
+            break
+    title, district = _civicplus_title_district(title_text, config)
+
+    # Bio starts at the first section header after the title.
+    bio_start = next(
+        (k for k in range(title_idx + 1, len(chunks)) if chunks[k] in _CIVICPLUS_BIO_SECTIONS),
+        len(chunks),
+    )
+
+    # Phone lives only in the contact block (between title and the bio body); the
+    # page footer also has a "Phone:" (city hall) that must NOT be captured.
+    phone: Optional[str] = None
+    for j in range(title_idx + 1, bio_start):
+        if chunks[j].startswith("Phone:"):
+            if j + 1 < bio_start and re.match(r"[\d(]", chunks[j + 1]):
+                phone = chunks[j + 1].strip()
+            break
+
+    biography = _civicplus_biography(chunks, bio_start) if bio_start < len(chunks) else None
+
+    # Headshot: the <img> whose alt is the member's name. CivicPlus sometimes
+    # drops a generational suffix from the alt ("Woodrow Washington" for "Woodrow
+    # Washington III"), so accept a name that is a token-subset either way. Never
+    # fall back to a logo/social image (site chrome shares no name token).
+    name_key = _name_key(name)
+    photo_url: Optional[str] = None
+    for alt, src, _title in harv.images:
+        alt_key = _name_key(alt)
+        if "documentid=" not in src.lower() or alt_key in _CIVICPLUS_IMG_CHROME:
+            continue
+        if alt_key == name_key or alt_key in name_key or name_key in alt_key:
+            photo_url = urljoin(config.url, src)
+            break
+
+    return CouncilMember(
+        full_name=name,
+        title=title,
+        jurisdiction=config.jurisdiction,
+        state_code=config.state_code,
+        state=config.state,
+        district=district,
+        phone=phone,
+        photo_url=photo_url,
+        biography=biography,
+    )
+
+
+def scrape_civicplus_directory(config: MunicipalCouncilConfig) -> list[CouncilMember]:
+    """Scrape a CivicPlus council roster + each member's detail page.
+
+    Discovers the ``directory.aspx?eid=N`` detail links off the roster page
+    (``config.url``) and parses each into a full CouncilMember (name, title,
+    district, headshot, biography). Members sort mayor-first then by district.
+    Per-page failures are logged and skipped; network failure -> empty list.
+    """
+    try:
+        roster_html = fetch_html(config.url)
+    except Exception as exc:
+        logger.warning("CivicPlus roster fetch for {} failed ({})", config.slug, exc)
+        return []
+
+    eids: list[str] = []
+    for eid in _CIVICPLUS_EID_RE.findall(roster_html):
+        if eid not in eids:
+            eids.append(eid)
+    if not eids:
+        logger.warning("no directory.aspx?eid links found on {}", config.url)
+        return []
+
+    base = config.url.split("//", 1)
+    origin = (base[0] + "//" + base[1].split("/", 1)[0]) if len(base) == 2 else config.url
+    members: list[CouncilMember] = []
+    for eid in eids:
+        url = urljoin(origin + "/", f"directory.aspx?eid={eid}")
+        try:
+            member = parse_civicplus_member(fetch_html(url), config)
+        except Exception as exc:
+            logger.warning("CivicPlus detail parse failed for {} ({})", url, exc)
+            continue
+        if member and member.full_name:
+            members.append(member)
+
+    def _order(m: CouncilMember) -> tuple[int, int]:
+        dm = _DISTRICT_RE.search(m.district or "")
+        return (0, 0) if m.district is None else (1, int(dm.group(1)) if dm else 99)
+
+    members.sort(key=_order)
+    logger.success("scraped {} CivicPlus members from {}", len(members), config.url)
+    return members
+
+
+# ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
 def _overlay_live_photos(members: list[CouncilMember], config: MunicipalCouncilConfig) -> list[CouncilMember]:
@@ -604,8 +985,11 @@ def get_council(
 
     With ``live=True`` and a curated roster present, the curated names/districts
     are authoritative and only the headshot URLs are pulled live (the raw page
-    parse is too noisy to trust for membership). Cities with no curated roster
-    fall back to the best-effort parse.
+    parse is too noisy to trust for membership) — EXCEPT CivicPlus directory sites
+    (``civicplus_directory=True``, e.g. Northport), where each member has a
+    structured detail page so the live scrape re-pulls names/titles/districts/
+    headshots/biographies in full. Cities with no curated roster fall back to the
+    best-effort parse.
     """
     slug = slug.lower().strip()
 
@@ -620,18 +1004,26 @@ def get_council(
         cfg = CONFIGS.get(slug)
         if not cfg:
             raise ValueError(f"no scrape config for city {slug!r}")
-        if curated is not None:
+        # CivicPlus detail pages are structured enough to trust for full membership
+        # (incl. biographies), so re-scrape rather than just overlaying photos.
+        if cfg.civicplus_directory:
+            scraped = scrape_civicplus_directory(cfg)
+            if scraped:
+                return scraped
+            logger.warning("CivicPlus live scrape of {} yielded 0; using curated", slug)
+        elif curated is not None:
             return _overlay_live_photos(list(curated), cfg)
-        # No curated roster: best-effort parse of the live page.
-        try:
-            parsed = parse_council_html(fetch_html(cfg.url), cfg)
-        except Exception as exc:
-            logger.warning("live scrape of {} failed ({})", slug, exc)
-            parsed = []
-        if parsed:
-            logger.success("scraped {} council members from {}", len(parsed), cfg.url)
-            return parsed
-        logger.warning("live parse yielded 0 members and no curated roster exists for {}", slug)
+        else:
+            # No curated roster: best-effort parse of the live page.
+            try:
+                parsed = parse_council_html(fetch_html(cfg.url), cfg)
+            except Exception as exc:
+                logger.warning("live scrape of {} failed ({})", slug, exc)
+                parsed = []
+            if parsed:
+                logger.success("scraped {} council members from {}", len(parsed), cfg.url)
+                return parsed
+            logger.warning("live parse yielded 0 members and no curated roster exists for {}", slug)
 
     if curated is None:
         raise ValueError(f"no curated roster for city {slug!r}")

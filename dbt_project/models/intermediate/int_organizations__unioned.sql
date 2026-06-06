@@ -14,6 +14,10 @@
                                 EIN and adds the ~290k IRS-only nonprofits)
       - stg_parcels__org       (bronze_addresses owner_name flagged as org; the
                                 business/government parcel owners)
+      - stg_data_gov__org      (bronze_organizations_gov; Data.gov/CKAN publishing
+                                governments — federal/state/county/city agencies.
+                                Keyed `gov:<ckan_id>` in clustered; detail in the
+                                mdm_organization_government satellite)
 
     TODO: contribution committees/businesses.
 */
@@ -32,6 +36,8 @@ with unioned as (
     select * from {{ ref('stg_irs__org') }}
     union all
     select * from {{ ref('stg_parcels__org') }}
+    union all
+    select * from {{ ref('stg_data_gov__org') }}
 )
 
 select

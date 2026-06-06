@@ -53,8 +53,9 @@ class PersonDetail(BaseModel):
     # persons (the master has no photo column) and officials with no headshot.
     photo_url: Optional[str] = None
     # Biography prose (local leaders, from contact_official.biography — sourced
-    # from the official_photo_override seed, e.g. a mayor's "meet the mayor"
-    # page). None for MDM persons and officials with no curated bio.
+    # from the scraped municipal directory pages, e.g. Northport's CivicPlus
+    # detail pages, or the official_photo_override seed for a mayor's "meet the
+    # mayor" page). None for MDM persons and officials with no bio.
     biography: Optional[str] = None
     organizations: List[PersonOrganization] = Field(default_factory=list)
 
@@ -96,6 +97,15 @@ _ORGS_SQL = """
 # person_uid linkage to the MDM master — so /person/{id} resolves them here when
 # the id misses mdm_person. The id namespaces are disjoint, so this only fires
 # for genuine official ids. The office itself is surfaced as the single org row.
+# NOTE: biography is intentionally NOT selected here. The officials' curated bio
+# is being migrated to the MDM layer (mdm_person_source_link.biography); the
+# contact_official mart does not reliably carry the column (a stale build crashed
+# this endpoint with "column o.biography does not exist"). Officials are not yet
+# resolvable in the deployed MDM person tables (no bronze_officials_scraped rows
+# in mdm_person), and a name+state match risks attaching the wrong person's bio,
+# so we surface no bio for officials until the MDM-backed path lands. The role
+# attributes (photo/title/jurisdiction/website) still come from contact_official —
+# the only warehouse home for them today.
 _OFFICIAL_SQL = """
     SELECT
         o.id,
@@ -107,8 +117,7 @@ _OFFICIAL_SQL = """
         o.phone,
         o.state_code,
         o.website_url,
-        o.photo_url,
-        o.biography
+        o.photo_url
     FROM contact_official o
     WHERE o.id = $1
 """
@@ -141,7 +150,7 @@ def _official_to_detail(row) -> PersonDetail:
         phone=row["phone"],
         jurisdiction_website=row["website_url"],
         photo_url=row["photo_url"],
-        biography=row["biography"],
+        biography=None,
         organizations=organizations,
     )
 

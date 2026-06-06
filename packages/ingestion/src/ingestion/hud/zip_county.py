@@ -9,9 +9,9 @@ https://www.huduser.gov/portal/datasets/usps_crosswalk.html, cached at
 data/cache/hud/ZIP_COUNTY_<MMYYYY>.xlsx.
 
 Usage:
-    python -m scripts.datasources.hud.zip_county_pipeline
-    python scripts/datasources/hud/zip_county_pipeline.py --truncate
-    python scripts/datasources/hud/zip_county_pipeline.py \\
+    python -m ingestion.hud.zip_county
+    python -m ingestion.hud.zip_county --truncate
+    python -m ingestion.hud.zip_county \\
         --file data/cache/hud/ZIP_COUNTY_122025.xlsx --limit 500
 
 Configuration:
@@ -174,9 +174,16 @@ class HudZipCountyPipeline(DataSourcePipeline[ZipCountyRow]):
     batch_size = 2_000
     row_schema = ZipCountyRow
 
-    def __init__(self, *, xlsx_path: Path | None = None, limit: int | None = None):
+    def __init__(
+        self,
+        *,
+        xlsx_path: Path | None = None,
+        limit: int | None = None,
+        dry_run: bool = False,
+    ):
         self._xlsx_path = xlsx_path
         self._limit = limit
+        self._dry_run = dry_run
 
     async def extract(self, ctx: PipelineContext) -> AsyncIterator[dict]:
         path = self._xlsx_path or find_latest_xlsx()
@@ -194,6 +201,8 @@ class HudZipCountyPipeline(DataSourcePipeline[ZipCountyRow]):
         rows: list[ZipCountyRow],
         ctx: PipelineContext,
     ) -> None:
+        if self._dry_run:
+            return
         params = [
             {
                 "zip": r.zip,
@@ -230,12 +239,19 @@ def build_parser() -> argparse.ArgumentParser:
         "--truncate", action="store_true",
         help="TRUNCATE table before loading (recommended for full reloads)",
     )
+    parser.add_argument(
+        "--dry-run", action="store_true",
+        help="Parse and validate rows but do not touch the database",
+    )
     return parser
 
 
 async def _run(args: argparse.Namespace) -> None:
-    await _prepare_target(args.truncate)
-    pipeline = HudZipCountyPipeline(xlsx_path=args.file, limit=args.limit)
+    if not args.dry_run:
+        await _prepare_target(args.truncate)
+    pipeline = HudZipCountyPipeline(
+        xlsx_path=args.file, limit=args.limit, dry_run=args.dry_run
+    )
     await pipeline.run()
 
 

@@ -72,7 +72,8 @@ with openstates as (
 
 -- Scraped municipal council members (ingestion.municipal.load_council_officials)
 -- — fills the gap where OpenStates has a city's mayor but not its council. Same
--- contract columns; carries phone when scraped.
+-- contract columns; carries phone AND a scraped biography when present (e.g.
+-- Northport's CivicPlus directory detail pages).
 scraped as (
     select
         ocd_membership_id                                     as id,
@@ -87,17 +88,21 @@ scraped as (
         email,
         phone,
         photo_url,
+        biography,
         is_current
     from {{ ref('stg_scraped__official') }}
 ),
 
+-- OpenStates carries no biography; only the scraped path does. Pad the OpenStates
+-- side with a NULL biography so the union is column-compatible.
 unioned_raw as (
     select id, full_name, title, jurisdiction, state_code, state,
-           party, district, office, email, phone, photo_url, is_current
+           party, district, office, email, phone, photo_url,
+           cast(null as text) as biography, is_current
     from openstates
     union all
     select id, full_name, title, jurisdiction, state_code, state,
-           party, district, office, email, phone, photo_url, is_current
+           party, district, office, email, phone, photo_url, biography, is_current
     from scraped
 ),
 
@@ -119,7 +124,7 @@ unioned as (
         u.id, u.full_name, u.title, u.jurisdiction, u.state_code, u.state,
         u.party, u.district, u.office, u.email, u.phone,
         coalesce(u.photo_url, po.photo_url)                   as photo_url,
-        po.biography                                          as biography,
+        coalesce(u.biography, po.biography)                   as biography,
         u.is_current
     from unioned_raw u
     left join photo_override po

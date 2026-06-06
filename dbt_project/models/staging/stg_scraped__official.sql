@@ -35,6 +35,7 @@ select
     nullif(lower(trim(email)), '')           as email,
     nullif(trim(phone), '')                  as phone,
     nullif(trim(photo_url), '')              as photo_url,
+    nullif(trim(biography), '')              as biography,
     coalesce(is_current, true)               as is_current
 from source
 where nullif(trim(full_name), '') is not null

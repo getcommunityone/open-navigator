@@ -12,7 +12,7 @@ Loaders (run in order):
   3. localview        — Meetings (Old)    → scripts/datasources/localview/load_localview_to_postgres.py
   4. irs              — Non-Profits       → scripts/datasources/irs/load_irs_bmf.py
   5. enrich_ai        — AI Meeting Analysis (Gemini) → packages/llm/src/llm/enrichment/load_enriched_events_ai.py --only analyze
-  6. hud_zip_county   — ZIP-County Crosswalk (HUD)   → scripts/datasources/hud/load_zip_county.py
+  6. hud_zip_county   — ZIP-County Crosswalk (HUD)   → packages/ingestion/src/ingestion/hud/zip_county.py
   7. shapefiles       — Geometry Shapefiles (Census TIGER) → scripts/datasources/census/load_census_shapefiles.py
   8. place_crosswalks — Place → County / ZCTA Crosswalks  → scripts/datasources/census/load_place_crosswalks.py
 
@@ -101,7 +101,7 @@ LOADERS = [
     {
         "key": "hud_zip_county",
         "label": "ZIP-County Crosswalk (HUD)",
-        "script": "scripts/datasources/hud/load_zip_county.py",
+        "script": "packages/ingestion/src/ingestion/hud/zip_county.py",
         "supports_truncate": True,
         "supports_dry_run": True,
         "tables": ["bronze.bronze_jurisdictions_zip_county"],

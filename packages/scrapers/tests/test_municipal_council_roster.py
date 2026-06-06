@@ -7,7 +7,9 @@ from scrapers.municipal.council_roster import (
     OFFICIAL_PROFILE_SOURCES,
     CouncilMember,
     get_council,
+    parse_civicplus_member,
     parse_council_html,
+    scrape_civicplus_directory,
     scrape_official_photos,
     scrape_official_profile,
 )
@@ -198,3 +200,95 @@ def test_curated_rosters_are_council_members():
         # Where the mayor is already in OpenStates, don't curate one here.
         if slug in _MAYOR_IN_OPENSTATES:
             assert all("mayor" not in m.title.lower() for m in roster)
+
+
+def test_curated_northport_includes_mayor_and_five_districts():
+    members = get_council("northport")
+    assert len(members) == 6
+    # No OpenStates officials for Northport, so the curated roster includes the mayor.
+    mayor = next(m for m in members if m.title == "Mayor")
+    assert mayor.full_name == "Dale Phillips"
+    assert mayor.district is None
+    districts = {m.district for m in members if m.district}
+    assert districts == {f"District {i}" for i in range(1, 6)}
+    assert all(m.jurisdiction == "Northport Government" for m in members)
+    assert all(m.state_code == "AL" for m in members)
+    # Every Northport member carries a scraped biography + headshot.
+    assert all(m.biography for m in members)
+    assert all(m.photo_url and m.photo_url.startswith("https://") for m in members)
+    # The district-4 holder also presides over the body.
+    president = next(m for m in members if m.title == "City Council President")
+    assert president.full_name == "Jamie Dykes"
+    assert president.district == "District 4"
+
+
+# A CivicPlus directory.aspx detail page (Northport layout): breadcrumb, name,
+# category, "Title:" line, sectioned bio, a footer with the CITY HALL phone that
+# must NOT be mistaken for the member's, and a headshot whose alt drops the "III".
+_CIVICPLUS_DETAIL_HTML = """
+<html><body>
+  <nav><a href="/">Home</a><a href="/directory.aspx">Staff Directory</a></nav>
+  <h1>Woodrow Washington III</h1>
+  <span>City Council</span>
+  <p>Title: Pro Tempore / Council Member - District 2</p>
+  <h2>Personal Profile</h2>
+  <p>Retired Fire Captain from Tuscaloosa Fire Service</p>
+  <h2>Education</h2>
+  <p>Graduate of Stillman College</p>
+  <img src="/ImageRepository/Document?documentID=1780" alt="Woodrow Washington" />
+  <img src="/ImageRepository/Document?documentID=27" alt="Northport, AL" />
+  <a href="/directory.aspx">Return to Staff Directory</a>
+  <footer>Northport City Hall <span>Phone:</span> <span>205-339-7000</span></footer>
+</body></html>
+"""
+
+
+def test_parse_civicplus_member_pulls_title_district_bio_and_headshot():
+    cfg = CONFIGS["northport"]
+    member = parse_civicplus_member(_CIVICPLUS_DETAIL_HTML, cfg)
+    assert member is not None
+    assert member.full_name == "Woodrow Washington III"
+    # "Pro Tempore" maps to the council-pro-tem title; district parsed off the line.
+    assert member.title == "City Councilor (Mayor Pro Tempore)"
+    assert member.district == "District 2"
+    assert member.jurisdiction == "Northport Government"
+    # Bio keeps section structure and excludes the footer/return chrome.
+    assert "Personal Profile" in member.biography
+    assert "Retired Fire Captain" in member.biography
+    assert "Education" in member.biography
+    assert "Return to Staff Directory" not in member.biography
+    # The CITY HALL footer phone must NOT be attached to the member.
+    assert member.phone is None
+    # Headshot matched despite the alt dropping the "III"; the site logo is ignored.
+    assert member.photo_url == (
+        "https://www.northportal.gov/ImageRepository/Document?documentID=1780"
+    )
+
+
+def test_scrape_civicplus_directory_discovers_eids_and_parses_each(monkeypatch):
+    roster_html = """
+    <html><body>
+      <div><a href="/directory.aspx?eid=39">More Information</a></div>
+      <div><a href="/directory.aspx?eid=37">More Information</a></div>
+    </body></html>
+    """
+    mayor_html = """
+    <html><body><nav>Staff Directory</nav><h1>Dale Phillips</h1><span>Mayor</span>
+      <p>Title: Mayor</p><span>Phone:</span><span>205-394-1476</span>
+      <h2>Overall Goals</h2><p>Sworn in as Mayor on November 3, 2025.</p>
+      <img src="/ImageRepository/Document?documentID=1771" alt="Dale Phillips" />
+      <a href="/directory.aspx">Return to Staff Directory</a></body></html>
+    """
+    pages = {
+        "https://www.northportal.gov/220/City-Council": roster_html,
+        "https://www.northportal.gov/directory.aspx?eid=39": _CIVICPLUS_DETAIL_HTML,
+        "https://www.northportal.gov/directory.aspx?eid=37": mayor_html,
+    }
+    monkeypatch.setattr(council_roster, "fetch_html", lambda url, **kw: pages[url])
+    members = scrape_civicplus_directory(CONFIGS["northport"])
+    # Both detail pages parsed; sorted mayor-first then by district.
+    assert [m.full_name for m in members] == ["Dale Phillips", "Woodrow Washington III"]
+    assert members[0].title == "Mayor"
+    assert members[0].phone == "205-394-1476"  # real contact-block phone IS captured
+    # A lone bio section header is dropped, leaving just the prose.
+    assert members[0].biography == "Sworn in as Mayor on November 3, 2025."

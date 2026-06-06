@@ -85,6 +85,7 @@ def shape_row(batch_id: str, m: CouncilMember) -> tuple[Any, ...]:
         m.email or None,
         m.phone or None,
         m.photo_url or None,
+        m.biography or None,
     )
 
 
@@ -101,9 +102,10 @@ _INSERT_COLUMNS = (
     "email",
     "phone",
     "photo_url",
+    "biography",
 )
 
-_INSERT_TEMPLATE = "(%s::uuid, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+_INSERT_TEMPLATE = "(%s::uuid, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
 
 CREATE_TABLE_SQL = """
 CREATE SCHEMA IF NOT EXISTS bronze;
@@ -122,9 +124,14 @@ CREATE TABLE IF NOT EXISTS bronze.bronze_officials_scraped (
     email             TEXT,
     phone             TEXT,
     photo_url         TEXT,
+    biography         TEXT,
     is_current        BOOLEAN NOT NULL DEFAULT TRUE,
     synced_at         TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Backfill the biography column on warehouses created before it was added
+-- (CREATE TABLE IF NOT EXISTS above won't alter an existing table).
+ALTER TABLE bronze.bronze_officials_scraped ADD COLUMN IF NOT EXISTS biography TEXT;
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_bronze_officials_scraped_membership
     ON bronze.bronze_officials_scraped (ocd_membership_id);
@@ -162,6 +169,7 @@ def upsert(conn, batch_id: str, members: list[CouncilMember]) -> int:
                 email         = EXCLUDED.email,
                 phone         = EXCLUDED.phone,
                 photo_url     = EXCLUDED.photo_url,
+                biography     = EXCLUDED.biography,
                 is_current    = TRUE,
                 synced_at     = CURRENT_TIMESTAMP
             """,
