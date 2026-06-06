@@ -555,6 +555,20 @@ function parseByTheNumbers(s: string | null): { value: string | null; label: str
     })
 }
 
+// The committee/council decision itself, styled to sit inline within Key
+// Takeaways directly under "Why it matters" (neutral slate accent so it reads
+// as the factual outcome, distinct from the green "why it matters" callout).
+function DecisionBlock({ statement }: { statement: string }) {
+  return (
+    <div className="mt-4 rounded-xl border-l-4 border-[#94a3a0] bg-[#f3f6f5] px-4 py-3.5">
+      <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#56635e]">
+        The decision
+      </div>
+      <p className="whitespace-pre-line text-[15px] leading-relaxed text-[#16201d]">{statement}</p>
+    </div>
+  )
+}
+
 function SBSection({ label, body }: { label: string; body: string }) {
   return (
     <div className="mt-5 first:mt-0">
@@ -566,7 +580,13 @@ function SBSection({ label, body }: { label: string; body: string }) {
   )
 }
 
-function SmartBrevityBody({ sb }: { sb: Record<string, unknown> }) {
+function SmartBrevityBody({
+  sb,
+  afterWhyItMatters,
+}: {
+  sb: Record<string, unknown>
+  afterWhyItMatters?: React.ReactNode
+}) {
   const str = (k: string) =>
     typeof sb[k] === 'string' && (sb[k] as string).trim() ? (sb[k] as string).trim() : null
   const lead = str('one_big_thing')
@@ -600,6 +620,7 @@ function SmartBrevityBody({ sb }: { sb: Record<string, unknown> }) {
           <p className="whitespace-pre-line text-[15px] leading-relaxed text-[#16201d]">{why[1]}</p>
         </div>
       )}
+      {afterWhyItMatters}
       {numbers.length > 0 && (
         <div className="mt-5">
           <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-[#8a958f]">
@@ -912,21 +933,28 @@ export default function DecisionDetail() {
         </header>
 
 
-        {/* Key Takeaways (smart_brevity) — leads, with "Why it matters" */}
-        {!isEmpty(decision.smart_brevity) && (
+        {/* Key Takeaways (smart_brevity) — leads, with "Why it matters", then
+            the decision tucked directly under it. If there's no smart_brevity,
+            the decision still shows in its own card. */}
+        {!isEmpty(decision.smart_brevity) ? (
           <Section title="Key Takeaways" icon={<SparklesIcon className="h-5 w-5 text-[#1d6b5f]" />}>
-            <SmartBrevityBody sb={decision.smart_brevity as Record<string, unknown>} />
+            <SmartBrevityBody
+              sb={decision.smart_brevity as Record<string, unknown>}
+              afterWhyItMatters={
+                decision.decision_statement ? (
+                  <DecisionBlock statement={decision.decision_statement} />
+                ) : null
+              }
+            />
           </Section>
-        )}
-
-        {/* Decision Statement — tucked directly under Key Takeaways */}
-        {decision.decision_statement && (
-          <div className="-mt-4 mb-6 rounded-lg bg-white p-6 shadow-sm">
-            <h2 className="mb-2 text-lg font-bold text-gray-900">Decision</h2>
-            <p className="text-sm leading-relaxed text-gray-700 whitespace-pre-line">
-              {decision.decision_statement}
-            </p>
-          </div>
+        ) : (
+          decision.decision_statement && (
+            <Section title="Decision">
+              <p className="text-sm leading-relaxed text-gray-700 whitespace-pre-line">
+                {decision.decision_statement}
+              </p>
+            </Section>
+          )
         )}
 
         {/* Vote result (visual) */}
