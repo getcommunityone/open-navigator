@@ -22,6 +22,7 @@ CLI::
     python -m scrapers.municipal.council_roster --city tuscaloosa            # curated
     python -m scrapers.municipal.council_roster --city tuscaloosa --live     # scrape
     python -m scrapers.municipal.council_roster --city tuscaloosa --json out.json
+    python -m scrapers.municipal.council_roster --city northport --live      # CivicPlus dir + bios
     python -m scrapers.municipal.council_roster --profiles atlanta           # mayor photo + bio
 """
 
