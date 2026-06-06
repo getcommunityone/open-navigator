@@ -108,18 +108,6 @@ export default function PeopleFinder() {
     contact: person.metadata.email || undefined,
   }))
 
-  // Debug logging
-  if (contactsData && !isLoading) {
-    console.log('PeopleFinder Debug:', {
-      effectiveState,
-      defaultCity,
-      totalResults: contactsData.total_results,
-      peopleReturned: personResults.length,
-      peopleConverted: people.length,
-      samplePerson: personResults[0]
-    })
-  }
-
   // Get unique cities for filter dropdown
   const cities = Array.from(new Set(people.map(p => p.organization).filter(Boolean))).sort()
   
