@@ -49,7 +49,12 @@ router = APIRouter(tags=["search"])
 # that type (the dispatcher already treats a per-type failure as empty via
 # return_exceptions=True) instead of sinking the fast types. Override with
 # SEARCH_SUBSEARCH_TIMEOUT_S.
-SUBSEARCH_TIMEOUT_S = float(os.getenv("SEARCH_SUBSEARCH_TIMEOUT_S", "6.0"))
+#
+# Value: a BACKSTOP, not a tuning knob. The legitimately heaviest types (orgs FTS,
+# persons over mdm_person) run ~5-6s on a broad term, so the cap sits above them
+# to avoid clipping real results to empty; it exists to kill true pathologies
+# (the old ~19s un-indexed grants leg) well under the frontend's 20s fetch-abort.
+SUBSEARCH_TIMEOUT_S = float(os.getenv("SEARCH_SUBSEARCH_TIMEOUT_S", "10.0"))
 
 # Detect deployment environment
 IS_HF_SPACES = os.getenv("HF_SPACES") == "1"

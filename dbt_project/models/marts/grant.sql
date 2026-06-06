@@ -1,10 +1,20 @@
+{# Trigram GIN indexes (grant_*_trgm_idx) let grants search (search_grants_pg)
+   serve an ILIKE '%term%' over the three free-text columns from an index instead
+   of a full seq-scan of all ~6.7M rows. Without them the unified /search grants
+   leg ran ~19s on an unfiltered query and (pre per-type timeout) sank the whole
+   homepage past the frontend's 20s abort. Requires the pg_trgm extension, which
+   the first post_hook ensures. #}
 {{
   config(
     materialized='table',
     post_hook=[
+      "CREATE EXTENSION IF NOT EXISTS pg_trgm",
       "CREATE INDEX IF NOT EXISTS grant_grantor_master_org_id_idx ON {{ this }} (grantor_master_org_id)",
       "CREATE INDEX IF NOT EXISTS grant_grantee_master_org_id_idx ON {{ this }} (grantee_master_org_id)",
-      "CREATE INDEX IF NOT EXISTS grant_grantor_state_code_idx ON {{ this }} (grantor_state_code)"
+      "CREATE INDEX IF NOT EXISTS grant_grantor_state_code_idx ON {{ this }} (grantor_state_code)",
+      "CREATE INDEX IF NOT EXISTS grant_grantor_name_trgm_idx ON {{ this }} USING gin (grantor_name gin_trgm_ops)",
+      "CREATE INDEX IF NOT EXISTS grant_grantee_name_trgm_idx ON {{ this }} USING gin (grantee_name gin_trgm_ops)",
+      "CREATE INDEX IF NOT EXISTS grant_purpose_trgm_idx ON {{ this }} USING gin (purpose gin_trgm_ops)"
     ]
   )
 }}
