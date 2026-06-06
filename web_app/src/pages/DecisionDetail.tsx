@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
 import MeetingPlayer from '../components/MeetingPlayer'
@@ -779,6 +779,14 @@ function WatchAndVerify({
 
 export default function DecisionDetail() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
+  const routerLoc = useLocation()
+  // Go back to wherever the user came from (homepage, search, a related card…),
+  // falling back to /search only on a direct/cold load with no in-app history.
+  const goBack = () => {
+    if (routerLoc.key && routerLoc.key !== 'default') navigate(-1)
+    else navigate('/search')
+  }
 
   const { data: decision, isLoading, error } = useQuery<DecisionDetail>({
     queryKey: ['decision', id],
@@ -843,15 +851,16 @@ export default function DecisionDetail() {
     <MeetingVideoProvider videoId={decision.meeting_video_id} caption={videoCaption || undefined}>
     <div className="min-h-screen bg-[#f6faf8] py-8" style={CV_FONT}>
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Back Button */}
+        {/* Back Button — returns to wherever the user came from */}
         <div className="mb-6">
-          <Link
-            to="/search"
+          <button
+            type="button"
+            onClick={goBack}
             className="inline-flex items-center gap-2 text-[14px] font-medium text-[#1a6b6b] transition-colors hover:text-[#0f2b2b]"
           >
             <ArrowLeftIcon className="h-4 w-4" />
-            Back to Search
-          </Link>
+            Back
+          </button>
         </div>
 
         {/* Header — editorial hero on the page background (status chips → serif
@@ -903,25 +912,26 @@ export default function DecisionDetail() {
         </header>
 
 
-        {/* Decision Statement */}
+        {/* Key Takeaways (smart_brevity) — leads, with "Why it matters" */}
+        {!isEmpty(decision.smart_brevity) && (
+          <Section title="Key Takeaways" icon={<SparklesIcon className="h-5 w-5 text-[#1d6b5f]" />}>
+            <SmartBrevityBody sb={decision.smart_brevity as Record<string, unknown>} />
+          </Section>
+        )}
+
+        {/* Decision Statement — tucked directly under Key Takeaways */}
         {decision.decision_statement && (
-          <Section title="Decision">
-            <p className="text-sm text-gray-700 whitespace-pre-line">
+          <div className="-mt-4 mb-6 rounded-lg bg-white p-6 shadow-sm">
+            <h2 className="mb-2 text-lg font-bold text-gray-900">Decision</h2>
+            <p className="text-sm leading-relaxed text-gray-700 whitespace-pre-line">
               {decision.decision_statement}
             </p>
-          </Section>
+          </div>
         )}
 
         {/* Vote result (visual) */}
         {voteEntries.length > 0 && (
           <VoteResult votes={voteEntries as [string, number][]} />
-        )}
-
-        {/* Key Takeaways (smart_brevity) */}
-        {!isEmpty(decision.smart_brevity) && (
-          <Section title="Key Takeaways" icon={<SparklesIcon className="h-5 w-5 text-[#1d6b5f]" />}>
-            <SmartBrevityBody sb={decision.smart_brevity as Record<string, unknown>} />
-          </Section>
         )}
 
         {/* Frame analysis: where the sides disagreed (renders its own card) */}

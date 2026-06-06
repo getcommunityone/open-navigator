@@ -472,8 +472,12 @@ export default function StoryLenses({ locationLabel, stateCode, city, onSearch, 
   // (e.g. a Northport "contested" tile returning a Jefferson County topic).
   const storiesRef = useRef<HTMLDivElement>(null)
   const handleActivityClick = (label: string) => {
-    const lensId = activityToLens(label)
-    if (lensId) setActive(lensId)
+    // Tiles that map to a lens switch to it; generic tiles ("decisions
+    // analyzed") have no single lens, so land on the first POPULATED lens
+    // rather than dumping the user on a placeholder ("coming soon").
+    const firstPopulated = data?.lenses.find((l) => !l.placeholder && l.cards.length > 0)?.id
+    const lensId = activityToLens(label) ?? firstPopulated ?? 'contested'
+    setActive(lensId)
     storiesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 

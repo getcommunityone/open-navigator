@@ -1,4 +1,4 @@
-import { useParams, useSearchParams, Link } from 'react-router-dom'
+import { useParams, useSearchParams, useNavigate, useLocation, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
 import MeetingPlayer from '../components/MeetingPlayer'
@@ -61,6 +61,12 @@ export default function MeetingDetail() {
   const { id } = useParams<{ id: string }>()
   const [searchParams] = useSearchParams()
   const highlightItem = searchParams.get('item') // financial_item_id to spotlight
+  const navigate = useNavigate()
+  const routerLoc = useLocation()
+  const goBack = () => {
+    if (routerLoc.key && routerLoc.key !== 'default') navigate(-1)
+    else navigate('/search')
+  }
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['meeting', id],
@@ -109,13 +115,14 @@ export default function MeetingDetail() {
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-4xl mx-auto px-4">
-        <Link
-          to="/search"
+        <button
+          type="button"
+          onClick={goBack}
           className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-4"
         >
           <ArrowLeftIcon className="h-4 w-4" />
           Back
-        </Link>
+        </button>
 
         {/* Header */}
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
