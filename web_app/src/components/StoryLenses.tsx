@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { ChevronRightIcon, BookmarkIcon, ArrowRightIcon } from '@heroicons/react/24/outline'
+import { ChevronRightIcon, ChevronLeftIcon, BookmarkIcon, ArrowRightIcon } from '@heroicons/react/24/outline'
+import { BookmarkIcon as BookmarkSolidIcon } from '@heroicons/react/24/solid'
 import api from '../lib/api'
+import { useIsMobile } from '../hooks/useMediaQuery'
 
 /**
  * StoryLenses — the homepage "What's happening near you" section.
@@ -217,9 +219,222 @@ interface StoryLensesProps {
   onBrowseTopics?: () => void
 }
 
+// ---------------------------------------------------------------------------
+// Story card — shared by the desktop reflow grid and the mobile swipe carousel.
+// ---------------------------------------------------------------------------
+interface StoryCardProps {
+  card: RenderCard
+  lens: Lens
+  saved: boolean
+  onToggleSave: () => void
+  onOpen: () => void
+}
+
+function StoryCard({ card: c, lens, saved, onToggleSave, onOpen }: StoryCardProps) {
+  const clickable = !!c.url
+  return (
+    <article
+      {...(clickable
+        ? {
+            role: 'link',
+            tabIndex: 0,
+            onClick: onOpen,
+            onKeyDown: (e: React.KeyboardEvent) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                onOpen()
+              }
+            },
+          }
+        : {})}
+      className={`group relative flex h-full flex-col overflow-hidden rounded-2xl border bg-white transition-all ${
+        saved
+          ? 'border-[#1d6b5f] shadow-[0_0_0_1.5px_#1d6b5f,0_8px_24px_rgba(20,40,35,.08)]'
+          : 'border-[#e1ebe7] shadow-[0_1px_2px_rgba(20,40,35,.04),0_8px_24px_rgba(20,40,35,.06)]'
+      } ${
+        clickable
+          ? 'cursor-pointer hover:-translate-y-0.5 hover:border-[#cfe0db] hover:shadow-[0_2px_4px_rgba(20,40,35,.06),0_14px_32px_rgba(20,40,35,.10)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1a6b6b]/40'
+          : ''
+      }`}
+    >
+      <span className="h-1 w-full" style={{ background: lens.clr }} aria-hidden />
+      <div className="flex flex-1 flex-col p-[18px]">
+        <div className="mb-2.5 flex items-center justify-between gap-2">
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-bold tracking-wide"
+            style={{ color: lens.clr, background: `color-mix(in srgb, ${lens.clr} 12%, #fff)` }}
+          >
+            <span className="text-[12px] leading-none">{lens.em}</span>
+            {lens.label}
+          </span>
+          <span className="shrink-0 text-[12px] text-[#8a958f]">{c.when}</span>
+        </div>
+
+        <h3
+          className="mb-3 text-[19px] font-semibold leading-tight tracking-tight text-[#0f2b2b] group-hover:underline"
+          style={SERIF}
+        >
+          {c.h}
+        </h3>
+
+        <div className="mb-3 flex flex-wrap gap-2">
+          {c.stats.map((s) => {
+            const tone = TONES[s.tone || 'plain']
+            return (
+              <div key={s.l} className="rounded-lg px-2.5 py-1.5" style={{ background: tone.bg }}>
+                <div className="text-[13.5px] font-bold leading-none" style={{ color: tone.fg }}>
+                  {s.v}
+                </div>
+                <div className="mt-1 text-[10.5px] font-medium leading-none text-[#8a958f]">{s.l}</div>
+              </div>
+            )
+          })}
+        </div>
+
+        <div className="mt-auto flex items-center gap-2 border-t border-[#e1ebe7] pt-2.5 text-[12px] text-[#8a958f]">
+          <span className="font-semibold text-[#56635e]">{c.juris}</span>
+          <span className="opacity-50">&middot;</span>
+          <span>{c.when}</span>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggleSave()
+            }}
+            className={`ml-auto transition-colors ${saved ? 'text-[#1d6b5f]' : 'text-[#9bb8b8] hover:text-[#1a6b6b]'}`}
+            aria-pressed={saved}
+            aria-label={saved ? 'Saved — tap to remove' : 'Save story'}
+            title={saved ? 'Saved to Following' : 'Save story'}
+          >
+            {saved ? <BookmarkSolidIcon className="h-4 w-4" aria-hidden /> : <BookmarkIcon className="h-4 w-4" aria-hidden />}
+          </button>
+        </div>
+      </div>
+    </article>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Swipe carousel (mobile) — pattern #1 from the responsive-tiles demo.
+// A scroll-snap flex rail whose cards sit at 84% width so the next one peeks,
+// inviting a thumb-swipe. An IntersectionObserver drives the position dots and
+// the (desktop/keyboard) prev/next arrows.
+// ---------------------------------------------------------------------------
+interface StoryCarouselProps {
+  cards: RenderCard[]
+  lens: Lens
+  savedKeys: Set<string>
+  onToggleSave: (key: string) => void
+  onOpen: (card: RenderCard) => void
+  cardKey: (card: RenderCard, i: number) => string
+}
+
+function StoryCarousel({ cards, lens, savedKeys, onToggleSave, onOpen, cardKey }: StoryCarouselProps) {
+  const railRef = useRef<HTMLDivElement>(null)
+  const [activeIdx, setActiveIdx] = useState(0)
+
+  useEffect(() => {
+    const rail = railRef.current
+    if (!rail) return
+    const items = Array.from(rail.children) as HTMLElement[]
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => {
+          if (e.isIntersecting) {
+            const i = items.indexOf(e.target as HTMLElement)
+            if (i >= 0) setActiveIdx(i)
+          }
+        })
+      },
+      { root: rail, threshold: 0.6 },
+    )
+    items.forEach((it) => io.observe(it))
+    return () => io.disconnect()
+    // Re-observe whenever the card set changes (lens/window switch).
+  }, [cards])
+
+  const scrollTo = (i: number) => {
+    const rail = railRef.current
+    if (!rail) return
+    const clamped = Math.max(0, Math.min(cards.length - 1, i))
+    const target = rail.children[clamped] as HTMLElement | undefined
+    target?.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' })
+  }
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => scrollTo(activeIdx - 1)}
+        disabled={activeIdx === 0}
+        aria-label="Previous story"
+        className="absolute -left-2 top-[42%] z-10 hidden h-9 w-9 items-center justify-center rounded-full border border-[#e1ebe7] bg-white text-[#56635e] shadow-[0_1px_2px_rgba(20,40,35,.05),0_10px_26px_rgba(20,40,35,.07)] transition-colors hover:border-[#1a6b6b] hover:text-[#1a6b6b] disabled:pointer-events-none disabled:opacity-30 sm:flex"
+      >
+        <ChevronLeftIcon className="h-5 w-5" aria-hidden />
+      </button>
+      <button
+        type="button"
+        onClick={() => scrollTo(activeIdx + 1)}
+        disabled={activeIdx === cards.length - 1}
+        aria-label="Next story"
+        className="absolute -right-2 top-[42%] z-10 hidden h-9 w-9 items-center justify-center rounded-full border border-[#e1ebe7] bg-white text-[#56635e] shadow-[0_1px_2px_rgba(20,40,35,.05),0_10px_26px_rgba(20,40,35,.07)] transition-colors hover:border-[#1a6b6b] hover:text-[#1a6b6b] disabled:pointer-events-none disabled:opacity-30 sm:flex"
+      >
+        <ChevronRightIcon className="h-5 w-5" aria-hidden />
+      </button>
+
+      <div
+        ref={railRef}
+        className="-mx-1 flex snap-x snap-mandatory gap-4 overflow-x-auto px-1 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {cards.map((c, i) => {
+          const key = cardKey(c, i)
+          return (
+            <div key={key} className="w-[84%] max-w-[340px] shrink-0 snap-start">
+              <StoryCard
+                card={c}
+                lens={lens}
+                saved={savedKeys.has(key)}
+                onToggleSave={() => onToggleSave(key)}
+                onOpen={() => onOpen(c)}
+              />
+            </div>
+          )
+        })}
+      </div>
+
+      {cards.length > 1 && (
+        <div className="mt-1 flex justify-center gap-[7px]">
+          {cards.map((c, i) => (
+            <button
+              key={cardKey(c, i)}
+              type="button"
+              onClick={() => scrollTo(i)}
+              aria-label={`Go to story ${i + 1}`}
+              className={`h-[7px] rounded-full transition-all ${
+                i === activeIdx ? 'w-5 bg-[#1d6b5f]' : 'w-[7px] bg-[#d6e4e0]'
+              }`}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function StoryLenses({ locationLabel, stateCode, city, onSearch, onBrowseTopics }: StoryLensesProps) {
   const navigate = useNavigate()
+  const isMobile = useIsMobile()
   const [active, setActive] = useState<string>('contested')
+  // Saved/"Following" stories, keyed by url||headline so the set survives
+  // lens/window switches. Mirrors the demo's swipe-to-save outcome (#3).
+  const [savedKeys, setSavedKeys] = useState<Set<string>>(() => new Set())
+  const toggleSave = (key: string) =>
+    setSavedKeys((prev) => {
+      const nextSet = new Set(prev)
+      if (nextSet.has(key)) nextSet.delete(key)
+      else nextSet.add(key)
+      return nextSet
+    })
   // 'auto' (default) lets the API pick the narrowest window with enough items;
   // a number is an explicit user choice from the segmented control.
   const [windowSel, setWindowSel] = useState<number | 'auto'>('auto')
@@ -272,6 +487,10 @@ export default function StoryLenses({ locationLabel, stateCode, city, onSearch, 
   const openCard = (c: RenderCard) => {
     if (c.url) navigate(c.url)
   }
+
+  // Stable-ish key for save state & list rendering. Headline+jurisdiction is
+  // unique enough for the handful of cards per lens; url wins when present.
+  const cardKey = (c: RenderCard, i: number) => c.url || `${active}-${c.h}-${c.juris}-${i}`
 
   return (
     <div className="mt-5 text-left" style={FONT}>
@@ -438,85 +657,30 @@ export default function StoryLenses({ locationLabel, stateCode, city, onSearch, 
         <div className="rounded-xl border border-dashed border-[#d4e8e8] bg-white px-6 py-10 text-center text-sm text-[#9bb8b8]">
           Nothing in this window. <b className="text-[#56635e]">Try a wider time frame.</b>
         </div>
+      ) : isMobile ? (
+        // Mobile → swipe carousel (#1): native scroll-snap, peeking next card, dots.
+        <StoryCarousel
+          cards={cards}
+          lens={lens}
+          savedKeys={savedKeys}
+          onToggleSave={toggleSave}
+          onOpen={openCard}
+          cardKey={cardKey}
+        />
       ) : (
+        // Desktop → reflow grid (#2): auto-fill columns, no JS.
         <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
           {cards.map((c, i) => {
-            const clickable = !!c.url
+            const key = cardKey(c, i)
             return (
-            <article
-              key={`${active}-${i}`}
-              {...(clickable
-                ? {
-                    role: 'link',
-                    tabIndex: 0,
-                    onClick: () => openCard(c),
-                    onKeyDown: (e: React.KeyboardEvent) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        openCard(c)
-                      }
-                    },
-                  }
-                : {})}
-              className={`group relative flex flex-col overflow-hidden rounded-2xl border border-[#e1ebe7] bg-white shadow-[0_1px_2px_rgba(20,40,35,.04),0_8px_24px_rgba(20,40,35,.06)] transition-all ${
-                clickable
-                  ? 'cursor-pointer hover:-translate-y-0.5 hover:border-[#cfe0db] hover:shadow-[0_2px_4px_rgba(20,40,35,.06),0_14px_32px_rgba(20,40,35,.10)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1a6b6b]/40'
-                  : ''
-              }`}
-            >
-              <span className="h-1 w-full" style={{ background: lens.clr }} aria-hidden />
-              <div className="flex flex-1 flex-col p-[18px]">
-                <div className="mb-2.5 flex items-center justify-between gap-2">
-                  <span
-                    className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-bold tracking-wide"
-                    style={{ color: lens.clr, background: `color-mix(in srgb, ${lens.clr} 12%, #fff)` }}
-                  >
-                    <span className="text-[12px] leading-none">{lens.em}</span>
-                    {lens.label}
-                  </span>
-                  <span className="shrink-0 text-[12px] text-[#8a958f]">{c.when}</span>
-                </div>
-
-                <h3
-                  className="mb-3 text-[19px] font-semibold leading-tight tracking-tight text-[#0f2b2b] group-hover:underline"
-                  style={SERIF}
-                >
-                  {c.h}
-                </h3>
-
-                <div className="mb-3 flex flex-wrap gap-2">
-                  {c.stats.map((s) => {
-                    const tone = TONES[s.tone || 'plain']
-                    return (
-                      <div
-                        key={s.l}
-                        className="rounded-lg px-2.5 py-1.5"
-                        style={{ background: tone.bg }}
-                      >
-                        <div className="text-[13.5px] font-bold leading-none" style={{ color: tone.fg }}>
-                          {s.v}
-                        </div>
-                        <div className="mt-1 text-[10.5px] font-medium leading-none text-[#8a958f]">{s.l}</div>
-                      </div>
-                    )
-                  })}
-                </div>
-
-                <div className="mt-auto flex items-center gap-2 border-t border-[#e1ebe7] pt-2.5 text-[12px] text-[#8a958f]">
-                  <span className="font-semibold text-[#56635e]">{c.juris}</span>
-                  <span className="opacity-50">&middot;</span>
-                  <span>{c.when}</span>
-                  <button
-                    type="button"
-                    onClick={(e) => e.stopPropagation()}
-                    className="ml-auto text-[#9bb8b8] transition-colors hover:text-[#1a6b6b]"
-                    aria-label="Save story"
-                  >
-                    <BookmarkIcon className="h-4 w-4" aria-hidden />
-                  </button>
-                </div>
-              </div>
-            </article>
+              <StoryCard
+                key={key}
+                card={c}
+                lens={lens}
+                saved={savedKeys.has(key)}
+                onToggleSave={() => toggleSave(key)}
+                onOpen={() => openCard(c)}
+              />
             )
           })}
         </div>

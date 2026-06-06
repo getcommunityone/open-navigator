@@ -312,6 +312,87 @@ function CompetingViews({ data }: { data: unknown }) {
   )
 }
 
+// "Key Takeaways" (smart_brevity). Render the AI fields as an editorial brief:
+// the lead in serif, then labelled sections, with `by_the_numbers` (a
+// semicolon-joined string) parsed into stat chips (leading figure + caption).
+const SB_NUMBER_RE =
+  /^([$]?\d[\d.,]*(?:\s*[-–/]\s*\d[\d.,]*)?\s*(?:%|acres?|units?|lots?|days?|weeks?|months?|years?|hours?|hrs?|jobs?|votes?|miles?|mi)?)\s+(.+)$/i
+
+function parseByTheNumbers(s: string | null): { value: string | null; label: string }[] {
+  if (!s) return []
+  return s
+    .split(/;\s*/)
+    .map((c) => c.trim().replace(/\.$/, ''))
+    .filter(Boolean)
+    .map((clause) => {
+      const m = clause.match(SB_NUMBER_RE)
+      return m ? { value: m[1].trim(), label: m[2].trim() } : { value: null, label: clause }
+    })
+}
+
+function SBSection({ label, body }: { label: string; body: string }) {
+  return (
+    <div className="mt-5 first:mt-0">
+      <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-[#8a958f]">
+        {label}
+      </div>
+      <p className="whitespace-pre-line text-[15px] leading-relaxed text-[#56635e]">{body}</p>
+    </div>
+  )
+}
+
+function SmartBrevityBody({ sb }: { sb: Record<string, unknown> }) {
+  const str = (k: string) =>
+    typeof sb[k] === 'string' && (sb[k] as string).trim() ? (sb[k] as string).trim() : null
+  const lead = str('one_big_thing')
+  const numbers = parseByTheNumbers(str('by_the_numbers'))
+  const sections: [string, string | null][] = [
+    ['Why it matters', str('why_it_matters')],
+    ['The big picture', str('big_picture')],
+    ['The case for', str('for_it_summary')],
+    ['The case against', str('against_it_summary')],
+    ["What's next", str('whats_next')],
+  ]
+  const [why, big, ...restSections] = sections
+
+  // Unexpected/empty shape -> defer to the generic renderer so nothing is dropped.
+  if (!lead && !numbers.length && sections.every(([, v]) => !v)) {
+    return <JsonValue value={sb} />
+  }
+
+  return (
+    <div>
+      {lead && (
+        <p className="mb-1 text-[24px] font-semibold leading-snug text-[#16201d]" style={CV_SERIF}>
+          {lead}
+        </p>
+      )}
+      {why[1] && <SBSection label={why[0]} body={why[1]} />}
+      {numbers.length > 0 && (
+        <div className="mt-5">
+          <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-[#8a958f]">
+            By the numbers
+          </div>
+          <div className="flex flex-wrap gap-2.5">
+            {numbers.map((it, i) => (
+              <div key={i} className="flex items-baseline gap-2 rounded-xl bg-[#f3f7f6] px-3.5 py-2.5">
+                {it.value && (
+                  <span className="text-[20px] font-semibold leading-none text-[#16201d]" style={CV_SERIF}>
+                    {it.value}
+                  </span>
+                )}
+                <span className="max-w-[230px] text-[13px] leading-snug text-[#56635e]">{it.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {big[1] && <SBSection label={big[0]} body={big[1]} />}
+      {restSections.map(([label, body]) => (body ? <SBSection key={label} label={label} body={body} /> : null))}
+    </div>
+  )
+}
+
 export default function DecisionDetail() {
   const { id } = useParams<{ id: string }>()
 
@@ -474,26 +555,8 @@ export default function DecisionDetail() {
 
         {/* Key Takeaways (smart_brevity) */}
         {!isEmpty(decision.smart_brevity) && (
-          <Section title="Key Takeaways" icon={<SparklesIcon className="h-5 w-5" />}>
-            {(() => {
-              const sb = decision.smart_brevity as Record<string, unknown>
-              const lead = typeof sb?.one_big_thing === 'string' ? sb.one_big_thing : null
-              const rest = lead
-                ? Object.fromEntries(
-                    Object.entries(sb).filter(([k]) => k !== 'one_big_thing'),
-                  )
-                : sb
-              return (
-                <>
-                  {lead && (
-                    <p className="text-base font-semibold text-gray-900 mb-4 leading-snug">
-                      {lead}
-                    </p>
-                  )}
-                  <JsonValue value={rest} />
-                </>
-              )
-            })()}
+          <Section title="Key Takeaways" icon={<SparklesIcon className="h-5 w-5 text-[#1d6b5f]" />}>
+            <SmartBrevityBody sb={decision.smart_brevity as Record<string, unknown>} />
           </Section>
         )}
 

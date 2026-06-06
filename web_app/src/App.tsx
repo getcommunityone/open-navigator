@@ -39,6 +39,7 @@ import DataExplorerScorecardPage from './pages/DataExplorerScorecardPage'
 import BillDetail from './pages/BillDetail'
 import GrantDetail from './pages/GrantDetail'
 import DecisionDetail from './pages/DecisionDetail'
+import MeetingDetail from './pages/MeetingDetail'
 import EventBillDetail from './pages/EventBillDetail'
 import NotFound from './pages/NotFound'
 import { DATA_EXPLORER_MAP_BASE } from './utils/dataExplorerPaths'
@@ -176,6 +177,7 @@ function App() {
         <Route path="bill/:billId" element={<BillDetail />} />
         <Route path="grants/:id" element={<GrantDetail />} />
         <Route path="decisions/:id" element={<DecisionDetail />} />
+        <Route path="meetings/:id" element={<MeetingDetail />} />
         <Route path="bills/:id" element={<EventBillDetail />} />
         <Route path="documents" element={<Documents />} />
         <Route path="opportunities" element={<Opportunities />} />
