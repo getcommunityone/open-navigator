@@ -1,0 +1,64 @@
+version: 2
+
+models:
+  - name: grant_opportunity
+    description: >
+      public.grant_opportunity — one row per Grants.gov federal funding
+      opportunity (prospective grants open / forecasted for application), from
+      stg_grants_gov__opportunity. DISTINCT entity from the 990 Schedule I
+      `grant` mart: this is "what's open now", surfaced in /search as the
+      'opportunity' result type. PK opportunity_id; no FKs (no resolved
+      org/jurisdiction relationship yet).
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    columns:
+      - name: opportunity_id
+        description: "Grants.gov opportunity id. Primary key."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: opportunity_number
+        description: "Funding-opportunity number (e.g. 'HRSA-24-019')."
+        data_type: text
+      - name: title
+        description: "Opportunity title."
+        data_type: text
+      - name: agency_code
+        description: "Issuing agency code (e.g. 'HHS-HRSA')."
+        data_type: text
+      - name: agency_name
+        description: "Issuing agency name."
+        data_type: text
+      - name: open_date
+        description: "Date the opportunity opens/was posted."
+        data_type: date
+      - name: close_date
+        description: "Application close date."
+        data_type: date
+      - name: opp_status
+        description: "Lifecycle status: forecasted | posted | closed | archived."
+        data_type: text
+      - name: doc_type
+        description: "Grants.gov document type (e.g. 'synopsis')."
+        data_type: text
+      - name: aln
+        description: "First Assistance Listing Number (formerly CFDA)."
+        data_type: text
+      - name: is_open
+        description: "True when close_date is null or has not yet passed (as of build)."
+        data_type: boolean
+      - name: external_url
+        description: "Canonical public Grants.gov opportunity detail page."
+        data_type: text
+      - name: dbt_loaded_at
+        description: "Timestamp this mart was materialized."
+        data_type: timestamp with time zone
+        constraints:
+          - type: not_null
