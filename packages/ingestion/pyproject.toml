@@ -9,6 +9,8 @@ description = "Data-source ingestion pipelines (scripts/datasources/* ports) bui
 requires-python = ">=3.11"
 dependencies = [
     "core-lib",
+    # ingestion.geocode reuses llm.gemini.enrich_analysis_places._nominatim_geocode
+    "communityone-llm",
     "pandas>=2.1",
     "pyarrow>=14",
     "zipfile-deflate64>=0.2",
@@ -23,3 +25,4 @@ where = ["src"]
 
 [tool.uv.sources]
 core-lib = { workspace = true }
+communityone-llm = { workspace = true }

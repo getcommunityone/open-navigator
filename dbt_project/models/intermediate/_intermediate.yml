@@ -265,6 +265,16 @@ models:
       (jurisdiction grain, migration 071; not a dbt model). Audit probes:
       ``intermediate.int_events_channels_candidates``.
 
+      Quality flags `is_government` / `is_verified` are sourced from the
+      ingestion-track classification `bronze.bronze_youtube_channel_classification`
+      (left-joined on channel_id; NULL when the channel is unclassified) — they are
+      no longer hardcoded NULL. `is_verified` mirrors a positive government
+      classification until a dedicated verification signal exists. `flagged_as_junk`
+      is TRUE when the legacy title-only heuristic flags the channel OR the
+      classifier reports `is_junk = TRUE` / `is_government = FALSE`; `flag_reason`
+      coalesces the heuristic reason with the classifier's `flag_reason`.
+      Unclassified (NULL) channels are never auto-flagged.
+
   - name: int_youtube__events
     description: >
       LocalView-enriched YouTube meeting events, one row per video_id. Declarative

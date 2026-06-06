@@ -31,6 +31,7 @@ import FactChecking from './pages/FactChecking'
 import UnifiedSearch from './pages/UnifiedSearch'
 import JurisdictionsSearch from './pages/JurisdictionsSearch'
 import PolicyMap from './pages/PolicyMap'
+import DecisionsMapPage from './pages/DecisionsMapPage'
 import CensusMapPage from './pages/CensusMapPage'
 import CensusDrilldownMapPage from './pages/CensusDrilldownMapPage'
 import DataExplorerLayout from './components/DataExplorerLayout'
@@ -151,6 +152,7 @@ function App() {
         <Route path="person/:id" element={<PersonDetail />} />
         <Route path="heatmap" element={<Heatmap />} />
         <Route path="policy-map" element={<PolicyMap />} />
+        <Route path="decisions-map" element={<DecisionsMapPage />} />
         <Route path="census-map/county/:vintage/:metric" element={<CensusCountyAliasRedirect />} />
         <Route path="census-map/*" element={<LegacyCensusMapRedirect />} />
         <Route path="data-explorer" element={<DataExplorerLayout />}>

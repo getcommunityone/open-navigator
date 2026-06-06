@@ -574,7 +574,41 @@ sources:
             description: "When record was first created"
           - name: last_updated
             description: "When record was last updated"
-          
+
+      - name: bronze_youtube_channel_classification
+        description: |
+          Per-channel government/junk classification for YouTube channels.
+          Landed by the ingestion track's channel classifier (Python ML/heuristic
+          pass — NOT dbt). One row per channel_id. Consumed by
+          int_events_channels_registry (to populate is_government / fold into
+          flagged_as_junk) and by int_event_youtube__jurisdiction_resolved (to gate
+          positively-classified junk / non-government channels out of the served
+          video feed). Conservative semantics: NULL means "unclassified" — never
+          treated as junk; only is_junk = true / is_government = false are excluded.
+        columns:
+          - name: channel_id
+            description: "YouTube channel ID — primary key (one row per channel)."
+            tests:
+              - unique
+              - not_null
+          - name: is_government
+            description: >
+              TRUE = bona fide government channel; FALSE = positively classified as
+              non-government; NULL = unclassified (do not gate on NULL).
+          - name: is_junk
+            description: >
+              TRUE = positively classified as junk (entertainment/creator/news, mis-
+              assigned to a jurisdiction); NULL/FALSE = not flagged. Folded into
+              int_events_channels_registry.flagged_as_junk.
+          - name: flag_reason
+            description: "Human-readable reason the channel was flagged junk/non-gov."
+          - name: classification_method
+            description: "How the classification was produced (e.g. heuristic, llm, manual_seed)."
+          - name: confidence
+            description: "Classifier confidence 0-1."
+          - name: classified_at
+            description: "When this channel was classified."
+
       - name: bronze_financial_items
         description: "Financial items from meeting discussions"
         columns:
@@ -1452,6 +1486,27 @@ sources:
             description: "Raw AI response text"
           - name: created_at
             description: "When analysis was performed"
+
+      - name: place_geocode_cache
+        description: |
+          Geocode cache for AI-extracted places (filled asynchronously by the
+          geocoding ingestion job; smoke-populated today, full nationwide backfill
+          later). One row per geocode_key =
+          lower(collapse-whitespace(coalesce(normalized_address, geocode_query,
+          raw_text))). Consumed by event_place_geocoded to coalesce lat/lon onto
+          event_place without mutating the append-only extract.
+        columns:
+          - name: geocode_key
+            description: "PK — normalized address/query key (lower, whitespace-collapsed)."
+          - name: query_text
+            description: "Human-readable query string that was geocoded."
+          - name: latitude
+          - name: longitude
+          - name: geocode_status
+            description: "ok | not_found | skipped. Only 'ok' rows are coalesced downstream."
+          - name: geocode_source
+            description: "Provider/source of the coordinate (e.g. nominatim, census)."
+          - name: geocoded_at
 
       - name: bronze_ballot_measures_ballotpedia
         description: |

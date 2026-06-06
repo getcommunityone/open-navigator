@@ -18,7 +18,18 @@ models:
       The per-jurisdiction analyze loop (llm.gemini.browser_policy_analysis.fetch_videos)
       reads this view. bronze.video_id is
       unique and the resolved model is one row per video_id, so the LEFT JOIN never
-      fans out — row count equals bronze.bronze_event_youtube.
+      fans out — row count equals bronze.bronze_event_youtube MINUS rows on channels
+      positively classified as junk / non-government.
+
+      JUNK GATE: rows whose channel_id is positively classified as junk
+      (is_junk = TRUE) or non-government (is_government = FALSE) in
+      bronze.bronze_youtube_channel_classification are EXCLUDED here, so
+      mis-assigned entertainment/creator channels (e.g. Kittie, The Hunting Public,
+      The Breakfast Club) never reach the served feed or the downstream policy /
+      trending marts (event_policy_decision, event_policy_bill,
+      int_trending_causes_by_jurisdiction) that build on this view. Conservative:
+      unclassified channels (no classification row, or NULL flags) are left in — a
+      channel is never dropped merely for being unscored.
     config:
       materialized: view
     columns:

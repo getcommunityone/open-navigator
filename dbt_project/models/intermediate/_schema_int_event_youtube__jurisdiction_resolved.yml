@@ -18,6 +18,14 @@ models:
       Name / state_code / state / jurisdiction_type come from int_jurisdictions
       (authoritative), falling back to the catalog JSONB entry when the id is
       absent there. Only rows that resolved to a jurisdiction_id are emitted.
+
+      JUNK GATE (early): blank-target rows whose channel is positively classified
+      as junk (is_junk = TRUE) or non-government (is_government = FALSE) in
+      bronze.bronze_youtube_channel_classification are dropped from the target set
+      before resolution, so they never gain a resolved jurisdiction. (The served
+      mart event_youtube_with_jurisdiction applies the same gate again, since rows
+      that already carried a bronze jurisdiction_id bypass this model.) Conservative:
+      unclassified channels (NULL flags) are never gated.
     config:
       materialized: table
     columns:

@@ -14,9 +14,9 @@ serialize to the client as real objects/arrays instead of double-encoded strings
 from __future__ import annotations
 
 import json
-from typing import Any, Optional
+from typing import Any, List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from loguru import logger
 from opentelemetry import trace
 from pydantic import BaseModel
@@ -113,6 +113,223 @@ def _parse_json(value: Any) -> Any:
         return json.loads(value)
     except (json.JSONDecodeError, ValueError):
         return value
+
+
+# ---------------------------------------------------------------------------
+# Map drill-down: geocoded decision pins (nationwide, generic — no hardcoded
+# jurisdiction). Joins event_decision -> event_decision_place -> the geocoded
+# place view, returning one pin per (decision, plottable place). A decision with
+# multiple geocoded places yields multiple pins; we order is_primary places
+# first so the primary place leads. Caller can filter by state / bbox / theme.
+# ---------------------------------------------------------------------------
+
+_MAP_LIMIT_DEFAULT = 2_000
+_MAP_LIMIT_MAX = 5_000
+
+
+class DecisionMapPin(BaseModel):
+    """A single geocoded civic-decision pin for the map."""
+    event_decision_id: str
+    decision_id: Optional[str] = None
+    place_id: str
+    latitude: float
+    longitude: float
+    headline: Optional[str] = None
+    primary_theme: Optional[str] = None
+    outcome: Optional[str] = None
+    # JSONB pass-through (parsed from text; asyncpg pool has no JSON codec).
+    vote_tally: Optional[Any] = None
+    jurisdiction_name: Optional[str] = None
+    state_code: Optional[str] = None
+    # ISO date string (from event_meeting on c1_event_id) or None.
+    event_date: Optional[str] = None
+    normalized_address: Optional[str] = None
+    is_primary: bool = False
+
+
+class DecisionMapResponse(BaseModel):
+    """Map payload: filters echoed back plus the plottable pins."""
+    state: Optional[str] = None
+    theme: Optional[str] = None
+    bbox: Optional[List[float]] = None
+    total: int
+    limit: int
+    pins: List[DecisionMapPin]
+
+
+# Pin query. place_state_code is the place's own state (per spec). event_date is
+# pulled from event_meeting (text columns) joined on c1_event_id, matching the
+# detail route, and only surfaced when it looks like an ISO date.
+_MAP_SQL = """
+    SELECT
+        d.event_decision_id,
+        d.decision_id,
+        g.place_id,
+        g.latitude::float8  AS latitude,
+        g.longitude::float8 AS longitude,
+        d.headline,
+        d.primary_theme,
+        d.outcome,
+        d.vote_tally,
+        d.jurisdiction_name,
+        g.place_state_code  AS state_code,
+        CASE
+            WHEN COALESCE(NULLIF(m.event_date, ''), NULLIF(m.meeting_date, ''))
+                 ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
+            THEN COALESCE(NULLIF(m.event_date, ''), NULLIF(m.meeting_date, ''))
+        END AS event_date,
+        g.normalized_address,
+        COALESCE(edp.is_primary, FALSE) AS is_primary
+    FROM event_decision d
+    JOIN event_decision_place edp
+        ON edp.event_decision_id = d.event_decision_id
+    JOIN event_place_geocoded g
+        ON g.place_id = edp.place_id
+    LEFT JOIN event_meeting m
+        ON m.c1_event_id = d.c1_event_id
+    WHERE g.latitude IS NOT NULL
+      AND g.longitude IS NOT NULL
+    __FILTERS__
+    ORDER BY edp.is_primary DESC, d.event_decision_id, g.place_id
+    LIMIT __LIMIT__
+"""
+
+
+def _parse_bbox(bbox: Optional[str]) -> Optional[List[float]]:
+    """Parse 'minLon,minLat,maxLon,maxLat' into 4 floats; 400 on bad input."""
+    if not bbox or not bbox.strip():
+        return None
+    parts = [p.strip() for p in bbox.split(",")]
+    if len(parts) != 4:
+        raise HTTPException(
+            status_code=400,
+            detail="bbox must be 'minLon,minLat,maxLon,maxLat' (4 values)",
+        )
+    try:
+        min_lon, min_lat, max_lon, max_lat = (float(p) for p in parts)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="bbox values must be numbers") from exc
+    if min_lon > max_lon or min_lat > max_lat:
+        raise HTTPException(
+            status_code=400,
+            detail="bbox min must be <= max (order: minLon,minLat,maxLon,maxLat)",
+        )
+    return [min_lon, min_lat, max_lon, max_lat]
+
+
+@router.get("/map", response_model=DecisionMapResponse)
+async def get_decision_map(
+    state: Optional[str] = Query(
+        None, min_length=2, max_length=2,
+        description="2-letter state code; filters by the place's state",
+    ),
+    bbox: Optional[str] = Query(
+        None, description="Viewport filter 'minLon,minLat,maxLon,maxLat'",
+    ),
+    theme: Optional[str] = Query(
+        None, description="Filter by primary_theme (exact match)",
+    ),
+    limit: int = Query(
+        _MAP_LIMIT_DEFAULT, ge=1, le=_MAP_LIMIT_MAX,
+        description=f"Max pins (default {_MAP_LIMIT_DEFAULT}, cap {_MAP_LIMIT_MAX})",
+    ),
+) -> DecisionMapResponse:
+    """
+    Geocoded civic-decision pins for a nationwide drill-down map.
+
+    Joins event_decision -> event_decision_place -> event_place_geocoded and
+    returns only plottable rows (latitude IS NOT NULL). One pin per
+    (decision, geocoded place); primary places are ordered first. All filters
+    are optional, supporting nation -> state -> viewport drill-down.
+
+    Example::
+
+        GET /api/decision/map?state=AL&theme=Housing&limit=2000
+    """
+    state_code = state.strip().upper() if state else None
+    bbox_vals = _parse_bbox(bbox)
+
+    with tracer.start_as_current_span("decision-map") as span:
+        span.set_attribute("decision_map.state", state_code or "")
+        span.set_attribute("decision_map.theme", theme or "")
+        span.set_attribute("decision_map.has_bbox", bbox_vals is not None)
+        span.set_attribute("decision_map.limit", limit)
+
+        filters: List[str] = []
+        params: List[Any] = []
+        idx = 1
+
+        if state_code:
+            filters.append(f"AND g.place_state_code = ${idx}")
+            params.append(state_code)
+            idx += 1
+
+        if theme:
+            filters.append(f"AND d.primary_theme = ${idx}")
+            params.append(theme)
+            idx += 1
+
+        if bbox_vals:
+            min_lon, min_lat, max_lon, max_lat = bbox_vals
+            filters.append(
+                f"AND g.longitude BETWEEN ${idx} AND ${idx + 1} "
+                f"AND g.latitude BETWEEN ${idx + 2} AND ${idx + 3}"
+            )
+            params.extend([min_lon, max_lon, min_lat, max_lat])
+            idx += 4
+
+        limit_idx = idx
+        params.append(limit)
+
+        sql = _MAP_SQL.replace(
+            "__FILTERS__", "\n      ".join(filters)
+        ).replace("__LIMIT__", f"${limit_idx}")
+
+        try:
+            pool = await get_db_pool()
+            async with pool.acquire() as conn:
+                with tracer.start_as_current_span("decision-map.query") as qspan:
+                    rows = await conn.fetch(sql, *params)
+                    qspan.set_attribute("decision_map.row_count", len(rows))
+        except Exception as e:  # noqa: BLE001 — surface a clean 500
+            span.record_exception(e)
+            logger.error("Decision map query failed: {}", e)
+            raise HTTPException(status_code=500, detail="Failed to load decision map")
+
+        pins = [
+            DecisionMapPin(
+                event_decision_id=r["event_decision_id"],
+                decision_id=r["decision_id"],
+                place_id=r["place_id"],
+                latitude=float(r["latitude"]),
+                longitude=float(r["longitude"]),
+                headline=r["headline"],
+                primary_theme=r["primary_theme"],
+                outcome=r["outcome"],
+                vote_tally=_parse_json(r["vote_tally"]),
+                jurisdiction_name=r["jurisdiction_name"],
+                state_code=r["state_code"],
+                event_date=r["event_date"],
+                normalized_address=r["normalized_address"],
+                is_primary=bool(r["is_primary"]),
+            )
+            for r in rows
+        ]
+
+        span.set_attribute("decision_map.pin_count", len(pins))
+        logger.info(
+            "🗺️ Decision map -> {} pins (state={}, theme={}, bbox={})",
+            len(pins), state_code, theme, bbox_vals is not None,
+        )
+
+        return DecisionMapResponse(
+            state=state_code,
+            theme=theme,
+            bbox=bbox_vals,
+            total=len(pins),
+            limit=limit,
+            pins=pins,
+        )
 
 
 @router.get("/{event_decision_id}", response_model=DecisionDetail)

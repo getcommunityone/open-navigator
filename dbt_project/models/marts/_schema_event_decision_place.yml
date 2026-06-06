@@ -1,0 +1,73 @@
+version: 2
+
+# Bridge for the MULTIMODAL AI-extraction family: links each AI-extracted
+# decision (public.event_decision) to the places it references
+# (public.event_place), unnested from the decision's place_refs[] + primary_place_id.
+#
+# NOTE on keys: event_decision and event_place are native range-partitioned tables
+# with COMPOSITE primary keys (event_*_id, extracted_at). Postgres cannot target a
+# composite/partitioned PK with a single-column FK, so — following the established
+# event_* family convention — the FKs into those parents are asserted via
+# relationships data_tests, while this bridge's own single-column PK
+# (event_decision_place_id) IS contract-enforced.
+
+models:
+  - name: event_decision_place
+    description: >
+      public.event_decision_place — bridge, one row per (decision, place_id).
+      Links public.event_decision to public.event_place via the decision's
+      place_refs[] / primary_place_id slugs, resolved within the same analysis_id.
+      Anchored on event_decision (the multimodal pipeline) because
+      event_policy_decision (the TEXT pipeline) has no place_refs and is in a
+      disjoint id-space. Orphan refs (a referenced place_id with no event_place row
+      in its analysis, ~2.6%) are dropped pending a place-backfill pass.
+    config:
+      materialized: table
+      on_schema_change: fail
+      tags: ['marts', 'event-extraction', 'ai', 'bridge']
+      contract:
+        enforced: true
+    columns:
+      - name: event_decision_place_id
+        description: "Primary key — md5(event_decision_id || '|' || place_id)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: event_decision_id
+        description: >
+          FK -> event_decision.event_decision_id. Asserted via relationships test
+          (warn) rather than an enforced constraint because event_decision is
+          partitioned with a composite PK and cannot be a single-column FK target.
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - relationships:
+              to: ref('event_decision')
+              field: event_decision_id
+              config:
+                severity: warn
+      - name: place_id
+        description: >
+          FK -> event_place.place_id (the stable place slug). Asserted via
+          relationships test (warn) — event_place is partitioned (composite PK) and
+          place_id is not globally unique, so resolution is scoped to analysis_id in
+          the model; the join here guarantees the slug exists in event_place.
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - relationships:
+              to: ref('event_place')
+              field: place_id
+              config:
+                severity: warn
+      - name: is_primary
+        description: "True when this place_id is the decision's primary_place_id."
+        data_type: boolean

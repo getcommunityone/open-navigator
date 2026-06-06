@@ -149,6 +149,25 @@ flag_reason mirrors the script's reason buckets; flagged_as_junk is simply
 (WHERE NOT flagged_as_junk) and int_events_channels_enriched excludes them
 from government inference.
 */
+/*
+Per-channel government/junk classification produced by the ingestion track
+(bronze_youtube_channel_classification). Left-joined below so unclassified
+channels stay NULL. is_junk is folded into flagged_as_junk (junk if the title
+heuristic OR the classifier says so); is_government/is_verified are surfaced from
+here instead of the old hardcoded NULL::BOOLEAN.
+*/
+channel_classification AS (
+    SELECT
+        channel_id,
+        BOOL_OR(is_government) AS is_government,
+        BOOL_OR(is_junk)       AS is_junk,
+        MAX(flag_reason)       AS classifier_flag_reason
+    FROM {{ source('bronze', 'bronze_youtube_channel_classification') }}
+    WHERE channel_id IS NOT NULL
+      AND channel_id != ''
+    GROUP BY channel_id
+),
+
 channel_junk AS (
     SELECT
         channel_id,
@@ -791,10 +810,21 @@ SELECT
     COALESCE((jbc.states)[1], hjn.state, enj.state, tj.state, hjf.state)::TEXT AS state,
 
     -- Quality indicators
-    NULL::BOOLEAN AS is_verified,
-    NULL::BOOLEAN AS is_government,
-    (cj.flag_reason IS NOT NULL) AS flagged_as_junk,
-    cj.flag_reason                AS flag_reason,
+    -- is_verified/is_government come from the ingestion-track classification
+    -- (bronze_youtube_channel_classification); NULL when the channel is
+    -- unclassified. is_verified has no dedicated source column yet, so it mirrors
+    -- a positive government classification (NULL otherwise).
+    CASE WHEN ccl.is_government IS TRUE THEN TRUE ELSE NULL::BOOLEAN END AS is_verified,
+    ccl.is_government AS is_government,
+    -- Junk if the legacy title heuristic flagged it OR the classifier says is_junk
+    -- OR the classifier says is_government = FALSE. NULL classification never
+    -- flags (conservative: unclassified channels are not treated as junk).
+    (
+        cj.flag_reason IS NOT NULL
+        OR ccl.is_junk IS TRUE
+        OR ccl.is_government IS FALSE
+    ) AS flagged_as_junk,
+    COALESCE(cj.flag_reason, ccl.classifier_flag_reason) AS flag_reason,
 
     -- Timestamps
     lm.loaded_at,
@@ -805,6 +835,7 @@ LEFT JOIN channel_urls cu ON bc.channel_id = cu.channel_id
 LEFT JOIN localview_meta lm ON bc.channel_id = lm.channel_id
 LEFT JOIN channels_bronze bec ON bc.channel_id = bec.channel_id
 LEFT JOIN channel_junk cj ON bc.channel_id = cj.channel_id
+LEFT JOIN channel_classification ccl ON bc.channel_id = ccl.channel_id
 LEFT JOIN jurisdictions_by_channel jbc ON bc.channel_id = jbc.channel_id
 LEFT JOIN homepage_jurisdictions_non_fuzzy hjn ON bc.channel_id = hjn.channel_id
 LEFT JOIN event_name_jurisdictions enj ON bc.channel_id = enj.channel_id

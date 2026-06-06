@@ -1,0 +1,43 @@
+version: 2
+
+# event_place enriched with cached geocodes. A VIEW (not a contract-enforced
+# table) over the partitioned, append-only event_place, LEFT JOINed to
+# bronze.place_geocode_cache on the cache's geocode_key so coordinates that land
+# in the cache later are picked up on read. Existing event_place coordinates are
+# preserved; the cache only fills gaps (status='ok'). event_place_id stays the PK
+# but is enforced on the underlying event_place table, not re-enforced on the view.
+
+models:
+  - name: event_place_geocoded
+    description: >
+      public.event_place_geocoded — public.event_place with cached lat/lon coalesced
+      from bronze.place_geocode_cache (status='ok') and a geocode_source provenance
+      column ('extract' | cache source | NULL). One row per event_place row. Read
+      this instead of event_place when you want best-available coordinates; coverage
+      tracks the cache and is low until the nationwide geocode backfill runs.
+    config:
+      tags: ['marts', 'event-extraction', 'ai', 'geocode']
+    columns:
+      - name: event_place_id
+        description: "PK — inherited from event_place (md5 surrogate of extraction_key)."
+        data_tests: [not_null]
+      - name: place_id
+        description: "Stable place slug (event_place.place_id)."
+        data_tests: [not_null]
+      - name: analysis_id
+        description: "FK -> event_meeting.event_meeting_id (via event_place)."
+        data_tests:
+          - relationships:
+              to: ref('event_meeting')
+              field: event_meeting_id
+              config:
+                severity: warn
+      - name: latitude
+        description: "Best-available latitude: event_place.latitude, else cached 'ok' lat."
+      - name: longitude
+        description: "Best-available longitude: event_place.longitude, else cached 'ok' lon."
+      - name: geocode_source
+        description: "Provenance of the surfaced coordinate: 'extract' | cache source | NULL."
+      - name: extracted_at
+        description: "Partition key inherited from event_place."
+        data_tests: [not_null]

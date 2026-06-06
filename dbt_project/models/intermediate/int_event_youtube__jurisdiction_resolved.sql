@@ -73,15 +73,33 @@ type_specificity AS (
     ) AS t(jurisdiction_type, specificity)
 ),
 
+-- ── Junk gate: channels the ingestion-track classifier positively flags ───────
+-- bronze_youtube_channel_classification carries per-channel is_junk / is_government.
+-- We EXCLUDE only channels POSITIVELY classified as junk (is_junk = TRUE) or
+-- positively non-government (is_government = FALSE). Unclassified channels (no row,
+-- or NULL flags) are left in deliberately — never drop a channel merely because it
+-- has not been scored yet. This keeps entertainment/creator channels (e.g. Kittie,
+-- The Hunting Public, The Breakfast Club) out of the served feed and every
+-- downstream policy/trending mart that builds on it.
+junk_channels AS (
+    SELECT DISTINCT NULLIF(TRIM(channel_id), '') AS channel_id
+    FROM {{ source('bronze', 'bronze_youtube_channel_classification') }}
+    WHERE NULLIF(TRIM(channel_id), '') IS NOT NULL
+      AND (is_junk IS TRUE OR is_government IS FALSE)
+),
+
 -- The blank target set: channel-discovered youtube rows with no jurisdiction_id.
 targets AS (
     SELECT
-        video_id,
-        NULLIF(TRIM(channel_id), '') AS channel_id
-    FROM {{ source('bronze', 'bronze_event_youtube') }}
-    WHERE datasource = 'youtube'
-      AND (jurisdiction_id IS NULL OR jurisdiction_id = '')
-      AND video_id IS NOT NULL AND video_id <> ''
+        b.video_id,
+        NULLIF(TRIM(b.channel_id), '') AS channel_id
+    FROM {{ source('bronze', 'bronze_event_youtube') }} b
+    LEFT JOIN junk_channels jc
+        ON jc.channel_id = NULLIF(TRIM(b.channel_id), '')
+    WHERE b.datasource = 'youtube'
+      AND (b.jurisdiction_id IS NULL OR b.jurisdiction_id = '')
+      AND b.video_id IS NOT NULL AND b.video_id <> ''
+      AND jc.channel_id IS NULL
 ),
 
 -- ── Source 0: LocalView resolved model (video-grain, highest trust) ──────────

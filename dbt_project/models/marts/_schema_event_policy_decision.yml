@@ -12,6 +12,15 @@ models:
       event_youtube_with_jurisdiction for the resolved jurisdiction. Distinct from
       public.event_decision, which is fed by the separate multimodal pipeline
       (bronze_decisions_from_ai / bronze_events_analysis_ai).
+
+      NOTE — no place link here: the decision<->place reference graph
+      (primary_place_id / place_refs[] -> event_place.place_id) exists ONLY in the
+      multimodal pipeline. This mart's source (bronze.bronze_policy_decisions) has
+      no place_refs, and its source_event_id is in a disjoint id-space from
+      event_place.analysis_id (only ~26 of ~1,500 ids overlap). The decision->place
+      bridge is therefore built as public.event_decision_place, anchored on
+      public.event_decision (which carries primary_place_id + place_refs and shares
+      event_place's analysis_id space), not on this mart.
     columns:
       - name: event_policy_decision_id
         description: PK — md5(source_event_id|decision_id|source_ai_model).
