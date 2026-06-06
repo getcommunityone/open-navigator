@@ -22,6 +22,7 @@ CLI::
     python -m scrapers.municipal.council_roster --city tuscaloosa            # curated
     python -m scrapers.municipal.council_roster --city tuscaloosa --live     # scrape
     python -m scrapers.municipal.council_roster --city tuscaloosa --json out.json
+    python -m scrapers.municipal.council_roster --profiles atlanta           # mayor photo + bio
 """
 
 from __future__ import annotations
@@ -76,6 +77,11 @@ class MunicipalCouncilConfig:
     # Title applied to scraped council members (mayor is handled separately /
     # already in OpenStates, so curated rosters here are council-only).
     member_title: str = "City Councilor"
+    # Optional per-member detail-page URL template for sites that don't put
+    # headshots on the roster page. "{district}" is filled with the member's
+    # district number. caboosecms sites (e.g. Tuscaloosa) render the headshot as
+    # a CSS background-image on this page, not as an <img> on the roster.
+    member_page_template: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -91,6 +97,9 @@ CONFIGS: dict[str, MunicipalCouncilConfig] = {
         jurisdiction="Tuscaloosa Government",
         state_code="AL",
         state="Alabama",
+        # Headshots live on per-district pages as a CSS background-image, not on
+        # the roster page — e.g. /citycouncil/district-5 for Kip Tyner.
+        member_page_template="https://www.tuscaloosa.com/citycouncil/district-{district}",
     ),
     "boston": MunicipalCouncilConfig(
         slug="boston",
@@ -100,6 +109,30 @@ CONFIGS: dict[str, MunicipalCouncilConfig] = {
         jurisdiction="Boston Government",
         state_code="MA",
         state="Massachusetts",
+    ),
+    "atlanta": MunicipalCouncilConfig(
+        slug="atlanta",
+        url="https://www.atlantaga.gov/government/city-council",
+        # Matches the jurisdiction string on Atlanta's OpenStates mayor (Andre
+        # Dickens) so the seed override join + ?city=Atlanta line up. NOTE: the
+        # council roster is not curated yet — Atlanta is wired here primarily for
+        # mayor profile scraping (OFFICIAL_PROFILE_SOURCES below), which carries
+        # the state metadata the official_photo_override seed needs.
+        jurisdiction="Atlanta Government",
+        state_code="GA",
+        state="Georgia",
+    ),
+    "kingsport": MunicipalCouncilConfig(
+        slug="kingsport",
+        # Board of Mayor and Aldermen (BMA) — Kingsport's governing body.
+        url="https://www.kingsporttn.gov/government/bma/",
+        # No OpenStates officials exist for Kingsport at all (mayor included), so
+        # ?city=Kingsport returns ONLY these scraped rows. Uses the "<City>
+        # Government" convention shared by the other TN cities in contact_official.
+        jurisdiction="Kingsport Government",
+        state_code="TN",
+        state="Tennessee",
+        member_title="Alderman",
     ),
 }
 
@@ -135,6 +168,50 @@ CURATED_ROSTERS: dict[str, list[CouncilMember]] = {
         CouncilMember("Benjamin J. Weber", "City Councilor", "Boston Government", "MA", "Massachusetts", "District 6"),
         CouncilMember("Miniard Culpepper", "City Councilor", "Boston Government", "MA", "Massachusetts", "District 7"),
         CouncilMember("Sharon Durkan", "City Councilor", "Boston Government", "MA", "Massachusetts", "District 8"),
+    ],
+    # Kingsport, TN — Board of Mayor and Aldermen (BMA): mayor + vice mayor + 5
+    # aldermen, all elected AT-LARGE (no districts). Unlike Tuscaloosa/Boston, this
+    # roster INCLUDES the mayor and vice mayor because OpenStates carries no
+    # Kingsport officials at all — so there is nothing to duplicate. Photos/emails
+    # are taken straight off the BMA page (the curated roster is the reliable
+    # default; `--live` re-pulls the headshots by name).
+    # Source: https://www.kingsporttn.gov/government/bma/
+    "kingsport": [
+        CouncilMember(
+            "Paul W. Montgomery", "Mayor", "Kingsport Government", "TN", "Tennessee",
+            district=None, email="PaulMontgomery@kingsporttn.gov",
+            photo_url="https://www.kingsporttn.gov/wp-content/uploads/2024/09/Mayor_Paul-Montgomery-scaled.jpg",
+        ),
+        CouncilMember(
+            "Darrell Duncan", "Vice Mayor", "Kingsport Government", "TN", "Tennessee",
+            district=None, email="DarrellDuncan@kingsporttn.gov",
+            photo_url="https://www.kingsporttn.gov/wp-content/uploads/2024/09/darrell-web.png",
+        ),
+        CouncilMember(
+            "Morris Baker", "Alderman", "Kingsport Government", "TN", "Tennessee",
+            district="At-Large", email="MorrisBaker@kingsporttn.gov",
+            photo_url="https://www.kingsporttn.gov/wp-content/uploads/2024/09/morris-web.png",
+        ),
+        CouncilMember(
+            "Betsy Cooper", "Alderman", "Kingsport Government", "TN", "Tennessee",
+            district="At-Large", email="BetsyCooper@kingsporttn.gov",
+            photo_url="https://www.kingsporttn.gov/wp-content/uploads/Alderman_Betsy-Cooper.jpg",
+        ),
+        CouncilMember(
+            "Colette George", "Alderman", "Kingsport Government", "TN", "Tennessee",
+            district="At-Large", email="ColetteGeorge@kingsporttn.gov",
+            photo_url="https://www.kingsporttn.gov/wp-content/uploads/Colette-George.jpeg",
+        ),
+        CouncilMember(
+            "Gary Mayes", "Alderman", "Kingsport Government", "TN", "Tennessee",
+            district="At-Large", email="GaryMayes@kingsporttn.gov",
+            photo_url="https://www.kingsporttn.gov/wp-content/uploads/2024/10/mayes-web.png",
+        ),
+        CouncilMember(
+            "James Phillips", "Alderman", "Kingsport Government", "TN", "Tennessee",
+            district="At-Large", email="JamesPhillips@kingsporttn.gov",
+            photo_url="https://www.kingsporttn.gov/wp-content/uploads/2021/07/james-web.jpg",
+        ),
     ],
 }
 
@@ -211,13 +288,78 @@ def _headshots_by_name(harv: _TextHarvester, base_url: str) -> dict[str, str]:
     return out
 
 
-# Mayors / executives whose photo isn't on the council page and whom OpenStates
-# carries with no image. Their headshots live on a department page; scraping it
-# lets us overlay a photo onto the existing contact_official row (matched by
-# name, so we never duplicate the OpenStates official).
-OFFICIAL_PHOTO_SOURCES: dict[str, list[str]] = {
+# CSS `background-image:url(...)` — caboosecms sites render member headshots this
+# way (not as <img>), so the <img>-only harvester never sees them.
+_BG_IMAGE_RE = re.compile(
+    r"background-image:\s*url\(\s*['\"]?([^'\")]+?)['\"]?\s*\)", re.IGNORECASE
+)
+# Site chrome to ignore when picking the member photo off a detail page.
+_PHOTO_CHROME = ("banner", "seal", "logo", "header", "favicon", "icon", "arrows")
+
+
+def _member_photo_from_page(html: str, base_url: str) -> Optional[str]:
+    """Pull a single member headshot from a per-member detail page.
+
+    Returns the first CSS ``background-image`` that points at a CMS media asset,
+    skipping site chrome (banner/seal/logo). Resolves protocol-relative
+    (``//assets...``) and relative URLs against ``base_url``. ``None`` if none.
+    """
+    for raw in _BG_IMAGE_RE.findall(html):
+        url = raw.strip()
+        low = url.lower()
+        if "/media/" not in low and "/assets/" not in low:
+            continue
+        if any(chrome in low for chrome in _PHOTO_CHROME):
+            continue
+        if url.startswith("//"):
+            url = "https:" + url
+        return urljoin(base_url, url)
+    return None
+
+
+def _detail_page_photo(config: MunicipalCouncilConfig, district: Optional[str]) -> Optional[str]:
+    """Headshot URL from a member's per-district detail page, or ``None``.
+
+    Only fires for configs with a ``member_page_template``; the district number is
+    extracted from ``district`` ("District 5" -> "5"). Network failure -> ``None``.
+    """
+    if not config.member_page_template or not district:
+        return None
+    dm = _DISTRICT_RE.search(district)
+    if not dm:
+        return None
+    page_url = config.member_page_template.format(district=dm.group(1))
+    try:
+        return _member_photo_from_page(fetch_html(page_url), page_url)
+    except Exception as exc:
+        logger.warning("detail-page headshot fetch failed for {} ({})", page_url, exc)
+        return None
+
+
+# Mayors / executives whom OpenStates carries with no image *and* no biography.
+# Their headshot and bio live on a city department / "meet the <office>" page;
+# scraping it lets us overlay BOTH onto the existing contact_official row
+# (matched by name, so we never duplicate the OpenStates official). The scraped
+# values are curated into the seed `official_photo_override` (which also carries
+# the biography) and coalesced in by the contact_official mart.
+OFFICIAL_PROFILE_SOURCES: dict[str, list[str]] = {
     "boston": ["https://www.boston.gov/departments/mayors-office"],
+    # Atlanta's mayor (Andre Dickens) is in OpenStates with no photo/bio; both
+    # live on the "Meet the Mayor" page. It is a single-official profile page, so
+    # scrape_official_profile attaches the page's bio to that one official.
+    "atlanta": ["https://www.atlantaga.gov/government/mayor-s-office/meet-the-mayor"],
 }
+
+
+@dataclass(frozen=True)
+class OfficialProfile:
+    """A scraped mayor/executive profile, overlaid onto contact_official by name."""
+
+    full_name: str
+    photo_url: Optional[str] = None
+    biography: Optional[str] = None
+    source_url: Optional[str] = None
+
 
 # alt text like "A headshot of Mayor Michelle Wu smiling." -> the bare name.
 _HEADSHOT_OF_RE = re.compile(
@@ -226,33 +368,90 @@ _HEADSHOT_OF_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Min word count for a text chunk to read as biography prose (vs. a nav label,
+# button, or heading), and a sanity cap on the joined bio length.
+_BIO_MIN_WORDS = 12
+_BIO_MAX_CHARS = 4000
 
-def scrape_official_photos(url: str) -> dict[str, str]:
-    """Scrape ``name -> absolute headshot URL`` from an arbitrary department page.
 
-    Handles the two headshot labellings city sites use: ``alt="<Name> headshot"``
-    and ``alt="A headshot of <Title> <Name> ..." title="<Name>"`` (the mayor's
-    office page). Prefers the clean ``title`` attribute for the name.
+def _name_from_headshot(alt: str, title: str) -> str:
+    """Recover an official's bare name from a headshot's ``alt``/``title``.
+
+    Handles the two labellings city sites use: ``alt="<Name> headshot"`` and
+    ``alt="A headshot of <Title> <Name> ..." title="<Name>"`` (mayor's-office
+    style). Prefers the clean ``title`` when present.
+    """
+    if title and "headshot" in alt.lower():
+        return title.strip()
+    m = _HEADSHOT_OF_RE.search(alt)
+    if m:
+        return m.group(1).strip()
+    return re.sub(r"\s*headshot.*$", "", alt, flags=re.IGNORECASE).strip()
+
+
+def _extract_biography(chunks: list[str]) -> Optional[str]:
+    """Best-effort biography: the page's prose chunks, joined.
+
+    A "meet the mayor" page's bio is its body prose — long, sentence-like text
+    nodes — as opposed to nav items / labels / buttons (short fragments). Keep
+    chunks of >= ``_BIO_MIN_WORDS`` words, join them, and cap the length. Returns
+    ``None`` when the page has no prose block. Heuristic — ALWAYS verify the live
+    result and prefer curating the seed from it.
+    """
+    prose = [c for c in chunks if len(c.split()) >= _BIO_MIN_WORDS]
+    if not prose:
+        return None
+    bio = re.sub(r"\s+", " ", " ".join(prose)).strip()
+    return bio[:_BIO_MAX_CHARS].rstrip() or None
+
+
+def scrape_official_profile(url: str) -> dict[str, OfficialProfile]:
+    """Scrape ``name_key -> OfficialProfile`` (photo + bio) from a profile page.
+
+    Photos are matched off each headshot's ``alt``/``title`` (see
+    :func:`_name_from_headshot`). The biography is attached ONLY when the page
+    carries exactly one official's headshot — i.e. a single-person "meet the
+    <office>" page (e.g. Atlanta's mayor). On multi-headshot department pages
+    (e.g. Boston's mayor's office, which also lists cabinet) the bio cannot be
+    reliably tied to one person, so those profiles carry the photo only.
     """
     harv = _TextHarvester()
     harv.feed(fetch_html(url))
-    out: dict[str, str] = {}
+
+    # name_key -> (display_name, photo_url); first headshot wins per person.
+    photos: dict[str, tuple[str, str]] = {}
     for alt, src, title in harv.images:
         if "headshot" not in alt.lower() and "headshot" not in title.lower():
             continue
-        name = ""
-        if title and "headshot" in alt.lower():
-            name = title.strip()
-        if not name:
-            m = _HEADSHOT_OF_RE.search(alt)
-            if m:
-                name = m.group(1)
-            else:
-                name = re.sub(r"\s*headshot.*$", "", alt, flags=re.IGNORECASE)
+        name = _name_from_headshot(alt, title)
         key = _name_key(name)
-        if key and key not in out:
-            out[key] = urljoin(url, src)
-    return out
+        if key and key not in photos:
+            photos[key] = (name, urljoin(url, src))
+
+    biography = _extract_biography(harv.chunks) if len(photos) == 1 else None
+
+    return {
+        key: OfficialProfile(
+            full_name=name,
+            photo_url=photo_url,
+            biography=biography,
+            source_url=url,
+        )
+        for key, (name, photo_url) in photos.items()
+    }
+
+
+def scrape_official_photos(url: str) -> dict[str, str]:
+    """Scrape ``name -> absolute headshot URL`` from a department page.
+
+    Thin wrapper over :func:`scrape_official_profile` kept for photo-only callers
+    and the seed-refresh flow; returns just the headshot URLs.
+    """
+    return {
+        key: prof.photo_url
+        for key, prof in scrape_official_profile(url).items()
+        if prof.photo_url
+    }
 
 
 _DISTRICT_RE = re.compile(r"\bDistrict\s+(\d+)\b", re.IGNORECASE)
@@ -371,13 +570,17 @@ def _overlay_live_photos(members: list[CouncilMember], config: MunicipalCouncilC
         harv.feed(fetch_html(config.url))
         photos = _headshots_by_name(harv, config.url)
     except Exception as exc:
-        logger.warning("headshot enrichment for {} failed ({}); keeping curated photos", config.slug, exc)
-        return members
+        logger.warning("roster-page headshots for {} failed ({}); trying detail pages", config.slug, exc)
+        photos = {}
 
     enriched: list[CouncilMember] = []
     filled = 0
     for m in members:
         url = photos.get(_name_key(m.full_name))
+        # Fall back to a per-member detail page for sites (e.g. caboosecms /
+        # Tuscaloosa) whose roster page carries no inline headshots.
+        if not url and not m.photo_url:
+            url = _detail_page_photo(config, m.district)
         if url and not m.photo_url:
             enriched.append(dataclasses.replace(m, photo_url=url))
             filled += 1
@@ -435,12 +638,66 @@ def get_council(
     return list(curated)
 
 
+def _emit_profiles(city: str, json_out: Optional[str]) -> int:
+    """Scrape ``OFFICIAL_PROFILE_SOURCES[city]`` and dump mayor/exec profiles.
+
+    Emits rows shaped for the ``official_photo_override`` seed (full_name,
+    state_code, photo_url, biography, source_url) so a verified live run can be
+    curated into the seed. Requires network.
+    """
+    city = city.lower().strip()
+    urls = OFFICIAL_PROFILE_SOURCES.get(city)
+    if not urls:
+        logger.error("no profile sources configured for city {!r}", city)
+        return 1
+    state_code = CONFIGS[city].state_code if city in CONFIGS else ""
+    profiles: dict[str, OfficialProfile] = {}
+    for url in urls:
+        try:
+            profiles.update(scrape_official_profile(url))
+        except Exception as exc:
+            logger.warning("profile scrape of {} failed ({})", url, exc)
+    rows = [
+        {
+            "full_name": p.full_name,
+            "state_code": state_code,
+            "photo_url": p.photo_url or "",
+            "biography": p.biography or "",
+            "source_url": p.source_url or "",
+        }
+        for p in profiles.values()
+    ]
+    for r in rows:
+        logger.info(
+            "  {} — photo={} bio={} chars", r["full_name"], bool(r["photo_url"]), len(r["biography"])
+        )
+    payload = json.dumps(rows, indent=2)
+    if json_out:
+        with open(json_out, "w", encoding="utf-8") as fh:
+            fh.write(payload)
+        logger.success("wrote {}", json_out)
+    else:
+        print(payload)
+    return 0
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--city", default="tuscaloosa", help="City slug (default: tuscaloosa)")
     p.add_argument("--live", action="store_true", help="Scrape the live page instead of the curated roster")
     p.add_argument("--json", dest="json_out", default=None, help="Write the roster to this JSON file")
+    p.add_argument(
+        "--profiles",
+        metavar="CITY",
+        default=None,
+        help="Scrape mayor/executive profiles (photo + bio) from CITY's "
+        "OFFICIAL_PROFILE_SOURCES and emit JSON rows for the "
+        "official_photo_override seed (requires network)",
+    )
     args = p.parse_args(argv)
+
+    if args.profiles:
+        return _emit_profiles(args.profiles, args.json_out)
 
     members = get_council(args.city, live=args.live)
     logger.info("{}: {} council members", args.city, len(members))

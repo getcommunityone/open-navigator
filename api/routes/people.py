@@ -52,6 +52,10 @@ class PersonDetail(BaseModel):
     # Headshot URL (local leaders, from contact_official.photo_url). None for MDM
     # persons (the master has no photo column) and officials with no headshot.
     photo_url: Optional[str] = None
+    # Biography prose (local leaders, from contact_official.biography — sourced
+    # from the official_photo_override seed, e.g. a mayor's "meet the mayor"
+    # page). None for MDM persons and officials with no curated bio.
+    biography: Optional[str] = None
     organizations: List[PersonOrganization] = Field(default_factory=list)
 
 
@@ -103,7 +107,8 @@ _OFFICIAL_SQL = """
         o.phone,
         o.state_code,
         o.website_url,
-        o.photo_url
+        o.photo_url,
+        o.biography
     FROM contact_official o
     WHERE o.id = $1
 """
@@ -136,6 +141,7 @@ def _official_to_detail(row) -> PersonDetail:
         phone=row["phone"],
         jurisdiction_website=row["website_url"],
         photo_url=row["photo_url"],
+        biography=row["biography"],
         organizations=organizations,
     )
 

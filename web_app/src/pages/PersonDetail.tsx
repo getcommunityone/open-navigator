@@ -8,6 +8,7 @@ import {
   PhoneIcon,
   BuildingOffice2Icon,
   GlobeAltIcon,
+  DocumentTextIcon,
 } from '@heroicons/react/24/outline'
 
 interface PersonOrganization {
@@ -26,6 +27,7 @@ interface Person {
   phone: string | null
   jurisdiction_website: string | null
   photo_url: string | null
+  biography: string | null
   organizations: PersonOrganization[]
 }
 
@@ -202,6 +204,19 @@ export default function PersonDetail() {
             </div>
           </div>
         </div>
+
+        {/* Biography (local leaders with a curated bio, e.g. a mayor) */}
+        {person.biography && (
+          <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+            <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <DocumentTextIcon className="h-5 w-5" />
+              Biography
+            </h2>
+            <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">
+              {person.biography}
+            </p>
+          </div>
+        )}
 
         {/* Organizations */}
         <div className="bg-white rounded-lg shadow-sm p-6">

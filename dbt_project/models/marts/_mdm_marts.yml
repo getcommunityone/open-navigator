@@ -279,10 +279,17 @@ models:
         data_type: text
       - name: source_url
         data_type: text
+        description: "Page where the person's name/details were published; the profile page (carrying the bio) wins over a bare directory page."
+      - name: source_label
+        data_type: text
+        description: "Human label for the source link (scraped organization name, or 'Ballotpedia' for LEDB)."
       - name: profile_url
         data_type: text
       - name: source_page_url
         data_type: text
+      - name: biography
+        data_type: text
+        description: "Biography prose from the source page, else the curated official_photo_override seed; NULL when no source carries one."
 
   - name: mdm_organization
     description: >

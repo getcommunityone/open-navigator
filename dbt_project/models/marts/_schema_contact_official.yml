@@ -69,6 +69,12 @@ models:
       - name: photo_url
         description: "Photo URL (opencivicdata_person.image). Nullable."
         data_type: text
+      - name: biography
+        description: >
+          Official biography prose, sourced ONLY from the official_photo_override
+          seed (e.g. a mayor's "meet the mayor" page) — OpenStates carries no bio.
+          NULL for everyone without a curated override.
+        data_type: text
       - name: is_current
         description: "True when the term is open-ended or ends on/after the current-term cutoff."
         data_type: boolean

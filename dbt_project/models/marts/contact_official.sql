@@ -101,12 +101,16 @@ unioned_raw as (
     from scraped
 ),
 
--- Curated/scraped headshot overrides for officials whose source carries no image
--- (e.g. mayors — their photo is on a city department page, not in OpenStates).
--- Matched on name + state and coalesced, so it patches the existing row without
--- adding one. See seed official_photo_override.
+-- Curated/scraped overrides for officials whose source carries no image or bio
+-- (e.g. mayors — their photo + biography are on a city department / "meet the
+-- <office>" page, not in OpenStates). Matched on name + state and coalesced, so
+-- it patches the existing row without adding one. See seed official_photo_override.
 photo_override as (
-    select lower(trim(full_name)) as full_name_key, state_code, photo_url
+    select
+        lower(trim(full_name)) as full_name_key,
+        state_code,
+        photo_url,
+        nullif(trim(biography), '') as biography
     from {{ ref('official_photo_override') }}
 ),
 
@@ -115,6 +119,7 @@ unioned as (
         u.id, u.full_name, u.title, u.jurisdiction, u.state_code, u.state,
         u.party, u.district, u.office, u.email, u.phone,
         coalesce(u.photo_url, po.photo_url)                   as photo_url,
+        po.biography                                          as biography,
         u.is_current
     from unioned_raw u
     left join photo_override po
@@ -133,7 +138,7 @@ unioned as (
 -- and require a non-null website. NULL for everyone who doesn't resolve.
 select
     u.id, u.full_name, u.title, u.jurisdiction, u.state_code, u.state,
-    u.party, u.district, u.office, u.email, u.phone, u.photo_url, u.is_current,
+    u.party, u.district, u.office, u.email, u.phone, u.photo_url, u.biography, u.is_current,
     jw.website_url
 from unioned u
 left join lateral (

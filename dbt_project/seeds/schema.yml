@@ -28,13 +28,24 @@ seeds:
           - not_null
 
   - name: official_photo_override
+    # Pin text types: biography/source_url are often all-empty on first seed, which
+    # otherwise infers to integer and breaks trim()/coalesce in downstream models.
+    config:
+      column_types:
+        full_name: text
+        state_code: text
+        photo_url: text
+        biography: text
+        source_url: text
     description: >
-      Manual/scraped headshot URL for officials whose source (OpenStates) carries
-      no image — e.g. mayors, whose photo lives on a city department page, not the
-      council page. LEFT JOINed into contact_official and coalesced over photo_url
+      Manual/scraped headshot URL and biography for officials whose source
+      (OpenStates) carries neither — e.g. mayors, whose photo and bio live on a
+      city department / "meet the <office>" page, not the council page. LEFT
+      JOINed into contact_official and coalesced over photo_url + biography
       (matched on lower(full_name) + state_code), so it patches the existing row
       without duplicating it. Regenerate from city sites via
-      scrapers.municipal.council_roster.scrape_official_photos (OFFICIAL_PHOTO_SOURCES);
+      scrapers.municipal.council_roster.scrape_official_profile (OFFICIAL_PROFILE_SOURCES),
+      e.g. `python -m scrapers.municipal.council_roster --profiles atlanta`;
       photo_url carries a Drupal ?itok= token that can expire — re-scrape to refresh.
       After editing: dbt seed --select official_photo_override && dbt run --select contact_official
     columns:
@@ -50,8 +61,10 @@ seeds:
         description: "Absolute headshot URL (https://…)"
         tests:
           - not_null
+      - name: biography
+        description: "Scraped biography prose for the official; nullable (empty when only a photo is overridden)"
       - name: source_url
-        description: "Page the headshot was scraped from (provenance)"
+        description: "Page the photo/bio was scraped from (provenance)"
 
   - name: jurisdiction_website_url_overrides
     description: >

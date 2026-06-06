@@ -4,10 +4,12 @@ from scrapers.municipal import council_roster
 from scrapers.municipal.council_roster import (
     CONFIGS,
     CURATED_ROSTERS,
+    OFFICIAL_PROFILE_SOURCES,
     CouncilMember,
     get_council,
     parse_council_html,
     scrape_official_photos,
+    scrape_official_profile,
 )
 
 
@@ -133,9 +135,66 @@ def test_scrape_official_photos_handles_mayor_title_and_relative_src(monkeypatch
     assert "paul f. burke" not in photos  # no "headshot" in alt -> skipped
 
 
+def test_atlanta_mayor_profile_pulls_photo_and_bio(monkeypatch):
+    # Atlanta's "Meet the Mayor" page is a single-official profile: one headshot
+    # plus a body-prose bio. scrape_official_profile should pull BOTH and attach
+    # the bio to that one official.
+    assert "atlanta" in OFFICIAL_PROFILE_SOURCES
+    html = """
+    <html><body>
+      <nav>Home Government Departments</nav>
+      <h1>Meet the Mayor</h1>
+      <img src="/files/dickens-headshot.jpg?itok=xyz"
+           alt="A headshot of Mayor Andre Dickens smiling." title="Andre Dickens" />
+      <p>Andre Dickens is the 61st Mayor of the City of Atlanta, sworn into
+         office in January 2022 after a career in business and public service.</p>
+      <p>A lifelong Atlantan, he has focused his administration on public safety,
+         affordable housing, and creating opportunity for every resident.</p>
+      <a href="/contact">Contact</a>
+    </body></html>
+    """
+    monkeypatch.setattr(council_roster, "fetch_html", lambda url, **kw: html)
+    profiles = scrape_official_profile(OFFICIAL_PROFILE_SOURCES["atlanta"][0])
+    assert "andre dickens" in profiles
+    prof = profiles["andre dickens"]
+    # Photo matched via the clean title attribute, relative src made absolute.
+    assert prof.photo_url == "https://www.atlantaga.gov/files/dickens-headshot.jpg?itok=xyz"
+    # Bio harvested from the body prose; short nav/labels excluded.
+    assert prof.biography is not None
+    assert "61st Mayor" in prof.biography
+    assert "affordable housing" in prof.biography
+    assert "Home Government Departments" not in prof.biography
+    assert prof.source_url == OFFICIAL_PROFILE_SOURCES["atlanta"][0]
+
+
+def test_scrape_official_profile_no_bio_on_multi_headshot_page(monkeypatch):
+    # A department page with multiple headshots (mayor + cabinet) can't tie the
+    # bio to one person, so profiles carry the photo only.
+    html = """
+    <html><body>
+      <img src="/wu.png" alt="A headshot of Mayor Michelle Wu smiling." title="Michelle Wu" />
+      <img src="/burke.png" alt="A headshot of Chief Paul Burke smiling." title="Paul Burke" />
+      <p>The mayor's office leads the city across many departments and serves the
+         residents of Boston every single day of the year.</p>
+    </body></html>
+    """
+    monkeypatch.setattr(council_roster, "fetch_html", lambda url, **kw: html)
+    profiles = scrape_official_profile("https://www.boston.gov/departments/mayors-office")
+    assert set(profiles) == {"michelle wu", "paul burke"}
+    assert all(p.biography is None for p in profiles.values())
+    assert profiles["michelle wu"].photo_url == "https://www.boston.gov/wu.png"
+
+
+# Cities whose mayor IS in OpenStates -> the curated roster is council-only to
+# avoid duplicating that official. Kingsport is the exception: OpenStates carries
+# no Kingsport officials at all, so its roster legitimately includes the mayor.
+_MAYOR_IN_OPENSTATES = {"tuscaloosa", "boston", "atlanta"}
+
+
 def test_curated_rosters_are_council_members():
     for slug, roster in CURATED_ROSTERS.items():
         assert roster, f"{slug} roster is empty"
         assert all(isinstance(m, CouncilMember) for m in roster)
-        # Mayors are sourced from OpenStates, not curated here (avoids duplicates).
-        assert all("mayor" not in m.title.lower() for m in roster)
+        # Where the mayor is already in OpenStates, don't curate one here.
+        if slug in _MAYOR_IN_OPENSTATES:
+            assert all("mayor" not in m.title.lower() for m in roster)
