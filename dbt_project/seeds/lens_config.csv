@@ -1,0 +1,10 @@
+lens_id,eligibility_sql,sort_expr,direction
+default,true,interestingness_score,desc
+contested,conflict > 0,conflict,desc
+money,money > 0,money,desc
+new,novelty > 0,novelty,desc
+people,engagement > 0,engagement,desc
+changed,surprise >= 0.5,surprise,desc
+soon,scheduled_for is not null,urgency,desc
+slipped,buried > 0,buried,desc
+near,primary_latitude is not null,proximity_meters,asc

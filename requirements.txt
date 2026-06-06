@@ -61,8 +61,10 @@ shapely>=2.0.0
 
 # NLP & Text Analysis
 spacy==3.7.2
-transformers==5.0.0rc3
-sentence-transformers==2.2.2
+# Bumped to clear High Dependabot deserialization advisory + fix CI pip-install
+# conflict (sentence-transformers 2.2.2 capped transformers<5.0.0).
+transformers==5.10.2
+sentence-transformers==5.5.1
 nltk==3.9.4
 datasets>=2.16.0
 huggingface-hub>=0.20.0

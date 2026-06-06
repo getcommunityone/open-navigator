@@ -1,176 +1,101 @@
 import { useMemo, useState } from 'react'
-import { ArrowTrendingUpIcon, ChevronDownIcon } from '@heroicons/react/24/outline'
+import { ChevronRightIcon, BookmarkIcon, ArrowRightIcon } from '@heroicons/react/24/outline'
 
 /**
- * StoryLenses — the homepage "What's interesting near you" section.
+ * StoryLenses — the homepage "What's happening near you" section.
  *
- * Replaces the flat "Trending" pill row with a set of editorial *lenses*
- * (Contested, Money moves, Near you, …) that re-rank civic activity by what's
- * interesting rather than by topic, plus a time-frame control and a card grid.
+ * Re-ranks civic activity by editorial *lenses* (Contested, Money Moves,
+ * Raised Eyebrows, Moving Fast, Watch Next) rather than by topic, with a live
+ * activity strip, a time-frame control, and a story-card grid.
  *
- * The card data here is illustrative demo content (there is no
- * `interestingness_score` endpoint yet) — analogous to FALLBACK_TRENDING in
- * Home.tsx. The component is intentionally self-contained so it can later be
- * swapped to live API data without touching Home.tsx.
+ * Card / stat content here is illustrative demo data (there is no
+ * `interestingness_score` endpoint yet) — analogous to the old FALLBACK_TRENDING
+ * in Home.tsx. The component is self-contained so it can later be wired to live
+ * API data without touching Home.tsx.
  */
 
 const FONT = { fontFamily: "'DM Sans', sans-serif" } as const
 const SERIF = { fontFamily: "'Newsreader', Georgia, 'Times New Roman', serif" } as const
 
+type Tone = 'plain' | 'green' | 'amber' | 'red' | 'blue' | 'purple'
+const TONES: Record<Tone, { bg: string; fg: string }> = {
+  plain: { bg: '#f3f7f6', fg: '#56635e' },
+  green: { bg: '#e7f2ef', fg: '#1d6b5f' },
+  amber: { bg: '#fbf3e2', fg: '#9a6b12' },
+  red: { bg: '#fdeeeb', fg: '#c0432a' },
+  blue: { bg: '#eaf1f8', fg: '#2f6fb0' },
+  purple: { bg: '#efebfb', fg: '#6b5bd2' },
+}
+
 interface Lens {
   id: string
   em: string
   label: string
+  desc: string
   clr: string
-  blurb: string
-  /** Optional advisory shown above the grid (used by the "Raised Eyebrows" lens). */
+  /** Advisory shown above the grid (Raised Eyebrows). */
   note?: string
 }
 
 const LENSES: Lens[] = [
-  {
-    id: 'contested',
-    em: '\u{1F525}',
-    label: 'Contested',
-    clr: '#df5430',
-    blurb:
-      'Split votes, heated debate, and decisions people fought over. Signal: vote margin + competing views + opposition in public comment.',
-  },
-  {
-    id: 'money',
-    em: '\u{1F4B8}',
-    label: 'Money moves',
-    clr: '#b07d18',
-    blurb:
-      'New fees, big spends, and rate hikes — where your tax dollars actually go. Signal: extracted $ amounts ranked against the COFOG baseline.',
-  },
-  {
-    id: 'near',
-    em: '\u{1F4CD}',
-    label: 'Near you',
-    clr: '#1d6b5f',
-    blurb:
-      'Rezonings, road work, and decisions on your street. Signal: geocoded addresses in the item vs. your location.',
-  },
-  {
-    id: 'new',
-    em: '\u{2728}',
-    label: 'New ideas',
-    clr: '#6b5bd2',
-    blurb:
-      'Pilots, first-time proposals, and things this body has never tried. Signal: canonical subject slug appearing for the first time.',
-  },
-  {
-    id: 'people',
-    em: '\u{1F5E3}\u{FE0F}',
-    label: 'People showed up',
-    clr: '#e0608a',
-    blurb:
-      'The meetings residents packed and the mics they lined up for. Signal: public-comment speaker count + length of the comment section.',
-  },
-  {
-    id: 'changed',
-    em: '\u{1F504}',
-    label: 'Changed course',
-    clr: '#2f6fb0',
-    blurb:
-      'Reversals, walk-backs, and U-turns on past decisions. Signal: cross-session slug linking detecting a vote that undoes a prior one.',
-  },
-  {
-    id: 'soon',
-    em: '\u{23F0}',
-    label: 'Decide soon',
-    clr: '#d57a1e',
-    blurb:
-      'Open comment periods and votes coming up — your last chance to weigh in. Signal: future dates + tabled items scheduled to return.',
-  },
-  {
-    id: 'slipped',
-    em: '\u{1F575}\u{FE0F}',
-    label: 'Slipped through',
-    clr: '#6a6f8a',
-    blurb:
-      'Big-impact items that passed on the consent agenda with no discussion. Signal: high impact score + near-zero debate time.',
-  },
+  { id: 'contested', em: '\u{1F525}', label: 'Contested', desc: 'Split votes and heated debates', clr: '#e0603a' },
+  { id: 'money', em: '\u{1F4B2}', label: 'Money Moves', desc: 'Contracts, spending, and big budgets', clr: '#2a8576' },
   {
     id: 'flags',
-    em: '\u{1F928}',
+    em: '\u{1F441}\u{FE0F}',
     label: 'Raised Eyebrows',
-    clr: '#b0384a',
+    desc: 'Decisions that make you go hmm…',
+    clr: '#7a5cd0',
     note:
       '⚠ Flags are unverified anomalies pulled from public records — a prompt to look closer, not a finding of wrongdoing. Every card links to the underlying record so you can judge for yourself.',
-    blurb:
-      'Out-of-district addresses, just-under-the-limit spending, vendor–official ties, and expense outliers. Signal: address vs. district boundary, threshold structuring, donor–contract & relative–vendor matches, per-peer expense outliers.',
   },
+  { id: 'soon', em: '⚡', label: 'Moving Fast', desc: 'Urgent items and rushed decisions', clr: '#d57a1e' },
+  { id: 'next', em: '\u{1F4C5}', label: 'Watch Next', desc: 'Upcoming votes to keep on your radar', clr: '#2f6fb0' },
 ]
 
+interface Stat {
+  v: string
+  l: string
+  tone?: Tone
+}
 interface Card {
-  badge: string
-  /** Negative = in the past, positive = upcoming. */
+  badge?: string
+  /** Negative = past, positive = upcoming. */
   days: number
   h: string
-  p: string
+  stats: Stat[]
   juris: string
 }
 
-// days: negative = in the past, positive = upcoming
 const CARDS: Record<string, Card[]> = {
   contested: [
-    { badge: '3–2 vote · 18 spoke against', days: -2, h: 'Northport adds a $40 monthly trash fee after an hour of pushback', p: 'Residents packed the chamber to oppose it; two council members flipped before the final vote.', juris: 'Northport City Council' },
-    { badge: '4–3 split', days: -22, h: 'Council splits sharply over a downtown bar curfew', p: 'Supporters cited noise complaints; opponents warned it would gut nightlife. Tabled for revision.', juris: 'Tuscaloosa City Council' },
-    { badge: 'Deadlocked · tabled', days: -68, h: 'Commission can’t agree on the rural broadband contract', p: 'A tie vote sent the $4M proposal back to committee amid questions about the lone bidder.', juris: 'Tuscaloosa County' },
-    { badge: '4–3 · 3-hr hearing', days: -210, h: 'Annexation barely passes after a packed three-hour hearing', p: 'One of the most divisive votes of the year, decided by a single seat near midnight.', juris: 'Northport City Council' },
+    { days: -1, h: 'Northport adds a $40 monthly trash fee after an hour of pushback', stats: [{ v: '3–2', l: 'Vote' }, { v: '18', l: 'Spoke against' }, { v: '+$480', l: 'Impact / year', tone: 'green' }], juris: 'City Council' },
+    { days: -22, h: 'Council splits sharply over a downtown bar curfew', stats: [{ v: '4–3', l: 'Vote' }, { v: 'Tabled', l: 'Outcome', tone: 'amber' }, { v: '11', l: 'Spoke' }], juris: 'City Council' },
+    { days: -68, h: 'Commission can’t agree on the rural broadband contract', stats: [{ v: 'Tie', l: 'Deadlock', tone: 'red' }, { v: '$4M', l: 'At stake' }, { v: '1', l: 'Bidder', tone: 'red' }], juris: 'County Commission' },
+    { days: -210, h: 'Annexation barely passes after a packed three-hour hearing', stats: [{ v: '4–3', l: 'Vote' }, { v: '3 hr', l: 'Hearing' }, { v: '60+', l: 'Attended' }], juris: 'City Council' },
   ],
   money: [
-    { badge: '$12.0M', days: -4, h: 'Tuscaloosa commits $12M to a riverfront amphitheater', p: 'The largest single capital outlay this year, funded partly by a bond approved in March.', juris: 'Tuscaloosa City Council' },
-    { badge: '+9% · 3rd hike in 4 yrs', days: -24, h: 'Northport water rates rise again — 9% this time', p: 'Inflation-adjusted, the typical bill is up roughly a third since 2022.', juris: 'Northport Utilities Board' },
-    { badge: '$4.2M · 1 bidder', days: -70, h: 'County awards a $4.2M road contract to a single bidder', p: 'No competing bids came in before the deadline, drawing questions from two commissioners.', juris: 'Tuscaloosa County' },
-    { badge: '$30M refinance', days: -190, h: 'City refinanced $30M in debt to free up budget room', p: 'A quiet but consequential move that reshaped the next three years of spending capacity.', juris: 'Tuscaloosa City Council' },
-  ],
-  near: [
-    { badge: '0.4 mi from you', days: -3, h: 'Rezoning could put apartments on Mitt Lary Road', p: 'A developer wants to shift 11 acres from residential to mixed-use. First hearing is set.', juris: 'Northport Planning' },
-    { badge: 'In your area', days: -20, h: 'New signal approved at McFarland & Watermelon Rd', p: 'Funded after three years of resident petitions over near-misses at the intersection.', juris: 'Northport City Council' },
-    { badge: 'Your neighborhood', days: -75, h: 'Sidewalk project funded along your block', p: 'Part of a $600K pedestrian-safety package targeting routes near elementary schools.', juris: 'Northport Public Works' },
-    { badge: 'Your corridor', days: -160, h: 'Watermelon Road widening cleared its final design vote', p: 'Construction on the route you drive daily is now slated to begin next year.', juris: 'Northport Public Works' },
-  ],
-  new: [
-    { badge: 'First time proposed', days: -6, h: 'Northport floats a downtown youth night-market pilot', p: 'A council member pitched a monthly vendor market for teens — no precedent in past meetings.', juris: 'Northport City Council' },
-    { badge: 'New idea', days: -26, h: 'Tuscaloosa weighs a guaranteed-ride-home program for service workers', p: 'Modeled on a Nashville pilot; staff asked to study cost before a vote.', juris: 'Tuscaloosa City Council' },
-    { badge: 'Novel', days: -72, h: 'County pilots a 4-day workweek for permitting staff', p: 'A 90-day trial to test whether faster turnaround offsets shorter office hours.', juris: 'Tuscaloosa County' },
-    { badge: 'First ever', days: -220, h: 'City launched its first participatory-budgeting round', p: 'Residents got to directly allocate a slice of the capital budget for the first time.', juris: 'Tuscaloosa City Council' },
-  ],
-  people: [
-    { badge: '61 speakers', days: -3, h: '60+ residents pack the meeting over a dog-park closure', p: 'Public comment ran past 10 p.m.; the council postponed the decision under pressure.', juris: 'Northport City Council' },
-    { badge: '44 comments', days: -19, h: 'Parents flood the school rezoning hearing', p: 'Families from two neighborhoods turned out over which school their kids would attend.', juris: 'Tuscaloosa City Schools' },
-    { badge: 'Standing room only', days: -64, h: 'Full chamber for the short-term rental debate', p: 'Hosts and neighbors squared off over a proposed cap on Airbnb-style permits.', juris: 'Tuscaloosa City Council' },
-    { badge: '200+ attended', days: -240, h: 'Hundreds turn out against a proposed landfill expansion', p: 'The biggest crowd of the year forced the item back to study committee.', juris: 'Tuscaloosa County' },
-  ],
-  changed: [
-    { badge: 'Reverses last month', days: -5, h: 'Council walks back its food-truck ban', p: 'After vendor backlash, the same body reversed itself and reopened downtown permits.', juris: 'Northport City Council' },
-    { badge: 'Walked back', days: -21, h: 'County reinstates funding it cut in spring', p: 'A library budget line restored after public outcry over reduced weekend hours.', juris: 'Tuscaloosa County' },
-    { badge: 'U-turn', days: -66, h: 'Northport pauses the annexation it approved earlier', p: 'New cost estimates pushed the council to hit pause on extending city limits.', juris: 'Northport City Council' },
-    { badge: 'Full reversal', days: -300, h: 'Council reverses its own short-term rental cap a year later', p: 'What passed as a hard limit was quietly undone after a change in membership.', juris: 'Tuscaloosa City Council' },
-  ],
-  soon: [
-    { badge: 'Closes in 3 days', days: 3, h: 'Public comment on the 2027 budget closes Friday', p: 'The draft includes the new trash fee and the amphitheater bond — weigh in before it locks.', juris: 'Tuscaloosa City Council' },
-    { badge: 'Votes in 5 days', days: 5, h: 'The downtown parking deck goes to a vote Tuesday', p: 'A $9M structure that’s been debated for two years reaches a final decision.', juris: 'Tuscaloosa City Council' },
-    { badge: 'Final reading', days: 8, h: 'Last hearing on the noise ordinance before adoption', p: 'After this meeting the rules take effect — the final window to comment.', juris: 'Northport City Council' },
-    { badge: 'Opens soon', days: 24, h: 'Comprehensive plan update opens for public input next month', p: 'The document that shapes a decade of zoning is about to take comments.', juris: 'Northport Planning' },
-    { badge: 'Vote this quarter', days: 70, h: 'Rezoning of the old mall site heads to a fall vote', p: 'A major redevelopment decision is scheduled after the summer recess.', juris: 'Tuscaloosa City Council' },
-  ],
-  slipped: [
-    { badge: '0 min debate · $1.8M', days: -4, h: 'A $1.8M software contract passed on the consent agenda', p: 'Bundled with routine items and approved in one vote with no discussion.', juris: 'Tuscaloosa County' },
-    { badge: 'Consent item', days: -23, h: 'Council quietly extended the mayor’s emergency powers', p: 'A six-month extension slipped through as part of a packaged resolution.', juris: 'Northport City Council' },
-    { badge: 'Passed without comment', days: -71, h: 'Fee-schedule changes buried in a routine vote', p: 'Permit and inspection fees rose across the board with no separate discussion.', juris: 'Tuscaloosa City Council' },
-    { badge: 'Consent · 0 min', days: -200, h: 'A 20-year utility easement passed on consent last fall', p: 'A long-term commitment approved without a single question from the dais.', juris: 'Tuscaloosa County' },
+    { days: -1, h: 'City approves $2.3M contract with developer connected to council donor', stats: [{ v: '$2.3M', l: 'Contract value', tone: 'green' }, { v: 'Donor link', l: 'Disclosed', tone: 'amber' }, { v: 'No', l: 'Bids received', tone: 'red' }], juris: 'City Council' },
+    { days: -24, h: 'Northport water rates rise again — 9% this time', stats: [{ v: '+9%', l: 'Rate hike', tone: 'red' }, { v: '3rd', l: 'In 4 years' }, { v: '~33%', l: 'Since 2022' }], juris: 'Utilities Board' },
+    { days: -70, h: 'County awards a $4.2M road contract to a single bidder', stats: [{ v: '$4.2M', l: 'Contract', tone: 'green' }, { v: '1', l: 'Bidder', tone: 'red' }, { v: '0', l: 'Competing bids', tone: 'red' }], juris: 'County Commission' },
+    { days: -190, h: 'City refinanced $30M in debt to free up budget room', stats: [{ v: '$30M', l: 'Refinanced', tone: 'green' }, { v: '3 yr', l: 'Runway' }, { v: 'Consent', l: 'Passed on' }], juris: 'City Council' },
   ],
   flags: [
-    { badge: 'Address mismatch', days: -8, h: 'A Ward 3 council member’s address on file sits in Ward 5', p: 'Voter-file and parcel records place the registered home outside the ward they represent — worth confirming.', juris: 'Northport City Council' },
-    { badge: '7 buys at ~$4,950', days: -15, h: 'Repeated purchases land just under the $5,000 approval limit', p: 'A department logged seven separate buys between $4,900 and $4,990 — each a step below needing board sign-off.', juris: 'Tuscaloosa County' },
-    { badge: 'Possible conflict', days: -30, h: 'A contract went to a vendor sharing an address with an official’s relative', p: 'Entity resolution matched the awarded firm to a household tied to a sitting member who didn’t recuse.', juris: 'Tuscaloosa City Council' },
-    { badge: '4x peer median', days: -44, h: 'One official’s travel reimbursements run roughly 4x the board average', p: 'Per-diem and travel claims sit far above comparable members over the same period.', juris: 'Northport City Council' },
-    { badge: '82% to one firm', days: -80, h: 'Most sole-source contracts this year went to a single vendor', p: 'One firm captured the bulk of no-bid awards — a concentration pattern worth a closer look.', juris: 'Tuscaloosa County' },
-    { badge: 'Disclosure 90 days late', days: -180, h: 'A required economic-interest statement is overdue', p: 'The annual conflict-of-interest filing hasn’t been submitted within the statutory window.', juris: 'Tuscaloosa City Council' },
+    { days: -2, h: 'One-third of traffic revenue comes from just two speed traps', stats: [{ v: '$1.1M', l: 'From tickets', tone: 'purple' }, { v: '32%', l: 'Of city revenue', tone: 'amber' }, { v: '4 locations', l: 'Concentrated', tone: 'blue' }], juris: 'Finance Committee' },
+    { days: -15, h: 'Repeated purchases land just under the $5,000 approval limit', stats: [{ v: '7 buys', l: '~$4,950 each', tone: 'red' }, { v: '$5K', l: 'Sign-off line', tone: 'amber' }, { v: '0', l: 'Board reviews', tone: 'red' }], juris: 'County Procurement' },
+    { days: -30, h: 'A contract went to a vendor sharing an address with an official’s relative', stats: [{ v: 'Match', l: 'Entity resolution', tone: 'purple' }, { v: 'No', l: 'Recusal', tone: 'red' }, { v: '1', l: 'Member tied' }], juris: 'City Council' },
+    { days: -44, h: 'One official’s travel reimbursements run roughly 4x the board average', stats: [{ v: '4×', l: 'Peer median', tone: 'red' }, { v: 'Travel', l: 'Category', tone: 'amber' }, { v: '12 mo', l: 'Window' }], juris: 'City Council' },
+  ],
+  soon: [
+    { days: -2, h: 'A $1.8M software contract passed on the consent agenda', stats: [{ v: '0 min', l: 'Debate', tone: 'red' }, { v: '$1.8M', l: 'Bundled', tone: 'green' }, { v: '1', l: 'Vote' }], juris: 'County Commission' },
+    { days: -4, h: 'Fee-schedule changes adopted with no separate discussion', stats: [{ v: 'Consent', l: 'Track', tone: 'amber' }, { v: 'All', l: 'Permit fees up' }, { v: '0', l: 'Comments' }], juris: 'City Council' },
+    { days: -8, h: 'Council quietly extended the mayor’s emergency powers', stats: [{ v: '6 mo', l: 'Extension', tone: 'amber' }, { v: 'Packaged', l: 'Resolution' }, { v: '0 min', l: 'Discussion', tone: 'red' }], juris: 'City Council' },
+  ],
+  next: [
+    { days: 3, h: 'Public comment on the 2027 budget closes Friday', stats: [{ v: '3 days', l: 'To weigh in', tone: 'amber' }, { v: 'Open', l: 'Comment', tone: 'green' }, { v: '$2.3M', l: 'New spend' }], juris: 'City Council' },
+    { days: 5, h: 'The downtown parking deck goes to a vote Tuesday', stats: [{ v: '5 days', l: 'Until vote', tone: 'amber' }, { v: '$9M', l: 'Project', tone: 'green' }, { v: '2 yr', l: 'Debated' }], juris: 'City Council' },
+    { days: 8, h: 'Last hearing on the noise ordinance before adoption', stats: [{ v: 'Final', l: 'Reading', tone: 'red' }, { v: '8 days', l: 'Until adopted' }, { v: 'Open', l: 'Comment', tone: 'green' }], juris: 'City Council' },
+    { days: 24, h: 'Comprehensive plan update opens for public input next month', stats: [{ v: '~24 days', l: 'Opens' }, { v: '10 yr', l: 'Zoning impact', tone: 'blue' }, { v: 'Draft', l: 'Stage' }], juris: 'Planning' },
   ],
 }
 
@@ -181,16 +106,21 @@ const TIME_OPTIONS: { d: number; label: string }[] = [
   { d: 366, label: 'Year' },
   { d: 999999, label: 'All time' },
 ]
-const ALL_TIME = 999999
-const WINDOW_LABEL: Record<number, string> = { 7: 'week', 31: 'month', 92: 'quarter', 366: 'year', 999999: 'all time' }
+
+const POPULAR_TOPICS = ['budget', 'zoning', 'police', 'schools', 'infrastructure', 'taxes']
 
 function rel(d: number): string {
   if (d === 0) return 'today'
   const fut = d > 0
   const a = Math.abs(d)
   let t: string
-  if (a < 7) {
-    t = `${a} ${a === 1 ? 'day' : 'days'}`
+  if (a < 1) {
+    t = 'today'
+    return t
+  } else if (a < 2) {
+    t = '1 day'
+  } else if (a < 7) {
+    t = `${a} days`
   } else if (a < 31) {
     const w = Math.round(a / 7)
     t = `${w} ${w === 1 ? 'week' : 'weeks'}`
@@ -205,11 +135,11 @@ function rel(d: number): string {
 }
 
 interface StoryLensesProps {
-  /** Short place label for the heading, e.g. "Northport". */
+  /** Short place label for headings, e.g. "Northport". */
   locationLabel?: string
-  /** Invoked when a lens card or the Browse-topics affordance is activated. */
+  /** Invoked when a card or popular-topic is activated. */
   onSearch?: (query: string) => void
-  /** Invoked by the retained "Browse topics" button. */
+  /** Invoked by "View all" / "See all activity" / Browse topics. */
   onBrowseTopics?: () => void
 }
 
@@ -217,62 +147,45 @@ export default function StoryLenses({ locationLabel, onSearch, onBrowseTopics }:
   const [active, setActive] = useState<string>('contested')
   const [windowDays, setWindowDays] = useState<number>(31)
 
+  const place = locationLabel || 'your area'
   const lens = LENSES.find((l) => l.id === active) ?? LENSES[0]
   const allCards = CARDS[active] ?? []
-  const rows = useMemo(
-    () => allCards.filter((c) => Math.abs(c.days) <= windowDays),
-    [allCards, windowDays],
-  )
-  const forward = active === 'soon'
-  const countText = `${rows.length} of ${allCards.length} · ${
-    windowDays >= ALL_TIME ? 'all time' : `${forward ? 'next ' : 'past '}${WINDOW_LABEL[windowDays]}`
-  }`
+  const rows = useMemo(() => allCards.filter((c) => Math.abs(c.days) <= windowDays), [allCards, windowDays])
 
-  const heading = locationLabel ? `What’s interesting near ${locationLabel}` : "What’s interesting near you"
+  const activityStats: { em: string; v: string; l: string; clr: string; bg: string }[] = [
+    { em: '\u{1F525}', v: '3', l: 'contested votes this week', clr: '#e0603a', bg: '#fdeeeb' },
+    { em: '\u{1F4B2}', v: '$2.3M', l: 'in new spending approved', clr: '#2a8576', bg: '#e7f2ef' },
+    { em: '\u{1F441}\u{FE0F}', v: '124', l: 'public comments submitted', clr: '#7a5cd0', bg: '#efebfb' },
+    { em: '⚠️', v: '2', l: 'major projects proposed', clr: '#d57a1e', bg: '#fbf3e2' },
+  ]
 
   return (
-    <div className="mt-6 text-left" style={FONT}>
-      {/* Header: title + "instead of trending" aside + time control */}
-      <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
-        <h2 className="text-[20px] font-semibold tracking-tight text-[#0f2b2b]" style={SERIF}>
-          {heading}
-        </h2>
-        <span className="hidden items-center gap-1 text-[12.5px] text-[#9bb8b8] sm:inline-flex">
-          instead of{' '}
-          <s className="text-[#9bb8b8]">
-            <ArrowTrendingUpIcon className="mr-0.5 inline h-3.5 w-3.5" aria-hidden />
-            Trending topics
-          </s>
-        </span>
-
-        <div className="ml-auto flex items-center gap-3">
-          <span className="hidden whitespace-nowrap text-[12.5px] font-semibold text-[#9bb8b8] sm:inline">
-            {countText}
-          </span>
-          <div className="inline-flex rounded-full border-[1.5px] border-[#d4e8e8] bg-white p-[3px]">
-            {TIME_OPTIONS.map((opt) => {
-              const on = windowDays === opt.d
-              return (
-                <button
-                  key={opt.d}
-                  type="button"
-                  onClick={() => setWindowDays(opt.d)}
-                  className={`rounded-full px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${
-                    on
-                      ? 'bg-[#1a6b6b] text-white shadow-[0_2px_6px_rgba(26,107,107,0.30)]'
-                      : 'text-[#4a6a6a] hover:text-[#0f2b2b]'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              )
-            })}
-          </div>
-        </div>
+    <div className="mt-5 text-left" style={FONT}>
+      {/* Popular topics row (retained browse-topics affordance) */}
+      <div className="mb-5 flex flex-wrap items-center gap-2">
+        <span className="text-[13px] font-semibold text-[#9bb8b8]">Popular:</span>
+        {POPULAR_TOPICS.map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => onSearch?.(t)}
+            className="rounded-full border border-[#d4e8e8] bg-white px-3 py-1 text-[13.5px] font-medium text-[#4a6a6a] transition-colors hover:border-[#1a6b6b]/45 hover:text-[#0f2b2b]"
+          >
+            {t}
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={onBrowseTopics}
+          className="inline-flex items-center gap-1 text-[13.5px] font-medium text-[#1a6b6b] underline-offset-2 transition-colors hover:underline"
+        >
+          Browse topics
+          <ChevronRightIcon className="h-4 w-4" aria-hidden />
+        </button>
       </div>
 
-      {/* Lens chips + retained Browse topics button */}
-      <div className="mb-2 flex flex-wrap items-center gap-2.5">
+      {/* Lens cards row — wraps so every lens stays visible on mobile */}
+      <div className="mb-7 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {LENSES.map((l) => {
           const on = active === l.id
           return (
@@ -280,40 +193,106 @@ export default function StoryLenses({ locationLabel, onSearch, onBrowseTopics }:
               key={l.id}
               type="button"
               onClick={() => setActive(l.id)}
-              className="inline-flex items-center gap-2 rounded-full border-[1.5px] px-3.5 py-2 text-[14px] font-semibold transition-all"
+              className="flex flex-col items-start gap-1.5 rounded-2xl border bg-white px-4 py-3.5 text-left transition-all hover:-translate-y-0.5"
               style={{
-                borderColor: on ? l.clr : '#d4e8e8',
-                background: on ? l.clr : '#fff',
-                color: on ? '#fff' : '#4a6a6a',
-                boxShadow: on ? `0 4px 12px ${l.clr}59` : 'none',
+                borderColor: on ? l.clr : '#e1ebe7',
+                boxShadow: on
+                  ? `0 0 0 1.5px ${l.clr}, 0 6px 16px ${l.clr}26`
+                  : '0 1px 2px rgba(20,40,35,.04),0 6px 16px rgba(20,40,35,.05)',
               }}
             >
-              <span className="text-[15px] leading-none">{l.em}</span>
-              {l.label}
+              <span
+                className="flex h-9 w-9 items-center justify-center rounded-xl text-[17px]"
+                style={{ background: `color-mix(in srgb, ${l.clr} 12%, #fff)` }}
+              >
+                {l.em}
+              </span>
+              <span className="text-[15px] font-bold tracking-tight" style={{ color: l.clr }}>
+                {l.label}
+              </span>
+              <span className="text-[12.5px] leading-snug text-[#56635e]">{l.desc}</span>
             </button>
           )
         })}
 
-        {onBrowseTopics && (
-          <button
-            type="button"
-            onClick={onBrowseTopics}
-            className="ml-auto inline-flex shrink-0 items-center gap-1 text-sm font-medium text-[#1a6b6b] underline-offset-2 transition-colors hover:underline"
-          >
-            Browse topics
-            <ChevronDownIcon className="h-4 w-4 -rotate-90" aria-hidden />
-          </button>
-        )}
+        {/* View all */}
+        <button
+          type="button"
+          onClick={onBrowseTopics}
+          className="flex flex-col items-center justify-center gap-1 rounded-2xl border border-[#e1ebe7] bg-white px-4 py-3.5 text-[#1a6b6b] transition-colors hover:bg-[#f3f7f6]"
+          aria-label="View all lenses"
+        >
+          <ChevronRightIcon className="h-5 w-5" aria-hidden />
+          <span className="text-[11px] font-semibold leading-tight">View all</span>
+        </button>
       </div>
 
-      {/* Active-lens blurb */}
-      <p className="mx-0.5 mb-4 mt-3.5 min-h-[20px] text-[13.5px] leading-relaxed text-[#56635e]">
-        {lens.blurb}
-      </p>
+      {/* What's happening strip */}
+      <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+        <h2 className="text-[20px] font-semibold tracking-tight text-[#0f2b2b]" style={SERIF}>
+          What&rsquo;s happening in {place}
+        </h2>
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-[#e7f2ef] px-2.5 py-0.5 text-[11px] font-semibold text-[#1d6b5f]">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#1d6b5f]" />
+          Live update
+        </span>
+        <button
+          type="button"
+          onClick={onBrowseTopics}
+          className="ml-auto inline-flex items-center gap-1 text-[13px] font-medium text-[#1a6b6b] transition-colors hover:underline"
+        >
+          See all activity
+          <ArrowRightIcon className="h-3.5 w-3.5" aria-hidden />
+        </button>
+      </div>
+      <div className="mb-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {activityStats.map((s) => (
+          <div key={s.l} className="flex items-center gap-3 rounded-2xl border border-[#e1ebe7] bg-white px-4 py-3.5">
+            <span
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[19px]"
+              style={{ background: s.bg }}
+            >
+              {s.em}
+            </span>
+            <div className="min-w-0">
+              <div className="text-[22px] font-bold leading-none tracking-tight" style={{ color: '#0f2b2b' }}>
+                {s.v}
+              </div>
+              <div className="mt-1 text-[12.5px] leading-snug text-[#56635e]">{s.l}</div>
+            </div>
+          </div>
+        ))}
+      </div>
 
-      {/* Advisory note (Raised Eyebrows lens) */}
+      {/* Top stories header + time control */}
+      <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+        <h2 className="text-[20px] font-semibold tracking-tight text-[#0f2b2b]" style={SERIF}>
+          Top stories near {place}
+        </h2>
+        <div className="ml-auto inline-flex rounded-full border-[1.5px] border-[#d4e8e8] bg-white p-[3px]">
+          {TIME_OPTIONS.map((opt) => {
+            const on = windowDays === opt.d
+            return (
+              <button
+                key={opt.d}
+                type="button"
+                onClick={() => setWindowDays(opt.d)}
+                className={`rounded-full px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${
+                  on
+                    ? 'bg-[#1a6b6b] text-white shadow-[0_2px_6px_rgba(26,107,107,0.30)]'
+                    : 'text-[#4a6a6a] hover:text-[#0f2b2b]'
+                }`}
+              >
+                {opt.label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Advisory note (Raised Eyebrows) */}
       {lens.note && (
-        <div className="mx-0.5 mb-4 flex gap-2 rounded-lg border border-[#f0d3d9] border-l-[3px] border-l-[#b0384a] bg-[#fbeef0] px-3.5 py-2.5 text-[12.5px] leading-snug text-[#8a3142]">
+        <div className="mx-0.5 mb-4 flex gap-2 rounded-lg border border-[#e3dcf5] border-l-[3px] border-l-[#7a5cd0] bg-[#f4f0fc] px-3.5 py-2.5 text-[12.5px] leading-snug text-[#5b4a8a]">
           <span>{lens.note}</span>
         </div>
       )}
@@ -326,34 +305,64 @@ export default function StoryLenses({ locationLabel, onSearch, onBrowseTopics }:
       ) : (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
           {rows.map((c, i) => (
-            <button
+            <article
               key={`${active}-${i}`}
-              type="button"
-              onClick={() => onSearch?.(c.juris)}
-              className="group relative overflow-hidden rounded-2xl border border-[#e1ebe7] bg-white p-[18px] pb-[15px] text-left shadow-[0_1px_2px_rgba(20,40,35,.04),0_8px_24px_rgba(20,40,35,.06)] transition-transform hover:-translate-y-0.5"
+              className="relative flex flex-col overflow-hidden rounded-2xl border border-[#e1ebe7] bg-white shadow-[0_1px_2px_rgba(20,40,35,.04),0_8px_24px_rgba(20,40,35,.06)]"
             >
-              <span
-                className="absolute inset-y-0 left-0 w-1"
-                style={{ background: lens.clr }}
-                aria-hidden
-              />
-              <span
-                className="mb-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-bold tracking-wide"
-                style={{ color: lens.clr, background: `color-mix(in srgb, ${lens.clr} 12%, #fff)` }}
-              >
-                <span className="h-1.5 w-1.5 rounded-full" style={{ background: lens.clr }} aria-hidden />
-                {c.badge}
-              </span>
-              <h3 className="mb-2 text-[19px] font-semibold leading-tight tracking-tight text-[#0f2b2b]" style={SERIF}>
-                {c.h}
-              </h3>
-              <p className="mb-3 text-[13.5px] leading-relaxed text-[#56635e]">{c.p}</p>
-              <div className="flex items-center gap-2 border-t border-[#e1ebe7] pt-2.5 text-[12px] text-[#8a958f]">
-                <span className="font-semibold text-[#56635e]">{c.juris}</span>
-                <span className="opacity-50">·</span>
-                <span>{rel(c.days)}</span>
+              <span className="h-1 w-full" style={{ background: lens.clr }} aria-hidden />
+              <div className="flex flex-1 flex-col p-[18px]">
+                <div className="mb-2.5 flex items-center justify-between gap-2">
+                  <span
+                    className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-bold tracking-wide"
+                    style={{ color: lens.clr, background: `color-mix(in srgb, ${lens.clr} 12%, #fff)` }}
+                  >
+                    <span className="text-[12px] leading-none">{lens.em}</span>
+                    {lens.label}
+                  </span>
+                  <span className="shrink-0 text-[12px] text-[#8a958f]">{rel(c.days)}</span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => onSearch?.(c.h)}
+                  className="mb-3 text-left text-[19px] font-semibold leading-tight tracking-tight text-[#0f2b2b] hover:underline"
+                  style={SERIF}
+                >
+                  {c.h}
+                </button>
+
+                <div className="mb-3 flex flex-wrap gap-2">
+                  {c.stats.map((s) => {
+                    const tone = TONES[s.tone || 'plain']
+                    return (
+                      <div
+                        key={s.l}
+                        className="rounded-lg px-2.5 py-1.5"
+                        style={{ background: tone.bg }}
+                      >
+                        <div className="text-[13.5px] font-bold leading-none" style={{ color: tone.fg }}>
+                          {s.v}
+                        </div>
+                        <div className="mt-1 text-[10.5px] font-medium leading-none text-[#8a958f]">{s.l}</div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                <div className="mt-auto flex items-center gap-2 border-t border-[#e1ebe7] pt-2.5 text-[12px] text-[#8a958f]">
+                  <span className="font-semibold text-[#56635e]">{c.juris}</span>
+                  <span className="opacity-50">&middot;</span>
+                  <span>{rel(c.days)}</span>
+                  <button
+                    type="button"
+                    className="ml-auto text-[#9bb8b8] transition-colors hover:text-[#1a6b6b]"
+                    aria-label="Save story"
+                  >
+                    <BookmarkIcon className="h-4 w-4" aria-hidden />
+                  </button>
+                </div>
               </div>
-            </button>
+            </article>
           ))}
         </div>
       )}

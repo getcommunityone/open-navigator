@@ -4,10 +4,10 @@
 # Core ML Libraries
 torch>=2.1.0
 intel-extension-for-pytorch>=2.1.0
-transformers>=5.0.0rc3
+transformers>=5.10.2
 accelerate>=0.24.0
 optimum[openvino]>=1.14.0
-sentence-transformers>=2.2.2
+sentence-transformers>=5.5.1
 
 # DuckDB + Extensions
 duckdb>=0.9.2
