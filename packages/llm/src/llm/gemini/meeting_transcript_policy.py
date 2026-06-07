@@ -6,7 +6,7 @@ Pipeline:
 1. Load speaker hints from ``_contact_images/contacts.json`` (optional).
 2. Fetch YouTube captions (free) via ``youtube_transcript_api``.
 3. Optional **diarization post-processing** on local Opus/audio (WhisperX + pyannote).
-4. Call ``gemini-2.5-flash`` (or ``GEMINI_FLASH_MODEL``) with ``policy_analysis_part_1.md``.
+4. Call ``gemini-2.5-flash-lite`` (or ``GEMINI_FLASH_LITE_MODEL``) with ``policy_analysis_part_1.md``.
 5. Optional ``--run-part-2``: same API with ``policy_analysis_part_2.md`` → ``*_report.md``.
 
 This does **not** open gemini.google.com or send video to the browser UI.
@@ -145,7 +145,7 @@ from llm.gemini.genai_text_client import (  # noqa: E402
     GenAIServerOverloadGiveUp,
     GenAITransientGiveUp,
     call_gemini_text,
-    default_flash_model,
+    default_flash_lite_model,
     ensure_valid_gemini_api_key,
     extract_json_from_model_text,
 )
@@ -607,7 +607,7 @@ def generate_part2_markdown(
         analysis,
         recording_title=_recording_title_for_analysis(analysis_path),
     )
-    model = (args.part_2_model or args.model or default_flash_model()).strip()
+    model = (args.part_2_model or args.model or default_flash_lite_model()).strip()
     logger.info("Part 2: calling {} ({} chars in)", model, len(user_message))
     result = call_gemini_text(
         api_key=api_key,
@@ -1008,7 +1008,7 @@ def process_one_video(
         ),
     )
 
-    model = (args.model or default_flash_model()).strip()
+    model = (args.model or default_flash_lite_model()).strip()
     logger.info("Calling {} ({})", model, "AI Studio API")
     result = call_gemini_text(
         api_key=api_key,
@@ -1112,7 +1112,7 @@ def run_pipeline(args: argparse.Namespace) -> None:
     if needs_api:
         api_key = ensure_valid_gemini_api_key(
             env_path=_REPO_ROOT / ".env",
-            model=(args.model or args.part_2_model or default_flash_model()).strip(),
+            model=(args.model or args.part_2_model or default_flash_lite_model()).strip(),
         )
     if args.transcript_only and args.run_part_2:
         raise SystemExit("--transcript-only cannot be combined with --run-part-2")
@@ -1397,7 +1397,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--model",
         default="",
-        help="Default: GEMINI_FLASH_MODEL or gemini-2.5-flash (healthy; avoid flash-lite / 2.0-flash-lite)",
+        help="Default: GEMINI_FLASH_LITE_MODEL or gemini-2.5-flash-lite (~3x faster; 330s wall-clock guards hangs)",
     )
     parser.add_argument("--system-instruction", default="", help="Optional system prompt")
     parser.add_argument("--temperature", type=float, default=0.1)
