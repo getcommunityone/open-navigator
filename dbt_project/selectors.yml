@@ -1,0 +1,37 @@
+selectors:
+  # ---------------------------------------------------------------------------
+  # neon_serving — the set of marts to build against the `neon` target
+  # (`dbt run --target neon --selector neon_serving`).
+  #
+  # Neon free tier is 0.5 GB / project. An unscoped `dbt run --target neon`
+  # builds EVERY public mart in Neon, including the non-government person graph
+  # (mdm_person + its person↔org / person↔jurisdiction bridges + the 990
+  # nonprofit-compensation table) — ~38 GB on its own. That graph was cut from
+  # search (PERSONS_SEARCH_ENABLED=False in api/routes/search.py), so it has no
+  # serving consumer and must NOT be built/mirrored to Neon.
+  #
+  # This selector = all marts MINUS that person graph. It encodes the scope cut
+  # in the build itself. NOTE: even with the person graph gone, the org/bills/
+  # grant marts (mdm_organization ~2.1 GB, grant ~4 GB, bills ~0.6 GB,
+  # event_documents ~0.5 GB) individually exceed the 0.5 GB ceiling — fitting the
+  # free tier needs a further feature/state decision (see CLEANUP notes). Add
+  # those names to `exclude` below to drop them from the Neon build too.
+  - name: neon_serving
+    description: >
+      Marts to build on the Neon serving target, excluding the non-government
+      person graph (mdm_person + person bridges + nonprofit compensation) that
+      was cut from search to fit Neon free-tier storage.
+    default: false
+    definition:
+      union:
+        - method: path
+          value: models/marts
+        - exclude:
+            - method: fqn
+              value: mdm_person
+            - method: fqn
+              value: mdm_bridge_person_organization
+            - method: fqn
+              value: mdm_bridge_person_jurisdiction
+            - method: fqn
+              value: organization_nonprofit_compensation
