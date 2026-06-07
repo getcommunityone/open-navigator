@@ -1149,6 +1149,26 @@ def run_pipeline(args: argparse.Namespace) -> None:
                     "run packages/scrapers/src/scrapers/youtube/backfill_jurisdiction_transcripts.py first)"
                 )
             raise SystemExit(f"No bronze videos for {jurisdiction_id}{hint}")
+
+        from llm.gemini.analyze_backlog import _stable_shard_bucket, parse_shard
+
+        shard = parse_shard(getattr(args, "shard", "") or None)
+        if shard is not None:
+            shard_index, shard_count = shard
+            total = len(videos)
+            videos = [
+                v
+                for v in videos
+                if _stable_shard_bucket(v.video_id, shard_count) == shard_index
+            ]
+            logger.info(
+                "Shard {}/{}: processing {} of {} videos for {}",
+                shard_index,
+                shard_count,
+                len(videos),
+                total,
+                jurisdiction_id,
+            )
         if args.dry_run:
             for i, v in enumerate(videos, 1):
                 ed = v.event_date or "?"
@@ -1350,6 +1370,13 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=None,
         help="With --from-bronze: max videos (default: all rows for jurisdiction)",
+    )
+    parser.add_argument(
+        "--shard",
+        default="",
+        help="Partition this jurisdiction's videos into n disjoint shards and process only "
+        "shard i (0-based) via a stable MD5(video_id) hash, e.g. --shard 0/3. Run n processes "
+        "(--shard 0/3, 1/3, …) for intra-jurisdiction parallelism with no overlap.",
     )
     parser.add_argument(
         "--database-url",
