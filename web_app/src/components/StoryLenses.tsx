@@ -434,6 +434,10 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
   // a country-wide view.
   const scopedState = national ? undefined : stateCode || undefined
   const scopedCity = national ? undefined : city || undefined
+  // True whenever the query carries NO location filter — either an explicit
+  // national view or simply no location selected. In both cases the results are
+  // nationwide, so the UI must not claim they're local ("in your area").
+  const unscoped = !scopedState && !scopedCity
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['lenses', national, scopedState, scopedCity, windowParam],
@@ -450,11 +454,16 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
   })
 
   const lens = LENSES.find((l) => l.id === active) ?? LENSES[0]
-  // In national scope, locationLabel is the stale city — fall through to the
-  // API's resolved label (or a country-wide default) instead.
-  const place = national
+  // With no location filter, locationLabel may be a stale city — fall through to
+  // the API's resolved label (or a country-wide default) so we never mislabel
+  // nationwide data as local.
+  const place = unscoped
     ? data?.location_label || 'the U.S.'
     : locationLabel || data?.location_label || 'your area'
+  // Preposition that reads correctly for both scopes ("across the U.S." vs
+  // "in Tuscaloosa" / "near Tuscaloosa").
+  const happeningPrep = unscoped ? 'across' : 'in'
+  const storiesPrep = unscoped ? 'across' : 'near'
 
   // In auto mode the "Auto" segment is active and labelled with the grain the API
   // resolved to; an explicit pick highlights its own day segment instead.
@@ -480,7 +489,7 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
   // anchored to one state — i.e. a national view, or a set spanning >1 state.
   // A single-state view (scoped to your area) doesn't need the suffix.
   const distinctStates = new Set(baseCards.map((c) => c.stateCode).filter(Boolean))
-  const showState = !!national || distinctStates.size > 1
+  const showState = unscoped || distinctStates.size > 1
   const cards: RenderCard[] = baseCards.map((c) =>
     showState && c.stateCode && !new RegExp(`,\\s*${c.stateCode}$`).test(c.juris)
       ? { ...c, juris: `${c.juris}, ${c.stateCode}` }
@@ -592,7 +601,7 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
       <>
       <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
         <h2 className="text-[20px] font-semibold tracking-tight text-[#0f2b2b]" style={SERIF}>
-          What&rsquo;s happening in {place}
+          What&rsquo;s happening {happeningPrep} {place}
         </h2>
         <span className="inline-flex items-center gap-1.5 rounded-full bg-[#e7f2ef] px-2.5 py-0.5 text-[11px] font-semibold text-[#1d6b5f]">
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#1d6b5f]" />
@@ -650,7 +659,7 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
       {/* Top stories header + time control */}
       <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
         <h2 className="text-[20px] font-semibold tracking-tight text-[#0f2b2b]" style={SERIF}>
-          Top stories near {place}
+          Top stories {storiesPrep} {place}
         </h2>
         <div className="ml-auto inline-flex rounded-full border-[1.5px] border-[#d4e8e8] bg-white p-[3px]">
           <button

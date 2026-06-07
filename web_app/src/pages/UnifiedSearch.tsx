@@ -102,6 +102,28 @@ function normalizeTypeAlias(t: string): string {
   return t
 }
 
+// The result-type vocabulary, shared by the URL whitelist and the Advanced
+// Filters "Result types" checkbox group. Previously the pills were a separate
+// inline array in the filter bar; that confusing pill row was removed in favor
+// of a single source of truth surfaced inside the flyout.
+const RESULT_TYPES = [
+  { type: 'leaders', label: 'Leaders' },
+  { type: 'persons', label: 'People' },
+  { type: 'organizations', label: 'Organizations' },
+  { type: 'causes', label: 'Causes' },
+  { type: 'meetings', label: 'Meetings' },
+  { type: 'bills', label: 'Bills' },
+  { type: 'topics', label: 'Topics' },
+  { type: 'decisions', label: 'Decisions' },
+  { type: 'grants', label: 'Grants' },
+  { type: 'grant_opportunities', label: 'Grant Opportunities' },
+] as const
+
+// Default selection when no ?types= is present (a subset of RESULT_TYPES).
+const DEFAULT_RESULT_TYPES = ['leaders', 'persons', 'organizations', 'causes', 'bills', 'topics']
+
+const ALL_RESULT_TYPE_KEYS = RESULT_TYPES.map((t) => t.type) as readonly string[]
+
 // Stable dot color for a cause/NTEE string (small palette, hashed by key).
 const CAUSE_DOT_PALETTE = [
   '#2F5D62', // teal
@@ -159,11 +181,11 @@ export default function UnifiedSearch() {
     const typesParam = searchParams.get('types')
     if (typesParam) {
       const types = typesParam.split(',').map(t => t.trim()).map(normalizeTypeAlias).filter(t =>
-        ['leaders', 'persons', 'organizations', 'causes', 'meetings', 'bills', 'topics', 'decisions', 'grants', 'grant_opportunities'].includes(t)
+        ALL_RESULT_TYPE_KEYS.includes(t)
       )
-      return types.length > 0 ? types : ['leaders', 'persons', 'organizations', 'causes', 'bills', 'topics']
+      return types.length > 0 ? types : [...DEFAULT_RESULT_TYPES]
     }
-    return ['leaders', 'persons', 'organizations', 'causes', 'bills', 'topics']
+    return [...DEFAULT_RESULT_TYPES]
   })
   const [selectedState, setSelectedState] = useState(() => searchParams.get('state') || '')
   const [currentPage, setCurrentPage] = useState(() => parseInt(searchParams.get('page') || '1'))
@@ -221,6 +243,17 @@ export default function UnifiedSearch() {
   const selectedCity = jurisdictionDetails.find(j =>
     j.type === 'City' || j.type === 'city' || j.type === 'Place' || j.type === 'place'
   )?.name || searchParams.get('city') || ''
+
+  // Result types count as "active" once the user narrows away from the full set.
+  const typesNarrowed = selectedTypes.length !== RESULT_TYPES.length
+  // Badge count on the Filters button — how many advanced filters are engaged.
+  const activeFilterCount = [
+    selectedState,
+    sortBy !== 'relevance' ? 'sorted' : null,
+    nteeCategory,
+    includeFullText ? 'full text' : null,
+    typesNarrowed ? 'types' : null,
+  ].filter(Boolean).length
   
   // Debounced query for autocomplete
   const [debouncedQuery, setDebouncedQuery] = useState(query)
@@ -1308,54 +1341,26 @@ export default function UnifiedSearch() {
             )}
           </form>
 
-          {/* Filter Bar */}
+          {/* Filter Bar — a single entry point into Advanced Filters. The old
+              type-selection pill row lived here; it was confusing, so result-type
+              selection now lives inside the flyout alongside the other filters. */}
           <div className="mt-4 flex items-center gap-2 sm:gap-3 flex-wrap">
             <button
               onClick={() => setShowFilters(!showFilters)}
               className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg border-2 transition-colors text-sm ${
-                showFilters 
+                showFilters
                   ? 'border-primary-500 bg-primary-50 text-primary-700'
                   : 'border-gray-300 text-gray-700 hover:border-gray-400 hover:bg-gray-50'
               }`}
             >
               <AdjustmentsHorizontalIcon className="h-4 w-4 sm:h-5 sm:w-5" />
-              <span className="hidden xs:inline">Filters</span>
-              {(selectedState || sortBy !== 'relevance' || nteeCategory || includeFullText) && (
+              <span>Filters</span>
+              {activeFilterCount > 0 && (
                 <span className="ml-1 px-2 py-0.5 bg-primary-600 text-white text-xs rounded-full">
-                  {[selectedState, sortBy !== 'relevance' ? 'sorted' : null, nteeCategory, includeFullText ? 'full text' : null].filter(Boolean).length}
+                  {activeFilterCount}
                 </span>
               )}
             </button>
-
-            {/* Quick Type Filters - Responsive sizing */}
-            {([
-              { type: 'leaders', label: 'Leaders' },
-              { type: 'persons', label: 'People' },
-              { type: 'organizations', label: 'Organizations' },
-              { type: 'causes', label: 'Causes' },
-              { type: 'meetings', label: 'Meetings' },
-              { type: 'bills', label: 'Bills' },
-              { type: 'topics', label: 'Topics' },
-              { type: 'decisions', label: 'Decisions' },
-              { type: 'grants', label: 'Grants' },
-              { type: 'grant_opportunities', label: 'Grant Opportunities' },
-            ] as const).map(({ type, label }) => (
-              <button
-                key={type}
-                onClick={() => toggleType(type)}
-                className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-full border-2 transition-all text-xs sm:text-sm ${
-                  selectedTypes.includes(type)
-                    ? `${getTypeColor(type)} border-current font-medium shadow-sm`
-                    : 'border-gray-300 bg-white text-gray-600 hover:border-gray-400 hover:bg-gray-50'
-                }`}
-              >
-                {selectedTypes.includes(type) && (
-                  <CheckIcon className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                )}
-                {getTypeIcon(type)}
-                <span className="truncate">{label}</span>
-              </button>
-            ))}
           </div>
 
           {/* Active Filters Display */}
@@ -1486,6 +1491,61 @@ export default function UnifiedSearch() {
 
                   {/* Filters */}
                   <div className="space-y-6">
+                {/* Result Types — replaces the old pill row. Pick which kinds of
+                    results to include. */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Result types
+                    </label>
+                    <div className="flex items-center gap-3 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedTypes([...ALL_RESULT_TYPE_KEYS])
+                          setCurrentPage(1)
+                          setTimeout(() => handleSearch(), 0)
+                        }}
+                        className="text-primary-600 hover:text-primary-700 font-medium"
+                      >
+                        Select all
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedTypes([...DEFAULT_RESULT_TYPES])
+                          setCurrentPage(1)
+                          setTimeout(() => handleSearch(), 0)
+                        }}
+                        className="text-gray-500 hover:text-gray-700 font-medium"
+                      >
+                        Reset
+                      </button>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    {RESULT_TYPES.map(({ type, label }) => (
+                      <label
+                        key={type}
+                        className="flex items-center gap-2 cursor-pointer group py-1"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedTypes.includes(type)}
+                          onChange={() => toggleType(type)}
+                          className="h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-2 focus:ring-primary-500 cursor-pointer"
+                        />
+                        <span className="text-gray-500 group-hover:text-gray-700">
+                          {getTypeIcon(type)}
+                        </span>
+                        <span className="text-sm text-gray-700 group-hover:text-gray-900">
+                          {label}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
                 {/* State Filter */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1619,6 +1679,7 @@ export default function UnifiedSearch() {
                       setSortBy('relevance')
                       setNteeCategory('')
                       setIncludeFullText(false)
+                      setSelectedTypes([...DEFAULT_RESULT_TYPES])
                       setTimeout(() => handleSearch(), 0)
                     }}
                     className="w-full px-4 py-2.5 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors font-medium"
