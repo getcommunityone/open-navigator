@@ -42,6 +42,7 @@ import {
 import { useAuth } from '../contexts/AuthContext'
 import AddressLookup from '../components/AddressLookup'
 import StoryLenses from '../components/StoryLenses'
+import FollowTheMoney from '../components/FollowTheMoney'
 import HeroStateSilhouetteBadge from '../components/HeroStateSilhouetteBadge'
 import { useLocation as useLocationContext, type LocationData } from '../contexts/LocationContext'
 import { formatCommunityPlaceLine } from '../utils/communityLocationLabel'
@@ -2002,6 +2003,9 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* Follow the money */}
+      <FollowTheMoney />
 
       {/* Features Grid */}
       <div className="py-16" style={{ backgroundColor: '#354F52' }}>

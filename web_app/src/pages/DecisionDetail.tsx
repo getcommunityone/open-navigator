@@ -538,21 +538,26 @@ function HumanElement({ data }: { data: unknown }) {
 }
 
 // "Key Takeaways" (smart_brevity). Render the AI fields as an editorial brief:
-// the lead in serif, then labelled sections, with `by_the_numbers` (a
-// semicolon-joined string) parsed into stat chips (leading figure + caption).
-const SB_NUMBER_RE =
-  /^([$]?\d[\d.,]*(?:\s*[-–/]\s*\d[\d.,]*)?\s*(?:%|acres?|units?|lots?|days?|weeks?|months?|years?|hours?|hrs?|jobs?|votes?|miles?|mi)?)\s+(.+)$/i
+// the lead in serif, then labelled prose sections.
+//
+// `by_the_numbers` is rendered as a full-width text section (matching "The big
+// picture") rather than stat chips. Vote tallies are stripped out because the
+// result already has its own "The vote" panel below — no need to repeat it.
+function isVoteClause(c: string): boolean {
+  const tally = /\b\d+\s*[-–]\s*\d+\b/.test(c)
+  const voteWord =
+    /\b(pass(ed|es)?|fail(ed|s)?|carried|unanimous|ayes?|nays?|in favor|opposed|abstain|motion)\b/i.test(c)
+  return /\bvotes?\b/i.test(c) || (tally && voteWord)
+}
 
-function parseByTheNumbers(s: string | null): { value: string | null; label: string }[] {
-  if (!s) return []
+function byTheNumbersText(s: string | null): string {
+  if (!s) return ''
   return s
     .split(/;\s*/)
-    .map((c) => c.trim().replace(/\.$/, ''))
-    .filter(Boolean)
-    .map((clause) => {
-      const m = clause.match(SB_NUMBER_RE)
-      return m ? { value: m[1].trim(), label: m[2].trim() } : { value: null, label: clause }
-    })
+    .map((c) => c.trim())
+    .filter((c) => c && !isVoteClause(c))
+    .join('; ')
+    .trim()
 }
 
 // The committee/council decision itself, styled to sit inline within Key
@@ -590,7 +595,7 @@ function SmartBrevityBody({
   const str = (k: string) =>
     typeof sb[k] === 'string' && (sb[k] as string).trim() ? (sb[k] as string).trim() : null
   const lead = str('one_big_thing')
-  const numbers = parseByTheNumbers(str('by_the_numbers'))
+  const byNumbers = byTheNumbersText(str('by_the_numbers'))
   const sections: [string, string | null][] = [
     ['Why it matters', str('why_it_matters')],
     ['The big picture', str('big_picture')],
@@ -601,7 +606,7 @@ function SmartBrevityBody({
   const [why, big, ...restSections] = sections
 
   // Unexpected/empty shape -> defer to the generic renderer so nothing is dropped.
-  if (!lead && !numbers.length && sections.every(([, v]) => !v)) {
+  if (!lead && !byNumbers && sections.every(([, v]) => !v)) {
     return <JsonValue value={sb} />
   }
 
@@ -617,29 +622,14 @@ function SmartBrevityBody({
           <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#1d6b5f]">
             Why it matters
           </div>
-          <p className="whitespace-pre-line text-[15px] leading-relaxed text-[#16201d]">{why[1]}</p>
+          <p className="whitespace-pre-line text-[15px] leading-relaxed text-[#16201d]">
+            {why[1]}
+            <EvidenceLink text={why[1]} />
+          </p>
         </div>
       )}
       {afterWhyItMatters}
-      {numbers.length > 0 && (
-        <div className="mt-5">
-          <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-[#8a958f]">
-            By the numbers
-          </div>
-          <div className="flex flex-wrap gap-2.5">
-            {numbers.map((it, i) => (
-              <div key={i} className="flex items-baseline gap-2 rounded-xl bg-[#f3f7f6] px-3.5 py-2.5">
-                {it.value && (
-                  <span className="text-[20px] font-semibold leading-none text-[#16201d]" style={CV_SERIF}>
-                    {it.value}
-                  </span>
-                )}
-                <span className="max-w-[230px] text-[13px] leading-snug text-[#56635e]">{it.label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {byNumbers && <SBSection label="By the numbers" body={byNumbers} />}
       {big[1] && <SBSection label={big[0]} body={big[1]} />}
       {restSections.map(([label, body]) => (body ? <SBSection key={label} label={label} body={body} /> : null))}
     </div>

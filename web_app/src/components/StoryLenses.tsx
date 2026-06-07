@@ -148,6 +148,17 @@ interface RenderCard {
   juris: string
   when: string
   url?: string
+  stateCode?: string
+}
+
+// Census place names carry a *lowercase* generic type suffix ("Douglas city",
+// "Winthrop Town city", "Garden City city"). Strip a trailing lowercase type
+// word so cards read "Winthrop Town" / "Garden City", while leaving a
+// capitalized proper noun that is part of the name intact ("Phenix City",
+// "Kansas City" — the "City" there is uppercase, so it never matches).
+const PLACE_TYPE_SUFFIX = /\s+(city|town|village|borough|township|municipality|cdp)\s*$/
+function cleanJuris(name: string): string {
+  return name.replace(PLACE_TYPE_SUFFIX, '').trim() || name
 }
 
 // Relative-time label from an ISO yyyy-mm-dd date (reuses rel()'s wording).
@@ -456,13 +467,24 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
   const apiLens = data?.lenses.find((l) => l.id === active)
   const isPlaceholder = !!data && (apiLens?.placeholder || (apiLens?.cards.length ?? 0) === 0)
 
-  const cards: RenderCard[] = (apiLens?.cards ?? []).map((c) => ({
+  const baseCards = (apiLens?.cards ?? []).map((c) => ({
     h: c.headline,
     stats: c.stats.map((s) => ({ v: s.value, l: s.label, tone: s.tone })),
-    juris: c.jurisdiction,
+    juris: cleanJuris(c.jurisdiction),
     when: relFromDate(c.date),
     url: c.url,
+    stateCode: c.state_code || undefined,
   }))
+  // Disambiguate the place with its 2-letter state only when the view isn't
+  // anchored to one state — i.e. a national view, or a set spanning >1 state.
+  // A single-state view (scoped to your area) doesn't need the suffix.
+  const distinctStates = new Set(baseCards.map((c) => c.stateCode).filter(Boolean))
+  const showState = !!national || distinctStates.size > 1
+  const cards: RenderCard[] = baseCards.map((c) =>
+    showState && c.stateCode && !new RegExp(`,\\s*${c.stateCode}$`).test(c.juris)
+      ? { ...c, juris: `${c.juris}, ${c.stateCode}` }
+      : c,
+  )
 
   const activityTiles = (data?.activity ?? []).map((a, i) => ({
     em: a.icon,
