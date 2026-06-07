@@ -123,7 +123,12 @@ Keep `human_element` / diagrams / `evidence_metrics` **off** `uncontested_items[
  
 **No redundancy across blocks (CRITICAL for usability):** `smart_brevity`, `competing_views`, `human_element`, and `evidence_metrics` are shown as separate panels and must each add new information — do **not** restate the same sentence in more than one. Keep them in their lanes:
 - `smart_brevity` = the *what/so-what* for a resident (outcome, stakes, numbers, next step).
-- `competing_views` = the *reasoning* — each side's problem diagnosis → causal story → remedy. Do not repeat the outcome or the numbers here. Populate each view's `held_by` with the `people[].person_id` values of those who advanced it (so the UI can show who took each side); use an empty array when the side was argued by the public generally or no individual is identifiable. Every `held_by` id MUST resolve to a `people[]` entry.
+- `competing_views` = the *reasoning* — each side's problem diagnosis → causal story → remedy. Do not repeat the outcome or the numbers here.
+  - **Speaker attribution (`held_by`) — required, do it deliberately.** The UI shows the named people behind each side, so this is a primary output, not an afterthought. For **every** view (dominant and each counter) populate `held_by` with the `people[].person_id` values of those who voiced it. Work through it explicitly:
+    1. First make sure each individually identifiable participant who spoke — council/board members, staff presenters, the applicant/developer, and named members of the public — has a `people[]` entry, even brief commenters. `held_by` can only point at people you listed there.
+    2. Attribute by what they actually said: assign a person to a view if they articulated its `problem_diagnosis`, `causal_story`, or `proposed_remedy`, advocated for it, or moved/voted for the action it implies. Transcripts usually lack speaker tags — use the surrounding cues ("Councilman Reed said…", a chair recognizing a speaker, "the applicant responded") to bind statements to the right `person_id`. A person may appear in more than one view's `held_by` only if they genuinely argued both.
+    3. Strong signals for the **dominant** view's `held_by`: whoever **moved** or **seconded** the prevailing motion, and the majority that **voted** for the outcome (cross-check `vote_tally` / the motion). For **counter** views: dissenting voters and members of the public who spoke against.
+    4. Use an empty array **only** when a side was carried by the public generally with no identifiable individual — not as a shortcut when attribution takes effort. Every `held_by` id MUST resolve to a `people[]` entry.
 - `human_element` = the *people* — who felt what, anecdotes, tone. Do not repeat the policy substance here.
 - `evidence_metrics` = the *numbers-as-evidence* — each cited figure, who used it, which side it backs, and whether it was rebutted. Do not restate `by_the_numbers` here; that's a display digest, this is the argument graph.
 Each `smart_brevity` field is one tight sentence (≤25 words); `by_the_numbers` is concrete figures only (votes, dollars, distances, dates), not prose. Set a field to `null` rather than padding it with a rephrasing of another field.
@@ -321,6 +326,7 @@ Each `smart_brevity` field is one tight sentence (≤25 words); `by_the_numbers`
             "view_label": "string",
             "problem_diagnosis": "string",
             "causal_story": "string",
+            "proposed_remedy": "string",
             "held_by": ["string — people[].person_id of those who argued this side; empty array if no one is individually identifiable"]
           }
         ]

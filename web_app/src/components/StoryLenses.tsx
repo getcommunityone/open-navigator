@@ -189,6 +189,8 @@ interface StoryLensesProps {
   stateCode?: string
   /** City for scoping the lenses query. */
   city?: string
+  /** When true, ignore stateCode/city and show a national view. */
+  national?: boolean
   /** Invoked when a card or popular-topic is activated. */
   onSearch?: (query: string) => void
   /** Invoked by "View all" / "See all activity" / Browse topics. */
@@ -397,7 +399,7 @@ function StoryCarousel({ cards, lens, savedKeys, onToggleSave, onOpen, cardKey }
   )
 }
 
-export default function StoryLenses({ locationLabel, stateCode, city, onSearch, onBrowseTopics }: StoryLensesProps) {
+export default function StoryLenses({ locationLabel, stateCode, city, national, onSearch, onBrowseTopics }: StoryLensesProps) {
   const navigate = useNavigate()
   const isMobile = useIsMobile()
   const [active, setActive] = useState<string>('contested')
@@ -416,12 +418,17 @@ export default function StoryLenses({ locationLabel, stateCode, city, onSearch, 
   const [windowSel, setWindowSel] = useState<number | 'auto'>('auto')
   const windowParam = windowSel === 'auto' ? 'auto' : WINDOW_BY_DAYS[windowSel] ?? 'month'
 
+  // National scope ignores the (possibly stale) city/state and asks the API for
+  // a country-wide view.
+  const scopedState = national ? undefined : stateCode || undefined
+  const scopedCity = national ? undefined : city || undefined
+
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['lenses', stateCode, city, windowParam],
+    queryKey: ['lenses', national, scopedState, scopedCity, windowParam],
     queryFn: () =>
       api
         .get('/lenses', {
-          params: { state: stateCode || undefined, city: city || undefined, window: windowParam, limit_per_lens: 6 },
+          params: { state: scopedState, city: scopedCity, window: windowParam, limit_per_lens: 6 },
         })
         .then((r) => r.data as LensesResponse),
     staleTime: 5 * 60 * 1000,
@@ -431,7 +438,11 @@ export default function StoryLenses({ locationLabel, stateCode, city, onSearch, 
   })
 
   const lens = LENSES.find((l) => l.id === active) ?? LENSES[0]
-  const place = locationLabel || data?.location_label || 'your area'
+  // In national scope, locationLabel is the stale city — fall through to the
+  // API's resolved label (or a country-wide default) instead.
+  const place = national
+    ? data?.location_label || 'the U.S.'
+    : locationLabel || data?.location_label || 'your area'
 
   // In auto mode the "Auto" segment is active and labelled with the grain the API
   // resolved to; an explicit pick highlights its own day segment instead.

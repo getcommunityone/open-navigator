@@ -1728,6 +1728,7 @@ export default function Home() {
                           if (intent === 'idle') {
                             return (
                               <StoryLenses
+                                national={searchScope === 'national'}
                                 locationLabel={location?.city || location?.county || undefined}
                                 stateCode={location?.state || undefined}
                                 city={location?.city || undefined}

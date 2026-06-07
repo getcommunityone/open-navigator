@@ -594,7 +594,10 @@ async def get_lenses(
         elif city and city.strip():
             location_label = city.strip()
         else:
-            location_label = None
+            # No state and no city -> national scope (aggregate over all rows).
+            # The frontend reads location_label for its heading, so give it a
+            # real label instead of None for the "National" case.
+            location_label = "the U.S."
 
         span.set_attribute(
             "lenses.card_total", sum(len(l.cards) for l in ordered_lenses)
