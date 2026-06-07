@@ -5,6 +5,7 @@ import { ChevronRightIcon, ChevronLeftIcon, BookmarkIcon, ArrowRightIcon } from 
 import { BookmarkIcon as BookmarkSolidIcon } from '@heroicons/react/24/solid'
 import api from '../lib/api'
 import { useIsMobile } from '../hooks/useMediaQuery'
+import FollowTheMoney from './FollowTheMoney'
 
 /**
  * StoryLenses — the homepage "What's happening near you" section.
@@ -638,8 +639,16 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
       </>
       )}
 
+      {/* Money Moves reveals the "Follow the money" drill-down (Revenue /
+          Spending / Nonprofits) instead of generic story cards; every other
+          lens shows its time-windowed story grid. */}
+      <div ref={storiesRef} className="scroll-mt-4">
+      {active === 'money' ? (
+        <FollowTheMoney embedded />
+      ) : (
+      <>
       {/* Top stories header + time control */}
-      <div ref={storiesRef} className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 scroll-mt-4">
+      <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
         <h2 className="text-[20px] font-semibold tracking-tight text-[#0f2b2b]" style={SERIF}>
           Top stories near {place}
         </h2>
@@ -730,6 +739,9 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
           })}
         </div>
       )}
+      </>
+      )}
+      </div>
     </div>
   )
 }

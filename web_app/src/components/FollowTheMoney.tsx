@@ -43,6 +43,12 @@ interface MoneyCard {
 export interface FollowTheMoneyProps {
   /** Pre-formatted nonprofit directory count (e.g. "43,726"). */
   nonprofitCount?: string
+  /**
+   * Render inline (no full-bleed <section> chrome or oversized header) so the
+   * section can be embedded inside another surface — e.g. the "Money Moves"
+   * lens on the homepage. Defaults to the standalone, full-width section.
+   */
+  embedded?: boolean
 }
 
 // Grants live in unified search under the `types` query param (see
@@ -133,7 +139,10 @@ function MoneyCardView({ card }: { card: MoneyCard }) {
   )
 }
 
-export default function FollowTheMoney({ nonprofitCount = '43,726' }: FollowTheMoneyProps) {
+export default function FollowTheMoney({
+  nonprofitCount = '43,726',
+  embedded = false,
+}: FollowTheMoneyProps) {
   const cards: MoneyCard[] = [
     {
       name: 'Revenue',
@@ -203,63 +212,85 @@ export default function FollowTheMoney({ nonprofitCount = '43,726' }: FollowTheM
     },
   ]
 
+  // Header row. Embedded mode (inside the Money Moves lens) drops the oversized
+  // title — the lens already names the section — keeping just the tagline and
+  // the budget drill-down link.
+  const header = (
+    <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <div>
+        {!embedded && (
+          <h2
+            className="text-3xl font-bold text-[#0f2b2b] md:text-4xl"
+            style={{ fontFamily: "'Fraunces', serif" }}
+          >
+            Follow the money
+          </h2>
+        )}
+        <p className={`max-w-2xl text-sm text-gray-500 ${embedded ? '' : 'mt-2 md:text-base'}`}>
+          Sorted by who's paying whom — so &ldquo;grant&rdquo; always has one clear home.
+        </p>
+      </div>
+
+      <Link
+        to="/analytics"
+        className="inline-flex flex-shrink-0 items-center gap-2 self-start rounded-full border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:border-gray-400 hover:bg-gray-50 sm:self-auto"
+      >
+        <ArrowsRightLeftIcon className="h-4 w-4" aria-hidden="true" />
+        Budget · how it connects
+      </Link>
+    </div>
+  )
+
+  const body = (
+    <>
+      {header}
+
+      {/* Three drill-down cards */}
+      <div className="grid gap-5 md:grid-cols-3">
+        {cards.map((card) => (
+          <MoneyCardView key={card.name} card={card} />
+        ))}
+      </div>
+
+      {/* Footer legend bar — the connection key */}
+      <div className="mt-6 flex flex-col gap-3 rounded-xl border border-gray-200 bg-gray-50 px-5 py-3 text-sm text-gray-600 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4">
+        <span className="text-[11px] font-semibold uppercase tracking-widest text-gray-400 font-mono">
+          A grant goes →
+        </span>
+        <span className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <span>
+            received → <span className="font-bold text-emerald-600">Revenue</span>
+          </span>
+          <span aria-hidden="true" className="text-gray-300">
+            ·
+          </span>
+          <span>
+            awarded → <span className="font-bold text-rose-600">Spending</span>
+          </span>
+          <span aria-hidden="true" className="text-gray-300">
+            ·
+          </span>
+          <span>
+            org&apos;s full picture → <span className="font-bold text-violet-600">Nonprofits</span>
+          </span>
+        </span>
+      </div>
+    </>
+  )
+
+  // Embedded: a plain block that inherits the host surface's width/padding.
+  if (embedded) {
+    return (
+      <div id="follow-the-money" className="scroll-mt-4">
+        {body}
+      </div>
+    )
+  }
+
+  // Standalone: a full-bleed, padded homepage section.
   return (
     <section id="follow-the-money" className="bg-white py-16 px-4">
-      <div className="mx-auto max-w-7xl">
-        {/* Section header row */}
-        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2
-              className="text-3xl font-bold text-[#0f2b2b] md:text-4xl"
-              style={{ fontFamily: "'Fraunces', serif" }}
-            >
-              Follow the money
-            </h2>
-            <p className="mt-2 max-w-2xl text-sm text-gray-500 md:text-base">
-              Sorted by who's paying whom — so &ldquo;grant&rdquo; always has one clear home.
-            </p>
-          </div>
-
-          <Link
-            to="/analytics"
-            className="inline-flex flex-shrink-0 items-center gap-2 self-start rounded-full border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:border-gray-400 hover:bg-gray-50 sm:self-auto"
-          >
-            <ArrowsRightLeftIcon className="h-4 w-4" aria-hidden="true" />
-            Budget · how it connects
-          </Link>
-        </div>
-
-        {/* Three drill-down cards */}
-        <div className="grid gap-5 md:grid-cols-3">
-          {cards.map((card) => (
-            <MoneyCardView key={card.name} card={card} />
-          ))}
-        </div>
-
-        {/* Footer legend bar — the connection key */}
-        <div className="mt-6 flex flex-col gap-3 rounded-xl border border-gray-200 bg-gray-50 px-5 py-3 text-sm text-gray-600 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4">
-          <span className="text-[11px] font-semibold uppercase tracking-widest text-gray-400 font-mono">
-            A grant goes →
-          </span>
-          <span className="flex flex-wrap items-center gap-x-4 gap-y-2">
-            <span>
-              received → <span className="font-bold text-emerald-600">Revenue</span>
-            </span>
-            <span aria-hidden="true" className="text-gray-300">
-              ·
-            </span>
-            <span>
-              awarded → <span className="font-bold text-rose-600">Spending</span>
-            </span>
-            <span aria-hidden="true" className="text-gray-300">
-              ·
-            </span>
-            <span>
-              org&apos;s full picture → <span className="font-bold text-violet-600">Nonprofits</span>
-            </span>
-          </span>
-        </div>
-      </div>
+      <div className="mx-auto max-w-7xl">{body}</div>
     </section>
   )
 }
