@@ -358,6 +358,19 @@ def fetch_videos(
             OR COALESCE(t.transcript_source, '') NOT LIKE 'excluded:%%'
           )
     """
+    # Batch selection only (not single --video-id): skip non-meeting content so
+    # scarce free-tier quota isn't burned analyzing sports/PR/event videos posted
+    # on legit government channels (meeting_type 'Other'/'UNKNOWN') or videos on
+    # channels positively classified as junk (migration 107). A single --video-id
+    # request bypasses this so a targeted re-run can force any video.
+    if not video_id:
+        sql += """
+          AND UPPER(COALESCE(y.meeting_type, '')) NOT IN ('OTHER', 'UNKNOWN', '')
+          AND NOT EXISTS (
+            SELECT 1 FROM bronze.bronze_youtube_channel_classification c
+            WHERE c.channel_id = y.channel_id AND c.is_junk IS TRUE
+          )
+        """
     sql += " ORDER BY y.video_url, y.last_updated DESC NULLS LAST"
     if order_by == "published_at":
         sub_order = (

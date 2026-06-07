@@ -1126,6 +1126,16 @@ async def get_nonprofit_compensation_pg(
         return []
 
 
+# Scope cut (Neon free-tier): only surface meetings we've actually analyzed.
+# public.event has ~153k scraped rows but only ~641 have AI analysis (tracked in
+# mdm_bridge_event_analysis, event_id FK -> event). Searching the un-analyzed
+# remainder returns bare titles with no decisions/summary and forces the giant
+# event table into the Neon mirror. With this True, event search is filtered to
+# analyzed meetings via an indexed EXISTS on the bridge. Flip to False to search
+# all scraped events again.
+EVENTS_REQUIRE_ANALYSIS = True
+
+
 async def search_events_pg(
     query: Optional[str] = None,
     state: Optional[str] = None,
@@ -1154,6 +1164,17 @@ async def search_events_pg(
 
         has_query = bool(query and query.strip())
         params = []
+
+        # Analyzed-only filter (see EVENTS_REQUIRE_ANALYSIS). The alias differs
+        # per branch: the query branch aliases `event e`, the browse branch uses
+        # the bare `event` table.
+        analysis_exists = "EXISTS (SELECT 1 FROM mdm_bridge_event_analysis b WHERE b.event_id = {alias}.event_id)"
+        analysis_filter_q = (
+            f" WHERE {analysis_exists.format(alias='e')}" if EVENTS_REQUIRE_ANALYSIS else ""
+        )
+        analysis_filter_browse = (
+            f" AND {analysis_exists.format(alias='event')}" if EVENTS_REQUIRE_ANALYSIS else ""
+        )
 
         if has_query:
             # The title-FTS / jurisdiction-substring match used to be a single
@@ -1189,6 +1210,7 @@ async def search_events_pg(
                 SELECT {cols}
                 FROM event e
                 JOIN matched m USING (event_id)
+                {analysis_filter_q}
                 ORDER BY e.event_date DESC NULLS LAST
                 LIMIT ${lim_pos}
             """
@@ -1202,7 +1224,7 @@ async def search_events_pg(
             sql = f"""
                 SELECT {cols}
                 FROM event
-                WHERE {where_sql}
+                WHERE {where_sql}{analysis_filter_browse}
                 ORDER BY event_date DESC NULLS LAST
                 LIMIT ${len(params)}
             """

@@ -72,6 +72,16 @@ _count_cache_ttl = {}
 # past any real browse depth.
 PERSON_COUNT_CAP = 1000
 
+# Scope cut (Neon free-tier storage): the "persons" category serves
+# public.mdm_person (~13.8M rows) plus its bridges and 990 compensation records —
+# ~38 GB and almost entirely NON-government people (nonprofit officers, residents).
+# Government leaders are served separately by the "leaders" category
+# (public.contact_official). With this flag False, "persons" is stripped from
+# every search so mdm_person / mdm_bridge_person_* / organization_nonprofit_compensation
+# never get queried — and therefore don't need to be mirrored to Neon. Flip to
+# True to restore full people search once storage allows.
+PERSONS_SEARCH_ENABLED = False
+
 # Every.org API config (fallback only)
 EVERYORG_API_KEY = os.getenv('EVERYORG_API_KEY', '')
 EVERYORG_API_BASE = "https://partners.every.org/v0.2"
@@ -702,7 +712,15 @@ async def unified_search(
             ]
         else:
             requested_types = ['leaders', 'persons', 'meetings', 'organizations', 'causes', 'jurisdictions', 'bills', 'topics', 'decisions', 'documents', 'grants', 'grant_opportunities']
-        
+
+        # Scope cut: drop the non-government "persons" category (mdm_person) unless
+        # explicitly re-enabled. Stripping it here (rather than per-task) means
+        # neither search_persons_pg nor count_persons runs, so the heavy mdm_person
+        # graph is never touched. 'people'/'person' aliases already normalized to
+        # 'persons' above, so they're covered too. See PERSONS_SEARCH_ENABLED.
+        if not PERSONS_SEARCH_ENABLED:
+            requested_types = [t for t in requested_types if t != 'persons']
+
         # Parse jurisdiction levels if provided
         jurisdiction_levels_list = None
         if jurisdiction_levels:

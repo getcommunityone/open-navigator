@@ -305,6 +305,11 @@ PENDING_BY_JURISDICTION_SQL = """
       AND COALESCE(v.jurisdiction_id, '') <> ''
       AND v.video_url IS NOT NULL
       AND BTRIM(v.video_url) <> ''
+      AND UPPER(COALESCE(v.meeting_type, '')) NOT IN ('OTHER', 'UNKNOWN', '')
+      AND NOT EXISTS (
+        SELECT 1 FROM bronze.bronze_youtube_channel_classification c
+        WHERE c.channel_id = v.channel_id AND c.is_junk IS TRUE
+      )
     GROUP BY v.jurisdiction_id
     ORDER BY newest_pending DESC NULLS LAST
 """

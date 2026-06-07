@@ -108,7 +108,10 @@ function normalizeTypeAlias(t: string): string {
 // of a single source of truth surfaced inside the flyout.
 const RESULT_TYPES = [
   { type: 'leaders', label: 'Leaders' },
-  { type: 'persons', label: 'People' },
+  // 'persons' (non-government people from mdm_person) is intentionally omitted:
+  // the backend gates that category off (PERSONS_SEARCH_ENABLED) to stay within
+  // Neon free-tier storage. Government leaders remain searchable via 'leaders'.
+  // Re-add this entry if the backend flag is flipped back on.
   { type: 'organizations', label: 'Organizations' },
   { type: 'causes', label: 'Causes' },
   { type: 'meetings', label: 'Meetings' },
