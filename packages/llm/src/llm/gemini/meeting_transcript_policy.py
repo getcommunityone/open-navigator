@@ -146,6 +146,7 @@ from llm.gemini.genai_text_client import (  # noqa: E402
     GenAITransientGiveUp,
     call_gemini_text,
     default_flash_lite_model,
+    default_flash_model,
     ensure_valid_gemini_api_key,
     extract_json_from_model_text,
 )

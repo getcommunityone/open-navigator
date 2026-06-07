@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import api from '../lib/api'
 import { withSpan } from '../instrumentation'
 import { 
@@ -1786,34 +1786,21 @@ export default function UnifiedSearch() {
 
             {searchResults && searchResults.total_results !== undefined && searchResults.pagination && (
               <>
-                {/* Results Summary */}
+                {/* Results Summary — headline is the GRAND total across all
+                    tabs (from the counts call); the sub-line describes the
+                    active tab's current page (pagination is per-tab). */}
                 <div className="mb-6">
                   <h2 className="text-xl font-semibold text-gray-900">
-                    {searchResults.query ? (
-                      <>
-                        {searchResults.total_results.toLocaleString()} results for "{searchResults.query}"
-                        {searchResults.total_results > 0 && (
-                          <span className="text-base font-normal text-gray-600 ml-2">
-                            (showing {searchResults.pagination.offset + 1}-
-                            {Math.min(searchResults.pagination.offset + searchResults.pagination.limit, searchResults.total_results)})
-                          </span>
-                        )}
-                      </>
-                    ) : (
-                      <>
-                        {searchResults.total_results.toLocaleString()} results
-                        {searchResults.total_results > 0 && (
-                          <span className="text-base font-normal text-gray-600 ml-2">
-                            (showing {searchResults.pagination.offset + 1}-
-                            {Math.min(searchResults.pagination.offset + searchResults.pagination.limit, searchResults.total_results)})
-                          </span>
-                        )}
-                      </>
-                    )}
+                    {(tabCountsData?.total_results ?? searchResults.total_results).toLocaleString()} results
+                    {searchResults.query ? ` for "${searchResults.query}"` : ''}
                   </h2>
-                  {selectedState && (
+                  {searchResults.total_results > 0 && (
                     <p className="text-sm text-gray-600 mt-1">
-                      Filtered by state: {selectedState}
+                      Showing {searchResults.pagination.offset + 1}–
+                      {Math.min(searchResults.pagination.offset + searchResults.pagination.limit, searchResults.total_results)}
+                      {' '}of {searchResults.total_results.toLocaleString()}{' '}
+                      {(RESULT_TABS.find((t) => t.key === effectiveTab)?.label ?? effectiveTab).toLowerCase()}
+                      {selectedState && ` · State: ${selectedState}`}
                     </p>
                   )}
                 </div>

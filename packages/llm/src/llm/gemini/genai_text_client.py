@@ -495,6 +495,17 @@ def default_flash_lite_model() -> str:
     ).strip()
 
 
+def default_flash_model() -> str:
+    """Healthy default analysis model.
+
+    ``gemini-2.5-flash`` is the reliable, currently-healthy model. Prefer this over
+    ``default_flash_lite_model()`` for analysis defaults: ``gemini-2.5-flash-lite`` is
+    504-congested (it caused the 37-minute hang documented at the top of this module)
+    and ``gemini-2.0-flash-lite`` was retired (404). Overridable via ``GEMINI_FLASH_MODEL``.
+    """
+    return (os.environ.get("GEMINI_FLASH_MODEL") or "gemini-2.5-flash").strip()
+
+
 def _genai_http_timeout_ms() -> int:
     """Per-request HTTP timeout for google-genai clients, in MILLISECONDS.
 
