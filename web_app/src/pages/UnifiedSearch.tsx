@@ -438,6 +438,7 @@ export default function UnifiedSearch() {
       return response.data
     },
     enabled: !!searchEnabled,
+    placeholderData: keepPreviousData,
   })
 
   // --- Result tabs ---------------------------------------------------------
@@ -487,6 +488,9 @@ export default function UnifiedSearch() {
       )
     },
     enabled: !!searchEnabled && !!effectiveTab,
+    // Keep the prior tab/page on screen while the next loads, so paging and
+    // tab-switching don't blank the list to a full-page spinner.
+    placeholderData: keepPreviousData,
   })
 
   const handleSearch = (e?: React.FormEvent) => {
