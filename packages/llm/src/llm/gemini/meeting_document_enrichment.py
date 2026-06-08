@@ -489,6 +489,26 @@ def _normalize_to_text(candidate: "DocCandidate") -> Optional[str]:
     return None
 
 
+def _ocr_pdf_text(pdf_bytes: bytes) -> str:
+    """FREE local OCR of a scanned PDF (PyMuPDF render + RapidOCR — no Gemini).
+
+    Lets a scanned PDF reach the cheap TEXT analysis path instead of paying for
+    Gemini vision. Returns '' if the OCR extra (scrapers[ocr] / rapidocr) is not
+    installed or OCR finds nothing — the caller then falls back to billed vision.
+    """
+    try:
+        from scrapers.suiteone.doctext import ocr_pdf_text
+    except Exception as exc:  # noqa: BLE001 — OCR extra not installed in this env
+        logger.debug("Local OCR unavailable ({}); will use Gemini vision instead.", exc)
+        return ""
+    try:
+        text, _pages = ocr_pdf_text(pdf_bytes)
+        return text or ""
+    except Exception as exc:  # noqa: BLE001 — one bad doc must not kill the run
+        logger.warning("Local OCR failed: {}", exc)
+        return ""
+
+
 def _extract_doc(candidate: "DocCandidate", api_key: str, model: str) -> Optional[dict]:
     """Normalize -> Gemini -> parsed JSON. None on any failure (logged).
 
@@ -504,14 +524,22 @@ def _extract_doc(candidate: "DocCandidate", api_key: str, model: str) -> Optiona
     text = _normalize_to_text(candidate) or ""
 
     if candidate.fmt in ("pdf", "ashx") and len(text) < _MIN_TEXT_CHARS:
-        # Scanned / no text layer — read the bytes and let Gemini read it visually.
+        # Scanned / no text layer. Recover the text the CHEAPEST way first:
+        #   1. FREE local OCR (PyMuPDF render + RapidOCR) -> cheap text analysis.
+        #   2. only if OCR is empty/unavailable, BILLED Gemini PDF vision.
+        # Either way the (billed) analysis step still structures the text; OCR
+        # just avoids paying Gemini to read a scanned page visually.
         try:
             data = Path(path).read_bytes()
         except OSError as exc:
             logger.warning("Cannot read {}: {}", path, exc)
             return None
-        if len(data) <= _MAX_PDF_BYTES:
-            logger.info("No text layer ({} chars) — falling back to Gemini PDF vision: {}", len(text), path)
+        ocr_text = _ocr_pdf_text(data)
+        if len(ocr_text) >= _MIN_TEXT_CHARS:
+            logger.info("No text layer ({} chars) — recovered {} chars via FREE local OCR: {}", len(text), len(ocr_text), path)
+            text = ocr_text
+        elif len(data) <= _MAX_PDF_BYTES:
+            logger.info("No text layer, OCR empty — falling back to BILLED Gemini PDF vision: {}", path)
             pdf_bytes, text = data, ""
         elif not text:
             logger.warning("Scanned PDF too large for inline vision ({} bytes), skipping: {}", len(data), path)
