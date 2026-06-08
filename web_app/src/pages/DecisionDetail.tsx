@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
 import MeetingPlayer from '../components/MeetingPlayer'
+import { DocumentViewerProvider, useDocumentViewer } from '../components/DocumentViewerContext'
 import { MeetingVideoProvider, EvidenceLink, WatchRecordingLink } from '../components/MeetingVideoContext'
 import {
   ArrowLeftIcon,
@@ -1090,7 +1091,26 @@ function pickDoc(docs: DecisionDocument[], type: string): DecisionDocument | und
   return docs.find((d) => d.document_type === type)
 }
 
+// Clicking a document chip launches the PDF inline in a centered modal popout
+// (react-pdf), mirroring how "Watch recording" pops the video. When no viewer
+// provider is mounted we degrade to opening the original in a new tab.
 function DocLinkChip({ label, type, url }: { label: string; type: string; url: string }) {
+  const viewer = useDocumentViewer()
+  if (viewer) {
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          withSpan('decision_detail.open_document', () => {}, { 'document.type': type })
+          viewer.openDocument({ url, label })
+        }}
+        className="flex items-center gap-1.5 font-medium text-[#1d6b5f] hover:text-[#155448]"
+      >
+        <DocumentTextIcon className="h-4 w-4" />
+        {label}
+      </button>
+    )
+  }
   return (
     <a
       href={url}
@@ -1374,6 +1394,7 @@ export default function DecisionDetail() {
 
   return (
     <MeetingVideoProvider videoId={decision.meeting_video_id} caption={videoCaption || undefined}>
+    <DocumentViewerProvider>
     <div className="min-h-screen bg-[#f6faf8] py-8" style={CV_FONT}>
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Back Button — returns to wherever the user came from */}
@@ -1521,6 +1542,7 @@ export default function DecisionDetail() {
         </div>
       </div>
     </div>
+    </DocumentViewerProvider>
     </MeetingVideoProvider>
   )
 }
