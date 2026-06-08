@@ -238,6 +238,7 @@ function ViewColumn({
   solo = false,
   unanimous = false,
   deferred = false,
+  aligned = false,
 }: {
   side: 'prevailing' | 'other'
   view: Record<string, unknown>
@@ -248,6 +249,12 @@ function ViewColumn({
   // `deferred` = the outcome was a delay/continuance; the prevailing card is then
   // the deferral rationale, not a substantive winner, so relabel it as such.
   deferred?: boolean
+  // `aligned` = this card is one of an opposing pair; render it as a 4-row CSS
+  // subgrid (header + the three subfields) so the "The worry" / "Why" / "What
+  // they want" rows line up horizontally with the other side regardless of how
+  // much text each contains. Always emits all three subfield slots so the row
+  // count matches across both cards.
+  aligned?: boolean
 }) {
   const isPrev = side === 'prevailing'
   const accent = isPrev ? '#1d6b5f' : '#e0603a'
@@ -271,31 +278,41 @@ function ViewColumn({
 
   const rows = VIEW_SUBFIELDS.map(({ key, label: l, hint, emphasize }) => {
     const v = view?.[key]
-    if (typeof v !== 'string' || !v.trim()) return null
+    const has = typeof v === 'string' && Boolean(v.trim())
+    // In aligned mode always emit the slot (even when empty) so both cards keep
+    // an identical 3-row subfield structure and the subgrid rows stay in step.
+    if (!has && !aligned) return null
     return (
-      <div key={key} className="mt-5 first:mt-0">
-        <div className="text-[13px] font-semibold text-[#16201d]">
-          {l} <span className="font-normal text-[#9bb8b8]">· {hint}</span>
-        </div>
-        <p
-          className={`mt-1.5 whitespace-pre-line text-[14px] leading-relaxed ${
-            emphasize ? 'font-semibold text-[#16201d]' : 'text-[#56635e]'
-          }`}
-        >
-          {v}
-          <EvidenceLink text={v} />
-        </p>
+      <div key={key} className={aligned ? 'mt-5 first:mt-0 md:mt-0' : 'mt-5 first:mt-0'}>
+        {has && (
+          <>
+            <div className="text-[13px] font-semibold text-[#16201d]">
+              {l} <span className="font-normal text-[#9bb8b8]">· {hint}</span>
+            </div>
+            <p
+              className={`mt-1.5 whitespace-pre-line text-[14px] leading-relaxed ${
+                emphasize ? 'font-semibold text-[#16201d]' : 'text-[#56635e]'
+              }`}
+            >
+              {v}
+              <EvidenceLink text={v} />
+            </p>
+          </>
+        )}
       </div>
     )
   }).filter(Boolean)
 
-  if (!label && rows.length === 0) return <JsonValue value={view} />
+  const hasContent = VIEW_SUBFIELDS.some(({ key }) => {
+    const v = view?.[key]
+    return typeof v === 'string' && Boolean(v.trim())
+  })
+  if (!label && !hasContent) return <JsonValue value={view} />
 
-  return (
-    <div
-      className="rounded-xl border border-[#e1ebe7] p-4 sm:p-5"
-      style={{ borderLeftWidth: 4, borderLeftColor: accent, background: isPrev ? '#f6faf9' : '#fef8f5' }}
-    >
+  // Kicker + title + speakers form the header (row 1 of the subgrid); the three
+  // subfields follow as rows 2-4 so they align with the opposing card.
+  const header = (
+    <div>
       <span
         className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11.5px] font-bold tracking-wide"
         style={{ background: tint, color: accent }}
@@ -319,7 +336,18 @@ function ViewColumn({
           ))}
         </div>
       )}
-      {rows.length > 0 && <div className="mt-3">{rows}</div>}
+    </div>
+  )
+
+  return (
+    <div
+      className={`rounded-xl border border-[#e1ebe7] p-4 sm:p-5${
+        aligned ? ' md:grid md:[grid-row:span_4] md:[grid-template-rows:subgrid]' : ''
+      }`}
+      style={{ borderLeftWidth: 4, borderLeftColor: accent, background: isPrev ? '#f6faf9' : '#fef8f5' }}
+    >
+      {header}
+      {aligned ? rows : rows.length > 0 && <div className="mt-3">{rows}</div>}
     </div>
   )
 }
@@ -524,6 +552,9 @@ function CompetingViews({
   // "Unanimous" when the vote tally actually confirms no dissent; otherwise it's
   // just the prevailing view (a split vote may have only one captured framing).
   const single = rightViews.length === 0
+  // Exactly one opposing view -> render the pair as an aligned subgrid so the
+  // matching subfields line up across the two cards.
+  const aligned = rightViews.length === 1
   const eyebrow = single
     ? unanimous
       ? 'Unanimous'
@@ -587,20 +618,37 @@ function CompetingViews({
 
       <div className="my-5 border-t border-[#e1ebe7]" />
 
-      <div className={single ? '' : 'grid items-start gap-4 md:grid-cols-2'}>
+      {/* When it's a clean two-sided comparison (one prevailing + one counter),
+          align the cards row-for-row via subgrid so "The worry" / "Why" / "What
+          they want" line up across both sides. With multiple counter-views the
+          right side is a stack, so we fall back to independent cards. */}
+      <div
+        className={
+          single
+            ? ''
+            : aligned
+            ? 'grid gap-x-4 gap-y-5 md:grid-cols-2 md:[grid-template-rows:auto_auto_auto_auto]'
+            : 'grid items-start gap-4 md:grid-cols-2'
+        }
+      >
         <ViewColumn
           side={dominant ? 'prevailing' : 'other'}
           view={leftView}
           solo={single}
           unanimous={unanimous}
           deferred={deferred}
+          aligned={aligned}
         />
-        {rightViews.length > 0 && (
-          <div className="space-y-4">
-            {rightViews.map((c, i) => (
-              <ViewColumn key={i} side="other" view={c} />
-            ))}
-          </div>
+        {aligned ? (
+          <ViewColumn side="other" view={rightViews[0]} aligned />
+        ) : (
+          rightViews.length > 0 && (
+            <div className="space-y-4">
+              {rightViews.map((c, i) => (
+                <ViewColumn key={i} side="other" view={c} />
+              ))}
+            </div>
+          )
         )}
       </div>
 
