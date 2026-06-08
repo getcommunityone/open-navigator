@@ -39,6 +39,11 @@ interface MeetingVideoCtx {
   hasVideoId: boolean
   resolve: (text: string) => Resolved | null
   playClip: (text: string) => void
+  /**
+   * Seek to an EXACT second (from real analysis data, not a fuzzy guess) and
+   * open the popout. `quote` is the verbatim line shown under the player.
+   */
+  playAt: (seconds: number, quote?: string) => void
 }
 
 const Ctx = createContext<MeetingVideoCtx | null>(null)

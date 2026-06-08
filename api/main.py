@@ -375,6 +375,7 @@ app.include_router(grants_routes.router, prefix="/api")
 app.include_router(lenses_routes.router)
 # Prefix ("/api/money-flow") baked into the router — include with NO extra prefix.
 app.include_router(money_flow_routes.router)
+app.include_router(feed_routes.router, prefix="/api")
 
 # Custom Swagger UI with logo
 @app.get("/docs", include_in_schema=False)
