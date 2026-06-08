@@ -21,15 +21,16 @@ await page.waitForTimeout(1000);
 const grantsTab = section.getByRole('button', { name: /^Grants$/ });
 if (await grantsTab.count()) {
   await grantsTab.first().click();
-  await page.waitForTimeout(2500); // let the sankey re-lay-out
+  await page.waitForTimeout(3000); // let the sankey re-lay-out
 }
+await section.scrollIntoViewIfNeeded().catch(() => {});
 
 await section.screenshot({ path: '/tmp/ftm_grants.png' }).catch(async () => {
   await page.screenshot({ path: '/tmp/ftm_grants.png', fullPage: false });
 });
 
 // Report the rendered left-side org labels (the ones that were clipping).
-const labels = await section.locator('svg text').allInnerTexts();
-console.log('rendered svg labels:', JSON.stringify(labels.slice(0, 20)));
+const labels = await section.locator('svg text').allTextContents();
+console.log('rendered svg labels:', JSON.stringify(labels.slice(0, 24)));
 if (errors.length) console.log('page errors:', errors.slice(0, 5));
 await browser.close();
