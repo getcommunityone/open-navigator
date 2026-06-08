@@ -13,6 +13,7 @@ neither yields none — we only emit rows we can link to a real document).
 """
 from __future__ import annotations
 
+import html as _html
 import re
 from dataclasses import dataclass, field
 from datetime import date, datetime
@@ -46,15 +47,27 @@ class MeetingDoc:
     raw: dict = field(default_factory=dict)
 
 
-# Whitespace (literal or percent-encoded) in the document-title path segment right
-# before the query — e.g. ``GetMinutesFile/Synopsis ?mid=5048`` — makes SuiteOne
-# 404 even though the file is served purely by the ``mid``/``aid`` query param. The
-# path label is decorative, so strip the stray space rather than encode it.
+# SuiteOne serves a document purely by its ``aid``/``mid`` query param; the path
+# segment between ``GetXFile/`` and ``?`` is a decorative title that older portal
+# rows pollute with the meeting date — e.g. ``GetAgendaFile/11/2/21 Agenda?aid=N``
+# or ``GetMinutesFile/Synopsis ?mid=N``. Spaces (``%20``) and especially embedded
+# slashes (extra path segments) make the link 404 even though the file is fine.
+# Collapse the label down to its canonical keyword (preserving Minutes vs Synopsis)
+# so the link routes; this also subsumes the older trailing-whitespace fix.
+_DOC_URL_LABEL = re.compile(
+    r"(/event/Get(?:Agenda|Minutes|Document)File/)[^?]*?"
+    r"(Agenda|Minutes|Synopsis|Packet)[^?]*(\?|$)",
+    re.IGNORECASE,
+)
+# Fallback: bare trailing whitespace before the query when no keyword is present.
 _DOC_URL_TRAILING_WS = re.compile(r"(?:%20|\s)+(\?|$)", re.IGNORECASE)
 
 
 def _normalize_doc_url(url: str) -> str:
-    return _DOC_URL_TRAILING_WS.sub(r"\1", (url or "").strip())
+    url = (url or "").strip()
+    if _DOC_URL_LABEL.search(url):
+        return _DOC_URL_LABEL.sub(r"\1\2\3", url)
+    return _DOC_URL_TRAILING_WS.sub(r"\1", url)
 
 
 def _clean_title(raw_title: str) -> str:
@@ -158,5 +171,126 @@ def scrape_portal(portal_url: str) -> list[MeetingDoc]:
         sum(1 for d in docs if d.doc_type == "agenda"),
         sum(1 for d in docs if d.doc_type == "minutes"),
         portal_url,
+    )
+    return docs
+
+
+# The portal root only renders the current + prior calendar year. Each meeting
+# body carries an "Older Meetings.." control whose data-* attributes drive a
+# ``POST /Home/GetRecentEventsGroup`` that returns the body's FULL event history
+# (one HTML fragment of the same <tr> shape ``parse_listing`` already reads).
+_OLDER_GROUP_RE = re.compile(
+    r'<a[^>]*class="[^"]*older_meetings_click[^"]*"[^>]*>', re.IGNORECASE
+)
+_EVENTS_GROUP_PATH = "/Home/GetRecentEventsGroup"
+
+
+@dataclass
+class _OlderGroup:
+    group_name: str
+    group_id: str
+    unique_id: str
+    category_id: str
+    year_from: str
+
+
+def _attr(tag: str, name: str) -> Optional[str]:
+    m = re.search(rf'data-{name}="([^"]*)"', tag, re.IGNORECASE)
+    return _html.unescape(m.group(1)) if m else None
+
+
+def parse_older_groups(html: str) -> list[_OlderGroup]:
+    """Extract the per-body "Older Meetings.." groups from a portal listing."""
+    groups: list[_OlderGroup] = []
+    for tag in _OLDER_GROUP_RE.findall(html):
+        gid = _attr(tag, "groupId")
+        cat = _attr(tag, "categoryId")
+        uid = _attr(tag, "uniqueId")
+        if not (gid and cat and uid):
+            continue
+        groups.append(
+            _OlderGroup(
+                group_name=_attr(tag, "groupName") or "",
+                group_id=gid,
+                unique_id=uid,
+                category_id=cat,
+                year_from=_attr(tag, "yearFrom") or "",
+            )
+        )
+    return groups
+
+
+def fetch_events_group(
+    client: "httpx.Client", base_url: str, group: _OlderGroup
+) -> str:
+    """POST the older-events endpoint for one body; returns the HTML fragment."""
+    resp = client.post(
+        urljoin(base_url, _EVENTS_GROUP_PATH),
+        data={
+            "yearFrom": group.year_from,
+            "groupName": group.group_name,
+            "groupId": group.group_id,
+            "uniqueId": group.unique_id,
+            "categoryId": group.category_id,
+            "psize": 10,
+            "page": 0,
+        },
+        headers={"X-Requested-With": "XMLHttpRequest"},
+    )
+    resp.raise_for_status()
+    return resp.text
+
+
+def scrape_portal_history(
+    portal_url: str, *, since_year: int | None = None, timeout: float = 60.0
+) -> list[MeetingDoc]:
+    """Fetch the full meeting history of a SuiteOne portal (all bodies, all years).
+
+    Walks every body's "Older Meetings.." group, merges with the root listing,
+    and de-dupes by document URL. ``since_year`` keeps only documents whose real
+    meeting date falls in that year or later (undated rows are dropped when set).
+    """
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (compatible; open-navigator/1.0; civic-data; "
+            "+https://github.com/open-navigator)"
+        )
+    }
+    by_url: dict[str, MeetingDoc] = {}
+    with httpx.Client(
+        follow_redirects=True, timeout=timeout, headers=headers
+    ) as client:
+        root_resp = client.get(portal_url)
+        root_resp.raise_for_status()
+        root_html = root_resp.text
+        for d in parse_listing(root_html, portal_url):
+            by_url.setdefault(d.url, d)
+
+        groups = parse_older_groups(root_html)
+        logger.info("Found {} meeting bodies with older-meeting history", len(groups))
+        for g in groups:
+            try:
+                fragment = fetch_events_group(client, portal_url, g)
+            except Exception as exc:  # noqa: BLE001 — one body failing must not abort the rest
+                logger.warning("Older-events fetch failed for {}: {}", g.group_name, exc)
+                continue
+            new = 0
+            for d in parse_listing(fragment, portal_url):
+                if d.url not in by_url:
+                    by_url[d.url] = d
+                    new += 1
+            logger.info("  {:<48} +{} docs", g.group_name, new)
+
+    docs = list(by_url.values())
+    if since_year is not None:
+        docs = [d for d in docs if d.meeting_date and d.meeting_date.year >= since_year]
+
+    years = sorted({d.meeting_date.year for d in docs if d.meeting_date})
+    logger.success(
+        "History: {} documents ({} agenda, {} minutes) spanning {}",
+        len(docs),
+        sum(1 for d in docs if d.doc_type == "agenda"),
+        sum(1 for d in docs if d.doc_type == "minutes"),
+        f"{years[0]}–{years[-1]}" if years else "no dates",
     )
     return docs
