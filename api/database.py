@@ -48,10 +48,13 @@ if DATABASE_URL.startswith("postgres://"):
 # See dbt_project/macros/publish_public_serving.sql.
 # ---------------------------------------------------------------------------
 DB_SCHEMA = os.getenv("API_DB_SCHEMA", "public").strip() or "public"
+# NOTE: no spaces in these search_path strings — they feed libpq's `-csearch_path=`
+# options below, and libpq splits the options value on whitespace (a space turns
+# "public, gold" into the malformed search_path "public,"). Commas only.
 #: search_path for raw DATA reads (asyncpg pools): data schema first, public fallback.
-DATA_SEARCH_PATH = DB_SCHEMA if DB_SCHEMA == "public" else f"{DB_SCHEMA}, public"
+DATA_SEARCH_PATH = DB_SCHEMA if DB_SCHEMA == "public" else f"{DB_SCHEMA},public"
 #: search_path for the ORM/auth engine: public FIRST so operational tables stay in public.
-_ORM_SEARCH_PATH = "public" if DB_SCHEMA == "public" else f"public, {DB_SCHEMA}"
+_ORM_SEARCH_PATH = "public" if DB_SCHEMA == "public" else f"public,{DB_SCHEMA}"
 
 # Create engine
 if "sqlite" in DATABASE_URL:

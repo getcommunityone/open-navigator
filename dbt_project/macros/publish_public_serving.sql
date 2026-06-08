@@ -46,7 +46,12 @@
     'contact_official':
         'select id, full_name, title, jurisdiction, state_code, state, party, '
         'district, office, null::text as email, null::text as phone, photo_url, '
-        'biography, is_current, website_url from gold.contact_official'
+        'biography, is_current, website_url from gold.contact_official',
+    'person_government':
+        'select person_id, master_person_id, full_name, title, jurisdiction, '
+        'jurisdiction_id, office, state_code, state, party, district, '
+        'null::text as email, null::text as phone, photo_url, biography, '
+        'website_url, is_current from gold.person_government'
 } -%}
 
 {%- set created = [] -%}
