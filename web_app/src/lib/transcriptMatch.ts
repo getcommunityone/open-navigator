@@ -64,6 +64,26 @@ export function extractKeywords(text: string): string[] {
 const WINDOW_SECONDS = 30
 
 /**
+ * Tokenized cues, computed ONCE per transcript so repeated matches (one per
+ * claim/badge on a page — often 15-30) don't each re-tokenize every cue. The
+ * regex tokenization is the dominant cost of matching; sharing it across all
+ * claims turns O(claims × cues × chars) into O(cues × chars) + cheap lookups.
+ */
+export interface CueIndex {
+  cues: Cue[]
+  /** Per-cue distinct lowercased token set (membership is O(1)). */
+  tokenSets: Set<string>[]
+}
+
+/** Build the reusable token index for a transcript's cues (do this once). */
+export function buildCueIndex(cues: Cue[]): CueIndex {
+  const tokenSets = cues.map(
+    (c) => new Set(c.text.toLowerCase().match(TOKEN_RE) || []),
+  )
+  return { cues, tokenSets }
+}
+
+/**
  * Find the transcript window that best matches `keywords`, or null when no
  * confident match exists. Confidence requires at least two distinct keywords
  * co-located within WINDOW_SECONDS, anchored by at least one distinctive
@@ -71,19 +91,31 @@ const WINDOW_SECONDS = 30
  * surfacing a misleading "jump" button.
  */
 export function findBestMatch(cues: Cue[], keywords: string[]): CueMatch | null {
+  return findBestMatchIndexed(buildCueIndex(cues), keywords)
+}
+
+/**
+ * Indexed variant of {@link findBestMatch}: reuses a prebuilt {@link CueIndex}
+ * so the per-cue tokenization isn't repeated for every claim. Identical scoring
+ * (IDF weighting, ≥2 distinct keywords, distinctive anchor, 30s window).
+ */
+export function findBestMatchIndexed(index: CueIndex, keywords: string[]): CueMatch | null {
+  const { cues, tokenSets } = index
   if (cues.length === 0 || keywords.length === 0) return null
 
   const kwSet = new Set(keywords)
 
   // Per-cue distinct keyword hits, and document frequency (cues containing each).
+  // Intersect the prebuilt per-cue token set with this claim's keywords — cheap
+  // Set lookups, no re-tokenization.
   const cueHits: string[][] = []
   const docFreq = new Map<string, number>()
-  for (const cue of cues) {
-    const found = new Set<string>()
-    for (const tok of cue.text.toLowerCase().match(TOKEN_RE) || []) {
-      if (kwSet.has(tok)) found.add(tok)
+  for (const tokens of tokenSets) {
+    const found: string[] = []
+    for (const k of kwSet) {
+      if (tokens.has(k)) found.push(k)
     }
-    cueHits.push([...found])
+    cueHits.push(found)
     for (const k of found) docFreq.set(k, (docFreq.get(k) ?? 0) + 1)
   }
 

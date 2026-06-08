@@ -12,7 +12,7 @@ import { useQuery } from '@tanstack/react-query'
 import { PlayIcon } from '@heroicons/react/24/solid'
 import { XMarkIcon, FilmIcon } from '@heroicons/react/24/outline'
 import api from '../lib/api'
-import { extractKeywords, findBestMatch, type Cue } from '../lib/transcriptMatch'
+import { buildCueIndex, extractKeywords, findBestMatchIndexed, type Cue } from '../lib/transcriptMatch'
 
 /**
  * MeetingVideoContext — "evidence links" model for the decision page.
