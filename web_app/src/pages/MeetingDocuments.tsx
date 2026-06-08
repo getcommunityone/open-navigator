@@ -5,6 +5,7 @@ import {
   DocumentTextIcon,
   ClipboardDocumentListIcon,
   ArrowLeftIcon,
+  ArrowsRightLeftIcon,
 } from '@heroicons/react/24/outline'
 import api from '../lib/api'
 import { withSpan } from '../instrumentation'
@@ -130,7 +131,13 @@ function DocumentChip({
   )
 }
 
-function MeetingRow({ group }: { group: MeetingDocumentGroup }) {
+function MeetingRow({
+  group,
+  jurisdictionId,
+}: {
+  group: MeetingDocumentGroup
+  jurisdictionId: string
+}) {
   const caption = `${group.body_name ?? 'Meeting'} • ${formatDate(group.doc_date)}`
   return (
     <div className="flex flex-col gap-3 border-b border-gray-100 px-4 py-4 last:border-b-0 sm:flex-row sm:items-center sm:justify-between">
@@ -148,6 +155,16 @@ function MeetingRow({ group }: { group: MeetingDocumentGroup }) {
             caption={caption}
           />
         ))}
+        {/* Only meetings matched to an AI summary can be compared. */}
+        {group.event_meeting_id && (
+          <Link
+            to={`/jurisdiction/${encodeURIComponent(jurisdictionId)}/meetings/${encodeURIComponent(group.event_meeting_id)}/compare`}
+            className="inline-flex items-center gap-1.5 rounded-md border border-[#1d6b5f] bg-[#1d6b5f]/5 px-3 py-1.5 text-sm font-medium text-[#1d6b5f] transition-colors hover:bg-[#1d6b5f]/10"
+          >
+            <ArrowsRightLeftIcon className="h-4 w-4" />
+            Compare with summary
+          </Link>
+        )}
       </div>
     </div>
   )
@@ -258,6 +275,7 @@ function MeetingDocumentsInner({ jurisdictionId }: { jurisdictionId: string }) {
                     <MeetingRow
                       key={`${group.doc_date}-${group.body_name ?? idx}`}
                       group={group}
+                      jurisdictionId={jurisdictionId}
                     />
                   ))}
                 </div>
