@@ -27,6 +27,22 @@ interface DecisionDocument {
   body_name?: string | null
 }
 
+// Parsed official agenda/minutes content (public.meeting_document) for the
+// decision's meeting — distinct from the document LINK chips (DecisionDocument).
+interface AgendaItem { item_number?: string | null; title?: string | null; disposition?: string | null }
+interface Motion { on_item?: string | null; moved_by?: string | null; seconded_by?: string | null; text?: string | null }
+interface RecordedVote { on_item?: string | null; yes?: number | null; no?: number | null; abstain?: number | null; result?: string | null }
+interface MeetingRecordEntry {
+  doc_kind: 'agenda' | 'minutes' | string
+  meeting_body?: string | null
+  agenda_items?: AgendaItem[] | null
+  motions?: Motion[] | null
+  recorded_votes?: RecordedVote[] | null
+  continuances?: { item?: string | null; continued_to?: string | null }[] | null
+  legislation_numbers?: string[] | null
+  source_urls?: string[] | null
+}
+
 interface DecisionDetail {
   event_decision_id: string
   headline?: string | null
@@ -61,6 +77,9 @@ interface DecisionDetail {
   expected_minutes_date?: string | null // ISO 'YYYY-MM-DD'
   minutes_typical_lag_days?: number | null // median publish lag used (e.g. 1)
   minutes_lag_sample_n?: number | null // sample size behind the estimate (e.g. 227)
+  // Parsed official agenda/minutes content for the meeting (agenda items, motions,
+  // recorded votes) — empty/absent when no document was enriched for this meeting.
+  meeting_record?: MeetingRecordEntry[] | null
 }
 
 // snake_case / camelCase JSON key -> human label
@@ -1167,6 +1186,113 @@ function MeetingDocuments({ decision }: { decision: DecisionDetail }) {
   )
 }
 
+// Official record: the PARSED agenda/minutes content (item numbers, motions,
+// recorded votes) extracted from the meeting's agenda/minutes documents. Renders
+// only when at least one document was enriched for this meeting.
+function MeetingRecordCard({ record }: { record?: MeetingRecordEntry[] | null }) {
+  const entries = Array.isArray(record) ? record.filter((e) => e && e.doc_kind) : []
+  if (entries.length === 0) return null
+  return (
+    <div className="bg-white rounded-lg shadow-sm p-6 mb-6" style={CV_FONT}>
+      <div className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.12em] text-[#1d6b5f]">
+        <DocumentTextIcon className="h-4 w-4" /> Official record
+      </div>
+      <p className="mt-1 text-[12.5px] text-[#8a958f]">
+        Straight from the meeting’s agenda &amp; minutes — item numbers, motions, and recorded votes.
+      </p>
+      <div className="mt-4 space-y-5">
+        {entries.map((e, i) => {
+          const items = Array.isArray(e.agenda_items) ? e.agenda_items : []
+          const motions = Array.isArray(e.motions) ? e.motions : []
+          const votes = Array.isArray(e.recorded_votes) ? e.recorded_votes : []
+          const legs = Array.isArray(e.legislation_numbers) ? e.legislation_numbers : []
+          const url = Array.isArray(e.source_urls) && e.source_urls.length ? e.source_urls[0] : null
+          return (
+            <div key={i} className="rounded-xl border border-[#e1ebe7] p-4 sm:p-5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-[12px] font-bold uppercase tracking-wide text-[#16201d]">
+                  {e.doc_kind === 'minutes' ? 'Minutes' : 'Agenda'}
+                  {e.meeting_body ? <span className="font-normal text-[#8a958f]"> · {e.meeting_body}</span> : null}
+                </span>
+                {url && (
+                  <a href={url} target="_blank" rel="noopener noreferrer" className="text-[12.5px] font-medium text-[#1d6b5f] hover:underline">
+                    Source document →
+                  </a>
+                )}
+              </div>
+
+              {items.length > 0 && (
+                <details className="mt-3 group">
+                  <summary className="cursor-pointer text-[13px] font-semibold text-[#16201d]">
+                    {items.length} agenda items
+                    <span className="font-normal text-[#9bb8b8]"> · click to expand</span>
+                  </summary>
+                  <ol className="mt-2 space-y-1.5">
+                    {items.map((it, j) => (
+                      <li key={j} className="flex gap-2 text-[13px] leading-snug text-[#56635e]">
+                        {it.item_number ? (
+                          <span className="shrink-0 font-mono text-[11.5px] text-[#1d6b5f]">{it.item_number}</span>
+                        ) : null}
+                        <span>
+                          {it.title}
+                          {it.disposition ? (
+                            <span className="ml-1.5 rounded-full bg-[#f3f7f6] px-1.5 py-0.5 text-[11px] font-medium text-[#16201d]">
+                              {it.disposition}
+                            </span>
+                          ) : null}
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                </details>
+              )}
+
+              {motions.length > 0 && (
+                <div className="mt-3">
+                  <div className="text-[13px] font-semibold text-[#16201d]">Motions ({motions.length})</div>
+                  <ul className="mt-1.5 space-y-1 text-[12.5px] leading-snug text-[#56635e]">
+                    {motions.slice(0, 8).map((m, j) => (
+                      <li key={j}>
+                        {m.text || m.on_item || 'Motion'}
+                        {m.moved_by ? <span className="text-[#8a958f]"> — moved by {m.moved_by}{m.seconded_by ? `, 2nd ${m.seconded_by}` : ''}</span> : null}
+                      </li>
+                    ))}
+                    {motions.length > 8 && <li className="text-[#9bb8b8]">…and {motions.length - 8} more</li>}
+                  </ul>
+                </div>
+              )}
+
+              {votes.length > 0 && (
+                <div className="mt-3">
+                  <div className="text-[13px] font-semibold text-[#16201d]">Recorded votes</div>
+                  <ul className="mt-1.5 space-y-1 text-[12.5px] text-[#56635e]">
+                    {votes.slice(0, 8).map((v, j) => (
+                      <li key={j}>
+                        {v.on_item ? <span>{v.on_item}: </span> : null}
+                        <span className="tabular-nums">{v.yes ?? '–'}–{v.no ?? '–'}{v.abstain ? ` (${v.abstain} abstain)` : ''}</span>
+                        {v.result ? <span className="ml-1.5 font-medium text-[#16201d]">{v.result}</span> : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {legs.length > 0 && (
+                <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                  <span className="text-[12px] font-semibold text-[#16201d]">Legislation:</span>
+                  {legs.slice(0, 12).map((l, j) => (
+                    <span key={j} className="rounded-full bg-[#f3f7f6] px-2 py-0.5 font-mono text-[11px] text-[#56635e]">{l}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export default function DecisionDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -1355,6 +1481,9 @@ export default function DecisionDetail() {
             deferred={isDeferralOutcome(decision.outcome)}
           />
         )}
+
+        {/* Official record — parsed agenda/minutes (item numbers, motions, votes) */}
+        <MeetingRecordCard record={decision.meeting_record} />
 
         {/* Human Element — named voices with avatars + room sentiment */}
         {!isEmpty(decision.human_element) && <HumanElement data={decision.human_element} />}

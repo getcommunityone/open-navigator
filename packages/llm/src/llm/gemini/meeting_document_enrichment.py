@@ -79,13 +79,19 @@ SUPPORTED_EXTS = {"pdf", "docx", "doc", "html", "htm", "ashx"}
 # or minutes. These are NOT in pdfs[]; they're scraped pages under _crawl_html/.
 _HTML_DOC_RE = re.compile(r"(agenda|minute|documentcenter)", re.IGNORECASE)
 
-# Date patterns seen in anchor_text / filenames: 3.12.26, 04072026, 2026-03-12,
-# 03/12/2026, March 12 2026. Best-effort — MATCH stays conservative.
+# Date patterns seen in anchor_text / filenames: 20260312, 3.12.26, 04072026,
+# 2026-03-12, 03/12/2026, March 12 2026. Best-effort — MATCH stays conservative.
+# The contiguous YYYYMMDD form is FIRST on purpose: doc filenames carry the real
+# meeting date as `20260506-Agenda.pdf`, while the wp-content upload path
+# (`/wp-content/uploads/2026/05/`) is only the *upload* month. Without this, the
+# greedy `2026/05/<dd>` rule below latched onto the upload dir + the filename's
+# leading "20" and collapsed every doc to one bogus date (e.g. 2026-05-20).
 _DATE_PATTERNS = [
+    re.compile(r"\b(?P<y>20\d{2})(?P<m>\d{2})(?P<d>\d{2})\b"),                   # 20260312 (YYYYMMDD)
     re.compile(r"(?P<y>20\d{2})[-_/.](?P<m>\d{1,2})[-_/.](?P<d>\d{1,2})"),       # 2026-03-12
     re.compile(r"(?P<m>\d{1,2})[-_/.](?P<d>\d{1,2})[-_/.](?P<y>20\d{2})"),       # 03/12/2026
     re.compile(r"(?P<m>\d{1,2})[-_/.](?P<d>\d{1,2})[-_/.](?P<yy>\d{2})\b"),      # 3.12.26
-    re.compile(r"\b(?P<m>\d{2})(?P<d>\d{2})(?P<y>20\d{2})\b"),                   # 04072026
+    re.compile(r"\b(?P<m>\d{2})(?P<d>\d{2})(?P<y>20\d{2})\b"),                   # 04072026 (MMDDYYYY)
 ]
 
 
@@ -125,6 +131,48 @@ def _parse_iso_date(*texts: Optional[str]) -> Optional[str]:
                     return f"{int(year):04d}-{mm:02d}-{dd:02d}"
             except (KeyError, ValueError):
                 continue
+    return None
+
+
+# Canonical body-category tokens — mirrors dbt macro normalize_meeting_body_key.sql
+# so this script keys bodies the SAME way the event_meeting_document mart does.
+# Adds 'county_commission' (the macro is city-centric; scraped county docs — e.g.
+# tuscco.com — identify as a County Commission, a different body than the City
+# Council videos bucketed under the same county FIPS). Order = specific first.
+_BODY_TIME_RE = re.compile(r"^\s*\d{1,2}:\d{2}\s*[ap]\.?m\.?\s*", re.I)
+_BODY_FILLER_RE = re.compile(r"(\s*-\s*canceled\s*$|\s+meeting\s*$)", re.I)
+_BODY_RULES: list[tuple[str, str]] = [
+    ("work session", "work_session"),
+    ("canvass", "election"), ("election", "election"),
+    ("community development", "community_development"),
+    ("public safety", "public_safety"), ("safety", "public_safety"),
+    ("public projects", "projects"), ("projects", "projects"),
+    ("litigation", "litigation_insurance"), ("insurance", "litigation_insurance"),
+    ("administration", "administration"),
+    ("finance", "finance"),
+    ("properties", "properties"),
+    ("historic", "historic"),
+    ("riverfront", "riverfront"),
+    ("zoning board", "zoning_board"),
+    ("planning", "planning"), ("zoning", "planning"),
+    ("county commission", "county_commission"),
+    ("city council", "council"), ("council", "council"),
+]
+
+
+def _normalize_body_key(text: Optional[str]) -> Optional[str]:
+    """Free-text body label -> canonical token (mirrors the dbt macro). None if unrecognized.
+
+    Returning None on an unknown body is deliberate: the guard only rejects a
+    merge when BOTH sides resolve to a token AND they differ — never on a guess.
+    """
+    if not text:
+        return None
+    t = _BODY_TIME_RE.sub("", text.replace("_", " ").lower())
+    t = _BODY_FILLER_RE.sub("", t)
+    for needle, token in _BODY_RULES:
+        if needle in t:
+            return token
     return None
 
 
@@ -483,6 +531,103 @@ def _merge_into_analysis(meeting: "AnalyzedMeeting", hits: list["DocCandidate"],
     return True
 
 
+# ---------------------------------------------------------------------------
+# Stage 5 — LOAD the merged meeting_documents blocks into a public serving table
+# (public.meeting_document), so the API can attach agenda/minutes to a decision.
+# Keyed by (jurisdiction_jid, meeting_date, doc_kind) — the API joins it to a
+# decision via event_meeting (jurisdiction + date). Direct-to-public load follows
+# the hosting.neon.migrate precedent for derived serving tables (no clean FK to
+# event_meeting since the join is a composite jurisdiction+date heuristic).
+# ---------------------------------------------------------------------------
+_MEETING_DOC_DDL = """
+CREATE TABLE IF NOT EXISTS public.meeting_document (
+    jurisdiction_jid    TEXT NOT NULL,
+    meeting_date        DATE NOT NULL,
+    doc_kind            TEXT NOT NULL,           -- 'agenda' | 'minutes'
+    meeting_body        TEXT,
+    agenda_items        JSONB,
+    motions             JSONB,
+    recorded_votes      JSONB,
+    continuances        JSONB,
+    legislation_numbers JSONB,
+    source_urls         JSONB,
+    updated_at          TIMESTAMP DEFAULT now(),
+    PRIMARY KEY (jurisdiction_jid, meeting_date, doc_kind)
+);
+CREATE INDEX IF NOT EXISTS meeting_document_juris_date_idx
+    ON public.meeting_document (jurisdiction_jid, meeting_date);
+"""
+
+_MEETING_ID_RE = re.compile(r"^(?P<jid>.+)_(?P<date>\d{4}-\d{2}-\d{2})$")
+
+
+def _local_dsn() -> str:
+    import os
+    return os.getenv("LOCAL_DATABASE_URL", "postgresql://postgres:password@localhost:5433/open_navigator")
+
+
+def load_to_warehouse(jurisdiction: Optional[str] = None) -> int:
+    """Upsert merged meeting_documents blocks → public.meeting_document. Returns rows."""
+    import json as _json
+
+    import psycopg2
+    from psycopg2.extras import Json, execute_values
+
+    # Keyed by (jid, date, doc_kind) so duplicate analysis files for the same
+    # meeting collapse to one row (ON CONFLICT can't update a PK twice per batch).
+    rows: dict[tuple, tuple] = {}
+    for jp in ANALYSIS_ROOT.glob("*/*/*/*/02_analysis/*.json"):
+        if jurisdiction and jurisdiction not in str(jp):
+            continue
+        try:
+            data = _json.loads(jp.read_text(encoding="utf-8"))
+        except (ValueError, OSError):
+            continue
+        md = data.get("meeting_documents")
+        if not isinstance(md, dict):
+            continue
+        meeting_id = ((data.get("meeting") or {}).get("meeting_id")) or ""
+        m = _MEETING_ID_RE.match(meeting_id)
+        if not m:
+            continue
+        jid, mdate = m.group("jid"), m.group("date")
+        src_urls = [s.get("url") for s in (md.get("sources") or []) if s.get("url")]
+        for slot in ("agenda", "minutes"):
+            blk = md.get(slot)
+            if not isinstance(blk, dict):
+                continue
+            rows[(jid, mdate, slot)] = (
+                jid, mdate, slot, blk.get("meeting_body"),
+                Json(blk.get("agenda_items") or []), Json(blk.get("motions") or []),
+                Json(blk.get("recorded_votes") or []), Json(blk.get("continuances") or []),
+                Json(blk.get("legislation_numbers") or []), Json(src_urls),
+            )
+    if not rows:
+        logger.warning("No merged meeting_documents found to load (jurisdiction={})", jurisdiction)
+        return 0
+
+    conn = psycopg2.connect(_local_dsn())
+    try:
+        with conn.cursor() as cur:
+            cur.execute(_MEETING_DOC_DDL)
+            execute_values(cur, """
+                INSERT INTO public.meeting_document
+                  (jurisdiction_jid, meeting_date, doc_kind, meeting_body, agenda_items,
+                   motions, recorded_votes, continuances, legislation_numbers, source_urls)
+                VALUES %s
+                ON CONFLICT (jurisdiction_jid, meeting_date, doc_kind) DO UPDATE SET
+                  meeting_body=EXCLUDED.meeting_body, agenda_items=EXCLUDED.agenda_items,
+                  motions=EXCLUDED.motions, recorded_votes=EXCLUDED.recorded_votes,
+                  continuances=EXCLUDED.continuances, legislation_numbers=EXCLUDED.legislation_numbers,
+                  source_urls=EXCLUDED.source_urls, updated_at=now()
+            """, list(rows.values()))
+        conn.commit()
+    finally:
+        conn.close()
+    logger.success("Loaded {} meeting_document rows into public.meeting_document", len(rows))
+    return len(rows)
+
+
 def run_extract(args: argparse.Namespace) -> int:
     """Scoped, opt-in BILLED enrichment: extract matched docs and merge (per jurisdiction)."""
     if not (args.jurisdiction and args.limit and args.limit > 0):
@@ -525,21 +670,41 @@ def run_extract(args: argparse.Namespace) -> int:
         )
         return 0
 
+    # Extract each UNIQUE doc ONCE. A doc can match several meetings (a packet
+    # spanning bodies on one day, or a wider --window-days), and re-extracting it
+    # per meeting is wasted billing — a prior run billed 17 docs 5× each.
+    def _doc_key(c: DocCandidate) -> str:
+        return c.local_path or c.url or f"{c.juris_path}|{c.doc_type}|{c.iso_date}"
+
+    unique_docs: dict[str, DocCandidate] = {}
+    for _mtg, hits in targets:
+        for h in hits:
+            unique_docs.setdefault(_doc_key(h), h)
+
     logger.warning(
-        "⚠️ BILLED run: {} meeting(s), model={}, ±{}d match — extracting agenda/minutes docs",
-        len(targets), model, window_days,
+        "⚠️ BILLED run: {} meeting(s), {} unique doc(s), model={}, ±{}d match",
+        len(targets), len(unique_docs), model, window_days,
     )
+    extracted_by_key: dict[str, dict] = {}
+    for key, h in unique_docs.items():
+        data = _extract_doc(h, api_key, model)
+        if data is not None:
+            extracted_by_key[key] = data
+
     enriched = 0
     for mtg, hits in targets:
         merged_any = False
         for h in hits:
-            extracted = _extract_doc(h, api_key, model)
-            if extracted and _merge_into_analysis(mtg, [h], extracted):
+            data = extracted_by_key.get(_doc_key(h))
+            if data and _merge_into_analysis(mtg, [h], data):
                 merged_any = True
         if merged_any:
             enriched += 1
             logger.success("✅ Enriched {} {}", mtg.juris_path, mtg.iso_date)
-    logger.success("Done — enriched {}/{} meetings", enriched, len(targets))
+    logger.success(
+        "Done — enriched {}/{} meetings from {} unique doc(s) extracted",
+        enriched, len(targets), len(extracted_by_key),
+    )
     return 0
 
 
@@ -547,6 +712,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--jurisdiction", help="Limit to a jurisdiction substring (e.g. baldwin_01003)")
     parser.add_argument("--match", action="store_true", help="Also link docs to analyzed meetings and report coverage (free)")
+    parser.add_argument("--load", action="store_true", help="Load merged meeting_documents into public.meeting_document (free)")
     parser.add_argument("--extract", action="store_true", help="(BILLED, opt-in) run Gemini extraction — requires --jurisdiction + --limit")
     parser.add_argument("--limit", type=int, default=0, help="Max meetings to extract in one run (extraction only)")
     parser.add_argument("--window-days", type=int, default=0, help="Doc<->meeting date match window in days for extraction (default 0 = exact date)")
@@ -566,6 +732,8 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     if args.extract:
         return run_extract(args)
+    if args.load:
+        load_to_warehouse(jurisdiction=args.jurisdiction)
     return 0
 
 

@@ -37,6 +37,20 @@ class MeetingDocument(BaseModel):
     body_name: Optional[str] = None
 
 
+class MeetingRecord(BaseModel):
+    """The PARSED official agenda/minutes content for the decision's meeting
+    (public.meeting_document, from the agenda/minutes enrichment). Distinct from
+    MeetingDocument, which is just the document link/status."""
+    doc_kind: str                       # 'agenda' | 'minutes'
+    meeting_body: Optional[str] = None
+    agenda_items: Optional[Any] = None
+    motions: Optional[Any] = None
+    recorded_votes: Optional[Any] = None
+    continuances: Optional[Any] = None
+    legislation_numbers: Optional[Any] = None
+    source_urls: Optional[Any] = None
+
+
 class DecisionDetail(BaseModel):
     """A single AI-extracted policy decision, keyed by event_decision_id."""
     event_decision_id: str
@@ -79,6 +93,9 @@ class DecisionDetail(BaseModel):
     expected_minutes_date: Optional[str] = None  # ISO 'YYYY-MM-DD'
     minutes_typical_lag_days: Optional[int] = None
     minutes_lag_sample_n: Optional[int] = None
+    # Parsed official agenda/minutes content (public.meeting_document), joined to
+    # the meeting by jurisdiction + date. Empty when none enriched for this meeting.
+    meeting_record: List[MeetingRecord] = []
 
 
 _DECISION_SQL = """
@@ -113,6 +130,21 @@ _DECISION_SQL = """
     FROM event_decision d
     LEFT JOIN event_meeting m ON m.c1_event_id = d.c1_event_id
     WHERE d.event_decision_id = $1
+"""
+
+# Parsed agenda/minutes content for a decision's meeting: c1_event_id ->
+# event_meeting (jurisdiction jid + date) -> public.meeting_document.
+_MEETING_RECORD_SQL = """
+    SELECT md.doc_kind, md.meeting_body, md.agenda_items, md.motions,
+           md.recorded_votes, md.continuances, md.legislation_numbers, md.source_urls
+    FROM event_meeting m
+    JOIN public.meeting_document md
+      ON md.jurisdiction_jid = m.jurisdiction
+     AND md.meeting_date = CASE
+           WHEN COALESCE(NULLIF(m.event_date, ''), NULLIF(m.meeting_date, '')) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
+           THEN LEFT(COALESCE(NULLIF(m.event_date, ''), NULLIF(m.meeting_date, '')), 10)::date END
+    WHERE m.c1_event_id = $1
+    ORDER BY md.doc_kind
 """
 
 # JSONB columns asyncpg hands back as raw JSON text (no codec on the pool).
@@ -434,6 +466,17 @@ async def get_decision(event_decision_id: str) -> DecisionDetail:
                                 doc_span.record_exception(lag_err)
                                 logger.warning("Minutes-lag lookup failed (geoid={}): {}", geoid_pre, lag_err)
 
+                # Parsed agenda/minutes content for this decision's meeting
+                # (public.meeting_document). Best-effort — never 500 the decision.
+                meeting_record_rows: list = []
+                if row["c1_event_id"]:
+                    try:
+                        meeting_record_rows = await conn.fetch(_MEETING_RECORD_SQL, row["c1_event_id"])
+                    except Exception as mr_err:  # noqa: BLE001 — best-effort
+                        logger.warning(
+                            "meeting_record lookup failed for {}: {}", event_decision_id, mr_err
+                        )
+
             span.set_attribute("decision.found", True)
 
             data = dict(row)
@@ -478,9 +521,23 @@ async def get_decision(event_decision_id: str) -> DecisionDetail:
                     data["minutes_typical_lag_days"] = median_lag
                     data["minutes_lag_sample_n"] = lag_row["sample_n"]
 
+            data["meeting_record"] = [
+                MeetingRecord(
+                    doc_kind=r["doc_kind"],
+                    meeting_body=r["meeting_body"],
+                    agenda_items=_parse_json(r["agenda_items"]),
+                    motions=_parse_json(r["motions"]),
+                    recorded_votes=_parse_json(r["recorded_votes"]),
+                    continuances=_parse_json(r["continuances"]),
+                    legislation_numbers=_parse_json(r["legislation_numbers"]),
+                    source_urls=_parse_json(r["source_urls"]),
+                )
+                for r in meeting_record_rows
+            ]
+
             logger.info(
-                "⚖️ Decision detail {} -> {} ({} docs)",
-                event_decision_id, data.get("outcome"), len(documents),
+                "⚖️ Decision detail {} -> {} ({} docs, {} records)",
+                event_decision_id, data.get("outcome"), len(documents), len(meeting_record_rows),
             )
             return DecisionDetail(**data)
 
