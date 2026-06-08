@@ -862,7 +862,7 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
 
       {/* Personalization bar — Close to Home only */}
       {isHome && (
-        <div className="mb-4 rounded-2xl border border-[#e1ebe7] bg-white p-3.5">
+        <div className="mb-3 rounded-2xl border border-[#e1ebe7] bg-white p-3">
           {/* Value-frames — how you READ a decision. No card-level theme tagging
               exists yet, so these are an honest, disabled "coming soon" affordance
               and never filter or fabricate data (CLAUDE.md: No Fabricated Data). */}
@@ -889,7 +889,7 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
           </div>
 
           {/* Signals — live; narrow the Close-to-Home feed to the chosen lenses */}
-          <div className="mt-3 flex items-center gap-3 border-t border-[#e1ebe7] pt-3">
+          <div className="mt-2.5 flex items-center gap-3 border-t border-[#e1ebe7] pt-2.5">
             <span className="shrink-0 text-[10.5px] font-semibold uppercase tracking-wide text-[#9bb8b8]">Signal</span>
             <HScroll>
               {LENSES.map((l) => {
@@ -928,8 +928,8 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
 
       {/* What's happening strip — Close to Home only; hidden on a hard failure */}
       {isHome && !errored && (
-        <div className="mb-6">
-          <div className="mb-2.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+        <div className="mb-4">
+          <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
             <h3 className="text-[15px] font-semibold tracking-tight text-[#0f2b2b]" style={SERIF}>
               What&rsquo;s happening {happeningPrep} {place}
             </h3>
@@ -949,7 +949,7 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
                     type="button"
                     onClick={() => onActivity(s.l)}
                     title={`${s.v} ${s.l}`}
-                    className="group flex items-center gap-3 rounded-2xl border border-[#e1ebe7] bg-white px-4 py-3.5 text-left transition-all hover:-translate-y-0.5 hover:border-[#cfe0db] hover:shadow-[0_2px_4px_rgba(20,40,35,.06),0_10px_24px_rgba(20,40,35,.08)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1a6b6b]/40"
+                    className="group flex items-center gap-3 rounded-2xl border border-[#e1ebe7] bg-white px-4 py-3 text-left transition-all hover:-translate-y-0.5 hover:border-[#cfe0db] hover:shadow-[0_2px_4px_rgba(20,40,35,.06),0_10px_24px_rgba(20,40,35,.08)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1a6b6b]/40"
                   >
                     <span
                       className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[19px]"

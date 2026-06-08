@@ -1,0 +1,102 @@
+version: 2
+
+# public.event_meeting_document — scraped agenda/minutes PDFs linked to the
+# analyzed meeting they belong to. One row per document. Phase 1 of the meeting-
+# documents feature; Phase 0 (scraping into bronze) is done.
+#
+# Keys (per CLAUDE.md, enforced as Postgres constraints via contract):
+#   - PK: event_meeting_document_id (md5 of jurisdiction_id + url_sha256).
+#   - FK: event_meeting_id -> public.event_meeting.event_meeting_id. event_meeting
+#     is the NON-partitioned, single-column-PK parent, so this FK is a REAL
+#     enforced constraint (not a relationships-test stand-in). It is NULLABLE on
+#     purpose: orphan documents (no matched meeting) keep a NULL FK, which a
+#     foreign key allows.
+
+models:
+  - name: event_meeting_document
+    description: >
+      public.event_meeting_document — scraped meeting AGENDA / MINUTES PDFs linked
+      to the meeting they belong to (public.event_meeting), so the API can show
+      document links on a decision / meeting. One row per document. Matched on
+      jurisdiction (census geoid embedded in event_meeting.jurisdiction) + date +
+      canonical body key. event_meeting_id is NULL for orphan documents and for
+      meetings whose agenda/minutes is not yet published. Source: the SuiteOne
+      municipal-calendar crawl in bronze (general — driven only by
+      meeting_date_source='suiteone_listing', not city-specific).
+    config:
+      materialized: table
+      on_schema_change: fail
+      tags: ['marts', 'meetings', 'documents', 'suiteone', 'production']
+      contract:
+        enforced: true
+    columns:
+      - name: event_meeting_document_id
+        description: "Primary key — md5(jurisdiction_id || '|' || url_sha256), stable per document."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        data_tests:
+          - unique
+          - not_null
+      - name: event_meeting_id
+        description: >
+          FK -> public.event_meeting.event_meeting_id (the matched analyzed
+          meeting). NULLABLE — orphan documents and not-yet-published
+          agenda/minutes keep a NULL value. Enforced FK (event_meeting has a
+          single-column PK).
+        data_type: integer
+        constraints:
+          - type: foreign_key
+            to: ref('event_meeting')
+            to_columns: [event_meeting_id]
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('event_meeting')
+                field: event_meeting_id
+              config:
+                severity: warn
+      - name: jurisdiction_id
+        description: "Canonical jurisdiction id (e.g. 'tuscaloosa_0177256')."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: census_geoid
+        description: "Census GEOID of the jurisdiction (e.g. '0177256')."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: state_code
+        description: "2-letter state code (e.g. 'AL')."
+        data_type: text
+      - name: state
+        description: "Full state name (e.g. 'Alabama')."
+        data_type: text
+      - name: document_type
+        description: "Document kind — 'agenda' or 'minutes'."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: document_url
+        description: "URL of the agenda/minutes PDF (the document link)."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: doc_date
+        description: "Meeting date the document is for (real DATE)."
+        data_type: date
+      - name: body_name
+        description: "Canonical body category (key) the document/meeting belongs to (e.g. 'finance', 'council', 'projects')."
+        data_type: text
+      - name: meeting_title
+        description: "Original SuiteOne meeting title (e.g. '3:00 p.m. Finance Committee')."
+        data_type: text
+      - name: source
+        description: "Constant 'suiteone' — the scrape source."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: created_at
+        description: "When the document row was landed in bronze."
+        data_type: timestamp

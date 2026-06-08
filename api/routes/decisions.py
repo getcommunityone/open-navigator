@@ -447,3 +447,119 @@ async def get_related_decisions(
             )
             for r in rows
         ]
+
+
+# ---------------------------------------------------------------------------
+# Decision thread — the SAME item tracked ACROSS meetings (its lifecycle), so a
+# deferred item that returns later reads as one story instead of disconnected
+# rows. Links occurrences by a SPECIFIC place (a street/site place_id, never a
+# jurisdiction-wide stub that would falsely merge unrelated items) or by a
+# suffix-stripped subject slug (the trailing numeric id varies per meeting).
+# Ordered by meeting date; each row carries its outcome (so delays/continuances
+# show as steps) and the for/against view labels for an optional positions view.
+# ---------------------------------------------------------------------------
+class DecisionThreadItem(BaseModel):
+    event_decision_id: str
+    headline: Optional[str] = None
+    outcome: Optional[str] = None
+    primary_theme: Optional[str] = None
+    meeting_name: Optional[str] = None
+    meeting_date: Optional[str] = None
+    meeting_video_id: Optional[str] = None
+    is_current: bool = False
+    # Optional for/against labels (from competing_views) for this occurrence.
+    prevailing_label: Optional[str] = None
+    counter_labels: List[str] = []
+
+
+_THREAD_SQL = """
+    WITH base AS (
+        SELECT
+            CASE WHEN starts_with(primary_place_id, 'place_') THEN primary_place_id END AS place_key,
+            NULLIF(regexp_replace(COALESCE(subject_id, ''), '_[0-9]+$', ''), '')        AS subj_key
+        FROM event_decision WHERE event_decision_id = $1
+    )
+    SELECT
+        d.event_decision_id,
+        d.headline,
+        d.outcome,
+        d.primary_theme,
+        d.competing_views,
+        m.body_name AS meeting_name,
+        CASE WHEN COALESCE(NULLIF(m.event_date, ''), NULLIF(m.meeting_date, '')) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
+             THEN COALESCE(NULLIF(m.event_date, ''), NULLIF(m.meeting_date, '')) END AS meeting_date,
+        m.video_id AS meeting_video_id,
+        (d.event_decision_id = $1) AS is_current
+    FROM event_decision d
+    LEFT JOIN event_meeting m ON m.c1_event_id = d.c1_event_id
+    CROSS JOIN base b
+    WHERE (b.place_key IS NOT NULL AND d.primary_place_id = b.place_key)
+       OR (b.subj_key  IS NOT NULL
+           AND NULLIF(regexp_replace(COALESCE(d.subject_id, ''), '_[0-9]+$', ''), '') = b.subj_key)
+    ORDER BY meeting_date NULLS LAST, d.extracted_at DESC NULLS LAST
+    LIMIT 25
+"""
+
+
+def _view_labels(competing_views: Any) -> tuple[Optional[str], List[str]]:
+    """Pull (prevailing_label, [counter_labels]) out of a competing_views value.
+
+    The pool has no JSONB codec, so the value arrives as TEXT — json.loads it.
+    """
+    cv = competing_views
+    if isinstance(cv, str):
+        try:
+            cv = json.loads(cv)
+        except (ValueError, TypeError):
+            return None, []
+    if not isinstance(cv, dict):
+        return None, []
+    dom = cv.get("dominant_view")
+    prevailing = dom.get("view_label") if isinstance(dom, dict) else None
+    labels: List[str] = []
+    counters = cv.get("counter_views")
+    if isinstance(counters, list):
+        for c in counters:
+            if isinstance(c, dict) and isinstance(c.get("view_label"), str):
+                labels.append(c["view_label"])
+    return (prevailing if isinstance(prevailing, str) else None), labels
+
+
+@router.get("/{event_decision_id}/thread", response_model=List[DecisionThreadItem])
+async def get_decision_thread(event_decision_id: str) -> List[DecisionThreadItem]:
+    """
+    The same item across meetings (lifecycle), oldest → newest by meeting date.
+
+    Returns a single self-row when the item appears in only one analyzed meeting;
+    the client renders the cross-meeting timeline only when there are 2+.
+    """
+    with tracer.start_as_current_span("decision-thread") as span:
+        span.set_attribute("decision.event_decision_id", event_decision_id)
+        try:
+            pool = await get_db_pool()
+            async with pool.acquire() as conn:
+                rows = await conn.fetch(_THREAD_SQL, event_decision_id)
+        except Exception as e:  # noqa: BLE001
+            span.record_exception(e)
+            logger.error("Decision thread error for {}: {}", event_decision_id, e)
+            raise HTTPException(status_code=500, detail="Failed to load decision thread")
+
+        items: List[DecisionThreadItem] = []
+        for r in rows:
+            prevailing, counters = _view_labels(r["competing_views"])
+            items.append(
+                DecisionThreadItem(
+                    event_decision_id=r["event_decision_id"],
+                    headline=r["headline"],
+                    outcome=r["outcome"],
+                    primary_theme=r["primary_theme"],
+                    meeting_name=r["meeting_name"],
+                    meeting_date=r["meeting_date"],
+                    meeting_video_id=r["meeting_video_id"],
+                    is_current=bool(r["is_current"]),
+                    prevailing_label=prevailing,
+                    counter_labels=counters,
+                )
+            )
+        span.set_attribute("decision.thread_count", len(items))
+        return items

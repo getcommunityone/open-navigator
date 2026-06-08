@@ -322,6 +322,122 @@ function DeferralNotice({ outcome }: { outcome?: string | null }) {
   )
 }
 
+// One occurrence of an item across meetings (from /decision/:id/thread).
+interface ThreadItem {
+  event_decision_id: string
+  headline?: string | null
+  outcome?: string | null
+  meeting_name?: string | null
+  meeting_date?: string | null
+  is_current: boolean
+  prevailing_label?: string | null
+  counter_labels: string[]
+}
+
+// Cross-meeting lifecycle of the SAME item: a deferred item that returns later
+// reads as one story. Renders only when the item appears in 2+ meetings.
+function DecisionThread({ id }: { id: string }) {
+  const [showPositions, setShowPositions] = useState(false)
+  const { data } = useQuery({
+    queryKey: ['decision-thread', id],
+    queryFn: async () => (await api.get(`/decision/${id}/thread`)).data as ThreadItem[],
+  })
+  const items = data ?? []
+  if (items.length < 2) return null
+
+  const hasPositions = items.some((it) => it.prevailing_label || it.counter_labels.length > 0)
+  const anyDelay = items.some((it) => isDeferralOutcome(it.outcome))
+
+  return (
+    <div className="bg-white rounded-lg shadow-sm p-6 mb-6" style={CV_FONT}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.12em] text-[#1d6b5f]">
+          <CalendarIcon className="h-4 w-4" /> This item across {items.length} meetings
+        </div>
+        {hasPositions && (
+          <button
+            type="button"
+            onClick={() => setShowPositions((s) => !s)}
+            className="text-[12.5px] font-medium text-[#1d6b5f] hover:underline"
+          >
+            {showPositions ? 'Hide positions' : 'Show positions for / against'}
+          </button>
+        )}
+      </div>
+      {anyDelay && (
+        <p className="mt-1 text-[12.5px] text-[#8a958f]">
+          Includes a delay — follow how it moved from meeting to meeting.
+        </p>
+      )}
+
+      <ol className="mt-4">
+        {items.map((it, i) => {
+          const delay = isDeferralOutcome(it.outcome)
+          const dateLabel = it.meeting_date
+            ? new Date(`${it.meeting_date}T00:00:00`).toLocaleDateString()
+            : '—'
+          return (
+            <li key={it.event_decision_id} className="flex gap-3 pb-5 last:pb-0">
+              {/* timeline rail */}
+              <div className="flex flex-col items-center pt-1">
+                <span
+                  className={`h-3 w-3 shrink-0 rounded-full ring-2 ring-white ${delay ? 'bg-amber-500' : 'bg-[#1d6b5f]'}`}
+                />
+                {i < items.length - 1 && <span className="mt-1 w-px flex-1 bg-[#e1ebe7]" />}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span className="text-[13px] font-semibold text-[#16201d]">{dateLabel}</span>
+                  {it.outcome && (
+                    <span
+                      className={`rounded-full border px-2 py-0.5 font-mono text-[10.5px] font-semibold uppercase tracking-wide ${outcomePill(it.outcome)}`}
+                    >
+                      {it.outcome}
+                    </span>
+                  )}
+                  {it.meeting_name && <span className="text-[12px] text-[#8a958f]">{it.meeting_name}</span>}
+                  {it.is_current && (
+                    <span className="rounded-full bg-[#e8f4f4] px-2 py-0.5 text-[10.5px] font-semibold text-[#1d6b5f]">
+                      This page
+                    </span>
+                  )}
+                </div>
+                {it.headline &&
+                  (it.is_current ? (
+                    <div className="mt-0.5 text-[13.5px] font-medium text-[#16201d]">{it.headline}</div>
+                  ) : (
+                    <Link
+                      to={`/decisions/${it.event_decision_id}`}
+                      className="mt-0.5 block text-[13.5px] text-[#1d6b5f] hover:underline"
+                    >
+                      {it.headline}
+                    </Link>
+                  ))}
+                {showPositions && (it.prevailing_label || it.counter_labels.length > 0) && (
+                  <div className="mt-2 space-y-1 rounded-lg bg-[#f6faf9] p-2.5 text-[12.5px] leading-snug">
+                    {it.prevailing_label && (
+                      <div>
+                        <span className="font-semibold text-[#1d6b5f]">For / prevailed: </span>
+                        <span className="text-[#56635e]">{it.prevailing_label}</span>
+                      </div>
+                    )}
+                    {it.counter_labels.map((c, j) => (
+                      <div key={j}>
+                        <span className="font-semibold text-[#e0603a]">Against: </span>
+                        <span className="text-[#56635e]">{c}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </li>
+          )
+        })}
+      </ol>
+    </div>
+  )
+}
+
 function CompetingViews({
   data,
   unanimous = false,
@@ -1067,6 +1183,10 @@ export default function DecisionDetail() {
 
         {/* Deferral accountability: a delay is a decision — call it out up front. */}
         {isDeferralOutcome(decision.outcome) && <DeferralNotice outcome={decision.outcome} />}
+
+        {/* Cross-meeting lifecycle: the same item tracked across meetings (only
+            renders when it appears in 2+). */}
+        {id && <DecisionThread id={id} />}
 
         {/* Key Takeaways (smart_brevity) — leads, with "Why it matters", then
             the decision tucked directly under it. If there's no smart_brevity,
