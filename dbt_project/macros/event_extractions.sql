@@ -1,5 +1,8 @@
 /*
-Partition management for the public `event_*` AI-extraction marts.
+Partition management for the `gold` `event_*` AI-extraction marts (the full
+warehouse lives in `gold`; the public API reads views over them — see
+publish_public_serving). These bootstrap/maintenance macros create and roll the
+partitioned parents forward in `gold`.
 
 dbt-postgres has no `partition_by` config and its `incremental` materialization
 resolves the target relation from the cache BEFORE pre-hooks run, so a
@@ -47,7 +50,7 @@ select 1;
 
 {% macro bootstrap_event_person() %}
   {% set ddl %}
-    create table if not exists public.event_person (
+    create table if not exists gold.event_person (
         event_person_id               text        not null,
         extraction_key                text        not null,
         analysis_id                   integer,
@@ -71,21 +74,21 @@ select 1;
     ) partition by range (extracted_at);
 
     -- migrate pre-existing installs created before display_name was added
-    alter table public.event_person add column if not exists display_name text;
+    alter table gold.event_person add column if not exists display_name text;
 
-    create index if not exists ix_event_person_c1_event  on public.event_person (c1_event_id);
-    create index if not exists ix_event_person_state      on public.event_person (state_code);
-    create index if not exists ix_event_person_extracted  on public.event_person (extracted_at);
+    create index if not exists ix_event_person_c1_event  on gold.event_person (c1_event_id);
+    create index if not exists ix_event_person_state      on gold.event_person (state_code);
+    create index if not exists ix_event_person_extracted  on gold.event_person (extracted_at);
   {% endset %}
   {% do run_query(ddl) %}
-  {% do run_query(ensure_event_partitions('public.event_person')) %}
-  {{ log("bootstrapped partitioned table public.event_person (+ monthly partitions)", info=True) }}
+  {% do run_query(ensure_event_partitions('gold.event_person')) %}
+  {{ log("bootstrapped partitioned table gold.event_person (+ monthly partitions)", info=True) }}
 {% endmacro %}
 
 
 {% macro bootstrap_event_decision() %}
   {% set ddl %}
-    create table if not exists public.event_decision (
+    create table if not exists gold.event_decision (
         event_decision_id        text        not null,
         extraction_key           text        not null,
         analysis_id              integer,
@@ -120,19 +123,19 @@ select 1;
         unique (extraction_key, extracted_at)
     ) partition by range (extracted_at);
 
-    create index if not exists ix_event_decision_c1_event  on public.event_decision (c1_event_id);
-    create index if not exists ix_event_decision_state      on public.event_decision (state_code);
-    create index if not exists ix_event_decision_extracted  on public.event_decision (extracted_at);
+    create index if not exists ix_event_decision_c1_event  on gold.event_decision (c1_event_id);
+    create index if not exists ix_event_decision_state      on gold.event_decision (state_code);
+    create index if not exists ix_event_decision_extracted  on gold.event_decision (extracted_at);
   {% endset %}
   {% do run_query(ddl) %}
-  {% do run_query(ensure_event_partitions('public.event_decision')) %}
-  {{ log("bootstrapped partitioned table public.event_decision (+ monthly partitions)", info=True) }}
+  {% do run_query(ensure_event_partitions('gold.event_decision')) %}
+  {{ log("bootstrapped partitioned table gold.event_decision (+ monthly partitions)", info=True) }}
 {% endmacro %}
 
 
 {% macro bootstrap_event_place() %}
   {% set ddl %}
-    create table if not exists public.event_place (
+    create table if not exists gold.event_place (
         event_place_id       text        not null,
         extraction_key       text        not null,
         analysis_id          integer,
@@ -162,19 +165,19 @@ select 1;
         primary key (event_place_id, extracted_at),
         unique (extraction_key, extracted_at)
     ) partition by range (extracted_at);
-    create index if not exists ix_event_place_c1_event  on public.event_place (c1_event_id);
-    create index if not exists ix_event_place_state      on public.event_place (state_code);
-    create index if not exists ix_event_place_extracted  on public.event_place (extracted_at);
+    create index if not exists ix_event_place_c1_event  on gold.event_place (c1_event_id);
+    create index if not exists ix_event_place_state      on gold.event_place (state_code);
+    create index if not exists ix_event_place_extracted  on gold.event_place (extracted_at);
   {% endset %}
   {% do run_query(ddl) %}
-  {% do run_query(ensure_event_partitions('public.event_place')) %}
-  {{ log("bootstrapped partitioned table public.event_place (+ monthly partitions)", info=True) }}
+  {% do run_query(ensure_event_partitions('gold.event_place')) %}
+  {{ log("bootstrapped partitioned table gold.event_place (+ monthly partitions)", info=True) }}
 {% endmacro %}
 
 
 {% macro bootstrap_event_financial_item() %}
   {% set ddl %}
-    create table if not exists public.event_financial_item (
+    create table if not exists gold.event_financial_item (
         event_financial_item_id  text        not null,
         extraction_key           text        not null,
         analysis_id              integer,
@@ -196,19 +199,19 @@ select 1;
         primary key (event_financial_item_id, extracted_at),
         unique (extraction_key, extracted_at)
     ) partition by range (extracted_at);
-    create index if not exists ix_event_financial_item_c1_event  on public.event_financial_item (c1_event_id);
-    create index if not exists ix_event_financial_item_state      on public.event_financial_item (state_code);
-    create index if not exists ix_event_financial_item_extracted  on public.event_financial_item (extracted_at);
+    create index if not exists ix_event_financial_item_c1_event  on gold.event_financial_item (c1_event_id);
+    create index if not exists ix_event_financial_item_state      on gold.event_financial_item (state_code);
+    create index if not exists ix_event_financial_item_extracted  on gold.event_financial_item (extracted_at);
   {% endset %}
   {% do run_query(ddl) %}
-  {% do run_query(ensure_event_partitions('public.event_financial_item')) %}
-  {{ log("bootstrapped partitioned table public.event_financial_item (+ monthly partitions)", info=True) }}
+  {% do run_query(ensure_event_partitions('gold.event_financial_item')) %}
+  {{ log("bootstrapped partitioned table gold.event_financial_item (+ monthly partitions)", info=True) }}
 {% endmacro %}
 
 
 {% macro bootstrap_event_topic() %}
   {% set ddl %}
-    create table if not exists public.event_topic (
+    create table if not exists gold.event_topic (
         event_topic_id                text        not null,
         extraction_key                text        not null,
         analysis_id                   integer,
@@ -227,19 +230,19 @@ select 1;
         primary key (event_topic_id, extracted_at),
         unique (extraction_key, extracted_at)
     ) partition by range (extracted_at);
-    create index if not exists ix_event_topic_c1_event  on public.event_topic (c1_event_id);
-    create index if not exists ix_event_topic_state      on public.event_topic (state_code);
-    create index if not exists ix_event_topic_extracted  on public.event_topic (extracted_at);
+    create index if not exists ix_event_topic_c1_event  on gold.event_topic (c1_event_id);
+    create index if not exists ix_event_topic_state      on gold.event_topic (state_code);
+    create index if not exists ix_event_topic_extracted  on gold.event_topic (extracted_at);
   {% endset %}
   {% do run_query(ddl) %}
-  {% do run_query(ensure_event_partitions('public.event_topic')) %}
-  {{ log("bootstrapped partitioned table public.event_topic (+ monthly partitions)", info=True) }}
+  {% do run_query(ensure_event_partitions('gold.event_topic')) %}
+  {{ log("bootstrapped partitioned table gold.event_topic (+ monthly partitions)", info=True) }}
 {% endmacro %}
 
 
 {% macro bootstrap_event_bill() %}
   {% set ddl %}
-    create table if not exists public.event_bill (
+    create table if not exists gold.event_bill (
         event_bill_id        text        not null,
         extraction_key       text        not null,
         analysis_id          integer,
@@ -261,13 +264,13 @@ select 1;
         primary key (event_bill_id, extracted_at),
         unique (extraction_key, extracted_at)
     ) partition by range (extracted_at);
-    create index if not exists ix_event_bill_c1_event  on public.event_bill (c1_event_id);
-    create index if not exists ix_event_bill_state      on public.event_bill (state_code);
-    create index if not exists ix_event_bill_extracted  on public.event_bill (extracted_at);
+    create index if not exists ix_event_bill_c1_event  on gold.event_bill (c1_event_id);
+    create index if not exists ix_event_bill_state      on gold.event_bill (state_code);
+    create index if not exists ix_event_bill_extracted  on gold.event_bill (extracted_at);
   {% endset %}
   {% do run_query(ddl) %}
-  {% do run_query(ensure_event_partitions('public.event_bill')) %}
-  {{ log("bootstrapped partitioned table public.event_bill (+ monthly partitions)", info=True) }}
+  {% do run_query(ensure_event_partitions('gold.event_bill')) %}
+  {{ log("bootstrapped partitioned table gold.event_bill (+ monthly partitions)", info=True) }}
 {% endmacro %}
 
 
@@ -275,7 +278,7 @@ select 1;
   {# AGGREGATED grain: one row per org (normalized name + state) across events,
      so it carries first/last-seen event resolution rather than a single c1_event_id. #}
   {% set ddl %}
-    create table if not exists public.event_organization (
+    create table if not exists gold.event_organization (
         id                    text        not null,
         extraction_key        text        not null,
         org_id                text,
@@ -312,33 +315,33 @@ select 1;
       if not exists (
           select 1 from pg_constraint
           where conname = 'event_organization_first_meeting_fk'
-            and conrelid = 'public.event_organization'::regclass
+            and conrelid = 'gold.event_organization'::regclass
       ) then
-        alter table public.event_organization
+        alter table gold.event_organization
           add constraint event_organization_first_meeting_fk
-          foreign key (first_seen_analysis_id) references public.event_meeting(event_meeting_id);
+          foreign key (first_seen_analysis_id) references gold.event_meeting(event_meeting_id);
       end if;
       if not exists (
           select 1 from pg_constraint
           where conname = 'event_organization_last_meeting_fk'
-            and conrelid = 'public.event_organization'::regclass
+            and conrelid = 'gold.event_organization'::regclass
       ) then
-        alter table public.event_organization
+        alter table gold.event_organization
           add constraint event_organization_last_meeting_fk
-          foreign key (last_seen_analysis_id) references public.event_meeting(event_meeting_id);
+          foreign key (last_seen_analysis_id) references gold.event_meeting(event_meeting_id);
       end if;
     end $$;
 
-    create index if not exists ix_event_organization_state        on public.event_organization (state_code);
-    create index if not exists ix_event_organization_first_event  on public.event_organization (first_c1_event_id);
-    create index if not exists ix_event_organization_last_event   on public.event_organization (last_c1_event_id);
-    create index if not exists ix_event_organization_first_anls   on public.event_organization (first_seen_analysis_id);
-    create index if not exists ix_event_organization_last_anls    on public.event_organization (last_seen_analysis_id);
-    create index if not exists ix_event_organization_extracted    on public.event_organization (extracted_at);
+    create index if not exists ix_event_organization_state        on gold.event_organization (state_code);
+    create index if not exists ix_event_organization_first_event  on gold.event_organization (first_c1_event_id);
+    create index if not exists ix_event_organization_last_event   on gold.event_organization (last_c1_event_id);
+    create index if not exists ix_event_organization_first_anls   on gold.event_organization (first_seen_analysis_id);
+    create index if not exists ix_event_organization_last_anls    on gold.event_organization (last_seen_analysis_id);
+    create index if not exists ix_event_organization_extracted    on gold.event_organization (extracted_at);
   {% endset %}
   {% do run_query(ddl) %}
-  {% do run_query(ensure_event_partitions('public.event_organization')) %}
-  {{ log("bootstrapped partitioned table public.event_organization (+ monthly partitions)", info=True) }}
+  {% do run_query(ensure_event_partitions('gold.event_organization')) %}
+  {{ log("bootstrapped partitioned table gold.event_organization (+ monthly partitions)", info=True) }}
 {% endmacro %}
 
 
@@ -349,7 +352,7 @@ select 1;
      single-column FK target). One row per analysis; event_meeting_id == the
      bronze analysis id, which is exactly the children's analysis_id. #}
   {% set ddl %}
-    create table if not exists public.event_meeting (
+    create table if not exists gold.event_meeting (
         event_meeting_id     integer     not null,
         legacy_event_id      integer,
         c1_event_id          varchar(50),
@@ -380,21 +383,21 @@ select 1;
       if not exists (
           select 1 from pg_constraint
           where conname = 'event_meeting_c1_event_fk'
-            and conrelid = 'public.event_meeting'::regclass
+            and conrelid = 'gold.event_meeting'::regclass
       ) then
-        alter table public.event_meeting
+        alter table gold.event_meeting
           add constraint event_meeting_c1_event_fk
-          foreign key (legacy_event_id) references public.civic_event(legacy_id);
+          foreign key (legacy_event_id) references gold.civic_event(legacy_id);
       end if;
     end $$;
 
-    create index if not exists ix_event_meeting_c1_event  on public.event_meeting (c1_event_id);
-    create index if not exists ix_event_meeting_legacy    on public.event_meeting (legacy_event_id);
-    create index if not exists ix_event_meeting_state     on public.event_meeting (state_code);
-    create index if not exists ix_event_meeting_extracted on public.event_meeting (extracted_at);
+    create index if not exists ix_event_meeting_c1_event  on gold.event_meeting (c1_event_id);
+    create index if not exists ix_event_meeting_legacy    on gold.event_meeting (legacy_event_id);
+    create index if not exists ix_event_meeting_state     on gold.event_meeting (state_code);
+    create index if not exists ix_event_meeting_extracted on gold.event_meeting (extracted_at);
   {% endset %}
   {% do run_query(ddl) %}
-  {{ log("bootstrapped table public.event_meeting", info=True) }}
+  {{ log("bootstrapped table gold.event_meeting", info=True) }}
 {% endmacro %}
 
 
@@ -420,10 +423,10 @@ select 1;
   begin
     -- 1. rename surrogate key column: id -> {{ idcol }}
     if exists (select 1 from information_schema.columns
-               where table_schema='public' and table_name='{{ tbl }}' and column_name='id')
+               where table_schema='gold' and table_name='{{ tbl }}' and column_name='id')
        and not exists (select 1 from information_schema.columns
-               where table_schema='public' and table_name='{{ tbl }}' and column_name='{{ idcol }}') then
-      execute 'alter table public.{{ tbl }} rename column id to {{ idcol }}';
+               where table_schema='gold' and table_name='{{ tbl }}' and column_name='{{ idcol }}') then
+      execute 'alter table gold.{{ tbl }} rename column id to {{ idcol }}';
     end if;
 
     -- 2. move PK onto ({{ idcol }}, extracted_at) if it isn't already there
@@ -431,33 +434,33 @@ select 1;
         select 1
         from pg_index i
         join pg_attribute a on a.attrelid = i.indrelid and a.attnum = any(i.indkey)
-        where i.indrelid = 'public.{{ tbl }}'::regclass and i.indisprimary and a.attname = '{{ idcol }}'
+        where i.indrelid = 'gold.{{ tbl }}'::regclass and i.indisprimary and a.attname = '{{ idcol }}'
     ) then
       select conname into old_pk from pg_constraint
-        where conrelid = 'public.{{ tbl }}'::regclass and contype = 'p' limit 1;
+        where conrelid = 'gold.{{ tbl }}'::regclass and contype = 'p' limit 1;
       if old_pk is not null then
-        execute 'alter table public.{{ tbl }} drop constraint ' || quote_ident(old_pk);
+        execute 'alter table gold.{{ tbl }} drop constraint ' || quote_ident(old_pk);
       end if;
-      execute 'alter table public.{{ tbl }} add constraint {{ tbl }}_pkey primary key ({{ idcol }}, extracted_at)';
+      execute 'alter table gold.{{ tbl }} add constraint {{ tbl }}_pkey primary key ({{ idcol }}, extracted_at)';
     end if;
 
     -- 3. preserve the extraction_key dedup guarantee as a UNIQUE
     if not exists (select 1 from pg_constraint
                    where conname = '{{ tbl }}_extraction_key_uniq'
-                     and conrelid = 'public.{{ tbl }}'::regclass) then
-      execute 'alter table public.{{ tbl }} add constraint {{ tbl }}_extraction_key_uniq unique (extraction_key, extracted_at)';
+                     and conrelid = 'gold.{{ tbl }}'::regclass) then
+      execute 'alter table gold.{{ tbl }} add constraint {{ tbl }}_extraction_key_uniq unique (extraction_key, extracted_at)';
     end if;
 
     -- 4. FK into the event_meeting parent
     if not exists (select 1 from pg_constraint
                    where conname = '{{ tbl }}_event_meeting_fk'
-                     and conrelid = 'public.{{ tbl }}'::regclass) then
-      execute 'alter table public.{{ tbl }} add constraint {{ tbl }}_event_meeting_fk '
-              'foreign key (analysis_id) references public.event_meeting(event_meeting_id)';
+                     and conrelid = 'gold.{{ tbl }}'::regclass) then
+      execute 'alter table gold.{{ tbl }} add constraint {{ tbl }}_event_meeting_fk '
+              'foreign key (analysis_id) references gold.event_meeting(event_meeting_id)';
     end if;
   end $$;
   {% endset %}
   {% do run_query(sql) %}
-  {{ log("migrated keys + constraints on public." ~ tbl, info=True) }}
+  {{ log("migrated keys + constraints on gold." ~ tbl, info=True) }}
   {% endfor %}
 {% endmacro %}

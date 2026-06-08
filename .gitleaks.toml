@@ -1,0 +1,14 @@
+# Gitleaks configuration for open-navigator.
+# Extends the upstream default ruleset and adds project-specific allowlists.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Ignore generated / vendored frontend build artifacts"
+# api/static/assets/ is Vite build output copied from web_app/. The minified,
+# hashed bundles (e.g. the vendored PDF.js worker pdf.worker.min-*.mjs) contain
+# random base64-ish byte sequences that trip high-recall rules like
+# aws-access-token. These are not secrets — they are compiled JS, not source.
+paths = [
+  '''api/static/assets/.*''',
+]

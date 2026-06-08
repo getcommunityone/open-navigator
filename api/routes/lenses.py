@@ -529,7 +529,16 @@ async def get_lenses(
                         ORDER BY f.anomaly_score DESC NULLS LAST
                         LIMIT ${fidx}
                     """
-                    flag_rows = await conn.fetch(flag_sql, *flag_params, limit_per_lens)
+                    # item_flags is an optional, scaffolded anomaly table that may
+                    # not be built in every warehouse. If it's absent, degrade the
+                    # flags lens to an honest empty placeholder rather than 500-ing
+                    # the whole feed.
+                    if await conn.fetchval("SELECT to_regclass('public.item_flags')"):
+                        flag_rows = await conn.fetch(
+                            flag_sql, *flag_params, limit_per_lens
+                        )
+                    else:
+                        flag_rows = []
                     flags_lens = Lens(
                         id="flags",
                         label="Raised Eyebrows",

@@ -16,21 +16,28 @@ profile: 'open_navigator'
 # marts on every run. Guarded: no-op until the partitioned parent is bootstrapped
 # (dbt run-operation bootstrap_event_people). See macros/event_extractions.sql.
 on-run-start:
-  - "{{ ensure_event_partitions('public.event_person') }}"
-  - "{{ ensure_event_partitions('public.event_decision') }}"
-  - "{{ ensure_event_partitions('public.event_place') }}"
-  - "{{ ensure_event_partitions('public.event_financial_item') }}"
-  - "{{ ensure_event_partitions('public.event_topic') }}"
-  - "{{ ensure_event_partitions('public.event_bill') }}"
-  - "{{ ensure_event_partitions('public.event_organization') }}"
+  - "{{ ensure_event_partitions('gold.event_person') }}"
+  - "{{ ensure_event_partitions('gold.event_decision') }}"
+  - "{{ ensure_event_partitions('gold.event_place') }}"
+  - "{{ ensure_event_partitions('gold.event_financial_item') }}"
+  - "{{ ensure_event_partitions('gold.event_topic') }}"
+  - "{{ ensure_event_partitions('gold.event_bill') }}"
+  - "{{ ensure_event_partitions('gold.event_organization') }}"
 
 # Rebuild-proof the /search performance indexes. Per-model post_hooks declare them,
 # but some rebuild paths skip post_hooks and silently drop them, turning text-search
 # legs into multi-second seq-scans that blow the homepage past the frontend's
 # fetch-abort. This re-ensures them idempotently after every run.
 # See macros/ensure_search_indexes.sql.
+#
+# Then re-publish the public serving layer: the warehouse marts live in `gold`
+# (the full/private set); `public` exposes ONLY the API-served relations as thin
+# views over gold ("public = serving data and nothing else"). publish_public_serving
+# is idempotent (CREATE OR REPLACE VIEW) so it re-syncs the views after every run.
+# See macros/publish_public_serving.sql.
 on-run-end:
   - "{{ ensure_search_indexes() }}"
+  - "{{ publish_public_serving() }}"
 
 # These configurations specify where dbt should look for different types of files.
 # The `model-paths` config, for example, states that models in this project can be
@@ -62,10 +69,14 @@ models:
       +materialized: table
       +schema: intermediate
       
-    # Marts - production-ready tables
+    # Marts - production-ready tables.
+    # The FULL warehouse builds into the `gold` schema (the private/internal set).
+    # The public API reads thin views in `public` published over gold by
+    # publish_public_serving (on-run-end) for ONLY the API-served relations.
+    # generate_schema_name.sql is pass-through, so +schema: gold => literal `gold`.
     marts:
       +materialized: incremental
-      # Use default public schema (don't specify +schema to avoid public_public)
+      +schema: gold
       +on_schema_change: sync_all_columns
       +unique_key: id
 
