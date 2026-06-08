@@ -81,7 +81,12 @@ meetings as (
         select
             event_meeting_id,
             substring(jurisdiction from '(\d{5,7})')        as geoid,
-            nullif(meeting_date, '')::date                  as meeting_date_d,
+            -- meeting_date is free TEXT and can hold 'unknown'/'' etc; only cast
+            -- strings that actually look like an ISO date.
+            case
+                when meeting_date ~ '^\d{4}-\d{2}-\d{2}'
+                then substring(meeting_date from '^\d{4}-\d{2}-\d{2}')::date
+            end                                             as meeting_date_d,
             {{ normalize_meeting_body_key('body_name') }}   as body_key
         from {{ ref('event_meeting') }}
     ) em

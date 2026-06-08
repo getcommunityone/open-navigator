@@ -12,7 +12,20 @@ import {
   UsersIcon,
   CalendarIcon,
   FilmIcon,
+  DocumentTextIcon,
+  DocumentIcon,
 } from '@heroicons/react/24/outline'
+import { withSpan } from '../instrumentation'
+
+// Agenda / minutes (and any future) document attached to the meeting. `url` is an
+// absolute external PDF link that opens in a new tab. `body_name` is a terse
+// source key (e.g. "projects") — not shown on the chip labels.
+interface DecisionDocument {
+  document_type: 'agenda' | 'minutes' | string
+  url: string
+  doc_date?: string | null
+  body_name?: string | null
+}
 
 interface DecisionDetail {
   event_decision_id: string
@@ -38,6 +51,11 @@ interface DecisionDetail {
   meeting_video_id?: string | null
   source_ai_model?: string | null
   extracted_at?: string | null
+  // Phase 3: agenda/minutes document links (served by GET /api/decision/{id}).
+  documents?: DecisionDocument[] | null
+  has_agenda?: boolean | null
+  has_minutes?: boolean | null
+  minutes_status?: 'published' | 'not_published' | null
 }
 
 // snake_case / camelCase JSON key -> human label
@@ -1038,6 +1056,83 @@ function WatchAndVerify({
   )
 }
 
+// Header meta-row document chips: agenda + minutes (+ any future doc types).
+//
+// HONESTY: never fabricate a link or a date. A present document renders a teal
+// link chip to its real external `url`; an absent one renders a MUTED, non-link
+// chip ("No agenda" / "Minutes not yet published") so the gap is explicit rather
+// than hidden. `body_name` (a terse source key) is intentionally not displayed.
+function pickDoc(docs: DecisionDocument[], type: string): DecisionDocument | undefined {
+  return docs.find((d) => d.document_type === type)
+}
+
+function DocLinkChip({ label, type, url }: { label: string; type: string; url: string }) {
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={() =>
+        withSpan('decision_detail.open_document', () => {}, { 'document.type': type })
+      }
+      className="flex items-center gap-1.5 font-medium text-[#1d6b5f] hover:text-[#155448]"
+    >
+      <DocumentTextIcon className="h-4 w-4" />
+      {label}
+    </a>
+  )
+}
+
+function MutedDocChip({ label, title }: { label: string; title?: string }) {
+  return (
+    <span
+      className="flex cursor-default items-center gap-1.5 text-[#b8c2c0]"
+      title={title}
+    >
+      <DocumentIcon className="h-4 w-4 opacity-60" />
+      {label}
+    </span>
+  )
+}
+
+function MeetingDocuments({ decision }: { decision: DecisionDetail }) {
+  const docs = Array.isArray(decision.documents) ? decision.documents : []
+  const agenda = pickDoc(docs, 'agenda')
+  const minutes = pickDoc(docs, 'minutes')
+  const hasAgenda = decision.has_agenda === true || !!agenda
+  const hasMinutes = decision.has_minutes === true || !!minutes
+  // Future-proofing: any doc that isn't agenda/minutes renders as its own chip.
+  const others = docs.filter(
+    (d) => d.document_type !== 'agenda' && d.document_type !== 'minutes',
+  )
+
+  return (
+    <>
+      {hasAgenda && agenda ? (
+        <DocLinkChip label="Agenda" type="agenda" url={agenda.url} />
+      ) : (
+        <MutedDocChip label="No agenda" title="No agenda was published for this meeting." />
+      )}
+      {hasMinutes && minutes ? (
+        <DocLinkChip label="Minutes" type="minutes" url={minutes.url} />
+      ) : (
+        <MutedDocChip
+          label="Minutes not yet published"
+          title="Minutes haven't been published for this meeting yet."
+        />
+      )}
+      {others.map((d, i) => (
+        <DocLinkChip
+          key={`${d.document_type}-${i}`}
+          label={humanizeKey(d.document_type)}
+          type={d.document_type}
+          url={d.url}
+        />
+      ))}
+    </>
+  )
+}
+
 export default function DecisionDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -1178,6 +1273,7 @@ export default function DecisionDetail() {
               </span>
             )}
             <WatchRecordingLink />
+            <MeetingDocuments decision={decision} />
           </div>
         </header>
 

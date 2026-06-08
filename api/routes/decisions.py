@@ -28,6 +28,14 @@ router = APIRouter(prefix="/decision", tags=["decision"])
 tracer = trace.get_tracer(__name__)
 
 
+class MeetingDocument(BaseModel):
+    """An agenda/minutes PDF attached to the decision's meeting (suiteone)."""
+    document_type: str
+    url: str
+    doc_date: Optional[str] = None  # real DATE -> ISO 'YYYY-MM-DD' string on the wire
+    body_name: Optional[str] = None
+
+
 class DecisionDetail(BaseModel):
     """A single AI-extracted policy decision, keyed by event_decision_id."""
     event_decision_id: str
@@ -58,6 +66,12 @@ class DecisionDetail(BaseModel):
     meeting_video_id: Optional[str] = None
     source_ai_model: Optional[str] = None
     extracted_at: Optional[str] = None
+    # Associated meeting documents (agenda/minutes), joined on analysis_id ->
+    # event_meeting_id. Empty list is a meaningful state (e.g. minutes unpublished).
+    documents: List[MeetingDocument] = []
+    has_agenda: bool = False
+    has_minutes: bool = False
+    minutes_status: str = "not_published"  # 'published' | 'not_published'
 
 
 _DECISION_SQL = """
@@ -80,6 +94,7 @@ _DECISION_SQL = """
         d.state_code,
         d.city,
         d.c1_event_id,
+        d.analysis_id,
         d.decision_id,
         d.subject_id,
         d.source_ai_model,
@@ -113,6 +128,23 @@ def _parse_json(value: Any) -> Any:
         return json.loads(value)
     except (json.JSONDecodeError, ValueError):
         return value
+
+
+# Meeting documents (agenda/minutes) for a decision's meeting. Joined on
+# event_meeting_id = the decision's analysis_id. Agenda first, then minutes,
+# then oldest doc_date first. Read-only fetch on a modeled public table.
+_DOCUMENTS_SQL = """
+    SELECT
+        document_type,
+        document_url,
+        doc_date,
+        body_name
+    FROM event_meeting_document
+    WHERE event_meeting_id = $1
+    ORDER BY
+        CASE document_type WHEN 'agenda' THEN 0 WHEN 'minutes' THEN 1 ELSE 2 END,
+        doc_date NULLS LAST
+"""
 
 
 # ---------------------------------------------------------------------------
@@ -342,25 +374,67 @@ async def get_decision(event_decision_id: str) -> DecisionDetail:
         span.set_attribute("decision.event_decision_id", event_decision_id)
         try:
             pool = await get_db_pool()
+            doc_rows: list = []
             async with pool.acquire() as conn:
                 with tracer.start_as_current_span("decision-detail.query"):
                     row = await conn.fetchrow(_DECISION_SQL, event_decision_id)
 
-            if row is None:
-                span.set_attribute("decision.found", False)
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"No decision found for event_decision_id '{event_decision_id}'",
-                )
+                if row is None:
+                    span.set_attribute("decision.found", False)
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"No decision found for event_decision_id '{event_decision_id}'",
+                    )
+
+                # Associated meeting documents (agenda/minutes). Defensive: a
+                # missing/failing table or NULL analysis_id yields no documents,
+                # never a 500 on the decision itself.
+                analysis_id = row["analysis_id"]
+                if analysis_id is not None:
+                    with tracer.start_as_current_span("decision-detail.documents") as doc_span:
+                        doc_span.set_attribute("decision.analysis_id", analysis_id)
+                        try:
+                            doc_rows = await conn.fetch(_DOCUMENTS_SQL, analysis_id)
+                        except Exception as doc_err:  # noqa: BLE001 — documents are best-effort
+                            doc_span.record_exception(doc_err)
+                            logger.warning(
+                                "Meeting documents lookup failed for decision {} (analysis_id={}): {}",
+                                event_decision_id, analysis_id, doc_err,
+                            )
+                            doc_rows = []
+                        doc_span.set_attribute("decision.document_count", len(doc_rows))
+
             span.set_attribute("decision.found", True)
 
             data = dict(row)
+            data.pop("analysis_id", None)  # internal join key, not part of the response shape
             for field in _JSON_FIELDS:
                 data[field] = _parse_json(data.get(field))
             extracted = data.get("extracted_at")
             data["extracted_at"] = extracted.isoformat() if extracted is not None else None
 
-            logger.info("⚖️ Decision detail {} -> {}", event_decision_id, data.get("outcome"))
+            documents: List[MeetingDocument] = []
+            for dr in doc_rows:
+                dd = dr["doc_date"]
+                documents.append(
+                    MeetingDocument(
+                        document_type=dr["document_type"],
+                        url=dr["document_url"],
+                        # Real DATE -> ISO string on the wire; tolerate text too.
+                        doc_date=dd.isoformat() if hasattr(dd, "isoformat") else (str(dd) if dd else None),
+                        body_name=dr["body_name"],
+                    )
+                )
+            data["documents"] = documents
+            data["has_agenda"] = any(d.document_type == "agenda" for d in documents)
+            has_minutes = any(d.document_type == "minutes" for d in documents)
+            data["has_minutes"] = has_minutes
+            data["minutes_status"] = "published" if has_minutes else "not_published"
+
+            logger.info(
+                "⚖️ Decision detail {} -> {} ({} docs)",
+                event_decision_id, data.get("outcome"), len(documents),
+            )
             return DecisionDetail(**data)
 
         except HTTPException:
