@@ -254,11 +254,17 @@ def index_all(jurisdiction: Optional[str] = None) -> list[DocCandidate]:
     for mp in sorted(SCRAPE_ROOT.glob("*/*/*/_manifest.json")):
         out.extend(_index_manifest(mp))
     if jurisdiction:
-        # Match on the manifest's jurisdiction_id (what we report) or the on-disk
-        # path — the directory slug and the manifest id don't always coincide.
+        # Match on the manifest's jurisdiction_id, the canonical on-disk juris_path
+        # (<ST>/<segment>/<jid>, derived from the manifest dir), OR the recorded
+        # local_path. juris_path is the reliable one: a manifest's jurisdiction_id
+        # and local_path can carry a STALE slug (e.g. 'municipality_0177256') while
+        # the manifest actually lives under '.../tuscaloosa_0177256/'. Without the
+        # juris_path check, filtering by the real id returns zero City docs.
         out = [
             c for c in out
-            if jurisdiction in (c.jurisdiction_id or "") or jurisdiction in (c.local_path or "")
+            if jurisdiction in (c.jurisdiction_id or "")
+            or jurisdiction in (c.juris_path or "")
+            or jurisdiction in (c.local_path or "")
         ]
     return out
 
@@ -402,6 +408,8 @@ _EXTRACT_SYSTEM = """You extract the OFFICIAL structure of a municipal meeting A
 
 Extract exactly what the document states. NEVER infer or fabricate; use null or [] when something is absent. If it is an agenda (no outcomes yet), leave disposition/motions/recorded_votes/continuances empty.
 
+Many of these documents are BOARD minutes (Zoning Board of Adjustment, Planning & Zoning Commission, Board of Adjustment, Historic Preservation Commission). Board agendas/minutes are organized around CASES and PETITIONS — a numbered land-use matter with a petitioner, a subject property, and a request (rezoning, variance, special exception, subdivision, annexation, certificate of appropriateness, appeal). Capture EACH such case/petition as a `cases` entry; do NOT flatten it into `agenda_items`. Use `agenda_items` only for ordinary (non-case) business.
+
 {
   "doc_kind": "agenda" | "minutes",
   "meeting_body": "string or null",
@@ -411,6 +419,16 @@ Extract exactly what the document states. NEVER infer or fabricate; use null or 
      "title": "string",
      "disposition": "string or null (minutes only: approved/denied/tabled/continued/withdrawn)"}
   ],
+  "cases": [
+    {"case_number": "string or null (e.g. 'BZA-2024-15', 'ZN-23-007', 'PA-2024-3')",
+     "case_type": "string or null (rezoning/variance/special_exception/subdivision/annexation/historic_coa/petition/appeal)",
+     "petitioner": "string or null (applicant / petitioner name)",
+     "property_address": "string or null (subject property / location)",
+     "request": "string or null (what is being asked for)",
+     "staff_recommendation": "string or null",
+     "disposition": "string or null (minutes only: approved/denied/continued/withdrawn/tabled)",
+     "vote": "string or null (e.g. '5-0', '4-1')"}
+  ],
   "motions": [{"on_item": "string or null", "moved_by": "string or null", "seconded_by": "string or null", "text": "string or null"}],
   "recorded_votes": [{"on_item": "string or null", "yes": "int or null", "no": "int or null", "abstain": "int or null", "result": "string or null"}],
   "continuances": [{"item": "string", "continued_to": "string or null (date or future meeting)"}],
@@ -418,11 +436,34 @@ Extract exactly what the document states. NEVER infer or fabricate; use null or 
 }"""
 
 
+def _resolve_local_path(candidate: "DocCandidate") -> Optional[str]:
+    """Locate the doc file on disk, tolerant of a stale manifest path slug.
+
+    Manifests sometimes record a file under a DIFFERENT jurisdiction-dir slug than
+    where the bytes actually landed — e.g. the City of Tuscaloosa manifest records
+    '.../municipality_0177256/2025/<file>.pdf' (a dir that does not exist) while
+    the 446 real PDFs live under '.../tuscaloosa_0177256/2025/<file>.pdf'. The
+    basename is reliable, so fall back to finding it under the manifest's own
+    jurisdiction dir. Without this, every City doc is skipped as "missing".
+    """
+    path = candidate.local_path
+    if path and Path(path).exists():
+        return path
+    name = Path(path).name if path else None
+    if not name:
+        return None
+    juris_dir = SCRAPE_ROOT / candidate.juris_path
+    direct = juris_dir / name
+    if direct.exists():
+        return str(direct)
+    return next((str(p) for p in juris_dir.rglob(name)), None)
+
+
 def _normalize_to_text(candidate: "DocCandidate") -> Optional[str]:
     """Extract plain text from a doc of any supported format. None if it can't."""
-    path = candidate.local_path
-    if not path or not Path(path).exists():
-        logger.warning("Missing local file: {}", path)
+    path = _resolve_local_path(candidate)
+    if not path:
+        logger.warning("Missing local file: {}", candidate.local_path)
         return None
     fmt = candidate.fmt
     try:
@@ -454,9 +495,9 @@ def _extract_doc(candidate: "DocCandidate", api_key: str, model: str) -> Optiona
     Cost order: try CHEAP text extraction first; only fall back to (pricier)
     Gemini PDF-vision when a PDF has no usable text layer (i.e. it's scanned).
     """
-    path = candidate.local_path
-    if not path or not Path(path).exists():
-        logger.warning("Missing local file: {}", path)
+    path = _resolve_local_path(candidate)
+    if not path:
+        logger.warning("Missing local file: {}", candidate.local_path)
         return None
 
     pdf_bytes: Optional[bytes] = None
@@ -550,12 +591,14 @@ CREATE TABLE IF NOT EXISTS public.meeting_document (
     recorded_votes      JSONB,
     continuances        JSONB,
     legislation_numbers JSONB,
+    cases               JSONB,         -- land-use cases & petitions (board minutes)
     source_urls         JSONB,
     event_meeting_id    BIGINT,        -- = decision.analysis_id; clean join key
     updated_at          TIMESTAMP DEFAULT now(),
     PRIMARY KEY (jurisdiction_jid, meeting_date, doc_kind)
 );
 ALTER TABLE public.meeting_document ADD COLUMN IF NOT EXISTS event_meeting_id BIGINT;
+ALTER TABLE public.meeting_document ADD COLUMN IF NOT EXISTS cases JSONB;
 CREATE INDEX IF NOT EXISTS meeting_document_juris_date_idx
     ON public.meeting_document (jurisdiction_jid, meeting_date);
 CREATE INDEX IF NOT EXISTS meeting_document_event_meeting_idx
@@ -604,7 +647,8 @@ def load_to_warehouse(jurisdiction: Optional[str] = None) -> int:
                 jid, mdate, slot, blk.get("meeting_body"),
                 Json(blk.get("agenda_items") or []), Json(blk.get("motions") or []),
                 Json(blk.get("recorded_votes") or []), Json(blk.get("continuances") or []),
-                Json(blk.get("legislation_numbers") or []), Json(src_urls),
+                Json(blk.get("legislation_numbers") or []), Json(blk.get("cases") or []),
+                Json(src_urls),
             )
     if not rows:
         logger.warning("No merged meeting_documents found to load (jurisdiction={})", jurisdiction)
@@ -630,15 +674,15 @@ def load_to_warehouse(jurisdiction: Optional[str] = None) -> int:
             execute_values(cur, """
                 INSERT INTO public.meeting_document
                   (jurisdiction_jid, meeting_date, doc_kind, meeting_body, agenda_items,
-                   motions, recorded_votes, continuances, legislation_numbers, source_urls,
-                   event_meeting_id)
+                   motions, recorded_votes, continuances, legislation_numbers, cases,
+                   source_urls, event_meeting_id)
                 VALUES %s
                 ON CONFLICT (jurisdiction_jid, meeting_date, doc_kind) DO UPDATE SET
                   meeting_body=EXCLUDED.meeting_body, agenda_items=EXCLUDED.agenda_items,
                   motions=EXCLUDED.motions, recorded_votes=EXCLUDED.recorded_votes,
                   continuances=EXCLUDED.continuances, legislation_numbers=EXCLUDED.legislation_numbers,
-                  source_urls=EXCLUDED.source_urls, event_meeting_id=EXCLUDED.event_meeting_id,
-                  updated_at=now()
+                  cases=EXCLUDED.cases, source_urls=EXCLUDED.source_urls,
+                  event_meeting_id=EXCLUDED.event_meeting_id, updated_at=now()
             """, values)
         conn.commit()
     finally:
