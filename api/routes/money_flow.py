@@ -70,6 +70,10 @@ class FlowMeta(BaseModel):
 
 class FlowNode(BaseModel):
     name: str
+    # Per-node drill-down target. Set on BOTH source and target nodes so either
+    # side of the Sankey is clickable (a grantor node drills to that grantor's
+    # grants just as a grantee node drills to the grantee's). None = not clickable.
+    url: Optional[str] = None
 
 
 class FlowLink(BaseModel):
@@ -123,13 +127,19 @@ async def _spending(conn, *, state_code: Optional[str], city: Optional[str], sco
     if not rows:
         return lens
     src = scope_label or "Local government"
-    nodes = [FlowNode(name=_trunc(src, 24))]
+    # Source node drills to the decisions map for this scope (same target as the
+    # headline figure); each decision node drills to that decision's detail page.
+    src_url = f"/decisions-map?state={quote(state_code)}" if state_code else "/decisions-map"
+    nodes = [FlowNode(name=_trunc(src, 24), url=src_url)]
     links: List[FlowLink] = []
     total = 0.0
     for r in rows:
         amt = abs(float(r["net_dollar_impact"]))
         total += amt
-        nodes.append(FlowNode(name=_trunc(r["title"] or "Untitled decision", 40)))
+        nodes.append(FlowNode(
+            name=_trunc(r["title"] or "Untitled decision", 40),
+            url=f"/decisions/{r['event_decision_id']}",
+        ))
         sub_parts = []
         if r["outcome"]:
             sub_parts.append(r["outcome"])
@@ -182,7 +192,9 @@ async def _grants(conn, *, state_code: Optional[str]) -> FlowLens:
         key = name.strip()
         if key not in idx:
             idx[key] = len(nodes)
-            nodes.append(FlowNode(name=_trunc(key, 28)))
+            # Every org node (grantor or grantee) drills to its own grants search.
+            node_url = f"/search?q={quote(key)}&types=grants" if key else "/search?types=grants"
+            nodes.append(FlowNode(name=_trunc(key, 28), url=node_url))
         return idx[key]
 
     links: List[FlowLink] = []
@@ -235,12 +247,12 @@ async def _economy(conn) -> FlowLens:
     contrib = float(row["contributions"] or 0)
     program = float(row["program"] or 0)
     other = max(total - contrib - program, 0.0)
-    nodes = [FlowNode(name="Nonprofit sector")]
+    nodes = [FlowNode(name="Nonprofit sector", url="/nonprofits")]
     links: List[FlowLink] = []
     for label, val in (("Contributions & grants", contrib), ("Program service revenue", program), ("Other revenue", other)):
         if val <= 0:
             continue
-        nodes.append(FlowNode(name=label))
+        nodes.append(FlowNode(name=label, url="/nonprofits"))
         pct = round(100.0 * val / total) if total else 0
         links.append(FlowLink(
             source=0, target=len(nodes) - 1, value=val, value_label=money_fmt(val),

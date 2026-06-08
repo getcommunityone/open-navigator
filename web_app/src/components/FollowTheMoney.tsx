@@ -18,6 +18,8 @@ interface FlowMeta {
 }
 interface FlowNode {
   name: string
+  /** Per-node drill-down target (grantor or grantee). null = not clickable. */
+  url?: string | null
 }
 interface FlowLink {
   source: number
@@ -110,7 +112,10 @@ export default function FollowTheMoney({
         .nodeWidth(11)
         .nodePadding(22)
         .extent([
-          [148, 14],
+          // Match the left gutter (175px) to the right so long left-side names
+          // (grantors like "AUBURN UNIVERSITY FOUNDATION") render right-anchored
+          // without overflowing the SVG's left edge and clipping ("…UNIVERSITY").
+          [175, 14],
           // Pull the right edge well in (175px gutter) so the two-line target
           // labels — name + dollar value — always fit inside the viewBox and
           // never clip at the SVG edge the way a single concatenated line did.
