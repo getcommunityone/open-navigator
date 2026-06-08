@@ -21,9 +21,11 @@
       {'columns': ['state_code'], 'type': 'btree'},
       {'columns': ['event_date'], 'type': 'btree'}
     ],
-    post_hook=[
-      "CREATE INDEX IF NOT EXISTS event_documents_content_tsv_idx ON {{ this }} USING gin (content_tsv)"
-    ]
+    post_hook=(
+      [
+        "CREATE INDEX IF NOT EXISTS event_documents_content_tsv_idx ON {{ this }} USING gin (content_tsv)"
+      ] if target.name != 'neon' else []
+    )
   )
 }}
 
@@ -102,11 +104,24 @@ SELECT
     'transcript'::text                                     AS document_type,
     transcript_source                                      AS document_source,
     video_id,
+{% if target.name == 'neon' %}
+    -- Neon serving slim: full transcript text is the single largest cost on Neon
+    -- (~559 MB for the national document set). On the `neon` target we DROP the
+    -- full `content` and the precomputed `content_tsv` (and skip its GIN index,
+    -- see post_hook), keeping only a capped excerpt. National document full-text
+    -- search is therefore disabled on Neon — search_documents_pg returns empty
+    -- (content_tsv IS NULL) rather than erroring. dev keeps the full content/FTS.
+    NULL::text                                             AS content,
+    LEFT(raw_text, 300)                                    AS content_excerpt,
+    NULL::tsvector                                         AS content_tsv,
+{% else %}
     raw_text                                               AS content,
+    LEFT(raw_text, 300)                                    AS content_excerpt,
     -- Precomputed full-text vector stored alongside the raw text so the search
     -- API can ts_rank() without recomputing to_tsvector over every match.
     -- Indexed by the content_tsv GIN index (see post_hook).
     to_tsvector('english', raw_text)                       AS content_tsv,
+{% endif %}
     LENGTH(raw_text)                                       AS content_length,
     CASE
         WHEN raw_text IS NOT NULL
@@ -115,7 +130,19 @@ SELECT
     END                                                    AS word_count,
     language,
     is_auto_generated,
+{% if target.name == 'neon' %}
+    -- Slim segments: rebuild each cue as {"s": round(start,1), "t": text},
+    -- dropping the `duration` field and long float precision to shrink the JSONB.
+    CASE WHEN segments IS NULL THEN NULL ELSE (
+        SELECT jsonb_agg(jsonb_build_object(
+            's', round((elem->>'start')::numeric, 1),
+            't', elem->>'text'
+        ))
+        FROM jsonb_array_elements(segments::jsonb) AS elem
+    ) END                                                  AS segments,
+{% else %}
     segments,
+{% endif %}
     event_title,
     event_date,
     jurisdiction_name,

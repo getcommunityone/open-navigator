@@ -46,16 +46,50 @@ if not NEON_DB_URL:
     sys.exit(1)
 
 
+# Bronze tables that must NEVER be bulk-synced to Neon.
+#
+# Neon's free tier caps the serving database at ~0.5 GB ("civic-only" scope),
+# so these large and/or out-of-scope bronze tables are deliberately excluded
+# from the `--all` Neon sync. Each is either redundant on Neon or powers a
+# feature that is dropped on the free-tier deployment:
+#
+#   - bronze_event_youtube_transcript (~8.3 GB): transcript cue data is now
+#     served from public.event_documents.segments, so the raw bronze copy is
+#     not needed on Neon.
+#   - bronze_addresses (~1.0 GB): backs the parcel/property search feature
+#     (api/routes/addresses.py), which is dropped on free-tier Neon.
+#   - bronze_locations (~504 MB): backs the HiFLD infrastructure maps
+#     (api/routes/locations.py), which is dropped on free-tier Neon.
+#
+# This deny-list only filters the `--all` (and `--list`) bulk path. Naming a
+# table explicitly on the command line still syncs it, so the local/dev
+# workflow can override when intentionally targeting one of these.
+NEON_EXCLUDED_BRONZE_TABLES = frozenset({
+    'bronze_event_youtube_transcript',
+    'bronze_addresses',
+    'bronze_locations',
+})
+
+
 def get_all_bronze_tables(conn) -> List[str]:
-    """Get list of all bronze schema tables from local database."""
+    """Get list of all bronze schema tables from local database.
+
+    Tables in NEON_EXCLUDED_BRONZE_TABLES are filtered out so the bulk
+    (`--all`) Neon sync never pushes oversized / out-of-scope tables to the
+    free-tier serving database.
+    """
     with conn.cursor() as cursor:
         cursor.execute("""
-            SELECT tablename 
-            FROM pg_tables 
+            SELECT tablename
+            FROM pg_tables
             WHERE schemaname = 'bronze'
             ORDER BY tablename
         """)
-        return [row[0] for row in cursor.fetchall()]
+        return [
+            row[0]
+            for row in cursor.fetchall()
+            if row[0] not in NEON_EXCLUDED_BRONZE_TABLES
+        ]
 
 
 def table_exists(conn, table_name: str) -> bool:
@@ -317,6 +351,10 @@ Examples:
         if args.all:
             tables_to_sync = get_all_bronze_tables(local_conn)
             logger.info(f"🔄 Syncing ALL {len(tables_to_sync)} bronze tables")
+            logger.info(
+                "   Excluded from Neon (free-tier 0.5 GB scope): {}",
+                ', '.join(sorted(NEON_EXCLUDED_BRONZE_TABLES)),
+            )
         elif args.tables:
             tables_to_sync = args.tables
             logger.info(f"🔄 Syncing {len(tables_to_sync)} selected tables")

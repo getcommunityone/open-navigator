@@ -171,6 +171,44 @@ combined AS (
     SELECT * FROM localview_events
 )
 
+{#
+  Neon serving scope (target.name == 'neon'): restrict the golden-record event set
+  to ANALYZED events only — the same predicate the API enforces
+  (api/routes/search_postgres.py, EVENTS_REQUIRE_ANALYSIS=True:
+   EXISTS in mdm_bridge_event_analysis). That bridge resolves an event to an
+  analysis by YouTube video_id (event.video_id == event_meeting.video_id), so we
+  reproduce it here from event_meeting (an upstream build-dep — no circular ref to
+  the bridge, which is built AFTER this model). This drops `event` from ~153k rows
+  to the ~641 analyzed events (~129 MB -> <1 MB) to fit Neon's free tier. On the
+  `dev` target this CTE is absent and the FULL nationwide event set is built.
+#}
+{% if target.name == 'neon' %}
+, analyzed_video_ids AS (
+    SELECT DISTINCT NULLIF(TRIM(video_id), '') AS video_id
+    FROM {{ ref('event_meeting') }}
+    WHERE NULLIF(TRIM(video_id), '') IS NOT NULL
+),
+
+-- Parse the video_id out of each combined event the same way
+-- mdm_bridge_event_analysis does, so the analyzed filter matches the bridge 1:1.
+combined_scoped AS (
+    SELECT c.*
+    FROM combined c
+    WHERE COALESCE(
+            CASE
+                WHEN c.video_url LIKE '%youtube.com%' OR c.video_url LIKE '%youtu.be%'
+                THEN REGEXP_REPLACE(
+                         REGEXP_REPLACE(c.video_url, '.*[?&]v=([^&]+).*', '\1'),
+                         '.*youtu\.be/([^?]+).*', '\1')
+            END,
+            CASE
+                WHEN c.source IN ('youtube', 'localview')
+                THEN NULLIF(TRIM(c.datasource_id), '')
+            END
+          ) IN (SELECT video_id FROM analyzed_video_ids)
+)
+{% endif %}
+
 SELECT
     -- Surrogate key over the unified set
     ROW_NUMBER() OVER (ORDER BY event_date DESC NULLS LAST, video_url)::BIGINT AS event_id,
@@ -224,5 +262,9 @@ SELECT
     external_source_id::TEXT             AS external_source_id,
     CURRENT_TIMESTAMP::TIMESTAMPTZ       AS last_updated
 
+{% if target.name == 'neon' %}
+FROM combined_scoped
+{% else %}
 FROM combined
+{% endif %}
 ORDER BY event_date DESC NULLS LAST, event_id
