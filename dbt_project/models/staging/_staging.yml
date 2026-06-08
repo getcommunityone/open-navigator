@@ -1355,6 +1355,35 @@ sources:
           - name: ingestion_date
             description: "When record was loaded."
 
+      - name: bronze_jurisdiction_document
+        description: |
+          Jurisdiction-grain civic documents — comprehensive plans / frameworks,
+          zoning ordinances, ordinance codes, zoning maps. One row per document,
+          keyed by (jurisdiction_id, url_sha256). Landed by
+          ingestion.jurisdiction_documents.bronze from a curated registry of real
+          published documents (e.g. the City of Tuscaloosa "Framework"
+          comprehensive plan). DISTINCT from event_meeting_document (meeting-grain
+          agenda/minutes): these belong to the jurisdiction, not a single meeting.
+        columns:
+          - name: jurisdiction_id
+            description: "Owning jurisdiction (FK -> public.jurisdictions). Part of the PK."
+          - name: url_sha256
+            description: "SHA-256 of document_url — the per-document key part. Part of the PK."
+          - name: document_url
+            description: "Canonical URL of the document."
+          - name: document_type
+            description: "comprehensive_plan | zoning_ordinance | ordinance_code | zoning_map."
+          - name: title
+            description: "Human-readable document title."
+          - name: adopted_date
+            description: "Adoption date (DATE), null unless verified."
+          - name: source
+            description: "Publishing site / origin (e.g. 'framework.tuscaloosa.com')."
+          - name: raw
+            description: "Full registry entry as JSONB (raw fidelity)."
+          - name: ingestion_date
+            description: "When the record was loaded."
+
       - name: bronze_jurisdictions_zcta
         description: "Census ZCTA centroids and area — 33,791 ZIP Code Tabulation Areas"
         columns:
