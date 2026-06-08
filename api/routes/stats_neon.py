@@ -9,6 +9,8 @@ import os
 import asyncpg
 from datetime import datetime, timedelta
 
+from api.database import DATA_SEARCH_PATH
+
 router = APIRouter()
 
 # Cache for stats (TTL: 5 minutes - data in Neon changes infrequently)
@@ -245,7 +247,7 @@ async def _fetch_location_stats_from_jurisdiction(
     school_districts = int(school_result["count"] or 0) if school_result else 0
 
     # Leaders fallback = elected/government officials in this state
-    # (public.contact_official). Persons is left at 0 here: a live count off the
+    # (contact_official). Persons is left at 0 here: a live count off the
     # 13.7M-row person index is ~2 min, so persons_count is served only from the
     # precomputed aggregate row. This helper only runs when no aggregate row
     # exists for the location.
@@ -302,7 +304,10 @@ async def get_db_pool():
         logger.info(f"🗄️  [Stats] Connecting to {db_type}: {DATABASE_URL[:50]}...")
         
         _reset_schema_cache()
-        _db_pool = await asyncpg.create_pool(DATABASE_URL, min_size=1, max_size=10)
+        _db_pool = await asyncpg.create_pool(
+            DATABASE_URL, min_size=1, max_size=10,
+            server_settings={"search_path": DATA_SEARCH_PATH},
+        )
     return _db_pool
 
 

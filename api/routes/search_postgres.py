@@ -10,6 +10,7 @@ import os
 from datetime import datetime
 from dataclasses import dataclass
 from api.utils.formatters import format_organization_id, format_role_type, format_title
+from api.database import DATA_SEARCH_PATH
 
 # Database configuration
 # Priority: NEON_DATABASE_URL_DEV (local) > NEON_DATABASE_URL (production)
@@ -126,7 +127,10 @@ async def get_db_pool():
         db_type = "Development (Local PostgreSQL)" if NEON_DATABASE_URL_DEV else "Production (Neon)"
         logger.info(f"🗄️  Creating connection pool to {db_type}")
         
-        _db_pool = await asyncpg.create_pool(DATABASE_URL, min_size=2, max_size=20)
+        _db_pool = await asyncpg.create_pool(
+            DATABASE_URL, min_size=2, max_size=20,
+            server_settings={"search_path": DATA_SEARCH_PATH},
+        )
     return _db_pool
 
 
@@ -551,7 +555,7 @@ async def search_persons_pg(
 # "leaders" (contact_official, search_officials_pg).
 
 
-# Officials search (public.contact_official ~34k rows): cap how many ILIKE/trgm
+# Officials search (contact_official ~34k rows): cap how many ILIKE/trgm
 # candidates we rank so a broad title term (e.g. "Council Member" matches
 # thousands) can't degrade the typeahead. The pg_trgm GIN indexes on full_name
 # and title fill the cap fast; selective queries return far fewer.
@@ -565,7 +569,7 @@ async def search_officials_pg(
     limit: int = 10,
 ) -> List[SearchResult]:
     """
-    Search elected/appointed officials, backed by the public.contact_official mart.
+    Search elected/appointed officials, backed by the contact_official mart.
 
     Replaces the retired gold parquet officials feed
     (data/gold/states/<ST>/contact_official.parquet, consolidated
@@ -1065,7 +1069,7 @@ async def get_nonprofit_compensation_pg(
     """
     Person-level executive/board compensation from the GivingTuesday 990 datamarts.
 
-    Reads public.organization_nonprofit_compensation (Form 990 Part VII-A enriched
+    Reads organization_nonprofit_compensation (Form 990 Part VII-A enriched
     with Schedule J detail + org context). Returns one record per person-filing.
 
     Args:

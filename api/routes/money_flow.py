@@ -17,6 +17,7 @@ is a chart magnitude, not a bare number rendered to the user.
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
+from urllib.parse import quote
 
 from fastapi import APIRouter, Query
 from loguru import logger
@@ -189,10 +190,13 @@ async def _grants(conn, *, state_code: Optional[str]) -> FlowLens:
         sub = " · ".join(
             p for p in [(r["purpose"] or "").strip(), f"FY{r['tax_year']}" if r["tax_year"] else ""] if p
         )
+        # Drill down to this specific grantee's grants (not a generic grants list).
+        grantee = (r["grantee_name"] or "").strip()
+        url = f"/search?q={quote(grantee)}&types=grants" if grantee else "/search?types=grants"
         links.append(FlowLink(
             source=s, target=t, value=amt, value_label=money_fmt(amt),
             meta=FlowMeta(title=r["grantee_name"], subtitle=sub or None,
-                          url="/search?types=grants", source_label="990 Schedule I"),
+                          url=url, source_label="990 Schedule I"),
         ))
     lens.nodes, lens.links, lens.placeholder = nodes, links, False
     lens.head_amount = money_fmt(total)

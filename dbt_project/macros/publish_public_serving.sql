@@ -33,9 +33,10 @@
     'contact_official', 'person_government', 'jurisdictions', 'civic_jurisdiction',
     'jurisdiction_document', 'jurisdiction_mapping_analysis',
     'jurisdiction_state_aggregate', 'jurisdiction_minutes_publish_lag',
-    'grant', 'tag', 'rpt_bill_map_aggregate', 'item_interestingness',
-    'nonprofit_sector_revenue',
-    'mdm_organization', 'mdm_organization_nonprofit', 'mdm_bridge_org_jurisdiction'
+    'grant', 'grant_opportunity', 'tag', 'rpt_bill_map_aggregate',
+    'item_interestingness', 'item_flags', 'nonprofit_sector_revenue',
+    'mdm_organization', 'mdm_organization_nonprofit', 'mdm_bridge_org_jurisdiction',
+    'mdm_bridge_event_analysis'
 ] -%}
 
 {#- Per-relation column projections. Anything not listed here is published as a

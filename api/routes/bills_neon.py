@@ -15,6 +15,7 @@ import os
 from datetime import datetime, timedelta
 
 from api.errors import ErrorDetail, parse_error
+from api.database import DATA_SEARCH_PATH
 
 router = APIRouter(prefix="/bills", tags=["bills"])
 
@@ -84,7 +85,8 @@ async def get_pool():
             DATABASE_URL,
             min_size=1,
             max_size=10,
-            command_timeout=60
+            command_timeout=60,
+            server_settings={"search_path": DATA_SEARCH_PATH},
         )
     return _pool
 

@@ -106,10 +106,13 @@ export default function FollowTheMoney({
     try {
       const layout = d3Sankey<LaidNode, LaidLink>()
         .nodeWidth(11)
-        .nodePadding(18)
+        .nodePadding(22)
         .extent([
-          [150, 12],
-          [W - 150, H - 12],
+          [148, 14],
+          // Pull the right edge well in (175px gutter) so the two-line target
+          // labels — name + dollar value — always fit inside the viewBox and
+          // never clip at the SVG edge the way a single concatenated line did.
+          [W - 175, H - 14],
         ])
       const graph = layout({
         nodes: lens.nodes.map((n) => ({ ...n })) as LaidNode[],
@@ -224,11 +227,31 @@ export default function FollowTheMoney({
               {laid.nodes.map((n, i) => {
                 const leftSide = n.x0 < W / 2
                 const isSource = i === 0 && tab !== 'grants'
-                const label = leftSide
-                  ? trunc(n.name, 22)
-                  : `${trunc(n.name, 20)}  ${lensValueLabel(lens, n)}`
+                // Right-side (target) nodes drill down via their feeding link —
+                // works on all three lenses (decision / grantee / revenue split).
+                const feed = leftSide ? undefined : lensTargetLink(lens, n)
+                const clickable = !!feed?.meta.url
+                const labelX = leftSide ? n.x0 - 8 : n.x1 + 8
+                const cy = (n.y0 + n.y1) / 2
                 return (
-                  <g key={i}>
+                  <g
+                    key={i}
+                    style={{ cursor: clickable ? 'pointer' : 'default' }}
+                    onMouseMove={
+                      feed
+                        ? (e) =>
+                            setTip({
+                              x: e.clientX,
+                              y: e.clientY,
+                              meta: feed.meta,
+                              valueLabel: feed.value_label,
+                              accent,
+                            })
+                        : undefined
+                    }
+                    onMouseLeave={feed ? onSvgLeave : undefined}
+                    onClick={clickable ? () => navigate(feed!.meta.url!) : undefined}
+                  >
                     <rect
                       x={n.x0}
                       y={n.y0}
@@ -237,17 +260,38 @@ export default function FollowTheMoney({
                       rx={2}
                       fill={isSource ? '#44403c' : tab === 'economy' ? '#a78bfa' : '#78716c'}
                     />
-                    <text
-                      x={leftSide ? n.x0 - 8 : n.x1 + 8}
-                      y={(n.y0 + n.y1) / 2}
-                      dy="0.32em"
-                      textAnchor={leftSide ? 'end' : 'start'}
-                      fontSize={12}
-                      fill={leftSide ? '#44403c' : '#78716c'}
-                      style={{ fontFamily: "'DM Sans', sans-serif" }}
-                    >
-                      {label}
-                    </text>
+                    {leftSide ? (
+                      <text
+                        x={labelX}
+                        y={cy}
+                        dy="0.32em"
+                        textAnchor="end"
+                        fontSize={12}
+                        fill="#44403c"
+                        style={{ fontFamily: "'DM Sans', sans-serif" }}
+                      >
+                        {trunc(n.name, 24)}
+                      </text>
+                    ) : (
+                      // Two lines: name on top, the dollar value beneath in the
+                      // lens accent. Splitting them keeps the value on-screen
+                      // instead of being clipped off the right edge.
+                      <text x={labelX} y={cy} textAnchor="start" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                        <tspan x={labelX} dy="-0.25em" fontSize={12} fontWeight={600} fill="#44403c">
+                          {trunc(n.name, 22)}
+                        </tspan>
+                        <tspan
+                          x={labelX}
+                          dy="1.25em"
+                          fontSize={11}
+                          fontWeight={700}
+                          fill={accent}
+                          style={{ fontFamily: "'DM Mono', ui-monospace, monospace" }}
+                        >
+                          {feed?.value_label || lensValueLabel(lens, n)}
+                        </tspan>
+                      </text>
+                    )}
                   </g>
                 )
               })}
@@ -293,11 +337,16 @@ export default function FollowTheMoney({
   )
 }
 
+// The link that feeds a right-side (target) node — its meta.url is the
+// drill-down target and its value_label is the node's pre-formatted amount.
+function lensTargetLink(lens: FlowLens | undefined, node: LaidNode): FlowLink | undefined {
+  if (!lens) return undefined
+  const idx = lens.nodes.findIndex((n) => n.name === node.name)
+  return lens.links.find((l) => l.target === idx)
+}
+
 // Right-side node value label: reuse the feeding link's pre-formatted
 // value_label (never re-format numbers on the client).
 function lensValueLabel(lens: FlowLens | undefined, node: LaidNode): string {
-  if (!lens) return ''
-  const idx = lens.nodes.findIndex((n) => n.name === node.name)
-  const link = lens.links.find((l) => l.target === idx)
-  return link?.value_label || ''
+  return lensTargetLink(lens, node)?.value_label || ''
 }

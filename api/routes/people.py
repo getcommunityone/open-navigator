@@ -1,5 +1,5 @@
 """
-Person-detail endpoint, backed by the MDM person master (public.mdm_person).
+Person-detail endpoint, backed by the MDM person master (mdm_person).
 
 Serves a single person by their unique row key (person_uid), which the /search
 person results link to (url=/person/{person_uid}).
@@ -197,19 +197,41 @@ def _official_to_detail(row, colleagues: List[PersonColleague]) -> PersonDetail:
     )
 
 
+# The mdm_person graph is GOLD-ONLY (private). On the public API schema it is
+# absent, so /person/{id} serves officials only (person_government). Probe once
+# per process via search_path-aware to_regclass; None => skip the mdm_person legs
+# and go straight to the official fallback instead of erroring on a missing table.
+_MDM_PERSON_AVAILABLE: Optional[bool] = None
+
+
+async def _mdm_person_available(conn) -> bool:
+    global _MDM_PERSON_AVAILABLE
+    if _MDM_PERSON_AVAILABLE is None:
+        _MDM_PERSON_AVAILABLE = (
+            await conn.fetchval("SELECT to_regclass('mdm_person')")
+        ) is not None
+    return _MDM_PERSON_AVAILABLE
+
+
 @router.get("/{person_uid:path}", response_model=PersonDetail)
 async def get_person(person_uid: str) -> PersonDetail:
     """
     Return a single person (and their org affiliations) by person_uid.
     404 if no person row matches.
+
+    On the public API the mdm_person graph is private (gold-only), so this serves
+    officials only (person_government); a private/gold instance also resolves
+    non-official MDM persons.
     """
     with tracer.start_as_current_span("person-detail") as span:
         span.set_attribute("person.person_uid", person_uid)
         try:
             pool = await get_db_pool()
             async with pool.acquire() as conn:
-                with tracer.start_as_current_span("person-detail.query-person"):
-                    person_row = await conn.fetchrow(_PERSON_SQL, person_uid)
+                person_row = None
+                if await _mdm_person_available(conn):
+                    with tracer.start_as_current_span("person-detail.query-person"):
+                        person_row = await conn.fetchrow(_PERSON_SQL, person_uid)
 
                 if person_row is None:
                     # Not in the MDM master — resolve as the government person

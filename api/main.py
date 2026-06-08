@@ -1423,7 +1423,7 @@ async def startup_event():
     except Exception as e:
         logger.warning(f"  ⚠️  Could not read per-state event counts from public schema: {e}")
 
-    # Officials are served from public.contact_official (not parquet). Log the
+    # Officials are served from contact_official (not parquet). Log the
     # live row count once so the startup banner still reports officials volume.
     try:
         import psycopg2
@@ -1433,13 +1433,13 @@ async def startup_event():
         )
         _conn = psycopg2.connect(_officials_dsn)
         _cur = _conn.cursor()
-        _cur.execute("SELECT count(*) FROM public.contact_official")
+        _cur.execute("SELECT count(*) FROM contact_official")
         _officials_count = _cur.fetchone()[0]
         _cur.close()
         _conn.close()
-        logger.info(f"  🏛️  public.contact_official: {_officials_count:,} officials")
+        logger.info(f"  🏛️  contact_official: {_officials_count:,} officials")
     except Exception as e:
-        logger.warning(f"  ⚠️  Could not count public.contact_official: {e}")
+        logger.warning(f"  ⚠️  Could not count contact_official: {e}")
 
     # Validate HuggingFace datasets if running on HF Spaces
     if IS_HF_SPACES:
