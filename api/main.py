@@ -344,6 +344,7 @@ from api.routes import geocode as geocode_routes
 from api.routes import cpi as cpi_routes
 from api.routes import grants as grants_routes
 from api.routes import lenses as lenses_routes
+from api.routes import money_flow as money_flow_routes
 from api.database import init_db
 
 app.include_router(auth_routes.router, prefix="/api")
@@ -371,6 +372,8 @@ app.include_router(grants_routes.router, prefix="/api")
 # Prefix ("/api/lenses") is baked into the router — include with NO extra prefix
 # (mirrors how trending_routes is registered).
 app.include_router(lenses_routes.router)
+# Prefix ("/api/money-flow") baked into the router — include with NO extra prefix.
+app.include_router(money_flow_routes.router)
 
 # Custom Swagger UI with logo
 @app.get("/docs", include_in_schema=False)
