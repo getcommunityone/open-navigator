@@ -741,12 +741,21 @@ def call_gemini_text(
     system_instruction: str = "",
     temperature: float = 0.1,
     max_output_tokens: int = 65536,
+    pdf_bytes: Optional[bytes] = None,
+    pdf_mime: str = "application/pdf",
 ) -> TextGenAIResult:
-    """Single-turn text generation via AI Studio API (rotates across the key pool)."""
+    """Single-turn generation via AI Studio API (rotates across the key pool).
+
+    When ``pdf_bytes`` is given, the document is attached as a native PDF part so
+    Gemini reads it with vision — handling SCANNED PDFs that have no extractable
+    text layer (plain text extraction returns empty for those).
+    """
     from google.genai import types
 
     pool = _key_pool(api_key)
     parts = [types.Part.from_text(text=user_text)]
+    if pdf_bytes:
+        parts.append(types.Part.from_bytes(data=pdf_bytes, mime_type=pdf_mime))
     config_kwargs: dict[str, Any] = dict(
         temperature=temperature,
         max_output_tokens=max_output_tokens,
