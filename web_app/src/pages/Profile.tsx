@@ -138,14 +138,24 @@ export default function Profile() {
               <SocialStats showBreakdown={true} clickable={false} />
             </div>
 
-            {/* Edit Profile Button */}
-            <a 
-              href="/settings"
-              className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              <Cog6ToothIcon className="h-5 w-5" />
-              <span>Edit Profile</span>
-            </a>
+            {/* Feed setup + Edit Profile */}
+            <div className="flex flex-col gap-2">
+              <a
+                href="/feed-setup"
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-white transition-colors hover:opacity-90"
+                style={{ backgroundColor: '#0f766e' }}
+              >
+                <Cog6ToothIcon className="h-5 w-5" />
+                <span>Set up your feed</span>
+              </a>
+              <a
+                href="/settings"
+                className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                <Cog6ToothIcon className="h-5 w-5" />
+                <span>Edit Profile</span>
+              </a>
+            </div>
           </div>
         </div>
 

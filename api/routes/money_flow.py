@@ -58,6 +58,25 @@ def _trunc(text: str, n: int) -> str:
     return text if len(text) <= n else text[: n - 1] + "…"
 
 
+# WHEN selector (shared with the homepage feed) -> a day cutoff applied to the
+# spending lens, whose rows carry real occurred_at dates. None == no time filter
+# (the 'all' / 'auto' grains, and any unknown value). Grants and economy are 990
+# aggregates spanning multiple tax years, not event-dated, so the window does not
+# apply to them — we never invent a date filter for a snapshot (No Fabricated Data).
+_WINDOW_DAYS: Dict[str, int] = {
+    "month": 31,
+    "quarter": 92,
+    "year": 366,
+    "fiveyear": 1830,
+}
+
+
+def _window_days(window: Optional[str]) -> Optional[int]:
+    if not window:
+        return None
+    return _WINDOW_DAYS.get(window.strip().lower())
+
+
 # ---------------------------------------------------------------------------
 # Response models
 # ---------------------------------------------------------------------------
@@ -105,15 +124,25 @@ _SPENDING_SQL = """
     WHERE net_dollar_impact IS NOT NULL AND net_dollar_impact <> 0
       AND ($1::text IS NULL OR state_code = $1)
       AND ($2::text IS NULL OR jurisdiction_name ILIKE $2)
+      AND ($3::int IS NULL OR occurred_at >= (current_date - $3::int))
     ORDER BY abs(net_dollar_impact) DESC
     LIMIT 6
 """
 
 
-async def _spending(conn, *, state_code: Optional[str], city: Optional[str], scope_label: str) -> FlowLens:
+async def _spending(
+    conn,
+    *,
+    state_code: Optional[str],
+    city: Optional[str],
+    scope_label: str,
+    window_days: Optional[int],
+) -> FlowLens:
     lens = FlowLens(accent=_ACCENT["spending"])
     try:
-        rows = await conn.fetch(_SPENDING_SQL, state_code, f"%{city}%" if city else None)
+        rows = await conn.fetch(
+            _SPENDING_SQL, state_code, f"%{city}%" if city else None, window_days
+        )
     except Exception as exc:  # noqa: BLE001
         logger.warning("money-flow spending failed: {}", exc)
         return lens
@@ -202,28 +231,44 @@ async def _grants(conn, *, state_code: Optional[str]) -> FlowLens:
     return lens
 
 
-# Reads the one-row pre-aggregation mart (public.nonprofit_sector_revenue)
-# instead of SUM-scanning the 3.6M-row mdm_organization_nonprofit satellite on
-# every request (~590ms -> ~0.1ms). The figure is national (the satellite has no
-# usable state column), so scope is always 'us'.
+# Reads the pre-aggregation mart (public.nonprofit_sector_revenue) instead of
+# SUM-scanning the 3.6M-row mdm_organization_nonprofit satellite on every request
+# (~590ms -> ~0.1ms). The mart is keyed by scope_key at us / state / city grain;
+# we fetch every candidate key for the visitor's place in one round-trip and pick
+# the most specific non-empty row in Python (city -> state -> us).
 _ECONOMY_SQL = """
-    SELECT contributions,
+    SELECT scope_key, scope, state_code, city_norm,
+           contributions,
            program_service_revenue AS program,
            total_revenue           AS total,
            org_count               AS orgs
     FROM nonprofit_sector_revenue
-    WHERE scope = 'us'
+    WHERE scope_key = ANY($1::text[])
 """
 
 
-async def _economy(conn) -> FlowLens:
+async def _economy(conn, *, state_code: Optional[str], city: Optional[str]) -> FlowLens:
     lens = FlowLens(accent=_ACCENT["economy"])
+
+    # Candidate scope keys, most specific first. city_norm in the mart is the
+    # lowercased city name (e.g. 'tuscaloosa'), so normalize the raw input to match.
+    city_norm = city.strip().lower() if city else None
+    candidates: List[str] = []
+    if state_code and city_norm:
+        candidates.append(f"city:{state_code}|{city_norm}")
+    if state_code:
+        candidates.append(f"state:{state_code}")
+    candidates.append("us")
+
     try:
-        row = await conn.fetchrow(_ECONOMY_SQL)
+        rows = await conn.fetch(_ECONOMY_SQL, candidates)
     except Exception as exc:  # noqa: BLE001
         logger.warning("money-flow economy failed: {}", exc)
         return lens
-    if row is None or not row["total"]:
+    by_key = {r["scope_key"]: r for r in rows}
+    # First candidate (most specific) with real revenue wins; fall back outward.
+    row = next((by_key[k] for k in candidates if by_key.get(k) and by_key[k]["total"]), None)
+    if row is None:
         return lens
     total = float(row["total"])
     contrib = float(row["contributions"] or 0)
@@ -245,10 +290,19 @@ async def _economy(conn) -> FlowLens:
         return lens
     lens.nodes, lens.links, lens.placeholder = nodes, links, False
     lens.head_amount = money_fmt(total)
-    # mdm_organization_nonprofit has no usable state column, so this lens is
-    # always the U.S. sector — label it as such rather than imply it's local.
-    lens.head_label = "U.S. nonprofit sector revenue"
-    lens.count_label = f"{int(row['orgs']):,} orgs · 990 · nationwide"
+    # Label honestly with the grain that actually matched (city / state / U.S.),
+    # rather than implying a national figure is local.
+    scope = row["scope"]
+    if scope == "city" and row["city_norm"] and row["state_code"]:
+        place = f"{row['city_norm'].title()}, {row['state_code']}"
+        lens.head_label = f"{place} nonprofit sector revenue"
+        lens.count_label = f"{int(row['orgs']):,} orgs · 990 · {place}"
+    elif scope == "state" and row["state_code"]:
+        lens.head_label = f"{row['state_code']} nonprofit sector revenue"
+        lens.count_label = f"{int(row['orgs']):,} orgs · 990 · {row['state_code']}"
+    else:
+        lens.head_label = "U.S. nonprofit sector revenue"
+        lens.count_label = f"{int(row['orgs']):,} orgs · 990 · nationwide"
     return lens
 
 
@@ -256,8 +310,12 @@ async def _economy(conn) -> FlowLens:
 async def get_money_flow(
     state: Optional[str] = Query(None, description="2-letter or full state name"),
     city: Optional[str] = Query(None, description="City name"),
+    window: Optional[str] = Query(
+        None, description="Time window for the spending lens: month|quarter|year|fiveyear|all"
+    ),
 ) -> MoneyFlowResponse:
     state_code = normalize_state_input(state)
+    window_days = _window_days(window)
     if state_code and city:
         scope_label = f"{city}, {state_code}"
     elif city:
@@ -271,6 +329,7 @@ async def get_money_flow(
     with tracer.start_as_current_span("money-flow") as span:
         span.set_attribute("money_flow.state", state_code or "")
         span.set_attribute("money_flow.city", city or "")
+        span.set_attribute("money_flow.window", window or "")
         pool = await get_db_pool()
 
         # Run the three lenses concurrently, each on its own pooled connection
@@ -283,9 +342,11 @@ async def get_money_flow(
                 return await builder(conn)
 
         spending, grants, economy = await asyncio.gather(
-            _with_conn(lambda c: _spending(c, state_code=state_code, city=city, scope_label=scope_label)),
+            _with_conn(lambda c: _spending(
+                c, state_code=state_code, city=city, scope_label=scope_label, window_days=window_days,
+            )),
             _with_conn(lambda c: _grants(c, state_code=state_code)),
-            _with_conn(_economy),
+            _with_conn(lambda c: _economy(c, state_code=state_code, city=city)),
         )
 
     return MoneyFlowResponse(

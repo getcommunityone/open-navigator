@@ -17,6 +17,7 @@ import PeopleFinder from './pages/PeopleFinder'
 import PersonDetail from './pages/PersonDetail'
 import DebateFinder from './pages/DebateGrader'
 import Profile from './pages/Profile'
+import FeedSetup from './pages/FeedSetup'
 import Explore from './pages/Explore'
 import Events from './pages/Events'
 import Services from './pages/Services'
@@ -185,6 +186,7 @@ function App() {
         <Route path="nonprofits-hf" element={<NonprofitsHF />} />
         <Route path="debate-grader" element={<DebateFinder />} />
         <Route path="profile" element={<Profile />} />
+        <Route path="feed-setup" element={<FeedSetup />} />
         <Route path="settings" element={<Settings />} />
         <Route path="events" element={<Events />} />
         <Route path="services" element={<Services />} />

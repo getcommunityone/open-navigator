@@ -45,6 +45,12 @@ export interface FollowTheMoneyProps {
   stateCode?: string
   city?: string
   national?: boolean
+  /**
+   * WHEN selector value (month|quarter|year|fiveyear|all) from the Money Moves
+   * header. Applies to the spending lens (real occurred_at dates); grants and the
+   * economy snapshot are multi-year 990 aggregates and ignore it server-side.
+   */
+  window?: string
 }
 
 type LensKey = 'spending' | 'grants' | 'economy'
@@ -55,7 +61,7 @@ const TABS: { key: LensKey; label: string }[] = [
 ]
 
 const W = 800
-const H = 300
+const H = 360
 
 // d3-sankey node/link after layout (geometry attached to copies of our data).
 type LaidNode = FlowNode & { x0: number; x1: number; y0: number; y1: number; value: number }
@@ -80,6 +86,7 @@ export default function FollowTheMoney({
   stateCode,
   city,
   national = false,
+  window,
 }: FollowTheMoneyProps) {
   const navigate = useNavigate()
   const [tab, setTab] = useState<LensKey>('spending')
@@ -87,12 +94,16 @@ export default function FollowTheMoney({
 
   const scopedState = national ? undefined : stateCode || undefined
   const scopedCity = national ? undefined : city || undefined
+  // 'all'/'auto'/undefined => no time filter; the API maps the rest to a cutoff.
+  const scopedWindow = window && window !== 'all' && window !== 'auto' ? window : undefined
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['money-flow', national, scopedState, scopedCity],
+    queryKey: ['money-flow', national, scopedState, scopedCity, scopedWindow],
     queryFn: () =>
       api
-        .get('/money-flow', { params: { state: scopedState, city: scopedCity } })
+        .get('/money-flow', {
+          params: { state: scopedState, city: scopedCity, window: scopedWindow },
+        })
         .then((r) => r.data as MoneyFlowResp),
     staleTime: 5 * 60 * 1000,
   })
@@ -106,10 +117,12 @@ export default function FollowTheMoney({
     try {
       const layout = d3Sankey<LaidNode, LaidLink>()
         .nodeWidth(11)
-        .nodePadding(18)
+        .nodePadding(26)
         .extent([
-          [150, 12],
-          [W - 150, H - 12],
+          [150, 16],
+          // Narrow the flow body so the right-hand labels get a wide gutter
+          // (~300px) instead of being clipped against the viewBox edge.
+          [W - 300, H - 16],
         ])
       const graph = layout({
         nodes: lens.nodes.map((n) => ({ ...n })) as LaidNode[],
@@ -124,6 +137,19 @@ export default function FollowTheMoney({
       return null
     }
   }, [lens])
+
+  // Drill-down target for the source jurisdiction node (spending lens). Opens the
+  // jurisdictions view scoped to this place. Null for the nationwide/unscoped
+  // view, where there's no single jurisdiction to drill into.
+  const jurisdictionUrl = useMemo(() => {
+    if (national || (!scopedCity && !scopedState)) return null
+    const params = new URLSearchParams()
+    const q = scopedCity || scopedState || ''
+    if (q) params.set('q', q)
+    if (scopedState) params.set('state', scopedState)
+    if (scopedCity) params.set('city', scopedCity)
+    return `/jurisdictions?${params.toString()}`
+  }, [national, scopedCity, scopedState])
 
   const onSvgLeave = () => setTip(null)
   const onLinkMove = (e: React.MouseEvent, l: LaidLink) =>
@@ -224,11 +250,21 @@ export default function FollowTheMoney({
               {laid.nodes.map((n, i) => {
                 const leftSide = n.x0 < W / 2
                 const isSource = i === 0 && tab !== 'grants'
-                const label = leftSide
-                  ? trunc(n.name, 22)
-                  : `${trunc(n.name, 20)}  ${lensValueLabel(lens, n)}`
+                // The link feeding this node (if any) carries its full title and
+                // drill-down url; the source jurisdiction node has no feed, so it
+                // falls back to a jurisdiction-scoped drill-down.
+                const inc = laid.links.find(({ link }) => link.target === n)?.link
+                const isJurisdiction = tab === 'spending' && isSource
+                const href = inc?.meta.url || (isJurisdiction ? jurisdictionUrl : null)
+                const tx = leftSide ? n.x0 - 8 : n.x1 + 8
                 return (
-                  <g key={i}>
+                  <g
+                    key={i}
+                    style={{ cursor: href ? 'pointer' : 'default' }}
+                    onClick={href ? () => navigate(href) : undefined}
+                    onMouseMove={inc ? (e) => onLinkMove(e, inc) : undefined}
+                    onMouseLeave={inc ? onSvgLeave : undefined}
+                  >
                     <rect
                       x={n.x0}
                       y={n.y0}
@@ -238,15 +274,28 @@ export default function FollowTheMoney({
                       fill={isSource ? '#44403c' : tab === 'economy' ? '#a78bfa' : '#78716c'}
                     />
                     <text
-                      x={leftSide ? n.x0 - 8 : n.x1 + 8}
+                      x={tx}
                       y={(n.y0 + n.y1) / 2}
-                      dy="0.32em"
                       textAnchor={leftSide ? 'end' : 'start'}
-                      fontSize={12}
-                      fill={leftSide ? '#44403c' : '#78716c'}
+                      fill={leftSide ? '#44403c' : '#57534e'}
                       style={{ fontFamily: "'DM Sans', sans-serif" }}
                     >
-                      {label}
+                      {leftSide ? (
+                        <tspan dy="0.32em" fontSize={12} fontWeight={isSource ? 700 : 400}>
+                          {trunc(n.name, 24)}
+                        </tspan>
+                      ) : (
+                        // Name on top, dollar value on its own line (lens accent)
+                        // so the label never overflows the gutter or collides.
+                        <>
+                          <tspan x={tx} dy="-0.15em" fontSize={12} fontWeight={600} fill="#292524">
+                            {trunc(n.name, 38)}
+                          </tspan>
+                          <tspan x={tx} dy="1.3em" fontSize={11} fontWeight={700} fill={accent}>
+                            {inc?.value_label || ''}
+                          </tspan>
+                        </>
+                      )}
                     </text>
                   </g>
                 )
@@ -291,13 +340,4 @@ export default function FollowTheMoney({
       <div className="mx-auto max-w-4xl">{body}</div>
     </section>
   )
-}
-
-// Right-side node value label: reuse the feeding link's pre-formatted
-// value_label (never re-format numbers on the client).
-function lensValueLabel(lens: FlowLens | undefined, node: LaidNode): string {
-  if (!lens) return ''
-  const idx = lens.nodes.findIndex((n) => n.name === node.name)
-  const link = lens.links.find((l) => l.target === idx)
-  return link?.value_label || ''
 }

@@ -1,25 +1,28 @@
 version: 2
 
-# public.nonprofit_sector_revenue — one-row pre-aggregation of the national 990
-# nonprofit-sector revenue decomposition, serving the /api/money-flow "economy"
-# lens. Replaces a per-request SUM over the 3.6M-row mdm_organization_nonprofit
-# satellite. Single synthetic PK (scope = 'us') since the grain is "the U.S.".
+# public.nonprofit_sector_revenue — pre-aggregation of the 990 nonprofit-sector
+# revenue decomposition, serving the /api/money-flow "economy" lens at three
+# grains (us / state / city). Replaces a per-request SUM over the 3.6M-row
+# mdm_organization_nonprofit satellite. Keyed by scope_key so the API can look up
+# the most specific available row ('city:AL|tuscaloosa' -> 'state:AL' -> 'us').
 
 models:
   - name: nonprofit_sector_revenue
     description: >
-      Single-row national aggregate of 990 nonprofit-sector revenue:
-      contributions, program-service revenue, total revenue, and org count.
-      Pre-computed from mdm_organization_nonprofit so the money-flow "economy"
-      lens reads one row instead of scanning the full satellite per request.
+      Pre-computed 990 nonprofit-sector revenue decomposition (contributions,
+      program-service revenue, total revenue, org count) at us / per-state /
+      per-city grains, so the money-flow "economy" lens reads one row scoped to
+      the visitor's jurisdiction instead of scanning the full satellite per
+      request. Geography comes from the 1:1 mdm_organization join (state_code /
+      city_norm).
     config:
       materialized: table
       on_schema_change: fail
       contract:
         enforced: true
     columns:
-      - name: scope
-        description: "PK; geographic grain. Always 'us' — the figure is national (no state column on the source)."
+      - name: scope_key
+        description: "PK; encodes grain + place: 'us', 'state:<code>', or 'city:<code>|<city_norm>'."
         data_type: text
         constraints:
           - type: not_null
@@ -27,18 +30,32 @@ models:
         tests:
           - unique
           - not_null
+      - name: scope
+        description: "Grain of the row: 'us' | 'state' | 'city'."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              values: ['us', 'state', 'city']
+      - name: state_code
+        description: "2-letter state code; NULL for the 'us' grain."
+        data_type: text
+      - name: city_norm
+        description: "Normalized (lowercased) city name; NULL for the 'us' and 'state' grains."
+        data_type: text
       - name: contributions
-        description: "SUM of gt990_total_contributions across all 990-filing nonprofits."
+        description: "SUM of gt990_total_contributions across the scope's 990-filing nonprofits."
         data_type: bigint
         constraints:
           - type: not_null
       - name: program_service_revenue
-        description: "SUM of gt990_program_service_revenue."
+        description: "SUM of gt990_program_service_revenue for the scope."
         data_type: bigint
         constraints:
           - type: not_null
       - name: total_revenue
-        description: "SUM of COALESCE(gt990_total_revenue, revenue)."
+        description: "SUM of COALESCE(gt990_total_revenue, revenue) for the scope."
         data_type: bigint
         constraints:
           - type: not_null

@@ -1000,7 +1000,13 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
       ) : lensId === 'money' ? (
         // Money Moves -> the Follow-the-money Sankey hero (its own /api/money-flow
         // fetch, scoped) so every figure is warehouse-traced.
-        <FollowTheMoney embedded national={national} stateCode={stateCode} city={city} />
+        <FollowTheMoney
+          embedded
+          national={national}
+          stateCode={stateCode}
+          city={city}
+          window={windowParam}
+        />
       ) : (
         <>
           {selected.note && <LensNote note={selected.note} />}
