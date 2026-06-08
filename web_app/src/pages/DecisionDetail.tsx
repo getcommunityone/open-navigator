@@ -244,7 +244,7 @@ function ViewColumn({
 
   return (
     <div
-      className="h-full rounded-xl border border-[#e1ebe7] p-4 sm:p-5"
+      className="rounded-xl border border-[#e1ebe7] p-4 sm:p-5"
       style={{ borderLeftWidth: 4, borderLeftColor: accent, background: isPrev ? '#f6faf9' : '#fef8f5' }}
     >
       <span
@@ -373,7 +373,7 @@ function CompetingViews({ data, unanimous = false }: { data: unknown; unanimous?
 
       <div className="my-5 border-t border-[#e1ebe7]" />
 
-      <div className={single ? '' : 'grid items-stretch gap-4 md:grid-cols-2'}>
+      <div className={single ? '' : 'grid items-start gap-4 md:grid-cols-2'}>
         <ViewColumn
           side={dominant ? 'prevailing' : 'other'}
           view={leftView}

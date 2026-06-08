@@ -81,19 +81,24 @@ export function MeetingVideoProvider({
   })
   const cues: Cue[] = data?.segments ?? []
 
+  // Tokenize the transcript ONCE per video; every claim/badge match reuses this
+  // index instead of re-tokenizing all cues (the old hot path: 15-30 badges ×
+  // thousands of cues re-tokenized on each render = the slow page render).
+  const cueIndex = useMemo(() => buildCueIndex(cues), [cues])
+
   const matchText = useCallback(
     (text: string): Resolved | null => {
-      if (!videoId || cues.length === 0 || !text?.trim()) return null
-      const m = findBestMatch(cues, extractKeywords(text))
+      if (!videoId || cueIndex.cues.length === 0 || !text?.trim()) return null
+      const m = findBestMatchIndexed(cueIndex, extractKeywords(text))
       if (!m || m.score < MIN_MATCH_SCORE) return null
       const idxs = m.windowIndices.length ? m.windowIndices : [0]
       const cueText = idxs
-        .map((i) => cues[i]?.text)
+        .map((i) => cueIndex.cues[i]?.text)
         .filter(Boolean)
         .join(' ')
       return { seconds: m.startSeconds, label: fmt(m.startSeconds), cueText }
     },
-    [videoId, cues],
+    [videoId, cueIndex],
   )
 
   const seek = useCallback((seconds: number) => {
