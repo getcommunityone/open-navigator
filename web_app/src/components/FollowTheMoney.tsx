@@ -30,6 +30,8 @@ interface FlowLens {
   accent: string
   head_amount: string
   head_label: string
+  /** Aggregate drill-down for the headline figure (decisions / grants / nonprofits). */
+  head_url?: string | null
   count_label: string
   nodes: FlowNode[]
   links: FlowLink[]
@@ -185,9 +187,24 @@ export default function FollowTheMoney({
         <div className="flex items-baseline justify-between gap-3 px-5 pb-1 pt-3">
           <div className="text-[13px] text-gray-500">
             {lens && !lens.placeholder ? (
-              <>
-                <b className="text-[15px] font-bold text-[#0f2b2b]">{lens.head_amount}</b> {lens.head_label}
-              </>
+              lens.head_url ? (
+                <button
+                  type="button"
+                  onClick={() => navigate(lens.head_url!)}
+                  title="See the full breakdown"
+                  className="group inline-flex items-baseline gap-1 text-left text-gray-500 transition-colors hover:text-gray-800"
+                >
+                  <b className="text-[15px] font-bold text-[#0f2b2b] group-hover:underline">{lens.head_amount}</b>
+                  <span>{lens.head_label}</span>
+                  <span aria-hidden className="text-gray-400 transition-transform group-hover:translate-x-0.5">
+                    &rarr;
+                  </span>
+                </button>
+              ) : (
+                <>
+                  <b className="text-[15px] font-bold text-[#0f2b2b]">{lens.head_amount}</b> {lens.head_label}
+                </>
+              )
             ) : (
               <span className="text-gray-400">—</span>
             )}

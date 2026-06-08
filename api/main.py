@@ -329,6 +329,7 @@ from api.routes import jurisdiction_documents as jurisdiction_documents_routes
 from api.routes import jurisdiction_meeting_documents as jurisdiction_meeting_documents_routes
 from api.routes import event_bills as event_bills_routes
 from api.routes import meetings as meetings_routes
+from api.routes import meeting_comparison as meeting_comparison_routes
 # Use Neon database for fast stats queries (500x faster than parquet)
 from api.routes import stats_neon as stats_routes  # Was: stats
 from api.routes import contact as contact_routes
@@ -359,6 +360,7 @@ app.include_router(jurisdiction_meeting_documents_routes.router, prefix="/api")
 app.include_router(documents_routes.router, prefix="/api")
 app.include_router(event_bills_routes.router, prefix="/api")
 app.include_router(meetings_routes.router, prefix="/api")
+app.include_router(meeting_comparison_routes.router, prefix="/api")
 app.include_router(stats_routes.router, prefix="/api", tags=["stats"])
 app.include_router(contact_routes.router, prefix="/api")
 app.include_router(bills_routes.router, prefix="/api")

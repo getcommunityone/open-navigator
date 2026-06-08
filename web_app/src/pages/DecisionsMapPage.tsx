@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet'
 import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
@@ -62,7 +63,13 @@ function themeColor(theme: string | null): string {
 const US_CENTER: [number, number] = [39.8283, -98.5795]
 
 export default function DecisionsMapPage() {
-  const [selectedState, setSelectedState] = useState<string>('')
+  // Deep-link support: `?state=AL` (e.g. the "Follow the money" spending headline
+  // drills down here scoped to a state). Normalize to the 2-letter upper form.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const initialState = (searchParams.get('state') || '').trim().toUpperCase()
+  const [selectedState, setSelectedState] = useState<string>(
+    STATE_CODES.includes(initialState) ? initialState : '',
+  )
   const [selectedTheme, setSelectedTheme] = useState<string>('')
 
   const {
@@ -118,9 +125,23 @@ export default function DecisionsMapPage() {
   }, [geocoded])
 
   const onStateChange = (v: string) =>
-    withSpan('decisions_map.filter_state', () => setSelectedState(v), {
-      'decisions_map.has_state': !!v,
-    })
+    withSpan(
+      'decisions_map.filter_state',
+      () => {
+        setSelectedState(v)
+        // Keep the URL shareable/back-button friendly in sync with the filter.
+        setSearchParams(
+          (prev) => {
+            const next = new URLSearchParams(prev)
+            if (v) next.set('state', v)
+            else next.delete('state')
+            return next
+          },
+          { replace: true },
+        )
+      },
+      { 'decisions_map.has_state': !!v },
+    )
   const onThemeChange = (v: string) =>
     withSpan('decisions_map.filter_theme', () => setSelectedTheme(v), {
       'decisions_map.has_theme': !!v,

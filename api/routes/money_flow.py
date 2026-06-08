@@ -84,6 +84,9 @@ class FlowLens(BaseModel):
     accent: str
     head_amount: str = "—"
     head_label: str = ""
+    # Aggregate drill-down for the headline figure (e.g. the full decisions /
+    # grants / nonprofit list behind the summed total). None = not clickable.
+    head_url: Optional[str] = None
     count_label: str = ""
     nodes: List[FlowNode] = []
     links: List[FlowLink] = []
@@ -146,6 +149,8 @@ async def _spending(conn, *, state_code: Optional[str], city: Optional[str], sco
     lens.nodes, lens.links, lens.placeholder = nodes, links, False
     lens.head_amount = money_fmt(total)
     lens.head_label = "in tracked spending decisions"
+    # Drill down to the full geocoded decisions map, scoped to this state when known.
+    lens.head_url = f"/decisions-map?state={quote(state_code)}" if state_code else "/decisions-map"
     lens.count_label = f"{len(links)} decisions"
     return lens
 
@@ -201,6 +206,8 @@ async def _grants(conn, *, state_code: Optional[str]) -> FlowLens:
     lens.nodes, lens.links, lens.placeholder = nodes, links, False
     lens.head_amount = money_fmt(total)
     lens.head_label = "in grant flows"
+    # Drill down to the full grants list (990 Schedule I flows).
+    lens.head_url = "/search?types=grants"
     lens.count_label = f"{len(links)} grants · 990 Schedule I"
     return lens
 
@@ -247,6 +254,8 @@ async def _economy(conn) -> FlowLens:
     # mdm_organization_nonprofit has no usable state column, so this lens is
     # always the U.S. sector — label it as such rather than imply it's local.
     lens.head_label = "U.S. nonprofit sector revenue"
+    # Drill down to the nonprofit directory behind this aggregate.
+    lens.head_url = "/nonprofits"
     lens.count_label = f"{int(row['orgs']):,} orgs · 990 · nationwide"
     return lens
 
