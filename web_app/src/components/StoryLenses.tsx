@@ -66,10 +66,10 @@ interface Stat {
   tone?: Tone
 }
 const TIME_OPTIONS: { d: number; label: string }[] = [
-  { d: 7, label: 'Week' },
   { d: 31, label: 'Month' },
   { d: 92, label: 'Quarter' },
   { d: 366, label: 'Year' },
+  { d: 1830, label: '5 years' },
   { d: 999999, label: 'All time' },
 ]
 
@@ -101,8 +101,8 @@ function rel(d: number): string {
 }
 
 // windowDays (segmented-control value) -> API `window` param, and back.
-const WINDOW_BY_DAYS: Record<number, string> = { 7: 'week', 31: 'month', 92: 'quarter', 366: 'year', 999999: 'all' }
-const WINDOW_LABEL: Record<string, string> = { week: 'Week', month: 'Month', quarter: 'Quarter', year: 'Year', all: 'All time' }
+const WINDOW_BY_DAYS: Record<number, string> = { 31: 'month', 92: 'quarter', 366: 'year', 1830: 'fiveyear', 999999: 'all' }
+const WINDOW_LABEL: Record<string, string> = { week: 'Week', month: 'Month', quarter: 'Quarter', year: 'Year', fiveyear: '5 years', all: 'All time' }
 // accent backgrounds for the live activity tiles, by position
 const ACTIVITY_BG = ['#fdeeeb', '#e7f2ef', '#efebfb', '#fbf3e2']
 

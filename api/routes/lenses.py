@@ -87,10 +87,10 @@ class LensesResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # window -> lookback days on occurred_at; "all" => no time filter.
 _WINDOW_DAYS: Dict[str, Optional[int]] = {
-    "week": 7,
     "month": 31,
     "quarter": 92,
     "year": 366,
+    "fiveyear": 1830,
     "all": None,
 }
 
@@ -343,7 +343,7 @@ def _build_scope(
 
 
 # Windows from narrowest to widest, for "auto" resolution.
-_ORDERED_WINDOWS = ["week", "month", "quarter", "year", "all"]
+_ORDERED_WINDOWS = ["month", "quarter", "year", "fiveyear", "all"]
 
 
 async def _resolve_auto_window(
@@ -364,20 +364,20 @@ async def _resolve_auto_window(
     loc_sql, loc_params = _build_scope(state_code, city, None)
     sql = f"""
         SELECT
-            COUNT(*) FILTER (WHERE occurred_at >= current_date - 7)   AS w_week,
-            COUNT(*) FILTER (WHERE occurred_at >= current_date - 31)  AS w_month,
-            COUNT(*) FILTER (WHERE occurred_at >= current_date - 92)  AS w_quarter,
-            COUNT(*) FILTER (WHERE occurred_at >= current_date - 366) AS w_year,
-            COUNT(*)                                                  AS w_all
+            COUNT(*) FILTER (WHERE occurred_at >= current_date - 31)   AS w_month,
+            COUNT(*) FILTER (WHERE occurred_at >= current_date - 92)   AS w_quarter,
+            COUNT(*) FILTER (WHERE occurred_at >= current_date - 366)  AS w_year,
+            COUNT(*) FILTER (WHERE occurred_at >= current_date - 1830) AS w_fiveyear,
+            COUNT(*)                                                   AS w_all
         FROM item_interestingness
         WHERE TRUE{loc_sql}
     """
     row = await conn.fetchrow(sql, *loc_params)
     counts = {
-        "week": int(row["w_week"]),
         "month": int(row["w_month"]),
         "quarter": int(row["w_quarter"]),
         "year": int(row["w_year"]),
+        "fiveyear": int(row["w_fiveyear"]),
         "all": int(row["w_all"]),
     }
     for window in _ORDERED_WINDOWS:
@@ -396,7 +396,7 @@ async def get_lenses(
     ),
     window: str = Query(
         "auto",
-        description="Lookback window: auto | week | month | quarter | year | all. "
+        description="Lookback window: auto | month | quarter | year | fiveyear | all. "
                     "'auto' picks the narrowest window with >= min_items decisions.",
     ),
     min_items: int = Query(

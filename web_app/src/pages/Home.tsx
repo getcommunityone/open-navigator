@@ -1302,7 +1302,7 @@ export default function Home() {
                           </form>
 
                                 {/* Error Display - Below Input */}
-                                {keyword.length >= 2 && previewError && (
+                                {keyword.length >= 2 && !scopeOpen && !catOpen && previewError && (
                                   <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-red-50 border border-red-200 rounded-lg shadow-lg p-3">
                                     <div className="flex items-start gap-2">
                                       <svg className="h-5 w-5 text-red-400 flex-shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
@@ -1321,7 +1321,7 @@ export default function Home() {
                                 )}
                                 
                                 {/* Loading Display - Below Input */}
-                                {keyword.length >= 2 && previewLoading && (
+                                {keyword.length >= 2 && !scopeOpen && !catOpen && previewLoading && (
                                   <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-white border border-gray-200 rounded-lg shadow-lg p-3">
                                     <div className="flex items-center gap-2">
                                       <svg className="animate-spin h-4 w-4 text-[#354F52]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -1334,7 +1334,7 @@ export default function Home() {
                                 )}
                                 
                                 {/* Preview Results Dropdown */}
-                                {keyword.length >= 2 && showSuggestions && !previewLoading && !previewError && previewResults && (
+                                {keyword.length >= 2 && showSuggestions && !scopeOpen && !catOpen && !previewLoading && !previewError && previewResults && (
                                   <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-white border border-gray-200 rounded-lg shadow-xl max-h-96 overflow-y-auto">
                                     {/* No Results Message */}
                                     {previewResults.total_results === 0 && (
