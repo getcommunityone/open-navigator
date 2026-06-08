@@ -143,7 +143,7 @@ export function MeetingVideoProvider({
 
       {mounted && videoId && (
         <div
-          className={`fixed z-50 transition-all ${open ? 'opacity-100' : 'pointer-events-none opacity-0'} bottom-2 left-2 right-2 sm:bottom-4 sm:left-auto sm:right-4 sm:w-[26rem]`}
+          className={`fixed left-1/2 top-1/2 z-50 max-h-[95vh] w-[calc(100vw-1rem)] max-w-[26rem] -translate-x-1/2 -translate-y-1/2 overflow-y-auto transition-opacity ${open ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
         >
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl ring-1 ring-slate-900/5">
             <div className="flex items-center justify-between bg-slate-900 px-3 py-2">
