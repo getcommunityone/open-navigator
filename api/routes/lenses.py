@@ -283,6 +283,52 @@ def _build_flag_card(row: Any) -> LensCard:
     )
 
 
+def _build_gap_flag_card(row: Any) -> LensCard:
+    """
+    Build a Raised-Eyebrows card from a cached minutes-vs-AI-summary gap analysis
+    (public.meeting_document_gap_cache). Surfaces where the OFFICIAL agenda/minutes
+    don't line up with the AI recap — an "unverified anomaly, look closer" signal,
+    exactly the framing of this lens. Links to the side-by-side compare page.
+    """
+    gap = _parse_json(row["gap_json"]) or {}
+    errors = gap.get("possible_errors") or []
+    omissions = gap.get("omissions") or []
+    interesting = gap.get("interesting_gaps") or []
+    doc_type = (row["document_type"] or "document").lower()
+    body = row["body_name"] or row["jurisdiction_name"] or "Meeting"
+
+    stats: List[LensStat] = []
+    if errors:
+        stats.append(LensStat(value=str(len(errors)), label="Possible errors", tone="red"))
+    if omissions:
+        stats.append(LensStat(value=str(len(omissions)), label="Omissions", tone="amber"))
+    if interesting:
+        stats.append(LensStat(value=str(len(interesting)), label="Notable gaps", tone="blue"))
+
+    # Drill down to the side-by-side compare view for this meeting + document.
+    # jurisdictionId in that route is the Census geoid (how the page is reached
+    # from the jurisdictions feed); fall back to the meeting record if absent.
+    geoid = row["census_geoid"]
+    meeting_id = row["event_meeting_id"]
+    if geoid and meeting_id is not None:
+        url = f"/jurisdiction/{geoid}/meetings/{meeting_id}/compare"
+    elif meeting_id is not None:
+        url = f"/meetings/{meeting_id}"
+    else:
+        url = None
+
+    return LensCard(
+        headline=f"Official {doc_type} differs from the AI recap — {body}",
+        stats=stats[:3],
+        jurisdiction=row["jurisdiction_name"] or row["state_code"] or "Unknown",
+        date=_iso_date(row["doc_date"] or row["meeting_date"]),
+        badge="Raised Eyebrows",
+        url=url,
+        state_code=row["state_code"],
+        state=row["state"],
+    )
+
+
 # Lens definitions: (id, label, extra-WHERE template, ORDER BY). The location
 # scope (state/city/window) is appended to __SCOPE__ at query time. flags/soon are
 # handled out of band (item_flags empty; buried always 0 today) so they are not in
@@ -539,11 +585,64 @@ async def get_lenses(
                         )
                     else:
                         flag_rows = []
+
+                    # Minutes-vs-AI-summary gaps (cached, on-demand analyses) also
+                    # surface here as Raised Eyebrows — where the OFFICIAL record
+                    # diverges from the AI recap. Location-scoped like the financial
+                    # flags; only rows with a real mismatch (an error or omission).
+                    # Cache table is runtime-owned & optional, so guard its presence.
+                    gap_clauses: List[str] = []
+                    gap_params: List[Any] = []
+                    gidx = 1
+                    if state_code:
+                        gap_clauses.append(f"m.state_code = ${gidx}")
+                        gap_params.append(state_code)
+                        gidx += 1
+                    if city and city.strip():
+                        gap_clauses.append(f"m.jurisdiction_name ILIKE ${gidx}")
+                        gap_params.append(f"%{city.strip()}%")
+                        gidx += 1
+                    gap_where = (" AND " + " AND ".join(gap_clauses)) if gap_clauses else ""
+                    gap_sql = f"""
+                        SELECT
+                            c.event_meeting_id, c.document_type, c.gap_json,
+                            m.jurisdiction_name, m.state_code, m.state, m.meeting_date,
+                            emd.census_geoid, emd.doc_date, emd.body_name
+                        FROM public.meeting_document_gap_cache c
+                        JOIN public.event_meeting m
+                          ON m.event_meeting_id = c.event_meeting_id
+                        LEFT JOIN LATERAL (
+                            SELECT census_geoid, doc_date, body_name
+                            FROM public.event_meeting_document
+                            WHERE event_meeting_id = c.event_meeting_id
+                              AND document_url = c.document_url
+                            LIMIT 1
+                        ) emd ON TRUE
+                        WHERE c.gap_json->>'status' = 'ok'
+                          AND (
+                              jsonb_array_length(COALESCE(c.gap_json->'possible_errors', '[]'::jsonb)) > 0
+                              OR jsonb_array_length(COALESCE(c.gap_json->'omissions', '[]'::jsonb)) > 0
+                          ){gap_where}
+                        ORDER BY
+                            jsonb_array_length(COALESCE(c.gap_json->'possible_errors', '[]'::jsonb)) DESC,
+                            jsonb_array_length(COALESCE(c.gap_json->'omissions', '[]'::jsonb)) DESC,
+                            c.created_at DESC
+                        LIMIT ${gidx}
+                    """
+                    if await conn.fetchval(
+                        "SELECT to_regclass('public.meeting_document_gap_cache')"
+                    ):
+                        gap_rows = await conn.fetch(gap_sql, *gap_params, limit_per_lens)
+                    else:
+                        gap_rows = []
+
+                    flag_cards = [_build_flag_card(r) for r in flag_rows]
+                    flag_cards += [_build_gap_flag_card(r) for r in gap_rows]
                     flags_lens = Lens(
                         id="flags",
                         label="Raised Eyebrows",
-                        placeholder=len(flag_rows) == 0,
-                        cards=[_build_flag_card(r) for r in flag_rows],
+                        placeholder=len(flag_cards) == 0,
+                        cards=flag_cards,
                     )
 
         except HTTPException:
