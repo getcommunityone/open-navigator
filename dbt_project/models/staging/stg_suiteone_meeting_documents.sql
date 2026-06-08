@@ -58,7 +58,15 @@ select
     rtrim(state_code)                                      as state_code,
     {{ state_code_to_name('rtrim(state_code)') }}          as state,
     doc_type                                               as document_type,
-    url                                                    as document_url,
+    -- Strip stray whitespace (literal or percent-encoded) in the document-title
+    -- path segment right before the query, e.g.
+    -- '.../GetMinutesFile/Synopsis%20?mid=5048' -> '.../GetMinutesFile/Synopsis?mid=5048'.
+    -- SuiteOne serves the file purely by the mid/aid query param, so the trailing
+    -- space only 404s the link; the path label is decorative. url_sha256 (and the
+    -- surrogate key derived from it) intentionally still hash the RAW url, so this
+    -- display cleanup doesn't churn keys. The scraper is fixed at the source too
+    -- (suiteone.portal._normalize_doc_url) so future crawls land clean urls.
+    regexp_replace(url, '(%20|\s)+\?', '?')                as document_url,
     meeting_date                                           as doc_date,
     meeting_title,
     -- Canonical body category for date+body matching downstream.

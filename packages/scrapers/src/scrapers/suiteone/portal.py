@@ -46,6 +46,17 @@ class MeetingDoc:
     raw: dict = field(default_factory=dict)
 
 
+# Whitespace (literal or percent-encoded) in the document-title path segment right
+# before the query — e.g. ``GetMinutesFile/Synopsis ?mid=5048`` — makes SuiteOne
+# 404 even though the file is served purely by the ``mid``/``aid`` query param. The
+# path label is decorative, so strip the stray space rather than encode it.
+_DOC_URL_TRAILING_WS = re.compile(r"(?:%20|\s)+(\?|$)", re.IGNORECASE)
+
+
+def _normalize_doc_url(url: str) -> str:
+    return _DOC_URL_TRAILING_WS.sub(r"\1", (url or "").strip())
+
+
 def _clean_title(raw_title: str) -> str:
     return _NAVIGATE_PREFIX.sub("", raw_title or "").strip()
 
@@ -95,7 +106,7 @@ def parse_listing(html: str, base_url: str) -> list[MeetingDoc]:
             if not link:
                 continue
             href = link.get("href", "")
-            url = urljoin(base_url, href)
+            url = _normalize_doc_url(urljoin(base_url, href))
             if url in seen_urls:
                 continue
             seen_urls.add(url)
