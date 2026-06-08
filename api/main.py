@@ -345,6 +345,7 @@ from api.routes import cpi as cpi_routes
 from api.routes import grants as grants_routes
 from api.routes import lenses as lenses_routes
 from api.routes import money_flow as money_flow_routes
+from api.routes import feed as feed_routes
 from api.database import init_db
 
 app.include_router(auth_routes.router, prefix="/api")
