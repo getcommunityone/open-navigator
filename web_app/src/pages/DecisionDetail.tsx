@@ -56,6 +56,11 @@ interface DecisionDetail {
   has_agenda?: boolean | null
   has_minutes?: boolean | null
   minutes_status?: 'published' | 'not_published' | null
+  // Estimated minutes publish date: present ONLY when minutes are unpublished AND
+  // a reliable estimate exists (median publish lag for this jurisdiction); else null.
+  expected_minutes_date?: string | null // ISO 'YYYY-MM-DD'
+  minutes_typical_lag_days?: number | null // median publish lag used (e.g. 1)
+  minutes_lag_sample_n?: number | null // sample size behind the estimate (e.g. 227)
 }
 
 // snake_case / camelCase JSON key -> human label
@@ -1115,6 +1120,35 @@ function MeetingDocuments({ decision }: { decision: DecisionDetail }) {
       )}
       {hasMinutes && minutes ? (
         <DocLinkChip label="Minutes" type="minutes" url={minutes.url} />
+      ) : decision.expected_minutes_date ? (
+        (() => {
+          // Date-only string: anchor at local midnight (same as other date-only
+          // values on this page) so the displayed day doesn't shift by timezone.
+          const expected = new Date(`${decision.expected_minutes_date}T00:00:00`)
+          const expectedLabel = expected.toLocaleDateString()
+          // "Overdue" once the estimate has elapsed (compare date-only, ignore time).
+          const today = new Date()
+          today.setHours(0, 0, 0, 0)
+          const overdue = expected.getTime() < today.getTime()
+          const lag = decision.minutes_typical_lag_days
+          const sampleN = decision.minutes_lag_sample_n
+          const lagPhrase =
+            lag != null ? `${lag}-day` : null
+          const title =
+            lagPhrase != null && sampleN != null
+              ? `Estimated from the typical ${lagPhrase} gap between meeting and posted minutes for this jurisdiction (n=${sampleN}).`
+              : 'Estimated from the typical gap between meeting and posted minutes for this jurisdiction.'
+          return (
+            <MutedDocChip
+              label={
+                overdue
+                  ? `Minutes overdue (expected ~${expectedLabel})`
+                  : `Minutes expected ~${expectedLabel}`
+              }
+              title={title}
+            />
+          )
+        })()
       ) : (
         <MutedDocChip
           label="Minutes not yet published"
