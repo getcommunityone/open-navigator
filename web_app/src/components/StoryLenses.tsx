@@ -56,7 +56,7 @@ const LENSES: Lens[] = [
   { id: 'money', em: '\u{1F4B2}', label: 'Money Moves', desc: 'Contracts, spending, and big budgets', clr: '#2a8576' },
   {
     id: 'flags',
-    em: '\u{1F441}\u{FE0F}',
+    em: '\u{1F928}',
     label: 'Raised Eyebrows',
     desc: 'Decisions that make you go hmm…',
     clr: '#7a5cd0',

@@ -2111,6 +2111,29 @@ sources:
             description: "JSONB array/object of associated .gov domains (matched with the ? operator)."
 
 models:
+  - name: stg_suiteone_meeting_documents
+    description: >
+      Cleaned SuiteOne agenda/minutes PDFs from the municipal-calendar crawl in
+      bronze.bronze_events_meetings_municipalities_scraped
+      (meeting_date_source='suiteone_listing', resource_kind='pdf',
+      doc_type in agenda/minutes). One row per document. Derives a canonical
+      body_key (macro normalize_meeting_body_key) for date+body matching to
+      event_meeting downstream. General — not city-specific.
+    columns:
+      - name: event_meeting_document_id
+        description: "Stable surrogate — md5(jurisdiction_id || '|' || url_sha256)."
+        tests:
+          - unique
+          - not_null
+      - name: document_url
+        description: "Agenda/minutes PDF URL."
+        tests:
+          - not_null
+      - name: document_type
+        description: "'agenda' or 'minutes'."
+        tests:
+          - not_null
+
   - name: stg_bronze_events_cdp
     description: |
       Staged and cleaned Council Data Project (CDP) events.

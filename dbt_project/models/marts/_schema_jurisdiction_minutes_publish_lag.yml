@@ -1,0 +1,78 @@
+version: 2
+
+# public.jurisdiction_minutes_publish_lag — per-jurisdiction statistics on how
+# long minutes take to publish after a meeting. One row per jurisdiction. Powers
+# the API's "expected minutes date" feature, joined by census_geoid:
+#   expected_minutes_date = meeting_date + median_lag_days.
+#
+# Keys (per CLAUDE.md, enforced as Postgres constraints via contract):
+#   - PK: jurisdiction_id.
+# No FK is declared: this is an aggregate keyed on the SuiteOne jurisdiction_id /
+# census_geoid, which the API joins to event_meeting by census_geoid; there is no
+# single-column parent table to enforce against.
+
+models:
+  - name: jurisdiction_minutes_publish_lag
+    description: >
+      public.jurisdiction_minutes_publish_lag — per-jurisdiction statistics for
+      how long minutes typically take to publish after a meeting. One row per
+      jurisdiction. Lag (days) per minutes PDF =
+      (raw_resource->>'minutes_published_at')::date - meeting_date; only lags in
+      0..180 days count (negatives are template noise, larger are outliers). A
+      jurisdiction is emitted ONLY when sample_n >= 5 — fewer samples are not
+      trustworthy, and the API treats an absent row as "no estimate". Source: the
+      SuiteOne municipal-calendar crawl in bronze, scoped only by
+      meeting_date_source='suiteone_listing' AND doc_type='minutes' (general, not
+      city-specific).
+    config:
+      materialized: table
+      on_schema_change: fail
+      tags: ['marts', 'meetings', 'documents', 'suiteone', 'production']
+      contract:
+        enforced: true
+    columns:
+      - name: jurisdiction_id
+        description: "Primary key — canonical jurisdiction id (e.g. 'tuscaloosa_0177256')."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        data_tests:
+          - unique
+          - not_null
+      - name: census_geoid
+        description: "Census GEOID of the jurisdiction (e.g. '0177256'). The API joins on this."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: state_code
+        description: "2-letter state code (e.g. 'AL')."
+        data_type: text
+      - name: state
+        description: "Full state name (e.g. 'Alabama')."
+        data_type: text
+      - name: median_lag_days
+        description: "Median publish lag in days (percentile_cont(0.5), rounded to integer). The value the API adds to meeting_date."
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: mean_lag_days
+        description: "Mean publish lag in days (one decimal place)."
+        data_type: numeric(6, 1)
+        constraints:
+          - type: not_null
+      - name: p90_lag_days
+        description: "90th-percentile publish lag in days (percentile_cont(0.9), rounded to integer)."
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: sample_n
+        description: "Number of in-range (0..180 day) published minutes used in the statistic. Always >= 5."
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: computed_at
+        description: "When this aggregate row was computed (model build time)."
+        data_type: timestamp
+        constraints:
+          - type: not_null
