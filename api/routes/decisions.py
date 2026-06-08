@@ -14,6 +14,7 @@ serialize to the client as real objects/arrays instead of double-encoded strings
 from __future__ import annotations
 
 import json
+from datetime import date, timedelta
 from typing import Any, List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
@@ -72,6 +73,12 @@ class DecisionDetail(BaseModel):
     has_agenda: bool = False
     has_minutes: bool = False
     minutes_status: str = "not_published"  # 'published' | 'not_published'
+    # When minutes are unpublished: an ESTIMATED post date = meeting date +
+    # the jurisdiction's median publish lag (jurisdiction_minutes_publish_lag).
+    # Null when we have no reliable lag sample (sample_n < 5) — never fabricated.
+    expected_minutes_date: Optional[str] = None  # ISO 'YYYY-MM-DD'
+    minutes_typical_lag_days: Optional[int] = None
+    minutes_lag_sample_n: Optional[int] = None
 
 
 _DECISION_SQL = """
@@ -138,12 +145,21 @@ _DOCUMENTS_SQL = """
         document_type,
         document_url,
         doc_date,
-        body_name
+        body_name,
+        census_geoid
     FROM event_meeting_document
     WHERE event_meeting_id = $1
     ORDER BY
         CASE document_type WHEN 'agenda' THEN 0 WHEN 'minutes' THEN 1 ELSE 2 END,
         doc_date NULLS LAST
+"""
+
+# Typical minutes-publish lag for a jurisdiction, used to ESTIMATE when pending
+# minutes will post. Only jurisdictions with sample_n >= 5 have a row.
+_MINUTES_LAG_SQL = """
+    SELECT median_lag_days, sample_n
+    FROM jurisdiction_minutes_publish_lag
+    WHERE census_geoid = $1
 """
 
 
@@ -375,6 +391,7 @@ async def get_decision(event_decision_id: str) -> DecisionDetail:
         try:
             pool = await get_db_pool()
             doc_rows: list = []
+            lag_row = None  # jurisdiction_minutes_publish_lag row (fetched within conn)
             async with pool.acquire() as conn:
                 with tracer.start_as_current_span("decision-detail.query"):
                     row = await conn.fetchrow(_DECISION_SQL, event_decision_id)
@@ -404,6 +421,19 @@ async def get_decision(event_decision_id: str) -> DecisionDetail:
                             doc_rows = []
                         doc_span.set_attribute("decision.document_count", len(doc_rows))
 
+                        # If minutes aren't among the docs, prefetch the
+                        # jurisdiction's publish-lag (keyed by the meeting's geoid)
+                        # so we can estimate when they'll post. Done here so it
+                        # runs while the connection is still held.
+                        has_minutes_pre = any(dr["document_type"] == "minutes" for dr in doc_rows)
+                        geoid_pre = next((dr["census_geoid"] for dr in doc_rows if dr["census_geoid"]), None)
+                        if not has_minutes_pre and geoid_pre:
+                            try:
+                                lag_row = await conn.fetchrow(_MINUTES_LAG_SQL, geoid_pre)
+                            except Exception as lag_err:  # noqa: BLE001 — estimate is best-effort
+                                doc_span.record_exception(lag_err)
+                                logger.warning("Minutes-lag lookup failed (geoid={}): {}", geoid_pre, lag_err)
+
             span.set_attribute("decision.found", True)
 
             data = dict(row)
@@ -430,6 +460,23 @@ async def get_decision(event_decision_id: str) -> DecisionDetail:
             has_minutes = any(d.document_type == "minutes" for d in documents)
             data["has_minutes"] = has_minutes
             data["minutes_status"] = "published" if has_minutes else "not_published"
+
+            # Estimate when pending minutes will post: meeting date + the
+            # jurisdiction's median publish lag (lag_row prefetched above). Only
+            # when minutes are absent AND we know the meeting date AND the
+            # jurisdiction has a reliable lag sample. Never fabricated.
+            if not has_minutes and lag_row and lag_row["median_lag_days"] is not None:
+                meeting_day = next(
+                    (dr["doc_date"] for dr in doc_rows if isinstance(dr["doc_date"], date)),
+                    None,
+                )
+                if meeting_day is not None:
+                    median_lag = int(lag_row["median_lag_days"])
+                    data["expected_minutes_date"] = (
+                        meeting_day + timedelta(days=median_lag)
+                    ).isoformat()
+                    data["minutes_typical_lag_days"] = median_lag
+                    data["minutes_lag_sample_n"] = lag_row["sample_n"]
 
             logger.info(
                 "⚖️ Decision detail {} -> {} ({} docs)",
