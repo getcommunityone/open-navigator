@@ -48,6 +48,20 @@ interface MoneyLineItem {
   to: string
 }
 
+/** One real top grant from GET /api/grants/top (pre-formatted server-side). */
+interface TopGrant {
+  grant_id?: string | null
+  grantor_name?: string | null
+  grantee_name?: string | null
+  amount?: number | null
+  /** pre-formatted dollar label, e.g. "$2.9M" — render as-is, never reformat */
+  amount_label?: string | null
+  jurisdiction_label?: string | null
+  tax_year?: string | null
+  /** drill-down url, e.g. /grants/{id} */
+  url?: string | null
+}
+
 interface MoneyCard {
   name: string
   /** small uppercase mono label beneath the card name */
@@ -183,6 +197,17 @@ export default function FollowTheMoney({
     staleTime: 5 * 60 * 1000,
   })
 
+  // Real top grants by dollar amount (scoped to the active location). The
+  // /grants/top response carries the array at the top level: { grants: [...] }.
+  const { data: topGrants } = useQuery({
+    queryKey: ['grants-top', national, scopedState, scopedCity],
+    queryFn: () =>
+      api
+        .get('/grants/top', { params: { state: scopedState, city: scopedCity, limit: 6 } })
+        .then((r) => ((r.data?.grants ?? []) as TopGrant[])),
+    staleTime: 5 * 60 * 1000,
+  })
+
   const asNum = (v: unknown): number | null => {
     const n = typeof v === 'number' ? v : typeof v === 'string' ? Number(v) : NaN
     return Number.isFinite(n) ? n : null
@@ -213,6 +238,22 @@ export default function FollowTheMoney({
   if (assets && assets > 0) {
     sectorItems.push({ label: '990 assets', sub: 'aggregate filings', amount: formatCurrency(assets), to: '/nonprofits' })
   }
+
+  // Grants — real top 990 grants by dollar amount (scoped to the active
+  // location), each drilling into /grants/{id}. amount_label is pre-formatted
+  // server-side; render as-is. Rows without a real amount/url are dropped.
+  const grantItems: MoneyLineItem[] = (topGrants ?? [])
+    .filter((g) => g.amount_label && g.url)
+    .slice(0, 4)
+    .map((g) => ({
+      label:
+        g.grantor_name && g.grantee_name
+          ? `${g.grantor_name} → ${g.grantee_name}`
+          : g.grantee_name || g.grantor_name || 'Grant',
+      sub: g.jurisdiction_label || g.grantor_name || undefined,
+      amount: g.amount_label ?? undefined,
+      to: g.url as string,
+    }))
 
   const cards: MoneyCard[] = [
     {
@@ -245,11 +286,11 @@ export default function FollowTheMoney({
       Icon: ArrowTrendingUpIcon,
       accentBar: '#10b981',
       accentBorderHover: 'hover:border-emerald-300',
-      // Navigation only — no per-scope grant count exists, so we show no number.
-      items: [
-        { label: 'Federal & state grants', sub: 'Grants.gov opportunities', to: GRANTS_ROUTE },
-        { label: '990 grants awarded', sub: 'nonprofit → recipient', to: GRANTS_ROUTE },
-      ],
+      // Real top 990 grants by amount (nonprofit → recipient), scoped to the
+      // active location. Header still drills to the grants search, which keeps
+      // the Grants.gov opportunities tab.
+      items: grantItems,
+      emptyNote: 'No 990 grants in this view yet.',
     },
   ]
 
