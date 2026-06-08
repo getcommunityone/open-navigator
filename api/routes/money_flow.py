@@ -16,6 +16,7 @@ is a chart magnitude, not a bare number rendered to the user.
 """
 from __future__ import annotations
 
+import asyncio
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Query
@@ -201,13 +202,17 @@ async def _grants(conn, *, state_code: Optional[str]) -> FlowLens:
     return lens
 
 
+# Reads the one-row pre-aggregation mart (public.nonprofit_sector_revenue)
+# instead of SUM-scanning the 3.6M-row mdm_organization_nonprofit satellite on
+# every request (~590ms -> ~0.1ms). The figure is national (the satellite has no
+# usable state column), so scope is always 'us'.
 _ECONOMY_SQL = """
-    SELECT
-        COALESCE(SUM(gt990_total_contributions), 0)     AS contributions,
-        COALESCE(SUM(gt990_program_service_revenue), 0) AS program,
-        COALESCE(SUM(COALESCE(gt990_total_revenue, revenue)), 0) AS total,
-        COUNT(*) AS orgs
-    FROM mdm_organization_nonprofit
+    SELECT contributions,
+           program_service_revenue AS program,
+           total_revenue           AS total,
+           org_count               AS orgs
+    FROM nonprofit_sector_revenue
+    WHERE scope = 'us'
 """
 
 
@@ -267,10 +272,21 @@ async def get_money_flow(
         span.set_attribute("money_flow.state", state_code or "")
         span.set_attribute("money_flow.city", city or "")
         pool = await get_db_pool()
-        async with pool.acquire() as conn:
-            spending = await _spending(conn, state_code=state_code, city=city, scope_label=scope_label)
-            grants = await _grants(conn, state_code=state_code)
-            economy = await _economy(conn)
+
+        # Run the three lenses concurrently, each on its own pooled connection
+        # (asyncpg cannot multiplex queries on a single connection). Each builder
+        # is internally defensive (failure -> placeholder, never raises), so the
+        # gather always resolves. Wall-clock collapses from the serial sum of the
+        # three queries to the slowest single one.
+        async def _with_conn(builder):
+            async with pool.acquire() as conn:
+                return await builder(conn)
+
+        spending, grants, economy = await asyncio.gather(
+            _with_conn(lambda c: _spending(c, state_code=state_code, city=city, scope_label=scope_label)),
+            _with_conn(lambda c: _grants(c, state_code=state_code)),
+            _with_conn(_economy),
+        )
 
     return MoneyFlowResponse(
         location_label=location_label,
