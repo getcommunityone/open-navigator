@@ -364,6 +364,7 @@ def build_transcript_block(
     source_note: str,
     agenda_hints: str = "",
     agenda_legislation_hints: str = "",
+    document_text: str = "",
 ) -> str:
     body = format_diarized_transcript(segments)
     parts = [speaker_hints]
@@ -371,6 +372,15 @@ def build_transcript_block(
         parts.append(agenda_hints.strip())
     if agenda_legislation_hints.strip():
         parts.append(agenda_legislation_hints.strip())
+    if document_text.strip():
+        # The scraped official record (agenda/minutes PDFs). Supporting context
+        # for the transcript — carries dollar amounts, item numbers, staff
+        # recommendations, and vote detail the spoken transcript may only allude
+        # to. Decisions still come from the meeting; use this to fill specifics.
+        parts.append(
+            "=== OFFICIAL MEETING RECORD (agenda/minutes, supporting context) ===\n"
+            f"{document_text.strip()}\n"
+        )
     parts.append(f"=== TRANSCRIPT SOURCE ===\n{source_note}\n\n=== TRANSCRIPT ===\n{body}\n")
     return "\n".join(parts)
 
@@ -956,12 +966,32 @@ def process_one_video(
     )
     if agenda_blocks:
         logger.info("Built {} agenda segment hint(s) for presenter linking", len(agenda_blocks))
+
+    # Scraped official record (agenda/minutes PDF text) as supporting context,
+    # matched by jurisdiction geoid + meeting date. Opt out with
+    # --no-document-context. Best-effort: absence yields '' (no fabrication).
+    document_text = ""
+    if getattr(args, "use_document_context", True):
+        from llm.gemini.transcript_db import fetch_meeting_document_text
+
+        geoid = jurisdiction_id.rsplit("_", 1)[-1] if jurisdiction_id else ""
+        if geoid.isdigit():
+            try:
+                document_text = fetch_meeting_document_text(
+                    _database_url(getattr(args, "database_url", None) or None),
+                    census_geoid=geoid,
+                    event_date=video.event_date,
+                )
+            except Exception as exc:  # noqa: BLE001 — context must not abort the run
+                logger.warning("Document-context lookup failed for {}: {}", video_id, exc)
+
     transcript_block = build_transcript_block(
         speaker_hints=speaker_hints,
         segments=segments,
         source_note=source_note,
         agenda_hints=agenda_hints,
         agenda_legislation_hints=agenda_leg_hints,
+        document_text=document_text,
     )
 
     transcript_meta: Dict[str, Any] = {
@@ -1149,6 +1179,26 @@ def run_pipeline(args: argparse.Namespace) -> None:
                     "run packages/scrapers/src/scrapers/youtube/backfill_jurisdiction_transcripts.py first)"
                 )
             raise SystemExit(f"No bronze videos for {jurisdiction_id}{hint}")
+
+        from llm.gemini.analyze_backlog import _stable_shard_bucket, parse_shard
+
+        shard = parse_shard(getattr(args, "shard", "") or None)
+        if shard is not None:
+            shard_index, shard_count = shard
+            total = len(videos)
+            videos = [
+                v
+                for v in videos
+                if _stable_shard_bucket(v.video_id, shard_count) == shard_index
+            ]
+            logger.info(
+                "Shard {}/{}: processing {} of {} videos for {}",
+                shard_index,
+                shard_count,
+                len(videos),
+                total,
+                jurisdiction_id,
+            )
         if args.dry_run:
             for i, v in enumerate(videos, 1):
                 ed = v.event_date or "?"
@@ -1352,6 +1402,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="With --from-bronze: max videos (default: all rows for jurisdiction)",
     )
     parser.add_argument(
+        "--shard",
+        default="",
+        help="Partition this jurisdiction's videos into n disjoint shards and process only "
+        "shard i (0-based) via a stable MD5(video_id) hash, e.g. --shard 0/3. Run n processes "
+        "(--shard 0/3, 1/3, …) for intra-jurisdiction parallelism with no overlap.",
+    )
+    parser.add_argument(
         "--database-url",
         default="",
         help="Postgres URL (default NEON_DATABASE_URL_DEV / NEON_DATABASE_URL)",
@@ -1397,7 +1454,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--model",
         default="",
-        help="Default: GEMINI_FLASH_LITE_MODEL or gemini-2.5-flash-lite",
+        help="Default: GEMINI_FLASH_LITE_MODEL or gemini-2.5-flash-lite (~3x faster; 330s wall-clock guards hangs)",
     )
     parser.add_argument("--system-instruction", default="", help="Optional system prompt")
     parser.add_argument("--temperature", type=float, default=0.1)
@@ -1426,6 +1483,14 @@ def build_parser() -> argparse.ArgumentParser:
         default=True,
         help="Don't read transcripts from bronze_event_youtube_transcript first; use the "
         "on-disk cache / live YouTube captions instead (default: read from the DB).",
+    )
+    parser.add_argument(
+        "--no-document-context",
+        action="store_false",
+        dest="use_document_context",
+        default=True,
+        help="Don't attach scraped agenda/minutes PDF text (bronze_meeting_document_text, "
+        "matched by geoid+date) as supporting context for the analysis (default: attach).",
     )
     parser.add_argument(
         "--run-part-2",

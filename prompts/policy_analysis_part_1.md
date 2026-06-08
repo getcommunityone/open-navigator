@@ -8,12 +8,14 @@ Do not provide a chronological summary. Pinpoint the specific drivers behind eac
  
 ## Complete decision coverage (CRITICAL)
  
-Capture **every distinct council action**, but **split by debate** — do not put light unanimous items in `decisions[]`.
+Capture **every distinct council action**, but **split by debate and opposition** — the *final vote* is **not** the test. Do not put light, unopposed items in `decisions[]`.
  
 | Where | What goes there |
 |-------|-----------------|
-| **`decisions[]`** (`D001`, `D002`, …) | **Contested / debated only** — public hearing with tension, disagreement, personal stories, or non-routine stakes worth a full analysis |
-| **`uncontested_items[]`** (`U001`, `U002`, …) | **Unanimous, consent agenda, or no debate** — resolutions adopted in a block, routine approvals, election calls read into the record, etc. |
+| **`decisions[]`** (`D001`, `D002`, …) | **Contested / debated, OR opposed** — a public hearing with tension, disagreement, personal stories, non-routine stakes, **or a vote that still drew opposition** (residents, neighbors, the applicant, or a dissenting member spoke against it), *even if it ultimately passed unanimously* |
+| **`uncontested_items[]`** (`U001`, `U002`, …) | **No debate AND no opposition** — consent-agenda blocks, routine approvals, election calls read into the record. A unanimous vote belongs here **only when nobody argued against it.** |
+ 
+**A unanimous final vote is NOT automatically uncontested (CRITICAL).** Councils routinely approve an item 7–0 *after* residents, neighbors, or the applicant spoke against it in the hearing. If any opposition was voiced, the item is **contested → `decisions[]`**, and that opposition MUST be captured as a `counter_view` (see Competing views). Route by whether anyone pushed back, not by the tally.
  
 **Do not merge** unrelated items. Example: liquor license (debated) → `D001`; school-supplies program + tax election (no debate) → `U001`, `U002`.
  
@@ -21,7 +23,7 @@ Capture **every distinct council action**, but **split by debate** — do not pu
  
 **Do NOT** duplicate: an item appears in **either** `decisions[]` **or** `uncontested_items[]`, never both.
  
-**Sanity check:** A full council session usually has **many** `uncontested_items` and **few** `decisions` (often 1–3 debated items). If everything is in `decisions[]`, you are wasting space — move non-debated votes to `uncontested_items[]`.
+**Sanity check:** A full council session usually has **many** `uncontested_items` and **few** `decisions` (often 1–3 debated/opposed items). If everything is in `decisions[]`, you are wasting space — move the *genuinely unopposed* votes to `uncontested_items[]`. But never demote an opposed item just because it passed unanimously.
  
 ## The Human Element (CRITICAL)
 Apply only to **`decisions[]`** (contested items). Do **not** add `human_element`, `competing_views`, or diagrams to `uncontested_items[]`.
@@ -104,7 +106,7 @@ For each contested decision, capture **every quantitative measure spoken in the 
 ## Output Instructions
 Output the JSON object matching the schema below and NOTHING ELSE.
  
-**Before you close the root JSON:** Re-scan all votes. Debated → `decisions[]`; routine/unanimous → `uncontested_items[]`. Confirm every quantitative claim used to argue a position is captured in `evidence_metrics` with a `direction` and a `reasoning_link`.
+**Before you close the root JSON:** Re-scan all votes. Debated **or opposed** → `decisions[]`; truly routine with **no opposition** → `uncontested_items[]` (a unanimous tally alone does not make an item uncontested — if anyone spoke against it, it is a `decision` and needs a `counter_view`). Confirm every quantitative claim used to argue a position is captured in `evidence_metrics` with a `direction` and a `reasoning_link`.
  
 ## Uncontested item attribution (required when transcript allows)
  
@@ -129,6 +131,7 @@ Keep `human_element` / diagrams / `evidence_metrics` **off** `uncontested_items[
     2. Attribute by what they actually said: assign a person to a view if they articulated its `problem_diagnosis`, `causal_story`, or `proposed_remedy`, advocated for it, or moved/voted for the action it implies. Transcripts usually lack speaker tags — use the surrounding cues ("Councilman Reed said…", a chair recognizing a speaker, "the applicant responded") to bind statements to the right `person_id`. A person may appear in more than one view's `held_by` only if they genuinely argued both.
     3. Strong signals for the **dominant** view's `held_by`: whoever **moved** or **seconded** the prevailing motion, and the majority that **voted** for the outcome (cross-check `vote_tally` / the motion). For **counter** views: dissenting voters and members of the public who spoke against.
     4. Use an empty array **only** when a side was carried by the public generally with no identifiable individual — not as a shortcut when attribution takes effort. Every `held_by` id MUST resolve to a `people[]` entry.
+  - **Capture community / public opposition as a `counter_view` even when the vote was unanimous (CRITICAL).** A unanimous tally does **not** mean there was no other side. Whenever opposition was voiced anywhere in the hearing — public comment against the item, a neighbor's objection, an applicant pushing back on conditions, a member who voted yes but stated reservations — record it as a distinct `counter_view` with its own `problem_diagnosis` → `causal_story` → `proposed_remedy`, and attribute it via `held_by` to the people who voiced it (add public speakers to `people[]` first so they can be referenced). Label it for who held it when the transcript supports it (e.g. `"Resident opposition"`, `"Neighbor concerns"`). An empty `counter_views` must mean **no one objected** — never use it as shorthand for "the vote was unanimous."
 - `human_element` = the *people* — who felt what, anecdotes, tone. Do not repeat the policy substance here.
 - `evidence_metrics` = the *numbers-as-evidence* — each cited figure, who used it, which side it backs, and whether it was rebutted. Do not restate `by_the_numbers` here; that's a display digest, this is the argument graph.
 Each `smart_brevity` field is one tight sentence (≤25 words); `by_the_numbers` is concrete figures only (votes, dollars, distances, dates), not prose. Set a field to `null` rather than padding it with a rephrasing of another field.
@@ -368,5 +371,4 @@ Each `smart_brevity` field is one tight sentence (≤25 words); `by_the_numbers`
  
 <transcript>
 [INSERT TRANSCRIPT HERE]
-</transcript>T HERE]
 </transcript>

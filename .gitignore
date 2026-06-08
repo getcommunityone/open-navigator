@@ -138,3 +138,6 @@ cookies.txt
 # transcript-analysis backfill runtime log
 analyze_backlog.out
 analyze_backlog_shard*.out
+
+# VS Code "VSCode Counter" extension output (local code-stats dumps)
+.VSCodeCounter/

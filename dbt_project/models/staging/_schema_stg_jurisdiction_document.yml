@@ -1,0 +1,63 @@
+version: 2
+
+models:
+  - name: stg_jurisdiction_document
+    description: |
+      Staging for jurisdiction-grain civic documents — one row per document
+      (comprehensive plan / framework, zoning ordinance, ordinance code, zoning
+      map) that belongs to a JURISDICTION rather than a single meeting.
+
+      Source: bronze.bronze_jurisdiction_document, landed by
+      packages/ingestion/src/ingestion/jurisdiction_documents/bronze.py from a
+      curated registry of real published documents.
+
+      DISTINCT ENTITY: not the meeting-grain agenda/minutes in
+      event_meeting_document. These have no meeting date and link straight to the
+      jurisdiction. Keying: natural key (jurisdiction_id, url_sha256); the mart
+      derives the single-column surrogate PK.
+    config:
+      contract:
+        enforced: true
+      materialized: view
+    columns:
+      - name: jurisdiction_id
+        description: "Owning jurisdiction (FK -> public.jurisdictions). Part of the natural key."
+        data_type: text
+        constraints:
+          - type: not_null
+        data_tests:
+          - not_null
+      - name: url_sha256
+        description: "SHA-256 of document_url — the per-document key part. Part of the natural key."
+        data_type: varchar(64)
+        constraints:
+          - type: not_null
+        data_tests:
+          - not_null
+      - name: document_url
+        description: "Canonical URL of the document."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: document_type
+        description: "comprehensive_plan | zoning_ordinance | ordinance_code | zoning_map."
+        data_type: varchar(64)
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['comprehensive_plan', 'zoning_ordinance', 'ordinance_code', 'zoning_map']
+      - name: title
+        description: "Human-readable document title."
+        data_type: text
+      - name: adopted_date
+        description: "Adoption date (DATE); null unless verified."
+        data_type: date
+      - name: source
+        description: "Publishing site / origin (e.g. 'framework.tuscaloosa.com')."
+        data_type: varchar(128)
+      - name: raw
+        description: "Full registry entry as JSONB (raw fidelity)."
+        data_type: jsonb
+      - name: ingestion_date
+        description: "When the record was loaded into bronze."
+        data_type: timestamp

@@ -14,6 +14,7 @@ serialize to the client as real objects/arrays instead of double-encoded strings
 from __future__ import annotations
 
 import json
+from datetime import date, timedelta
 from typing import Any, List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
@@ -26,6 +27,28 @@ from api.routes.search_postgres import get_db_pool
 router = APIRouter(prefix="/decision", tags=["decision"])
 
 tracer = trace.get_tracer(__name__)
+
+
+class MeetingDocument(BaseModel):
+    """An agenda/minutes PDF attached to the decision's meeting (suiteone)."""
+    document_type: str
+    url: str
+    doc_date: Optional[str] = None  # real DATE -> ISO 'YYYY-MM-DD' string on the wire
+    body_name: Optional[str] = None
+
+
+class MeetingRecord(BaseModel):
+    """The PARSED official agenda/minutes content for the decision's meeting
+    (public.meeting_document, from the agenda/minutes enrichment). Distinct from
+    MeetingDocument, which is just the document link/status."""
+    doc_kind: str                       # 'agenda' | 'minutes'
+    meeting_body: Optional[str] = None
+    agenda_items: Optional[Any] = None
+    motions: Optional[Any] = None
+    recorded_votes: Optional[Any] = None
+    continuances: Optional[Any] = None
+    legislation_numbers: Optional[Any] = None
+    source_urls: Optional[Any] = None
 
 
 class DecisionDetail(BaseModel):
@@ -58,6 +81,21 @@ class DecisionDetail(BaseModel):
     meeting_video_id: Optional[str] = None
     source_ai_model: Optional[str] = None
     extracted_at: Optional[str] = None
+    # Associated meeting documents (agenda/minutes), joined on analysis_id ->
+    # event_meeting_id. Empty list is a meaningful state (e.g. minutes unpublished).
+    documents: List[MeetingDocument] = []
+    has_agenda: bool = False
+    has_minutes: bool = False
+    minutes_status: str = "not_published"  # 'published' | 'not_published'
+    # When minutes are unpublished: an ESTIMATED post date = meeting date +
+    # the jurisdiction's median publish lag (jurisdiction_minutes_publish_lag).
+    # Null when we have no reliable lag sample (sample_n < 5) — never fabricated.
+    expected_minutes_date: Optional[str] = None  # ISO 'YYYY-MM-DD'
+    minutes_typical_lag_days: Optional[int] = None
+    minutes_lag_sample_n: Optional[int] = None
+    # Parsed official agenda/minutes content (public.meeting_document), joined to
+    # the meeting by jurisdiction + date. Empty when none enriched for this meeting.
+    meeting_record: List[MeetingRecord] = []
 
 
 _DECISION_SQL = """
@@ -80,6 +118,7 @@ _DECISION_SQL = """
         d.state_code,
         d.city,
         d.c1_event_id,
+        d.analysis_id,
         d.decision_id,
         d.subject_id,
         d.source_ai_model,
@@ -91,6 +130,18 @@ _DECISION_SQL = """
     FROM event_decision d
     LEFT JOIN event_meeting m ON m.c1_event_id = d.c1_event_id
     WHERE d.event_decision_id = $1
+"""
+
+# Parsed agenda/minutes content for a decision's meeting. Keyed by event_meeting_id
+# (= the decision's analysis_id) — the same clean join _DOCUMENTS_SQL uses, so it
+# aligns with the event_meeting_document link mart instead of a fragile
+# jurisdiction+date match.
+_MEETING_RECORD_SQL = """
+    SELECT md.doc_kind, md.meeting_body, md.agenda_items, md.motions,
+           md.recorded_votes, md.continuances, md.legislation_numbers, md.source_urls
+    FROM public.meeting_document md
+    WHERE md.event_meeting_id = $1
+    ORDER BY md.doc_kind
 """
 
 # JSONB columns asyncpg hands back as raw JSON text (no codec on the pool).
@@ -113,6 +164,32 @@ def _parse_json(value: Any) -> Any:
         return json.loads(value)
     except (json.JSONDecodeError, ValueError):
         return value
+
+
+# Meeting documents (agenda/minutes) for a decision's meeting. Joined on
+# event_meeting_id = the decision's analysis_id. Agenda first, then minutes,
+# then oldest doc_date first. Read-only fetch on a modeled public table.
+_DOCUMENTS_SQL = """
+    SELECT
+        document_type,
+        document_url,
+        doc_date,
+        body_name,
+        census_geoid
+    FROM event_meeting_document
+    WHERE event_meeting_id = $1
+    ORDER BY
+        CASE document_type WHEN 'agenda' THEN 0 WHEN 'minutes' THEN 1 ELSE 2 END,
+        doc_date NULLS LAST
+"""
+
+# Typical minutes-publish lag for a jurisdiction, used to ESTIMATE when pending
+# minutes will post. Only jurisdictions with sample_n >= 5 have a row.
+_MINUTES_LAG_SQL = """
+    SELECT median_lag_days, sample_n
+    FROM jurisdiction_minutes_publish_lag
+    WHERE census_geoid = $1
+"""
 
 
 # ---------------------------------------------------------------------------
@@ -342,25 +419,123 @@ async def get_decision(event_decision_id: str) -> DecisionDetail:
         span.set_attribute("decision.event_decision_id", event_decision_id)
         try:
             pool = await get_db_pool()
+            doc_rows: list = []
+            lag_row = None  # jurisdiction_minutes_publish_lag row (fetched within conn)
             async with pool.acquire() as conn:
                 with tracer.start_as_current_span("decision-detail.query"):
                     row = await conn.fetchrow(_DECISION_SQL, event_decision_id)
 
-            if row is None:
-                span.set_attribute("decision.found", False)
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"No decision found for event_decision_id '{event_decision_id}'",
-                )
+                if row is None:
+                    span.set_attribute("decision.found", False)
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"No decision found for event_decision_id '{event_decision_id}'",
+                    )
+
+                # Associated meeting documents (agenda/minutes). Defensive: a
+                # missing/failing table or NULL analysis_id yields no documents,
+                # never a 500 on the decision itself.
+                analysis_id = row["analysis_id"]
+                if analysis_id is not None:
+                    with tracer.start_as_current_span("decision-detail.documents") as doc_span:
+                        doc_span.set_attribute("decision.analysis_id", analysis_id)
+                        try:
+                            doc_rows = await conn.fetch(_DOCUMENTS_SQL, analysis_id)
+                        except Exception as doc_err:  # noqa: BLE001 — documents are best-effort
+                            doc_span.record_exception(doc_err)
+                            logger.warning(
+                                "Meeting documents lookup failed for decision {} (analysis_id={}): {}",
+                                event_decision_id, analysis_id, doc_err,
+                            )
+                            doc_rows = []
+                        doc_span.set_attribute("decision.document_count", len(doc_rows))
+
+                        # If minutes aren't among the docs, prefetch the
+                        # jurisdiction's publish-lag (keyed by the meeting's geoid)
+                        # so we can estimate when they'll post. Done here so it
+                        # runs while the connection is still held.
+                        has_minutes_pre = any(dr["document_type"] == "minutes" for dr in doc_rows)
+                        geoid_pre = next((dr["census_geoid"] for dr in doc_rows if dr["census_geoid"]), None)
+                        if not has_minutes_pre and geoid_pre:
+                            try:
+                                lag_row = await conn.fetchrow(_MINUTES_LAG_SQL, geoid_pre)
+                            except Exception as lag_err:  # noqa: BLE001 — estimate is best-effort
+                                doc_span.record_exception(lag_err)
+                                logger.warning("Minutes-lag lookup failed (geoid={}): {}", geoid_pre, lag_err)
+
+                # Parsed agenda/minutes content for this decision's meeting
+                # (public.meeting_document). Best-effort — never 500 the decision.
+                meeting_record_rows: list = []
+                if row["analysis_id"] is not None:
+                    try:
+                        meeting_record_rows = await conn.fetch(_MEETING_RECORD_SQL, row["analysis_id"])
+                    except Exception as mr_err:  # noqa: BLE001 — best-effort
+                        logger.warning(
+                            "meeting_record lookup failed for {}: {}", event_decision_id, mr_err
+                        )
+
             span.set_attribute("decision.found", True)
 
             data = dict(row)
+            data.pop("analysis_id", None)  # internal join key, not part of the response shape
             for field in _JSON_FIELDS:
                 data[field] = _parse_json(data.get(field))
             extracted = data.get("extracted_at")
             data["extracted_at"] = extracted.isoformat() if extracted is not None else None
 
-            logger.info("⚖️ Decision detail {} -> {}", event_decision_id, data.get("outcome"))
+            documents: List[MeetingDocument] = []
+            for dr in doc_rows:
+                dd = dr["doc_date"]
+                documents.append(
+                    MeetingDocument(
+                        document_type=dr["document_type"],
+                        url=dr["document_url"],
+                        # Real DATE -> ISO string on the wire; tolerate text too.
+                        doc_date=dd.isoformat() if hasattr(dd, "isoformat") else (str(dd) if dd else None),
+                        body_name=dr["body_name"],
+                    )
+                )
+            data["documents"] = documents
+            data["has_agenda"] = any(d.document_type == "agenda" for d in documents)
+            has_minutes = any(d.document_type == "minutes" for d in documents)
+            data["has_minutes"] = has_minutes
+            data["minutes_status"] = "published" if has_minutes else "not_published"
+
+            # Estimate when pending minutes will post: meeting date + the
+            # jurisdiction's median publish lag (lag_row prefetched above). Only
+            # when minutes are absent AND we know the meeting date AND the
+            # jurisdiction has a reliable lag sample. Never fabricated.
+            if not has_minutes and lag_row and lag_row["median_lag_days"] is not None:
+                meeting_day = next(
+                    (dr["doc_date"] for dr in doc_rows if isinstance(dr["doc_date"], date)),
+                    None,
+                )
+                if meeting_day is not None:
+                    median_lag = int(lag_row["median_lag_days"])
+                    data["expected_minutes_date"] = (
+                        meeting_day + timedelta(days=median_lag)
+                    ).isoformat()
+                    data["minutes_typical_lag_days"] = median_lag
+                    data["minutes_lag_sample_n"] = lag_row["sample_n"]
+
+            data["meeting_record"] = [
+                MeetingRecord(
+                    doc_kind=r["doc_kind"],
+                    meeting_body=r["meeting_body"],
+                    agenda_items=_parse_json(r["agenda_items"]),
+                    motions=_parse_json(r["motions"]),
+                    recorded_votes=_parse_json(r["recorded_votes"]),
+                    continuances=_parse_json(r["continuances"]),
+                    legislation_numbers=_parse_json(r["legislation_numbers"]),
+                    source_urls=_parse_json(r["source_urls"]),
+                )
+                for r in meeting_record_rows
+            ]
+
+            logger.info(
+                "⚖️ Decision detail {} -> {} ({} docs, {} records)",
+                event_decision_id, data.get("outcome"), len(documents), len(meeting_record_rows),
+            )
             return DecisionDetail(**data)
 
         except HTTPException:
@@ -447,3 +622,119 @@ async def get_related_decisions(
             )
             for r in rows
         ]
+
+
+# ---------------------------------------------------------------------------
+# Decision thread — the SAME item tracked ACROSS meetings (its lifecycle), so a
+# deferred item that returns later reads as one story instead of disconnected
+# rows. Links occurrences by a SPECIFIC place (a street/site place_id, never a
+# jurisdiction-wide stub that would falsely merge unrelated items) or by a
+# suffix-stripped subject slug (the trailing numeric id varies per meeting).
+# Ordered by meeting date; each row carries its outcome (so delays/continuances
+# show as steps) and the for/against view labels for an optional positions view.
+# ---------------------------------------------------------------------------
+class DecisionThreadItem(BaseModel):
+    event_decision_id: str
+    headline: Optional[str] = None
+    outcome: Optional[str] = None
+    primary_theme: Optional[str] = None
+    meeting_name: Optional[str] = None
+    meeting_date: Optional[str] = None
+    meeting_video_id: Optional[str] = None
+    is_current: bool = False
+    # Optional for/against labels (from competing_views) for this occurrence.
+    prevailing_label: Optional[str] = None
+    counter_labels: List[str] = []
+
+
+_THREAD_SQL = """
+    WITH base AS (
+        SELECT
+            CASE WHEN starts_with(primary_place_id, 'place_') THEN primary_place_id END AS place_key,
+            NULLIF(regexp_replace(COALESCE(subject_id, ''), '_[0-9]+$', ''), '')        AS subj_key
+        FROM event_decision WHERE event_decision_id = $1
+    )
+    SELECT
+        d.event_decision_id,
+        d.headline,
+        d.outcome,
+        d.primary_theme,
+        d.competing_views,
+        m.body_name AS meeting_name,
+        CASE WHEN COALESCE(NULLIF(m.event_date, ''), NULLIF(m.meeting_date, '')) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
+             THEN COALESCE(NULLIF(m.event_date, ''), NULLIF(m.meeting_date, '')) END AS meeting_date,
+        m.video_id AS meeting_video_id,
+        (d.event_decision_id = $1) AS is_current
+    FROM event_decision d
+    LEFT JOIN event_meeting m ON m.c1_event_id = d.c1_event_id
+    CROSS JOIN base b
+    WHERE (b.place_key IS NOT NULL AND d.primary_place_id = b.place_key)
+       OR (b.subj_key  IS NOT NULL
+           AND NULLIF(regexp_replace(COALESCE(d.subject_id, ''), '_[0-9]+$', ''), '') = b.subj_key)
+    ORDER BY meeting_date NULLS LAST, d.extracted_at DESC NULLS LAST
+    LIMIT 25
+"""
+
+
+def _view_labels(competing_views: Any) -> tuple[Optional[str], List[str]]:
+    """Pull (prevailing_label, [counter_labels]) out of a competing_views value.
+
+    The pool has no JSONB codec, so the value arrives as TEXT — json.loads it.
+    """
+    cv = competing_views
+    if isinstance(cv, str):
+        try:
+            cv = json.loads(cv)
+        except (ValueError, TypeError):
+            return None, []
+    if not isinstance(cv, dict):
+        return None, []
+    dom = cv.get("dominant_view")
+    prevailing = dom.get("view_label") if isinstance(dom, dict) else None
+    labels: List[str] = []
+    counters = cv.get("counter_views")
+    if isinstance(counters, list):
+        for c in counters:
+            if isinstance(c, dict) and isinstance(c.get("view_label"), str):
+                labels.append(c["view_label"])
+    return (prevailing if isinstance(prevailing, str) else None), labels
+
+
+@router.get("/{event_decision_id}/thread", response_model=List[DecisionThreadItem])
+async def get_decision_thread(event_decision_id: str) -> List[DecisionThreadItem]:
+    """
+    The same item across meetings (lifecycle), oldest → newest by meeting date.
+
+    Returns a single self-row when the item appears in only one analyzed meeting;
+    the client renders the cross-meeting timeline only when there are 2+.
+    """
+    with tracer.start_as_current_span("decision-thread") as span:
+        span.set_attribute("decision.event_decision_id", event_decision_id)
+        try:
+            pool = await get_db_pool()
+            async with pool.acquire() as conn:
+                rows = await conn.fetch(_THREAD_SQL, event_decision_id)
+        except Exception as e:  # noqa: BLE001
+            span.record_exception(e)
+            logger.error("Decision thread error for {}: {}", event_decision_id, e)
+            raise HTTPException(status_code=500, detail="Failed to load decision thread")
+
+        items: List[DecisionThreadItem] = []
+        for r in rows:
+            prevailing, counters = _view_labels(r["competing_views"])
+            items.append(
+                DecisionThreadItem(
+                    event_decision_id=r["event_decision_id"],
+                    headline=r["headline"],
+                    outcome=r["outcome"],
+                    primary_theme=r["primary_theme"],
+                    meeting_name=r["meeting_name"],
+                    meeting_date=r["meeting_date"],
+                    meeting_video_id=r["meeting_video_id"],
+                    is_current=bool(r["is_current"]),
+                    prevailing_label=prevailing,
+                    counter_labels=counters,
+                )
+            )
+        span.set_attribute("decision.thread_count", len(items))
+        return items

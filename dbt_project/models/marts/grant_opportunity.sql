@@ -1,6 +1,8 @@
 {{
   config(
-    materialized='table',
+    materialized='incremental',
+    unique_key='opportunity_id',
+    incremental_strategy='delete+insert',
     post_hook=[
       "CREATE INDEX IF NOT EXISTS grant_opportunity_status_idx ON {{ this }} (opp_status)",
       "CREATE INDEX IF NOT EXISTS grant_opportunity_close_date_idx ON {{ this }} (close_date)",

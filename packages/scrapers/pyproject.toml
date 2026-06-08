@@ -22,6 +22,9 @@ dependencies = [
 [project.optional-dependencies]
 browser = ["playwright>=1.40", "playwright-stealth>=1.0"]
 spark = ["pyspark>=3.5", "delta-spark>=3.0"]
+# OCR for scanned meeting PDFs (scrapers.suiteone.doctext --ocr). PyMuPDF renders
+# pages (no poppler) and RapidOCR runs on onnxruntime (no Tesseract / no root).
+ocr = ["pymupdf>=1.24", "rapidocr-onnxruntime>=1.3", "numpy<2"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

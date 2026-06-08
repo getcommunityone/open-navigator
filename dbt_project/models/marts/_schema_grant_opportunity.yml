@@ -10,7 +10,9 @@ models:
       'opportunity' result type. PK opportunity_id; no FKs (no resolved
       org/jurisdiction relationship yet).
     config:
-      materialized: table
+      materialized: incremental
+      unique_key: opportunity_id
+      incremental_strategy: delete+insert
       on_schema_change: fail
       contract:
         enforced: true

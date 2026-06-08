@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import api from '../lib/api'
 import { withSpan } from '../instrumentation'
 import { 
@@ -102,6 +102,50 @@ function normalizeTypeAlias(t: string): string {
   return t
 }
 
+// The result-type vocabulary, shared by the URL whitelist and the Advanced
+// Filters "Result types" checkbox group. Previously the pills were a separate
+// inline array in the filter bar; that confusing pill row was removed in favor
+// of a single source of truth surfaced inside the flyout.
+const RESULT_TYPES = [
+  { type: 'leaders', label: 'Leaders' },
+  // 'persons' (non-government people from mdm_person) is intentionally omitted:
+  // the backend gates that category off (PERSONS_SEARCH_ENABLED) to stay within
+  // Neon free-tier storage. Government leaders remain searchable via 'leaders'.
+  // Re-add this entry if the backend flag is flipped back on.
+  { type: 'organizations', label: 'Organizations' },
+  { type: 'causes', label: 'Causes' },
+  { type: 'meetings', label: 'Meetings' },
+  { type: 'bills', label: 'Bills' },
+  { type: 'topics', label: 'Topics' },
+  { type: 'decisions', label: 'Decisions' },
+  { type: 'grants', label: 'Grants' },
+  { type: 'grant_opportunities', label: 'Grant Opportunities' },
+] as const
+
+const ALL_RESULT_TYPE_KEYS = RESULT_TYPES.map((t) => t.type) as readonly string[]
+
+// Default selection when no ?types= is present — every result type is on by default.
+const DEFAULT_RESULT_TYPES = [...ALL_RESULT_TYPE_KEYS]
+
+// Tab order for the results view. Each result type that returns hits becomes a
+// tab; only the active tab's section renders. Decisions lead because the Money
+// Moves / civic-decision lenses are the primary reason users reach search; the
+// remaining tabs follow the long-standing section order. `key` matches the
+// keys of SearchResponse.results / type_totals so counts resolve directly.
+const RESULT_TABS = [
+  { key: 'decisions', label: 'Decisions' },
+  { key: 'leaders', label: 'Leaders' },
+  { key: 'persons', label: 'People' },
+  { key: 'organizations', label: 'Organizations' },
+  { key: 'causes', label: 'Causes' },
+  { key: 'meetings', label: 'Meetings' },
+  { key: 'bills', label: 'Bills' },
+  { key: 'topics', label: 'Topics' },
+  { key: 'grants', label: 'Grants' },
+  { key: 'grant_opportunities', label: 'Grant Opportunities' },
+  { key: 'jurisdictions', label: 'Jurisdictions' },
+] as const
+
 // Stable dot color for a cause/NTEE string (small palette, hashed by key).
 const CAUSE_DOT_PALETTE = [
   '#2F5D62', // teal
@@ -159,15 +203,20 @@ export default function UnifiedSearch() {
     const typesParam = searchParams.get('types')
     if (typesParam) {
       const types = typesParam.split(',').map(t => t.trim()).map(normalizeTypeAlias).filter(t =>
-        ['leaders', 'persons', 'organizations', 'causes', 'meetings', 'bills', 'topics', 'decisions', 'grants', 'grant_opportunities'].includes(t)
+        ALL_RESULT_TYPE_KEYS.includes(t)
       )
-      return types.length > 0 ? types : ['leaders', 'persons', 'organizations', 'causes', 'bills', 'topics']
+      return types.length > 0 ? types : [...DEFAULT_RESULT_TYPES]
     }
-    return ['leaders', 'persons', 'organizations', 'causes', 'bills', 'topics']
+    return [...DEFAULT_RESULT_TYPES]
   })
   const [selectedState, setSelectedState] = useState(() => searchParams.get('state') || '')
   const [currentPage, setCurrentPage] = useState(() => parseInt(searchParams.get('page') || '1'))
   const [showFilters, setShowFilters] = useState(false)
+  // Which results tab is active. Seeded from ?tab= for shareable deep links;
+  // the render-time `effectiveTab` falls back to the first available tab
+  // (Decisions when present) so a stale/unavailable selection never blanks the
+  // results.
+  const [activeTab, setActiveTab] = useState<string>(() => searchParams.get('tab') || '')
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [sortBy, setSortBy] = useState(() => searchParams.get('sort') || 'relevance')
   const [nteeCategory, setNteeCategory] = useState(() => searchParams.get('ntee') || '')
@@ -221,6 +270,17 @@ export default function UnifiedSearch() {
   const selectedCity = jurisdictionDetails.find(j =>
     j.type === 'City' || j.type === 'city' || j.type === 'Place' || j.type === 'place'
   )?.name || searchParams.get('city') || ''
+
+  // Result types count as "active" once the user narrows away from the full set.
+  const typesNarrowed = selectedTypes.length !== RESULT_TYPES.length
+  // Badge count on the Filters button — how many advanced filters are engaged.
+  const activeFilterCount = [
+    selectedState,
+    sortBy !== 'relevance' ? 'sorted' : null,
+    nteeCategory,
+    includeFullText ? 'full text' : null,
+    typesNarrowed ? 'types' : null,
+  ].filter(Boolean).length
   
   // Debounced query for autocomplete
   const [debouncedQuery, setDebouncedQuery] = useState(query)
@@ -345,54 +405,73 @@ export default function UnifiedSearch() {
     staleTime: 5000 // Cache for 5 seconds to avoid excessive requests
   })
 
-  // Main search results
-  const { data: searchResults, isLoading: isSearching, error } = useQuery<SearchResponse>({
-    queryKey: ['unified-search', activeQuery, selectedTypes, selectedState, selectedCity, currentPage, sortBy, nteeCategory, selectedEin, includeFullText],
+  // Whether the current inputs constitute a runnable search (query OR a
+  // browse-mode filter OR an EIN). Shared by both queries below.
+  const searchEnabled =
+    (activeQuery && activeQuery.length >= 2) ||
+    selectedState !== '' ||
+    selectedTypes.length > 0 ||
+    selectedEin !== ''
+
+  // Build the shared /search params (everything except per-tab paging). `types`
+  // and `limit`/`page` are layered on by each caller.
+  const buildSearchParams = (): Record<string, unknown> => {
+    const params: Record<string, unknown> = {}
+    if (activeQuery) params.q = activeQuery
+    if (selectedEin) params.ein = selectedEin
+    if (selectedState) params.state = selectedState
+    if (selectedCity) params.city = selectedCity
+    if (sortBy && sortBy !== 'relevance') params.sort = sortBy
+    if (nteeCategory) params.ntee_code = nteeCategory
+    if (includeFullText) params.full_text = 'true'
+    return params
+  }
+
+  // Tab counts — ONE lightweight call across all selected types, used only to
+  // build the results tab bar (which tabs exist + their totals). The query key
+  // deliberately omits page/active tab, so paging or switching tabs reuses the
+  // cached counts; only a changed query/filter set refetches. limit=1 keeps the
+  // per-type fetch minimal — we only consume `type_totals`, not the rows.
+  const { data: tabCountsData, isLoading: isCountsLoading } = useQuery<SearchResponse>({
+    queryKey: ['search-tab-counts', activeQuery, [...selectedTypes].sort().join(','), selectedState, selectedCity, sortBy, nteeCategory, selectedEin, includeFullText],
     queryFn: async () => {
-      // Allow searching with query OR with filters (browse mode) OR with EIN
-      if (!activeQuery && !selectedState && !selectedTypes.length && !selectedEin) {
-        return null
-      }
-      
-      const params: any = {
-        types: selectedTypes.join(','),
-        limit: 20,
-        page: currentPage
-      }
-      
-      // Query is optional - can browse by state/type
-      if (activeQuery) {
-        params.q = activeQuery
-      }
-      
-      // If EIN is specified, search for it specifically
-      if (selectedEin) {
-        params.ein = selectedEin
-      }
-      
-      if (selectedState) {
-        params.state = selectedState
-      }
-      
-      // Add city filter from jurisdiction details
-      if (selectedCity) {
-        params.city = selectedCity
-      }
-      
-      // Add sort and filter parameters
-      if (sortBy && sortBy !== 'relevance') {
-        params.sort = sortBy
-      }
-      
-      if (nteeCategory) {
-        params.ntee_code = nteeCategory
-      }
-      
-      // Include full text if enabled
-      if (includeFullText) {
-        params.full_text = 'true'
-      }
-      
+      if (!searchEnabled) return null
+      const params = { ...buildSearchParams(), types: selectedTypes.join(','), limit: 1, page: 1 }
+      const response = await api.get('/search/', { params })
+      return response.data
+    },
+    enabled: !!searchEnabled,
+    placeholderData: keepPreviousData,
+  })
+
+  // --- Result tabs ---------------------------------------------------------
+  // One tab per selected type that actually returned hits, in RESULT_TABS order
+  // (Decisions first). Counts come straight from the counts call's per-type
+  // type_totals — no fabricated numbers. `effectiveTab` is the user's selection
+  // when it's still available, else the first available tab.
+  const tabCounts: Record<string, number> = {}
+  const availableTabs = tabCountsData
+    ? RESULT_TABS.filter((t) => {
+        if (!selectedTypes.includes(t.key)) return false
+        const total = (tabCountsData.type_totals as Record<string, number | undefined> | undefined)?.[t.key] ?? 0
+        if (total > 0) {
+          tabCounts[t.key] = total
+          return true
+        }
+        return false
+      })
+    : []
+  const availableTabKeys: string[] = availableTabs.map((t) => t.key)
+  const effectiveTab = availableTabKeys.includes(activeTab) ? activeTab : (availableTabKeys[0] ?? '')
+
+  // Active-tab results — fetches ONLY the active tab's type, so `page`/`limit`
+  // paginate within that single type instead of across a mixed result set.
+  const { data: searchResults, isLoading: isSearching, error } = useQuery<SearchResponse>({
+    queryKey: ['unified-search', activeQuery, effectiveTab, selectedState, selectedCity, currentPage, sortBy, nteeCategory, selectedEin, includeFullText],
+    queryFn: async () => {
+      if (!effectiveTab) return null
+      const params = { ...buildSearchParams(), types: effectiveTab, limit: 20, page: currentPage }
+
       // Trace the search data-load. Low-cardinality attributes only — query
       // length/presence and enum-ish facets, never the raw query string.
       return withSpan(
@@ -406,13 +485,15 @@ export default function UnifiedSearch() {
           'search.has_query': !!activeQuery,
           'search.has_state': !!selectedState,
           'search.has_ein': !!selectedEin,
-          'search.type_count': selectedTypes.length,
+          'search.tab': effectiveTab,
           'search.page': currentPage,
         },
       )
     },
-    // Enable if we have query OR filters (browse mode) OR EIN
-    enabled: (activeQuery && activeQuery.length >= 2) || selectedState !== '' || selectedTypes.length > 0 || selectedEin !== ''
+    enabled: !!searchEnabled && !!effectiveTab,
+    // Keep the prior tab/page on screen while the next loads, so paging and
+    // tab-switching don't blank the list to a full-page spinner.
+    placeholderData: keepPreviousData,
   })
 
   const handleSearch = (e?: React.FormEvent) => {
@@ -422,7 +503,8 @@ export default function UnifiedSearch() {
       setActiveQuery(query)
       setShowSuggestions(false)
       setCurrentPage(1) // Reset to first page on new search
-      
+      setActiveTab('') // New search → default back to the first tab (Decisions)
+
       // Update URL
       const params: any = {}
       if (query.trim()) params.q = query
@@ -452,10 +534,25 @@ export default function UnifiedSearch() {
     if (sortBy && sortBy !== 'relevance') params.sort = sortBy
     if (nteeCategory) params.ntee = nteeCategory
     if (includeFullText) params.full_text = 'true'
+    if (effectiveTab) params.tab = effectiveTab
     if (newPage > 1) params.page = newPage.toString()
     setSearchParams(params)
-    
+
     // Scroll to top
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  // Switch the active results tab: reset to page 1 (pagination is per-tab) and
+  // persist the choice to ?tab= so the view is shareable/back-button safe.
+  const selectTab = (key: string) => {
+    setActiveTab(key)
+    setCurrentPage(1)
+
+    const params = new URLSearchParams(searchParams)
+    params.set('tab', key)
+    params.delete('page')
+    setSearchParams(params)
+
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -956,8 +1053,9 @@ export default function UnifiedSearch() {
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
           <h1 className="text-3xl font-bold text-gray-900 mb-4">Search</h1>
           
-          {/* Search Bar */}
-          <form onSubmit={handleSearch} className="relative" ref={searchContainerRef}>
+          {/* Search Bar + Filters on the same row */}
+          <div className="flex items-stretch gap-3">
+          <form onSubmit={handleSearch} className="relative flex-1" ref={searchContainerRef}>
             <div className="relative">
               <input
                 ref={searchInputRef}
@@ -1308,54 +1406,26 @@ export default function UnifiedSearch() {
             )}
           </form>
 
-          {/* Filter Bar */}
-          <div className="mt-4 flex items-center gap-2 sm:gap-3 flex-wrap">
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg border-2 transition-colors text-sm ${
-                showFilters 
-                  ? 'border-primary-500 bg-primary-50 text-primary-700'
-                  : 'border-gray-300 text-gray-700 hover:border-gray-400 hover:bg-gray-50'
-              }`}
-            >
-              <AdjustmentsHorizontalIcon className="h-4 w-4 sm:h-5 sm:w-5" />
-              <span className="hidden xs:inline">Filters</span>
-              {(selectedState || sortBy !== 'relevance' || nteeCategory || includeFullText) && (
-                <span className="ml-1 px-2 py-0.5 bg-primary-600 text-white text-xs rounded-full">
-                  {[selectedState, sortBy !== 'relevance' ? 'sorted' : null, nteeCategory, includeFullText ? 'full text' : null].filter(Boolean).length}
-                </span>
-              )}
-            </button>
-
-            {/* Quick Type Filters - Responsive sizing */}
-            {([
-              { type: 'leaders', label: 'Leaders' },
-              { type: 'persons', label: 'People' },
-              { type: 'organizations', label: 'Organizations' },
-              { type: 'causes', label: 'Causes' },
-              { type: 'meetings', label: 'Meetings' },
-              { type: 'bills', label: 'Bills' },
-              { type: 'topics', label: 'Topics' },
-              { type: 'decisions', label: 'Decisions' },
-              { type: 'grants', label: 'Grants' },
-              { type: 'grant_opportunities', label: 'Grant Opportunities' },
-            ] as const).map(({ type, label }) => (
-              <button
-                key={type}
-                onClick={() => toggleType(type)}
-                className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-full border-2 transition-all text-xs sm:text-sm ${
-                  selectedTypes.includes(type)
-                    ? `${getTypeColor(type)} border-current font-medium shadow-sm`
-                    : 'border-gray-300 bg-white text-gray-600 hover:border-gray-400 hover:bg-gray-50'
-                }`}
-              >
-                {selectedTypes.includes(type) && (
-                  <CheckIcon className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                )}
-                {getTypeIcon(type)}
-                <span className="truncate">{label}</span>
-              </button>
-            ))}
+          {/* Filter Bar — a single entry point into Advanced Filters, kept on the
+              same row as the search box. The old type-selection pill row lived
+              here; it was confusing, so result-type selection now lives inside
+              the flyout alongside the other filters. */}
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className={`flex-shrink-0 flex items-center gap-2 px-3 sm:px-4 py-3 rounded-lg border-2 transition-colors text-sm ${
+              showFilters
+                ? 'border-primary-500 bg-primary-50 text-primary-700'
+                : 'border-gray-300 text-gray-700 hover:border-gray-400 hover:bg-gray-50'
+            }`}
+          >
+            <AdjustmentsHorizontalIcon className="h-4 w-4 sm:h-5 sm:w-5" />
+            <span>Filters</span>
+            {activeFilterCount > 0 && (
+              <span className="ml-1 px-2 py-0.5 bg-primary-600 text-white text-xs rounded-full">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
           </div>
 
           {/* Active Filters Display */}
@@ -1486,6 +1556,61 @@ export default function UnifiedSearch() {
 
                   {/* Filters */}
                   <div className="space-y-6">
+                {/* Result Types — replaces the old pill row. Pick which kinds of
+                    results to include. */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Result types
+                    </label>
+                    <div className="flex items-center gap-3 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedTypes([...ALL_RESULT_TYPE_KEYS])
+                          setCurrentPage(1)
+                          setTimeout(() => handleSearch(), 0)
+                        }}
+                        className="text-primary-600 hover:text-primary-700 font-medium"
+                      >
+                        Select all
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedTypes([])
+                          setCurrentPage(1)
+                          setTimeout(() => handleSearch(), 0)
+                        }}
+                        className="text-gray-500 hover:text-gray-700 font-medium"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    {RESULT_TYPES.map(({ type, label }) => (
+                      <label
+                        key={type}
+                        className="flex items-center gap-2 cursor-pointer group py-1"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedTypes.includes(type)}
+                          onChange={() => toggleType(type)}
+                          className="h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-2 focus:ring-primary-500 cursor-pointer"
+                        />
+                        <span className="text-gray-500 group-hover:text-gray-700">
+                          {getTypeIcon(type)}
+                        </span>
+                        <span className="text-sm text-gray-700 group-hover:text-gray-900">
+                          {label}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
                 {/* State Filter */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1619,6 +1744,7 @@ export default function UnifiedSearch() {
                       setSortBy('relevance')
                       setNteeCategory('')
                       setIncludeFullText(false)
+                      setSelectedTypes([...DEFAULT_RESULT_TYPES])
                       setTimeout(() => handleSearch(), 0)
                     }}
                     className="w-full px-4 py-2.5 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors font-medium"
@@ -1638,9 +1764,9 @@ export default function UnifiedSearch() {
         </div>
 
         {/* Search Results */}
-        {(activeQuery || selectedState || searchResults) && (
+        {(activeQuery || selectedState || searchResults || tabCountsData) && (
           <div>
-            {isSearching && (
+            {(isSearching || isCountsLoading) && (
               <div className="text-center py-12">
                 <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
                 <p className="mt-4 text-gray-600">Searching...</p>
@@ -1653,36 +1779,35 @@ export default function UnifiedSearch() {
               </div>
             )}
 
+            {/* No matches at all (counts came back empty). Per-tab empties can't
+                happen — a tab only exists when its count is > 0. */}
+            {!isCountsLoading && tabCountsData && tabCountsData.total_results === 0 && (
+              <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
+                <MagnifyingGlassIcon className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">No results found</h3>
+                <p className="text-gray-600">
+                  Try different keywords or adjust your filters
+                </p>
+              </div>
+            )}
+
             {searchResults && searchResults.total_results !== undefined && searchResults.pagination && (
               <>
-                {/* Results Summary */}
+                {/* Results Summary — headline is the GRAND total across all
+                    tabs (from the counts call); the sub-line describes the
+                    active tab's current page (pagination is per-tab). */}
                 <div className="mb-6">
                   <h2 className="text-xl font-semibold text-gray-900">
-                    {searchResults.query ? (
-                      <>
-                        {searchResults.total_results.toLocaleString()} results for "{searchResults.query}"
-                        {searchResults.total_results > 0 && (
-                          <span className="text-base font-normal text-gray-600 ml-2">
-                            (showing {searchResults.pagination.offset + 1}-
-                            {Math.min(searchResults.pagination.offset + searchResults.pagination.limit, searchResults.total_results)})
-                          </span>
-                        )}
-                      </>
-                    ) : (
-                      <>
-                        {searchResults.total_results.toLocaleString()} results
-                        {searchResults.total_results > 0 && (
-                          <span className="text-base font-normal text-gray-600 ml-2">
-                            (showing {searchResults.pagination.offset + 1}-
-                            {Math.min(searchResults.pagination.offset + searchResults.pagination.limit, searchResults.total_results)})
-                          </span>
-                        )}
-                      </>
-                    )}
+                    {(tabCountsData?.total_results ?? searchResults.total_results).toLocaleString()} results
+                    {searchResults.query ? ` for "${searchResults.query}"` : ''}
                   </h2>
-                  {selectedState && (
+                  {searchResults.total_results > 0 && (
                     <p className="text-sm text-gray-600 mt-1">
-                      Filtered by state: {selectedState}
+                      Showing {searchResults.pagination.offset + 1}–
+                      {Math.min(searchResults.pagination.offset + searchResults.pagination.limit, searchResults.total_results)}
+                      {' '}of {searchResults.total_results.toLocaleString()}{' '}
+                      {(RESULT_TABS.find((t) => t.key === effectiveTab)?.label ?? effectiveTab).toLowerCase()}
+                      {selectedState && ` · State: ${selectedState}`}
                     </p>
                   )}
                 </div>
@@ -1824,8 +1949,44 @@ export default function UnifiedSearch() {
                   </div>
                 )}
 
+                {/* Result-type Tabs — one per type that returned hits, Decisions
+                    first. Only the active tab's section renders below. */}
+                {availableTabs.length > 1 && (
+                  <div className="mb-6 border-b border-gray-200 overflow-x-auto">
+                    <nav className="-mb-px flex gap-x-6" aria-label="Result types">
+                      {availableTabs.map(({ key, label }) => {
+                        const isActive = effectiveTab === key
+                        return (
+                          <button
+                            key={key}
+                            onClick={() => selectTab(key)}
+                            aria-current={isActive ? 'page' : undefined}
+                            className={`group inline-flex items-center gap-2 whitespace-nowrap border-b-2 px-1 py-3 text-sm font-medium transition-colors ${
+                              isActive
+                                ? 'border-primary-600 text-primary-700'
+                                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                            }`}
+                          >
+                            <span className={isActive ? 'text-primary-600' : 'text-gray-400 group-hover:text-gray-500'}>
+                              {getTypeIcon(key)}
+                            </span>
+                            {label}
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                                isActive ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-600'
+                              }`}
+                            >
+                              {tabCounts[key]?.toLocaleString() ?? 0}
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </nav>
+                  </div>
+                )}
+
                 {/* Results by Type */}
-                {selectedTypes.includes('leaders') &&
+                {effectiveTab === 'leaders' &&
                   searchResults.results?.leaders &&
                   searchResults.results.leaders.length > 0 && (
                   <div className="mb-8">
@@ -1841,7 +2002,7 @@ export default function UnifiedSearch() {
                   </div>
                 )}
 
-                {selectedTypes.includes('persons') &&
+                {effectiveTab === 'persons' &&
                   searchResults.results?.persons &&
                   searchResults.results.persons.length > 0 && (
                   <div className="mb-8">
@@ -1979,7 +2140,7 @@ export default function UnifiedSearch() {
                   </div>
                 )}
 
-                {selectedTypes.includes('meetings') && searchResults.results?.meetings && searchResults.results.meetings.length > 0 && (
+                {effectiveTab === 'meetings' && searchResults.results?.meetings && searchResults.results.meetings.length > 0 && (
                   <div className="mb-8">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                       <CalendarIcon className="h-6 w-6 text-green-600" />
@@ -1993,7 +2154,7 @@ export default function UnifiedSearch() {
                   </div>
                 )}
 
-                {selectedTypes.includes('organizations') && searchResults.results?.organizations && searchResults.results.organizations.length > 0 && (
+                {effectiveTab === 'organizations' && searchResults.results?.organizations && searchResults.results.organizations.length > 0 && (
                   <div className="mb-8">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                       <BuildingOfficeIcon className="h-6 w-6 text-purple-600" />
@@ -2007,7 +2168,7 @@ export default function UnifiedSearch() {
                   </div>
                 )}
 
-                {selectedTypes.includes('causes') && searchResults.results?.causes && searchResults.results.causes.length > 0 && (
+                {effectiveTab === 'causes' && searchResults.results?.causes && searchResults.results.causes.length > 0 && (
                   <div className="mb-8">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                       <HeartIcon className="h-6 w-6 text-pink-600" />
@@ -2021,7 +2182,7 @@ export default function UnifiedSearch() {
                   </div>
                 )}
 
-                {selectedTypes.includes('bills') && searchResults.results?.bills && searchResults.results.bills.length > 0 && (
+                {effectiveTab === 'bills' && searchResults.results?.bills && searchResults.results.bills.length > 0 && (
                   <div className="mb-8">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                       <DocumentTextIcon className="h-6 w-6 text-indigo-600" />
@@ -2035,7 +2196,7 @@ export default function UnifiedSearch() {
                   </div>
                 )}
 
-                {selectedTypes.includes('topics') && searchResults.results?.topics && searchResults.results.topics.length > 0 && (
+                {effectiveTab === 'topics' && searchResults.results?.topics && searchResults.results.topics.length > 0 && (
                   <div className="mb-8">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                       <ChatBubbleBottomCenterTextIcon className="h-6 w-6 text-teal-600" />
@@ -2049,7 +2210,7 @@ export default function UnifiedSearch() {
                   </div>
                 )}
 
-                {selectedTypes.includes('decisions') && searchResults.results?.decisions && searchResults.results.decisions.length > 0 && (
+                {effectiveTab === 'decisions' && searchResults.results?.decisions && searchResults.results.decisions.length > 0 && (
                   <div className="mb-8">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                       <ScaleIcon className="h-6 w-6 text-amber-600" />
@@ -2063,7 +2224,7 @@ export default function UnifiedSearch() {
                   </div>
                 )}
 
-                {selectedTypes.includes('jurisdictions') && searchResults.results?.jurisdictions && searchResults.results.jurisdictions.length > 0 && (
+                {effectiveTab === 'jurisdictions' && searchResults.results?.jurisdictions && searchResults.results.jurisdictions.length > 0 && (
                   <div className="mb-8">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                       <MapPinIcon className="h-6 w-6 text-orange-600" />
@@ -2077,7 +2238,7 @@ export default function UnifiedSearch() {
                   </div>
                 )}
 
-                {selectedTypes.includes('grants') && searchResults.results?.grants && searchResults.results.grants.length > 0 && (
+                {effectiveTab === 'grants' && searchResults.results?.grants && searchResults.results.grants.length > 0 && (
                   <div className="mb-8">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                       <BanknotesIcon className="h-6 w-6 text-emerald-600" />
@@ -2093,7 +2254,7 @@ export default function UnifiedSearch() {
 
                 {/* Grant Opportunities — open federal funding (Grants.gov).
                     Distinct from historical 990 grantmaking ("Grants") above. */}
-                {selectedTypes.includes('grant_opportunities') && searchResults.results?.grant_opportunities && searchResults.results.grant_opportunities.length > 0 && (
+                {effectiveTab === 'grant_opportunities' && searchResults.results?.grant_opportunities && searchResults.results.grant_opportunities.length > 0 && (
                   <div className="mb-8">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                       <MegaphoneIcon className="h-6 w-6 text-rose-600" />

@@ -150,3 +150,66 @@ def fetch_db_transcript(database_url: str, video_id: str) -> Optional[Dict[str, 
             yt["transcript_source"],
         )
     return yt
+
+
+def fetch_meeting_document_text(
+    database_url: str,
+    *,
+    census_geoid: str,
+    event_date: Optional[str],
+    max_chars: int = 40_000,
+) -> str:
+    """Concatenated agenda/minutes text for a meeting, as analysis context.
+
+    Matches scraped documents (bronze.bronze_meeting_document_text) to the video
+    being analyzed by census_geoid + exact meeting date — the official record
+    carries dollar amounts / staff recommendations / vote detail the spoken
+    transcript often only alludes to. Agenda(s) first, then minutes; only rows
+    with real extracted text — digital (extraction_method='pymupdf_text') or OCR'd
+    scanned PDFs ('rapidocr_ocr'). Truncated to ``max_chars`` to bound prompt
+    size/cost. Returns '' when nothing matches — never fabricates.
+    """
+    geoid = (census_geoid or "").strip()
+    day = (event_date or "").strip()[:10]
+    if not geoid or not day:
+        return ""
+
+    import psycopg2
+
+    sql = """
+        SELECT doc_type, content
+        FROM bronze.bronze_meeting_document_text
+        WHERE census_geoid = %s
+          AND meeting_date = %s::date
+          AND extraction_method IN ('pymupdf_text', 'rapidocr_ocr')
+          AND content IS NOT NULL
+        ORDER BY CASE doc_type WHEN 'agenda' THEN 0 WHEN 'minutes' THEN 1 ELSE 2 END
+    """
+    try:
+        conn = psycopg2.connect(database_url)
+    except Exception as exc:  # noqa: BLE001 — context is best-effort, never fatal
+        logger.warning("Meeting-document-text connect failed (geoid={}): {}", geoid, exc)
+        return ""
+    try:
+        with conn.cursor() as cur:
+            cur.execute(sql, [geoid, day])
+            rows = cur.fetchall()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Meeting-document-text query failed (geoid={}, {}): {}", geoid, day, exc)
+        return ""
+    finally:
+        conn.close()
+
+    if not rows:
+        return ""
+    blocks: list[str] = []
+    for doc_type, content in rows:
+        text = (content or "").strip()
+        if text:
+            blocks.append(f"--- {doc_type.upper()} ---\n{text}")
+    joined = "\n\n".join(blocks).strip()
+    if len(joined) > max_chars:
+        joined = joined[:max_chars] + "\n…[truncated]"
+    if joined:
+        logger.info("Attached {} official-record doc(s) ({} chars) for {} on {}", len(rows), len(joined), geoid, day)
+    return joined

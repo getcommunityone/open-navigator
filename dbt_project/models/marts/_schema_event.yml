@@ -241,11 +241,23 @@ models:
         description: "YouTube video id the transcript was derived from."
       - name: content
         data_type: text
-        description: "Full searchable document body (transcript text). GIN full-text indexed."
-        constraints:
-          - type: not_null
-        tests:
-          - not_null
+        description: >
+          Full searchable document body (transcript text). GIN full-text indexed
+          on the dev target. NULLABLE: on the `neon` serving target the full body
+          is dropped (only content_excerpt is kept) to fit the free tier, so this
+          is NULL there; on dev it is always populated.
+      - name: content_excerpt
+        data_type: text
+        description: >
+          Capped left(content, 300) preview of the document body. Always present
+          (both targets); on `neon` it is the only retained text since `content`
+          is dropped.
+      - name: content_tsv
+        data_type: tsvector
+        description: >
+          Precomputed full-text vector over content (dev target, GIN indexed). On
+          the `neon` serving target this is NULL (national document FTS disabled to
+          fit the free tier; search_documents_pg returns empty rather than error).
       - name: content_length
         data_type: integer
         description: "Character length of content."

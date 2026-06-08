@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
 import MeetingPlayer from '../components/MeetingPlayer'
+import { DocumentViewerProvider, useDocumentViewer } from '../components/DocumentViewerContext'
 import { MeetingVideoProvider, EvidenceLink, WatchRecordingLink } from '../components/MeetingVideoContext'
 import {
   ArrowLeftIcon,
@@ -12,7 +13,36 @@ import {
   UsersIcon,
   CalendarIcon,
   FilmIcon,
+  DocumentTextIcon,
+  DocumentIcon,
 } from '@heroicons/react/24/outline'
+import { withSpan } from '../instrumentation'
+
+// Agenda / minutes (and any future) document attached to the meeting. `url` is an
+// absolute external PDF link that opens in a new tab. `body_name` is a terse
+// source key (e.g. "projects") — not shown on the chip labels.
+interface DecisionDocument {
+  document_type: 'agenda' | 'minutes' | string
+  url: string
+  doc_date?: string | null
+  body_name?: string | null
+}
+
+// Parsed official agenda/minutes content (public.meeting_document) for the
+// decision's meeting — distinct from the document LINK chips (DecisionDocument).
+interface AgendaItem { item_number?: string | null; title?: string | null; disposition?: string | null }
+interface Motion { on_item?: string | null; moved_by?: string | null; seconded_by?: string | null; text?: string | null }
+interface RecordedVote { on_item?: string | null; yes?: number | null; no?: number | null; abstain?: number | null; result?: string | null }
+interface MeetingRecordEntry {
+  doc_kind: 'agenda' | 'minutes' | string
+  meeting_body?: string | null
+  agenda_items?: AgendaItem[] | null
+  motions?: Motion[] | null
+  recorded_votes?: RecordedVote[] | null
+  continuances?: { item?: string | null; continued_to?: string | null }[] | null
+  legislation_numbers?: string[] | null
+  source_urls?: string[] | null
+}
 
 interface DecisionDetail {
   event_decision_id: string
@@ -38,6 +68,19 @@ interface DecisionDetail {
   meeting_video_id?: string | null
   source_ai_model?: string | null
   extracted_at?: string | null
+  // Phase 3: agenda/minutes document links (served by GET /api/decision/{id}).
+  documents?: DecisionDocument[] | null
+  has_agenda?: boolean | null
+  has_minutes?: boolean | null
+  minutes_status?: 'published' | 'not_published' | null
+  // Estimated minutes publish date: present ONLY when minutes are unpublished AND
+  // a reliable estimate exists (median publish lag for this jurisdiction); else null.
+  expected_minutes_date?: string | null // ISO 'YYYY-MM-DD'
+  minutes_typical_lag_days?: number | null // median publish lag used (e.g. 1)
+  minutes_lag_sample_n?: number | null // sample size behind the estimate (e.g. 227)
+  // Parsed official agenda/minutes content for the meeting (agenda items, motions,
+  // recorded votes) — empty/absent when no document was enriched for this meeting.
+  meeting_record?: MeetingRecordEntry[] | null
 }
 
 // snake_case / camelCase JSON key -> human label
@@ -192,14 +235,32 @@ const CV_FONT = { fontFamily: "'DM Sans', sans-serif" } as const
 function ViewColumn({
   side,
   view,
+  solo = false,
+  unanimous = false,
+  deferred = false,
 }: {
   side: 'prevailing' | 'other'
   view: Record<string, unknown>
+  // `solo` = this is the only view (no opposing side), so it spans full width.
+  solo?: boolean
+  // `unanimous` = the vote tally confirms no dissent; only then do we say so.
+  unanimous?: boolean
+  // `deferred` = the outcome was a delay/continuance; the prevailing card is then
+  // the deferral rationale, not a substantive winner, so relabel it as such.
+  deferred?: boolean
 }) {
   const isPrev = side === 'prevailing'
   const accent = isPrev ? '#1d6b5f' : '#e0603a'
   const tint = isPrev ? '#e7f2ef' : '#fdeee7'
-  const kicker = isPrev ? 'THE PREVAILING VIEW' : 'THE OTHER SIDE'
+  const kicker = deferred && (isPrev || solo)
+    ? 'WHY IT WAS DEFERRED'
+    : solo
+    ? unanimous
+      ? 'UNANIMOUS'
+      : 'THE PREVAILING VIEW'
+    : isPrev
+      ? 'THE PREVAILING VIEW'
+      : 'THE OTHER SIDE'
   const label = typeof view?.view_label === 'string' ? view.view_label : null
   // Who argued this side (populated by the extraction's `held_by` person_ids).
   const heldBy = Array.isArray(view?.held_by)
@@ -232,7 +293,7 @@ function ViewColumn({
 
   return (
     <div
-      className="h-full rounded-xl border border-[#e1ebe7] p-4 sm:p-5"
+      className="rounded-xl border border-[#e1ebe7] p-4 sm:p-5"
       style={{ borderLeftWidth: 4, borderLeftColor: accent, background: isPrev ? '#f6faf9' : '#fef8f5' }}
     >
       <span
@@ -263,7 +324,172 @@ function ViewColumn({
   )
 }
 
-function CompetingViews({ data }: { data: unknown }) {
+// A delay/continuance outcome (deferred, tabled, postponed, continued, held).
+const DEFERRAL_RE = /(defer|tabl|postpon|continu|\bhold\b|remand|recess)/i
+function isDeferralOutcome(outcome?: string | null): boolean {
+  return DEFERRAL_RE.test(outcome || '')
+}
+
+// Banner that frames a delay as an accountable decision (not a non-event).
+function DeferralNotice({ outcome }: { outcome?: string | null }) {
+  const label = (outcome || '').trim() || 'Deferred'
+  return (
+    <div
+      className="mb-6 flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3.5"
+      style={CV_FONT}
+    >
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        className="mt-0.5 shrink-0 text-amber-600"
+        aria-hidden
+      >
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7v5l3 2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      <div>
+        <div className="text-[13.5px] font-semibold text-amber-900">
+          Deferred, not decided — “{label}”
+        </div>
+        <p className="mt-1 text-[13px] leading-snug text-amber-800">
+          The body chose to delay rather than approve or reject this item. A deferral is
+          still a decision: it postpones the outcome and items can stall across meetings —
+          worth tracking who moved to wait and whether it ever comes back.
+        </p>
+      </div>
+    </div>
+  )
+}
+
+// One occurrence of an item across meetings (from /decision/:id/thread).
+interface ThreadItem {
+  event_decision_id: string
+  headline?: string | null
+  outcome?: string | null
+  meeting_name?: string | null
+  meeting_date?: string | null
+  is_current: boolean
+  prevailing_label?: string | null
+  counter_labels: string[]
+}
+
+// Cross-meeting lifecycle of the SAME item: a deferred item that returns later
+// reads as one story. Renders only when the item appears in 2+ meetings.
+function DecisionThread({ id }: { id: string }) {
+  const [showPositions, setShowPositions] = useState(false)
+  const { data } = useQuery({
+    queryKey: ['decision-thread', id],
+    queryFn: async () => (await api.get(`/decision/${id}/thread`)).data as ThreadItem[],
+  })
+  const items = data ?? []
+  if (items.length < 2) return null
+
+  const hasPositions = items.some((it) => it.prevailing_label || it.counter_labels.length > 0)
+  const anyDelay = items.some((it) => isDeferralOutcome(it.outcome))
+
+  return (
+    <div className="bg-white rounded-lg shadow-sm p-6 mb-6" style={CV_FONT}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.12em] text-[#1d6b5f]">
+          <CalendarIcon className="h-4 w-4" /> This item across {items.length} meetings
+        </div>
+        {hasPositions && (
+          <button
+            type="button"
+            onClick={() => setShowPositions((s) => !s)}
+            className="text-[12.5px] font-medium text-[#1d6b5f] hover:underline"
+          >
+            {showPositions ? 'Hide positions' : 'Show positions for / against'}
+          </button>
+        )}
+      </div>
+      {anyDelay && (
+        <p className="mt-1 text-[12.5px] text-[#8a958f]">
+          Includes a delay — follow how it moved from meeting to meeting.
+        </p>
+      )}
+
+      <ol className="mt-4">
+        {items.map((it, i) => {
+          const delay = isDeferralOutcome(it.outcome)
+          const dateLabel = it.meeting_date
+            ? new Date(`${it.meeting_date}T00:00:00`).toLocaleDateString()
+            : '—'
+          return (
+            <li key={it.event_decision_id} className="flex gap-3 pb-5 last:pb-0">
+              {/* timeline rail */}
+              <div className="flex flex-col items-center pt-1">
+                <span
+                  className={`h-3 w-3 shrink-0 rounded-full ring-2 ring-white ${delay ? 'bg-amber-500' : 'bg-[#1d6b5f]'}`}
+                />
+                {i < items.length - 1 && <span className="mt-1 w-px flex-1 bg-[#e1ebe7]" />}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span className="text-[13px] font-semibold text-[#16201d]">{dateLabel}</span>
+                  {it.outcome && (
+                    <span
+                      className={`rounded-full border px-2 py-0.5 font-mono text-[10.5px] font-semibold uppercase tracking-wide ${outcomePill(it.outcome)}`}
+                    >
+                      {it.outcome}
+                    </span>
+                  )}
+                  {it.meeting_name && <span className="text-[12px] text-[#8a958f]">{it.meeting_name}</span>}
+                  {it.is_current && (
+                    <span className="rounded-full bg-[#e8f4f4] px-2 py-0.5 text-[10.5px] font-semibold text-[#1d6b5f]">
+                      This page
+                    </span>
+                  )}
+                </div>
+                {it.headline &&
+                  (it.is_current ? (
+                    <div className="mt-0.5 text-[13.5px] font-medium text-[#16201d]">{it.headline}</div>
+                  ) : (
+                    <Link
+                      to={`/decisions/${it.event_decision_id}`}
+                      className="mt-0.5 block text-[13.5px] text-[#1d6b5f] hover:underline"
+                    >
+                      {it.headline}
+                    </Link>
+                  ))}
+                {showPositions && (it.prevailing_label || it.counter_labels.length > 0) && (
+                  <div className="mt-2 space-y-1 rounded-lg bg-[#f6faf9] p-2.5 text-[12.5px] leading-snug">
+                    {it.prevailing_label && (
+                      <div>
+                        <span className="font-semibold text-[#1d6b5f]">For / prevailed: </span>
+                        <span className="text-[#56635e]">{it.prevailing_label}</span>
+                      </div>
+                    )}
+                    {it.counter_labels.map((c, j) => (
+                      <div key={j}>
+                        <span className="font-semibold text-[#e0603a]">Against: </span>
+                        <span className="text-[#56635e]">{c}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </li>
+          )
+        })}
+      </ol>
+    </div>
+  )
+}
+
+function CompetingViews({
+  data,
+  unanimous = false,
+  deferred = false,
+}: {
+  data: unknown
+  unanimous?: boolean
+  deferred?: boolean
+}) {
   const fallback = (value: unknown) => (
     <Section title="Where they disagreed" icon={<UsersIcon className="h-5 w-5" />}>
       <JsonValue value={value} />
@@ -293,12 +519,62 @@ function CompetingViews({ data }: { data: unknown }) {
   // explicit dominant); remaining views stack on the right as "the other side".
   const leftView = dominant ?? counters[0]
   const rightViews = dominant ? counters : counters.slice(1)
+  // No opposing view was captured -> nothing to contrast, so render the one view
+  // full width and drop the "where they disagreed" framing. Only call it
+  // "Unanimous" when the vote tally actually confirms no dissent; otherwise it's
+  // just the prevailing view (a split vote may have only one captured framing).
+  const single = rightViews.length === 0
+  const eyebrow = single
+    ? unanimous
+      ? 'Unanimous'
+      : 'The prevailing view'
+    : 'Where they disagreed'
+
+  // When the body voted unanimously yet the discussion still recorded an opposing
+  // view, make that tension explicit instead of leaving the reader to connect the
+  // vote tally (a separate card) with this one. Only name the community when the
+  // counter view actually reads as resident/public pushback; otherwise stay neutral.
+  const showUnanimousContrast = unanimous && !single
+  const counterText = rightViews
+    .flatMap((v) => [v.view_label, ...(Array.isArray(v.held_by) ? v.held_by : [])])
+    .filter((s): s is string => typeof s === 'string')
+    .join(' ')
+  const dissentIsCommunity =
+    /\b(resident|neighbor|communit|public|homeowner|constituent|citizen)/i.test(counterText)
+  const contrastText = dissentIsCommunity
+    ? 'Passed unanimously — but residents raised objections.'
+    : 'Passed unanimously — but objections were raised in the discussion.'
 
   return (
     <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
       <div className="text-[12px] font-bold uppercase tracking-[0.12em] text-[#1d6b5f]">
-        Where they disagreed
+        {eyebrow}
       </div>
+
+      {showUnanimousContrast && (
+        <div
+          className="mt-3 flex items-start gap-2 rounded-lg border border-[#f6d8c8] bg-[#fdf3ee] px-3.5 py-2.5 text-[13px] font-medium leading-snug text-[#9a4422]"
+          style={CV_FONT}
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            className="mt-[1px] shrink-0"
+            aria-hidden
+          >
+            <path
+              d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          <span>{contrastText}</span>
+        </div>
+      )}
 
       {debate && (
         <div className="mt-4">
@@ -311,8 +587,14 @@ function CompetingViews({ data }: { data: unknown }) {
 
       <div className="my-5 border-t border-[#e1ebe7]" />
 
-      <div className="grid items-stretch gap-4 md:grid-cols-2">
-        <ViewColumn side={dominant ? 'prevailing' : 'other'} view={leftView} />
+      <div className={single ? '' : 'grid items-start gap-4 md:grid-cols-2'}>
+        <ViewColumn
+          side={dominant ? 'prevailing' : 'other'}
+          view={leftView}
+          solo={single}
+          unanimous={unanimous}
+          deferred={deferred}
+        />
         {rightViews.length > 0 && (
           <div className="space-y-4">
             {rightViews.map((c, i) => (
@@ -445,7 +727,12 @@ function ToneSide({ label, accent, side }: { label: string; accent: string; side
           ))}
         </div>
       )}
-      {summary && <p className="mt-2 text-[13px] leading-relaxed text-[#56635e]">{summary}</p>}
+      {summary && (
+        <p className="mt-2 text-[13px] leading-relaxed text-[#56635e]">
+          {summary}
+          <EvidenceLink text={summary} />
+        </p>
+      )}
     </div>
   )
 }
@@ -491,7 +778,12 @@ function HumanElement({ data }: { data: unknown }) {
                     {sp.role && <span className="text-[12px] text-[#8a958f]">{sp.role}</span>}
                   </div>
                   {s.story_headline && <div className="mt-0.5 text-[13.5px] font-medium text-[#16201d]">{s.story_headline}</div>}
-                  {s.story_detail && <p className="mt-1 text-[13.5px] leading-relaxed text-[#56635e]">{s.story_detail}</p>}
+                  {s.story_detail && (
+                    <p className="mt-1 text-[13.5px] leading-relaxed text-[#56635e]">
+                      {s.story_detail}
+                      <EvidenceLink text={s.story_detail} />
+                    </p>
+                  )}
                   {s.why_it_mattered_to_the_decision && (
                     <p className="mt-1.5 border-l-2 border-[#e1ebe7] pl-3 text-[12.5px] italic leading-relaxed text-[#8a958f]">
                       Why it mattered: {s.why_it_mattered_to_the_decision}
@@ -526,6 +818,7 @@ function HumanElement({ data }: { data: unknown }) {
                   <span>
                     {typeof h.summary === 'string' ? h.summary : ''}
                     {sp && <span className="text-[#8a958f]"> — {sp.name}</span>}
+                    {typeof h.summary === 'string' && <EvidenceLink text={h.summary} />}
                   </span>
                 </li>
               )
@@ -788,6 +1081,238 @@ function WatchAndVerify({
   )
 }
 
+// Header meta-row document chips: agenda + minutes (+ any future doc types).
+//
+// HONESTY: never fabricate a link or a date. A present document renders a teal
+// link chip to its real external `url`; an absent one renders a MUTED, non-link
+// chip ("No agenda" / "Minutes not yet published") so the gap is explicit rather
+// than hidden. `body_name` (a terse source key) is intentionally not displayed.
+function pickDoc(docs: DecisionDocument[], type: string): DecisionDocument | undefined {
+  return docs.find((d) => d.document_type === type)
+}
+
+// Clicking a document chip launches the PDF inline in a centered modal popout
+// (react-pdf), mirroring how "Watch recording" pops the video. When no viewer
+// provider is mounted we degrade to opening the original in a new tab.
+function DocLinkChip({ label, type, url }: { label: string; type: string; url: string }) {
+  const viewer = useDocumentViewer()
+  if (viewer) {
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          withSpan('decision_detail.open_document', () => {}, { 'document.type': type })
+          viewer.openDocument({ url, label })
+        }}
+        className="flex items-center gap-1.5 font-medium text-[#1d6b5f] hover:text-[#155448]"
+      >
+        <DocumentTextIcon className="h-4 w-4" />
+        {label}
+      </button>
+    )
+  }
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={() =>
+        withSpan('decision_detail.open_document', () => {}, { 'document.type': type })
+      }
+      className="flex items-center gap-1.5 font-medium text-[#1d6b5f] hover:text-[#155448]"
+    >
+      <DocumentTextIcon className="h-4 w-4" />
+      {label}
+    </a>
+  )
+}
+
+function MutedDocChip({ label, title }: { label: string; title?: string }) {
+  return (
+    <span
+      className="flex cursor-default items-center gap-1.5 text-[#b8c2c0]"
+      title={title}
+    >
+      <DocumentIcon className="h-4 w-4 opacity-60" />
+      {label}
+    </span>
+  )
+}
+
+function MeetingDocuments({ decision }: { decision: DecisionDetail }) {
+  const docs = Array.isArray(decision.documents) ? decision.documents : []
+  const agenda = pickDoc(docs, 'agenda')
+  const minutes = pickDoc(docs, 'minutes')
+  const hasAgenda = decision.has_agenda === true || !!agenda
+  const hasMinutes = decision.has_minutes === true || !!minutes
+  // Future-proofing: any doc that isn't agenda/minutes renders as its own chip.
+  const others = docs.filter(
+    (d) => d.document_type !== 'agenda' && d.document_type !== 'minutes',
+  )
+
+  return (
+    <>
+      {hasAgenda && agenda ? (
+        <DocLinkChip label="Agenda" type="agenda" url={agenda.url} />
+      ) : (
+        <MutedDocChip label="No agenda" title="No agenda was published for this meeting." />
+      )}
+      {hasMinutes && minutes ? (
+        <DocLinkChip label="Minutes" type="minutes" url={minutes.url} />
+      ) : decision.expected_minutes_date ? (
+        (() => {
+          // Date-only string: anchor at local midnight (same as other date-only
+          // values on this page) so the displayed day doesn't shift by timezone.
+          const expected = new Date(`${decision.expected_minutes_date}T00:00:00`)
+          const expectedLabel = expected.toLocaleDateString()
+          // "Overdue" once the estimate has elapsed (compare date-only, ignore time).
+          const today = new Date()
+          today.setHours(0, 0, 0, 0)
+          const overdue = expected.getTime() < today.getTime()
+          const lag = decision.minutes_typical_lag_days
+          const sampleN = decision.minutes_lag_sample_n
+          const lagPhrase =
+            lag != null ? `${lag}-day` : null
+          const title =
+            lagPhrase != null && sampleN != null
+              ? `Estimated from the typical ${lagPhrase} gap between meeting and posted minutes for this jurisdiction (n=${sampleN}).`
+              : 'Estimated from the typical gap between meeting and posted minutes for this jurisdiction.'
+          return (
+            <MutedDocChip
+              label={
+                overdue
+                  ? `Minutes overdue (expected ~${expectedLabel})`
+                  : `Minutes expected ~${expectedLabel}`
+              }
+              title={title}
+            />
+          )
+        })()
+      ) : (
+        <MutedDocChip
+          label="Minutes not yet published"
+          title="Minutes haven't been published for this meeting yet."
+        />
+      )}
+      {others.map((d, i) => (
+        <DocLinkChip
+          key={`${d.document_type}-${i}`}
+          label={humanizeKey(d.document_type)}
+          type={d.document_type}
+          url={d.url}
+        />
+      ))}
+    </>
+  )
+}
+
+// Official record: the PARSED agenda/minutes content (item numbers, motions,
+// recorded votes) extracted from the meeting's agenda/minutes documents. Renders
+// only when at least one document was enriched for this meeting.
+function MeetingRecordCard({ record }: { record?: MeetingRecordEntry[] | null }) {
+  const entries = Array.isArray(record) ? record.filter((e) => e && e.doc_kind) : []
+  if (entries.length === 0) return null
+  return (
+    <div className="bg-white rounded-lg shadow-sm p-6 mb-6" style={CV_FONT}>
+      <div className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.12em] text-[#1d6b5f]">
+        <DocumentTextIcon className="h-4 w-4" /> Official record
+      </div>
+      <p className="mt-1 text-[12.5px] text-[#8a958f]">
+        Straight from the meeting’s agenda &amp; minutes — item numbers, motions, and recorded votes.
+      </p>
+      <div className="mt-4 space-y-5">
+        {entries.map((e, i) => {
+          const items = Array.isArray(e.agenda_items) ? e.agenda_items : []
+          const motions = Array.isArray(e.motions) ? e.motions : []
+          const votes = Array.isArray(e.recorded_votes) ? e.recorded_votes : []
+          const legs = Array.isArray(e.legislation_numbers) ? e.legislation_numbers : []
+          const url = Array.isArray(e.source_urls) && e.source_urls.length ? e.source_urls[0] : null
+          return (
+            <div key={i} className="rounded-xl border border-[#e1ebe7] p-4 sm:p-5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-[12px] font-bold uppercase tracking-wide text-[#16201d]">
+                  {e.doc_kind === 'minutes' ? 'Minutes' : 'Agenda'}
+                  {e.meeting_body ? <span className="font-normal text-[#8a958f]"> · {e.meeting_body}</span> : null}
+                </span>
+                {url && (
+                  <a href={url} target="_blank" rel="noopener noreferrer" className="text-[12.5px] font-medium text-[#1d6b5f] hover:underline">
+                    Source document →
+                  </a>
+                )}
+              </div>
+
+              {items.length > 0 && (
+                <details className="mt-3 group">
+                  <summary className="cursor-pointer text-[13px] font-semibold text-[#16201d]">
+                    {items.length} agenda items
+                    <span className="font-normal text-[#9bb8b8]"> · click to expand</span>
+                  </summary>
+                  <ol className="mt-2 space-y-1.5">
+                    {items.map((it, j) => (
+                      <li key={j} className="flex gap-2 text-[13px] leading-snug text-[#56635e]">
+                        {it.item_number ? (
+                          <span className="shrink-0 font-mono text-[11.5px] text-[#1d6b5f]">{it.item_number}</span>
+                        ) : null}
+                        <span>
+                          {it.title}
+                          {it.disposition ? (
+                            <span className="ml-1.5 rounded-full bg-[#f3f7f6] px-1.5 py-0.5 text-[11px] font-medium text-[#16201d]">
+                              {it.disposition}
+                            </span>
+                          ) : null}
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                </details>
+              )}
+
+              {motions.length > 0 && (
+                <div className="mt-3">
+                  <div className="text-[13px] font-semibold text-[#16201d]">Motions ({motions.length})</div>
+                  <ul className="mt-1.5 space-y-1 text-[12.5px] leading-snug text-[#56635e]">
+                    {motions.slice(0, 8).map((m, j) => (
+                      <li key={j}>
+                        {m.text || m.on_item || 'Motion'}
+                        {m.moved_by ? <span className="text-[#8a958f]"> — moved by {m.moved_by}{m.seconded_by ? `, 2nd ${m.seconded_by}` : ''}</span> : null}
+                      </li>
+                    ))}
+                    {motions.length > 8 && <li className="text-[#9bb8b8]">…and {motions.length - 8} more</li>}
+                  </ul>
+                </div>
+              )}
+
+              {votes.length > 0 && (
+                <div className="mt-3">
+                  <div className="text-[13px] font-semibold text-[#16201d]">Recorded votes</div>
+                  <ul className="mt-1.5 space-y-1 text-[12.5px] text-[#56635e]">
+                    {votes.slice(0, 8).map((v, j) => (
+                      <li key={j}>
+                        {v.on_item ? <span>{v.on_item}: </span> : null}
+                        <span className="tabular-nums">{v.yes ?? '–'}–{v.no ?? '–'}{v.abstain ? ` (${v.abstain} abstain)` : ''}</span>
+                        {v.result ? <span className="ml-1.5 font-medium text-[#16201d]">{v.result}</span> : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {legs.length > 0 && (
+                <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                  <span className="text-[12px] font-semibold text-[#16201d]">Legislation:</span>
+                  {legs.slice(0, 12).map((l, j) => (
+                    <span key={j} className="rounded-full bg-[#f3f7f6] px-2 py-0.5 font-mono text-[11px] text-[#56635e]">{l}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export default function DecisionDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -851,6 +1376,15 @@ export default function DecisionDetail() {
   const voteEntries = decision.vote_tally
     ? Object.entries(decision.vote_tally).filter(([, v]) => typeof v === 'number')
     : []
+  // Unanimous = there was support and zero recorded opposition. Used to label the
+  // competing-views card honestly (never claim "Unanimous" without vote backing).
+  const yesVotes = voteEntries
+    .filter(([k]) => /\b(yes|aye|for|favou?r)/i.test(k))
+    .reduce((s, [, v]) => s + v, 0)
+  const noVotes = voteEntries
+    .filter(([k]) => /\b(no|nay|against|oppose)/i.test(k))
+    .reduce((s, [, v]) => s + v, 0)
+  const unanimousVote = yesVotes > 0 && noVotes === 0
   const videoCaption = [
     decision.meeting_name,
     decision.meeting_date ? new Date(decision.meeting_date).toLocaleDateString() : null,
@@ -860,6 +1394,7 @@ export default function DecisionDetail() {
 
   return (
     <MeetingVideoProvider videoId={decision.meeting_video_id} caption={videoCaption || undefined}>
+    <DocumentViewerProvider>
     <div className="min-h-screen bg-[#f6faf8] py-8" style={CV_FONT}>
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Back Button — returns to wherever the user came from */}
@@ -919,9 +1454,16 @@ export default function DecisionDetail() {
               </span>
             )}
             <WatchRecordingLink />
+            <MeetingDocuments decision={decision} />
           </div>
         </header>
 
+        {/* Deferral accountability: a delay is a decision — call it out up front. */}
+        {isDeferralOutcome(decision.outcome) && <DeferralNotice outcome={decision.outcome} />}
+
+        {/* Cross-meeting lifecycle: the same item tracked across meetings (only
+            renders when it appears in 2+). */}
+        {id && <DecisionThread id={id} />}
 
         {/* Key Takeaways (smart_brevity) — leads, with "Why it matters", then
             the decision tucked directly under it. If there's no smart_brevity,
@@ -954,8 +1496,15 @@ export default function DecisionDetail() {
 
         {/* Frame analysis: where the sides disagreed (renders its own card) */}
         {!isEmpty(decision.competing_views) && (
-          <CompetingViews data={decision.competing_views} />
+          <CompetingViews
+            data={decision.competing_views}
+            unanimous={unanimousVote}
+            deferred={isDeferralOutcome(decision.outcome)}
+          />
         )}
+
+        {/* Official record — parsed agenda/minutes (item numbers, motions, votes) */}
+        <MeetingRecordCard record={decision.meeting_record} />
 
         {/* Human Element — named voices with avatars + room sentiment */}
         {!isEmpty(decision.human_element) && <HumanElement data={decision.human_element} />}
@@ -993,6 +1542,7 @@ export default function DecisionDetail() {
         </div>
       </div>
     </div>
+    </DocumentViewerProvider>
     </MeetingVideoProvider>
   )
 }

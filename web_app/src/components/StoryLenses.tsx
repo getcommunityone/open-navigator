@@ -1,10 +1,18 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { ChevronRightIcon, ChevronLeftIcon, BookmarkIcon, ArrowRightIcon } from '@heroicons/react/24/outline'
+import {
+  ChevronRightIcon,
+  ChevronLeftIcon,
+  BookmarkIcon,
+  ArrowRightIcon,
+  MapPinIcon,
+  PlusIcon,
+  SparklesIcon,
+} from '@heroicons/react/24/outline'
 import { BookmarkIcon as BookmarkSolidIcon } from '@heroicons/react/24/solid'
 import api from '../lib/api'
-import { useIsMobile } from '../hooks/useMediaQuery'
+import FollowTheMoney from './FollowTheMoney'
 
 /**
  * StoryLenses — the homepage "What's happening near you" section.
@@ -48,7 +56,7 @@ const LENSES: Lens[] = [
   { id: 'money', em: '\u{1F4B2}', label: 'Money Moves', desc: 'Contracts, spending, and big budgets', clr: '#2a8576' },
   {
     id: 'flags',
-    em: '\u{1F441}\u{FE0F}',
+    em: '\u{1F928}',
     label: 'Raised Eyebrows',
     desc: 'Decisions that make you go hmm…',
     clr: '#7a5cd0',
@@ -65,14 +73,43 @@ interface Stat {
   tone?: Tone
 }
 const TIME_OPTIONS: { d: number; label: string }[] = [
-  { d: 7, label: 'Week' },
-  { d: 31, label: 'Month' },
-  { d: 92, label: 'Quarter' },
-  { d: 366, label: 'Year' },
+  { d: 31, label: 'Past month' },
+  { d: 92, label: 'Past 3 months' },
+  { d: 366, label: 'Past year' },
+  { d: 1830, label: 'Past 5 years' },
   { d: 999999, label: 'All time' },
 ]
 
-const POPULAR_TOPICS = ['budget', 'zoning', 'police', 'schools', 'infrastructure', 'taxes']
+// "Close to Home" is the cross-lens, personalized landing view; the five signal
+// lenses (LENSES, above) are the editorial angles served by /api/lenses. The
+// strip is just navigation between these views.
+const HOME_LENS: Lens = {
+  id: 'home',
+  em: '\u{1F3E0}',
+  label: 'Close to Home',
+  desc: 'Near you, on what you care about',
+  clr: '#1a6b6b',
+}
+const STRIP_LENSES: Lens[] = [HOME_LENS, ...LENSES]
+
+// Value-frame "lenses" — how you READ a decision (Family First, Faith, …), a
+// distinct axis from the signal tiles above. There is no card-level theme/topic
+// tagging in the warehouse yet, so these render as an honest, disabled "coming
+// soon" affordance and do NOT filter the feed. We never fake-filter or fabricate
+// data to make the axis look live (CLAUDE.md: No Fabricated Data).
+interface ValueFrame {
+  id: string
+  name: string
+  em: string
+}
+const VALUE_FRAMES: ValueFrame[] = [
+  { id: 'family', name: 'Family First', em: '\u{1F46A}' },
+  { id: 'faith', name: 'Faith & Community', em: '⛪' },
+  { id: 'charitable', name: 'Charitable Impact', em: '\u{1F91D}' },
+  { id: 'neighborhood', name: 'Neighborhood Life', em: '\u{1F3D8}\u{FE0F}' },
+  { id: 'education', name: 'Education', em: '\u{1F393}' },
+  { id: 'economy', name: 'Local Economy', em: '\u{1F4BC}' },
+]
 
 function rel(d: number): string {
   if (d === 0) return 'today'
@@ -100,8 +137,10 @@ function rel(d: number): string {
 }
 
 // windowDays (segmented-control value) -> API `window` param, and back.
-const WINDOW_BY_DAYS: Record<number, string> = { 7: 'week', 31: 'month', 92: 'quarter', 366: 'year', 999999: 'all' }
-const WINDOW_LABEL: Record<string, string> = { week: 'Week', month: 'Month', quarter: 'Quarter', year: 'Year', all: 'All time' }
+const WINDOW_BY_DAYS: Record<number, string> = { 31: 'month', 92: 'quarter', 366: 'year', 1830: 'fiveyear', 999999: 'all' }
+// API window string -> segmented-control day value (reverse of WINDOW_BY_DAYS).
+// Used to highlight the grain that 'auto' resolved to, instead of a separate chip.
+const DAYS_BY_WINDOW: Record<string, number> = { month: 31, quarter: 92, year: 366, fiveyear: 1830, all: 999999 }
 // accent backgrounds for the live activity tiles, by position
 const ACTIVITY_BG = ['#fdeeeb', '#e7f2ef', '#efebfb', '#fbf3e2']
 
@@ -378,7 +417,7 @@ function StoryCarousel({ cards, lens, savedKeys, onToggleSave, onOpen, cardKey }
         {cards.map((c, i) => {
           const key = cardKey(c, i)
           return (
-            <div key={key} className="w-[84%] max-w-[340px] shrink-0 snap-start">
+            <div key={key} className="w-[84%] max-w-[340px] shrink-0 snap-start sm:w-[300px]">
               <StoryCard
                 card={c}
                 lens={lens}
@@ -410,10 +449,183 @@ function StoryCarousel({ cards, lens, savedKeys, onToggleSave, onOpen, cardKey }
   )
 }
 
+// Normalize an API lens's cards into the grid's RenderCard shape, appending a
+// ", ST" suffix to the jurisdiction only when the set spans >1 state or the view
+// is unscoped (so a single-state local view stays clean). Computed per-lens so
+// each stacked section disambiguates independently.
+function toRenderCards(apiCards: ApiCard[], unscoped: boolean): RenderCard[] {
+  const base = apiCards.map((c) => ({
+    h: c.headline,
+    stats: c.stats.map((s) => ({ v: s.value, l: s.label, tone: s.tone })),
+    juris: cleanJuris(c.jurisdiction),
+    when: relFromDate(c.date),
+    url: c.url,
+    stateCode: c.state_code || undefined,
+  }))
+  const distinctStates = new Set(base.map((c) => c.stateCode).filter(Boolean))
+  const showState = unscoped || distinctStates.size > 1
+  return base.map((c) =>
+    showState && c.stateCode && !new RegExp(`,\\s*${c.stateCode}$`).test(c.juris)
+      ? { ...c, juris: `${c.juris}, ${c.stateCode}` }
+      : c,
+  )
+}
+
+// ---------------------------------------------------------------------------
+// HScroll — a horizontal scroll rail with chevron buttons that appear only when
+// there is more to scroll in that direction. Touch-swipe still works on mobile;
+// the chevrons add an explicit affordance (and a click target) for the lens
+// strip and the value-frame / signal filter rows.
+// ---------------------------------------------------------------------------
+function HScroll({
+  children,
+  innerClassName = 'flex items-center gap-2',
+  step = 200,
+}: {
+  children: React.ReactNode
+  innerClassName?: string
+  step?: number
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [edges, setEdges] = useState({ left: false, right: false })
+
+  const update = useCallback(() => {
+    const el = ref.current
+    if (!el) return
+    setEdges({
+      left: el.scrollLeft > 4,
+      right: el.scrollLeft < el.scrollWidth - el.clientWidth - 4,
+    })
+  }, [])
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    update()
+    const ro = new ResizeObserver(() => update())
+    ro.observe(el)
+    // Re-measure once webfonts settle (chip widths shift on swap).
+    if (document.fonts?.ready) document.fonts.ready.then(update).catch(() => {})
+    return () => ro.disconnect()
+  }, [update, children])
+
+  const nudge = (dir: number) => ref.current?.scrollBy({ left: dir * step, behavior: 'smooth' })
+
+  const arrow = (side: 'left' | 'right') => (
+    <button
+      type="button"
+      onClick={() => nudge(side === 'left' ? -1 : 1)}
+      aria-label={side === 'left' ? 'Scroll left' : 'Scroll right'}
+      className={`absolute top-1/2 z-10 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full border border-[#e1ebe7] bg-white text-[#56635e] shadow-[0_1px_5px_rgba(20,40,35,.18)] transition-colors hover:border-[#1a6b6b] hover:text-[#1a6b6b] ${
+        side === 'left' ? '-left-1' : '-right-1'
+      }`}
+    >
+      {side === 'left' ? (
+        <ChevronLeftIcon className="h-3.5 w-3.5" aria-hidden />
+      ) : (
+        <ChevronRightIcon className="h-3.5 w-3.5" aria-hidden />
+      )}
+    </button>
+  )
+
+  return (
+    <div className="relative min-w-0 flex-1">
+      <div
+        ref={ref}
+        onScroll={update}
+        className={`${innerClassName} overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden`}
+      >
+        {children}
+      </div>
+      {edges.left && arrow('left')}
+      {edges.right && arrow('right')}
+    </div>
+  )
+}
+
+// Advisory note (e.g. Raised Eyebrows) shown above a lens's cards.
+function LensNote({ note }: { note: string }) {
+  return (
+    <div className="mx-0.5 mb-4 flex gap-2 rounded-lg border border-[#e3dcf5] border-l-[3px] border-l-[#7a5cd0] bg-[#f4f0fc] px-3.5 py-2.5 text-[12.5px] leading-snug text-[#5b4a8a]">
+      <span>{note}</span>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// SingleLensBody — the feed body when one signal lens is selected from the
+// strip: a horizontal swipe carousel of that lens's real cards, with honest
+// loading / placeholder / empty states. Never fabricates stories.
+// ---------------------------------------------------------------------------
+interface SingleLensBodyProps {
+  lens: Lens
+  cards: RenderCard[]
+  placeholder: boolean
+  loading: boolean
+  savedKeys: Set<string>
+  onToggleSave: (key: string) => void
+  onOpen: (card: RenderCard) => void
+  cardKey: (card: RenderCard, i: number) => string
+}
+
+function SingleLensBody({
+  lens,
+  cards,
+  placeholder,
+  loading,
+  savedKeys,
+  onToggleSave,
+  onOpen,
+  cardKey,
+}: SingleLensBodyProps) {
+  if (loading) {
+    return (
+      <div className="flex gap-4 overflow-hidden">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="h-44 w-[300px] shrink-0 animate-pulse rounded-2xl border border-[#e1ebe7] bg-[#f3f7f6]" />
+        ))}
+      </div>
+    )
+  }
+  if (placeholder) {
+    return (
+      <div className="rounded-xl border border-dashed border-[#d4e8e8] bg-white px-6 py-8 text-center text-sm text-[#9bb8b8]">
+        Coming soon — we&rsquo;re still extracting the signals for this lens.
+      </div>
+    )
+  }
+  if (cards.length === 0) {
+    return (
+      <div className="rounded-xl border border-dashed border-[#d4e8e8] bg-white px-6 py-8 text-center text-sm text-[#9bb8b8]">
+        Nothing in this window. <b className="text-[#56635e]">Try a wider time frame.</b>
+      </div>
+    )
+  }
+  return (
+    <StoryCarousel
+      cards={cards}
+      lens={lens}
+      savedKeys={savedKeys}
+      onToggleSave={onToggleSave}
+      onOpen={onOpen}
+      cardKey={cardKey}
+    />
+  )
+}
+
 export default function StoryLenses({ locationLabel, stateCode, city, national, onSearch, onBrowseTopics }: StoryLensesProps) {
   const navigate = useNavigate()
-  const isMobile = useIsMobile()
-  const [active, setActive] = useState<string>('contested')
+  // Which strip view is active: 'home' (cross-lens, personalized) or a single
+  // signal lens id. Signals narrow the Close-to-Home feed to the chosen lenses.
+  const [lensId, setLensId] = useState('home')
+  const [signals, setSignals] = useState<Set<string>>(() => new Set())
+  const toggleSignal = (id: string) =>
+    setSignals((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
   // Saved/"Following" stories, keyed by url||headline so the set survives
   // lens/window switches. Mirrors the demo's swipe-to-save outcome (#3).
   const [savedKeys, setSavedKeys] = useState<Set<string>>(() => new Set())
@@ -433,6 +645,10 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
   // a country-wide view.
   const scopedState = national ? undefined : stateCode || undefined
   const scopedCity = national ? undefined : city || undefined
+  // True whenever the query carries NO location filter — either an explicit
+  // national view or simply no location selected. In both cases the results are
+  // nationwide, so the UI must not claim they're local ("in your area").
+  const unscoped = !scopedState && !scopedCity
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['lenses', national, scopedState, scopedCity, windowParam],
@@ -448,43 +664,25 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
     placeholderData: (prev) => prev,
   })
 
-  const lens = LENSES.find((l) => l.id === active) ?? LENSES[0]
-  // In national scope, locationLabel is the stale city — fall through to the
-  // API's resolved label (or a country-wide default) instead.
-  const place = national
+  // With no location filter, locationLabel may be a stale city — fall through to
+  // the API's resolved label (or a country-wide default) so we never mislabel
+  // nationwide data as local.
+  const place = unscoped
     ? data?.location_label || 'the U.S.'
     : locationLabel || data?.location_label || 'your area'
+  // Preposition that reads correctly for both scopes ("across the U.S." vs
+  // "in Tuscaloosa").
+  const happeningPrep = unscoped ? 'across' : 'in'
 
-  // In auto mode the "Auto" segment is active and labelled with the grain the API
-  // resolved to; an explicit pick highlights its own day segment instead.
-  const autoActive = windowSel === 'auto'
-  const autoLabel = autoActive && data?.window ? `Auto · ${WINDOW_LABEL[data.window] ?? ''}` : 'Auto'
+  // Default ('auto') has no chip of its own: we simply highlight whichever grain
+  // the API resolved to, so it reads as a normal pre-selected option. An explicit
+  // pick highlights its own segment and pins that window across location changes.
+  const activeDay = windowSel === 'auto' ? DAYS_BY_WINDOW[data?.window ?? ''] ?? null : windowSel
 
   // 100% live data — no demo/hardcoded fallback. On a hard failure we show an
   // honest error state; we never fabricate stories.
   const loading = isLoading && !data
   const errored = isError && !data
-  const apiLens = data?.lenses.find((l) => l.id === active)
-  const isPlaceholder = !!data && (apiLens?.placeholder || (apiLens?.cards.length ?? 0) === 0)
-
-  const baseCards = (apiLens?.cards ?? []).map((c) => ({
-    h: c.headline,
-    stats: c.stats.map((s) => ({ v: s.value, l: s.label, tone: s.tone })),
-    juris: cleanJuris(c.jurisdiction),
-    when: relFromDate(c.date),
-    url: c.url,
-    stateCode: c.state_code || undefined,
-  }))
-  // Disambiguate the place with its 2-letter state only when the view isn't
-  // anchored to one state — i.e. a national view, or a set spanning >1 state.
-  // A single-state view (scoped to your area) doesn't need the suffix.
-  const distinctStates = new Set(baseCards.map((c) => c.stateCode).filter(Boolean))
-  const showState = !!national || distinctStates.size > 1
-  const cards: RenderCard[] = baseCards.map((c) =>
-    showState && c.stateCode && !new RegExp(`,\\s*${c.stateCode}$`).test(c.juris)
-      ? { ...c, juris: `${c.juris}, ${c.stateCode}` }
-      : c,
-  )
 
   const activityTiles = (data?.activity ?? []).map((a, i) => ({
     em: a.icon,
@@ -500,170 +698,143 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
     if (c.url) navigate(c.url)
   }
 
-  // Activity tiles switch the active lens and scroll to the (location-scoped)
-  // story grid — NOT a keyword search, which leaked across jurisdictions
-  // (e.g. a Northport "contested" tile returning a Jefferson County topic).
-  const storiesRef = useRef<HTMLDivElement>(null)
-  const handleActivityClick = (label: string) => {
-    // Tiles that map to a lens switch to it; generic tiles ("decisions
-    // analyzed") have no single lens, so land on the first POPULATED lens
-    // rather than dumping the user on a placeholder ("coming soon").
-    const firstPopulated = data?.lenses.find((l) => !l.placeholder && l.cards.length > 0)?.id
-    const lensId = activityToLens(label) ?? firstPopulated ?? 'contested'
-    setActive(lensId)
-    storiesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }
+  // Per-lens normalized cards from the live response (empty until data loads).
+  const lensCards = useMemo(
+    () =>
+      LENSES.map((l) => {
+        const apiLens = data?.lenses.find((x) => x.id === l.id)
+        const cards = toRenderCards(apiLens?.cards ?? [], unscoped)
+        const placeholder = !!data && (!!apiLens?.placeholder || cards.length === 0)
+        return { lens: l, cards, placeholder }
+      }),
+    [data, unscoped],
+  )
+
+  // Close-to-Home feed: every lens's real cards in one stream, tagged with their
+  // lens, narrowed to the selected signals (if any), and deduped so a decision
+  // surfacing in two lenses shows once (under the first lens that ranked it).
+  const homeFeed = useMemo(() => {
+    const out: { card: RenderCard; lens: Lens }[] = []
+    const seen = new Set<string>()
+    for (const { lens, cards } of lensCards) {
+      if (signals.size > 0 && !signals.has(lens.id)) continue
+      for (const card of cards) {
+        const k = card.url || `${card.h}__${card.juris}`
+        if (seen.has(k)) continue
+        seen.add(k)
+        out.push({ card, lens })
+      }
+    }
+    return out
+  }, [lensCards, signals])
+
+  const selected = STRIP_LENSES.find((l) => l.id === lensId) ?? HOME_LENS
+  const isHome = lensId === 'home'
+  const sel = lensCards.find((x) => x.lens.id === lensId)
 
   // Stable-ish key for save state & list rendering. Headline+jurisdiction is
   // unique enough for the handful of cards per lens; url wins when present.
-  const cardKey = (c: RenderCard, i: number) => c.url || `${active}-${c.h}-${c.juris}-${i}`
+  const keyFor = (id: string, c: RenderCard, i: number) => c.url || `${id}-${c.h}-${c.juris}-${i}`
+
+  // An activity tile jumps to its lens when it maps to one; otherwise it runs the
+  // derived search (generic tiles like "decisions analyzed").
+  const onActivity = (label: string) => {
+    const target = activityToLens(label)
+    if (target && STRIP_LENSES.some((l) => l.id === target)) setLensId(target)
+    else onSearch?.(activitySearchQuery(label))
+  }
 
   return (
     <div className="mt-5 text-left" style={FONT}>
-      {/* Popular topics row (retained browse-topics affordance) */}
-      <div className="mb-5 flex flex-wrap items-center gap-2">
-        <span className="text-[13px] font-semibold text-[#9bb8b8]">Popular:</span>
-        {POPULAR_TOPICS.map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => onSearch?.(t)}
-            className="rounded-full border border-[#d4e8e8] bg-white px-3 py-1 text-[13.5px] font-medium text-[#4a6a6a] transition-colors hover:border-[#1a6b6b]/45 hover:text-[#0f2b2b]"
-          >
-            {t}
-          </button>
-        ))}
-        <button
-          type="button"
-          onClick={onBrowseTopics}
-          className="inline-flex items-center gap-1 text-[13.5px] font-medium text-[#1a6b6b] underline-offset-2 transition-colors hover:underline"
-        >
-          Browse topics
-          <ChevronRightIcon className="h-4 w-4" aria-hidden />
-        </button>
-      </div>
-
-      {/* Lens cards row — wraps so every lens stays visible on mobile */}
-      <div className="mb-7 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        {LENSES.map((l) => {
-          const on = active === l.id
+      {/* Lens strip — Close to Home + the five signal lenses. Selecting a card
+          switches the feed below (persistent navigation; nothing gets lost). */}
+      <HScroll innerClassName="flex items-start gap-2.5 pb-1" step={170}>
+        {STRIP_LENSES.map((l) => {
+          const on = lensId === l.id
           return (
             <button
               key={l.id}
               type="button"
-              onClick={() => setActive(l.id)}
-              className="flex flex-col items-start gap-1.5 rounded-2xl border bg-white px-4 py-3.5 text-left transition-all hover:-translate-y-0.5"
+              onClick={() => setLensId(l.id)}
+              aria-pressed={on}
+              className="relative w-[150px] shrink-0 rounded-2xl bg-white px-3.5 py-3 text-left transition-all hover:-translate-y-px"
               style={{
-                borderColor: on ? l.clr : '#e1ebe7',
-                boxShadow: on
-                  ? `0 0 0 1.5px ${l.clr}, 0 6px 16px ${l.clr}26`
-                  : '0 1px 2px rgba(20,40,35,.04),0 6px 16px rgba(20,40,35,.05)',
+                border: `1.5px solid ${on ? l.clr : '#e1ebe7'}`,
+                boxShadow: on ? `0 4px 14px ${l.clr}2e` : '0 1px 2px rgba(20,40,35,.04)',
               }}
             >
+              {l.id === 'home' && (
+                <span
+                  className="absolute right-2.5 top-2.5 inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9.5px] font-bold"
+                  style={{ color: '#1a6b6b', background: 'rgba(26,107,107,0.10)' }}
+                >
+                  <SparklesIcon className="h-2.5 w-2.5" aria-hidden /> FOR YOU
+                </span>
+              )}
               <span
-                className="flex h-9 w-9 items-center justify-center rounded-xl text-[17px]"
+                className="mb-2.5 flex h-9 w-9 items-center justify-center rounded-xl text-[17px]"
                 style={{ background: `color-mix(in srgb, ${l.clr} 12%, #fff)` }}
+                aria-hidden
               >
                 {l.em}
               </span>
-              <span className="text-[15px] font-bold tracking-tight" style={{ color: l.clr }}>
+              <div className="mb-1 text-[14px] font-bold leading-tight" style={{ color: l.clr }}>
                 {l.label}
-              </span>
-              <span className="text-[12.5px] leading-snug text-[#56635e]">{l.desc}</span>
+              </div>
+              <div className="text-[12px] leading-snug text-[#56635e]">{l.desc}</div>
             </button>
           )
         })}
+      </HScroll>
 
-        {/* View all */}
+      {/* Header for the selected view */}
+      <div className="mb-2.5 mt-4 flex items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5">
+          <span
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[20px]"
+            style={{ background: `color-mix(in srgb, ${selected.clr} 12%, #fff)` }}
+            aria-hidden
+          >
+            {selected.em}
+          </span>
+          <div className="min-w-0">
+            <h2 className="text-[22px] font-semibold leading-tight tracking-tight" style={{ ...SERIF, color: selected.clr }}>
+              {selected.label}
+            </h2>
+            <p className="text-[13.5px] text-[#56635e]">{selected.desc}</p>
+          </div>
+          {isHome && (
+            <span
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-full border-[1.5px] px-2.5 py-1"
+              style={{ background: 'rgba(26,107,107,0.08)', borderColor: 'rgba(26,107,107,0.35)' }}
+            >
+              <MapPinIcon className="h-3.5 w-3.5 text-[#1a6b6b]" aria-hidden />
+              <span className="text-[13px] font-bold text-[#0f2b2b]">{place}</span>
+            </span>
+          )}
+        </div>
         <button
           type="button"
-          onClick={onBrowseTopics}
-          className="flex flex-col items-center justify-center gap-1 rounded-2xl border border-[#e1ebe7] bg-white px-4 py-3.5 text-[#1a6b6b] transition-colors hover:bg-[#f3f7f6]"
-          aria-label="View all lenses"
+          onClick={() => onBrowseTopics?.()}
+          className="inline-flex shrink-0 items-center gap-1 text-[13.5px] font-semibold text-[#1a6b6b] transition-colors hover:underline"
         >
-          <ChevronRightIcon className="h-5 w-5" aria-hidden />
-          <span className="text-[11px] font-semibold leading-tight">View all</span>
-        </button>
-      </div>
-
-      {/* What's happening strip — hidden entirely on a hard failure (no fake data) */}
-      {!errored && (
-      <>
-      <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-        <h2 className="text-[20px] font-semibold tracking-tight text-[#0f2b2b]" style={SERIF}>
-          What&rsquo;s happening in {place}
-        </h2>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-[#e7f2ef] px-2.5 py-0.5 text-[11px] font-semibold text-[#1d6b5f]">
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#1d6b5f]" />
-          Live update
-        </span>
-        <button
-          type="button"
-          onClick={onBrowseTopics}
-          className="ml-auto inline-flex items-center gap-1 text-[13px] font-medium text-[#1a6b6b] transition-colors hover:underline"
-        >
-          See all activity
+          See all
           <ArrowRightIcon className="h-3.5 w-3.5" aria-hidden />
         </button>
       </div>
-      <div className="mb-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {loading
-          ? Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="h-[76px] animate-pulse rounded-2xl border border-[#e1ebe7] bg-[#f3f7f6]" />
-            ))
-          : activityTiles.map((s) => (
-              <button
-                key={s.l}
-                type="button"
-                onClick={() => handleActivityClick(s.l)}
-                title={`Show ${s.l} near ${place}`}
-                aria-label={`${s.v} ${s.l} — show these near ${place}`}
-                className="group flex items-center gap-3 rounded-2xl border border-[#e1ebe7] bg-white px-4 py-3.5 text-left transition-all hover:-translate-y-0.5 hover:border-[#cfe0db] hover:shadow-[0_2px_4px_rgba(20,40,35,.06),0_10px_24px_rgba(20,40,35,.08)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1a6b6b]/40"
-              >
-                <span
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[19px]"
-                  style={{ background: s.bg }}
-                >
-                  {s.em}
-                </span>
-                <div className="min-w-0">
-                  <div className="text-[22px] font-bold leading-none tracking-tight" style={{ color: '#0f2b2b' }}>
-                    {s.v}
-                  </div>
-                  <div className="mt-1 text-[12.5px] leading-snug text-[#56635e] group-hover:text-[#0f2b2b]">{s.l}</div>
-                </div>
-              </button>
-            ))}
-      </div>
-      </>
-      )}
 
-      {/* Top stories header + time control */}
-      <div ref={storiesRef} className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 scroll-mt-4">
-        <h2 className="text-[20px] font-semibold tracking-tight text-[#0f2b2b]" style={SERIF}>
-          Top stories near {place}
-        </h2>
-        <div className="ml-auto inline-flex rounded-full border-[1.5px] border-[#d4e8e8] bg-white p-[3px]">
-          <button
-            type="button"
-            onClick={() => setWindowSel('auto')}
-            title="Automatically pick the best time range for your area"
-            className={`rounded-full px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${
-              autoActive
-                ? 'bg-[#1a6b6b] text-white shadow-[0_2px_6px_rgba(26,107,107,0.30)]'
-                : 'text-[#4a6a6a] hover:text-[#0f2b2b]'
-            }`}
-          >
-            {autoLabel}
-          </button>
+      {/* Time-window control (applies to every view) */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-[#9bb8b8]">When</span>
+        <div className="inline-flex rounded-full border-[1.5px] border-[#d4e8e8] bg-white p-[3px]">
           {TIME_OPTIONS.map((opt) => {
-            const on = windowSel === opt.d
+            const on = activeDay === opt.d
             return (
               <button
                 key={opt.d}
                 type="button"
                 onClick={() => setWindowSel(opt.d)}
-                className={`rounded-full px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${
+                className={`rounded-full px-3 py-1.5 text-[12.5px] font-semibold transition-colors ${
                   on
                     ? 'bg-[#1a6b6b] text-white shadow-[0_2px_6px_rgba(26,107,107,0.30)]'
                     : 'text-[#4a6a6a] hover:text-[#0f2b2b]'
@@ -676,59 +847,174 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
         </div>
       </div>
 
-      {/* Advisory note (Raised Eyebrows) */}
-      {lens.note && (
-        <div className="mx-0.5 mb-4 flex gap-2 rounded-lg border border-[#e3dcf5] border-l-[3px] border-l-[#7a5cd0] bg-[#f4f0fc] px-3.5 py-2.5 text-[12.5px] leading-snug text-[#5b4a8a]">
-          <span>{lens.note}</span>
+      {/* Personalization bar — Close to Home only */}
+      {isHome && (
+        <div className="mb-3 rounded-2xl border border-[#e1ebe7] bg-white p-3">
+          {/* Value-frames — how you READ a decision. No card-level theme tagging
+              exists yet, so these are an honest, disabled "coming soon" affordance
+              and never filter or fabricate data (CLAUDE.md: No Fabricated Data). */}
+          <div className="flex items-center gap-3">
+            <span className="shrink-0 text-[10.5px] font-semibold uppercase tracking-wide text-[#9bb8b8]">Lens</span>
+            <HScroll>
+              {VALUE_FRAMES.map((p) => (
+                <span
+                  key={p.id}
+                  title="Personalized value-frames are coming soon"
+                  className="inline-flex shrink-0 cursor-not-allowed items-center gap-1.5 rounded-full border border-[#e1ebe7] bg-[#f3f7f6] px-3 py-1.5 text-[12.5px] font-semibold text-[#9bb8b8]"
+                >
+                  <span aria-hidden>{p.em}</span>
+                  {p.name}
+                </span>
+              ))}
+              <span className="inline-flex shrink-0 items-center rounded-full bg-[#eef5f3] px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-[#1d6b5f]">
+                soon
+              </span>
+              <span className="inline-flex shrink-0 cursor-not-allowed items-center gap-1 rounded-full border border-dashed border-[#e1ebe7] px-2.5 py-1.5 text-[12.5px] font-semibold text-[#bcd0cb]">
+                <PlusIcon className="h-3 w-3" aria-hidden /> Add
+              </span>
+            </HScroll>
+          </div>
+
+          {/* Signals — live; narrow the Close-to-Home feed to the chosen lenses */}
+          <div className="mt-2.5 flex items-center gap-3 border-t border-[#e1ebe7] pt-2.5">
+            <span className="shrink-0 text-[10.5px] font-semibold uppercase tracking-wide text-[#9bb8b8]">Signal</span>
+            <HScroll>
+              {LENSES.map((l) => {
+                const on = signals.has(l.id)
+                return (
+                  <button
+                    key={l.id}
+                    type="button"
+                    onClick={() => toggleSignal(l.id)}
+                    aria-pressed={on}
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-[12.5px] font-semibold transition-all"
+                    style={{
+                      background: on ? l.clr : '#fff',
+                      border: `1px solid ${on ? l.clr : '#e1ebe7'}`,
+                      color: on ? '#fff' : '#0f2b2b',
+                    }}
+                  >
+                    <span aria-hidden>{l.em}</span>
+                    {l.label}
+                  </button>
+                )
+              })}
+              {signals.size > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSignals(new Set())}
+                  className="shrink-0 text-[12px] font-semibold text-[#56635e] underline underline-offset-2 hover:text-[#0f2b2b]"
+                >
+                  Clear
+                </button>
+              )}
+            </HScroll>
+          </div>
         </div>
       )}
 
-      {/* Card grid */}
-      {loading ? (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="h-44 animate-pulse rounded-2xl border border-[#e1ebe7] bg-[#f3f7f6]" />
-          ))}
+      {/* What's happening strip — Close to Home only; hidden on a hard failure */}
+      {isHome && !errored && (
+        <div className="mb-4">
+          <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+            <h3 className="text-[15px] font-semibold tracking-tight text-[#0f2b2b]" style={SERIF}>
+              What&rsquo;s happening {happeningPrep} {place}
+            </h3>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-[#e7f2ef] px-2.5 py-0.5 text-[11px] font-semibold text-[#1d6b5f]">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#1d6b5f]" />
+              Live update
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {loading
+              ? Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="h-[72px] animate-pulse rounded-2xl border border-[#e1ebe7] bg-[#f3f7f6]" />
+                ))
+              : activityTiles.map((s) => (
+                  <button
+                    key={s.l}
+                    type="button"
+                    onClick={() => onActivity(s.l)}
+                    title={`${s.v} ${s.l}`}
+                    className="group flex items-center gap-3 rounded-2xl border border-[#e1ebe7] bg-white px-4 py-3 text-left transition-all hover:-translate-y-0.5 hover:border-[#cfe0db] hover:shadow-[0_2px_4px_rgba(20,40,35,.06),0_10px_24px_rgba(20,40,35,.08)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1a6b6b]/40"
+                  >
+                    <span
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[19px]"
+                      style={{ background: s.bg }}
+                    >
+                      {s.em}
+                    </span>
+                    <div className="min-w-0">
+                      <div className="text-[22px] font-bold leading-none tracking-tight text-[#0f2b2b]">{s.v}</div>
+                      <div className="mt-1 text-[12.5px] leading-snug text-[#56635e] group-hover:text-[#0f2b2b]">{s.l}</div>
+                    </div>
+                  </button>
+                ))}
+          </div>
         </div>
-      ) : errored ? (
+      )}
+
+      {/* Feed. 100% live data — honest error / loading / empty states, never
+          fabricated stories. */}
+      {errored ? (
         <div className="rounded-xl border border-dashed border-[#d4e8e8] bg-white px-6 py-10 text-center text-sm text-[#9bb8b8]">
           Couldn&rsquo;t load stories right now. <b className="text-[#56635e]">Please try again.</b>
         </div>
-      ) : isPlaceholder ? (
-        <div className="rounded-xl border border-dashed border-[#d4e8e8] bg-white px-6 py-10 text-center text-sm text-[#9bb8b8]">
-          Coming soon — we&rsquo;re still extracting the signals for this lens.
-        </div>
-      ) : cards.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-[#d4e8e8] bg-white px-6 py-10 text-center text-sm text-[#9bb8b8]">
-          Nothing in this window. <b className="text-[#56635e]">Try a wider time frame.</b>
-        </div>
-      ) : isMobile ? (
-        // Mobile → swipe carousel (#1): native scroll-snap, peeking next card, dots.
-        <StoryCarousel
-          cards={cards}
-          lens={lens}
-          savedKeys={savedKeys}
-          onToggleSave={toggleSave}
-          onOpen={openCard}
-          cardKey={cardKey}
-        />
+      ) : isHome ? (
+        loading ? (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="h-48 animate-pulse rounded-2xl border border-[#e1ebe7] bg-[#f3f7f6]" />
+            ))}
+          </div>
+        ) : homeFeed.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-[#d4e8e8] bg-white px-6 py-10 text-center text-sm text-[#9bb8b8]">
+            {signals.size > 0 ? (
+              <>
+                No decisions match those signals in this window.{' '}
+                <b className="text-[#56635e]">Clear a filter or widen the time frame.</b>
+              </>
+            ) : (
+              <>
+                Nothing close to home in this window. <b className="text-[#56635e]">Try a wider time frame.</b>
+              </>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {homeFeed.map(({ card, lens }, i) => {
+              const key = keyFor(lens.id, card, i)
+              return (
+                <StoryCard
+                  key={key}
+                  card={card}
+                  lens={lens}
+                  saved={savedKeys.has(key)}
+                  onToggleSave={() => toggleSave(key)}
+                  onOpen={() => openCard(card)}
+                />
+              )
+            })}
+          </div>
+        )
+      ) : lensId === 'money' ? (
+        // Money Moves -> the Follow-the-money Sankey hero (its own /api/money-flow
+        // fetch, scoped) so every figure is warehouse-traced.
+        <FollowTheMoney embedded national={national} stateCode={stateCode} city={city} />
       ) : (
-        // Desktop → reflow grid (#2): auto-fill columns, no JS.
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
-          {cards.map((c, i) => {
-            const key = cardKey(c, i)
-            return (
-              <StoryCard
-                key={key}
-                card={c}
-                lens={lens}
-                saved={savedKeys.has(key)}
-                onToggleSave={() => toggleSave(key)}
-                onOpen={() => openCard(c)}
-              />
-            )
-          })}
-        </div>
+        <>
+          {selected.note && <LensNote note={selected.note} />}
+          <SingleLensBody
+            lens={selected}
+            cards={sel?.cards ?? []}
+            placeholder={!!sel?.placeholder}
+            loading={loading}
+            savedKeys={savedKeys}
+            onToggleSave={toggleSave}
+            onOpen={openCard}
+            cardKey={(c, i) => keyFor(selected.id, c, i)}
+          />
+        </>
       )}
     </div>
   )

@@ -194,4 +194,8 @@ class APIClient {
 // Create and export the API client instance
 const api = new APIClient(API_BASE_URL)
 
+/** Resolved API base URL (e.g. "/api") for building absolute proxy/static URLs
+ *  outside the client (e.g. a PDF <Document file> or media src). */
+export const apiBaseUrl = API_BASE_URL
+
 export default api

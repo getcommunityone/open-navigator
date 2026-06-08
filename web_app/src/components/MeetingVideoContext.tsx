@@ -12,7 +12,7 @@ import { useQuery } from '@tanstack/react-query'
 import { PlayIcon } from '@heroicons/react/24/solid'
 import { XMarkIcon, FilmIcon } from '@heroicons/react/24/outline'
 import api from '../lib/api'
-import { extractKeywords, findBestMatch, type Cue } from '../lib/transcriptMatch'
+import { buildCueIndex, extractKeywords, findBestMatchIndexed, type Cue } from '../lib/transcriptMatch'
 
 /**
  * MeetingVideoContext — "evidence links" model for the decision page.
@@ -81,19 +81,24 @@ export function MeetingVideoProvider({
   })
   const cues: Cue[] = data?.segments ?? []
 
+  // Tokenize the transcript ONCE per video; every claim/badge match reuses this
+  // index instead of re-tokenizing all cues (the old hot path: 15-30 badges ×
+  // thousands of cues re-tokenized on each render = the slow page render).
+  const cueIndex = useMemo(() => buildCueIndex(cues), [cues])
+
   const matchText = useCallback(
     (text: string): Resolved | null => {
-      if (!videoId || cues.length === 0 || !text?.trim()) return null
-      const m = findBestMatch(cues, extractKeywords(text))
+      if (!videoId || cueIndex.cues.length === 0 || !text?.trim()) return null
+      const m = findBestMatchIndexed(cueIndex, extractKeywords(text))
       if (!m || m.score < MIN_MATCH_SCORE) return null
       const idxs = m.windowIndices.length ? m.windowIndices : [0]
       const cueText = idxs
-        .map((i) => cues[i]?.text)
+        .map((i) => cueIndex.cues[i]?.text)
         .filter(Boolean)
         .join(' ')
       return { seconds: m.startSeconds, label: fmt(m.startSeconds), cueText }
     },
-    [videoId, cues],
+    [videoId, cueIndex],
   )
 
   const seek = useCallback((seconds: number) => {
@@ -138,7 +143,7 @@ export function MeetingVideoProvider({
 
       {mounted && videoId && (
         <div
-          className={`fixed z-50 transition-all ${open ? 'opacity-100' : 'pointer-events-none opacity-0'} bottom-2 left-2 right-2 sm:bottom-4 sm:left-auto sm:right-4 sm:w-[26rem]`}
+          className={`fixed left-1/2 top-1/2 z-50 max-h-[90vh] w-[92vw] max-w-4xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto transition-opacity ${open ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
         >
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl ring-1 ring-slate-900/5">
             <div className="flex items-center justify-between bg-slate-900 px-3 py-2">

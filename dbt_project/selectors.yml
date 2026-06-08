@@ -1,0 +1,108 @@
+selectors:
+  # ---------------------------------------------------------------------------
+  # neon_serving — the set of marts to build against the `neon` target
+  # (`dbt run --target neon --selector neon_serving`).
+  #
+  # Neon free tier is 0.5 GB / project. An unscoped `dbt run --target neon`
+  # builds EVERY public mart in Neon, including the non-government person graph
+  # (mdm_person + its person↔org / person↔jurisdiction bridges + the 990
+  # nonprofit-compensation table) — ~38 GB on its own. That graph was cut from
+  # search (PERSONS_SEARCH_ENABLED=False in api/routes/search.py), so it has no
+  # serving consumer and must NOT be built/mirrored to Neon.
+  #
+  # This selector = all marts MINUS that person graph. It encodes the scope cut
+  # in the build itself. NOTE: even with the person graph gone, the org/bills/
+  # grant marts (mdm_organization ~2.1 GB, grant ~4 GB, bills ~0.6 GB,
+  # event_documents ~0.5 GB) individually exceed the 0.5 GB ceiling — fitting the
+  # free tier needs a further feature/state decision (see CLEANUP notes). Add
+  # those names to `exclude` below to drop them from the Neon build too.
+  - name: neon_serving
+    description: >
+      Marts to build on the Neon serving target, excluding the non-government
+      person graph (mdm_person + person bridges + nonprofit compensation) that
+      was cut from search to fit Neon free-tier storage.
+    default: false
+    definition:
+      union:
+        - method: path
+          value: models/marts
+        - exclude:
+            # Non-government person graph (already cut from search) — ~38 GB.
+            - method: fqn
+              value: mdm_person
+            - method: fqn
+              value: mdm_bridge_person_organization
+            - method: fqn
+              value: mdm_bridge_person_jurisdiction
+            - method: fqn
+              value: organization_nonprofit_compensation
+            # Civic-only scope cut (Neon 0.5 GB): drop the national nonprofit /
+            # grants / bills / tag reference graphs. Those search categories
+            # (organizations, grants, bills, causes) return empty on Neon; the
+            # served product is the local-government civic graph only. ~13 GB.
+            - method: fqn
+              value: mdm_organization
+            - method: fqn
+              value: mdm_organization_nonprofit
+            - method: fqn
+              value: mdm_bridge_org_jurisdiction
+            - method: fqn
+              value: mdm_address
+            - method: fqn
+              value: serving_mdm_organization
+            - method: fqn
+              value: serving_grant
+            - method: fqn
+              value: grant
+            - method: fqn
+              value: grant_opportunity
+            - method: fqn
+              value: bills
+            - method: fqn
+              value: bill_sponsorship
+            - method: fqn
+              value: legislator
+            - method: fqn
+              value: rpt_bill_map_aggregate
+            - method: fqn
+              value: tag
+            - method: fqn
+              value: tag_closure
+            - method: fqn
+              value: tag_organization
+            # events_text_search (~4.5 GB) is only an upstream build-dep of
+            # event_documents; event search reads `FROM event` directly, so it
+            # never needs to live on Neon.
+            - method: fqn
+              value: events_text_search
+            # Residue of the dropped org/person/address graphs: these bridges and
+            # satellites ref the excluded mdm_organization / mdm_address / mdm_person
+            # marts, so they can't (and shouldn't) build on the civic-only Neon set.
+            - method: fqn
+              value: mdm_bridge_address_county
+            - method: fqn
+              value: mdm_bridge_address_xref
+            - method: fqn
+              value: mdm_bridge_org_address
+            - method: fqn
+              value: mdm_bridge_person_address
+            - method: fqn
+              value: mdm_organization_government
+            - method: fqn
+              value: mdm_person_source_link
+            - method: fqn
+              value: serving_mdm_bridge_org_jurisdiction
+            - method: fqn
+              value: serving_mdm_organization_nonprofit
+            # Civic marts that CANNOT be rebuilt on the Neon target because their
+            # upstreams are intentionally absent there (event_documents <-
+            # events_text_search <- bronze transcript; jurisdiction_state_aggregate
+            # <- person graph). These reach Neon via the copy/sync loaders
+            # (hosting.neon.migrate already loads jurisdiction_state_aggregate; the
+            # slim event_documents / transcript-cue loader is still TODO), NOT via
+            # `dbt run --target neon`. Excluded here so the selector stays
+            # dependency-closed and the neon build doesn't fail on a missing ref.
+            - method: fqn
+              value: event_documents
+            - method: fqn
+              value: jurisdiction_state_aggregate

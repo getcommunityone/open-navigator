@@ -2,7 +2,7 @@
 Database models for authentication, user management, and social features
 """
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, ForeignKey, Index, text
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, Float, ForeignKey, Index, text
 from sqlalchemy.ext.declarative import declarative_base
 
 Base = declarative_base()
@@ -129,4 +129,69 @@ class SocialFollow(Base):
     def __repr__(self):
         key = self.target_uid if self.target_uid is not None else self.target_id
         return f"<SocialFollow user:{self.follower_id} -> {self.target_type}:{key}>"
+
+
+# ============================================================================
+# FEED PERSONALIZATION MODELS
+# ============================================================================
+# Operational user-preference tables for the feed-setup screen. Like User /
+# SocialFollow these are ORM-managed public-schema tables (NOT dbt marts),
+# auto-created by Base.metadata.create_all in api/database.py at startup. All
+# three cascade-delete with their owning user.
+
+
+class UserLocation(Base):
+    """A location a user follows in their feed, at a chosen `shared_level`.
+
+    `name` is the human label (e.g. "Tuscaloosa, AL"); the resolved geo columns
+    are filled in from the place typeahead selection (all nullable). One row per
+    location; `is_primary` marks the one synced into User.city/county/state.
+    """
+    __tablename__ = "user_locations"
+
+    id = Column(Integer, primary_key=True, autoincrement=True, index=True)
+    user_id = Column(Integer, ForeignKey('user.user_id', ondelete='CASCADE'), nullable=False, index=True)
+    name = Column(String(255), nullable=False)  # e.g. "Tuscaloosa, AL"
+    # One of street | district | city | county | state
+    shared_level = Column(String(20), nullable=False, default='city')
+    is_primary = Column(Boolean, default=False)
+
+    # Resolved geo (all nullable — filled from the typeahead selection)
+    state_code = Column(String(2), nullable=True)
+    state = Column(String(100), nullable=True)
+    county = Column(String(100), nullable=True)
+    place_fips = Column(String(10), nullable=True)
+    county_fips = Column(String(10), nullable=True)
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
+    jurisdiction_id = Column(String(100), nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<UserLocation user:{self.user_id} {self.name} ({self.shared_level})>"
+
+
+class UserLensPref(Base):
+    """A topical lens a user has enabled for their feed (composite PK)."""
+    __tablename__ = "user_lens_prefs"
+
+    user_id = Column(Integer, ForeignKey('user.user_id', ondelete='CASCADE'), primary_key=True)
+    lens_slug = Column(String(50), primary_key=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<UserLensPref user:{self.user_id} {self.lens_slug}>"
+
+
+class UserSignalPref(Base):
+    """A story signal a user has enabled for their feed (composite PK)."""
+    __tablename__ = "user_signal_prefs"
+
+    user_id = Column(Integer, ForeignKey('user.user_id', ondelete='CASCADE'), primary_key=True)
+    signal_slug = Column(String(50), primary_key=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<UserSignalPref user:{self.user_id} {self.signal_slug}>"
 

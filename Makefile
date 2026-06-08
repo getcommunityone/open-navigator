@@ -1,4 +1,4 @@
-.PHONY: help install install-web_app install-docs build-web_app build-docs clean test run dev dev-web_app dev-docs start-all stop-all dev-full docker-up docker-down deploy-databricks
+.PHONY: help install install-web_app install-docs build-web_app build-docs clean test run dev dev-web_app dev-docs start-all stop-all dev-full docker-up docker-down deploy-databricks grants-refresh
 
 help:
 	@echo "🦷 Open Navigator - Makefile Commands"
@@ -33,6 +33,9 @@ help:
 	@echo "🧪 Testing:"
 	@echo "  make test              - Run test suite"
 	@echo "  make clean             - Remove build artifacts"
+	@echo ""
+	@echo "💰 Data Refresh:"
+	@echo "  make grants-refresh    - Refresh Grants.gov opportunities (incremental upsert)"
 	@echo ""
 
 install:
@@ -167,3 +170,15 @@ lint:
 	@echo "Linting code..."
 	@. venv/bin/activate && ruff check .
 	@. venv/bin/activate && mypy agents/ pipeline/ visualization/ api/
+
+# Incremental refresh of Grants.gov federal opportunities -> public.grant_opportunity.
+# Bronze upserts by opportunity_id (no --truncate), then the dbt mart merges
+# incrementally (delete+insert on the PK). Safe to run on a schedule/cron.
+# DSN defaults to local dev; export DATABASE_URL/NEON_DATABASE_URL_DEV to override.
+grants-refresh:
+	@echo "💰 Refreshing Grants.gov opportunities (incremental)..."
+	@: $${DATABASE_URL:=postgresql://postgres:password@localhost:5433/open_navigator}; \
+		export DATABASE_URL NEON_DATABASE_URL_DEV=$${NEON_DATABASE_URL_DEV:-$$DATABASE_URL}; \
+		. .venv/bin/activate && python -m ingestion.grants_gov.bronze
+	@cd dbt_project && .venv_dbt/bin/dbt run --select stg_grants_gov__opportunity grant_opportunity
+	@echo "✅ grant_opportunity refreshed"

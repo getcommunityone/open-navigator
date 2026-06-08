@@ -98,12 +98,21 @@ public_comment as (
     group by 1
 ),
 
--- money referenced by each decision: sum |amount| over its financial_item_refs,
--- resolved within the same analysis_id.
+-- money referenced by each decision: the LARGEST |amount| among its
+-- financial_item_refs, resolved within the same analysis_id.
+--
+-- NOT sum(): the AI extracts a single budget as several mutually-exclusive
+-- framings (e.g. FY27 Budget Scenario 1/2/3) plus restated totals, all tagged
+-- amount_type='budget'. Summing them multiplied one real ~$251.6M Brockton
+-- budget into a phantom $1.04B (and dominated the money lens, which orders by
+-- this). max(abs()) takes the decision's headline magnitude without
+-- double-counting alternatives/restatements (No Fabricated Data). Tradeoff:
+-- a decision bundling several genuinely-distinct transactions reports only its
+-- largest line item — acceptable vs. fabricating an inflated total.
 decision_money as (
     select
         d.event_decision_id,
-        sum(abs(f.amount)) as net_dollar_impact,
+        max(abs(f.amount)) as net_dollar_impact,
         count(f.amount)    as financial_item_count
     from decisions d
     cross join lateral (

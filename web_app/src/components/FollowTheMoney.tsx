@@ -1,265 +1,303 @@
-import { Link } from 'react-router-dom'
-import {
-  ArrowTrendingUpIcon,
-  DocumentCurrencyDollarIcon,
-  HeartIcon,
-  ArrowsRightLeftIcon,
-  ChevronRightIcon,
-} from '@heroicons/react/24/outline'
+import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
+import { sankey as d3Sankey, sankeyLinkHorizontal } from 'd3-sankey'
+import api from '../lib/api'
 
-// "Follow the money" homepage section.
-//
-// Three drill-down cards (Revenue / Spending / Nonprofits) that frame civic
-// finance by *who is paying whom*, so a "grant" always resolves to one clear
-// destination. Both each card header and every line item are independent
-// drill-down links into the app's analytics / nonprofits / search surfaces.
+// "Follow the money" — a tabbed Sankey flow hero (Money Moves lens on the
+// homepage). Three lenses, ALL traced to the warehouse via GET /api/money-flow:
+//   spending (real money decisions) · grants (990 Schedule I) · economy (real
+//   nonprofit revenue decomposition). No fabricated numbers: a lens with no real
+//   data renders an honest empty state; we never draw an invented diagram.
 
-type BadgeTone = 'live' | 'recent' | 'fy' | 'count'
-
-interface MoneyLineItem {
-  label: string
-  /** optional muted sub-text rendered beneath the label */
-  sub?: string
-  badge: string
-  tone: BadgeTone
-  to: string
+interface FlowMeta {
+  title: string
+  subtitle?: string | null
+  url?: string | null
+  source_label?: string | null
 }
-
-interface MoneyCard {
+interface FlowNode {
   name: string
-  /** small uppercase mono label beneath the card name */
-  monoLabel: string
-  tagline: string
-  /** drill-down target for the whole card header */
-  to: string
-  Icon: typeof ArrowTrendingUpIcon
-  /** hex used for the top accent bar */
-  accentBar: string
-  /** tailwind classes for the accent text/border treatment on hover */
-  accentBorderHover: string
-  items: MoneyLineItem[]
+}
+interface FlowLink {
+  source: number
+  target: number
+  value: number
+  value_label: string
+  meta: FlowMeta
+}
+interface FlowLens {
+  accent: string
+  head_amount: string
+  head_label: string
+  count_label: string
+  nodes: FlowNode[]
+  links: FlowLink[]
+  placeholder: boolean
+}
+interface MoneyFlowResp {
+  location_label: string
+  lenses: { spending: FlowLens; grants: FlowLens; economy: FlowLens }
 }
 
 export interface FollowTheMoneyProps {
-  /** Pre-formatted nonprofit directory count (e.g. "43,726"). */
-  nonprofitCount?: string
+  embedded?: boolean
+  stateCode?: string
+  city?: string
+  national?: boolean
 }
 
-// Grants live in unified search under the `types` query param (see
-// UnifiedSearch.tsx — it reads `searchParams.get('types')`). We route all
-// "grant" line items there so the section's thesis (one clear home for a
-// grant) holds.
-const GRANTS_ROUTE = '/search?types=grants'
+type LensKey = 'spending' | 'grants' | 'economy'
+const TABS: { key: LensKey; label: string }[] = [
+  { key: 'spending', label: 'Public spending' },
+  { key: 'grants', label: 'Grants' },
+  { key: 'economy', label: 'Nonprofit economy' },
+]
 
-const BADGE_TONE_CLASSES: Record<BadgeTone, string> = {
-  live: 'bg-emerald-100 text-emerald-700 border border-emerald-200',
-  recent: 'bg-amber-100 text-amber-700 border border-amber-200',
-  fy: 'bg-slate-100 text-slate-600 border border-slate-200',
-  count: 'bg-violet-100 text-violet-700 border border-violet-200',
+const W = 800
+const H = 300
+
+// d3-sankey node/link after layout (geometry attached to copies of our data).
+type LaidNode = FlowNode & { x0: number; x1: number; y0: number; y1: number; value: number }
+type LaidLink = Omit<FlowLink, 'source' | 'target'> & {
+  source: LaidNode
+  target: LaidNode
+  width: number
 }
 
-function StatusBadge({ children, tone }: { children: React.ReactNode; tone: BadgeTone }) {
-  return (
-    <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${BADGE_TONE_CLASSES[tone]}`}
-    >
-      {children}
-    </span>
-  )
+const trunc = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + '…' : s)
+
+interface TipState {
+  x: number
+  y: number
+  meta: FlowMeta
+  valueLabel: string
+  accent: string
 }
 
-function MoneyCardView({ card }: { card: MoneyCard }) {
-  const { Icon } = card
-  return (
-    <div
-      className={`group/card relative flex flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md ${card.accentBorderHover}`}
-    >
-      {/* Colored top accent bar */}
-      <div
-        className="h-1.5 w-full rounded-t-xl"
-        style={{ backgroundColor: card.accentBar }}
-        aria-hidden="true"
-      />
+export default function FollowTheMoney({
+  embedded = false,
+  stateCode,
+  city,
+  national = false,
+}: FollowTheMoneyProps) {
+  const navigate = useNavigate()
+  const [tab, setTab] = useState<LensKey>('spending')
+  const [tip, setTip] = useState<TipState | null>(null)
 
-      <div className="flex flex-1 flex-col p-5">
-        {/* Card header — the whole header is a drill-down link */}
-        <Link to={card.to} className="group/header flex items-start gap-3">
-          <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg bg-gray-100">
-            <Icon className="h-6 w-6 text-gray-600" aria-hidden="true" />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span
-              className="block text-lg font-bold leading-tight text-[#16201d] group-hover/header:underline"
-              style={{ fontFamily: "'Fraunces', serif" }}
-            >
-              {card.name}
-            </span>
-            <span className="mt-0.5 block text-[11px] font-semibold uppercase tracking-widest text-gray-400 font-mono">
-              {card.monoLabel}
-            </span>
-          </span>
-          <ChevronRightIcon
-            className="mt-1 h-5 w-5 flex-shrink-0 text-gray-300 transition-colors group-hover/header:text-gray-500"
-            aria-hidden="true"
-          />
-        </Link>
+  const scopedState = national ? undefined : stateCode || undefined
+  const scopedCity = national ? undefined : city || undefined
 
-        {/* One-line muted tagline */}
-        <p className="mt-3 text-sm text-gray-500">{card.tagline}</p>
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['money-flow', national, scopedState, scopedCity],
+    queryFn: () =>
+      api
+        .get('/money-flow', { params: { state: scopedState, city: scopedCity } })
+        .then((r) => r.data as MoneyFlowResp),
+    staleTime: 5 * 60 * 1000,
+  })
 
-        <hr className="my-3 border-gray-100" />
+  const lens = data?.lenses[tab]
+  const accent = lens?.accent || '#0d9488'
 
-        {/* Line items — each is its own drill-down link */}
-        <ul className="-mx-2 flex flex-col">
-          {card.items.map((item) => (
-            <li key={item.label}>
-              <Link
-                to={item.to}
-                className="flex items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-gray-50"
-              >
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-medium text-[#16201d]">{item.label}</span>
-                  {item.sub && (
-                    <span className="mt-0.5 block text-xs text-gray-400">{item.sub}</span>
-                  )}
-                </span>
-                <StatusBadge tone={item.tone}>{item.badge}</StatusBadge>
-              </Link>
-            </li>
-          ))}
-        </ul>
+  // Compute the Sankey layout for the active lens (only when it has real links).
+  const laid = useMemo(() => {
+    if (!lens || lens.placeholder || lens.links.length === 0) return null
+    try {
+      const layout = d3Sankey<LaidNode, LaidLink>()
+        .nodeWidth(11)
+        .nodePadding(18)
+        .extent([
+          [150, 12],
+          [W - 150, H - 12],
+        ])
+      const graph = layout({
+        nodes: lens.nodes.map((n) => ({ ...n })) as LaidNode[],
+        links: lens.links.map((l) => ({ ...l })) as unknown as LaidLink[],
+      })
+      const linkPath = sankeyLinkHorizontal<LaidNode, LaidLink>()
+      return {
+        nodes: graph.nodes as LaidNode[],
+        links: (graph.links as LaidLink[]).map((l) => ({ link: l, d: linkPath(l) || '' })),
+      }
+    } catch {
+      return null
+    }
+  }, [lens])
+
+  const onSvgLeave = () => setTip(null)
+  const onLinkMove = (e: React.MouseEvent, l: LaidLink) =>
+    setTip({ x: e.clientX, y: e.clientY, meta: l.meta, valueLabel: l.value_label, accent })
+  const onLinkClick = (l: LaidLink) => {
+    if (l.meta.url) navigate(l.meta.url)
+  }
+
+  const header = (
+    <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+      <div>
+        {!embedded && (
+          <h2 className="text-3xl font-bold text-[#0f2b2b] md:text-4xl" style={{ fontFamily: "'Fraunces', serif" }}>
+            Follow the money
+          </h2>
+        )}
+        <p className={`max-w-2xl text-sm text-gray-500 ${embedded ? '' : 'mt-2 md:text-base'}`}>
+          Public money and grants flow from funders into projects, nonprofits, and vendors —{' '}
+          {data?.location_label ? (
+            <span className="font-medium text-gray-700">{data.location_label}</span>
+          ) : (
+            'one flow'
+          )}
+          , three lenses.
+        </p>
       </div>
     </div>
   )
-}
 
-export default function FollowTheMoney({ nonprofitCount = '43,726' }: FollowTheMoneyProps) {
-  const cards: MoneyCard[] = [
-    {
-      name: 'Revenue',
-      monoLabel: 'Money in',
-      tagline: 'Where the money comes from.',
-      to: '/analytics',
-      Icon: ArrowTrendingUpIcon,
-      accentBar: '#10b981',
-      accentBorderHover: 'hover:border-emerald-300',
-      items: [
-        { label: 'Taxes & fees', badge: 'FY2024', tone: 'fy', to: '/analytics' },
-        {
-          label: 'Grants received',
-          sub: 'fed / state · ARPA',
-          badge: 'Recent',
-          tone: 'recent',
-          to: GRANTS_ROUTE,
-        },
-        { label: 'Bonds & debt', badge: 'Recent', tone: 'recent', to: '/analytics' },
-      ],
-    },
-    {
-      name: 'Spending',
-      monoLabel: 'Money out',
-      tagline: 'Where it goes.',
-      to: '/analytics',
-      Icon: DocumentCurrencyDollarIcon,
-      accentBar: '#ef4444',
-      accentBorderHover: 'hover:border-rose-300',
-      items: [
-        { label: 'Contracts & vendors', badge: 'Live', tone: 'live', to: '/analytics' },
-        { label: 'Capital projects (CIP)', badge: 'Recent', tone: 'recent', to: '/analytics' },
-        {
-          label: 'Grants awarded',
-          sub: 'to orgs & nonprofits',
-          badge: 'Live',
-          tone: 'live',
-          to: GRANTS_ROUTE,
-        },
-      ],
-    },
-    {
-      name: 'Nonprofits',
-      monoLabel: 'The sector',
-      tagline: 'The parallel ecosystem.',
-      to: '/nonprofits',
-      Icon: HeartIcon,
-      accentBar: '#a855f7',
-      accentBorderHover: 'hover:border-violet-300',
-      items: [
-        {
-          label: 'Directory',
-          sub: `${nonprofitCount} organizations`,
-          badge: nonprofitCount,
-          tone: 'count',
-          to: '/nonprofits',
-        },
-        { label: '990 finances', badge: 'FY2024', tone: 'fy', to: '/nonprofits' },
-        {
-          label: 'Grants received',
-          sub: 'from government',
-          badge: 'Recent',
-          tone: 'recent',
-          to: GRANTS_ROUTE,
-        },
-      ],
-    },
-  ]
+  const body = (
+    <>
+      {header}
+      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
+        <div className="h-1 w-full transition-colors" style={{ background: accent }} />
+        {/* tabs */}
+        <div className="flex gap-1 border-b border-gray-200 px-4 pt-3">
+          {TABS.map((t) => {
+            const on = t.key === tab
+            return (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => setTab(t.key)}
+                className={`-mb-px border-b-2 px-3 pb-3 pt-2 text-sm font-semibold transition-colors ${
+                  on ? 'text-[#0f2b2b]' : 'border-transparent text-gray-400 hover:text-gray-700'
+                }`}
+                style={on ? { borderColor: accent } : undefined}
+              >
+                {t.label}
+              </button>
+            )
+          })}
+        </div>
 
-  return (
-    <section id="follow-the-money" className="bg-white py-16 px-4">
-      <div className="mx-auto max-w-7xl">
-        {/* Section header row */}
-        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2
-              className="text-3xl font-bold text-[#0f2b2b] md:text-4xl"
-              style={{ fontFamily: "'Fraunces', serif" }}
-            >
-              Follow the money
-            </h2>
-            <p className="mt-2 max-w-2xl text-sm text-gray-500 md:text-base">
-              Sorted by who's paying whom — so &ldquo;grant&rdquo; always has one clear home.
-            </p>
+        {/* flow header */}
+        <div className="flex items-baseline justify-between gap-3 px-5 pb-1 pt-3">
+          <div className="text-[13px] text-gray-500">
+            {lens && !lens.placeholder ? (
+              <>
+                <b className="text-[15px] font-bold text-[#0f2b2b]">{lens.head_amount}</b> {lens.head_label}
+              </>
+            ) : (
+              <span className="text-gray-400">—</span>
+            )}
           </div>
-
-          <Link
-            to="/analytics"
-            className="inline-flex flex-shrink-0 items-center gap-2 self-start rounded-full border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:border-gray-400 hover:bg-gray-50 sm:self-auto"
-          >
-            <ArrowsRightLeftIcon className="h-4 w-4" aria-hidden="true" />
-            Budget · how it connects
-          </Link>
+          <div className="font-mono text-[11.5px] text-gray-400">{lens?.count_label}</div>
         </div>
 
-        {/* Three drill-down cards */}
-        <div className="grid gap-5 md:grid-cols-3">
-          {cards.map((card) => (
-            <MoneyCardView key={card.name} card={card} />
-          ))}
-        </div>
-
-        {/* Footer legend bar — the connection key */}
-        <div className="mt-6 flex flex-col gap-3 rounded-xl border border-gray-200 bg-gray-50 px-5 py-3 text-sm text-gray-600 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4">
-          <span className="text-[11px] font-semibold uppercase tracking-widest text-gray-400 font-mono">
-            A grant goes →
-          </span>
-          <span className="flex flex-wrap items-center gap-x-4 gap-y-2">
-            <span>
-              received → <span className="font-bold text-emerald-600">Revenue</span>
-            </span>
-            <span aria-hidden="true" className="text-gray-300">
-              ·
-            </span>
-            <span>
-              awarded → <span className="font-bold text-rose-600">Spending</span>
-            </span>
-            <span aria-hidden="true" className="text-gray-300">
-              ·
-            </span>
-            <span>
-              org&apos;s full picture → <span className="font-bold text-violet-600">Nonprofits</span>
-            </span>
-          </span>
+        {/* flow area */}
+        <div className="px-3 pb-4 pt-1">
+          {isLoading ? (
+            <div className="h-[260px] animate-pulse rounded-xl bg-gray-50" />
+          ) : isError ? (
+            <div className="flex h-[200px] items-center justify-center rounded-xl border border-dashed border-gray-200 px-6 text-center text-sm text-gray-400">
+              Couldn&rsquo;t load the money flow right now.{' '}
+              <b className="ml-1 text-gray-600">Please try again.</b>
+            </div>
+          ) : !laid ? (
+            <div className="flex h-[200px] items-center justify-center rounded-xl border border-dashed border-gray-200 px-6 text-center text-sm text-gray-400">
+              No {TABS.find((t) => t.key === tab)?.label.toLowerCase()} flows available for this area yet.
+            </div>
+          ) : (
+            <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="Money flow Sankey diagram">
+              {laid.links.map(({ link, d }, i) => (
+                <path
+                  key={i}
+                  d={d}
+                  fill="none"
+                  stroke={accent}
+                  strokeOpacity={0.32}
+                  strokeWidth={Math.max(2, link.width)}
+                  style={{ cursor: link.meta.url ? 'pointer' : 'default' }}
+                  onMouseMove={(e) => onLinkMove(e, link)}
+                  onMouseLeave={onSvgLeave}
+                  onClick={() => onLinkClick(link)}
+                />
+              ))}
+              {laid.nodes.map((n, i) => {
+                const leftSide = n.x0 < W / 2
+                const isSource = i === 0 && tab !== 'grants'
+                const label = leftSide
+                  ? trunc(n.name, 22)
+                  : `${trunc(n.name, 20)}  ${lensValueLabel(lens, n)}`
+                return (
+                  <g key={i}>
+                    <rect
+                      x={n.x0}
+                      y={n.y0}
+                      width={n.x1 - n.x0}
+                      height={Math.max(2, n.y1 - n.y0)}
+                      rx={2}
+                      fill={isSource ? '#44403c' : tab === 'economy' ? '#a78bfa' : '#78716c'}
+                    />
+                    <text
+                      x={leftSide ? n.x0 - 8 : n.x1 + 8}
+                      y={(n.y0 + n.y1) / 2}
+                      dy="0.32em"
+                      textAnchor={leftSide ? 'end' : 'start'}
+                      fontSize={12}
+                      fill={leftSide ? '#44403c' : '#78716c'}
+                      style={{ fontFamily: "'DM Sans', sans-serif" }}
+                    >
+                      {label}
+                    </text>
+                  </g>
+                )
+              })}
+            </svg>
+          )}
         </div>
       </div>
+
+      <p className="mt-3 text-[12.5px] leading-relaxed text-gray-500">
+        Live from the warehouse — spending is real money-flagged decisions, grants are 990 Schedule I
+        flows, and the nonprofit-economy tab is a real decomposition of sector revenue (a snapshot drawn
+        as a flow), not invented funder&rarr;grantee edges.
+      </p>
+
+      {tip && (
+        <div
+          className="pointer-events-none fixed z-20 max-w-[260px] rounded-lg bg-[#1c1917] px-3 py-2 text-xs leading-snug text-white shadow-lg"
+          style={{ left: tip.x + 14, top: tip.y + 14 }}
+        >
+          <div className="font-semibold">{tip.meta.title}</div>
+          {tip.meta.subtitle && <div className="mt-0.5 text-[11px] text-stone-300">{tip.meta.subtitle}</div>}
+          <div className="mt-1 flex items-center gap-1.5 font-mono text-[10.5px]">
+            <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: tip.accent }} />
+            {tip.valueLabel}
+            {tip.meta.source_label ? ` · ${tip.meta.source_label}` : ''}
+          </div>
+        </div>
+      )}
+    </>
+  )
+
+  if (embedded) {
+    return (
+      <div id="follow-the-money" className="scroll-mt-4">
+        {body}
+      </div>
+    )
+  }
+  return (
+    <section id="follow-the-money" className="bg-white px-4 py-16">
+      <div className="mx-auto max-w-4xl">{body}</div>
     </section>
   )
+}
+
+// Right-side node value label: reuse the feeding link's pre-formatted
+// value_label (never re-format numbers on the client).
+function lensValueLabel(lens: FlowLens | undefined, node: LaidNode): string {
+  if (!lens) return ''
+  const idx = lens.nodes.findIndex((n) => n.name === node.name)
+  const link = lens.links.find((l) => l.target === idx)
+  return link?.value_label || ''
 }

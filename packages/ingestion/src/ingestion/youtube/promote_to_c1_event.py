@@ -187,6 +187,14 @@ def upsert_events(conn, events: list[YouTubeEvent], *, dry_run: bool) -> int:
             start_date = EXCLUDED.start_date,
             event_time = EXCLUDED.event_time,
             jurisdiction_id = EXCLUDED.jurisdiction_id,
+            -- bronze is authoritative for the jurisdiction of YouTube-derived events;
+            -- keep the human-readable place fields in sync so a row first created with a
+            -- stale/code value (e.g. a county FIPS like "c-AL-01125") gets corrected to the
+            -- real name on a later promote. Without these, name-based filters miss the rows.
+            jurisdiction_name = EXCLUDED.jurisdiction_name,
+            jurisdiction_type = EXCLUDED.jurisdiction_type,
+            city = EXCLUDED.city,
+            state = EXCLUDED.state,
             video_url = EXCLUDED.video_url,
             view_count = EXCLUDED.view_count,
             like_count = EXCLUDED.like_count,

@@ -1,14 +1,25 @@
 """
-Meeting transcript endpoint, backed by bronze.bronze_event_youtube_transcript.
+Meeting transcript endpoint, backed by public.event_documents.
 
 Powers the in-page video player on the decision / legislation drilldowns: the
 client embeds the meeting recording (react-player) and renders the timed
 transcript segments as clickable cues that seek the player to that moment.
 
-GRAIN: one transcript per video_id (the table's primary key). `segments` is a
-JSONB array of {text, start, duration}; we expose the minimal {start, text}
-shape the player needs. The pool registers no JSON codec, so asyncpg returns
-JSONB as raw text — we json.loads() it here.
+GRAIN: event_documents may carry >1 doc per video_id, so we filter to
+document_type='transcript' and LIMIT 1. `segments` is a JSONB array of timed
+cues; we expose the minimal {start, text} shape the player needs.
+
+SEGMENT SHAPE: two shapes are in the wild and both are tolerated:
+  - dev/local: long form {"start", "duration", "text"}
+  - Neon serving: slimmed form {"s": <start_seconds>, "t": <text>}
+`_coerce_segments` reads start from `s` OR `start` and text from `t` OR `text`.
+
+This reads only analyzed meetings (~6,397) since the 8.3 GB
+bronze.bronze_event_youtube_transcript table is NOT mirrored to the Neon serving
+DB; reduced cue coverage is the accepted product tradeoff.
+
+The pool registers no JSON codec, so asyncpg returns JSONB as raw text — we
+json.loads() it here.
 """
 from __future__ import annotations
 
@@ -45,16 +56,24 @@ class MeetingTranscript(BaseModel):
 _TRANSCRIPT_SQL = """
     SELECT
         video_id,
-        has_transcript,
         language,
-        segments
-    FROM bronze.bronze_event_youtube_transcript
+        segments,
+        (segments IS NOT NULL AND jsonb_array_length(segments) > 0) AS has_transcript
+    FROM public.event_documents
     WHERE video_id = $1
+      AND document_type = 'transcript'
+    LIMIT 1
 """
 
 
 def _coerce_segments(value: Any) -> List[TranscriptCue]:
     """Normalize the JSONB `segments` array to a clean list of timed cues.
+
+    Accepts BOTH segment shapes (see module docstring):
+      - long form {"start", "duration", "text"} (dev/local)
+      - slimmed form {"s": <start_seconds>, "t": <text>} (Neon serving)
+    Start is read from `s` OR `start`, text from `t` OR `text`; `start` is kept
+    as seconds (float) in the output cue.
 
     Tolerates already-parsed lists, raw JSON text, missing/invalid entries, and
     non-numeric starts — anything unusable is dropped rather than 500ing.
@@ -71,8 +90,13 @@ def _coerce_segments(value: Any) -> List[TranscriptCue]:
     for item in value:
         if not isinstance(item, dict):
             continue
-        start = item.get("start")
-        text = item.get("text")
+        # Slimmed Neon shape uses `s`/`t`; dev long form uses `start`/`text`.
+        start = item.get("s")
+        if start is None:
+            start = item.get("start")
+        text = item.get("t")
+        if text is None:
+            text = item.get("text")
         if start is None or not isinstance(text, str) or not text.strip():
             continue
         try:

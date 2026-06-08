@@ -78,6 +78,7 @@ This page documents all data sources, standards, and research contributions used
 - [Harvard Dataverse](#harvard-dataverse)
 - [CivicSearch (School Board Meeting Platform)](#civicsearch-school-board-meeting-platform)
 - [Datamuse API (Word-Finding Engine)](#datamuse-api-word-finding-engine)
+- [Comparative Agendas Project](#comparative-agendas-project)
 
 ### MeetingBank Dataset
 
@@ -455,6 +456,36 @@ Note: Datamuse.ai is a distinct SaaS product for natural language exploration:
 - **Professional:** ~$99/month (unlimited queries + API access)
 - **Free Trial:** Available for testing
 This is separate from the word-finding API and has different pricing.
+
+---
+
+### Comparative Agendas Project
+
+**Organization:** Comparative Agendas Project (originated as the U.S. Policy Agendas Project by Frank R. Baumgartner and Bryan D. Jones)  
+**What we use:** The policy-topic coding taxonomy (major topic and subtopic codes) as a reference framework for classifying meeting, bill, and decision themes.
+
+- **Website:** https://www.comparativeagendas.net/
+- **Master Codebook:** https://www.comparativeagendas.net/pages/master-codebook
+- **Coverage:** Coded policy agendas across many countries and U.S. institutions, 1947–present
+- **Data Included:**
+  - Major topic codes (e.g., macroeconomics, civil rights, health, environment)
+  - Subtopic codes within each major topic
+  - Cross-national and longitudinal policy-attention datasets
+- **License:** Free for non-commercial research use; see the site for dataset-specific terms
+
+**BibTeX:**
+```bibtex
+@misc{comparative_agendas_project,
+  author = {{Comparative Agendas Project}},
+  title  = {Comparative Agendas Project},
+  url    = {https://www.comparativeagendas.net/},
+  note   = {Policy-topic coding taxonomy and cross-national policy agendas data (1947--present)}
+}
+```
+
+**Resources:**
+- [🌐 Project site](https://www.comparativeagendas.net/)
+- [📕 Master Codebook](https://www.comparativeagendas.net/pages/master-codebook)
 
 ---
 

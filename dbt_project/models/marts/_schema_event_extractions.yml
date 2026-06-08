@@ -115,12 +115,21 @@ models:
     description: "AI-extracted dollar amounts/items. One row per (analysis, financial_item); partitioned by extracted_at."
     config:
       tags: ['marts', 'event-extraction', 'ai']
+    data_tests:
+      # (analysis_id, financial_item_id) is the real grain. financial_item_id
+      # ALONE is NOT globally unique (it collides across analyses) — any join
+      # that resolves event_decision.financial_item_refs MUST also match
+      # analysis_id, or one decision fans out to financial items nationwide.
+      # See int_civic__item_signals.decision_money.
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: ['analysis_id', 'financial_item_id']
     columns:
       - name: extraction_key
         description: "Stable dedup key (source_event_id || '_' || financial_item_id)."
         data_tests: [not_null, unique]
       - name: event_financial_item_id
-        description: "md5 surrogate of extraction_key — primary key (with extracted_at)."
+        description: "md5 surrogate of extraction_key — primary key (with extracted_at). Globally unique; use this for any cross-analysis join."
         data_tests: [not_null]
       - name: analysis_id
         description: "FK -> event_meeting.event_meeting_id (the parent meeting)."
@@ -128,6 +137,8 @@ models:
           - relationships:
               arguments: {to: "ref('event_meeting')", field: event_meeting_id}
               config: {severity: warn}
+      - name: financial_item_id
+        description: "Per-analysis extraction id referenced by event_decision.financial_item_refs. UNIQUE ONLY WITHIN analysis_id — never join on it alone (it collides across analyses); always pair with analysis_id."
       - name: c1_event_id
         description: "Resolved canonical OCD event id (nullable until the event is promoted)."
         data_tests:
