@@ -732,19 +732,6 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
   const isHome = lensId === 'home'
   const sel = lensCards.find((x) => x.lens.id === lensId)
 
-  // Real money-lens decisions, normalized for the Follow-the-money body. The
-  // money lens stat labeled "Amount" carries the decision's net dollar impact.
-  const moneyDecisions = useMemo(
-    () =>
-      (lensCards.find((x) => x.lens.id === 'money')?.cards ?? []).map((c) => ({
-        h: c.h,
-        juris: c.juris,
-        url: c.url,
-        amount: c.stats.find((s) => s.l === 'Amount')?.v,
-      })),
-    [lensCards],
-  )
-
   // Stable-ish key for save state & list rendering. Headline+jurisdiction is
   // unique enough for the handful of cards per lens; url wins when present.
   const keyFor = (id: string, c: RenderCard, i: number) => c.url || `${id}-${c.h}-${c.juris}-${i}`
@@ -1011,15 +998,9 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
           </div>
         )
       ) : lensId === 'money' ? (
-        // Money Moves keeps its Follow-the-money drilldown body, fed with the
-        // real money-lens decisions + scope so every figure is warehouse-traced.
-        <FollowTheMoney
-          embedded
-          national={national}
-          stateCode={stateCode}
-          city={city}
-          moneyCards={moneyDecisions}
-        />
+        // Money Moves -> the Follow-the-money Sankey hero (its own /api/money-flow
+        // fetch, scoped) so every figure is warehouse-traced.
+        <FollowTheMoney embedded national={national} stateCode={stateCode} city={city} />
       ) : (
         <>
           {selected.note && <LensNote note={selected.note} />}
