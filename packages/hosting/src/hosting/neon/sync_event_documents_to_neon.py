@@ -102,10 +102,26 @@ _LOAD_COLUMNS = [
     "state_code", "state", "city", "video_url", "created_at",
 ]
 
+# Analyzed-event scope (matches event.sql's `target.name == 'neon'` predicate and
+# the API's EVENTS_REQUIRE_ANALYSIS=True): keep only docs whose video_id resolves
+# to an analyzed meeting in event_meeting. Unanalyzed events are never shown
+# (EVENTS_REQUIRE_ANALYSIS), so their transcripts are dead weight on Neon. This is
+# the "analyzed-scoped" half of the civic-only/analyzed-scoped/cues-only plan —
+# without it the slim copy ships all ~6.4k docs (~237 MB) and busts the 0.5 GB
+# free tier; with it ~1.7k docs (~65-80 MB on disk).
+_ANALYZED_SCOPE_SQL = """
+WHERE NULLIF(TRIM(video_id), '') IN (
+    SELECT DISTINCT NULLIF(TRIM(video_id), '')
+    FROM public.event_meeting
+    WHERE NULLIF(TRIM(video_id), '') IS NOT NULL
+)
+"""
+
 # Server-side slim projection read from local public.event_documents. `segments`
 # is emitted as ::text so psycopg2 round-trips it cleanly; it is re-cast to jsonb
 # on INSERT (see _LOAD_PLACEHOLDERS).
-_SELECT_SLIM_SQL = """
+_SELECT_SLIM_SQL = (
+    """
 SELECT
     event_document_id,
     event_id,
@@ -135,6 +151,8 @@ SELECT
     created_at
 FROM public.event_documents
 """
+    + _ANALYZED_SCOPE_SQL
+)
 
 # `segments` (index 10) is cast text -> jsonb; everything else is a plain bind.
 _LOAD_PLACEHOLDERS = ", ".join(
@@ -165,6 +183,7 @@ def _projected_size(local_conn) -> tuple[int, str]:
                 ) END AS segments
             FROM public.event_documents
             """
+            + _ANALYZED_SCOPE_SQL
         )
         cur.execute(
             "SELECT count(*), pg_size_pretty(pg_total_relation_size('_ed_slim_probe')) "
