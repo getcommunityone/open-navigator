@@ -249,10 +249,13 @@ export default function FollowTheMoney({
               {laid.nodes.map((n, i) => {
                 const leftSide = n.x0 < W / 2
                 const isSource = i === 0 && tab !== 'grants'
-                // Right-side (target) nodes drill down via their feeding link —
-                // works on all three lenses (decision / grantee / revenue split).
+                // Right-side (target) nodes still resolve their feeding link for the
+                // hover tooltip + two-line value label.
                 const feed = leftSide ? undefined : lensTargetLink(lens, n)
-                const clickable = !!feed?.meta.url
+                // Drill-down comes from the node's OWN url now (set server-side on
+                // both sides), so left-side grantor nodes are clickable too.
+                const nodeUrl = n.url
+                const clickable = !!nodeUrl
                 const labelX = leftSide ? n.x0 - 8 : n.x1 + 8
                 const cy = (n.y0 + n.y1) / 2
                 return (
@@ -272,7 +275,7 @@ export default function FollowTheMoney({
                         : undefined
                     }
                     onMouseLeave={feed ? onSvgLeave : undefined}
-                    onClick={clickable ? () => navigate(feed!.meta.url!) : undefined}
+                    onClick={clickable ? () => navigate(nodeUrl!) : undefined}
                   >
                     <rect
                       x={n.x0}
@@ -292,7 +295,7 @@ export default function FollowTheMoney({
                         fill="#44403c"
                         style={{ fontFamily: "'DM Sans', sans-serif" }}
                       >
-                        {trunc(n.name, 24)}
+                        {trunc(n.name, 22)}
                       </text>
                     ) : (
                       // Two lines: name on top, the dollar value beneath in the
