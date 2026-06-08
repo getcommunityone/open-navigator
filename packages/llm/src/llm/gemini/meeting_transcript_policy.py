@@ -395,6 +395,7 @@ def save_transcript_policy_output(
     transcript_meta: Dict[str, Any],
     geocode_places: bool = False,
     agenda_blocks: Optional[List[Dict[str, Any]]] = None,
+    segments: Optional[List[Dict[str, Any]]] = None,
     enrich_legislation: bool = True,
     persist_bronze: bool = False,
     database_url: Optional[str] = None,
@@ -465,6 +466,12 @@ def save_transcript_policy_output(
                 jurisdiction_id=jid,
                 geocode=True,
             )
+        # Locate each human_element verbatim quote in the timestamped transcript so
+        # the decision page can seek to the exact moment (no fuzzy paraphrase guess).
+        if segments:
+            from llm.gemini.quote_timestamps import resolve_human_element_timestamps
+
+            resolve_human_element_timestamps(analysis_payload, segments)
         json_parsed = True
 
     analysis_path.write_text(
@@ -1060,6 +1067,7 @@ def process_one_video(
         transcript_meta=transcript_meta,
         geocode_places=getattr(args, "geocode_places", False),
         agenda_blocks=agenda_blocks,
+        segments=segments,
         enrich_legislation=not getattr(args, "skip_legislation_enrich", False),
         persist_bronze=getattr(args, "persist_bronze", False),
         database_url=_database_url(getattr(args, "database_url", None) or None),

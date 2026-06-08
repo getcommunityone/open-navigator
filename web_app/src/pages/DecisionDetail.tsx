@@ -700,6 +700,9 @@ interface Story {
   story_headline?: string
   story_detail?: string
   why_it_mattered_to_the_decision?: string
+  /** Verbatim transcript line + the exact second it occurs (from analysis). */
+  evidence_quote?: string | null
+  timestamp_start_seconds?: number | null
 }
 
 // One side of emotional_tone: { intensity, plain_summary, primary_emotions[] }.
@@ -781,7 +784,11 @@ function HumanElement({ data }: { data: unknown }) {
                   {s.story_detail && (
                     <p className="mt-1 text-[13.5px] leading-relaxed text-[#56635e]">
                       {s.story_detail}
-                      <EvidenceLink text={s.story_detail} />
+                      <EvidenceLink
+                        text={s.story_detail}
+                        quote={s.evidence_quote}
+                        seconds={typeof s.timestamp_start_seconds === 'number' ? s.timestamp_start_seconds : null}
+                      />
                     </p>
                   )}
                   {s.why_it_mattered_to_the_decision && (
@@ -818,7 +825,13 @@ function HumanElement({ data }: { data: unknown }) {
                   <span>
                     {typeof h.summary === 'string' ? h.summary : ''}
                     {sp && <span className="text-[#8a958f]"> — {sp.name}</span>}
-                    {typeof h.summary === 'string' && <EvidenceLink text={h.summary} />}
+                    {typeof h.summary === 'string' && (
+                      <EvidenceLink
+                        text={h.summary}
+                        quote={typeof h.quote === 'string' ? h.quote : null}
+                        seconds={typeof h.timestamp_start_seconds === 'number' ? h.timestamp_start_seconds : null}
+                      />
+                    )}
                   </span>
                 </li>
               )

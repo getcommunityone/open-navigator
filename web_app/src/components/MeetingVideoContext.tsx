@@ -128,6 +128,18 @@ export function MeetingVideoProvider({
     [matchText, seek],
   )
 
+  // Seek to a known second from the analysis data (no matching, no guessing).
+  const playAt = useCallback(
+    (seconds: number, quote?: string) => {
+      const s = Math.max(0, Math.floor(seconds))
+      setActive({ seconds: s, label: fmt(s), cueText: quote?.trim() || '' })
+      setMounted(true)
+      setOpen(true)
+      seek(s)
+    },
+    [seek],
+  )
+
   const onReady = () => {
     setReady(true)
     if (pendingRef.current != null) {
@@ -138,8 +150,8 @@ export function MeetingVideoProvider({
   }
 
   const ctx = useMemo<MeetingVideoCtx>(
-    () => ({ hasVideoId: !!videoId, resolve: matchText, playClip }),
-    [videoId, matchText, playClip],
+    () => ({ hasVideoId: !!videoId, resolve: matchText, playClip, playAt }),
+    [videoId, matchText, playClip, playAt],
   )
 
   return (
@@ -197,23 +209,66 @@ export function MeetingVideoProvider({
 }
 
 /**
- * Inline ▶ mm:ss pill next to a claim. Renders only when the claim text matches
- * a real transcript cue with enough confidence — otherwise nothing.
+ * Inline ▶ mm:ss pill that jumps to a moment in the recording.
+ *
+ * Source of truth, in order of trust:
+ *  1. `seconds` — an EXACT timestamp from the analysis data (resolved upstream by
+ *     locating a verbatim quote in the timestamped transcript). Used directly.
+ *  2. `quote` — a verbatim line; matched against the transcript (reliable because
+ *     it's the speaker's actual words, not a paraphrase).
+ *
+ * `text` is a PARAPHRASE (an AI summary). We deliberately do NOT match on it:
+ * paraphrase→transcript matching lands on the wrong moment, so when we have
+ * neither a real second nor a verbatim quote we render nothing rather than a
+ * misleading jump. (Honesty: never invent a timestamp.)
  */
-export function EvidenceLink({ text }: { text?: string | null }) {
+export function EvidenceLink({
+  text,
+  quote,
+  seconds,
+}: {
+  text?: string | null
+  quote?: string | null
+  seconds?: number | null
+}) {
   const ctx = useContext(Ctx)
-  const resolved = useMemo(() => (ctx && text ? ctx.resolve(text) : null), [ctx, text])
-  if (!ctx || !text || !resolved) return null
-  return (
-    <button
-      onClick={() => ctx.playClip(text)}
-      title={`Jump to ${resolved.label} in the recording`}
-      className="ml-1.5 inline-flex translate-y-px items-center gap-1 rounded-full border border-teal-200 bg-teal-50 px-2 py-0.5 align-middle font-mono text-[11px] font-medium text-teal-700 transition-colors hover:border-teal-400 hover:bg-teal-100"
-    >
-      <PlayIcon className="h-2.5 w-2.5" />
-      {resolved.label}
-    </button>
+  const hasSeconds = typeof seconds === 'number' && isFinite(seconds) && seconds >= 0
+  const q = (quote || '').trim()
+  // Match only on the verbatim quote (never the paraphrase). Hook runs every
+  // render to satisfy the rules-of-hooks; it no-ops when there's nothing to match.
+  const resolved = useMemo(
+    () => (ctx && !hasSeconds && q ? ctx.resolve(q) : null),
+    [ctx, hasSeconds, q],
   )
+  if (!ctx) return null
+
+  if (hasSeconds) {
+    return (
+      <button
+        onClick={() => ctx.playAt(seconds as number, q || text || undefined)}
+        title={`Jump to ${fmt(seconds as number)} in the recording`}
+        className="ml-1.5 inline-flex translate-y-px items-center gap-1 rounded-full border border-teal-200 bg-teal-50 px-2 py-0.5 align-middle font-mono text-[11px] font-medium text-teal-700 transition-colors hover:border-teal-400 hover:bg-teal-100"
+      >
+        <PlayIcon className="h-2.5 w-2.5" />
+        {fmt(seconds as number)}
+      </button>
+    )
+  }
+
+  if (resolved) {
+    return (
+      <button
+        onClick={() => ctx.playClip(q)}
+        title={`Jump to ${resolved.label} in the recording`}
+        className="ml-1.5 inline-flex translate-y-px items-center gap-1 rounded-full border border-teal-200 bg-teal-50 px-2 py-0.5 align-middle font-mono text-[11px] font-medium text-teal-700 transition-colors hover:border-teal-400 hover:bg-teal-100"
+      >
+        <PlayIcon className="h-2.5 w-2.5" />
+        {resolved.label}
+      </button>
+    )
+  }
+
+  return null
 }
 
 /** Plain "Watch recording" trigger for the hero (opens at the start). */

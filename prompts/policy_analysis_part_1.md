@@ -29,6 +29,7 @@ Capture **every distinct council action**, but **split by debate and opposition*
 Apply only to **`decisions[]`** (contested items). Do **not** add `human_element`, `competing_views`, or diagrams to `uncontested_items[]`.
 - **Personal Stories:** Extract specific anecdotes used to argue a point. 
 - **Humor:** Capture tension-breaking laughter, sarcasm, or procedural jokes.
+- **Verbatim quotes are mandatory (for jump-to-moment links):** every personal story and humor moment MUST include an `evidence_quote` / `quote` copied **word-for-word** from a single `<transcript>` line — never paraphrased, summarized, or stitched across lines. The `summary` / `story_detail` may paraphrase; the quote may not. These quotes are matched back against the timestamped transcript to compute the exact playback time, so any deviation breaks the link. Use `null` for the quote only when the moment genuinely has no quotable line.
 - **Emotional Intensity Rubric:** You MUST classify the `intensity` of supporters and opponents using strictly these behavioral markers from the transcript:
     * **Low:** Routine business, unanimous consent, polite procedural questions, no disagreement.
     * **Moderate:** Polite disagreement, standard debate, probing questions, differing opinions expressed calmly.
@@ -293,14 +294,16 @@ Each `smart_brevity` field is one tight sentence (≤25 words); `by_the_numbers`
             "person_id": "string or null",
             "story_headline": "string — Smart Brevity headline",
             "story_detail": "string — the personal story in plain language",
-            "why_it_mattered_to_the_decision": "string"
+            "why_it_mattered_to_the_decision": "string",
+            "evidence_quote": "string — REQUIRED verbatim line copied word-for-word from one <transcript> line (NOT paraphrased); null only if the moment has no quotable line"
           }
         ],
         "humor_and_light_moments": [
           {
             "speaker_id": "string or null",
             "summary": "string",
-            "tone": "one of: Humor, Sarcasm, Tension-breaking, Procedural joke, Other"
+            "tone": "one of: Humor, Sarcasm, Tension-breaking, Procedural joke, Other",
+            "quote": "string — REQUIRED verbatim line copied word-for-word from one <transcript> line (NOT paraphrased); null only if the moment has no quotable line"
           }
         ],
         "emotional_tone": {
