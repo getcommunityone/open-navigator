@@ -318,7 +318,7 @@ def _build_gap_flag_card(row: Any) -> LensCard:
         url = None
 
     return LensCard(
-        headline=f"Official {doc_type} differs from the AI recap — {body}",
+        headline=f"Official {doc_type} vs. the AI recap — {body}",
         stats=stats[:3],
         jurisdiction=row["jurisdiction_name"] or row["state_code"] or "Unknown",
         date=_iso_date(row["doc_date"] or row["meeting_date"]),
