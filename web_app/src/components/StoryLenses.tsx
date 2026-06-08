@@ -4,7 +4,6 @@ import { useQuery } from '@tanstack/react-query'
 import { ChevronRightIcon, ChevronLeftIcon, BookmarkIcon, ArrowRightIcon } from '@heroicons/react/24/outline'
 import { BookmarkIcon as BookmarkSolidIcon } from '@heroicons/react/24/solid'
 import api from '../lib/api'
-import { useIsMobile } from '../hooks/useMediaQuery'
 import FollowTheMoney from './FollowTheMoney'
 
 /**
@@ -381,7 +380,7 @@ function StoryCarousel({ cards, lens, savedKeys, onToggleSave, onOpen, cardKey }
         {cards.map((c, i) => {
           const key = cardKey(c, i)
           return (
-            <div key={key} className="w-[84%] max-w-[340px] shrink-0 snap-start">
+            <div key={key} className="w-[84%] max-w-[340px] shrink-0 snap-start sm:w-[300px]">
               <StoryCard
                 card={c}
                 lens={lens}
@@ -413,10 +412,130 @@ function StoryCarousel({ cards, lens, savedKeys, onToggleSave, onOpen, cardKey }
   )
 }
 
+// Normalize an API lens's cards into the grid's RenderCard shape, appending a
+// ", ST" suffix to the jurisdiction only when the set spans >1 state or the view
+// is unscoped (so a single-state local view stays clean). Computed per-lens so
+// each stacked section disambiguates independently.
+function toRenderCards(apiCards: ApiCard[], unscoped: boolean): RenderCard[] {
+  const base = apiCards.map((c) => ({
+    h: c.headline,
+    stats: c.stats.map((s) => ({ v: s.value, l: s.label, tone: s.tone })),
+    juris: cleanJuris(c.jurisdiction),
+    when: relFromDate(c.date),
+    url: c.url,
+    stateCode: c.state_code || undefined,
+  }))
+  const distinctStates = new Set(base.map((c) => c.stateCode).filter(Boolean))
+  const showState = unscoped || distinctStates.size > 1
+  return base.map((c) =>
+    showState && c.stateCode && !new RegExp(`,\\s*${c.stateCode}$`).test(c.juris)
+      ? { ...c, juris: `${c.juris}, ${c.stateCode}` }
+      : c,
+  )
+}
+
+// ---------------------------------------------------------------------------
+// LensSection — one stacked lens "lane" in the lens-organized homepage feed:
+// a colored header (icon + label + desc + "See all") over a horizontal card
+// rail. Honest loading / placeholder / empty states; never fabricates stories.
+// The Money lens overrides the body with the Follow-the-money drilldown via
+// the `body` prop.
+// ---------------------------------------------------------------------------
+interface LensSectionProps {
+  lens: Lens
+  cards: RenderCard[]
+  placeholder: boolean
+  loading: boolean
+  savedKeys: Set<string>
+  onToggleSave: (key: string) => void
+  onOpen: (card: RenderCard) => void
+  cardKey: (card: RenderCard, i: number) => string
+  onSeeAll: () => void
+  sectionRef: (el: HTMLElement | null) => void
+  /** Overrides the card rail (used by Money Moves → Follow the money). */
+  body?: React.ReactNode
+}
+
+function LensSection({
+  lens,
+  cards,
+  placeholder,
+  loading,
+  savedKeys,
+  onToggleSave,
+  onOpen,
+  cardKey,
+  onSeeAll,
+  sectionRef,
+  body,
+}: LensSectionProps) {
+  return (
+    <section ref={sectionRef} id={`lens-${lens.id}`} className="mb-10 scroll-mt-6">
+      <div className="mb-3.5 flex items-center gap-3">
+        <span
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[19px]"
+          style={{ background: `color-mix(in srgb, ${lens.clr} 12%, #fff)` }}
+          aria-hidden
+        >
+          {lens.em}
+        </span>
+        <div className="min-w-0">
+          <h2 className="text-[19px] font-semibold leading-tight tracking-tight" style={{ ...SERIF, color: lens.clr }}>
+            {lens.label}
+          </h2>
+          <p className="text-[12.5px] leading-snug text-[#56635e]">{lens.desc}</p>
+        </div>
+        <button
+          type="button"
+          onClick={onSeeAll}
+          className="ml-auto inline-flex shrink-0 items-center gap-1 text-[13px] font-medium text-[#1a6b6b] transition-colors hover:underline"
+        >
+          See all
+          <ArrowRightIcon className="h-3.5 w-3.5" aria-hidden />
+        </button>
+      </div>
+
+      {/* Advisory note (Raised Eyebrows) */}
+      {lens.note && (
+        <div className="mx-0.5 mb-4 flex gap-2 rounded-lg border border-[#e3dcf5] border-l-[3px] border-l-[#7a5cd0] bg-[#f4f0fc] px-3.5 py-2.5 text-[12.5px] leading-snug text-[#5b4a8a]">
+          <span>{lens.note}</span>
+        </div>
+      )}
+
+      {body !== undefined ? (
+        body
+      ) : loading ? (
+        <div className="flex gap-4 overflow-hidden">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="h-44 w-[300px] shrink-0 animate-pulse rounded-2xl border border-[#e1ebe7] bg-[#f3f7f6]" />
+          ))}
+        </div>
+      ) : placeholder ? (
+        <div className="rounded-xl border border-dashed border-[#d4e8e8] bg-white px-6 py-8 text-center text-sm text-[#9bb8b8]">
+          Coming soon — we&rsquo;re still extracting the signals for this lens.
+        </div>
+      ) : cards.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-[#d4e8e8] bg-white px-6 py-8 text-center text-sm text-[#9bb8b8]">
+          Nothing in this window. <b className="text-[#56635e]">Try a wider time frame.</b>
+        </div>
+      ) : (
+        <StoryCarousel
+          cards={cards}
+          lens={lens}
+          savedKeys={savedKeys}
+          onToggleSave={onToggleSave}
+          onOpen={onOpen}
+          cardKey={cardKey}
+        />
+      )}
+    </section>
+  )
+}
+
 export default function StoryLenses({ locationLabel, stateCode, city, national, onSearch, onBrowseTopics }: StoryLensesProps) {
   const navigate = useNavigate()
-  const isMobile = useIsMobile()
-  const [active, setActive] = useState<string>('contested')
+  // DOM refs to each stacked lens section, for activity-tile / quick-nav scroll.
+  const sectionRefs = useRef<Record<string, HTMLElement | null>>({})
   // Saved/"Following" stories, keyed by url||headline so the set survives
   // lens/window switches. Mirrors the demo's swipe-to-save outcome (#3).
   const [savedKeys, setSavedKeys] = useState<Set<string>>(() => new Set())
@@ -455,7 +574,6 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
     placeholderData: (prev) => prev,
   })
 
-  const lens = LENSES.find((l) => l.id === active) ?? LENSES[0]
   // With no location filter, locationLabel may be a stale city — fall through to
   // the API's resolved label (or a country-wide default) so we never mislabel
   // nationwide data as local.
@@ -463,9 +581,8 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
     ? data?.location_label || 'the U.S.'
     : locationLabel || data?.location_label || 'your area'
   // Preposition that reads correctly for both scopes ("across the U.S." vs
-  // "in Tuscaloosa" / "near Tuscaloosa").
+  // "in Tuscaloosa").
   const happeningPrep = unscoped ? 'across' : 'in'
-  const storiesPrep = unscoped ? 'across' : 'near'
 
   // Default ('auto') has no chip of its own: we simply highlight whichever grain
   // the API resolved to, so it reads as a normal pre-selected option. An explicit
@@ -476,27 +593,6 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
   // honest error state; we never fabricate stories.
   const loading = isLoading && !data
   const errored = isError && !data
-  const apiLens = data?.lenses.find((l) => l.id === active)
-  const isPlaceholder = !!data && (apiLens?.placeholder || (apiLens?.cards.length ?? 0) === 0)
-
-  const baseCards = (apiLens?.cards ?? []).map((c) => ({
-    h: c.headline,
-    stats: c.stats.map((s) => ({ v: s.value, l: s.label, tone: s.tone })),
-    juris: cleanJuris(c.jurisdiction),
-    when: relFromDate(c.date),
-    url: c.url,
-    stateCode: c.state_code || undefined,
-  }))
-  // Disambiguate the place with its 2-letter state only when the view isn't
-  // anchored to one state — i.e. a national view, or a set spanning >1 state.
-  // A single-state view (scoped to your area) doesn't need the suffix.
-  const distinctStates = new Set(baseCards.map((c) => c.stateCode).filter(Boolean))
-  const showState = unscoped || distinctStates.size > 1
-  const cards: RenderCard[] = baseCards.map((c) =>
-    showState && c.stateCode && !new RegExp(`,\\s*${c.stateCode}$`).test(c.juris)
-      ? { ...c, juris: `${c.juris}, ${c.stateCode}` }
-      : c,
-  )
 
   const activityTiles = (data?.activity ?? []).map((a, i) => ({
     em: a.icon,
@@ -512,23 +608,20 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
     if (c.url) navigate(c.url)
   }
 
-  // Activity tiles switch the active lens and scroll to the (location-scoped)
-  // story grid — NOT a keyword search, which leaked across jurisdictions
-  // (e.g. a Northport "contested" tile returning a Jefferson County topic).
-  const storiesRef = useRef<HTMLDivElement>(null)
+  // Smooth-scroll a lens lane into view (quick-nav chips + activity tiles).
+  const scrollToLens = (id: string) => sectionRefs.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   const handleActivityClick = (label: string) => {
-    // Tiles that map to a lens switch to it; generic tiles ("decisions
-    // analyzed") have no single lens, so land on the first POPULATED lens
-    // rather than dumping the user on a placeholder ("coming soon").
+    // Tiles that map to a lens jump to it; generic tiles ("decisions analyzed")
+    // have no single lens, so land on the first POPULATED lane rather than a
+    // placeholder ("coming soon").
     const firstPopulated = data?.lenses.find((l) => !l.placeholder && l.cards.length > 0)?.id
     const lensId = activityToLens(label) ?? firstPopulated ?? 'contested'
-    setActive(lensId)
-    storiesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    scrollToLens(lensId)
   }
 
   // Stable-ish key for save state & list rendering. Headline+jurisdiction is
   // unique enough for the handful of cards per lens; url wins when present.
-  const cardKey = (c: RenderCard, i: number) => c.url || `${active}-${c.h}-${c.juris}-${i}`
+  const cardKey = (lensId: string, c: RenderCard, i: number) => c.url || `${lensId}-${c.h}-${c.juris}-${i}`
 
   return (
     <div className="mt-5 text-left" style={FONT}>
@@ -555,47 +648,43 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
         </button>
       </div>
 
-      {/* Lens cards row — wraps so every lens stays visible on mobile */}
-      <div className="mb-7 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        {LENSES.map((l) => {
-          const on = active === l.id
-          return (
-            <button
-              key={l.id}
-              type="button"
-              onClick={() => setActive(l.id)}
-              className="flex flex-col items-start gap-1.5 rounded-2xl border bg-white px-4 py-3.5 text-left transition-all hover:-translate-y-0.5"
-              style={{
-                borderColor: on ? l.clr : '#e1ebe7',
-                boxShadow: on
-                  ? `0 0 0 1.5px ${l.clr}, 0 6px 16px ${l.clr}26`
-                  : '0 1px 2px rgba(20,40,35,.04),0 6px 16px rgba(20,40,35,.05)',
-              }}
-            >
-              <span
-                className="flex h-9 w-9 items-center justify-center rounded-xl text-[17px]"
-                style={{ background: `color-mix(in srgb, ${l.clr} 12%, #fff)` }}
+      {/* Lens quick-nav + global time control. The lens row is now navigation
+          (jump to a lane), not a one-at-a-time selector. */}
+      <div className="mb-7 flex flex-wrap items-center gap-2">
+        <span className="text-[13px] font-semibold text-[#9bb8b8]">Lenses:</span>
+        {LENSES.map((l) => (
+          <button
+            key={l.id}
+            type="button"
+            onClick={() => scrollToLens(l.id)}
+            className="inline-flex items-center gap-1.5 rounded-full border border-[#e1ebe7] bg-white px-3 py-1.5 text-[13px] font-semibold transition-all hover:-translate-y-px hover:border-[#cfe0db]"
+            style={{ color: l.clr }}
+          >
+            <span className="text-[13px] leading-none" aria-hidden>
+              {l.em}
+            </span>
+            {l.label}
+          </button>
+        ))}
+        <div className="ml-auto inline-flex rounded-full border-[1.5px] border-[#d4e8e8] bg-white p-[3px]">
+          {TIME_OPTIONS.map((opt) => {
+            const on = activeDay === opt.d
+            return (
+              <button
+                key={opt.d}
+                type="button"
+                onClick={() => setWindowSel(opt.d)}
+                className={`rounded-full px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${
+                  on
+                    ? 'bg-[#1a6b6b] text-white shadow-[0_2px_6px_rgba(26,107,107,0.30)]'
+                    : 'text-[#4a6a6a] hover:text-[#0f2b2b]'
+                }`}
               >
-                {l.em}
-              </span>
-              <span className="text-[15px] font-bold tracking-tight" style={{ color: l.clr }}>
-                {l.label}
-              </span>
-              <span className="text-[12.5px] leading-snug text-[#56635e]">{l.desc}</span>
-            </button>
-          )
-        })}
-
-        {/* View all */}
-        <button
-          type="button"
-          onClick={onBrowseTopics}
-          className="flex flex-col items-center justify-center gap-1 rounded-2xl border border-[#e1ebe7] bg-white px-4 py-3.5 text-[#1a6b6b] transition-colors hover:bg-[#f3f7f6]"
-          aria-label="View all lenses"
-        >
-          <ChevronRightIcon className="h-5 w-5" aria-hidden />
-          <span className="text-[11px] font-semibold leading-tight">View all</span>
-        </button>
+                {opt.label}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {/* What's happening strip — hidden entirely on a hard failure (no fake data) */}
@@ -618,7 +707,7 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
           <ArrowRightIcon className="h-3.5 w-3.5" aria-hidden />
         </button>
       </div>
-      <div className="mb-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="mb-9 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {loading
           ? Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="h-[76px] animate-pulse rounded-2xl border border-[#e1ebe7] bg-[#f3f7f6]" />
@@ -628,8 +717,8 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
                 key={s.l}
                 type="button"
                 onClick={() => handleActivityClick(s.l)}
-                title={`Show ${s.l} near ${place}`}
-                aria-label={`${s.v} ${s.l} — show these near ${place}`}
+                title={`Jump to ${s.l} ${happeningPrep} ${place}`}
+                aria-label={`${s.v} ${s.l} — jump to this lens`}
                 className="group flex items-center gap-3 rounded-2xl border border-[#e1ebe7] bg-white px-4 py-3.5 text-left transition-all hover:-translate-y-0.5 hover:border-[#cfe0db] hover:shadow-[0_2px_4px_rgba(20,40,35,.06),0_10px_24px_rgba(20,40,35,.08)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1a6b6b]/40"
               >
                 <span
@@ -650,97 +739,38 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
       </>
       )}
 
-      {/* Money Moves reveals the "Follow the money" drill-down (Revenue /
-          Spending / Nonprofits) instead of generic story cards; every other
-          lens shows its time-windowed story grid. */}
-      <div ref={storiesRef} className="scroll-mt-4">
-      {active === 'money' ? (
-        <FollowTheMoney embedded />
-      ) : (
-      <>
-      {/* Top stories header + time control */}
-      <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
-        <h2 className="text-[20px] font-semibold tracking-tight text-[#0f2b2b]" style={SERIF}>
-          Top stories {storiesPrep} {place}
-        </h2>
-        <div className="ml-auto inline-flex rounded-full border-[1.5px] border-[#d4e8e8] bg-white p-[3px]">
-          {TIME_OPTIONS.map((opt) => {
-            const on = activeDay === opt.d
-            return (
-              <button
-                key={opt.d}
-                type="button"
-                onClick={() => setWindowSel(opt.d)}
-                className={`rounded-full px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${
-                  on
-                    ? 'bg-[#1a6b6b] text-white shadow-[0_2px_6px_rgba(26,107,107,0.30)]'
-                    : 'text-[#4a6a6a] hover:text-[#0f2b2b]'
-                }`}
-              >
-                {opt.label}
-              </button>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Advisory note (Raised Eyebrows) */}
-      {lens.note && (
-        <div className="mx-0.5 mb-4 flex gap-2 rounded-lg border border-[#e3dcf5] border-l-[3px] border-l-[#7a5cd0] bg-[#f4f0fc] px-3.5 py-2.5 text-[12.5px] leading-snug text-[#5b4a8a]">
-          <span>{lens.note}</span>
-        </div>
-      )}
-
-      {/* Card grid */}
-      {loading ? (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="h-44 animate-pulse rounded-2xl border border-[#e1ebe7] bg-[#f3f7f6]" />
-          ))}
-        </div>
-      ) : errored ? (
+      {/* Stacked lens lanes — the homepage is organized AROUND the lenses: each
+          lens is its own section (Money Moves → Follow-the-money drilldown).
+          On a hard failure we show one honest error block, never fake stories. */}
+      {errored ? (
         <div className="rounded-xl border border-dashed border-[#d4e8e8] bg-white px-6 py-10 text-center text-sm text-[#9bb8b8]">
           Couldn&rsquo;t load stories right now. <b className="text-[#56635e]">Please try again.</b>
         </div>
-      ) : isPlaceholder ? (
-        <div className="rounded-xl border border-dashed border-[#d4e8e8] bg-white px-6 py-10 text-center text-sm text-[#9bb8b8]">
-          Coming soon — we&rsquo;re still extracting the signals for this lens.
-        </div>
-      ) : cards.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-[#d4e8e8] bg-white px-6 py-10 text-center text-sm text-[#9bb8b8]">
-          Nothing in this window. <b className="text-[#56635e]">Try a wider time frame.</b>
-        </div>
-      ) : isMobile ? (
-        // Mobile → swipe carousel (#1): native scroll-snap, peeking next card, dots.
-        <StoryCarousel
-          cards={cards}
-          lens={lens}
-          savedKeys={savedKeys}
-          onToggleSave={toggleSave}
-          onOpen={openCard}
-          cardKey={cardKey}
-        />
       ) : (
-        // Desktop → reflow grid (#2): auto-fill columns, no JS.
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
-          {cards.map((c, i) => {
-            const key = cardKey(c, i)
-            return (
-              <StoryCard
-                key={key}
-                card={c}
-                lens={lens}
-                saved={savedKeys.has(key)}
-                onToggleSave={() => toggleSave(key)}
-                onOpen={() => openCard(c)}
-              />
-            )
-          })}
-        </div>
+        LENSES.map((l) => {
+          const apiLens = data?.lenses.find((x) => x.id === l.id)
+          const lensCards = toRenderCards(apiLens?.cards ?? [], unscoped)
+          const placeholder = !!data && (apiLens?.placeholder || lensCards.length === 0)
+          return (
+            <LensSection
+              key={l.id}
+              lens={l}
+              cards={lensCards}
+              placeholder={placeholder}
+              loading={loading}
+              savedKeys={savedKeys}
+              onToggleSave={toggleSave}
+              onOpen={openCard}
+              cardKey={(c, i) => cardKey(l.id, c, i)}
+              onSeeAll={() => onBrowseTopics?.()}
+              sectionRef={(el) => {
+                sectionRefs.current[l.id] = el
+              }}
+              body={l.id === 'money' ? <FollowTheMoney embedded /> : undefined}
+            />
+          )
+        })
       )}
-      </>
-      )}
-      </div>
     </div>
   )
 }

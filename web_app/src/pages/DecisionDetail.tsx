@@ -316,11 +316,51 @@ function CompetingViews({ data, unanimous = false }: { data: unknown; unanimous?
       : 'The prevailing view'
     : 'Where they disagreed'
 
+  // When the body voted unanimously yet the discussion still recorded an opposing
+  // view, make that tension explicit instead of leaving the reader to connect the
+  // vote tally (a separate card) with this one. Only name the community when the
+  // counter view actually reads as resident/public pushback; otherwise stay neutral.
+  const showUnanimousContrast = unanimous && !single
+  const counterText = rightViews
+    .flatMap((v) => [v.view_label, ...(Array.isArray(v.held_by) ? v.held_by : [])])
+    .filter((s): s is string => typeof s === 'string')
+    .join(' ')
+  const dissentIsCommunity =
+    /\b(resident|neighbor|communit|public|homeowner|constituent|citizen)/i.test(counterText)
+  const contrastText = dissentIsCommunity
+    ? 'Passed unanimously — but residents raised objections.'
+    : 'Passed unanimously — but objections were raised in the discussion.'
+
   return (
     <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
       <div className="text-[12px] font-bold uppercase tracking-[0.12em] text-[#1d6b5f]">
         {eyebrow}
       </div>
+
+      {showUnanimousContrast && (
+        <div
+          className="mt-3 flex items-start gap-2 rounded-lg border border-[#f6d8c8] bg-[#fdf3ee] px-3.5 py-2.5 text-[13px] font-medium leading-snug text-[#9a4422]"
+          style={CV_FONT}
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            className="mt-[1px] shrink-0"
+            aria-hidden
+          >
+            <path
+              d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          <span>{contrastText}</span>
+        </div>
+      )}
 
       {debate && (
         <div className="mt-4">
