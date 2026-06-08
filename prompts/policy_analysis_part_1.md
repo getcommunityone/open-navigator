@@ -131,6 +131,10 @@ Keep `human_element` / diagrams / `evidence_metrics` **off** `uncontested_items[
     2. Attribute by what they actually said: assign a person to a view if they articulated its `problem_diagnosis`, `causal_story`, or `proposed_remedy`, advocated for it, or moved/voted for the action it implies. Transcripts usually lack speaker tags — use the surrounding cues ("Councilman Reed said…", a chair recognizing a speaker, "the applicant responded") to bind statements to the right `person_id`. A person may appear in more than one view's `held_by` only if they genuinely argued both.
     3. Strong signals for the **dominant** view's `held_by`: whoever **moved** or **seconded** the prevailing motion, and the majority that **voted** for the outcome (cross-check `vote_tally` / the motion). For **counter** views: dissenting voters and members of the public who spoke against.
     4. Use an empty array **only** when a side was carried by the public generally with no identifiable individual — not as a shortcut when attribution takes effort. Every `held_by` id MUST resolve to a `people[]` entry.
+  - **Organization attribution (`held_by_organizations`) — capture the orgs behind each side.** Sides in civic hearings are often carried by organizations, not just individuals: the applicant/developer entity, a neighborhood or homeowners' association, an advocacy or community group, a business, a union, or a public agency. For **every** view (dominant and each counter) populate `held_by_organizations` with the `organizations[].org_id` of the orgs aligned with it. Work through it deliberately:
+    1. First make sure each organization that spoke, was represented, or stood to gain/lose has an `organizations[]` entry — `held_by_organizations` can only point at orgs you listed there. Add the applicant/developer company, the named association or advocacy group, etc., before referencing them.
+    2. Attribute an org to a side when its representative argued that side, when it formally applied for/sponsored the action, or when it was the named proponent/opponent on the record. The org and its individual representative will often appear on the **same** side — list the org in `held_by_organizations` and the person in `held_by`.
+    3. An org may appear in more than one view's `held_by_organizations` only if it genuinely took both sides. Use an empty array when no organization was involved — a side carried purely by unaffiliated residents has people in `held_by` and an empty `held_by_organizations`. Never invent an organization to fill it.
   - **Capture community / public opposition as a `counter_view` even when the vote was unanimous (CRITICAL).** A unanimous tally does **not** mean there was no other side. Whenever opposition was voiced anywhere in the hearing — public comment against the item, a neighbor's objection, an applicant pushing back on conditions, a member who voted yes but stated reservations — record it as a distinct `counter_view` with its own `problem_diagnosis` → `causal_story` → `proposed_remedy`, and attribute it via `held_by` to the people who voiced it (add public speakers to `people[]` first so they can be referenced). Label it for who held it when the transcript supports it (e.g. `"Resident opposition"`, `"Neighbor concerns"`). An empty `counter_views` must mean **no one objected** — never use it as shorthand for "the vote was unanimous."
 - `human_element` = the *people* — who felt what, anecdotes, tone. Do not repeat the policy substance here.
 - `evidence_metrics` = the *numbers-as-evidence* — each cited figure, who used it, which side it backs, and whether it was rebutted. Do not restate `by_the_numbers` here; that's a display digest, this is the argument graph.
@@ -322,7 +326,8 @@ Each `smart_brevity` field is one tight sentence (≤25 words); `by_the_numbers`
           "problem_diagnosis": "string",
           "causal_story": "string",
           "proposed_remedy": "string",
-          "held_by": ["string — people[].person_id of those who advanced this view (council members, staff, speakers); empty array if no one is individually identifiable"]
+          "held_by": ["string — people[].person_id of those who advanced this view (council members, staff, speakers); empty array if no one is individually identifiable"],
+          "held_by_organizations": ["string — organizations[].org_id of the orgs aligned with this view (the applicant/developer entity, a neighborhood association, an advocacy group, a business or agency that backed it); empty array if no organization is identifiable"]
         },
         "counter_views": [
           {
@@ -330,7 +335,8 @@ Each `smart_brevity` field is one tight sentence (≤25 words); `by_the_numbers`
             "problem_diagnosis": "string",
             "causal_story": "string",
             "proposed_remedy": "string",
-            "held_by": ["string — people[].person_id of those who argued this side; empty array if no one is individually identifiable"]
+            "held_by": ["string — people[].person_id of those who argued this side; empty array if no one is individually identifiable"],
+            "held_by_organizations": ["string — organizations[].org_id of the orgs aligned with this side (a neighborhood association, advocacy/community group, business, union, or agency that argued it); empty array if no organization is identifiable"]
           }
         ]
       },
