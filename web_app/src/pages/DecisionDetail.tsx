@@ -192,14 +192,26 @@ const CV_FONT = { fontFamily: "'DM Sans', sans-serif" } as const
 function ViewColumn({
   side,
   view,
+  solo = false,
+  unanimous = false,
 }: {
   side: 'prevailing' | 'other'
   view: Record<string, unknown>
+  // `solo` = this is the only view (no opposing side), so it spans full width.
+  solo?: boolean
+  // `unanimous` = the vote tally confirms no dissent; only then do we say so.
+  unanimous?: boolean
 }) {
   const isPrev = side === 'prevailing'
   const accent = isPrev ? '#1d6b5f' : '#e0603a'
   const tint = isPrev ? '#e7f2ef' : '#fdeee7'
-  const kicker = isPrev ? 'THE PREVAILING VIEW' : 'THE OTHER SIDE'
+  const kicker = solo
+    ? unanimous
+      ? 'UNANIMOUS'
+      : 'THE PREVAILING VIEW'
+    : isPrev
+      ? 'THE PREVAILING VIEW'
+      : 'THE OTHER SIDE'
   const label = typeof view?.view_label === 'string' ? view.view_label : null
   // Who argued this side (populated by the extraction's `held_by` person_ids).
   const heldBy = Array.isArray(view?.held_by)
@@ -263,7 +275,7 @@ function ViewColumn({
   )
 }
 
-function CompetingViews({ data }: { data: unknown }) {
+function CompetingViews({ data, unanimous = false }: { data: unknown; unanimous?: boolean }) {
   const fallback = (value: unknown) => (
     <Section title="Where they disagreed" icon={<UsersIcon className="h-5 w-5" />}>
       <JsonValue value={value} />
@@ -293,11 +305,21 @@ function CompetingViews({ data }: { data: unknown }) {
   // explicit dominant); remaining views stack on the right as "the other side".
   const leftView = dominant ?? counters[0]
   const rightViews = dominant ? counters : counters.slice(1)
+  // No opposing view was captured -> nothing to contrast, so render the one view
+  // full width and drop the "where they disagreed" framing. Only call it
+  // "Unanimous" when the vote tally actually confirms no dissent; otherwise it's
+  // just the prevailing view (a split vote may have only one captured framing).
+  const single = rightViews.length === 0
+  const eyebrow = single
+    ? unanimous
+      ? 'Unanimous'
+      : 'The prevailing view'
+    : 'Where they disagreed'
 
   return (
     <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
       <div className="text-[12px] font-bold uppercase tracking-[0.12em] text-[#1d6b5f]">
-        Where they disagreed
+        {eyebrow}
       </div>
 
       {debate && (
@@ -311,8 +333,13 @@ function CompetingViews({ data }: { data: unknown }) {
 
       <div className="my-5 border-t border-[#e1ebe7]" />
 
-      <div className="grid items-stretch gap-4 md:grid-cols-2">
-        <ViewColumn side={dominant ? 'prevailing' : 'other'} view={leftView} />
+      <div className={single ? '' : 'grid items-stretch gap-4 md:grid-cols-2'}>
+        <ViewColumn
+          side={dominant ? 'prevailing' : 'other'}
+          view={leftView}
+          solo={single}
+          unanimous={unanimous}
+        />
         {rightViews.length > 0 && (
           <div className="space-y-4">
             {rightViews.map((c, i) => (
@@ -851,6 +878,15 @@ export default function DecisionDetail() {
   const voteEntries = decision.vote_tally
     ? Object.entries(decision.vote_tally).filter(([, v]) => typeof v === 'number')
     : []
+  // Unanimous = there was support and zero recorded opposition. Used to label the
+  // competing-views card honestly (never claim "Unanimous" without vote backing).
+  const yesVotes = voteEntries
+    .filter(([k]) => /\b(yes|aye|for|favou?r)/i.test(k))
+    .reduce((s, [, v]) => s + v, 0)
+  const noVotes = voteEntries
+    .filter(([k]) => /\b(no|nay|against|oppose)/i.test(k))
+    .reduce((s, [, v]) => s + v, 0)
+  const unanimousVote = yesVotes > 0 && noVotes === 0
   const videoCaption = [
     decision.meeting_name,
     decision.meeting_date ? new Date(decision.meeting_date).toLocaleDateString() : null,
@@ -954,7 +990,7 @@ export default function DecisionDetail() {
 
         {/* Frame analysis: where the sides disagreed (renders its own card) */}
         {!isEmpty(decision.competing_views) && (
-          <CompetingViews data={decision.competing_views} />
+          <CompetingViews data={decision.competing_views} unanimous={unanimousVote} />
         )}
 
         {/* Human Element — named voices with avatars + room sentiment */}

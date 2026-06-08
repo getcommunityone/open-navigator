@@ -66,10 +66,10 @@ interface Stat {
   tone?: Tone
 }
 const TIME_OPTIONS: { d: number; label: string }[] = [
-  { d: 31, label: 'Month' },
-  { d: 92, label: 'Quarter' },
-  { d: 366, label: 'Year' },
-  { d: 1830, label: '5 years' },
+  { d: 31, label: 'Past month' },
+  { d: 92, label: 'Past 3 months' },
+  { d: 366, label: 'Past year' },
+  { d: 1830, label: 'Past 5 years' },
   { d: 999999, label: 'All time' },
 ]
 
@@ -102,7 +102,9 @@ function rel(d: number): string {
 
 // windowDays (segmented-control value) -> API `window` param, and back.
 const WINDOW_BY_DAYS: Record<number, string> = { 31: 'month', 92: 'quarter', 366: 'year', 1830: 'fiveyear', 999999: 'all' }
-const WINDOW_LABEL: Record<string, string> = { week: 'Week', month: 'Month', quarter: 'Quarter', year: 'Year', fiveyear: '5 years', all: 'All time' }
+// API window string -> segmented-control day value (reverse of WINDOW_BY_DAYS).
+// Used to highlight the grain that 'auto' resolved to, instead of a separate chip.
+const DAYS_BY_WINDOW: Record<string, number> = { month: 31, quarter: 92, year: 366, fiveyear: 1830, all: 999999 }
 // accent backgrounds for the live activity tiles, by position
 const ACTIVITY_BG = ['#fdeeeb', '#e7f2ef', '#efebfb', '#fbf3e2']
 
@@ -465,10 +467,10 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
   const happeningPrep = unscoped ? 'across' : 'in'
   const storiesPrep = unscoped ? 'across' : 'near'
 
-  // In auto mode the "Auto" segment is active and labelled with the grain the API
-  // resolved to; an explicit pick highlights its own day segment instead.
-  const autoActive = windowSel === 'auto'
-  const autoLabel = autoActive && data?.window ? `Auto · ${WINDOW_LABEL[data.window] ?? ''}` : 'Auto'
+  // Default ('auto') has no chip of its own: we simply highlight whichever grain
+  // the API resolved to, so it reads as a normal pre-selected option. An explicit
+  // pick highlights its own segment and pins that window across location changes.
+  const activeDay = windowSel === 'auto' ? DAYS_BY_WINDOW[data?.window ?? ''] ?? null : windowSel
 
   // 100% live data — no demo/hardcoded fallback. On a hard failure we show an
   // honest error state; we never fabricate stories.
@@ -662,20 +664,8 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
           Top stories {storiesPrep} {place}
         </h2>
         <div className="ml-auto inline-flex rounded-full border-[1.5px] border-[#d4e8e8] bg-white p-[3px]">
-          <button
-            type="button"
-            onClick={() => setWindowSel('auto')}
-            title="Automatically pick the best time range for your area"
-            className={`rounded-full px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${
-              autoActive
-                ? 'bg-[#1a6b6b] text-white shadow-[0_2px_6px_rgba(26,107,107,0.30)]'
-                : 'text-[#4a6a6a] hover:text-[#0f2b2b]'
-            }`}
-          >
-            {autoLabel}
-          </button>
           {TIME_OPTIONS.map((opt) => {
-            const on = windowSel === opt.d
+            const on = activeDay === opt.d
             return (
               <button
                 key={opt.d}
