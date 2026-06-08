@@ -360,10 +360,24 @@ interface StoryCarouselProps {
 function StoryCarousel({ cards, lens, savedKeys, onToggleSave, onOpen, cardKey }: StoryCarouselProps) {
   const railRef = useRef<HTMLDivElement>(null)
   const [activeIdx, setActiveIdx] = useState(0)
+  // Whether the rail can still scroll further left/right — drives the arrow
+  // disabled state. Position-based, not activeIdx-based, so it's reliable on
+  // desktop where several cards are visible at once.
+  const [edges, setEdges] = useState({ left: false, right: false })
+
+  const updateEdges = useCallback(() => {
+    const rail = railRef.current
+    if (!rail) return
+    setEdges({
+      left: rail.scrollLeft > 4,
+      right: rail.scrollLeft < rail.scrollWidth - rail.clientWidth - 4,
+    })
+  }, [])
 
   useEffect(() => {
     const rail = railRef.current
     if (!rail) return
+    updateEdges()
     const items = Array.from(rail.children) as HTMLElement[]
     const io = new IntersectionObserver(
       (entries) => {
@@ -379,22 +393,38 @@ function StoryCarousel({ cards, lens, savedKeys, onToggleSave, onOpen, cardKey }
     items.forEach((it) => io.observe(it))
     return () => io.disconnect()
     // Re-observe whenever the card set changes (lens/window switch).
-  }, [cards])
+  }, [cards, updateEdges])
 
+  // Step one card-width in either direction, based on the rail's actual scroll
+  // position (independent of the IO-tracked activeIdx, which is ambiguous when
+  // multiple cards are visible).
+  const step = (dir: number) => {
+    const rail = railRef.current
+    if (!rail) return
+    const first = rail.children[0] as HTMLElement | undefined
+    const cardW = first ? first.getBoundingClientRect().width + 16 /* gap-4 */ : rail.clientWidth * 0.86
+    rail.scrollBy({ left: dir * cardW, behavior: 'smooth' })
+  }
+
+  // Scroll the rail itself (NOT scrollIntoView, which bubbles to ancestor
+  // scrollers and can move the whole page or no-op on desktop where several
+  // cards are visible at once). Aligning the target's layout offset to the
+  // rail's left edge works regardless of which card the IO marked active.
   const scrollTo = (i: number) => {
     const rail = railRef.current
     if (!rail) return
     const clamped = Math.max(0, Math.min(cards.length - 1, i))
     const target = rail.children[clamped] as HTMLElement | undefined
-    target?.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' })
+    if (!target) return
+    rail.scrollTo({ left: target.offsetLeft - rail.offsetLeft, behavior: 'smooth' })
   }
 
   return (
     <div className="relative">
       <button
         type="button"
-        onClick={() => scrollTo(activeIdx - 1)}
-        disabled={activeIdx === 0}
+        onClick={() => step(-1)}
+        disabled={!edges.left}
         aria-label="Previous story"
         className="absolute -left-2 top-[42%] z-10 hidden h-9 w-9 items-center justify-center rounded-full border border-[#e1ebe7] bg-white text-[#56635e] shadow-[0_1px_2px_rgba(20,40,35,.05),0_10px_26px_rgba(20,40,35,.07)] transition-colors hover:border-[#1a6b6b] hover:text-[#1a6b6b] disabled:pointer-events-none disabled:opacity-30 sm:flex"
       >
@@ -402,8 +432,8 @@ function StoryCarousel({ cards, lens, savedKeys, onToggleSave, onOpen, cardKey }
       </button>
       <button
         type="button"
-        onClick={() => scrollTo(activeIdx + 1)}
-        disabled={activeIdx === cards.length - 1}
+        onClick={() => step(1)}
+        disabled={!edges.right}
         aria-label="Next story"
         className="absolute -right-2 top-[42%] z-10 hidden h-9 w-9 items-center justify-center rounded-full border border-[#e1ebe7] bg-white text-[#56635e] shadow-[0_1px_2px_rgba(20,40,35,.05),0_10px_26px_rgba(20,40,35,.07)] transition-colors hover:border-[#1a6b6b] hover:text-[#1a6b6b] disabled:pointer-events-none disabled:opacity-30 sm:flex"
       >
@@ -412,6 +442,7 @@ function StoryCarousel({ cards, lens, savedKeys, onToggleSave, onOpen, cardKey }
 
       <div
         ref={railRef}
+        onScroll={updateEdges}
         className="-mx-1 flex snap-x snap-mandatory gap-4 overflow-x-auto px-1 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {cards.map((c, i) => {
