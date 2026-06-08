@@ -801,7 +801,7 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
       </HScroll>
 
       {/* Header for the selected view */}
-      <div className="mb-3 mt-5 flex items-center justify-between gap-3">
+      <div className="mb-2.5 mt-4 flex items-center justify-between gap-3">
         <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5">
           <span
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[20px]"
@@ -837,7 +837,7 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
       </div>
 
       {/* Time-window control (applies to every view) */}
-      <div className="mb-4 flex flex-wrap items-center gap-2">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
         <span className="text-[11px] font-semibold uppercase tracking-wide text-[#9bb8b8]">When</span>
         <div className="inline-flex rounded-full border-[1.5px] border-[#d4e8e8] bg-white p-[3px]">
           {TIME_OPTIONS.map((opt) => {

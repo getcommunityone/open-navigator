@@ -194,6 +194,7 @@ function ViewColumn({
   view,
   solo = false,
   unanimous = false,
+  deferred = false,
 }: {
   side: 'prevailing' | 'other'
   view: Record<string, unknown>
@@ -201,11 +202,16 @@ function ViewColumn({
   solo?: boolean
   // `unanimous` = the vote tally confirms no dissent; only then do we say so.
   unanimous?: boolean
+  // `deferred` = the outcome was a delay/continuance; the prevailing card is then
+  // the deferral rationale, not a substantive winner, so relabel it as such.
+  deferred?: boolean
 }) {
   const isPrev = side === 'prevailing'
   const accent = isPrev ? '#1d6b5f' : '#e0603a'
   const tint = isPrev ? '#e7f2ef' : '#fdeee7'
-  const kicker = solo
+  const kicker = deferred && (isPrev || solo)
+    ? 'WHY IT WAS DEFERRED'
+    : solo
     ? unanimous
       ? 'UNANIMOUS'
       : 'THE PREVAILING VIEW'
@@ -275,7 +281,56 @@ function ViewColumn({
   )
 }
 
-function CompetingViews({ data, unanimous = false }: { data: unknown; unanimous?: boolean }) {
+// A delay/continuance outcome (deferred, tabled, postponed, continued, held).
+const DEFERRAL_RE = /(defer|tabl|postpon|continu|\bhold\b|remand|recess)/i
+function isDeferralOutcome(outcome?: string | null): boolean {
+  return DEFERRAL_RE.test(outcome || '')
+}
+
+// Banner that frames a delay as an accountable decision (not a non-event).
+function DeferralNotice({ outcome }: { outcome?: string | null }) {
+  const label = (outcome || '').trim() || 'Deferred'
+  return (
+    <div
+      className="mb-6 flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3.5"
+      style={CV_FONT}
+    >
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        className="mt-0.5 shrink-0 text-amber-600"
+        aria-hidden
+      >
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7v5l3 2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      <div>
+        <div className="text-[13.5px] font-semibold text-amber-900">
+          Deferred, not decided — “{label}”
+        </div>
+        <p className="mt-1 text-[13px] leading-snug text-amber-800">
+          The body chose to delay rather than approve or reject this item. A deferral is
+          still a decision: it postpones the outcome and items can stall across meetings —
+          worth tracking who moved to wait and whether it ever comes back.
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function CompetingViews({
+  data,
+  unanimous = false,
+  deferred = false,
+}: {
+  data: unknown
+  unanimous?: boolean
+  deferred?: boolean
+}) {
   const fallback = (value: unknown) => (
     <Section title="Where they disagreed" icon={<UsersIcon className="h-5 w-5" />}>
       <JsonValue value={value} />
@@ -379,6 +434,7 @@ function CompetingViews({ data, unanimous = false }: { data: unknown; unanimous?
           view={leftView}
           solo={single}
           unanimous={unanimous}
+          deferred={deferred}
         />
         {rightViews.length > 0 && (
           <div className="space-y-4">
@@ -512,7 +568,12 @@ function ToneSide({ label, accent, side }: { label: string; accent: string; side
           ))}
         </div>
       )}
-      {summary && <p className="mt-2 text-[13px] leading-relaxed text-[#56635e]">{summary}</p>}
+      {summary && (
+        <p className="mt-2 text-[13px] leading-relaxed text-[#56635e]">
+          {summary}
+          <EvidenceLink text={summary} />
+        </p>
+      )}
     </div>
   )
 }
@@ -558,7 +619,12 @@ function HumanElement({ data }: { data: unknown }) {
                     {sp.role && <span className="text-[12px] text-[#8a958f]">{sp.role}</span>}
                   </div>
                   {s.story_headline && <div className="mt-0.5 text-[13.5px] font-medium text-[#16201d]">{s.story_headline}</div>}
-                  {s.story_detail && <p className="mt-1 text-[13.5px] leading-relaxed text-[#56635e]">{s.story_detail}</p>}
+                  {s.story_detail && (
+                    <p className="mt-1 text-[13.5px] leading-relaxed text-[#56635e]">
+                      {s.story_detail}
+                      <EvidenceLink text={s.story_detail} />
+                    </p>
+                  )}
                   {s.why_it_mattered_to_the_decision && (
                     <p className="mt-1.5 border-l-2 border-[#e1ebe7] pl-3 text-[12.5px] italic leading-relaxed text-[#8a958f]">
                       Why it mattered: {s.why_it_mattered_to_the_decision}
@@ -593,6 +659,7 @@ function HumanElement({ data }: { data: unknown }) {
                   <span>
                     {typeof h.summary === 'string' ? h.summary : ''}
                     {sp && <span className="text-[#8a958f]"> — {sp.name}</span>}
+                    {typeof h.summary === 'string' && <EvidenceLink text={h.summary} />}
                   </span>
                 </li>
               )
@@ -998,6 +1065,8 @@ export default function DecisionDetail() {
           </div>
         </header>
 
+        {/* Deferral accountability: a delay is a decision — call it out up front. */}
+        {isDeferralOutcome(decision.outcome) && <DeferralNotice outcome={decision.outcome} />}
 
         {/* Key Takeaways (smart_brevity) — leads, with "Why it matters", then
             the decision tucked directly under it. If there's no smart_brevity,
@@ -1030,7 +1099,11 @@ export default function DecisionDetail() {
 
         {/* Frame analysis: where the sides disagreed (renders its own card) */}
         {!isEmpty(decision.competing_views) && (
-          <CompetingViews data={decision.competing_views} unanimous={unanimousVote} />
+          <CompetingViews
+            data={decision.competing_views}
+            unanimous={unanimousVote}
+            deferred={isDeferralOutcome(decision.outcome)}
+          />
         )}
 
         {/* Human Element — named voices with avatars + room sentiment */}
