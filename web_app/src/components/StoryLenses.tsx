@@ -801,8 +801,8 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
       </HScroll>
 
       {/* Header for the selected view */}
-      <div className="mb-3.5 mt-6 flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
+      <div className="mb-3 mt-5 flex items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5">
           <span
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[20px]"
             style={{ background: `color-mix(in srgb, ${selected.clr} 12%, #fff)` }}
@@ -816,6 +816,15 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
             </h2>
             <p className="text-[13.5px] text-[#56635e]">{selected.desc}</p>
           </div>
+          {isHome && (
+            <span
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-full border-[1.5px] px-2.5 py-1"
+              style={{ background: 'rgba(26,107,107,0.08)', borderColor: 'rgba(26,107,107,0.35)' }}
+            >
+              <MapPinIcon className="h-3.5 w-3.5 text-[#1a6b6b]" aria-hidden />
+              <span className="text-[13px] font-bold text-[#0f2b2b]">{place}</span>
+            </span>
+          )}
         </div>
         <button
           type="button"
@@ -828,7 +837,7 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
       </div>
 
       {/* Time-window control (applies to every view) */}
-      <div className="mb-5 flex flex-wrap items-center gap-2">
+      <div className="mb-4 flex flex-wrap items-center gap-2">
         <span className="text-[11px] font-semibold uppercase tracking-wide text-[#9bb8b8]">When</span>
         <div className="inline-flex rounded-full border-[1.5px] border-[#d4e8e8] bg-white p-[3px]">
           {TIME_OPTIONS.map((opt) => {
@@ -853,18 +862,7 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
 
       {/* Personalization bar — Close to Home only */}
       {isHome && (
-        <div className="mb-6 rounded-2xl border border-[#e1ebe7] bg-white p-4">
-          {/* location (display of the active scope) */}
-          <div className="mb-3.5">
-            <span
-              className="inline-flex items-center gap-2 rounded-full border-[1.5px] px-3 py-1.5"
-              style={{ background: 'rgba(26,107,107,0.08)', borderColor: 'rgba(26,107,107,0.35)' }}
-            >
-              <MapPinIcon className="h-4 w-4 text-[#1a6b6b]" aria-hidden />
-              <span className="text-[13.5px] font-bold text-[#0f2b2b]">{place}</span>
-            </span>
-          </div>
-
+        <div className="mb-4 rounded-2xl border border-[#e1ebe7] bg-white p-3.5">
           {/* Value-frames — how you READ a decision. No card-level theme tagging
               exists yet, so these are an honest, disabled "coming soon" affordance
               and never filter or fabricate data (CLAUDE.md: No Fabricated Data). */}
