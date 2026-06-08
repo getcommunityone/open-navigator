@@ -165,9 +165,9 @@ def fetch_meeting_document_text(
     being analyzed by census_geoid + exact meeting date — the official record
     carries dollar amounts / staff recommendations / vote detail the spoken
     transcript often only alludes to. Agenda(s) first, then minutes; only rows
-    with real extracted text (extraction_method='pymupdf_text'). Truncated to
-    ``max_chars`` to bound prompt size/cost. Returns '' when nothing matches
-    (e.g. scanned-only minutes, or no scraped docs) — never fabricates.
+    with real extracted text — digital (extraction_method='pymupdf_text') or OCR'd
+    scanned PDFs ('rapidocr_ocr'). Truncated to ``max_chars`` to bound prompt
+    size/cost. Returns '' when nothing matches — never fabricates.
     """
     geoid = (census_geoid or "").strip()
     day = (event_date or "").strip()[:10]
@@ -181,7 +181,7 @@ def fetch_meeting_document_text(
         FROM bronze.bronze_meeting_document_text
         WHERE census_geoid = %s
           AND meeting_date = %s::date
-          AND extraction_method = 'pymupdf_text'
+          AND extraction_method IN ('pymupdf_text', 'rapidocr_ocr')
           AND content IS NOT NULL
         ORDER BY CASE doc_type WHEN 'agenda' THEN 0 WHEN 'minutes' THEN 1 ELSE 2 END
     """

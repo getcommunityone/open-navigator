@@ -83,7 +83,22 @@
   - `chore(deps): upgrade loguru to 0.7.3`
   - `docs(web_docs): add FastAPI deployment guide`
 
-## Logging Standards (MANDATORY)
+## Branch & PR Workflow (MANDATORY)
+- **NEVER push directly to `main`.** `main` is branch-protected on GitHub (`getcommunityone/open-navigator`): direct pushes are rejected. All changes land via pull request.
+- **Every change goes through a PR.** Branch off the latest `main`, commit there, push the branch, and open a PR against `main`:
+  ```bash
+  git checkout main && git pull
+  git checkout -b <type>/<short-topic>        # e.g. feat/money-flow-sankey
+  # ... commit work (Conventional Commits) ...
+  git push -u origin <type>/<short-topic>
+  gh pr create --base main
+  ```
+- **A PR must be green before merge.** Required CI checks (Frontend Build, Documentation Build, Backend Tests, API Types) must pass; resolve all conversations. The Docker Build Test is **not** required (it self-skips when no Docker files change).
+- **Do NOT merge your own work silently.** Prefer review. The solo maintainer may self-merge as admin (`gh pr merge <n> --squash --admin`) only because GitHub forbids self-approval; this is a stopgap, not the norm — once a second reviewer exists, require the approval.
+- **Never rewrite or force-push shared history** (`main`, or any branch with an open PR). A parallel session may be committing alongside you: stage only your own files, and verify your work landed via `git log` rather than amending.
+- **Agents/automation** must follow the same flow — branch + PR, never a direct push to `main`.
+
+## Git Commit Standards (MANDATORY)
 
 ### Simple Python Scripts & Packages → Loguru
 Use `loguru` for all standalone scripts and simple Python packages:
