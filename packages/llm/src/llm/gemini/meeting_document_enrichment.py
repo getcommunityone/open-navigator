@@ -691,19 +691,36 @@ def run_extract(args: argparse.Namespace) -> int:
         if data is not None:
             extracted_by_key[key] = data
 
-    enriched = 0
+    # BODY/SOURCE GUARD. jurisdiction+date alone conflates governments: a county
+    # FIPS bucket holds both City Council videos and County Commission docs. The
+    # doc's true body is only known after extraction (meeting_body), so the guard
+    # fires here: reject a merge when BOTH sides resolve to a body token AND they
+    # differ (e.g. doc 'county_commission' ≠ meeting 'council'). Unknown on either
+    # side → allowed, so this never rejects on a guess.
+    enriched = skipped_body = 0
     for mtg, hits in targets:
+        mtg_body = _normalize_body_key(mtg.name)
         merged_any = False
         for h in hits:
             data = extracted_by_key.get(_doc_key(h))
-            if data and _merge_into_analysis(mtg, [h], data):
+            if not data:
+                continue
+            doc_body = _normalize_body_key(data.get("meeting_body"))
+            if mtg_body and doc_body and mtg_body != doc_body:
+                skipped_body += 1
+                logger.warning(
+                    "⏭️  Body mismatch: doc '{}' ≠ meeting '{}' ({} {}) — not merging.",
+                    doc_body, mtg_body, mtg.juris_path, mtg.iso_date,
+                )
+                continue
+            if _merge_into_analysis(mtg, [h], data):
                 merged_any = True
         if merged_any:
             enriched += 1
             logger.success("✅ Enriched {} {}", mtg.juris_path, mtg.iso_date)
     logger.success(
-        "Done — enriched {}/{} meetings from {} unique doc(s) extracted",
-        enriched, len(targets), len(extracted_by_key),
+        "Done — enriched {}/{} meetings from {} unique doc(s); {} skipped on body mismatch",
+        enriched, len(targets), len(extracted_by_key), skipped_body,
     )
     return 0
 
