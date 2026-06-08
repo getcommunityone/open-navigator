@@ -12,6 +12,7 @@
       "CREATE INDEX IF NOT EXISTS grant_grantor_master_org_id_idx ON {{ this }} (grantor_master_org_id)",
       "CREATE INDEX IF NOT EXISTS grant_grantee_master_org_id_idx ON {{ this }} (grantee_master_org_id)",
       "CREATE INDEX IF NOT EXISTS grant_grantor_state_code_idx ON {{ this }} (grantor_state_code)",
+      "CREATE INDEX IF NOT EXISTS grant_grantee_state_code_idx ON {{ this }} (grantee_state_code)",
       "CREATE INDEX IF NOT EXISTS grant_amount_idx ON {{ this }} (amount DESC NULLS LAST)",
       "CREATE INDEX IF NOT EXISTS grant_grantor_name_trgm_idx ON {{ this }} USING gin (grantor_name gin_trgm_ops)",
       "CREATE INDEX IF NOT EXISTS grant_grantee_name_trgm_idx ON {{ this }} USING gin (grantee_name gin_trgm_ops)",

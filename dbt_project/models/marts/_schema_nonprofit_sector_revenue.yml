@@ -1,0 +1,51 @@
+version: 2
+
+# public.nonprofit_sector_revenue — one-row pre-aggregation of the national 990
+# nonprofit-sector revenue decomposition, serving the /api/money-flow "economy"
+# lens. Replaces a per-request SUM over the 3.6M-row mdm_organization_nonprofit
+# satellite. Single synthetic PK (scope = 'us') since the grain is "the U.S.".
+
+models:
+  - name: nonprofit_sector_revenue
+    description: >
+      Single-row national aggregate of 990 nonprofit-sector revenue:
+      contributions, program-service revenue, total revenue, and org count.
+      Pre-computed from mdm_organization_nonprofit so the money-flow "economy"
+      lens reads one row instead of scanning the full satellite per request.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    columns:
+      - name: scope
+        description: "PK; geographic grain. Always 'us' — the figure is national (no state column on the source)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: contributions
+        description: "SUM of gt990_total_contributions across all 990-filing nonprofits."
+        data_type: bigint
+        constraints:
+          - type: not_null
+      - name: program_service_revenue
+        description: "SUM of gt990_program_service_revenue."
+        data_type: bigint
+        constraints:
+          - type: not_null
+      - name: total_revenue
+        description: "SUM of COALESCE(gt990_total_revenue, revenue)."
+        data_type: bigint
+        constraints:
+          - type: not_null
+      - name: org_count
+        description: "COUNT of nonprofit org rows feeding the aggregate."
+        data_type: bigint
+        constraints:
+          - type: not_null
+      - name: dbt_loaded_at
+        data_type: timestamp with time zone

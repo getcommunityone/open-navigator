@@ -412,7 +412,7 @@ function StoryCarousel({ cards, lens, savedKeys, onToggleSave, onOpen, cardKey }
 
       <div
         ref={railRef}
-        className="-mx-1 flex snap-x snap-mandatory gap-4 overflow-x-auto px-1 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="-mx-1 flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-px-1 px-1 pb-2 sm:scroll-px-8 sm:px-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {cards.map((c, i) => {
           const key = cardKey(c, i)
