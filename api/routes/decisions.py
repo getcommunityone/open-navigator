@@ -132,18 +132,15 @@ _DECISION_SQL = """
     WHERE d.event_decision_id = $1
 """
 
-# Parsed agenda/minutes content for a decision's meeting: c1_event_id ->
-# event_meeting (jurisdiction jid + date) -> public.meeting_document.
+# Parsed agenda/minutes content for a decision's meeting. Keyed by event_meeting_id
+# (= the decision's analysis_id) — the same clean join _DOCUMENTS_SQL uses, so it
+# aligns with the event_meeting_document link mart instead of a fragile
+# jurisdiction+date match.
 _MEETING_RECORD_SQL = """
     SELECT md.doc_kind, md.meeting_body, md.agenda_items, md.motions,
            md.recorded_votes, md.continuances, md.legislation_numbers, md.source_urls
-    FROM event_meeting m
-    JOIN public.meeting_document md
-      ON md.jurisdiction_jid = m.jurisdiction
-     AND md.meeting_date = CASE
-           WHEN COALESCE(NULLIF(m.event_date, ''), NULLIF(m.meeting_date, '')) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
-           THEN LEFT(COALESCE(NULLIF(m.event_date, ''), NULLIF(m.meeting_date, '')), 10)::date END
-    WHERE m.c1_event_id = $1
+    FROM public.meeting_document md
+    WHERE md.event_meeting_id = $1
     ORDER BY md.doc_kind
 """
 
@@ -469,9 +466,9 @@ async def get_decision(event_decision_id: str) -> DecisionDetail:
                 # Parsed agenda/minutes content for this decision's meeting
                 # (public.meeting_document). Best-effort — never 500 the decision.
                 meeting_record_rows: list = []
-                if row["c1_event_id"]:
+                if row["analysis_id"] is not None:
                     try:
-                        meeting_record_rows = await conn.fetch(_MEETING_RECORD_SQL, row["c1_event_id"])
+                        meeting_record_rows = await conn.fetch(_MEETING_RECORD_SQL, row["analysis_id"])
                     except Exception as mr_err:  # noqa: BLE001 — best-effort
                         logger.warning(
                             "meeting_record lookup failed for {}: {}", event_decision_id, mr_err

@@ -551,11 +551,15 @@ CREATE TABLE IF NOT EXISTS public.meeting_document (
     continuances        JSONB,
     legislation_numbers JSONB,
     source_urls         JSONB,
+    event_meeting_id    BIGINT,        -- = decision.analysis_id; clean join key
     updated_at          TIMESTAMP DEFAULT now(),
     PRIMARY KEY (jurisdiction_jid, meeting_date, doc_kind)
 );
+ALTER TABLE public.meeting_document ADD COLUMN IF NOT EXISTS event_meeting_id BIGINT;
 CREATE INDEX IF NOT EXISTS meeting_document_juris_date_idx
     ON public.meeting_document (jurisdiction_jid, meeting_date);
+CREATE INDEX IF NOT EXISTS meeting_document_event_meeting_idx
+    ON public.meeting_document (event_meeting_id);
 """
 
 _MEETING_ID_RE = re.compile(r"^(?P<jid>.+)_(?P<date>\d{4}-\d{2}-\d{2})$")
@@ -610,17 +614,32 @@ def load_to_warehouse(jurisdiction: Optional[str] = None) -> int:
     try:
         with conn.cursor() as cur:
             cur.execute(_MEETING_DOC_DDL)
+            # Resolve event_meeting_id (= decision.analysis_id) per (jurisdiction_jid,
+            # date) so the API joins on the clean key, aligning with event_meeting_document
+            # (the parallel link mart). Rows that don't resolve keep event_meeting_id NULL.
+            cur.execute("""
+                SELECT jurisdiction,
+                       LEFT(COALESCE(NULLIF(event_date, ''), NULLIF(meeting_date, '')), 10) AS d,
+                       event_meeting_id
+                FROM public.event_meeting
+                WHERE event_meeting_id IS NOT NULL
+                  AND COALESCE(NULLIF(event_date, ''), NULLIF(meeting_date, '')) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
+            """)
+            emid = {(j, d): e for j, d, e in cur.fetchall()}
+            values = [row + (emid.get((row[0], row[1])),) for row in rows.values()]
             execute_values(cur, """
                 INSERT INTO public.meeting_document
                   (jurisdiction_jid, meeting_date, doc_kind, meeting_body, agenda_items,
-                   motions, recorded_votes, continuances, legislation_numbers, source_urls)
+                   motions, recorded_votes, continuances, legislation_numbers, source_urls,
+                   event_meeting_id)
                 VALUES %s
                 ON CONFLICT (jurisdiction_jid, meeting_date, doc_kind) DO UPDATE SET
                   meeting_body=EXCLUDED.meeting_body, agenda_items=EXCLUDED.agenda_items,
                   motions=EXCLUDED.motions, recorded_votes=EXCLUDED.recorded_votes,
                   continuances=EXCLUDED.continuances, legislation_numbers=EXCLUDED.legislation_numbers,
-                  source_urls=EXCLUDED.source_urls, updated_at=now()
-            """, list(rows.values()))
+                  source_urls=EXCLUDED.source_urls, event_meeting_id=EXCLUDED.event_meeting_id,
+                  updated_at=now()
+            """, values)
         conn.commit()
     finally:
         conn.close()
