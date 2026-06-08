@@ -84,11 +84,36 @@ class GapItem(BaseModel):
     detail: str = ""
 
 
+class Correction(BaseModel):
+    """An AI fact the official document contradicts → fix applied to the recap."""
+
+    quote: str = ""          # verbatim from the official document
+    ai_claim: str = ""       # the AI's incorrect statement
+    correction: str = ""     # the corrected fact
+
+
+class DollarAmount(BaseModel):
+    amount: str = ""
+    description: str = ""
+    quote: str = ""
+
+
+class DecisionEnrichment(BaseModel):
+    """Precise detail pulled from the official document for one decision."""
+
+    decision_ref: str = ""
+    addresses: list[str] = []
+    legislation: list[str] = []
+    dollar_amounts: list[DollarAmount] = []
+
+
 class GapAnalysis(BaseModel):
+    # New fields default empty so older-shape cache rows still validate.
     status: str
-    omissions: list[GapItem] = []
-    possible_errors: list[GapItem] = []
-    interesting_gaps: list[GapItem] = []
+    corrections: list[Correction] = []
+    corrected_summary: str = ""
+    decision_enrichments: list[DecisionEnrichment] = []
+    minutes_omissions: list[GapItem] = []
     overall: str = ""
     model: Optional[str] = None
 
@@ -364,11 +389,23 @@ async def analyze_document_gaps(
                 content, url=document_url, content_type=content_type
             )
 
+            # The decisions to enrich from the official document (id keeps the
+            # model's enrichments mappable back to each event_decision).
+            decision_payload = [
+                {
+                    "id": d.event_decision_id,
+                    "headline": d.headline or "",
+                    "statement": d.decision_statement or "",
+                }
+                for d in decisions
+            ]
+
             # Real (billed) Gemini call — guarded so it only runs on this POST.
             result = analyze_gaps(
                 summary_text=summary_text,
                 document_text=document_text,
                 document_type=document_type,
+                decisions=decision_payload,
             )
             span.set_attribute("gap.status", str(result.get("status")))
 

@@ -291,19 +291,18 @@ def _build_gap_flag_card(row: Any) -> LensCard:
     exactly the framing of this lens. Links to the side-by-side compare page.
     """
     gap = _parse_json(row["gap_json"]) or {}
-    errors = gap.get("possible_errors") or []
-    omissions = gap.get("omissions") or []
-    interesting = gap.get("interesting_gaps") or []
+    # The editorially interesting signal: what was discussed (in the video recap)
+    # that the OFFICIAL record left out — possible selective recording / bias.
+    omissions = gap.get("minutes_omissions") or []
+    corrections = gap.get("corrections") or []
     doc_type = (row["document_type"] or "document").lower()
     body = row["body_name"] or row["jurisdiction_name"] or "Meeting"
 
     stats: List[LensStat] = []
-    if errors:
-        stats.append(LensStat(value=str(len(errors)), label="Possible errors", tone="red"))
     if omissions:
-        stats.append(LensStat(value=str(len(omissions)), label="Omissions", tone="amber"))
-    if interesting:
-        stats.append(LensStat(value=str(len(interesting)), label="Notable gaps", tone="blue"))
+        stats.append(LensStat(value=str(len(omissions)), label="Left out of record", tone="amber"))
+    if corrections:
+        stats.append(LensStat(value=str(len(corrections)), label="AI facts corrected", tone="blue"))
 
     # Drill down to the side-by-side compare view for this meeting + document.
     # jurisdictionId in that route is the Census geoid (how the page is reached
@@ -318,7 +317,7 @@ def _build_gap_flag_card(row: Any) -> LensCard:
         url = None
 
     return LensCard(
-        headline=f"Official {doc_type} vs. the AI recap — {body}",
+        headline=f"What the official {doc_type} left out — {body}",
         stats=stats[:3],
         jurisdiction=row["jurisdiction_name"] or row["state_code"] or "Unknown",
         date=_iso_date(row["doc_date"] or row["meeting_date"]),
@@ -619,13 +618,11 @@ async def get_lenses(
                             LIMIT 1
                         ) emd ON TRUE
                         WHERE c.gap_json->>'status' = 'ok'
-                          AND (
-                              jsonb_array_length(COALESCE(c.gap_json->'possible_errors', '[]'::jsonb)) > 0
-                              OR jsonb_array_length(COALESCE(c.gap_json->'omissions', '[]'::jsonb)) > 0
-                          ){gap_where}
+                          AND jsonb_array_length(
+                                COALESCE(c.gap_json->'minutes_omissions', '[]'::jsonb)
+                              ) > 0{gap_where}
                         ORDER BY
-                            jsonb_array_length(COALESCE(c.gap_json->'possible_errors', '[]'::jsonb)) DESC,
-                            jsonb_array_length(COALESCE(c.gap_json->'omissions', '[]'::jsonb)) DESC,
+                            jsonb_array_length(COALESCE(c.gap_json->'minutes_omissions', '[]'::jsonb)) DESC,
                             c.created_at DESC
                         LIMIT ${gidx}
                     """

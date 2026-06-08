@@ -46,9 +46,10 @@ def test_empty_document_text_returns_marker_without_calling_gemini(monkeypatch):
     assert called["n"] == 0
     assert result["status"] == "no_document_text"
     assert result["model"] is None
-    assert result["omissions"] == []
-    assert result["possible_errors"] == []
-    assert result["interesting_gaps"] == []
+    assert result["corrections"] == []
+    assert result["minutes_omissions"] == []
+    assert result["decision_enrichments"] == []
+    assert result["corrected_summary"] == ""
     assert "Could not extract" in result["overall"]
 
 
@@ -69,9 +70,25 @@ def test_empty_summary_text_returns_marker_without_calling_gemini(monkeypatch):
 
 def test_valid_json_response_normalizes_to_ok(monkeypatch):
     payload = {
-        "omissions": [{"quote": "Resolution 2024-15", "detail": "Not in AI summary"}],
-        "possible_errors": [],
-        "interesting_gaps": [{"quote": "vote 4-1", "detail": "AI said unanimous"}],
+        "corrections": [
+            {
+                "quote": "appropriated $45,000",
+                "ai_claim": "the council spent about $40,000",
+                "correction": "the amount was $45,000",
+            }
+        ],
+        "corrected_summary": "AI summary: budget of $45,000 passed 4-1.",
+        "decision_enrichments": [
+            {
+                "decision_ref": "dec-1",
+                "addresses": ["2100 21st Ave E"],
+                "legislation": ["Resolution 2024-15"],
+                "dollar_amounts": [
+                    {"amount": "$45,000", "description": "training budget", "quote": "appropriated $45,000"}
+                ],
+            }
+        ],
+        "minutes_omissions": [{"quote": "public comment on noise", "detail": "Not recorded in minutes"}],
         "overall": "Mostly aligned with a couple gaps.",
         "extra_ignored_key": "should be dropped",
     }
@@ -90,29 +107,32 @@ def test_valid_json_response_normalizes_to_ok(monkeypatch):
         summary_text="AI summary: budget passed unanimously.",
         document_text="Minutes: Resolution 2024-15 approved by a vote of 4-1.",
         document_type="minutes",
+        decisions=[{"id": "dec-1", "headline": "Training budget", "statement": "..."}],
         model="gemini-2.5-flash",
         api_key="test-key",
     )
 
     assert result["status"] == "ok"
     assert result["model"] == "gemini-2.5-flash"
-    # All four content keys present + normalized.
-    assert result["omissions"] == payload["omissions"]
-    assert result["possible_errors"] == []
-    assert result["interesting_gaps"] == payload["interesting_gaps"]
+    assert result["corrections"] == payload["corrections"]
+    assert result["corrected_summary"] == payload["corrected_summary"]
+    assert result["decision_enrichments"] == payload["decision_enrichments"]
+    assert result["minutes_omissions"] == payload["minutes_omissions"]
     assert result["overall"] == "Mostly aligned with a couple gaps."
     assert "extra_ignored_key" not in result
-    # The official document_type made it into the grounded prompt + system text.
+    # The official document_type + the decision id made it into the grounded prompt.
     assert "MINUTES" in captured["user_text"]
+    assert "dec-1" in captured["user_text"]
     assert "minutes" in captured["system_instruction"]
     assert captured["api_key"] == "test-key"
 
 
 def test_list_cap_applied(monkeypatch):
     payload = {
-        "omissions": [{"quote": str(i), "detail": "d"} for i in range(20)],
-        "possible_errors": "not-a-list",  # malformed → coerced to []
-        "interesting_gaps": [],
+        "corrections": [{"quote": str(i), "ai_claim": "a", "correction": "c"} for i in range(20)],
+        "minutes_omissions": "not-a-list",  # malformed → coerced to []
+        "decision_enrichments": [],
+        "corrected_summary": 999,  # malformed → coerced to ""
         "overall": 12345,  # malformed → coerced to ""
     }
     monkeypatch.setattr(
@@ -127,8 +147,9 @@ def test_list_cap_applied(monkeypatch):
         api_key="k",
     )
     assert result["status"] == "ok"
-    assert len(result["omissions"]) == 8  # capped at _MAX_ITEMS
-    assert result["possible_errors"] == []
+    assert len(result["corrections"]) == mga._MAX_ITEMS  # capped
+    assert result["minutes_omissions"] == []
+    assert result["corrected_summary"] == ""
     assert result["overall"] == ""
 
 
@@ -146,7 +167,9 @@ def test_non_json_response_returns_parse_error(monkeypatch):
     )
     assert result["status"] == "parse_error"
     assert result["model"] == "gemini-2.5-flash"
-    assert result["omissions"] == []
+    assert result["corrections"] == []
+    assert result["minutes_omissions"] == []
+    assert result["corrected_summary"] == ""
     assert result["overall"] == ""
     assert "raw" in result and "cannot do that" in result["raw"]
 
@@ -167,7 +190,8 @@ def test_default_model_used_when_none(monkeypatch):
     assert seen["model"] == mga.default_flash_model()
     # Empty {} parses as a dict → ok with empty defaults.
     assert result["status"] == "ok"
-    assert result["omissions"] == []
+    assert result["corrections"] == []
+    assert result["corrected_summary"] == ""
 
 
 # --------------------------------------------------------------------------
