@@ -102,6 +102,15 @@ _LOAD_COLUMNS = [
     "state_code", "state", "city", "video_url", "created_at",
 ]
 
+# Source the FULL warehouse copy from `gold`, NOT the `public` serving layer.
+# `public.event_documents` is the SLIM, analyzed-scoped, standalone table that
+# publish_public_serving.sql materializes FROM gold.event_documents (content
+# NULLed, segments pre-trimmed) — reading it here would yield a NULL
+# content_excerpt and, when the local publish step hasn't run, zero rows. gold is
+# the canonical full table (content + full segments) the publish macro itself
+# reads, so we mirror it. See publish_public_serving.sql:157-173.
+_SOURCE_SCHEMA = "gold"
+
 # Analyzed-event scope (matches event.sql's `target.name == 'neon'` predicate and
 # the API's EVENTS_REQUIRE_ANALYSIS=True): keep only docs whose video_id resolves
 # to an analyzed meeting in event_meeting. Unanalyzed events are never shown
@@ -109,10 +118,10 @@ _LOAD_COLUMNS = [
 # the "analyzed-scoped" half of the civic-only/analyzed-scoped/cues-only plan —
 # without it the slim copy ships all ~6.4k docs (~237 MB) and busts the 0.5 GB
 # free tier; with it ~1.7k docs (~65-80 MB on disk).
-_ANALYZED_SCOPE_SQL = """
+_ANALYZED_SCOPE_SQL = f"""
 WHERE NULLIF(TRIM(video_id), '') IN (
     SELECT DISTINCT NULLIF(TRIM(video_id), '')
-    FROM public.event_meeting
+    FROM {_SOURCE_SCHEMA}.event_meeting
     WHERE NULLIF(TRIM(video_id), '') IS NOT NULL
 )
 """
@@ -149,8 +158,8 @@ SELECT
     city,
     video_url,
     created_at
-FROM public.event_documents
-"""
+FROM """
+    + f"{_SOURCE_SCHEMA}.event_documents\n"
     + _ANALYZED_SCOPE_SQL
 )
 
@@ -181,8 +190,8 @@ def _projected_size(local_conn) -> tuple[int, str]:
                         't', elem->>'text'))
                     FROM jsonb_array_elements(segments) AS elem
                 ) END AS segments
-            FROM public.event_documents
-            """
+            FROM """
+            + f"{_SOURCE_SCHEMA}.event_documents\n"
             + _ANALYZED_SCOPE_SQL
         )
         cur.execute(
@@ -195,11 +204,30 @@ def _projected_size(local_conn) -> tuple[int, str]:
 
 
 def _ensure_table(neon_conn, full: bool) -> None:
-    """Create the slim event_documents on Neon (drop first when --full)."""
+    """Create the slim event_documents on Neon (drop first when --full).
+
+    `public.event_documents` may pre-exist on Neon as a VIEW (a leftover from a
+    dbt run before it was excluded from the neon_serving selector). A view blocks
+    both `CREATE TABLE IF NOT EXISTS` (silent no-op) and `CREATE INDEX` ("not
+    supported for views"), so we always drop a view of that name first, and on
+    --full drop a table too. `relkind` distinguishes the two ('v' = view).
+    """
     with neon_conn.cursor() as cur:
-        if full:
-            logger.info("🗑️  --full: dropping existing public.event_documents on Neon")
+        cur.execute(
+            "SELECT relkind FROM pg_class c "
+            "JOIN pg_namespace n ON n.oid = c.relnamespace "
+            "WHERE n.nspname = 'public' AND c.relname = 'event_documents'"
+        )
+        existing = cur.fetchone()
+        relkind = existing[0] if existing else None
+
+        if relkind == "v":
+            logger.info("🗑️  public.event_documents exists as a VIEW on Neon — dropping it")
+            cur.execute("DROP VIEW IF EXISTS public.event_documents CASCADE")
+        elif full and relkind is not None:
+            logger.info("🗑️  --full: dropping existing public.event_documents table on Neon")
             cur.execute("DROP TABLE IF EXISTS public.event_documents CASCADE")
+
         cur.execute(_CREATE_TABLE_SQL)
         for stmt in _INDEX_SQL:
             cur.execute(stmt)
@@ -214,7 +242,7 @@ def sync(local_conn, neon_conn, batch_size: int = 1000) -> int:
         rows = cur.fetchall()
     total = len(rows)
     if total == 0:
-        logger.warning("⏭️  No rows in local public.event_documents — nothing to load")
+        logger.warning("⏭️  No analyzed-scoped rows in local {}.event_documents — nothing to load", _SOURCE_SCHEMA)
         return 0
     logger.info("   {} rows fetched", f"{total:,}")
 
