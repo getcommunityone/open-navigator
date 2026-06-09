@@ -13,6 +13,35 @@
 
 set -e
 
+# --- Run in an isolated clone so the LIVE serving checkout is never touched ----
+# This script does destructive git surgery (orphan branch, `rm --cached`, autostash,
+# force-push). The deployment panel/orchestrator launches it from the SAME checkout
+# the dev servers (API :8000, Vite :5173) run from, so doing that surgery in place
+# yanks files out from under the running site and crashes it. Re-exec inside a
+# throwaway local clone instead: the deploy publishes committed `main` (not your
+# uncommitted work), so a `--local` clone reproduces exactly what would be deployed
+# while leaving the live checkout — and the running servers — completely alone.
+if [ -z "$HF_DEPLOY_ISOLATED" ]; then
+    SRC_ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || SRC_ROOT=""
+    if [ -n "$SRC_ROOT" ]; then
+        CLONE_DIR=$(mktemp -d -t hf-deploy-XXXXXX)
+        trap 'rm -rf "$CLONE_DIR" 2>/dev/null || true' EXIT
+        echo "🧬 Isolating deploy in a throwaway clone (live checkout untouched):"
+        echo "   $CLONE_DIR"
+        echo ""
+        # --local hardlinks objects (fast, cheap) and carries all committed history.
+        git clone --quiet --local "$SRC_ROOT" "$CLONE_DIR"
+        # Carry over gitignored .env so HF_USERNAME / HF_TOKEN are available in the clone.
+        [ -f "$SRC_ROOT/.env" ] && cp "$SRC_ROOT/.env" "$CLONE_DIR/.env"
+        cd "$CLONE_DIR"
+        set +e
+        HF_DEPLOY_ISOLATED=1 bash "packages/hosting/scripts/huggingface/deploy-huggingface.sh" "$@"
+        rc=$?
+        set -e
+        exit $rc
+    fi
+fi
+
 # Load environment variables from .env file if it exists
 if [ -f ".env" ]; then
     echo "📝 Loading environment variables from .env..."
@@ -303,10 +332,24 @@ git rm -rf --cached . 2>/dev/null || true
 git add -f Dockerfile README_HF.md .huggingface/ .gitignore .dockerignore
 
 # Add source code WITHOUT -f to respect .gitignore (excludes node_modules automatically)
-git add agents/ api/ config/ discovery/ extraction/ pipeline/ scripts/ tests/ visualization/
-git add databricks/ examples/ models/ neon/ notebooks/
-git add requirements*.txt setup.py main.py Makefile *.sh *.md *.yml *.yaml
-git add CITATIONS.md CONTRIBUTING.md LICENSE INTEL_ARC_QUICKSTART.md
+# Only add directories that exist — some top-level trees were relocated into packages/
+# during the scripts/ -> packages/ refactor, and `git add` aborts (exit 128) on any
+# pathspec that matches zero files.
+for d in agents api config discovery extraction pipeline scripts tests visualization \
+         databricks examples models neon notebooks; do
+    [ -d "$d" ] && git add "$d"
+done
+# Add top-level files. Use nullglob so unmatched globs expand to nothing
+# (a bare `git add *.yaml` with no match would otherwise abort with exit 128),
+# and guard each literal so a since-removed file (e.g. INTEL_ARC_QUICKSTART.md)
+# can't fail the whole deploy.
+shopt -s nullglob
+for f in requirements*.txt *.sh *.md *.yml *.yaml \
+         setup.py main.py Makefile \
+         CITATIONS.md CONTRIBUTING.md LICENSE INTEL_ARC_QUICKSTART.md; do
+    [ -e "$f" ] && git add "$f"
+done
+shopt -u nullglob
 
 # Add web_app/web_docs source EXCLUDING node_modules (gitignore handles this)
 echo "🧹 Adding web_app/web_docs sources (node_modules auto-excluded by .gitignore)..."
