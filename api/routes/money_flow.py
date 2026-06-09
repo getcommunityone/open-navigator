@@ -233,24 +233,48 @@ async def _grants(conn, *, state_code: Optional[str]) -> FlowLens:
     return lens
 
 
+# Pre-aggregated nonprofit-sector revenue by scope, 1 row per scope_key — built by
+# the `nonprofit_sector_revenue` mart so this lens is a PK lookup, NOT a 3.6M-row
+# scan of mdm_organization_nonprofit (which has no geo of its own). The mart joins
+# the satellite to its master org for state_code/city_norm. scope_key is one of
+# 'us' | 'state:AL' | 'city:AL|tuscaloosa' (city_norm lowercased). We fetch the
+# candidate keys most-specific-first and use the first non-empty grain (city ->
+# state -> us), so a city with no 990 orgs still shows honest state/national
+# context instead of an empty lens.
 _ECONOMY_SQL = """
-    SELECT
-        COALESCE(SUM(gt990_total_contributions), 0)     AS contributions,
-        COALESCE(SUM(gt990_program_service_revenue), 0) AS program,
-        COALESCE(SUM(COALESCE(gt990_total_revenue, revenue)), 0) AS total,
-        COUNT(*) AS orgs
-    FROM mdm_organization_nonprofit
+    SELECT scope_key, scope, state_code, city_norm,
+           COALESCE(contributions, 0)           AS contributions,
+           COALESCE(program_service_revenue, 0) AS program,
+           COALESCE(total_revenue, 0)           AS total,
+           COALESCE(org_count, 0)               AS orgs
+    FROM nonprofit_sector_revenue
+    WHERE scope_key = ANY($1::text[])
 """
 
 
-async def _economy(conn) -> FlowLens:
+def _economy_scope_keys(state_code: Optional[str], city: Optional[str]) -> List[str]:
+    """Candidate scope_keys, most-specific first: city -> state -> us."""
+    keys: List[str] = []
+    if state_code and city:
+        keys.append(f"city:{state_code}|{city.strip().lower()}")
+    if state_code:
+        keys.append(f"state:{state_code}")
+    keys.append("us")
+    return keys
+
+
+async def _economy(conn, *, state_code: Optional[str], city: Optional[str], scope_label: str) -> FlowLens:
     lens = FlowLens(accent=_ACCENT["economy"])
+    candidates = _economy_scope_keys(state_code, city)
     try:
-        row = await conn.fetchrow(_ECONOMY_SQL)
+        rows = await conn.fetch(_ECONOMY_SQL, candidates)
     except Exception as exc:  # noqa: BLE001
         logger.warning("money-flow economy failed: {}", exc)
         return lens
-    if row is None or not row["total"]:
+    by_key = {r["scope_key"]: r for r in rows}
+    # First candidate (most specific) with a real, non-zero total.
+    row = next((by_key[k] for k in candidates if k in by_key and by_key[k]["total"]), None)
+    if row is None:
         return lens
     total = float(row["total"])
     contrib = float(row["contributions"] or 0)
@@ -272,12 +296,21 @@ async def _economy(conn) -> FlowLens:
         return lens
     lens.nodes, lens.links, lens.placeholder = nodes, links, False
     lens.head_amount = money_fmt(total)
-    # mdm_organization_nonprofit has no usable state column, so this lens is
-    # always the U.S. sector — label it as such rather than imply it's local.
-    lens.head_label = "U.S. nonprofit sector revenue"
+    # Label by the grain that actually matched (which may differ from what was
+    # requested if a city fell back to its state/national context), so the figure
+    # never implies a scope it doesn't have.
+    matched_scope = row["scope"]
+    if matched_scope == "city":
+        lens.head_label = f"{scope_label} nonprofit revenue"
+        lens.count_label = f"{int(row['orgs']):,} orgs · 990"
+    elif matched_scope == "state":
+        lens.head_label = f"{row['state_code']} nonprofit revenue"
+        lens.count_label = f"{int(row['orgs']):,} orgs · 990"
+    else:  # 'us'
+        lens.head_label = "U.S. nonprofit sector revenue"
+        lens.count_label = f"{int(row['orgs']):,} orgs · 990 · nationwide"
     # Drill down to the nonprofit directory behind this aggregate.
     lens.head_url = "/nonprofits"
-    lens.count_label = f"{int(row['orgs']):,} orgs · 990 · nationwide"
     return lens
 
 
@@ -304,7 +337,7 @@ async def get_money_flow(
         async with pool.acquire() as conn:
             spending = await _spending(conn, state_code=state_code, city=city, scope_label=scope_label)
             grants = await _grants(conn, state_code=state_code)
-            economy = await _economy(conn)
+            economy = await _economy(conn, state_code=state_code, city=city, scope_label=scope_label)
 
     return MoneyFlowResponse(
         location_label=location_label,
