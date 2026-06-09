@@ -303,8 +303,13 @@ git rm -rf --cached . 2>/dev/null || true
 git add -f Dockerfile README_HF.md .huggingface/ .gitignore .dockerignore
 
 # Add source code WITHOUT -f to respect .gitignore (excludes node_modules automatically)
-git add agents/ api/ config/ discovery/ extraction/ pipeline/ scripts/ tests/ visualization/
-git add databricks/ examples/ models/ neon/ notebooks/
+# Only add directories that exist — some top-level trees were relocated into packages/
+# during the scripts/ -> packages/ refactor, and `git add` aborts (exit 128) on any
+# pathspec that matches zero files.
+for d in agents api config discovery extraction pipeline scripts tests visualization \
+         databricks examples models neon notebooks; do
+    [ -d "$d" ] && git add "$d"
+done
 git add requirements*.txt setup.py main.py Makefile *.sh *.md *.yml *.yaml
 git add CITATIONS.md CONTRIBUTING.md LICENSE INTEL_ARC_QUICKSTART.md
 
