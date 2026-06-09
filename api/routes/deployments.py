@@ -36,21 +36,15 @@ router = APIRouter(prefix="/deployments", tags=["deployments"])
 # API need not import the hosting package (not installed in the API venv). The
 # orchestrator remains the source of truth for the argv that actually runs.
 # Keep in sync with hosting.deploy.run_deployment.STEP_DEFS (source of truth for
-# the argv). The database phase is two steps — the dbt marts build then the slim
-# transcript-cue copy — so the dashboard reflects each and fails loudly if the
-# marts build doesn't run, rather than one green tick that only covered the cues.
+# the argv). A prod deployment is just a DATA COPY of local public serving objects
+# into Neon prod public (runtime/auth tables excluded). ``web`` (HuggingFace) is a
+# separate, optional step — selectable in the panel but not run by default.
 _STEP_DEFS: List[Dict[str, str]] = [
     {
-        "key": "database-marts",
-        "label": "Database — civic marts (Neon, dbt)",
-        "description": "Rebuild the civic serving marts on Neon via `dbt run --selector neon_serving`.",
-        "target": "neon-dev",
-    },
-    {
-        "key": "database-cues",
-        "label": "Database — transcript cues (Neon)",
-        "description": "Copy the slim event_documents transcript cues to Neon (run after the marts build).",
-        "target": "neon-dev",
+        "key": "database",
+        "label": "Database — serving copy (Neon prod)",
+        "description": "Copy local public serving objects → Neon prod public (excludes runtime/auth tables).",
+        "target": "neon-prod",
     },
     {
         "key": "web",
@@ -60,7 +54,7 @@ _STEP_DEFS: List[Dict[str, str]] = [
     },
 ]
 _STEP_KEYS = [d["key"] for d in _STEP_DEFS]
-_DEFAULT_STEPS = ["database-marts", "database-cues", "web"]
+_DEFAULT_STEPS = ["database"]
 
 
 def _repo_root() -> Path:
