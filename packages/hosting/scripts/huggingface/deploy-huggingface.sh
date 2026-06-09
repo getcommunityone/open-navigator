@@ -380,6 +380,21 @@ while IFS= read -r f; do
 done < <(git diff --cached --name-only)
 echo "✅ Oversized files excluded: ${_oversized}"
 
+# HF (Xet) rejects RAW binary files of any size — to keep them you'd need LFS/Xet.
+# This is a "clean deployment without binary files", and every binary asset here
+# lives under public/ or static/ (served by path, never import-ed into the build),
+# so dropping them is build-safe; only some runtime images/favicon go missing.
+# git flags binary blobs as '-\t-' in numstat — use that, extension-agnostic.
+echo "🧹 Dropping staged binary files (HF Xet rejects raw binaries)..."
+_bin=0
+while IFS=$'\t' read -r add del path; do
+    if [ "$add" = "-" ] && [ "$del" = "-" ] && [ -n "$path" ]; then
+        git rm --cached --quiet -- "$path" 2>/dev/null || true
+        _bin=$((_bin + 1))
+    fi
+done < <(git diff --cached --numstat)
+echo "✅ Binary files excluded: ${_bin}"
+
 echo "💾 Committing clean deployment (no git history)..."
 git commit -m "Clean HuggingFace deployment without binary files" --allow-empty
 
