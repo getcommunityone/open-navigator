@@ -364,23 +364,45 @@ if [ "$NODE_MODULES_COUNT" -gt 0 ]; then
 fi
 echo "✅ Verified: No node_modules in staging area"
 
+# HF Spaces reject non-LFS files > 10 MiB (pre-receive hook). Drop any oversized
+# staged file so the push isn't declined — this is a "clean deployment without
+# binary files", so large assets (e.g. api/static/wikicommons/*.jpg) don't belong.
+echo "🧹 Dropping any staged files larger than 10 MiB (HF hard limit)..."
+_oversized=0
+while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    sz=$(git cat-file -s ":$f" 2>/dev/null || echo 0)
+    if [ "$sz" -gt 10485760 ]; then
+        echo "   ⚠️  Excluding $((sz / 1048576)) MB file: $f"
+        git rm --cached --quiet -- "$f" 2>/dev/null || true
+        _oversized=$((_oversized + 1))
+    fi
+done < <(git diff --cached --name-only)
+echo "✅ Oversized files excluded: ${_oversized}"
+
 echo "💾 Committing clean deployment (no git history)..."
 git commit -m "Clean HuggingFace deployment without binary files" --allow-empty
 
-# Add HF remote if it doesn't exist
-if git remote get-url $HF_REMOTE &> /dev/null; then
-    echo "✅ Hugging Face remote already configured ($HF_REMOTE)"
-else
-    echo "🔗 Adding Hugging Face remote ($HF_REMOTE)..."
-    git remote add $HF_REMOTE "$HF_REPO"
+# Push to Hugging Face — token-authenticated, NON-interactive.
+# Without an embedded token git falls back to an interactive credential prompt
+# (e.g. VSCode's GIT_ASKPASS asking "Username for https://huggingface.co"), which
+# hangs FOREVER in a non-TTY deploy job. Require HF_TOKEN, embed it in the push
+# URL, and disable any prompt so a missing/invalid token fails fast instead.
+if [ -z "$HF_TOKEN" ]; then
+    echo "❌ Error: HF_TOKEN is not set — cannot push to the Space non-interactively."
+    echo "   Add HF_TOKEN to .env (or the environment) and re-run."
+    exit 1
 fi
+export GIT_TERMINAL_PROMPT=0
+export GIT_ASKPASS=/bin/echo
+export GIT_CONFIG_PARAMETERS="'credential.helper='"  # ignore any interactive helper
+PUSH_URL="https://${HF_USERNAME}:${HF_TOKEN}@huggingface.co/spaces/${HF_USERNAME}/${SPACE_NAME}"
 
-# Push to Hugging Face
 echo ""
 echo "📤 Pushing to Hugging Face Spaces..."
 echo "This will trigger a build (takes ~10-15 minutes)"
 echo ""
-git push $HF_REMOTE huggingface-deploy:main --force
+git push "$PUSH_URL" huggingface-deploy:main --force
 
 echo ""
 echo "✅ Deployment initiated!"
