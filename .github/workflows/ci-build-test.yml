@@ -109,8 +109,9 @@ jobs:
           # config/agents/models/ingestion now live under packages/; install them so
           # they import as top-level modules (--no-deps keeps the closure unchanged).
           # ingestion is needed since main.py/api import `ingestion.delta_lake`
-          # (formerly the root `pipeline/` tree).
-          pip install --no-deps -e packages/core -e packages/datamodels -e packages/agents -e packages/ingestion
+          # (formerly the root `pipeline/` tree). llm is needed since the
+          # meeting_comparison route imports `llm.gemini.*`.
+          pip install --no-deps -e packages/core -e packages/datamodels -e packages/agents -e packages/ingestion -e packages/llm
 
       - name: Check Python syntax
         run: |
@@ -157,7 +158,8 @@ jobs:
           pip install -r requirements.txt
           # Mirror backend-test: local workspace packages import as top-level modules.
           # ingestion included so export_openapi.py -> api.app import resolves.
-          pip install --no-deps -e packages/core -e packages/datamodels -e packages/agents -e packages/ingestion
+          # llm included so the meeting_comparison route's `llm.gemini.*` import resolves.
+          pip install --no-deps -e packages/core -e packages/datamodels -e packages/agents -e packages/ingestion -e packages/llm
 
       - name: Install frontend dependencies
         run: |
