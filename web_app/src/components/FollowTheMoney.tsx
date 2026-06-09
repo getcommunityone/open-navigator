@@ -112,14 +112,14 @@ export default function FollowTheMoney({
         .nodeWidth(11)
         .nodePadding(22)
         .extent([
-          // Match the left gutter (175px) to the right so long left-side names
-          // (grantors like "AUBURN UNIVERSITY FOUNDATION") render right-anchored
-          // without overflowing the SVG's left edge and clipping ("…UNIVERSITY").
-          [175, 14],
-          // Pull the right edge well in (175px gutter) so the two-line target
-          // labels — name + dollar value — always fit inside the viewBox and
-          // never clip at the SVG edge the way a single concatenated line did.
-          [W - 175, H - 14],
+          // Wide left gutter (220px) so long left-side names (grantors like
+          // "AUBURN UNIVERSITY FOUNDATION") render right-anchored with room to
+          // breathe — the wider the gutter, the less the labels get clipped.
+          [220, 14],
+          // Symmetric 220px right gutter so the two-line target labels — name +
+          // dollar value — get the same room. Pulling both gutters in also
+          // narrows the middle flow band, trading bar width for text width.
+          [W - 220, H - 14],
         ])
       const graph = layout({
         nodes: lens.nodes.map((n) => ({ ...n })) as LaidNode[],
@@ -231,20 +231,55 @@ export default function FollowTheMoney({
               No {TABS.find((t) => t.key === tab)?.label.toLowerCase()} flows available for this area yet.
             </div>
           ) : (
-            <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="Money flow Sankey diagram">
+            // key={tab} remounts the diagram on lens switch so the open
+            // animation (links draw in left→right, then bars + labels rise)
+            // replays each time.
+            <svg key={tab} viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="Money flow Sankey diagram">
+              <style>{`
+                @keyframes ftm-draw { to { stroke-dashoffset: 0; } }
+                @keyframes ftm-rise { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
+                @keyframes ftm-flow { to { stroke-dashoffset: -260; } }
+                @keyframes ftm-fadein { to { opacity: 1; } }
+                .ftm-link { stroke-dasharray: 1; stroke-dashoffset: 1; animation: ftm-draw 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+                .ftm-node { opacity: 0; animation: ftm-rise 0.5s ease-out forwards; }
+                /* Perpetual "money in motion" dashes streaming along each flow,
+                   layered over the static band once it has drawn in. */
+                .ftm-flow { opacity: 0; animation: ftm-fadein 0.4s ease-out forwards, ftm-flow 3.5s linear infinite; }
+                @media (prefers-reduced-motion: reduce) {
+                  .ftm-link { animation: none; stroke-dashoffset: 0; }
+                  .ftm-node { animation: none; opacity: 1; transform: none; }
+                  .ftm-flow { display: none; }
+                }
+              `}</style>
               {laid.links.map(({ link, d }, i) => (
-                <path
-                  key={i}
-                  d={d}
-                  fill="none"
-                  stroke={accent}
-                  strokeOpacity={0.32}
-                  strokeWidth={Math.max(2, link.width)}
-                  style={{ cursor: link.meta.url ? 'pointer' : 'default' }}
-                  onMouseMove={(e) => onLinkMove(e, link)}
-                  onMouseLeave={onSvgLeave}
-                  onClick={() => onLinkClick(link)}
-                />
+                <g key={i}>
+                  <path
+                    className="ftm-link"
+                    pathLength={1}
+                    d={d}
+                    fill="none"
+                    stroke={accent}
+                    strokeOpacity={0.32}
+                    strokeWidth={Math.max(2, link.width)}
+                    style={{ cursor: link.meta.url ? 'pointer' : 'default', animationDelay: `${i * 70}ms` }}
+                    onMouseMove={(e) => onLinkMove(e, link)}
+                    onMouseLeave={onSvgLeave}
+                    onClick={() => onLinkClick(link)}
+                  />
+                  {/* white dash stream — pointer-events pass through to the band.
+                      Two delays: fade-in start, then flow loop, both after draw. */}
+                  <path
+                    className="ftm-flow"
+                    d={d}
+                    fill="none"
+                    stroke="#fff"
+                    strokeWidth={2}
+                    strokeOpacity={0.55}
+                    strokeDasharray="2 11"
+                    pointerEvents="none"
+                    style={{ animationDelay: `${i * 70 + 650}ms, ${i * 70 + 650}ms` }}
+                  />
+                </g>
               ))}
               {laid.nodes.map((n, i) => {
                 const leftSide = n.x0 < W / 2
@@ -261,7 +296,8 @@ export default function FollowTheMoney({
                 return (
                   <g
                     key={i}
-                    style={{ cursor: clickable ? 'pointer' : 'default' }}
+                    className="ftm-node"
+                    style={{ cursor: clickable ? 'pointer' : 'default', animationDelay: `${260 + i * 55}ms` }}
                     onMouseMove={
                       feed
                         ? (e) =>
@@ -295,7 +331,7 @@ export default function FollowTheMoney({
                         fill="#44403c"
                         style={{ fontFamily: "'DM Sans', sans-serif" }}
                       >
-                        {trunc(n.name, 22)}
+                        {trunc(n.name, 30)}
                       </text>
                     ) : (
                       // Two lines: name on top, the dollar value beneath in the
@@ -303,7 +339,7 @@ export default function FollowTheMoney({
                       // instead of being clipped off the right edge.
                       <text x={labelX} y={cy} textAnchor="start" style={{ fontFamily: "'DM Sans', sans-serif" }}>
                         <tspan x={labelX} dy="-0.25em" fontSize={12} fontWeight={600} fill="#44403c">
-                          {trunc(n.name, 22)}
+                          {trunc(n.name, 30)}
                         </tspan>
                         <tspan
                           x={labelX}
