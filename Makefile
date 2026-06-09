@@ -1,4 +1,4 @@
-.PHONY: help install install-web_app install-docs build-web_app build-docs clean test run dev dev-web_app dev-docs start-all stop-all dev-full docker-up docker-down deploy-databricks grants-refresh
+.PHONY: help install install-web_app install-docs build-web_app build-docs clean test run dev dev-web_app dev-docs start-all stop-all dev-full docker-up docker-down deploy-databricks grants-refresh backup restore
 
 help:
 	@echo "🦷 Open Navigator - Makefile Commands"
@@ -36,6 +36,10 @@ help:
 	@echo ""
 	@echo "💰 Data Refresh:"
 	@echo "  make grants-refresh    - Refresh Grants.gov opportunities (incremental upsert)"
+	@echo ""
+	@echo "🏷️  Releases & Backups (semver, see web_docs Quick Start):"
+	@echo "  make backup VERSION=v1.5.0   - Dump open_navigator + openstates, push to Drive"
+	@echo "  make restore VERSION=v1.5.0  - Pull a release's backup from Drive and restore (dev only)"
 	@echo ""
 
 install:
@@ -182,3 +186,57 @@ grants-refresh:
 		. .venv/bin/activate && python -m ingestion.grants_gov.bronze
 	@cd dbt_project && .venv_dbt/bin/dbt run --select stg_grants_gov__opportunity grant_opportunity
 	@echo "✅ grant_opportunity refreshed"
+
+# --- Releases & Data Versioning -------------------------------------------------
+# Tie a semantic-version release tag to a Postgres backup of the warehouse so the
+# code at a tag can be reproduced against the exact data it shipped with.
+# See web_docs/docs/quickstart.md (Releases & Data Versioning) for the full flow.
+#
+#   make backup VERSION=v1.5.0    # dump both DBs (version-stamped) into the Drive folder
+#   make restore VERSION=v1.5.0   # restore that version's dumps from the Drive folder (DEV ONLY)
+#
+# BACKUP_DIR is a WSL symlink that points at the Google Drive for Desktop folder on
+# Windows (open-navigator-backups -> /mnt/h/My Drive/open-navigator-backups). Writing
+# there means Google Drive auto-syncs the dumps off-machine — no rclone needed.
+#
+# pg_dump streams to a LOCAL staging dir first (BACKUP_STAGING, on fast ext4), then the
+# finished file is copied into the Drive folder. This sidesteps a known DriveFS-over-WSL
+# failure mode where large sequential writes straight into the virtual H: drive stall.
+# One-time setup is documented in web_docs/docs/quickstart.md.
+# Override any of these via env. Defaults match the local dev warehouse (localhost:5433).
+PG_HOST        ?= localhost
+PG_PORT        ?= 5433
+PG_USER        ?= postgres
+PGPASSWORD     ?= password
+BACKUP_DIR     ?= open-navigator-backups
+BACKUP_STAGING ?= .backup-staging
+
+backup:
+	@test -n "$(VERSION)" || { echo "❌ VERSION required, e.g. make backup VERSION=v1.5.0"; exit 1; }
+	@test -d "$(BACKUP_DIR)/" || { echo "❌ $(BACKUP_DIR) does not resolve to a directory."; \
+		echo "   Is the Google Drive symlink set up and H: mounted? See web_docs Quick Start."; exit 1; }
+	@stamp=$$(date +%Y%m%d); sha=$$(git rev-parse --short HEAD 2>/dev/null || echo nogit); \
+		stage="$(BACKUP_STAGING)/$(VERSION)"; dir="$(BACKUP_DIR)/releases/$(VERSION)"; \
+		mkdir -p "$$stage" "$$dir"; \
+		on="open_navigator_$(VERSION)_$${stamp}_$${sha}.dump"; \
+		os="openstates_$(VERSION)_$${stamp}_$${sha}.dump"; \
+		echo "📦 Dumping open_navigator + openstates at $(VERSION) ($$stamp, $$sha) to local staging..."; \
+		PGPASSWORD=$(PGPASSWORD) pg_dump -h $(PG_HOST) -p $(PG_PORT) -U $(PG_USER) -Fc open_navigator -f "$$stage/$$on"; \
+		PGPASSWORD=$(PGPASSWORD) pg_dump -h $(PG_HOST) -p $(PG_PORT) -U $(PG_USER) -Fc openstates     -f "$$stage/$$os"; \
+		echo "📤 Copying dumps into the Drive folder ($$dir/)..."; \
+		cp "$$stage/$$on" "$$dir/$$on" && cp "$$stage/$$os" "$$dir/$$os"; \
+		rm -rf "$$stage"; \
+		echo "✅ Dumps in $$dir/ — Google Drive for Desktop will sync them off-machine automatically."
+
+restore:
+	@test -n "$(VERSION)" || { echo "❌ VERSION required, e.g. make restore VERSION=v1.5.0"; exit 1; }
+	@echo "⚠️  Restoring $(VERSION) into LOCAL dev warehouse ($(PG_HOST):$(PG_PORT)) — never run against prod."
+	@dir="$(BACKUP_DIR)/releases/$(VERSION)"; \
+		on=$$(ls "$$dir"/open_navigator_$(VERSION)_*.dump 2>/dev/null | head -1); \
+		os=$$(ls "$$dir"/openstates_$(VERSION)_*.dump 2>/dev/null | head -1); \
+		test -n "$$on" -a -n "$$os" || { echo "❌ Could not find $(VERSION) dumps in $$dir/"; exit 1; }; \
+		echo "♻️  Restoring open_navigator from $$on..."; \
+		PGPASSWORD=$(PGPASSWORD) pg_restore -h $(PG_HOST) -p $(PG_PORT) -U $(PG_USER) -d open_navigator --clean --if-exists "$$on"; \
+		echo "♻️  Restoring openstates from $$os..."; \
+		PGPASSWORD=$(PGPASSWORD) pg_restore -h $(PG_HOST) -p $(PG_PORT) -U $(PG_USER) -d openstates --clean --if-exists "$$os"; \
+		echo "✅ Restored $(VERSION)"
