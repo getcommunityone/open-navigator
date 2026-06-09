@@ -335,7 +335,7 @@ git add -f Dockerfile README_HF.md .huggingface/ .gitignore .dockerignore
 # Only add directories that exist — some top-level trees were relocated into packages/
 # during the scripts/ -> packages/ refactor, and `git add` aborts (exit 128) on any
 # pathspec that matches zero files.
-for d in agents api config discovery extraction pipeline scripts tests visualization \
+for d in agents api config discovery extraction packages pipeline scripts tests visualization \
          databricks examples models neon notebooks; do
     [ -d "$d" ] && git add "$d"
 done
