@@ -2,7 +2,7 @@
   "hash": "7cebe053",
   "configHash": "25f0fc39",
   "lockfileHash": "086810b1",
-  "browserHash": "c67677cb",
+  "browserHash": "983a881f",
   "optimized": {
     "@headlessui/react": {
       "src": "../../node_modules/@headlessui/react/dist/headlessui.esm.js",

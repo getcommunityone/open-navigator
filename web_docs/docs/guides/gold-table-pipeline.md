@@ -279,9 +279,9 @@ To add new gold tables:
 
 ## 📚 Learn More
 
-- [Data Sources Documentation](../data-sources/meetings)
+- [Data Sources Documentation](../data-sources/meeting-data)
 - [Deployment Guide](../deployment/huggingface-spaces)
-- [Development Guide](../development/pipeline-architecture)
+- [Architecture Guide](../architecture)
 
 ---
 

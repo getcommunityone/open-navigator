@@ -57,7 +57,7 @@ Additional context from the same project:
 
 ### Gapminder-style reveal (use this chart pattern)
 
-**Reference video (≈4:47):** [Hans Rosling — *200 Countries, 200 Years, 4 Minutes* (BBC / Gapminder)](https://www.youtube.com/watch?v=jbkSRLYSojo) — full write-up in [§1. The Joy of Stats](#1-the-joy-of-stats--200-countries-200-years-in-minutes) below.
+**Reference video (≈4:47):** [Hans Rosling — *200 Countries, 200 Years, 4 Minutes* (BBC / Gapminder)](https://www.youtube.com/watch?v=jbkSRLYSojo) — full write-up in [§1. The Joy of Stats](#1-the-joy-of-stats--200-countries-200-years-in-minutes-gapminder) below.
 
 **Why it belongs in *your* demo:** Judges remember **motion**, not another static PDF screenshot. One animated scatter turns “we parsed meetings” into “**your county moved** on this metric vs. peers.”
 
@@ -1123,7 +1123,7 @@ Short talks, product stories, and case studies that show how **data + maps + hum
 - **Killer scale story:** Pilot on county_01125 → slide to **100k meetings** safety scrub (Shield + Gemma) as the national vision.
 - **Research scale story:** Same `decisions[]` JSON → score **arguments** vs. **LLM dominant narrative** → join **decision-maker / proponent** profiles → report **systemic** skew (themes, ZIPs, repeat champions)—not single-villain framing.
 - **Short-form branch:** Same JSON → one **issue-focused 45s script** (speed trap / fine % or **potholes / street $** hook) + optional clip at `media_citation.playback_url`.
-- **Integrated investigation UI:** Export `decisions[]` + `places[]` + `media_anchor` to a timeline ([KronoGraph](https://kronograph.cambridge-intelligence.com/) or map + playback)—pilot on Tuscaloosa HPC **711 Queen City Avenue** COA; see [Integrated timeline, entities, and maps](#hackathon-idea-integrated-timeline-entities-and-maps-kronographcambridge-intelligencecom).
+- **Integrated investigation UI:** Export `decisions[]` + `places[]` + `media_anchor` to a timeline ([KronoGraph](https://kronograph.cambridge-intelligence.com/) or map + playback)—pilot on Tuscaloosa HPC **711 Queen City Avenue** COA; see [Integrated timeline, entities, and maps](#hackathon-idea-integrated-timeline-entities-and-maps-kronograph).
 - **Combine tracks (advanced):** Fines % + accessibility score + safety `_summary.json` for the same `jurisdiction_id`.
 - **Other goals still work:** Officials lookup, nonprofit + government spend context, meeting drift—but keep **one** primary hook per video.
 - **Source credibility:** Flash **audit year**, **fund name**, and **Governing / state comptroller** on screen for a second—reinforces “real data,” not a mockup.

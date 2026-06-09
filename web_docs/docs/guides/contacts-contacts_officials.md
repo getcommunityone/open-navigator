@@ -479,8 +479,8 @@ Want to improve official extraction?
 ## 📚 Related Documentation
 
 - [Meeting Gold Tables](./gold-table-pipeline.md)
-- [HuggingFace Upload Guide](../deployment/huggingface-upload.md)
-- [Data Sources](../data-sources/localview.md)
+- [HuggingFace Upload Guide](../deployment/huggingface-spaces.md)
+- [Data Sources](../integrations/localview.md)
 
 ## 🆘 Troubleshooting
 

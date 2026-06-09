@@ -119,7 +119,8 @@ function HomepageHeader() {
 function AudiencePathways() {
   const {siteConfig} = useDocusaurusContext();
   const APP_URL = siteConfig.customFields?.appUrl as string || 'https://www.communityone.com';
-  
+  const docsBase = siteConfig.baseUrl.replace(/\/$/, '').endsWith('/docs') ? '' : '/docs';
+
   return (
     <section className="container margin-vert--xl">
       <div className="row">
@@ -172,7 +173,7 @@ function AudiencePathways() {
             <div style={{ textAlign: 'center' }}>
               <Link
                 className="button button--success button--lg"
-                to="for-advocates"
+                to={useBaseUrl(`${docsBase}/for-advocates`)}
                 style={{ marginBottom: '0.5rem', width: '80%' }}>
                 Start Here: Advocacy Docs →
               </Link>
@@ -226,16 +227,16 @@ function AudiencePathways() {
             <div style={{ textAlign: 'center' }}>
               <Link
                 className="button button--primary button--lg"
-                to="for-developers"
+                to={useBaseUrl(`${docsBase}/for-developers`)}
                 style={{ marginBottom: '0.5rem', width: '80%' }}>
                 Start Here: Developer Docs →
               </Link>
               <div style={{ marginTop: '1rem', fontSize: '0.9rem', color: '#555' }}>
-                <Link to="quickstart" style={{ fontWeight: 'bold' }}>
+                <Link to={useBaseUrl(`${docsBase}/quickstart`)} style={{ fontWeight: 'bold' }}>
                   ⚡ Quick Start Guide
                 </Link>
                 {' | '}
-                <Link to="architecture" style={{ fontWeight: 'bold' }}>
+                <Link to={useBaseUrl(`${docsBase}/architecture`)} style={{ fontWeight: 'bold' }}>
                   🏗️ Architecture
                 </Link>
               </div>
@@ -249,7 +250,7 @@ function AudiencePathways() {
         <div className="col text--center">
           <p style={{ fontSize: '1rem', color: '#666' }}>
             Not sure which path to take?{' '}
-            <Link to="intro" style={{ fontWeight: 'bold' }}>
+            <Link to={useBaseUrl(`${docsBase}/intro`)} style={{ fontWeight: 'bold' }}>
               Start with the Introduction →
             </Link>
           </p>
@@ -488,7 +489,8 @@ function WhyItMatters() {
 function GetStartedCTA() {
   const {siteConfig} = useDocusaurusContext();
   const APP_URL = siteConfig.customFields?.appUrl as string || 'https://www.communityone.com';
-  
+  const docsBase = siteConfig.baseUrl.replace(/\/$/, '').endsWith('/docs') ? '' : '/docs';
+
   return (
     <section style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', padding: '4rem 0', color: 'white' }}>
       <div className="container text--center">
@@ -501,13 +503,13 @@ function GetStartedCTA() {
         <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
           <Link
             className="button button--success button--lg"
-            to="for-advocates"
+            to={useBaseUrl(`${docsBase}/for-advocates`)}
             style={{ minWidth: '200px' }}>
             📊 For Advocates
           </Link>
           <Link
             className="button button--info button--lg"
-            to="for-developers"
+            to={useBaseUrl(`${docsBase}/for-developers`)}
             style={{ minWidth: '200px' }}>
             🛠️ For Developers
           </Link>

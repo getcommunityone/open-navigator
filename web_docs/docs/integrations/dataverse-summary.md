@@ -6,7 +6,7 @@ We've integrated **production-ready Dataverse API client** following all best pr
 
 ### New Files Created
 
-1. **[`discovery/dataverse_client.py`](../discovery/dataverse_client.py)** (600+ lines)
+1. **[`discovery/dataverse_client.py`](https://github.com/getcommunityone/open-navigator/blob/main/scripts/datasources/localview/archive/dataverse_client.py)** (600+ lines)
    - Full-featured Dataverse API client
    - API authentication
    - Rate limiting with exponential backoff
@@ -15,7 +15,7 @@ We've integrated **production-ready Dataverse API client** following all best pr
    - Comprehensive error handling
    - Pagination support
 
-2. **[`docs/DATAVERSE_INTEGRATION.md`](DATAVERSE_INTEGRATION.md)**
+2. **[`docs/DATAVERSE_INTEGRATION.md`](https://github.com/getcommunityone/open-navigator/blob/main/docs/DATAVERSE_INTEGRATION.md)**
    - Complete integration guide
    - API usage examples
    - Best practices documentation
@@ -23,16 +23,16 @@ We've integrated **production-ready Dataverse API client** following all best pr
 
 ### Updated Files
 
-1. **[`config/settings.py`](../config/settings.py)**
+1. **`config/settings.py`**
    - Added `dataverse_api_key` setting
    - Added `openstates_api_key` setting
 
-2. **[`.env.example`](../.env.example)**
+2. **[`.env.example`](https://github.com/getcommunityone/open-navigator/blob/main/.env.example)**
    - Added DATAVERSE_API_KEY
    - Added OPENSTATES_API_KEY
    - Clarified that Legistar/Municode don't need keys
 
-3. **[`discovery/localview_ingestion.py`](../discovery/localview_ingestion.py)**
+3. **`discovery/localview_ingestion.py`**
    - Now tries API download first
    - Falls back to manual download
    - Better error messages
@@ -156,9 +156,9 @@ logger.error("✗ Checksum failed")
 - **Community**: https://groups.google.com/group/dataverse-community
 
 ### Our Documentation
-- **Integration Guide**: [docs/DATAVERSE_INTEGRATION.md](DATAVERSE_INTEGRATION.md)
-- **LocalView Guide**: [docs/LOCALVIEW_INTEGRATION_GUIDE.md](LOCALVIEW_INTEGRATION_GUIDE.md)
-- **API Client Code**: [discovery/dataverse_client.py](../discovery/dataverse_client.py)
+- **Integration Guide**: [docs/DATAVERSE_INTEGRATION.md](https://github.com/getcommunityone/open-navigator/blob/main/docs/DATAVERSE_INTEGRATION.md)
+- **LocalView Guide**: [docs/LOCALVIEW_INTEGRATION_GUIDE.md](https://github.com/getcommunityone/open-navigator/blob/main/docs/LOCALVIEW_INTEGRATION_GUIDE.md)
+- **API Client Code**: [discovery/dataverse_client.py](https://github.com/getcommunityone/open-navigator/blob/main/scripts/datasources/localview/archive/dataverse_client.py)
 
 ---
 

@@ -221,6 +221,6 @@ After implementing this change:
 ## Questions?
 
 See the full documentation at:
-- [Trending Causes by Geography](website/docs/development/trending-causes-by-geography.md)
-- [dbt ETL Strategy](website/docs/development/dbt-etl-strategy.md)
+- [Trending Causes by Geography](./trending-causes-by-geography.md)
+- [dbt ETL Strategy](./dbt-etl-strategy.md)
 - [Trending Causes](../dbt/trending-causes.md)

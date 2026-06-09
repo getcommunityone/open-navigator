@@ -316,4 +316,3 @@ tail -f logs/api.log
 
 - [Deployment Guide](../deployment/huggingface-spaces.md)
 - [Data Sources](../data-sources/overview.md)
-- [API Documentation](../development/api-reference.md)

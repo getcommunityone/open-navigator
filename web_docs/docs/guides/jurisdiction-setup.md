@@ -551,7 +551,7 @@ Once discovery is complete:
 
 For issues or questions:
 - GitHub Issues: [github.com/getcommunityone/open-navigator-for-engagement/issues](https://github.com/getcommunityone/open-navigator-for-engagement/issues)
-- Documentation: [JURISDICTION_DISCOVERY.md](JURISDICTION_DISCOVERY.md)
+- Documentation: [JURISDICTION_DISCOVERY.md](https://github.com/getcommunityone/open-navigator/blob/main/docs/JURISDICTION_DISCOVERY.md)
 
 ---
 

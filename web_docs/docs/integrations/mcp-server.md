@@ -522,10 +522,10 @@ async def call_tool(name: str, arguments: dict):
 
 ## Next Steps
 
-- 📖 [Build Custom MCP Tools](./custom-mcp-tools.md)
-- 🔍 [Vector Search Optimization](../guides/vector-search.md)
-- 🚀 [Deploy MCP Server to Cloud](./mcp-cloud-deployment.md)
-- 🤖 [Integrate with Other AI Assistants](./ai-integrations.md)
+- 📖 Build Custom MCP Tools
+- 🔍 Vector Search Optimization
+- 🚀 Deploy MCP Server to Cloud
+- 🤖 Integrate with Other AI Assistants
 
 ## Resources
 

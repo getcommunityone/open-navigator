@@ -110,7 +110,7 @@ python main.py scrape-batch --source discovered
 - GSA .gov Domains: https://github.com/cisagov/dotgov-data
 - Government URL Best Practices: https://digital.gov/topics/url-management/
 
-For detailed documentation, see [JURISDICTION_DISCOVERY_SETUP.md](JURISDICTION_DISCOVERY_SETUP.md)
+For detailed documentation, see [JURISDICTION_DISCOVERY_SETUP.md](https://github.com/getcommunityone/open-navigator/blob/main/docs/JURISDICTION_DISCOVERY_SETUP.md)
 
 ---
 

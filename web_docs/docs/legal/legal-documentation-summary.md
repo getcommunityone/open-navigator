@@ -219,4 +219,4 @@ website/docs/legal-compliance.md  # Now links to new legal docs
 
 - [Legal Documentation Complete](./legal-documentation-complete.md)
 - [Legal Compliance Guide](../legal-compliance.md)
-- [Data Sources Documentation](../data-sources/)
+- [Data Sources Documentation](../data-sources/overview.md)

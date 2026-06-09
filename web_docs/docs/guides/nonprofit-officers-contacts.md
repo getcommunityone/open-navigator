@@ -401,9 +401,8 @@ This matches the organization pattern for other contact types (`contacts_local_o
 ## 📚 Related Documentation
 
 - [IRS Form 990 XML Data (GivingTuesday)](https://990data.givingtuesday.org/)
-- [Form 990 Enrichment Script](/scripts/enrich_nonprofits_gt990.py)
-- [Contacts Gold Tables](/docs/guides/contacts-officials)
-- [Search API Reference](/docs/api-reference)
+- [Form 990 Enrichment Script](https://github.com/getcommunityone/open-navigator/blob/main/scripts/enrichment/enrich_nonprofits_gt990.py)
+- [Contacts Gold Tables](/docs/guides/contacts-contacts_officials)
 
 ## 🎉 Next Steps
 

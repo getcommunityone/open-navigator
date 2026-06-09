@@ -151,7 +151,7 @@ print(f"High-revenue NY health orgs: {len(ny_health):,}")
 
 ### Install Utility
 
-The HuggingFace query utility is already created at [`frontend/src/utils/huggingface.ts`](../../frontend/src/utils/huggingface.ts).
+The HuggingFace query utility is already created at [`web_app/src/utils/huggingface.ts`](https://github.com/getcommunityone/open-navigator/blob/main/web_app/src/utils/huggingface.ts).
 
 ### Basic Usage
 
@@ -251,7 +251,7 @@ function NonprofitList() {
 
 ### Update Nonprofits Page
 
-Edit [`frontend/src/pages/Nonprofits.tsx`](../../frontend/src/pages/Nonprofits.tsx):
+Edit [`web_app/src/pages/Nonprofits.tsx`](https://github.com/getcommunityone/open-navigator/blob/main/web_app/src/pages/Nonprofits.tsx):
 
 ```typescript
 import { useQuery } from '@tanstack/react-query';
@@ -501,4 +501,4 @@ curl "https://datasets-server.huggingface.co/size?dataset=CommunityOne/one-nonpr
 - **HuggingFace Datasets Docs:** https://huggingface.co/docs/datasets
 - **Datasets Server API:** https://huggingface.co/docs/datasets-server
 - **IRS EO-BMF Data Source:** https://www.irs.gov/charities-non-profits/exempt-organizations-business-master-file-extract-eo-bmf
-- **NTEE Codes Reference:** [IRS Bulk Data Integration](../data-sources/irs-bulk-data.md#ntee-national-taxonomy-of-exempt-entities)
+- **NTEE Codes Reference:** [IRS Bulk Data Integration](../data-sources/irs-bulk-data.md#-ntee-codes-reference)

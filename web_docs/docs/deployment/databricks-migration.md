@@ -258,7 +258,7 @@ For existing users:
 
 ## Questions?
 
-- See [`databricks/README.md`](databricks/README.md) for detailed docs
+- See `databricks/README.md` for detailed docs
 - Run `databricks/notebooks/01_agent_bricks_quickstart.py` for hands-on tutorial
 - Check examples in `databricks/deployment.py` and `databricks/evaluation.py`
 

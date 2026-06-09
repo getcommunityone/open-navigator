@@ -404,9 +404,9 @@ Error: Organization not found
 ## Related Documentation
 
 - [IRS Form 990 XML](./form-990-xml.md)
-- [GivingTuesday Data Lake](../../scripts/enrich_nonprofits_gt990.py)
-- [BigQuery Integration](../../docs/BIGQUERY_ENRICHMENT.md)
-- [Citations](../../CITATIONS.md)
+- [GivingTuesday Data Lake](https://github.com/getcommunityone/open-navigator/blob/main/scripts/enrichment/enrich_nonprofits_gt990.py)
+- [BigQuery Integration](https://github.com/getcommunityone/open-navigator/blob/main/docs/BIGQUERY_ENRICHMENT.md)
+- [Citations](./citations.md)
 
 ---
 

@@ -6,7 +6,7 @@ sidebar_position: 5
 
 ## Summary of Changes
 
-### 1. **Comprehensive Logging Configuration** ([api/main.py](api/main.py))
+### 1. **Comprehensive Logging Configuration** ([api/main.py](https://github.com/getcommunityone/open-navigator/blob/main/api/main.py))
 
 Added dual-output logging that appears in both files and container logs:
 
@@ -34,7 +34,7 @@ logger.add(
 
 ---
 
-### 2. **Automatic Request Logging Middleware** ([api/main.py](api/main.py))
+### 2. **Automatic Request Logging Middleware** ([api/main.py](https://github.com/getcommunityone/open-navigator/blob/main/api/main.py))
 
 Every API request is automatically logged with:
 - Request method & path
@@ -61,7 +61,7 @@ Every API request is automatically logged with:
 
 ---
 
-### 3. **Startup Data Validation** ([api/main.py](api/main.py))
+### 3. **Startup Data Validation** ([api/main.py](https://github.com/getcommunityone/open-navigator/blob/main/api/main.py))
 
 API now validates data availability on startup:
 
@@ -98,7 +98,7 @@ Log File: logs/oral-health-policy-pulse.log
 
 ---
 
-### 4. **Structured Error Responses** ([api/models/errors.py](api/models/errors.py))
+### 4. **Structured Error Responses** ([api/errors.py](https://github.com/getcommunityone/open-navigator/blob/main/api/errors.py))
 
 Instead of raw error dumps, users now receive helpful, structured errors:
 

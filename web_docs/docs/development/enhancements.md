@@ -10,7 +10,7 @@ Enhanced the **Jurisdiction Discovery System** with **official, free, public dat
 
 ### New Data Source: NCES Common Core of Data (CCD)
 
-**Added Module:** [discovery/nces_ingestion.py](../discovery/nces_ingestion.py)
+**Added Module:** `discovery/nces_ingestion.py`
 
 **Provides:**
 - 13,000+ school district records
@@ -47,13 +47,13 @@ districts_df = await nces.ingest_school_districts()
 ## 📁 Files Created/Updated
 
 ### New Files
-- ✅ [discovery/nces_ingestion.py](../discovery/nces_ingestion.py) - NCES data ingestion module (~250 lines)
-- ✅ [docs/DATA_SOURCES.md](DATA_SOURCES.md) - Complete data source documentation
+- ✅ `discovery/nces_ingestion.py` - NCES data ingestion module (~250 lines)
+- ✅ [docs/DATA_SOURCES.md](https://github.com/getcommunityone/open-navigator/blob/main/docs/DATA_SOURCES.md) - Complete data source documentation
 
 ### Updated Files
-- ✅ [discovery/__init__.py](../discovery/__init__.py) - Added NCES to imports
-- ✅ [README.md](../README.md) - Updated with all three official sources
-- ✅ [docs/JURISDICTION_DISCOVERY.md](JURISDICTION_DISCOVERY.md) - Enhanced data sources section
+- ✅ `discovery/__init__.py` - Added NCES to imports
+- ✅ [README.md](https://github.com/getcommunityone/open-navigator/blob/main/README.md) - Updated with all three official sources
+- ✅ [docs/JURISDICTION_DISCOVERY.md](https://github.com/getcommunityone/open-navigator/blob/main/docs/JURISDICTION_DISCOVERY.md) - Enhanced data sources section
 
 ---
 
@@ -67,7 +67,7 @@ districts_df = await nces.ingest_school_districts()
 **Why:**
 > "The most authoritative source for government URLs is CISA. They maintain a daily-updated repository of every registered .gov domain."
 
-**Implementation:** ✅ Already using in [gsa_domains.py](../discovery/gsa_domains.py)
+**Implementation:** ✅ Already using in `gsa_domains.py`
 
 ### 2. Census Bureau Government Integrated Directory (GID)
 
@@ -77,7 +77,7 @@ districts_df = await nces.ingest_school_districts()
 **Why:**
 > "The Census Bureau GID provides a list of all 90,000+ legal government units. You can join this against the CISA list to find 'missing' URLs."
 
-**Implementation:** ✅ Already using in [census_ingestion.py](../discovery/census_ingestion.py)
+**Implementation:** ✅ Already using in `census_ingestion.py`
 
 ### 3. NCES Common Core of Data (CCD) ⭐ **NEW**
 
@@ -87,7 +87,7 @@ districts_df = await nces.ingest_school_districts()
 **Why:**
 > "You need a dedicated list of school board domains, as these are often separate from city governments."
 
-**Implementation:** ✅ **Newly added** in [nces_ingestion.py](../discovery/nces_ingestion.py)
+**Implementation:** ✅ **Newly added** in `nces_ingestion.py`
 
 ### 4. Future Enhancement: State and Local Government on the Net
 
@@ -215,10 +215,10 @@ Use Databricks notebook with all three data sources integrated.
 
 ## 📚 Documentation
 
-- **Data Sources:** [DATA_SOURCES.md](DATA_SOURCES.md) - Complete documentation of all official sources
-- **Discovery Guide:** [JURISDICTION_DISCOVERY.md](JURISDICTION_DISCOVERY.md) - Technical details
-- **Setup Guide:** [JURISDICTION_DISCOVERY_SETUP.md](JURISDICTION_DISCOVERY_SETUP.md) - Quick start
-- **Deployment:** [JURISDICTION_DISCOVERY_DEPLOYMENT.md](JURISDICTION_DISCOVERY_DEPLOYMENT.md) - Production deployment
+- **Data Sources:** [DATA_SOURCES.md](https://github.com/getcommunityone/open-navigator/blob/main/docs/DATA_SOURCES.md) - Complete documentation of all official sources
+- **Discovery Guide:** [JURISDICTION_DISCOVERY.md](https://github.com/getcommunityone/open-navigator/blob/main/docs/JURISDICTION_DISCOVERY.md) - Technical details
+- **Setup Guide:** [JURISDICTION_DISCOVERY_SETUP.md](https://github.com/getcommunityone/open-navigator/blob/main/docs/JURISDICTION_DISCOVERY_SETUP.md) - Quick start
+- **Deployment:** [JURISDICTION_DISCOVERY_DEPLOYMENT.md](https://github.com/getcommunityone/open-navigator/blob/main/docs/JURISDICTION_DISCOVERY_DEPLOYMENT.md) - Production deployment
 
 ---
 

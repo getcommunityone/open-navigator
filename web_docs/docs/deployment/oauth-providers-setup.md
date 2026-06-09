@@ -453,7 +453,6 @@ API_BASE_URL=http://www.communityone.com   # ❌ Wrong
 
 - [Authentication Setup](./authentication-setup.md) - Database and JWT configuration
 - [HuggingFace Deployment](./huggingface-spaces.md) - Deploy to production
-- [Environment Configuration](../guides/environment-setup.md) - Full environment setup
 
 ---
 

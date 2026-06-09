@@ -284,8 +284,7 @@ python scripts/datasources/gemini/load_meeting_transcripts_bronze.py
 
 - [dbt ETL Strategy](./dbt-etl-strategy.md) - Overall data pipeline architecture
 - [Bronze to Production Merge](./bronze-to-production-merge.md) - Entity resolution strategy
-- [dbt Project README](../../dbt_project/README.md) - dbt models and configuration
-- [API Stats Endpoint](../api-reference/stats-endpoint.md) - Stats API documentation
+- [dbt Project README](https://github.com/getcommunityone/open-navigator/blob/main/dbt_project/README.md) - dbt models and configuration
 
 ## Future Enhancements
 

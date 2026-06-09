@@ -18,7 +18,7 @@ We implemented **two layers of protection**:
 
 ### 1. Pre-Deployment Build Verification
 
-The [deploy-huggingface.sh](/home/developer/projects/open-navigator/deploy-huggingface.sh) script now tests builds BEFORE pushing to HuggingFace:
+The [deploy-huggingface.sh](https://github.com/getcommunityone/open-navigator/blob/main/packages/hosting/scripts/huggingface/deploy-huggingface.sh) script now tests builds BEFORE pushing to HuggingFace:
 
 ```bash
 ./deploy-huggingface.sh
@@ -42,7 +42,7 @@ The [deploy-huggingface.sh](/home/developer/projects/open-navigator/deploy-huggi
 
 ### 2. GitHub Actions CI/CD
 
-The [.github/workflows/ci-build-test.yml](/home/developer/projects/open-navigator/.github/workflows/ci-build-test.yml) workflow automatically tests:
+The [.github/workflows/ci-build-test.yml](https://github.com/getcommunityone/open-navigator/blob/main/.github/workflows/ci-build-test.yml) workflow automatically tests:
 
 - ✅ Frontend TypeScript build
 - ✅ **Docusaurus documentation build** ← catches config errors
@@ -220,7 +220,6 @@ nvm use 20
 
 - [HuggingFace Spaces Deployment](huggingface-spaces.md)
 - [Docker Troubleshooting](docker-troubleshooting.md)
-- [Development Workflow](../development/workflow.md)
 
 ## 🎯 Summary
 

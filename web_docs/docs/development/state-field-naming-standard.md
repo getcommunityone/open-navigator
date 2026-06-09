@@ -268,6 +268,5 @@ For new code:
 
 ## See Also
 
-- [Database Schema Documentation](../data-sources/database-schema.md)
-- [Migration Scripts](../../scripts/migrations/)
-- [Data Pipeline Standards](./data-pipeline-standards.md)
+- [Database Schema Documentation](../data-sources/data-model-erd.md)
+- [Migration Scripts](https://github.com/getcommunityone/open-navigator/tree/main/scripts/migrations)

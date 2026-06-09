@@ -226,4 +226,4 @@ python scripts/discovery/openstates_sources.py
 
 **Total**: 1,500-2,000 verified video URLs ready for transcription and analysis! 🎉
 
-See [`docs/VIDEO_URL_SOURCES.md`](VIDEO_URL_SOURCES.md) for detailed analysis.
+See [`docs/VIDEO_URL_SOURCES.md`](https://github.com/getcommunityone/open-navigator/blob/main/docs/VIDEO_URL_SOURCES.md) for detailed analysis.

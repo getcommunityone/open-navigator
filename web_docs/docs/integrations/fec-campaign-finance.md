@@ -474,8 +474,8 @@ for candidate in candidates:
 
 ## 🤝 Related Integrations
 
-- [Nonprofit Discovery](nonprofit-discovery.md) - Match employers to EINs
-- [IRS BMF Data](irs-bmf-data.md) - Nonprofit organization data
+- [Nonprofit Discovery](../data-sources/nonprofit-sources.md) - Match employers to EINs
+- [IRS BMF Data](../data-sources/irs-bulk-data.md) - Nonprofit organization data
 - [Gold Table Pipeline](../guides/gold-table-pipeline.md) - Full data model
 
 ---

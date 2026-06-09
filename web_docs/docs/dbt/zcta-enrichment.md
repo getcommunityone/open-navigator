@@ -330,5 +330,5 @@ If longitude is missing, check the `load_census_postal_codes.py` script:
 
 - [Census ZCTA Documentation](https://www.census.gov/programs-surveys/geography/guidance/geo-areas/zctas.html)
 - [Census Gazetteer Files](https://www.census.gov/geographies/reference-files/time-series/geo/gazetteer-files.html)
-- dbt model: [bronze_organizations_nonprofits.sql](../../dbt_project/models/marts/bronze_organizations_nonprofits.sql)
-- Loading script: [load_census_postal_codes.py](../../scripts/datasources/census/load_census_postal_codes.py)
+- dbt model: [organizations_nonprofits.sql](https://github.com/getcommunityone/open-navigator/blob/main/dbt_project/models/marts/organizations_nonprofits.sql)
+- Loading script: [census/postal_codes.py](https://github.com/getcommunityone/open-navigator/blob/main/packages/ingestion/src/ingestion/census/postal_codes.py)

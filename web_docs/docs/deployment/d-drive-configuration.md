@@ -500,4 +500,4 @@ sudo mount -t drvfs D: /mnt/d
 
 - [Census ACS Integration](../data-sources/census-acs.md) - Download demographic data
 - [IRS 990 Downloads](../data-sources/nonprofit-sources.md) - Nonprofit data
-- [Data Architecture](../development/data-architecture.md) - Overall data flow
+- [Architecture](../architecture.md) - Overall data flow

@@ -408,7 +408,7 @@ if len(org_filings) > 0:
 
 ## 🤖 Automated Enrichment Script
 
-We provide **[scripts/enrich_nonprofits_gt990.py](../../scripts/enrich_nonprofits_gt990.py)** - a complete automated solution.
+We provide **[scripts/enrichment/enrich_nonprofits_gt990.py](https://github.com/getcommunityone/open-navigator/blob/main/scripts/enrichment/enrich_nonprofits_gt990.py)** - a complete automated solution.
 
 ### Quick Start
 

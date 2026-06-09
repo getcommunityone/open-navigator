@@ -235,6 +235,6 @@ Files to download:
 
 ## Next Steps
 
-- [LocalView Integration Guide](../../../docs/LOCALVIEW_INTEGRATION_GUIDE.md)
-- [Meetings API Documentation](../api/meetings.md)
-- [Event Schema](../data-sources/data-model-erd.md#events)
+- [LocalView Integration Guide](https://github.com/getcommunityone/open-navigator/blob/main/docs/LOCALVIEW_INTEGRATION_GUIDE.md)
+- [Meetings Data Documentation](../data-sources/meeting-data.md)
+- [Event Schema](../data-sources/data-model-erd.md)

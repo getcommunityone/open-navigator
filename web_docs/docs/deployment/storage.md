@@ -42,7 +42,7 @@ sidebar_position: 16
 
 **Solution: Use Parquet format**
 - 22 million PDFs → 50 Parquet files ✅
-- See detailed guide: [HUGGINGFACE_FILE_LIMITS.md](HUGGINGFACE_FILE_LIMITS.md)
+- See detailed guide: [HuggingFace File Limits](../guides/huggingface-limits.md)
 
 ### What to Store
 

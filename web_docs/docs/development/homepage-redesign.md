@@ -404,4 +404,4 @@ The Docker build will include:
 
 ## Questions?
 
-See [scripts/media/README.md](../../../scripts/media/README.md) for image generation details.
+See [scripts/media/README.md](https://github.com/getcommunityone/open-navigator/blob/main/scripts/media/README.md) for image generation details.

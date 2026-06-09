@@ -346,6 +346,5 @@ The export script handles JSONB serialization automatically. If you see this err
 
 ## Related Documentation
 
-- [dbt Project README](../../dbt_project/README.md)
-- [Trending Causes Guide](../../dbt_project/README_TRENDING_CAUSES.md)
-- [Neon Deployment](../deployment/neon/README.md)
+- [dbt Project README](https://github.com/getcommunityone/open-navigator/blob/main/dbt_project/README.md)
+- [Neon Deployment](../deployment/neon-deployment.md)

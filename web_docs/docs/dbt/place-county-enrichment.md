@@ -285,4 +285,4 @@ LIMIT 20;
 - [ZCTA Enrichment Guide](./zcta-enrichment.md) - Full ZCTA documentation
 - [Census Place Documentation](https://www.census.gov/programs-surveys/geography/guidance/geo-areas/places.html)
 - [Census FIPS Codes](https://www.census.gov/library/reference/code-lists/ansi.html)
-- dbt model: [bronze_organizations_nonprofits.sql](../../dbt_project/models/marts/bronze_organizations_nonprofits.sql)
+- dbt model: [organizations_nonprofits.sql](https://github.com/getcommunityone/open-navigator/blob/main/dbt_project/models/marts/organizations_nonprofits.sql)

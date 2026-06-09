@@ -2,7 +2,7 @@
 
 **TL;DR: Store unlimited data for FREE on Hugging Face!**
 
-**⚠️ IMPORTANT: Use Parquet format, NOT individual PDFs! See [file limits guide](HUGGINGFACE_FILE_LIMITS.md)**
+**⚠️ IMPORTANT: Use Parquet format, NOT individual PDFs! See [file limits guide](./huggingface-limits.md)**
 
 ---
 
@@ -55,7 +55,7 @@ export HF_TOKEN="hf_YOUR_TOKEN_HERE"
 - Store in Parquet format
 - Result: 50 files instead of 22 million ✅
 
-**See detailed guide:** [HUGGINGFACE_FILE_LIMITS.md](HUGGINGFACE_FILE_LIMITS.md)
+**See detailed guide:** [HuggingFace File Limits](./huggingface-limits.md)
 
 ---
 

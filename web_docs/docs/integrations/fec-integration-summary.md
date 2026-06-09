@@ -3,7 +3,7 @@
 ## ✅ What Was Added
 
 ### 1. Pipeline Module
-**File:** [`pipeline/create_campaigns_gold_tables.py`](../pipeline/create_campaigns_gold_tables.py)
+**File:** `pipeline/create_campaigns_gold_tables.py`
 
 Creates 4 campaign finance gold tables per state:
 - `campaigns_candidates.parquet` - Federal candidates (House, Senate, President)
@@ -18,7 +18,7 @@ Creates 4 campaign finance gold tables per state:
 - Configurable contribution limits and cycle years
 
 ### 2. Example Demo Script
-**File:** [`examples/demo_fec_integration.py`](../examples/demo_fec_integration.py)
+**File:** `examples/demo_fec_integration.py`
 
 Interactive demonstration of FEC API capabilities:
 - Search for candidates in a state
@@ -39,7 +39,7 @@ python examples/demo_fec_integration.py --state MA --create-gold-tables
 ```
 
 ### 3. Comprehensive Documentation
-**File:** [`website/docs/integrations/fec-campaign-finance.md`](../website/docs/integrations/fec-campaign-finance.md)
+**File:** [`fec-campaign-finance.md`](./fec-campaign-finance.md)
 
 Complete integration guide including:
 - API access setup (get free key from api.data.gov)
@@ -49,7 +49,7 @@ Complete integration guide including:
 - Advanced usage patterns
 - Best practices
 
-**Complements existing file:** [`website/docs/integrations/fec-political-contributions.md`](../website/docs/integrations/fec-political-contributions.md)
+**Complements existing file:** [`fec-political-contributions.md`](./fec-political-contributions.md)
 
 ## 🔄 Integration with Existing Data Model
 
@@ -172,13 +172,13 @@ print(donors.groupby('organization_name').agg({
 ## 🔗 Related Files
 
 ### Existing Files (Enhanced)
-- [`discovery/fec_integration.py`](../discovery/fec_integration.py) - FEC API client (already existed)
-- [`website/docs/integrations/fec-political-contributions.md`](../website/docs/integrations/fec-political-contributions.md) - General integration guide (already existed)
+- [`scrapers/fec/fec_integration.py`](https://github.com/getcommunityone/open-navigator/blob/main/packages/scrapers/src/scrapers/fec/fec_integration.py) - FEC API client (already existed)
+- [`fec-political-contributions.md`](./fec-political-contributions.md) - General integration guide (already existed)
 
 ### New Files (Created)
-- [`pipeline/create_campaigns_gold_tables.py`](../pipeline/create_campaigns_gold_tables.py) - **NEW** - Gold table pipeline
-- [`examples/demo_fec_integration.py`](../examples/demo_fec_integration.py) - **NEW** - Demo script
-- [`website/docs/integrations/fec-campaign-finance.md`](../website/docs/integrations/fec-campaign-finance.md) - **NEW** - Technical guide
+- `pipeline/create_campaigns_gold_tables.py` - **NEW** - Gold table pipeline
+- `examples/demo_fec_integration.py` - **NEW** - Demo script
+- [`fec-campaign-finance.md`](./fec-campaign-finance.md) - **NEW** - Technical guide
 
 ## 🎯 Future Enhancements
 
@@ -204,11 +204,11 @@ Potential additions to consider:
 
 ## 📝 Documentation Links
 
-- **Technical Guide:** [FEC Campaign Finance](../website/docs/integrations/fec-campaign-finance.md)
-- **General Guide:** [FEC Political Contributions](../website/docs/integrations/fec-political-contributions.md)
-- **Demo Script:** [examples/demo_fec_integration.py](../examples/demo_fec_integration.py)
-- **API Client:** [discovery/fec_integration.py](../discovery/fec_integration.py)
-- **Pipeline Module:** [pipeline/create_campaigns_gold_tables.py](../pipeline/create_campaigns_gold_tables.py)
+- **Technical Guide:** [FEC Campaign Finance](./fec-campaign-finance.md)
+- **General Guide:** [FEC Political Contributions](./fec-political-contributions.md)
+- **Demo Script:** `examples/demo_fec_integration.py`
+- **API Client:** [scrapers/fec/fec_integration.py](https://github.com/getcommunityone/open-navigator/blob/main/packages/scrapers/src/scrapers/fec/fec_integration.py)
+- **Pipeline Module:** `pipeline/create_campaigns_gold_tables.py`
 
 ## ✅ Checklist for Integration
 

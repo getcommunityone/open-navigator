@@ -516,4 +516,3 @@ psql -d open_navigator_bronze -c "
 
 - [AI Model Evaluation](./ai-model-evaluation.md) - How to evaluate individual models
 - [Bronze Data Model](../data-sources/meeting-data.md) - Multi-model schema design
-- [Gemini Analysis Pipeline](../data-sources/gemini-analysis.md) - How to run multiple models

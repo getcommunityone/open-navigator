@@ -37,19 +37,19 @@ Successfully refactored the **Jurisdiction Discovery System** to use a **sustain
 ## 📁 Files Updated
 
 ### Core Discovery Module
-- ✅ [discovery/url_discovery_agent.py](../discovery/url_discovery_agent.py) - Complete rewrite with pattern matching
-- ✅ [discovery/discovery_pipeline.py](../discovery/discovery_pipeline.py) - Updated to pass GSA data
-- ✅ [config/settings.py](../config/settings.py) - Removed API key configs
-- ✅ [.env.example](../.env.example) - Removed API key placeholders
+- ✅ [discovery/url_discovery_agent.py](https://github.com/getcommunityone/open-navigator/blob/main/scripts/discovery/url_discovery_agent.py) - Complete rewrite with pattern matching
+- ✅ [discovery/discovery_pipeline.py](https://github.com/getcommunityone/open-navigator/blob/main/scripts/discovery/archive/discovery_pipeline.py) - Updated to pass GSA data
+- ✅ `config/settings.py` - Removed API key configs
+- ✅ [.env.example](https://github.com/getcommunityone/open-navigator/blob/main/.env.example) - Removed API key placeholders
 
 ### Documentation
-- ✅ [docs/JURISDICTION_DISCOVERY.md](JURISDICTION_DISCOVERY.md) - Updated approach documentation
-- ✅ [docs/JURISDICTION_DISCOVERY_SETUP.md](JURISDICTION_DISCOVERY_SETUP.md) - Simplified setup guide
-- ✅ [docs/JURISDICTION_DISCOVERY_DEPLOYMENT.md](JURISDICTION_DISCOVERY_DEPLOYMENT.md) - Updated deployment options
-- ✅ [README.md](../README.md) - Updated features section
+- ✅ [docs/JURISDICTION_DISCOVERY.md](https://github.com/getcommunityone/open-navigator/blob/main/docs/JURISDICTION_DISCOVERY.md) - Updated approach documentation
+- ✅ [docs/JURISDICTION_DISCOVERY_SETUP.md](https://github.com/getcommunityone/open-navigator/blob/main/docs/JURISDICTION_DISCOVERY_SETUP.md) - Simplified setup guide
+- ✅ [docs/JURISDICTION_DISCOVERY_DEPLOYMENT.md](https://github.com/getcommunityone/open-navigator/blob/main/docs/JURISDICTION_DISCOVERY_DEPLOYMENT.md) - Updated deployment options
+- ✅ [README.md](https://github.com/getcommunityone/open-navigator/blob/main/README.md) - Updated features section
 
 ### Notebooks
-- ✅ [notebooks/Jurisdiction_Discovery.py](../notebooks/Jurisdiction_Discovery.py) - Removed API references
+- ✅ [notebooks/Jurisdiction_Discovery.py](https://github.com/getcommunityone/open-navigator/blob/main/scripts/notebooks/Jurisdiction_Discovery.py) - Removed API references
 
 ### Removed
 - 🗑️ `discovery/mlflow_discovery_agent.py` - No longer needed
@@ -228,10 +228,10 @@ python main.py discovery-stats
 
 ## 📚 Documentation
 
-- **Setup Guide**: [JURISDICTION_DISCOVERY_SETUP.md](JURISDICTION_DISCOVERY_SETUP.md)
-- **Deployment Options**: [JURISDICTION_DISCOVERY_DEPLOYMENT.md](JURISDICTION_DISCOVERY_DEPLOYMENT.md)
-- **Technical Details**: [JURISDICTION_DISCOVERY.md](JURISDICTION_DISCOVERY.md)
-- **Changelog**: [CHANGELOG_DISCOVERY_V2.md](CHANGELOG_DISCOVERY_V2.md)
+- **Setup Guide**: [JURISDICTION_DISCOVERY_SETUP.md](https://github.com/getcommunityone/open-navigator/blob/main/docs/JURISDICTION_DISCOVERY_SETUP.md)
+- **Deployment Options**: [JURISDICTION_DISCOVERY_DEPLOYMENT.md](https://github.com/getcommunityone/open-navigator/blob/main/docs/JURISDICTION_DISCOVERY_DEPLOYMENT.md)
+- **Technical Details**: [JURISDICTION_DISCOVERY.md](https://github.com/getcommunityone/open-navigator/blob/main/docs/JURISDICTION_DISCOVERY.md)
+- **Changelog**: [CHANGELOG_DISCOVERY_V2.md](https://github.com/getcommunityone/open-navigator/blob/main/docs/CHANGELOG_DISCOVERY_V2.md)
 
 ---
 
@@ -266,4 +266,4 @@ python main.py discovery-stats
 
 ---
 
-**Questions?** See [JURISDICTION_DISCOVERY_SETUP.md](JURISDICTION_DISCOVERY_SETUP.md) for detailed instructions.
+**Questions?** See [JURISDICTION_DISCOVERY_SETUP.md](https://github.com/getcommunityone/open-navigator/blob/main/docs/JURISDICTION_DISCOVERY_SETUP.md) for detailed instructions.

@@ -46,7 +46,7 @@ git push --no-verify
 
 **Runs automatically on every push and pull request** to `main` or `develop`.
 
-**Workflow:** [`.github/workflows/ci-build-test.yml`](.github/workflows/ci-build-test.yml)
+**Workflow:** [`.github/workflows/ci-build-test.yml`](https://github.com/getcommunityone/open-navigator/blob/main/.github/workflows/ci-build-test.yml)
 
 **Tests:**
 1. **Frontend Build**
@@ -220,11 +220,11 @@ export HF_USERNAME=CommunityOne
 
 | File | Purpose |
 |------|---------|
-| [`.github/workflows/ci-build-test.yml`](.github/workflows/ci-build-test.yml) | Main CI test suite |
-| [`.github/workflows/deploy-huggingface.yml`](.github/workflows/deploy-huggingface.yml) | Deployment workflow |
-| [`.githooks/pre-push`](.githooks/pre-push) | Local pre-push validation |
-| [`test-huggingface-build.sh`](test-huggingface-build.sh) | Docker build test script |
-| [`deploy-huggingface.sh`](deploy-huggingface.sh) | Deployment script with tests |
+| [`.github/workflows/ci-build-test.yml`](https://github.com/getcommunityone/open-navigator/blob/main/.github/workflows/ci-build-test.yml) | Main CI test suite |
+| [`.github/workflows/deploy-huggingface.yml`](https://github.com/getcommunityone/open-navigator/blob/main/.github/workflows/deploy-huggingface.yml) | Deployment workflow |
+| [`.githooks/pre-push`](https://github.com/getcommunityone/open-navigator/blob/main/.githooks/pre-push) | Local pre-push validation |
+| [`test-huggingface-build.sh`](https://github.com/getcommunityone/open-navigator/blob/main/packages/hosting/scripts/huggingface/test-huggingface-build.sh) | Docker build test script |
+| [`deploy-huggingface.sh`](https://github.com/getcommunityone/open-navigator/blob/main/packages/hosting/scripts/huggingface/deploy-huggingface.sh) | Deployment script with tests |
 
 ## 🆘 Troubleshooting
 

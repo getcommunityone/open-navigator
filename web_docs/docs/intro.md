@@ -235,7 +235,7 @@ Visit **[Developer Documentation](/docs/for-developers)** for installation and s
 
 For production deployment options, see:
 - [Databricks Apps Deployment](/docs/deployment/databricks-apps)
-- [Docker Deployment](/docs/deployment/docker)
+- [Docker Deployment](/docs/deployment/docker-troubleshooting)
 - [HuggingFace Spaces Deployment](/docs/deployment/huggingface-spaces)
 
 ---

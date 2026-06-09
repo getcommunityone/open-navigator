@@ -272,7 +272,7 @@ Results: Mixed results from all education-related entities
 
 For more details, see:
 - [Bronze to Production Merge](bronze-to-production-merge.md)
-- [Policy Analysis Prompt](../../prompts/policy_analysis.md)
+- [Policy Analysis Prompt](https://github.com/getcommunityone/open-navigator/blob/main/prompts/policy_analysis.md)
 - [Search API Documentation](http://localhost:8000/docs)
 
 ---

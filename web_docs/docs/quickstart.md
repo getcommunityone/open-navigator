@@ -204,4 +204,4 @@ chmod +x install.sh
 4. Check out the interactive docs: http://localhost:8000/docs
 5. Generate a heatmap: `make heatmap`
 
-For more details, see the main [README.md](README.md).
+For more details, see the main [README.md](https://github.com/getcommunityone/open-navigator/blob/main/README.md).

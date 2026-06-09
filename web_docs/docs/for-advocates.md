@@ -214,7 +214,6 @@ All data comes from **100% free, public sources**:
 - **What data is available?** → [Data Sources Overview](/docs/data-sources/overview)
 - **How does the analysis work?** → [Political Economy Guide](/docs/guides/political-economy)
 - **Can I see an example?** → [Case Studies](/docs/case-studies/tuscaloosa-complete)
-- **How do I use the interface?** → [Dashboard Guide](/docs/dashboard)
 
 ### Technical Support
 

@@ -36,7 +36,7 @@ Open Navigator provides comprehensive coverage across the United States:
 
 Open Navigator integrates data from six main categories:
 
-1. **[Government Jurisdictions](#government-jurisdiction-data)** - Cities, counties, school districts (this page)
+1. **[Government Jurisdictions](#️-government-jurisdiction-data)** - Cities, counties, school districts (this page)
 2. **[Nonprofit Organizations](./nonprofit-sources.md)** - IRS Form 990s, charity ratings, transparency data
 3. **[Ballot Measures & Elections](./ballot-election-sources.md)** - Propositions, referendums, election results
 4. **[Public Opinion & Surveys](./polling-survey-sources.md)** - Scientifically validated survey questions, polling data

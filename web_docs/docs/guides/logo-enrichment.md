@@ -353,5 +353,3 @@ print(f'Websites: {df[\"website\"].notna().sum():,} / {len(df):,}')
 ## 🔗 Related
 
 - [Logo.dev API Documentation](https://www.logo.dev/docs)
-- [Every.org Enrichment](./everyorg-enrichment.md)
-- [Data Pipeline Guide](../deployment/data-pipeline.md)

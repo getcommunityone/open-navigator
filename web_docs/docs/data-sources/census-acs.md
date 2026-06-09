@@ -445,6 +445,5 @@ CENSUS_API_KEY=your_key_here
 
 ## Related Documentation
 
-- [Census of Governments](./census-governments.md) - Jurisdiction discovery
 - [Data Sources Overview](./citations.md) - All data sources
 - [D Drive Configuration](../deployment/d-drive-configuration.md) - External storage setup

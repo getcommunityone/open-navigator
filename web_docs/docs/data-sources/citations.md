@@ -494,8 +494,8 @@ This is separate from the word-finding API and has different pricing.
 **In this section:**
 - [U.S. Census Bureau](#us-census-bureau)
 - [State Symbols USA (reference)](#state-symbols-usa-reference)
-- [IRS Tax-Exempt Organization Search (TEOS)](#irs-tax-exempt-organization-search-teos)
-- [Open States API](#open-states-api)
+- [IRS Exempt Organizations Business Master File (EO-BMF)](#irs-exempt-organizations-business-master-file-eo-bmf)
+- [Open States / Plural Policy](#open-states--plural-policy-)
 - [LegiScan](#legiscan-)
 
 ### U.S. Census Bureau
@@ -1085,8 +1085,7 @@ concept_id_1 | concept_id_2 | relationship_id
 - [Findhelp.org (Aunt Bertha)](#findhelporg-aunt-bertha)
 - [211 Regional Directories](#211-regional-directories)
 - [Association of Religion Data Archives (ARDA)](#association-of-religion-data-archives-arda)
-- [Homeland Infrastructure Foundation-Level Data (HIFLD): Places of Worship](#homeland-infrastructure-foundation-level-data-hifld-places-of-worship)
-- [National Congregations Study (NCS)](#national-congregations-study-ncs)
+- [Homeland Infrastructure Foundation-Level Data (HIFLD)](#homeland-infrastructure-foundation-level-data-hifld)
 - [Microsoft Common Data Model for Nonprofits](#microsoft-common-data-model-for-nonprofits)
 
 ### IRS Exempt Organizations Business Master File (EO-BMF)

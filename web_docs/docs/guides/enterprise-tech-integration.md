@@ -24,8 +24,8 @@ This guide documents the enterprise technology platforms and programs that suppo
 - 8 core entities: CONSTITUENT, DONATION, CAMPAIGN, DESIGNATION, MEMBERSHIP, VOLUNTEER_ACTIVITY, PROGRAM_DELIVERY, PROGRAM_OUTCOME
 
 **Files:**
-- See [Nonprofit & Philanthropy](/docs/data-sources/citations#nonprofit--philanthropy) section
-- ERD: [Data Model](/data-sources/data-model-erd)
+- See [Nonprofit & Philanthropy](/docs/data-sources/citations#-nonprofit--philanthropy) section
+- ERD: [Data Model](/docs/data-sources/data-model-erd)
 
 **Resources:**
 - GitHub: https://github.com/microsoft/Industry-Accelerator-Nonprofit
@@ -287,7 +287,7 @@ share.create_share(
 
 All enterprise technology partnerships are properly cited in:
 
-**[Citations & Data Sources - Enterprise Tech for Social Good](/docs/data-sources/citations#-enterprise-tech-for-social-good)**
+**[Citations & Data Sources - Enterprise Tech for Social Good](/docs/data-sources/citations)**
 
 Includes:
 - Full program URLs

@@ -309,7 +309,7 @@ Each step is shippable on its own.
   Splink's name comparison + multiple blocking rules resolve order, rather than
   hard-coding a per-source flip. Low match weight handles the trust/estate noise
   gracefully. See [Layer 1](#layer-1--normalization-macros-dbt) /
-  [Layer 3](#layer-34--splink-python-packages).
+  [Layer 3](#layer-34--resolution).
 - **Streetless rows + PO boxes need NULL keys** (found building
   `int_addresses__unioned`): `address_match_key` already returns NULL when the
   street is blank — without that, ~11.7k streetless Selma AL parcels collapsed

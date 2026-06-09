@@ -393,7 +393,7 @@ df = irs.download_all_regions(force_refresh=True)
 ## 📚 Related Documentation
 
 - [ProPublica API](./citations.md#propublica-nonprofit-explorer) — Alternative API-based source
-- [Nonprofit Discovery Module](../../discovery/README_NONPROFIT_DISCOVERY.md) — ProPublica integration
+- [Nonprofit Discovery Module](https://github.com/getcommunityone/open-navigator/blob/main/packages/scrapers/src/scrapers/irs/README_NONPROFIT_DISCOVERY.md) — ProPublica integration
 - [Gold Table Pipeline](../guides/gold-table-pipeline.md) — How data flows to gold tables
 - [NTEE Codes Reference](https://nccs.urban.org/project/national-taxonomy-exempt-entities-ntee-codes) — Understanding nonprofit classifications
 

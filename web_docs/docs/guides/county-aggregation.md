@@ -308,6 +308,6 @@ If county filtering isn't working in the search API:
 
 ## Related Documentation
 
-- [Data Sources](../data-sources/census.md) - Census Bureau data sources
-- [Search API](../api/search.md) - Search API documentation  
-- [Database Schema](../development/database-schema.md) - Database structure
+- [Data Sources](../data-sources/census-data.md) - Census Bureau data sources
+- [Search API](./unified-search.md) - Search API documentation  
+- [Database Schema](../data-sources/data-model-erd.md) - Database structure

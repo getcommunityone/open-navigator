@@ -9,7 +9,7 @@ You can now **publish your jurisdiction discovery datasets to HuggingFace Hub** 
 ## 🎯 New Capabilities
 
 ### 1. **HuggingFace Publisher Module**
-- File: [pipeline/huggingface_publisher.py](../pipeline/huggingface_publisher.py)
+- File: `pipeline/huggingface_publisher.py`
 - Publishes datasets to HuggingFace Hub
 - Supports all discovery data layers (Bronze/Silver/Gold)
 
@@ -30,15 +30,15 @@ python main.py publish-to-hf --dataset all
 ## 📦 Files Added/Updated
 
 ### New Files
-- ✅ [pipeline/huggingface_publisher.py](../pipeline/huggingface_publisher.py) - HuggingFace publisher (~400 lines)
-- ✅ [docs/HUGGINGFACE_PUBLISHING.md](HUGGINGFACE_PUBLISHING.md) - Complete publishing guide
+- ✅ `pipeline/huggingface_publisher.py` - HuggingFace publisher (~400 lines)
+- ✅ [HuggingFace Publishing Guide](./huggingface-publishing.md) - Complete publishing guide
 
 ### Updated Files
-- ✅ [requirements.txt](../requirements.txt) - Added `datasets>=2.16.0` and `huggingface-hub>=0.20.0`
-- ✅ [config/settings.py](../config/settings.py) - Added `huggingface_token`, `hf_organization`, `hf_dataset_prefix`
-- ✅ [.env.example](../.env.example) - Added HuggingFace configuration
-- ✅ [main.py](../main.py) - Added `publish-to-hf` CLI command
-- ✅ [README.md](../README.md) - Added HuggingFace publishing section
+- ✅ [requirements.txt](https://github.com/getcommunityone/open-navigator/blob/main/requirements.txt) - Added `datasets>=2.16.0` and `huggingface-hub>=0.20.0`
+- ✅ `config/settings.py` - Added `huggingface_token`, `hf_organization`, `hf_dataset_prefix`
+- ✅ [.env.example](https://github.com/getcommunityone/open-navigator/blob/main/.env.example) - Added HuggingFace configuration
+- ✅ [main.py](https://github.com/getcommunityone/open-navigator/blob/main/main.py) - Added `publish-to-hf` CLI command
+- ✅ [README.md](https://github.com/getcommunityone/open-navigator/blob/main/README.md) - Added HuggingFace publishing section
 
 ---
 
@@ -220,7 +220,7 @@ python main.py publish-to-hf --dataset census --sample
 
 ## 📚 Documentation
 
-Complete guide: [HUGGINGFACE_PUBLISHING.md](HUGGINGFACE_PUBLISHING.md)
+Complete guide: [HuggingFace Publishing Guide](./huggingface-publishing.md)
 
 Covers:
 - Detailed setup instructions

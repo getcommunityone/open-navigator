@@ -20,7 +20,7 @@ displayed_sidebar: developersSidebar
 ### ✅ Video Discovery from Datasets (Offline Sources)
 
 **1. MeetingBank (HuggingFace)**
-- **File:** [`discovery/meetingbank_ingestion.py`](../discovery/meetingbank_ingestion.py)
+- **File:** `discovery/meetingbank_ingestion.py`
 - **Status:** ✅ **Working** - Video URLs ARE being extracted
 - **Coverage:** 1,366 meetings from 6 cities
 - **Video Sources:**
@@ -29,13 +29,13 @@ displayed_sidebar: developersSidebar
   - Archive.org collections (alameda, boston, denver, king-county, long-beach, seattle)
 
 **2. Open States (API)**
-- **File:** [`discovery/openstates_sources.py`](../discovery/openstates_sources.py)
+- **File:** [`scrapers/openstates/openstates_sources.py`](https://github.com/getcommunityone/open-navigator/blob/main/packages/scrapers/src/scrapers/openstates/openstates_sources.py)
 - **Status:** ✅ Working
 - **Coverage:** 50+ state legislatures
 - **Extracts:** YouTube channels, Vimeo accounts, Granicus portals from jurisdiction metadata
 
 **3. City Scrapers (GitHub)**
-- **File:** [`discovery/city_scrapers_urls.py`](../discovery/city_scrapers_urls.py)
+- **File:** `discovery/city_scrapers_urls.py`
 - **Status:** ⚠️ Partial - extracts start_urls but not video links yet
 - **Coverage:** 100-500 agencies from Chicago, Pittsburgh, Detroit, Cleveland, LA
 - **Note:** Granicus video pages with embedded YouTube, but extraction not fully implemented
@@ -50,7 +50,7 @@ The repo discovers government homepage URLs but does NOT:
 4. ❌ Use USA.gov or federal aggregators
 
 **Existing Homepage Discovery:**
-- **File:** [`discovery/url_discovery_agent.py`](../discovery/url_discovery_agent.py)
+- **File:** [`scripts/discovery/url_discovery_agent.py`](https://github.com/getcommunityone/open-navigator/blob/main/scripts/discovery/url_discovery_agent.py)
 - **What it does:**
   - ✅ Finds government homepage URLs using GSA .gov registry
   - ✅ Tests URL patterns (cityname.gov, etc.)

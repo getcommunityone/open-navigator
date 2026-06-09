@@ -117,7 +117,7 @@ Open Navigator communicates with the FastAPI backend:
 - `GET /api/nonprofits` - Search nonprofit organizations
 - `GET /api/data/status` - Check data ingestion status
 
-See the [API Reference](/docs/api) for complete documentation.
+See the API Reference for complete documentation.
 
 ## Need Help?
 

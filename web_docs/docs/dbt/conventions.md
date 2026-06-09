@@ -10,10 +10,10 @@ This document is the governance blueprint for the `open_navigator_dbt` project. 
 
 This blueprint is grounded in what is actually in the repo today — not aspirational targets:
 
-- **44 dbt models** under [dbt_project/models/](dbt_project/models/) (not 467; that figure is wrong).
+- **44 dbt models** under [dbt_project/models/](https://github.com/getcommunityone/open-navigator/tree/main/dbt_project/models) (not 467; that figure is wrong).
 - Existing directory layout: `staging/` (3 active + 3 `.bak`), `intermediate/` (17), `marts/` (14), `bronze/` (10 AI-extraction models that build bronze tables in-database from JSON).
 - Existing naming: `int_*` is well adopted (17/17). `stg_*` is adopted for the 3 active staging models but with prefix `stg_bronze_*` (leaks the source layer name). `fct_*` / `dim_*` are **not used at all** — marts are named directly for the entity they represent (e.g. `jurisdictions.sql`, `event.sql`). This blueprint keeps that convention: **no `dim_`/`fact_` prefixes** (see CLAUDE.md).
-- Sources live at [bronze schema](dbt_project/models/staging/_staging.yml) in `open_navigator` Postgres; no `raw_*` schemas exist yet. Stage 2 ingestion ports continue to write to `bronze.bronze_*` tables for behavior parity. The new ingestion layer (`packages/core-lib`) will produce `raw_<source>.*` tables in a later refactor — until then, **`bronze` is the only source layer dbt sees**.
+- Sources live at [bronze schema](https://github.com/getcommunityone/open-navigator/blob/main/dbt_project/models/staging/_staging.yml) in `open_navigator` Postgres; no `raw_*` schemas exist yet. Stage 2 ingestion ports continue to write to `bronze.bronze_*` tables for behavior parity. The new ingestion layer (`packages/core-lib`) will produce `raw_<source>.*` tables in a later refactor — until then, **`bronze` is the only source layer dbt sees**.
 
 The intent of this blueprint is to **establish standards going forward** and provide a concrete migration path for existing models. It does NOT mass-rename existing models — that work happens model-by-model in follow-up PRs.
 
@@ -102,8 +102,8 @@ Every `stg_*` model **must** declare a contract with explicit `data_type` on eve
 
 A working example lives at:
 
-- [dbt_project/models/staging/stg_gsa__domains.sql](dbt_project/models/staging/stg_gsa__domains.sql) — the model
-- [dbt_project/models/staging/_schema_stg_gsa.yml](dbt_project/models/staging/_schema_stg_gsa.yml) — the contract + tests
+- [dbt_project/models/staging/stg_gsa__domains.sql](https://github.com/getcommunityone/open-navigator/blob/main/dbt_project/models/staging/stg_gsa__domains.sql) — the model
+- [dbt_project/models/staging/_schema_stg_gsa.yml](https://github.com/getcommunityone/open-navigator/blob/main/dbt_project/models/staging/_schema_stg_gsa.yml) — the contract + tests
 
 Pattern:
 
@@ -150,13 +150,13 @@ Per model, in `_schema.yml`:
 - a declared `foreign_key` constraint **and** a `relationships` test for every foreign key to its parent mart (e.g., `event_meeting.jurisdiction_id` → `jurisdictions.jurisdiction_id`). Every model exposed in `public` MUST declare PK and FK constraints so Postgres enforces them.
 - `accepted_values` for any enum-shaped column (e.g., `jurisdiction_type in ('state', 'county', 'city', 'school_district')`)
 
-Use `dbt_expectations` (already in [packages.yml](dbt_project/packages.yml)) for richer checks: row-count thresholds, regex patterns, distribution checks.
+Use `dbt_expectations` (already in [packages.yml](https://github.com/getcommunityone/open-navigator/blob/main/dbt_project/packages.yml)) for richer checks: row-count thresholds, regex patterns, distribution checks.
 
 ---
 
 ## 3. Intermediate entity resolution strategy
 
-The repo today has several intermediate models in the 200–800 line range that try to do everything in one statement (joining ~5 sources, deduplicating, scoring, applying business rules). Two examples worth refactoring as the standard pattern: [int_jurisdictions.sql](dbt_project/models/intermediate/int_jurisdictions.sql) and [int_jurisdiction_websites.sql](dbt_project/models/intermediate/int_jurisdiction_websites.sql).
+The repo today has several intermediate models in the 200–800 line range that try to do everything in one statement (joining ~5 sources, deduplicating, scoring, applying business rules). Two examples worth refactoring as the standard pattern: [int_jurisdictions.sql](https://github.com/getcommunityone/open-navigator/blob/main/dbt_project/models/intermediate/int_jurisdictions.sql) and [int_jurisdiction_websites.sql](https://github.com/getcommunityone/open-navigator/blob/main/dbt_project/models/intermediate/int_jurisdiction_websites.sql).
 
 ### 3.1 The decomposition rule
 
@@ -266,7 +266,7 @@ grant select on all tables in schema marts to api_reader;
 alter default privileges in schema marts grant select on tables to api_reader;
 ```
 
-In [api/database.py](api/database.py), the connection URL becomes:
+In [api/database.py](https://github.com/getcommunityone/open-navigator/blob/main/api/database.py), the connection URL becomes:
 
 ```python
 # Reads as api_reader. Cannot see bronze/staging/intermediate — Postgres will refuse.
@@ -277,7 +277,7 @@ Day-2 enforcement: if a route accidentally references `bronze.*` or `staging.*`,
 
 ### 4.3 Migration plan for existing API code
 
-A quick audit of the existing [api/routes/](api/routes/) directory:
+A quick audit of the existing [api/routes/](https://github.com/getcommunityone/open-navigator/tree/main/api/routes) directory:
 
 ```bash
 grep -rE "FROM (bronze|staging|intermediate|public)\." api/routes/

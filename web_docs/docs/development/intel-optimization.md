@@ -114,7 +114,7 @@ df = conn.execute("""
 
 ## 📚 Documentation
 
-- **Full Guide**: See [Intel Arc Quickstart](../../INTEL_ARC_QUICKSTART.md)
+- **Full Guide**: See [Intel Arc Quickstart](./intel-arc-quickstart.md)
 - **DuckDB VSS**: https://duckdb.org/docs/extensions/vss
 - **Intel IPEX**: https://github.com/intel/intel-extension-for-pytorch
 - **OpenVINO**: https://docs.openvino.ai/
@@ -170,4 +170,4 @@ Key packages:
 
 ## 📞 Support
 
-See full documentation: [Intel Arc Quickstart](../../INTEL_ARC_QUICKSTART.md)
+See full documentation: [Intel Arc Quickstart](./intel-arc-quickstart.md)

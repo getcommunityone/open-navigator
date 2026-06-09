@@ -272,7 +272,7 @@ These platforms are accessed via web scraping (no API):
    - Understand rate limits and quotas
 
 2. **Implement Required Attributions**
-   - Use attribution templates from [Data Provider Terms](./data-provider-terms.md#compliance-summary-table)
+   - Use attribution templates from [Data Provider Terms](./data-provider-terms.md#️-compliance-summary-table)
    - Include all mandatory credits
    - Link to provider profiles where required
 
@@ -396,7 +396,6 @@ While we strive for accuracy:
 - [Citations & Data Sources](../data-sources/citations.md) - Academic citations and BibTeX
 - [Data Model & ERD](../data-sources/data-model-erd.md) - Database schema
 - [HuggingFace Datasets](../data-sources/huggingface-datasets.md) - Published datasets
-- [Development Documentation](../development/) - Technical implementation
 
 ---
 

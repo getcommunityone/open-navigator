@@ -123,7 +123,7 @@ rm -rf website/
 ```
 
 ### Option 3: Understand the Architecture
-Read [ARCHITECTURE.md](ARCHITECTURE.md) which explains the three-service model.
+Read [Architecture](../architecture.md) which explains the three-service model.
 
 ## Common Mistakes
 

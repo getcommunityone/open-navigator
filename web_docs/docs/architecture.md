@@ -202,6 +202,4 @@ cd frontend && npm run build
 
 ## Next Steps
 
-- [Start all services](../README.md#quick-start)
-- [Dashboard documentation](../website/docs/dashboard.md)
-- [API documentation](../website/docs/api.md)
+- [Start all services](https://github.com/getcommunityone/open-navigator/blob/main/README.md#quick-start)

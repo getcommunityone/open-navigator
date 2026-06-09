@@ -20,7 +20,7 @@ This project integrates with [Harvard Dataverse](https://dataverse.harvard.edu/)
 
 ### 1. **Production-Ready Dataverse Client**
 
-**File**: [`discovery/dataverse_client.py`](../discovery/dataverse_client.py)
+**File**: [`discovery/dataverse_client.py`](https://github.com/getcommunityone/open-navigator/blob/main/scripts/datasources/localview/archive/dataverse_client.py)
 
 Implements all IQSS best practices:
 
@@ -172,7 +172,7 @@ DATAVERSE_API_KEY=your_api_key_here
 
 ### Config Settings
 
-Defined in [`config/settings.py`](../config/settings.py):
+Defined in `config/settings.py`:
 
 ```python
 class Settings(BaseSettings):

@@ -271,9 +271,7 @@ See: [Schema Migration Guide](../deployment/schema-migration.md) for complete mi
 ## 🔗 Related Documentation
 
 - [Schema Migration Guide](../deployment/schema-migration.md)
-- [Databricks Deployment](../deployment/databricks.md)
-- [Data Model ERD](../../databricks/README.md)
-- [Database Schema Files](../../databricks/)
+- [Databricks Deployment](../deployment/databricks-migration.md)
 
 ## 📝 Next Steps
 

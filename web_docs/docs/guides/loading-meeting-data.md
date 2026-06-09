@@ -241,9 +241,9 @@ python scripts/localview/extract_transcripts.py --latest
 
 ## 📚 Related Documentation
 
-- [LocalView Integration Guide](../../docs/LOCALVIEW_INTEGRATION_GUIDE.md)
-- [Contacts & Meetings Workflow](../../docs/CONTACTS_MEETINGS_WORKFLOW.md)
-- [Data Sources](../../docs/DATA_SOURCES.md)
+- [LocalView Integration Guide](https://github.com/getcommunityone/open-navigator/blob/main/docs/LOCALVIEW_INTEGRATION_GUIDE.md)
+- [Contacts & Meetings Workflow](https://github.com/getcommunityone/open-navigator/blob/main/docs/CONTACTS_MEETINGS_WORKFLOW.md)
+- [Data Sources](https://github.com/getcommunityone/open-navigator/blob/main/docs/DATA_SOURCES.md)
 
 ## ⚠️ Important Notes
 

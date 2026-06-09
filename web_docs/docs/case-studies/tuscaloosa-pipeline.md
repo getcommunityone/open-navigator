@@ -539,7 +539,7 @@ When government says "no" to a policy, show citizens **who's already saying "yes
 2. **Highlight the Logic**: "Legal risk concerns" used to defer
 3. **Bridge the Gap**: 3 local nonprofits providing free screenings to 3,250 students
 
-See full documentation: [docs/SPLIT_SCREEN_SYSTEM.md](docs/SPLIT_SCREEN_SYSTEM.md)
+See full documentation: [Split-Screen System](../guides/split-screen.md)
 
 ---
 
@@ -1131,7 +1131,7 @@ metrics = {
 8. **Share Insights**: Publish findings to HuggingFace or local news outlets
 
 For questions, see:
-- [QUICKSTART.md](QUICKSTART.md) - General setup
-- [docs/EBOARD_COOKIE_GUIDE.md](docs/EBOARD_COOKIE_GUIDE.md) - eBoard scraping
-- [docs/SPLIT_SCREEN_SYSTEM.md](docs/SPLIT_SCREEN_SYSTEM.md) - Nonprofit integration ✅ **NEW**
-- [DATABRICKS_MIGRATION.md](DATABRICKS_MIGRATION.md) - Scaling to Databricks
+- [Quick Start](../quickstart.md) - General setup
+- [eBoard Cookie Guide](../integrations/eboard-cookies.md) - eBoard scraping
+- [Split-Screen System](../guides/split-screen.md) - Nonprofit integration ✅ **NEW**
+- [Databricks Migration](../deployment/databricks-migration.md) - Scaling to Databricks
