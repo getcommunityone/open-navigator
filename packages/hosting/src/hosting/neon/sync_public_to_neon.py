@@ -144,6 +144,9 @@ CIVIC_SERVING = frozenset(
         "item_interestingness",
         "item_flags",
         "tag",
+        # reference series — annual CPI for the real-dollar / inflation toggle
+        # (tiny: ~15 rows/series). Served via /api/cpi/annual.
+        "cpi_annual",
     }
 )
 
