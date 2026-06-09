@@ -144,3 +144,8 @@ analyze_backlog_shard*.out
 
 # Runtime API server log (not source)
 api_server.out
+
+# Versioned Postgres release backups (make backup / make restore) — large dumps,
+# stored off-machine on Google Drive, never committed.
+backups/
+*.dump

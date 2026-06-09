@@ -25,8 +25,8 @@ This page documents all data sources, standards, and research contributions used
     <strong>🎓 Academic Research</strong><br/>
     <span style={{fontSize: '0.9em', color: '#666'}}>MeetingBank, LocalView, Opportunity Insights, CivicSearch, Datamuse API, Roper Center, CDP, City Scrapers</span>
   </a>
-  <a href="#comparative--deliberative-analysis" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #3F51B5'}}>
-    <strong>⚖️ Comparative & Deliberative Analysis</strong><br/>
+  <a href="#-comparative--deliberative-analysis" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #3F51B5'}}>
+    <strong>🆚 Comparative & Deliberative Analysis</strong><br/>
     <span style={{fontSize: '0.9em', color: '#666'}}>AllSides, ProCon.org, iSideWith, OnTheIssues, Kialo, Ground News</span>
   </a>
   <a href="#government-data" className="card" style={{textDecoration: 'none', padding: '15px', borderLeft: '4px solid #4CAF50'}}>
@@ -493,7 +493,7 @@ This is separate from the word-finding API and has different pricing.
 
 ---
 
-## ⚖️ Comparative & Deliberative Analysis
+## 🆚 Comparative & Deliberative Analysis
 
 **In this section:**
 - [AllSides](#allsides)

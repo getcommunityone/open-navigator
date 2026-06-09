@@ -1,4 +1,4 @@
-.PHONY: help install install-web_app install-docs build-web_app build-docs clean test run dev dev-web_app dev-docs start-all stop-all dev-full docker-up docker-down deploy-databricks grants-refresh
+.PHONY: help install install-web_app install-docs build-web_app build-docs clean test run dev dev-web_app dev-docs start-all stop-all dev-full docker-up docker-down deploy-databricks grants-refresh backup restore
 
 help:
 	@echo "🦷 Open Navigator - Makefile Commands"
@@ -36,6 +36,10 @@ help:
 	@echo ""
 	@echo "💰 Data Refresh:"
 	@echo "  make grants-refresh    - Refresh Grants.gov opportunities (incremental upsert)"
+	@echo ""
+	@echo "🏷️  Releases & Backups (semver, see web_docs Quick Start):"
+	@echo "  make backup VERSION=v1.5.0   - Dump open_navigator + openstates, push to Drive"
+	@echo "  make restore VERSION=v1.5.0  - Pull a release's backup from Drive and restore (dev only)"
 	@echo ""
 
 install:
@@ -182,3 +186,59 @@ grants-refresh:
 		. .venv/bin/activate && python -m ingestion.grants_gov.bronze
 	@cd dbt_project && .venv_dbt/bin/dbt run --select stg_grants_gov__opportunity grant_opportunity
 	@echo "✅ grant_opportunity refreshed"
+
+# --- Releases & Data Versioning -------------------------------------------------
+# Tie a semantic-version release tag to a Postgres backup of the warehouse so the
+# code at a tag can be reproduced against the exact data it shipped with.
+# See web_docs/docs/quickstart.md (Releases & Data Versioning) for the full flow.
+#
+#   make backup VERSION=v1.5.0    # dump both DBs, version-stamped, push to Drive
+#   make restore VERSION=v1.5.0   # pull that version's dumps from Drive, restore (DEV ONLY)
+#
+# Override any of these via env: PG_HOST/PG_PORT/PG_USER/PGPASSWORD, RCLONE_REMOTE,
+# BACKUP_DIR. Defaults match the local dev warehouse (localhost:5433).
+PG_HOST       ?= localhost
+PG_PORT       ?= 5433
+PG_USER       ?= postgres
+PGPASSWORD    ?= password
+RCLONE_REMOTE ?= gdrive:open-navigator-backups
+BACKUP_DIR    ?= backups
+
+backup:
+	@test -n "$(VERSION)" || { echo "❌ VERSION required, e.g. make backup VERSION=v1.5.0"; exit 1; }
+	@mkdir -p $(BACKUP_DIR)
+	@stamp=$$(date +%Y%m%d); \
+		echo "📦 Dumping open_navigator + openstates at $(VERSION) ($$stamp)..."; \
+		PGPASSWORD=$(PGPASSWORD) pg_dump -h $(PG_HOST) -p $(PG_PORT) -U $(PG_USER) -Fc open_navigator \
+			-f $(BACKUP_DIR)/open_navigator_$(VERSION)_$$stamp.dump; \
+		PGPASSWORD=$(PGPASSWORD) pg_dump -h $(PG_HOST) -p $(PG_PORT) -U $(PG_USER) -Fc openstates \
+			-f $(BACKUP_DIR)/openstates_$(VERSION)_$$stamp.dump; \
+		echo "✅ Dumps written to $(BACKUP_DIR)/"; \
+		if command -v rclone >/dev/null 2>&1; then \
+			echo "☁️  Uploading to $(RCLONE_REMOTE)/$(VERSION)/..."; \
+			rclone copy $(BACKUP_DIR)/open_navigator_$(VERSION)_$$stamp.dump $(RCLONE_REMOTE)/$(VERSION)/ && \
+			rclone copy $(BACKUP_DIR)/openstates_$(VERSION)_$$stamp.dump $(RCLONE_REMOTE)/$(VERSION)/ && \
+			echo "✅ Uploaded to $(RCLONE_REMOTE)/$(VERSION)/"; \
+		else \
+			echo "⚠️  rclone not found — dumps kept locally in $(BACKUP_DIR)/ only."; \
+			echo "    Install + 'rclone config' a Drive remote to push backups off-machine."; \
+		fi
+
+restore:
+	@test -n "$(VERSION)" || { echo "❌ VERSION required, e.g. make restore VERSION=v1.5.0"; exit 1; }
+	@echo "⚠️  Restoring $(VERSION) into LOCAL dev warehouse ($(PG_HOST):$(PG_PORT)) — never run against prod."
+	@mkdir -p $(BACKUP_DIR)/restore
+	@if command -v rclone >/dev/null 2>&1; then \
+		echo "☁️  Pulling $(VERSION) dumps from $(RCLONE_REMOTE)/$(VERSION)/..."; \
+		rclone copy $(RCLONE_REMOTE)/$(VERSION)/ $(BACKUP_DIR)/restore/ --include "*.dump"; \
+	else \
+		echo "ℹ️  rclone not found — expecting dumps already in $(BACKUP_DIR)/restore/."; \
+	fi
+	@on=$$(ls $(BACKUP_DIR)/restore/open_navigator_$(VERSION)_*.dump 2>/dev/null | head -1); \
+		os=$$(ls $(BACKUP_DIR)/restore/openstates_$(VERSION)_*.dump 2>/dev/null | head -1); \
+		test -n "$$on" -a -n "$$os" || { echo "❌ Could not find $(VERSION) dumps in $(BACKUP_DIR)/restore/"; exit 1; }; \
+		echo "♻️  Restoring open_navigator from $$on..."; \
+		PGPASSWORD=$(PGPASSWORD) pg_restore -h $(PG_HOST) -p $(PG_PORT) -U $(PG_USER) -d open_navigator --clean --if-exists "$$on"; \
+		echo "♻️  Restoring openstates from $$os..."; \
+		PGPASSWORD=$(PGPASSWORD) pg_restore -h $(PG_HOST) -p $(PG_PORT) -U $(PG_USER) -d openstates --clean --if-exists "$$os"; \
+		echo "✅ Restored $(VERSION)"
