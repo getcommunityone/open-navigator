@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     The actual installation logic lives in scripts\deployment\install.ps1. It
-    uses paths relative to the current working directory (venv\,
+    uses paths relative to the current working directory (.venv\,
     requirements.txt, .env.example, logs\), so it must run from the repository
     root - which is exactly where this wrapper lives. Keep this thin wrapper here
     rather than moving the script.

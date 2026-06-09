@@ -94,18 +94,18 @@ fi
 # Create virtual environment
 echo ""
 echo "Creating virtual environment..."
-if [ -d "venv" ]; then
+if [ -d ".venv" ]; then
     echo "⚠ Virtual environment already exists. Removing old one..."
-    rm -rf venv
+    rm -rf .venv
 fi
 
-python3 -m venv venv
+python3 -m venv .venv
 echo "✓ Virtual environment created"
 
 # Activate virtual environment
 echo ""
 echo "Activating virtual environment..."
-source venv/bin/activate
+source .venv/bin/activate
 echo "✓ Virtual environment activated"
 
 # Upgrade pip
@@ -154,7 +154,7 @@ echo "✅ Installation Complete!"
 echo "=================================================="
 echo ""
 echo "To activate the virtual environment, run:"
-echo "  source venv/bin/activate"
+echo "  source .venv/bin/activate"
 echo ""
 echo "Then you can use the CLI:"
 echo "  python main.py --help"
