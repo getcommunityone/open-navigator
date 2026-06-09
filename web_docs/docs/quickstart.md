@@ -13,7 +13,7 @@ This project runs three separate services. Launch all three at once with `./star
 |---------|--------------|----------|-------------|
 | **⚛️ Open Navigator** (`web_app`) | 5173 | [www.communityone.com](https://www.communityone.com) | **Main application** — search, filters, heatmap, data exploration |
 | **📚 Documentation** (`web_docs`) | 3000 | [www.communityone.com/docs](https://www.communityone.com/docs) | Docusaurus site with complete guides and tutorials |
-| **🔥 API Backend** (`api`) | 8000 | [www.communityone.com/api](https://www.communityone.com/api) | FastAPI server with AI agents |
+| **🔥 API Backend** (`api`) | 8000 | [www.communityone.com/api/docs](https://www.communityone.com/api/docs) | FastAPI server with AI agents |
 
 > **💡 LIVE DEMO:** Visit **[www.communityone.com](https://www.communityone.com)** to use the hosted application.
 >
@@ -24,6 +24,10 @@ This project runs three separate services. Launch all three at once with `./star
 - Python 3.11+
 - Node.js 18+
 - A local Postgres warehouse on `localhost:5433` (databases `open_navigator` and `openstates`) — see [Configuration](#configuration) below
+- **PostgreSQL client tools 17** (`psql`, `pg_dump`, `pg_restore`) — **recommended version**.
+  The local warehouse server runs PG 16, but a **17** client dumps it *and* the (PG 16/17)
+  Neon serving DB, and reads both dump formats. Keep `pg_dump` and `pg_restore` on the
+  **same major version** (≥ any server you back up) to avoid `unsupported version` errors.
 - Docker (optional — only for the containerized deployment)
 
 ## Installation
@@ -281,20 +285,70 @@ chmod +x install.sh
 
 ## Database Backups
 
-Backup and restore are two Makefile targets — no manual `pg_dump`/`pg_restore` needed.
-Each dumps **both** databases (`open_navigator` + `openstates`), stamps the files with
-version/date/git SHA, and syncs them off-machine through Google Drive:
+Backup and restore are Makefile targets — no manual `pg_dump`/`pg_restore` needed. Each
+stamps the dump files with version/date/git SHA and syncs them off-machine through Google
+Drive. Pick the scope that fits — and note that **two of the three are free of personal
+user data**:
 
-| Command | What it does |
-| --- | --- |
-| `make backup VERSION=v1.5.0` | Dumps both DBs → `open-navigator-backups/releases/v1.5.0/`; Google Drive syncs them off-machine. |
-| `make restore VERSION=v1.5.0` | Restores both DBs from that folder into the local warehouse (`localhost:5433`). **Dev only.** |
+| Command | Scope | Personal user data? |
+| --- | --- | --- |
+| `make backup VERSION=v1.5.0` | **Full** — entire `open_navigator` warehouse (bronze/gold/staging/intermediate/public) **+** `openstates`. Self-contained; ~170 GB. | ⚠️ **Yes** — includes the `user`/auth/social tables. Keep private. |
+| `make backup-neon VERSION=v1.5.0` | **Neon serving** (recommended) — dumps the production Neon serving DB; civic data as standalone materialized tables. Small (~0.5 GB). | ✅ **No** |
+| `make backup-public VERSION=v1.5.0` | **Local public** — dumps only the local `public` serving schema; civic views + `event_documents`. | ✅ **No** (personal tables excluded) |
+| `make restore VERSION=v1.5.0` | Restore the full backup into the local warehouse. **Dev only.** | — |
+| `make restore-neon VERSION=v1.5.0` | Restore a Neon snapshot into a separate local db (`open_navigator_serving`). **Dev only.** | — |
+| `make restore-public VERSION=v1.5.0` | Restore the local `public` schema (needs `gold` present). **Dev only.** | — |
 
 Use a semver tag (`v1.5.0`) for a release, or any label for an ad-hoc snapshot
-(`make backup VERSION=snapshot-20260609`). The exact commands and paths live in the
-[`backup` / `restore` targets in the Makefile](https://github.com/getcommunityone/open-navigator/blob/main/Makefile).
+(`make backup-neon VERSION=snapshot-20260609`). Exact commands live in the
+[`backup` targets in the Makefile](https://github.com/getcommunityone/open-navigator/blob/main/Makefile).
 
-> **Restore only into a local/dev warehouse — never into a production database.**
+### Backing up the serving data without user PII
+
+To share or version the public civic data **without** shipping personal user information
+(accounts, OAuth state, social graph, feed prefs, saved locations), use one of the
+PII-free targets. Both exclude the same app/runtime tables that the Neon serving DB never
+mirrors (`user`, `contact_oauth_state`, `social_follows`, `user_lens_prefs`,
+`user_locations`, `user_signal_prefs`, `meeting_document_gap_cache`).
+
+**`make backup-neon` (recommended).** Dumps the production Neon serving DB
+(`NEON_DATABASE_URL` from `.env`). That DB is **civic-only by construction** — the
+`sync_public_to_neon.py` loader never copies the user/auth tables — and its serving objects
+are real **materialized tables**, so the dump is standalone (no dependency on `gold`):
+
+```bash
+make backup-neon VERSION=snapshot-20260609   # writes one small neon_serving_*.dump, no PII
+```
+
+`pg_dump` is read-only, so this is safe to run against prod. Restore into a **separate
+local** database (never prod) and optionally point the API at it for a PII-free local
+serving instance:
+
+```bash
+make restore-neon VERSION=snapshot-20260609  # → local db open_navigator_serving (dev only)
+```
+
+The Neon dump is taken with `--no-owner --no-privileges`, and `restore-neon` restores with
+`--role=$(PG_USER)`, so all objects end up owned by your **local** `postgres` user — not the
+Neon role. (Same for `make backup-public`.)
+
+**`make backup-public`.** Dumps the local `public` schema with the personal tables
+excluded — civic views + `event_documents` only. It does **not** include the Postgres
+extensions (`pg_trgm`, `btree_gin`, …) that live in `public`, so restoring it never drops
+them and `gold`'s indexes stay safe. Because the views reference `gold`, restore it onto a
+warehouse that already has `gold`:
+
+```bash
+make backup-public VERSION=snapshot-20260609   # local public, personal tables excluded
+```
+
+> **Restore only into a local/dev warehouse — never into a production database.** The full
+> `make backup` is the only one that contains user accounts; treat its dumps as private and
+> do not share them via a public Drive link.
+
+> **Client version.** Use **PostgreSQL 17** client tools (see [Prerequisites](#prerequisites)).
+> If you have several PG majors installed and hit `unsupported version`, pin the client dir
+> for any backup command, e.g. `make backup-neon VERSION=… PG_BIN=/usr/lib/postgresql/17/bin/`.
 
 ### Google Drive folder (one-time setup)
 

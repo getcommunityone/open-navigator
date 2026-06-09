@@ -1,4 +1,4 @@
-.PHONY: help install install-web_app install-docs build-web_app build-docs clean test run dev dev-web_app dev-docs start-all stop-all dev-full docker-up docker-down deploy-databricks grants-refresh backup-preflight backup restore
+.PHONY: help install install-web_app install-docs build-web_app build-docs clean test run dev dev-web_app dev-docs start-all stop-all dev-full docker-up docker-down deploy-databricks grants-refresh backup-preflight backup backup-public backup-neon restore restore-public restore-neon
 
 help:
 	@echo "🦷 Open Navigator - Makefile Commands"
@@ -38,8 +38,12 @@ help:
 	@echo "  make grants-refresh    - Refresh Grants.gov opportunities (incremental upsert)"
 	@echo ""
 	@echo "🏷️  Releases & Backups (semver, see web_docs Quick Start):"
-	@echo "  make backup VERSION=v1.5.0   - Dump open_navigator + openstates, push to Drive"
-	@echo "  make restore VERSION=v1.5.0  - Pull a release's backup from Drive and restore (dev only)"
+	@echo "  make backup VERSION=v1.5.0         - Dump full open_navigator + openstates, push to Drive"
+	@echo "  make backup-neon VERSION=v1.5.0    - Dump the Neon serving DB (civic only, NO user PII) [recommended]"
+	@echo "  make backup-public VERSION=v1.5.0  - Dump the local public schema, personal user tables excluded"
+	@echo "  make restore VERSION=v1.5.0        - Restore a full backup (dev only)"
+	@echo "  make restore-neon VERSION=v1.5.0   - Restore Neon snapshot into local '$(NEON_RESTORE_DB)' (dev only)"
+	@echo "  make restore-public VERSION=v1.5.0 - Restore the public schema (dev only; needs gold present)"
 	@echo ""
 
 install:
@@ -210,6 +214,22 @@ PG_USER        ?= postgres
 PGPASSWORD     ?= password
 BACKUP_DIR     ?= open-navigator-backups
 BACKUP_STAGING ?= .backup-staging
+# Local DB to restore a Neon serving snapshot into (NEVER prod; localhost only).
+NEON_RESTORE_DB ?= open_navigator_serving
+# Personal / app-owned tables in public.* that must NEVER land in a shared snapshot.
+# Mirrors RUNTIME_OWNED in packages/hosting/src/hosting/neon/sync_public_to_neon.py — the
+# same set the Neon serving DB already excludes (user accounts, OAuth state, social graph,
+# feed prefs). backup-public strips these so no personal user data leaves the machine.
+PII_EXCLUDE_TABLES ?= user contact_oauth_state social_follows user_lens_prefs user_locations user_signal_prefs meeting_document_gap_cache
+# Postgres client tools. `pg_dump` must be >= the server it dumps (Neon is PG 17), and
+# `pg_restore` >= the dump's archive format — a mismatched major aborts the dump. We
+# AUTO-SELECT the newest client installed under /usr/lib/postgresql/*/bin, so PG 17 is used
+# even when PATH still points at PG 16; this is empty (→ PATH) on other platforms. Override
+# explicitly with PG_BIN=/usr/lib/postgresql/17/bin/  (or PG_BIN= to force PATH).
+PG_BIN      ?= $(shell ls -d /usr/lib/postgresql/*/bin/ 2>/dev/null | sort -V | tail -1)
+PG_DUMP     ?= $(PG_BIN)pg_dump
+PG_RESTORE  ?= $(PG_BIN)pg_restore
+PG_CREATEDB ?= $(PG_BIN)createdb
 
 # Verify the Drive folder is reachable, and if not, diagnose *why* and print the exact
 # fix. Most common cause: the WSL symlink exists but the Drive letter never got mounted
@@ -238,14 +258,14 @@ backup-preflight:
 backup:
 	@test -n "$(VERSION)" || { echo "❌ VERSION required, e.g. make backup VERSION=v1.5.0"; exit 1; }
 	@$(MAKE) --no-print-directory backup-preflight
-	@stamp=$$(date +%Y%m%d); sha=$$(git rev-parse --short HEAD 2>/dev/null || echo nogit); \
+	@set -e; stamp=$$(date +%Y%m%d); sha=$$(git rev-parse --short HEAD 2>/dev/null || echo nogit); \
 		stage="$(BACKUP_STAGING)/$(VERSION)"; dir="$(BACKUP_DIR)/releases/$(VERSION)"; \
 		mkdir -p "$$stage" "$$dir"; \
 		on="open_navigator_$(VERSION)_$${stamp}_$${sha}.dump"; \
 		os="openstates_$(VERSION)_$${stamp}_$${sha}.dump"; \
 		echo "📦 Dumping open_navigator + openstates at $(VERSION) ($$stamp, $$sha) to local staging..."; \
-		PGPASSWORD=$(PGPASSWORD) pg_dump -h $(PG_HOST) -p $(PG_PORT) -U $(PG_USER) -Fc open_navigator -f "$$stage/$$on"; \
-		PGPASSWORD=$(PGPASSWORD) pg_dump -h $(PG_HOST) -p $(PG_PORT) -U $(PG_USER) -Fc openstates     -f "$$stage/$$os"; \
+		PGPASSWORD=$(PGPASSWORD) $(PG_DUMP) -h $(PG_HOST) -p $(PG_PORT) -U $(PG_USER) -Fc open_navigator -f "$$stage/$$on"; \
+		PGPASSWORD=$(PGPASSWORD) $(PG_DUMP) -h $(PG_HOST) -p $(PG_PORT) -U $(PG_USER) -Fc openstates     -f "$$stage/$$os"; \
 		echo "📤 Copying dumps into the Drive folder ($$dir/)..."; \
 		cp "$$stage/$$on" "$$dir/$$on" && cp "$$stage/$$os" "$$dir/$$os"; \
 		rm -rf "$$stage"; \
@@ -260,7 +280,84 @@ restore:
 		os=$$(ls "$$dir"/openstates_$(VERSION)_*.dump 2>/dev/null | head -1); \
 		test -n "$$on" -a -n "$$os" || { echo "❌ Could not find $(VERSION) dumps in $$dir/"; exit 1; }; \
 		echo "♻️  Restoring open_navigator from $$on..."; \
-		PGPASSWORD=$(PGPASSWORD) pg_restore -h $(PG_HOST) -p $(PG_PORT) -U $(PG_USER) -d open_navigator --clean --if-exists "$$on"; \
+		PGPASSWORD=$(PGPASSWORD) $(PG_RESTORE) -h $(PG_HOST) -p $(PG_PORT) -U $(PG_USER) -d open_navigator --clean --if-exists "$$on"; \
 		echo "♻️  Restoring openstates from $$os..."; \
-		PGPASSWORD=$(PGPASSWORD) pg_restore -h $(PG_HOST) -p $(PG_PORT) -U $(PG_USER) -d openstates --clean --if-exists "$$os"; \
+		PGPASSWORD=$(PGPASSWORD) $(PG_RESTORE) -h $(PG_HOST) -p $(PG_PORT) -U $(PG_USER) -d openstates --clean --if-exists "$$os"; \
 		echo "✅ Restored $(VERSION)"
+
+# Public-only backup: dumps ONLY the `public` serving schema of open_navigator, stored as
+# its own dump file separate from the bronze/gold/private warehouse. Tiny vs the ~170GB DB.
+# The personal/app-owned tables (PII_EXCLUDE_TABLES — user accounts, OAuth state, social
+# graph, feed prefs) are EXCLUDED, so no personal user data leaves the machine; the dump
+# is the civic serving layer only (views + event_documents).
+# A `--schema=public` dump does NOT include the extensions (pg_trgm, btree_gin, …) that
+# live in `public`, so it never DROPs them on restore — gold's indexes are safe.
+# Caveat: the public views are defined over `gold`, so restoring them needs `gold`
+# present (restore the full/private warehouse first, or restore onto your existing one).
+backup-public:
+	@test -n "$(VERSION)" || { echo "❌ VERSION required, e.g. make backup-public VERSION=v1.5.0"; exit 1; }
+	@$(MAKE) --no-print-directory backup-preflight
+	@set -e; stamp=$$(date +%Y%m%d); sha=$$(git rev-parse --short HEAD 2>/dev/null || echo nogit); \
+		stage="$(BACKUP_STAGING)/$(VERSION)"; dir="$(BACKUP_DIR)/releases/$(VERSION)"; \
+		mkdir -p "$$stage" "$$dir"; \
+		f="open_navigator_public_$(VERSION)_$${stamp}_$${sha}.dump"; \
+		excl=""; for t in $(PII_EXCLUDE_TABLES); do excl="$$excl --exclude-table=public.$$t"; done; \
+		echo "📦 Dumping open_navigator schema 'public' (civic only — personal user tables excluded) at $(VERSION)..."; \
+		PGPASSWORD=$(PGPASSWORD) $(PG_DUMP) -h $(PG_HOST) -p $(PG_PORT) -U $(PG_USER) -Fc --no-owner --no-privileges --schema=public $$excl open_navigator -f "$$stage/$$f"; \
+		echo "📤 Copying dump into the Drive folder ($$dir/)..."; \
+		cp "$$stage/$$f" "$$dir/$$f"; \
+		rm -rf "$$stage"; \
+		echo "✅ Public-only dump (no personal user data) in $$dir/$$f — Google Drive will sync it off-machine."
+
+# Neon serving backup (recommended for a PII-free public snapshot): dumps the PRODUCTION
+# Neon serving DB from NEON_DATABASE_URL in .env. That DB is civic-only by construction —
+# sync_public_to_neon.py NEVER mirrors the user/auth/social/feed tables — and its serving
+# objects are real materialized tables (not views over gold), so the dump is standalone
+# AND contains no personal user data. pg_dump is READ-ONLY, so it is safe against prod.
+# We strip Neon's `-pooler` host suffix because pg_dump needs the direct (session) endpoint.
+# `--no-owner --no-privileges` drops Neon's role/grants so the dump restores cleanly under
+# the LOCAL `$(PG_USER)` user (restore-neon also passes --role=$(PG_USER)).
+backup-neon:
+	@test -n "$(VERSION)" || { echo "❌ VERSION required, e.g. make backup-neon VERSION=v1.5.0"; exit 1; }
+	@$(MAKE) --no-print-directory backup-preflight
+	@set -e; url=$$(grep -E '^NEON_DATABASE_URL=' .env 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'"); \
+		test -n "$$url" || { echo "❌ NEON_DATABASE_URL not found in .env (the prod serving DB)."; exit 1; }; \
+		url=$$(printf '%s' "$$url" | sed 's/-pooler//'); \
+		stamp=$$(date +%Y%m%d); sha=$$(git rev-parse --short HEAD 2>/dev/null || echo nogit); \
+		stage="$(BACKUP_STAGING)/$(VERSION)"; dir="$(BACKUP_DIR)/releases/$(VERSION)"; \
+		mkdir -p "$$stage" "$$dir"; \
+		f="neon_serving_$(VERSION)_$${stamp}_$${sha}.dump"; \
+		echo "📦 Dumping Neon serving DB (civic only — no personal user data) at $(VERSION) to local staging..."; \
+		$(PG_DUMP) --no-owner --no-privileges -Fc "$$url" -f "$$stage/$$f"; \
+		echo "📤 Copying dump into the Drive folder ($$dir/)..."; \
+		cp "$$stage/$$f" "$$dir/$$f"; \
+		rm -rf "$$stage"; \
+		echo "✅ Neon serving dump (no PII) in $$dir/$$f — Google Drive will sync it off-machine."
+
+# Restore a Neon serving snapshot into a SEPARATE LOCAL database (default
+# open_navigator_serving on localhost:5433). Never touches prod and never the main
+# open_navigator warehouse. Point the API at it (NEON_DATABASE_URL_DEV) for a PII-free
+# local serving instance.
+restore-neon:
+	@test -n "$(VERSION)" || { echo "❌ VERSION required, e.g. make restore-neon VERSION=v1.5.0"; exit 1; }
+	@$(MAKE) --no-print-directory backup-preflight
+	@echo "⚠️  Restoring Neon serving $(VERSION) into LOCAL db '$(NEON_RESTORE_DB)' ($(PG_HOST):$(PG_PORT)) — never prod."
+	@dir="$(BACKUP_DIR)/releases/$(VERSION)"; \
+		f=$$(ls "$$dir"/neon_serving_$(VERSION)_*.dump 2>/dev/null | head -1); \
+		test -n "$$f" || { echo "❌ Could not find $(VERSION) Neon dump in $$dir/ (run: make backup-neon VERSION=$(VERSION))"; exit 1; }; \
+		PGPASSWORD=$(PGPASSWORD) $(PG_CREATEDB) -h $(PG_HOST) -p $(PG_PORT) -U $(PG_USER) $(NEON_RESTORE_DB) 2>/dev/null || true; \
+		echo "♻️  Restoring $$f into $(NEON_RESTORE_DB)..."; \
+		PGPASSWORD=$(PGPASSWORD) $(PG_RESTORE) -h $(PG_HOST) -p $(PG_PORT) -U $(PG_USER) -d $(NEON_RESTORE_DB) --no-owner --no-privileges --role=$(PG_USER) --clean --if-exists "$$f"; \
+		echo "✅ Restored Neon serving $(VERSION) into local '$(NEON_RESTORE_DB)' (owned by $(PG_USER))"
+
+restore-public:
+	@test -n "$(VERSION)" || { echo "❌ VERSION required, e.g. make restore-public VERSION=v1.5.0"; exit 1; }
+	@$(MAKE) --no-print-directory backup-preflight
+	@echo "⚠️  Restoring $(VERSION) PUBLIC schema into LOCAL dev warehouse ($(PG_HOST):$(PG_PORT)) — never run against prod."
+	@echo "   Note: public serving views reference 'gold'; restore the full backup first if gold is absent."
+	@dir="$(BACKUP_DIR)/releases/$(VERSION)"; \
+		f=$$(ls "$$dir"/open_navigator_public_$(VERSION)_*.dump 2>/dev/null | head -1); \
+		test -n "$$f" || { echo "❌ Could not find $(VERSION) public dump in $$dir/ (run: make backup-public VERSION=$(VERSION))"; exit 1; }; \
+		echo "♻️  Restoring open_navigator (public schema only) from $$f..."; \
+		PGPASSWORD=$(PGPASSWORD) $(PG_RESTORE) -h $(PG_HOST) -p $(PG_PORT) -U $(PG_USER) -d open_navigator --schema=public --clean --if-exists "$$f"; \
+		echo "✅ Restored $(VERSION) public schema"
