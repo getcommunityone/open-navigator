@@ -97,12 +97,12 @@ cd web_docs && npm start                            # Terminal 3 — Docs  (3000
 
 The `.sh` scripts and the `make` targets are Unix-oriented (`start-all.sh` uses
 `tmux`, which Windows lacks). Use the PowerShell equivalents instead — they create
-the same `venv`, install from the same `requirements.txt`, and launch the same three
+the same `.venv`, install from the same `requirements.txt`, and launch the same three
 services, each in its own window:
 
 ```powershell
 # From the repo root, in PowerShell:
-.\install.ps1        # Python backend: creates venv, installs deps, seeds .env
+.\install.ps1        # Python backend: creates .venv, installs deps, seeds .env
 cd web_app;  npm install; cd ..
 cd web_docs; npm install; cd ..
 .\start-all.ps1      # API (8000) + App (5173) + Docs (3000), one window each

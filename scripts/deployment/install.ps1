@@ -103,16 +103,16 @@ if (Get-Command tesseract -ErrorAction SilentlyContinue) {
 # --- Virtual environment ------------------------------------------------------
 Write-Host ""
 Write-Host "Creating virtual environment..."
-if (Test-Path "venv") {
+if (Test-Path ".venv") {
     Write-Host "[!] Virtual environment already exists. Removing old one..." -ForegroundColor Yellow
-    Remove-Item -Recurse -Force "venv"
+    Remove-Item -Recurse -Force ".venv"
 }
-& $py.Exe @($py.Args + @('-m', 'venv', 'venv'))
+& $py.Exe @($py.Args + @('-m', 'venv', '.venv'))
 Write-Host "[OK] Virtual environment created"
 
 # Use the venv's interpreter directly (robust regardless of activation state /
 # ExecutionPolicy). All subsequent pip calls go through this python.exe.
-$venvPython = Join-Path (Get-Location) "venv\Scripts\python.exe"
+$venvPython = Join-Path (Get-Location) ".venv\Scripts\python.exe"
 if (-not (Test-Path $venvPython)) {
     Write-Host "[X] Expected venv interpreter not found at $venvPython" -ForegroundColor Red
     exit 1
@@ -161,7 +161,7 @@ Write-Host "Installation Complete!"
 Write-Host "=================================================="
 Write-Host ""
 Write-Host "To activate the virtual environment, run:"
-Write-Host "  .\venv\Scripts\Activate.ps1"
+Write-Host "  .\.venv\Scripts\Activate.ps1"
 Write-Host ""
 Write-Host "Then you can use the CLI:"
 Write-Host "  python main.py --help"

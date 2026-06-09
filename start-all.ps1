@@ -24,10 +24,9 @@ Write-Host "=========================================="
 Write-Host ""
 
 # --- Locate the virtual environment ------------------------------------------
-# install.ps1 / Makefile create `venv`; start-all.sh / some docs use `.venv`.
-# Accept whichever exists.
+# Everything standardizes on `.venv`; tolerate a legacy `venv` just in case.
 $venvDir = $null
-foreach ($candidate in @("venv", ".venv")) {
+foreach ($candidate in @(".venv", "venv")) {
     if (Test-Path (Join-Path $RepoRoot "$candidate\Scripts\python.exe")) {
         $venvDir = $candidate
         break

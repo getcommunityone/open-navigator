@@ -92,7 +92,7 @@ cd web_docs && npm install && cd .. # Documentation
 targets are Unix-only):
 
 ```powershell
-.\install.ps1                       # Python backend (creates venv + .env)
+.\install.ps1                       # Python backend (creates .venv + .env)
 cd web_app;  npm install; cd ..
 cd web_docs; npm install; cd ..
 .\start-all.ps1                     # API (8000) + App (5173) + Docs (3000)

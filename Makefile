@@ -9,7 +9,7 @@ help:
 	@echo "  make stop-all          - Stop all running services"
 	@echo ""
 	@echo "🐍 Python Backend:"
-	@echo "  make install           - Install Python dependencies in venv"
+	@echo "  make install           - Install Python dependencies in .venv"
 	@echo "  make dev               - Start backend with auto-reload"
 	@echo "  make run               - Start backend (production)"
 	@echo ""
@@ -92,16 +92,16 @@ clean:
 
 test:
 	@echo "🧪 Running tests..."
-	@. venv/bin/activate && pytest tests/ -v
+	@. .venv/bin/activate && pytest tests/ -v
 
 run: build-web_app
 	@echo "🚀 Starting application (production mode)..."
-	@. venv/bin/activate && uvicorn api.app:app --host 0.0.0.0 --port 8000
+	@. .venv/bin/activate && uvicorn api.app:app --host 0.0.0.0 --port 8000
 
 dev:
 	@echo "🔧 Starting backend with auto-reload..."
 	@echo "📡 Backend running at http://localhost:8000"
-	@. venv/bin/activate && uvicorn api.app:app --reload
+	@. .venv/bin/activate && uvicorn api.app:app --reload
 
 dev-web_app:
 	@echo "⚛️  Starting dashboard dev server..."
@@ -131,7 +131,7 @@ dev-full:
 	@echo "📡 Dashboard: http://localhost:5173"
 	@echo "📡 Docs:      http://localhost:3000 (run 'make dev-docs' in another terminal)"
 	@echo ""
-	@. venv/bin/activate && uvicorn api.app:app --reload & \
+	@. .venv/bin/activate && uvicorn api.app:app --reload & \
 	cd web_app && npm run dev
 
 deploy-databricks:
@@ -153,31 +153,31 @@ docker-down:
 
 example:
 	@echo "Running example workflow..."
-	@. venv/bin/activate && python examples/example_workflow.py
+	@. .venv/bin/activate && python examples/example_workflow.py
 
 heatmap:
 	@echo "Generating example heatmap..."
-	@. venv/bin/activate && python main.py generate-heatmap --output example_heatmap.html
+	@. .venv/bin/activate && python main.py generate-heatmap --output example_heatmap.html
 	@echo "✓ Heatmap saved to example_heatmap.html"
 
 init:
 	@echo "Initializing system..."
-	@. venv/bin/activate && python main.py init
+	@. .venv/bin/activate && python main.py init
 
 status:
 	@echo "Checking system status..."
-	@. venv/bin/activate && python main.py status
+	@. .venv/bin/activate && python main.py status
 
 format:
 	@echo "Formatting code..."
-	@. venv/bin/activate && black .
-	@. venv/bin/activate && ruff check . --fix
+	@. .venv/bin/activate && black .
+	@. .venv/bin/activate && ruff check . --fix
 	@echo "✓ Code formatted"
 
 lint:
 	@echo "Linting code..."
-	@. venv/bin/activate && ruff check .
-	@. venv/bin/activate && mypy agents/ pipeline/ visualization/ api/
+	@. .venv/bin/activate && ruff check .
+	@. .venv/bin/activate && mypy agents/ pipeline/ visualization/ api/
 
 # Incremental refresh of Grants.gov federal opportunities -> public.grant_opportunity.
 # Bronze upserts by opportunity_id (no --truncate), then the dbt mart merges
