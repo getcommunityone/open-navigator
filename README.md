@@ -76,98 +76,21 @@ The `deploy-huggingface.sh` script automatically:
 - ✅ Pushes code and triggers automatic build (~10-15 min)
 
 
-### Prerequisites
-
-- Python 3.11+
-- Node.js 18+
-- Docker (optional)
-- OpenAI API key
-
-### Installation
-
-**Option 1: Start Everything at Once (Recommended)**
+### Get Running Locally
 
 ```bash
-# Clone repository
+# Clone, install, and launch all three services in tmux
 git clone https://github.com/getcommunityone/open-navigator.git
 cd open-navigator
-
-# Install dependencies
-./install.sh                          # Python backend
-cd frontend && npm install && cd ..   # React app
-cd website && npm install && cd ..    # Documentation
-
-# Setup git hooks for build protection (one-time)
-./setup-git-hooks.sh
-
-# Start all services in tmux
-./start-all.sh
+./install.sh                        # Python backend (creates .venv + .env)
+cd web_app && npm install && cd ..  # React app
+cd web_docs && npm install && cd .. # Documentation
+./start-all.sh                      # API (8000) + App (5173) + Docs (3000)
 ```
 
-**Option 2: Using Makefile**
-
-```bash
-# Install
-make install
-make install-frontend
-make install-docs
-
-# Start all services
-make start-all
-
-# Or individually:
-make dev           # API only
-make dev-frontend  # React app only
-make dev-docs      # Docs only
-```
-
-**Option 3: Manual Setup**
-
-```bash
-# Python backend
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-
-# Optional: Spark + Delta Lake (only if you'll run Databricks/Spark scripts).
-# Requires a Java runtime (e.g. `sudo apt install openjdk-17-jre-headless`).
-# pip install -r requirements-spark.txt
-
-# React app
-cd frontend && npm install && cd ..
-
-# Documentation
-cd website && npm install && cd ..
-
-# Configure environment
-cp .env.example .env
-# Edit .env with your API keys
-
-# Start services (separate terminals)
-source .venv/bin/activate && python main.py serve  # Terminal 1
-cd frontend && npm run dev                          # Terminal 2
-cd website && npm start                             # Terminal 3
-```
-
-### Access Points
-
-**🌐 LIVE APPLICATION:**
-- **🚀 Open Navigator:** https://www.communityone.com - Main application
-- 📚 **Documentation:** https://www.communityone.com/docs - Guides and API reference
-- 🔥 **API Docs:** https://www.communityone.com/api/docs - FastAPI interactive documentation
-
-**💻 LOCAL DEVELOPMENT:**
-- **🚀 Main App:** http://localhost:5173
-- 📚 **Documentation:** http://localhost:3000
-- 🔥 **API Docs:** http://localhost:8000/docs
-
-### Stop Services
-
-```bash
-./stop-all.sh
-# or
-make stop-all
-```
+**👉 See the [Quick Start Guide](http://localhost:3000/docs/quickstart) for full setup
+instructions** — prerequisites, the `.env` configuration tiers, Makefile and manual
+install options, access points, and how to stop the services.
 
 ---
 

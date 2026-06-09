@@ -240,7 +240,7 @@ const sidebars: SidebarsConfig = {
         'for-developers',
         {
           type: 'category',
-          label: 'Setup & Installation',
+          label: 'Setup & Quick Start',
           items: [
             'quickstart',
             'quick-reference',
@@ -453,7 +453,7 @@ const sidebars: SidebarsConfig = {
         'for-developers',
         {
           type: 'category',
-          label: 'Setup & Installation',
+          label: 'Setup & Quick Start',
           items: [
             'quickstart',
             'quick-reference',

@@ -628,8 +628,8 @@ These platforms present **multiple positions on the same issue side by side** â€
 **In this section:**
 - [U.S. Census Bureau](#us-census-bureau)
 - [State Symbols USA (reference)](#state-symbols-usa-reference)
-- [IRS Tax-Exempt Organization Search (TEOS)](#irs-tax-exempt-organization-search-teos)
-- [Open States API](#open-states-api)
+- [IRS Exempt Organizations Business Master File (EO-BMF)](#irs-exempt-organizations-business-master-file-eo-bmf)
+- [Open States / Plural Policy](#open-states--plural-policy-)
 - [LegiScan](#legiscan-)
 
 ### U.S. Census Bureau
@@ -1219,7 +1219,7 @@ concept_id_1 | concept_id_2 | relationship_id
 - [Findhelp.org (Aunt Bertha)](#findhelporg-aunt-bertha)
 - [211 Regional Directories](#211-regional-directories)
 - [Association of Religion Data Archives (ARDA)](#association-of-religion-data-archives-arda)
-- [Homeland Infrastructure Foundation-Level Data (HIFLD): Places of Worship](#homeland-infrastructure-foundation-level-data-hifld-places-of-worship)
+- [Homeland Infrastructure Foundation-Level Data (HIFLD)](#homeland-infrastructure-foundation-level-data-hifld)
 - [National Congregations Study (NCS)](#national-congregations-study-ncs)
 - [Microsoft Common Data Model for Nonprofits](#microsoft-common-data-model-for-nonprofits)
 
@@ -1975,6 +1975,8 @@ https://www.arcgis.com/home/item.html?id=f36521f6e07f4a859e838f0ad7536898"
 # Law Enforcement (46,972 locations)
 "HIFLD: Local Law Enforcement Locations. U.S. Department of Homeland Security. 
 https://www.arcgis.com/home/item.html?id=333a74c8e9c64cb6870689d31e8836af
+
+### National Congregations Study (NCS)
 
 **Organization:** Duke University  
 **What we use:** Representative survey of U.S. congregations to understand social service provision, health programs, and civic engagement patterns.

@@ -5,64 +5,188 @@ displayed_sidebar: developersSidebar
 
 # Quick Start Guide
 
+## Three Services
+
+This project runs three separate services. Launch all three at once with `./start-all.sh`:
+
+| Service | Port (Local) | Live URL | Description |
+|---------|--------------|----------|-------------|
+| **⚛️ Open Navigator** (`web_app`) | 5173 | [www.communityone.com](https://www.communityone.com) | **Main application** — search, filters, heatmap, data exploration |
+| **📚 Documentation** (`web_docs`) | 3000 | [www.communityone.com/docs](https://www.communityone.com/docs) | Docusaurus site with complete guides and tutorials |
+| **🔥 API Backend** (`api`) | 8000 | [www.communityone.com/api](https://www.communityone.com/api) | FastAPI server with AI agents |
+
+> **💡 LIVE DEMO:** Visit **[www.communityone.com](https://www.communityone.com)** to use the hosted application.
+>
+> **💻 LOCAL DEV:** After running `./start-all.sh`, visit **http://localhost:5173**.
+
+## Prerequisites
+
+- Python 3.11+
+- Node.js 18+
+- A local Postgres warehouse on `localhost:5433` (databases `open_navigator` and `openstates`) — see [Configuration](#configuration) below
+- Docker (optional — only for the containerized deployment)
+
 ## Installation
 
-### Option 1: Automated Installation (Recommended)
-
-Run the installation script:
+### Option 1: Start Everything at Once (Recommended)
 
 ```bash
-chmod +x install.sh
-./install.sh
-```
-
-This will:
-- Create a virtual environment
-- Install all dependencies
-- Create .env file from template
-- Set up the project structure
-
-### Option 2: Manual Installation
-
-```bash
-# Create virtual environment
-python3 -m venv venv
-
-# Activate virtual environment
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Upgrade pip
-pip install --upgrade pip
+# Clone repository
+git clone https://github.com/getcommunityone/open-navigator.git
+cd open-navigator
 
 # Install dependencies
-pip install -r requirements.txt
+./install.sh                        # Python backend (creates .venv + .env from template)
+cd web_app && npm install && cd ..  # React app
+cd web_docs && npm install && cd .. # Documentation
 
-# Create .env file
-cp .env.example .env
+# Start all three services in tmux
+./start-all.sh
 ```
 
-### Option 3: Using Makefile
+`start-all.sh` auto-installs the `web_app`/`web_docs` `node_modules` if they're missing,
+so the two `npm install` steps above are optional on first run.
+
+### Option 2: Using Makefile
 
 ```bash
-make install
+# Install
+make install            # Python backend
+make install-web_app    # React app
+make install-docs       # Documentation
+
+# Start all services
+make start-all
+
+# …or individually:
+make dev           # API only
+make dev-web_app   # React app only
+make dev-docs      # Docs only
+```
+
+### Option 3: Manual Setup
+
+```bash
+# Python backend
+python3 -m venv .venv
+source .venv/bin/activate           # On Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+
+# Optional: Spark + Delta Lake (only if you'll run Databricks/Spark scripts).
+# Requires a Java runtime (e.g. `sudo apt install openjdk-17-jre-headless`).
+# pip install -r requirements-spark.txt
+
+# React app + documentation
+cd web_app && npm install && cd ..
+cd web_docs && npm install && cd ..
+
+# Configure environment (see Configuration below)
+cp .env.example .env
+
+# Start services in separate terminals:
+source .venv/bin/activate && python main.py serve  # Terminal 1 — API   (8000)
+cd web_app && npm run dev                           # Terminal 2 — App   (5173)
+cd web_docs && npm start                            # Terminal 3 — Docs  (3000)
 ```
 
 ## Configuration
 
-Edit the `.env` file and add your API keys:
+`.env.example` is organized in tiers so you only set what you actually use.
+Copy it to `.env` and fill in values as needed:
 
 ```bash
-# Required
-OPENAI_API_KEY=your_openai_api_key_here
+cp .env.example .env
+```
 
-# For production (Databricks)
-DATABRICKS_HOST=https://your-workspace.cloud.databricks.com
-DATABRICKS_TOKEN=your_databricks_token_here
-DATABRICKS_WAREHOUSE_ID=your_warehouse_id_here
+### Required (minimum to run locally)
 
-# Optional: HuggingFace (for publishing datasets)
-HF_TOKEN=hf_your_write_token_here  # Needs Write permissions
-HF_ORGANIZATION=YourOrgName  # Optional
+The site needs exactly **one** variable to boot. It points the API at the
+already-running local Postgres warehouse on port `5433`, and the API reads it for
+both the civic-data warehouse and the auth/user tables:
+
+```bash
+NEON_DATABASE_URL_DEV=postgresql://postgres:password@localhost:5433/open_navigator
+```
+
+The web app (`5173`) and docs (`3000`) need no env vars to boot. With just the line
+above, `./start-all.sh` brings up all three services.
+
+### Optional for local development
+
+Set these only for the features that need them — the site runs without all of them:
+
+```bash
+# OAuth login (omit a provider to disable just that login button)
+FRONTEND_URL=http://localhost:5173
+API_BASE_URL=http://localhost:8000
+# GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET, HUGGINGFACE_CLIENT_ID / _SECRET, etc.
+
+# Stable JWT signing across restarts (auto-generated if unset)
+# JWT_SECRET_KEY=$(openssl rand -hex 32)
+
+# Bill / legislator / vote features (restore the Open States dump first)
+# OPENSTATES_DATABASE_URL=postgresql://postgres:postgres@localhost:5433/openstates
+```
+
+### Data-source API keys (ingestion only)
+
+Keys such as `OPENAI_API_KEY`, the `GEMINI_API_KEY_*` pool, `CENSUS_API_KEY`, and the
+other source keys are needed **only** to run the ingestion/enrichment pipelines that
+populate the warehouse — not to view the site.
+
+### Deployment
+
+`HF_TOKEN` / `HF_ORGANIZATION` (HuggingFace Spaces), `NEON_DATABASE_URL` (production
+Neon), and the `DATABRICKS_*` variables are for deployment only and are not needed for
+local development.
+
+> See [`.env.example`](https://github.com/getcommunityone/open-navigator/blob/main/.env.example)
+> for the full, commented list of every variable across all five tiers.
+
+## Restore the Database
+
+The three services give you the UI, but the app shows no civic data until you load a
+warehouse snapshot into the local Postgres on `localhost:5433`. Restoring a shared dump
+is far faster than rebuilding every dbt model from scratch.
+
+**If you have the [Google Drive backup folder](#google-drive-folder-one-time-setup) synced**, it's one command:
+
+```bash
+make restore VERSION=snapshot-20260609   # dev only
+```
+
+**Otherwise, restore a dump someone shared with you** directly:
+
+```bash
+# Create the DB if needed, then restore (rebuilds the `public` serving schema the API reads):
+PGPASSWORD=password createdb -h localhost -p 5433 -U postgres open_navigator 2>/dev/null || true
+PGPASSWORD=password pg_restore -h localhost -p 5433 -U postgres -d open_navigator \
+  --clean --if-exists open_navigator.dump
+```
+
+The API serves the **`public`** schema in `open_navigator` by default (`API_DB_SCHEMA=public`).
+After the restore, refresh http://localhost:5173 — search, maps, and the heatmap will be populated.
+
+> **Restore only into a local/dev warehouse — never into a production database.**
+
+## Access Points
+
+**💻 Local development:**
+- **🚀 Main App:** http://localhost:5173
+- **📚 Documentation:** http://localhost:3000
+- **🔥 API Docs:** http://localhost:8000/docs
+
+**🌐 Live application:**
+- **🚀 Open Navigator:** https://www.communityone.com
+- **📚 Documentation:** https://www.communityone.com/docs
+- **🔥 API Docs:** https://www.communityone.com/api/docs
+
+## Stop Services
+
+```bash
+./stop-all.sh
+# or
+make stop-all
 ```
 
 ## Running the System
@@ -71,7 +195,7 @@ HF_ORGANIZATION=YourOrgName  # Optional
 
 ```bash
 # Using the virtual environment
-source venv/bin/activate
+source .venv/bin/activate
 python main.py serve
 
 # Or using make
@@ -80,52 +204,11 @@ make run
 
 Visit http://localhost:8000 for the API and http://localhost:8000/docs for interactive documentation.
 
-### Run Example Workflow
-
-```bash
-# Activate venv first
-source venv/bin/activate
-
-# Run example
-python examples/example_workflow.py
-
-# Or using make
-make example
-```
-
-### Generate Heatmap
-
-```bash
-# Activate venv first
-source venv/bin/activate
-
-# Generate heatmap
-python main.py generate-heatmap --output heatmap.html
-
-# Or using make
-make heatmap
-```
-
-## Docker Deployment
-
-```bash
-# Start all services
-make docker-up
-
-# Stop all services
-make docker-down
-```
-
-This starts:
-- API server on http://localhost:8000
-- Qdrant vector DB on http://localhost:6333
-- Jupyter notebook on http://localhost:8888
-
 ## Common Commands
 
 ```bash
 # Activate virtual environment (required for all commands)
-source venv/bin/activate
+source .venv/bin/activate
 
 # Start API server
 python main.py serve
@@ -150,7 +233,7 @@ make test
 You need to activate the virtual environment first:
 
 ```bash
-source venv/bin/activate
+source .venv/bin/activate
 ```
 
 ### "Tesseract binary not found" or OCR errors
@@ -180,10 +263,10 @@ Don't use `pip install` directly. Use the virtual environment:
 
 ```bash
 # Create venv if not exists
-python3 -m venv venv
+python3 -m venv .venv
 
 # Activate it
-source venv/bin/activate
+source .venv/bin/activate
 
 # Now install
 pip install -r requirements.txt
@@ -196,227 +279,68 @@ chmod +x install.sh
 ./install.sh
 ```
 
-## Releases & Data Versioning
+## Database Backups
 
-Open Navigator follows [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH`).
-**Every release is tied to a Postgres backup** so that a given version of the code can
-always be paired with the warehouse state it was built and tested against.
+Backup and restore are two Makefile targets — no manual `pg_dump`/`pg_restore` needed.
+Each dumps **both** databases (`open_navigator` + `openstates`), stamps the files with
+version/date/git SHA, and syncs them off-machine through Google Drive:
 
-### Semantic Versioning Scheme
+| Command | What it does |
+| --- | --- |
+| `make backup VERSION=v1.5.0` | Dumps both DBs → `open-navigator-backups/releases/v1.5.0/`; Google Drive syncs them off-machine. |
+| `make restore VERSION=v1.5.0` | Restores both DBs from that folder into the local warehouse (`localhost:5433`). **Dev only.** |
 
-Given a version `MAJOR.MINOR.PATCH` (e.g. `1.4.2`):
+Use a semver tag (`v1.5.0`) for a release, or any label for an ad-hoc snapshot
+(`make backup VERSION=snapshot-20260609`). The exact commands and paths live in the
+[`backup` / `restore` targets in the Makefile](https://github.com/getcommunityone/open-navigator/blob/main/Makefile).
 
-| Bump      | When                                                                            | Example         |
-| --------- | ------------------------------------------------------------------------------- | --------------- |
-| **MAJOR** | Breaking API/schema change, dropped table or endpoint, incompatible dbt model   | `1.4.2 → 2.0.0` |
-| **MINOR** | New data source, new endpoint, new dbt mart, backward-compatible feature        | `1.4.2 → 1.5.0` |
-| **PATCH** | Bug fix, data backfill, doc change, no schema or contract change                | `1.4.2 → 1.4.3` |
+> **Restore only into a local/dev warehouse — never into a production database.**
 
-A release bundles three things at the same version number:
+### Google Drive folder (one-time setup)
 
-1. **Code** — a git tag (`vMAJOR.MINOR.PATCH`).
-2. **Schema/marts** — the dbt models as built at that tag.
-3. **Data** — a Postgres backup snapshot stored off-machine (see below).
-
-### Cutting a Release
+`make backup` writes into a folder synced by **Google Drive for Desktop**, reached in WSL
+through a symlink named `open-navigator-backups` in the repo root. Set it up once per machine:
 
 ```bash
-# 1. Make sure you're on an up-to-date main with green CI
-git checkout main && git pull
+# 1. Google Drive for Desktop must be running on Windows (so H:\My Drive is accessible).
 
-# 2. Tag the release (annotated tag, semver, v-prefixed)
-git tag -a v1.5.0 -m "feat: add grants.gov opportunities to search"
-git push origin v1.5.0
-```
-
-### One-Time Setup: Google Drive Backup Folder (WSL)
-
-Backups are written into a folder synced by **Google Drive for Desktop** on Windows,
-so they replicate off-machine automatically — no separate upload step. The dev
-environment is WSL, where Google Drive's virtual `H:` drive is reached through a
-symlink named `open-navigator-backups` in the repo root.
-
-Do this once per machine:
-
-```bash
-# 1. Make sure Google Drive for Desktop is running on Windows and H:\My Drive is accessible.
-
-# 2. Mount H: into WSL (Google Drive's virtual drive is not auto-mounted). Needs sudo:
-sudo mkdir -p "/mnt/h"
-sudo mount -t drvfs 'H:' /mnt/h
-
-# 3. Make the mount persist across WSL restarts — add this line to /etc/fstab:
-#    H: /mnt/h drvfs defaults 0 0
+# 2. Mount H: into WSL and make it persist across restarts:
+sudo mkdir -p /mnt/h && sudo mount -t drvfs 'H:' /mnt/h
 echo 'H: /mnt/h drvfs defaults 0 0' | sudo tee -a /etc/fstab
 
-# 4. Create the Drive folder and the repo symlink (the symlink is gitignored, per-machine):
+# 3. Create the Drive folder and link it into the repo (the symlink is gitignored):
 mkdir -p "/mnt/h/My Drive/open-navigator-backups"
 ln -sfn "/mnt/h/My Drive/open-navigator-backups" open-navigator-backups
 
-# 5. Verify the symlink resolves to a real directory:
-test -d "open-navigator-backups/" && echo "✅ Drive backup folder ready"
+# 4. Verify:
+test -d open-navigator-backups/ && echo "✅ Drive backup folder ready"
 ```
 
-> If you use a different Drive letter, change `H:` and `/mnt/h` accordingly. To push
-> off-machine **without** Drive for Desktop, point `BACKUP_DIR` at any folder and sync
-> it with [`rclone`](https://rclone.org/drive/) instead — the Makefile targets only
-> care that `BACKUP_DIR` resolves to a directory.
+> Different Drive letter? Swap `H:` / `/mnt/h`. No Drive for Desktop? Point `BACKUP_DIR`
+> at any folder and sync it with [`rclone`](https://rclone.org/drive/) instead.
 
-### Backing Up the Warehouse for a Release
+### Share a snapshot with a collaborator
 
-The warehouse runs on `localhost:5433` with two databases: `open_navigator` (primary)
-and `openstates` (source). One command dumps both, version-stamped, into the
-Drive-synced folder:
+1. Run `make backup VERSION=<label>`.
+2. At [drive.google.com](https://drive.google.com), open the `open-navigator-backups`
+   folder → right-click the `<label>` folder → **Share** → set "Anyone with the link →
+   Viewer" and copy the link.
+3. The recipient either shares the **same** Drive folder and runs
+   `make restore VERSION=<label>`, or downloads the `.dump` and restores it manually
+   (see [Restore the Database](#restore-the-database)).
+
+For a tagged release, also push the matching git tag and record the backup link + SHA in
+the [Release History](development/release-history.md):
 
 ```bash
-make backup VERSION=v1.5.0
+git tag -a v1.5.0 -m "feat: add grants.gov opportunities to search" && git push origin v1.5.0
 ```
-
-Each dump streams to a **local staging dir** (`.backup-staging/`, on fast ext4) first,
-then the finished file is copied into the Drive folder — this sidesteps a known
-DriveFS-over-WSL failure mode where large sequential writes straight into the virtual
-`H:` drive stall. The result lands in `open-navigator-backups/releases/v1.5.0/`, with
-the version, date, and git SHA in each filename so the snapshot ties back to the exact
-code tag:
-
-```
-open-navigator-backups/releases/v1.5.0/
-├── open_navigator_v1.5.0_20260609_a1b2c3d.dump
-└── openstates_v1.5.0_20260609_a1b2c3d.dump
-```
-
-Google Drive for Desktop then syncs the folder off-machine automatically. The
-equivalent manual steps (dump local, then copy to Drive) are:
-
-```bash
-name="open_navigator_v1.5.0_$(date +%Y%m%d)_$(git rev-parse --short HEAD).dump"
-
-# 1. Dump to local fast disk
-pg_dump -h localhost -p 5433 -U postgres -Fc open_navigator -f ".backup-staging/$name"
-
-# 2. Copy the finished file into the Drive folder (Drive for Desktop then syncs it)
-cp ".backup-staging/$name" "open-navigator-backups/releases/v1.5.0/$name"
-```
-
-### Restoring a Versioned Backup
-
-To reproduce the exact state of a release locally — check out the matching git tag,
-then restore its data snapshot from the Drive folder:
-
-```bash
-git checkout v1.5.0
-make restore VERSION=v1.5.0
-```
-
-Equivalent manual steps (Drive for Desktop streams the file on access):
-
-```bash
-git checkout v1.5.0
-
-# Restore into clean databases (drops & recreates objects)
-pg_restore -h localhost -p 5433 -U postgres -d open_navigator --clean --if-exists \
-  "open-navigator-backups/releases/v1.5.0/open_navigator_v1.5.0_"*.dump
-
-pg_restore -h localhost -p 5433 -U postgres -d openstates --clean --if-exists \
-  "open-navigator-backups/releases/v1.5.0/openstates_v1.5.0_"*.dump
-```
-
-> **Restore only into a local/dev warehouse (`localhost:5433` or a dev Neon
-> instance) — never into a production database.**
-
-Every release is recorded in the [Release History](development/release-history.md),
-which pairs each version with its backup location.
-
-### Sharing a Snapshot So Others Can Boot Their Environment
-
-The `make backup` / `make restore` flow above is the same one used to hand a working
-warehouse to a **new collaborator** — they download your dump from Google Drive and
-restore it locally instead of rebuilding every dbt model and re-running ingestion from
-scratch.
-
-#### 1. Back up the current database
-
-You don't need a formal release to share a snapshot. Tag the snapshot with any label
-(a date works well) and dump both databases:
-
-```bash
-# Versioned via the Makefile (writes into the Drive-synced backup folder):
-make backup VERSION=snapshot-20260609
-
-# …or a one-off manual dump of just the primary database:
-PGPASSWORD=password pg_dump -h localhost -p 5433 -U postgres -Fc open_navigator \
-  -f open_navigator_$(date +%Y%m%d).dump
-```
-
-> `-Fc` is Postgres' compressed custom format — it restores with `pg_restore` and is
-> far smaller than plain SQL. Dump **both** `open_navigator` and `openstates` if the
-> recipient needs the source data too.
-
-#### 2. Publish to Google Drive
-
-**If you use Google Drive for Desktop** (the WSL setup above), `make backup` already
-wrote the dumps into `open-navigator-backups/`, which Drive syncs off-machine
-automatically. To let *others* download them:
-
-1. Open [drive.google.com](https://drive.google.com) → the `open-navigator-backups`
-   folder.
-2. Right-click the release/snapshot folder → **Share** → set "Anyone with the link →
-   Viewer", and copy the link.
-
-**Without Drive for Desktop**, upload the dump from any machine with
-[`rclone`](https://rclone.org/drive/) (one-time `rclone config` to authorize Drive):
-
-```bash
-# Upload a single dump to a Drive folder named "open-navigator-backups"
-rclone copy open_navigator_20260609.dump gdrive:open-navigator-backups/snapshot-20260609/
-```
-
-Then share that folder from the Drive web UI as above. Record the link (and the
-matching git SHA/tag) in the [Release History](development/release-history.md) so the
-data snapshot stays tied to the code that produced it.
-
-#### 3. Bootstrap from a shared snapshot (the new collaborator's steps)
-
-On a fresh machine, the recipient gets the warehouse running on `localhost:5433`,
-checks out the matching code, **downloads** the dump, and restores it.
-
-```bash
-# a) Make sure local Postgres is up on :5433 and the databases exist.
-#    (createdb is a no-op / harmless error if they already exist.)
-PGPASSWORD=password createdb -h localhost -p 5433 -U postgres open_navigator 2>/dev/null || true
-PGPASSWORD=password createdb -h localhost -p 5433 -U postgres openstates     2>/dev/null || true
-
-# b) Check out the code that matches the snapshot (use the tag/SHA from the share notes).
-git checkout v1.5.0   # or the SHA recorded with the snapshot
-
-# c) Download the dump(s) from the shared Google Drive link:
-#    • Browser: open the share link and click Download, OR
-#    • CLI (no Drive login) with gdown using the file id from the share URL:
-pip install gdown
-gdown "https://drive.google.com/uc?id=<FILE_ID>" -O open_navigator.dump
-#    • or, if they share via rclone, pull the whole folder:
-#      rclone copy gdrive:open-navigator-backups/snapshot-20260609/ ./
-
-# d) Restore into the LOCAL dev warehouse:
-PGPASSWORD=password pg_restore -h localhost -p 5433 -U postgres -d open_navigator \
-  --clean --if-exists open_navigator.dump
-# (repeat for openstates.dump if provided)
-```
-
-If both collaborators share the **same** Drive folder through Drive for Desktop, the
-recipient can skip the manual download entirely and just run
-`make restore VERSION=snapshot-20260609` — the symlinked folder resolves to the
-synced files.
-
-> **Restore only into a local/dev warehouse (`localhost:5433` or a dev Neon
-> instance) — never into a production database.**
 
 ## Next Steps
 
-1. Configure your `.env` file with API keys
-2. Run the example workflow: `make example`
-3. Start the API server: `make run`
-4. Check out the interactive docs: http://localhost:8000/docs
-5. Generate a heatmap: `make heatmap`
+1. Configure your `.env` file (see [Configuration](#configuration) — only `NEON_DATABASE_URL_DEV` is required)
+2. Start all three services: `./start-all.sh`
+3. Open the app at http://localhost:5173
+4. Check out the interactive API docs: http://localhost:8000/docs
 
-For more details, see the main [README.md](README.md).
+For more details, see the main [README.md](https://github.com/getcommunityone/open-navigator/blob/main/README.md).
