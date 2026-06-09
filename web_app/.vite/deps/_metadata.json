@@ -1,8 +1,272 @@
 {
-  "hash": "3687f262",
-  "configHash": "8b30ae41",
-  "lockfileHash": "e3b0c442",
-  "browserHash": "64aaba69",
-  "optimized": {},
-  "chunks": {}
+  "hash": "7cebe053",
+  "configHash": "25f0fc39",
+  "lockfileHash": "086810b1",
+  "browserHash": "c67677cb",
+  "optimized": {
+    "@headlessui/react": {
+      "src": "../../node_modules/@headlessui/react/dist/headlessui.esm.js",
+      "file": "@headlessui_react.js",
+      "fileHash": "15c310eb",
+      "needsInterop": false
+    },
+    "@heroicons/react/24/outline": {
+      "src": "../../node_modules/@heroicons/react/24/outline/esm/index.js",
+      "file": "@heroicons_react_24_outline.js",
+      "fileHash": "2adb3b27",
+      "needsInterop": false
+    },
+    "@heroicons/react/24/solid": {
+      "src": "../../node_modules/@heroicons/react/24/solid/esm/index.js",
+      "file": "@heroicons_react_24_solid.js",
+      "fileHash": "737343db",
+      "needsInterop": false
+    },
+    "@opentelemetry/api": {
+      "src": "../../node_modules/@opentelemetry/api/build/esm/index.js",
+      "file": "@opentelemetry_api.js",
+      "fileHash": "173d182c",
+      "needsInterop": false
+    },
+    "@opentelemetry/exporter-trace-otlp-http": {
+      "src": "../../node_modules/@opentelemetry/exporter-trace-otlp-http/build/esm/index.js",
+      "file": "@opentelemetry_exporter-trace-otlp-http.js",
+      "fileHash": "221c9a59",
+      "needsInterop": false
+    },
+    "@opentelemetry/resources": {
+      "src": "../../node_modules/@opentelemetry/resources/build/esm/index.js",
+      "file": "@opentelemetry_resources.js",
+      "fileHash": "ae33ec8f",
+      "needsInterop": false
+    },
+    "@opentelemetry/sdk-trace-web": {
+      "src": "../../node_modules/@opentelemetry/sdk-trace-web/build/esm/index.js",
+      "file": "@opentelemetry_sdk-trace-web.js",
+      "fileHash": "f7ade0ae",
+      "needsInterop": false
+    },
+    "@opentelemetry/semantic-conventions": {
+      "src": "../../node_modules/@opentelemetry/semantic-conventions/build/esm/index.js",
+      "file": "@opentelemetry_semantic-conventions.js",
+      "fileHash": "9e16c4e7",
+      "needsInterop": false
+    },
+    "@tanstack/react-query": {
+      "src": "../../node_modules/@tanstack/react-query/build/modern/index.js",
+      "file": "@tanstack_react-query.js",
+      "fileHash": "f1b82dec",
+      "needsInterop": false
+    },
+    "d3-geo": {
+      "src": "../../node_modules/d3-geo/src/index.js",
+      "file": "d3-geo.js",
+      "fileHash": "a4a19dce",
+      "needsInterop": false
+    },
+    "d3-sankey": {
+      "src": "../../node_modules/d3-sankey/src/index.js",
+      "file": "d3-sankey.js",
+      "fileHash": "32478635",
+      "needsInterop": false
+    },
+    "d3-selection": {
+      "src": "../../node_modules/d3-selection/src/index.js",
+      "file": "d3-selection.js",
+      "fileHash": "8c3872f1",
+      "needsInterop": false
+    },
+    "d3-transition": {
+      "src": "../../node_modules/d3-transition/src/index.js",
+      "file": "d3-transition.js",
+      "fileHash": "01b31e1b",
+      "needsInterop": false
+    },
+    "d3-zoom": {
+      "src": "../../node_modules/d3-zoom/src/index.js",
+      "file": "d3-zoom.js",
+      "fileHash": "4c435712",
+      "needsInterop": false
+    },
+    "framer-motion": {
+      "src": "../../node_modules/framer-motion/dist/es/index.mjs",
+      "file": "framer-motion.js",
+      "fileHash": "e8b083e0",
+      "needsInterop": false
+    },
+    "leaflet": {
+      "src": "../../node_modules/leaflet/dist/leaflet-src.js",
+      "file": "leaflet.js",
+      "fileHash": "d919a248",
+      "needsInterop": true
+    },
+    "openapi-fetch": {
+      "src": "../../node_modules/openapi-fetch/dist/index.mjs",
+      "file": "openapi-fetch.js",
+      "fileHash": "95a0ff62",
+      "needsInterop": false
+    },
+    "react-dom": {
+      "src": "../../node_modules/react-dom/index.js",
+      "file": "react-dom.js",
+      "fileHash": "4c8ca864",
+      "needsInterop": true
+    },
+    "react-dom/client": {
+      "src": "../../node_modules/react-dom/client.js",
+      "file": "react-dom_client.js",
+      "fileHash": "666b9268",
+      "needsInterop": true
+    },
+    "react-leaflet": {
+      "src": "../../node_modules/react-leaflet/lib/index.js",
+      "file": "react-leaflet.js",
+      "fileHash": "656b68c1",
+      "needsInterop": false
+    },
+    "react-pdf": {
+      "src": "../../node_modules/react-pdf/dist/esm/index.js",
+      "file": "react-pdf.js",
+      "fileHash": "5cf5f236",
+      "needsInterop": false
+    },
+    "react-player/youtube": {
+      "src": "../../node_modules/react-player/youtube.js",
+      "file": "react-player_youtube.js",
+      "fileHash": "5a36c709",
+      "needsInterop": true
+    },
+    "react-router-dom": {
+      "src": "../../node_modules/react-router-dom/dist/index.js",
+      "file": "react-router-dom.js",
+      "fileHash": "5b343bab",
+      "needsInterop": false
+    },
+    "react-select": {
+      "src": "../../node_modules/react-select/dist/react-select.esm.js",
+      "file": "react-select.js",
+      "fileHash": "91b00cf1",
+      "needsInterop": false
+    },
+    "react-simple-maps": {
+      "src": "../../node_modules/react-simple-maps/dist/index.umd.js",
+      "file": "react-simple-maps.js",
+      "fileHash": "6fe2359e",
+      "needsInterop": true
+    },
+    "react": {
+      "src": "../../node_modules/react/index.js",
+      "file": "react.js",
+      "fileHash": "c7afdd4f",
+      "needsInterop": true
+    },
+    "react/jsx-dev-runtime": {
+      "src": "../../node_modules/react/jsx-dev-runtime.js",
+      "file": "react_jsx-dev-runtime.js",
+      "fileHash": "e2a2b706",
+      "needsInterop": true
+    },
+    "recharts": {
+      "src": "../../node_modules/recharts/es6/index.js",
+      "file": "recharts.js",
+      "fileHash": "95778843",
+      "needsInterop": false
+    },
+    "topojson-client": {
+      "src": "../../node_modules/topojson-client/src/index.js",
+      "file": "topojson-client.js",
+      "fileHash": "410cc55f",
+      "needsInterop": false
+    }
+  },
+  "chunks": {
+    "Preview-D3y3pAED": {
+      "file": "Preview-D3y3pAED.js",
+      "isDynamicEntry": true
+    },
+    "browser-external_fs-hM-FRKek": {
+      "file": "browser-external_fs-hM-FRKek.js",
+      "isDynamicEntry": true
+    },
+    "browser-external_http-BeXa59yG": {
+      "file": "browser-external_http-BeXa59yG.js",
+      "isDynamicEntry": true
+    },
+    "browser-external_https-O39fY86V": {
+      "file": "browser-external_https-O39fY86V.js",
+      "isDynamicEntry": true
+    },
+    "browser-external_url--JlKNkHm": {
+      "file": "browser-external_url--JlKNkHm.js",
+      "isDynamicEntry": true
+    },
+    "chunk-_TIqcEvS": {
+      "file": "chunk-_TIqcEvS.js",
+      "isDynamicEntry": false
+    },
+    "esm-BqDCjizk": {
+      "file": "esm-BqDCjizk.js",
+      "isDynamicEntry": false
+    },
+    "esm-Cg4aCtoK": {
+      "file": "esm-Cg4aCtoK.js",
+      "isDynamicEntry": false
+    },
+    "esm-CkK5VpJQ": {
+      "file": "esm-CkK5VpJQ.js",
+      "isDynamicEntry": false
+    },
+    "esm-DubyGMwv": {
+      "file": "esm-DubyGMwv.js",
+      "isDynamicEntry": false
+    },
+    "jsx-runtime-Ddl2QzLE": {
+      "file": "jsx-runtime-Ddl2QzLE.js",
+      "isDynamicEntry": false
+    },
+    "prop-types-WOmwsC-r": {
+      "file": "prop-types-WOmwsC-r.js",
+      "isDynamicEntry": false
+    },
+    "range-J_OZ20ML": {
+      "file": "range-J_OZ20ML.js",
+      "isDynamicEntry": false
+    },
+    "react-dom-Dr7h9AAs": {
+      "file": "react-dom-Dr7h9AAs.js",
+      "isDynamicEntry": false
+    },
+    "react-is-Ctd8nX1G": {
+      "file": "react-is-Ctd8nX1G.js",
+      "isDynamicEntry": false
+    },
+    "src--fPnIpbL": {
+      "file": "src--fPnIpbL.js",
+      "isDynamicEntry": false
+    },
+    "src-CFH89ZPt": {
+      "file": "src-CFH89ZPt.js",
+      "isDynamicEntry": false
+    },
+    "src-Cr0MutKw": {
+      "file": "src-Cr0MutKw.js",
+      "isDynamicEntry": false
+    },
+    "src-CvDk-rGq": {
+      "file": "src-CvDk-rGq.js",
+      "isDynamicEntry": false
+    },
+    "src-D8bLAFUa": {
+      "file": "src-D8bLAFUa.js",
+      "isDynamicEntry": false
+    },
+    "src-DIe1KrP4": {
+      "file": "src-DIe1KrP4.js",
+      "isDynamicEntry": false
+    },
+    "tiny-invariant-CpoMa4rF": {
+      "file": "tiny-invariant-CpoMa4rF.js",
+      "isDynamicEntry": false
+    }
+  }
 }

@@ -1,0 +1,2 @@
+import { a as envDetector, c as emptyResource, i as hostDetector, l as resourceFromAttributes, n as processDetector, o as detectResources, r as osDetector, s as defaultResource, t as serviceInstanceIdDetector, u as defaultServiceName } from "./esm-BqDCjizk.js";
+export { defaultResource, defaultServiceName, detectResources, emptyResource, envDetector, hostDetector, osDetector, processDetector, resourceFromAttributes, serviceInstanceIdDetector };
