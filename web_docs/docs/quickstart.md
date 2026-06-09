@@ -229,78 +229,88 @@ git tag -a v1.5.0 -m "feat: add grants.gov opportunities to search"
 git push origin v1.5.0
 ```
 
+### One-Time Setup: Google Drive Backup Folder (WSL)
+
+Backups are written into a folder synced by **Google Drive for Desktop** on Windows,
+so they replicate off-machine automatically — no separate upload step. The dev
+environment is WSL, where Google Drive's virtual `H:` drive is reached through a
+symlink named `open-navigator-backups` in the repo root.
+
+Do this once per machine:
+
+```bash
+# 1. Make sure Google Drive for Desktop is running on Windows and H:\My Drive is accessible.
+
+# 2. Mount H: into WSL (Google Drive's virtual drive is not auto-mounted). Needs sudo:
+sudo mkdir -p "/mnt/h"
+sudo mount -t drvfs 'H:' /mnt/h
+
+# 3. Make the mount persist across WSL restarts — add this line to /etc/fstab:
+#    H: /mnt/h drvfs defaults 0 0
+echo 'H: /mnt/h drvfs defaults 0 0' | sudo tee -a /etc/fstab
+
+# 4. Create the Drive folder and the repo symlink (the symlink is gitignored, per-machine):
+mkdir -p "/mnt/h/My Drive/open-navigator-backups"
+ln -sfn "/mnt/h/My Drive/open-navigator-backups" open-navigator-backups
+
+# 5. Verify the symlink resolves to a real directory:
+test -d "open-navigator-backups/" && echo "✅ Drive backup folder ready"
+```
+
+> If you use a different Drive letter, change `H:` and `/mnt/h` accordingly. To push
+> off-machine **without** Drive for Desktop, point `BACKUP_DIR` at any folder and sync
+> it with [`rclone`](https://rclone.org/drive/) instead — the Makefile targets only
+> care that `BACKUP_DIR` resolves to a directory.
+
 ### Backing Up the Warehouse for a Release
 
 The warehouse runs on `localhost:5433` with two databases: `open_navigator` (primary)
-and `openstates` (source). The quickest path is the Makefile target, which dumps both
-databases (version-stamped) **and** uploads them to Drive in one step:
+and `openstates` (source). One command dumps both, version-stamped, into the
+Drive-synced folder:
 
 ```bash
 make backup VERSION=v1.5.0
 ```
 
-Under the hood it creates a compressed, version-stamped dump of each database so the
-filename ties the data snapshot back to the git tag:
+This writes compressed (`-Fc`) dumps to
+`open-navigator-backups/releases/v1.5.0/`, with the version, date, and git SHA in each
+filename so the data snapshot ties back to the exact code tag:
+
+```
+open-navigator-backups/releases/v1.5.0/
+├── open_navigator_v1.5.0_20260609_a1b2c3d.dump
+└── openstates_v1.5.0_20260609_a1b2c3d.dump
+```
+
+Google Drive for Desktop then syncs the folder off-machine automatically. The
+equivalent manual `pg_dump` is:
 
 ```bash
-VERSION=v1.5.0
-STAMP=$(date +%Y%m%d)
-
-# Custom-format (-Fc) dumps — compressed and restorable with pg_restore
 pg_dump -h localhost -p 5433 -U postgres -Fc open_navigator \
-  -f "open_navigator_${VERSION}_${STAMP}.dump"
-
-pg_dump -h localhost -p 5433 -U postgres -Fc openstates \
-  -f "openstates_${VERSION}_${STAMP}.dump"
+  -f "open-navigator-backups/releases/v1.5.0/open_navigator_v1.5.0_$(date +%Y%m%d)_$(git rev-parse --short HEAD).dump"
 ```
-
-### Pushing Backups to Google Drive
-
-> The remote backup target (Google Drive folder / `rclone` remote) is **not yet
-> provisioned** — fill in the real remote name and folder once it exists. Do not
-> commit dumps to git (they are large and may contain PII-adjacent data).
-
-Recommended tool is [`rclone`](https://rclone.org/drive/) (handles Drive auth,
-chunked uploads, and resumes). One-time setup: `rclone config` → create a `drive`
-remote (name it e.g. `gdrive`).
-
-```bash
-# Upload the version-stamped dumps to a "releases" folder on Drive
-rclone copy open_navigator_${VERSION}_${STAMP}.dump gdrive:open-navigator-backups/${VERSION}/
-rclone copy openstates_${VERSION}_${STAMP}.dump     gdrive:open-navigator-backups/${VERSION}/
-
-# Verify the upload landed
-rclone ls gdrive:open-navigator-backups/${VERSION}/
-```
-
-Keep one folder per release tag (`open-navigator-backups/v1.5.0/`) so the data
-snapshot is unambiguously paired with the code tag.
 
 ### Restoring a Versioned Backup
 
 To reproduce the exact state of a release locally — check out the matching git tag,
-then restore its data snapshot. The Makefile target pulls the dumps from Drive and
-restores both databases:
+then restore its data snapshot from the Drive folder:
 
 ```bash
 git checkout v1.5.0
 make restore VERSION=v1.5.0
 ```
 
-Equivalent manual steps:
+Equivalent manual steps (Drive for Desktop streams the file on access):
 
 ```bash
 git checkout v1.5.0
 
-# Pull the dumps for that version from Drive
-rclone copy gdrive:open-navigator-backups/v1.5.0/ ./restore/ --include "*.dump"
-
 # Restore into clean databases (drops & recreates objects)
 pg_restore -h localhost -p 5433 -U postgres -d open_navigator --clean --if-exists \
-  ./restore/open_navigator_v1.5.0_*.dump
+  "open-navigator-backups/releases/v1.5.0/open_navigator_v1.5.0_"*.dump
 
 pg_restore -h localhost -p 5433 -U postgres -d openstates --clean --if-exists \
-  ./restore/openstates_v1.5.0_*.dump
+  "open-navigator-backups/releases/v1.5.0/openstates_v1.5.0_"*.dump
 ```
 
 > **Restore only into a local/dev warehouse (`localhost:5433` or a dev Neon
@@ -308,6 +318,90 @@ pg_restore -h localhost -p 5433 -U postgres -d openstates --clean --if-exists \
 
 Every release is recorded in the [Release History](development/release-history.md),
 which pairs each version with its backup location.
+
+### Sharing a Snapshot So Others Can Boot Their Environment
+
+The `make backup` / `make restore` flow above is the same one used to hand a working
+warehouse to a **new collaborator** — they download your dump from Google Drive and
+restore it locally instead of rebuilding every dbt model and re-running ingestion from
+scratch.
+
+#### 1. Back up the current database
+
+You don't need a formal release to share a snapshot. Tag the snapshot with any label
+(a date works well) and dump both databases:
+
+```bash
+# Versioned via the Makefile (writes into the Drive-synced backup folder):
+make backup VERSION=snapshot-20260609
+
+# …or a one-off manual dump of just the primary database:
+PGPASSWORD=password pg_dump -h localhost -p 5433 -U postgres -Fc open_navigator \
+  -f open_navigator_$(date +%Y%m%d).dump
+```
+
+> `-Fc` is Postgres' compressed custom format — it restores with `pg_restore` and is
+> far smaller than plain SQL. Dump **both** `open_navigator` and `openstates` if the
+> recipient needs the source data too.
+
+#### 2. Publish to Google Drive
+
+**If you use Google Drive for Desktop** (the WSL setup above), `make backup` already
+wrote the dumps into `open-navigator-backups/`, which Drive syncs off-machine
+automatically. To let *others* download them:
+
+1. Open [drive.google.com](https://drive.google.com) → the `open-navigator-backups`
+   folder.
+2. Right-click the release/snapshot folder → **Share** → set "Anyone with the link →
+   Viewer", and copy the link.
+
+**Without Drive for Desktop**, upload the dump from any machine with
+[`rclone`](https://rclone.org/drive/) (one-time `rclone config` to authorize Drive):
+
+```bash
+# Upload a single dump to a Drive folder named "open-navigator-backups"
+rclone copy open_navigator_20260609.dump gdrive:open-navigator-backups/snapshot-20260609/
+```
+
+Then share that folder from the Drive web UI as above. Record the link (and the
+matching git SHA/tag) in the [Release History](development/release-history.md) so the
+data snapshot stays tied to the code that produced it.
+
+#### 3. Bootstrap from a shared snapshot (the new collaborator's steps)
+
+On a fresh machine, the recipient gets the warehouse running on `localhost:5433`,
+checks out the matching code, **downloads** the dump, and restores it.
+
+```bash
+# a) Make sure local Postgres is up on :5433 and the databases exist.
+#    (createdb is a no-op / harmless error if they already exist.)
+PGPASSWORD=password createdb -h localhost -p 5433 -U postgres open_navigator 2>/dev/null || true
+PGPASSWORD=password createdb -h localhost -p 5433 -U postgres openstates     2>/dev/null || true
+
+# b) Check out the code that matches the snapshot (use the tag/SHA from the share notes).
+git checkout v1.5.0   # or the SHA recorded with the snapshot
+
+# c) Download the dump(s) from the shared Google Drive link:
+#    • Browser: open the share link and click Download, OR
+#    • CLI (no Drive login) with gdown using the file id from the share URL:
+pip install gdown
+gdown "https://drive.google.com/uc?id=<FILE_ID>" -O open_navigator.dump
+#    • or, if they share via rclone, pull the whole folder:
+#      rclone copy gdrive:open-navigator-backups/snapshot-20260609/ ./
+
+# d) Restore into the LOCAL dev warehouse:
+PGPASSWORD=password pg_restore -h localhost -p 5433 -U postgres -d open_navigator \
+  --clean --if-exists open_navigator.dump
+# (repeat for openstates.dump if provided)
+```
+
+If both collaborators share the **same** Drive folder through Drive for Desktop, the
+recipient can skip the manual download entirely and just run
+`make restore VERSION=snapshot-20260609` — the symlinked folder resolves to the
+synced files.
+
+> **Restore only into a local/dev warehouse (`localhost:5433` or a dev Neon
+> instance) — never into a production database.**
 
 ## Next Steps
 
