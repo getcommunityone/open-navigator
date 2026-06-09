@@ -107,7 +107,7 @@ class MoneyFlowResponse(BaseModel):
 # ---------------------------------------------------------------------------
 _SPENDING_SQL = """
     SELECT event_decision_id, title, net_dollar_impact, outcome, occurred_at,
-           votes_yes, votes_no, total_votes
+           votes_yes, votes_no, total_votes, jurisdiction_id
     FROM item_interestingness
     WHERE net_dollar_impact IS NOT NULL AND net_dollar_impact <> 0
       AND ($1::text IS NULL OR state_code = $1)
@@ -127,9 +127,18 @@ async def _spending(conn, *, state_code: Optional[str], city: Optional[str], sco
     if not rows:
         return lens
     src = scope_label or "Local government"
-    # Source node drills to the decisions map for this scope (same target as the
-    # headline figure); each decision node drills to that decision's detail page.
-    src_url = f"/decisions-map?state={quote(state_code)}" if state_code else "/decisions-map"
+    # Source node drill-down: when every spending row sits in a SINGLE jurisdiction
+    # (i.e. a city-scoped view like "Tuscaloosa, AL"), drill into that jurisdiction's
+    # own page rather than the broad geocoded decisions map. Multi-jurisdiction scopes
+    # (state-only or the U.S.) fall back to the decisions map for this scope; each
+    # decision node still drills to that decision's detail page.
+    juris_ids = {r["jurisdiction_id"] for r in rows if r["jurisdiction_id"]}
+    if len(juris_ids) == 1:
+        src_url = f"/jurisdiction/{quote(str(next(iter(juris_ids))))}/meetings"
+    elif state_code:
+        src_url = f"/decisions-map?state={quote(state_code)}"
+    else:
+        src_url = "/decisions-map"
     nodes = [FlowNode(name=_trunc(src, 24), url=src_url)]
     links: List[FlowLink] = []
     total = 0.0

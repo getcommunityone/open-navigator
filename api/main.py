@@ -340,6 +340,7 @@ from api.routes import trending as trending_routes
 from api.routes import lighthouse_reports as lighthouse_reports_routes
 from api.routes import jurisdiction_mapping as jurisdiction_mapping_routes
 from api.routes import batch_jobs as batch_jobs_routes
+from api.routes import deployments as deployments_routes
 from api.routes import locations as locations_routes
 from api.routes import addresses as addresses_routes
 from api.routes import geocode as geocode_routes
@@ -369,6 +370,7 @@ app.include_router(trending_routes.router)
 app.include_router(lighthouse_reports_routes.router, prefix="/api")
 app.include_router(jurisdiction_mapping_routes.router, prefix="/api")
 app.include_router(batch_jobs_routes.router, prefix="/api")
+app.include_router(deployments_routes.router, prefix="/api")
 app.include_router(locations_routes.router, prefix="/api")
 app.include_router(addresses_routes.router, prefix="/api")
 app.include_router(geocode_routes.router, prefix="/api")

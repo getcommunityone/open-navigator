@@ -15,6 +15,7 @@ import {
   FilmIcon,
   DocumentTextIcon,
   DocumentIcon,
+  BuildingOffice2Icon,
 } from '@heroicons/react/24/outline'
 import { withSpan } from '../instrumentation'
 
@@ -275,6 +276,12 @@ function ViewColumn({
         .filter((p): p is string => typeof p === 'string' && p.trim().length > 0)
         .map(parseSpeaker)
     : []
+  // Which organizations backed this side (`held_by_organizations` org_ids).
+  const heldByOrgs = Array.isArray(view?.held_by_organizations)
+    ? (view.held_by_organizations as unknown[])
+        .filter((o): o is string => typeof o === 'string' && o.trim().length > 0)
+        .map(parseOrgLabel)
+    : []
 
   const rows = VIEW_SUBFIELDS.map(({ key, label: l, hint, emphasize }) => {
     const v = view?.[key]
@@ -332,6 +339,20 @@ function ViewColumn({
             <span key={i} className="inline-flex items-center gap-1.5">
               <Avatar speaker={sp} size={26} />
               <span className="text-[12.5px] font-medium text-[#16201d]">{sp.name}</span>
+            </span>
+          ))}
+        </div>
+      )}
+      {heldByOrgs.length > 0 && (
+        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-[#9bb8b8]">Backed by</span>
+          {heldByOrgs.map((org, i) => (
+            <span
+              key={i}
+              className="inline-flex items-center gap-1 rounded-full bg-[#eef4f2] px-2.5 py-0.5 text-[12px] font-medium text-[#16201d]"
+            >
+              <BuildingOffice2Icon className="h-3.5 w-3.5 text-[#1d6b5f]" />
+              {org}
             </span>
           ))}
         </div>
@@ -722,6 +743,24 @@ function parseSpeaker(id: string): Speaker {
   let h = 0
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0
   return { name, role, initials, color: AVATAR_COLORS[h % AVATAR_COLORS.length] }
+}
+
+// Org ids are descriptive slugs too (e.g. "tuscaloosa_housing_authority_0177256"
+// or "smith_development_llc_0177256"). Derive a clean display label: drop a trailing
+// geoid, title-case words, and upper-case common org acronyms.
+const ORG_ACRONYMS = new Set(['llc', 'llp', 'inc', 'lp', 'pc', 'hoa', 'dba', 'usa', 'us'])
+
+function parseOrgLabel(id: string): string {
+  const toks = id.split('_').filter(Boolean)
+  while (toks.length && /^\d+$/.test(toks[toks.length - 1])) toks.pop() // drop trailing geoid
+  const label = toks
+    .map((t) =>
+      ORG_ACRONYMS.has(t.toLowerCase())
+        ? t.toUpperCase()
+        : t.charAt(0).toUpperCase() + t.slice(1),
+    )
+    .join(' ')
+  return label || 'Organization'
 }
 
 function Avatar({ speaker, size = 40 }: { speaker: Speaker; size?: number }) {
