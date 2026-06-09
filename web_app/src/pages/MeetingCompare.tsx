@@ -6,7 +6,9 @@ import {
   SparklesIcon,
   ExclamationTriangleIcon,
   XCircleIcon,
-  LightBulbIcon,
+  MapPinIcon,
+  DocumentTextIcon,
+  BanknotesIcon,
   ArrowPathIcon,
 } from '@heroicons/react/24/outline'
 import api from '../lib/api'
@@ -31,11 +33,31 @@ interface GapItem {
   detail: string
 }
 
+interface Correction {
+  quote: string
+  ai_claim: string
+  correction: string
+}
+
+interface DollarAmount {
+  amount: string
+  description: string
+  quote: string
+}
+
+interface DecisionEnrichment {
+  decision_ref: string
+  addresses: string[]
+  legislation: string[]
+  dollar_amounts: DollarAmount[]
+}
+
 interface GapAnalysis {
   status: 'ok' | 'no_document_text' | 'parse_error'
-  omissions: GapItem[]
-  possible_errors: GapItem[]
-  interesting_gaps: GapItem[]
+  corrections: Correction[]
+  corrected_summary: string
+  decision_enrichments: DecisionEnrichment[]
+  minutes_omissions: GapItem[]
   overall: string
   model: string | null
 }
@@ -90,53 +112,27 @@ function voteTallyText(tally: unknown): string | null {
   return entries.map(([k, v]) => `${k}: ${v}`).join(' · ')
 }
 
-/** One color-coded gap subsection (omissions / errors / interesting). */
-function GapSection({
-  title,
-  items,
-  tone,
-  Icon,
-}: {
-  title: string
-  items: GapItem[]
-  tone: 'amber' | 'red' | 'teal'
-  Icon: typeof ExclamationTriangleIcon
-}) {
-  const tones = {
-    amber: {
-      head: 'text-amber-800',
-      border: 'border-amber-200',
-      bar: 'border-amber-300',
-    },
-    red: {
-      head: 'text-red-800',
-      border: 'border-red-200',
-      bar: 'border-red-300',
-    },
-    teal: {
-      head: 'text-[#155448]',
-      border: 'border-[#1d6b5f]/20',
-      bar: 'border-[#1d6b5f]/40',
-    },
-  }[tone]
-
+/** "What the official record left out" — the editorially interesting bias signal. */
+function OmissionsSection({ items, docType }: { items: GapItem[]; docType: string }) {
   return (
-    <div className={`rounded-lg border ${tones.border} bg-white p-4`}>
-      <h3 className={`mb-3 flex items-center gap-2 text-sm font-bold ${tones.head}`}>
-        <Icon className="h-4 w-4" />
-        {title}
-        <span className="text-xs font-normal text-gray-400">({items.length})</span>
+    <div className="rounded-lg border border-amber-200 bg-amber-50/40 p-4">
+      <h3 className="mb-1 flex items-center gap-2 text-sm font-bold text-amber-800">
+        <ExclamationTriangleIcon className="h-4 w-4" />
+        What the official {docType} left out
+        <span className="text-xs font-normal text-amber-700/70">({items.length})</span>
       </h3>
+      <p className="mb-3 text-xs text-amber-700/80">
+        Discussed in the meeting (per the recording) but absent from the official
+        record — worth a closer look.
+      </p>
       {items.length === 0 ? (
-        <p className="text-sm text-gray-400">None found.</p>
+        <p className="text-sm text-gray-500">Nothing notable was left out.</p>
       ) : (
         <ul className="space-y-3">
           {items.map((item, idx) => (
             <li key={idx} className="text-sm">
               {item.quote && (
-                <blockquote
-                  className={`mb-1 border-l-2 ${tones.bar} pl-3 italic text-gray-600`}
-                >
+                <blockquote className="mb-1 border-l-2 border-amber-300 pl-3 italic text-gray-600">
                   “{item.quote}”
                 </blockquote>
               )}
@@ -149,7 +145,41 @@ function GapSection({
   )
 }
 
-function GapResult({ gaps }: { gaps: GapAnalysis }) {
+/** Factual fixes the official record forced onto the AI recap. */
+function CorrectionsSection({ items, docType }: { items: Correction[]; docType: string }) {
+  if (items.length === 0) return null
+  return (
+    <div className="rounded-lg border border-[#1d6b5f]/20 bg-white p-4">
+      <h3 className="mb-1 flex items-center gap-2 text-sm font-bold text-[#155448]">
+        <XCircleIcon className="h-4 w-4" />
+        AI facts corrected from the {docType}
+        <span className="text-xs font-normal text-gray-400">({items.length})</span>
+      </h3>
+      <p className="mb-3 text-xs text-gray-500">
+        The official {docType} is authoritative for these facts; the recap above
+        reflects the corrected values.
+      </p>
+      <ul className="space-y-3">
+        {items.map((c, idx) => (
+          <li key={idx} className="text-sm">
+            <p className="text-gray-800">
+              <span className="text-red-600 line-through">{c.ai_claim}</span>{' '}
+              <span aria-hidden>→</span>{' '}
+              <span className="font-medium text-[#155448]">{c.correction}</span>
+            </p>
+            {c.quote && (
+              <blockquote className="mt-1 border-l-2 border-[#1d6b5f]/40 pl-3 text-xs italic text-gray-500">
+                “{c.quote}”
+              </blockquote>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+function GapResult({ gaps, docType }: { gaps: GapAnalysis; docType: string }) {
   if (gaps.status === 'no_document_text') {
     return (
       <div className="rounded-lg border border-gray-200 bg-gray-50 p-6 text-center text-sm text-gray-600">
@@ -171,29 +201,64 @@ function GapResult({ gaps }: { gaps: GapAnalysis }) {
           {gaps.overall}
         </p>
       )}
-      <div className="grid gap-4 md:grid-cols-3">
-        <GapSection
-          title="Omissions"
-          items={gaps.omissions}
-          tone="amber"
-          Icon={ExclamationTriangleIcon}
-        />
-        <GapSection
-          title="Possible errors"
-          items={gaps.possible_errors}
-          tone="red"
-          Icon={XCircleIcon}
-        />
-        <GapSection
-          title="Interesting gaps"
-          items={gaps.interesting_gaps}
-          tone="teal"
-          Icon={LightBulbIcon}
-        />
-      </div>
+      <OmissionsSection items={gaps.minutes_omissions} docType={docType} />
+      <CorrectionsSection items={gaps.corrections} docType={docType} />
       {gaps.model && (
         <p className="text-right text-xs text-gray-400">Analyzed with {gaps.model}</p>
       )}
+    </div>
+  )
+}
+
+/** Exact detail pulled from the official document for one decision: addresses,
+ *  related legislation, and dollar amounts/transactions. Renders nothing when the
+ *  document added no detail for this decision. */
+function DecisionDetailFromDoc({
+  enrich,
+  docType,
+}: {
+  enrich: DecisionEnrichment
+  docType: string
+}) {
+  const hasAny =
+    enrich.addresses.length > 0 ||
+    enrich.legislation.length > 0 ||
+    enrich.dollar_amounts.length > 0
+  if (!hasAny) return null
+  return (
+    <div className="mt-2 rounded-md bg-[#1d6b5f]/5 px-3 py-2 text-xs text-gray-700">
+      <p className="mb-1 font-semibold uppercase tracking-wide text-[#155448]">
+        From the official {docType}
+      </p>
+      <div className="space-y-1">
+        {enrich.addresses.length > 0 && (
+          <p className="flex items-start gap-1.5">
+            <MapPinIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#1d6b5f]" />
+            <span>{enrich.addresses.join(' · ')}</span>
+          </p>
+        )}
+        {enrich.legislation.length > 0 && (
+          <p className="flex items-start gap-1.5">
+            <DocumentTextIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#1d6b5f]" />
+            <span>{enrich.legislation.join(' · ')}</span>
+          </p>
+        )}
+        {enrich.dollar_amounts.length > 0 && (
+          <div className="flex items-start gap-1.5">
+            <BanknotesIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#1d6b5f]" />
+            <ul className="space-y-0.5">
+              {enrich.dollar_amounts.map((amt, i) => (
+                <li key={i}>
+                  <span className="font-semibold tabular-nums text-[#155448]">
+                    {amt.amount}
+                  </span>
+                  {amt.description && <span> — {amt.description}</span>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -249,6 +314,25 @@ export default function MeetingCompare() {
   const gapsForActive = activeUrl
     ? (gapsByUrl[activeUrl] ?? cachedGaps[activeUrl] ?? null)
     : null
+
+  // When the active document's analysis produced a corrected summary, show that
+  // (the recap with its facts fixed from the official record); else the original.
+  const correctedSummary =
+    gapsForActive?.status === 'ok' && gapsForActive.corrected_summary.trim()
+      ? gapsForActive.corrected_summary
+      : null
+
+  // Per-decision enrichment (addresses / legislation / dollar amounts) pulled from
+  // the official document, keyed by the decision id the model referenced.
+  const enrichmentByDecision = useMemo(() => {
+    const map = new Map<string, DecisionEnrichment>()
+    for (const e of gapsForActive?.decision_enrichments ?? []) {
+      if (e.decision_ref) map.set(e.decision_ref, e)
+    }
+    return map
+  }, [gapsForActive])
+
+  const activeDocType = activeType ?? 'document'
 
   const mutation = useMutation<GapAnalysis, Error, string>({
     mutationFn: async (documentUrl: string) => {
@@ -351,17 +435,22 @@ export default function MeetingCompare() {
               />
 
               <div className="mb-6 rounded-lg bg-white p-6 shadow-sm">
-                <h2 className="mb-4 flex items-center gap-2 text-lg font-bold text-gray-900">
+                <h2 className="mb-4 flex flex-wrap items-center gap-2 text-lg font-bold text-gray-900">
                   <SparklesIcon className="h-5 w-5 text-[#1d6b5f]" />
                   AI Summary
                   <span className="text-sm font-normal text-gray-400">
                     from meeting recording
                   </span>
+                  {correctedSummary && (
+                    <span className="rounded-full bg-[#1d6b5f]/10 px-2 py-0.5 text-xs font-medium text-[#155448]">
+                      Corrected from {activeDocType}
+                    </span>
+                  )}
                 </h2>
 
-                {data?.summary.meeting_summary ? (
+                {correctedSummary ?? data?.summary.meeting_summary ? (
                   <p className="mb-4 whitespace-pre-line text-sm leading-relaxed text-gray-700">
-                    {data.summary.meeting_summary}
+                    {correctedSummary ?? data?.summary.meeting_summary}
                   </p>
                 ) : (
                   <p className="mb-4 text-sm text-gray-400">No summary available.</p>
@@ -386,6 +475,7 @@ export default function MeetingCompare() {
                     <ul className="space-y-3">
                       {data.summary.decisions.map((d) => {
                         const votes = voteTallyText(d.vote_tally)
+                        const enrich = enrichmentByDecision.get(d.event_decision_id)
                         return (
                           <li
                             key={d.event_decision_id}
@@ -411,6 +501,7 @@ export default function MeetingCompare() {
                                 {votes}
                               </p>
                             )}
+                            {enrich && <DecisionDetailFromDoc enrich={enrich} docType={activeDocType} />}
                           </li>
                         )
                       })}
@@ -424,7 +515,7 @@ export default function MeetingCompare() {
             <div className="mt-2">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-xl font-bold text-gray-900">
-                  Gaps between the {typeLabel(activeType).toLowerCase()} and the summary
+                  Reconciling the {typeLabel(activeType).toLowerCase()} with the AI recap
                 </h2>
                 {gapsForActive ? (
                   <button
@@ -448,7 +539,7 @@ export default function MeetingCompare() {
               )}
 
               {gapsForActive ? (
-                <GapResult gaps={gapsForActive} />
+                <GapResult gaps={gapsForActive} docType={activeDocType} />
               ) : (
                 <div className="rounded-lg border border-dashed border-gray-300 bg-white p-8 text-center">
                   <SparklesIcon className="mx-auto mb-3 h-8 w-8 text-[#1d6b5f]" />
@@ -461,11 +552,13 @@ export default function MeetingCompare() {
                     {mutation.isPending && (
                       <span className="h-4 w-4 animate-spin rounded-full border-b-2 border-white" />
                     )}
-                    {mutation.isPending ? 'Analyzing…' : 'Analyze gaps'}
+                    {mutation.isPending ? 'Analyzing…' : 'Reconcile with the official record'}
                   </button>
                   <p className="mt-2 text-xs text-gray-500">
-                    Runs an AI comparison of this {typeLabel(activeType).toLowerCase()}{' '}
-                    against the summary.
+                    Runs an AI pass that fixes factual errors, enriches each decision
+                    with addresses, legislation and dollar amounts from the{' '}
+                    {typeLabel(activeType).toLowerCase()}, and flags what the official
+                    record left out.
                   </p>
                 </div>
               )}
