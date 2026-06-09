@@ -1665,6 +1665,11 @@ export default function CensusDrilldownMapPage() {
               const cpiByYear = cpi.data?.by_year
               const cpiLatestYear = cpi.data?.latest_year
               const realMode = toggleActive && inflationMode === 'real' && !!cpiByYear && cpiLatestYear != null
+              // CPI fetch resolved without a usable deflator (e.g. /api/cpi/annual
+              // 500'd): real dollars can't be computed, so the card shows nominal.
+              // Surface that on the toggle rather than leaving "Real" highlighted.
+              const cpiUnavailable =
+                toggleActive && !cpi.isLoading && (!!cpi.isError || !cpiByYear || cpiLatestYear == null)
               const displayValue = realMode
                 ? deflate(showing?.value ?? null, displayVintage, cpiLatestYear, cpiByYear) ??
                   (showing?.value ?? null)
@@ -1788,6 +1793,7 @@ export default function CensusDrilldownMapPage() {
                               mode={inflationMode}
                               onChange={setInflationMode}
                               ariaLabel={metricLabel}
+                              realUnavailable={cpiUnavailable}
                             />
                             <InfoHelpTrigger
                               topic="Real vs nominal dollars"
