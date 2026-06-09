@@ -13,12 +13,22 @@ handful of tables; each is copied verbatim into a real table on the target.
 
 What it deliberately does NOT copy (CRITICAL)
 ---------------------------------------------
-Local ``public`` also holds the live application's **runtime / auth** tables
-(see :data:`RUNTIME_OWNED`). Those are written by the *running prod app* — the
-real user accounts, OAuth flow state, social graph, feed prefs, and the
-on-demand meeting-gap cache live in the TARGET, not here. Copying our (usually
-empty local) copies over them would wipe production users. They are excluded
-from the copy and never touched on the target.
+1. **Runtime / auth tables** (see :data:`RUNTIME_OWNED`). Those are written by
+   the *running prod app* — the real user accounts, OAuth flow state, social
+   graph, feed prefs, and the on-demand meeting-gap cache live in the TARGET,
+   not here. Copying our (usually empty local) copies over them would wipe
+   production users. They are excluded from the copy and never touched.
+
+2. **The nonprofit / 990 money + MDM graph** (see :data:`NON_SERVING`). Local
+   ``public`` exposes the *entire* ``gold`` warehouse as views, including
+   ``grant`` (~2.3 GB), ``mdm_organization`` (~1.7 GB), the org↔jurisdiction
+   bridge (~0.8 GB) and friends — ~5 GB of "follow-the-money" / entity-resolution
+   data. Neon's free tier caps the **whole project at 512 MB**, so this graph
+   cannot be served from Neon at any scope; ``grant`` alone is 4.5× the cap.
+   The deployment is civic-only, so we copy an explicit **allow-list** of
+   civic-serving objects (:data:`CIVIC_SERVING`, ~240 MB) and skip everything
+   else. Any ``public`` object that is in neither list is logged loudly and
+   skipped, so a newly-added object can never silently blow the cap again.
 
 Per-object safety
 ------------------
@@ -74,6 +84,66 @@ RUNTIME_OWNED = frozenset(
         "user_locations",
         "user_signal_prefs",
         "meeting_document_gap_cache",
+    }
+)
+
+# The nonprofit / 990 money + MDM entity-resolution graph. These public objects
+# are views over the FULL gold warehouse — together ~5 GB of materialized rows
+# (grant ~2.3 GB, mdm_organization ~1.7 GB, mdm_bridge_org_jurisdiction ~0.8 GB,
+# mdm_organization_nonprofit ~0.4 GB, nonprofit_sector_revenue). Neon's free
+# tier caps the WHOLE project at 512 MB, so none of this can be served from
+# Neon; grant alone is 4.5x the cap. The deployment is civic-only — these are
+# never mirrored. Documented here (not just absent from CIVIC_SERVING) so the
+# reason a heavy object is dropped is explicit at the skip site.
+NON_SERVING = frozenset(
+    {
+        "grant",
+        "mdm_organization",
+        "mdm_organization_nonprofit",
+        "mdm_bridge_org_jurisdiction",
+        "nonprofit_sector_revenue",
+    }
+)
+
+# Explicit allow-list of civic-serving public objects to mirror to Neon
+# (~240 MB total — comfortably under the 512 MB free-tier cap). This is an
+# allow-list, not a deny-list, on purpose: under a HARD project-size cap a new
+# object must default to *excluded* so it can't silently blow the budget. When
+# a genuinely civic object is added to public, add it here (the run warns about
+# any unclassified object so it gets surfaced). The federal grants.gov
+# opportunities mart (`grant_opportunity`) is civic and distinct from the 990
+# `grant` money graph above; `tag` ships its node table only.
+CIVIC_SERVING = frozenset(
+    {
+        # events & AI analysis
+        "event",
+        "event_decision",
+        "event_decision_place",
+        "event_place_geocoded",
+        "event_financial_item",
+        "event_bill",
+        "event_topic",
+        "event_meeting",
+        "event_meeting_document",
+        "event_documents",
+        "meeting_document",
+        "mdm_bridge_event_analysis",
+        # people & officials
+        "contact_official",
+        "person_government",
+        # jurisdictions
+        "jurisdictions",
+        "civic_jurisdiction",
+        "jurisdiction_document",
+        "jurisdiction_mapping_analysis",
+        "jurisdiction_state_aggregate",
+        "jurisdiction_minutes_publish_lag",
+        # bills, grants opportunities, feed, taxonomy
+        "grant_opportunity",
+        "rpt_bill_map_aggregate",
+        "item_interestingness",
+        "item_flags",
+        "tag",
     }
 )
 
@@ -149,8 +219,16 @@ def _is_dns_failure(exc: BaseException) -> bool:
 
 
 def _serving_objects(local_conn) -> List[str]:
-    """Local public relations to mirror: ordinary tables, views, matviews —
-    minus the runtime/app-owned deny-list. Returns names sorted."""
+    """Civic-serving local public relations to mirror, sorted.
+
+    Returns only objects on the :data:`CIVIC_SERVING` allow-list. Under Neon's
+    hard 512 MB project cap a blunt "everything in public minus a deny-list"
+    copy ships the ~5 GB nonprofit/MDM money graph and fails object-by-object;
+    so we copy an explicit civic allow-list instead. Any public object that is
+    classified by *neither* the allow-list nor the runtime/non-serving
+    deny-lists is logged as a warning and skipped, so a newly-added object is
+    surfaced for triage rather than silently busting the cap.
+    """
     with local_conn.cursor() as cur:
         cur.execute(
             """
@@ -161,7 +239,32 @@ def _serving_objects(local_conn) -> List[str]:
             ORDER BY c.relname
             """
         )
-        return [r[0] for r in cur.fetchall() if r[0] not in RUNTIME_OWNED]
+        present = [r[0] for r in cur.fetchall()]
+
+    unclassified = [
+        r
+        for r in present
+        if r not in CIVIC_SERVING
+        and r not in RUNTIME_OWNED
+        and r not in NON_SERVING
+    ]
+    if unclassified:
+        logger.warning(
+            "❓ {} unclassified public object(s) — NOT copied (add to CIVIC_SERVING "
+            "if civic-serving, else NON_SERVING): {}",
+            len(unclassified),
+            ", ".join(unclassified),
+        )
+
+    missing = sorted(CIVIC_SERVING - set(present))
+    if missing:
+        logger.warning(
+            "⚠️  {} allow-listed object(s) absent from local public (not built?): {}",
+            len(missing),
+            ", ".join(missing),
+        )
+
+    return [r for r in present if r in CIVIC_SERVING]
 
 
 def _column_defs(local_conn, name: str) -> List[Tuple[str, str]]:
@@ -272,8 +375,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     # us. Autocommit releases each COPY's lock as soon as it finishes.
     local_conn.autocommit = True
 
-    objects = _serving_objects(local_conn)
     if args.only:
+        # Explicit --only bypasses the civic allow-list (escape hatch for
+        # targeted copies / a paid target), but never the runtime deny-list.
         wanted = set(args.only)
         skipped_runtime = wanted & RUNTIME_OWNED
         if skipped_runtime:
@@ -281,13 +385,22 @@ def main(argv: Optional[List[str]] = None) -> int:
                 "🚫 Refusing runtime/app-owned table(s): {} — these are never mirrored.",
                 ", ".join(sorted(skipped_runtime)),
             )
-        objects = [o for o in objects if o in wanted]
-
-    logger.info(
-        "🗂️  {} serving object(s) to copy (runtime/auth tables excluded: {})",
-        len(objects),
-        ", ".join(sorted(RUNTIME_OWNED)),
-    )
+        forced_heavy = wanted & NON_SERVING
+        if forced_heavy:
+            logger.warning(
+                "⚠️  --only includes non-serving money/MDM object(s): {} — these "
+                "exceed the 512 MB free-tier cap and will fail there.",
+                ", ".join(sorted(forced_heavy)),
+            )
+        objects = sorted(wanted - RUNTIME_OWNED)
+        logger.info("🗂️  {} object(s) to copy (--only override)", len(objects))
+    else:
+        objects = _serving_objects(local_conn)
+        logger.info(
+            "🗂️  {} civic-serving object(s) to copy "
+            "(runtime + nonprofit/MDM money graph excluded)",
+            len(objects),
+        )
 
     if args.dry_run:
         for o in objects:
