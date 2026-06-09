@@ -62,38 +62,38 @@ This documentation is organized by audience. Click the section that best describ
 
 ## Platform Scale
 
-Open Navigator provides access to comprehensive data from 5 states:
+Open Navigator provides nationwide civic data, with deep AI meeting analysis concentrated across 7 states:
 
 <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', margin: '30px 0', textAlign: 'center'}}>
 
 <div style={{padding: '20px', background: '#f5f5f5', borderRadius: '8px'}}>
-  <div style={{fontSize: '2.5em', fontWeight: 'bold', color: '#2196F3'}}>925</div>
+  <div style={{fontSize: '2.5em', fontWeight: 'bold', color: '#2196F3'}}>82,921</div>
   <div style={{marginTop: '10px', color: '#666'}}>Government Jurisdictions</div>
 </div>
 
 <div style={{padding: '20px', background: '#f5f5f5', borderRadius: '8px'}}>
-  <div style={{fontSize: '2.5em', fontWeight: 'bold', color: '#4CAF50'}}>43,726</div>
+  <div style={{fontSize: '2.5em', fontWeight: 'bold', color: '#4CAF50'}}>3.6M</div>
   <div style={{marginTop: '10px', color: '#666'}}>Nonprofit Organizations</div>
 </div>
 
 <div style={{padding: '20px', background: '#f5f5f5', borderRadius: '8px'}}>
-  <div style={{fontSize: '2.5em', fontWeight: 'bold', color: '#FF9800'}}>6,913</div>
+  <div style={{fontSize: '2.5em', fontWeight: 'bold', color: '#FF9800'}}>2,297</div>
   <div style={{marginTop: '10px', color: '#666'}}>Meeting Minutes Analyzed</div>
 </div>
 
 <div style={{padding: '20px', background: '#f5f5f5', borderRadius: '8px'}}>
-  <div style={{fontSize: '2.5em', fontWeight: 'bold', color: '#9C27B0'}}>362</div>
+  <div style={{fontSize: '2.5em', fontWeight: 'bold', color: '#9C27B0'}}>34,322</div>
   <div style={{marginTop: '10px', color: '#666'}}>Elected Officials</div>
 </div>
 
 <div style={{padding: '20px', background: '#f5f5f5', borderRadius: '8px'}}>
-  <div style={{fontSize: '2.5em', fontWeight: 'bold', color: '#F44336'}}>306</div>
+  <div style={{fontSize: '2.5em', fontWeight: 'bold', color: '#F44336'}}>10,893</div>
   <div style={{marginTop: '10px', color: '#666'}}>School Districts</div>
 </div>
 
 <div style={{padding: '20px', background: '#f5f5f5', borderRadius: '8px'}}>
-  <div style={{fontSize: '2.5em', fontWeight: 'bold', color: '#00BCD4'}}>5</div>
-  <div style={{marginTop: '10px', color: '#666'}}>States with Full IRS Data</div>
+  <div style={{fontSize: '2.5em', fontWeight: 'bold', color: '#00BCD4'}}>52</div>
+  <div style={{marginTop: '10px', color: '#666'}}>States &amp; Territories Covered</div>
 </div>
 
 </div>
