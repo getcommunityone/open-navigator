@@ -11,6 +11,7 @@ export type DeploymentStep = {
   started_at?: string | null
   finished_at?: string | null
   exit_code?: number | null
+  note?: string | null
   log: string
   cmd: string
 }

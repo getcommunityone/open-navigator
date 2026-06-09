@@ -62,6 +62,11 @@ function StepRow({ job, step }: { job: DeploymentJob; step: DeploymentStep }) {
           <StatusBadge status={step.status} />
         </span>
       </button>
+      {step.note && (
+        <p className="border-t border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          ⚠️ {step.note}
+        </p>
+      )}
       {open && (
         <div className="border-t border-slate-100 bg-slate-50 px-3 py-2">
           {step.cmd && (

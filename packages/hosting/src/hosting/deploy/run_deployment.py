@@ -128,6 +128,7 @@ class DeploymentJob:
                     "started_at": None,
                     "finished_at": None,
                     "exit_code": None,
+                    "note": None,
                     "log": str((log_dir / f"{job_id}_{key}.log").relative_to(_repo_root())),
                     "cmd": "",
                 }
@@ -163,6 +164,19 @@ class DeploymentJob:
             except OSError:
                 pass
             raise
+
+
+# Human-readable hints keyed by a step's exit code, surfaced in the panel so the
+# operator sees the *cause* without opening the raw step log. Exit 3 is the
+# convention used by network-dependent steps (e.g. hosting.neon.sync_public_to_neon)
+# for a DNS / name-resolution failure — almost always a VPN/split-DNS blip on WSL2.
+_EXIT_NOTES: Dict[int, str] = {
+    3: (
+        "Network/DNS failure — couldn't resolve the Neon host. This is usually a "
+        "VPN or split-DNS issue (common on WSL2), not a Neon outage. Disconnect/"
+        "reconnect the VPN and retry; already-copied objects persist."
+    ),
+}
 
 
 def _step_argv(key: str) -> List[str]:
@@ -257,6 +271,7 @@ class _Orchestrator:
                 step["status"] = "completed"
             else:
                 step["status"] = "failed"
+                step["note"] = _EXIT_NOTES.get(rc)
                 failed = True
             step["finished_at"] = _now_iso()
             self.job.flush()
