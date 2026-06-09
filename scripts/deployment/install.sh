@@ -126,6 +126,22 @@ else
 fi
 echo "✓ Dependencies installed"
 
+# Install the local workspace libraries (packages/*) as editable, top-level
+# importable modules. requirements.txt only pins third-party deps; the API
+# entrypoint imports agents/ingestion/config/llm/etc. which now live under
+# packages/* (there is no top-level agents/ tree anymore), so without this step
+# `python main.py serve` fails with `ModuleNotFoundError: No module named
+# 'agents'`. --no-deps keeps the dependency closure exactly as requirements.txt
+# pins it (these packages' own third-party deps are already installed above).
+# This is the full runtime set the Dockerfile installs (eager + lazy imports).
+echo ""
+echo "Installing local workspace packages (editable)..."
+pip install --no-deps \
+    -e packages/core -e packages/core-lib -e packages/datamodels \
+    -e packages/agents -e packages/scrapers -e packages/ingestion \
+    -e packages/llm -e packages/accessibility -e packages/hosting
+echo "✓ Workspace packages installed"
+
 # Create .env file if it doesn't exist
 echo ""
 if [ ! -f ".env" ]; then
