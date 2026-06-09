@@ -110,7 +110,19 @@ const config: Config = {
     ],
   ],
 
-  themes: ['@docusaurus/theme-mermaid'],
+  themes: [
+    '@docusaurus/theme-mermaid',
+    // Free, offline search — builds the index at build time, no external service/account.
+    [
+      require.resolve('@easyops-cn/docusaurus-search-local'),
+      {
+        hashed: true,
+        indexBlog: true,
+        docsRouteBasePath: process.env.DOCUSAURUS_BASE_URL ? '/' : 'docs',
+        highlightSearchTermsOnTargetPage: true,
+      },
+    ],
+  ],
 
   plugins: [() => ensureGtagHeadStubPlugin()],
 
@@ -180,7 +192,8 @@ const config: Config = {
           label: 'Developers',
         },
         {
-          to: 'docs/data-sources/citations',
+          type: 'doc',
+          docId: 'data-sources/citations',
           label: 'Data and Terms',
           position: 'left',
         },
