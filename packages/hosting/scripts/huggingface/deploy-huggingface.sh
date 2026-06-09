@@ -310,8 +310,17 @@ for d in agents api config discovery extraction pipeline scripts tests visualiza
          databricks examples models neon notebooks; do
     [ -d "$d" ] && git add "$d"
 done
-git add requirements*.txt setup.py main.py Makefile *.sh *.md *.yml *.yaml
-git add CITATIONS.md CONTRIBUTING.md LICENSE INTEL_ARC_QUICKSTART.md
+# Add top-level files. Use nullglob so unmatched globs expand to nothing
+# (a bare `git add *.yaml` with no match would otherwise abort with exit 128),
+# and guard each literal so a since-removed file (e.g. INTEL_ARC_QUICKSTART.md)
+# can't fail the whole deploy.
+shopt -s nullglob
+for f in requirements*.txt *.sh *.md *.yml *.yaml \
+         setup.py main.py Makefile \
+         CITATIONS.md CONTRIBUTING.md LICENSE INTEL_ARC_QUICKSTART.md; do
+    [ -e "$f" ] && git add "$f"
+done
+shopt -u nullglob
 
 # Add web_app/web_docs source EXCLUDING node_modules (gitignore handles this)
 echo "🧹 Adding web_app/web_docs sources (node_modules auto-excluded by .gitignore)..."
