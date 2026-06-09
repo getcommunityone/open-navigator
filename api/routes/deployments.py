@@ -123,6 +123,7 @@ class DeploymentStepModel(BaseModel):
     started_at: Optional[str] = None
     finished_at: Optional[str] = None
     exit_code: Optional[int] = None
+    note: Optional[str] = None
     log: str = ""
     cmd: str = ""
 
