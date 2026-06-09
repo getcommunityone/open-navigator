@@ -56,6 +56,7 @@
     'jurisdiction_document', 'jurisdiction_mapping_analysis',
     'jurisdiction_state_aggregate', 'jurisdiction_minutes_publish_lag',
     'grant', 'grant_opportunity', 'tag', 'rpt_bill_map_aggregate',
+    'cpi_annual',
     'item_interestingness', 'item_flags', 'nonprofit_sector_revenue',
     'mdm_organization', 'mdm_organization_nonprofit', 'mdm_bridge_org_jurisdiction',
     'mdm_bridge_event_analysis'

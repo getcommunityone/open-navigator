@@ -1,0 +1,45 @@
+version: 2
+
+models:
+  - name: cpi_annual
+    description: >
+      public.cpi_annual — annual-average BLS CPI index, one row per
+      (series_id, year). Serves the frontend real-dollar / inflation toggle via
+      /api/cpi/annual. A reference series with no foreign-key relationships;
+      the composite (series_id, year) is the primary key. year is an INTEGER.
+      Built from stg_bls__cpi_annual (-> bronze_bls_cpi, loaded by
+      ingestion.bls.cpi).
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: primary_key
+        columns: [series_id, year]
+    columns:
+      - name: series_id
+        description: "BLS series identifier (e.g. CUUR0000SA0 = CPI-U NSA, all items, US city avg)."
+        data_type: varchar(32)
+        constraints:
+          - type: not_null
+      - name: year
+        description: "Calendar year (INTEGER per the storage rule)."
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: index_value
+        description: "Annual-average CPI index value."
+        data_type: numeric
+        constraints:
+          - type: not_null
+      - name: from_official_annual
+        description: >
+          True when the value is the BLS official annual average (period M13);
+          false when derived from the mean of >=6 monthly observations.
+        data_type: boolean
+        constraints:
+          - type: not_null
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [series_id, year]

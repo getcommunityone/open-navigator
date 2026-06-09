@@ -1,7 +1,8 @@
 """CPI (Bureau of Labor Statistics) read endpoint for the frontend inflation toggle.
 
-Reads ``staging.stg_bls__cpi_annual`` (built from ``bronze.bronze_bls_cpi``,
-loaded by ``ingestion.bls.cpi``) and returns a flat
+Reads ``public.cpi_annual`` (the civic serving mart over
+``staging.stg_bls__cpi_annual`` -> ``bronze.bronze_bls_cpi``, loaded by
+``ingestion.bls.cpi``) and returns a flat
 ``{year: index_value}`` map plus the latest year — exactly the shape the
 frontend ``useInflationToggle`` / ``deflate()`` utility consumes to convert
 nominal dollars to constant dollars of the latest year.
@@ -21,9 +22,20 @@ from loguru import logger
 
 router = APIRouter()
 
-LOCAL_DB_URL = os.getenv(
+# DB URL priority mirrors api/database.py so prod resolves to Neon, not
+# localhost: NEON_DATABASE_URL_DEV (local dev) -> NEON_DATABASE_URL (prod Neon)
+# -> DATABASE_URL -> local fallback. The earlier dev-only single-var lookup fell
+# through to localhost in prod, which (combined with CPI being absent from the
+# Neon serving schema) was a source of the production 500s.
+DB_URL = os.getenv(
     "NEON_DATABASE_URL_DEV",
-    "postgresql://postgres:password@localhost:5433/open_navigator",
+    os.getenv(
+        "NEON_DATABASE_URL",
+        os.getenv(
+            "DATABASE_URL",
+            "postgresql://postgres:password@localhost:5433/open_navigator",
+        ),
+    ),
 )
 
 # CPI updates monthly; a 6-hour TTL is loose enough that the cost-per-request
@@ -48,13 +60,15 @@ def cpi_annual(
         return cached["payload"]
 
     try:
-        conn = psycopg2.connect(LOCAL_DB_URL)
+        conn = psycopg2.connect(DB_URL)
         try:
             cur = conn.cursor()
+            # public.cpi_annual is the civic serving relation (mirrored to Neon
+            # prod); the staging view is gold/dev-only and never reaches Neon.
             cur.execute(
                 """
                 SELECT year, index_value, from_official_annual
-                FROM staging.stg_bls__cpi_annual
+                FROM public.cpi_annual
                 WHERE series_id = %s
                 ORDER BY year
                 """,
