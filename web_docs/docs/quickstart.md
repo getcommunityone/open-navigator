@@ -283,6 +283,26 @@ chmod +x install.sh
 ./install.sh
 ```
 
+## Releases & Data Versioning
+
+Open Navigator follows [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH`).
+**Every release is tied to a Postgres backup** so that a given version of the code can
+always be paired with the warehouse state it was built and tested against.
+
+Given a version `MAJOR.MINOR.PATCH` (e.g. `1.4.2`):
+
+| Bump      | When                                                                            | Example         |
+| --------- | ------------------------------------------------------------------------------- | --------------- |
+| **MAJOR** | Breaking API/schema change, dropped table or endpoint, incompatible dbt model   | `1.4.2 → 2.0.0` |
+| **MINOR** | New data source, new endpoint, new dbt mart, backward-compatible feature        | `1.4.2 → 1.5.0` |
+| **PATCH** | Bug fix, data backfill, doc change, no schema or contract change                | `1.4.2 → 1.4.3` |
+
+A release bundles three things at the same version number:
+
+1. **Code** — a git tag (`vMAJOR.MINOR.PATCH`).
+2. **Schema/marts** — the dbt models as built at that tag.
+3. **Data** — a Postgres backup snapshot stored off-machine (see [Database Backups](#database-backups) below).
+
 ## Database Backups
 
 Backup and restore are Makefile targets — no manual `pg_dump`/`pg_restore` needed. Each

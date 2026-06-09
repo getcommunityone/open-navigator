@@ -187,36 +187,51 @@ async def oauth_login(
     
     Supported providers: huggingface, google, facebook, github
     """
-    try:
-        if provider not in OAUTH_PROVIDERS:
-            raise HTTPException(status_code=400, detail=f"Unsupported provider: {provider}")
-        
-        config = OAUTH_PROVIDERS[provider]
-        client_id = os.getenv(config['client_id_env'])
-        
-        if not client_id:
-            raise HTTPException(
-                status_code=500, 
-                detail=f"OAuth not configured for {provider}. Missing {config['client_id_env']}"
-            )
-    except Exception as e:
-        import traceback
-        print(f"ERROR in oauth_login: {e}")
-        print(traceback.format_exc())
-        raise HTTPException(status_code=500, detail=f"OAuth login error: {str(e)}")
-    
-    # Generate state token for CSRF protection
+    if provider not in OAUTH_PROVIDERS:
+        raise HTTPException(status_code=400, detail=f"Unsupported provider: {provider}")
+
+    config = OAUTH_PROVIDERS[provider]
+    client_id = os.getenv(config['client_id_env'])
+    client_secret = os.getenv(config['client_secret_env'])
+
+    # Missing OAuth credentials is a configuration problem, not a server crash.
+    # Return a clear 503 so the cause is visible instead of a swallowed 500.
+    if not client_id or not client_secret:
+        missing = config['client_id_env'] if not client_id else config['client_secret_env']
+        logger.error("OAuth not configured for {}: missing env var {}", provider, missing)
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                f"{provider.title()} sign-in is temporarily unavailable "
+                f"(server is missing {missing}). Please try another sign-in method "
+                "or contact support@communityone.com."
+            ),
+        )
+
+    # Generate state token for CSRF protection and persist it.
+    # A failure here is almost always a missing/unmigrated oauth_states table —
+    # surface that explicitly rather than letting it fall through as a generic 500.
     state = generate_state_token()
-    
-    # Store state in database
-    oauth_state = OAuthState(
-        state_token=state,
-        provider=provider,
-        redirect_uri=redirect_uri,
-        expires_at=datetime.utcnow() + timedelta(minutes=10),
-    )
-    db.add(oauth_state)
-    db.commit()
+    try:
+        oauth_state = OAuthState(
+            state_token=state,
+            provider=provider,
+            redirect_uri=redirect_uri,
+            expires_at=datetime.utcnow() + timedelta(minutes=10),
+        )
+        db.add(oauth_state)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.exception("Failed to persist OAuth state for {}: {}", provider, e)
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                f"{provider.title()} sign-in is temporarily unavailable "
+                "(could not start the login session). Please try again shortly "
+                "or contact support@communityone.com."
+            ),
+        )
     
     # Build callback URL dynamically from request (handles both local and production)
     base_url = get_base_url(request)
