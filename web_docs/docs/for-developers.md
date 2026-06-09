@@ -71,7 +71,7 @@ Includes:
 
 ## What You'll Find Here
 
-### 🚀 Setup & Installation
+### 🚀 Setup & Quick Start
 
 Get the platform running:
 - **[Quick Start](/docs/quickstart)** - Detailed installation instructions
