@@ -21,6 +21,8 @@ Feature requests are welcome! Please:
 
 ### Code Contributions
 
+> **Developing on Windows?** The `Makefile` / `install.sh` flow is Unix-oriented — see [docs/DEVELOPING_ON_WINDOWS.md](docs/DEVELOPING_ON_WINDOWS.md) for setup and test-running notes.
+
 1. **Fork the repository**
 2. **Create a feature branch**
    ```bash
