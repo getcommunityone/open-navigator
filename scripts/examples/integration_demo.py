@@ -214,6 +214,6 @@ if __name__ == "__main__":
     print("\n" + "=" * 80)
     print("✅ Demo complete!")
     print("\n📖 For more details, see:")
-    print("   - docs/INTEGRATION_GUIDE.md")
+    print("   - web_docs/docs/integrations/overview.md")
     print("   - discovery/platform_detector.py")
     print("   - models/meeting_event.py")
