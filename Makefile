@@ -1,4 +1,4 @@
-.PHONY: help install install-web_app install-docs build-web_app build-docs clean test run dev dev-web_app dev-docs start-all stop-all dev-full docker-up docker-down deploy-databricks grants-refresh backup restore
+.PHONY: help install install-web_app install-docs build-web_app build-docs clean test run dev dev-web_app dev-docs start-all stop-all dev-full docker-up docker-down deploy-databricks grants-refresh backup-preflight backup restore
 
 help:
 	@echo "🦷 Open Navigator - Makefile Commands"
@@ -211,10 +211,33 @@ PGPASSWORD     ?= password
 BACKUP_DIR     ?= open-navigator-backups
 BACKUP_STAGING ?= .backup-staging
 
+# Verify the Drive folder is reachable, and if not, diagnose *why* and print the exact
+# fix. Most common cause: the WSL symlink exists but the Drive letter never got mounted
+# (e.g. after a WSL restart with no /etc/fstab entry) — see web_docs/docs/quickstart.md.
+backup-preflight:
+	@test -d "$(BACKUP_DIR)/" && exit 0; \
+	echo "❌ $(BACKUP_DIR) does not resolve to a directory."; \
+	if [ -L "$(BACKUP_DIR)" ]; then \
+		tgt=$$(readlink "$(BACKUP_DIR)"); \
+		root=$$(printf '%s' "$$tgt" | grep -oE '^/mnt/[a-z]+'); \
+		letter=$$(printf '%s' "$$root" | sed -E 's:^/mnt/::' | tr a-z A-Z); \
+		echo "   Symlink → $$tgt"; \
+		if [ -n "$$root" ] && ! mountpoint -q "$$root" 2>/dev/null; then \
+			echo "   Drive letter $$letter: is not mounted in WSL. Mount it once (needs sudo password):"; \
+			echo "     sudo mkdir -p $$root && sudo mount -t drvfs '$$letter:' $$root"; \
+			echo "     echo '$$letter: $$root drvfs defaults 0 0' | sudo tee -a /etc/fstab   # persist across WSL restarts"; \
+			echo "   (Google Drive for Desktop must be running on Windows so $$letter: exists.)"; \
+		else \
+			echo "   Mount is present but the folder is missing. Create it: mkdir -p \"$$tgt\""; \
+		fi; \
+	else \
+		echo "   Symlink '$(BACKUP_DIR)' is missing. See web_docs/docs/quickstart.md (Google Drive folder one-time setup)."; \
+	fi; \
+	exit 1
+
 backup:
 	@test -n "$(VERSION)" || { echo "❌ VERSION required, e.g. make backup VERSION=v1.5.0"; exit 1; }
-	@test -d "$(BACKUP_DIR)/" || { echo "❌ $(BACKUP_DIR) does not resolve to a directory."; \
-		echo "   Is the Google Drive symlink set up and H: mounted? See web_docs Quick Start."; exit 1; }
+	@$(MAKE) --no-print-directory backup-preflight
 	@stamp=$$(date +%Y%m%d); sha=$$(git rev-parse --short HEAD 2>/dev/null || echo nogit); \
 		stage="$(BACKUP_STAGING)/$(VERSION)"; dir="$(BACKUP_DIR)/releases/$(VERSION)"; \
 		mkdir -p "$$stage" "$$dir"; \
@@ -230,6 +253,7 @@ backup:
 
 restore:
 	@test -n "$(VERSION)" || { echo "❌ VERSION required, e.g. make restore VERSION=v1.5.0"; exit 1; }
+	@$(MAKE) --no-print-directory backup-preflight
 	@echo "⚠️  Restoring $(VERSION) into LOCAL dev warehouse ($(PG_HOST):$(PG_PORT)) — never run against prod."
 	@dir="$(BACKUP_DIR)/releases/$(VERSION)"; \
 		on=$$(ls "$$dir"/open_navigator_$(VERSION)_*.dump 2>/dev/null | head -1); \
