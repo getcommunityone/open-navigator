@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import api from '../lib/api'
 import { formatCurrency } from '../utils/formatters'
 import {
@@ -34,9 +34,18 @@ interface Grant {
 
 export default function GrantDetail() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
+  const location = useLocation()
   const [grant, setGrant] = useState<Grant | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Return to wherever the user came from (e.g. the homepage money-flow chart);
+  // fall back to /search only on a direct/cold load with no in-app history.
+  const goBack = () => {
+    if (location.key && location.key !== 'default') navigate(-1)
+    else navigate('/search')
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -99,13 +108,14 @@ export default function GrantDetail() {
             <p className="text-red-700 mb-4">
               {error || 'We could not find a grant with that id.'}
             </p>
-            <Link
-              to="/search"
+            <button
+              type="button"
+              onClick={goBack}
               className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
             >
               <ArrowLeftIcon className="h-5 w-5" />
-              Back to Search
-            </Link>
+              Back
+            </button>
           </div>
         </div>
       </div>
@@ -131,13 +141,14 @@ export default function GrantDetail() {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Back Button */}
         <div className="mb-6">
-          <Link
-            to="/search"
+          <button
+            type="button"
+            onClick={goBack}
             className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"
           >
             <ArrowLeftIcon className="h-5 w-5" />
-            Back to Search
-          </Link>
+            Back
+          </button>
         </div>
 
         {/* Grant Header */}

@@ -62,6 +62,11 @@ function StepRow({ job, step }: { job: DeploymentJob; step: DeploymentStep }) {
           <StatusBadge status={step.status} />
         </span>
       </button>
+      {step.note && (
+        <p className="border-t border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          ⚠️ {step.note}
+        </p>
+      )}
       {open && (
         <div className="border-t border-slate-100 bg-slate-50 px-3 py-2">
           {step.cmd && (
@@ -174,6 +179,7 @@ export default function DeploymentPanel() {
   const [dryRun, setDryRun] = useState(true)
   const [launching, setLaunching] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
+  const [historyOpen, setHistoryOpen] = useState(false)
 
   // Default selection = every available step, once they load.
   const effectiveSelected = useMemo(() => {
@@ -236,6 +242,12 @@ export default function DeploymentPanel() {
   )
 
   const clockMs = Date.now()
+
+  const jobs = data?.jobs ?? []
+  // Keep any in-flight deployment expanded and pinned to the top; everything
+  // else is historical and tucked behind a collapsed "History" toggle.
+  const activeJobs = jobs.filter((j) => j.live && j.status === 'running')
+  const historyJobs = jobs.filter((j) => !(j.live && j.status === 'running'))
 
   return (
     <div className="space-y-4">
@@ -325,14 +337,45 @@ export default function DeploymentPanel() {
           </button>
         </div>
       )}
-      {data && data.jobs.length === 0 && (
+      {data && jobs.length === 0 && (
         <div className="rounded-lg border border-dashed border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
           No deployments yet. Launch one above.
         </div>
       )}
-      {data?.jobs.map((job) => (
-        <JobCard key={job.job_id} job={job} onStop={onStop} clockMs={clockMs} />
+
+      {/* In-flight deployment(s): always expanded, pinned to the top. */}
+      {activeJobs.map((job) => (
+        <JobCard key={job.job_id} job={job} onStop={onStop} clockMs={clockMs} defaultOpen />
       ))}
+
+      {/* Past runs: collapsed behind a single toggle so they don't dominate. */}
+      {historyJobs.length > 0 && (
+        <div className="space-y-2">
+          <button
+            type="button"
+            onClick={() => setHistoryOpen((v) => !v)}
+            className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-left text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+          >
+            <span className="text-slate-400">{historyOpen ? '▾' : '▸'}</span>
+            History
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">
+              {historyJobs.length}
+            </span>
+            {!historyOpen && (
+              <span className="ml-auto text-[11px] font-normal text-slate-400">
+                {historyJobs[0]?.status} ·{' '}
+                {historyJobs[0]?.started_at
+                  ? formatAgoCompact(historyJobs[0].started_at, clockMs)
+                  : '—'}
+              </span>
+            )}
+          </button>
+          {historyOpen &&
+            historyJobs.map((job) => (
+              <JobCard key={job.job_id} job={job} onStop={onStop} clockMs={clockMs} />
+            ))}
+        </div>
+      )}
     </div>
   )
 }

@@ -35,11 +35,15 @@ router = APIRouter(prefix="/deployments", tags=["deployments"])
 # Step metadata is duplicated (lightly) from hosting.deploy.run_deployment so the
 # API need not import the hosting package (not installed in the API venv). The
 # orchestrator remains the source of truth for the argv that actually runs.
+# Keep in sync with hosting.deploy.run_deployment.STEP_DEFS (source of truth for
+# the argv). A prod deployment is just a DATA COPY of local public serving objects
+# into Neon prod public (runtime/auth tables excluded). ``web`` (HuggingFace) is a
+# separate, optional step — selectable in the panel but not run by default.
 _STEP_DEFS: List[Dict[str, str]] = [
     {
         "key": "database",
-        "label": "Database (Neon prod)",
-        "description": "Sync serving data to the Neon production Postgres.",
+        "label": "Database — serving copy (Neon prod)",
+        "description": "Copy local public serving objects → Neon prod public (excludes runtime/auth tables).",
         "target": "neon-prod",
     },
     {
@@ -50,7 +54,7 @@ _STEP_DEFS: List[Dict[str, str]] = [
     },
 ]
 _STEP_KEYS = [d["key"] for d in _STEP_DEFS]
-_DEFAULT_STEPS = ["database", "web"]
+_DEFAULT_STEPS = ["database"]
 
 
 def _repo_root() -> Path:
@@ -119,6 +123,7 @@ class DeploymentStepModel(BaseModel):
     started_at: Optional[str] = None
     finished_at: Optional[str] = None
     exit_code: Optional[int] = None
+    note: Optional[str] = None
     log: str = ""
     cmd: str = ""
 

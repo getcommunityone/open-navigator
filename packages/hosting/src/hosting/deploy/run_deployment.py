@@ -37,15 +37,26 @@ from typing import Any, Dict, List, Optional
 # ---------------------------------------------------------------------------
 # Step registry
 # ---------------------------------------------------------------------------
-# ``{python}`` is replaced with the running interpreter. ``cwd`` is relative to
-# the repo root. Add a new deployment target by adding an entry here — the API
-# and UI discover steps from :func:`available_steps`, so no other change needed.
+# ``{python}`` is replaced with the running interpreter. Add a new deployment
+# target by adding an entry here — the API and UI discover steps from
+# :func:`available_steps`, so no other change needed.
+#
+# A prod deployment is, by design, just a DATA COPY: it mirrors the already-built
+# local ``public`` serving objects (29 dbt views over gold + the serving tables)
+# into the Neon **prod** ``public`` schema — it does NOT rebuild anything with
+# dbt on Neon. The copy deliberately EXCLUDES the runtime/app-owned auth + user +
+# feed tables that the live prod app owns (see hosting.neon.sync_public_to_neon
+# RUNTIME_OWNED) so production user accounts are never overwritten.
+#
+# ``web`` (HuggingFace) is a SEPARATE concern, kept as an optional step in the
+# panel (deselect it for a DB-only deploy). It is not part of the default
+# pipeline below because it stands up the orphan-branch HF mirror, not the data.
 STEP_DEFS: Dict[str, Dict[str, Any]] = {
     "database": {
-        "label": "Database (Neon prod)",
-        "description": "Sync serving data to the Neon production Postgres.",
+        "label": "Database — serving copy (Neon prod)",
+        "description": "Copy local public serving objects → Neon prod public (excludes runtime/auth tables).",
         "target": "neon-prod",
-        "argv": ["{python}", "-m", "hosting.neon.sync_event_documents_to_neon"],
+        "argv": ["{python}", "-m", "hosting.neon.sync_public_to_neon", "--target", "prod"],
     },
     "web": {
         "label": "Web (HuggingFace)",
@@ -54,8 +65,9 @@ STEP_DEFS: Dict[str, Dict[str, Any]] = {
         "argv": ["bash", "packages/hosting/scripts/huggingface/deploy-huggingface.sh", "--skip-test"],
     },
 }
-# Default ordered pipeline: stand up the database, then ship the web app.
-DEFAULT_STEPS: List[str] = ["database", "web"]
+# Default pipeline: the database serving copy only. ``web`` is selectable in the
+# panel but not run by default (it's a separate, flakier concern).
+DEFAULT_STEPS: List[str] = ["database"]
 
 
 def available_steps() -> List[Dict[str, str]]:
@@ -116,6 +128,7 @@ class DeploymentJob:
                     "started_at": None,
                     "finished_at": None,
                     "exit_code": None,
+                    "note": None,
                     "log": str((log_dir / f"{job_id}_{key}.log").relative_to(_repo_root())),
                     "cmd": "",
                 }
@@ -151,6 +164,19 @@ class DeploymentJob:
             except OSError:
                 pass
             raise
+
+
+# Human-readable hints keyed by a step's exit code, surfaced in the panel so the
+# operator sees the *cause* without opening the raw step log. Exit 3 is the
+# convention used by network-dependent steps (e.g. hosting.neon.sync_public_to_neon)
+# for a DNS / name-resolution failure — almost always a VPN/split-DNS blip on WSL2.
+_EXIT_NOTES: Dict[int, str] = {
+    3: (
+        "Network/DNS failure — couldn't resolve the Neon host. This is usually a "
+        "VPN or split-DNS issue (common on WSL2), not a Neon outage. Disconnect/"
+        "reconnect the VPN and retry; already-copied objects persist."
+    ),
+}
 
 
 def _step_argv(key: str) -> List[str]:
@@ -245,6 +271,7 @@ class _Orchestrator:
                 step["status"] = "completed"
             else:
                 step["status"] = "failed"
+                step["note"] = _EXIT_NOTES.get(rc)
                 failed = True
             step["finished_at"] = _now_iso()
             self.job.flush()

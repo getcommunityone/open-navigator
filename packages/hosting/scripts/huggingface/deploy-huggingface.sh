@@ -256,10 +256,22 @@ restore_working_state() {
     local rc=$?
     echo ""
     echo "♻️  Restoring original working state (${ORIGINAL_REF})..."
-    git checkout "$ORIGINAL_REF" >/dev/null 2>&1 || true
+    # The orphan-branch surgery leaves a staged/half-conflicted index, so a plain
+    # `git checkout` refuses to switch and silently leaves us stranded on the
+    # deploy branch. Hard-reset the index/worktree first, THEN force back to the
+    # original ref — this works no matter what broken state a crash left behind.
+    git reset -q --hard >/dev/null 2>&1 || true
+    git checkout --force "$ORIGINAL_REF" >/dev/null 2>&1 || true
+    # Drop the throwaway deploy branch so the next run starts from a clean slate.
+    git branch -D huggingface-deploy >/dev/null 2>&1 || true
     if [ -n "$STASH_REF" ]; then
-        git stash pop >/dev/null 2>&1 \
-            || echo "⚠️  Could not auto-pop the deploy stash; recover with: git stash list && git stash pop"
+        if git stash pop >/dev/null 2>&1; then
+            echo "✅ Restored your branch (${ORIGINAL_REF}) and uncommitted changes."
+        else
+            echo "⚠️  Could not auto-pop the deploy stash; recover with: git stash list && git stash pop"
+        fi
+    else
+        echo "✅ Restored your branch (${ORIGINAL_REF})."
     fi
     return $rc
 }
