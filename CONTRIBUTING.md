@@ -19,6 +19,22 @@ Feature requests are welcome! Please:
 - Clearly describe the feature and its use case
 - Explain how it would benefit advocacy groups
 
+### Development Setup
+
+Follow the [Quick Start Guide](web_docs/docs/quickstart.md) to get the three
+services running locally. Pick the path for your OS:
+
+- **macOS / Linux:** `./install.sh`, then `./start-all.sh` (see
+  [Option 1](web_docs/docs/quickstart.md#option-1-start-everything-at-once-recommended)).
+- **Windows:** `.\install.ps1`, then `.\start-all.ps1` (see
+  [Option 4: Windows (PowerShell)](web_docs/docs/quickstart.md#option-4-windows-powershell)).
+
+> **Heads-up — don't run `uv sync` to install the backend.** The root
+> `pyproject.toml` is a uv *workspace*; `uv sync` installs only the `packages/*`
+> libraries and skips the top-level `requirements.txt`, so the dev tools
+> (`pytest`/`black`/`ruff`) and runtime deps like `yt-dlp` go missing. Install with
+> `install.sh` / `install.ps1` / `pip install -r requirements.txt` instead.
+
 ### Code Contributions
 
 1. **Fork the repository**

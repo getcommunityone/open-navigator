@@ -93,6 +93,49 @@ cd web_app && npm run dev                           # Terminal 2 — App   (5173
 cd web_docs && npm start                            # Terminal 3 — Docs  (3000)
 ```
 
+### Option 4: Windows (PowerShell)
+
+The `.sh` scripts and the `make` targets are Unix-oriented (`start-all.sh` uses
+`tmux`, which Windows lacks). Use the PowerShell equivalents instead — they create
+the same `venv`, install from the same `requirements.txt`, and launch the same three
+services, each in its own window:
+
+```powershell
+# From the repo root, in PowerShell:
+.\install.ps1        # Python backend: creates venv, installs deps, seeds .env
+cd web_app;  npm install; cd ..
+cd web_docs; npm install; cd ..
+.\start-all.ps1      # API (8000) + App (5173) + Docs (3000), one window each
+```
+
+If you see *"running scripts is disabled on this system"*, PowerShell's execution
+policy is blocking the script. Either allow local scripts once for your user:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+```
+
+…or run each script without changing the policy:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install.ps1
+powershell -ExecutionPolicy Bypass -File .\start-all.ps1
+```
+
+> **⚠️ Don't use `uv sync` to set up the backend on any OS.** The root
+> `pyproject.toml` is a **uv workspace** whose members are only `packages/*`, so
+> `uv sync` installs those workspace libraries but **not** the top-level
+> `requirements.txt` — leaving out the dev tooling (`pytest`, `black`, `ruff`) and
+> runtime deps like `yt-dlp`. Install the backend from `requirements.txt`
+> (`.\install.ps1`, `./install.sh`, or `pip install -r requirements.txt`), which is
+> the complete set. `uv sync` is only for working *inside* the `packages/*`
+> libraries.
+
+> **Tesseract / OCR on Windows:** `install.ps1` installs Tesseract via `winget`
+> (or Chocolatey) when available; otherwise grab the
+> [UB-Mannheim build](https://github.com/UB-Mannheim/tesseract/wiki). OCR is
+> optional — the app runs without it.
+
 ## Configuration
 
 `.env.example` is organized in tiers so you only set what you actually use.
