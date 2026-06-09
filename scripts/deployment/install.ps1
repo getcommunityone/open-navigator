@@ -135,6 +135,22 @@ if (Test-Path "requirements-cpu.txt") {
 }
 Write-Host "[OK] Dependencies installed"
 
+# Install the local workspace libraries (packages/*) as editable, top-level
+# importable modules. requirements.txt only pins third-party deps; the API
+# entrypoint imports agents/ingestion/config/llm/etc. which now live under
+# packages/* (there is no top-level agents/ tree anymore), so without this step
+# `python main.py serve` fails with "ModuleNotFoundError: No module named
+# 'agents'". --no-deps keeps the dependency closure exactly as requirements.txt
+# pins it (these packages' own third-party deps are already installed above).
+# This is the full runtime set the Dockerfile installs (eager + lazy imports).
+Write-Host ""
+Write-Host "Installing local workspace packages (editable)..."
+& $venvPython -m pip install --no-deps `
+    -e packages/core -e packages/core-lib -e packages/datamodels `
+    -e packages/agents -e packages/scrapers -e packages/ingestion `
+    -e packages/llm -e packages/accessibility -e packages/hosting
+Write-Host "[OK] Workspace packages installed"
+
 # --- .env ---------------------------------------------------------------------
 Write-Host ""
 if (-not (Test-Path ".env")) {
