@@ -146,6 +146,10 @@ analyze_backlog_shard*.out
 api_server.out
 
 # Versioned Postgres release backups (make backup / make restore) — large dumps,
-# stored off-machine on Google Drive, never committed.
+# stored off-machine on Google Drive, never committed. `open-navigator-backups` is a
+# per-machine WSL symlink to the Google Drive for Desktop folder (H:\My Drive\...);
+# `.backup-staging` is the local fast-disk scratch dir dumps stream to before copy.
+open-navigator-backups
+.backup-staging/
 backups/
 *.dump

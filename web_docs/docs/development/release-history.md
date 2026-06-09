@@ -30,8 +30,10 @@ Start guide for the `make backup` / `make restore` workflow.
 ### Added
 - Semantic-versioning + data-backup workflow: `make backup` / `make restore` targets
   and the **Releases & Data Versioning** section of the Quick Start guide. Each release
-  tag is paired with version-stamped `pg_dump` snapshots pushed to Google Drive via
-  `rclone`.
+  tag is paired with version-stamped `pg_dump` snapshots (`<db>_<version>_<date>_<sha>.dump`)
+  written to a Google Drive for Desktop folder via a WSL symlink
+  (`open-navigator-backups` → `H:\My Drive\open-navigator-backups`), which Drive syncs
+  off-machine automatically.
 
 ## [1.0.0]
 
@@ -39,7 +41,8 @@ Initial baseline version (as recorded in `web_app/package.json`). Establishes th
 FastAPI backend, dbt medallion warehouse, React app, and Docusaurus docs.
 
 > **Backup:** _to be provisioned_ — the first versioned warehouse snapshot will be
-> uploaded once the Google Drive backup remote is configured (`rclone config`).
+> written once the Google Drive for Desktop folder + WSL symlink are set up (see the
+> Quick Start one-time setup) and `H:` is mounted in WSL.
 
 [Unreleased]: https://github.com/getcommunityone/open-navigator/compare/v1.0.0...HEAD
 [1.0.0]: https://github.com/getcommunityone/open-navigator/releases/tag/v1.0.0

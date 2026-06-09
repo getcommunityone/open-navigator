@@ -272,9 +272,12 @@ Drive-synced folder:
 make backup VERSION=v1.5.0
 ```
 
-This writes compressed (`-Fc`) dumps to
-`open-navigator-backups/releases/v1.5.0/`, with the version, date, and git SHA in each
-filename so the data snapshot ties back to the exact code tag:
+Each dump streams to a **local staging dir** (`.backup-staging/`, on fast ext4) first,
+then the finished file is copied into the Drive folder — this sidesteps a known
+DriveFS-over-WSL failure mode where large sequential writes straight into the virtual
+`H:` drive stall. The result lands in `open-navigator-backups/releases/v1.5.0/`, with
+the version, date, and git SHA in each filename so the snapshot ties back to the exact
+code tag:
 
 ```
 open-navigator-backups/releases/v1.5.0/
@@ -283,11 +286,16 @@ open-navigator-backups/releases/v1.5.0/
 ```
 
 Google Drive for Desktop then syncs the folder off-machine automatically. The
-equivalent manual `pg_dump` is:
+equivalent manual steps (dump local, then copy to Drive) are:
 
 ```bash
-pg_dump -h localhost -p 5433 -U postgres -Fc open_navigator \
-  -f "open-navigator-backups/releases/v1.5.0/open_navigator_v1.5.0_$(date +%Y%m%d)_$(git rev-parse --short HEAD).dump"
+name="open_navigator_v1.5.0_$(date +%Y%m%d)_$(git rev-parse --short HEAD).dump"
+
+# 1. Dump to local fast disk
+pg_dump -h localhost -p 5433 -U postgres -Fc open_navigator -f ".backup-staging/$name"
+
+# 2. Copy the finished file into the Drive folder (Drive for Desktop then syncs it)
+cp ".backup-staging/$name" "open-navigator-backups/releases/v1.5.0/$name"
 ```
 
 ### Restoring a Versioned Backup
