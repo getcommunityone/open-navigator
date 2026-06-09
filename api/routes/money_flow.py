@@ -175,7 +175,7 @@ async def _spending(conn, *, state_code: Optional[str], city: Optional[str], sco
 
 
 _GRANTS_SQL = """
-    SELECT grantor_name, grantee_name, amount, purpose, tax_year
+    SELECT grant_id, grantor_name, grantee_name, amount, purpose, tax_year
     FROM "grant"
     WHERE amount IS NOT NULL AND amount > 0
       AND grantor_name IS NOT NULL AND grantee_name IS NOT NULL
@@ -201,29 +201,38 @@ async def _grants(conn, *, state_code: Optional[str]) -> FlowLens:
         key = name.strip()
         if key not in idx:
             idx[key] = len(nodes)
-            # Every org node (grantor or grantee) drills to its own grants search.
-            node_url = f"/search?q={quote(key)}&types=grants" if key else "/search?types=grants"
-            nodes.append(FlowNode(name=_trunc(key, 28), url=node_url))
+            # url is filled in after the loop — it points at this org's largest grant.
+            nodes.append(FlowNode(name=_trunc(key, 28)))
         return idx[key]
 
     links: List[FlowLink] = []
     total = 0.0
+    # Largest grant touching each node, so clicking an org label lands on that
+    # org's most significant grant detail (there is no standalone org page).
+    node_top: Dict[int, tuple] = {}
     for r in rows:
         s = node_for(r["grantor_name"])
         t = node_for(r["grantee_name"])
         amt = float(r["amount"])
         total += amt
+        gid = r["grant_id"]
         sub = " · ".join(
             p for p in [(r["purpose"] or "").strip(), f"FY{r['tax_year']}" if r["tax_year"] else ""] if p
         )
-        # Drill down to this specific grantee's grants (not a generic grants list).
-        grantee = (r["grantee_name"] or "").strip()
-        url = f"/search?q={quote(grantee)}&types=grants" if grantee else "/search?types=grants"
+        # Each flow IS one real grant row — drill straight to its grant detail
+        # page (/grants/{id}), not a generic search.
+        url = f"/grants/{gid}" if gid else "/search?types=grants"
         links.append(FlowLink(
             source=s, target=t, value=amt, value_label=money_fmt(amt),
             meta=FlowMeta(title=r["grantee_name"], subtitle=sub or None,
                           url=url, source_label="990 Schedule I"),
         ))
+        for n in (s, t):
+            if gid and (n not in node_top or amt > node_top[n][0]):
+                node_top[n] = (amt, gid)
+    # Point each org node at its biggest grant's detail page.
+    for n, (_amt, gid) in node_top.items():
+        nodes[n].url = f"/grants/{gid}"
     lens.nodes, lens.links, lens.placeholder = nodes, links, False
     lens.head_amount = money_fmt(total)
     lens.head_label = "in grant flows"

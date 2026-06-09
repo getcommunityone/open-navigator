@@ -58,6 +58,30 @@ const TABS: { key: LensKey; label: string }[] = [
   { key: 'economy', label: 'Nonprofit economy' },
 ]
 
+// Plain-language explainer shown under the headline for each lens — the 990
+// revenue buckets in the economy lens especially aren't self-explanatory.
+const LENS_BLURB: Record<LensKey, React.ReactNode> = {
+  spending: (
+    <>Real budget decisions local government made — each flow is one vote, sized by the dollars involved. Click a flow for the decision.</>
+  ),
+  grants: (
+    <>
+      Grants nonprofits and foundations gave each other, from IRS 990 Schedule&nbsp;I filings. Money flows
+      left (funder) → right (recipient); click a flow for that grant&rsquo;s details.
+    </>
+  ),
+  economy: (
+    <>
+      Where this area&rsquo;s nonprofits get their money, in the three buckets the IRS&nbsp;990 form uses:{' '}
+      <b className="font-semibold text-gray-700">Contributions &amp; grants</b> (donations plus government and
+      foundation grants), <b className="font-semibold text-gray-700">Program service revenue</b> (fees they earn
+      doing their actual work — tuition, hospital care, tickets, memberships), and{' '}
+      <b className="font-semibold text-gray-700">Other revenue</b> (investments, rentals, asset sales). It&rsquo;s a
+      snapshot of total sector revenue drawn as a flow — not funder&rarr;recipient transfers.
+    </>
+  ),
+}
+
 const W = 800
 const H = 300
 
@@ -217,6 +241,11 @@ export default function FollowTheMoney({
           <div className="font-mono text-[11.5px] text-gray-400">{lens?.count_label}</div>
         </div>
 
+        {/* plain-language explainer for the active lens */}
+        {lens && !lens.placeholder && (
+          <p className="px-5 pb-1 pt-0.5 text-[12px] leading-relaxed text-gray-500">{LENS_BLURB[tab]}</p>
+        )}
+
         {/* flow area */}
         <div className="px-3 pb-4 pt-1">
           {isLoading ? (
@@ -266,8 +295,7 @@ export default function FollowTheMoney({
                     onMouseLeave={onSvgLeave}
                     onClick={() => onLinkClick(link)}
                   />
-                  {/* white dash stream — pointer-events pass through to the band.
-                      Two delays: fade-in start, then flow loop, both after draw. */}
+                  {/* white dash stream — pointer-events pass through to the band */}
                   <path
                     className="ftm-flow"
                     d={d}
