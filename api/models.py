@@ -79,7 +79,7 @@ class OAuthState(Base):
 # organizations; see api/routes/social.py and migration 099.
 
 
-# NOTE: the `Official` ORM entity (table public.contact_official) was retired by
+# NOTE: the `Official` ORM entity (table contact_official) was retired by
 # migration 052, which dropped the empty table. Officials data lives in per-state
 # parquet gold files (data/gold/states/<ST>/contact_official.parquet), read directly
 # by api/routes/search.py — never as a queryable table. The follow-an-official

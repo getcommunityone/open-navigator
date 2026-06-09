@@ -326,8 +326,10 @@ from api.routes import people as people_routes
 from api.routes import decisions as decisions_routes
 from api.routes import documents as documents_routes
 from api.routes import jurisdiction_documents as jurisdiction_documents_routes
+from api.routes import jurisdiction_meeting_documents as jurisdiction_meeting_documents_routes
 from api.routes import event_bills as event_bills_routes
 from api.routes import meetings as meetings_routes
+from api.routes import meeting_comparison as meeting_comparison_routes
 # Use Neon database for fast stats queries (500x faster than parquet)
 from api.routes import stats_neon as stats_routes  # Was: stats
 from api.routes import contact as contact_routes
@@ -338,6 +340,7 @@ from api.routes import trending as trending_routes
 from api.routes import lighthouse_reports as lighthouse_reports_routes
 from api.routes import jurisdiction_mapping as jurisdiction_mapping_routes
 from api.routes import batch_jobs as batch_jobs_routes
+from api.routes import deployments as deployments_routes
 from api.routes import locations as locations_routes
 from api.routes import addresses as addresses_routes
 from api.routes import geocode as geocode_routes
@@ -354,9 +357,11 @@ app.include_router(search_routes.router, prefix="/api")
 app.include_router(people_routes.router, prefix="/api")
 app.include_router(decisions_routes.router, prefix="/api")
 app.include_router(jurisdiction_documents_routes.router, prefix="/api")
+app.include_router(jurisdiction_meeting_documents_routes.router, prefix="/api")
 app.include_router(documents_routes.router, prefix="/api")
 app.include_router(event_bills_routes.router, prefix="/api")
 app.include_router(meetings_routes.router, prefix="/api")
+app.include_router(meeting_comparison_routes.router, prefix="/api")
 app.include_router(stats_routes.router, prefix="/api", tags=["stats"])
 app.include_router(contact_routes.router, prefix="/api")
 app.include_router(bills_routes.router, prefix="/api")
@@ -365,6 +370,7 @@ app.include_router(trending_routes.router)
 app.include_router(lighthouse_reports_routes.router, prefix="/api")
 app.include_router(jurisdiction_mapping_routes.router, prefix="/api")
 app.include_router(batch_jobs_routes.router, prefix="/api")
+app.include_router(deployments_routes.router, prefix="/api")
 app.include_router(locations_routes.router, prefix="/api")
 app.include_router(addresses_routes.router, prefix="/api")
 app.include_router(geocode_routes.router, prefix="/api")
@@ -1421,7 +1427,7 @@ async def startup_event():
     except Exception as e:
         logger.warning(f"  ⚠️  Could not read per-state event counts from public schema: {e}")
 
-    # Officials are served from public.contact_official (not parquet). Log the
+    # Officials are served from contact_official (not parquet). Log the
     # live row count once so the startup banner still reports officials volume.
     try:
         import psycopg2
@@ -1431,13 +1437,13 @@ async def startup_event():
         )
         _conn = psycopg2.connect(_officials_dsn)
         _cur = _conn.cursor()
-        _cur.execute("SELECT count(*) FROM public.contact_official")
+        _cur.execute("SELECT count(*) FROM contact_official")
         _officials_count = _cur.fetchone()[0]
         _cur.close()
         _conn.close()
-        logger.info(f"  🏛️  public.contact_official: {_officials_count:,} officials")
+        logger.info(f"  🏛️  contact_official: {_officials_count:,} officials")
     except Exception as e:
-        logger.warning(f"  ⚠️  Could not count public.contact_official: {e}")
+        logger.warning(f"  ⚠️  Could not count contact_official: {e}")
 
     # Validate HuggingFace datasets if running on HF Spaces
     if IS_HF_SPACES:

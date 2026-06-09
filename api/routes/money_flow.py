@@ -17,6 +17,7 @@ is a chart magnitude, not a bare number rendered to the user.
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
+from urllib.parse import quote
 
 from fastapi import APIRouter, Query
 from loguru import logger
@@ -69,6 +70,10 @@ class FlowMeta(BaseModel):
 
 class FlowNode(BaseModel):
     name: str
+    # Per-node drill-down target. Set on BOTH source and target nodes so either
+    # side of the Sankey is clickable (a grantor node drills to that grantor's
+    # grants just as a grantee node drills to the grantee's). None = not clickable.
+    url: Optional[str] = None
 
 
 class FlowLink(BaseModel):
@@ -83,6 +88,9 @@ class FlowLens(BaseModel):
     accent: str
     head_amount: str = "—"
     head_label: str = ""
+    # Aggregate drill-down for the headline figure (e.g. the full decisions /
+    # grants / nonprofit list behind the summed total). None = not clickable.
+    head_url: Optional[str] = None
     count_label: str = ""
     nodes: List[FlowNode] = []
     links: List[FlowLink] = []
@@ -99,7 +107,7 @@ class MoneyFlowResponse(BaseModel):
 # ---------------------------------------------------------------------------
 _SPENDING_SQL = """
     SELECT event_decision_id, title, net_dollar_impact, outcome, occurred_at,
-           votes_yes, votes_no, total_votes
+           votes_yes, votes_no, total_votes, jurisdiction_id
     FROM item_interestingness
     WHERE net_dollar_impact IS NOT NULL AND net_dollar_impact <> 0
       AND ($1::text IS NULL OR state_code = $1)
@@ -119,13 +127,28 @@ async def _spending(conn, *, state_code: Optional[str], city: Optional[str], sco
     if not rows:
         return lens
     src = scope_label or "Local government"
-    nodes = [FlowNode(name=_trunc(src, 24))]
+    # Source node drill-down: when every spending row sits in a SINGLE jurisdiction
+    # (i.e. a city-scoped view like "Tuscaloosa, AL"), drill into that jurisdiction's
+    # own page rather than the broad geocoded decisions map. Multi-jurisdiction scopes
+    # (state-only or the U.S.) fall back to the decisions map for this scope; each
+    # decision node still drills to that decision's detail page.
+    juris_ids = {r["jurisdiction_id"] for r in rows if r["jurisdiction_id"]}
+    if len(juris_ids) == 1:
+        src_url = f"/jurisdiction/{quote(str(next(iter(juris_ids))))}/meetings"
+    elif state_code:
+        src_url = f"/decisions-map?state={quote(state_code)}"
+    else:
+        src_url = "/decisions-map"
+    nodes = [FlowNode(name=_trunc(src, 24), url=src_url)]
     links: List[FlowLink] = []
     total = 0.0
     for r in rows:
         amt = abs(float(r["net_dollar_impact"]))
         total += amt
-        nodes.append(FlowNode(name=_trunc(r["title"] or "Untitled decision", 40)))
+        nodes.append(FlowNode(
+            name=_trunc(r["title"] or "Untitled decision", 40),
+            url=f"/decisions/{r['event_decision_id']}",
+        ))
         sub_parts = []
         if r["outcome"]:
             sub_parts.append(r["outcome"])
@@ -145,6 +168,8 @@ async def _spending(conn, *, state_code: Optional[str], city: Optional[str], sco
     lens.nodes, lens.links, lens.placeholder = nodes, links, False
     lens.head_amount = money_fmt(total)
     lens.head_label = "in tracked spending decisions"
+    # Drill down to the full geocoded decisions map, scoped to this state when known.
+    lens.head_url = f"/decisions-map?state={quote(state_code)}" if state_code else "/decisions-map"
     lens.count_label = f"{len(links)} decisions"
     return lens
 
@@ -176,7 +201,9 @@ async def _grants(conn, *, state_code: Optional[str]) -> FlowLens:
         key = name.strip()
         if key not in idx:
             idx[key] = len(nodes)
-            nodes.append(FlowNode(name=_trunc(key, 28)))
+            # Every org node (grantor or grantee) drills to its own grants search.
+            node_url = f"/search?q={quote(key)}&types=grants" if key else "/search?types=grants"
+            nodes.append(FlowNode(name=_trunc(key, 28), url=node_url))
         return idx[key]
 
     links: List[FlowLink] = []
@@ -189,14 +216,19 @@ async def _grants(conn, *, state_code: Optional[str]) -> FlowLens:
         sub = " · ".join(
             p for p in [(r["purpose"] or "").strip(), f"FY{r['tax_year']}" if r["tax_year"] else ""] if p
         )
+        # Drill down to this specific grantee's grants (not a generic grants list).
+        grantee = (r["grantee_name"] or "").strip()
+        url = f"/search?q={quote(grantee)}&types=grants" if grantee else "/search?types=grants"
         links.append(FlowLink(
             source=s, target=t, value=amt, value_label=money_fmt(amt),
             meta=FlowMeta(title=r["grantee_name"], subtitle=sub or None,
-                          url="/search?types=grants", source_label="990 Schedule I"),
+                          url=url, source_label="990 Schedule I"),
         ))
     lens.nodes, lens.links, lens.placeholder = nodes, links, False
     lens.head_amount = money_fmt(total)
     lens.head_label = "in grant flows"
+    # Drill down to the full grants list (990 Schedule I flows).
+    lens.head_url = "/search?types=grants"
     lens.count_label = f"{len(links)} grants · 990 Schedule I"
     return lens
 
@@ -224,12 +256,12 @@ async def _economy(conn) -> FlowLens:
     contrib = float(row["contributions"] or 0)
     program = float(row["program"] or 0)
     other = max(total - contrib - program, 0.0)
-    nodes = [FlowNode(name="Nonprofit sector")]
+    nodes = [FlowNode(name="Nonprofit sector", url="/nonprofits")]
     links: List[FlowLink] = []
     for label, val in (("Contributions & grants", contrib), ("Program service revenue", program), ("Other revenue", other)):
         if val <= 0:
             continue
-        nodes.append(FlowNode(name=label))
+        nodes.append(FlowNode(name=label, url="/nonprofits"))
         pct = round(100.0 * val / total) if total else 0
         links.append(FlowLink(
             source=0, target=len(nodes) - 1, value=val, value_label=money_fmt(val),
@@ -243,6 +275,8 @@ async def _economy(conn) -> FlowLens:
     # mdm_organization_nonprofit has no usable state column, so this lens is
     # always the U.S. sector — label it as such rather than imply it's local.
     lens.head_label = "U.S. nonprofit sector revenue"
+    # Drill down to the nonprofit directory behind this aggregate.
+    lens.head_url = "/nonprofits"
     lens.count_label = f"{int(row['orgs']):,} orgs · 990 · nationwide"
     return lens
 

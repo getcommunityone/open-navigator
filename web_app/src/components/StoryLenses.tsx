@@ -13,6 +13,9 @@ import {
 import { BookmarkIcon as BookmarkSolidIcon } from '@heroicons/react/24/solid'
 import api from '../lib/api'
 import FollowTheMoney from './FollowTheMoney'
+import PersonalizeFeedModal from './PersonalizeFeedModal'
+import { useAuth } from '../contexts/AuthContext'
+import { fromSignalSlug } from '../lib/feedSlugs'
 
 /**
  * StoryLenses — the homepage "What's happening near you" section.
@@ -360,10 +363,24 @@ interface StoryCarouselProps {
 function StoryCarousel({ cards, lens, savedKeys, onToggleSave, onOpen, cardKey }: StoryCarouselProps) {
   const railRef = useRef<HTMLDivElement>(null)
   const [activeIdx, setActiveIdx] = useState(0)
+  // Whether the rail can still scroll further left/right — drives the arrow
+  // disabled state. Position-based, not activeIdx-based, so it's reliable on
+  // desktop where several cards are visible at once.
+  const [edges, setEdges] = useState({ left: false, right: false })
+
+  const updateEdges = useCallback(() => {
+    const rail = railRef.current
+    if (!rail) return
+    setEdges({
+      left: rail.scrollLeft > 4,
+      right: rail.scrollLeft < rail.scrollWidth - rail.clientWidth - 4,
+    })
+  }, [])
 
   useEffect(() => {
     const rail = railRef.current
     if (!rail) return
+    updateEdges()
     const items = Array.from(rail.children) as HTMLElement[]
     const io = new IntersectionObserver(
       (entries) => {
@@ -379,22 +396,38 @@ function StoryCarousel({ cards, lens, savedKeys, onToggleSave, onOpen, cardKey }
     items.forEach((it) => io.observe(it))
     return () => io.disconnect()
     // Re-observe whenever the card set changes (lens/window switch).
-  }, [cards])
+  }, [cards, updateEdges])
 
+  // Step one card-width in either direction, based on the rail's actual scroll
+  // position (independent of the IO-tracked activeIdx, which is ambiguous when
+  // multiple cards are visible).
+  const step = (dir: number) => {
+    const rail = railRef.current
+    if (!rail) return
+    const first = rail.children[0] as HTMLElement | undefined
+    const cardW = first ? first.getBoundingClientRect().width + 16 /* gap-4 */ : rail.clientWidth * 0.86
+    rail.scrollBy({ left: dir * cardW, behavior: 'smooth' })
+  }
+
+  // Scroll the rail itself (NOT scrollIntoView, which bubbles to ancestor
+  // scrollers and can move the whole page or no-op on desktop where several
+  // cards are visible at once). Aligning the target's layout offset to the
+  // rail's left edge works regardless of which card the IO marked active.
   const scrollTo = (i: number) => {
     const rail = railRef.current
     if (!rail) return
     const clamped = Math.max(0, Math.min(cards.length - 1, i))
     const target = rail.children[clamped] as HTMLElement | undefined
-    target?.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' })
+    if (!target) return
+    rail.scrollTo({ left: target.offsetLeft - rail.offsetLeft, behavior: 'smooth' })
   }
 
   return (
     <div className="relative">
       <button
         type="button"
-        onClick={() => scrollTo(activeIdx - 1)}
-        disabled={activeIdx === 0}
+        onClick={() => step(-1)}
+        disabled={!edges.left}
         aria-label="Previous story"
         className="absolute -left-2 top-[42%] z-10 hidden h-9 w-9 items-center justify-center rounded-full border border-[#e1ebe7] bg-white text-[#56635e] shadow-[0_1px_2px_rgba(20,40,35,.05),0_10px_26px_rgba(20,40,35,.07)] transition-colors hover:border-[#1a6b6b] hover:text-[#1a6b6b] disabled:pointer-events-none disabled:opacity-30 sm:flex"
       >
@@ -402,8 +435,8 @@ function StoryCarousel({ cards, lens, savedKeys, onToggleSave, onOpen, cardKey }
       </button>
       <button
         type="button"
-        onClick={() => scrollTo(activeIdx + 1)}
-        disabled={activeIdx === cards.length - 1}
+        onClick={() => step(1)}
+        disabled={!edges.right}
         aria-label="Next story"
         className="absolute -right-2 top-[42%] z-10 hidden h-9 w-9 items-center justify-center rounded-full border border-[#e1ebe7] bg-white text-[#56635e] shadow-[0_1px_2px_rgba(20,40,35,.05),0_10px_26px_rgba(20,40,35,.07)] transition-colors hover:border-[#1a6b6b] hover:text-[#1a6b6b] disabled:pointer-events-none disabled:opacity-30 sm:flex"
       >
@@ -412,6 +445,7 @@ function StoryCarousel({ cards, lens, savedKeys, onToggleSave, onOpen, cardKey }
 
       <div
         ref={railRef}
+        onScroll={updateEdges}
         className="-mx-1 flex snap-x snap-mandatory gap-4 overflow-x-auto px-1 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {cards.map((c, i) => {
@@ -615,17 +649,31 @@ function SingleLensBody({
 
 export default function StoryLenses({ locationLabel, stateCode, city, national, onSearch, onBrowseTopics }: StoryLensesProps) {
   const navigate = useNavigate()
+  const { isAuthenticated, isLoading: authLoading, user, login } = useAuth()
+  // Gate: a visitor must be signed in AND have a completed feed profile to use
+  // the personalized "Close to Home" view. Until then, tapping that card opens
+  // the setup modal instead of switching the feed. (The default view is still
+  // 'home' on mount — we only gate the explicit click, never force a modal on
+  // page load.)
+  const needsSetup = !authLoading && !(isAuthenticated && user?.profile_completed)
+  const [showSetupModal, setShowSetupModal] = useState(false)
   // Which strip view is active: 'home' (cross-lens, personalized) or a single
   // signal lens id. Signals narrow the Close-to-Home feed to the chosen lenses.
   const [lensId, setLensId] = useState('home')
   const [signals, setSignals] = useState<Set<string>>(() => new Set())
-  const toggleSignal = (id: string) =>
+  // Guards the one-time seed from saved feed config so we never clobber a
+  // user's manual signal toggles with their stored defaults.
+  const signalsTouchedRef = useRef(false)
+  const seededFromConfigRef = useRef(false)
+  const toggleSignal = (id: string) => {
+    signalsTouchedRef.current = true
     setSignals((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
       else next.add(id)
       return next
     })
+  }
   // Saved/"Following" stories, keyed by url||headline so the set survives
   // lens/window switches. Mirrors the demo's swipe-to-save outcome (#3).
   const [savedKeys, setSavedKeys] = useState<Set<string>>(() => new Set())
@@ -640,6 +688,31 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
   // a number is an explicit user choice from the segmented control.
   const [windowSel, setWindowSel] = useState<number | 'auto'>('auto')
   const windowParam = windowSel === 'auto' ? 'auto' : WINDOW_BY_DAYS[windowSel] ?? 'month'
+
+  // Seed the signal strip once from the user's saved feed config (real data
+  // only — on failure/empty we leave the existing defaults untouched, never
+  // fabricate). Only runs for a set-up user, and never overrides a manual
+  // toggle (signalsTouchedRef) so it can't clobber interaction.
+  useEffect(() => {
+    if (seededFromConfigRef.current) return
+    if (!(isAuthenticated && user?.profile_completed)) return
+    seededFromConfigRef.current = true
+    let cancelled = false
+    api
+      .get('/feed/config')
+      .then((r) => {
+        if (cancelled || signalsTouchedRef.current) return
+        const slugs = (r.data as { signals?: string[] })?.signals ?? []
+        const ids = slugs.map(fromSignalSlug).filter((id): id is string => !!id)
+        if (ids.length > 0) setSignals(new Set(ids))
+      })
+      .catch(() => {
+        // Honest no-op: keep existing defaults rather than invent any.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [isAuthenticated, user?.profile_completed])
 
   // National scope ignores the (possibly stale) city/state and asks the API for
   // a country-wide view.
@@ -746,6 +819,21 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
 
   return (
     <div className="mt-5 text-left" style={FONT}>
+      <PersonalizeFeedModal
+        open={showSetupModal}
+        onClose={() => setShowSetupModal(false)}
+        isAuthenticated={isAuthenticated}
+        onSignIn={() => {
+          // Remember the intent across the full-page OAuth redirect so Home can
+          // forward the user to /feed-setup once they return signed in.
+          localStorage.setItem('feed_setup_intent', '1')
+          login('google')
+        }}
+        onSetUp={() => {
+          setShowSetupModal(false)
+          navigate('/feed-setup')
+        }}
+      />
       {/* Lens strip — Close to Home + the five signal lenses. Selecting a card
           switches the feed below (persistent navigation; nothing gets lost). */}
       <HScroll innerClassName="flex items-start gap-2.5 pb-1" step={170}>
@@ -755,7 +843,15 @@ export default function StoryLenses({ locationLabel, stateCode, city, national, 
             <button
               key={l.id}
               type="button"
-              onClick={() => setLensId(l.id)}
+              onClick={() => {
+                // Gate only the explicit Close-to-Home click for users who
+                // aren't set up; every other lens switches the view normally.
+                if (l.id === 'home' && needsSetup) {
+                  setShowSetupModal(true)
+                  return
+                }
+                setLensId(l.id)
+              }}
               aria-pressed={on}
               className="relative w-[150px] shrink-0 rounded-2xl bg-white px-3.5 py-3 text-left transition-all hover:-translate-y-px"
               style={{

@@ -29,7 +29,7 @@ from pathlib import Path
 
 from loguru import logger
 
-from scrapers.suiteone.portal import MeetingDoc, scrape_portal
+from scrapers.suiteone.portal import MeetingDoc, scrape_portal, scrape_portal_history
 
 _TABLE = "bronze.bronze_events_meetings_municipalities_scraped"
 
@@ -135,10 +135,27 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--jurisdiction-id", required=True, help="e.g. tuscaloosa_0177256")
     parser.add_argument("--state", required=True, help="2-letter state code, e.g. AL")
     parser.add_argument("--homepage-url", default=None, help="canonical jurisdiction homepage")
+    parser.add_argument(
+        "--include-older",
+        action="store_true",
+        help="walk every body's 'Older Meetings..' history, not just the root listing",
+    )
+    parser.add_argument(
+        "--since-year",
+        type=int,
+        default=None,
+        help="with --include-older, keep only meetings in this calendar year or later "
+        "(e.g. 2021 for the last ~5 years)",
+    )
     parser.add_argument("--dry-run", action="store_true", help="parse + summarize, no DB write")
     args = parser.parse_args(argv)
 
-    docs = scrape_portal(args.portal_url)
+    if args.include_older:
+        docs = scrape_portal_history(args.portal_url, since_year=args.since_year)
+    else:
+        if args.since_year is not None:
+            logger.warning("--since-year is ignored without --include-older")
+        docs = scrape_portal(args.portal_url)
     if not docs:
         logger.warning("No agenda/minutes documents parsed — nothing to load.")
         return 1

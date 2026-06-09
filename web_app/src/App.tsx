@@ -17,6 +17,7 @@ import PeopleFinder from './pages/PeopleFinder'
 import PersonDetail from './pages/PersonDetail'
 import DebateFinder from './pages/DebateGrader'
 import Profile from './pages/Profile'
+import FeedSetup from './pages/FeedSetup'
 import Explore from './pages/Explore'
 import Events from './pages/Events'
 import Services from './pages/Services'
@@ -40,6 +41,8 @@ import BillDetail from './pages/BillDetail'
 import GrantDetail from './pages/GrantDetail'
 import DecisionDetail from './pages/DecisionDetail'
 import MeetingDetail from './pages/MeetingDetail'
+import MeetingDocuments from './pages/MeetingDocuments'
+import MeetingCompare from './pages/MeetingCompare'
 import EventBillDetail from './pages/EventBillDetail'
 import NotFound from './pages/NotFound'
 import { DATA_EXPLORER_MAP_BASE } from './utils/dataExplorerPaths'
@@ -178,6 +181,11 @@ function App() {
         <Route path="grants/:id" element={<GrantDetail />} />
         <Route path="decisions/:id" element={<DecisionDetail />} />
         <Route path="meetings/:id" element={<MeetingDetail />} />
+        <Route path="jurisdiction/:jurisdictionId/meetings" element={<MeetingDocuments />} />
+        <Route
+          path="jurisdiction/:jurisdictionId/meetings/:eventMeetingId/compare"
+          element={<MeetingCompare />}
+        />
         <Route path="bills/:id" element={<EventBillDetail />} />
         <Route path="documents" element={<Documents />} />
         <Route path="opportunities" element={<Opportunities />} />
@@ -185,6 +193,7 @@ function App() {
         <Route path="nonprofits-hf" element={<NonprofitsHF />} />
         <Route path="debate-grader" element={<DebateFinder />} />
         <Route path="profile" element={<Profile />} />
+        <Route path="feed-setup" element={<FeedSetup />} />
         <Route path="settings" element={<Settings />} />
         <Route path="events" element={<Events />} />
         <Route path="services" element={<Services />} />

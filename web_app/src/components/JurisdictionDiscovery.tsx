@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { 
-  ChevronDownIcon, 
+import { Link } from 'react-router-dom'
+import {
+  ChevronDownIcon,
   ChevronUpIcon,
   CheckCircleIcon,
   GlobeAltIcon,
@@ -11,6 +12,8 @@ import {
 
 interface JurisdictionDiscoveryProps {
   jurisdiction: {
+    /** Stable jurisdiction id (Census GEOID) — enables the scoped meeting-docs route. */
+    jurisdiction_id?: string
     name: string
     state: string
     website?: string
@@ -94,19 +97,32 @@ export default function JurisdictionDiscovery({ jurisdiction }: JurisdictionDisc
             )}
           </div>
 
-          {/* Expand/Collapse Button */}
-          {hasData && (
-            <button
-              onClick={() => setIsExpanded(!isExpanded)}
-              className="ml-4 p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              {isExpanded ? (
-                <ChevronUpIcon className="h-5 w-5 text-gray-600" />
-              ) : (
-                <ChevronDownIcon className="h-5 w-5 text-gray-600" />
-              )}
-            </button>
-          )}
+          {/* Actions */}
+          <div className="ml-4 flex items-center gap-2">
+            {jurisdiction.jurisdiction_id && (
+              <Link
+                to={`/jurisdiction/${encodeURIComponent(jurisdiction.jurisdiction_id)}/meetings`}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-[#1d6b5f]/30 px-3 py-1.5 text-sm font-medium text-[#1d6b5f] transition-colors hover:bg-[#1d6b5f]/5"
+              >
+                <DocumentTextIcon className="h-4 w-4" />
+                Meeting documents
+              </Link>
+            )}
+
+            {/* Expand/Collapse Button */}
+            {hasData && (
+              <button
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                {isExpanded ? (
+                  <ChevronUpIcon className="h-5 w-5 text-gray-600" />
+                ) : (
+                  <ChevronDownIcon className="h-5 w-5 text-gray-600" />
+                )}
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

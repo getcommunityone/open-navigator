@@ -21,6 +21,12 @@ interface JurisdictionResult {
   metadata: {
     level?: string
     state?: string
+    state_code?: string
+    /** Census GEOID — the stable jurisdiction identifier used for scoped routes. */
+    geoid?: string
+    type?: string
+    county?: string
+    population?: number
     website?: string
     youtube_channels?: string[]
     facebook?: string
@@ -682,9 +688,10 @@ export default function JurisdictionsSearch() {
                 {/* Results */}
                 <div className="space-y-4">
                   {searchResults.results.jurisdictions.map((result, index) => (
-                    <JurisdictionDiscovery 
-                      key={index} 
+                    <JurisdictionDiscovery
+                      key={index}
                       jurisdiction={{
+                        jurisdiction_id: result.metadata.geoid,
                         name: result.title,
                         state: result.metadata.state || '',
                         website: result.metadata.website,

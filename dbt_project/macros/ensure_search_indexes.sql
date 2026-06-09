@@ -29,17 +29,21 @@
 -#}
 {%- if not execute -%}{{ return('') }}{%- endif -%}
 
+{#- Search-serving base tables live in `gold` (the full warehouse); the public
+    API reads views over them. Indexes belong on the gold base tables — a view
+    can't carry its own index, and the planner uses the base table's indexes
+    through the pass-through view. -#}
 {%- set indexes = [
-    {'rel': 'public.mdm_organization',  'name': 'mdm_organization_org_name_fts_idx',  'def': "using gin (to_tsvector('english', org_name))"},
-    {'rel': 'public.mdm_organization',  'name': 'mdm_organization_org_name_norm_idx', 'def': '(org_name_norm)'},
-    {'rel': 'public.mdm_organization',  'name': 'mdm_organization_state_code_idx',     'def': '(state_code)'},
-    {'rel': 'public.mdm_person',        'name': 'mdm_person_full_name_trgm_idx',       'def': 'using gin (full_name gin_trgm_ops)'},
-    {'rel': 'public.contact_official',  'name': 'contact_official_full_name_trgm_idx', 'def': 'using gin (full_name gin_trgm_ops)'},
-    {'rel': 'public.contact_official',  'name': 'contact_official_title_trgm_idx',     'def': 'using gin (title gin_trgm_ops)'},
-    {'rel': 'public."grant"',           'name': 'grant_grantor_name_trgm_idx',         'def': 'using gin (grantor_name gin_trgm_ops)'},
-    {'rel': 'public."grant"',           'name': 'grant_grantee_name_trgm_idx',         'def': 'using gin (grantee_name gin_trgm_ops)'},
-    {'rel': 'public."grant"',           'name': 'grant_purpose_trgm_idx',              'def': 'using gin (purpose gin_trgm_ops)'},
-    {'rel': 'public.jurisdictions',     'name': 'jurisdictions_search_fts_idx',        'def': "using gin (to_tsvector('english', coalesce(search_text, display_name)))"}
+    {'rel': 'gold.mdm_organization',  'name': 'mdm_organization_org_name_fts_idx',  'def': "using gin (to_tsvector('english', org_name))"},
+    {'rel': 'gold.mdm_organization',  'name': 'mdm_organization_org_name_norm_idx', 'def': '(org_name_norm)'},
+    {'rel': 'gold.mdm_organization',  'name': 'mdm_organization_state_code_idx',     'def': '(state_code)'},
+    {'rel': 'gold.mdm_person',        'name': 'mdm_person_full_name_trgm_idx',       'def': 'using gin (full_name gin_trgm_ops)'},
+    {'rel': 'gold.contact_official',  'name': 'contact_official_full_name_trgm_idx', 'def': 'using gin (full_name gin_trgm_ops)'},
+    {'rel': 'gold.contact_official',  'name': 'contact_official_title_trgm_idx',     'def': 'using gin (title gin_trgm_ops)'},
+    {'rel': 'gold."grant"',           'name': 'grant_grantor_name_trgm_idx',         'def': 'using gin (grantor_name gin_trgm_ops)'},
+    {'rel': 'gold."grant"',           'name': 'grant_grantee_name_trgm_idx',         'def': 'using gin (grantee_name gin_trgm_ops)'},
+    {'rel': 'gold."grant"',           'name': 'grant_purpose_trgm_idx',              'def': 'using gin (purpose gin_trgm_ops)'},
+    {'rel': 'gold.jurisdictions',     'name': 'jurisdictions_search_fts_idx',        'def': "using gin (to_tsvector('english', coalesce(search_text, display_name)))"}
 ] -%}
 
 {%- do run_query("create extension if not exists pg_trgm") -%}
@@ -49,7 +53,7 @@
 {%- for ix in indexes -%}
   {%- set check = run_query("select to_regclass('" ~ ix.rel ~ "') as r") -%}
   {%- if check and check.rows and check.rows[0][0] is not none -%}
-    {%- set present = run_query("select to_regclass('public." ~ ix.name ~ "') as r") -%}
+    {%- set present = run_query("select to_regclass('gold." ~ ix.name ~ "') as r") -%}
     {%- if not (present and present.rows and present.rows[0][0] is not none) -%}
       {%- do created.append(ix.name) -%}
     {%- endif -%}

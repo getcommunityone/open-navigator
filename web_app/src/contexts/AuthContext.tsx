@@ -19,6 +19,7 @@ interface AuthContextType {
   token: string | null;
   login: (provider: string) => void;
   logout: () => void;
+  refreshUser: () => Promise<void>;
   isAuthenticated: boolean;
   isLoading: boolean;
   authError: string | null;
@@ -112,6 +113,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     window.location.href = authUrl;
   };
 
+  // Re-fetch the current user from /auth/me using the stored token. Lets pages
+  // that mutate the profile (e.g. FeedSetup) refresh `profile_completed` and the
+  // synced city/state without a full page reload.
+  const refreshUser = async () => {
+    const authToken = token || localStorage.getItem('auth_token');
+    if (!authToken) return;
+    await fetchUser(authToken);
+  };
+
   const logout = () => {
     localStorage.removeItem('auth_token');
     setToken(null);
@@ -129,6 +139,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         token,
         login,
         logout,
+        refreshUser,
         isAuthenticated: !!user,
         isLoading,
         authError,

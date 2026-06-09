@@ -11,16 +11,38 @@ import {
 import { apiBaseUrl } from '../lib/api'
 
 /**
- * Inline PDF viewer for meeting agenda/minutes — the document analogue of
- * MeetingPlayer's embedded recording. Renders one page at a time with prev/next
- * paging, sized to the container.
+ * Inline document viewer for meeting agenda/minutes — the document analogue of
+ * MeetingPlayer's embedded recording. PDFs render one page at a time with
+ * prev/next paging, sized to the container.
  *
- * Government PDF hosts rarely send CORS headers, so the browser can't fetch the
- * file directly; we load it through the same-origin API proxy
- * (/document/proxy?url=…), which only serves URLs already in the warehouse. When
- * a document can't be rendered (HTML "PDF", auth wall, fetch failure) we fall
- * back to an "Open original" link rather than show a broken frame.
+ * Government document hosts rarely send CORS headers, so the browser can't fetch
+ * the file directly; we load it through the same-origin API proxy
+ * (/document/proxy?url=…), which only serves URLs already in the warehouse.
+ *
+ * Not every "minutes"/"agenda" link is a PDF — some portals serve HTML pages or
+ * Word/Office files. We fetch the bytes ONCE, sniff the real type (content-type +
+ * %PDF magic), and only hand actual PDFs to react-pdf. Non-PDF documents are NOT
+ * forced through the PDF renderer (which would just fail) — they show a typed
+ * "open the original" card instead. Any fetch/render failure also falls back to
+ * that card rather than a broken frame.
  */
+
+// Map a content-type to a human noun for the non-PDF fallback card.
+function describeDocType(contentType: string): string {
+  const ct = contentType.toLowerCase()
+  if (ct.includes('html')) return 'web page'
+  if (ct.includes('msword') || ct.includes('wordprocessing')) return 'Word document'
+  if (ct.includes('spreadsheet') || ct.includes('ms-excel')) return 'spreadsheet'
+  if (ct.includes('presentation') || ct.includes('powerpoint')) return 'slideshow'
+  if (ct.includes('rtf')) return 'rich-text document'
+  if (ct.includes('plain')) return 'text file'
+  return 'document'
+}
+
+// The first bytes of a PDF are always the ASCII magic "%PDF".
+function looksLikePdf(bytes: Uint8Array): boolean {
+  return bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46
+}
 
 // Bundled pdf.js worker; Vite resolves this URL at build time (no CDN dependency).
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
@@ -44,12 +66,16 @@ interface DocumentViewerProps {
   caption?: string
 }
 
+type DocKind = 'loading' | 'pdf' | 'other' | 'failed'
+
 export default function DocumentViewer({ url, label, caption }: DocumentViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [numPages, setNumPages] = useState(0)
   const [pageNumber, setPageNumber] = useState(1)
   const [width, setWidth] = useState<number>()
-  const [failed, setFailed] = useState(false)
+  const [kind, setKind] = useState<DocKind>('loading')
+  const [pdfData, setPdfData] = useState<Uint8Array | null>(null)
+  const [docNoun, setDocNoun] = useState('document')
 
   // Render the page at the container's width so it scales on resize/mobile.
   useEffect(() => {
@@ -67,6 +93,40 @@ export default function DocumentViewer({ url, label, caption }: DocumentViewerPr
     () => `${apiBaseUrl}/document/proxy?url=${encodeURIComponent(url)}`,
     [url],
   )
+
+  // Fetch the bytes once and decide how to render. PDFs go to react-pdf; anything
+  // else (HTML page, Word/Office file, fetch failure) shows the typed fallback
+  // card — we never feed a non-PDF to the PDF renderer.
+  useEffect(() => {
+    let cancelled = false
+    setKind('loading')
+    setPdfData(null)
+    fetch(fileUrl)
+      .then(async (resp) => {
+        if (!resp.ok) throw new Error(`proxy returned ${resp.status}`)
+        const contentType = resp.headers.get('content-type') ?? ''
+        const bytes = new Uint8Array(await resp.arrayBuffer())
+        if (cancelled) return
+        if (contentType.toLowerCase().includes('pdf') || looksLikePdf(bytes)) {
+          setPdfData(bytes)
+          setKind('pdf')
+        } else {
+          setDocNoun(describeDocType(contentType))
+          setKind('other')
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setKind('failed')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [fileUrl])
+
+  // Stable identity for react-pdf's `file` prop. pdf.js transfers (detaches) the
+  // buffer to its worker on load, so this must NOT change reference per render or
+  // it would reload from a detached buffer.
+  const pdfFile = useMemo(() => (pdfData ? { data: pdfData } : null), [pdfData])
 
   const goPrev = () => setPageNumber((p) => Math.max(1, p - 1))
   const goNext = () => setPageNumber((p) => Math.min(numPages || 1, p + 1))
@@ -91,10 +151,18 @@ export default function DocumentViewer({ url, label, caption }: DocumentViewerPr
       </div>
 
       <div ref={containerRef} className="overflow-hidden rounded-lg bg-gray-100">
-        {failed ? (
+        {kind === 'loading' && (
+          <div className="px-4 py-12 text-center text-sm text-gray-500">Loading document…</div>
+        )}
+
+        {(kind === 'failed' || kind === 'other') && (
           <div className="flex flex-col items-center gap-2 px-4 py-12 text-center text-sm text-gray-500">
             <DocumentTextIcon className="h-8 w-8 text-gray-300" />
-            <p>This document can’t be previewed here.</p>
+            <p>
+              {kind === 'other'
+                ? `This ${docNoun} can’t be previewed here.`
+                : 'This document can’t be previewed here.'}
+            </p>
             <a
               href={url}
               target="_blank"
@@ -102,18 +170,20 @@ export default function DocumentViewer({ url, label, caption }: DocumentViewerPr
               className="inline-flex items-center gap-1.5 font-medium text-[#1d6b5f] hover:underline"
             >
               <ArrowTopRightOnSquareIcon className="h-4 w-4" />
-              Open the original document →
+              Open the original {kind === 'other' ? docNoun : 'document'} →
             </a>
           </div>
-        ) : (
+        )}
+
+        {kind === 'pdf' && pdfFile && (
           <Document
-            file={fileUrl}
+            file={pdfFile}
             options={PDF_OPTIONS}
             onLoadSuccess={({ numPages }) => {
               setNumPages(numPages)
               setPageNumber(1)
             }}
-            onLoadError={() => setFailed(true)}
+            onLoadError={() => setKind('failed')}
             loading={<div className="px-4 py-12 text-center text-sm text-gray-500">Loading document…</div>}
             error={<div className="px-4 py-12 text-center text-sm text-gray-500">Couldn’t load this document.</div>}
             className="flex justify-center"
@@ -129,7 +199,7 @@ export default function DocumentViewer({ url, label, caption }: DocumentViewerPr
       </div>
 
       {/* Page navigation — only meaningful for multi-page documents. */}
-      {!failed && numPages > 1 && (
+      {kind === 'pdf' && numPages > 1 && (
         <div className="mt-3 flex items-center justify-center gap-4 text-sm text-gray-600">
           <button
             onClick={goPrev}

@@ -58,7 +58,22 @@ select
     rtrim(state_code)                                      as state_code,
     {{ state_code_to_name('rtrim(state_code)') }}          as state,
     doc_type                                               as document_type,
-    url                                                    as document_url,
+    -- Canonicalize the decorative document-title path segment between 'GetXFile/'
+    -- and '?' down to its keyword. SuiteOne serves the file purely by the mid/aid
+    -- query param, but older portal rows pollute the label with the meeting date,
+    -- e.g. '.../GetAgendaFile/11/2/21%20Agenda?aid=4748' (embedded slashes/spaces
+    -- 404 the link) or '.../GetMinutesFile/Synopsis%20?mid=5048'. Collapsing the
+    -- label to its keyword (preserving Minutes vs Synopsis) makes the link route;
+    -- this subsumes the earlier trailing-whitespace cleanup. url_sha256 (and the
+    -- surrogate key derived from it) intentionally still hash the RAW url, so this
+    -- display cleanup doesn't churn keys. The scraper is fixed at the source too
+    -- (suiteone.portal._normalize_doc_url) so future crawls land clean urls.
+    regexp_replace(
+        url,
+        '(/event/Get(?:Agenda|Minutes|Document)File/)[^?]*?(Agenda|Minutes|Synopsis|Packet)[^?]*(\?|$)',
+        '\1\2\3',
+        'i'
+    )                                                      as document_url,
     meeting_date                                           as doc_date,
     meeting_title,
     -- Canonical body category for date+body matching downstream.

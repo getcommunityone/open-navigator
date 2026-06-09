@@ -255,7 +255,7 @@ def calculate_stats(state: Optional[str] = None,
     except Exception as e:
         logger.error(f"Error counting jurisdictions/nonprofits/events from public schema: {e}")
     
-    # Count contacts (officials) from the public.contact_official table — replaces
+    # Count contacts (officials) from the contact_official table — replaces
     # the retired gold officials parquet feed (data/gold/contact_official.parquet).
     # state -> state_code (2-letter); city -> jurisdiction ILIKE.
     contacts = 0
@@ -272,14 +272,14 @@ def calculate_stats(state: Optional[str] = None,
             params.append(f"%{city}%")
         where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
         cursor.execute(
-            f"SELECT count(*) FROM public.contact_official WHERE {where_sql}", params
+            f"SELECT count(*) FROM contact_official WHERE {where_sql}", params
         )
         row = cursor.fetchone()
         contacts = row[0] if row else 0
         cursor.close()
         conn.close()
     except Exception as e:
-        logger.error(f"Error counting contacts from public.contact_official: {e}")
+        logger.error(f"Error counting contacts from contact_official: {e}")
         contacts = 0
     
     # Count causes (NTEE cause taxonomy - always national).
@@ -496,10 +496,10 @@ async def get_detailed_stats(
                 for sc, cnt in cursor.fetchall():
                     states.setdefault(sc, {})['meetings'] = cnt
 
-                # contacts_nonprofit_officers -> public.mdm_bridge_person_organization
+                # contacts_nonprofit_officers -> mdm_bridge_person_organization
                 # (Form-990 officers) grouped by state_code.
                 cursor.execute(
-                    "SELECT state_code, count(*) FROM public.mdm_bridge_person_organization "
+                    "SELECT state_code, count(*) FROM mdm_bridge_person_organization "
                     "WHERE state_code IS NOT NULL GROUP BY state_code"
                 )
                 for sc, cnt in cursor.fetchall():

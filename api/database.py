@@ -29,6 +29,33 @@ DATABASE_URL = os.getenv(
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
+# ---------------------------------------------------------------------------
+# Serving schema (gold/public split).
+#
+# The warehouse is split into two Postgres schemas in open_navigator:
+#   * `public` — ONLY the API-served relations, as views over gold; the
+#     person-graph PII is absent and `contact_official` is PII-light. This is
+#     what the PUBLIC API serves (default).
+#   * `gold`   — the FULL warehouse (incl. the person graph, un-redacted). A
+#     PRIVATE/internal API instance reads this by setting API_DB_SCHEMA=gold.
+#
+# API_DB_SCHEMA names the DATA schema (default `public`). Table references in
+# route SQL are UNqualified so they resolve via search_path. The data pools
+# (asyncpg) use `search_path = <API_DB_SCHEMA>, public` — the data schema first,
+# `public` as the fallback for the operational/ORM tables (user/social_follows/
+# prefs) which ALWAYS live in public. The ORM engine below uses `public` FIRST
+# so auth tables never get shadowed into gold by create_all.
+# See dbt_project/macros/publish_public_serving.sql.
+# ---------------------------------------------------------------------------
+DB_SCHEMA = os.getenv("API_DB_SCHEMA", "public").strip() or "public"
+# NOTE: no spaces in these search_path strings — they feed libpq's `-csearch_path=`
+# options below, and libpq splits the options value on whitespace (a space turns
+# "public, gold" into the malformed search_path "public,"). Commas only.
+#: search_path for raw DATA reads (asyncpg pools): data schema first, public fallback.
+DATA_SEARCH_PATH = DB_SCHEMA if DB_SCHEMA == "public" else f"{DB_SCHEMA},public"
+#: search_path for the ORM/auth engine: public FIRST so operational tables stay in public.
+_ORM_SEARCH_PATH = "public" if DB_SCHEMA == "public" else f"public,{DB_SCHEMA}"
+
 # Create engine
 if "sqlite" in DATABASE_URL:
     # SQLite needs special handling for concurrent access
@@ -44,6 +71,9 @@ else:
         pool_pre_ping=True,
         pool_size=10,
         max_overflow=20,
+        # Pin the ORM/auth search_path (public-first) so Base.metadata.create_all
+        # always targets public even when a private instance serves data from gold.
+        connect_args={"options": f"-csearch_path={_ORM_SEARCH_PATH}"},
     )
 
 # Create session factory

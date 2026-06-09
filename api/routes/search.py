@@ -30,7 +30,7 @@ from scripts.utils.calendar_year_util import calendar_year_label
 from api.routes import search_postgres
 
 # Import HuggingFace Search helpers
-# (search_contacts_hf removed: officials now come from public.contact_official via
+# (search_contacts_hf removed: officials now come from contact_official via
 # search_postgres.search_officials_pg, not the HF/parquet officials feed.)
 from api.routes.hf_search import (
     search_organizations_hf,
@@ -73,10 +73,10 @@ _count_cache_ttl = {}
 PERSON_COUNT_CAP = 1000
 
 # Scope cut (Neon free-tier storage): the "persons" category serves
-# public.mdm_person (~13.8M rows) plus its bridges and 990 compensation records —
+# mdm_person (~13.8M rows) plus its bridges and 990 compensation records —
 # ~38 GB and almost entirely NON-government people (nonprofit officers, residents).
 # Government leaders are served separately by the "leaders" category
-# (public.contact_official). With this flag False, "persons" is stripped from
+# (contact_official). With this flag False, "persons" is stripped from
 # every search so mdm_person / mdm_bridge_person_* / organization_nonprofit_compensation
 # never get queried — and therefore don't need to be mirrored to Neon. Flip to
 # True to restore full people search once storage allows.
@@ -289,7 +289,7 @@ def convert_pg_result(pg_result: search_postgres.SearchResult) -> 'SearchResult'
 
 
 # NOTE: officials search moved to search_postgres.search_officials_pg
-# (public.contact_official, title-aware). The old parquet/DuckDB-backed
+# (contact_official, title-aware). The old parquet/DuckDB-backed
 # search_contacts_duckdb() and its search_contacts() HF/DuckDB wrapper were
 # removed when the gold officials parquet feed
 # (data/gold/states/<ST>/contact_official.parquet, consolidated
@@ -392,7 +392,7 @@ async def count_leaders(
     """Count government officials matching the leaders search filters.
 
     Mirrors the WHERE predicates of search_postgres.search_officials_pg
-    (public.contact_official): the same state_code filter, the same additive
+    (contact_official): the same state_code filter, the same additive
     `jurisdiction ILIKE %city%` city scope, and the same name/title/jurisdiction
     ILIKE for a query. Used to report an HONEST type_total for the "leaders"
     category so pagination (total_pages / has_next) reflects the real match
@@ -474,7 +474,7 @@ async def count_persons(
     """Count resolved people matching the persons search filters.
 
     Mirrors the WHERE predicates of search_postgres.search_persons_pg
-    (public.mdm_person): the direct state_code filter, the jurisdiction_id /
+    (mdm_person): the direct state_code filter, the jurisdiction_id /
     city scope through mdm_bridge_person_jurisdiction, the name ILIKE, and the
     org-name anti-join (NOT EXISTS on mdm_organization.org_name_norm). Counts
     DISTINCT resolved people (master_person_id) to match the search's
@@ -760,7 +760,7 @@ async def unified_search(
         if 'persons' in requested_types:
             search_tasks.append(('persons', search_postgres.search_persons_pg(q, state, city=city, jurisdiction_id=jurisdiction_id, limit=search_limit)))
 
-        # "leaders" — elected/appointed government officials (public.contact_official),
+        # "leaders" — elected/appointed government officials (contact_official),
         # title-aware so a query like "Mayor" returns officials (result_type='leader').
         # This is now its OWN category, distinct from "persons". (Aliases
         # 'contacts'/'officials' already normalized to 'leaders' above.)

@@ -220,7 +220,19 @@ export default function Home() {
   const catRef = useRef<HTMLDivElement>(null)
 
   const DOCS_URL = import.meta.env.PROD ? 'https://www.communityone.com/docs/intro' : 'http://localhost:3000/docs/intro'
-  
+
+  // After OAuth returns to '/', honor a pending "set up my feed" intent stashed
+  // before the redirect (from the Close-to-Home gate) and forward to the wizard.
+  // We send the user even if profile_completed is already true, so the click
+  // doubles as an "edit my feed" entry (the wizard pre-fills from config).
+  useEffect(() => {
+    if (isLoading || !isAuthenticated) return
+    if (localStorage.getItem('feed_setup_intent') === '1') {
+      localStorage.removeItem('feed_setup_intent')
+      navigate('/feed-setup')
+    }
+  }, [isLoading, isAuthenticated, navigate])
+
   // Debounce keyword input (300ms delay)
   useEffect(() => {
     const timer = setTimeout(() => {

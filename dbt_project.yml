@@ -38,8 +38,11 @@ models:
       +materialized: table
       +schema: intermediate
 
+    # Full warehouse builds into `gold` (private/internal set); the public API
+    # reads thin views in `public` published over gold. Mirror of dbt_project/dbt_project.yml.
     marts:
       +materialized: incremental
+      +schema: gold
       +on_schema_change: sync_all_columns
       +unique_key: id
 
