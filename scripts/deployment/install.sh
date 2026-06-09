@@ -5,33 +5,64 @@ echo "🦷 CommunityOne Open Navigator - Installation Script"
 echo "=================================================="
 echo ""
 
-# Install system-level OCR dependency when possible
-echo "Checking for Tesseract OCR..."
-if command -v tesseract &> /dev/null; then
-    echo "✓ Tesseract already installed: $(tesseract --version | head -n 1)"
-else
-    echo "Tesseract not found. Attempting automatic install..."
-    if command -v apt-get &> /dev/null; then
-        if [ "$(id -u)" -eq 0 ]; then
-            apt-get update && apt-get install -y tesseract-ocr
-        elif command -v sudo &> /dev/null; then
-            sudo apt-get update && sudo apt-get install -y tesseract-ocr
-        else
-            echo "⚠ Could not auto-install Tesseract (no root/sudo)."
-            echo "  Install manually: apt-get install -y tesseract-ocr"
-        fi
-    elif command -v brew &> /dev/null; then
-        brew install tesseract || true
+# Install system-level dependencies when possible.
+#
+# Two things need OS packages, not just pip:
+#   - Tesseract OCR        (runtime, for the OCR fallback)
+#   - libxml2 + libxslt    (build-time headers for lxml — pip compiles lxml
+#                           from source on distros without a matching wheel,
+#                           e.g. a fresh Fedora, and the build fails without
+#                           the *-devel/*-dev headers + a C compiler)
+#
+# run_root: run a privileged command as root directly, via sudo, or warn.
+run_root() {
+    if [ "$(id -u)" -eq 0 ]; then
+        "$@"
+    elif command -v sudo &> /dev/null; then
+        sudo "$@"
     else
-        echo "⚠ Unsupported package manager for automatic Tesseract install."
-        echo "  Install manually, then re-run setup."
+        echo "⚠ Need root to run: $*"
+        echo "  Re-run as root, or run that command manually, then re-run setup."
+        return 1
     fi
+}
 
-    if command -v tesseract &> /dev/null; then
-        echo "✓ Tesseract installed: $(tesseract --version | head -n 1)"
-    else
-        echo "⚠ Tesseract is still missing. OCR fallback will remain disabled."
-    fi
+echo "Checking system dependencies (Tesseract OCR + libxml2/libxslt headers)..."
+if command -v apt-get &> /dev/null; then
+    # Debian/Ubuntu. libxslt1-dev pulls in libxml2-dev; build-essential gives the compiler.
+    run_root apt-get update || true
+    run_root apt-get install -y tesseract-ocr libxml2-dev libxslt1-dev build-essential || \
+        echo "⚠ Could not auto-install system deps via apt-get; install them manually if pip fails on lxml."
+elif command -v dnf &> /dev/null; then
+    # Fedora/RHEL/CentOS Stream.
+    run_root dnf install -y tesseract libxml2-devel libxslt-devel gcc python3-devel || \
+        echo "⚠ Could not auto-install system deps via dnf; install them manually if pip fails on lxml."
+elif command -v yum &> /dev/null; then
+    # Older RHEL/CentOS.
+    run_root yum install -y tesseract libxml2-devel libxslt-devel gcc python3-devel || \
+        echo "⚠ Could not auto-install system deps via yum; install them manually if pip fails on lxml."
+elif command -v pacman &> /dev/null; then
+    # Arch.
+    run_root pacman -Sy --noconfirm tesseract libxml2 libxslt gcc || \
+        echo "⚠ Could not auto-install system deps via pacman; install them manually if pip fails on lxml."
+elif command -v zypper &> /dev/null; then
+    # openSUSE.
+    run_root zypper install -y tesseract-ocr libxml2-devel libxslt-devel gcc python3-devel || \
+        echo "⚠ Could not auto-install system deps via zypper; install them manually if pip fails on lxml."
+elif command -v brew &> /dev/null; then
+    # macOS. Homebrew ships lxml wheels via pip normally, but keep the libs handy.
+    brew install tesseract libxml2 libxslt || true
+else
+    echo "⚠ Unsupported package manager. Install these manually before continuing:"
+    echo "    - tesseract (OCR)"
+    echo "    - libxml2 + libxslt development headers (libxml2-devel/libxslt-devel or libxml2-dev/libxslt1-dev)"
+    echo "    - a C compiler (gcc) + Python development headers"
+fi
+
+if command -v tesseract &> /dev/null; then
+    echo "✓ Tesseract available: $(tesseract --version | head -n 1)"
+else
+    echo "⚠ Tesseract is still missing. OCR fallback will remain disabled."
 fi
 
 # Check Python version
