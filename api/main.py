@@ -233,50 +233,51 @@ async def favicon():
 # Custom Exception Handlers for better error messages
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from api.error_pages import error_response
 
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
-    """Handle HTTP exceptions with user-friendly messages"""
+    """Handle HTTP exceptions with user-friendly, content-negotiated messages."""
     if exc.status_code == 404:
-        return JSONResponse(
+        return error_response(
+            request,
             status_code=404,
-            content={
-                "error": "Not Found",
-                "message": f"The requested resource '{request.url.path}' was not found.",
-                "path": request.url.path,
-                "suggestion": "Check the URL and try again, or visit /docs for available endpoints.",
-                "documentation": "/docs",
-                "support": "johnbowyer@communityone.com"
-            }
+            title="Page not found",
+            message=f"We couldn't find '{request.url.path}'.",
+            suggestion="Check the link and try again, or head back to the homepage.",
+            extra={"documentation": "/docs"},
         )
     elif exc.status_code == 401:
-        return JSONResponse(
+        return error_response(
+            request,
             status_code=401,
-            content={
-                "error": "Unauthorized",
-                "message": exc.detail or "Authentication required to access this resource.",
-                "suggestion": "Please log in or provide valid credentials.",
-                "login": "/api/auth/google"
-            }
+            title="Sign-in required",
+            message=exc.detail or "You need to be signed in to access this.",
+            suggestion="Please sign in and try again.",
+            extra={"login": "/api/auth/login/google"},
         )
     elif exc.status_code == 403:
-        return JSONResponse(
+        return error_response(
+            request,
             status_code=403,
-            content={
-                "error": "Forbidden",
-                "message": exc.detail or "You don't have permission to access this resource.",
-                "suggestion": "Contact support if you believe this is an error.",
-                "support": "johnbowyer@communityone.com"
-            }
+            title="Access denied",
+            message=exc.detail or "You don't have permission to access this.",
+            suggestion="Contact support if you believe this is a mistake.",
+        )
+    elif exc.status_code == 503:
+        return error_response(
+            request,
+            status_code=503,
+            title="Temporarily unavailable",
+            message=exc.detail or "This service is temporarily unavailable.",
+            suggestion="Please try again in a few minutes.",
         )
     else:
-        return JSONResponse(
+        return error_response(
+            request,
             status_code=exc.status_code,
-            content={
-                "error": exc.detail or "An error occurred",
-                "status_code": exc.status_code,
-                "path": request.url.path
-            }
+            title=str(exc.detail) if exc.detail else "Something went wrong",
+            message=str(exc.detail) if exc.detail else "An error occurred while processing your request.",
         )
 
 @app.exception_handler(RequestValidationError)
@@ -290,31 +291,26 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
             "message": error["msg"],
             "type": error["type"]
         })
-    
-    return JSONResponse(
+
+    return error_response(
+        request,
         status_code=422,
-        content={
-            "error": "Validation Error",
-            "message": "The request data is invalid. Please check the fields below.",
-            "errors": errors,
-            "suggestion": "Review the error details and correct the invalid fields.",
-            "documentation": "/docs"
-        }
+        title="Validation Error",
+        message="The request data is invalid. Please check the fields and try again.",
+        suggestion="Review the error details and correct the invalid fields.",
+        extra={"errors": errors, "documentation": "/docs"},
     )
 
 @app.exception_handler(500)
 async def internal_server_error_handler(request: Request, exc: Exception):
-    """Handle internal server errors with generic message (hide details from users)"""
+    """Handle internal server errors with a generic message (hide details from users)."""
     logger.error(f"Internal server error on {request.url.path}: {exc}")
-    return JSONResponse(
+    return error_response(
+        request,
         status_code=500,
-        content={
-            "error": "Internal Server Error",
-            "message": "Something went wrong on our end. We've been notified and are working to fix it.",
-            "path": request.url.path,
-            "suggestion": "Please try again later or contact support if the problem persists.",
-            "support": "johnbowyer@communityone.com"
-        }
+        title="Something went wrong",
+        message="Something went wrong on our end. We've been notified and are working to fix it.",
+        suggestion="Please try again in a little while. If it keeps happening, email support and we'll help.",
     )
 
 

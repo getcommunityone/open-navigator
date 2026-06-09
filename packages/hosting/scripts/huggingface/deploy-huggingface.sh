@@ -13,6 +13,35 @@
 
 set -e
 
+# --- Run in an isolated clone so the LIVE serving checkout is never touched ----
+# This script does destructive git surgery (orphan branch, `rm --cached`, autostash,
+# force-push). The deployment panel/orchestrator launches it from the SAME checkout
+# the dev servers (API :8000, Vite :5173) run from, so doing that surgery in place
+# yanks files out from under the running site and crashes it. Re-exec inside a
+# throwaway local clone instead: the deploy publishes committed `main` (not your
+# uncommitted work), so a `--local` clone reproduces exactly what would be deployed
+# while leaving the live checkout — and the running servers — completely alone.
+if [ -z "$HF_DEPLOY_ISOLATED" ]; then
+    SRC_ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || SRC_ROOT=""
+    if [ -n "$SRC_ROOT" ]; then
+        CLONE_DIR=$(mktemp -d -t hf-deploy-XXXXXX)
+        trap 'rm -rf "$CLONE_DIR" 2>/dev/null || true' EXIT
+        echo "🧬 Isolating deploy in a throwaway clone (live checkout untouched):"
+        echo "   $CLONE_DIR"
+        echo ""
+        # --local hardlinks objects (fast, cheap) and carries all committed history.
+        git clone --quiet --local "$SRC_ROOT" "$CLONE_DIR"
+        # Carry over gitignored .env so HF_USERNAME / HF_TOKEN are available in the clone.
+        [ -f "$SRC_ROOT/.env" ] && cp "$SRC_ROOT/.env" "$CLONE_DIR/.env"
+        cd "$CLONE_DIR"
+        set +e
+        HF_DEPLOY_ISOLATED=1 bash "packages/hosting/scripts/huggingface/deploy-huggingface.sh" "$@"
+        rc=$?
+        set -e
+        exit $rc
+    fi
+fi
+
 # Load environment variables from .env file if it exists
 if [ -f ".env" ]; then
     echo "📝 Loading environment variables from .env..."
@@ -303,10 +332,24 @@ git rm -rf --cached . 2>/dev/null || true
 git add -f Dockerfile README_HF.md .huggingface/ .gitignore .dockerignore
 
 # Add source code WITHOUT -f to respect .gitignore (excludes node_modules automatically)
-git add agents/ api/ config/ discovery/ extraction/ pipeline/ scripts/ tests/ visualization/
-git add databricks/ examples/ models/ neon/ notebooks/
-git add requirements*.txt setup.py main.py Makefile *.sh *.md *.yml *.yaml
-git add CITATIONS.md CONTRIBUTING.md LICENSE INTEL_ARC_QUICKSTART.md
+# Only add directories that exist — some top-level trees were relocated into packages/
+# during the scripts/ -> packages/ refactor, and `git add` aborts (exit 128) on any
+# pathspec that matches zero files.
+for d in agents api config discovery extraction packages pipeline scripts tests visualization \
+         databricks examples models neon notebooks; do
+    [ -d "$d" ] && git add "$d"
+done
+# Add top-level files. Use nullglob so unmatched globs expand to nothing
+# (a bare `git add *.yaml` with no match would otherwise abort with exit 128),
+# and guard each literal so a since-removed file (e.g. INTEL_ARC_QUICKSTART.md)
+# can't fail the whole deploy.
+shopt -s nullglob
+for f in requirements*.txt *.sh *.md *.yml *.yaml \
+         setup.py main.py Makefile \
+         CITATIONS.md CONTRIBUTING.md LICENSE INTEL_ARC_QUICKSTART.md; do
+    [ -e "$f" ] && git add "$f"
+done
+shopt -u nullglob
 
 # Add web_app/web_docs source EXCLUDING node_modules (gitignore handles this)
 echo "🧹 Adding web_app/web_docs sources (node_modules auto-excluded by .gitignore)..."
@@ -321,23 +364,60 @@ if [ "$NODE_MODULES_COUNT" -gt 0 ]; then
 fi
 echo "✅ Verified: No node_modules in staging area"
 
+# HF Spaces reject non-LFS files > 10 MiB (pre-receive hook). Drop any oversized
+# staged file so the push isn't declined — this is a "clean deployment without
+# binary files", so large assets (e.g. api/static/wikicommons/*.jpg) don't belong.
+echo "🧹 Dropping any staged files larger than 10 MiB (HF hard limit)..."
+_oversized=0
+while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    sz=$(git cat-file -s ":$f" 2>/dev/null || echo 0)
+    if [ "$sz" -gt 10485760 ]; then
+        echo "   ⚠️  Excluding $((sz / 1048576)) MB file: $f"
+        git rm --cached --quiet -- "$f" 2>/dev/null || true
+        _oversized=$((_oversized + 1))
+    fi
+done < <(git diff --cached --name-only)
+echo "✅ Oversized files excluded: ${_oversized}"
+
+# HF (Xet) rejects RAW binary files of any size — to keep them you'd need LFS/Xet.
+# This is a "clean deployment without binary files", and every binary asset here
+# lives under public/ or static/ (served by path, never import-ed into the build),
+# so dropping them is build-safe; only some runtime images/favicon go missing.
+# git flags binary blobs as '-\t-' in numstat — use that, extension-agnostic.
+echo "🧹 Dropping staged binary files (HF Xet rejects raw binaries)..."
+_bin=0
+while IFS=$'\t' read -r add del path; do
+    if [ "$add" = "-" ] && [ "$del" = "-" ] && [ -n "$path" ]; then
+        git rm --cached --quiet -- "$path" 2>/dev/null || true
+        _bin=$((_bin + 1))
+    fi
+done < <(git diff --cached --numstat)
+echo "✅ Binary files excluded: ${_bin}"
+
 echo "💾 Committing clean deployment (no git history)..."
 git commit -m "Clean HuggingFace deployment without binary files" --allow-empty
 
-# Add HF remote if it doesn't exist
-if git remote get-url $HF_REMOTE &> /dev/null; then
-    echo "✅ Hugging Face remote already configured ($HF_REMOTE)"
-else
-    echo "🔗 Adding Hugging Face remote ($HF_REMOTE)..."
-    git remote add $HF_REMOTE "$HF_REPO"
+# Push to Hugging Face — token-authenticated, NON-interactive.
+# Without an embedded token git falls back to an interactive credential prompt
+# (e.g. VSCode's GIT_ASKPASS asking "Username for https://huggingface.co"), which
+# hangs FOREVER in a non-TTY deploy job. Require HF_TOKEN, embed it in the push
+# URL, and disable any prompt so a missing/invalid token fails fast instead.
+if [ -z "$HF_TOKEN" ]; then
+    echo "❌ Error: HF_TOKEN is not set — cannot push to the Space non-interactively."
+    echo "   Add HF_TOKEN to .env (or the environment) and re-run."
+    exit 1
 fi
+export GIT_TERMINAL_PROMPT=0
+export GIT_ASKPASS=/bin/echo
+export GIT_CONFIG_PARAMETERS="'credential.helper='"  # ignore any interactive helper
+PUSH_URL="https://${HF_USERNAME}:${HF_TOKEN}@huggingface.co/spaces/${HF_USERNAME}/${SPACE_NAME}"
 
-# Push to Hugging Face
 echo ""
 echo "📤 Pushing to Hugging Face Spaces..."
 echo "This will trigger a build (takes ~10-15 minutes)"
 echo ""
-git push $HF_REMOTE huggingface-deploy:main --force
+git push "$PUSH_URL" huggingface-deploy:main --force
 
 echo ""
 echo "✅ Deployment initiated!"

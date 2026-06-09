@@ -119,13 +119,13 @@ Contributing and development:
 
 ```bash
 # Clone and install
-git clone https://github.com/getcommunityone/open-navigator-for-engagement.git
-cd oral-health-policy-pulse
+git clone https://github.com/getcommunityone/open-navigator.git
+cd open-navigator
 ./install.sh
 
 # Install frontend and docs
-cd frontend && npm install && cd ..
-cd website && npm install && cd ..
+cd web_app && npm install && cd ..
+cd web_docs && npm install && cd ..
 
 # Start all services
 ./start-all.sh
