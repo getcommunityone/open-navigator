@@ -66,11 +66,15 @@ RUN cd /app/web_app && npm ci
 # Copy application code (now npm ci layer is cached)
 COPY . .
 
-# Install workspace kernel packages so config/agents/models import as
-# top-level modules at runtime (--no-deps keeps the dependency closure unchanged).
-# packages/scrapers is required because the API lazily imports
-# scrapers.irs.nonprofit_discovery (formerly scripts.datasources.irs.*).
-RUN pip install --no-cache-dir --no-deps ./packages/core ./packages/datamodels ./packages/agents ./packages/scrapers
+# Install ALL workspace packages so they import as top-level modules at runtime
+# (--no-deps keeps the dependency closure unchanged — their third-party deps are
+# pinned in requirements.txt). The API eagerly imports agents, ingestion and llm
+# in api/main.py / routes, and lazily imports scrapers; installing the whole set
+# avoids a startup ModuleNotFoundError when any package imports a sibling package.
+RUN pip install --no-cache-dir --no-deps \
+    ./packages/core ./packages/core-lib ./packages/datamodels ./packages/agents \
+    ./packages/scrapers ./packages/ingestion ./packages/llm \
+    ./packages/accessibility ./packages/hosting
 
 # Copy built static files from docs stage
 COPY --from=docs-builder /build/build /app/static/docs
