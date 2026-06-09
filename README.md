@@ -88,6 +88,21 @@ cd web_docs && npm install && cd .. # Documentation
 ./start-all.sh                      # API (8000) + App (5173) + Docs (3000)
 ```
 
+**On Windows**, use the PowerShell equivalents (the `.sh` scripts and `make`
+targets are Unix-only):
+
+```powershell
+.\install.ps1                       # Python backend (creates venv + .env)
+cd web_app;  npm install; cd ..
+cd web_docs; npm install; cd ..
+.\start-all.ps1                     # API (8000) + App (5173) + Docs (3000)
+```
+
+> **Don't run `uv sync` to install the backend** — the root `pyproject.toml` is a
+> uv *workspace* and `uv sync` skips the top-level `requirements.txt` (the
+> `pytest`/`black`/`ruff` tooling and `yt-dlp`). Use `install.sh` / `install.ps1`
+> / `pip install -r requirements.txt`.
+
 **👉 See the [Quick Start Guide](http://localhost:3000/docs/quickstart) for full setup
 instructions** — prerequisites, the `.env` configuration tiers, Makefile and manual
 install options, access points, and how to stop the services.

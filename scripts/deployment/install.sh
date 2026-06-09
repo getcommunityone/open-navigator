@@ -75,6 +75,22 @@ fi
 PYTHON_VERSION=$(python3 --version | cut -d' ' -f2 | cut -d'.' -f1,2)
 echo "✓ Found Python $PYTHON_VERSION"
 
+# Python 3.14+ compatibility: some transitive deps (e.g. `whenever`) build a
+# Rust extension via PyO3, which currently supports up to Python 3.13. On 3.14+
+# that build hard-fails ("configured Python interpreter version is newer than
+# PyO3's maximum supported version"). Tell those packages to skip the Rust
+# extension and fall back to their (slower) pure-Python implementation so the
+# install still succeeds.
+PYTHON_MINOR=$(echo "$PYTHON_VERSION" | cut -d'.' -f2)
+if [ "${PYTHON_MINOR:-0}" -ge 14 ]; then
+    echo "⚠ Python $PYTHON_VERSION detected — newer than PyO3's max supported (3.13)."
+    echo "  Forcing pure-Python builds for Rust-backed deps (whenever) to avoid build failures."
+    export WHENEVER_NO_BUILD_RUST_EXT=1
+    # Belt-and-suspenders: if a dep still tries to compile against the stable ABI,
+    # let PyO3 build forward-compatibly instead of erroring out.
+    export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
+fi
+
 # Create virtual environment
 echo ""
 echo "Creating virtual environment..."
